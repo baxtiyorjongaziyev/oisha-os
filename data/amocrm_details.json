@@ -1,0 +1,519 @@
+{
+  "_total_items": 4,
+  "_links": {
+    "self": {
+      "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines"
+    }
+  },
+  "_embedded": {
+    "pipelines": [
+      {
+        "id": 10117998,
+        "name": "Hunter bosqichlari",
+        "sort": 1,
+        "is_main": true,
+        "is_unsorted_on": true,
+        "is_archive": false,
+        "account_id": 32681154,
+        "_links": {
+          "self": {
+            "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10117998"
+          }
+        },
+        "_embedded": {
+          "statuses": [
+            {
+              "id": 80178214,
+              "name": "Неразобранное",
+              "sort": 10,
+              "is_editable": false,
+              "pipeline_id": 10117998,
+              "color": "#c1c1c1",
+              "type": 1,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10117998/statuses/80178214"
+                }
+              }
+            },
+            {
+              "id": 80178218,
+              "name": "Yangi lid",
+              "sort": 20,
+              "is_editable": true,
+              "pipeline_id": 10117998,
+              "color": "#99ccff",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10117998/statuses/80178218"
+                }
+              }
+            },
+            {
+              "id": 81332478,
+              "name": "Bog'lanib bo'lmadi",
+              "sort": 30,
+              "is_editable": true,
+              "pipeline_id": 10117998,
+              "color": "#ffdbdb",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10117998/statuses/81332478"
+                }
+              }
+            },
+            {
+              "id": 81518994,
+              "name": "Qayta aloqa",
+              "sort": 40,
+              "is_editable": true,
+              "pipeline_id": 10117998,
+              "color": "#ffeab2",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10117998/statuses/81518994"
+                }
+              }
+            },
+            {
+              "id": 80178222,
+              "name": "Aloqa qilindi",
+              "sort": 50,
+              "is_editable": true,
+              "pipeline_id": 10117998,
+              "color": "#ffff99",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10117998/statuses/80178222"
+                }
+              }
+            },
+            {
+              "id": 80178226,
+              "name": "Qiziqish bildirildi",
+              "sort": 60,
+              "is_editable": true,
+              "pipeline_id": 10117998,
+              "color": "#ffcc66",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10117998/statuses/80178226"
+                }
+              }
+            },
+            {
+              "id": 80178230,
+              "name": "uchrashuv belgilandi",
+              "sort": 70,
+              "is_editable": true,
+              "pipeline_id": 10117998,
+              "color": "#ffcccc",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10117998/statuses/80178230"
+                }
+              }
+            },
+            {
+              "id": 142,
+              "name": "Успешно реализовано",
+              "sort": 10000,
+              "is_editable": false,
+              "pipeline_id": 10117998,
+              "color": "#CCFF66",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10117998/statuses/142"
+                }
+              }
+            },
+            {
+              "id": 143,
+              "name": "Закрыто и не реализовано",
+              "sort": 11000,
+              "is_editable": false,
+              "pipeline_id": 10117998,
+              "color": "#D5D8DB",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10117998/statuses/143"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": 10123314,
+        "name": "Closer bosqichlari",
+        "sort": 2,
+        "is_main": false,
+        "is_unsorted_on": true,
+        "is_archive": false,
+        "account_id": 32681154,
+        "_links": {
+          "self": {
+            "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123314"
+          }
+        },
+        "_embedded": {
+          "statuses": [
+            {
+              "id": 80215314,
+              "name": "Неразобранное",
+              "sort": 10,
+              "is_editable": false,
+              "pipeline_id": 10123314,
+              "color": "#c1c1c1",
+              "type": 1,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123314/statuses/80215314"
+                }
+              }
+            },
+            {
+              "id": 80215318,
+              "name": "Konsultatsiya o‘tdi",
+              "sort": 20,
+              "is_editable": true,
+              "pipeline_id": 10123314,
+              "color": "#99ccff",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123314/statuses/80215318"
+                }
+              }
+            },
+            {
+              "id": 80215322,
+              "name": "Tijorat taklifi yuborildi",
+              "sort": 30,
+              "is_editable": true,
+              "pipeline_id": 10123314,
+              "color": "#ffff99",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123314/statuses/80215322"
+                }
+              }
+            },
+            {
+              "id": 80215426,
+              "name": "Kelishildi",
+              "sort": 40,
+              "is_editable": true,
+              "pipeline_id": 10123314,
+              "color": "#99ccff",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123314/statuses/80215426"
+                }
+              }
+            },
+            {
+              "id": 80215430,
+              "name": "Dastlabki to‘lov",
+              "sort": 50,
+              "is_editable": true,
+              "pipeline_id": 10123314,
+              "color": "#99ccff",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123314/statuses/80215430"
+                }
+              }
+            },
+            {
+              "id": 142,
+              "name": "Успешно реализовано",
+              "sort": 10000,
+              "is_editable": false,
+              "pipeline_id": 10123314,
+              "color": "#CCFF66",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123314/statuses/142"
+                }
+              }
+            },
+            {
+              "id": 143,
+              "name": "Закрыто и не реализовано",
+              "sort": 11000,
+              "is_editable": false,
+              "pipeline_id": 10123314,
+              "color": "#D5D8DB",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123314/statuses/143"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": 10123318,
+        "name": "Farmer bosqichlari",
+        "sort": 3,
+        "is_main": false,
+        "is_unsorted_on": true,
+        "is_archive": false,
+        "account_id": 32681154,
+        "_links": {
+          "self": {
+            "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123318"
+          }
+        },
+        "_embedded": {
+          "statuses": [
+            {
+              "id": 80215330,
+              "name": "Неразобранное",
+              "sort": 10,
+              "is_editable": false,
+              "pipeline_id": 10123318,
+              "color": "#c1c1c1",
+              "type": 1,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123318/statuses/80215330"
+                }
+              }
+            },
+            {
+              "id": 80215334,
+              "name": "Ish jarayoni",
+              "sort": 20,
+              "is_editable": true,
+              "pipeline_id": 10123318,
+              "color": "#99ccff",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123318/statuses/80215334"
+                }
+              }
+            },
+            {
+              "id": 80215338,
+              "name": "Topshirish / Yakuniy to‘lov",
+              "sort": 30,
+              "is_editable": true,
+              "pipeline_id": 10123318,
+              "color": "#ffff99",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123318/statuses/80215338"
+                }
+              }
+            },
+            {
+              "id": 80215342,
+              "name": "After-sales",
+              "sort": 40,
+              "is_editable": true,
+              "pipeline_id": 10123318,
+              "color": "#ffcc66",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123318/statuses/80215342"
+                }
+              }
+            },
+            {
+              "id": 80215438,
+              "name": "Keyinchalik qayta bog‘lanish mumkin",
+              "sort": 50,
+              "is_editable": true,
+              "pipeline_id": 10123318,
+              "color": "#99ccff",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123318/statuses/80215438"
+                }
+              }
+            },
+            {
+              "id": 142,
+              "name": "Успешно реализовано",
+              "sort": 10000,
+              "is_editable": false,
+              "pipeline_id": 10123318,
+              "color": "#CCFF66",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123318/statuses/142"
+                }
+              }
+            },
+            {
+              "id": 143,
+              "name": "Закрыто и не реализовано",
+              "sort": 11000,
+              "is_editable": false,
+              "pipeline_id": 10123318,
+              "color": "#D5D8DB",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10123318/statuses/143"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": 10427390,
+        "name": "Sifat Nazorati bosqichlari",
+        "sort": 4,
+        "is_main": false,
+        "is_unsorted_on": true,
+        "is_archive": false,
+        "account_id": 32681154,
+        "_links": {
+          "self": {
+            "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10427390"
+          }
+        },
+        "_embedded": {
+          "statuses": [
+            {
+              "id": 82391142,
+              "name": "Неразобранное",
+              "sort": 10,
+              "is_editable": false,
+              "pipeline_id": 10427390,
+              "color": "#c1c1c1",
+              "type": 1,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10427390/statuses/82391142"
+                }
+              }
+            },
+            {
+              "id": 82391146,
+              "name": "Первичный контакт",
+              "sort": 20,
+              "is_editable": true,
+              "pipeline_id": 10427390,
+              "color": "#99ccff",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10427390/statuses/82391146"
+                }
+              }
+            },
+            {
+              "id": 82391150,
+              "name": "Переговоры",
+              "sort": 30,
+              "is_editable": true,
+              "pipeline_id": 10427390,
+              "color": "#ffff99",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10427390/statuses/82391150"
+                }
+              }
+            },
+            {
+              "id": 82391154,
+              "name": "Принимают решение",
+              "sort": 40,
+              "is_editable": true,
+              "pipeline_id": 10427390,
+              "color": "#ffcc66",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10427390/statuses/82391154"
+                }
+              }
+            },
+            {
+              "id": 142,
+              "name": "Успешно реализовано",
+              "sort": 10000,
+              "is_editable": false,
+              "pipeline_id": 10427390,
+              "color": "#CCFF66",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10427390/statuses/142"
+                }
+              }
+            },
+            {
+              "id": 143,
+              "name": "Закрыто и не реализовано",
+              "sort": 11000,
+              "is_editable": false,
+              "pipeline_id": 10427390,
+              "color": "#D5D8DB",
+              "type": 0,
+              "account_id": 32681154,
+              "_links": {
+                "self": {
+                  "href": "https://jonbrandingagency.amocrm.ru/api/v4/leads/pipelines/10427390/statuses/143"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
