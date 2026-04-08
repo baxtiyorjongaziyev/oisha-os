@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime, timedelta
 from src.services.amocrm_sync import AmoCRMSync
 from src.database import Database
+from src.api_server import add_activity
 
 logger = logging.getLogger(__name__)
 
@@ -20,24 +21,32 @@ class CRMNightShift:
     async def run_cleanup(self):
         """Execute the full night shift cycle."""
         logger.info("👸 [NIGHT SHIFT] Starting AmoCRM maintenance cycle...")
+        add_activity("Night Shift", "CRM tozalash va audit boshlandi...", "thinking")
         
         try:
             # 1. Deduplicate Contacts
-            await self.deduplicate_contacts()
+            add_activity("CRM Audit", "Dublikatlarni qidirish boshlandi...", "info")
+            dupes = await self.deduplicate_contacts()
+            add_activity("CRM Audit", f"{dupes} ta dublikat aniqlandi va belgilandi.", "success")
             
             # 2. Flag Stagnated Leads (>7 days)
-            await self.flag_stagnated_leads()
+            add_activity("CRM Audit", "Qotib qolgan lidlarni tekshirish...", "info")
+            stagnated = await self.flag_stagnated_leads()
+            add_activity("CRM Audit", f"{stagnated} ta qotib qolgan lidlar aniqlandi.", "info")
             
             # 3. Archive Old Leads (>30 days)
-            await self.archive_inactive_leads()
+            add_activity("CRM Audit", "Eski lidlarni arxivlash...", "info")
+            archived = await self.archive_inactive_leads()
             
             # 4. Audit Data (Missing phones, etc.)
             await self.audit_data_integrity()
             
+            add_activity("Night Shift Yakunlandi", "Maintenance cycle muvaffaqiyatli yakunlandi. 👸🛡️", "success")
             logger.info("👸 [NIGHT SHIFT] Maintenance cycle completed successfully.")
             return True
         except Exception as e:
             logger.error(f"👸 [NIGHT SHIFT ERROR] Maintenance failed: {e}")
+            add_activity("Night Shift Xatolik", str(e), "error")
             return False
 
     async def deduplicate_contacts(self):
