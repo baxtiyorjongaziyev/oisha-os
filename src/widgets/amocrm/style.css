@@ -1,0 +1,136 @@
+/* Oisha-OS Widget: Telegram Style UI */
+:root {
+  --tg-blue: #0088cc;
+  --tg-bg: #e7ebf0; /* Telegram light background pattern base */
+  --tg-text: #222;
+  --tg-secondary: #707579;
+  --tg-bubble-me: #effdde;
+  --tg-bubble-user: #ffffff;
+  --tg-shadow: rgba(114, 114, 114, 0.16);
+}
+
+.oisha-widget-container {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--tg-bg);
+  border: 1px solid #dcdcdc;
+  border-radius: 4px; /* AmoCRM style container */
+  color: var(--tg-text);
+  padding: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.oisha-header {
+  background: #ffffff;
+  padding: 10px 15px;
+  border-bottom: 1px solid #dcdcdc;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.oisha-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tg-text);
+}
+
+.oisha-chat-box {
+  height: 450px;
+  overflow-y: auto;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-image: url('https://telegram.org/img/t_desktop_bg.jpg'); /* Open source pattern */
+  background-size: cover;
+}
+
+.oisha-message {
+  padding: 8px 12px;
+  border-radius: 12px;
+  max-width: 75%;
+  font-size: 14px;
+  position: relative;
+  box-shadow: 0 1px 2px var(--tg-shadow);
+}
+
+.oisha-message.user {
+  background: var(--tg-bubble-user);
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+}
+
+.oisha-message.me {
+  background: var(--tg-bubble-me);
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+
+.oisha-input-group {
+  background: #ffffff;
+  padding: 10px 15px;
+  border-top: 1px solid #dcdcdc;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.oisha-input {
+  flex: 1;
+  border: none;
+  font-size: 14px;
+  outline: none;
+  padding: 5px;
+}
+
+.oisha-send-btn {
+  color: var(--tg-blue);
+  background: none;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.oisha-input-group {
+  margin-top: 20px;
+  display: flex;
+  gap: 8px;
+}
+
+.oisha-input {
+  flex: 1;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--oisha-border);
+  border-radius: 8px;
+  color: #fff;
+  padding: 10px;
+  outline: none;
+}
+
+.oisha-send-btn {
+  background: var(--oisha-accent);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 0 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.oisha-send-btn:hover {
+  transform: scale(1.05);
+}
+
+/* AI Tips & Analytics Badges */
+.oisha-badge {
+  font-size: 0.75rem;
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--oisha-accent);
+  padding: 2px 8px;
+  border-radius: 40px;
+  border: 1px solid var(--oisha-accent);
+}

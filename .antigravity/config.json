@@ -1,0 +1,14 @@
+{
+    "version": "1.0.0",
+    "features": {
+        "ai_companion": {
+            "enabled": false
+        },
+        "code_assistant": {
+            "enabled": false
+        }
+    },
+    "api": {
+        "provider": "none"
+    }
+}

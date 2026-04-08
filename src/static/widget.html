@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oisha Chat Bridge</title>
+    <style>
+        :root {
+            --primary: #bb86fc;
+            --bg: #121212;
+            --surface: #1e1e1e;
+            --bubble-in: #2c2c2c;
+            --bubble-out: #3700b3;
+            --text: #e0e0e0;
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 15px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--glass);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(45deg, #bb86fc, #6200ee);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        #chat-window {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scrollbar-width: thin;
+        }
+
+        .bubble {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 18px;
+            font-size: 14px;
+            line-height: 1.4;
+            position: relative;
+        }
+
+        .bubble.in {
+            align-self: flex-start;
+            background: var(--bubble-in);
+            border-bottom-left-radius: 4px;
+        }
+
+        .bubble.out {
+            align-self: flex-end;
+            background: var(--bubble-out);
+            border-bottom-right-radius: 4px;
+        }
+
+        .input-area {
+            padding: 15px;
+            background: var(--surface);
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid var(--glass);
+        }
+
+        input {
+            flex: 1;
+            background: var(--bg);
+            border: 1px solid var(--glass);
+            border-radius: 20px;
+            padding: 10px 15px;
+            color: white;
+            outline: none;
+        }
+
+        button {
+            background: var(--primary);
+            border: none;
+            color: black;
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            margin-top: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="avatar">O</div>
+        <div>
+            <div id="user-name" style="font-weight: bold;">Loading...</div>
+            <div style="font-size: 12px; color: #888;">Telegram Bridge</div>
+        </div>
+    </div>
+
+    <div id="chat-window">
+        <div class="loading">Suhbat yuklanmoqda...</div>
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="msg-input" placeholder="Xabar yuboring..." onkeypress="if(event.key==='Enter') sendMessage()">
+        <button onclick="sendMessage()">Yuborish</button>
+    </div>
+
+    <script>
+        const API_BASE = ""; // Same host
+        const SECRET = "oisha_safe_123"; // In production, this comes from AmoCRM settings
+        let currentUserId = null;
+
+        // 1. Get Params from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const userPhone = urlParams.get('phone');
+        const amoContactId = urlParams.get('contact_id');
+
+        async function initChat() {
+            if (!userPhone) {
+                document.getElementById('chat-window').innerHTML = '<div class="loading">Telefon raqami topilmadi.</div>';
+                return;
+            }
+
+            // Lookup Telegram ID
+            const res = await fetch(`${API_BASE}/api/chat/lookup/${userPhone}?secret_key=${SECRET}`);
+            const data = await res.json();
+            
+            if (data.status === 'found') {
+                currentUserId = data.user_id;
+                document.getElementById('user-name').innerText = `ID: ${currentUserId}`;
+                loadHistory();
+                setInterval(loadHistory, 5000); // Poll every 5s
+            } else {
+                document.getElementById('chat-window').innerHTML = 
+                    '<div class="loading">Ushbu mijoz Telegramda topilmadi yoki hali muloqot qilmagan.</div>';
+            }
+        }
+
+        async function loadHistory() {
+            if (!currentUserId) return;
+            const res = await fetch(`${API_BASE}/api/chat/history/${currentUserId}?secret_key=${SECRET}`);
+            const data = await res.json();
+            
+            const window = document.getElementById('chat-window');
+            window.innerHTML = '';
+            
+            if (data.history) {
+                data.history.forEach(msg => {
+                    const bubble = document.createElement('div');
+                    bubble.className = `bubble ${msg.role === 'model' ? 'out' : 'in'}`;
+                    bubble.innerText = msg.parts[0].text;
+                    window.appendChild(bubble);
+                });
+                window.scrollTop = window.scrollHeight;
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('msg-input');
+            const text = input.value.trim();
+            if (!text || !currentUserId) return;
+
+            input.value = '';
+            // Optimistic Update
+            const window = document.getElementById('chat-window');
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble out';
+            bubble.innerText = text;
+            window.appendChild(bubble);
+            window.scrollTop = window.scrollHeight;
+
+            const res = await fetch(`${API_BASE}/api/chat/send`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: currentUserId,
+                    text: text,
+                    secret_key: SECRET
+                })
+            });
+        }
+
+        initChat();
+    </script>
+</body>
+</html>

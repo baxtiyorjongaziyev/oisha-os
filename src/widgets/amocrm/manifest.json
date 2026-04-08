@@ -1,0 +1,30 @@
+{
+  "info": {
+    "name": {
+      "ru": "Oisha-OS Intelligence",
+      "en": "Oisha-OS Intelligence"
+    },
+    "description": {
+      "ru": "Biletov bo'lmagan real-vaqt chat va AI-strategiya.",
+      "en": "Real-time chat and AI strategy without third-party fees."
+    },
+    "version": "1.0.0",
+    "vendor": "JonBranding",
+    "public_key": "YOUR_AMO_PUBLIC_KEY"
+  },
+  "locations": [
+    "card_sdk"
+  ],
+  "settings": {
+    "oisha_vps_url": {
+      "type": "text",
+      "name": "Oisha VPS URL (e.g. https://your-vps.com:8080)",
+      "required": true
+    },
+    "oisha_secret": {
+      "type": "password",
+      "name": "Oisha Secret Key",
+      "required": true
+    }
+  }
+}

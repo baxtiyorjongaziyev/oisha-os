@@ -1,0 +1,16 @@
+[Unit]
+Description=Oisha-OS Tez Natija Bulk Sync Service
+After=network.target
+
+[Service]
+User=baxtiyorjongaziyev
+WorkingDirectory=/home/baxtiyorjongaziyev/oisha-os
+ExecStart=/usr/bin/python3 scripts/tez_natija_master_sync.py
+Restart=always
+RestartSec=30
+EnvironmentFile=/home/baxtiyorjongaziyev/oisha-os/.env
+StandardOutput=append:/home/baxtiyorjongaziyev/oisha-os/data/sync_cloud.log
+StandardError=append:/home/baxtiyorjongaziyev/oisha-os/data/sync_cloud_err.log
+
+[Install]
+WantedBy=multi-user.target

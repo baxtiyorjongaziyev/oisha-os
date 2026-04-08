@@ -1,0 +1,10 @@
+@echo off
+cd /d "C:\Users\baxti\.gemini\antigravity\scratch\telegram_bot"
+:loop
+cls
+echo Telegram Userbot ishga tushmoqda... (Ctrl+C to stop batch)
+python userbot.py
+echo.
+echo Bot to'xtadi. 3 soniyadan keyin qayta ishga tushadi...
+timeout /t 3
+goto loop
