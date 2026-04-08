@@ -280,6 +280,20 @@ class Database:
                     PRIMARY KEY (job_name, run_date)
                 )
             """)
+
+            # Yangi: Kunlik planlar (Lead IDs assign qilingan)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS daily_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    report_date TEXT, -- 'YYYY-MM-DD'
+                    manager_id INTEGER,
+                    lead_id INTEGER,
+                    lead_name TEXT,
+                    mission TEXT,
+                    status TEXT DEFAULT 'planned', -- 'planned', 'achieved', 'missed'
+                    created_at DATETIME
+                )
+            """)
             
             # Yangi: Tizim sozlamalari (Round-robin index va boshqalar uchun)
             cursor.execute("""
@@ -801,6 +815,37 @@ class Database:
             return False
         finally:
             if conn: conn.close()
+
+    def save_daily_plan(self, manager_id: int, lead_id: int, lead_name: str, mission: str):
+        """Kunlik plans saqlash."""
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        now = datetime.datetime.now().isoformat()
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO daily_plans (report_date, manager_id, lead_id, lead_name, mission, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (today, manager_id, lead_id, lead_name, mission, now))
+                conn.commit()
+                return True
+        except Exception as e:
+            logger.error(f"[DB ERROR] save_daily_plan: {e}")
+            return False
+
+    def get_daily_plan(self, date_str: str = None) -> List[Dict[str, Any]]:
+        """Berilgan sana uchun planlarni olish."""
+        if not date_str:
+            date_str = datetime.datetime.now().strftime('%Y-%m-%d')
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT manager_id, lead_id, lead_name, mission, status FROM daily_plans WHERE report_date = ?", (date_str,))
+                rows = cursor.fetchall()
+                return [{"manager_id": r[0], "lead_id": r[1], "lead_name": r[2], "mission": r[3], "status": r[4]} for r in rows]
+        except Exception as e:
+            logger.error(f"[DB ERROR] get_daily_plan: {e}")
+            return []
 
     def get_pending_tasks(self, limit=10):
         """Barcha ochiq vazifalarni olish."""
