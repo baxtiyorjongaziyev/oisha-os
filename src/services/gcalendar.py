@@ -100,6 +100,36 @@ class GoogleCalendarSync:
             logger.error(f"[GCALENDAR ERROR] Tadbir yaratishda xato: {e}")
             return False
 
+    def get_upcoming_events(self, date_str=None, limit=10):
+        """Ma'lum bir kun (yoki bugun) uchun barcha tadbirlarni ro'yxatini olish.
+        date_str: YYYY-MM-DD
+        """
+        if not self.service:
+            return []
+
+        import datetime
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo("Asia/Tashkent")
+        
+        if not date_str:
+            target_date = datetime.datetime.now(tz)
+        else:
+            target_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tz)
+
+        time_min = target_date.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        time_max = target_date.replace(hour=23, minute=59, second=59, microsecond=0).isoformat()
+
+        try:
+            events_result = self.service.events().list(
+                calendarId='primary', timeMin=time_min, timeMax=time_max,
+                maxResults=limit, singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+            return events_result.get('items', [])
+        except Exception as e:
+            logger.error(f"[GCALENDAR ERROR] Tadbirlarni ro'yxatlashda xato: {e}")
+            return []
+
     def get_current_event(self):
         """Hozirgi vaqtda davom etayotgan tadbirni olish."""
         if not self.service:

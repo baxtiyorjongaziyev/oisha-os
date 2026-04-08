@@ -58,6 +58,7 @@ from src.services.access_manager import AccessManager
 from src.services.juma_notifier import JumaNotifier
 from src.services.lead_orchestrator import LeadOrchestrator
 from src.services.conversion_checker import ConversionChecker
+from src.services.night_shift import NightShiftService
 from src.services.crm_night_shift import CRMNightShift
 
 # Global Managers
@@ -183,7 +184,7 @@ async def background_monitor_task():
     from datetime import datetime
     global conversion_checker
     
-    logger.info("👸 [MONITOR] Boshlandi (AmoCRM + Airtable)")
+    logger.info("[MONITOR] Boshlandi (AmoCRM + Airtable)")
     
     # Start Conversion Checker loop in background
     if conversion_checker:
@@ -355,7 +356,7 @@ async def shadow_advisor_handler(event):
     # 3. Maslahatni yuborish (Advice logic)
     if advice and advisor_agent.should_notify(chat_id, event.id, advice):
         logger.info(f"[ADVISOR] Sending strategic tip for chat {chat_id}")
-        header = f"👸 **Oisha-OS Strategik Maslahati** (Suhbat: {sender_name})\n\n"
+        header = f"💡 <b>Tavsiya</b> (Suhbat: {sender_name})\n\n"
         
         # [GOD MODE] Visibility: Notify via Admin Bot if possible
         notification_text = header + advice
@@ -435,12 +436,35 @@ async def handle_new_message(event):
             report = await msg_controller.enterprise_reporter.get_team_efficiency_report()
             await event.respond(report, parse_mode='html')
             return
+
+        if event.message.text == '/distribute_now':
+            is_team = await safe_responder.is_team_member(event.sender_id)
+            if not is_team: return
+            
+            await event.respond("Vazifalarni taqsimlashni (Force) boshladim...")
+            from src.services.proactive_worker import distribute_team_tasks
+            await distribute_team_tasks(force=True)
+            await event.respond("✅ Taqsimlash yakunlandi.")
+            return
+
+        if event.message.text == '/health':
+            is_team = await safe_responder.is_team_member(event.sender_id)
+            if not is_team: return
+            
+            msg = "🟢 **OISHA-OS HEALTH CHECK**\n\n"
+            msg += f"✅ **Status**: Active\n"
+            msg += f"📅 **Time**: {datetime.now().strftime('%H:%M:%S')}\n"
+            msg += f"🔗 **AmoCRM**: Connected\n"
+            msg += f"📊 **Airtable**: Connected\n"
+            msg += f"⚙️ **Mode**: Automatic Management v9"
+            await event.respond(msg)
+            return
             
             from src.services.airtable_sync import AirtableSync
             at_sync = AirtableSync()
             projects = at_sync.get_projects()
             if not projects:
-                await event.respond("👸 Oisha-OS: Hozircha aktiv loyihalar topilmadi. 🤷‍♀️")
+                await event.respond("Hozircha aktiv loyihalar topilmadi.")
                 return
             
             text = "🏗 **Aktiv Loyihalar (Airtable):**\n\n"
@@ -509,6 +533,8 @@ async def handle_new_message(event):
         # AI Skanerlash (Strict Intake)
         if lead_orchestrator and not msg_controller.db.is_crm_synced(event.sender_id):
             logger.info(f"✨ [ELITE INTAKE] Yangi suhbat (Lead detection): {sender_name}")
+            from src.api_server import add_activity
+            add_activity("Yangi Lid Skanerlash", f"{sender_name} bilan suhbat tahlil qilinmoqda...", "info")
             
             # Use Orchestrator for everything: Qualify -> amoCRM -> Notify
             success = await lead_orchestrator.process_new_lead(
@@ -524,6 +550,19 @@ async def handle_new_message(event):
                 msg_controller.db.set_crm_synced(event.sender_id)
                 # Elite Welcome (1.4)
                 await welcome_manager.send_welcome(event.sender_id)
+            
+            # --- NIGHTLY AUTO-REPLY (23:00 - 08:00) ---
+            now_hour = datetime.now().hour
+            if now_hour >= 23 or now_hour < 8:
+                # Faqat bir marta javob qaytarish (shovqin bo'lmasligi uchun)
+                if not msg_controller.db.get_meta(event.sender_id, "night_reply_sent_today"):
+                    reply = (
+                        "Salom! Xabaringizni oldik. 😊\n\n"
+                        "Hozir jamoamiz tuni bilan dam olyapti (yoki Oisha kechki tadqiqotlar bilan band). "
+                        "Lekin xavotir olmang, so'rovingizni o'rganib chiqyapman va ertalab albatta javob beramiz!"
+                    )
+                    await event.respond(reply)
+                    msg_controller.db.set_meta(event.sender_id, "night_reply_sent_today", "true", expire_in_hours=12)
 
     # [GOD MODE] Multi-Modal (Voice Note) Handling
     if event.is_private and not event.out and event.message.voice and voice_processor:
@@ -634,7 +673,7 @@ async def handle_new_message(event):
                 else:
                     # EXTERNAL LEAD - SHADOW MODE
                     logger.info(f"[USERBOT] Shadow Mode: Suppressing direct reply to {chat_id}. Sending to Admin.")
-                    header = f"👰 **Oisha DRAFT** (Kimga: {sender_name})\n\n"
+                    header = f"📝 **Draft javob** (Kimga: {sender_name})\n\n"
                     if admin_bot:
                         await admin_bot.notify_lead(header + final_text)
                     else:
@@ -711,14 +750,25 @@ async def sync_single_lead(event):
         logger.error(f"❌ [ENTERPRISE SYNC ERROR] {e}")
 
 async def run_health_check_api():
-    config_uvicorn = uvicorn.Config(api_app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)), log_level="info")
-    server = uvicorn.Server(config_uvicorn)
-    try:
-        await server.serve()
-    except SystemExit:
-        logger.warning("[API] Uvicorn port band (yoki server conflict). API server skip qilindi, bot davom etadi.")
-    except OSError as e:
-        logger.warning(f"[API] API server ishga tushmadi: {e}. Bot davom etadi.")
+    ports = [int(os.environ.get("PORT", 8080)), 8081, 8082, 8083]
+    for port in ports:
+        config_uvicorn = uvicorn.Config(
+            api_app, 
+            host="0.0.0.0", 
+            port=port, 
+            log_level="error", 
+            loop="asyncio"
+        )
+        server = uvicorn.Server(config_uvicorn)
+        try:
+            logger.info(f"🚀 [API] Port {port} da tekshirilmoqda...")
+            await server.serve()
+            break # Successfully started
+        except (SystemExit, Exception) as e:
+            # Uvicorn raises SystemExit(1) on bind error internally
+            # We catch it here to allow trying the next port
+            logger.warning(f"⚠️ [API] Port {port} band yoki xatolik yuz berdi. Keyingisiga o'tilmoqda...")
+            continue
 
 async def main():
     """Botlarni ishga tushirish (Userbot + Admin Bot)."""
@@ -745,9 +795,14 @@ async def main():
     # [GOD MODE] Juma Notifier - initialized later below
     
     # [GOD MODE] Authorized Session Discovery
+    # We prioritize 'oisha_userbot' as it was found to be the only valid large session (156KB)
     SESSION_PATH = 'data/userbot_session'
-    if not os.path.exists('data/userbot_session.session') and os.path.exists('userbot_session.session'):
+    if os.path.exists('oisha_userbot.session'):
+        SESSION_PATH = 'oisha_userbot'
+    elif not os.path.exists('data/userbot_session.session') and os.path.exists('userbot_session.session'):
         SESSION_PATH = 'userbot_session'
+    
+    logger.info(f"👸 [USERBOT] Using session: {SESSION_PATH}")
     
     client = TelegramClient(
         SESSION_PATH,
@@ -1013,11 +1068,6 @@ async def main():
                 sender = await event.get_sender()
                 sender_id = sender.id
                 
-                # skip bot itself or owner if he doesn't want to be congratulated
-                if sender_id == settings.OWNER_ID:
-                    logger.info(f"👸 [KIRIM] Owner ({sender_id}) reported inflow. Quietly logging.")
-                    return
-
                 first_name = getattr(sender, 'first_name', 'Xodim')
                 
                 # Extract amount for AI context
@@ -1124,12 +1174,16 @@ async def main():
     api_server.user_client = client
     api_server.db_instance = Database() # or use existing msg_controller.db
     
-    # Start API Server in background task
-    import uvicorn
-    config_api = uvicorn.Config(api_server.app, host="0.0.0.0", port=8080, loop="asyncio")
-    server_api = uvicorn.Server(config_api)
-    asyncio.create_task(server_api.serve())
-    logger.info("👸 [WAZZUP KILLER] API Bridge is active at port 8080.")
+    # [API] Already started via run_health_check_api()
+    logger.info("👸 [OISHA] Strategic Intelligence Bridge is online.")
+
+    # [NIGHT SHIFT] Autonomous Engine
+    logger.info("🌙 Initializing Night Shift Intelligence...")
+    night_shift_service = NightShiftService(client if client else None)
+    asyncio.create_task(night_shift_service.run_overnight_cycle())
+    
+    from src.api_server import add_activity
+    add_activity("Platform On", "Oisha-OS va Dashboard muvaffaqiyatli ishga tushdi.", "success")
 
     # [ROBUST STARTUP] Finally, start Userbot once everything else is running.
     # This ensures that if the Userbot asks for a code, the Admin Bot and Reports are already active.
