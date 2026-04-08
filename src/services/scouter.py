@@ -15,8 +15,10 @@ API_HASH = os.getenv("API_HASH")
 SESSION_NAME = "userbot_session"
 
 class Scouter:
-    def __init__(self, session_path=SESSION_NAME):
+    def __init__(self, session_path=SESSION_NAME, api_key=None, db=None):
         self.client = TelegramClient(session_path, int(API_ID), API_HASH)
+        self.api_key = api_key
+        self.db = db
         self.is_connected = False
 
     async def connect(self):

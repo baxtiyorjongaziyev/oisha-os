@@ -6,6 +6,7 @@ from src.services.amocrm_sync import AmoCRMSync
 from src.services.airtable_sync import AirtableSync
 from src.services.auto_lead_agent import AutoLeadAgent
 from src.services.admin_bot import AdminBot
+from src.api_server import add_activity
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +33,14 @@ class LeadOrchestrator:
         logger.info(f"👸 [ORCHESTRATOR] Processing lead: {name} (Source: {source})")
         
         # 1. AI Qualification
+        add_activity("Lidni Skanerlash", f"{name} murojaati AI orqali tahlil qilinmoqda...", "thinking")
         is_lead, lead_details = await self.auto_lead.qualify_chat(chat_text)
         if not is_lead:
             logger.info(f"👸 [ORCHESTRATOR] Not a qualified lead: {name}")
+            add_activity("Lid Rad Etildi", f"{name} murojaati biznes uchun mos emas deb topildi.", "info")
             return False
+
+        add_activity("Lid Tasdiqlandi", f"{name} 'LEAD' deb klasifikatsiya qilindi. Intent: {lead_details.get('intent', 'WARM')}", "success")
 
         intent = lead_details.get('intent', 'WARM')
         summary = lead_details.get('summary', 'No summary provided')
@@ -50,6 +55,7 @@ class LeadOrchestrator:
             extra_fields[settings.AMOCRM_TG_CHAT_FIELD_ID] = tg_link
 
         # 3. amoCRM Integration (Deduplication & Enrichment)
+        add_activity("CRM Synching", f"amoCRM'dan {name} uchun mavjud kontakt qidirilmoqda...", "thinking")
         existing_contact = self.amocrm.get_contact_by_phone(extracted_phone) if extracted_phone and extracted_phone != "Raqam yo'q" else None
         
         note_content = f"👸 Oisha AI Tahlili (v5.0):\n──────────────────────\n🎯 Intent: {intent}\n📝 Xulosa: {summary}\n📲 Chat: {tg_link}\n📅 Manba: {source}"
@@ -60,6 +66,7 @@ class LeadOrchestrator:
         if existing_contact:
             contact_id = existing_contact['id']
             is_repeat = True
+            add_activity("Takroriy Mijoz", f"{name} tizimda bor. Bitimlar yangilanmoqda.", "info")
             logger.info(f"👸 [ORCHESTRATOR] Existing contact found: {contact_id}. Searching for active leads...")
             
             # Find active leads
@@ -86,6 +93,7 @@ class LeadOrchestrator:
         else:
             # New contact, new lead
             logger.info(f"👸 [ORCHESTRATOR] No existing contact for {name}. Creating new lead...")
+            add_activity("CRM Creation", f"Yangi kontakt va bitim yaratilmoqda: {name}", "thinking")
             lead_id = self.amocrm.create_lead(
                 name=f"{name} ({intent})",
                 price=0,
@@ -93,6 +101,7 @@ class LeadOrchestrator:
                 note=note_content,
                 extra_fields=extra_fields
             )
+            add_activity("CRM Synced", f"{name} amoCRM bilan muvaffaqiyatli sinxronlandi.", "success")
             
         # Create a fallback task if a lead was created or found
         if lead_id and isinstance(lead_id, int):
