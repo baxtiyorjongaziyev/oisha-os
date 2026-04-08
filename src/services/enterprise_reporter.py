@@ -281,3 +281,96 @@ class EnterpriseReporter:
         if stagnant:
             return f"🚨 <b>DIQQAT - Sales Stagnation!</b>\nQuyidagi lidlar 24 soatdan beri o'zgarmagan: {', '.join(stagnant[:5])}...\nIltimos, @Oydin_JonBranding va @tezmenejer harakat qiling!"
         return ""
+
+    async def generate_morning_plan(self, distribution: Dict[int, List[Dict]]) -> str:
+        """Ertalabki 'Plan' hisoboti."""
+        now = datetime.datetime.now()
+        report = [
+            f"☀️ <b>{now.strftime('%d.%m.%Y')} — YANGI KUN, YANGI G'ALABALAR!</b>",
+            "🚀 Oisha-OS jamoani jangovar shay holatga keltiradi.\n",
+            "📌 <b>BUGUNGI VAZIFALAR (MISSION CONTROL):</b>"
+        ]
+        
+        for m_id, missions in distribution.items():
+            m_info = self.db.get_user_info(m_id)
+            name = m_info.get('first_name') if m_info else f"Manager_{m_id}"
+            if "pm" in name.lower() or "dilbar" in name.lower() or str(m_id) == "8611068511":
+                name = "👩‍💼 PM Dilbar"
+            
+            report.append(f"\n👤 <b>{name}</b>")
+            if not missions:
+                report.append("  ▫️ Bugun yangi lidlar yo'q. Eski loyihalar ustida ishlang.")
+            else:
+                for i, m in enumerate(missions, 1):
+                    report.append(f"  {i}. <a href='{m['link']}'>{m['lead_name']}</a> — {m['mission']}")
+                    
+        report.append("\n📈 <i>Har bir yopilgan bitim — bizning umumiy muvaffaqiyatimiz! Olaysizlar!</i>")
+        return "\n".join(report)
+
+    async def generate_plan_fact_report(self) -> str:
+        """Kechki 'Plan-Fact' hisoboti."""
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        plans = self.db.get_daily_plan(today)
+        
+        if not plans:
+            return "🌙 <b>Bugun uchun rejalashtirilgan vazifalar topilmadi.</b>"
+            
+        report = [
+            f"🌙 <b>{datetime.datetime.now().strftime('%d.%m.%Y')} — KUNLIK PLAN-FAKT TAHLILI</b>",
+            "🧐 Oisha-OS natijalarni tekshirmoqda...\n"
+        ]
+        
+        results = {}
+        
+        for p in plans:
+            m_id = p['manager_id']
+            if m_id not in results:
+                results[m_id] = {"total": 0, "achieved": 0, "leads": []}
+            
+            lead_id = p['lead_id']
+            status = "🔴 Bajarilmadi"
+            
+            try:
+                # AmoCRM dan joriy holatni tekshirish
+                lead = await self.crm.amocrm.get_lead(lead_id)
+                current_status = lead.get('status_id')
+                
+                # Agar status yopilgan (Won) bo'lsa yoki Hunter (10117998) dan o'zgargan bo'lsa
+                if current_status == self.WON_STATUS:
+                    status = "✅ SHARTNOMA! (+)"
+                    results[m_id]["achieved"] += 1
+                elif current_status != 10117998:
+                    status = "✅ Oldinga siljish"
+                    results[m_id]["achieved"] += 1
+            except:
+                status = "❓ Noma'lum"
+            
+            results[m_id]["total"] += 1
+            results[m_id]["leads"].append(f"  ▫️ {p['lead_name']}: {status}")
+
+        for m_id, data in results.items():
+            m_info = self.db.get_user_info(m_id)
+            name = m_info.get('first_name') if m_info else f"Manager_{m_id}"
+            if "pm" in name.lower() or "dilbar" in name.lower() or str(m_id) == "8611068511": 
+                name = "👩‍💼 PM Dilbar"
+            
+            pct = (data['achieved'] / data['total'] * 100) if data['total'] > 0 else 0
+            emoji = "🔥" if pct >= 80 else "⚠️" if pct >= 50 else "❄️"
+            
+            report.append(f"👤 <b>{name}</b> {emoji}")
+            report.append(f"📊 KPI: <b>{data['achieved']}/{data['total']}</b> ({pct:.1f}%)")
+            report.append("\n".join(data['leads']))
+            report.append("")
+
+        total_total = sum(d['total'] for d in results.values())
+        total_achieved = sum(d['achieved'] for d in results.values())
+        total_pct = (total_achieved / total_total * 100) if total_total > 0 else 0
+        
+        if total_pct >= 80:
+            report.append("🌟 <b>DAHSHAT!</b> Jamoa bugun haqiqiy professionalizm ko'rsatdi. Sizlar bilan faxrlanaman!")
+        elif total_pct >= 50:
+            report.append("👍 <b>Yaxshi.</b> Lekin ertaga bundan ham ko'proq natija kutaman. Bo'shashmang!")
+        else:
+            report.append("📢 <b>DIQQAT!</b> Bugungi natijalar kutilganidan past. Ertaga har bir bitim uchun jang qilishingizni so'rayman!")
+
+        return "\n".join(report)
