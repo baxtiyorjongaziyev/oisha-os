@@ -1,0 +1,54 @@
+# Environment
+.env
+.venv/
+.venv_oi/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Credentials & Secrets
+service_account.json
+credentials.json
+token.pickle
+amocrm_token.json
+*.session
+*.session-journal
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs & Output
+*.log
+*.txt
+*.csv
+*.zip
+*.tar.gz
+*.exe
+logs/
+data/synced_contacts.txt
+!src/**/*.py
+
+# Storage & Temp
+*.session
+*.session-journal
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/amocrm_token.json

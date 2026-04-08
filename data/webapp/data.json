@@ -1,0 +1,34 @@
+[
+    {
+        "id": 1,
+        "title": "JonBranding Logo Design",
+        "description": "Minimalistik va zamonaviy logotip dizayni.",
+        "category": "Branding",
+        "image": "https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=2071&auto=format&fit=crop",
+        "link": "https://t.me/JonBranding"
+    },
+    {
+        "id": 2,
+        "title": "Professional Logo Template",
+        "description": "Tayyor dizayndagi yuqori sifatli logotip shablonlari to'plami.",
+        "category": "Digital Product",
+        "image": "https://images.unsplash.com/photo-1572044162444-ad60f128bde2?q=80&w=2070&auto=format&fit=crop",
+        "link": "https://t.me/Baxtiyorjon_assistant_bot?start=buy_logo_template"
+    },
+    {
+        "id": 3,
+        "title": "Branding Strategy Guide",
+        "description": "Biznesingizni qanday qilib brend darajasiga olib chiqish bo'yicha qo'llanma.",
+        "category": "Digital Product",
+        "image": "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2015&auto=format&fit=crop",
+        "link": "https://t.me/Baxtiyorjon_assistant_bot?start=buy_branding_guide"
+    },
+    {
+        "id": 4,
+        "title": "AI Branding Kit",
+        "description": "Sun'iy intellekt yordamida yaratilgan eksklyuziv brending to'plami.",
+        "category": "Premium",
+        "image": "https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=2070&auto=format&fit=crop",
+        "link": "https://t.me/JonBranding"
+    }
+]

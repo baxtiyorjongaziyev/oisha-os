@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  bot:
+    build: .
+    container_name: telegram_business_bot
+    restart: always
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    env_file:
+      - .env
+    volumes:
+      # App code - readonly mount (xavfsizlik uchun)
+      - .:/app:ro
+      # Session va database fayllari uchun writable volume
+      - bot_sessions:/app/sessions
+      - bot_data:/app/data
+    # Loglarni saqlash
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bot_sessions:
+    driver: local
+  bot_data:
+    driver: local
