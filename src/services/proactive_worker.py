@@ -23,7 +23,7 @@ async def generate_ai_message(user_id: int, prompt: str):
         "groq": os.environ.get("GROQ_API_KEY", "")
     }
     
-    agent = ResearcherAgent("proactive_bot", config.system_instruction, api_keys)
+    agent = ResearcherAgent("proactive_bot", config.SYSTEM_INSTRUCTION, api_keys)
     # ResearcherAgent ning process_task metodidan foydalanamiz (u fallback ga ega)
     response = await agent.process_task(user_id, prompt)
     return response
