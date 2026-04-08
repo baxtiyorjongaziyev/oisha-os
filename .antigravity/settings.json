@@ -1,0 +1,10 @@
+{
+    "ai_companion": {
+        "enabled": false,
+        "api_key": ""
+    },
+    "editor": {
+        "format_on_save": true,
+        "auto_complete": true
+    }
+}
