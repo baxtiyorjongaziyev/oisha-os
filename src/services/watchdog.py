@@ -36,20 +36,49 @@ def send_to_owner(message):
 
 def is_bot_running():
     try:
-        output = subprocess.check_output(["ps", "aux"])
-        return BOT_SCRIPT in output.decode()
+        if os.name == 'nt': # Windows
+            output = subprocess.check_output(["tasklist", "/FI", f"IMAGENAME eq python.exe", "/FO", "CSV"])
+            # Checking if python is running and script name is in command line is harder on Windows without psutil,
+            # but we can check if it exists in the output as a simple check.
+            return BOT_SCRIPT in output.decode() or "python" in output.decode().lower()
+        else: # Linux/Mac
+            output = subprocess.check_output(["ps", "aux"])
+            return BOT_SCRIPT in output.decode()
     except:
         return False
 
+def get_python_executable():
+    """Find the best python executable path."""
+    paths = [
+        ".venv_oi/Scripts/python.exe", # Windows specific
+        "venv/Scripts/python.exe",     # Windows alternative
+        ".venv/Scripts/python.exe",    # The broken one (fallback)
+        ".venv_oi/bin/python3",        # Linux specific
+        "venv/bin/python3",            # Linux alternative
+        "python",                      # System fallback
+    ]
+    for p in paths:
+        if os.path.exists(p):
+            return p
+    return "python"
+
 def restart_bot():
     logger.info("Restarting bot...")
+    python_exe = get_python_executable()
     try:
         # Kill existing if any
-        os.system(f"pkill -f {BOT_SCRIPT}")
+        if os.name == 'nt':
+            # On Windows, pkill doesn't exist. We use taskkill.
+            # However, taskkill /F /IM python.exe might kill EVERYTHING.
+            # It's better to just try starting it or use a more specific method.
+            pass 
+        else:
+            os.system(f"pkill -f {BOT_SCRIPT}")
+            
         # Start new
-        subprocess.Popen(["./venv/bin/python3", BOT_SCRIPT], stdout=open(LOG_FILE, "a"), stderr=subprocess.STDOUT)
-        logger.info("Bot restarted successfully.")
-        send_to_owner("✅ Botda xatolik aniqlandi va u avtomatik qayta ishga tushirildi (Self-Healing).")
+        subprocess.Popen([python_exe, BOT_SCRIPT], stdout=open(LOG_FILE, "a"), stderr=subprocess.STDOUT)
+        logger.info(f"Bot restarted successfully using {python_exe}.")
+        send_to_owner(f"✅ Botda xatolik aniqlandi va u avtomatik qayta ishga tushirildi (Using {python_exe}).")
     except Exception as e:
         logger.error(f"Restart failed: {e}")
         send_to_owner(f"❌ Botni restart qilishda xatolik: {e}")

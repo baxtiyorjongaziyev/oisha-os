@@ -26,6 +26,10 @@ async def generate_ai_message(user_id: int, prompt: str):
     agent = ResearcherAgent("proactive_bot", config.SYSTEM_INSTRUCTION, api_keys)
     # ResearcherAgent ning process_task metodidan foydalanamiz (u fallback ga ega)
     response = await agent.process_task(user_id, prompt)
+    
+    # Telegram HTML uchun sanitizatsiya
+    response = response.replace("<p>", "").replace("</p>", "\n")
+    response = response.replace("<br>", "\n").replace("<br/>", "\n")
     return response
 
 class ProactiveWorker:
@@ -115,7 +119,7 @@ async def send_proactive_followups():
     except Exception as e:
         logger.error(f"[DB ERROR in Proactive] {e}")
 
-async def distribute_team_tasks():
+async def distribute_team_tasks(force: bool = False):
     """10:00 va 14:00 da Hunter/Closer lidlarni menejerlar o'rtasida taqsimlash."""
     from src.database import Database
     import src.config as config
@@ -127,60 +131,44 @@ async def distribute_team_tasks():
     today = now.strftime('%Y-%m-%d')
     target_hours = [10, 14]
     
-    if now.hour not in target_hours:
+    if not force and now.hour not in target_hours:
+        logger.debug(f"[DISTRIBUTION] Skipping: Hour {now.hour} is not in {target_hours}")
         return
 
-    job_key = f"team_distribution_{now.hour}"
-    if db.is_job_run(job_key, today):
+    hour_to_mark = now.hour if not force else (14 if now.hour >= 14 else 10)
+    job_key = f"team_distribution_{hour_to_mark}"
+    
+    if not force and db.is_job_run(job_key, today):
+        logger.debug(f"[DISTRIBUTION] Skipping: Job {job_key} already run today.")
         return
 
-    logger.info(f"👸 [DISTRIBUTION] Starting {now.hour}:00 lead assignment cycle...")
+    logger.info(f"[DISTRIBUTION] Starting {hour_to_mark}:00 lead assignment cycle (Force={force})...")
     
-    amo = AmoCRMSync(config.AMOCRM_SUBDOMAIN, config.AMOCRM_CLIENT_ID, config.AMOCRM_CLIENT_SECRET, config.AMOCRM_REDIRECT_URL)
+    from src.services.mission_control import MissionControl
+    from src.services.enterprise_reporter import EnterpriseReporter
+    from src.services.crm_service import CRMService
     
-    # Pipeline Stage IDs (v7 Pivot)
-    HUNTER_STAGE_ID = "10117998"
-    CLOSER_STAGE_ID = "10123314"
+    mc = MissionControl(db)
+    crm_service = CRMService()
+    reporter = EnterpriseReporter(db, crm_service)
     
-    # 1. Fetch leads for both stages
-    hunter_leads = await amo.amocrm.get_leads_by_status(HUNTER_STAGE_ID)
-    closer_leads = await amo.amocrm.get_leads_by_status(CLOSER_STAGE_ID)
-    
-    all_leads = []
-    for l in hunter_leads: all_leads.append({'type': 'Hunter', 'data': l})
-    for l in closer_leads: all_leads.append({'type': 'Closer', 'data': l})
-    
-    if not all_leads:
-        logger.info("[DISTRIBUTION] No active Hunter/Closer leads found.")
+    # 1. Get managers
+    managers = await mc.get_manager_list()
+    if not managers:
+        logger.warning("[DISTRIBUTION] No managers found in settings or DB.")
         return
 
-    # 2. Assign to managers (Round-robin or Split)
-    managers = ["@Oydin_JonBranding", "@JonBranding_PM"]
-    msg = f"📋 **TIZIMLI VAZIFALAR TAQSIMOTI ({now.hour}:00)**\n\n"
-    
-    for i, lead_info in enumerate(all_leads):
-        manager = managers[i % len(managers)]
-        lead = lead_info['data']
-        l_type = lead_info['type']
-        
-        l_name = lead.get('name', 'Nomsiz Bitim')
-        l_id = lead.get('id')
-        l_url = f"https://{config.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{l_id}"
-        
-        task_desc = "Lidni Closerga o'tkazish" if l_type == 'Hunter' else "Bitimni muvaffaqiyatli yopish"
-        
-        msg += f"👤 {manager}\n"
-        msg += f"🎯 **{l_type}**: <a href='{l_url}'>{l_name}</a>\n"
-        msg += f"📝 Vazifa: {task_desc}\n\n"
+    # 2. Distribute and save to DB
+    distribution = await mc.distribute_missions(managers)
+    if not distribution:
+        logger.info("[DISTRIBUTION] No active missions to distribute.")
+        return
 
-    msg += "👸 Oisha: Iltimos, ushbu vazifalarni keyingi taqsimotgacha yakunlang! 👸🛡️"
+    # 3. Generate Morning Plan message
+    msg = await reporter.generate_morning_plan(distribution)
 
-    # 3. Send to Group
-    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-    group_id = getattr(config, "CRM_GROUP_ID", None)
-    thread_id = getattr(config, "TOPIC_CRM_ID", None)
-    
     if bot_token and group_id:
+        from telegram import Bot
         bot = Bot(token=bot_token)
         try:
             await bot.send_message(chat_id=group_id, text=msg, parse_mode="HTML", disable_web_page_preview=True, message_thread_id=thread_id)
@@ -208,7 +196,7 @@ async def check_amocrm_stagnation():
     if now.hour != 10:
         return
 
-    logger.info("👸 [STAGNATION] Time to audit! Checking AmoCRM...")
+    logger.info("[STAGNATION] Time to audit! Checking AmoCRM...")
     from src.services.amocrm_sync import AmoCRMSync
     amo = AmoCRMSync(config.AMOCRM_SUBDOMAIN, config.AMOCRM_CLIENT_ID, config.AMOCRM_CLIENT_SECRET, config.AMOCRM_REDIRECT_URL)
     stagnated = amo.check_stagnated_leads(hours=24)
@@ -341,7 +329,7 @@ async def check_airtable_stagnation():
             
             msg += f"• <b>{p_name}</b> (Bosqich: {stage}, Muddat: {deadline})\n"
             
-        msg += "\nIltimos, ushbu loyihalarni harakatga keltiring yoki statusni yangilang! 👸🛡️"
+        msg += "\nIltimos, ushbu loyihalarni harakatga keltiring yoki statusni yangilang!"
         
         try:
             # First attempt: Send to specified thread
@@ -396,8 +384,12 @@ async def send_daily_report():
         bot = Bot(token=bot_token)
         
         # 1. Jamoa guruhiga yuborish
-        await bot.send_message(chat_id=group_id, text=report_msg, parse_mode="HTML", message_thread_id=thread_id)
-        logger.info(f"[DAILY REPORT] Jamoa guruhiga ({group_id}) yuborildi.")
+        try:
+            await bot.send_message(chat_id=group_id, text=report_msg, parse_mode="HTML", message_thread_id=thread_id)
+            logger.info(f"[DAILY REPORT] Jamoa guruhiga ({group_id}) yuborildi.")
+        except Exception as html_err:
+            logger.warning(f"[DAILY REPORT] HTML yuborishda xato, Plain Text-da qayta urinish: {html_err}")
+            await bot.send_message(chat_id=group_id, text=report_msg, parse_mode=None, message_thread_id=thread_id)
         
         # 2. Owner-ga (Baxtiyor aka) yuborish
         owner_id = getattr(config, "OWNER_ID", None)
@@ -406,7 +398,8 @@ async def send_daily_report():
                 await bot.send_message(chat_id=owner_id, text=report_msg, parse_mode="HTML")
                 logger.info(f"[DAILY REPORT] Owner-ga ({owner_id}) yuborildi.")
             except Exception as e:
-                logger.warning(f"[DAILY REPORT] Owner-ga yuborishda xato: {e}")
+                logger.warning(f"[DAILY REPORT] Owner-ga HTML yuborishda xato, Plain-ga o'tildi: {e}")
+                await bot.send_message(chat_id=owner_id, text=report_msg, parse_mode=None)
             
         # Vazifani bajarilgan deb belgilash
         db.mark_job_run("daily_report", today)
@@ -450,10 +443,10 @@ async def send_morning_briefing():
         )
 
     prompt = (
-        "Bugun jamoa uchun yangi ish kuni. Ularni Oisha ismli samimiy va aqlli yordamchi uslubida ruhlantiring. "
-        f"Baxtiyorjon aka bilan bugun katta marralarni zabt etishlarini tilang. {priority_text if priorities else ''} "
+        "Bugundagi ish kunida jamoani ruhlantiring. "
+        f"Baxtiyorjon aka bilan bugun katta marralarni zabt etishlarida ko'maklashishga tayyor ekanligingizni bildiring. {priority_text if priorities else ''} "
         f"{billing_reminder}"
-        "Xabar qisqa, ammo mazmunli va HTML formatda bo'lsin."
+        "Xabar samimiy, insoniy va HTML formatda bo'lsin."
     )
     
     from src.services.proactive_worker import generate_ai_message
@@ -464,11 +457,21 @@ async def send_morning_briefing():
     try:
         from telegram import Bot
         bot = Bot(token=bot_token)
-        await bot.send_message(chat_id=group_id, text=briefing, parse_mode="HTML", message_thread_id=thread_id)
-        db.mark_job_run("morning_briefing", today)
-        logger.info("[MORNING BRIEFING] Muvaffaqiyatli yuborildi.")
+        
+        # HTML Sanitizatsiya (Oisha v9 Stable)
+        clean_briefing = briefing.replace("<p>", "").replace("</p>", "\n")
+        clean_briefing = clean_briefing.replace("<ul>", "").replace("</ul>", "")
+        clean_briefing = clean_briefing.replace("<li>", "• ").replace("</li>", "\n")
+        
+        try:
+            await bot.send_message(chat_id=group_id, text=clean_briefing, parse_mode="HTML", message_thread_id=thread_id)
+            logger.info(f"[MORNING BRIEFING] Jamoa guruhiga ({group_id}) yuborildi.")
+        except Exception as html_err:
+            logger.warning(f"[MORNING BRIEFING] HTML xato, Plain-ga o'tilmoqda: {html_err}")
+            await bot.send_message(chat_id=group_id, text=briefing, parse_mode=None, message_thread_id=thread_id)
+
     except Exception as e:
-        logger.error(f"[XATO] Morning briefing: {e}")
+        logger.error(f"[XATO] Morning Briefing yuborishda: {e}", exc_info=True)
 
 async def send_overdue_nudges():
     """Vazifasi kechikayotgan xodimlarni guruhda (tagging) ogohlantirish."""
@@ -517,10 +520,42 @@ async def send_overdue_nudges():
     except Exception as e:
         logger.error(f"[XATO] Public Nudge yuborishda: {e}")
 
+async def send_evening_fact_report():
+    """Kechki Plan-Fakt natijalarini audit qilish va guruhga yuborish."""
+    logger.info("Evening Fact report job started...")
+    from src.services.enterprise_reporter import EnterpriseReporter
+    from src.services.crm_service import CRMService
+    import src.config as config
+    
+    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+    group_id = getattr(config, "TEAM_GROUP_ID", config.CRM_GROUP_ID)
+    thread_id = getattr(config, "TOPIC_REPORTS_ID", None)
+    
+    if not (bot_token and group_id): return
+    
+    db = Database()
+    today = datetime.datetime.now().strftime('%Y-%m-%d')
+    if db.is_job_run("evening_fact", today):
+        logger.info("[EVENING FACT] Allaqachon bugun yuborilgan. Skip.")
+        return
+
+    try:
+        crm_service = CRMService()
+        reporter = EnterpriseReporter(db, crm_service)
+        report_msg = await reporter.generate_plan_fact_report()
+        
+        from telegram import Bot
+        bot = Bot(token=bot_token)
+        await bot.send_message(chat_id=group_id, text=report_msg, parse_mode="HTML", message_thread_id=thread_id)
+        db.mark_job_run("evening_fact", today)
+        logger.info("[EVENING FACT] Sent successfully.")
+    except Exception as e:
+        logger.error(f"[XATO] Evening Fact: {e}")
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Proactive AI Worker")
-    parser.add_argument("--job", choices=["followup", "report", "briefing", "stagnation", "deadlines"], default="followup", help="Kaysi vazifani bajarish kerak?")
+    parser.add_argument("--job", choices=["followup", "report", "briefing", "stagnation", "deadlines", "distribute", "fact"], default="followup", help="Kaysi vazifani bajarish kerak?")
     args = parser.parse_args()
     
     if args.job == "followup":
@@ -533,3 +568,7 @@ if __name__ == "__main__":
         asyncio.run(check_amocrm_stagnation())
     elif args.job == "deadlines":
         asyncio.run(check_airtable_deadlines())
+    elif args.job == "distribute":
+        asyncio.run(distribute_team_tasks(force=True))
+    elif args.job == "fact":
+        asyncio.run(send_evening_fact_report())
