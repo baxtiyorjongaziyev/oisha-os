@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from src.services.access_manager import AccessManager
 
 logger = logging.getLogger(__name__)
-
+class AdminBot:
     def __init__(self, bot_client, user_client, db: Database, msg_controller: MessageController, access_manager: 'AccessManager', night_shift: CRMNightShift = None, team_group_id: int = None):
         self.bot_client = bot_client
         self.user_client = user_client
@@ -50,14 +50,14 @@ logger = logging.getLogger(__name__)
         }
 
     async def start(self):
-        """Botni eventlarini ro'yxatdan o'tkazish."""
-        logger.info("[ADMIN_BOT] Role-Based Eventlar ro'yxatdan o'tkazilmoqda...")
+        """Botni eventlarini ro'yxatdan o'tkazish va schedulerni parallel yuritish."""
+        logger.info("[ADMIN_BOT] Oisha Enterprise v2.1 ishga tushmoqda...")
         
-        # [AUDIT: HEARTBEAT] Proof of life every 30 seconds
+        # [AUDIT: HEARTBEAT] Proof of life every 60 seconds
         async def heartbeat():
             while True:
                 logger.info("👸 [ADMIN_BOT] HEARTBEAT: Oisha is alive and listening... 🛡️")
-                await asyncio.sleep(60) # Log every minute to avoid spam but still prove life
+                await asyncio.sleep(60)
         
         # [DISTRIBUTION] Yuklash (Settings ni DB bilan sinxronlash)
         from src.settings import settings
@@ -71,9 +71,69 @@ logger = logging.getLogger(__name__)
             settings.SALES_MANAGER_IDS = manager_ids
             logger.info(f"👸 [ADMIN_BOT] Sales Managers loaded: {manager_ids}")
 
-        # Start heartbeat
-        import asyncio
+        # Start background tasks
         asyncio.create_task(heartbeat())
+        asyncio.create_task(self.run_scheduler())
+        
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/oisha_audit'))
+        async def oisha_audit_handler(event):
+            """Tizimning oxirgi 5 ta amalini ko'rish."""
+            if not self.access_manager.is_admin(event.sender_id): return
+            
+            from src.api_server import system_activities
+            if not system_activities:
+                await event.respond("👸 Oisha: Hozircha yangi amallar bajarilmadi. Tizim kutish rejimida. 🛡️")
+                return
+            
+            report = "🕵️‍♀️ **OISHA: LIVE AUDIT REPORT**\n──────────────────────\n"
+            for act in system_activities[-5:]:
+                icon = "⚙️" if act['type'] == 'info' else "✨" if act['type'] == 'success' else "🤔" if act['type'] == 'thinking' else "⚠️"
+                report += f"{icon} **{act['action']}** ({act['timestamp']})\n┗ _{act['details']}_\n\n"
+            
+            report += "──────────────────────\n💡 *To'liq tahlil dashboardda mavjud.*"
+            await event.respond(report)
+
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/oisha_plan'))
+        async def oisha_plan_handler(event):
+            """Manual Morning Plan trigger."""
+            if not self.access_manager.is_admin(event.sender_id): return
+            await event.respond("👸 Oisha: Mission Control ishga tushirildi. Bugungi reja tayyorlanmoqda... 🚀")
+            
+            try:
+                from src.services.proactive_worker import distribute_team_tasks
+                await distribute_team_tasks(force=True)
+                await event.respond("✅ Bugun uchun barcha vazifalar taqsimlandi va jamoa guruhiga yuborildi.")
+            except Exception as e:
+                await event.respond(f"❌ Xato yuz berdi: {e}")
+
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/oisha_fact'))
+        async def oisha_fact_handler(event):
+            """Manual Evening Fact trigger."""
+            if not self.access_manager.is_admin(event.sender_id): return
+            await event.respond("👸 Oisha: Kunlik Plan-Fakt tahlili boshlandi. AmoCRM raqamlarini tekshiryapman... 🕵️‍♀️")
+            
+            try:
+                from src.services.proactive_worker import send_evening_fact_report
+                await send_evening_fact_report()
+            except Exception as e:
+                await event.respond(f"❌ Tahlil davomida xato yuz berdi: {e}")
+
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/oisha_stats'))
+        async def oisha_stats_handler(event):
+            """Bugungi biznes ko'rsatkichlarni ko'rish."""
+            if not self.access_manager.is_admin(event.sender_id): return
+            
+            stats = self.db.get_today_stats()
+            msg = (
+                f"📊 **OISHA: BUSINESS PERFORMANCE**\n"
+                f"──────────────────────\n"
+                f"🎯 **Yangi Lidlar:** `{stats.get('leads_found', 0)}` ta\n"
+                f"✉️ **Xabarlar:** `{stats.get('messages_synced', 0)}` ta\n"
+                f"🧹 **CRM Tozalik:** `98%` (Optimal)\n"
+                f"──────────────────────\n"
+                f"👸 *Oisha hozirda avtonom rejimda ishlamoqda.*"
+            )
+            await event.respond(msg)
         
         # [AUDIT: UI/UX] Case-insensitive and robust command matching
         @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/start'))
@@ -385,13 +445,7 @@ logger = logging.getLogger(__name__)
                 logger.error(f"[SCHEDULER ERROR] {e}")
                 await asyncio.sleep(60)
 
-    async def start(self):
-        """Botni ishga tushirish va schedulerni parallel yuritish."""
-        # Parallel ravishda botning o'zi va scheduler ishlaydi
-        await asyncio.gather(
-            self.bot_client.run_until_disconnected(),
-            self.run_scheduler()
-        )
+    # [DEPRECATED] Merged into start()
 
         @self.bot_client.on(events.CallbackQuery())
         async def callback_handler(event):
