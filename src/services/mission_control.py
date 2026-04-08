@@ -59,7 +59,7 @@ class MissionControl:
         return missions
 
     async def distribute_missions(self, managers):
-        """Vazifalarni menejerlar o'rtasida bo'lib berish."""
+        """Vazifalarni menejerlar o'rtasida bo'lib berish va bazada saqlash."""
         missions = await self.get_active_missions()
         if not missions:
             return {}
@@ -75,15 +75,33 @@ class MissionControl:
             m_id = manager_ids[i % len(manager_ids)]
             distribution[m_id].append(mission)
             
+            # [ENTERPRISE] Plan-Fact uchun saqlaymiz
+            self.db.save_daily_plan(
+                manager_id=m_id,
+                lead_id=mission['lead_id'],
+                lead_name=mission['lead_name'],
+                mission=mission['mission']
+            )
+            
         return distribution
 
     async def get_manager_list(self):
-        """DB dan faol menejerlarni olish (comma-separated IDs string)."""
+        """Settings va DB dan faol menejerlarni olish."""
+        # 1. From settings (Hard-coded/Env)
+        manager_ids = list(settings.SALES_MANAGER_IDS) if hasattr(settings, "SALES_MANAGER_IDS") else []
+        
+        # 2. From DB state (Dynamic)
         managers_data = self.db.get_state("sales_managers", "")
         if managers_data:
-            ids = [int(i) for i in managers_data.split(",") if i]
-            # Formati manager dict listiga o'tkazamiz
-            return [{"id": mid} for mid in ids]
+            db_ids = [int(i) for i in managers_data.split(",") if i]
+            for db_id in db_ids:
+                if db_id not in manager_ids:
+                    manager_ids.append(db_id)
+        
+        if manager_ids:
+            # TODO: Kelajakda ismlarni ham DB dan olish mumkin
+            return [{"id": mid, "name": f"Manager_{mid}"} for mid in manager_ids]
+            
         return []
 
 if __name__ == "__main__":
