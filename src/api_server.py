@@ -1,3 +1,4 @@
+import asyncio
 import uvicorn
 from datetime import datetime
 import logging
@@ -41,6 +42,7 @@ async def root_status():
 # Global references
 user_client = None
 db_instance = None
+outgoing_messages: asyncio.Queue = None  # Initialized lazily; bridge consumer checks before use
 # --- DASHBOARD ACTIVITY FEED ---
 system_activities: List[Dict[str, Any]] = []
 
@@ -167,10 +169,57 @@ async def get_system_info():
     """Tizim haqida umumiy ma'lumot."""
     return {
         "os": "Windows",
-        "version": "2.1.0-GodMode",
+        "version": "2.2.0-MetaSell",
         "agent_count": 8,
-        "active_modules": ["NightShift", "OSINT", "CRM_Sync", "Advisor"]
+        "active_modules": ["NightShift", "OSINT", "CRM_Sync", "Advisor", "CallAnalyzer", "Coaching"]
     }
+
+# ═══════════════════════════════════════════════════
+# MetaSell-style: Call Analysis & Sales KPI Endpoints
+# ═══════════════════════════════════════════════════
+
+def _get_analyzer():
+    """Lazy-init call analyzer for API endpoints."""
+    if not hasattr(_get_analyzer, "_instance"):
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        from src.services.call_analyzer import CallAnalyzer
+        _get_analyzer._instance = CallAnalyzer(api_key=api_key, db=db_instance)
+    return _get_analyzer._instance
+
+class AnalyzeRequest(BaseModel):
+    text: str
+    salesperson_id: Optional[int] = None
+    salesperson_name: Optional[str] = None
+
+@app.post("/api/calls/analyze")
+async def analyze_call(request: AnalyzeRequest):
+    """Savdo suhbatini AI tahlil qilish (MetaSell-style scoring)."""
+    analyzer = _get_analyzer()
+    result = await analyzer.analyze_conversation(
+        request.text,
+        salesperson_id=request.salesperson_id,
+        salesperson_name=request.salesperson_name
+    )
+    return result
+
+@app.get("/api/calls/kpi")
+async def get_call_kpi():
+    """KPI dashboard — bugungi, haftalik, oylik ko'rsatkichlar."""
+    analyzer = _get_analyzer()
+    return await analyzer.get_kpi_summary()
+
+@app.get("/api/calls/team-report")
+async def get_team_report(days: int = 7):
+    """Jamoa savdo hisoboti — har bir a'zo uchun ballar."""
+    analyzer = _get_analyzer()
+    return await analyzer.get_team_report(period_days=days)
+
+@app.get("/api/calls/coaching/{salesperson_id}")
+async def get_coaching(salesperson_id: int, name: str = ""):
+    """Shaxsiy AI coaching — savdogar uchun tavsiyalar."""
+    analyzer = _get_analyzer()
+    text = await analyzer.generate_coaching(salesperson_id, name)
+    return {"salesperson_id": salesperson_id, "coaching": text}
 
 def run_api(host: str = "0.0.0.0", port: int = 8080):
     uvicorn.run(app, host=host, port=port)

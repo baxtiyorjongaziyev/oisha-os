@@ -378,6 +378,19 @@ async def shadow_advisor_handler(event):
               )
 
 
+async def _auto_score_negotiation(user_id: int, name: str, client_msg: str, ai_reply: str):
+    """Background: har bir autonomous negotiation ni scoring qilish."""
+    try:
+        api_key = os.environ.get("GEMINI_API_KEY") or ""
+        if not api_key:
+            return
+        from src.services.call_analyzer import CallAnalyzer
+        analyzer = CallAnalyzer(api_key=api_key, db=msg_controller.db if msg_controller else None)
+        conversation = f"{name}: {client_msg}\nOisha: {ai_reply}"
+        await analyzer.analyze_conversation(conversation, salesperson_id=0, salesperson_name="Oisha AI")
+    except Exception as e:
+        logger.error(f"[AUTO-SCORE] Error: {e}")
+
 async def activity_monitor_handler(event):
     """Foydalanuvchining (Baxtiyor aka) chiquvchi harakatlarini loglash (Audit uchun)."""
     # Uzimizning xabarlarimizni log qilamiz
@@ -563,6 +576,81 @@ async def handle_new_message(event):
                     )
                     await event.respond(reply)
                     msg_controller.db.set_meta(event.sender_id, "night_reply_sent_today", "true", expire_in_hours=12)
+
+    # ═══════════════════════════════════════════════════════════════════
+    # [SMART DRAFT] AI draft javob tayyorlab ownerga ko'rsatadi
+    # Owner tasdiqlasa — shaxsiy akkauntdan yuboriladi
+    # ═══════════════════════════════════════════════════════════════════
+    if event.is_private and not event.out and not getattr(sender, 'bot', False) and message_text:
+        from src.settings import settings as _s
+        excluded = _s.EXCLUDED_NAMES
+        is_team = event.sender_id in (_s.SALES_MANAGER_IDS or []) or sender_name in excluded
+        is_owner = event.sender_id == _s.OWNER_ID or event.sender_id == 150074828
+
+        if not is_team and not is_owner:
+            try:
+                # Oxirgi suhbat kontekstini olish
+                recent = msg_controller.db.get_recent_messages(event.sender_id, limit=10)
+                history_text = ""
+                if recent:
+                    for msg_text, is_ai in reversed(recent):
+                        role = "Baxtiyor" if is_ai else sender_name
+                        history_text += f"{role}: {msg_text}\n"
+
+                draft_prompt = (
+                    f"Sen Baxtiyorjon Gaziyev sifatida yozyapsan — Jon.Branding agentligi asoschisi.\n\n"
+                    f"SEN ODAM SIFATIDA GAPIR, ROBOT EMAS. Baxtiyor akaning uslubi:\n"
+                    f"- Samimiy, do'stona, hazilkash\n"
+                    f"- Qisqa javob (1-3 gap), Telegram uslubida — uzun matn yozma\n"
+                    f"- Emoji kam ishlat (tabiiy bo'lsin)\n"
+                    f"- 'Aka', 'uka' deb murojaat qil\n"
+                    f"- Hazilga hazil bilan javob ber, jiddiy bo'lma\n"
+                    f"- Hech qachon 'men bot man' yoki 'men AI man' dema\n"
+                    f"- Agar narx so'rasa — 'ko'rishganda gaplashamiz' de, raqam berma\n"
+                    f"- Maqsad: uchrashuv/qo'ng'iroq belgilash\n"
+                    f"- Agar mijoz hazil qilsa — olib ketadigan darajada hazilkash javob ber\n"
+                    f"- Agar salomlashsa — oddiy salom ber, ortiqcha gap qo'shma\n"
+                    f"- Hech qachon formal yoki rasmiy gapirma\n\n"
+                    f"Suhbat tarixi:\n{history_text}\n"
+                    f"Mijoz ({sender_name}): {message_text}\n\n"
+                    f"Baxtiyor javobi (1-3 gap, tabiiy):"
+                )
+
+                api_key = os.environ.get("GEMINI_API_KEY") or getattr(config, "GEMINI_API_KEY", "")
+                if api_key:
+                    from google import genai as _genai
+                    _client = _genai.Client(api_key=api_key)
+                    response = _client.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=[draft_prompt]
+                    )
+
+                    draft = response.text.strip() if response.text else None
+                    if draft and len(draft) > 2:
+                        # Draft'ni AdminBot orqali ownerga ko'rsatish
+                        if admin_bot:
+                            import uuid
+                            draft_id = str(uuid.uuid4())[:8]
+                            admin_bot.pending_drafts[draft_id] = draft
+
+                            from telethon import Button
+                            draft_msg = (
+                                f"💬 **{sender_name}:** {message_text}\n\n"
+                                f"✏️ **Draft javob:**\n{draft}"
+                            )
+                            buttons = [
+                                [Button.inline("✅ Yuborish", data=f"send_draft:{draft_id}:{event.sender_id}".encode())],
+                                [Button.inline("❌ Bekor", data=f"reject_draft:{draft_id}".encode())]
+                            ]
+                            await admin_bot.bot_client.send_message(
+                                _s.OWNER_ID,
+                                draft_msg,
+                                buttons=buttons
+                            )
+                            logger.info(f"📝 [SMART DRAFT] Draft sent to owner for {sender_name}")
+
+            except Exception as e:
+                logger.error(f"[SMART DRAFT] Error: {e}")
 
     # [GOD MODE] Multi-Modal (Voice Note) Handling
     if event.is_private and not event.out and event.message.voice and voice_processor:
@@ -892,9 +980,8 @@ async def main():
     api_module.user_client = client
     api_module.db_instance = msg_controller.db
 
-    # 4. Starting API server
-    asyncio.create_task(run_health_check_api())
-    
+    # NOTE: API server already started via run_health_check_api() at top of main() — do NOT start again here
+
     # 5. Background Tasks
     # [GOD MODE] Initialize Juma Notifier (Must be after client initialization)
     juma_notifier = JumaNotifier(client=client, db=db, group_id=TN5_GROUP_ID)
@@ -940,8 +1027,7 @@ async def main():
     # 4. Botni ishga tushirish
     if BOT_TOKEN_STR:
         await bot_client.start(bot_token=BOT_TOKEN_STR)
-        # Kunlik vazifalar schedulerini ishga tushiramiz
-        asyncio.create_task(admin_bot.run_scheduler())
+        # NOTE: run_scheduler() is called inside admin_bot.start() — do NOT call it here again
     
     # [STABILITY] Registrating event handlers AFTER client initialization
     client.add_event_handler(handle_new_message, events.NewMessage)
@@ -1104,18 +1190,9 @@ async def main():
         await admin_bot.start()
         print(f"✅ Oisha Admin Bot (Bot Token-da) faollashtirildi.")
 
-    # [ENTERPRISE] Auto-run Mass Sync
-    if getattr(settings, 'AUTORUN_MASS_SYNC', False):
-        logger.info("[ENTERPRISE] 👸 Oisha-OS: 'Loyiha TN5' kontaktlarini ommaviy saqlash jarayoni boshlandi... 👸🛡️")
-        asyncio.create_task(lead_scraper.sync_all_group_members(
-            client=client, 
-            group_id=TN5_GROUP_ID,
-            limit=500
-        ))
-
     # [ENTERPRISE] Background Monitor
     asyncio.create_task(background_monitor_task())
-    
+
     # [GOD MODE] Periodic tasks (Juma, Maintenance)
     async def background_scheduler():
         # RUN IMMEDIATELY ON STARTUP
@@ -1130,20 +1207,20 @@ async def main():
             except Exception as e:
                 logger.error(f"[SCHEDULER] Task Error: {e}")
             await asyncio.sleep(600) # Check every 10 mins
-    
+
     asyncio.create_task(background_scheduler())
-    
-    # [ENTERPRISE] Periodic DM Lead Sync (Personal Account)
-    async def dm_lead_sync_task():
-        while True:
-            try:
-                logger.info("👸 [DM SYNC] Starting periodic private dialogs analysis...")
-                await lead_scraper.sync_private_dialogs(client, limit=50)
-            except Exception as e:
-                logger.error(f"[DM SYNC ERROR] {e}")
-            await asyncio.sleep(3600) # Run every 1 hour
-    
-    asyncio.create_task(dm_lead_sync_task())
+
+    # NOTE: Mass Sync and DM Lead Sync are now started AFTER client.connect()
+    # inside the userbot_active block (see below) to avoid "disconnected" errors.
+
+    logger.info("✅ Oisha-OS: All High-Performance Agents are Online & Ready!")
+
+    # [WAZZUP KILLER] Initialize API Server Bridge (must happen BEFORE consumer starts)
+    import src.api_server as api_server
+    api_server.user_client = client
+    api_server.db_instance = msg_controller.db
+    if api_server.outgoing_messages is None:
+        api_server.outgoing_messages = asyncio.Queue()
 
     # [WAZZUP KILLER] Outgoing Message Consumer
     async def amocrm_bridge_consumer():
@@ -1154,25 +1231,18 @@ async def main():
                 msg_data = await api_server.outgoing_messages.get()
                 user_id = msg_data.get('user_id')
                 text = msg_data.get('text')
-                
+
                 if user_id and text:
                     logger.info(f"👸 [WAZZUP KILLER] Sending msg to {user_id}...")
                     await client.send_message(user_id, text)
                     logger.info(f"✅ Sent!")
-                
+
                 api_server.outgoing_messages.task_done()
             except Exception as e:
                 logger.error(f"[WAZZUP BRIDGE ERROR] {e}")
             await asyncio.sleep(0.1)
 
     asyncio.create_task(amocrm_bridge_consumer())
-    
-    logger.info("✅ Oisha-OS: All High-Performance Agents are Online & Ready!")
-    
-    # [WAZZUP KILLER] Initialize API Server Bridge
-    import src.api_server as api_server
-    api_server.user_client = client
-    api_server.db_instance = Database() # or use existing msg_controller.db
     
     # [API] Already started via run_health_check_api()
     logger.info("👸 [OISHA] Strategic Intelligence Bridge is online.")
@@ -1185,14 +1255,49 @@ async def main():
     from src.api_server import add_activity
     add_activity("Platform On", "Oisha-OS va Dashboard muvaffaqiyatli ishga tushdi.", "success")
 
-    # [ROBUST STARTUP] Finally, start Userbot once everything else is running.
-    # This ensures that if the Userbot asks for a code, the Admin Bot and Reports are already active.
+    # [ROBUST STARTUP] Finally, connect Userbot once everything else is running.
     logger.info("👸 [USERBOT] Attempting to connect shaxsiy akkaunt...")
-    await client.start()
-    logger.info("✅ Userbot ulandi va xabarlarni eshita boshladi!")
+    userbot_active = False
+    try:
+        await client.connect()
+        if await client.is_user_authorized():
+            userbot_active = True
+            logger.info("✅ Userbot ulandi va xabarlarni eshita boshladi!")
 
-    # Main client loop
-    await client.run_until_disconnected()
+            # [ENTERPRISE] Auto-run Mass Sync (only when userbot is connected)
+            if getattr(settings, 'AUTORUN_MASS_SYNC', False):
+                logger.info("[ENTERPRISE] 👸 Oisha-OS: 'Loyiha TN5' kontaktlarini ommaviy saqlash jarayoni boshlandi... 👸🛡️")
+                asyncio.create_task(lead_scraper.sync_all_group_members(
+                    client=client,
+                    group_id=TN5_GROUP_ID,
+                    limit=500
+                ))
+
+            # [ENTERPRISE] Periodic DM Lead Sync (only when userbot is connected)
+            async def dm_lead_sync_task():
+                while True:
+                    try:
+                        logger.info("👸 [DM SYNC] Starting periodic private dialogs analysis...")
+                        await lead_scraper.sync_private_dialogs(client, limit=50)
+                    except Exception as e:
+                        logger.error(f"[DM SYNC ERROR] {e}")
+                    await asyncio.sleep(3600)
+
+            asyncio.create_task(dm_lead_sync_task())
+        else:
+            logger.critical("❌ [USERBOT] Session expired or invalid! Running in AdminBot-only mode.")
+            logger.critical("Run: python -c \"from telethon import TelegramClient; import asyncio; c = TelegramClient('data/userbot_session', ...); asyncio.run(c.start())\"")
+    except Exception as e:
+        logger.critical(f"❌ [USERBOT] Connection failed: {e}. Running in AdminBot-only mode.")
+
+    # Main loop: keep the process alive regardless of userbot status
+    if userbot_active:
+        await client.run_until_disconnected()
+    else:
+        logger.info("👸 [OISHA] AdminBot-only mode: bot_client, API, NightShift, and scheduler are running.")
+        # Keep the event loop alive for AdminBot and background tasks
+        while True:
+            await asyncio.sleep(60)
 
 if __name__ == "__main__":
     try:
