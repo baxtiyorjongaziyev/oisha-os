@@ -1,22 +1,27 @@
 <!DOCTYPE html>
 <html lang="uz">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Oisha Intelligence Center | 24/7 Command</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;700&display=swap"
+        rel="stylesheet">
     <style>
         :root {
-            --bg: #0a0b1e;
+            --bg: #080918;
             --glass: rgba(255, 255, 255, 0.03);
-            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.08);
             --accent: #7c4dff;
-            --accent-glow: rgba(124, 77, 255, 0.4);
+            --accent-glow: rgba(124, 77, 255, 0.35);
             --success: #00e676;
             --warning: #ffab00;
             --error: #ff5252;
+            --info: #448aff;
+            --thinking: #e040fb;
             --text-main: #ffffff;
-            --text-dim: #a0aec0;
+            --text-dim: #6c7a9c;
         }
 
         * {
@@ -27,27 +32,26 @@
 
         body {
             background: var(--bg);
-            background-image: 
-                radial-gradient(circle at 20% 20%, #1a1b3b 0%, transparent 40%),
-                radial-gradient(circle at 80% 80%, #12132b 0%, transparent 40%);
+            background-image:
+                radial-gradient(circle at 15% 15%, rgba(124, 77, 255, 0.12) 0%, transparent 45%),
+                radial-gradient(circle at 85% 85%, rgba(0, 210, 255, 0.06) 0%, transparent 45%);
             color: var(--text-main);
             font-family: 'Inter', sans-serif;
             min-height: 100vh;
             overflow-x: hidden;
-            display: flex;
-            flex-direction: column;
         }
 
         header {
-            padding: 2rem 5%;
+            padding: 1.5rem 5%;
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--glass-border);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(20px);
             position: sticky;
             top: 0;
             z-index: 100;
+            background: rgba(8, 9, 24, 0.8);
         }
 
         .logo-area {
@@ -57,85 +61,114 @@
         }
 
         .logo-icon {
-            width: 40px;
-            height: 40px;
+            width: 42px;
+            height: 42px;
             background: linear-gradient(135deg, var(--accent), #00d2ff);
             border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 20px var(--accent-glow);
+            font-size: 1.3rem;
+            box-shadow: 0 0 25px var(--accent-glow);
         }
 
         h1 {
             font-family: 'Outfit', sans-serif;
             font-weight: 800;
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             letter-spacing: -0.02em;
         }
 
         .status-badge {
-            background: rgba(0, 230, 118, 0.1);
+            background: rgba(0, 230, 118, 0.08);
             color: var(--success);
-            padding: 0.5rem 1rem;
+            padding: 0.4rem 1rem;
             border-radius: 100px;
-            font-size: 0.8rem;
-            font-weight: 600;
+            font-size: 0.75rem;
+            font-weight: 700;
             display: flex;
             align-items: center;
             gap: 0.5rem;
             border: 1px solid rgba(0, 230, 118, 0.2);
+            letter-spacing: 0.05em;
         }
 
         .pulse {
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
             background: var(--success);
             border-radius: 50%;
             animation: pulse 2s infinite;
         }
 
         @keyframes pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 230, 118, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0); }
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7);
+            }
+
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 8px rgba(0, 230, 118, 0);
+            }
+
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(0, 230, 118, 0);
+            }
         }
 
         main {
-            flex: 1;
             padding: 2rem 5%;
             display: grid;
-            grid-template-columns: 1fr 350px;
-            gap: 2rem;
+            grid-template-columns: 1fr 380px;
+            gap: 1.5rem;
         }
 
         .metrics-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
         }
 
         .metric-card {
             background: var(--glass);
             border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 1.5rem;
-            transition: all 0.3s ease;
+            border-radius: 18px;
+            padding: 1.25rem 1.5rem;
+            transition: all 0.3s;
             position: relative;
             overflow: hidden;
         }
 
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
         .metric-card:hover {
-            border-color: var(--accent);
-            transform: translateY(-5px);
-            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(124, 77, 255, 0.3);
+            transform: translateY(-3px);
+        }
+
+        .metric-card:hover::before {
+            opacity: 1;
         }
 
         .metric-label {
             color: var(--text-dim);
-            font-size: 0.85rem;
-            font-weight: 500;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
             margin-bottom: 0.5rem;
             display: block;
         }
@@ -144,49 +177,51 @@
             font-size: 2rem;
             font-weight: 800;
             font-family: 'Outfit', sans-serif;
-            margin-bottom: 5px;
         }
 
         .metric-trend {
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 4px;
+            color: var(--success);
+            margin-top: 4px;
         }
-
-        .trend-up { color: var(--success); }
 
         .feed-container {
             background: var(--glass);
             border: 1px solid var(--glass-border);
-            border-radius: 24px;
+            border-radius: 20px;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            height: 600px;
+            height: 620px;
         }
 
         .feed-header {
-            padding: 1.5rem;
+            padding: 1.25rem 1.5rem;
             border-bottom: 1px solid var(--glass-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
+        .feed-header h2 {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
         .feed-content {
             flex: 1;
             overflow-y: auto;
-            padding: 1rem;
+            padding: 0.75rem;
             scrollbar-width: thin;
             scrollbar-color: var(--accent) transparent;
         }
 
         .activity-item {
-            padding: 1rem;
-            border-radius: 12px;
-            margin-bottom: 0.75rem;
+            padding: 0.85rem 1rem;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
             border: 1px solid transparent;
             transition: 0.2s;
             background: rgba(255, 255, 255, 0.02);
@@ -194,8 +229,15 @@
         }
 
         @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-10px); }
-            to { opacity: 1; transform: translateX(0); }
+            from {
+                opacity: 0;
+                transform: translateX(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
 
         .activity-item:hover {
@@ -206,178 +248,394 @@
         .item-top {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.35rem;
         }
 
         .item-action {
             font-weight: 700;
-            font-size: 0.9rem;
-            color: var(--accent);
+            font-size: 0.85rem;
         }
 
         .item-time {
             color: var(--text-dim);
-            font-size: 0.75rem;
+            font-size: 0.72rem;
+            font-family: 'JetBrains Mono', monospace;
         }
 
         .item-details {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             line-height: 1.5;
-            color: rgba(255, 255, 255, 0.8);
+            color: rgba(255, 255, 255, 0.65);
         }
 
-        .activity-item.success .item-action { color: var(--success); }
-        .activity-item.warning .item-action { color: var(--warning); }
-        .activity-item.error .item-action { color: var(--error); }
-        .activity-item.thinking { 
-            border-left: 3px solid var(--accent);
-            background: rgba(124, 77, 255, 0.05);
+        .activity-item.success .item-action {
+            color: var(--success);
+        }
+
+        .activity-item.warning .item-action {
+            color: var(--warning);
+        }
+
+        .activity-item.error .item-action {
+            color: var(--error);
+        }
+
+        .activity-item.thinking {
+            border-left: 3px solid var(--thinking);
+            background: rgba(224, 64, 251, 0.04);
+        }
+
+        .activity-item.thinking .item-action {
+            color: var(--thinking);
+        }
+
+        .activity-item.info .item-action {
+            color: var(--info);
         }
 
         aside {
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 1.25rem;
         }
 
         .info-card {
             background: var(--glass);
             border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 1.5rem;
+            border-radius: 18px;
+            padding: 1.25rem 1.5rem;
         }
 
         .info-title {
-            font-size: 0.85rem;
+            font-size: 0.72rem;
             font-weight: 700;
             color: var(--text-dim);
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.08em;
             margin-bottom: 1rem;
             display: block;
         }
 
-        .system-info-list div {
+        .schedule-table {
+            width: 100%;
+        }
+
+        .schedule-row {
             display: flex;
             justify-content: space-between;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            font-size: 0.85rem;
+            align-items: center;
+            padding: 0.55rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 0.82rem;
+        }
+
+        .schedule-row:last-child {
+            border-bottom: none;
+        }
+
+        .schedule-time {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent);
+            font-weight: 600;
+            font-size: 0.78rem;
+        }
+
+        .schedule-task {
+            color: rgba(255, 255, 255, 0.75);
+            flex: 1;
+            padding: 0 0.75rem;
+        }
+
+        .schedule-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-dim);
+            flex-shrink: 0;
+        }
+
+        .schedule-status.active {
+            background: var(--success);
+            box-shadow: 0 0 6px var(--success);
+            animation: pulse 1s infinite;
+        }
+
+        .schedule-status.pending {
+            background: var(--warning);
+        }
+
+        .schedule-status.done {
+            background: rgba(0, 230, 118, 0.3);
         }
 
         .btn-action {
             width: 100%;
             padding: 1rem;
-            background: var(--accent);
+            background: linear-gradient(135deg, var(--accent), #5c6bc0);
             color: white;
             border: none;
             border-radius: 12px;
             font-weight: 700;
+            font-size: 0.9rem;
             cursor: pointer;
-            transition: 0.3s;
-            box-shadow: 0 10px 20px var(--accent-glow);
+            transition: all 0.3s;
+            box-shadow: 0 8px 20px var(--accent-glow);
+            letter-spacing: 0.02em;
         }
 
         .btn-action:hover {
-            background: #8c66ff;
             transform: translateY(-2px);
+            box-shadow: 0 12px 28px var(--accent-glow);
         }
 
-        footer {
-            padding: 1.5rem;
-            text-align: center;
-            color: var(--text-dim);
-            font-size: 0.75rem;
+        .btn-action:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-action.loading {
+            background: linear-gradient(135deg, #3d2f80, #2c3580);
+        }
+
+        #toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: #14152e;
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 999;
+            max-width: 320px;
+        }
+
+        #toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        #toast.success {
+            border-color: rgba(0, 230, 118, 0.4);
+            color: var(--success);
+        }
+
+        #toast.error {
+            border-color: rgba(255, 82, 82, 0.4);
+            color: var(--error);
+        }
+
+        #toast.loading-toast {
+            border-color: rgba(124, 77, 255, 0.4);
+            color: var(--accent);
         }
     </style>
 </head>
+
 <body>
 
-<header>
-    <div class="logo-area">
-        <div class="logo-icon">👸</div>
-        <h1>Oisha<span style="color:var(--accent)">.OS</span></h1>
-    </div>
-    <div class="status-badge">
-        <div class="pulse"></div>
-        AUTONOMOUS OPS ACTIVE
-    </div>
-</header>
-
-<main>
-    <section class="ops-center">
-        <div class="metrics-grid">
-            <div class="metric-card">
-                <span class="metric-label">Mijozlar razvedka qilindi</span>
-                <span class="metric-value" id="leads-count">0</span>
-                <div class="metric-trend trend-up">▲ 12% bugun</div>
-            </div>
-            <div class="metric-card">
-                <span class="metric-label">CRM Tozalik darajasi</span>
-                <span class="metric-value" id="crm-health">98%</span>
-                <div class="metric-trend">High Performance</div>
-            </div>
-            <div class="metric-card">
-                <span class="metric-label">Sinxronlangan xabarlar</span>
-                <span class="metric-value" id="messages-count">0</span>
-                <div class="metric-trend trend-up">▲ Active</div>
-            </div>
+    <header>
+        <div class="logo-area">
+            <div class="logo-icon">👸</div>
+            <h1>Oisha<span style="color:var(--accent)">.OS</span></h1>
         </div>
-
-        <div class="feed-container">
-            <div class="feed-header">
-                <h2 style="font-family:'Outfit'; font-weight:600; font-size:1.1rem">Live Intelligence Feed</h2>
-                <span id="activity-counter" style="color:var(--text-dim); font-size:0.8rem">50 items</span>
-            </div>
-            <div class="feed-content" id="activity-feed">
-                <!-- Activities will be injected here -->
-            </div>
+        <div class="status-badge">
+            <div class="pulse"></div>
+            AUTONOMOUS OPS ACTIVE
         </div>
-    </section>
+    </header>
 
-    <aside>
-        <div class="info-card">
-            <span class="info-title">Global Status</span>
-            <div class="system-info-list" id="system-info">
-                <div><span>Uptime</span><span style="color:var(--success)">Online</span></div>
-                <div><span>Mode</span><span>Self-Improving</span></div>
-                <div><span>Server</span><span>Localhost-Node-01</span></div>
-                <div><span>Port</span><span id="current-port">8080</span></div>
+    <main>
+        <section>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <span class="metric-label">Lidlar razvedka qilindi</span>
+                    <span class="metric-value" id="leads-count">—</span>
+                    <div class="metric-trend" id="leads-trend">Yangilanmoqda...</div>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">CRM Tozalik</span>
+                    <span class="metric-value" id="crm-health">98%</span>
+                    <div class="metric-trend">High Performance</div>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Sinxronlangan xabarlar</span>
+                    <span class="metric-value" id="messages-count">—</span>
+                    <div class="metric-trend" id="msg-trend">Yangilanmoqda...</div>
+                </div>
             </div>
-        </div>
 
-        <div class="info-card">
-            <span class="info-title">Autonomous Control</span>
-            <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:1rem">
-                Oisha hozirda avtonom rejimda. Siz istalgan vaqtda "Audit" rejimini ishga tushirib, tizim rasm-rusumlarini ko'rishingiz mumkin.
-            </p>
-            <button class="btn-action">Run Intelligence Audit Now</button>
-        </div>
-    </aside>
-</main>
+            <div class="feed-container">
+                <div class="feed-header">
+                    <h2>🔴 Live Intelligence Feed</h2>
+                    <span id="activity-counter"
+                        style="color:var(--text-dim); font-size:0.75rem; font-family:'JetBrains Mono', monospace">loading...</span>
+                </div>
+                <div class="feed-content" id="activity-feed">
+                    <div class="activity-item thinking">
+                        <div class="item-top">
+                            <span class="item-action">🤔 Tizim yuklanmoqda...</span>
+                            <span class="item-time">-</span>
+                        </div>
+                        <div class="item-details">Ma'lumotlar API dan olinmoqda. Bir soniya kuting.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-<footer>
-    &copy; 2026 JonBranding Agency. Oisha-OS Enterprise v2.1 | Shadow Advisor System
-</footer>
+        <aside>
+            <div class="info-card">
+                <span class="info-title">🗓 Avtomatik Ish Jadvali</span>
+                <div class="schedule-table">
+                    <div class="schedule-row">
+                        <span class="schedule-time">09:45</span>
+                        <span class="schedule-task">Morning Briefing</span>
+                        <div class="schedule-status" id="status-0945"></div>
+                    </div>
+                    <div class="schedule-row">
+                        <span class="schedule-time">10:00</span>
+                        <span class="schedule-task">Mission Distribution (Plan)</span>
+                        <div class="schedule-status" id="status-1000"></div>
+                    </div>
+                    <div class="schedule-row">
+                        <span class="schedule-time">14:00</span>
+                        <span class="schedule-task">Afternoon Mission (Plan)</span>
+                        <div class="schedule-status" id="status-1400"></div>
+                    </div>
+                    <div class="schedule-row">
+                        <span class="schedule-time">21:00</span>
+                        <span class="schedule-task">Plan-Fakt Audit Report</span>
+                        <div class="schedule-status" id="status-2100"></div>
+                    </div>
+                    <div class="schedule-row">
+                        <span class="schedule-time">01:00</span>
+                        <span class="schedule-task">Night Shift (CRM Cleanup)</span>
+                        <div class="schedule-status" id="status-0100"></div>
+                    </div>
+                    <div class="schedule-row">
+                        <span class="schedule-time">02:00</span>
+                        <span class="schedule-task">Intelligence Audit (AI)</span>
+                        <div class="schedule-status" id="status-0200"></div>
+                    </div>
+                </div>
+            </div>
 
-<script>
-    const feedElement = document.getElementById('activity-feed');
-    const portElement = document.getElementById('current-port');
-    const leadsValue = document.getElementById('leads-count');
-    const messagesValue = document.getElementById('messages-count');
-    
-    let lastRefresh = Date.now();
+            <div class="info-card">
+                <span class="info-title">Global Status</span>
+                <div style="display:flex; flex-direction:column; gap:0.4rem; font-size:0.82rem;">
+                    <div
+                        style="display:flex; justify-content:space-between; padding:0.4rem 0; border-bottom:1px solid rgba(255,255,255,0.04)">
+                        <span style="color:var(--text-dim)">Uptime</span><span
+                            style="color:var(--success)">Online</span>
+                    </div>
+                    <div
+                        style="display:flex; justify-content:space-between; padding:0.4rem 0; border-bottom:1px solid rgba(255,255,255,0.04)">
+                        <span style="color:var(--text-dim)">Mode</span><span>Autonomous v2.0</span>
+                    </div>
+                    <div
+                        style="display:flex; justify-content:space-between; padding:0.4rem 0; border-bottom:1px solid rgba(255,255,255,0.04)">
+                        <span style="color:var(--text-dim)">Server</span><span>Localhost Node-01</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; padding:0.4rem 0;">
+                        <span style="color:var(--text-dim)">Port</span><span id="current-port"
+                            style="font-family:'JetBrains Mono', monospace">8080</span>
+                    </div>
+                </div>
+            </div>
 
-    async function updateDashboard() {
-        try {
-            // Get data from current origin (8080/8081)
-            const response = await fetch('/api/system/activity');
-            const data = await response.json();
-            
-            // 1. Update Feed
-            const activities = data.activities || [];
-            if (activities.length > 0) {
-                feedElement.innerHTML = activities.map(item => `
+            <div class="info-card">
+                <span class="info-title">⚡ Manual Triggers</span>
+                <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:1rem; line-height:1.6;">
+                    Oisha 24/7 avtonom ishlaydi. Quyidagi tugma orqali AI audit hisobotini <strong>hoziroq</strong>
+                    ishga tushirishingiz mumkin.
+                </p>
+                <button class="btn-action" id="audit-btn" onclick="runAudit()">
+                    🕵️ Run Intelligence Audit Now
+                </button>
+            </div>
+        </aside>
+    </main>
+
+    <div id="toast"></div>
+
+    <script>
+        const feedElement = document.getElementById('activity-feed');
+        const auditBtn = document.getElementById('audit-btn');
+
+        function showToast(msg, type = 'loading-toast', duration = 4000) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = `show ${type}`;
+            setTimeout(() => { toast.className = ''; }, duration);
+        }
+
+        async function runAudit() {
+            auditBtn.disabled = true;
+            auditBtn.className = 'btn-action loading';
+            auditBtn.textContent = '⏳ Auditing... (10-15s)';
+            showToast('🔍 Oisha AI audit boshladi. Faollik loglari tahlil qilinmoqda...', 'loading-toast', 15000);
+
+            try {
+                const resp = await fetch('/api/system/audit', { method: 'POST' });
+                const data = await resp.json();
+
+                if (data.status === 'success') {
+                    showToast('✅ Audit yakunlandi! Telegram hisobot yuborildi.', 'success');
+                } else if (data.status === 'partial') {
+                    showToast('⚠️ Audit bajarildi, lekin Userbot offline.', 'loading-toast');
+                } else {
+                    showToast(`❌ Xatolik: ${data.message || data.error}`, 'error');
+                }
+            } catch (e) {
+                showToast(`❌ Server bilan aloqa xatoligi: ${e.message}`, 'error');
+            } finally {
+                auditBtn.disabled = false;
+                auditBtn.className = 'btn-action';
+                auditBtn.textContent = '🕵️ Run Intelligence Audit Now';
+            }
+        }
+
+        function updateScheduleStatus() {
+            const now = new Date();
+            const h = now.getHours();
+            const m = now.getMinutes();
+            const slots = [
+                { id: 'status-0945', hour: 9, min: 45 },
+                { id: 'status-1000', hour: 10, min: 0 },
+                { id: 'status-1400', hour: 14, min: 0 },
+                { id: 'status-2100', hour: 21, min: 0 },
+                { id: 'status-0100', hour: 1, min: 0 },
+                { id: 'status-0200', hour: 2, min: 0 },
+            ];
+            slots.forEach(slot => {
+                const el = document.getElementById(slot.id);
+                if (!el) return;
+                const nowMins = h * 60 + m;
+                const slotMins = slot.hour * 60 + slot.min;
+                const diff = nowMins - slotMins;
+                if (diff === 0) {
+                    el.className = 'schedule-status active';
+                } else if (diff > 0 && diff < 60) {
+                    el.className = 'schedule-status done';
+                } else {
+                    el.className = 'schedule-status pending';
+                }
+            });
+        }
+
+        async function updateDashboard() {
+            try {
+                const response = await fetch('/api/system/activity');
+                const data = await response.json();
+
+                const activities = data.activities || [];
+                if (activities.length > 0) {
+                    feedElement.innerHTML = activities.map(item => `
                     <div class="activity-item ${item.type || 'info'}">
                         <div class="item-top">
                             <span class="item-action">${item.action}</span>
@@ -386,33 +644,30 @@
                         <div class="item-details">${item.details}</div>
                     </div>
                 `).join('');
-                document.getElementById('activity-counter').innerText = `${activities.length} operations tracked`;
-            }
+                    document.getElementById('activity-counter').innerText = `${activities.length} ops tracked`;
+                }
 
-            // 2. Update Stats
-            const statsResp = await fetch('/api/system/stats');
-            const stats = await statsResp.json();
-            if (stats && !stats.error) {
-                leadsValue.innerText = stats.leads_found || 0;
-                messagesValue.innerText = stats.messages_synced || 0;
-            }
+                const statsResp = await fetch('/api/system/stats');
+                const stats = await statsResp.json();
+                if (stats && !stats.error) {
+                    document.getElementById('leads-count').innerText = stats.leads_found || 0;
+                    document.getElementById('messages-count').innerText = stats.messages_synced || 0;
+                    document.getElementById('leads-trend').innerText = '▲ Bugun faol';
+                    document.getElementById('msg-trend').innerText = '▲ Sinxronlashda';
+                }
 
-            portElement.innerText = window.location.port;
-        } catch (e) {
-            console.error("Dashboard update error", e);
+                document.getElementById('current-port').innerText = window.location.port || '8080';
+            } catch (e) {
+                console.warn("Dashboard refresh error:", e);
+            }
         }
-    }
 
-    // Refresh every 3 seconds
-    setInterval(updateDashboard, 3000);
-    updateDashboard();
-
-    // Trigger Audit Placeholder
-    document.querySelector('.btn-action').addEventListener('click', () => {
-        alert("👸 Oisha: 'Intelligence Audit' buyrug'i qabul qilindi. Telegram orqali javob yuboraman.");
-        // In real app, this would call an API
-    });
-</script>
+        setInterval(updateDashboard, 3000);
+        setInterval(updateScheduleStatus, 15000);
+        updateDashboard();
+        updateScheduleStatus();
+    </script>
 
 </body>
+
 </html>
