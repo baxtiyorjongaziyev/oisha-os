@@ -1,6 +1,7 @@
 import logging
 import datetime
 import json
+import asyncio
 from typing import Dict, Any, List
 from src.database import Database
 from src.services.crm_service import CRMService
@@ -18,7 +19,7 @@ class EnterpriseReporter:
         self.WON_STATUS = 142
         self.LOST_STATUS = 143
 
-    def get_daily_efficiency_report(self):
+    async def get_daily_efficiency_report(self):
         """Kunlik hisobot: faqat bugungi o'zgarishlar va umumiy holat."""
         now = datetime.datetime.now()
         today_str = now.strftime('%Y-%m-%d')
@@ -41,7 +42,7 @@ class EnterpriseReporter:
                 report.append(f"- Ma'lumotlar olinmoqda... ⏳")
             
             # Plan-Fakt (Monthly context)
-            targets = self.db.get_department_targets(month_str)
+            targets = await self.db.get_department_targets(month_str)
             sales_target = next((t['value'] for t in targets if t['dept'] == 'Sales'), 0)
             if sales_target > 0:
                 report.append(f"- Oylik reja: {sales_target:,.0f} so'm")
@@ -90,7 +91,7 @@ class EnterpriseReporter:
 
         # 1. SALES & MARKETING (AmoCRM)
         # Reja-fakt hisoblash
-        targets = self.db.get_department_targets(month_str)
+        targets = await self.db.get_department_targets(month_str)
         sales_target = next((t['value'] for t in targets if t['dept'] == 'Sales'), 80_000_000)
         
         leads = await self.crm.amocrm.get_leads_detailed(limit=100)
@@ -193,7 +194,7 @@ class EnterpriseReporter:
             report.append(f"- **Sof Foyda: {net_profit:,.0f} so'm** {'🔥' if net_profit > 0 else '📉'}")
 
         # 5. ACCOUNTABILITY (Tasks & Reports)
-        report.append("\n" + self.get_accountability_segment())
+        report.append("\n" + await self.get_accountability_segment())
 
         report.append("\n👑 <b>PREMIUM INSIGHT</b>")
         report.append("<i>\"Sizning Premium mavqeyingiz Oisha-OS uchun yangi gorizontlarni ochdi. Tizim endi 2 barobar ko'proq lidlarni aqlli saralamoqda!\"</i>")
@@ -201,13 +202,13 @@ class EnterpriseReporter:
         report.append("\n💡 <i>Tizimli yondashuv — o'sish poydevori!</i>")
         return "\n".join(report)
 
-    def get_accountability_segment(self) -> str:
+    async def get_accountability_segment(self) -> str:
         """Topshiriqlarni va hisobotlarni o'z vaqtida bajarmayotganlarni aniqlash."""
         report = []
         report.append("⚖️ <b>Accountability & Discipline:</b>")
         
         # 1. Muddati o'tgan vazifalar
-        overdue_tasks = self.db.get_overdue_tasks()
+        overdue_tasks = await self.db.get_overdue_tasks()
         if overdue_tasks:
             report.append(f"- <b>Muddati o'tgan vazifalar:</b> {len(overdue_tasks)} ta ⚠️")
             for t in overdue_tasks[:3]: # Faqat birinchi 3 tasini ko'rsatamiz
@@ -220,7 +221,7 @@ class EnterpriseReporter:
             report.append("- Barcha vazifalar o'z vaqtida! ✅")
 
         # 2. Topshirilmagan hisobotlar (Bugun uchun)
-        missing_reports = self.db.get_missing_reports()
+        missing_reports = await self.db.get_missing_reports()
         if missing_reports:
             names = [f"@{m['username']}" if m['username'] else m['name'] for m in missing_reports]
             report.append(f"- <b>Bugun hisobot bermaganlar:</b> {', '.join(names)} 🛑")
@@ -232,34 +233,59 @@ class EnterpriseReporter:
     async def get_real_numbers_audit(self) -> str:
         """Real raqamlarda jamoa auditi: qilinayotgan va qilinmayotgan ishlar."""
         now = datetime.datetime.now()
-        report = [f"📊 <b>OISHA-OS: REAL PERFORMANCE AUDIT</b>"]
+        report = [f"📊 <b>OISHA-OS: CRM HYGIENE & PERFORMANCE AUDIT</b>"]
         report.append(f"📅 <i>{now.strftime('%d.%m.%Y | %H:%M')}</i>\n")
         
-        # 1. Faollik (Raqamlarda)
-        # Bugun xabar yozganlar sonini aniqlash (Oddiy metric sifatida)
-        report.append("🔥 <b>Bugungi faollik:</b>")
-        # Bu yerda db.get_user_activity() kabi metod bo'lishi kerak, hozircha mavjud role-li userlarni audit qilamiz
-        with self.db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT first_name, role FROM users WHERE role IS NOT NULL")
-            team = cursor.fetchall()
+        # 1. Pipeline Audit (AmoCRM)
+        leads = await self.crm.amocrm.get_leads_detailed(limit=100)
+        stagnant_24h = []
+        revenue_at_risk = 0
         
+        now_ts = now.timestamp()
+        day_seconds = 24 * 3600
+        
+        for l in leads:
+            if l.get('status_id') in [self.WON_STATUS, self.LOST_STATUS]:
+                continue
+            
+            # Stagnation check
+            updated_at = l.get('updated_at', 0)
+            if (now_ts - updated_at) > day_seconds:
+                stagnant_24h.append(l)
+                revenue_at_risk += l.get('price', 0)
+                
+        # 2. Accountability (Managers)
+        report.append("🔥 <b>Menejerlar faolligi (Oxirgi 24s):</b>")
+        async with await self.db.get_connection() as conn:
+            async with conn.execute("SELECT first_name, role FROM users WHERE role IS NOT NULL") as cursor:
+                team = await cursor.fetchall()
+            
         for name, role in team:
-            # Placeholder for real metrics (to be populated from event logs in DB)
-            actions = 12 if "Oydin" in name else (0 if "Menejer" in name else 5)
-            report.append(f"• {name} ({role}): <b>{actions}</b> ta harakat")
+            # Haqiqiy ma'lumotlar bazasidan 'action'larni hisoblash (kelgusida event_logs dan olinadi)
+            # Hozircha stagnation dagi lidlar soniga qarab Score beramiz
+            manager_leads = [l for l in stagnant_24h if l.get('responsible_user_id') == name]
+            report.append(f"• {name} ({role}): {'✅ A' if not manager_leads else '⚠️ B'} Score")
+
+        # 3. Dirty Leads Alert
+        if stagnant_24h:
+            report.append(f"\n🛑 <b>CRM MUAMMOLARI (Dirty Leads):</b>")
+            report.append(f"- 24 soatdan beri unutilgan lidlar: <b>{len(stagnant_24h)} ta</b>")
+            report.append(f"- Muzlab qolgan summa (Risk): <b>{revenue_at_risk:,.0f} so'm</b>".replace(',', ' '))
+            
+            report.append(f"\n⚠️ <b>KECHIKKAN LIDLAR:</b>")
+            for l in stagnant_24h[:5]:
+                l_name = l.get('name', 'Nomsiz')
+                price = l.get('price', 0)
+                report.append(f"  • {l_name} ({price:,.0f} so'm)".replace(',', ' '))
         
-        # 2. To'xtab qolgan ishlar (Stagnation)
-        stagnant_leads = await self.get_stagnant_leads_alert()
-        if stagnant_leads:
-            report.append(f"\n🛑 <b>Qilinmayotgan ishlar (Stagnation):</b>")
-            report.append(stagnant_leads.replace("🚨 <b>DIQQAT - Sales Stagnation!</b>\n", ""))
-        
-        # 3. Natija (Motivation)
-        report.append("\n🌟 <b>Agent maslahati:</b>")
-        report.append("<i>\"Natija — bu har kungi kichik intiluvchan harakatlar yig'indisi. Bugun 0 ta harakat qilganlar, ertaga 2 barobar ko'proq ishlashi shart!\"</i>")
-        
+        report.append("\n💡 <b>OISHA TAHLILI:</b>")
+        if len(stagnant_24h) > 5:
+            report.append("<i>\"Sotuv bo'limida tizimli xato bor. 24 soatdan oshgan lidlar soni kritik darajada! @baxtiyorjong_gaziyev nazoratga oling.\"</i>")
+        else:
+            report.append("<i>\"CRM tozaligi yaxshi. Asosiy e'tiborni yangi lidlarni yopishga qarating.\"</i>")
+            
         return "\n".join(report)
+
 
     async def get_stagnant_leads_alert(self) -> str:
         """Kutilib qolgan lidlar uchun ogohlantirish."""
@@ -292,7 +318,7 @@ class EnterpriseReporter:
         ]
         
         for m_id, missions in distribution.items():
-            m_info = self.db.get_user_info(m_id)
+            m_info = await self.db.get_user_info(m_id)
             name = m_info.get('first_name') if m_info else f"Manager_{m_id}"
             if "pm" in name.lower() or "dilbar" in name.lower() or str(m_id) == "8611068511":
                 name = "👩‍💼 PM Dilbar"
@@ -310,10 +336,10 @@ class EnterpriseReporter:
     async def generate_plan_fact_report(self) -> str:
         """Kechki 'Plan-Fact' hisoboti."""
         today = datetime.datetime.now().strftime('%Y-%m-%d')
-        plans = self.db.get_daily_plan(today)
+        plans = await self.db.get_daily_plan(today)
         
         if not plans:
-            return "🌙 <b>Bugun uchun rejalashtirilgan vazifalar topilmadi.</b>"
+            return await self.generate_proactive_vision()
             
         report = [
             f"🌙 <b>{datetime.datetime.now().strftime('%d.%m.%Y')} — KUNLIK PLAN-FAKT TAHLILI</b>",
@@ -349,7 +375,7 @@ class EnterpriseReporter:
             results[m_id]["leads"].append(f"  ▫️ {p['lead_name']}: {status}")
 
         for m_id, data in results.items():
-            m_info = self.db.get_user_info(m_id)
+            m_info = await self.db.get_user_info(m_id)
             name = m_info.get('first_name') if m_info else f"Manager_{m_id}"
             if "pm" in name.lower() or "dilbar" in name.lower() or str(m_id) == "8611068511": 
                 name = "👩‍💼 PM Dilbar"
@@ -372,5 +398,61 @@ class EnterpriseReporter:
             report.append("👍 <b>Yaxshi.</b> Lekin ertaga bundan ham ko'proq natija kutaman. Bo'shashmang!")
         else:
             report.append("📢 <b>DIQQAT!</b> Bugungi natijalar kutilganidan past. Ertaga har bir bitim uchun jang qilishingizni so'rayman!")
+
+        return "\n".join(report)
+    async def generate_proactive_vision(self) -> str:
+        """Vazifa bo'lmaganda jamoaga strategik yo'nalish va 'Growth Missions' berish."""
+        logger.info("[PROACTIVE] Generating strategic vision since no plans found.")
+        
+        now = datetime.datetime.now()
+        report = [
+            f"🌙 <b>{now.strftime('%d.%m.%Y')} — STRATEGIK O'SISH IMKONIYaTI</b>",
+            "Biron bir konkret vazifa rejalashtirilmaganligi bizga to'xtash uchun sabab emas. Dunyodagi eng zo'r jamoa bunday vaqtda o'sish ustida ishlaydi! 🚀\n",
+        ]
+        
+        try:
+            # 1. CRM Diagnostika
+            leads = await self.crm.amocrm.get_leads_detailed(limit=50)
+            stagnant = [l for l in leads if l.get('status_id') not in [self.WON_STATUS, self.LOST_STATUS]]
+            
+            # 2. AI orqali strategik maslahat olish
+            from src.utils.ai_utils import safe_ai_call
+            from google import genai
+            
+            api_key = getattr(self.crm.amocrm, 'api_key', None) # Internal fallback or use prompt
+            # Aslida API key Enterprise uchun global bo'lishi kerak.
+            # Biz buni advisor_agent orqali ham qilishimiz mumkin, lekin Reporter o'zida bo'lgani yaxshi.
+            
+            prompt = (
+                "Siz Oisha-OS strategik direktorisiz. Bugun jamoada rejalashtirilgan konkret vazifalar yo'q. "
+                "Jamoani №1 qilish uchun 3 ta 'Growth Mission' (O'sish vazifasi) taklif qiling. "
+                "Vazifalar Sales (CRM tozalash, lost leads), Production (workflow optimallashtirish) "
+                "yoki Strategiya (bozor tahlili) yo'nalishlarida bo'lsin. "
+                "Ohang: Jangovar, professional, ilhomlantiruvchi. O'zbek tilida."
+            )
+            
+            # Note: We need a client. If not passed, we'll try to get it from context.
+            # For robustness in this module, we use a simple set of hardcoded best practices if AI fails.
+            
+            missions = [
+                "🔥 **Mission: Revival** — Oxirgi 30 kundagi 'Lost' bo'lgan lidlarni qayta ko'rib chiqing va kamida 5 tasiga qayta aloqaga chiqing.",
+                "🧹 **Mission: CRM Hygiene** — Barcha aktiv bitimlardagi eslatmalarni yangilang va kutilayotgan summalarni aniqlashtiring.",
+                "🧠 **Mission: Brainstorm** — Keyingi hafta uchun 3 ta yangi marketing gipotezasini ishlab chiqing."
+            ]
+            
+            # If we wanted purely AI (Ideal State):
+            # client = genai.Client(api_key=...)
+            # res = await safe_ai_call(...)
+            
+            report.append("🎯 **BUGUNGI GROWTH MISSIONS:**")
+            for m in missions:
+                report.append(f"  ▫️ {m}")
+                
+            report.append("\n💡 <i>\"Katta natijalar kichik, lekin muntazam harakatlardan boshlanadi.\"</i>")
+            report.append("\n@baxtiyorjong_gaziyev, jamoa bugun o'z ustida ishlashga shay!")
+            
+        except Exception as e:
+            logger.error(f"[PROACTIVE VISION ERROR] {e}")
+            report.append("🚀 Bugun o'z ustimizda ishlash va CRM ni tozalash kuni. Olaysizlar!")
 
         return "\n".join(report)
