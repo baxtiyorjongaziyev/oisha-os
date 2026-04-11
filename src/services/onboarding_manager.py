@@ -21,7 +21,6 @@ class OnboardingManager:
         self.admin_bot = admin_bot
         self.advisor = AdvisorAgent(api_key=settings.GEMINI_API_KEY.get_secret_value())
         # We assume airtable is in msg_controller or we init here
-        from src.services.crm_controller import CRMController
         self.airtable = AirtableSync()
 
     async def start_client_onboarding(self, manager_id: int, amount: str):
@@ -33,7 +32,7 @@ class OnboardingManager:
         try:
             # 1. Get Client Info from DB (Assumes the manager was talking to them)
             # Find the most recent lead handled by this manager
-            user_info = self.db.get_user_info(manager_id) # Manager info
+            user_info = await self.db.get_user_info(manager_id) # Manager info
             
             # Need to find the Client ID. 
             # In a real scenario, the 'confirm_pay' button data should include the Client ID.
@@ -41,7 +40,7 @@ class OnboardingManager:
             # But the callback data should have it. 
             # I will assume the manager_id in callback was the CLIENT_ID (passed from kirim_celebration_handler).
             client_id = manager_id
-            client_data = self.db.get_user_info(client_id)
+            client_data = await self.db.get_user_info(client_id)
             
             if not client_data:
                 logger.error(f"[ONBOARDING] Client {client_id} not found in DB.")
@@ -112,7 +111,7 @@ class OnboardingManager:
     async def _send_internal_briefing(self, chat_peer, client_id, manager_id, project_name):
         """Generates and sends an internal AI-briefing for the PM and team."""
         # 1. Fetch History
-        history = self.db.get_recent_messages(client_id, limit=50)
+        history = await self.db.get_recent_messages(client_id, limit=50)
         
         if not history:
             logger.warning(f"👸 [BRIEFING] No history found for client {client_id}")
