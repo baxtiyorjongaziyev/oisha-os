@@ -18,7 +18,10 @@
       "Bash(python -m pytest tests/ -v -p no:capture --ignore=tests/test_ai.py --ignore=tests/test_history.py --ignore=tests/test_agent_proactive.py)",
       "Bash(python -c ':*)",
       "Bash(export PATH=\"/c/Program Files/GitHub CLI:$PATH\")",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no baxti@34.159.150.164 \"sudo systemctl status oisha --no-pager\")",
+      "Bash(gcloud compute:*)",
+      "WebFetch(domain:metasell.ai)"
     ]
   }
 }

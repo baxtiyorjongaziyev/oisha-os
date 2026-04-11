@@ -295,6 +295,29 @@ class Database:
                 )
             """)
             
+            # MetaSell: Call/Conversation Analysis (scoring, coaching)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS call_analyses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    salesperson_id INTEGER,
+                    salesperson_name TEXT,
+                    conversation_text TEXT,
+                    total_score INTEGER DEFAULT 0,
+                    greeting_score INTEGER DEFAULT 0,
+                    needs_discovery_score INTEGER DEFAULT 0,
+                    pitch_score INTEGER DEFAULT 0,
+                    objection_score INTEGER DEFAULT 0,
+                    closing_score INTEGER DEFAULT 0,
+                    strengths TEXT,
+                    weaknesses TEXT,
+                    next_steps TEXT,
+                    coaching_tip TEXT,
+                    summary TEXT,
+                    source TEXT DEFAULT 'text',
+                    analyzed_at DATETIME
+                )
+            """)
+
             # Yangi: Tizim sozlamalari (Round-robin index va boshqalar uchun)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS kv_settings (
