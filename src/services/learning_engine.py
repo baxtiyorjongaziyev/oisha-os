@@ -44,13 +44,16 @@ CHAT TARIXI:
 """
 
         try:
-            response = self.client.models.generate_content(
+            from src.main import safe_ai_call
+            response = await safe_ai_call(
+                client=self.client,
+                prompt=prompt,
                 model=self.model_id,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json"
-                )
+                mime_type="application/json"
             )
+            
+            if not response:
+                return 0
             
             # JSON-ni tozalash (ba'zida AI markdown bloklariga o'raydi)
             text = response.text.strip()

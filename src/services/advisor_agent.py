@@ -43,14 +43,14 @@ class AdvisorAgent:
         prompt = f"Manager: {manager_name}, Summa: {amt_str}. Uni ajoyib sotuv bilan tabriklang!"
         
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=[prompt],
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                )
+            from src.main import safe_ai_call
+            response = await safe_ai_call(
+                client=self.client,
+                prompt=[prompt],
+                system_instruction=system_instruction,
+                model=self.model_name
             )
-            return response.text.strip() if response.text else "Tabriklayman! 🎉"
+            return response.text.strip() if response and response.text else "Tabriklayman! 🎉"
         except Exception as e:
             logger.error(f"[ADVISOR] Celebration generation error: {e}")
             return f"Tabriklaymiz! {manager_name} tomonidan yangi bitim yopildi: {amount} so'm. 👸🛡️"
@@ -66,12 +66,14 @@ class AdvisorAgent:
         
         Sizning vazifangiz (Shadow Mode):
         1. Suhbatni tahlil qilish va menejerga eng samarali keyingi qadamni ko'rsatish.
-        2. Robotligingizni bildirmasdan, tajribali hamkasbdek maslahat bering.
-        3. Mijozga TO'G'RIDAN-TO'G'RI yozmang. Faqat ichki guruhga tavsiya bering.
+        2. Mijozning PSIXOTIPINI aniqlash (Analitik, Pragmatik, Emotsional, Shoshqaloq).
+        3. Robotligingizni bildirmasdan, tajribali hamkasbdek maslahat bering.
+        4. Mijozga TO'G'RIDAN-TO'G'RI yozmang. Faqat ichki guruhga tavsiya bering.
         
         Javob formati (O'zbek tilida):
+        🧠 [PSIXOTIP]: (Mijozning uslubini 1 ta so'zda ayting va qisqa asoslang)
         💡 [MASLAHAT]: (Vaziyat tahlili va amaliy tavsiya)
-        ✍️ [DRAFT]: (Menejer nusxalab yuborishi uchun tayyor javob matni)
+        ✍️ [DRAFT]: (Menejer nusxalab yuborishi uchun 3 xil uslubdagi javob varianti: Tezkor, Ekspert, Sotuvga yo'naltirilgan)
         ⚙️ [ACTION]: (Agar tizimda biror narsani o'zgartirish kerak bo'lsa, Action Taglar: [CALENDAR_EVENT:...] yoki [TASK:...])
         """
 
@@ -80,19 +82,15 @@ class AdvisorAgent:
         ]
 
         try:
-            # Using synchronous-looking API but in the new SDK it supports async through wrappers or 
-            # we just call it directly as it's a small blocking call in a task.
-            # However, for userbot safety, we'll try to keep it non-blocking.
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                )
+            from src.main import safe_ai_call
+            response = await safe_ai_call(
+                client=self.client,
+                prompt=contents,
+                system_instruction=system_instruction,
+                model=self.model_name
             )
             
-            if response.text and len(response.text.strip()) > 5:
-                # Filter out pure hallucinations if AI tried to "reply" as Oisha
+            if response and response.text and len(response.text.strip()) > 5:
                 return response.text.strip()
         except Exception as e:
             logger.error(f"[ADVISOR] Analysis error: {e}")
@@ -104,35 +102,33 @@ class AdvisorAgent:
         Deep analysis of client context for onboarding briefings.
         """
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=[prompt],
-                config=types.GenerateContentConfig(
-                    temperature=0.7
-                )
+            from src.main import safe_ai_call
+            response = await safe_ai_call(
+                client=self.client,
+                prompt=[prompt],
+                model=self.model_name
             )
-            return response.text.strip() if response.text else "Tahlil natijasi bo'sh qaytdi."
+            return response.text.strip() if response and response.text else "Tahlil natijasi bo'sh qaytdi."
         except Exception as e:
             logger.error(f"[ADVISOR] Lead context analysis error: {e}")
             return f"Xatolik yuz berdi: {e}"
 
-    def should_notify(self, chat_id: int, message_id: int, advice_content: str) -> bool:
+    async def should_notify(self, chat_id: int, message_id: int, advice_content: str) -> bool:
         """Checks if this advice was already sent to avoid spam."""
         try:
-            conn = self.db.get_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1 FROM advisor_logs WHERE chat_id = ? AND message_id = ?", (chat_id, message_id))
-            exists = cursor.fetchone()
-            if exists:
-                return False
-            
-            # Log it now
-            cursor.execute(
-                "INSERT INTO advisor_logs (chat_id, message_id, advice_type, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                (chat_id, message_id, 'tactical', advice_content, datetime.datetime.now())
-            )
-            conn.commit()
-            return True
+            async with await self.db.get_connection() as conn:
+                async with conn.execute("SELECT 1 FROM advisor_logs WHERE chat_id = ? AND message_id = ?", (chat_id, message_id)) as cursor:
+                    exists = await cursor.fetchone()
+                    if exists:
+                        return False
+                
+                # Log it now
+                await conn.execute(
+                    "INSERT INTO advisor_logs (chat_id, message_id, advice_type, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (chat_id, message_id, 'tactical', advice_content, datetime.datetime.now())
+                )
+                await conn.commit()
+                return True
         except Exception as e:
             logger.error(f"[ADVISOR] DB check error: {e}")
             return True
