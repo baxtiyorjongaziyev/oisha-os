@@ -20,8 +20,6 @@ class OnboardingManager:
         self.db = db
         self.admin_bot = admin_bot
         self.advisor = AdvisorAgent(api_key=settings.GEMINI_API_KEY.get_secret_value())
-        # We assume airtable is in msg_controller or we init here
-        from src.services.crm_controller import CRMController
         self.airtable = AirtableSync()
 
     async def start_client_onboarding(self, manager_id: int, amount: str):

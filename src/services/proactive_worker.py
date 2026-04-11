@@ -167,6 +167,10 @@ async def distribute_team_tasks(force: bool = False):
     # 3. Generate Morning Plan message
     msg = await reporter.generate_morning_plan(distribution)
 
+    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+    group_id = getattr(config, "CRM_GROUP_ID", None)
+    thread_id = getattr(config, "TOPIC_GENERAL_ID", None)
+
     if bot_token and group_id:
         from telegram import Bot
         bot = Bot(token=bot_token)

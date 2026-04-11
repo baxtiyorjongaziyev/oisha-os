@@ -19,7 +19,7 @@ logger = logging.getLogger("Watchdog")
 BOT_SCRIPT = "userbot.py"
 LOG_FILE = "userbot.log"
 CHECK_INTERVAL = 30 # seconds
-OWNER_ID = "5824905101"
+OWNER_ID = os.getenv("OWNER_ID", "5824905101")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 def send_to_owner(message):
