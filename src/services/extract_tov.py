@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from config import API_ID, API_HASH
 from settings import settings
-import google.generativeai as genai
+from google import genai
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 SESSION_NAME = "userbot_session"
 
-# Configure Gemini
-genai.configure(api_key=settings.GEMINI_API_KEY.get_secret_value())
-model = genai.GenerativeModel('gemini-2.0-flash')
+# Configure Gemini with modern SDK
+client_ai = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
+model_name = 'gemini-2.0-flash'
 
 # Business Folders/Folders to Study Tone of Voice
 TARGET_FOLDERS = [
@@ -150,7 +150,10 @@ async def main():
     logger.info("AI tahlili boshlandi (Gemini 2.0 Flash)... 👸")
     
     try:
-        response = model.generate_content(prompt)
+        response = client_ai.models.generate_content(
+            model=model_name,
+            contents=prompt
+        )
         ai_analysis = response.text.strip()
         
         save_path = "business_tov_persona.md"

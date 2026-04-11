@@ -3,14 +3,19 @@ import datetime
 import os
 import asyncio
 import json
-import config
-from database import Database # type: ignore
-from airtable_sync import AirtableSync
-from gcontacts import GoogleContactsSync
-from global_super_hub import GiantResourceHub, GlobalSuperAI # type: ignore
-from crm_integration import CRMIntegration # type: ignore
+from src import config
 
 logger = logging.getLogger(__name__)
+
+from src.database import Database # type: ignore
+from src.services.airtable_sync import AirtableSync
+from src.services.gcontacts import GoogleContactsSync
+from src.services.global_super_hub import GiantResourceHub, GlobalSuperAI # type: ignore
+from src.services.crm_integration import CRMIntegration # type: ignore
+from src.services.gdrive import GoogleDriveSync
+
+
+from src.database import Database # type: ignore
 db = Database()
 airtable = AirtableSync()
 gcontacts = GoogleContactsSync()
@@ -18,9 +23,25 @@ gcontacts = GoogleContactsSync()
 class ProactiveWorker:
     """Oishaning avtonom, proactive faoliyati uchun mas'ul ishchi."""
 
-    def __init__(self, context=None):
+    def __init__(self, context=None, db_instance=None):
         self.context = context
+        self.db = db_instance or db
         self.is_running = False
+
+    async def _should_run_job(self, job_name: str, hour: int, minute: int = 0) -> bool:
+        """Berilgan vaqtdan o'tgan bo'lsa va bugun hali bajarilmagan bo'lsa True qaytaradi."""
+        now = datetime.datetime.now()
+        today = now.strftime('%Y-%m-%d')
+        
+        # Check if time has passed
+        if now.hour < hour or (now.hour == hour and now.minute < minute):
+            return False
+            
+        # Check if already run today
+        if await self.db.is_job_run(job_name, today):
+            return False
+            
+        return True
 
     async def start_loop(self):
         """Avtonom siklni ishga tushirish."""
@@ -32,13 +53,15 @@ class ProactiveWorker:
             try:
                 now = datetime.datetime.now()
                 
-                # 1. Tungi zaxiralash (Har kuni soat 03:00 da)
-                if now.hour == 3 and now.minute == 0:
+                # 1. Tungi zaxiralash (03:00+)
+                if await self._should_run_job("daily_backup", 3):
                     await self.perform_daily_backup()
+                    await db.mark_job_run("daily_backup", now.strftime('%Y-%m-%d'))
                 
-                # 2. Ertalabki bozor tahlili (Har kuni soat 08:00 da)
-                if now.hour == 8 and now.minute == 0:
+                # 2. Ertalabki bozor tahlili (08:00+)
+                if await self._should_run_job("morning_brief", 8):
                     await self.generate_morning_brief()
+                    await db.mark_job_run("morning_brief", now.strftime('%Y-%m-%d'))
 
                 # 4. Avtonom topshiriqlar tahlili (Har 2 soatda)
                 if now.hour % 2 == 0 and now.minute == 5: # :05 da bo'shroq vaqtda
@@ -48,17 +71,35 @@ class ProactiveWorker:
                 if now.hour % 6 == 0 and now.minute == 15:
                     await self.analyze_and_generate_strategy()
 
-                # 6. Kunlik hisobot va Ertangi reja (Har kuni 21:00 da)
-                if now.hour == 21 and now.minute == 0:
+                # 6. Kunlik hisobot va Ertangi reja (21:00+)
+                if await self._should_run_job("daily_report", 21):
                     await self.generate_daily_report_and_planning()
+                    await db.mark_job_run("daily_report", now.strftime('%Y-%m-%d'))
 
-                # 7. Airtable Pipeline Control (Har kuni 10:00 da)
-                if now.hour == 10 and now.minute == 0:
+                # 7. Airtable Pipeline Control (10:00+)
+                if await self._should_run_job("airtable_control", 10):
                     await self.airtable_pipeline_control()
+                    await db.mark_job_run("airtable_control", now.strftime('%Y-%m-%d'))
 
                 # 8. Role-Based Orchestration (Har 4 soatda)
                 if now.hour % 4 == 0 and now.minute == 30:
                     await self.run_role_based_orchestration()
+
+                # 9. TEAM DISCIPLINE & ACCOUNTABILITY (Enforcer Mode)
+                # Morning Plans (09:30+)
+                if await self._should_run_job("enforcer_morning", 9, 30):
+                    await self.enforce_team_accountability("morning")
+                    await self.db.mark_job_run("enforcer_morning", now.strftime('%Y-%m-%d'))
+
+                # Mid-day Report (13:30+)
+                if await self._should_run_job("enforcer_lunch", 13, 30):
+                    await self.enforce_team_accountability("lunch")
+                    await self.db.mark_job_run("enforcer_lunch", now.strftime('%Y-%m-%d'))
+
+                # Evening Result (18:30+)
+                if await self._should_run_job("enforcer_evening", 18, 30):
+                    await self.enforce_team_accountability("evening")
+                    await self.db.mark_job_run("enforcer_evening", now.strftime('%Y-%m-%d'))
 
                 await asyncio.sleep(60) # Har minutda tekshirish
             except Exception as e:
@@ -66,10 +107,29 @@ class ProactiveWorker:
                 await asyncio.sleep(60)
 
     async def perform_daily_backup(self):
-        """Avtonom zaxiralash."""
-        logger.info("[PROACTIVE] Starting daily backup to Giant Hub...")
-        GiantResourceHub.google_drive_backup("bot_memory.db")
-        GiantResourceHub.aws_s3_storage("nightly_dump", "oisha-backups")
+        """Avtonom zaxiralash (Local + Cloud Simulation)."""
+        logger.info("[PROACTIVE] Starting daily backup of bot_memory.db...")
+        try:
+            import shutil
+            import os
+            backup_dir = "backups"
+            if not os.path.exists(backup_dir):
+                os.makedirs(backup_dir)
+            
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_file = f"{backup_dir}/bot_memory_backup_{timestamp}.db"
+            
+            # Local backup
+            shutil.copy2("bot_memory.db", backup_file)
+            logger.info(f"✅ Local backup created: {backup_file}")
+            
+            # Cloud backup Simulation (as defined in GiantResourceHub)
+            GiantResourceHub.google_drive_backup(backup_file)
+            
+            # Clean old backups (keep last 7 days)
+            # (Optional improvement logic here)
+        except Exception as e:
+            logger.error(f"[BACKUP ERROR] {e}")
         
     async def generate_morning_brief(self):
         """Ertalabki hisobotni tayyorlash."""
@@ -77,14 +137,42 @@ class ProactiveWorker:
         # Perplexity orqali yangiliklar
         news = GlobalSuperAI.perplexity_search("O'zbekiston va dunyodagi eng muhim biznes yangiliklar 2026", getattr(config, 'PERPLEXITY_KEY', None))
         # Faktlarni saqlash
-        db.add_learned_fact(0, f"MORNING_BRIEF_{datetime.date.today()}: {news[:500]}")
+        await db.add_learned_fact(0, f"MORNING_BRIEF_{datetime.date.today()}: {news[:500]}")
         # Bu yerda foydalanuvchiga xabar yuborish logikasi (agar chat bo'lsa)
 
     async def monitor_cloud_resources(self):
         """VPS va Cloud resurslarni monitor qilish."""
         logger.info("[PROACTIVE] Monitoring system resources...")
-        # Bu yerda disk joyi, CPU va RAM tekshiriladi
-        pass
+        try:
+            from src.services.monitor_resources import ResourceMonitor, check_resources_now
+            # Fallback to global db if self.db not set
+            mon_db = getattr(self, 'db', db)
+            monitor = ResourceMonitor(mon_db)
+            stats = await monitor.get_stats()
+
+            
+            if stats['ram_percent'] > monitor.threshold_ram:
+                logger.warning(f"⚠️ [PROACTIVE ALERT] Critical RAM usage: {stats['ram_percent']}%")
+                
+                # Notification logic: Always try to notify Owner
+                owner_id = int(config.OWNER_ID or 0)
+                if owner_id:
+                    msg = await check_resources_now()
+                    alert_text = f"🆘 <b>SYSTEM CRITICAL ALERT</b>\n\n{msg}"
+                    
+                    # Try using context if available (python-telegram-bot)
+                    if self.context and hasattr(self.context, 'bot'):
+                        await self.context.bot.send_message(chat_id=owner_id, text=alert_text, parse_mode="HTML")
+                    else:
+                        # Fallback to Telethon if available in global src.main
+                        try:
+                            from src.main import client as telethon_client
+                            if telethon_client:
+                                await telethon_client.send_message('me', alert_text, parse_mode='html')
+                        except:
+                            logger.error("[PROACTIVE] Failed to send alert via Telethon fallback.")
+        except Exception as e:
+            logger.error(f"[PROACTIVE] Monitoring error: {e}")
 
     async def analyze_and_extract_tasks(self):
         """Oxirgi suhbatlardan topshiriqlarni (tasks) ajratib olish."""
@@ -96,7 +184,7 @@ class ProactiveWorker:
 
         try:
             # 1. Oxirgi 50 ta xabarni olish
-            messages = db.get_recent_all_messages(limit=50) # Barcha chatlardan
+            messages = await db.get_recent_all_messages(limit=50) # Barcha chatlardan
             if not messages: return
 
             log_text = "\n".join([f"User {m[0]}: {m[1]}" for m in messages])
@@ -114,14 +202,20 @@ class ProactiveWorker:
             api_key = getattr(config, 'GEMINI_API_KEY', None)
             if not api_key: return
 
-            # promptni yuboramiz
+            # promptni yuboramiz (ASYNCHRONOUS & SAFE)
             from google import genai
+            from src.main import safe_ai_call
             client = genai.Client(api_key=api_key)
-            response = client.models.generate_content(
+            
+            response = await safe_ai_call(
+                client=client,
+                prompt=query,
                 model="gemini-2.0-flash",
-                contents=query,
-                config={'response_mime_type': 'application/json'}
+                mime_type="application/json"
             )
+
+            if not response:
+                return
 
             import json
             data = json.loads(response.text)
@@ -151,13 +245,16 @@ class ProactiveWorker:
                         InlineKeyboardButton("❌ Yo'q", callback_data="task_ignore")
                     ]]
                     
-                    await self.context.bot.send_message(
-                        chat_id=int(config.OWNER_ID),
-                        text=text,
-                        parse_mode="HTML",
-                        reply_markup=InlineKeyboardMarkup(keyboard)
-                    )
-                    logger.info(f"[PROACTIVE] Potential task detected and sent for approval: {title}")
+                    try:
+                        await self.context.bot.send_message(
+                            chat_id=int(config.OWNER_ID),
+                            text=text,
+                            parse_mode="HTML",
+                            reply_markup=InlineKeyboardMarkup(keyboard)
+                        )
+                        logger.info(f"[PROACTIVE] Potential task detected and sent for approval: {title}")
+                    except Exception as e:
+                         logger.error(f"[PROACTIVE] Failed to send message to owner: {e}")
 
         except Exception as e:
             logger.error(f"[TASK EXTRACTION ERROR] {e}")
@@ -170,11 +267,11 @@ class ProactiveWorker:
 
         try:
             # 1. Jamoa tarkibini olish
-            team = db.get_team_roles()
+            team = await self.db.get_team_roles()
             team_str = "\n".join([f"- {t['name']} (@{t['username']}): {t['role']}" for t in team])
             
             # 2. Mavjud vazifalarni tahlil qilish
-            recent_tasks = db.get_pending_tasks()
+            recent_tasks = await self.db.get_pending_tasks()
             tasks_str = "\n".join([f"- {t['description']} (Assigned to: {t['assigned_to']})" for t in recent_tasks])
 
             # 3. Strategik prompt
@@ -195,12 +292,18 @@ class ProactiveWorker:
             if not api_key: return
 
             from google import genai
+            from src.main import safe_ai_call
             client = genai.Client(api_key=api_key)
-            response = client.models.generate_content(
+            
+            response = await safe_ai_call(
+                client=client,
+                prompt=query,
                 model="gemini-2.0-flash",
-                contents=query,
-                config={'response_mime_type': 'application/json'}
+                mime_type="application/json"
             )
+
+            if not response:
+                return
 
             import json
             data = json.loads(response.text)
@@ -261,7 +364,7 @@ class ProactiveWorker:
         
         try:
             # 1. Statistika
-            stats = db.get_task_completion_stats(days=1)
+            stats = await self.db.get_task_completion_stats(days=1)
             stats_str = "\n".join([f"- {s['username']}: {s['completed']}/{s['total']} vazifa bajarildi" for s in stats])
 
             # 2. Ertangi plan uchun Gemini-dan so'rash
@@ -273,8 +376,17 @@ class ProactiveWorker:
             )
 
             from google import genai
+            from src.main import safe_ai_call
             client = genai.Client(api_key=config.GEMINI_API_KEY)
-            response = client.models.generate_content(model="gemini-2.0-flash", contents=query)
+            
+            response = await safe_ai_call(
+                client=client,
+                prompt=query,
+                model="gemini-2.0-flash"
+            )
+
+            if not response:
+                return
 
             if config.OWNER_ID:
                 await self.context.bot.send_message(
@@ -307,7 +419,7 @@ class ProactiveWorker:
         logger.info("[PROACTIVE] Running role-based orchestration...")
         try:
             # 1. Jamoani olish
-            team = db.get_team_roles()
+            team = await self.db.get_team_roles()
             hunters = [u for u in team if u['role'] == 'Hunter']
             closers = [u for u in team if u['role'] == 'Closer']
             namers = [u for u in team if u['role'] == 'Namer']
@@ -344,7 +456,7 @@ class ProactiveWorker:
         """Chatlardagi tanishuv xabarlarini aniqlash va networking taklif qilish."""
         logger.info("[PROACTIVE] Scanning for new introductions...")
         try:
-            messages = db.get_recent_all_messages(limit=50) # Oxirgi 50 xabar
+            messages = await self.db.get_recent_all_messages(limit=50) # Oxirgi 50 xabar
             
             introductions = []
             for msg in messages:
@@ -361,7 +473,7 @@ class ProactiveWorker:
                 )
                 from google import genai
                 client = genai.Client(api_key=config.GEMINI_API_KEY)
-                response = client.models.generate_content(model="gemini-2.0-flash", contents=query, config={'response_mime_type': 'application/json'})
+                response = await client.aio.models.generate_content(model="gemini-2.0-flash", contents=query, config={'response_mime_type': 'application/json'})
                 
                 import json
                 data = json.loads(response.text)
@@ -396,12 +508,8 @@ class ProactiveWorker:
         except Exception as e:
             logger.error(f"[NETWORKING ERROR] {e}")
 
-class SelfEvolution:
-    """Oishaning o'zini-o'zi tahlil qilish va tuzatish moduli (Self-Healing)."""
-
-    @staticmethod
-    async def analyze_and_fix():
-        """Loglarni tahlil qilish va muammolarni bartaraf etish."""
+    async def analyze_and_fix_self(self):
+        """Loglarni tahlil qilish va muammolarni bartaraf etish (Self-Evolution)."""
         logger.info("[EVOLUTION] Starting Autonomous Self-Analysis...")
         
         try:
@@ -427,8 +535,8 @@ class SelfEvolution:
             
             analysis = GlobalSuperAI.deepseek_reasoning(query, api_key)
             
-            # 3. Bilim sifatida saqlash
-            db.add_learned_fact(0, f"SELF_EVOLUTION_REPORT_{datetime.date.today()}: {analysis[:1000]}")
+            # 3. Bilim sifatida saqlash (Use instance db)
+            await self.db.add_learned_fact(0, f"SELF_EVOLUTION_REPORT_{datetime.date.today()}: {analysis[:1000]}")
             
             logger.info(f"[EVOLUTION] Analysis complete: {analysis[:100]}")
             return analysis
@@ -440,3 +548,76 @@ class SelfEvolution:
     def auto_optimize_prompts():
         """System instruction'larni tahlil qilib optimallashtirish (Future)."""
         pass
+
+    async def enforce_team_accountability(self, shift_type: str):
+        """Jamoani tag qilgan holda hisobotlarni talab qilish (Morning, Lunch, Evening)."""
+        logger.info(f"[ENFORCER] Running {shift_type} accountability check...")
+        
+        team = await self.db.get_active_team_members()
+        if not team:
+            logger.warning("[ENFORCER] No active team members found in DB to tag.")
+            return
+
+        # Taglarni shakllantirish
+        tags = []
+        for member in team:
+            username = member.get("username")
+            name = member.get("first_name") or "Xodim"
+            user_id = member.get("user_id")
+            
+            if username:
+                if not username.startswith('@'): username = f"@{username}"
+                tags.append(f"{username} ({member.get('role') or member.get('detailed_role') or 'Staff'})")
+            else:
+                tags.append(f"<a href='tg://user?id={user_id}'>{name}</a> ({member.get('role') or member.get('detailed_role') or 'Staff'})")
+
+        tags_str = "\n".join([f"• {t}" for t in tags])
+
+        # Xabar matnini tanlash
+        if shift_type == "morning":
+            title = "☀️ **MORNING STANDUP: REJALARNI ANIQLaSHTIRISh**"
+            msg = (
+                f"Assalomu alaykum jamoa! Kunlik ish tartibini jiddiy boshlaymiz.\n\n"
+                f"{tags_str}\n\n"
+                f"Sizlardan bugungi konkret **YUKLAMA** (topshiriqlariz) nimalardan iboratligini so'rayman. "
+                f"Har biringiz o'z yo'nalishingiz bo'yicha 3 ta asosiy vazifani yozib qoldiring! 📝"
+            )
+        elif shift_type == "lunch":
+            title = "🥗 **MID-DAY CHECK: ORALIQ HISOBOT**"
+            msg = (
+                f"Diqqat jamoa! Kun yarmi o'tdi.\n\n"
+                f"{tags_str}\n\n"
+                f"Tushlikka chiqishdan oldin ertalabki rejalarning necha foizi bajarilganini hisobot qiling! "
+                f"Blokerlar bormi? Nima yordam kerak? Talab qilaman! 🏁"
+            )
+        else: # evening
+            title = "🏁 **EVENING RESULT: PLAN-FAKT TAHLILI**"
+            msg = (
+                f"Ish kuni yakunlandi. Endi natija vaqti!\n\n"
+                f"{tags_str}\n\n"
+                f"Bugungi barcha vazifalar bo'yicha yakuniy hisobotni tushiring. "
+                f"Natijasiz ish — bu ish emas. Har biringiz o'z 'Plan-Fact'ingizni yozing! 🔥"
+            )
+
+        full_message = f"👸 **OISHA: ENFORCER MODE** 👸\n\n{title}\n\n{msg}"
+
+        # Xabarni yuborish (PROJECTS_GROUP_ID)
+        target_chat = getattr(config, 'PROJECTS_GROUP_ID', None) or getattr(config, 'CRM_GROUP_ID', None)
+        if not target_chat:
+            logger.error("[ENFORCER] Neither PROJECTS_GROUP_ID nor CRM_GROUP_ID found in config.")
+            return
+
+        try:
+            # Main Telethon client or PtB bot can be used. 
+            # Given current architecture, we'll try to use the shared client from main.py if possible, 
+            # or use context if PtB is active.
+            
+            # Using Telethon as primary enforcer (shows as 'Oisha Userbot')
+            from src.main import client as telethon_client
+            if telethon_client:
+                await telethon_client.send_message(target_chat, full_message, parse_mode='html')
+                logger.info(f"✅ [ENFORCER] {shift_type} notification sent to {target_chat}")
+            else:
+                logger.error("[ENFORCER] Telethon client not available for team tagging.")
+        except Exception as e:
+            logger.error(f"❌ [ENFORCER ERROR] Failed to send notification: {e}")

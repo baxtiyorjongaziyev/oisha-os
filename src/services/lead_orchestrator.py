@@ -56,7 +56,7 @@ class LeadOrchestrator:
 
         # 3. amoCRM Integration (Deduplication & Enrichment)
         add_activity("CRM Synching", f"amoCRM'dan {name} uchun mavjud kontakt qidirilmoqda...", "thinking")
-        existing_contact = self.amocrm.get_contact_by_phone(extracted_phone) if extracted_phone and extracted_phone != "Raqam yo'q" else None
+        existing_contact = await self.amocrm.get_contact_by_phone(extracted_phone) if extracted_phone and extracted_phone != "Raqam yo'q" else None
         
         note_content = f"👸 Oisha AI Tahlili (v5.0):\n──────────────────────\n🎯 Intent: {intent}\n📝 Xulosa: {summary}\n📲 Chat: {tg_link}\n📅 Manba: {source}"
         
@@ -70,31 +70,31 @@ class LeadOrchestrator:
             logger.info(f"👸 [ORCHESTRATOR] Existing contact found: {contact_id}. Searching for active leads...")
             
             # Find active leads
-            active_leads = self.amocrm.get_active_leads_for_contact(contact_id)
+            active_leads = await self.amocrm.get_active_leads_for_contact(contact_id)
             
             if active_leads:
                 # Use the most recent active lead
                 lead_id = active_leads[0]['id']
                 logger.info(f"👸 [ORCHESTRATOR] Consolidating into active lead: {lead_id}")
-                self.amocrm.add_lead_note(lead_id, note_content)
-                self.amocrm.add_lead_tag(lead_id, "TAKRORIY_MUROJAAT")
+                await self.amocrm.add_lead_note(lead_id, note_content)
+                await self.amocrm.add_lead_tag(lead_id, "TAKRORIY_MUROJAAT")
             else:
                 # No active lead, create a new one for THIS contact
                 logger.info(f"👸 [ORCHESTRATOR] Existing contact but no active leads. Creating new lead for contact {contact_id}")
-                lead_id = self.amocrm.create_lead_for_contact(
+                lead_id = await self.amocrm.create_lead_for_contact(
                     contact_id=contact_id,
                     name=f"{name} (Yangilangan)",
                     price=0,
                     extra_fields=extra_fields
                 )
                 if lead_id:
-                    self.amocrm.add_lead_note(lead_id, note_content)
-                    self.amocrm.add_lead_tag(lead_id, "ESKI_MIJOZ_RE_ENGAGEMENT")
+                    await self.amocrm.add_lead_note(lead_id, note_content)
+                    await self.amocrm.add_lead_tag(lead_id, "ESKI_MIJOZ_RE_ENGAGEMENT")
         else:
             # New contact, new lead
             logger.info(f"👸 [ORCHESTRATOR] No existing contact for {name}. Creating new lead...")
             add_activity("CRM Creation", f"Yangi kontakt va bitim yaratilmoqda: {name}", "thinking")
-            lead_id = self.amocrm.create_lead(
+            lead_id = await self.amocrm.create_lead(
                 name=f"{name} ({intent})",
                 price=0,
                 phone=extracted_phone or "Raqam yo'q",
@@ -125,18 +125,18 @@ class LeadOrchestrator:
             # Fetch active managers from DB or Settings
             managers = settings.SALES_MANAGER_IDS
             if not managers:
-                db_managers = self.db.get_state("sales_managers", "")
+                db_managers = await self.db.get_state("sales_managers", "")
                 if db_managers:
                     managers = [int(i) for i in db_managers.split(",") if i]
 
-            dist_mode = self.db.get_state("lead_distribution_mode", settings.LEAD_DISTRIBUTION_MODE)
+            dist_mode = await self.db.get_state("lead_distribution_mode", settings.LEAD_DISTRIBUTION_MODE)
 
             if dist_mode == "ROUND_ROBIN" and managers:
                 # Oxirgi menejer indeksini bazadan olamiz
-                last_idx = int(self.db.get_state("last_manager_idx", -1))
+                last_idx = int(await self.db.get_state("last_manager_idx", -1))
                 new_idx = (last_idx + 1) % len(managers)
                 assigned_manager_id = managers[new_idx]
-                self.db.set_state("last_manager_idx", new_idx)
+                await self.db.set_state("last_manager_idx", new_idx)
                 
                 distribution_text = f"\n🎯 **Mas'ul xodim:** <a href='tg://user?id={assigned_manager_id}'>Menejer</a> (Round-Robin)"
             elif dist_mode == "CLAIM":

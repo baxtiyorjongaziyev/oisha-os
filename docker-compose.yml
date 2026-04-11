@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  oisha:
+    build: .
+    container_name: oisha-os
+    restart: always
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ./oisha_userbot.session:/app/oisha_userbot.session
+    deploy:
+      resources:
+        limits:
+          memory: 850M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

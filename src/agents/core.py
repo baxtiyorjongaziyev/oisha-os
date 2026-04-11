@@ -34,7 +34,7 @@ class BaseAgent(ABC):
         pass
 
     async def call_ai_with_fallback(self, contents: Any, current_user_id: int) -> str:
-        """Gemini tool-calling loop bilan. Agar Gemini xato bersa, fallback-ga o'tish."""
+        """Gemini tool-calling loop bilan. 429 xatosi bo'lsa retry qiladi."""
         from src.agents.tools import TOOL_DECLARATIONS
         
         # 1. Gemini (Primary) with Tool Calling
@@ -42,15 +42,15 @@ class BaseAgent(ABC):
             try:
                 # Tool calling loop (max 5 iterations to avoid infinite loops)
                 for _ in range(5):
-                    response = self.model_configs["gemini"]["client"].models.generate_content(
-                        model=self.model_configs["gemini"]["model"],
+                    # Robust async call with retry logic
+                    response = await self.safe_ai_call(
                         contents=contents,
-                        config=types.GenerateContentConfig(
-                            system_instruction=self.system_prompt,
-                            tools=[{"function_declarations": TOOL_DECLARATIONS}] if TOOL_DECLARATIONS else None
-                        )
+                        tools=[{"function_declarations": TOOL_DECLARATIONS}] if TOOL_DECLARATIONS else None
                     )
                     
+                    if not response:
+                        return "Kechirasiz, AI resurslari vaqtincha band. Iltimos, birozdan so'ng urinib ko'ring. (429)"
+
                     # Tool call bormi?
                     tool_calls = []
                     if response.candidates and response.candidates[0].content.parts:
@@ -61,16 +61,12 @@ class BaseAgent(ABC):
                                 logger.info(f"[{self.agent_id}] Gemini text response: {part.text[:100]}...")
 
                     if not tool_calls:
-                        logger.info(f"[{self.agent_id}] No tools requested by Gemini.")
                         return response.text if response.text else "Javob bo'sh qaytdi."
 
                     # Tool larni bajarish
                     logger.info(f"[{self.agent_id}] Gemini requested {len(tool_calls)} tools.")
-                    
-                    # Model javobini (tool call ni) tarixga qo'shish
                     contents.append(response.candidates[0].content)
                     
-                    # Tool natijalarini yig'ish
                     tool_responses = []
                     for tc in tool_calls:
                         if self.executor:
@@ -83,13 +79,45 @@ class BaseAgent(ABC):
                             response=result
                         ))
 
-                    # Tool javobini contents ga qo'shish va modelni qayta chaqirish
                     contents.append(types.Content(role="user", parts=tool_responses))
 
             except Exception as e:
                 logger.error(f"[{self.agent_id}] Gemini Agentic Error: {e}")
 
         return "Kechirasiz, texnik tanaffus."
+
+    async def safe_ai_call(self, contents: Any, tools: Optional[List[Dict[str, Any]]] = None, retries: int = 5):
+        """Exponential backoff bilan xavfsiz AI chaqiruvi (Synchronized with global standard)."""
+        import asyncio
+        import random
+        
+        client = self.model_configs["gemini"]["client"]
+        model = self.model_configs["gemini"]["model"]
+        
+        for i in range(retries):
+            try:
+                # Use aio generate_content with tools if provided
+                return await client.aio.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=self.system_prompt,
+                        tools=tools
+                    )
+                )
+            except Exception as e:
+                err_str = str(e)
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    wait_time = (2 ** i) + random.random()
+                    logger.warning(f"[{self.agent_id}] Rate limit hit (429). Retrying in {wait_time:.2f}s... (Attempt {i+1}/{retries})")
+                    await asyncio.sleep(wait_time)
+                elif "500" in err_str or "503" in err_str: # Handling temporary server errors
+                    wait_time = (2 ** i) + random.random()
+                    logger.warning(f"[{self.agent_id}] Gemini Server Error. Retrying in {wait_time:.2f}s...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    raise e
+        return None
 
     def get_session_history(self, user_id: int) -> List[Dict[str, Any]]:
         if user_id not in self.memories and self.db:

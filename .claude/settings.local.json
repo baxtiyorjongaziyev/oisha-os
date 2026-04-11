@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/baxti/.gemini/antigravity/playground/jonbranding-veb-sayti/src/app//**)",
+      "Read(//c/Users/baxti/.gemini/antigravity/playground/jonbranding-veb-sayti/src/components//**)"
+    ]
+  }
+}
