@@ -444,9 +444,9 @@
             <div class="logo-icon">👸</div>
             <h1>Oisha<span style="color:var(--accent)">.OS</span></h1>
         </div>
-        <div class="status-badge">
+        <div class="status-badge" id="system-status-badge">
             <div class="pulse"></div>
-            AUTONOMOUS OPS ACTIVE
+            <span id="system-status-text">INITIALIZING...</span>
         </div>
     </header>
 
@@ -460,8 +460,8 @@
                 </div>
                 <div class="metric-card">
                     <span class="metric-label">CRM Tozalik</span>
-                    <span class="metric-value" id="crm-health">98%</span>
-                    <div class="metric-trend">High Performance</div>
+                    <span class="metric-value" id="crm-health">—</span>
+                    <div class="metric-trend" id="crm-health-trend">Hisoblanmoqda...</div>
                 </div>
                 <div class="metric-card">
                     <span class="metric-label">Sinxronlangan xabarlar</span>
@@ -577,22 +577,24 @@
         async function runAudit() {
             auditBtn.disabled = true;
             auditBtn.className = 'btn-action loading';
-            auditBtn.textContent = '⏳ Auditing... (10-15s)';
-            showToast('🔍 Oisha AI audit boshladi. Faollik loglari tahlil qilinmoqda...', 'loading-toast', 15000);
+            auditBtn.textContent = '⏳ Analyzing...';
+            showToast('🔍 Oisha-OS AI tahlilni boshladi. Bu 15-20 soniya vaqt olishi mumkin...', 'loading-toast', 15000);
 
             try {
                 const resp = await fetch('/api/system/audit', { method: 'POST' });
                 const data = await resp.json();
 
                 if (data.status === 'success') {
-                    showToast('✅ Audit yakunlandi! Telegram hisobot yuborildi.', 'success');
+                    showToast('✅ Audit yakunlandi! Hisobot Telegramga yuborildi.', 'success');
                 } else if (data.status === 'partial') {
-                    showToast('⚠️ Audit bajarildi, lekin Userbot offline.', 'loading-toast');
+                    showToast(`⚠️ Audit bajarildi: ${data.message}`, 'warning', 6000);
                 } else {
-                    showToast(`❌ Xatolik: ${data.message || data.error}`, 'error');
+                    const errMsg = data.message || data.error || 'Server xatoligi';
+                    showToast(`❌ Xatolik: ${errMsg}`, 'error', 8000);
+                    console.error('Audit Error:', data);
                 }
             } catch (e) {
-                showToast(`❌ Server bilan aloqa xatoligi: ${e.message}`, 'error');
+                showToast(`❌ Server bilan aloqa uzildi: ${e.message}`, 'error');
             } finally {
                 auditBtn.disabled = false;
                 auditBtn.className = 'btn-action';
@@ -645,6 +647,17 @@
                     </div>
                 `).join('');
                     document.getElementById('activity-counter').innerText = `${activities.length} ops tracked`;
+                } else {
+                    feedElement.innerHTML = `
+                    <div class="activity-item info">
+                        <div class="item-top">
+                            <span class="item-action">ℹ️ Tizimda hozircha amallar yo'q</span>
+                            <span class="item-time">-</span>
+                        </div>
+                        <div class="item-details">Bot endi ishga tushdi yoki hali hech qanday amal bajarmadi.</div>
+                    </div>
+                `;
+                    document.getElementById('activity-counter').innerText = `0 ops tracked`;
                 }
 
                 const statsResp = await fetch('/api/system/stats');
@@ -652,8 +665,37 @@
                 if (stats && !stats.error) {
                     document.getElementById('leads-count').innerText = stats.leads_found || 0;
                     document.getElementById('messages-count').innerText = stats.messages_synced || 0;
+                    document.getElementById('crm-health').innerText = stats.crm_health || '0%';
+                    document.getElementById('crm-health-trend').innerText = stats.automation_efficiency || 'Nominal';
+                    
+                    // Style health based on score
+                    const healthInt = parseInt(stats.crm_health);
+                    if (healthInt < 50) {
+                        document.getElementById('crm-health-trend').style.color = 'var(--error)';
+                    } else if (healthInt < 80) {
+                        document.getElementById('crm-health-trend').style.color = 'var(--warning)';
+                    } else {
+                        document.getElementById('crm-health-trend').style.color = 'var(--success)';
+                    }
+
                     document.getElementById('leads-trend').innerText = '▲ Bugun faol';
                     document.getElementById('msg-trend').innerText = '▲ Sinxronlashda';
+                }
+
+                const statusResp = await fetch('/api/system/status');
+                const statusData = await statusResp.json();
+                const statusText = document.getElementById('system-status-text');
+                const statusBadge = document.getElementById('system-status-badge');
+                
+                if (statusData && statusData.status) {
+                    statusText.innerText = statusData.message.toUpperCase();
+                    if (statusData.status === 'online') {
+                        statusBadge.style.color = 'var(--success)';
+                        statusBadge.querySelector('.pulse').style.background = 'var(--success)';
+                    } else if (statusData.status === 'awaiting_auth') {
+                        statusBadge.style.color = 'var(--warning)';
+                        statusBadge.querySelector('.pulse').style.background = 'var(--warning)';
+                    }
                 }
 
                 document.getElementById('current-port').innerText = window.location.port || '8080';

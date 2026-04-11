@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, time
 from telethon import TelegramClient, functions, types
 from src.database import Database
+from src.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class JumaNotifier:
 
         # 3. Check if already sent today
         today_str = now.strftime('%Y-%m-%d')
-        if self._is_already_sent(today_str):
+        if await self._is_already_sent(today_str):
             logger.info(f"👸 [JUMA] Greetings already sent for {today_str}. Skipping.")
             return
 
@@ -38,49 +39,36 @@ class JumaNotifier:
         logger.info(f"👸 [JUMA] Friday Morning! Sending greetings to TN5 classmates...")
         await self.send_greetings(today_str)
 
-    def _is_already_sent(self, date_str: str) -> bool:
+    async def _is_already_sent(self, date_str: str) -> bool:
         """Check the database for previous runs of this job."""
-        conn = None
         try:
-            conn = self.db.get_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1 FROM scheduled_jobs WHERE job_name = 'juma_mubarak' AND run_date = ?", (date_str,))
-            return cursor.fetchone() is not None
+            return await self.db.is_job_run('juma_mubarak', date_str)
         except Exception as e:
             logger.error(f"[JUMA DB ERROR] check: {e}")
             return False
-        finally:
-            if conn: conn.close()
 
-    def _mark_as_sent(self, date_str: str):
+    async def _mark_as_sent(self, date_str: str):
         """Record the successful run in the database."""
-        conn = None
         try:
-            conn = self.db.get_connection()
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO scheduled_jobs (job_name, run_date, created_at) VALUES (?, ?, ?)", 
-                           ('juma_mubarak', date_str, datetime.now().isoformat()))
-            conn.commit()
+            await self.db.mark_job_run('juma_mubarak', date_str)
         except Exception as e:
             logger.error(f"[JUMA DB ERROR] mark: {e}")
-        finally:
-            if conn: conn.close()
 
     async def get_tn5_classmates(self):
         """Fetch all users identified as TN5 students from the database."""
         classmates = []
         try:
-            with self.db.get_connection() as conn:
-                cursor = conn.cursor()
-                # Filter by last_name suffix or specific TN5 mentions
-                cursor.execute("""
-                    SELECT user_id, first_name, username 
-                    FROM users 
-                    WHERE last_name LIKE '%TN%' 
-                       OR last_name LIKE '%TEZ%'
-                       OR intent = 'TN5_CLASSMATE' 
-                """)
-                rows = cursor.fetchall()
+            conn = await self.db.get_connection()
+            # Filter by last_name suffix or specific TN5 mentions
+            query = """
+                SELECT user_id, first_name, username 
+                FROM users 
+                WHERE last_name LIKE '%TN%' 
+                   OR last_name LIKE '%TEZ%'
+                   OR intent = 'TN5_CLASSMATE' 
+            """
+            async with conn.execute(query) as cursor:
+                rows = await cursor.fetchall()
                 for r in rows:
                     classmates.append({"id": r[0], "name": r[1], "username": r[2]})
         except Exception as e:
@@ -142,7 +130,7 @@ class JumaNotifier:
         if not classmates:
             logger.warning("👸 [JUMA] No TN5 classmates found in database!")
             # Still mark as sent to avoid repeated empty checks
-            self._mark_as_sent(date_str)
+            await self._mark_as_sent(date_str)
             return
 
         logger.info(f"👸 [JUMA] Found {len(classmates)} classmates. Delivery started...")
@@ -151,10 +139,10 @@ class JumaNotifier:
         for peer in classmates:
             try:
                 # 1. CHECK IF ALREADY SENT TO THIS INDIVIDUAL TODAY
-                with self.db.get_conn() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT 1 FROM juma_sent_logs WHERE user_id = ? AND run_date = ?", (peer['id'], date_str))
-                    if cursor.fetchone():
+                conn = await self.db.get_connection()
+                query = "SELECT 1 FROM juma_sent_logs WHERE user_id = ? AND run_date = ?"
+                async with conn.execute(query, (peer['id'], date_str)) as cursor:
+                    if await cursor.fetchone():
                         logger.debug(f"👸 [JUMA SKIP] Already sent to {peer['id']} today.")
                         continue
 
@@ -183,10 +171,8 @@ class JumaNotifier:
                 await self.client.send_message(peer['id'], message)
                 
                 # 5. LOG SUCCESS PERSISTENTLY
-                with self.db.get_conn() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("INSERT INTO juma_sent_logs (user_id, run_date) VALUES (?, ?)", (peer['id'], date_str))
-                    conn.commit()
+                await conn.execute("INSERT INTO juma_sent_logs (user_id, run_date) VALUES (?, ?)", (peer['id'], date_str))
+                await conn.commit()
 
                 success_count += 1
                 logger.info(f"✅ [JUMA] Sent to {peer['name']} ({peer['id']})")
@@ -201,7 +187,7 @@ class JumaNotifier:
                 await asyncio.sleep(60)
 
         # 4. Finalize
-        self._mark_as_sent(date_str)
+        await self._mark_as_sent(date_str)
         logger.info(f"👸 [JUMA] Success! Sent {success_count} greetings for {date_str}.")
 
 import random

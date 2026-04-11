@@ -69,7 +69,7 @@ class ChecklistManager:
             deadline = (now + timedelta(days=task["days"])).strftime("%Y-%m-%d")
             
             # 2. DB-ga vazifa qo'shish
-            task_id = self.db.add_task(
+            task_id = await self.db.add_task(
                 assigned_to=target_id,
                 description=f"[{project_name}] {task['title']}",
                 deadline=deadline,
@@ -86,15 +86,11 @@ class ChecklistManager:
 
     async def _find_staff_by_role(self, role: str) -> Optional[int]:
         """Rol bo'yicha birinchi topilgan xodimni qaytaradi."""
-        conn = None
         try:
-            conn = self.db.get_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT user_id FROM users WHERE role = ? OR detailed_role = ? LIMIT 1", (role, role))
-            row = cursor.fetchone()
-            return row[0] if row else None
+            async with await self.db.get_connection() as conn:
+                async with conn.execute("SELECT user_id FROM users WHERE role = ? OR detailed_role = ? LIMIT 1", (role, role)) as cursor:
+                    row = await cursor.fetchone()
+                    return row[0] if row else None
         except Exception as e:
             logger.error(f"[CHECKLIST] Staff lookup error: {e}")
             return None
-        finally:
-            if conn: conn.close()

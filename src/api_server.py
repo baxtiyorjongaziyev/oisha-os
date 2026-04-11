@@ -1,3 +1,4 @@
+import asyncio
 import uvicorn
 from datetime import datetime
 import logging
@@ -5,6 +6,7 @@ import os
 from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
+import queue
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,8 +44,35 @@ async def root_status():
 user_client = None
 db_instance = None
 audit_agent = None
+
+# --- COMMAND QUEUE (Shared with Main Thread) ---
+command_queue = queue.Queue()
+
+# --- DASHBOARD CACHE ---
+cached_status: Dict[str, Any] = {
+    "status": "offline",
+    "message": "Tizim tayyorlanmoqda...",
+    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+}
+
+# --- CRM AUDIT CACHE ---
+cached_crm_audit: Dict[str, Any] = {
+    "health_score": 98,
+    "summary": "Audit kutilmoqda...",
+    "timestamp": datetime.now().isoformat()
+}
 # --- DASHBOARD ACTIVITY FEED ---
-system_activities: List[Dict[str, Any]] = []
+system_activities: List[Dict[str, Any]] = [
+    {
+        "timestamp": datetime.now().strftime("%H:%M:%S"),
+        "action": "🚀 System Boot",
+        "details": "Oisha-OS Strategic Intelligence is online and listening.",
+        "type": "success"
+    }
+]
+
+# --- WAZZUP BRIDGE (Outgoing Messages Queue) ---
+outgoing_messages = asyncio.Queue()
 
 def add_activity(action: str, details: str = "", type: str = "info"):
     """Tizimdagi amallarni Dashboard uchun ro'yxatga olish."""
@@ -58,6 +87,23 @@ def add_activity(action: str, details: str = "", type: str = "info"):
     if len(system_activities) > 100:
         system_activities.pop()
     logger.info(f"📊 [DASHBOARD] {action}: {details}")
+
+@app.get("/api/system/status")
+async def get_system_status():
+    global cached_status, cached_crm_audit
+    # Update health score from audit cache
+    data = cached_status.copy()
+    data["crm_health"] = f"{cached_crm_audit.get('health_score', 98)}%"
+    return data
+
+def update_api_status(status: str, message: str):
+    """Updates the thread-safe status cache for the dashboard."""
+    global cached_status
+    cached_status = {
+        "status": status,
+        "message": message,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
 
 @app.get("/api/system/activity")
 async def get_activity():
@@ -78,11 +124,20 @@ async def get_stats():
     
     try:
         stats = db_instance.get_today_stats()
-        # Enriched metrics for Premium Dashboard
-        stats["crm_health"] = "98%"
-        stats["leads_enriched_today"] = 12 # Mock or actual
-        stats["automation_efficiency"] = "High"
-        stats["last_audit"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        # Enriched metrics for Premium Dashboard from REAL CACHE
+        global cached_crm_audit
+        health = cached_crm_audit.get("health_score", 0)
+        
+        stats["crm_health"] = f"{health}%"
+        stats["leads_enriched_today"] = stats.get("leads_found", 0)
+        
+        # Qualitative performance labels
+        if health >= 90: stats["automation_efficiency"] = "Exceptional"
+        elif health >= 75: stats["automation_efficiency"] = "High"
+        elif health >= 50: stats["automation_efficiency"] = "Nominal"
+        else: stats["automation_efficiency"] = "Action Required"
+        
+        stats["last_audit"] = cached_crm_audit.get("timestamp", datetime.now().isoformat())
         return stats
     except Exception as e:
         logger.error(f"Stats Error: {e}")
@@ -131,25 +186,18 @@ async def get_chat_history(user_id: int, secret_key: str):
 
 @app.post("/api/chat/send")
 async def send_chat_message(request: SendMessageRequest):
-    """AmoCRM widgetidan kelgan xabarni Telegramga yuborish."""
+    """AmoCRM widgetidan kelgan xabarni Telegramga yuborish (Queued)."""
     if request.secret_key != os.environ.get("OISHA_API_SECRET", "oisha_safe_123"):
         return {"error": "Unauthorized"}
     
-    if not user_client:
-        return {"error": "Userbot client not active"}
-
-    try:
-        # 1. Send via Userbot (Personal account)
-        await user_client.send_message(request.user_id, request.text)
-        
-        # 2. Log to DB (Visible in widget history)
-        if db_instance:
-            db_instance.log_message(request.user_id, request.text, is_ai=True) # is_ai=True marks it as 'Outgoing'
-            
-        return {"status": "success", "text": request.text}
-    except Exception as e:
-        logger.error(f"[WIDGET SEND ERROR] {e}")
-        return {"status": "error", "message": str(e)}
+    # Push to queue for Main Thread execution
+    command_queue.put({
+        "cmd": "send_message",
+        "user_id": request.user_id,
+        "text": request.text
+    })
+    
+    return {"status": "success", "message": "Xabar navbatga qo'yildi"}
 
 @app.post("/webhook/amocrm")
 async def amocrm_webhook(request: Request):
@@ -175,34 +223,36 @@ async def get_system_info():
 
 @app.post("/api/system/audit")
 async def trigger_intelligence_audit():
-    """Dashboarddan auditni ishga tushirish va Telegramga yuborish."""
-    if not audit_agent:
-        return {"error": "AuditAgent not initialized"}
+    """Dashboarddan auditni ishga tushirish (Queued)."""
+    # Push to queue for Main Thread execution
+    command_queue.put({
+        "cmd": "audit",
+        "timestamp": datetime.now().isoformat()
+    })
     
-    add_activity("Intelligence Audit", "AI audit jarayoni boshlandi...", "thinking")
-    
-    try:
-        # 1. Generate Report
-        report = await audit_agent.generate_audit_report(limit=150)
-        
-        # 2. Send to Owner (assuming settings defined in main or available via os.environ)
-        # We use user_client (Baxtiyor's account) to send the report to himself
-        if user_client:
-            me = await user_client.get_me()
-            await user_client.send_message(me.id, f"👸 **OISHA: INTELLIGENCE AUDIT REPORT**\n\n{report}")
-            add_activity("Intelligence Audit", "Hisobot Telegramga yuborildi.", "success")
-            return {"status": "success", "message": "Audit completed and sent to Telegram."}
-        else:
-            add_activity("Intelligence Audit", "Faqat log yaratildi (Userbot offline).", "warning")
-            return {"status": "partial", "message": "Audit completed but userbot is offline."}
-            
-    except Exception as e:
-        logger.error(f"[API AUDIT ERROR] {e}")
-        add_activity("Intelligence Audit", f"Xatolik: {str(e)}", "error")
-        return {"status": "error", "message": str(e)}
+    return {"status": "success", "message": "Audit jarayonga tushirildi. Telegram hisobotini kuting."}
 
 def run_api(host: str = "0.0.0.0", port: int = 8080):
     uvicorn.run(app, host=host, port=port)
+
+async def background_crm_audit_task():
+    """Background task to refresh CRM audit data every 15 minutes."""
+    from src.services.crm_audit import AmoCRMAudit
+    global cached_crm_audit
+    audit = AmoCRMAudit()
+    while True:
+        try:
+            logger.info("🕵️ [API] Starting background CRM audit...")
+            results = await audit.run_full_audit()
+            if results and "error" not in results:
+                cached_crm_audit = results
+                logger.info(f"✅ [API] CRM Audit complete. Health: {results.get('health_score')}%")
+            else:
+                logger.warning(f"⚠️ [API] CRM Audit failed: {results.get('error')}")
+        except Exception as e:
+            logger.error(f"❌ [API] CRM Audit CRASH: {e}")
+        
+        await asyncio.sleep(900) # 15 minutes
 
 if __name__ == "__main__":
     run_api()

@@ -197,7 +197,7 @@ def verify_webhook():
 
 
 @app.route("/meta/webhook", methods=["POST"])
-def handle_webhook():
+async def handle_webhook():
     """META dan kelgan barcha eventlarni qayta ishlash."""
     # Imzoni tekshirish
     signature = request.headers.get("X-Hub-Signature-256", "")
@@ -232,7 +232,7 @@ def handle_webhook():
                     logger.info(f"[META COMMENT] From {sender_name}: {text}")
                     # AI orqali javob olish va Telegramga yo'naltirish logikasi
                     # (Bu yerda inter-process communication yoki db orqali userbotga bildirish yuborish kerak)
-                    db.log_message(sender_id, sender_name, f"COMMENT: {text}", "meta_comment")
+                    await db.log_message(sender_id, sender_name, f"COMMENT: {text}", "meta_comment")
                     return "EVENT_RECEIVED", 200 # Return here as comment is handled
 
             # Direct Message handling
@@ -262,7 +262,7 @@ def handle_webhook():
                         except: pass
                     
                     if info_updates:
-                        db.upsert_user(sender_id, "Foydalanuvchi", **info_updates)
+                        await db.upsert_user(sender_id, "Foydalanuvchi", **info_updates)
                         logger.info(f"[META DB] User updated: {sender_id} -> {info_updates}")
 
                     # Tezni tozalash
@@ -307,7 +307,7 @@ def handle_webhook():
                         except: pass
                     
                     if info_updates:
-                        db.upsert_user(commenter_id, commenter_name, **info_updates)
+                        await db.upsert_user(commenter_id, commenter_name, **info_updates)
                         logger.info(f"[META DB] Commenter updated: {commenter_id} -> {info_updates}")
 
                     # Tezni tozalash
