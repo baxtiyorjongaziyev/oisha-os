@@ -340,6 +340,213 @@ class AdminBot:
             
             await event.respond(msg)
 
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/analyze'))
+        async def analyze_handler(event):
+            """Suhbatni tahlil qilish — reply orqali matn/ovozli xabar."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+
+            if not event.is_reply:
+                await event.respond("💡 **Foydalanish:** Savdo suhbati xabariga reply qilib `/analyze` yozing.\nMatn yoki ovozli xabar bo'lishi mumkin.")
+                return
+
+            wait_msg = await event.respond("🔄 **Suhbat tahlil qilinmoqda...** (AI scoring)")
+
+            try:
+                reply = await event.get_reply_message()
+                analyzer = self._get_call_analyzer()
+
+                # Determine salesperson from sender
+                sender = await reply.get_sender()
+                sp_id = sender.id if sender else 0
+                sp_name = (sender.first_name or "Noma'lum") if sender else "Noma'lum"
+
+                # Voice message
+                if reply.voice or reply.audio or (reply.document and reply.document.mime_type and 'audio' in reply.document.mime_type):
+                    path = await reply.download_media(file="data/temp_voice.ogg")
+                    result = await analyzer.analyze_voice_message(path, sp_id, sp_name)
+                    # Cleanup
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+                # Text message
+                elif reply.text:
+                    result = await analyzer.analyze_conversation(reply.text, sp_id, sp_name)
+                else:
+                    await wait_msg.edit("⚠️ Bu xabar turini tahlil qilib bo'lmadi. Matn yoki ovozli xabar yuboring.")
+                    return
+
+                if result.get("error"):
+                    await wait_msg.edit(f"⚠️ Xatolik: {result['error']}")
+                    return
+
+                # Format MetaSell-style result
+                score = result.get("total_score", 0)
+                lead_score = result.get("lead_score", 0)
+                score_bar = "🟢" * (score // 20) + "⚪" * (5 - score // 20)
+
+                msg = (
+                    f"🎯 **Oisha AI tahlil natijasi**\n"
+                    f"──────────────────────\n"
+                    f"{result.get('summary', '')}\n\n"
+                    f"📊 Sifat bahosi: `{score}/100` {score_bar}\n"
+                    f"🎯 Lead bahosi: `{lead_score}/100`\n"
+                    f"📂 Suhbat oilasi: {result.get('conversation_category', '-')}\n"
+                    f"🏷 Suhbat domeni: {result.get('conversation_domain', '-')}\n"
+                    f"✅ Biznes mosligi: {result.get('business_fit', '-')}\n"
+                    f"🔧 Servis yo'nalishi: {result.get('service_direction', '-')}\n\n"
+                    f"👋 Salom: `{result.get('greeting_score', 0)}/20` | "
+                    f"🔍 Ehtiyoj: `{result.get('needs_discovery_score', 0)}/20` | "
+                    f"💡 Taklif: `{result.get('pitch_score', 0)}/20`\n"
+                    f"🛡 E'tiroz: `{result.get('objection_handling_score', 0)}/20` | "
+                    f"🤝 Yakunlash: `{result.get('closing_score', 0)}/20`\n"
+                )
+
+                # Client info (MetaSell-style)
+                client = result.get("client_info", {})
+                if client and any(v for v in client.values() if v):
+                    msg += f"\n👤 **Mijoz haqida ma'lumot:**\n"
+                    if client.get("position"):
+                        msg += f"  Lavozimi: {client['position']}\n"
+                    if client.get("company"):
+                        msg += f"  Kompaniya: {client['company']}\n"
+                    if client.get("decision_maker") is not None:
+                        msg += f"  Qaror qabul qiluvchi: {'Ha' if client['decision_maker'] else 'Yoq'}\n"
+                    if client.get("location"):
+                        msg += f"  Joylashuv: {client['location']}\n"
+                    details = client.get("details", [])
+                    if details:
+                        for d in details[:4]:
+                            msg += f"  • {d}\n"
+
+                if result.get("coaching_tip"):
+                    msg += f"\n💡 **AI Maslahat:** {result['coaching_tip']}"
+
+                await wait_msg.edit(msg)
+
+            except Exception as e:
+                logger.error(f"[ANALYZE] Error: {e}", exc_info=True)
+                await wait_msg.edit(f"⚠️ Tahlilda xatolik: {e}")
+
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/coaching'))
+        async def coaching_handler(event):
+            """Shaxsiy AI coaching: /coaching yoki /coaching @username"""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+
+            args = event.message.text.split()
+            target_id = None
+            target_name = ""
+
+            if event.is_reply:
+                reply = await event.get_reply_message()
+                sender = await reply.get_sender()
+                if sender:
+                    target_id = sender.id
+                    target_name = sender.first_name or ""
+            elif len(args) >= 2:
+                username = args[1].replace("@", "")
+                try:
+                    entity = await self.bot_client.get_entity(username)
+                    target_id = entity.id
+                    target_name = entity.first_name or username
+                except Exception:
+                    await event.respond(f"❌ `{username}` topilmadi.")
+                    return
+
+            if not target_id:
+                await event.respond("💡 **Foydalanish:** `/coaching @username` yoki xabarni reply qilib `/coaching`")
+                return
+
+            wait_msg = await event.respond(f"🏆 **{target_name}** uchun AI coaching tayyorlanmoqda...")
+
+            analyzer = self._get_call_analyzer()
+            coaching_text = await analyzer.generate_coaching(target_id, target_name)
+            await wait_msg.edit(f"🏆 **AI COACHING — {target_name}**\n──────────────────────\n\n{coaching_text}")
+
+        # ═══════════════════════════════════════════════════
+        # AUTONOMOUS: Auto-analyze voice/text in team group
+        # ═══════════════════════════════════════════════════
+        @self.bot_client.on(events.NewMessage(chats=self.team_group_id))
+        async def auto_call_analyzer(event):
+            """Avtomatik suhbat tahlili — ovozli xabar yoki uzun matn guruhga kelganda."""
+            try:
+                msg = event.message
+                is_voice = msg.voice or msg.audio or (msg.document and msg.document.mime_type and 'audio' in msg.document.mime_type)
+                is_long_text = msg.text and len(msg.text) > 200  # Uzun matn = savdo suhbati
+                is_forward = msg.forward is not None  # Forward = suhbat nusxasi
+
+                if not (is_voice or (is_long_text and is_forward)):
+                    return
+
+                sender = await event.get_sender()
+                sp_id = sender.id if sender else 0
+                sp_name = (getattr(sender, 'first_name', None) or "Noma'lum") if sender else "Noma'lum"
+
+                analyzer = self._get_call_analyzer()
+
+                # Voice message — download, transcribe, analyze
+                if is_voice:
+                    logger.info(f"🎯 [AUTO-ANALYZE] Voice from {sp_name} in team group")
+                    path = await event.download_media(file=f"data/auto_voice_{event.id}.ogg")
+                    if not path:
+                        return
+                    result = await analyzer.analyze_voice_message(path, sp_id, sp_name)
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+                # Long forwarded text — analyze as conversation
+                else:
+                    logger.info(f"🎯 [AUTO-ANALYZE] Forwarded text from {sp_name} in team group")
+                    result = await analyzer.analyze_conversation(msg.text, sp_id, sp_name)
+
+                if result.get("error"):
+                    logger.warning(f"[AUTO-ANALYZE] Skipped: {result['error']}")
+                    return
+
+                # Format and send result as reply
+                score = result.get("total_score", 0)
+                lead_score = result.get("lead_score", 0)
+                score_bar = "🟢" * (score // 20) + "⚪" * (5 - score // 20)
+
+                reply = (
+                    f"🎯 **Oisha AI tahlil natijasi**\n"
+                    f"──────────────────────\n"
+                    f"{result.get('summary', '')}\n\n"
+                    f"📊 Sifat bahosi: `{score}/100` {score_bar}\n"
+                    f"🎯 Lead bahosi: `{lead_score}/100`\n"
+                    f"📂 {result.get('conversation_category', '')} | "
+                    f"✅ {result.get('business_fit', '')}\n"
+                    f"🔧 Servis: {result.get('service_direction', '')}\n"
+                )
+
+                # Client info
+                client_info = result.get("client_info", {})
+                if client_info and any(v for v in client_info.values() if v):
+                    reply += f"\n👤 **Mijoz:** "
+                    parts = []
+                    if client_info.get("position"):
+                        parts.append(client_info["position"])
+                    if client_info.get("company"):
+                        parts.append(client_info["company"])
+                    if client_info.get("location"):
+                        parts.append(client_info["location"])
+                    reply += " | ".join(parts) + "\n"
+                    details = client_info.get("details", [])
+                    for d in details[:3]:
+                        reply += f"  • {d}\n"
+
+                if result.get("coaching_tip"):
+                    reply += f"\n💡 {result['coaching_tip']}"
+
+                await event.reply(reply)
+                logger.info(f"🎯 [AUTO-ANALYZE] Score: {score}/100 for {sp_name}")
+
+            except Exception as e:
+                logger.error(f"[AUTO-ANALYZE] Error: {e}")
+
         @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/night_shift'))
         async def night_shift_handler(event):
             """CRM tozalash rejimini qo'lda ishga tushirish."""
@@ -430,7 +637,15 @@ class AdminBot:
                         await self.trigger_daily_missions()
                         self.db.set_state(job_id, "done")
 
-                # 2. Night Shift (01:00)
+                # 2. Kechki coaching hisoboti (18:00) — Avtomatik
+                if current_time == "18:00":
+                    job_id = f"coaching_report_{today}"
+                    if not self.db.get_state(job_id):
+                        logger.info("🏆 [ADMIN_BOT] Generating daily coaching report...")
+                        await self._send_daily_coaching_report()
+                        self.db.set_state(job_id, "done")
+
+                # 3. Night Shift (01:00)
                 if current_time == "01:00":
                     job_id = f"night_shift_{today}"
                     if not self.db.get_state(job_id):
@@ -438,7 +653,7 @@ class AdminBot:
                         if self.night_shift:
                             await self.night_shift.run_cleanup()
                         self.db.set_state(job_id, "done")
-                
+
                 # Har 30 soniyada tekshirish
                 await asyncio.sleep(30)
             except Exception as e:
@@ -512,6 +727,10 @@ class AdminBot:
                     claimer = getattr(sender, 'first_name', 'Menejer')
                     await event.edit(event.message.text + f"\n\n✅ **Menejer ({claimer}) qabul qildi.**")
                     await event.answer("Tasdiqlandi!", alert=True)
+                elif data == "call_kpi":
+                    await self.send_call_kpi(event)
+                elif data == "coaching":
+                    await self.send_team_coaching(event)
                 else:
                     await event.answer("⚠️ Bu funksiya hozircha ish faoliyatida emas.", alert=True)
             except Exception as e:
@@ -660,6 +879,7 @@ class AdminBot:
         if role == "OWNER":
             return [
                 [Button.inline("📊 ROI Dashboard", b"dashboard"), Button.inline("📅 Haftalik Hisobot", b"weekly_report")],
+                [Button.inline("🎯 Savdo Tahlili", b"call_kpi"), Button.inline("🏆 Coaching", b"coaching")],
                 [Button.inline("👥 Jamoa KPI", b"kpi"), Button.inline("🚨 Deadline Control", b"deadlines")],
                 [Button.inline("🔍 Deep Search", b"search"), Button.inline("🖥 VPS Status", b"vps_status")],
                 [Button.inline("📜 So'nggi Loglar", b"logs"), Button.inline("⚙️ Sozlamalar", b"settings")]
@@ -721,7 +941,7 @@ class AdminBot:
         cpu_usage = psutil.cpu_percent()
         ram = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
-        
+
         status_msg = (
             "🖥 **VPS SERVER HOLATI**\n"
             "──────────────────────\n"
@@ -734,6 +954,114 @@ class AdminBot:
             "🟢 *Oisha-OS barcha resurslardan unumli foydalanmoqda.*"
         )
         await event.respond(status_msg)
+
+    # ═══════════════════════════════════════════════════
+    # MetaSell-style: Call Analysis & Sales Coaching
+    # ═══════════════════════════════════════════════════
+
+    def _get_call_analyzer(self):
+        """Lazy-init CallAnalyzer."""
+        if not hasattr(self, '_call_analyzer'):
+            api_key = os.environ.get("GEMINI_API_KEY") or ""
+            from src.services.call_analyzer import CallAnalyzer
+            self._call_analyzer = CallAnalyzer(api_key=api_key, db=self.db)
+        return self._call_analyzer
+
+    async def send_call_kpi(self, event):
+        """MetaSell-style KPI dashboard for call analysis."""
+        analyzer = self._get_call_analyzer()
+        kpi = await analyzer.get_kpi_summary()
+
+        if not kpi or not kpi.get("week", {}).get("calls"):
+            await event.respond(
+                "🎯 **SAVDO TAHLILI — KPI**\n"
+                "──────────────────────\n"
+                "📭 Hali tahlil qilingan suhbatlar yo'q.\n\n"
+                "💡 **Boshlash:** Guruhga savdo suhbatlarini (matn/ovozli) yuboring.\n"
+                "Oisha avtomatik tahlil qiladi va ball beradi.\n\n"
+                "Yoki: `/analyze` buyrug'i bilan suhbatni reply qiling."
+            )
+            return
+
+        trend = kpi.get("trend_label", "")
+        msg = (
+            f"🎯 **SAVDO TAHLILI — KPI DASHBOARD**\n"
+            f"──────────────────────\n\n"
+            f"📅 **Bugun:**\n"
+            f"   Tahlillar: `{kpi['today']['calls']}` | O'rtacha ball: `{kpi['today']['avg_score']}/100`\n\n"
+            f"📆 **Shu hafta:**\n"
+            f"   Tahlillar: `{kpi['week']['calls']}` | O'rtacha ball: `{kpi['week']['avg_score']}/100`\n\n"
+            f"📊 **Shu oy:**\n"
+            f"   Tahlillar: `{kpi['month']['calls']}` | O'rtacha ball: `{kpi['month']['avg_score']}/100`\n\n"
+            f"📈 **Trend:** {trend} ({kpi.get('trend', 0):+.1f} ball)\n"
+            f"──────────────────────\n"
+            f"💡 */analyze* — suhbatni tahlil qilish\n"
+            f"💡 */coaching @ism* — shaxsiy coaching"
+        )
+        await event.respond(msg)
+
+    async def send_team_coaching(self, event):
+        """Generate AI coaching for the whole team."""
+        analyzer = self._get_call_analyzer()
+        report = await analyzer.get_team_report(period_days=7)
+
+        if not report.get("team"):
+            await event.respond(
+                "🏆 **JAMOA COACHING**\n"
+                "──────────────────────\n"
+                "📭 Hali jamoa a'zolari tahlil qilinmagan.\n\n"
+                "Savdo suhbatlarini guruhga yuboring — Oisha avtomatik tahlil qiladi."
+            )
+            return
+
+        msg = f"🏆 **JAMOA COACHING HISOBOTI** (7 kun)\n──────────────────────\n\n"
+        msg += f"📊 Umumiy tahlillar: `{report['total_analyses']}` | Jamoa o'rtachasi: `{report['team_avg_score']}/100`\n\n"
+
+        for i, member in enumerate(report["team"], 1):
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👤"
+            bd = member["breakdown"]
+            msg += (
+                f"{medal} **{member['name']}** — `{member['avg_score']}/100` ({member['call_count']} suhbat)\n"
+                f"   Salom: `{bd['greeting']}` | Ehtiyoj: `{bd['needs_discovery']}` | "
+                f"Taklif: `{bd['pitch']}` | E'tiroz: `{bd['objection_handling']}` | Yakunlash: `{bd['closing']}`\n\n"
+            )
+
+        msg += "──────────────────────\n💡 */coaching @ism* — shaxsiy AI coaching olish"
+        await event.respond(msg)
+
+    async def _send_daily_coaching_report(self):
+        """Avtomatik kechki coaching hisoboti — har kuni 18:00 da jamoa guruhiga yuboriladi."""
+        try:
+            analyzer = self._get_call_analyzer()
+            report = await analyzer.get_team_report(period_days=1)
+
+            if not report.get("team"):
+                logger.info("[COACHING REPORT] No analyses today, skipping.")
+                return
+
+            msg = f"🏆 **KUNLIK SAVDO TAHLILI** ({datetime.now().strftime('%d.%m.%Y')})\n──────────────────────\n\n"
+            msg += f"📊 Bugun tahlil qilingan: `{report['total_analyses']}` suhbat\n"
+            msg += f"📈 Jamoa o'rtachasi: `{report['team_avg_score']}/100`\n\n"
+
+            for i, member in enumerate(report["team"], 1):
+                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👤"
+                msg += f"{medal} **{member['name']}** — `{member['avg_score']}/100` ({member['call_count']} suhbat)\n"
+
+            # Generate coaching for weakest performer
+            if len(report["team"]) > 0:
+                weakest = report["team"][-1]  # sorted by score DESC, last = weakest
+                coaching = await analyzer.generate_coaching(weakest["id"], weakest["name"], "kun")
+                if coaching and "hali tahlil qilingan" not in coaching.lower():
+                    msg += f"\n──────────────────────\n"
+                    msg += f"💡 **AI Coaching ({weakest['name']} uchun):**\n{coaching[:500]}"
+
+            from src.settings import settings
+            topic_id = getattr(settings, 'TOPIC_REPORTS_ID', None) or getattr(settings, 'CRM_TOPIC_ID', None)
+            await self.notify_team(msg, topic_id=topic_id)
+            logger.info(f"[COACHING REPORT] Daily report sent to team group.")
+
+        except Exception as e:
+            logger.error(f"[COACHING REPORT] Error: {e}")
 
     async def send_recent_logs(self, event):
         """Oxirgi 15 qator logni ko'rsatish."""
