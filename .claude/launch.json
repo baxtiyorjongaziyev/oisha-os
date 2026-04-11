@@ -1,0 +1,47 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Oisha Main Bot (Userbot + AdminBot)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "src.services.main"],
+      "port": 8080
+    },
+    {
+      "name": "Oisha API Server (FastAPI)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-c", "import uvicorn; from src.api_server import app; uvicorn.run(app, host='0.0.0.0', port=8080)"],
+      "port": 8080
+    },
+    {
+      "name": "Oisha Legacy Main (src/main.py)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "src.main"],
+      "port": 8080
+    },
+    {
+      "name": "Proactive Worker - Morning Briefing",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "src.services.proactive_worker", "--job", "briefing"],
+      "port": 0
+    },
+    {
+      "name": "Proactive Worker - Daily Report",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "src.services.proactive_worker", "--job", "report"],
+      "port": 0
+    },
+    {
+      "name": "Night Shift Service",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "src.services.night_shift"],
+      "port": 0
+    },
+    {
+      "name": "Watchdog (Process Monitor)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "src.services.watchdog"],
+      "port": 0
+    }
+  ]
+}

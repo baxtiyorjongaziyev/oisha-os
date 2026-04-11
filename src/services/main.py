@@ -6,6 +6,7 @@ sys.path.append(os.getcwd())
 
 import asyncio
 import logging
+from typing import Optional, Dict, Any
 from telethon import TelegramClient, events
 from src.settings import settings
 from src.services.safe_responder import SafeResponder
@@ -29,7 +30,6 @@ import random
 import time
 from src.services.admin_bot import AdminBot
 from src.services.access_manager import AccessManager
-from src.proxy_manager import ProxyManager
 
 # Loglarni sozlash
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
