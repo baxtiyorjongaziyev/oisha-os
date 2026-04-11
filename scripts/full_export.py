@@ -8,7 +8,7 @@ Bu script avtomatik:
 3. Tez Natija 4 guruhidan barcha contactlarni yig'ish
 4. Google Contacts-ga saqlash
 
-Ishga tushirish: .venv_oi\Scripts\python scripts\full_export.py
+Ishga tushirish: .venv_oi\\Scripts\\python scripts\\full_export.py
 """
 
 import asyncio
@@ -173,7 +173,7 @@ async def export_contacts():
     if not os.path.exists(TOKEN_FILE):
         print("❌ Google Contacts avtorizatsiyasi kerak!")
         print("Iltimos, quyidagi buyruqni ishga tushiring (brauzer ochiladi):")
-        print("\n   .venv_oi\\Scripts\\python scripts\google_auth.py\n")
+        print("\n   .venv_oi\\Scripts\\python scripts\\google_auth.py\n")
         return
     
     if not gcontacts.authenticate():
