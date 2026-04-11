@@ -1,15 +1,15 @@
 import os
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
 api_key = os.getenv('GEMINI_API_KEY')
-genai.configure(api_key=api_key)
+client = genai.Client(api_key=api_key)
 
 try:
     print("Listing models...")
-    for m in genai.list_models():
-        if 'generateContent' in m.supported_generation_methods:
-            print(m.name)
+    for m in client.models.list():
+        # In the new SDK, supported algorithms are in m.name or metadata
+        print(f"Model: {m.name} (Methods: {m.supported_actions})")
 except Exception as e:
     print(f"Error: {e}")

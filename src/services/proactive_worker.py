@@ -79,43 +79,42 @@ async def send_proactive_followups():
     now = datetime.datetime.now()
     
     try:
-        with db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT user_id, first_name, service_type, last_seen, meeting_time, meeting_status FROM users WHERE is_lead_forwarded != 2")
-            rows = cursor.fetchall()
-            
-            for row in rows:
-                user_id, first_name, service_type, last_seen_str, meeting_time, meeting_status = row
-                if not last_seen_str: continue
-
-                last_seen = datetime.datetime.fromisoformat(last_seen_str)
-                hours_diff = (now - last_seen).total_seconds() / 3600
+        async with await db.get_connection() as conn:
+            async with conn.execute("SELECT user_id, first_name, service_type, last_seen, meeting_time, meeting_status FROM users WHERE is_lead_forwarded != 2") as cursor:
+                rows = await cursor.fetchall()
                 
-                message = None
-                if meeting_status == 'scheduled' and hours_diff > 2:
-                    prompt = f"Mijoz {first_name} bilan uchrashuv belgilangan edi. U hozir jim. Unga samimiy, Oisha uslubida eslatma yozing. 'Eslab qoldingizmi' kabi shablonlardan qoching. Insoniy va iliq bo'lsin."
-                    message = await generate_ai_message(user_id, prompt)
-                    cursor.execute("UPDATE users SET meeting_status = 'completed', last_seen = ? WHERE user_id = ?", (now.isoformat(), user_id))
+                for row in rows:
+                    user_id, first_name, service_type, last_seen_str, meeting_time, meeting_status = row
+                    if not last_seen_str: continue
+
+                    last_seen = datetime.datetime.fromisoformat(last_seen_str)
+                    hours_diff = (now - last_seen).total_seconds() / 3600
                     
-                elif not meeting_time and 24 <= hours_diff <= 48:
-                    prompt = f"Mijoz {first_name} bilan {service_type or 'loyiha'} haqida gaplashgan edik. 1 kundan beri yozmadi. Unga juda samimiy, xuddi Baxtiyorjon akaning yordamchisi kabi, unga qiziqish bildirib xabar yozing. Botligingiz bilinmasin."
-                    message = await generate_ai_message(user_id, prompt)
-                    cursor.execute("UPDATE users SET last_seen = ? WHERE user_id = ?", (now.isoformat(), user_id))
-                    
-                if message:
-                    try:
-                        draft_msg = (
-                            f"💡 **FOLLOW-UP DRAFT IDEA**\n\n"
-                            f"**Kimga**: {first_name} (ID: {user_id})\n"
-                            f"**Xizmat**: {service_type or 'Noma`lum'}\n\n"
-                            f"```\n{message}\n```\n"
-                            f"👆 Ushbu xabarni ko'chirib, mijozga yuborishingiz mumkin."
-                        )
-                        await app.bot.send_message(chat_id=config.CRM_GROUP_ID, text=draft_msg, parse_mode="Markdown")
-                        conn.commit()
-                        await asyncio.sleep(2)
-                    except Exception as e:
-                        logger.error(f"[SEND ERROR] {user_id}: {e}")
+                    message = None
+                    if meeting_status == 'scheduled' and hours_diff > 2:
+                        prompt = f"Mijoz {first_name} bilan uchrashuv belgilangan edi. U hozir jim. Unga samimiy, Oisha uslubida eslatma yozing. 'Eslab qoldingizmi' kabi shablonlardan qoching. Insoniy va iliq bo'lsin."
+                        message = await generate_ai_message(user_id, prompt)
+                        await conn.execute("UPDATE users SET meeting_status = 'completed', last_seen = ? WHERE user_id = ?", (now.isoformat(), user_id))
+                        
+                    elif not meeting_time and 24 <= hours_diff <= 48:
+                        prompt = f"Mijoz {first_name} bilan {service_type or 'loyiha'} haqida gaplashgan edik. 1 kundan beri yozmadi. Unga juda samimiy, xuddi Baxtiyorjon akaning yordamchisi kabi, unga qiziqish bildirib xabar yozing. Botligingiz bilinmasin."
+                        message = await generate_ai_message(user_id, prompt)
+                        await conn.execute("UPDATE users SET last_seen = ? WHERE user_id = ?", (now.isoformat(), user_id))
+                        
+                    if message:
+                        try:
+                            draft_msg = (
+                                f"💡 **FOLLOW-UP DRAFT IDEA**\n\n"
+                                f"**Kimga**: {first_name} (ID: {user_id})\n"
+                                f"**Xizmat**: {service_type or 'Noma`lum'}\n\n"
+                                f"```\n{message}\n```\n"
+                                f"👆 Ushbu xabarni ko'chirib, mijozga yuborishingiz mumkin."
+                            )
+                            await app.bot.send_message(chat_id=config.CRM_GROUP_ID, text=draft_msg, parse_mode="Markdown")
+                            await conn.commit()
+                            await asyncio.sleep(2)
+                        except Exception as e:
+                            logger.error(f"[SEND ERROR] {user_id}: {e}")
     except Exception as e:
         logger.error(f"[DB ERROR in Proactive] {e}")
 
@@ -138,7 +137,7 @@ async def distribute_team_tasks(force: bool = False):
     hour_to_mark = now.hour if not force else (14 if now.hour >= 14 else 10)
     job_key = f"team_distribution_{hour_to_mark}"
     
-    if not force and db.is_job_run(job_key, today):
+    if not force and await db.is_job_run(job_key, today):
         logger.debug(f"[DISTRIBUTION] Skipping: Job {job_key} already run today.")
         return
 
@@ -167,12 +166,16 @@ async def distribute_team_tasks(force: bool = False):
     # 3. Generate Morning Plan message
     msg = await reporter.generate_morning_plan(distribution)
 
+    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+    group_id = getattr(config, "TEAM_GROUP_ID", getattr(config, "CRM_GROUP_ID", None))
+    thread_id = getattr(config, "TOPIC_GENERAL_ID", None)
+
     if bot_token and group_id:
         from telegram import Bot
         bot = Bot(token=bot_token)
         try:
             await bot.send_message(chat_id=group_id, text=msg, parse_mode="HTML", disable_web_page_preview=True, message_thread_id=thread_id)
-            db.mark_job_run(job_key, today)
+            await db.mark_job_run(job_key, today)
             logger.info(f"[DISTRIBUTION] Cycle {now.hour}:00 completed.")
         except Exception as e:
             logger.error(f"[XATO] Team Distribution: {e}")
@@ -189,7 +192,7 @@ async def check_amocrm_stagnation():
     now = datetime.datetime.now()
     
     # 1. Check if already sent today
-    if db.is_job_run("stagnation_alert", today):
+    if await db.is_job_run("stagnation_alert", today):
         return
 
     # 2. Schedule Check (Fire at 10:00 AM UZT)
@@ -223,7 +226,7 @@ async def check_amocrm_stagnation():
 
         # 2. Check if this specific hour was already sent today
         job_key = f"stagnation_alert_{now.hour}"
-        if db.is_job_run(job_key, today):
+        if await db.is_job_run(job_key, today):
             return
 
         # 1. Guruh uchun umumiy ogohlantirish
@@ -238,7 +241,7 @@ async def check_amocrm_stagnation():
         
         try:
             await bot.send_message(chat_id=group_id, text=msg, parse_mode="HTML", disable_web_page_preview=True, message_thread_id=thread_id)
-            db.mark_job_run(job_key, today) # Mark this specific hour as done
+            await db.mark_job_run(job_key, today) # Mark this specific hour as done
             logger.info(f"[STAGNATION] Alert for {now.hour}:00 sent successfully!")
         except Exception as e:
             logger.error(f"[XATO] Stagnation Group Alert: {e}")
@@ -300,7 +303,7 @@ async def check_airtable_stagnation():
 
     # 2. Check if this specific hour was already sent today
     job_key = f"airtable_stagnation_{now.hour}"
-    if db.is_job_run(job_key, today):
+    if await db.is_job_run(job_key, today):
         return
 
     sync = AirtableSync()
@@ -345,7 +348,7 @@ async def check_airtable_stagnation():
                 logger.error(f"[CRITICAL XATO] Airtable stagnation alert failed completely: {e2}")
                 return
 
-        db.mark_job_run(job_key, today)
+        await db.mark_job_run(job_key, today)
 
 async def send_daily_report():
     """Kunlik umumiy statistika va jamoa samaradorligi hisoboti."""
@@ -369,7 +372,7 @@ async def send_daily_report():
     
     # Bugun hisobot yuborilganmi? (Duplicate run oldini olish)
     today = datetime.datetime.now().strftime('%Y-%m-%d')
-    if db.is_job_run("daily_report", today):
+    if await db.is_job_run("daily_report", today):
         logger.info("[DAILY REPORT] Allaqachon bugun yuborilgan. Skip.")
         return
 
@@ -402,7 +405,7 @@ async def send_daily_report():
                 await bot.send_message(chat_id=owner_id, text=report_msg, parse_mode=None)
             
         # Vazifani bajarilgan deb belgilash
-        db.mark_job_run("daily_report", today)
+        await db.mark_job_run("daily_report", today)
         
     except Exception as e:
         logger.error(f"[XATO] Daily Report tayyorlash yoki yuborishda: {e}", exc_info=True)
@@ -420,12 +423,21 @@ async def send_morning_briefing():
 
     db = Database()
     today = datetime.datetime.now().strftime('%Y-%m-%d')
-    if db.is_job_run("morning_briefing", today):
+    if await db.is_job_run("morning_briefing", today):
         logger.info("[MORNING BRIEFING] Allaqachon bugun yuborilgan. Skip.")
         return
 
-    priorities = db.get_priority_tasks(limit=3)
+    from src.services.crm_service import CRMService
+    from src.services.enterprise_reporter import EnterpriseReporter
     
+    crm = CRMService()
+    reporter = EnterpriseReporter(db, crm)
+    
+    # 1. Get Hard Audit Data
+    hard_audit = await reporter.get_real_numbers_audit()
+    
+    # 2. Get Priority Tasks
+    priorities = await db.get_priority_tasks(limit=3)
     priority_text = ""
     if priorities:
         priority_text = "\n\n📌 <b>Bugungi ustuvor vazifalar:</b>\n"
@@ -433,33 +445,26 @@ async def send_morning_briefing():
             name = p.get('name') or p.get('username') or "Unknown"
             priority_text += f"• {p['title']} — <i>{name}</i>\n"
 
-    # AI xabarini shakllantirish
-    # [GOD MODE] Special Billing Reminder for April 3rd
-    billing_reminder = ""
-    if today == "2026-04-03":
-        billing_reminder = (
-            "\n\n⚠️ **ESLATMA:** Bugun Google Cloud Billing (to'lov) masalasini hal qilishimiz kerak edi. "
-            "To'lov amalga oshirilishi bilan botni 24/7 rejimga o'tkazaman va barcha yangilanishlar zudlik bilan ishga tushadi."
-        )
-
+    # 3. AI Intro Generation (Human touch based on Audit)
     prompt = (
-        "Bugundagi ish kunida jamoani ruhlantiring. "
-        f"Baxtiyorjon aka bilan bugun katta marralarni zabt etishlarida ko'maklashishga tayyor ekanligingizni bildiring. {priority_text if priorities else ''} "
-        f"{billing_reminder}"
-        "Xabar samimiy, insoniy va HTML formatda bo'lsin."
+        f"Siz Oisha-OS (COO) xizmatisiz. Quyidagi CRM audit natijalari asosida jamoaga 100 ta so'zdan oshmaydigan, "
+        f"shafqatsiz darajada aniq va faqat operatsion kamchiliklarga qaratilgan tahlil yozing. \n\nAUDIT:\n{hard_audit}\n\n"
+        "Hech qanday maqtov va 'paxta' bo'lmasin. Faqat anomaliyalarga e'tibor qarating. HTML formatda bo'lsin."
     )
+
     
     from src.services.proactive_worker import generate_ai_message
-    briefing = await generate_ai_message(999, prompt) # 999 - tizim/guruh ID sifatida
-    if priorities:
-        briefing += priority_text
-        
+    ai_intro = await generate_ai_message(999, prompt)
+    
+    # Combined Briefing
+    full_briefing = f"{ai_intro}\n\n{hard_audit}{priority_text}"
+    
     try:
         from telegram import Bot
         bot = Bot(token=bot_token)
         
-        # HTML Sanitizatsiya (Oisha v9 Stable)
-        clean_briefing = briefing.replace("<p>", "").replace("</p>", "\n")
+        # HTML Sanitizatsiya (Oisha Stable)
+        clean_briefing = full_briefing.replace("<p>", "").replace("</p>", "\n")
         clean_briefing = clean_briefing.replace("<ul>", "").replace("</ul>", "")
         clean_briefing = clean_briefing.replace("<li>", "• ").replace("</li>", "\n")
         
@@ -467,8 +472,18 @@ async def send_morning_briefing():
             await bot.send_message(chat_id=group_id, text=clean_briefing, parse_mode="HTML", message_thread_id=thread_id)
             logger.info(f"[MORNING BRIEFING] Jamoa guruhiga ({group_id}) yuborildi.")
         except Exception as html_err:
-            logger.warning(f"[MORNING BRIEFING] HTML xato, Plain-ga o'tilmoqda: {html_err}")
-            await bot.send_message(chat_id=group_id, text=briefing, parse_mode=None, message_thread_id=thread_id)
+            logger.warning(f"[MORNING BRIEFING] Dastlabki yuborishda xato, fallback ishga tushmoqda: {html_err}")
+            try:
+                # Fallback: Plain text and no thread_id
+                await bot.send_message(chat_id=group_id, text=full_briefing, parse_mode=None)
+                logger.info("[MORNING BRIEFING] Fallback muvaffaqiyatli.")
+            except Exception as final_err:
+                logger.error(f"[MORNING BRIEFING] Fallback ham muvaffaqiyatsiz: {final_err}")
+                return
+
+        # Vazifani bajarilgan deb belgilash
+        await db.mark_job_run("morning_briefing", today)
+
 
     except Exception as e:
         logger.error(f"[XATO] Morning Briefing yuborishda: {e}", exc_info=True)
@@ -477,7 +492,7 @@ async def send_overdue_nudges():
     """Vazifasi kechikayotgan xodimlarni guruhda (tagging) ogohlantirish."""
     db = Database()
     today = datetime.datetime.now().strftime('%Y-%m-%d')
-    if db.is_job_run("overdue_nudges", today):
+    if await db.is_job_run("overdue_nudges", today):
         logger.info("[NUDGES] Allaqachon bugun yuborilgan. Skip.")
         return
 
@@ -488,7 +503,7 @@ async def send_overdue_nudges():
     thread_id = getattr(config, "TOPIC_TASKS_ID", None)
     if not (bot_token and group_id): return
 
-    overdue = db.get_overdue_tasks()
+    overdue = await db.get_overdue_tasks()
     if not overdue: return
     
     # ... (kod davomi)
@@ -515,7 +530,7 @@ async def send_overdue_nudges():
         msg += "<i>Iltimos, ish kunini yakunlashdan oldin ushbu vazifalarni bajaring!</i>"
         
         await bot.send_message(chat_id=group_id, text=msg, parse_mode="HTML", message_thread_id=thread_id)
-        db.mark_job_run("overdue_nudges", today)
+        await db.mark_job_run("overdue_nudges", today)
         logger.info(f"[PROACTIVE] Public nudges sent for {len(by_user)} users.")
     except Exception as e:
         logger.error(f"[XATO] Public Nudge yuborishda: {e}")
@@ -535,7 +550,7 @@ async def send_evening_fact_report():
     
     db = Database()
     today = datetime.datetime.now().strftime('%Y-%m-%d')
-    if db.is_job_run("evening_fact", today):
+    if await db.is_job_run("evening_fact", today):
         logger.info("[EVENING FACT] Allaqachon bugun yuborilgan. Skip.")
         return
 
@@ -547,7 +562,7 @@ async def send_evening_fact_report():
         from telegram import Bot
         bot = Bot(token=bot_token)
         await bot.send_message(chat_id=group_id, text=report_msg, parse_mode="HTML", message_thread_id=thread_id)
-        db.mark_job_run("evening_fact", today)
+        await db.mark_job_run("evening_fact", today)
         logger.info("[EVENING FACT] Sent successfully.")
     except Exception as e:
         logger.error(f"[XATO] Evening Fact: {e}")
