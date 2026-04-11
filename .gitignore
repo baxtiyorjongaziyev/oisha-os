@@ -15,6 +15,7 @@ service_account.json
 credentials.json
 token.pickle
 amocrm_token.json
+billing_accounts.json
 *.session
 *.session-journal
 

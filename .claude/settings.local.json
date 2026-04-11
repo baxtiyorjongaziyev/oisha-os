@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find src:*)",
+      "Bash(find . -maxdepth 1 -name \"*.py\" -exec python -m py_compile {} \\\\;)",
+      "Bash(find scripts:*)",
+      "Bash(find tests:*)",
+      "Bash(find handlers:*)",
+      "Bash(pip list:*)",
+      "Bash(python -m pytest tests/ --tb=long --no-header)",
+      "Bash(python -m pytest tests/ -v --co -p no:capture)"
+    ]
+  }
+}
