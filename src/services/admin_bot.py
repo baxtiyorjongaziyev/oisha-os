@@ -413,32 +413,109 @@ class AdminBot:
             logger.error(f"[ADMIN_BOT] trigger_daily_missions error: {e}")
             return False
 
+
     async def run_scheduler(self):
-        """Fon rejimida vaqtni nazorat qilish va vazifalarni ishga tushirish."""
-        logger.info("👸 [ADMIN_BOT] Scheduler loop started! Listening for 10:00 and 14:00 missions. 🛡️")
+        """Fon rejimida vaqtni nazorat qilish va vazifalarni ishga tushirish.
+        
+        JADVAL:
+        - 09:45 — Morning Briefing (Qarorlar uchun ma'lumot)
+        - 10:00 — Daily Mission Distribution (Plan)
+        - 14:00 — Afternoon Mission Distribution (Plan)
+        - 01:00 — Night Shift (CRM tozalash)
+        - 02:00 — Intelligence Audit (Kechalik AI tahlil)
+        - 21:00 — Evening Fact Report (Plan vs Natija)
+        """
+        import src.api_server as api_server_module
+        
+        logger.info("👸 [ADMIN_BOT] Full Autonomous Scheduler v2.0 ishga tushdi! 🛡️")
         while True:
             try:
                 now = datetime.now()
                 current_time = now.strftime("%H:%M")
                 today = now.strftime("%Y-%m-%d")
 
-                # 1. Kunlik missiyalar (10:00 va 14:00)
+                # 1. Morning Briefing (09:45)
+                if current_time == "09:45":
+                    job_id = f"morning_briefing_{today}"
+                    if not self.db.get_state(job_id):
+                        logger.info("👸 [SCHEDULER] Morning Briefing boshlandi...")
+                        try:
+                            from src.services.proactive_worker import send_morning_briefing
+                            await send_morning_briefing()
+                            self.db.set_state(job_id, "done")
+                            api_server_module.add_activity("☀️ Morning Briefing", "Kunlik brifing jamoaga yuborildi.", "success")
+                        except Exception as e:
+                            logger.error(f"[BRIEFING ERROR] {e}")
+                            api_server_module.add_activity("⚠️ Morning Briefing", f"Xatolik: {e}", "error")
+
+                # 2. Daily Missions (10:00 va 14:00)
                 if current_time in ["10:00", "14:00"]:
                     job_id = f"daily_{today}_{current_time}"
                     if not self.db.get_state(job_id):
-                        logger.info(f"👸 [ADMIN_BOT] Starting scheduled daily missions for {current_time}")
-                        await self.trigger_daily_missions()
-                        self.db.set_state(job_id, "done")
+                        logger.info(f"👸 [SCHEDULER] Mission Distribution {current_time}...")
+                        try:
+                            await self.trigger_daily_missions()
+                            self.db.set_state(job_id, "done")
+                            api_server_module.add_activity(
+                                f"🎯 Mission Control ({current_time})",
+                                "Lidlar menejerlarga taqsimlandi va 'Morning Plan' guruhga yuborildi.",
+                                "success"
+                            )
+                        except Exception as e:
+                            logger.error(f"[MISSION ERROR] {e}")
+                            api_server_module.add_activity("⚠️ Mission Error", str(e), "error")
 
-                # 2. Night Shift (01:00)
+                # 3. Evening Fact Report (21:00)
+                if current_time == "21:00":
+                    job_id = f"evening_fact_{today}"
+                    if not self.db.get_state(job_id):
+                        logger.info("👸 [SCHEDULER] Evening Fact Report boshlandi...")
+                        try:
+                            from src.services.proactive_worker import send_evening_fact_report
+                            await send_evening_fact_report()
+                            self.db.set_state(job_id, "done")
+                            api_server_module.add_activity("📊 Plan-Fakt Tahlili", "Kechki natijalar auditlandi va Telegram guruhiga yuborildi.", "success")
+                        except Exception as e:
+                            logger.error(f"[FACT REPORT ERROR] {e}")
+                            api_server_module.add_activity("⚠️ Fact Report Error", str(e), "error")
+
+                # 4. Night Shift — CRM Cleanup (01:00)
                 if current_time == "01:00":
                     job_id = f"night_shift_{today}"
                     if not self.db.get_state(job_id):
-                        logger.info("👸 [ADMIN_BOT] Starting scheduled Night Shift cleanup...")
-                        if self.night_shift:
-                            await self.night_shift.run_cleanup()
-                        self.db.set_state(job_id, "done")
-                
+                        logger.info("👸 [SCHEDULER] Night Shift CRM Cleanup boshlandi...")
+                        api_server_module.add_activity("🧹 Night Shift", "AmoCRM dublikatlar va qotib qolgan lidlar tozalanmoqda...", "thinking")
+                        try:
+                            if self.night_shift:
+                                await self.night_shift.run_cleanup()
+                            self.db.set_state(job_id, "done")
+                            api_server_module.add_activity("✅ Night Shift", "CRM muvaffaqiyatli tozalandi.", "success")
+                        except Exception as e:
+                            logger.error(f"[NIGHT SHIFT ERROR] {e}")
+                            api_server_module.add_activity("⚠️ Night Shift Error", str(e), "error")
+
+                # 5. Intelligence Audit — Tungi AI Tahlili (02:00)
+                if current_time == "02:00":
+                    job_id = f"intelligence_audit_{today}"
+                    if not self.db.get_state(job_id):
+                        logger.info("👸 [SCHEDULER] Intelligence Audit boshlandi (tungi)...")
+                        api_server_module.add_activity("🕵️ Intelligence Audit", "Tungi AI tahlili boshlandi. Faollik loglari o'rganilmoqda...", "thinking")
+                        try:
+                            from src.services.audit_agent import AuditAgent
+                            import src.config as config
+                            _audit = AuditAgent(api_key=config.GEMINI_API_KEY, db=self.db)
+                            report = await _audit.generate_audit_report(limit=200)
+                            # Egaga yuborish (user_client orqali)
+                            from src.api_server import user_client as uc
+                            if uc:
+                                me = await uc.get_me()
+                                await uc.send_message(me.id, f"🦉 **OISHA: Tungi Intelligence Audit**\n\n{report}")
+                            self.db.set_state(job_id, "done")
+                            api_server_module.add_activity("✅ Intelligence Audit", "Tungi audit yakunlandi. Hisobot Telegramga yuborildi.", "success")
+                        except Exception as e:
+                            logger.error(f"[AUDIT ERROR] {e}")
+                            api_server_module.add_activity("⚠️ Audit Error", str(e), "error")
+
                 # Har 30 soniyada tekshirish
                 await asyncio.sleep(30)
             except Exception as e:

@@ -41,6 +41,7 @@ async def root_status():
 # Global references
 user_client = None
 db_instance = None
+audit_agent = None
 # --- DASHBOARD ACTIVITY FEED ---
 system_activities: List[Dict[str, Any]] = []
 
@@ -169,8 +170,36 @@ async def get_system_info():
         "os": "Windows",
         "version": "2.1.0-GodMode",
         "agent_count": 8,
-        "active_modules": ["NightShift", "OSINT", "CRM_Sync", "Advisor"]
+        "active_modules": ["NightShift", "OSINT", "CRM_Sync", "Advisor", "Audit"]
     }
+
+@app.post("/api/system/audit")
+async def trigger_intelligence_audit():
+    """Dashboarddan auditni ishga tushirish va Telegramga yuborish."""
+    if not audit_agent:
+        return {"error": "AuditAgent not initialized"}
+    
+    add_activity("Intelligence Audit", "AI audit jarayoni boshlandi...", "thinking")
+    
+    try:
+        # 1. Generate Report
+        report = await audit_agent.generate_audit_report(limit=150)
+        
+        # 2. Send to Owner (assuming settings defined in main or available via os.environ)
+        # We use user_client (Baxtiyor's account) to send the report to himself
+        if user_client:
+            me = await user_client.get_me()
+            await user_client.send_message(me.id, f"👸 **OISHA: INTELLIGENCE AUDIT REPORT**\n\n{report}")
+            add_activity("Intelligence Audit", "Hisobot Telegramga yuborildi.", "success")
+            return {"status": "success", "message": "Audit completed and sent to Telegram."}
+        else:
+            add_activity("Intelligence Audit", "Faqat log yaratildi (Userbot offline).", "warning")
+            return {"status": "partial", "message": "Audit completed but userbot is offline."}
+            
+    except Exception as e:
+        logger.error(f"[API AUDIT ERROR] {e}")
+        add_activity("Intelligence Audit", f"Xatolik: {str(e)}", "error")
+        return {"status": "error", "message": str(e)}
 
 def run_api(host: str = "0.0.0.0", port: int = 8080):
     uvicorn.run(app, host=host, port=port)
