@@ -1,5 +1,5 @@
 import logging
-import google.generativeai as genai
+from google import genai
 from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -12,8 +12,8 @@ class AuditAgent:
     def __init__(self, api_key: str, db):
         self.api_key = api_key
         self.db = db
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.0-flash')
+        self.client = genai.Client(api_key=api_key)
+        self.model_name = 'gemini-2.0-flash'
 
     async def generate_audit_report(self, limit=100) -> str:
         """Oxirgi harakatlar asosida audit xulosasini tayyorlash."""
@@ -50,13 +50,19 @@ class AuditAgent:
             3. AVTOMATLASHTIRISH TAVSIYALARI: AI (men - Oisha) ushbu harakatlarning qaysi birini o'z zimmasiga olishi orqali foydalanuvchining ishini yengillashtira oladi?
             
             HISOBOT FORMATI:
-            Professional, tizimli va proaktiv tonda yozing. To'g'ridan-to'g'ri foydalanuvchiga (Baxtiyor akada) murojaat qiling.
-            Yutuqlar va xatolarni emas, aynan "Qanday qilib AI yordam bera oladi?" qismiga urg'u bering.
+            Jarrohlik darajasida aniq, tizimli va qat'iy tonda yozing. Hech qanday maqtov yoki 'paxta' bo'lmasin. 
+            Foydalanuvchiga faqat lavozimi (Asoschi) bo'yicha murojaat qiling. 
+            Aynan 'Qanday qilib AI operatsion xavflarni kamaytiradi?' qismiga urg'u bering.
             """
 
-            # 4. Gemini tahlili
-            response = await self.model.generate_content_async(prompt)
-            return response.text
+            # 4. Gemini tahlili (ASYNCHRONOUS & SAFE)
+            from src.main import safe_ai_call
+            response = await safe_ai_call(
+                client=self.client,
+                prompt=prompt,
+                model=self.model_name
+            )
+            return response.text if response and response.text else "Javob bo'sh qaytdi."
 
         except Exception as e:
             logger.error(f"[AUDIT AGENT ERROR] {e}")

@@ -28,6 +28,9 @@ class AirtableSync:
             if response.status_code == 200:
                 data = response.json()
                 return data.get("records", [])
+            elif response.status_code == 403:
+                logger.error(f"[AIRTABLE 403] Ruxsat xatosi! Tokeningizda 'data.records:read' ruxsati bormi? Yoki '{self.table_name}' jadvali mavjud emas.")
+                return []
             else:
                 logger.error(f"[AIRTABLE ERROR] {response.status_code}: {response.text}")
                 return []
