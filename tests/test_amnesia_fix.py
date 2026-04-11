@@ -1,8 +1,11 @@
 import asyncio
 import os
+import pytest
 from dotenv import load_dotenv
 from database import Database
-import userbot
+
+# userbot.py endi src/main.py ga ko'chirilgan
+pytest.importorskip("userbot", reason="userbot module moved to src/main.py")
 
 load_dotenv()
 

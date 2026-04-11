@@ -19,7 +19,7 @@ def test_ai_response():
     
     print(f"Testing message: {test_message}")
     
-    sys_inst = config.system_instruction
+    sys_inst = config.SYSTEM_INSTRUCTION
     chat_config = types.GenerateContentConfig(
         system_instruction=sys_inst,
     )
