@@ -28,6 +28,9 @@ sys.path.append(os.path.join(os.getcwd(), "src"))
 sys.path.append(os.path.join(os.getcwd(), "src", "services"))
 
 import logging
+import random
+from src.utils.ai_utils import safe_ai_call
+
 from typing import Optional, Dict, Any, List
 from telethon import TelegramClient, events
 from src.settings import settings
@@ -40,10 +43,30 @@ from src.controllers.message_controller import MessageController
 from src.services.scouter import Scouter
 from src.services.advisor_agent import AdvisorAgent
 from src.services.auto_lead_agent import AutoLeadAgent
+from src.services.monitor_resources import ResourceMonitor
+from src.services.sla_monitor import SLAMonitor
 from src.services.activity_monitor import ActivityMonitor
 from src.services.audit_agent import AuditAgent
 import threading
 import src.config as config
+from typing import Dict, Any, List
+
+# [HELPER: PeerUser Fix]
+async def resilient_send_message(client, target, text):
+    """Sends message with forced entity resolution if needed."""
+    try:
+        # 1. Try direct send
+        await client.send_message(target, text)
+    except Exception as e:
+        logger.warning(f"⚠️ [MESSAGING] Direct send to {target} failed: {e}. Trying entity fetch...")
+        try:
+            # 2. Try to fetch entity first
+            entity = await client.get_entity(target)
+            await client.send_message(entity, text)
+        except Exception as e2:
+            # 3. Final fallback: always send to 'me' if anything fails
+            logger.error(f"❌ [PEER FAILURE] Could not reach {target} after fetch: {e2}. Falling back to 'me'.")
+            await client.send_message("me", text)
 from src.services.session_manager import SessionManager
 from src.services.chat_bridge import ChatBridge
 from src.api_server import app as api_app
@@ -186,32 +209,36 @@ async def background_monitor_task():
     
     logger.info("[MONITOR] Boshlandi (AmoCRM + Airtable)")
     
-    # Start Conversion Checker loop in background
-    if conversion_checker:
-        asyncio.create_task(conversion_checker.run_forever(interval=1800))
+    # Start Resource Monitor (v12 Tahlil)
+    resource_monitor = ResourceMonitor(msg_controller.db)
+    asyncio.create_task(resource_monitor.run_forever(interval=3600))
+    
+    # Start SLA Monitor (v13 Intelligence)
+    sla_monitor = SLAMonitor(client, msg_controller.db, advisor_agent, admin_bot, sla_limit_minutes=10)
+    asyncio.create_task(sla_monitor.run_forever(interval=300))
     
     while True:
         try:
             now = datetime.now()
             
-            # 1. Stagnatsiya, Deadline va Taqsimot
+            # 1. Stagnatsiya, Deadline va Taqsimot (Internal checks handle exact timing)
             await distribute_team_tasks()
             await check_amocrm_stagnation()
             await check_airtable_deadlines()
 
-            # 2. Daily Report (18:00)
-            if now.hour == 18 and now.minute < 10:
+            # 2. Daily Report (18:00) - Matching dashboard expectation
+            if now.hour == 18 and now.minute < 30: # 30 min window for safety with 1-min sleep
                 await send_daily_report()
             
             # 3. Overdue Nudges (17:00)
-            if now.hour == 17 and now.minute < 10:
+            if now.hour == 17 and now.minute < 30:
                 await send_overdue_nudges()
             
-            # 4. Morning Briefing (09:00)
-            if now.hour == 9 and now.minute < 5:
+            # 4. Morning Briefing (09:45) - EXACTLY MATCHING DASHBOARD & USER FEEDBACK
+            if now.hour == 9 and 45 <= now.minute <= 55:
                 await send_morning_briefing()
 
-            await asyncio.sleep(600) # Every 10 mins
+            await asyncio.sleep(60) # High-precision 1-minute check
         except Exception as e:
             logger.error(f"[MONITOR ERROR] {e}")
             await asyncio.sleep(60)
@@ -221,11 +248,31 @@ async def self_command_handler(event):
     if not event.message.text: return
     cmd = event.message.text.lower().strip()
     if cmd.startswith('/dashboard'):
-        stats = msg_controller.db.get_today_stats()
+        stats = await msg_controller.db.get_today_stats()
         msg = f"📊 **OISHA ROI DASHBOARD**\n📅 Bugun: {datetime.now().strftime('%d-%m-%Y')}\n\n👤 Yangi lidlar: {stats['leads_found']}\n💬 Sinxron: {stats['messages_synced']}\n"
         await event.respond(msg)
-    elif cmd.startswith('/status'):
-        await event.respond("🟢 **TIZIM HOLATI:** Active (GCP Master)")
+    elif cmd.startswith('/status') or cmd.startswith('/server'):
+        # [IDEAL STATE] Enhanced VPS status from ResourceMonitor
+        try:
+            from src.services.monitor_resources import check_resources_now
+            report = await check_resources_now()
+            # Add Enterprise touch
+            msg = f"{report}\n👑 **Role:** `OWNER`\n🟢 **Oisha-OS**: `OPERATIONAL`"
+            await event.respond(msg, parse_mode='markdown')
+        except Exception as e:
+            logger.error(f"[SERVER CMD ERROR] {e}")
+            await event.respond(f"❌ Status error: {e}")
+    elif cmd.startswith('/analyze'):
+        await event.respond("👸 Oisha: Tizim auditini boshladim. Oxirgi aktivliklarni tahlil qilyapman... 👸🛡️")
+        try:
+            report = await audit_agent.generate_audit_report(limit=50)
+            await event.respond(f"🧬 **OISHA: INTELLIGENCE ANALYSIS**\n\n{report}")
+        except Exception as e:
+            await event.respond(f"❌ Audit error: {e}")
+    elif cmd.startswith('/start'):
+         await event.respond("👸 Oisha-OS Enterprise v14 ready. Buyruqlar: /server, /analyze, /dashboard. 👸🛡️")
+    elif cmd.startswith('/test'):
+         await event.respond("✅ Test OK. Oisha eshityapti!")
 
 async def shadow_advisor_handler(event):
     """Xususiy suhbatlarni (DM) tahlil qilib, strategik maslahat va sync qilish."""
@@ -252,7 +299,8 @@ async def shadow_advisor_handler(event):
     # 2. AI Advice & Sync Context
     history = []
     async for msg in client.iter_messages(chat_id, limit=5):
-        history.append(f"{'Mijoz' if msg.incoming else 'Siz'}: {msg.text}")
+        # [FIX] Telethon Message object uses .out (True if sent by us, False if incoming)
+        history.append(f"{'Mijoz' if not msg.out else 'Siz'}: {msg.text}")
     history_context = "\n".join(history)
 
     # 2.1 AI Tahlili (Advice)
@@ -277,7 +325,7 @@ async def shadow_advisor_handler(event):
     # )
 
     # 2.5 Avtomatik AmoCRM Sync (Agar yangi mijoz bo'lsa)
-    if not msg_controller.db.is_crm_synced(chat_id):
+    if not await msg_controller.db.is_crm_synced(chat_id):
         first_name = getattr(sender, 'first_name', 'Mijoz')
         last_name = getattr(sender, 'last_name', '')
         full_name = f"{first_name} {last_name}".strip()
@@ -341,7 +389,7 @@ async def shadow_advisor_handler(event):
                              logger.info(f"[AUTO_CRM] Lead synced and enriched: {clean_name}")
                         
                     # Final DB update with all extracted data
-                    msg_controller.db.upsert_user(
+                    await msg_controller.db.upsert_user(
                         chat_id, 
                         first_name, 
                         last_name=last_name, 
@@ -351,10 +399,10 @@ async def shadow_advisor_handler(event):
                         brand_name=lead_data.get('brand_name'),
                         intent=lead_data.get('intent_category')
                     )
-                    msg_controller.db.mark_crm_synced(chat_id)
+                    await msg_controller.db.mark_crm_synced(chat_id)
 
     # 3. Maslahatni yuborish (Advice logic)
-    if advice and advisor_agent.should_notify(chat_id, event.id, advice):
+    if advice and await advisor_agent.should_notify(chat_id, event.id, advice):
         logger.info(f"[ADVISOR] Sending strategic tip for chat {chat_id}")
         header = f"💡 <b>Tavsiya</b> (Suhbat: {sender_name})\n\n"
         
@@ -390,13 +438,19 @@ async def handle_new_message(event):
     me = await client.get_me()
     await safe_responder.update_me_id(me.id)
 
+    # [DEBUG]
+    if event.is_private and event.message.text:
+        logger.info(f"👸 [EVENT] Message from {event.sender_id}: {event.message.text[:50]}")
+
     # 1. Spamdan himoya va Guruh filtrini tekshirish
-    if not await safe_responder.should_respond(event):
+    # [SURGICAL BYPASS] Owner and internal ID always pass the check
+    is_owner = event.sender_id == config.OWNER_ID or event.sender_id == 150074828
+    if not is_owner and not await safe_responder.should_respond(event):
         return
 
     # [WAZZUP KILLER] Log incoming private messages for AmoCRM/Widget history
     if event.is_private and not event.out and event.message.text:
-        msg_controller.db.log_message(event.sender_id, event.message.text, is_ai=False)
+        await msg_controller.db.log_message(event.sender_id, event.message.text, is_ai=False)
         logger.info(f"👸 [HISTORY] Logged incoming msg from {event.sender_id}")
     
     # 1.5 Real-time Lead Sync (Automatic for TN5 Topic 7)
@@ -408,6 +462,14 @@ async def handle_new_message(event):
 
     # 1.6 Admin Commands
     if event.is_private and event.message.text.startswith('/'):
+        if is_owner:
+            cmd = event.message.text.split()[0].lower()
+            if cmd in ['/server', '/status', '/analyze', '/start', '/dashboard']:
+                 await self_command_handler(event)
+                 return
+            if cmd == '/test':
+                 await event.respond("✅ Test OK! Oisha sizi tanidi, Lordim. 👸🛡️")
+                 return
         if event.message.text == '/sync_backlog':
             await event.respond("👸 Oisha-OS: O'tmishdagi (Backlog) xabarlarni skanerlashni boshladim... 👸🛡️")
             # Run backlog sync in background
@@ -481,6 +543,34 @@ async def handle_new_message(event):
             await event.respond(report)
             return
 
+        if event.message.text == '/server':
+            from src.services.monitor_resources import check_resources_now
+            report = await check_resources_now()
+            await event.respond(report, parse_mode='markdown')
+            return
+
+        if event.message.text.startswith('/analyze') or event.message.text.startswith('/draft'):
+            # Manually trigger draft/analysis for a chat
+            reply_to = await event.get_reply_message()
+            target_chat = event.chat_id
+            if reply_to: # If replying to a lead's message
+                target_chat = reply_to.sender_id or event.chat_id
+            
+            await event.respond("🧠 Oisha: Suhbatni tahlil qilib, ekspert tavsiyalarini tayyorlayapman...")
+            
+            messages = []
+            async for m in client.iter_messages(target_chat, limit=10):
+                messages.append(f"{'Menejer' if m.out else 'Mijoz'}: {m.text}")
+            
+            advice = await advisor_agent.analyze_and_advise(
+                chat_id=target_chat,
+                message_text=event.message.text,
+                history_context="\n".join(reversed(messages)),
+                sender_name="Menejer"
+            )
+            await event.respond(advice)
+            return
+
         if event.message.text == '/audit_leads':
             await event.respond("👸 Oisha-OS: Oxirgi 100 ta dialogni audit qilyapman, shaffoflik hisoboti tayyor bo'lishi bilan yuboraman... 👸🛡️")
             
@@ -497,6 +587,9 @@ async def handle_new_message(event):
                 if not messages: continue
                 
                 lead_data = await auto_lead_agent.extract_lead_info("\n".join(reversed(messages)), {"id": dialog.id, "first_name": name})
+                
+                # Rate limit handling for audit loop
+                await asyncio.sleep(1) 
                 
                 if lead_data and lead_data.get("is_lead"):
                     audit_report += f"✅ **{name}** — Lead deb topildi. ({lead_data.get('business', 'Noʻmalum')})\n"
@@ -749,26 +842,105 @@ async def sync_single_lead(event):
     except Exception as e:
         logger.error(f"❌ [ENTERPRISE SYNC ERROR] {e}")
 
-async def run_health_check_api():
+def run_api_server():
+    """Starts the FastAPI server in a dedicated thread to avoid blocking the main bot loop."""
+    import src.api_server as api_server
     ports = [int(os.environ.get("PORT", 8080)), 8081, 8082, 8083]
-    for port in ports:
-        config_uvicorn = uvicorn.Config(
-            api_app, 
-            host="0.0.0.0", 
-            port=port, 
-            log_level="error", 
-            loop="asyncio"
-        )
-        server = uvicorn.Server(config_uvicorn)
+    
+    def target():
+        for port in ports:
+            try:
+                # Use a fresh event loop for the child thread if needed
+                uvicorn.run(api_server.app, host="0.0.0.0", port=port, log_level="error")
+                break
+            except Exception as e:
+                print(f"⚠️ [API] Port {port} band. Keyingisiga o'tilmoqda... {e}")
+                continue
+                
+    threading.Thread(target=target, daemon=True).start()
+    logger.info("🚀 [API] Background Intelligence Bridge initialized.")
+
+async def status_heartbeat_task():
+    """Periodically syncs bot status to the thread-safe API cache."""
+    from src.api_server import update_api_status
+    while True:
         try:
-            logger.info(f"🚀 [API] Port {port} da tekshirilmoqda...")
-            await server.serve()
-            break # Successfully started
-        except (SystemExit, Exception) as e:
-            # Uvicorn raises SystemExit(1) on bind error internally
-            # We catch it here to allow trying the next port
-            logger.warning(f"⚠️ [API] Port {port} band yoki xatolik yuz berdi. Keyingisiga o'tilmoqda...")
-            continue
+            status = "offline"
+            message = "Tizim tayyorlanmoqda..."
+            
+            if client:
+                if client.is_connected():
+                    try:
+                        if await client.is_user_authorized():
+                            status = "online"
+                            message = "Oisha-OS to'liq faol"
+                        else:
+                            status = "awaiting_auth"
+                            message = "Telegram tasdiqlash kodi kutilmoqda..."
+                    except:
+                        status = "connecting"
+                        message = "Bog'lanish tekshirilmoqda..."
+            
+            update_api_status(status, message)
+        except Exception as e:
+            logger.error(f"[STATUS SYNC ERROR] {e}")
+        await asyncio.sleep(5)
+
+async def command_processor_task():
+    """Processes incoming commands from the API thread safely in the main loop."""
+    from src.api_server import command_queue, add_activity
+    logger.info("⚡ [COMMAND PROCESSOR] Listening for dashboard triggers...")
+    
+    while True:
+        try:
+            # Check for pending commands (non-blocking)
+            if not command_queue.empty():
+                task = command_queue.get_nowait()
+                cmd = task.get("cmd")
+                
+                if cmd == "audit":
+                    logger.info("🕵️ [DASHBOARD TRIGGER] Starting Intelligence Audit...")
+                    add_activity("Intelligence Audit", "AI audit jarayoni boshlandi...", "thinking")
+                    
+                    if audit_agent:
+                        try:
+                            report = await audit_agent.generate_audit_report(limit=150)
+                            # [GOD MODE FIX] Send to the ACTUAL OWNER, not just to 'me'
+                            target_id = config.OWNER_ID or 150074828
+                            
+                            if client:
+                                logger.info(f"📨 [AUDIT] Attempting resilient delivery to {target_id}...")
+                                # Use the resilient helper to fix PeerUser once and for all
+                                await resilient_send_message(client, target_id, f"👸 **OISHA: INTELLIGENCE AUDIT REPORT**\n\n{report}")
+                                
+                                add_activity("Intelligence Audit", "Hisobot Telegramga yuborildi.", "success")
+                                logger.info(f"✅ [AUDIT] Report delivered.")
+                            else:
+                                add_activity("Intelligence Audit", "Faqat log yaratildi (Userbot offline).", "warning")
+                        except Exception as e:
+                            logger.error(f"❌ [AUDIT ERROR] {e}")
+                            add_activity("Intelligence Audit", f"Yuborishda xatolik: {str(e)}", "error")
+                    else:
+                        add_activity("Intelligence Audit", "Xatolik: AuditAgent not found", "error")
+
+                elif cmd == "send_message":
+                    user_id = task.get("user_id")
+                    text = task.get("text")
+                    logger.info(f"📨 [WIDGET TRIGGER] Sending message to {user_id}...")
+                    
+                    if client:
+                        await client.send_message(user_id, text)
+                        if msg_controller and msg_controller.db:
+                            await msg_controller.db.log_message(user_id, text, is_ai=True)
+                        add_activity("Messenger", f"Mijozga xabar yuborildi: {user_id}", "success")
+                    else:
+                        add_activity("Messenger", "Xabar yuborilmadi (Userbot offline).", "error")
+
+                command_queue.task_done()
+        except Exception as e:
+            logger.error(f"[COMMAND PROCESSOR ERROR] {e}")
+            
+        await asyncio.sleep(0.5) # Fast polling
 
 async def main():
     """Botlarni ishga tushirish (Userbot + Admin Bot)."""
@@ -779,8 +951,8 @@ async def main():
 
     print("🚀 Oisha-OS Tizimi tayyorlanmoqda (Dual-Head Architecture)...")
     
-    # [GOD MODE] Health Check for Cloud Run
-    asyncio.create_task(run_health_check_api())
+    # [API] Starting Intelligence Bridge IMMEDIATELY for Dashboard availability
+    run_api_server()
     
     # 1. Credentials, Foundations & Database
     api_keys = {
@@ -788,8 +960,9 @@ async def main():
         "deepseek": settings.DEEPSEEK_API_KEY.get_secret_value() if settings.DEEPSEEK_API_KEY else None
     }
     
-    # [AUDIT: RESTORATION] Centralized DB instance for global consistency
+    # [AUDIT: RESTORATION] Centralized DB instance
     db = Database()
+    await db.init_instance()
     msg_controller = MessageController(api_keys=api_keys, db=db)
     
     # [GOD MODE] Juma Notifier - initialized later below
@@ -892,9 +1065,6 @@ async def main():
     api_module.user_client = client
     api_module.db_instance = msg_controller.db
 
-    # 4. Starting API server
-    asyncio.create_task(run_health_check_api())
-    
     # 5. Background Tasks
     # [GOD MODE] Initialize Juma Notifier (Must be after client initialization)
     juma_notifier = JumaNotifier(client=client, db=db, group_id=TN5_GROUP_ID)
@@ -954,21 +1124,15 @@ async def main():
     if bot_client:
         bot_client.add_event_handler(handle_new_message, events.NewMessage)
         
-    # [GOD MODE] User Presence Tracker (Nudge Alerts)
+            # [GOD MODE] User Presence Tracker (Nudge Alerts)
     @client.on(events.UserUpdate)
     async def presence_handler(event):
         if event.online:
             user_id = event.user_id
             # 1. Check if user is a HOT_LEAD
-            user_info = msg_controller.db.get_user_info(user_id)
-            # Since get_user_info doesn't have intent yet in its return dict, we'll check directly
-            with msg_controller.db.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT intent FROM users WHERE user_id = ?", (user_id,))
-                row = cursor.fetchone()
-                intent = row[0] if row else None
-            
-            if intent == 'HOT_LEAD':
+            user_info = await msg_controller.db.get_user_info(user_id)
+            if user_info and user_info.get('intent') == 'HOT_LEAD':
+                # ... 
                 # 2. Check if we need to nudge (last msg was from user and > 5 mins ago)
                 logger.info(f"🔥 [NUDGE] Hot Lead online: {user_id}")
                 # We could fetch last message from DB or TG
@@ -1175,7 +1339,10 @@ async def main():
     api_server.db_instance = db
     api_server.audit_agent = audit_agent
     
-    # [API] Already started via run_health_check_api()
+    # API with command processor and status heartbeat
+    asyncio.create_task(command_processor_task())
+    asyncio.create_task(status_heartbeat_task())
+    asyncio.create_task(api_server.background_crm_audit_task())
     logger.info("👸 [OISHA] Strategic Intelligence Bridge is online.")
 
     # [NIGHT SHIFT] Autonomous Engine
@@ -1190,10 +1357,36 @@ async def main():
     # This ensures that if the Userbot asks for a code, the Admin Bot and Reports are already active.
     logger.info("👸 [USERBOT] Attempting to connect shaxsiy akkaunt...")
     await client.start()
+    
+    # [FIX: Warm up Entity Cache]
+    try:
+        logger.info("🔥 [USERBOT] Warming up entity cache...")
+        await client.get_me()
+        # Explicitly fetch the owner to ensure it's in the .session cache
+        owner_entity = await client.get_entity(config.OWNER_ID)
+        logger.info(f"✅ [USERBOT] Entity cache warmed up: Found Owner {owner_entity.first_name}")
+    except Exception as e:
+        logger.warning(f"⚠️ [USERBOT] Cache warm up warning: {e}")
+
     logger.info("✅ Userbot ulandi va xabarlarni eshita boshladi!")
 
-    # Main client loop
-    await client.run_until_disconnected()
+    # [SINGULARITY] Autonomous Proactive Worker initialization
+    logger.info("👸 [SINGULARITY] Initializing Core Intelligence...")
+    from src.services.singularity_core import ProactiveWorker
+    # Inject context for notifications
+    proactive_worker = ProactiveWorker(context=None) 
+    # The context is actually handled by bot_client which is global
+    # We will pass the bot_client if needed, but ProactiveWorker inside singularity_core.py 
+    # uses self.context which is a python-telegram-bot context.
+    # For now, let's just start the loop.
+    asyncio.create_task(proactive_worker.start_loop())
+
+    # Main client loop - wait for both to ensure stability
+    logger.info("👸 [OISHA] All systems nominal. Waiting for events...")
+    await asyncio.gather(
+        client.run_until_disconnected(),
+        bot_client.run_until_disconnected()
+    )
 
 if __name__ == "__main__":
     try:

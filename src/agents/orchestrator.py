@@ -35,7 +35,7 @@ class AgentOrchestrator:
         try:
             client = sales_agent.model_configs["gemini"]["client"]
             model = sales_agent.model_configs["gemini"]["model"]
-            response = client.models.generate_content(
+            response = await client.aio.models.generate_content(
                 model=model,
                 contents=prompt
             )

@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 from telethon import TelegramClient, functions, types
 from src.services.google_service import GoogleService
 from src.settings import settings
-import google.generativeai as genai
+from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -21,18 +21,17 @@ class LeadScraper:
         self.amocrm = amocrm
         self.notify_callback = notify_callback
         
-        # Configure Gemini
-        genai.configure(api_key=settings.GEMINI_API_KEY.get_secret_value())
-        self.model = genai.GenerativeModel('gemini-2.0-flash')
+        # Configure Gemini with modern SDK
+        self.genai_client = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
+        self.model_name = 'gemini-2.0-flash'
 
-    def _is_processed(self, message_id):
+    async def _is_processed(self, message_id):
         """Xabar oldin qayta ishlanganini tekshirish."""
-        # Database checks would go here. For now, we simulate.
-        return self.db.is_message_processed(message_id)
+        return await self.db.is_message_processed(message_id)
 
-    def _mark_processed(self, message_id, group_id, status='synced', reason=None):
+    async def _mark_processed(self, message_id, group_id, status='synced', reason=None):
         """Xabarni qayta ishlangan deb belgilash."""
-        self.db.mark_message_processed(message_id, group_id, status, reason)
+        await self.db.mark_message_processed(message_id, group_id, status, reason)
 
     async def sync_topic_to_contacts(self, client: TelegramClient, group_id: int, topic_id: int, limit: int = 50):
         """Muayyan topickdagi barcha xabarlardan lidlarni qidirib topish va saqlash."""
@@ -40,7 +39,7 @@ class LeadScraper:
         
         saved_count = 0
         async for message in client.iter_messages(group_id, reply_to=topic_id, limit=limit):
-            if not message.text or self._is_processed(message.id):
+            if not message.text or await self._is_processed(message.id):
                 continue
 
             # 1. AI yordamida intro tahlili (Phone, Name, Work)
@@ -85,7 +84,7 @@ class LeadScraper:
                         await self.notify_callback(f"👸 **Yangi Mijoz Topildi!**\n\n👤 Ism: {lead_data.get('name')}\n📞 Tel: {phones[0]}\n📁 AmoCRM-ga saqlandi.")
 
                     saved_count += 1
-                    self._mark_processed(message.id, group_id, status='synced')
+                    await self._mark_processed(message.id, group_id, status='synced')
                     
                     # ULTRA SAFE DELAY: 60 - 120 seconds
                     wait_time = random.uniform(60, 120)
@@ -114,7 +113,7 @@ class LeadScraper:
 
                 # Biz message_id xotirasiga mass sync odamlarini kiritamiz
                 dummy_msg_id = user.id * -1
-                if self._is_processed(dummy_msg_id):
+                if await self._is_processed(dummy_msg_id):
                     continue
                 
                 phone = getattr(user, 'phone', None)
@@ -167,7 +166,7 @@ class LeadScraper:
                     logger.info(f"[MASS SYNC] Tahlil: {first_name} {display_last_name} ({phone or 'No phone'})")
                     
                     # Deduplication Check (Dastlabki tekshiruv)
-                    if self.db.get_user_info(user.id):
+                    if await self.db.get_user_info(user.id):
                         logger.info(f"[MASS SYNC] {first_name} allaqachon DBda bor. O'tkazib yuborildi. ⏩")
                         continue
 
@@ -222,7 +221,7 @@ class LeadScraper:
                             logger.warning(f"[MASS SYNC] AmoCRM xatosi: {amo_ex}")
 
                     # 4. Database Persistence (CRITICAL FIX)
-                    self.db.upsert_user(
+                    await self.db.upsert_user(
                         user_id=user.id,
                         first_name=first_name,
                         last_name=display_last_name,
@@ -230,7 +229,7 @@ class LeadScraper:
                         phone=phones[0] if phones else None,
                         role='lead_potential'
                     )
-                    self._mark_processed(dummy_msg_id, group_id, status='synced_mass')
+                    await self._mark_processed(dummy_msg_id, group_id, status='synced_mass')
                     saved_count += 1
                     
                     # Banning prevention! 60-120 seconds
@@ -260,7 +259,7 @@ class LeadScraper:
                 continue
 
             user_id = dialog.id
-            if self.db.is_crm_synced(user_id):
+            if await self.db.is_crm_synced(user_id):
                 continue
             
             # 1. Get last messages
@@ -286,7 +285,7 @@ class LeadScraper:
                             phone=phone,
                             note=f"AI Summary: {lead_details.get('summary')}\nUser: @{getattr(dialog.entity, 'username', 'N/A')}"
                         )
-                        self.db.set_crm_synced(user_id)
+                        await self.db.set_crm_synced(user_id)
                         sync_count += 1
                         logger.info(f"[DM SYNC] AmoCRMga qo'shildi: {dialog.name}")
                         
@@ -349,10 +348,20 @@ class LeadScraper:
             "Format: {\"name\": \"...\", \"phone\": \"...\", \"work\": \"...\"}"
         )
         
+        system_instruction = "Siz tajribali ma'lumot tahlilchisisiz. Telegram xabarlaridan lidlar ma'lumotlarini ajratib olishga ixtisoslashgansiz."
+        
         try:
-            response = await self.model.generate_content_async(prompt)
-            result = json.loads(response.text.strip('` \n').replace('json', ''))
-            return result
+            from src.main import safe_ai_call
+            response = await safe_ai_call(
+                client=self.genai_client,
+                prompt=prompt,
+                system_instruction=system_instruction,
+                model=self.model_name,
+                mime_type="application/json"
+            )
+            
+            if response and response.text:
+                return json.loads(response.text)
         except Exception as e:
-            logger.error(f"Gemini Parse Error: {e}")
+            logger.error(f"[LEAD_SCRAPER] AI Parsing Error: {e}")
             return None

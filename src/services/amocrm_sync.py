@@ -132,6 +132,8 @@ class AmoCRMSync:
 
     def _get_headers(self):
         token = str(self.access_token or "")
+        if not token:
+            logger.warning("[AMOCRM] Access token is missing, requests will likely fail.")
         return {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
@@ -170,6 +172,20 @@ class AmoCRMSync:
             if response.status_code == 200:
                 result = response.json()
                 return result.get("_embedded", {}).get("leads", [{}])[0].get("id")
+            elif response.status_code == 403:
+                err_msg = "[AMOCRM 403] Permission denied. Check if the widget is installed or token has data.records:read scope."
+                logger.error(err_msg)
+                # Auto-Alert for Owner
+                try:
+                    from src.main import client as telethon_client
+                    if telethon_client:
+                        import asyncio
+                        asyncio.create_task(telethon_client.send_message('me', f"🆘 **AMOCRM CRITICAL: 403 Forbidden**\n\n{err_msg}"))
+                except: pass
+            elif response.status_code == 401:
+                logger.warning("[AMOCRM 401] Token expired. Attempting refresh...")
+                if self.refresh_token():
+                    return self.create_lead_for_contact(contact_id, name, price, extra_fields)
             return False
         except Exception as e:
             logger.error(f"[AMOCRM ERROR] create_lead_for_contact error: {e}")

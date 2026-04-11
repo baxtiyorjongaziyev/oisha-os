@@ -87,6 +87,16 @@ class AmoCRMAudit:
             lines.append(f"- ⏰ Muddati o'tgan vazifalar: {len(results['tasks']['overdue'])}")
             lines.append(f"- 📥 Saralanmagan (Unsorted) xabarlar: {results['unsorted']}")
             lines.append(f"- 🧊 7 kundan beri harakatsiz: {results['stagnation']['7d+']}")
+            
+            # Health Score Formula: 
+            # penalty: -5 for each overdue, -2 for each no_task (from the sample of leads)
+            # but more balanced: (Leads_with_valid_task / total_leads) * 100
+            total = len(all_leads)
+            problematic = len(set(results["tasks"]["no_tasks"]) | set(results["tasks"]["overdue"]))
+            health = int(max(0, 100 * (1 - (problematic / total)))) if total > 0 else 100
+            results["health_score"] = health
+            
+            lines.append(f"\n🎯 **CRM Tozalik Ko'rsatkichi: {health}%**")
             lines.append("\n**Statuslar bo'yicha taqsimot:**")
             for s_id, count in results["pipelines"].items():
                 name = status_names.get(s_id, f"ID: {s_id}")
