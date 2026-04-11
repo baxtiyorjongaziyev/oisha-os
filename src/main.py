@@ -1172,7 +1172,8 @@ async def main():
     # [WAZZUP KILLER] Initialize API Server Bridge
     import src.api_server as api_server
     api_server.user_client = client
-    api_server.db_instance = Database() # or use existing msg_controller.db
+    api_server.db_instance = db
+    api_server.audit_agent = audit_agent
     
     # [API] Already started via run_health_check_api()
     logger.info("👸 [OISHA] Strategic Intelligence Bridge is online.")
