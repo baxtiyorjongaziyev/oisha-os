@@ -131,15 +131,20 @@ class NightShiftService:
             for lead in stagnated:
                 await self.crm.add_lead_tag(lead['id'], "STAGNATED")
             
-            # 2. Overdue project alerts from Airtable
+            # 2. Overdue project alerts from Airtable (faqat log, xabar 09:00 dan keyin yuboriladi)
             overdue = self.airtable.get_overdue_projects()
-            if overdue and self.bot:
-                from src.settings import settings
-                msg = "⚠️ **MUDDATI O'TGAN LOYIHALAR (Airtable):**\n\n"
-                for p in overdue[:5]:
-                    f = p.get('fields', {})
-                    msg += f"• {f.get('Project Name')} ({f.get('Deadline')})\n"
-                await self.bot.send_message(settings.OWNER_ID, msg)
+            if overdue:
+                from src.services.airtable_sync import AirtableSync as _AT
+                logger.info(f"🌙 [HYGIENE] Found {len(overdue)} overdue projects")
+                if self.bot and now.hour >= 9:
+                    from src.settings import settings
+                    msg = "⚠️ **MUDDATI O'TGAN LOYIHALAR (Airtable):**\n\n"
+                    for p in overdue[:5]:
+                        f = p.get('fields', {})
+                        name = _AT._get_field(f, "project_name") or "Nomsiz"
+                        deadline = _AT._get_field(f, "deadline") or "N/A"
+                        msg += f"• {name} ({deadline})\n"
+                    await self.bot.send_message(settings.OWNER_ID, msg)
                 
             logger.info("✅ CRM Hygiene cycle completed.")
         except Exception as e:

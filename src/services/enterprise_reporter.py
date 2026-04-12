@@ -136,28 +136,26 @@ class EnterpriseReporter:
             urgent_projects = []
             now_dt = datetime.datetime.now()
             
+            from src.services.airtable_sync import AirtableSync as _AT
             for p in projects:
                 fields = p.get('fields', {})
-                created_str = fields.get('Created') or fields.get('Start Date') # Odatda loyiha yaratilgan sana
-                stage = fields.get('Stage', '')
-                
-                if stage.lower() in ["done", "yakunlandi", "arxiv"]:
+                created_str = _AT._get_field(fields, "start_date")
+                stage = _AT._get_field(fields, "stage") or ""
+
+                if stage in _AT.DONE_STAGES:
                     continue
 
                 if created_str:
                     try:
-                        # Created sana odatda ISO formatda "2026-03-29T..."
                         created_dt = datetime.datetime.fromisoformat(created_str.replace('Z', '+00:00'))
-                        # Localize now to UTC for comparison if needed, or just naive if created is naive
                         if created_dt.tzinfo:
                             now_utc = datetime.datetime.now(datetime.timezone.utc)
                             diff = now_utc - created_dt
                         else:
                             diff = now_dt - created_dt
-                            
-                        # Agar 2 kundan oshgan bo'lsa (48h+) va hali bitmagan bo'lsa
+
                         if diff.days >= 2:
-                            proj_name = fields.get('Project Name', 'Nomsiz')
+                            proj_name = _AT._get_field(fields, "project_name") or "Nomsiz"
                             urgent_projects.append(f"{proj_name} ({diff.days} kun o'tdi)")
                     except: continue
 
@@ -168,35 +166,38 @@ class EnterpriseReporter:
                 report.append(f"- <b>SLA xavfi (3 kundan oshish arafasida):</b> {len(urgent_projects)} ta")
                 report.append(f"  <i>(Iltimos, @Inomjon_JonBranding nazoratga oling)</i>")
 
-        # 4. FINANCE SUMMARY (Airtable)
+        # 4. FINANCE SUMMARY (Airtable — Kirim + Chiqim)
         if self.airtable:
             finance_records = self.airtable.get_finance_records()
             month_income = 0
             month_expense = 0
             current_month = datetime.datetime.now().strftime('%Y-%m')
-            
+
             for rec in finance_records:
                 f = rec.get("fields", {})
-                date_str = f.get("Sana") or f.get("Date")
-                if date_str and date_str.startswith(current_month):
-                    amount = f.get("Summa") or 0
-                    turi = f.get("Turi") or ""
-                    if "Daromad" in turi or "Income" in turi:
+                rec_type = rec.get("_record_type", "")
+                if rec_type == "income":
+                    date_str = f.get("To'lov sanasi") or f.get("Sana") or ""
+                    amount = f.get("To'lov miqdori") or f.get("Summa") or 0
+                    if date_str and date_str.startswith(current_month):
                         month_income += amount
-                    elif "Xarajat" in turi or "Expense" in turi:
+                elif rec_type == "expense":
+                    date_str = f.get("Chiqim sanasi") or f.get("Sana") or ""
+                    amount = f.get("Chiqim miqdori") or f.get("Summa") or 0
+                    if date_str and date_str.startswith(current_month):
                         month_expense += amount
 
             report.append(f"\n📈 <b>Oylik Moliya ({current_month}):</b>")
             report.append(f"- Jami tushum: {month_income:,.0f} so'm".replace(',', ' '))
             report.append(f"- Jami xarajat: {month_expense:,.0f} so'm".replace(',', ' '))
             net_profit = month_income - month_expense
-            report.append(f"- **Sof Foyda: {net_profit:,.0f} so'm** {'🔥' if net_profit > 0 else '📉'}")
+            report.append(f"- <b>Sof Foyda: {net_profit:,.0f} so'm</b> {'🔥' if net_profit > 0 else '📉'}")
 
         # 5. ACCOUNTABILITY (Tasks & Reports)
         report.append("\n" + self.get_accountability_segment())
 
-        report.append("\n👑 <b>PREMIUM INSIGHT</b>")
-        report.append("<i>\"Sizning Premium mavqeyingiz Oisha-OS uchun yangi gorizontlarni ochdi. Tizim endi 2 barobar ko'proq lidlarni aqlli saralamoqda!\"</i>")
+        report.append("\n👑 <b>XULOSA</b>")
+        report.append(f"<i>Oisha-OS avtomatik hisobot — {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}</i>")
         
         report.append("\n💡 <i>Tizimli yondashuv — o'sish poydevori!</i>")
         return "\n".join(report)

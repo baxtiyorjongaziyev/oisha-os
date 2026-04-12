@@ -393,7 +393,9 @@ async def send_daily_report():
             logger.info(f"[DAILY REPORT] Jamoa guruhiga ({group_id}) yuborildi.")
         except Exception as html_err:
             logger.warning(f"[DAILY REPORT] HTML yuborishda xato, Plain Text-da qayta urinish: {html_err}")
-            await bot.send_message(chat_id=group_id, text=report_msg, parse_mode=None, message_thread_id=thread_id)
+            import re
+            clean_text = re.sub(r'<[^>]+>', '', report_msg)
+            await bot.send_message(chat_id=group_id, text=clean_text, parse_mode=None, message_thread_id=thread_id)
         
         # 2. Owner-ga (Baxtiyor aka) yuborish
         owner_id = getattr(config, "OWNER_ID", None)
@@ -403,7 +405,9 @@ async def send_daily_report():
                 logger.info(f"[DAILY REPORT] Owner-ga ({owner_id}) yuborildi.")
             except Exception as e:
                 logger.warning(f"[DAILY REPORT] Owner-ga HTML yuborishda xato, Plain-ga o'tildi: {e}")
-                await bot.send_message(chat_id=owner_id, text=report_msg, parse_mode=None)
+                import re
+                clean_text = re.sub(r'<[^>]+>', '', report_msg)
+                await bot.send_message(chat_id=owner_id, text=clean_text, parse_mode=None)
             
         # Vazifani bajarilgan deb belgilash
         db.mark_job_run("daily_report", today)
