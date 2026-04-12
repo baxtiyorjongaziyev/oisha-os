@@ -54,14 +54,14 @@ class ConversionChecker:
             # Get Contact Info
             phone = self.amocrm.get_lead_phone(int(lead_id))
             
-            # 2. Sync to Airtable
+            # 2. Sync to Airtable (haqiqiy maydon nomlari)
             airtable_fields = {
-                "Project Name": lead_name,
+                "Loyihani nomi?": lead_name,
                 "Client Phone": phone or "N/A",
-                "Budget": price,
+                "Jami loyiha narxi (UZS)": price,
                 "Source": "amoCRM Conversion",
-                "Status": "Starting",
-                "Start Date": lead.get("closed_at_date") or "" # amoCRM closed_at is when it was won
+                "Loyiha bosqichi": "Boshlanmoqda",
+                "Start sana": lead.get("closed_at_date") or ""
             }
             
             result = self.airtable.create_record(airtable_fields)

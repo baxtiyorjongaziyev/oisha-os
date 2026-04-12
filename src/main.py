@@ -174,12 +174,9 @@ async def notify_admin(message: str, client: TelegramClient):
 async def background_monitor_task():
     """Barcha korporativ monitoring vazifalarini fonda ishga tushirish (AmoCRM + Airtable)."""
     from src.services.proactive_worker import (
-        check_amocrm_stagnation, 
-        check_airtable_deadlines, 
-        send_daily_report, 
-        send_morning_briefing,
-        send_overdue_nudges,
-        distribute_team_tasks
+        check_amocrm_stagnation,
+        check_airtable_deadlines,
+        send_daily_report
     )
     from datetime import datetime
     global conversion_checker
@@ -193,28 +190,20 @@ async def background_monitor_task():
     while True:
         try:
             now = datetime.now()
-            
-            # 1. Stagnatsiya, Deadline va Taqsimot
-            await distribute_team_tasks()
-            await check_amocrm_stagnation()
-            await check_airtable_deadlines()
 
-            # 2. Daily Report (18:00)
-            if now.hour == 18 and now.minute < 10:
+            # 1. Stagnatsiya va Deadline tekshiruvi (faqat ish vaqtida)
+            if 9 <= now.hour <= 19:
+                await check_amocrm_stagnation()
+                await check_airtable_deadlines()
+
+            # 2. Daily Report (18:00) — admin_bot ham 18:00 da coaching yuboradi, bu alohida
+            if now.hour == 18 and 0 <= now.minute < 10:
                 await send_daily_report()
-            
-            # 3. Overdue Nudges (17:00)
-            if now.hour == 17 and now.minute < 10:
-                await send_overdue_nudges()
-            
-            # 4. Morning Briefing (09:00)
-            if now.hour == 9 and now.minute < 5:
-                await send_morning_briefing()
 
             await asyncio.sleep(600) # Every 10 mins
         except Exception as e:
             logger.error(f"[MONITOR ERROR] {e}")
-            await asyncio.sleep(60)
+            await asyncio.sleep(600) # Xatolikda ham 10 min kutish (spam oldini olish)
 
 async def self_command_handler(event):
     """'Saved Messages' dagi buyruqlarni (self-chat) va Baxtiyor akani o'z xabarlarini tahlil qilish."""

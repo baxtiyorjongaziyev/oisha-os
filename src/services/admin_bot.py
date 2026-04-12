@@ -591,7 +591,9 @@ class AdminBot:
             
             if not distribution:
                 await self.notify_team(
-                    "✅ **Ayni damda barcha lidlar tartibga solingan.**\nYangi vazifalar topilmadi! 👸🛡️",
+                    "⚠️ **Pipeline bo'sh!** Aktiv lidlar yo'q.\n"
+                    "🎯 Yangi lidlar izlash kerak! @Oydin_JonBranding\n"
+                    "📞 Bugun kamida 5 ta yangi kontaktga qo'ng'iroq qiling!",
                     topic_id=settings.CRM_TOPIC_ID
                 )
                 return True
@@ -689,12 +691,16 @@ class AdminBot:
                     target_user_id = int(data.split(":")[2])
                     if draft_id in self.pending_drafts:
                         draft_text = self.pending_drafts[draft_id]
-                        # Send to the actual user via user_client (Baxtiyor aka's account)
                         await self.user_client.send_message(target_user_id, draft_text)
                         await event.edit(f"✅ **Yuborildi!**\n\n\"{draft_text[:100]}...\"")
                         del self.pending_drafts[draft_id]
                     else:
                         await event.answer("⚠️ Draft muddati o'tgan yoki topilmadi.", alert=True)
+                elif data.startswith("reject_draft:"):
+                    draft_id = data.split(":")[1]
+                    if draft_id in self.pending_drafts:
+                        del self.pending_drafts[draft_id]
+                    await event.edit("❌ Draft bekor qilindi.")
                 elif data.startswith("claim_lead:"):
                     lead_id = data.split(":")[1]
                     user_id = data.split(":")[2]
