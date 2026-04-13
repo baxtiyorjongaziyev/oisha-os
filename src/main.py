@@ -1276,7 +1276,7 @@ async def main():
         else:
             logger.critical("❌ [USERBOT] Session expired or invalid! Running in AdminBot-only mode.")
             logger.critical("Run: python -c \"from telethon import TelegramClient; import asyncio; c = TelegramClient('data/userbot_session', ...); asyncio.run(c.start())\"")
-    except Exception as e:
+    except BaseException as e:
         logger.critical(f"❌ [USERBOT] Connection failed: {e}. Running in AdminBot-only mode.")
 
     # Main loop: keep the process alive regardless of userbot status
