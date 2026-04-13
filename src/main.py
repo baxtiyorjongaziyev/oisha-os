@@ -1,8 +1,6 @@
 import asyncio
 import os
 import sys
-import re
-from datetime import datetime
 
 # Force UTF-8 console output on Windows to avoid emoji-related crashes.
 try:
@@ -28,9 +26,6 @@ sys.path.append(os.path.join(os.getcwd(), "src"))
 sys.path.append(os.path.join(os.getcwd(), "src", "services"))
 
 import logging
-import random
-from src.utils.ai_utils import safe_ai_call
-
 from typing import Optional, Dict, Any, List
 from telethon import TelegramClient, events
 from src.settings import settings
@@ -43,30 +38,10 @@ from src.controllers.message_controller import MessageController
 from src.services.scouter import Scouter
 from src.services.advisor_agent import AdvisorAgent
 from src.services.auto_lead_agent import AutoLeadAgent
-from src.services.monitor_resources import ResourceMonitor
-from src.services.sla_monitor import SLAMonitor
 from src.services.activity_monitor import ActivityMonitor
 from src.services.audit_agent import AuditAgent
 import threading
 import src.config as config
-from typing import Dict, Any, List
-
-# [HELPER: PeerUser Fix]
-async def resilient_send_message(client, target, text):
-    """Sends message with forced entity resolution if needed."""
-    try:
-        # 1. Try direct send
-        await client.send_message(target, text)
-    except Exception as e:
-        logger.warning(f"⚠️ [MESSAGING] Direct send to {target} failed: {e}. Trying entity fetch...")
-        try:
-            # 2. Try to fetch entity first
-            entity = await client.get_entity(target)
-            await client.send_message(entity, text)
-        except Exception as e2:
-            # 3. Final fallback: always send to 'me' if anything fails
-            logger.error(f"❌ [PEER FAILURE] Could not reach {target} after fetch: {e2}. Falling back to 'me'.")
-            await client.send_message("me", text)
 from src.services.session_manager import SessionManager
 from src.services.chat_bridge import ChatBridge
 from src.api_server import app as api_app
@@ -79,15 +54,10 @@ from src.services.folder_manager import FolderManager
 from src.services.voice_processor import VoiceProcessor
 from src.services.access_manager import AccessManager
 from src.services.juma_notifier import JumaNotifier
-from src.services.lead_orchestrator import LeadOrchestrator
-from src.services.conversion_checker import ConversionChecker
-from src.services.night_shift import NightShiftService
-from src.services.crm_night_shift import CRMNightShift
 
 # Global Managers
 folder_manager: Optional[FolderManager] = None
 voice_processor: Optional[VoiceProcessor] = None
-conversion_checker: Optional[ConversionChecker] = None
 
 # Loglarni sozlash
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -109,13 +79,7 @@ admin_bot = None
 juma_notifier = None
 session_manager = None
 chat_bridge = None
-lead_orchestrator = None
 BOT_TOKEN_STR = None
-welcome_manager = None
-scouter = None
-voice_processor = None
-conversion_checker = None
-night_shift = None
 
 # TN5 Group Config (env-configurable; fallback keeps legacy behavior)
 TN5_GROUP_ID = settings.CRM_GROUP_ID if settings.CRM_GROUP_ID is not None else -1003820339529
@@ -202,43 +166,39 @@ async def background_monitor_task():
         send_daily_report, 
         send_morning_briefing,
         send_overdue_nudges,
-        distribute_team_tasks
+        check_airtable_stagnation
     )
     from datetime import datetime
-    global conversion_checker
     
-    logger.info("[MONITOR] Boshlandi (AmoCRM + Airtable)")
-    
-    # Start Resource Monitor (v12 Tahlil)
-    resource_monitor = ResourceMonitor(msg_controller.db)
-    asyncio.create_task(resource_monitor.run_forever(interval=3600))
-    
-    # Start SLA Monitor (v13 Intelligence)
-    sla_monitor = SLAMonitor(client, msg_controller.db, advisor_agent, admin_bot, sla_limit_minutes=10)
-    asyncio.create_task(sla_monitor.run_forever(interval=300))
+    logger.info("[MONITOR] Boshlandi (Interval: 5 daqiqa)")
     
     while True:
         try:
             now = datetime.now()
             
-            # 1. Stagnatsiya, Deadline va Taqsimot (Internal checks handle exact timing)
-            await distribute_team_tasks()
+            # 1. Stagnatsiya va Deadline tekshirish
             await check_amocrm_stagnation()
+            await check_airtable_stagnation()
             await check_airtable_deadlines()
 
-            # 2. Daily Report (18:00) - Matching dashboard expectation
-            if now.hour == 18 and now.minute < 30: # 30 min window for safety with 1-min sleep
+            # 2. Kunlik hisobotni 18:00 da yuborish
+            if now.hour == 18 and now.minute < 10:
                 await send_daily_report()
             
-            # 3. Overdue Nudges (17:00)
-            if now.hour == 17 and now.minute < 30:
+            # 3. Shaxsiy eslatmalar (17:00 da - Hisobotdan oldin)
+            if now.hour == 17 and now.minute < 10:
                 await send_overdue_nudges()
             
-            # 4. Morning Briefing (09:45) - EXACTLY MATCHING DASHBOARD & USER FEEDBACK
-            if now.hour == 9 and 45 <= now.minute <= 55:
+            # 4. Ertalabki briefing (09:00)
+            if now.hour == 9 and now.minute < 5:
                 await send_morning_briefing()
 
-            await asyncio.sleep(60) # High-precision 1-minute check
+            # 4. Har 4 soatda "Hushyor" xabari (13:00, 17:00, 21:00)
+            if now.hour in [13, 17, 21] and now.minute <= 5:
+                await notify_admin("👸 **Oisha OS: Tizim nazoratda**\nAmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda.")
+
+            # Intervalni 5 daqiqaga tushirdik (300 soniya)
+            await asyncio.sleep(300)
         except Exception as e:
             logger.error(f"[MONITOR ERROR] {e}")
             await asyncio.sleep(60)
@@ -248,31 +208,11 @@ async def self_command_handler(event):
     if not event.message.text: return
     cmd = event.message.text.lower().strip()
     if cmd.startswith('/dashboard'):
-        stats = await msg_controller.db.get_today_stats()
+        stats = msg_controller.db.get_today_stats()
         msg = f"📊 **OISHA ROI DASHBOARD**\n📅 Bugun: {datetime.now().strftime('%d-%m-%Y')}\n\n👤 Yangi lidlar: {stats['leads_found']}\n💬 Sinxron: {stats['messages_synced']}\n"
         await event.respond(msg)
-    elif cmd.startswith('/status') or cmd.startswith('/server'):
-        # [IDEAL STATE] Enhanced VPS status from ResourceMonitor
-        try:
-            from src.services.monitor_resources import check_resources_now
-            report = await check_resources_now()
-            # Add Enterprise touch
-            msg = f"{report}\n👑 **Role:** `OWNER`\n🟢 **Oisha-OS**: `OPERATIONAL`"
-            await event.respond(msg, parse_mode='markdown')
-        except Exception as e:
-            logger.error(f"[SERVER CMD ERROR] {e}")
-            await event.respond(f"❌ Status error: {e}")
-    elif cmd.startswith('/analyze'):
-        await event.respond("👸 Oisha: Tizim auditini boshladim. Oxirgi aktivliklarni tahlil qilyapman... 👸🛡️")
-        try:
-            report = await audit_agent.generate_audit_report(limit=50)
-            await event.respond(f"🧬 **OISHA: INTELLIGENCE ANALYSIS**\n\n{report}")
-        except Exception as e:
-            await event.respond(f"❌ Audit error: {e}")
-    elif cmd.startswith('/start'):
-         await event.respond("👸 Oisha-OS Enterprise v14 ready. Buyruqlar: /server, /analyze, /dashboard. 👸🛡️")
-    elif cmd.startswith('/test'):
-         await event.respond("✅ Test OK. Oisha eshityapti!")
+    elif cmd.startswith('/status'):
+        await event.respond("🟢 **TIZIM HOLATI:** Active (GCP Master)")
 
 async def shadow_advisor_handler(event):
     """Xususiy suhbatlarni (DM) tahlil qilib, strategik maslahat va sync qilish."""
@@ -299,8 +239,7 @@ async def shadow_advisor_handler(event):
     # 2. AI Advice & Sync Context
     history = []
     async for msg in client.iter_messages(chat_id, limit=5):
-        # [FIX] Telethon Message object uses .out (True if sent by us, False if incoming)
-        history.append(f"{'Mijoz' if not msg.out else 'Siz'}: {msg.text}")
+        history.append(f"{'Mijoz' if msg.incoming else 'Siz'}: {msg.text}")
     history_context = "\n".join(history)
 
     # 2.1 AI Tahlili (Advice)
@@ -315,17 +254,16 @@ async def shadow_advisor_handler(event):
     phone = getattr(sender, 'phone', 'Raqam yo\'q')
     session_manager.add_message(chat_id, sender_name, event.message.text, phone)
     
-    # [WAZZUP COEXISTENCE] Wazzup now handles the native chat sync. 
-    # Oisha stops manual message syncing to avoid duplicates, but keeps Shadow Advisor active.
-    # await chat_bridge.send_to_amocrm(
-    #     user_id=chat_id,
-    #     user_name=sender_name,
-    #     text=event.message.text,
-    #     message_id=str(event.id)
-    # )
+    # Real-time sync for Chat Widget / AmoCRM
+    await chat_bridge.send_to_amocrm(
+        user_id=chat_id,
+        user_name=sender_name,
+        text=event.message.text,
+        message_id=str(event.id)
+    )
 
     # 2.5 Avtomatik AmoCRM Sync (Agar yangi mijoz bo'lsa)
-    if not await msg_controller.db.is_crm_synced(chat_id):
+    if not msg_controller.db.is_crm_synced(chat_id):
         first_name = getattr(sender, 'first_name', 'Mijoz')
         last_name = getattr(sender, 'last_name', '')
         full_name = f"{first_name} {last_name}".strip()
@@ -389,7 +327,7 @@ async def shadow_advisor_handler(event):
                              logger.info(f"[AUTO_CRM] Lead synced and enriched: {clean_name}")
                         
                     # Final DB update with all extracted data
-                    await msg_controller.db.upsert_user(
+                    msg_controller.db.upsert_user(
                         chat_id, 
                         first_name, 
                         last_name=last_name, 
@@ -399,12 +337,12 @@ async def shadow_advisor_handler(event):
                         brand_name=lead_data.get('brand_name'),
                         intent=lead_data.get('intent_category')
                     )
-                    await msg_controller.db.mark_crm_synced(chat_id)
+                    msg_controller.db.mark_crm_synced(chat_id)
 
     # 3. Maslahatni yuborish (Advice logic)
-    if advice and await advisor_agent.should_notify(chat_id, event.id, advice):
+    if advice and advisor_agent.should_notify(chat_id, event.id, advice):
         logger.info(f"[ADVISOR] Sending strategic tip for chat {chat_id}")
-        header = f"💡 <b>Tavsiya</b> (Suhbat: {sender_name})\n\n"
+        header = f"👸 **Oisha-OS Strategik Maslahati** (Suhbat: {sender_name})\n\n"
         
         # [GOD MODE] Visibility: Notify via Admin Bot if possible
         notification_text = header + advice
@@ -438,20 +376,9 @@ async def handle_new_message(event):
     me = await client.get_me()
     await safe_responder.update_me_id(me.id)
 
-    # [DEBUG]
-    if event.is_private and event.message.text:
-        logger.info(f"👸 [EVENT] Message from {event.sender_id}: {event.message.text[:50]}")
-
     # 1. Spamdan himoya va Guruh filtrini tekshirish
-    # [SURGICAL BYPASS] Owner and internal ID always pass the check
-    is_owner = event.sender_id == config.OWNER_ID or event.sender_id == 150074828
-    if not is_owner and not await safe_responder.should_respond(event):
+    if not await safe_responder.should_respond(event):
         return
-
-    # [WAZZUP KILLER] Log incoming private messages for AmoCRM/Widget history
-    if event.is_private and not event.out and event.message.text:
-        await msg_controller.db.log_message(event.sender_id, event.message.text, is_ai=False)
-        logger.info(f"👸 [HISTORY] Logged incoming msg from {event.sender_id}")
     
     # 1.5 Real-time Lead Sync (Automatic for TN5 Topic 7)
     if event.chat_id == TN5_GROUP_ID and getattr(event.message.reply_to, 'reply_to_msg_id', None) == TN5_TOPIC_ID:
@@ -462,14 +389,6 @@ async def handle_new_message(event):
 
     # 1.6 Admin Commands
     if event.is_private and event.message.text.startswith('/'):
-        if is_owner:
-            cmd = event.message.text.split()[0].lower()
-            if cmd in ['/server', '/status', '/analyze', '/start', '/dashboard']:
-                 await self_command_handler(event)
-                 return
-            if cmd == '/test':
-                 await event.respond("✅ Test OK! Oisha sizi tanidi, Lordim. 👸🛡️")
-                 return
         if event.message.text == '/sync_backlog':
             await event.respond("👸 Oisha-OS: O'tmishdagi (Backlog) xabarlarni skanerlashni boshladim... 👸🛡️")
             # Run backlog sync in background
@@ -498,35 +417,12 @@ async def handle_new_message(event):
             report = await msg_controller.enterprise_reporter.get_team_efficiency_report()
             await event.respond(report, parse_mode='html')
             return
-
-        if event.message.text == '/distribute_now':
-            is_team = await safe_responder.is_team_member(event.sender_id)
-            if not is_team: return
-            
-            await event.respond("Vazifalarni taqsimlashni (Force) boshladim...")
-            from src.services.proactive_worker import distribute_team_tasks
-            await distribute_team_tasks(force=True)
-            await event.respond("✅ Taqsimlash yakunlandi.")
-            return
-
-        if event.message.text == '/health':
-            is_team = await safe_responder.is_team_member(event.sender_id)
-            if not is_team: return
-            
-            msg = "🟢 **OISHA-OS HEALTH CHECK**\n\n"
-            msg += f"✅ **Status**: Active\n"
-            msg += f"📅 **Time**: {datetime.now().strftime('%H:%M:%S')}\n"
-            msg += f"🔗 **AmoCRM**: Connected\n"
-            msg += f"📊 **Airtable**: Connected\n"
-            msg += f"⚙️ **Mode**: Automatic Management v9"
-            await event.respond(msg)
-            return
             
             from src.services.airtable_sync import AirtableSync
             at_sync = AirtableSync()
             projects = at_sync.get_projects()
             if not projects:
-                await event.respond("Hozircha aktiv loyihalar topilmadi.")
+                await event.respond("👸 Oisha-OS: Hozircha aktiv loyihalar topilmadi. 🤷‍♀️")
                 return
             
             text = "🏗 **Aktiv Loyihalar (Airtable):**\n\n"
@@ -541,34 +437,6 @@ async def handle_new_message(event):
             await event.respond("👸 Oisha-OS: Oxirgi harakatlaringizni tahlil qilyapman, bir oz kutib turing... 👸📈📊")
             report = await audit_agent.generate_audit_report(limit=100)
             await event.respond(report)
-            return
-
-        if event.message.text == '/server':
-            from src.services.monitor_resources import check_resources_now
-            report = await check_resources_now()
-            await event.respond(report, parse_mode='markdown')
-            return
-
-        if event.message.text.startswith('/analyze') or event.message.text.startswith('/draft'):
-            # Manually trigger draft/analysis for a chat
-            reply_to = await event.get_reply_message()
-            target_chat = event.chat_id
-            if reply_to: # If replying to a lead's message
-                target_chat = reply_to.sender_id or event.chat_id
-            
-            await event.respond("🧠 Oisha: Suhbatni tahlil qilib, ekspert tavsiyalarini tayyorlayapman...")
-            
-            messages = []
-            async for m in client.iter_messages(target_chat, limit=10):
-                messages.append(f"{'Menejer' if m.out else 'Mijoz'}: {m.text}")
-            
-            advice = await advisor_agent.analyze_and_advise(
-                chat_id=target_chat,
-                message_text=event.message.text,
-                history_context="\n".join(reversed(messages)),
-                sender_name="Menejer"
-            )
-            await event.respond(advice)
             return
 
         if event.message.text == '/audit_leads':
@@ -587,9 +455,6 @@ async def handle_new_message(event):
                 if not messages: continue
                 
                 lead_data = await auto_lead_agent.extract_lead_info("\n".join(reversed(messages)), {"id": dialog.id, "first_name": name})
-                
-                # Rate limit handling for audit loop
-                await asyncio.sleep(1) 
                 
                 if lead_data and lead_data.get("is_lead"):
                     audit_report += f"✅ **{name}** — Lead deb topildi. ({lead_data.get('business', 'Noʻmalum')})\n"
@@ -623,39 +488,55 @@ async def handle_new_message(event):
 
     # 3. New Message Logic (Elite Intake)
     if event.is_private and not event.out and not getattr(sender, 'bot', False):
-        # AI Skanerlash (Strict Intake)
-        if lead_orchestrator and not msg_controller.db.is_crm_synced(event.sender_id):
-            logger.info(f"✨ [ELITE INTAKE] Yangi suhbat (Lead detection): {sender_name}")
-            from src.api_server import add_activity
-            add_activity("Yangi Lid Skanerlash", f"{sender_name} bilan suhbat tahlil qilinmoqda...", "info")
+        # Skanerlash (1.1, 1.2) - Now includes intent categorization
+        lead_data = await auto_lead_agent.extract_lead_info(message_text, {"id": sender.id, "first_name": sender_name})
+        
+        if lead_data:
+            intent = lead_data.get("intent_category", "POTENTIAL")
+            # [GOD MODE] Auto-Assign Folder
+            if folder_manager:
+                asyncio.create_task(folder_manager.assign_to_folder(sender.id, intent))
             
-            # Use Orchestrator for everything: Qualify -> amoCRM -> Notify
-            success = await lead_orchestrator.process_new_lead(
-                chat_text=event.message.text,
-                user_id=sender.id,
-                name=sender_name,
-                username=getattr(sender, 'username', None),
-                phone=getattr(sender, 'phone', None), # Will be enriched by AI if missing
-                source="Direct Telegram Message"
-            )
-            
-            if success:
+            if lead_data.get("is_lead") and not msg_controller.db.is_crm_synced(event.sender_id):
+                logger.info(f"✨ [ELITE INTAKE] Yangi lid aniqlandi: {sender_name} (Intent: {intent})")
+                
+                # [GOD MODE] Save intent and data to DB
+                msg_controller.db.upsert_user(
+                    sender.id, 
+                    sender_name, 
+                    username=getattr(sender, 'username', None), 
+                    intent=intent,
+                    region=lead_data.get('city'),
+                    business_type=lead_data.get('activity'),
+                    brand_name=lead_data.get('brand_name'),
+                )
+                
+                # [GOD MODE] Smart Draft Suggestion (Using refined method)
+                if intent == 'HOT_LEAD' and admin_bot:
+                    draft_prompt = (
+                        f"Mijoz: {sender_name}\n"
+                        f"Xabar: {event.message.text}\n\n"
+                        "Baxtiyor aka nomidan ushbu mijozga do'stona, lekin professional javob loyihasini tayyorlang. "
+                        "Unga yordam berishga tayyorligimizni va loyihasini o'rganib chiqishimizni ayting."
+                    )
+                    draft = await msg_controller.db.analyze_text_with_ai(draft_prompt)
+                    await admin_bot.send_draft_for_approval(sender.id, sender_name, draft)
+
+                # AmoCRM-da yaratish (1.3)
+                phone = lead_data.get('phone') or getattr(sender, 'phone', 'Raqam yo\'q')
+                msg_controller.crm.amocrm.create_lead(
+                    name=f"DM Lead: {sender_name}",
+                    phone=phone,
+                    note=f"AI Tahlil: {lead_data.get('needs')}\nIntent: {intent}\nUser: @{getattr(sender, 'username', 'N/A')}"
+                )
                 msg_controller.db.set_crm_synced(event.sender_id)
+                
                 # Elite Welcome (1.4)
                 await welcome_manager.send_welcome(event.sender_id)
-            
-            # --- NIGHTLY AUTO-REPLY (23:00 - 08:00) ---
-            now_hour = datetime.now().hour
-            if now_hour >= 23 or now_hour < 8:
-                # Faqat bir marta javob qaytarish (shovqin bo'lmasligi uchun)
-                if not msg_controller.db.get_meta(event.sender_id, "night_reply_sent_today"):
-                    reply = (
-                        "Salom! Xabaringizni oldik. 😊\n\n"
-                        "Hozir jamoamiz tuni bilan dam olyapti (yoki Oisha kechki tadqiqotlar bilan band). "
-                        "Lekin xavotir olmang, so'rovingizni o'rganib chiqyapman va ertalab albatta javob beramiz!"
-                    )
-                    await event.respond(reply)
-                    msg_controller.db.set_meta(event.sender_id, "night_reply_sent_today", "true", expire_in_hours=12)
+                
+                # Admin-ni ogohlantirish
+                if admin_bot:
+                    await admin_bot.notify_lead(f"👸 **Yangi Lid (DM)!**\n👤 {sender_name}\n🎯 Maqsad: {intent}\n📞 {phone}\n✅ AmoCRM-ga saqlandi.")
 
     # [GOD MODE] Multi-Modal (Voice Note) Handling
     if event.is_private and not event.out and event.message.voice and voice_processor:
@@ -753,24 +634,11 @@ async def handle_new_message(event):
                 is_business=False
             )
 
-            # 6. Javobni yuborish (ONLY FOR INTERNAL TEAM OR MENTIONS)
+            # 6. Javobni yuborish
             if final_text:
-                username = getattr(sender, 'username', None)
-                is_team = await safe_responder.is_team_member(sender.id, username)
-                
-                if is_team or not event.is_private:
-                    # Allow internal or group replies
-                    await event.respond(final_text)
-                    safe_responder.update_rate_limit(chat_id)
-                    logger.info(f"[USERBOT] Replied successfully to team/group {chat_id}")
-                else:
-                    # EXTERNAL LEAD - SHADOW MODE
-                    logger.info(f"[USERBOT] Shadow Mode: Suppressing direct reply to {chat_id}. Sending to Admin.")
-                    header = f"📝 **Draft javob** (Kimga: {sender_name})\n\n"
-                    if admin_bot:
-                        await admin_bot.notify_lead(header + final_text)
-                    else:
-                        await client.send_message('me', header + final_text)
+                await event.respond(final_text)
+                safe_responder.update_rate_limit(chat_id)
+                logger.info(f"[USERBOT] Replied successfully to {chat_id}")
 
     except Exception as e:
         logger.error(f"[USERBOT] Error while handling message: {e}")
@@ -842,117 +710,26 @@ async def sync_single_lead(event):
     except Exception as e:
         logger.error(f"❌ [ENTERPRISE SYNC ERROR] {e}")
 
-def run_api_server():
-    """Starts the FastAPI server in a dedicated thread to avoid blocking the main bot loop."""
-    import src.api_server as api_server
-    ports = [int(os.environ.get("PORT", 8080)), 8081, 8082, 8083]
-    
-    def target():
-        for port in ports:
-            try:
-                # Use a fresh event loop for the child thread if needed
-                uvicorn.run(api_server.app, host="0.0.0.0", port=port, log_level="error")
-                break
-            except Exception as e:
-                print(f"⚠️ [API] Port {port} band. Keyingisiga o'tilmoqda... {e}")
-                continue
-                
-    threading.Thread(target=target, daemon=True).start()
-    logger.info("🚀 [API] Background Intelligence Bridge initialized.")
-
-async def status_heartbeat_task():
-    """Periodically syncs bot status to the thread-safe API cache."""
-    from src.api_server import update_api_status
-    while True:
-        try:
-            status = "offline"
-            message = "Tizim tayyorlanmoqda..."
-            
-            if client:
-                if client.is_connected():
-                    try:
-                        if await client.is_user_authorized():
-                            status = "online"
-                            message = "Oisha-OS to'liq faol"
-                        else:
-                            status = "awaiting_auth"
-                            message = "Telegram tasdiqlash kodi kutilmoqda..."
-                    except:
-                        status = "connecting"
-                        message = "Bog'lanish tekshirilmoqda..."
-            
-            update_api_status(status, message)
-        except Exception as e:
-            logger.error(f"[STATUS SYNC ERROR] {e}")
-        await asyncio.sleep(5)
-
-async def command_processor_task():
-    """Processes incoming commands from the API thread safely in the main loop."""
-    from src.api_server import command_queue, add_activity
-    logger.info("⚡ [COMMAND PROCESSOR] Listening for dashboard triggers...")
-    
-    while True:
-        try:
-            # Check for pending commands (non-blocking)
-            if not command_queue.empty():
-                task = command_queue.get_nowait()
-                cmd = task.get("cmd")
-                
-                if cmd == "audit":
-                    logger.info("🕵️ [DASHBOARD TRIGGER] Starting Intelligence Audit...")
-                    add_activity("Intelligence Audit", "AI audit jarayoni boshlandi...", "thinking")
-                    
-                    if audit_agent:
-                        try:
-                            report = await audit_agent.generate_audit_report(limit=150)
-                            # [GOD MODE FIX] Send to the ACTUAL OWNER, not just to 'me'
-                            target_id = config.OWNER_ID or 150074828
-                            
-                            if client:
-                                logger.info(f"📨 [AUDIT] Attempting resilient delivery to {target_id}...")
-                                # Use the resilient helper to fix PeerUser once and for all
-                                await resilient_send_message(client, target_id, f"👸 **OISHA: INTELLIGENCE AUDIT REPORT**\n\n{report}")
-                                
-                                add_activity("Intelligence Audit", "Hisobot Telegramga yuborildi.", "success")
-                                logger.info(f"✅ [AUDIT] Report delivered.")
-                            else:
-                                add_activity("Intelligence Audit", "Faqat log yaratildi (Userbot offline).", "warning")
-                        except Exception as e:
-                            logger.error(f"❌ [AUDIT ERROR] {e}")
-                            add_activity("Intelligence Audit", f"Yuborishda xatolik: {str(e)}", "error")
-                    else:
-                        add_activity("Intelligence Audit", "Xatolik: AuditAgent not found", "error")
-
-                elif cmd == "send_message":
-                    user_id = task.get("user_id")
-                    text = task.get("text")
-                    logger.info(f"📨 [WIDGET TRIGGER] Sending message to {user_id}...")
-                    
-                    if client:
-                        await client.send_message(user_id, text)
-                        if msg_controller and msg_controller.db:
-                            await msg_controller.db.log_message(user_id, text, is_ai=True)
-                        add_activity("Messenger", f"Mijozga xabar yuborildi: {user_id}", "success")
-                    else:
-                        add_activity("Messenger", "Xabar yuborilmadi (Userbot offline).", "error")
-
-                command_queue.task_done()
-        except Exception as e:
-            logger.error(f"[COMMAND PROCESSOR ERROR] {e}")
-            
-        await asyncio.sleep(0.5) # Fast polling
+async def run_health_check_api():
+    config_uvicorn = uvicorn.Config(api_app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)), log_level="info")
+    server = uvicorn.Server(config_uvicorn)
+    try:
+        await server.serve()
+    except SystemExit:
+        logger.warning("[API] Uvicorn port band (yoki server conflict). API server skip qilindi, bot davom etadi.")
+    except OSError as e:
+        logger.warning(f"[API] API server ishga tushmadi: {e}. Bot davom etadi.")
 
 async def main():
     """Botlarni ishga tushirish (Userbot + Admin Bot)."""
     global msg_controller, client, bot_client, lead_scraper, action_parser
     global advisor_agent, auto_lead_agent, safe_responder, activity_monitor, audit_agent
     global workflow_manager, access_manager, admin_bot, session_manager, chat_bridge, BOT_TOKEN_STR, juma_notifier
-    global folder_manager, voice_processor, welcome_manager, scouter, conversion_checker, night_shift
 
     print("🚀 Oisha-OS Tizimi tayyorlanmoqda (Dual-Head Architecture)...")
     
-    # [API] Starting Intelligence Bridge IMMEDIATELY for Dashboard availability
-    run_api_server()
+    # [GOD MODE] Health Check for Cloud Run
+    asyncio.create_task(run_health_check_api())
     
     # 1. Credentials, Foundations & Database
     api_keys = {
@@ -960,22 +737,17 @@ async def main():
         "deepseek": settings.DEEPSEEK_API_KEY.get_secret_value() if settings.DEEPSEEK_API_KEY else None
     }
     
-    # [AUDIT: RESTORATION] Centralized DB instance
+    # [AUDIT: RESTORATION] Centralized DB instance for global consistency
     db = Database()
-    await db.init_instance()
     msg_controller = MessageController(api_keys=api_keys, db=db)
     
-    # [GOD MODE] Juma Notifier - initialized later below
+    # [GOD MODE] Initialize Juma Notifier
+    juma_notifier = JumaNotifier(client=client, db=db)
     
     # [GOD MODE] Authorized Session Discovery
-    # We prioritize 'oisha_userbot' as it was found to be the only valid large session (156KB)
     SESSION_PATH = 'data/userbot_session'
-    if os.path.exists('oisha_userbot.session'):
-        SESSION_PATH = 'oisha_userbot'
-    elif not os.path.exists('data/userbot_session.session') and os.path.exists('userbot_session.session'):
+    if not os.path.exists('data/userbot_session.session') and os.path.exists('userbot_session.session'):
         SESSION_PATH = 'userbot_session'
-    
-    logger.info(f"👸 [USERBOT] Using session: {SESSION_PATH}")
     
     client = TelegramClient(
         SESSION_PATH,
@@ -1011,7 +783,6 @@ async def main():
     advisor_agent = AdvisorAgent(api_key=api_keys["gemini"], db=msg_controller.db, action_parser=action_parser)
     auto_lead_agent = AutoLeadAgent(api_key=api_keys["gemini"])
     safe_responder = SafeResponder()
-    scouter = Scouter(api_key=api_keys["gemini"], db=msg_controller.db)
     
     from src.services.workflow_manager import WorkflowManager
     activity_monitor = ActivityMonitor(db=msg_controller.db)
@@ -1022,9 +793,6 @@ async def main():
     logger.info(f"🚀 [INIT] OWNER_ID Config: {config.OWNER_ID}")
     logger.info(f"🚀 [INIT] Is 150074828 Owner?: {access_manager.get_role(150074828) == 'OWNER'}")
     
-    # [ENTERPRISE: CLEANUP] Night Shift Service
-    night_shift = CRMNightShift(amocrm=msg_controller.crm.amocrm, db=msg_controller.db)
-
     # [ENTERPRISE: UI] Register AdminBot on the Bot Client.
     # This provides the dashboard to the user via the main bot.
     admin_bot = AdminBot(
@@ -1033,7 +801,6 @@ async def main():
         db=msg_controller.db, 
         msg_controller=msg_controller, 
         access_manager=access_manager,
-        night_shift=night_shift,
         team_group_id=settings.TEAM_GROUP_ID
     )
     from src.services.welcome_manager import WelcomeManager
@@ -1041,20 +808,13 @@ async def main():
     
     lead_scraper.notify_callback = admin_bot.notify_lead
 
-    # [SYSTEMATIC ENGINE v4.6] Lead & Project Orchestration
-    lead_orchestrator = LeadOrchestrator(
+    from src.services.workflow_orchestrator import WorkflowOrchestrator
+    orchestrator = WorkflowOrchestrator(
         amocrm=msg_controller.crm.amocrm,
         airtable=msg_controller.crm.airtable,
-        auto_lead=auto_lead_agent,
-        admin_bot=admin_bot,
-        db=msg_controller.db,
-        folder_manager=folder_manager
-    )
-    
-    conversion_checker = ConversionChecker(
-        amocrm=msg_controller.crm.amocrm, 
-        airtable=msg_controller.crm.airtable, 
-        admin_bot=admin_bot
+        notify_callback=admin_bot.notify_lead,
+        team_group_id=settings.TEAM_GROUP_ID,
+        advisor_agent=advisor_agent
     )
     
     session_manager = SessionManager(sync_callback=push_block_to_amocrm)
@@ -1065,53 +825,24 @@ async def main():
     api_module.user_client = client
     api_module.db_instance = msg_controller.db
 
+    # 4. Starting API server
+    asyncio.create_task(run_health_check_api())
+    
     # 5. Background Tasks
-    # [GOD MODE] Initialize Juma Notifier (Must be after client initialization)
-    juma_notifier = JumaNotifier(client=client, db=db, group_id=TN5_GROUP_ID)
-    
     asyncio.create_task(session_manager.monitor_sessions())
-    # asyncio.create_task(orchestrator.background_loop(interval_minutes=15)) # Replaced by LeadOrchestrator logic or kept if needed for Portfolio sync
-    
-    # We keep the legacy orchestrator for background sync if it handles non-lead tasks (like Portfolio)
-    # but lead processing is now handled by LeadOrchestrator via event triggers.
+    asyncio.create_task(orchestrator.background_loop(interval_minutes=15))
 
-    # [STABILITY] Move Userbot.start() to the very end to ensure Admin Bot and Monitors are online first.
-    # [GOD MODE] Initialize Managers (Move up)
+    # 3. Userbotni (Shaxsiy akkaunt) ishga tushirish
+    await client.start()
+    
+    # [GOD MODE] Initialize Managers
+    global folder_manager, voice_processor
     folder_manager = FolderManager(client)
     voice_processor = VoiceProcessor(api_key=settings.GEMINI_API_KEY.get_secret_value())
     
-    # [V4.7] Callback Query Handler for Payment Confirmation
-    if bot_client:
-        @bot_client.on(events.CallbackQuery(data=re.compile(b"confirm_pay:.*")))
-        async def confirm_payment_handler(event):
-            sender_id = event.sender_id
-            data = event.data.decode('utf-8').split(':')
-            manager_id = int(data[1])
-            amount = data[2]
-            
-            # Check Role (Only Admin/Finance)
-            user_info = db.get_user_info(sender_id)
-            role = user_info.get('role') if user_info else None
-            
-            if sender_id != settings.OWNER_ID and role != 'Finance':
-                await event.answer("👸 Oisha: Kechirasiz, faqat Baxtiyor aka yoki Moliya bo'limi to'lovni tasdiqlashi mumkin. 👸🛡️", alert=True)
-                return
-
-            await event.answer("👸 To'lov tasdiqlandi! Onboarding boshlanmoqda...", alert=True)
-            
-            # Update Message
-            await event.edit(f"✅ **TO'LOV TASDIQLANDI**\n💰 Summa: {amount}\n👤 Mas'ul: <i>Moliya / Admin</i>\n\n👸 Oisha hozir mijoz uchun maxsus guruh ochmoqda... 👸🛡️", parse_mode='html')
-            
-            # Start Onboarding
-            from src.services.onboarding_manager import OnboardingManager
-            onboarding = OnboardingManager(client=client, db=db, admin_bot=admin_bot)
-            asyncio.create_task(onboarding.start_client_onboarding(manager_id, amount))
-
     # 4. Botni ishga tushirish
     if BOT_TOKEN_STR:
         await bot_client.start(bot_token=BOT_TOKEN_STR)
-        # Kunlik vazifalar schedulerini ishga tushiramiz
-        asyncio.create_task(admin_bot.run_scheduler())
     
     # [STABILITY] Registrating event handlers AFTER client initialization
     client.add_event_handler(handle_new_message, events.NewMessage)
@@ -1124,143 +855,152 @@ async def main():
     if bot_client:
         bot_client.add_event_handler(handle_new_message, events.NewMessage)
         
-            # [GOD MODE] User Presence Tracker (Nudge Alerts)
+    # [GOD MODE] User Presence Tracker (Nudge Alerts)
     @client.on(events.UserUpdate)
     async def presence_handler(event):
         if event.online:
             user_id = event.user_id
             # 1. Check if user is a HOT_LEAD
-            user_info = await msg_controller.db.get_user_info(user_id)
-            if user_info and user_info.get('intent') == 'HOT_LEAD':
-                # ... 
+            user_info = msg_controller.db.get_user_info(user_id)
+            # Since get_user_info doesn't have intent yet in its return dict, we'll check directly
+            with msg_controller.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT intent FROM users WHERE user_id = ?", (user_id,))
+                row = cursor.fetchone()
+                intent = row[0] if row else None
+            
+            if intent == 'HOT_LEAD':
                 # 2. Check if we need to nudge (last msg was from user and > 5 mins ago)
                 logger.info(f"🔥 [NUDGE] Hot Lead online: {user_id}")
                 # We could fetch last message from DB or TG
                 # For high-performance, we notify the admin immediately
                 if admin_bot:
-                    await admin_bot.notify_lead(f"🔥 **Hot Lead Online:** {user_id} hozir Telegramda faol! Uni suhbatga chorlang.")
-    
-    @bot_client.on(events.NewMessage(pattern='/set_role.*'))
-    async def set_user_role_top_handler(event):
-        """Foydalanuvchiga professional rol biriktirish."""
-        sender = await event.get_sender()
-        if not sender or sender.id != settings.OWNER_ID:
-            return
-        
-        try:
-            # Format: /set_role user_id role
-            parts = event.text.split(' ')
-            if len(parts) < 3:
-                await event.reply("👸 Oisha: Format - `/set_role [user_id] [role]`\n_Rollar: PM, Designer, SMM, Developer_")
-                return
-            
-            target_id = int(parts[1])
-            new_role = parts[2]
-            
-            db.set_user_role(target_id, new_role)
-            await event.reply(f"✅ **Rol o'rnatildi!**\n👤 User: `{target_id}`\n🎭 Rol: `{new_role}`\n\n👸 Oisha endi bu hodimga loyiha vazifalarini avtomatik biriktira oladi. 🛡️")
-        except Exception as e:
-            await event.reply(f"❌ Xato: {e}")
+                    name = (await client.get_entity(user_id)).first_name
+                    await admin_bot.notify_lead(f"🔥 **HOT LEAD ONLINE!**\n👤 {name} hozir onlayn. Uni suhbatga tortishning ayni vaqti! 👸🛡️")
 
-    @bot_client.on(events.NewMessage(pattern='/topic_info'))
-    async def topic_info_handler(event):
-        """Guruhdagi Topic ID raqamini aniqlash uchun."""
-        chat_id = event.chat_id
-        thread_id = event.message.reply_to_msg_id
-        
-        msg = (
-            f"👸 **Mavzu ma'lumotlari:**\n\n"
-            f"🔹 **Group ID:** `{chat_id}`\n"
-            f"🔸 **Topic ID (Thread):** `{thread_id or 'General (Asosiy)'}`\n\n"
-            f"💡 Ushbu Topic ID-ni `.env` faylida sozlash uchun foydalaning."
-        )
-        await event.respond(msg)
-    
-    @bot_client.on(events.NewMessage(pattern='/task'))
-    async def task_command_handler(event):
-        """Vazifani tahlil qilish va yaratish."""
-        logger.info(f"👸 [TASK] Command from {event.chat_id}")
-        # AI tahlilini PTB botga yoki ichki handlerga yo'naltirish
-        # Hozircha oddiy tasdiq va AI Assistant orqali tahlilni boshlaymiz
-        await event.respond("👸 **Oisha:** Vazifa qabul qilindi. AI assistant tahlil qilmoqda... 👸🛡️")
-        
-        # Import here to avoid circular imports
-        from src.services.userbot_legacy import task_command
-        # For simplicity, we assume the PTB bot in userbot_legacy is also running and will pick this up
-
-    @bot_client.on(events.NewMessage(pattern='/audit'))
-    async def audit_command_handler(event):
-        """Jamoa va loyihalarni real raqamlarda audit qilish."""
-        sender = await event.get_sender()
-        if getattr(sender, 'id', 0) != settings.OWNER_ID:
-            await event.respond("👸 **Oisha:** Bu maxfiy audit hisoboti faqat Baxtiyor aka uchun. 👸🛡️")
-            return
-        
-        logger.info(f"👸 [AUDIT] Running real performance audit for Owner...")
-        await event.respond("👸 **Oisha:** Real raqamlarni yig'yapman, bir soniya... 👸🛡️")
-        
-        try:
-            audit_text = await msg_controller.enterprise_reporter.get_real_numbers_audit()
-            await event.respond(audit_text, parse_mode='html')
-        except Exception as e:
-            logger.error(f"👸 [AUDIT ERROR] {e}")
-            await event.respond(f"👸 **Xatolik:** Hisobatni tayyorlashda muammo yuz berdi: {e}")
-
-    @bot_client.on(events.NewMessage(chats=settings.TEAM_GROUP_ID))
-    async def team_group_handler(event):
-        # Faqat mention bo'lganda yoki savol berilganda javob beramiz
-        if event.mentioned:
-            logger.info(f"👸 [TEAM ASSISTANT] Mentioned in group {event.chat_id}")
-            # AdvisorAgent orqali aqlli javob tayyorlash
-            response = await advisor_agent.generate_advice(event.text)
-            await event.respond(f"👸 **Oisha Assistant:**\n\n{response}")
-    
-    # [NEW] Kirim (Inflow) Celebration Listener
-    if settings.TOPIC_KIRIM_ID:
-        @bot_client.on(events.NewMessage(chats=settings.TEAM_GROUP_ID))
-        async def kirim_celebration_handler(event):
-            # Filter for Kirim Topic
-            if event.message.reply_to_msg_id != settings.TOPIC_KIRIM_ID:
-                return
+    # [STABILITY] Registrating event handlers AFTER client initialization
+        if settings.TEAM_GROUP_ID:
+            @bot_client.on(events.NewMessage(pattern='/team'))
+            async def team_audit_handler(event):
+                """Guruhda taniqlik a'zolarni ko'rsatish."""
+                logger.info(f"👸 [TEAM AUDIT] Command from {event.chat_id}")
+                from src.database import Database
+                db = Database()
+                with db.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT user_id, first_name, username, role FROM users WHERE role IS NOT NULL")
+                    members = cursor.fetchall()
+                
+                if not members:
+                    await event.respond("👸 **Oisha:** Hozircha hech qanday xodimni tanimayapman. Ularga role biriktirish kerak.")
+                    return
+                
+                msg = "👸 **Taniqlik xodimlarimiz:**\n\n"
+                for mid, name, uname, role in members:
+                    tag = f"@{uname}" if uname else f"<a href='tg://user?id={mid}'>{name}</a>"
+                    msg += f"• {tag} — <i>{role}</i>\n"
+                
+                await event.respond(msg, parse_mode='html')
             
-            text = event.text or ""
-            # Detection for income reports (contains digits and keywords)
-            import re
-            is_inflow = re.search(r'\d+', text) and any(kw in text.lower() for kw in ['$', 'som', 'so\'m', 'sum', 'usd', 'uzs', 'kirim', 'to\'lov', 'tulov'])
+            @bot_client.on(events.NewMessage(pattern='/topic_info'))
+            async def topic_info_handler(event):
+                """Guruhdagi Topic ID raqamini aniqlash uchun."""
+                chat_id = event.chat_id
+                thread_id = event.message.reply_to_msg_id
+                
+                msg = (
+                    f"👸 **Mavzu ma'lumotlari:**\n\n"
+                    f"🔹 **Group ID:** `{chat_id}`\n"
+                    f"🔸 **Topic ID (Thread):** `{thread_id or 'General (Asosiy)'}`\n\n"
+                    f"💡 Ushbu Topic ID-ni `.env` faylida sozlash uchun foydalaning."
+                )
+                await event.respond(msg)
             
-            if is_inflow:
+            @bot_client.on(events.NewMessage(pattern='/task'))
+            async def task_command_handler(event):
+                """Vazifani tahlil qilish va yaratish."""
+                logger.info(f"👸 [TASK] Command from {event.chat_id}")
+                # AI tahlilini PTB botga yoki ichki handlerga yo'naltirish
+                # Hozircha oddiy tasdiq va AI Assistant orqali tahlilni boshlaymiz
+                await event.respond("👸 **Oisha:** Vazifa qabul qilindi. AI assistant tahlil qilmoqda... 👸🛡️")
+                
+                # Import here to avoid circular imports
+                from src.services.userbot_legacy import task_command
+                # Create a mock update/context if needed, or just run the logic
+                # For simplicity, we assume the PTB bot in userbot_legacy is also running and will pick this up
+                # If not, we could implement a unified handler here.
+
+            @bot_client.on(events.NewMessage(pattern='/audit'))
+            async def audit_command_handler(event):
+                """Jamoa va loyihalarni real raqamlarda audit qilish."""
                 sender = await event.get_sender()
-                sender_id = sender.id
+                if getattr(sender, 'id', 0) != settings.OWNER_ID:
+                    await event.respond("👸 **Oisha:** Bu maxfiy audit hisoboti faqat Baxtiyor aka uchun. 👸🛡️")
+                    return
                 
-                first_name = getattr(sender, 'first_name', 'Xodim')
+                logger.info(f"👸 [AUDIT] Running real performance audit for Owner...")
+                await event.respond("👸 **Oisha:** Real raqamlarni yig'yapman, bir soniya... 👸🛡️")
                 
-                # Extract amount for AI context
-                amount_match = re.search(r'(\d[\d\s,.]+)', text)
-                amount_str = amount_match.group(1) if amount_match else "noma'lum"
-
-                logger.info(f"👸 [KIRIM] Generating AI celebration for {first_name} for {amount_str}...")
-                
-                # Generate Premium AI Celebration
                 try:
-                    celebration_text = await advisor_agent.generate_sales_celebration(
-                        manager_name=first_name,
-                        amount=amount_str
-                    )
-                    # [V4.7] Add Confirmation Button for Finance
-                    from telethon import Button
-                    buttons = [
-                        [Button.inline("✅ Tasdiqlash (Moliya)", data=f"confirm_pay:{sender_id}:{amount_str}")]
-                    ]
-                    await event.reply(celebration_text, parse_mode='html', buttons=buttons)
+                    audit_text = await msg_controller.enterprise_reporter.get_real_numbers_audit()
+                    await event.respond(audit_text, parse_mode='html')
                 except Exception as e:
-                    logger.error(f"👸 [CELEBRATION ERROR] AI failed: {e}")
-                    # Fallback to a nice manual one
-                    from telethon import Button
-                    buttons = [[Button.inline("✅ Tasdiqlash (Moliya)", data=f"confirm_pay:{sender_id}:{amount_str}")]]
-                    await event.reply(f"🎉 **BARAKALLA, {first_name}!** 🎉\n\nSizni ajoyib natija bilan tabriklaymiz! 👸🛡️", buttons=buttons)
-                
-                logger.info(f"👸 [KIRIM] Successfully celebrated {first_name}.")
+                    logger.error(f"👸 [AUDIT ERROR] {e}")
+                    await event.respond(f"👸 **Xatolik:** Hisobatni tayyorlashda muammo yuz berdi: {e}")
 
+            @bot_client.on(events.NewMessage(chats=settings.TEAM_GROUP_ID))
+            async def team_group_handler(event):
+                # Faqat mention bo'lganda yoki savol berilganda javob beramiz
+                if event.mentioned:
+                    logger.info(f"👸 [TEAM ASSISTANT] Mentioned in group {event.chat_id}")
+                    # AdvisorAgent orqali aqlli javob tayyorlash
+                    response = await advisor_agent.generate_advice(event.text)
+                    await event.respond(f"👸 **Oisha Assistant:**\n\n{response}")
+            
+            # [NEW] Kirim (Inflow) Celebration Listener
+            if settings.TOPIC_KIRIM_ID:
+                @bot_client.on(events.NewMessage(chats=settings.TEAM_GROUP_ID))
+                async def kirim_celebration_handler(event):
+                    # Filter for Kirim Topic
+                    if event.message.reply_to_msg_id != settings.TOPIC_KIRIM_ID:
+                        return
+                    
+                    text = event.text or ""
+                    # Detection for income reports (contains digits and keywords)
+                    import re
+                    is_inflow = re.search(r'\d+', text) and any(kw in text.lower() for kw in ['$', 'som', 'so\'m', 'sum', 'usd', 'uzs', 'kirim', 'to\'lov', 'tulov'])
+                    
+                    if is_inflow:
+                        sender = await event.get_sender()
+                        sender_id = sender.id
+                        
+                        # skip bot itself or owner if he doesn't want to be congratulated
+                        if sender_id == settings.OWNER_ID:
+                            logger.info(f"👸 [KIRIM] Owner ({sender_id}) reported inflow. Quietly logging.")
+                            return
+
+                        first_name = getattr(sender, 'first_name', 'Xodim')
+                        
+                        # Extract amount for AI context
+                        amount_match = re.search(r'(\d[\d\s,.]+)', text)
+                        amount_str = amount_match.group(1) if amount_match else "noma'lum"
+
+                        logger.info(f"👸 [KIRIM] Generating AI celebration for {first_name} for {amount_str}...")
+                        
+                        # Generate Premium AI Celebration
+                        try:
+                            celebration_text = await advisor_agent.generate_sales_celebration(
+                                manager_name=first_name,
+                                amount=amount_str
+                            )
+                            await event.reply(celebration_text, parse_mode='html')
+                        except Exception as e:
+                            logger.error(f"👸 [CELEBRATION ERROR] AI failed: {e}")
+                            # Fallback to a nice manual one
+                            await event.reply(f"🎉 **BARAKALLA, {first_name}!** 🎉\n\nSizni ajoyib natija bilan tabriklaymiz! 👸🛡️")
+                        
+                        logger.info(f"👸 [KIRIM] Successfully celebrated {first_name}.")
+    
     print("✅ Userbot ulandi va xabarlarni eshita boshladi!")
 
     # 4. Admin Botni ishga tushirish (on bot_client)
@@ -1282,12 +1022,6 @@ async def main():
     
     # [GOD MODE] Periodic tasks (Juma, Maintenance)
     async def background_scheduler():
-        # RUN IMMEDIATELY ON STARTUP
-        try:
-            await juma_notifier.check_and_send()
-        except Exception as e:
-            logger.error(f"[SCHEDULER] Immediate Task Error: {e}")
-
         while True:
             try:
                 await juma_notifier.check_and_send()
@@ -1308,85 +1042,11 @@ async def main():
             await asyncio.sleep(3600) # Run every 1 hour
     
     asyncio.create_task(dm_lead_sync_task())
-
-    # [WAZZUP KILLER] Outgoing Message Consumer
-    async def amocrm_bridge_consumer():
-        logger.info("👸 [WAZZUP KILLER] Bridge consumer started. Ready to send messages from AmoCRM.")
-        while True:
-            try:
-                # Wait for message from API Server queue
-                msg_data = await api_server.outgoing_messages.get()
-                user_id = msg_data.get('user_id')
-                text = msg_data.get('text')
-                
-                if user_id and text:
-                    logger.info(f"👸 [WAZZUP KILLER] Sending msg to {user_id}...")
-                    await client.send_message(user_id, text)
-                    logger.info(f"✅ Sent!")
-                
-                api_server.outgoing_messages.task_done()
-            except Exception as e:
-                logger.error(f"[WAZZUP BRIDGE ERROR] {e}")
-            await asyncio.sleep(0.1)
-
-    asyncio.create_task(amocrm_bridge_consumer())
     
     logger.info("✅ Oisha-OS: All High-Performance Agents are Online & Ready!")
     
-    # [WAZZUP KILLER] Initialize API Server Bridge
-    import src.api_server as api_server
-    api_server.user_client = client
-    api_server.db_instance = db
-    api_server.audit_agent = audit_agent
-    
-    # API with command processor and status heartbeat
-    asyncio.create_task(command_processor_task())
-    asyncio.create_task(status_heartbeat_task())
-    asyncio.create_task(api_server.background_crm_audit_task())
-    logger.info("👸 [OISHA] Strategic Intelligence Bridge is online.")
-
-    # [NIGHT SHIFT] Autonomous Engine
-    logger.info("🌙 Initializing Night Shift Intelligence...")
-    night_shift_service = NightShiftService(client if client else None)
-    asyncio.create_task(night_shift_service.run_overnight_cycle())
-    
-    from src.api_server import add_activity
-    add_activity("Platform On", "Oisha-OS va Dashboard muvaffaqiyatli ishga tushdi.", "success")
-
-    # [ROBUST STARTUP] Finally, start Userbot once everything else is running.
-    # This ensures that if the Userbot asks for a code, the Admin Bot and Reports are already active.
-    logger.info("👸 [USERBOT] Attempting to connect shaxsiy akkaunt...")
-    await client.start()
-    
-    # [FIX: Warm up Entity Cache]
-    try:
-        logger.info("🔥 [USERBOT] Warming up entity cache...")
-        await client.get_me()
-        # Explicitly fetch the owner to ensure it's in the .session cache
-        owner_entity = await client.get_entity(config.OWNER_ID)
-        logger.info(f"✅ [USERBOT] Entity cache warmed up: Found Owner {owner_entity.first_name}")
-    except Exception as e:
-        logger.warning(f"⚠️ [USERBOT] Cache warm up warning: {e}")
-
-    logger.info("✅ Userbot ulandi va xabarlarni eshita boshladi!")
-
-    # [SINGULARITY] Autonomous Proactive Worker initialization
-    logger.info("👸 [SINGULARITY] Initializing Core Intelligence...")
-    from src.services.singularity_core import ProactiveWorker
-    # Inject context for notifications
-    proactive_worker = ProactiveWorker(context=None) 
-    # The context is actually handled by bot_client which is global
-    # We will pass the bot_client if needed, but ProactiveWorker inside singularity_core.py 
-    # uses self.context which is a python-telegram-bot context.
-    # For now, let's just start the loop.
-    asyncio.create_task(proactive_worker.start_loop())
-
-    # Main client loop - wait for both to ensure stability
-    logger.info("👸 [OISHA] All systems nominal. Waiting for events...")
-    await asyncio.gather(
-        client.run_until_disconnected(),
-        bot_client.run_until_disconnected()
-    )
+    # Main client loop
+    await client.run_until_disconnected()
 
 if __name__ == "__main__":
     try:
