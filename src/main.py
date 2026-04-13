@@ -208,7 +208,7 @@ async def self_command_handler(event):
     if not event.message.text: return
     cmd = event.message.text.lower().strip()
     if cmd.startswith('/dashboard'):
-        stats = msg_controller.db.get_today_stats()
+        stats = await msg_controller.db.get_today_stats()
         msg = f"📊 **OISHA ROI DASHBOARD**\n📅 Bugun: {datetime.now().strftime('%d-%m-%Y')}\n\n👤 Yangi lidlar: {stats['leads_found']}\n💬 Sinxron: {stats['messages_synced']}\n"
         await event.respond(msg)
     elif cmd.startswith('/status'):
@@ -263,7 +263,7 @@ async def shadow_advisor_handler(event):
     )
 
     # 2.5 Avtomatik AmoCRM Sync (Agar yangi mijoz bo'lsa)
-    if not msg_controller.db.is_crm_synced(chat_id):
+    if not await msg_controller.db.is_crm_synced(chat_id):
         first_name = getattr(sender, 'first_name', 'Mijoz')
         last_name = getattr(sender, 'last_name', '')
         full_name = f"{first_name} {last_name}".strip()
@@ -327,7 +327,7 @@ async def shadow_advisor_handler(event):
                              logger.info(f"[AUTO_CRM] Lead synced and enriched: {clean_name}")
                         
                     # Final DB update with all extracted data
-                    msg_controller.db.upsert_user(
+                    await msg_controller.db.upsert_user(
                         chat_id, 
                         first_name, 
                         last_name=last_name, 
@@ -337,7 +337,7 @@ async def shadow_advisor_handler(event):
                         brand_name=lead_data.get('brand_name'),
                         intent=lead_data.get('intent_category')
                     )
-                    msg_controller.db.mark_crm_synced(chat_id)
+                    await msg_controller.db.mark_crm_synced(chat_id)
 
     # 3. Maslahatni yuborish (Advice logic)
     if advice and advisor_agent.should_notify(chat_id, event.id, advice):
@@ -497,11 +497,11 @@ async def handle_new_message(event):
             if folder_manager:
                 asyncio.create_task(folder_manager.assign_to_folder(sender.id, intent))
             
-            if lead_data.get("is_lead") and not msg_controller.db.is_crm_synced(event.sender_id):
+            if lead_data.get("is_lead") and not await msg_controller.db.is_crm_synced(event.sender_id):
                 logger.info(f"✨ [ELITE INTAKE] Yangi lid aniqlandi: {sender_name} (Intent: {intent})")
                 
                 # [GOD MODE] Save intent and data to DB
-                msg_controller.db.upsert_user(
+                await msg_controller.db.upsert_user(
                     sender.id, 
                     sender_name, 
                     username=getattr(sender, 'username', None), 
@@ -529,7 +529,7 @@ async def handle_new_message(event):
                     phone=phone,
                     note=f"AI Tahlil: {lead_data.get('needs')}\nIntent: {intent}\nUser: @{getattr(sender, 'username', 'N/A')}"
                 )
-                msg_controller.db.set_crm_synced(event.sender_id)
+                await msg_controller.db.set_crm_synced(event.sender_id)
                 
                 # Elite Welcome (1.4)
                 await welcome_manager.send_welcome(event.sender_id)
@@ -553,7 +553,7 @@ async def handle_new_message(event):
                     await admin_bot.notify_lead(f"🎙️ **Ovozli xabar ({sender_name}):**\n\n{result}")
                 
                 # Update AmoCRM Note if lead
-                if msg_controller.db.is_crm_synced(event.sender_id):
+                if await msg_controller.db.is_crm_synced(event.sender_id):
                     # We don't have lead ID here, but create_lead with same phone should handle it or just notify.
                     # For now, notification to Admin is the primary 'God Mode' feature.
                     pass
@@ -739,6 +739,7 @@ async def main():
     
     # [AUDIT: RESTORATION] Centralized DB instance for global consistency
     db = Database()
+    await db.init_instance()
     msg_controller = MessageController(api_keys=api_keys, db=db)
     
     # [GOD MODE] Initialize Juma Notifier
@@ -861,13 +862,8 @@ async def main():
         if event.online:
             user_id = event.user_id
             # 1. Check if user is a HOT_LEAD
-            user_info = msg_controller.db.get_user_info(user_id)
-            # Since get_user_info doesn't have intent yet in its return dict, we'll check directly
-            with msg_controller.db.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT intent FROM users WHERE user_id = ?", (user_id,))
-                row = cursor.fetchone()
-                intent = row[0] if row else None
+            user_info = await msg_controller.db.get_user_info(user_id)
+            intent = user_info.get("intent") if user_info else None
             
             if intent == 'HOT_LEAD':
                 # 2. Check if we need to nudge (last msg was from user and > 5 mins ago)
@@ -886,10 +882,11 @@ async def main():
                 logger.info(f"👸 [TEAM AUDIT] Command from {event.chat_id}")
                 from src.database import Database
                 db = Database()
-                with db.get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT user_id, first_name, username, role FROM users WHERE role IS NOT NULL")
-                    members = cursor.fetchall()
+                async with await db.get_connection() as conn:
+                    async with conn.execute(
+                        "SELECT user_id, first_name, username, role FROM users WHERE role IS NOT NULL"
+                    ) as cursor:
+                        members = await cursor.fetchall()
                 
                 if not members:
                     await event.respond("👸 **Oisha:** Hozircha hech qanday xodimni tanimayapman. Ularga role biriktirish kerak.")
