@@ -487,9 +487,11 @@ class AdminBot:
             
             if not distribution:
                 await self.notify_team(
-                    "⚠️ **Pipeline bo'sh!** Aktiv lidlar yo'q.\n"
-                    "🎯 Yangi lidlar izlash kerak! @Oydin_JonBranding\n"
-                    "📞 Bugun kamida 5 ta yangi kontaktga qo'ng'iroq qiling!",
+                    "📋 **Bugungi vazifalar:**\n\n"
+                    "1️⃣ CLOSER'dagi mijozlardan boshlang'ich to'lovni oling\n"
+                    "2️⃣ Mavjud lidlar bilan ishlang (follow-up, takliflar)\n"
+                    "3️⃣ Eski mijozlarga qayta sotuv (upsell)\n\n"
+                    "💡 <i>Yangi lid izlash — faqat yuqoridagilar tugagandan keyin!</i>",
                     topic_id=settings.CRM_TOPIC_ID
                 )
                 return True

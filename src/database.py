@@ -3,6 +3,7 @@ import sqlite3
 import datetime
 import logging
 import json
+from google import genai
 from typing import List, Dict, Any, Optional, Union
 from src.settings import settings
 from src import config 
@@ -104,6 +105,22 @@ class Database:
             await conn.execute("CREATE TABLE IF NOT EXISTS kv_settings (key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS agent_actions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action_type TEXT, action_data TEXT, success BOOLEAN DEFAULT 1, created_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS learned_facts (id INTEGER PRIMARY KEY AUTOINCREMENT, fact_key TEXT, fact_value TEXT, user_id INTEGER, created_at DATETIME)")
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS daily_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    report_date TEXT NOT NULL,
+                    manager_id INTEGER NOT NULL,
+                    lead_id INTEGER NOT NULL,
+                    lead_name TEXT,
+                    mission TEXT,
+                    source_pipeline TEXT,
+                    created_at TEXT
+                )
+            """)
+            try:
+                await conn.execute("ALTER TABLE daily_plans ADD COLUMN source_pipeline TEXT")
+            except Exception:
+                pass
             
             await conn.commit()
             logger.info("[DB] Async Base Ready.")
@@ -212,10 +229,30 @@ class Database:
 
     async def get_user_info(self, user_id):
         conn = await self.get_connection()
-        async with conn.execute("SELECT first_name, username, phone, business_type, region, brand_name, service_type, deadline, role, detailed_role FROM users WHERE user_id = ?", (user_id,)) as cursor:
+        async with conn.execute(
+            """
+            SELECT first_name, username, phone, business_type, region, brand_name,
+                   service_type, deadline, role, detailed_role, intent
+            FROM users
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        ) as cursor:
             row = await cursor.fetchone()
             if row:
-                return {"first_name": row[0], "username": row[1], "phone": row[2], "business_type": row[3], "region": row[4], "brand_name": row[5], "service_type": row[6], "deadline": row[7], "role": row[8], "detailed_role": row[9]}
+                return {
+                    "first_name": row[0],
+                    "username": row[1],
+                    "phone": row[2],
+                    "business_type": row[3],
+                    "region": row[4],
+                    "brand_name": row[5],
+                    "service_type": row[6],
+                    "deadline": row[7],
+                    "role": row[8],
+                    "detailed_role": row[9],
+                    "intent": row[10],
+                }
             return None
 
     async def get_daily_chats_summary(self):
@@ -242,8 +279,160 @@ class Database:
             row = await cursor.fetchone()
             return {"total_users": row[0], "total_messages": row[1]}
 
+    async def get_today_stats(self):
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        conn = await self.get_connection()
+        async with conn.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM users WHERE date(created_at) = ?),
+                (SELECT COUNT(*) FROM message_logs WHERE date(created_at) = ?)
+            """,
+            (today, today),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return {
+                "leads_found": row[0] or 0,
+                "messages_synced": row[1] or 0,
+            }
+
+    async def get_user_id_by_phone(self, phone: str) -> Optional[int]:
+        conn = await self.get_connection()
+        normalized_phone = "".join(ch for ch in (phone or "") if ch.isdigit())
+        async with conn.execute("SELECT user_id, phone FROM users WHERE phone IS NOT NULL") as cursor:
+            rows = await cursor.fetchall()
+            for user_id, stored_phone in rows:
+                stored_normalized = "".join(ch for ch in (stored_phone or "") if ch.isdigit())
+                if stored_normalized and stored_normalized.endswith(normalized_phone):
+                    return user_id
+        return None
+
+    async def get_user_by_phone_full(self, phone: str) -> Optional[Dict[str, Any]]:
+        conn = await self.get_connection()
+        normalized_phone = "".join(ch for ch in (phone or "") if ch.isdigit())
+        async with conn.execute(
+            """
+            SELECT user_id, username, first_name, phone, last_name, business_type, region,
+                   brand_name, intent, crm_synced
+            FROM users
+            WHERE phone IS NOT NULL
+            """
+        ) as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                stored_normalized = "".join(ch for ch in (row[3] or "") if ch.isdigit())
+                if stored_normalized and stored_normalized.endswith(normalized_phone):
+                    return {
+                        "user_id": row[0],
+                        "username": row[1],
+                        "first_name": row[2],
+                        "phone": row[3],
+                        "last_name": row[4],
+                        "business_type": row[5],
+                        "region": row[6],
+                        "brand_name": row[7],
+                        "intent": row[8],
+                        "crm_synced": bool(row[9]),
+                    }
+        return None
+
+    async def is_crm_synced(self, user_id: int) -> bool:
+        conn = await self.get_connection()
+        async with conn.execute("SELECT crm_synced FROM users WHERE user_id = ?", (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            return bool(row[0]) if row else False
+
+    async def mark_crm_synced(self, user_id: int) -> bool:
+        now = datetime.datetime.now().isoformat()
+        conn = await self.get_connection()
+        await conn.execute(
+            "UPDATE users SET crm_synced = 1, processed_at = ? WHERE user_id = ?",
+            (now, user_id),
+        )
+        await conn.commit()
+        return True
+
+    async def set_crm_synced(self, user_id: int) -> bool:
+        return await self.mark_crm_synced(user_id)
+
+    async def get_synced_contacts_count(self) -> int:
+        conn = await self.get_connection()
+        async with conn.execute("SELECT COUNT(*) FROM users WHERE crm_synced = 1") as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+
+    async def is_message_processed(self, message_id: int) -> bool:
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT 1 FROM agent_actions WHERE action_type = 'processed_message' AND user_id = ? LIMIT 1",
+            (message_id,),
+        ) as cursor:
+            return await cursor.fetchone() is not None
+
+    async def mark_message_processed(self, message_id: int, group_id: int, status: str = "synced", reason: Optional[str] = None) -> bool:
+        payload = {
+            "group_id": group_id,
+            "status": status,
+            "reason": reason,
+        }
+        await self.log_agent_action(message_id, "processed_message", payload, success=(status == "synced"))
+        return True
+
+    async def analyze_text_with_ai(self, prompt: str) -> str:
+        try:
+            client = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
+            response = await client.aio.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[prompt],
+            )
+            return response.text if response and response.text else ""
+        except Exception as exc:
+            logger.error(f"[DB AI ANALYSIS ERROR] {exc}")
+            return ""
+
     async def log_agent_action(self, user_id, action_type, data, success=True):
         now = datetime.datetime.now().isoformat()
         conn = await self.get_connection()
         await conn.execute("INSERT INTO agent_actions (user_id, action_type, action_data, success, created_at) VALUES (?, ?, ?, ?, ?)", (user_id, action_type, json.dumps(data), success, now))
         await conn.commit()
+
+    async def save_daily_plan(
+        self,
+        manager_id: int,
+        lead_id: int,
+        lead_name: str,
+        mission: str,
+        source_pipeline: str = "HUNTER",
+    ):
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        now = datetime.datetime.now().isoformat()
+        conn = await self.get_connection()
+        await conn.execute(
+            """
+            INSERT INTO daily_plans (report_date, manager_id, lead_id, lead_name, mission, source_pipeline, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (today, manager_id, lead_id, lead_name, mission, source_pipeline, now),
+        )
+        await conn.commit()
+        return True
+
+    async def get_daily_plan(self, date_str: Optional[str] = None) -> List[Dict[str, Any]]:
+        if not date_str:
+            date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT manager_id, lead_id, lead_name, mission, source_pipeline FROM daily_plans WHERE report_date = ?",
+            (date_str,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                {
+                    "manager_id": r[0],
+                    "lead_id": r[1],
+                    "lead_name": r[2],
+                    "mission": r[3],
+                    "source_pipeline": r[4],
+                }
+                for r in rows
+            ]
