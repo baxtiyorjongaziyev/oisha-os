@@ -71,7 +71,7 @@ class MessageController:
         context = context or {}
         
         # 1. CRM dan user haqida ma'lumot olish (agar tel bo'lsa)
-        user_info = self.db.get_user_info(user_id)
+        user_info = await self.db.get_user_info(user_id)
         crm_status = "Yangi mijoz"
         phone = user_info.get("phone") if user_info else None
         
@@ -82,10 +82,13 @@ class MessageController:
         context["user_name"] = user_name
 
         # 2. Tarixni olish (Intent uchun)
-        recent_history = self.db.get_recent_messages(user_id, limit=5)
+        recent_history = await self.db.get_recent_messages(user_id, limit=5)
         history_str = ""
         if recent_history:
-            history_str = "\n".join([f"{'AI' if h[1] else 'User'}: {h[0]}" for h in reversed(recent_history)])
+            history_str = "\n".join(
+                f"{'AI' if h.get('role') == 'model' else 'User'}: {h['parts'][0]['text']}"
+                for h in recent_history
+            )
 
         # 3. Intentni aniqlash (LLM routing)
         agent_id = await self.orchestrator.determine_intent(message, history=history_str)
