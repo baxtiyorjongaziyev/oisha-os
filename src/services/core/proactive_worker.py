@@ -285,7 +285,11 @@ async def check_airtable_deadlines():
         msg = "⏳ **URGENT PROJECT DEADLINE (24h)**\n\nQuyidagi topshiriqlar muddati tugashiga 1 kun qoldi:\n"
         for p in upcoming[:5]:
             fields = p.get("fields", {})
-            msg += f"- {fields.get('Name')} (Stage: {fields.get('Stage')}, Deadline: {fields.get('Deadline')})\n"
+            from src.services.core.airtable_sync import AirtableSync as _AT
+            p_name = _AT._get_field(fields, "project_name") or "Nomsiz"
+            stage = _AT._get_field(fields, "stage") or "?"
+            deadline = _AT._get_field(fields, "deadline") or "?"
+            msg += f"- {p_name} (Bosqich: {stage}, Muddat: {deadline})\n"
             
         try:
             await bot.send_message(chat_id=group_id, text=msg, parse_mode="Markdown")
@@ -334,10 +338,10 @@ async def check_airtable_stagnation():
         
         for p in overdue[:5]:
             fields = p.get("fields", {})
-            # Localized field mapping:
-            p_name = fields.get('Loyiha nomi') or fields.get('Project Name') or fields.get('Name') or "Nomsiz"
-            stage = fields.get('Status') or fields.get('Stage') or fields.get('Holati') or "Noma'lum"
-            deadline = fields.get('Deadline') or fields.get('Muddati') or "Belgilanmagan"
+            from src.services.core.airtable_sync import AirtableSync as _AT
+            p_name = _AT._get_field(fields, "project_name") or "Nomsiz"
+            stage = _AT._get_field(fields, "stage") or "Noma'lum"
+            deadline = _AT._get_field(fields, "deadline") or "Belgilanmagan"
             
             msg += f"• <b>{p_name}</b> (Bosqich: {stage}, Muddat: {deadline})\n"
             
