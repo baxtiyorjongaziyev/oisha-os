@@ -123,7 +123,7 @@ async def get_stats():
         return {"error": "DB not found"}
     
     try:
-        stats = db_instance.get_today_stats()
+        stats = await db_instance.get_today_stats()
         # Enriched metrics for Premium Dashboard from REAL CACHE
         global cached_crm_audit
         health = cached_crm_audit.get("health_score", 0)
@@ -181,7 +181,7 @@ async def get_chat_history(user_id: int, secret_key: str):
     
     # Get history from DB (Enterprise v2.1+)
     # This includes both user messages and bot/admin replies
-    history = db_instance.get_recent_messages(user_id, limit=30)
+    history = await db_instance.get_recent_messages(user_id, limit=30)
     return {"history": history}
 
 @app.post("/api/chat/send")
