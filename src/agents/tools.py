@@ -7,6 +7,8 @@ Gemini o'zi qaysi tool ni qachon ishlatishini hal qiladi va chaqiradi.
 import json
 import logging
 import datetime
+import asyncio
+import inspect
 from typing import Any, Optional, Dict
 
 logger = logging.getLogger(__name__)
@@ -280,10 +282,72 @@ TOOL_DECLARATIONS = [
                 "status_name": {
                     "type": "string",
                     "description": "Yangi status nomi",
-                    "enum": ["Initial Contact", "Qualified", "Interested", "Meeting Scheduled", "Closed Lost"]
+                    "enum": ["Initial Contact", "Negotiation", "Qualified", "Interested", "Meeting Scheduled", "Conversation Over", "Closed Lost"]
                 }
             },
             "required": ["user_id", "status_name"]
+        }
+    },
+    {
+        "name": "create_followup_task",
+        "description": (
+            "AmoCRM ichida lead uchun keyingi follow-up vazifasini yaratish. "
+            "Mijoz keyinroq javob berishini aytsa, narx e'tirozi qolsa yoki closer follow-up kerak bo'lsa ishlatiladi."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "integer",
+                    "description": "Telegram user ID. lead_id berilmasa shu orqali lead topiladi."
+                },
+                "lead_id": {
+                    "type": "integer",
+                    "description": "AmoCRM lead ID. To'g'ridan-to'g'ri lead ma'lum bo'lsa ishlatiladi."
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Follow-up vazifa nomi"
+                },
+                "details": {
+                    "type": "string",
+                    "description": "Vazifa bo'yicha aniq next step yoki izoh"
+                },
+                "due_at": {
+                    "type": "string",
+                    "description": "ISO 8601 muddat vaqti"
+                },
+                "due_in_hours": {
+                    "type": "integer",
+                    "description": "Agar due_at bo'lmasa, hozirdan necha soatdan keyin bajariladi"
+                }
+            },
+            "required": ["title"]
+        }
+    },
+    {
+        "name": "add_lead_note",
+        "description": (
+            "AmoCRM lead kartasiga negotiation yoki follow-up bo'yicha izoh yozish. "
+            "E'tiroz, meeting natijasi yoki keyingi qadamni CRM tarixiga qoldirish uchun ishlatiladi."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "integer",
+                    "description": "Telegram user ID. lead_id berilmasa shu orqali lead topiladi."
+                },
+                "lead_id": {
+                    "type": "integer",
+                    "description": "AmoCRM lead ID"
+                },
+                "note": {
+                    "type": "string",
+                    "description": "CRMga yoziladigan izoh matni"
+                }
+            },
+            "required": ["note"]
         }
     },
     {
@@ -384,6 +448,10 @@ class AgentToolExecutor:
                 return await self._get_crm_status_tool(**function_args)
             elif function_name == "update_lead_status":
                 return await self._update_lead_status(**function_args)
+            elif function_name == "create_followup_task":
+                return await self._create_followup_task(**function_args)
+            elif function_name == "add_lead_note":
+                return await self._add_lead_note(**function_args)
             elif function_name == "qualify_lead":
                 return await self._qualify_lead(**function_args)
             elif function_name == "search_local_files":
@@ -398,6 +466,52 @@ class AgentToolExecutor:
             logger.error(f"[AGENT TOOL ERROR] {function_name}: {e}")
             self._log_action(context_user_id, function_name, function_args, success=False, error=str(e))
             return {"success": False, "error": str(e)}
+
+    async def _call_maybe_async(self, fn, *args, **kwargs):
+        result = fn(*args, **kwargs)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    async def _db_call(self, method_name: str, *args, **kwargs):
+        fn = getattr(self.db, method_name, None)
+        if not fn:
+            raise AttributeError(f"DB method not available: {method_name}")
+        return await self._call_maybe_async(fn, *args, **kwargs)
+
+    async def _resolve_lead_context(
+        self,
+        *,
+        user_id: Optional[int] = None,
+        lead_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        user_info: Dict[str, Any] = {}
+        phone: Optional[str] = None
+
+        if user_id is not None:
+            user_info = await self._db_call("get_user_info", user_id) or {}
+            phone = user_info.get("phone")
+
+        lead: Optional[Dict[str, Any]] = None
+        resolved_lead_id = lead_id
+
+        if resolved_lead_id is None and phone:
+            lead = await asyncio.to_thread(self.amocrm.get_lead_by_phone, phone)
+            resolved_lead_id = lead.get("id") if lead else None
+        elif resolved_lead_id is not None:
+            lead = {"id": resolved_lead_id}
+            if hasattr(self.amocrm, "get_lead_phone"):
+                try:
+                    phone = phone or await asyncio.to_thread(self.amocrm.get_lead_phone, resolved_lead_id)
+                except Exception as e:
+                    logger.warning(f"[AGENT TOOL] Lead phone resolve error: {e}")
+
+        return {
+            "user_info": user_info,
+            "phone": phone,
+            "lead": lead,
+            "lead_id": resolved_lead_id,
+        }
 
     # ---- Tool Implementations ----
 
@@ -530,7 +644,8 @@ class AgentToolExecutor:
 
         # DB ga log
         try:
-            self.db.log_purchase(user_id, product_id, p_info.get("price", 0))
+            if hasattr(self.db, "log_purchase"):
+                await self._db_call("log_purchase", user_id, product_id, p_info.get("price", 0))
         except Exception as e:
             logger.warning(f"[TOOL] Stars purchase log xato: {e}")
 
@@ -558,7 +673,7 @@ class AgentToolExecutor:
             return {"success": False, "error": "CRM_GROUP_ID sozlanmagan"}
 
         # Bazadan mijoz ma'lumotlarini olish
-        user_data = self.db.get_user_info(user_id) or {}
+        user_data = await self._db_call("get_user_info", user_id) or {}
         name = user_data.get('first_name', 'Noma\'lum')
         phone = user_data.get('phone', '—')
         username = user_data.get('username', '')
@@ -592,7 +707,8 @@ class AgentToolExecutor:
                 message_thread_id=topic_id
             )
             # Mark as forwarded
-            await asyncio.to_thread(self.db.mark_lead_forwarded, user_id)
+            if hasattr(self.db, "mark_lead_forwarded"):
+                await self._db_call("mark_lead_forwarded", user_id)
             self._log_action(user_id, "forward_to_crm_group", {"quality": quality}, success=True)
             return {"success": True, "message": f"CRM guruhiga yuborildi ({quality})"}
         except Exception as e:
@@ -600,7 +716,7 @@ class AgentToolExecutor:
 
     async def _get_crm_status_tool(self, user_id: int) -> Dict[str, Any]:
         """AmoCRM dan lead holatini olib kelish."""
-        user_info = self.db.get_user_info(user_id)
+        user_info = await self._db_call("get_user_info", user_id)
         phone = user_info.get("phone") if user_info else None
         
         if not phone:
@@ -617,7 +733,7 @@ class AgentToolExecutor:
     async def _update_lead_status(self, user_id: int, status_name: str) -> Dict[str, Any]:
         """AmoCRM da bitim statusini o'zgartirish."""
         import asyncio
-        user_info = self.db.get_user_info(user_id)
+        user_info = await self._db_call("get_user_info", user_id)
         phone = user_info.get("phone") if user_info else None
         
         if not phone:
@@ -654,13 +770,103 @@ class AgentToolExecutor:
             logger.error(f"[TOOL ERROR] update_lead_status: {e}")
             return {"success": False, "error": str(e)}
 
+    async def _create_followup_task(
+        self,
+        title: str,
+        details: Optional[str] = None,
+        user_id: Optional[int] = None,
+        lead_id: Optional[int] = None,
+        due_at: Optional[str] = None,
+        due_in_hours: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """AmoCRM ichida lead uchun follow-up vazifa yaratish."""
+        lead_context = await self._resolve_lead_context(user_id=user_id, lead_id=lead_id)
+        resolved_lead_id = lead_context.get("lead_id")
+        if not resolved_lead_id:
+            return {"success": False, "error": "Lead topilmadi - follow-up task yaratilmadi."}
+
+        deadline_hours = max(1, int(due_in_hours or 24))
+        if due_at:
+            try:
+                due_dt = datetime.datetime.fromisoformat(due_at)
+            except ValueError:
+                return {"success": False, "error": f"Noto'g'ri due_at format: {due_at}"}
+        else:
+            due_dt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=deadline_hours)
+
+        complete_till = int(due_dt.timestamp())
+        task_text = title.strip()
+        if details:
+            task_text = f"{task_text}. {details.strip()}"
+
+        try:
+            created = await self.amocrm.create_task(resolved_lead_id, task_text[:500], complete_till)
+            if not created:
+                return {"success": False, "error": "AmoCRM follow-up task yaratilmadi."}
+
+            self._log_action(
+                user_id,
+                "create_followup_task",
+                {
+                    "lead_id": resolved_lead_id,
+                    "title": title,
+                    "details": details,
+                    "due_at": due_dt.isoformat(),
+                },
+                success=True,
+            )
+            return {
+                "success": True,
+                "lead_id": resolved_lead_id,
+                "message": f"Follow-up task yaratildi: {title}",
+                "due_at": due_dt.isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"[TOOL ERROR] create_followup_task: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _add_lead_note(
+        self,
+        note: str,
+        user_id: Optional[int] = None,
+        lead_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """AmoCRM lead kartasiga izoh qo'shish."""
+        lead_context = await self._resolve_lead_context(user_id=user_id, lead_id=lead_id)
+        resolved_lead_id = lead_context.get("lead_id")
+        if not resolved_lead_id:
+            return {"success": False, "error": "Lead topilmadi - note yozilmadi."}
+
+        try:
+            added = await asyncio.to_thread(self.amocrm.add_lead_note, resolved_lead_id, note[:1500])
+            if not added:
+                return {"success": False, "error": "AmoCRM lead note yozilmadi."}
+
+            self._log_action(
+                user_id,
+                "add_lead_note",
+                {
+                    "lead_id": resolved_lead_id,
+                    "note": note,
+                },
+                success=True,
+            )
+            return {
+                "success": True,
+                "lead_id": resolved_lead_id,
+                "message": "Lead note yozildi.",
+            }
+        except Exception as e:
+            logger.error(f"[TOOL ERROR] add_lead_note: {e}")
+            return {"success": False, "error": str(e)}
+
 
     async def _qualify_lead(self, user_id: int, source: str = None, service: str = None, 
                              temperature: str = None, need: str = None, budget_range: str = None,
                              tag: str = None) -> Dict[str, Any]:
         """AmoCRM maydonlarini va teglarini yangilash."""
         import asyncio
-        user_info = self.db.get_user_info(user_id)
+        user_info = await self._db_call("get_user_info", user_id)
         phone = user_info.get("phone") if user_info else None
         
         if not phone:
@@ -729,7 +935,7 @@ class AgentToolExecutor:
         """Bazadan mijoz profilini olish."""
         import asyncio
         try:
-            data = await asyncio.to_thread(self.db.get_user_info, user_id)
+            data = await self._db_call("get_user_info", user_id)
             if data:
                 return {"success": True, "profile": data}
             else:
@@ -741,7 +947,7 @@ class AgentToolExecutor:
         """Jamoa a'zolarini bazadan olish."""
         import asyncio
         try:
-            members = await asyncio.to_thread(self.db.get_team_roles)
+            members = await self._db_call("get_team_roles")
             return {"success": True, "members": members}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -751,15 +957,18 @@ class AgentToolExecutor:
         import asyncio
         try:
             # 1. Vazifani bazaga qo'shish
-            task_id = await asyncio.to_thread(
-                self.db.add_task, 
-                assigned_to=assigned_to, 
-                description=f"{title}: {description}", 
-                deadline=deadline or "Belgilanmagan"
-            )
+            if hasattr(self.db, "add_task"):
+                task_id = await self._db_call(
+                    "add_task",
+                    assigned_to=assigned_to,
+                    description=f"{title}: {description}",
+                    deadline=deadline or "Belgilanmagan",
+                )
+            else:
+                task_id = None
             
             # 2. Xodimga xabar yuborish
-            member_info = await asyncio.to_thread(self.db.get_user_info, assigned_to)
+            member_info = await self._db_call("get_user_info", assigned_to)
             member_name = member_info.get("first_name", "Xodim") if member_info else "Xodim"
             
             notification = (
@@ -810,10 +1019,10 @@ class AgentToolExecutor:
                     action_data: dict, success: bool, error: Optional[str] = None) -> None:
         """Agent amalini DB ga yozish."""
         try:
-            data_json = json.dumps(action_data, ensure_ascii=False)
-            if error:
-                data_json = json.dumps({"data": action_data, "error": error}, ensure_ascii=False)
-            self.db.log_agent_action(user_id, action_type, data_json, success)
+            payload = action_data if not error else {"data": action_data, "error": error}
+            result = self.db.log_agent_action(user_id, action_type, payload, success)
+            if inspect.isawaitable(result):
+                asyncio.create_task(result)
         except Exception as e:
             logger.warning(f"[AGENT LOG] Xato: {e}")
 
