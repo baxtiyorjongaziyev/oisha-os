@@ -2,9 +2,12 @@ import logging
 import datetime
 import json
 import asyncio
-from typing import Dict, Any, List
+import time
+import requests
+from typing import Dict, Any, List, Set
 from src.database import Database
 from src.services.crm_service import CRMService
+from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +26,7 @@ class EnterpriseReporter:
 
     async def get_daily_efficiency_report(self):
         """Kunlik hisobot: faqat bugungi o'zgarishlar va umumiy holat."""
-        now = datetime.datetime.now()
+        now = get_local_now()
         today_str = now.strftime('%Y-%m-%d')
         month_str = now.strftime('%Y-%m')
         report = [f"📊 <b>KUNLIK ENTERPRISE HISOBOT</b> ({today_str})\n"]
@@ -87,7 +90,7 @@ class EnterpriseReporter:
 
     async def get_team_efficiency_report(self) -> str:
         """Jamoa va bo'limlar uchun umumiy samaradorlik hisoboti."""
-        now = datetime.datetime.now()
+        now = get_local_now()
         month_str = now.strftime('%Y-%m')
         
         report = []
@@ -140,7 +143,7 @@ class EnterpriseReporter:
             
             # 3 kunlik ishlab chiqarish qoidasi (SLA: 3 days)
             urgent_projects = []
-            now_dt = datetime.datetime.now()
+            now_dt = get_local_now()
             
             from src.services.airtable_sync import AirtableSync as _AT
             for p in projects:
@@ -203,7 +206,7 @@ class EnterpriseReporter:
         report.append("\n" + await self.get_accountability_segment())
 
         report.append("\n👑 <b>XULOSA</b>")
-        report.append(f"<i>Oisha-OS avtomatik hisobot — {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}</i>")
+        report.append(f"<i>Oisha-OS avtomatik hisobot — {get_local_now().strftime('%Y-%m-%d %H:%M')}</i>")
         
         report.append("\n💡 <i>Tizimli yondashuv — o'sish poydevori!</i>")
         return "\n".join(report)
@@ -237,59 +240,198 @@ class EnterpriseReporter:
         return "\n".join(report)
 
     async def get_real_numbers_audit(self) -> str:
-        """Real raqamlarda jamoa auditi: qilinayotgan va qilinmayotgan ishlar."""
-        now = datetime.datetime.now()
-        report = [f"📊 <b>OISHA-OS: CRM HYGIENE & PERFORMANCE AUDIT</b>"]
-        report.append(f"📅 <i>{now.strftime('%d.%m.%Y | %H:%M')}</i>\n")
+        """Real raqamlarda jamoa auditi: qilinayotgan va qilinmayotgan ishlar.
         
-        # 1. Pipeline Audit (AmoCRM)
-        leads = await self.crm.amocrm.get_leads_detailed(limit=100)
-        stagnant_24h = []
-        revenue_at_risk = 0
+        [FIXED v2.3] Now checks multiple health indicators:
+        - Multi-period stagnation (24h, 48h, 7d)
+        - Leads without tasks
+        - Overdue tasks
+        - Unsorted messages
+        - Weighted health score (0-100%)
+        """
+        now = get_local_now()
+        report = [f"📊 *OISHA-OS: CRM HYGIENE & PERFORMANCE AUDIT*"]
+        report.append(f"📅 _{now.strftime('%d.%m.%Y | %H:%M')}_\n")
         
-        now_ts = now.timestamp()
-        day_seconds = 24 * 3600
+        # 1. Fetch all leads (up to 200 for comprehensive analysis)
+        all_leads: List[Dict] = []
+        for page in [1, 2]:
+            url = f"{self.crm.amocrm.base_url}/api/v4/leads?limit=100&page={page}"
+            resp = requests.get(url, headers=self.crm.amocrm._get_headers())
+            if resp.status_code == 200:
+                page_leads = resp.json().get("_embedded", {}).get("leads", [])
+                all_leads.extend(page_leads)
+            else:
+                break
         
-        for l in leads:
-            if l.get('status_id') in [self.WON_STATUS, self.LOST_STATUS]:
+        if not all_leads:
+            return "❌ **XATO:** AmoCRM'dan lidlar olinmadi. Token tekshiring."
+        
+        # 2. Fetch all tasks
+        all_tasks = await self.crm.amocrm.get_tasks()
+        task_entity_ids: Set[int] = {t.get("entity_id") for t in all_tasks if t.get("entity_type") == "leads"}
+        now_ts = time.time()
+        
+        # 3. Comprehensive Health Metrics
+        metrics = {
+            "total_leads": len(all_leads),
+            "active_leads": 0,
+            "stagnant_24h": [],
+            "stagnant_48h": [],
+            "stagnant_7d": [],
+            "no_tasks": [],
+            "overdue_tasks": [],
+            "revenue_at_risk": 0,
+        }
+        
+        for lead in all_leads:
+            status_id = lead.get('status_id')
+            
+            # Skip Won/Lost leads from active counts
+            if status_id in [self.WON_STATUS, self.LOST_STATUS]:
                 continue
             
-            # Stagnation check
-            updated_at = l.get('updated_at', 0)
-            if (now_ts - updated_at) > day_seconds:
-                stagnant_24h.append(l)
-                revenue_at_risk += l.get('price', 0)
-                
-        # 2. Accountability (Managers)
-        report.append("🔥 <b>Menejerlar faolligi (Oxirgi 24s):</b>")
-        async with await self.db.get_connection() as conn:
-            async with conn.execute("SELECT first_name, role FROM users WHERE role IS NOT NULL") as cursor:
-                team = await cursor.fetchall()
+            metrics["active_leads"] += 1
+            lead_id = lead.get('id')
+            updated_at = lead.get('updated_at', 0)
+            hours_stagnant = (now_ts - updated_at) / 3600
+            price = lead.get('price', 0) or 0
             
-        for name, role in team:
-            # Haqiqiy ma'lumotlar bazasidan 'action'larni hisoblash (kelgusida event_logs dan olinadi)
-            # Hozircha stagnation dagi lidlar soniga qarab Score beramiz
-            manager_leads = [l for l in stagnant_24h if l.get('responsible_user_id') == name]
-            report.append(f"• {name} ({role}): {'✅ A' if not manager_leads else '⚠️ B'} Score")
-
-        # 3. Dirty Leads Alert
-        if stagnant_24h:
-            report.append(f"\n🛑 <b>CRM MUAMMOLARI (Dirty Leads):</b>")
-            report.append(f"- 24 soatdan beri unutilgan lidlar: <b>{len(stagnant_24h)} ta</b>")
-            report.append(f"- Muzlab qolgan summa (Risk): <b>{revenue_at_risk:,.0f} so'm</b>".replace(',', ' '))
+            # Multi-period stagnation tracking
+            if hours_stagnant > 24:
+                metrics["stagnant_24h"].append(lead)
+                metrics["revenue_at_risk"] += price
+            if hours_stagnant > 48:
+                metrics["stagnant_48h"].append(lead)
+            if hours_stagnant > 7 * 24:
+                metrics["stagnant_7d"].append(lead)
             
-            report.append(f"\n⚠️ <b>KECHIKKAN LIDLAR:</b>")
-            for l in stagnant_24h[:5]:
-                l_name = l.get('name', 'Nomsiz')
-                price = l.get('price', 0)
-                report.append(f"  • {l_name} ({price:,.0f} so'm)".replace(',', ' '))
+            # Check for tasks
+            lead_tasks = [t for t in all_tasks if t.get('entity_id') == lead_id]
+            if not lead_tasks:
+                metrics["no_tasks"].append(lead)
+            else:
+                # Check for overdue tasks
+                if any(t.get('complete_till', 0) < now_ts for t in lead_tasks):
+                    metrics["overdue_tasks"].append(lead)
         
-        report.append("\n💡 <b>OISHA TAHLILI:</b>")
-        if len(stagnant_24h) > 5:
-            report.append("<i>\"Sotuv bo'limida tizimli xato bor. 24 soatdan oshgan lidlar soni kritik darajada! @baxtiyorjong_gaziyev nazoratga oling.\"</i>")
+        # 4. Check unsorted messages
+        unsorted_count = 0
+        try:
+            un_resp = requests.get(
+                f"{self.crm.amocrm.base_url}/api/v4/leads/unsorted",
+                headers=self.crm.amocrm._get_headers()
+            )
+            if un_resp.status_code == 200:
+                unsorted_count = len(un_resp.json().get("_embedded", {}).get("unsorted", []))
+        except Exception as e:
+            logger.warning(f"[AUDIT] Unsorted fetch failed: {e}")
+        
+        # 5. Calculate Health Score (0-100%)
+        # Formula: Start at 100, deduct penalties
+        health_score = 100
+        penalties = {
+            "no_tasks": len(metrics["no_tasks"]) * 10,  # -10 per lead without tasks
+            "overdue": len(metrics["overdue_tasks"]) * 5,  # -5 per overdue task
+            "stagnant_24h": len(metrics["stagnant_24h"]) * 3,  # -3 per 24h stagnant
+            "stagnant_48h": len(metrics["stagnant_48h"]) * 5,  # -5 per 48h stagnant
+            "stagnant_7d": len(metrics["stagnant_7d"]) * 10,  # -10 per 7d stagnant
+            "unsorted": unsorted_count * 2,  # -2 per unsorted
+        }
+        
+        total_penalty = sum(penalties.values())
+        # Scale penalty: max 100 points deducted
+        health_score = max(0, 100 - min(total_penalty, 100))
+        
+        # 6. Build Comprehensive Report
+        report.append(f"📈 **CRM SALOMATLIGI: {health_score}%**")
+        
+        if health_score >= 80:
+            report.append("🟢 *Holat: Yaxshi*")
+        elif health_score >= 60:
+            report.append("🟡 *Holat: O'rtacha - Diqqat talab*")
+        elif health_score >= 40:
+            report.append("🟠 *Holat: Yomon - Tezkor choralar*")
         else:
-            report.append("<i>\"CRM tozaligi yaxshi. Asosiy e'tiborni yangi lidlarni yopishga qarating.\"</i>")
+            report.append("🔴 *Holat: Kritik - Darhol ishga kiring!*")
+        
+        report.append(f"\n📊 **ASOSIY KO'RSATKICHLAR:**")
+        report.append(f"• Jami aktiv lidlar: **{metrics['active_leads']} ta**")
+        
+        # Task-related issues (HIGHEST PRIORITY)
+        if metrics["no_tasks"] or metrics["overdue_tasks"]:
+            report.append(f"\n⚠️ **VAZIFA MUAMMOLARI (YUQORI USTUVORLIK):**")
+            if metrics["no_tasks"]:
+                report.append(f"• ❌ Vazifasiz lidlar: **{len(metrics['no_tasks'])} ta**")
+            if metrics["overdue_tasks"]:
+                report.append(f"• ⏰ Muddati o'tgan vazifalar: **{len(metrics['overdue_tasks'])} ta**")
+        
+        # Stagnation issues
+        if any([metrics["stagnant_24h"], metrics["stagnant_48h"], metrics["stagnant_7d"]]):
+            report.append(f"\n🐌 **STAGNATSiya (Harakatsiz lidlar):**")
+            if metrics["stagnant_24h"]:
+                report.append(f"• 24 soatdan oshgan: **{len(metrics['stagnant_24h'])} ta**")
+            if metrics["stagnant_48h"]:
+                report.append(f"• 48 soatdan oshgan: **{len(metrics['stagnant_48h'])} ta**")
+            if metrics["stagnant_7d"]:
+                report.append(f"• 7 kundan oshgan: **{len(metrics['stagnant_7d'])} ta** ⚠️")
+        
+        # Financial risk
+        if metrics["revenue_at_risk"] > 0:
+            report.append(f"\n💰 **MOLIYAVIY XAVF:**")
+            report.append(f"• Muzlab qolgan summa: **{metrics['revenue_at_risk']:,.0f} so'm**".replace(',', ' '))
+        
+        # Unsorted
+        if unsorted_count > 0:
+            report.append(f"\n📥 **SARALANMAGAN:**")
+            report.append(f"• Saralanmagan xabarlar: **{unsorted_count} ta**")
+        
+        # 7. Accountability (Managers) - FIXED
+        report.append("\n👥 **MENEdjerlar FAOLLIGI:**")
+        try:
+            async with await self.db.get_connection() as conn:
+                async with conn.execute("SELECT first_name, role FROM users WHERE role IS NOT NULL") as cursor:
+                    team = await cursor.fetchall()
             
+            for name, role in team:
+                # Count all problematic leads for this manager
+                manager_problems = sum(
+                    1 for l in metrics["no_tasks"] + metrics["overdue_tasks"]
+                    if l.get('responsible_user_id') == name
+                )
+                
+                if manager_problems == 0:
+                    report.append(f"• {name} ({role}): ✅ A'lo")
+                elif manager_problems <= 2:
+                    report.append(f"• {name} ({role}): 🟡 {manager_problems} muammo")
+                else:
+                    report.append(f"• {name} ({role}): 🔴 {manager_problems} muammo - Diqqat!")
+        except Exception as e:
+            logger.warning(f"[AUDIT] Manager stats failed: {e}")
+            report.append("• Menejеr ma'lumotlari olinmadi")
+        
+        # 8. Detailed Problem List (if issues exist)
+        problem_leads = metrics["no_tasks"][:3]  # Show first 3 as examples
+        if problem_leads:
+            report.append(f"\n📝 **NAMUNA VAZIFASIZ LIDLAR:**")
+            for l in problem_leads:
+                l_name = l.get('name', 'Nomsiz')
+                l_id = l.get('id')
+                report.append(f"  • {l_name} (ID: {l_id})")
+        
+        # 9. OISHA Analysis - ACCURATE
+        report.append("\n💡 **OISHA TAHLILI:**")
+        
+        if health_score >= 80:
+            report.append("_\"CRM tartibi yaxshi. Asosiy e'tiborni yangi lidlarni yopishga qarating.\"_")
+        elif health_score >= 60:
+            report.append("_\"CRM'da ayrim muammolar mavjud. Vazifasiz lidlarga e'tibor bering.\"_")
+        elif health_score >= 40:
+            report.append("_\"⚠️ CRM tartibi yomon! Darhol vazifalar qo'shing va stagnat lidlar bilan ishlang.\"_")
+        else:
+            report.append("_\"🚨 KRITIK! CRM to'la tartibsizlikda! @baxtiyorjong_gaziyev darhol nazoratga oling!\"_")
+            report.append("_\"Barcha menejerlarga vazifa qo'shish buyurilsin.\"_")
+        
         return "\n".join(report)
 
 
@@ -297,7 +439,7 @@ class EnterpriseReporter:
         """Kutilib qolgan lidlar uchun ogohlantirish."""
         # Oxirgi 24 soatda o'zgarmagan lidlarni topish
         leads = await self.crm.amocrm.get_leads_detailed(limit=50)
-        now = datetime.datetime.now().timestamp()
+        now = get_local_now().timestamp()
         day_seconds = 24 * 3600
         
         stagnant = []
@@ -311,12 +453,12 @@ class EnterpriseReporter:
                 stagnant.append(l.get('name', f"ID:{l.get('id')}"))
         
         if stagnant:
-            return f"🚨 <b>DIQQAT - Sales Stagnation!</b>\nQuyidagi lidlar 24 soatdan beri o'zgarmagan: {', '.join(stagnant[:5])}...\nIltimos, @Oydin_JonBranding va @tezmenejer harakat qiling!"
+            return f"🚨 **DIQQAT - Sales Stagnation!**\nQuyidagi lidlar 24 soatdan beri o'zgarmagan: {', '.join(stagnant[:5])}...\nIltimos, @Oydin_JonBranding va @tezmenejer harakat qiling!"
         return ""
 
     async def generate_morning_plan(self, distribution: Dict[int, List[Dict]]) -> str:
         """Ertalabki 'Plan' hisoboti."""
-        now = datetime.datetime.now()
+        now = get_local_now()
         report = [
             f"☀️ <b>{now.strftime('%d.%m.%Y')} — YANGI KUN, YANGI G'ALABALAR!</b>",
             "🚀 Oisha-OS jamoani jangovar shay holatga keltiradi.\n",
@@ -341,14 +483,14 @@ class EnterpriseReporter:
 
     async def generate_plan_fact_report(self) -> str:
         """Kechki 'Plan-Fact' hisoboti."""
-        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        today = get_local_now().strftime('%Y-%m-%d')
         plans = await self.db.get_daily_plan(today)
         
         if not plans:
             return await self.generate_proactive_vision()
             
         report = [
-            f"🌙 <b>{datetime.datetime.now().strftime('%d.%m.%Y')} — KUNLIK PLAN-FAKT TAHLILI</b>",
+            f"🌙 <b>{get_local_now().strftime('%d.%m.%Y')} — KUNLIK PLAN-FAKT TAHLILI</b>",
             "🧐 Oisha-OS natijalarni tekshirmoqda...\n"
         ]
         
@@ -428,7 +570,7 @@ class EnterpriseReporter:
         """Vazifa bo'lmaganda jamoaga strategik yo'nalish va 'Growth Missions' berish."""
         logger.info("[PROACTIVE] Generating strategic vision since no plans found.")
         
-        now = datetime.datetime.now()
+        now = get_local_now()
         report = [
             f"🌙 <b>{now.strftime('%d.%m.%Y')} — STRATEGIK O'SISH IMKONIYaTI</b>",
             "Biron bir konkret vazifa rejalashtirilmaganligi bizga to'xtash uchun sabab emas. Dunyodagi eng zo'r jamoa bunday vaqtda o'sish ustida ishlaydi! 🚀\n",
