@@ -250,13 +250,27 @@ async def background_monitor_task() -> None:
             await check_airtable_stagnation()
             await check_airtable_deadlines()
 
-            # 3. Shaxsiy eslatmalar (17:00 da - Hisobotdan oldin)
-            if now.hour == 17 and now.minute < 10:
-                await send_overdue_nudges()
+            # 3. Shaxsiy eslatmalar (17:00 da - faqat bir marta)
+            if now.hour == 17 and now.minute == 0:
+                # Bir marta yuborishni tekshirish
+                today_str = now.strftime('%Y-%m-%d')
+                job_key = f"overdue_nudges_{today_str}"
+                if not hasattr(background_monitor_task, '_sent_jobs'):
+                    background_monitor_task._sent_jobs = set()
+                if job_key not in background_monitor_task._sent_jobs:
+                    await send_overdue_nudges()
+                    background_monitor_task._sent_jobs.add(job_key)
 
-            # 4. Har 4 soatda "Hushyor" xabari (13:00, 17:00, 21:00)
-            if now.hour in [13, 17, 21] and now.minute <= 5:
-                await notify_admin("👸 **Oisha OS: Tizim nazoratda**\nAmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda.")
+            # 4. Har 4 soatda "Hushyor" xabari (13:00, 17:00, 21:00 - faqat bir marta)
+            if now.hour in [13, 17, 21] and now.minute == 0:
+                # Bir marta yuborishni tekshirish
+                today_str = now.strftime('%Y-%m-%d')
+                job_key = f"status_notify_{now.hour}_{today_str}"
+                if not hasattr(background_monitor_task, '_sent_jobs'):
+                    background_monitor_task._sent_jobs = set()
+                if job_key not in background_monitor_task._sent_jobs:
+                    await notify_admin("👸 **Oisha OS: Tizim nazoratda**\nAmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda.")
+                    background_monitor_task._sent_jobs.add(job_key)
 
             # Intervalni 5 daqiqaga tushirdik (300 soniya)
             await asyncio.sleep(300)

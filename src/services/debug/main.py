@@ -212,12 +212,21 @@ async def background_monitor_task():
             await check_amocrm_stagnation()
             await check_airtable_deadlines()
 
-            # 2. Kunlik hisobotni 18:00 da yuborish
+            # 2. Kunlik hisobotni 18:00 da yuborish (faqat bir marta)
             now = datetime.now()
-            if now.hour == 18 and now.minute < 10:
-                # Faqat bir marta yuborish uchun tekshiruv (Memory check or simple delay)
-                await send_daily_report()
-                logger.info("[MONITOR] Kunlik hisobot yuborildi.")
+            if now.hour == 18 and now.minute == 0:
+                # Bir marta yuborishni tekshirish
+                today = now.strftime('%Y-%m-%d')
+                job_key = f"daily_report_sent_{today}"
+                if not hasattr(background_monitor_task, 'daily_report_sent'):
+                    background_monitor_task.daily_report_sent = set()
+                
+                if job_key not in background_monitor_task.daily_report_sent:
+                    await send_daily_report()
+                    background_monitor_task.daily_report_sent.add(job_key)
+                    logger.info("[MONITOR] Kunlik hisobot yuborildi.")
+                else:
+                    logger.info("[MONITOR] Kunlik hisobot allaqachon yuborilgan. Skip.")
             
             # 3. Har 4 soatda "Hushyor" xabari (09:00 - 21:00 orasi)
             if now.hour in [9, 13, 17, 21] and now.minute <= 5:
