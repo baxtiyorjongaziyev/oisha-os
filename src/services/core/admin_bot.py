@@ -528,10 +528,11 @@ class AdminBot:
         JADVAL:
         - 09:45 — Morning Briefing (Qarorlar uchun ma'lumot)
         - 10:00 — Daily Mission Distribution (Plan)
+        - 13:00 — Lunch Reminder (Ertalabki vazifalar eslatmasi)
         - 14:00 — Afternoon Mission Distribution (Plan)
         - 01:00 — Night Shift (CRM tozalash)
         - 02:00 — Intelligence Audit (Kechalik AI tahlil)
-        - 21:00 — Evening Fact Report (Plan vs Natija)
+        - 21:00 — Evening Fact Report (Plan vs Natija, hisobot talab qilish)
         """
         import src.api_server as api_server_module
         
@@ -611,6 +612,23 @@ class AdminBot:
                         except Exception as e:
                             logger.error(f"[MISSION ERROR] {e}")
                             api_server_module.add_activity("⚠️ Mission Error", str(e), "error")
+
+                # 2.5 Lunch Reminder (13:00) - Ertalabki vazifalar haqida eslatish
+                if current_time == "13:00":
+                    job_id = f"lunch_reminder_{today}"
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        # Set state immediately to prevent duplicate runs
+                        await self.db.set_state(job_id, "running")
+                        logger.info("👸 [SCHEDULER] Lunch Reminder boshlandi...")
+                        try:
+                            from src.services.proactive_worker import send_lunch_reminder
+                            await send_lunch_reminder()
+                            await self.db.set_state(job_id, "done")
+                            api_server_module.add_activity("🍽 Lunch Reminder", "Tushlik vaqtida ertalabki vazifalar haqida eslatma yuborildi.", "success")
+                        except Exception as e:
+                            logger.error(f"[LUNCH ERROR] {e}")
+                            api_server_module.add_activity("⚠️ Lunch Reminder Error", str(e), "error")
 
                 # 3. Evening Fact Report (21:00)
                 if current_time == "21:00":
