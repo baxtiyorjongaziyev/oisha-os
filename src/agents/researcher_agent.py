@@ -9,6 +9,7 @@ class ResearcherAgent(BaseAgent):
     """Deep research va tahlil qiluvchi agent (OSINT/Search)."""
     
     async def process_task(self, user_id: int, task_description: str, context: Optional[Dict[str, Any]] = None) -> str:
+        await self.load_session_history(user_id)
         self.update_history(user_id, "user", task_description)
         
         # Tarixni Gemini formatiga o'tkazish
