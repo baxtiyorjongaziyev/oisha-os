@@ -1,0 +1,92 @@
+# Docker build optimization
+# Exclude files not needed in container
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+.venv
+venv/
+env/
+ENV/
+
+# Session files (mounted from GCS)
+*.session
+*.session-journal
+
+# Data (mounted from GCS)
+data/
+!data/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov/
+.tox/
+
+# Documentation (not needed in container)
+*.md
+!README.md
+DEPLOYMENT.md
+AUDIT_IMPROVEMENTS*.md
+
+# CI/CD (not needed in container)
+.github/
+scripts/setup-ci-cd.sh
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+*.pickle
+sync_output.txt
+trace.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Credentials (MUST be excluded)
+.env
+.env.local
+.env.*.local
+credentials.json
+service_account.json
+token.json
+*.key
+*.pem
+
+# Claude/AI specific
+.claude/
+.windsurf/
+.plans/
+
+# Node.js (if any)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Deployment artifacts
+*.tar.gz
+*.zip
