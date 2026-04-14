@@ -550,7 +550,10 @@ class AdminBot:
                 # 1. Morning Briefing (09:45)
                 if current_time == "09:45":
                     job_id = f"morning_briefing_{today}"
-                    if not await self.db.get_state(job_id):
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        # Set state immediately to prevent duplicate runs
+                        await self.db.set_state(job_id, "running")
                         logger.info("👸 [SCHEDULER] Morning Briefing boshlandi...")
                         try:
                             from src.services.proactive_worker import send_morning_briefing
@@ -570,7 +573,10 @@ class AdminBot:
                 if current_time in daily_plan_slots:
                     phase = daily_plan_slots[current_time]
                     job_id = f"daily_plan_{phase}_{today}"
-                    if not await self.db.get_state(job_id):
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        # Set state immediately to prevent duplicate runs
+                        await self.db.set_state(job_id, "running")
                         logger.info(f"[SCHEDULER] Daily plan discipline phase={phase}...")
                         try:
                             from src.services.proactive_worker import demand_daily_plans
@@ -589,7 +595,10 @@ class AdminBot:
                 # 2. Daily Missions (10:00 va 14:00)
                 if current_time in ["10:00", "14:00"]:
                     job_id = f"daily_{today}_{current_time}"
-                    if not await self.db.get_state(job_id):
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        # Set state immediately to prevent duplicate runs
+                        await self.db.set_state(job_id, "running")
                         logger.info(f"👸 [SCHEDULER] Mission Distribution {current_time}...")
                         try:
                             await self.trigger_daily_missions()
@@ -606,7 +615,10 @@ class AdminBot:
                 # 3. Evening Fact Report (21:00)
                 if current_time == "21:00":
                     job_id = f"evening_fact_{today}"
-                    if not await self.db.get_state(job_id):
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        # Set state immediately to prevent duplicate runs
+                        await self.db.set_state(job_id, "running")
                         logger.info("👸 [SCHEDULER] Evening Fact Report boshlandi...")
                         try:
                             from src.services.proactive_worker import send_evening_fact_report
@@ -620,7 +632,10 @@ class AdminBot:
                 # 4. Night Shift — CRM Cleanup (01:00)
                 if current_time == "01:00":
                     job_id = f"night_shift_{today}"
-                    if not await self.db.get_state(job_id):
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        # Set state immediately to prevent duplicate runs
+                        await self.db.set_state(job_id, "running")
                         logger.info("👸 [SCHEDULER] Night Shift CRM Cleanup boshlandi...")
                         api_server_module.add_activity("🧹 Night Shift", "AmoCRM dublikatlar va qotib qolgan lidlar tozalanmoqda...", "thinking")
                         try:
@@ -635,7 +650,10 @@ class AdminBot:
                 # 5. Intelligence Audit — Tungi AI Tahlili (02:00)
                 if current_time == "02:00":
                     job_id = f"intelligence_audit_{today}"
-                    if not await self.db.get_state(job_id):
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):  # Check both done and running states
+                        # Set state immediately to prevent duplicate runs from scheduler
+                        await self.db.set_state(job_id, "running")
                         logger.info("👸 [SCHEDULER] Intelligence Audit boshlandi (tungi)...")
                         api_server_module.add_activity("🕵️ Intelligence Audit", "Tungi AI tahlili boshlandi. Faollik loglari o'rganilmoqda...", "thinking")
                         try:
@@ -663,7 +681,10 @@ class AdminBot:
                 # 6. Menejer Scorecard (18:30) — Kunlik KPI
                 if current_time == "18:30":
                     job_id = f"scorecard_{today}"
-                    if not await self.db.get_state(job_id):
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        # Set state immediately to prevent duplicate runs
+                        await self.db.set_state(job_id, "running")
                         logger.info("📊 [SCHEDULER] Menejer Scorecard boshlandi...")
                         try:
                             from src.services.core.sales_analytics import SalesAnalytics
@@ -685,27 +706,17 @@ class AdminBot:
                 # 7. Stagnatsiya Alert (12:00) — Harakatsiz lidlar
                 if current_time == "12:00":
                     job_id = f"stagnation_{today}"
-                    if not await self.db.get_state(job_id):
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        # Set state immediately to prevent duplicate runs
+                        await self.db.set_state(job_id, "running")
                         logger.info("[SCHEDULER] Sales Conversion Push boshlandi...")
                         try:
                             from src.services.proactive_worker import check_amocrm_stagnation
                             await check_amocrm_stagnation()
-                            await self.db.set_state(job_id, "done")
-                            api_server_module.add_activity(
-                                "ðŸš¨ Sales Conversion Push",
-                                "Harakatsiz lidlar bo'yicha conversion push yuborildi.",
-                                "success",
-                            )
-                        except Exception as e:
-                            logger.error(f"[SALES PUSH ERROR] {e}")
-                            api_server_module.add_activity("âš ï¸ Sales Push Error", str(e), "error")
-                    job_id = f"stagnation_{today}"
-                    if not await self.db.get_state(job_id):
-                        logger.info("🚨 [SCHEDULER] Stagnatsiya Alert boshlandi...")
-                        try:
+                            # Stagnation Alert is part of same job
                             from src.services.core.sales_analytics import SalesAnalytics
                             from telegram import Bot
-                            import src.config as config
                             bot_token = getattr(config, "BOT_TOKEN", None)
                             group_id = getattr(config, "CRM_GROUP_ID", None)
                             thread_id = getattr(config, "TOPIC_REPORTS_ID", None)
@@ -714,6 +725,14 @@ class AdminBot:
                                 analytics = SalesAnalytics(bot=tg_bot)
                                 await analytics.send_stagnation_alert(group_id, thread_id)
                             await self.db.set_state(job_id, "done")
+                            api_server_module.add_activity(
+                                "🚀 Sales Conversion Push",
+                                "Harakatsiz lidlar bo'yicha conversion push yuborildi.",
+                                "success",
+                            )
+                        except Exception as e:
+                            logger.error(f"[SALES PUSH ERROR] {e}")
+                            api_server_module.add_activity("⚠️ Sales Push Error", str(e), "error")
                             api_server_module.add_activity("🚨 Stagnatsiya", "Harakatsiz lidlar hisoboti yuborildi.", "success")
                         except Exception as e:
                             logger.error(f"[STAGNATION ERROR] {e}")
@@ -722,7 +741,10 @@ class AdminBot:
                 # 8. Pipeline Funnel (Dushanba 09:30) — Haftalik conversiya
                 if now.weekday() == 0 and current_time == "09:30":
                     job_id = f"funnel_{today}"
-                    if not await self.db.get_state(job_id):
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        # Set state immediately to prevent duplicate runs
+                        await self.db.set_state(job_id, "running")
                         logger.info("📊 [SCHEDULER] Pipeline Funnel boshlandi...")
                         try:
                             from src.services.core.sales_analytics import SalesAnalytics
