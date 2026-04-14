@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import os
 import sys
 
@@ -8,8 +9,9 @@ try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
-    pass
+except (AttributeError, OSError) as e:
+    # Non-critical: console encoding failure won't stop the bot
+    print(f"[INIT] Warning: Could not reconfigure console encoding: {e}")
 
 # [STABILITY] Windows loop policy configuration
 if os.name == 'nt':
@@ -85,9 +87,64 @@ BOT_TOKEN_STR = None
 TN5_GROUP_ID = settings.CRM_GROUP_ID if settings.CRM_GROUP_ID is not None else -1003820339529
 TN5_TOPIC_ID = settings.CRM_TOPIC_ID if settings.CRM_TOPIC_ID is not None else 7  # Ishtirokchilar ma'lumotlari
 
+
+def _restore_cloud_artifacts() -> None:
+    """Materialize Cloud Run secrets into runtime files when provided."""
+    os.makedirs("data", exist_ok=True)
+
+    session_b64 = os.environ.get("USERBOT_SESSION_B64")
+    session_path = os.path.join("data", "userbot_session.session")
+    if session_b64 and not os.path.exists(session_path):
+        try:
+            with open(session_path, "wb") as fh:
+                fh.write(base64.b64decode(session_b64))
+            logger.info("[CLOUD] Restored userbot session from secret.")
+        except Exception as exc:
+            logger.error(f"[CLOUD] Failed to restore userbot session: {exc}")
+
+    service_account_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    creds_path = os.environ.get("GSHEET_CREDS_FILE", "service_account.json")
+    if service_account_json and not os.path.exists(creds_path):
+        try:
+            with open(creds_path, "w", encoding="utf-8") as fh:
+                fh.write(service_account_json)
+            logger.info(f"[CLOUD] Restored Google credentials file at {creds_path}.")
+        except Exception as exc:
+            logger.error(f"[CLOUD] Failed to restore Google credentials file: {exc}")
+
+
+async def _connect_user_client(telegram_client: TelegramClient) -> bool:
+    """Connect the userbot without ever falling back to interactive auth.
+    
+    Args:
+        telegram_client: The Telethon client instance to connect
+        
+    Returns:
+        bool: True if authorized, False otherwise
+    """
+    await telegram_client.connect()
+    if await telegram_client.is_user_authorized():
+        return True
+
+    logger.error("[AUTH] Userbot session missing or unauthorized. Interactive auth is disabled in runtime.")
+    try:
+        import src.api_server as api_module
+        api_module.update_api_status("degraded", "Userbot session missing or unauthorized")
+        api_module.set_runtime_context(userbot_authorized=False)
+    except (ImportError, AttributeError) as e:
+        # API module may not be initialized yet during startup
+        logger.warning(f"[AUTH] Could not update API status: {e}")
+    return False
+
 # Callbacks and Helper Functions (defined after globals)
-async def push_block_to_amocrm(user_id, phone, block_text):
-    """Callback for SessionManager to flush a block of messages."""
+async def push_block_to_amocrm(user_id: int, phone: str, block_text: str) -> None:
+    """Callback for SessionManager to flush a block of messages.
+    
+    Args:
+        user_id: The Telegram user ID
+        phone: User's phone number
+        block_text: The message block to push to AmoCRM
+    """
     global msg_controller
     if not msg_controller: return
     try:
@@ -133,7 +190,7 @@ async def global_phone_lookup(phone: str) -> Optional[Dict[str, Any]]:
             }
             
             # 3. Bazaga saqlab qo'yamiz (Keyingi safar tekin bo'lishi uchun)
-            msg_controller.db.upsert_user(
+            await msg_controller.db.upsert_user(
                 user_id=user.id,
                 first_name=user.first_name,
                 username=user.username,
@@ -151,47 +208,51 @@ async def global_phone_lookup(phone: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def notify_admin(message: str, client: TelegramClient):
-    """Admin (baxtiyorjon) ga muhim xabar yuborish."""
+async def notify_admin(message: str, client: TelegramClient) -> None:
+    """Admin (baxtiyorjon) ga muhim xabar yuborish.
+    
+    Args:
+        message: The message text to send
+        client: The Telethon client instance
+    """
     try:
         await client.send_message('me', message)
     except Exception as e:
         logger.error(f"[NOTIFY ERROR] {e}")
 
-async def background_monitor_task():
-    """Barcha korporativ monitoring vazifalarini fonda ishga tushirish (AmoCRM + Airtable)."""
+async def background_monitor_task() -> None:
+    """Barcha korporativ monitoring vazifalarini fonda ishga tushirish (AmoCRM + Airtable).
+    
+    Runs indefinitely with 5-minute intervals between checks.
+    Handles errors gracefully and continues operation.
+    """
     from src.services.proactive_worker import (
-        check_amocrm_stagnation, 
-        check_airtable_deadlines, 
-        send_daily_report, 
-        send_morning_briefing,
+        check_amocrm_stagnation,
+        check_airtable_deadlines,
         send_overdue_nudges,
-        check_airtable_stagnation
+        check_airtable_stagnation,
     )
-    from datetime import datetime
+    from src.time_utils import get_local_now, is_quiet_hours
     
     logger.info("[MONITOR] Boshlandi (Interval: 5 daqiqa)")
     
     while True:
         try:
-            now = datetime.now()
+            now = get_local_now()
+
+            if is_quiet_hours(now):
+                logger.debug("[MONITOR] Quiet hours active. Automatic notifications are paused.")
+                await asyncio.sleep(300)
+                continue
             
             # 1. Stagnatsiya va Deadline tekshirish
             await check_amocrm_stagnation()
             await check_airtable_stagnation()
             await check_airtable_deadlines()
 
-            # 2. Kunlik hisobotni 18:00 da yuborish
-            if now.hour == 18 and now.minute < 10:
-                await send_daily_report()
-            
             # 3. Shaxsiy eslatmalar (17:00 da - Hisobotdan oldin)
             if now.hour == 17 and now.minute < 10:
                 await send_overdue_nudges()
-            
-            # 4. Ertalabki briefing (09:00)
-            if now.hour == 9 and now.minute < 5:
-                await send_morning_briefing()
 
             # 4. Har 4 soatda "Hushyor" xabari (13:00, 17:00, 21:00)
             if now.hour in [13, 17, 21] and now.minute <= 5:
@@ -415,7 +476,7 @@ async def handle_new_message(event):
             msg_controller.enterprise_reporter.airtable = at_sync
             
             report = await msg_controller.enterprise_reporter.get_team_efficiency_report()
-            await event.respond(report, parse_mode='html')
+            await event.respond(report, parse_mode='markdown')
             return
             
             from src.services.airtable_sync import AirtableSync
@@ -710,7 +771,11 @@ async def sync_single_lead(event):
     except Exception as e:
         logger.error(f"❌ [ENTERPRISE SYNC ERROR] {e}")
 
-async def run_health_check_api():
+async def run_health_check_api() -> None:
+    """Run the FastAPI health check server for Cloud Run compatibility.
+    
+    Handles port conflicts gracefully by logging warnings instead of crashing.
+    """
     config_uvicorn = uvicorn.Config(api_app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)), log_level="info")
     server = uvicorn.Server(config_uvicorn)
     try:
@@ -730,6 +795,7 @@ async def main():
     
     # [GOD MODE] Health Check for Cloud Run
     asyncio.create_task(run_health_check_api())
+    _restore_cloud_artifacts()
     
     # 1. Credentials, Foundations & Database
     api_keys = {
@@ -741,9 +807,6 @@ async def main():
     db = Database()
     await db.init_instance()
     msg_controller = MessageController(api_keys=api_keys, db=db)
-    
-    # [GOD MODE] Initialize Juma Notifier
-    juma_notifier = JumaNotifier(client=client, db=db)
     
     # [GOD MODE] Authorized Session Discovery
     SESSION_PATH = 'data/userbot_session'
@@ -762,6 +825,7 @@ async def main():
     BOT_TOKEN = settings.BOT_TOKEN.get_secret_value()
     bot_client = TelegramClient('data/bot_session', settings.API_ID, settings.API_HASH)
     BOT_TOKEN_STR = BOT_TOKEN
+    juma_notifier = JumaNotifier(client=client, db=db)
 
     # 3. Services initialization (Safe inside loop)
     lead_scraper = LeadScraper(
@@ -825,16 +889,35 @@ async def main():
     import src.api_server as api_module
     api_module.user_client = client
     api_module.db_instance = msg_controller.db
+    api_module.set_runtime_context(
+        service_name=os.getenv("K_SERVICE") or "oisha-main",
+        canonical_entrypoint="src/main.py",
+        state_backend="sqlite",
+        state_db_path=msg_controller.db.db_path,
+        scheduler_mode="persistent",
+        quiet_hours_enabled=True,
+        userbot_authorized=None,
+    )
 
-    # 4. Starting API server
-    asyncio.create_task(run_health_check_api())
-    
     # 5. Background Tasks
     asyncio.create_task(session_manager.monitor_sessions())
     asyncio.create_task(orchestrator.background_loop(interval_minutes=15))
 
     # 3. Userbotni (Shaxsiy akkaunt) ishga tushirish
-    await client.start()
+    userbot_ready = await _connect_user_client(client)
+    api_module.set_runtime_context(
+        state_db_path=msg_controller.db.db_path,
+        userbot_authorized=userbot_ready,
+    )
+    if not userbot_ready:
+        if BOT_TOKEN_STR:
+            try:
+                await bot_client.start(bot_token=BOT_TOKEN_STR)
+            except Exception as bot_exc:
+                logger.error(f"[AUTH] Bot-token head startup failed in degraded mode: {bot_exc}")
+                bot_client = None
+        logger.error("[AUTH] Runtime is alive for health checks, but userbot features are disabled.")
+        await asyncio.Event().wait()
     
     # [GOD MODE] Initialize Managers
     global folder_manager, voice_processor
@@ -843,7 +926,12 @@ async def main():
     
     # 4. Botni ishga tushirish
     if BOT_TOKEN_STR:
-        await bot_client.start(bot_token=BOT_TOKEN_STR)
+        try:
+            await bot_client.start(bot_token=BOT_TOKEN_STR)
+        except Exception as bot_exc:
+            logger.error(f"[AUTH] Bot-token head startup failed: {bot_exc}")
+            bot_client = None
+    api_module.update_api_status("online", "Canonical runtime active")
     
     # [STABILITY] Registrating event handlers AFTER client initialization
     client.add_event_handler(handle_new_message, events.NewMessage)
@@ -940,13 +1028,41 @@ async def main():
                 
                 try:
                     audit_text = await msg_controller.enterprise_reporter.get_real_numbers_audit()
-                    await event.respond(audit_text, parse_mode='html')
+                    await event.respond(audit_text, parse_mode='markdown')
                 except Exception as e:
                     logger.error(f"👸 [AUDIT ERROR] {e}")
                     await event.respond(f"👸 **Xatolik:** Hisobatni tayyorlashda muammo yuz berdi: {e}")
 
             @bot_client.on(events.NewMessage(chats=settings.TEAM_GROUP_ID))
             async def team_group_handler(event):
+                sender = await event.get_sender()
+                if getattr(sender, "bot", False):
+                    return
+
+                text = (event.raw_text or "").strip()
+                normalized = text.lower()
+
+                report_type = None
+                if normalized.startswith(("plan:", "reja:", "#plan", "#reja")):
+                    report_type = "morning_plan"
+                elif normalized.startswith(("result:", "natija:", "#result", "#natija")):
+                    report_type = "evening_result"
+
+                if report_type:
+                    await msg_controller.db.upsert_user(
+                        sender.id,
+                        first_name=getattr(sender, "first_name", "Xodim"),
+                        username=getattr(sender, "username", None),
+                    )
+                    await msg_controller.db.save_team_report(
+                        user_id=sender.id,
+                        report_type=report_type,
+                        content=text,
+                    )
+                    report_label = "PLAN" if report_type == "morning_plan" else "NATIJA"
+                    await event.reply(f"✅ {report_label} qabul qilindi.")
+                    return
+
                 # Faqat mention bo'lganda yoki savol berilganda javob beramiz
                 if event.mentioned:
                     logger.info(f"👸 [TEAM ASSISTANT] Mentioned in group {event.chat_id}")
@@ -1001,7 +1117,7 @@ async def main():
     print("✅ Userbot ulandi va xabarlarni eshita boshladi!")
 
     # 4. Admin Botni ishga tushirish (on bot_client)
-    if admin_bot:
+    if admin_bot and bot_client:
         await admin_bot.start()
         print(f"✅ Oisha Admin Bot (Bot Token-da) faollashtirildi.")
 

@@ -2,7 +2,7 @@ import os
 import structlog
 import logging
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import SecretStr, Field
+from pydantic import SecretStr, Field, model_validator
 from typing import Optional
 
 # Simplified Structured Logging Setup
@@ -23,6 +23,7 @@ class AppSettings(BaseSettings):
     ENABLE_AUTO_REPLY: bool = False
     AUTORUN_MASS_SYNC: bool = True
     RUNNING_IN_CLOUD: bool = False
+    APP_TIMEZONE: str = "Asia/Tashkent"
     BOT_TOKEN: SecretStr
     ADMIN_BOT_TOKEN: Optional[SecretStr] = None
     API_ID: int
@@ -85,6 +86,39 @@ class AppSettings(BaseSettings):
         "\n- PROFESSIONAL: Muloqotda rasmiy va masofaviy tonni saqlang. 'Aka/Opa' murojaatidan voz keching, faqat Ism yoki Lavozim (Menejer, PM, Asoschi) orqali murojaat qiling."
         "\n\n🛠 CAPABILITIES: CRM Audit, Mission Control (Lead Distribution), Systemic Enforcement."
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_empty_env_values(cls, data):
+        if not isinstance(data, dict):
+            return data
+        for key, value in list(data.items()):
+            if isinstance(value, str):
+                data[key] = value.strip()
+        optional_keys = {
+            "ADMIN_BOT_TOKEN",
+            "DEEPSEEK_API_KEY",
+            "AMOCRM_CLIENT_SECRET",
+            "AIRTABLE_API_KEY",
+            "AIRTABLE_BASE_ID",
+            "TURSO_DATABASE_URL",
+            "TURSO_AUTH_TOKEN",
+            "AMOCRM_TG_CHAT_FIELD_ID",
+            "CRM_GROUP_ID",
+            "PROJECTS_GROUP_ID",
+            "TEAM_GROUP_ID",
+            "CRM_TOPIC_ID",
+            "TOPIC_CRM_ID",
+            "TOPIC_REPORTS_ID",
+            "TOPIC_TASKS_ID",
+            "TOPIC_GENERAL_ID",
+            "TOPIC_KIRIM_ID",
+            "GSHEET_ID",
+        }
+        for key in optional_keys:
+            if data.get(key) == "":
+                data[key] = None
+        return data
 
 
     model_config = SettingsConfigDict(
