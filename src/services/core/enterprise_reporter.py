@@ -477,17 +477,14 @@ class EnterpriseReporter:
             else:
                 for i, m in enumerate(missions, 1):
                     report.append(f"  {i}. <a href='{m['link']}'>{m['lead_name']}</a> — {m['mission']}")
-                    
-        report.append("\n📈 <i>Har bir yopilgan bitim — bizning umumiy muvaffaqiyatimiz! Olaysizlar!</i>")
-        return "\n".join(report)
-
     async def generate_plan_fact_report(self) -> str:
-        """Kechki 'Plan-Fact' hisoboti."""
+        """Kechki 'Plan-Fakt' hisoboti."""
         today = get_local_now().strftime('%Y-%m-%d')
         plans = await self.db.get_daily_plan(today)
         
         if not plans:
-            return await self.generate_proactive_vision()
+            # Vazifalar rejalashtirilmagan - jamoadan talab qilish
+            return await self.generate_missing_plan_demand()
             
         report = [
             f"🌙 <b>{get_local_now().strftime('%d.%m.%Y')} — KUNLIK PLAN-FAKT TAHLILI</b>",
@@ -566,6 +563,45 @@ class EnterpriseReporter:
             report.append("📢 <b>DIQQAT!</b> Bugungi natijalar kutilganidan past. Ertaga har bir bitim uchun jang qilishingizni so'rayman!")
 
         return "\n".join(report)
+    async def generate_missing_plan_demand(self) -> str:
+        """Vazifalar rejalashtirilmaganda jamoadan talab qilish xabari."""
+        now = get_local_now()
+        
+        # Real ma'lumotlarni olish
+        try:
+            leads = await self.crm.amocrm.get_leads_detailed(limit=50)
+            active_leads = [l for l in leads if l.get('status_id') not in [self.WON_STATUS, self.LOST_STATUS]]
+            total_value = sum(int(l.get('price', 0) or 0) for l in active_leads)
+        except Exception as e:
+            logger.warning(f"[MISSING PLAN] Lead fetch failed: {e}")
+            active_leads = []
+            total_value = 0
+        
+        report = [
+            f"🌙 <b>{now.strftime('%d.%m.%Y')} — KUNLIK REJA TALAB ETILMOQDA</b>",
+            "📢 <b>DIQQAT!</b> Bugun uchun rejalashtirilgan vazifalar topilmadi.\n",
+            "🎯 <b>HAR BIR MENEJERDAN REJA KUTILYAPTI:</b>",
+            "• Bugun qaysi lidlarga ishlayapsiz?",
+            "• Qanday natijalar kutyapsiz?",
+            "• Qanday yordam kerak?\n",
+        ]
+        
+        if active_leads:
+            report.append(f"💼 <b>AKTIV BITIMLAR:</b> {len(active_leads)} ta (qiymati: {total_value:,.0f} so'm)".replace(",", " "))
+            report.append("📊 <i>CRM'dagi aktiv lidlaringiz bo'yicha rejani yuboring!</i>\n")
+        
+        report.extend([
+            "✍️ <b>JAVOB FORMATI:</b>",
+            "<code>PLAN:</code>",
+            "<code>1) Asosiy vazifa</code>",
+            "<code>2) Bugun yopiladigan bitim</code>",
+            "<code>3) Kerakli yordam</code>\n",
+            "⏰ <b>DEADLINE:</b> Kechki hisobotdan oldin (20:00)",
+            "👑 <b>@baxtiyorjong_gaziyev nazorat qilmoqda</b>"
+        ])
+        
+        return "\n".join(report)
+
     async def generate_proactive_vision(self) -> str:
         """Vazifa bo'lmaganda jamoaga strategik yo'nalish va 'Growth Missions' berish."""
         logger.info("[PROACTIVE] Generating strategic vision since no plans found.")
