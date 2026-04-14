@@ -3,12 +3,46 @@ import datetime
 import os
 import sys
 import logging
+from html import escape
+from typing import Any, Dict, List, Optional
 from telegram.ext import Application
 import asyncio
+from src.time_utils import get_local_now
+from src.services.core.agent_loop import AgentTask, MinimalAgentLoop
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+DAILY_PLAN_PHASES: Dict[str, Dict[str, str]] = {
+    "initial": {
+        "job": "daily_plan_initial",
+        "title": "📝 <b>Kunlik plan topshirish vaqti</b>",
+        "deadline": "11:30",
+        "tone": "Bugungi planingizni aniq yozing. Kim nima yopishi va qaysi blocker borligi hozir kerak.",
+    },
+    "reminder": {
+        "job": "daily_plan_reminder",
+        "title": "⏰ <b>Kunlik plan hali yopilmadi</b>",
+        "deadline": "14:00",
+        "tone": "Plan topshirmaganlar hozir yozadi. Bugun qaysi natija olinishi ochiq ko'rinishi shart.",
+    },
+    "escalation": {
+        "job": "daily_plan_escalation",
+        "title": "🚨 <b>Plan intizomi bo'yicha eskalatsiya</b>",
+        "deadline": "Darhol",
+        "tone": "Plan hanuz yo'q. Bu intizom masalasi. Hozirning o'zida yozib, keyingi natija uchun javobgarlikni oling.",
+    },
+}
+
+PM_STAGE_HINTS = [
+    (("brief", "brif"), ("Konsept / yo'nalish", "Brifni yopib, kreativ yo'nalishni tasdiqlang.")),
+    (("strategy", "strategiya", "research", "tahlil"), ("Naming / copy", "Research deliverable'ni yakunlab, ijodiy blokka uzating.")),
+    (("naming", "copy", "nom"), ("Design", "Tanlangan variantni dizayn ishiga topshiring.")),
+    (("design", "dizayn", "draft", "maket"), ("Client review", "Mijoz feedbackini bugun oling va deadline ni qayta mahkamlang.")),
+    (("review", "feedback", "approval", "tasdiq"), ("Revision / production", "Feedbackni yopib, keyingi etapni kalendarga kiriting.")),
+    (("production", "dev", "fayl", "topshirish"), ("Delivery", "Topshirish paketini tayyorlab, final sanani yoping.")),
+]
 
 # Import bot modules from src
 from src import config
@@ -32,6 +66,234 @@ async def generate_ai_message(user_id: int, prompt: str):
     response = response.replace("<br>", "\n").replace("<br/>", "\n")
     return response
 
+
+def _safe_text(value: Any, fallback: str = "Noma'lum") -> str:
+    text = str(value).strip() if value is not None else ""
+    return text or fallback
+
+
+def _mention(member: Dict[str, Any]) -> str:
+    username = (member.get("username") or "").strip()
+    name = escape(_safe_text(member.get("name"), f"User_{member.get('user_id', '0')}"))
+    if username:
+        return f"@{escape(username)}"
+
+    user_id = member.get("user_id")
+    if user_id:
+        return f"<a href='tg://user?id={user_id}'>{name}</a>"
+    return name
+
+
+def _lead_idle_hours(lead: Dict[str, Any], now_ts: Optional[int] = None) -> int:
+    now_epoch = now_ts or int(get_local_now().timestamp())
+    updated_at = int(lead.get("updated_at") or 0)
+    if updated_at <= 0:
+        return 0
+    return max(0, int((now_epoch - updated_at) / 3600))
+
+
+def _format_idle_text(hours: int) -> str:
+    if hours >= 48:
+        return f"{hours // 24} kun"
+    return f"{hours} soat"
+
+
+def _sales_action_for_lead(lead: Dict[str, Any]) -> str:
+    idle_hours = _lead_idle_hours(lead)
+    pipeline_id = int(lead.get("pipeline_id") or 0)
+    price = int(lead.get("price") or 0)
+
+    if idle_hours >= 72:
+        return "bugun qo'ng'iroq qiling, e'tirozni yozing va keyingi qaror sanasini CRMga kiriting"
+    if pipeline_id == 10123314:
+        if price >= 10_000_000:
+            return "qaror beruvchi va narx e'tirozini yopadigan taklif yuboring"
+        return "yakunlovchi follow-up yuborib, meeting yoki to'lov sanasini aniq mahkamlang"
+    return "briefni aniqlashtirib, keyingi meeting yoki КП sanasini belgilang"
+
+
+def _sales_manager_playbook(leads: List[Dict[str, Any]]) -> str:
+    high_value = any(int(lead.get("price") or 0) >= 10_000_000 for lead in leads)
+    older_than_3d = any(_lead_idle_hours(lead) >= 72 for lead in leads)
+    if older_than_3d:
+        return "1) bugun qo'ng'iroq, 2) yo'qotish sababini yozish, 3) keyingi sanani CRMga kiritish"
+    if high_value:
+        return "1) qaror beruvchini topish, 2) qiymatni qayta asoslash, 3) taklifga deadline qo'yish"
+    return "1) follow-up yuborish, 2) next stepni yozish, 3) lidni bosqichsiz qoldirmaslik"
+
+
+def _project_stage_recommendation(stage_name: str) -> tuple[str, str]:
+    normalized = (stage_name or "").lower()
+    for keywords, recommendation in PM_STAGE_HINTS:
+        if any(keyword in normalized for keyword in keywords):
+            return recommendation
+    return ("Keyingi stage aniqlansin", "Statusni yangilang yoki blokerni yozib, keyingi mas'ulni belgilang.")
+
+
+def _project_age_days(project: Dict[str, Any]) -> int:
+    from src.services.core.airtable_sync import AirtableSync as _AT
+
+    fields = project.get("fields", {})
+    start_raw = _AT._get_field(fields, "start_date")
+    if not start_raw:
+        return 0
+
+    try:
+        created_dt = datetime.datetime.fromisoformat(str(start_raw).replace("Z", "+00:00"))
+    except ValueError:
+        return 0
+
+    now = get_local_now()
+    if created_dt.tzinfo is not None:
+        now_cmp = now.astimezone(datetime.timezone.utc)
+    else:
+        now_cmp = now.replace(tzinfo=None)
+    return max(0, (now_cmp - created_dt).days)
+
+
+async def _run_notification_agent(
+    db: Database,
+    task: AgentTask,
+    executor,
+):
+    loop = MinimalAgentLoop(db)
+
+    async def verifier(agent_task: AgentTask, execution: Dict[str, Any]) -> Dict[str, Any]:
+        group_sent = bool(execution.get("group_sent"))
+        dm_failed = execution.get("dm_failed", [])
+        return {
+            "task_id": agent_task.task_id,
+            "success": group_sent,
+            "group_sent": group_sent,
+            "sent_count": int(execution.get("sent_count", 0) or 0),
+            "dm_sent": int(execution.get("dm_sent", 0) or 0),
+            "dm_failed_count": len(dm_failed) if isinstance(dm_failed, list) else 0,
+            "reason": execution.get("reason") or ("delivery_confirmed" if group_sent else "group_delivery_failed"),
+            "verified_at": get_local_now().isoformat(),
+        }
+
+    return await loop.run(task, executor, verifier)
+
+
+async def demand_daily_plans(phase: str = "initial") -> bool:
+    """Kunlik planni jamoa a'zolaridan qat'iy talab qiladi."""
+    from telegram import Bot
+    import src.config as config
+
+    phase_config = DAILY_PLAN_PHASES.get(phase)
+    if not phase_config:
+        logger.warning(f"[DAILY PLAN] Unknown phase requested: {phase}")
+        return False
+
+    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+    group_id = getattr(config, "TEAM_GROUP_ID", getattr(config, "CRM_GROUP_ID", None))
+    thread_id = getattr(config, "TOPIC_GENERAL_ID", None)
+    if not (bot_token and group_id):
+        return False
+
+    db = Database()
+    today = get_local_now().strftime("%Y-%m-%d")
+    job_key = phase_config["job"]
+    if await db.is_job_run(job_key, today):
+        return False
+
+    missing = await db.get_missing_reports(report_type="morning_plan", date_str=today)
+    if not missing:
+        logger.info(f"[DAILY PLAN] Everyone already submitted for phase={phase}.")
+        return False
+
+    missing_lines = []
+    for member in missing:
+        role_label = member.get("position") or member.get("detailed_role") or member.get("role") or "Team"
+        missing_lines.append(f"• {_mention(member)} — {escape(_safe_text(role_label, 'Team'))}")
+
+    footer = (
+        "Javob formati: <code>PLAN: 1) asosiy natija 2) bugun yopiladigan ish 3) blocker</code>\n"
+        f"Deadline: <b>{phase_config['deadline']}</b>."
+    )
+    group_message = (
+        f"{phase_config['title']}\n\n"
+        f"{phase_config['tone']}\n\n"
+        "<b>Plan topshirmaganlar:</b>\n"
+        f"{chr(10).join(missing_lines)}\n\n"
+        f"{footer}"
+    )
+
+    if phase == "escalation" and getattr(config, "OWNER_ID", None):
+        owner_mention = f"<a href='tg://user?id={config.OWNER_ID}'>Owner</a>"
+        group_message += f"\n\nEskalat qabul qiluvchi: {owner_mention}"
+
+    missing_user_ids = [int(member["user_id"]) for member in missing if member.get("user_id")]
+    task = AgentTask(
+        task_id=f"{job_key}:{today}",
+        kind="daily_plan_demand",
+        goal=f"Daily plan discipline: {phase}",
+        payload={
+            "phase": phase,
+            "group_id": group_id,
+            "thread_id": thread_id,
+            "missing_user_ids": missing_user_ids,
+            "missing_count": len(missing),
+        },
+        planner_notes=[
+            "Plan topshirmaganlar aniqlanadi",
+            "Guruhga intizom xabari yuboriladi",
+            "Har bir a'zoga shaxsiy eslatma yuboriladi",
+        ],
+        requested_by="scheduler",
+    )
+
+    async def executor(agent_task: AgentTask) -> Dict[str, Any]:
+        bot = Bot(token=bot_token)
+        dm_sent = 0
+        dm_failed: List[Dict[str, Any]] = []
+
+        await bot.send_message(
+            chat_id=group_id,
+            text=group_message,
+            parse_mode="HTML",
+            message_thread_id=thread_id,
+        )
+
+        for member in missing:
+            user_id = member.get("user_id")
+            if not user_id:
+                continue
+            dm_text = (
+                f"{phase_config['title']}\n\n"
+                f"{phase_config['tone']}\n"
+                f"Format: <code>PLAN: ...</code>\n"
+                f"Deadline: <b>{phase_config['deadline']}</b>."
+            )
+            try:
+                await bot.send_message(chat_id=user_id, text=dm_text, parse_mode="HTML")
+                dm_sent += 1
+            except Exception as exc:
+                logger.warning(f"[DAILY PLAN] Could not DM user {user_id}: {exc}")
+                dm_failed.append({"user_id": user_id, "error": str(exc)})
+
+        return {
+            "success": True,
+            "group_sent": True,
+            "sent_count": 1 + dm_sent,
+            "dm_sent": dm_sent,
+            "dm_failed": dm_failed,
+            "phase": agent_task.payload.get("phase"),
+            "missing_count": agent_task.payload.get("missing_count"),
+        }
+
+    result = await _run_notification_agent(db, task, executor)
+    if not result.success:
+        logger.error(f"[DAILY PLAN] {phase} delivery failed: {result.verification}")
+        return False
+
+    await db.mark_job_run(job_key, today)
+    logger.info(
+        f"[DAILY PLAN] {phase} request sent for {len(missing)} members. "
+        f"DM sent={result.execution.get('dm_sent', 0)} failed={len(result.execution.get('dm_failed', []))}"
+    )
+    return True
+
 class ProactiveWorker:
     def __init__(self, bot, crm):
         self.bot = bot
@@ -53,8 +315,7 @@ class ProactiveWorker:
     async def _send_daily_sales_report(self):
         """Kunlik sotuv hisobotini yuborish."""
         # Faqat belgilangan vaqtda yuborish (masalan 09:00 yoki 18:00)
-        from datetime import datetime
-        now = datetime.now()
+        now = get_local_now()
         if now.hour == 18 and now.minute < 30: # Har kuni 18:00 larda
             logger.info("[PROACTIVE] Sending daily sales report...")
             report = self.crm.amocrm.get_sales_report()
@@ -80,7 +341,7 @@ async def send_proactive_followups():
         
     app = Application.builder().token(bot_token).build()
     db = Database()
-    now = datetime.datetime.now()
+    now = get_local_now()
     
     try:
         async with await db.get_connection() as conn:
@@ -135,7 +396,7 @@ async def distribute_team_tasks(force: bool = False):
     from telegram import Bot
     
     db = Database()
-    now = datetime.datetime.now()
+    now = get_local_now()
     today = now.strftime('%Y-%m-%d')
     target_hours = [10, 14]
     
@@ -189,7 +450,7 @@ async def distribute_team_tasks(force: bool = False):
         except Exception as e:
             logger.error(f"[XATO] Team Distribution: {e}")
 
-async def check_amocrm_stagnation():
+async def _legacy_check_amocrm_stagnation_direct():
     """AmoCRM stagnatsiya siyosatini tekshirish va AI bilan maslahat berish."""
     from src.database import Database
     import src.config as config
@@ -197,8 +458,8 @@ async def check_amocrm_stagnation():
     
     # [GOD MODE] Cooldown & Schedule Check (Optimization)
     db = Database()
-    today = datetime.datetime.now().strftime('%Y-%m-%d')
-    now = datetime.datetime.now()
+    now = get_local_now()
+    today = now.strftime('%Y-%m-%d')
     
     # 1. Check if already sent today
     if await db.is_job_run("stagnation_alert", today):
@@ -225,7 +486,7 @@ async def check_amocrm_stagnation():
         
         # [ENTERPRISE] Daily Memory: Ensure it fires 3 times per day (10:00, 14:00, 18:00)
         db = Database()
-        now = datetime.datetime.now()
+        now = get_local_now()
         today = now.strftime('%Y-%m-%d')
         target_hours = [10, 14, 18] # 3 times a day
         
@@ -297,7 +558,7 @@ async def check_airtable_deadlines():
         except Exception as e:
             logger.error(f"[XATO] Airtable deadline alert: {e}")
             
-async def check_airtable_stagnation():
+async def _legacy_check_airtable_stagnation():
     """Airtable loyihalar stagnatsiyasini tekshirish va Inomjonga eslatma yuborish."""
     logger.info("Airtable stagnation check started...")
     from src.services.airtable_sync import AirtableSync
@@ -306,7 +567,7 @@ async def check_airtable_stagnation():
     
     # [ENTERPRISE] Daily Memory: Ensure it fires 3 times per day (10:00, 14:00, 18:00)
     db = Database()
-    now = datetime.datetime.now()
+    now = get_local_now()
     today = now.strftime('%Y-%m-%d')
     target_hours = [10, 14, 18] # 3 times a day
     
@@ -363,6 +624,420 @@ async def check_airtable_stagnation():
 
         await db.mark_job_run(job_key, today)
 
+async def check_amocrm_stagnation():
+    """Qotib qolgan leadlarni topib, menejerlarga conversion push yuborish."""
+    from telegram import Bot
+    import src.config as config
+
+    db = Database()
+    now = get_local_now()
+    today = now.strftime("%Y-%m-%d")
+    target_hours = [12, 16]
+
+    if now.hour not in target_hours or now.minute > 10:
+        return
+
+    job_key = f"sales_conversion_push_{now.hour}"
+    if await db.is_job_run(job_key, today):
+        return
+
+    logger.info("[STAGNATION] Checking AmoCRM for stalled conversion opportunities...")
+    from src.services.amocrm_sync import AmoCRMSync
+
+    amo = AmoCRMSync(
+        config.AMOCRM_SUBDOMAIN,
+        config.AMOCRM_CLIENT_ID,
+        config.AMOCRM_CLIENT_SECRET,
+        config.AMOCRM_REDIRECT_URL,
+    )
+    stagnated = amo.check_stagnated_leads(hours=24)
+    if not stagnated:
+        return
+
+    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+    group_id = getattr(config, "CRM_GROUP_ID", None)
+    thread_id = getattr(config, "TOPIC_CRM_ID", None) or getattr(config, "TOPIC_REPORTS_ID", None)
+    if not (bot_token and group_id):
+        return
+
+    grouped: Dict[int, List[Dict[str, Any]]] = {}
+    now_ts = int(now.timestamp())
+    for lead in stagnated:
+        responsible_id = int(lead.get("responsible_user_id") or 0)
+        grouped.setdefault(responsible_id, []).append(lead)
+
+    total_value = sum(int(lead.get("price") or 0) for lead in stagnated)
+    lines = [
+        "🚨 <b>Sales Conversion Push</b>",
+        f"24 soatdan oshgan leadlar: <b>{len(stagnated)}</b> ta",
+        f"Risk ostidagi summa: <b>{total_value:,.0f} so'm</b>".replace(",", " "),
+        "",
+    ]
+
+    for responsible_id, leads in sorted(grouped.items(), key=lambda item: len(item[1]), reverse=True):
+        manager_name = escape(_safe_text(amo.get_user_name(responsible_id), "Sotuv menejeri"))
+        lines.append(f"👤 <b>{manager_name}</b> — {len(leads)} ta lid")
+        for lead in sorted(
+            leads,
+            key=lambda item: (_lead_idle_hours(item, now_ts), int(item.get("price") or 0)),
+            reverse=True,
+        )[:3]:
+            idle_hours = _lead_idle_hours(lead, now_ts)
+            lead_name = escape(_safe_text(lead.get("name")))
+            amount = int(lead.get("price") or 0)
+            lead_link = f"https://{config.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead.get('id')}"
+            lines.append(
+                "• "
+                f"<a href='{lead_link}'>{lead_name}</a> — {_format_idle_text(idle_hours)}, "
+                f"{_sales_action_for_lead(lead)}"
+                + (f" <b>({amount:,.0f} so'm)</b>".replace(",", " ") if amount else "")
+            )
+        lines.append(f"  📌 Bugungi fokus: {_sales_manager_playbook(leads)}")
+        lines.append("")
+
+    lines.append("Talab: har bir qotib qolgan lid uchun bugun next step, sabab va keyingi sana CRMga yozilsin.")
+    message = "\n".join(lines).strip()
+    manager_ids = list(getattr(config, "SALES_MANAGER_IDS", []) or [])
+    task = AgentTask(
+        task_id=f"{job_key}:{today}",
+        kind="sales_conversion_push",
+        goal="CRMdagi qotib qolgan leadlarni conversionga qaytarish",
+        payload={
+            "group_id": group_id,
+            "thread_id": thread_id,
+            "manager_ids": manager_ids,
+            "lead_count": len(stagnated),
+            "risk_sum": total_value,
+        },
+        planner_notes=[
+            "Qotib qolgan leadlar menejer bo'yicha guruhlanadi",
+            "CRM threadga conversion push yuboriladi",
+            "Sales managerlarga DM orqali follow-up bosimi beriladi",
+        ],
+        requested_by="scheduler",
+    )
+
+    async def executor(agent_task: AgentTask) -> Dict[str, Any]:
+        bot = Bot(token=bot_token)
+        dm_sent = 0
+        dm_failed: List[Dict[str, Any]] = []
+
+        await bot.send_message(
+            chat_id=group_id,
+            text=message,
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+            message_thread_id=thread_id,
+        )
+
+        if manager_ids:
+            dm_text = (
+                "🚨 <b>Sales Conversion Push</b>\n"
+                "CRMda qotib qolgan leadlar bo'yicha guruhga report tashlandi.\n"
+                "Bugun har bir lead uchun: 1) kontakt, 2) sabab, 3) next step sanasi yozilsin."
+            )
+            for manager_id in manager_ids:
+                try:
+                    await bot.send_message(chat_id=manager_id, text=dm_text, parse_mode="HTML")
+                    dm_sent += 1
+                except Exception as exc:
+                    logger.warning(f"[STAGNATION] Could not DM sales manager {manager_id}: {exc}")
+                    dm_failed.append({"user_id": manager_id, "error": str(exc)})
+
+        return {
+            "success": True,
+            "group_sent": True,
+            "sent_count": 1 + dm_sent,
+            "dm_sent": dm_sent,
+            "dm_failed": dm_failed,
+            "lead_count": agent_task.payload.get("lead_count"),
+            "risk_sum": agent_task.payload.get("risk_sum"),
+        }
+
+    result = await _run_notification_agent(db, task, executor)
+    if not result.success:
+        logger.error(f"[STAGNATION] Conversion push delivery failed: {result.verification}")
+        return
+
+    await db.mark_job_run(job_key, today)
+    logger.info(f"[STAGNATION] Conversion push sent for hour {now.hour}.")
+
+async def _deprecated_check_airtable_stagnation_direct():
+    """Qimirlamay qolgan loyihalarni topib, PMga keyingi stage bo'yicha push yuborish."""
+    logger.info("Airtable stagnation check started...")
+    from telegram import Bot
+    from src.services.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync as AirtableCore
+    import src.config as config
+
+    db = Database()
+    now = get_local_now()
+    today = now.strftime("%Y-%m-%d")
+    target_hours = [11, 15, 18]
+
+    if now.hour not in target_hours or now.minute > 10:
+        return
+
+    job_key = f"project_stage_push_{now.hour}"
+    if await db.is_job_run(job_key, today):
+        return
+
+    sync = AirtableSync()
+    projects = sync.get_projects()
+    stalled_projects: List[Dict[str, Any]] = []
+
+    for project in projects:
+        fields = project.get("fields", {})
+        stage = _safe_text(AirtableCore._get_field(fields, "stage"), "")
+        if stage in AirtableCore.DONE_STAGES:
+            continue
+
+        deadline = AirtableCore._get_field(fields, "deadline")
+        manager_name = _safe_text(AirtableCore._get_field(fields, "manager"), "PM")
+        age_days = _project_age_days(project)
+        is_overdue = False
+        if deadline:
+            try:
+                deadline_dt = datetime.datetime.strptime(str(deadline), "%Y-%m-%d")
+                is_overdue = deadline_dt.date() < now.date()
+            except ValueError:
+                is_overdue = False
+
+        if age_days >= 3 or is_overdue:
+            next_stage, unblock_action = _project_stage_recommendation(stage)
+            stalled_projects.append(
+                {
+                    "name": _safe_text(AirtableCore._get_field(fields, "project_name")),
+                    "stage": stage or "Noma'lum",
+                    "manager": manager_name,
+                    "deadline": deadline or "Belgilanmagan",
+                    "age_days": age_days,
+                    "is_overdue": is_overdue,
+                    "next_stage": next_stage,
+                    "action": unblock_action,
+                }
+            )
+
+    if not stalled_projects:
+        return
+
+    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+    group_id = getattr(config, "PROJECTS_GROUP_ID", None)
+    thread_id = getattr(config, "TOPIC_TASKS_ID", None)
+    if not (bot_token and group_id):
+        return
+
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for project in stalled_projects:
+        grouped.setdefault(project["manager"], []).append(project)
+
+    lines = [
+        "🏗 <b>PM Stage Push</b>",
+        f"Qimirlamay qolgan loyiha: <b>{len(stalled_projects)}</b> ta",
+        "Talab: bugun status yangilanadi yoki keyingi etapga o'tish sanasi qo'yiladi.",
+        "",
+    ]
+
+    for manager_name, manager_projects in sorted(grouped.items(), key=lambda item: len(item[1]), reverse=True):
+        lines.append(f"👤 <b>{escape(manager_name)}</b> — {len(manager_projects)} ta loyiha")
+        for project in sorted(
+            manager_projects,
+            key=lambda item: (item["is_overdue"], item["age_days"]),
+            reverse=True,
+        )[:4]:
+            risk_text = "deadline o'tgan" if project["is_overdue"] else f"{project['age_days']} kun qimirlamagan"
+            lines.append(
+                "• "
+                f"<b>{escape(project['name'])}</b> — {escape(project['stage'])}, {risk_text}. "
+                f"Keyingi stage: <b>{escape(project['next_stage'])}</b>."
+            )
+            lines.append(f"  📌 Bugungi qadam: {escape(project['action'])}")
+        lines.append("")
+
+    bot = Bot(token=bot_token)
+    await bot.send_message(
+        chat_id=group_id,
+        text="\n".join(lines).strip(),
+        parse_mode="HTML",
+        message_thread_id=thread_id,
+    )
+
+    pm_user = db.get_user_by_role("pm")
+    if pm_user and pm_user.get("user_id"):
+        try:
+            await bot.send_message(
+                chat_id=pm_user["user_id"],
+                text=(
+                    "🏗 <b>PM Stage Push</b>\n"
+                    "Airtable'da qimirlamay qolgan loyihalar bo'yicha report guruhga yuborildi.\n"
+                    "Bugun har bir loyiha uchun keyingi stage yoki blocker yozilsin."
+                ),
+                parse_mode="HTML",
+            )
+        except Exception as exc:
+            logger.warning(f"[AIRTABLE STAGNATION] Could not DM PM: {exc}")
+
+    await db.mark_job_run(job_key, today)
+    logger.info(f"[AIRTABLE STAGNATION] Project stage push sent for hour {now.hour}.")
+
+async def check_airtable_stagnation():
+    """Qimirlamay qolgan loyihalarni topib, PMga keyingi stage bo'yicha push yuborish."""
+    logger.info("Airtable stagnation check started...")
+    from telegram import Bot
+    from src.services.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync as AirtableCore
+    import src.config as config
+
+    db = Database()
+    now = get_local_now()
+    today = now.strftime("%Y-%m-%d")
+    target_hours = [11, 15, 18]
+
+    if now.hour not in target_hours or now.minute > 10:
+        return
+
+    job_key = f"project_stage_push_{now.hour}"
+    if await db.is_job_run(job_key, today):
+        return
+
+    sync = AirtableSync()
+    projects = sync.get_projects()
+    stalled_projects: List[Dict[str, Any]] = []
+
+    for project in projects:
+        fields = project.get("fields", {})
+        stage = _safe_text(AirtableCore._get_field(fields, "stage"), "")
+        if stage in AirtableCore.DONE_STAGES:
+            continue
+
+        deadline = AirtableCore._get_field(fields, "deadline")
+        manager_name = _safe_text(AirtableCore._get_field(fields, "manager"), "PM")
+        age_days = _project_age_days(project)
+        is_overdue = False
+        if deadline:
+            try:
+                deadline_dt = datetime.datetime.strptime(str(deadline), "%Y-%m-%d")
+                is_overdue = deadline_dt.date() < now.date()
+            except ValueError:
+                is_overdue = False
+
+        if age_days >= 3 or is_overdue:
+            next_stage, unblock_action = _project_stage_recommendation(stage)
+            stalled_projects.append(
+                {
+                    "name": _safe_text(AirtableCore._get_field(fields, "project_name")),
+                    "stage": stage or "Noma'lum",
+                    "manager": manager_name,
+                    "deadline": deadline or "Belgilanmagan",
+                    "age_days": age_days,
+                    "is_overdue": is_overdue,
+                    "next_stage": next_stage,
+                    "action": unblock_action,
+                }
+            )
+
+    if not stalled_projects:
+        return
+
+    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+    group_id = getattr(config, "PROJECTS_GROUP_ID", None)
+    thread_id = getattr(config, "TOPIC_TASKS_ID", None)
+    if not (bot_token and group_id):
+        return
+
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for project in stalled_projects:
+        grouped.setdefault(project["manager"], []).append(project)
+
+    lines = [
+        "🏗 <b>PM Stage Push</b>",
+        f"Qimirlamay qolgan loyiha: <b>{len(stalled_projects)}</b> ta",
+        "Talab: bugun status yangilanadi yoki keyingi etapga o'tish sanasi qo'yiladi.",
+        "",
+    ]
+
+    for manager_name, manager_projects in sorted(grouped.items(), key=lambda item: len(item[1]), reverse=True):
+        lines.append(f"👤 <b>{escape(manager_name)}</b> — {len(manager_projects)} ta loyiha")
+        for project in sorted(
+            manager_projects,
+            key=lambda item: (item["is_overdue"], item["age_days"]),
+            reverse=True,
+        )[:4]:
+            risk_text = "deadline o'tgan" if project["is_overdue"] else f"{project['age_days']} kun qimirlamagan"
+            lines.append(
+                "• "
+                f"<b>{escape(project['name'])}</b> — {escape(project['stage'])}, {risk_text}. "
+                f"Keyingi stage: <b>{escape(project['next_stage'])}</b>."
+            )
+            lines.append(f"  📌 Bugungi qadam: {escape(project['action'])}")
+        lines.append("")
+
+    message = "\n".join(lines).strip()
+    pm_user = db.get_user_by_role("pm")
+    task = AgentTask(
+        task_id=f"{job_key}:{today}",
+        kind="pm_stage_push",
+        goal="Airtabledagi qimirlamay qolgan loyihalarni keyingi stagega surish",
+        payload={
+            "group_id": group_id,
+            "thread_id": thread_id,
+            "project_count": len(stalled_projects),
+            "pm_user_id": pm_user.get("user_id") if pm_user else None,
+        },
+        planner_notes=[
+            "Stalled loyihalar manager bo'yicha guruhlanadi",
+            "PM threadga status push yuboriladi",
+            "Mas'ul PMga shaxsiy DM bilan next-step talab qilinadi",
+        ],
+        requested_by="scheduler",
+    )
+
+    async def executor(agent_task: AgentTask) -> Dict[str, Any]:
+        bot = Bot(token=bot_token)
+        dm_sent = 0
+        dm_failed: List[Dict[str, Any]] = []
+
+        await bot.send_message(
+            chat_id=group_id,
+            text=message,
+            parse_mode="HTML",
+            message_thread_id=thread_id,
+        )
+
+        if pm_user and pm_user.get("user_id"):
+            try:
+                await bot.send_message(
+                    chat_id=pm_user["user_id"],
+                    text=(
+                        "🏗 <b>PM Stage Push</b>\n"
+                        "Airtable'da qimirlamay qolgan loyihalar bo'yicha report guruhga yuborildi.\n"
+                        "Bugun har bir loyiha uchun keyingi stage yoki blocker yozilsin."
+                    ),
+                    parse_mode="HTML",
+                )
+                dm_sent += 1
+            except Exception as exc:
+                logger.warning(f"[AIRTABLE STAGNATION] Could not DM PM: {exc}")
+                dm_failed.append({"user_id": pm_user['user_id'], "error": str(exc)})
+
+        return {
+            "success": True,
+            "group_sent": True,
+            "sent_count": 1 + dm_sent,
+            "dm_sent": dm_sent,
+            "dm_failed": dm_failed,
+            "project_count": agent_task.payload.get("project_count"),
+        }
+
+    result = await _run_notification_agent(db, task, executor)
+    if not result.success:
+        logger.error(f"[AIRTABLE STAGNATION] Project stage push delivery failed: {result.verification}")
+        return
+
+    await db.mark_job_run(job_key, today)
+    logger.info(f"[AIRTABLE STAGNATION] Project stage push sent for hour {now.hour}.")
+
+
 async def send_daily_report():
     """Kunlik umumiy statistika va jamoa samaradorligi hisoboti."""
     logger.info("Daily report job started...")
@@ -384,7 +1059,7 @@ async def send_daily_report():
     db = Database()
     
     # Bugun hisobot yuborilganmi? (Duplicate run oldini olish)
-    today = datetime.datetime.now().strftime('%Y-%m-%d')
+    today = get_local_now().strftime('%Y-%m-%d')
     if await db.is_job_run("daily_report", today):
         logger.info("[DAILY REPORT] Allaqachon bugun yuborilgan. Skip.")
         return
@@ -439,7 +1114,7 @@ async def send_morning_briefing():
     if not (bot_token and group_id): return
 
     db = Database()
-    today = datetime.datetime.now().strftime('%Y-%m-%d')
+    today = get_local_now().strftime('%Y-%m-%d')
     if await db.is_job_run("morning_briefing", today):
         logger.info("[MORNING BRIEFING] Allaqachon bugun yuborilgan. Skip.")
         return
@@ -508,7 +1183,7 @@ async def send_morning_briefing():
 async def send_overdue_nudges():
     """Vazifasi kechikayotgan xodimlarni guruhda (tagging) ogohlantirish."""
     db = Database()
-    today = datetime.datetime.now().strftime('%Y-%m-%d')
+    today = get_local_now().strftime('%Y-%m-%d')
     if await db.is_job_run("overdue_nudges", today):
         logger.info("[NUDGES] Allaqachon bugun yuborilgan. Skip.")
         return
@@ -566,7 +1241,7 @@ async def send_evening_fact_report():
     if not (bot_token and group_id): return
     
     db = Database()
-    today = datetime.datetime.now().strftime('%Y-%m-%d')
+    today = get_local_now().strftime('%Y-%m-%d')
     if await db.is_job_run("evening_fact", today):
         logger.info("[EVENING FACT] Allaqachon bugun yuborilgan. Skip.")
         return

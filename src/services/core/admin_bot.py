@@ -9,6 +9,7 @@ from telethon import events, Button, functions, types
 from src.services.mission_control import MissionControl
 from src.database import Database
 from src.controllers.message_controller import MessageController
+from src.time_utils import get_local_now, is_quiet_hours
 
 from src.services.crm_night_shift import CRMNightShift
 from typing import TYPE_CHECKING
@@ -158,7 +159,7 @@ class AdminBot:
                     f"🌟 **Oisha-OS Enterprise v2.1**\n\n"
                     f"Assalomu alaykum, **{role_name}**!\n"
                     f"Tizimga muvaffaqiyatli kirdingiz. Boshqaruv pulti tayyor.\n\n"
-                    f"📅 Bugun: `{datetime.now().strftime('%d.%m.%Y %H:%M')}`"
+                    f"📅 Bugun: `{get_local_now().strftime('%d.%m.%Y %H:%M')}`"
                 )
 
                 # Rollarga ko'ra tugmalar
@@ -537,9 +538,14 @@ class AdminBot:
         logger.info("👸 [ADMIN_BOT] Full Autonomous Scheduler v2.0 ishga tushdi! 🛡️")
         while True:
             try:
-                now = datetime.now()
+                now = get_local_now()
                 current_time = now.strftime("%H:%M")
                 today = now.strftime("%Y-%m-%d")
+
+                if is_quiet_hours(now):
+                    logger.debug("[SCHEDULER] Quiet hours active. Automatic Telegram jobs are paused.")
+                    await asyncio.sleep(30)
+                    continue
 
                 # 1. Morning Briefing (09:45)
                 if current_time == "09:45":
@@ -554,6 +560,31 @@ class AdminBot:
                         except Exception as e:
                             logger.error(f"[BRIEFING ERROR] {e}")
                             api_server_module.add_activity("⚠️ Morning Briefing", f"Xatolik: {e}", "error")
+
+                # 1.5 Daily Plan Discipline (10:15, 13:00, 16:30)
+                daily_plan_slots = {
+                    "10:15": "initial",
+                    "13:00": "reminder",
+                    "16:30": "escalation",
+                }
+                if current_time in daily_plan_slots:
+                    phase = daily_plan_slots[current_time]
+                    job_id = f"daily_plan_{phase}_{today}"
+                    if not await self.db.get_state(job_id):
+                        logger.info(f"[SCHEDULER] Daily plan discipline phase={phase}...")
+                        try:
+                            from src.services.proactive_worker import demand_daily_plans
+                            sent = await demand_daily_plans(phase)
+                            await self.db.set_state(job_id, "done")
+                            if sent:
+                                api_server_module.add_activity(
+                                    "ðŸ“ Daily Plan Discipline",
+                                    f"Kunlik plan bo'yicha {phase} faza yuborildi.",
+                                    "success",
+                                )
+                        except Exception as e:
+                            logger.error(f"[DAILY PLAN ERROR] {e}")
+                            api_server_module.add_activity("âš ï¸ Daily Plan Error", str(e), "error")
 
                 # 2. Daily Missions (10:00 va 14:00)
                 if current_time in ["10:00", "14:00"]:
@@ -653,6 +684,21 @@ class AdminBot:
 
                 # 7. Stagnatsiya Alert (12:00) — Harakatsiz lidlar
                 if current_time == "12:00":
+                    job_id = f"stagnation_{today}"
+                    if not await self.db.get_state(job_id):
+                        logger.info("[SCHEDULER] Sales Conversion Push boshlandi...")
+                        try:
+                            from src.services.proactive_worker import check_amocrm_stagnation
+                            await check_amocrm_stagnation()
+                            await self.db.set_state(job_id, "done")
+                            api_server_module.add_activity(
+                                "ðŸš¨ Sales Conversion Push",
+                                "Harakatsiz lidlar bo'yicha conversion push yuborildi.",
+                                "success",
+                            )
+                        except Exception as e:
+                            logger.error(f"[SALES PUSH ERROR] {e}")
+                            api_server_module.add_activity("âš ï¸ Sales Push Error", str(e), "error")
                     job_id = f"stagnation_{today}"
                     if not await self.db.get_state(job_id):
                         logger.info("🚨 [SCHEDULER] Stagnatsiya Alert boshlandi...")
