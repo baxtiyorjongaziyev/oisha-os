@@ -105,6 +105,9 @@ class MinimalAgentLoop:
             "verified_at": get_local_now().isoformat(),
         }
 
+    async def log_stage(self, task: AgentTask, action_type: str, data: Dict[str, Any], success: bool) -> None:
+        await self._log(task, action_type, data, success)
+
     async def _log(self, task: AgentTask, action_type: str, data: Dict[str, Any], success: bool) -> None:
         user_id = int(task.payload.get("user_id") or task.payload.get("target_user_id") or 0)
         payload = {
