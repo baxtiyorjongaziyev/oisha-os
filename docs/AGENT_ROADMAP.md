@@ -50,6 +50,11 @@ Deliverables:
 - Telegram, AmoCRM, Airtable, Sheets, Calendar kabi integratsiyalarni adapter qatlamga ko'chirish
 - Har bir external action uchun timeout, retry, idempotency va log qo'shish
 
+Status:
+- `src/services/core/tool_registry.py` qo'shildi va `ToolResult` schema standartlashtirildi
+- `src/services/core/tool_adapters.py` orqali Telegram, AmoCRM va Airtable uchun birlamchi adapter qatlam qo'shildi
+- `daily plan`, `sales conversion push` va `PM stage push` oqimlari yangi adapter qatlam orqali ishlaydigan qilindi
+
 Deliverables:
 - `tool registry`
 - `action result` schema
@@ -60,6 +65,11 @@ Deliverables:
 - Manual vs automatic action permissionlari
 - Owner approval talab qiladigan actionlar
 - Spam, duplicate-send va destructive action bloklari
+
+Status:
+- `src/services/core/agent_policy.py` qo'shildi va scheduler actionlari uchun `auto_actions`, `quiet_hours`, `approval_required` gate'lari qo'shildi
+- `src/services/core/agent_verifier.py` qo'shildi va notification delivery uchun alohida verifier ishlaydigan qilindi
+- `_run_notification_agent()` endi policy -> execute -> verify oqimini alohida log bosqichlari bilan yuritadi
 
 Deliverables:
 - policy config
@@ -98,3 +108,4 @@ Deliverables:
 4. API ga runtime, storage, traces va inventory observability endpointlari qo'shildi
 5. Canonical state backend sifatida `data/bot.db` tanlanib, runtime contextga chiqarildi
 6. Daily plan, sales conversion push va PM stage push oqimlari minimal agent loop bilan loglanadigan qilindi
+7. Telegram, AmoCRM va Airtable uchun adapter qatlam qo'shilib, uchta asosiy proactive flow policy/verifier bilan agent layerga ulangani
