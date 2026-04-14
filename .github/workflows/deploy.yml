@@ -1,8 +1,11 @@
-name: 🚀 Oisha-OS Deploy (24/7 God Mode)
+name: 🚀 Oisha-OS Auto Deploy (CI/CD)
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - master
+  workflow_dispatch:
 
 env:
   PROJECT_ID: jonbranding-85662071-ea38e
@@ -10,7 +13,30 @@ env:
   REGION: europe-west3
 
 jobs:
+  test:
+    name: 🧪 Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 📦 Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: 🧪 Run Tests
+        run: |
+          pytest tests/ -v --tb=short
+
   deploy:
+    name: 🚀 Deploy to Cloud Run
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout
@@ -26,17 +52,30 @@ jobs:
 
       - name: 🏗️ Build & Push Container
         run: |
-          gcloud builds submit --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }} .
+          gcloud builds submit --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
 
       - name: 🚀 Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }} \
+            --image gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             --platform managed \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
-            --memory 1Gi \
-            --cpu 1 \
+            --memory 2Gi \
+            --cpu 2 \
             --timeout 3600 \
-            --set-env-vars "RUNNING_IN_CLOUD=True" \
-            --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest"
+            --max-instances 3 \
+            --set-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production" \
+            --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest"
+
+      - name: ✅ Verify Deployment
+        run: |
+          echo "🎉 Deployment successful!"
+          gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format 'value(status.url)'
+
+      - name: 📢 Notify Telegram
+        if: always()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.OWNER_ID }}" \
+            -d "text=🚀 Oisha-OS Deployment ${{ job.status }}%0A%0ACommit: ${{ github.sha }}%0ABranch: ${{ github.ref_name }}%0A%0A${{ job.status == 'success' && '✅ Successfully deployed!' || '❌ Deployment failed!' }}" || true

@@ -30,7 +30,8 @@ class Database:
                 # Test connection
                 await self._conn.execute("SELECT 1")
                 return self._conn
-            except:
+            except (aiosqlite.Error, asyncio.TimeoutError):
+                # Connection is dead, will recreate
                 self._conn = None
         
         self._conn = await aiosqlite.connect(self.db_path, timeout=30)
@@ -91,8 +92,11 @@ class Database:
                 ("meeting_time", "TEXT"), ("meeting_status", "TEXT DEFAULT 'pending'")
             ]
             for col, col_type in cols_needed:
-                try: await conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
-                except: pass
+                try:
+                    await conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
+                except aiosqlite.Error:
+                    # Column already exists - safe to ignore
+                    pass
 
             # Other tables
             await conn.execute("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, text TEXT, is_ai BOOLEAN, created_at DATETIME)")
@@ -119,8 +123,27 @@ class Database:
             """)
             try:
                 await conn.execute("ALTER TABLE daily_plans ADD COLUMN source_pipeline TEXT")
-            except Exception:
+            except aiosqlite.Error:
+                # Column already exists or other SQLite error - safe to ignore
                 pass
+            
+            # [PERFORMANCE] Create indexes for frequently queried columns
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_intent ON users(intent)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_crm_synced ON users(crm_synced)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_message_logs_user_id ON message_logs(user_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_team_reports_user_id ON team_reports(user_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_team_reports_date ON team_reports(report_date)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_actions_user_id ON agent_actions(user_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_actions_created ON agent_actions(created_at)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_learned_facts_user ON learned_facts(user_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_daily_plans_manager ON daily_plans(manager_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_daily_plans_date ON daily_plans(report_date)")
             
             await conn.commit()
             logger.info("[DB] Async Base Ready.")
@@ -212,9 +235,54 @@ class Database:
 
     async def get_team_roles(self):
         conn = await self.get_connection()
-        async with conn.execute("SELECT user_id, first_name, username, role, detailed_role FROM users WHERE role IS NOT NULL") as cursor:
+        async with conn.execute(
+            """
+            SELECT user_id, first_name, username, role, detailed_role, position
+            FROM users
+            WHERE role IS NOT NULL OR detailed_role IS NOT NULL OR position IS NOT NULL
+            """
+        ) as cursor:
             rows = await cursor.fetchall()
-            return [{"user_id": r[0], "name": r[1], "username": r[2], "role": r[3], "detailed_role": r[4]} for r in rows]
+
+        members: list[Dict[str, Any]] = []
+        seen_ids = set()
+        for user_id, first_name, username, role, detailed_role, position in rows:
+            member_role = role or position or detailed_role or "team"
+            members.append(
+                {
+                    "user_id": user_id,
+                    "name": first_name or username or f"User_{user_id}",
+                    "username": username,
+                    "role": member_role,
+                    "detailed_role": detailed_role,
+                    "position": position,
+                }
+            )
+            seen_ids.add(user_id)
+
+        manager_ids = set(settings.SALES_MANAGER_IDS or [])
+        stored_managers = await self.get_state("sales_managers", "")
+        if stored_managers:
+            for raw_id in str(stored_managers).split(","):
+                raw_id = raw_id.strip()
+                if raw_id.isdigit():
+                    manager_ids.add(int(raw_id))
+
+        for manager_id in sorted(manager_ids):
+            if manager_id in seen_ids:
+                continue
+            members.append(
+                {
+                    "user_id": manager_id,
+                    "name": f"Manager_{manager_id}",
+                    "username": None,
+                    "role": "sales_manager",
+                    "detailed_role": "sales_manager",
+                    "position": "Sales Manager",
+                }
+            )
+
+        return members
 
     async def is_job_run(self, job_name, date_str):
         conn = await self.get_connection()
@@ -436,3 +504,294 @@ class Database:
                 }
                 for r in rows
             ]
+
+    async def save_team_report(
+        self,
+        user_id: int,
+        report_type: str,
+        content: str,
+        report_date: Optional[str] = None,
+        status: str = "submitted",
+    ) -> bool:
+        from src.time_utils import get_local_now
+
+        now = get_local_now()
+        report_day = report_date or now.strftime("%Y-%m-%d")
+        conn = await self.get_connection()
+        async with conn.execute(
+            """
+            SELECT id
+            FROM team_reports
+            WHERE user_id = ? AND report_date = ? AND report_type = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (user_id, report_day, report_type),
+        ) as cursor:
+            existing = await cursor.fetchone()
+
+        if existing:
+            await conn.execute(
+                """
+                UPDATE team_reports
+                SET content = ?, status = ?, created_at = ?
+                WHERE id = ?
+                """,
+                (content, status, now.isoformat(), existing[0]),
+            )
+        else:
+            await conn.execute(
+                """
+                INSERT INTO team_reports (user_id, report_date, report_type, content, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (user_id, report_day, report_type, content, status, now.isoformat()),
+            )
+        await conn.commit()
+        return True
+
+    async def get_missing_reports(
+        self,
+        report_type: str = "morning_plan",
+        date_str: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        from src.time_utils import get_local_now
+
+        report_day = date_str or get_local_now().strftime("%Y-%m-%d")
+        team = await self.get_team_roles()
+        if not team:
+            return []
+
+        eligible = []
+        for member in team:
+            role_text = " ".join(
+                str(member.get(key, "") or "").lower()
+                for key in ("role", "detailed_role", "position")
+            )
+            if any(blocked in role_text for blocked in ("admin", "owner", "boss")):
+                continue
+            eligible.append(member)
+
+        if not eligible:
+            return []
+
+        conn = await self.get_connection()
+        async with conn.execute(
+            """
+            SELECT DISTINCT user_id
+            FROM team_reports
+            WHERE report_date = ? AND report_type = ? AND status != 'ignored'
+            """,
+            (report_day, report_type),
+        ) as cursor:
+            submitted_rows = await cursor.fetchall()
+
+        submitted_ids = {row[0] for row in submitted_rows}
+        return [member for member in eligible if member["user_id"] not in submitted_ids]
+
+    async def get_overdue_tasks(self) -> List[Dict[str, Any]]:
+        from src.time_utils import get_local_now
+
+        conn = await self.get_connection()
+        async with conn.execute(
+            """
+            SELECT
+                t.id,
+                t.title,
+                t.description,
+                t.assigned_to,
+                t.deadline,
+                t.priority,
+                t.status,
+                u.first_name,
+                u.username
+            FROM tasks t
+            LEFT JOIN users u ON u.user_id = t.assigned_to
+            WHERE t.deadline IS NOT NULL
+              AND COALESCE(t.status, 'Pending') NOT IN ('Done', 'Completed', 'Closed', 'Cancelled')
+            """
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        now = get_local_now()
+        overdue: List[Dict[str, Any]] = []
+        for task_id, title, description, assigned_to, deadline_raw, priority, status, first_name, username in rows:
+            try:
+                deadline_dt = datetime.datetime.fromisoformat(str(deadline_raw).replace("Z", "+00:00"))
+            except ValueError:
+                continue
+
+            if deadline_dt.tzinfo is not None:
+                now_cmp = now.astimezone(datetime.timezone.utc)
+            else:
+                now_cmp = now.replace(tzinfo=None)
+
+            if deadline_dt < now_cmp:
+                overdue.append(
+                    {
+                        "id": task_id,
+                        "title": title,
+                        "description": description,
+                        "assigned_to": assigned_to,
+                        "deadline": deadline_raw,
+                        "priority": priority or "Medium",
+                        "status": status or "Pending",
+                        "name": first_name or f"User_{assigned_to}",
+                        "username": username,
+                    }
+                )
+
+        overdue.sort(key=lambda task: (task["priority"] != "High", task["deadline"]))
+        return overdue
+
+    async def get_priority_tasks(self, limit: int = 3) -> List[Dict[str, Any]]:
+        conn = await self.get_connection()
+        async with conn.execute(
+            """
+            SELECT
+                t.id,
+                t.title,
+                t.description,
+                t.assigned_to,
+                t.deadline,
+                t.priority,
+                t.status,
+                u.first_name,
+                u.username
+            FROM tasks t
+            LEFT JOIN users u ON u.user_id = t.assigned_to
+            WHERE COALESCE(t.status, 'Pending') NOT IN ('Done', 'Completed', 'Closed', 'Cancelled')
+            ORDER BY
+                CASE COALESCE(t.priority, 'Medium')
+                    WHEN 'High' THEN 0
+                    WHEN 'Medium' THEN 1
+                    ELSE 2
+                END,
+                COALESCE(t.deadline, '9999-12-31T23:59:59')
+            LIMIT ?
+            """,
+            (limit,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        return [
+            {
+                "id": row[0],
+                "title": row[1],
+                "description": row[2],
+                "assigned_to": row[3],
+                "deadline": row[4],
+                "priority": row[5] or "Medium",
+                "status": row[6] or "Pending",
+                "name": row[7],
+                "username": row[8],
+            }
+            for row in rows
+        ]
+
+    async def get_department_targets(self, month_str: Optional[str] = None) -> List[Dict[str, Any]]:
+        key = f"department_targets:{month_str}" if month_str else "department_targets"
+        raw_targets = await self.get_state(key, "")
+        if raw_targets:
+            try:
+                parsed = json.loads(raw_targets)
+                if isinstance(parsed, dict):
+                    return [{"dept": dept, "value": value} for dept, value in parsed.items()]
+                if isinstance(parsed, list):
+                    return parsed
+            except Exception:
+                logger.warning(f"[DB] Department targets could not be parsed for key={key}")
+
+        return [
+            {"dept": "Sales", "value": 80_000_000},
+            {"dept": "Production", "value": 0},
+            {"dept": "PM", "value": 0},
+        ]
+
+    def get_user_by_role(self, role: str) -> Optional[Dict[str, Any]]:
+        normalized_role = (role or "").strip().lower()
+        if not normalized_role:
+            return None
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT user_id, first_name, username, role, detailed_role, position
+                FROM users
+                WHERE lower(COALESCE(role, '')) = ?
+                   OR lower(COALESCE(detailed_role, '')) = ?
+                   OR lower(COALESCE(position, '')) = ?
+                LIMIT 1
+                """,
+                (normalized_role, normalized_role, normalized_role),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                "user_id": row[0],
+                "name": row[1],
+                "username": row[2],
+                "role": row[3],
+                "detailed_role": row[4],
+                "position": row[5],
+            }
+        finally:
+            conn.close()
+
+    async def get_recent_job_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
+        conn = await self.get_connection()
+        async with conn.execute(
+            """
+            SELECT job_name, run_date, created_at
+            FROM scheduled_jobs
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        return [
+            {
+                "job_name": row[0],
+                "run_date": row[1],
+                "created_at": row[2],
+            }
+            for row in rows
+        ]
+
+    async def get_recent_agent_actions(self, limit: int = 50) -> List[Dict[str, Any]]:
+        conn = await self.get_connection()
+        async with conn.execute(
+            """
+            SELECT id, user_id, action_type, action_data, success, created_at
+            FROM agent_actions
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        actions: List[Dict[str, Any]] = []
+        for action_id, user_id, action_type, action_data, success, created_at in rows:
+            try:
+                parsed_data = json.loads(action_data) if action_data else {}
+            except Exception:
+                parsed_data = {"raw": action_data}
+
+            actions.append(
+                {
+                    "id": action_id,
+                    "user_id": user_id,
+                    "action_type": action_type,
+                    "action_data": parsed_data,
+                    "success": bool(success),
+                    "created_at": created_at,
+                }
+            )
+
+        return actions

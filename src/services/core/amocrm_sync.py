@@ -4,8 +4,33 @@ import json
 import logging
 import requests  # type: ignore
 from typing import Optional, Dict, Any, List
+from functools import wraps
 
 logger = logging.getLogger(__name__)
+
+
+def retry_with_backoff(max_retries=3, initial_delay=1, backoff_factor=2, exceptions=(requests.RequestException,)):
+    """Decorator to retry API calls with exponential backoff."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = initial_delay
+            last_exception = None
+            
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    last_exception = e
+                    logger.warning(f"[AMOCRM RETRY] {func.__name__} attempt {attempt + 1}/{max_retries} failed: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(delay)
+                        delay *= backoff_factor
+            
+            logger.error(f"[AMOCRM RETRY] {func.__name__} failed after {max_retries} attempts: {last_exception}")
+            raise last_exception
+        return wrapper
+    return decorator
 
 class AmoCRMSync:
     def __init__(self, subdomain, client_id, client_secret, redirect_url, token_file="data/amocrm_token.json"):
@@ -139,6 +164,7 @@ class AmoCRMSync:
             "Content-Type": "application/json"
         }
 
+    @retry_with_backoff(max_retries=3, initial_delay=1)
     def create_lead_for_contact(self, contact_id: int, name: str, price: int = 0, extra_fields: dict = None):
         """Mavjud kontakt uchun yangi bitim (Lead) yarating."""
         if not self.access_token:
@@ -191,6 +217,7 @@ class AmoCRMSync:
             logger.error(f"[AMOCRM ERROR] create_lead_for_contact error: {e}")
             return False
 
+    @retry_with_backoff(max_retries=3, initial_delay=1)
     def get_contact_by_phone(self, phone: str) -> Optional[dict]:
         """Suhbatdoshni telefon raqami orqali qidirish (Robust normalization bilan)."""
         if not phone or phone == "Raqam yo'q":
