@@ -314,19 +314,30 @@ class ProactiveWorker:
 
     async def _send_daily_sales_report(self):
         """Kunlik sotuv hisobotini yuborish."""
-        # Faqat belgilangan vaqtda yuborish (masalan 09:00 yoki 18:00)
+        # Faqat belgilangan vaqtda yuborish (faqat 18:00 da, bir marta)
         now = get_local_now()
-        if now.hour == 18 and now.minute < 30: # Har kuni 18:00 larda
+        if now.hour == 18 and now.minute == 0: # Faqat 18:00 da
+            # Bir marta yuborishni tekshirish
+            today = now.strftime('%Y-%m-%d')
+            if await self.db.is_job_run("daily_sales_report", today):
+                logger.info("[PROACTIVE] Daily sales report already sent today. Skipping.")
+                return
+
             logger.info("[PROACTIVE] Sending daily sales report...")
-            report = self.crm.amocrm.get_sales_report()
-            msg = (
-                f"📈 **OYLIK SOTUV HISOBOTI (PLAN-FAKT)**\n\n"
-                f"🎯 Reja: 80,000,000 so'm\n"
-                f"✅ Fakt: {report['fact']:,} so'm\n"
-                f"📊 Progress: {report['percent']:.1f}%\n"
-                f"📦 Yopilgan bitimlar: {report['count']} ta"
-            )
-            await self.bot.send_message(config.CRM_GROUP_ID, msg, parse_mode="Markdown")
+            try:
+                report = self.crm.amocrm.get_sales_report()
+                msg = (
+                    f"📈 **OYLIK SOTUV HISOBOTI (PLAN-FAKT)**\n\n"
+                    f"🎯 Reja: 80,000,000 so'm\n"
+                    f"✅ Fakt: {report['fact']:,} so'm\n"
+                    f"📊 Progress: {report['percent']:.1f}%\n"
+                    f"📦 Yopilgan bitimlar: {report['count']} ta"
+                )
+                await self.bot.send_message(config.CRM_GROUP_ID, msg, parse_mode="Markdown")
+                await self.db.mark_job_run("daily_sales_report", today)
+                logger.info("[PROACTIVE] Daily sales report sent successfully.")
+            except Exception as e:
+                logger.error(f"[PROACTIVE] Error sending daily sales report: {e}")
 
 async def send_proactive_followups():
     """Bazadagi idle foydalanuvchilarni topadi va AI tomonidan yaratilgan follow-up yuboradi."""
