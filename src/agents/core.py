@@ -33,7 +33,7 @@ class BaseAgent(ABC):
         """Vazifani bajarish."""
         pass
 
-    async def call_ai_with_fallback(self, contents: Any, current_user_id: int) -> str:
+    async def call_ai_with_fallback(self, contents: Any, current_user_id: int, enable_tools: bool = True) -> str:
         """Gemini tool-calling loop bilan. 429 xatosi bo'lsa retry qiladi."""
         from src.agents.tools import TOOL_DECLARATIONS
         
@@ -45,7 +45,7 @@ class BaseAgent(ABC):
                     # Robust async call with retry logic
                     response = await self.safe_ai_call(
                         contents=contents,
-                        tools=[{"function_declarations": TOOL_DECLARATIONS}] if TOOL_DECLARATIONS else None
+                        tools=[{"function_declarations": TOOL_DECLARATIONS}] if (enable_tools and TOOL_DECLARATIONS) else None
                     )
                     
                     if not response:
@@ -119,26 +119,35 @@ class BaseAgent(ABC):
                     raise e
         return None
 
+    async def load_session_history(self, user_id: int, limit: int = 20) -> List[Dict[str, Any]]:
+        if user_id in self.memories:
+            return self.memories[user_id]
+
+        self.memories[user_id] = []
+        if self.db and hasattr(self.db, "get_recent_messages"):
+            try:
+                recent = await self.db.get_recent_messages(user_id, limit=limit)
+                if recent:
+                    history = []
+                    for item in recent:
+                        role = item.get("role", "user")
+                        parts = item.get("parts") or []
+                        text = str(parts[0].get("text", "")) if parts else ""
+                        if text:
+                            history.append({"role": role, "content": text})
+                    self.memories[user_id] = history
+                    logger.info(f"[{self.agent_id}] Loaded {len(history)} messages from DB for user {user_id}")
+            except Exception as e:
+                logger.error(f"[{self.agent_id}] Failed to load history for {user_id}: {e}")
+
+        return self.memories[user_id]
+
     def get_session_history(self, user_id: int) -> List[Dict[str, Any]]:
-        if user_id not in self.memories and self.db:
-            # Load from DB if not in memory
-            recent = self.db.get_recent_messages(user_id, limit=20)
-            if recent:
-                # DB returns newest first, we need oldest first
-                history = []
-                for msg_text, is_ai in reversed(recent):
-                    role = "assistant" if is_ai else "user"
-                    history.append({"role": role, "content": msg_text})
-                self.memories[user_id] = history
-                logger.info(f"[{self.agent_id}] Loaded {len(history)} messages from DB for user {user_id}")
-        
         return self.memories.get(user_id, [])
 
     def update_history(self, user_id: int, role: str, message: str):
         if user_id not in self.memories:
-            # This might trigger a DB load if we use get_session_history first, 
-            # but let's ensure we have a list.
-            self.memories[user_id] = self.get_session_history(user_id)
+            self.memories[user_id] = []
         
         self.memories[user_id].append({"role": role, "content": message})
         if len(self.memories[user_id]) > 20:
