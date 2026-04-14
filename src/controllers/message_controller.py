@@ -80,6 +80,11 @@ class MessageController:
         
         context["crm_status"] = crm_status
         context["user_name"] = user_name
+        context["phone"] = phone
+        context["user_profile"] = user_info or {}
+        if user_info:
+            context["service_type"] = user_info.get("service_type")
+            context["business_type"] = user_info.get("business_type")
 
         # 2. Tarixni olish (Intent uchun)
         recent_history = await self.db.get_recent_messages(user_id, limit=5)

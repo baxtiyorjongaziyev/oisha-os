@@ -22,6 +22,7 @@ Sizning vazifangiz:
 
     async def process_task(self, user_id: int, task_description: str, context: Optional[Dict[str, Any]] = None) -> str:
         """Loyiha boshqaruvi bo'yicha muloqotni boshqarish."""
+        await self.load_session_history(user_id)
         self.update_history(user_id, "user", task_description)
         
         # Kontekstga qarab qo'shimcha ko'rsatmalarni tanlash
