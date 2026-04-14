@@ -1,0 +1,49 @@
+steps:
+  - id: Build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --no-cache
+      - -t
+      - ${_AR_HOSTNAME}/$PROJECT_ID/${_AR_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA
+      - .
+      - -f
+      - Dockerfile
+
+  - id: Push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_AR_HOSTNAME}/$PROJECT_ID/${_AR_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA
+
+  - id: Deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE_NAME}
+      - --platform=managed
+      - --image=${_AR_HOSTNAME}/$PROJECT_ID/${_AR_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA
+      - --region=${_DEPLOY_REGION}
+      - --memory=2Gi
+      - --cpu=2
+      - --timeout=3600
+      - --max-instances=3
+      - --allow-unauthenticated
+      - --set-env-vars=RUNNING_IN_CLOUD=True,ENVIRONMENT=production
+      - --set-secrets=BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest
+      - --quiet
+
+images:
+  - ${_AR_HOSTNAME}/$PROJECT_ID/${_AR_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  substitutionOption: ALLOW_LOOSE
+
+substitutions:
+  _AR_HOSTNAME: europe-west3-docker.pkg.dev
+  _AR_REPOSITORY: cloud-run-source-deploy
+  _DEPLOY_REGION: europe-west3
+  _SERVICE_NAME: oisha-master-bot

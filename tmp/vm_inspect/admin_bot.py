@@ -54,19 +54,19 @@ class AdminBot:
         """Botni eventlarini ro'yxatdan o'tkazish va schedulerni parallel yuritish."""
         logger.info("[ADMIN_BOT] Oisha Enterprise v2.1 ishga tushmoqda...")
         
-        # [AUDIT: HEARTBEAT] Proof of life (log spam oldini olish: 5 daqiqa, DEBUG)
+        # [AUDIT: HEARTBEAT] Proof of life every 60 seconds
         async def heartbeat():
             while True:
-                logger.debug("👸 [ADMIN_BOT] HEARTBEAT: Oisha is alive and listening... 🛡️")
-                await asyncio.sleep(300)
+                logger.info("👸 [ADMIN_BOT] HEARTBEAT: Oisha is alive and listening... 🛡️")
+                await asyncio.sleep(60)
         
         # [DISTRIBUTION] Yuklash (Settings ni DB bilan sinxronlash)
         from src.settings import settings
-        db_mode = await self.db.get_state("lead_distribution_mode")
+        db_mode = self.db.get_state("lead_distribution_mode")
         if db_mode:
             settings.LEAD_DISTRIBUTION_MODE = db_mode
         
-        db_managers = await self.db.get_state("sales_managers")
+        db_managers = self.db.get_state("sales_managers")
         if db_managers:
             manager_ids = [int(i.strip()) for i in db_managers.split(",") if i.strip()]
             settings.SALES_MANAGER_IDS = manager_ids
@@ -124,15 +124,13 @@ class AdminBot:
             """Bugungi biznes ko'rsatkichlarni ko'rish."""
             if not self.access_manager.is_admin(event.sender_id): return
             
-            from src.api_server import cached_crm_audit
-            health = cached_crm_audit.get("health_score", 98)
-            stats = await self.db.get_today_stats()
+            stats = self.db.get_today_stats()
             msg = (
                 f"📊 **OISHA: BUSINESS PERFORMANCE**\n"
                 f"──────────────────────\n"
                 f"🎯 **Yangi Lidlar:** `{stats.get('leads_found', 0)}` ta\n"
                 f"✉️ **Xabarlar:** `{stats.get('messages_synced', 0)}` ta\n"
-                f"🧹 **CRM Tozalik:** `{health}%` ({'Optimal' if health > 80 else 'Diqqat kerak' if health > 50 else 'KRITIK HOLAT'})\n"
+                f"🧹 **CRM Tozalik:** `98%` (Optimal)\n"
                 f"──────────────────────\n"
                 f"👸 *Oisha hozirda avtonom rejimda ishlamoqda.*"
             )
@@ -159,7 +157,7 @@ class AdminBot:
                     f"🌟 **Oisha-OS Enterprise v2.1**\n\n"
                     f"Assalomu alaykum, **{role_name}**!\n"
                     f"Tizimga muvaffaqiyatli kirdingiz. Boshqaruv pulti tayyor.\n\n"
-                    f"📅 Bugun: `{get_local_now().strftime('%d.%m.%Y %H:%M')}`"
+                    f"📅 Bugun: `{datetime.now().strftime('%d.%m.%Y %H:%M')}`"
                 )
 
                 # Rollarga ko'ra tugmalar
@@ -182,107 +180,6 @@ class AdminBot:
              if self.access_manager.is_admin(event.sender_id):
                  await self.send_vps_status(event)
 
-        @self.bot_client.on(events.CallbackQuery())
-        async def callback_handler(event):
-            data = event.data.decode('utf-8')
-            try:
-                # [SECURITY] Check access for administrative callbacks
-                if not self.access_manager.is_admin(event.sender_id) and data != "get_id":
-                    await event.answer("⚠️ Kirish rad etildi.", alert=True)
-                    return
-
-                if data == "dashboard":
-                    await self.send_dashboard(event)
-                elif data == "weekly_report":
-                    await self.send_weekly_report(event)
-                elif data == "kpi":
-                    await event.answer("📊 KPI tahlili yaqin daqiqalarda tayyorlanadi!", alert=True)
-                    await self.send_dashboard(event) # Fallback for now
-                elif data == "deadlines":
-                    await event.answer("🚨 Muddatlar tekshirilmoqda...", alert=True)
-                    await self.send_vps_status(event) # Placeholder
-                elif data == "settings":
-                    await self._show_settings_menu(event, edit=True)
-                elif data.startswith("set_dist_mode:"):
-                    new_mode = data.split(":")[1]
-                    from src.settings import settings
-                    settings.LEAD_DISTRIBUTION_MODE = new_mode
-                    await self.db.set_state("lead_distribution_mode", new_mode)
-                    await event.answer(f"✅ Rejim {new_mode} ga o'zgartirildi!", alert=True)
-                    await self._show_settings_menu(event, edit=True)
-                elif data == "get_id":
-                    await event.respond(f"🆔 Sizning Telegram ID: `{event.sender_id}`\nUni tizimga kiritish uchun Admin-ga bering.")
-                elif data == "search":
-                    self.active_searches[event.sender_id] = datetime.now()
-                    await event.respond("🔍 **Deep Search rejimiga xush kelibsiz!**\n\n"
-                                       "Qidirmoqchi bo'lgan **telefon nomeringizni** yozing (masalan: `+998991234567`).\n"
-                                       "Oisha butun Telegram tarmog'idan ushbu mijozni topib beradi. 👸🛡️")
-                elif data.startswith("social_spy:"):
-                    user_id = int(data.split(":")[1])
-                    await self.analyze_social_history(user_id, event)
-                elif data == "vps_status":
-                    await self.send_vps_status(event)
-                elif data == "logs":
-                    await self.send_recent_logs(event)
-                elif data.startswith("send_draft:"):
-                    # send_draft:draft_id:user_id
-                    parts = data.split(":")
-                    if len(parts) >= 3:
-                        _, draft_id, target_uid = parts[0], parts[1], parts[2]
-                        draft_text = self.pending_drafts.pop(draft_id, None)
-                        if not draft_text:
-                            await event.answer("⚠️ Draft topilmadi yoki muddati o'tgan.", alert=True)
-                            return
-                        try:
-                            uid = int(target_uid)
-                            await self.user_client.send_message(uid, draft_text)
-                            await event.answer("✅ Xabar yuborildi.", alert=False)
-                            try:
-                                await event.edit(event.message.message + "\n\n✅ Yuborildi")
-                            except Exception:
-                                pass
-                        except Exception as ex:
-                            logger.error(f"[SEND_DRAFT] {ex}", exc_info=True)
-                            await event.answer(f"⚠️ Yuborishda xato: {ex}", alert=True)
-                    else:
-                        await event.answer("⚠️ Noto'g'ri tugma ma'lumoti.", alert=True)
-                elif data.startswith("reject_draft:"):
-                    draft_id = data.split(":", 1)[1] if ":" in data else ""
-                    if self.pending_drafts.pop(draft_id, None) is not None:
-                        await event.answer("🗑️ Draft rad etildi.", alert=False)
-                        try:
-                            await event.edit(event.message.message + "\n\n❌ Rad etildi")
-                        except Exception:
-                            pass
-                    else:
-                        await event.answer("ℹ️ Draft allaqachon qayta ishlangan.", alert=True)
-                else:
-                    await event.answer("⚠️ Bu funksiya hozircha ish faoliyatida emas.", alert=True)
-            except Exception as e:
-                logger.error(f"❌ [ADMIN_BOT] CALLBACK ERROR: {str(e)}")
-                await event.answer("⚠️ Xatolik yuz berdi.", alert=True)
-
-        # [ENTERPRISE: SEARCH] Phone number listener for Deep Search
-        @self.bot_client.on(events.NewMessage())
-        async def phone_handler(event):
-            sender_id = event.sender_id
-            if sender_id not in self.active_searches: return
-            if (datetime.now() - self.active_searches[sender_id]).total_seconds() > 300:
-                del self.active_searches[sender_id]
-                return
-            
-            import re
-            phone_match = re.search(r'(\+?998|8)?\s?\(?\d{2}\)?\s?\d{3}\s?\d{2}\s?\d{2}', event.text)
-            if phone_match:
-                phone = phone_match.group(0)
-                del self.active_searches[sender_id]
-                wait_msg = await event.respond(f"🔍 **{phone}** qidirilmoqda...")
-                data = await self._perform_global_lookup(phone)
-                if data:
-                    await wait_msg.edit(f"✅ **Mijoz topildi!**\n👤 {data['first_name']} (@{data.get('username','yoq')})")
-                else:
-                    await wait_msg.edit("❌ Topilmadi.")
-
         @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/logs'))
         async def logs_handler(event):
              if self.access_manager.is_admin(event.sender_id):
@@ -301,7 +198,7 @@ class AdminBot:
                 tg_count = len(tg_contacts.users)
                 
                 # 2. Google (Bazadagi) kontaktlar sonini olish
-                google_count = await self.db.get_synced_contacts_count()
+                google_count = self.db.get_synced_contacts_count()
                 
                 res_msg = (
                     f"📊 **Oisha Sync Hisoboti**\n\n"
@@ -348,7 +245,7 @@ class AdminBot:
             res = TeamHub.set_position(target_user.id, position)
             
             # Username-ni ham DB-da yangilab qo'yamiz (Accountability uchun kerak)
-            await self.db.upsert_user(target_user.id, first_name=target_user.first_name, username=target_user.username, position=position)
+            self.db.upsert_user(target_user.id, first_name=target_user.first_name, username=target_user.username, position=position)
             
             await event.respond(f"✅ **Muvaffaqiyatli!**\n👤 {target_user.first_name} endi rasman **{position}** pozitsiyasida.\nOisha uni har kuni 9:00 va 18:00da nazorat qiladi. 👸🛡️")
 
@@ -384,7 +281,7 @@ class AdminBot:
             
             from src.settings import settings
             settings.LEAD_DISTRIBUTION_MODE = mode
-            await self.db.set_state("lead_distribution_mode", mode)
+            self.db.set_state("lead_distribution_mode", mode)
             
             await event.respond(f"✅ **Muvaffaqiyatli!**\nLidlarni taqsimlash rejimi **{mode}** ga o'zgartirildi.")
 
@@ -417,11 +314,11 @@ class AdminBot:
             if target_id not in settings.SALES_MANAGER_IDS:
                 settings.SALES_MANAGER_IDS.append(target_id)
                 # DB-da ham saqlaymiz
-                current_managers = await self.db.get_state("sales_managers", "")
+                current_managers = self.db.get_state("sales_managers", "")
                 manager_list = [int(i) for i in current_managers.split(",") if i] if current_managers else []
                 if target_id not in manager_list:
                     manager_list.append(target_id)
-                    await self.db.set_state("sales_managers", ",".join(map(str, manager_list)))
+                    self.db.set_state("sales_managers", ",".join(map(str, manager_list)))
                 
                 await event.respond(f"✅ **Menejer qo'shildi!** (ID: `{target_id}`)")
             else:
@@ -443,6 +340,213 @@ class AdminBot:
                 msg += f"{i}. `ID: {mid}`\n"
             
             await event.respond(msg)
+
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/analyze'))
+        async def analyze_handler(event):
+            """Suhbatni tahlil qilish — reply orqali matn/ovozli xabar."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+
+            if not event.is_reply:
+                await event.respond("💡 **Foydalanish:** Savdo suhbati xabariga reply qilib `/analyze` yozing.\nMatn yoki ovozli xabar bo'lishi mumkin.")
+                return
+
+            wait_msg = await event.respond("🔄 **Suhbat tahlil qilinmoqda...** (AI scoring)")
+
+            try:
+                reply = await event.get_reply_message()
+                analyzer = self._get_call_analyzer()
+
+                # Determine salesperson from sender
+                sender = await reply.get_sender()
+                sp_id = sender.id if sender else 0
+                sp_name = (sender.first_name or "Noma'lum") if sender else "Noma'lum"
+
+                # Voice message
+                if reply.voice or reply.audio or (reply.document and reply.document.mime_type and 'audio' in reply.document.mime_type):
+                    path = await reply.download_media(file="data/temp_voice.ogg")
+                    result = await analyzer.analyze_voice_message(path, sp_id, sp_name)
+                    # Cleanup
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+                # Text message
+                elif reply.text:
+                    result = await analyzer.analyze_conversation(reply.text, sp_id, sp_name)
+                else:
+                    await wait_msg.edit("⚠️ Bu xabar turini tahlil qilib bo'lmadi. Matn yoki ovozli xabar yuboring.")
+                    return
+
+                if result.get("error"):
+                    await wait_msg.edit(f"⚠️ Xatolik: {result['error']}")
+                    return
+
+                # Format MetaSell-style result
+                score = result.get("total_score", 0)
+                lead_score = result.get("lead_score", 0)
+                score_bar = "🟢" * (score // 20) + "⚪" * (5 - score // 20)
+
+                msg = (
+                    f"🎯 **Oisha AI tahlil natijasi**\n"
+                    f"──────────────────────\n"
+                    f"{result.get('summary', '')}\n\n"
+                    f"📊 Sifat bahosi: `{score}/100` {score_bar}\n"
+                    f"🎯 Lead bahosi: `{lead_score}/100`\n"
+                    f"📂 Suhbat oilasi: {result.get('conversation_category', '-')}\n"
+                    f"🏷 Suhbat domeni: {result.get('conversation_domain', '-')}\n"
+                    f"✅ Biznes mosligi: {result.get('business_fit', '-')}\n"
+                    f"🔧 Servis yo'nalishi: {result.get('service_direction', '-')}\n\n"
+                    f"👋 Salom: `{result.get('greeting_score', 0)}/20` | "
+                    f"🔍 Ehtiyoj: `{result.get('needs_discovery_score', 0)}/20` | "
+                    f"💡 Taklif: `{result.get('pitch_score', 0)}/20`\n"
+                    f"🛡 E'tiroz: `{result.get('objection_handling_score', 0)}/20` | "
+                    f"🤝 Yakunlash: `{result.get('closing_score', 0)}/20`\n"
+                )
+
+                # Client info (MetaSell-style)
+                client = result.get("client_info", {})
+                if client and any(v for v in client.values() if v):
+                    msg += f"\n👤 **Mijoz haqida ma'lumot:**\n"
+                    if client.get("position"):
+                        msg += f"  Lavozimi: {client['position']}\n"
+                    if client.get("company"):
+                        msg += f"  Kompaniya: {client['company']}\n"
+                    if client.get("decision_maker") is not None:
+                        msg += f"  Qaror qabul qiluvchi: {'Ha' if client['decision_maker'] else 'Yoq'}\n"
+                    if client.get("location"):
+                        msg += f"  Joylashuv: {client['location']}\n"
+                    details = client.get("details", [])
+                    if details:
+                        for d in details[:4]:
+                            msg += f"  • {d}\n"
+
+                if result.get("coaching_tip"):
+                    msg += f"\n💡 **AI Maslahat:** {result['coaching_tip']}"
+
+                await wait_msg.edit(msg)
+
+            except Exception as e:
+                logger.error(f"[ANALYZE] Error: {e}", exc_info=True)
+                await wait_msg.edit(f"⚠️ Tahlilda xatolik: {e}")
+
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/coaching'))
+        async def coaching_handler(event):
+            """Shaxsiy AI coaching: /coaching yoki /coaching @username"""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+
+            args = event.message.text.split()
+            target_id = None
+            target_name = ""
+
+            if event.is_reply:
+                reply = await event.get_reply_message()
+                sender = await reply.get_sender()
+                if sender:
+                    target_id = sender.id
+                    target_name = sender.first_name or ""
+            elif len(args) >= 2:
+                username = args[1].replace("@", "")
+                try:
+                    entity = await self.bot_client.get_entity(username)
+                    target_id = entity.id
+                    target_name = entity.first_name or username
+                except Exception:
+                    await event.respond(f"❌ `{username}` topilmadi.")
+                    return
+
+            if not target_id:
+                await event.respond("💡 **Foydalanish:** `/coaching @username` yoki xabarni reply qilib `/coaching`")
+                return
+
+            wait_msg = await event.respond(f"🏆 **{target_name}** uchun AI coaching tayyorlanmoqda...")
+
+            analyzer = self._get_call_analyzer()
+            coaching_text = await analyzer.generate_coaching(target_id, target_name)
+            await wait_msg.edit(f"🏆 **AI COACHING — {target_name}**\n──────────────────────\n\n{coaching_text}")
+
+        # ═══════════════════════════════════════════════════
+        # AUTONOMOUS: Auto-analyze voice/text in team group
+        # ═══════════════════════════════════════════════════
+        @self.bot_client.on(events.NewMessage(chats=self.team_group_id))
+        async def auto_call_analyzer(event):
+            """Avtomatik suhbat tahlili — ovozli xabar yoki uzun matn guruhga kelganda."""
+            try:
+                msg = event.message
+                is_voice = msg.voice or msg.audio or (msg.document and msg.document.mime_type and 'audio' in msg.document.mime_type)
+                is_long_text = msg.text and len(msg.text) > 200  # Uzun matn = savdo suhbati
+                is_forward = msg.forward is not None  # Forward = suhbat nusxasi
+
+                if not (is_voice or (is_long_text and is_forward)):
+                    return
+
+                sender = await event.get_sender()
+                sp_id = sender.id if sender else 0
+                sp_name = (getattr(sender, 'first_name', None) or "Noma'lum") if sender else "Noma'lum"
+
+                analyzer = self._get_call_analyzer()
+
+                # Voice message — download, transcribe, analyze
+                if is_voice:
+                    logger.info(f"🎯 [AUTO-ANALYZE] Voice from {sp_name} in team group")
+                    path = await event.download_media(file=f"data/auto_voice_{event.id}.ogg")
+                    if not path:
+                        return
+                    result = await analyzer.analyze_voice_message(path, sp_id, sp_name)
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+                # Long forwarded text — analyze as conversation
+                else:
+                    logger.info(f"🎯 [AUTO-ANALYZE] Forwarded text from {sp_name} in team group")
+                    result = await analyzer.analyze_conversation(msg.text, sp_id, sp_name)
+
+                if result.get("error"):
+                    logger.warning(f"[AUTO-ANALYZE] Skipped: {result['error']}")
+                    return
+
+                # Format and send result as reply
+                score = result.get("total_score", 0)
+                lead_score = result.get("lead_score", 0)
+                score_bar = "🟢" * (score // 20) + "⚪" * (5 - score // 20)
+
+                reply = (
+                    f"🎯 **Oisha AI tahlil natijasi**\n"
+                    f"──────────────────────\n"
+                    f"{result.get('summary', '')}\n\n"
+                    f"📊 Sifat bahosi: `{score}/100` {score_bar}\n"
+                    f"🎯 Lead bahosi: `{lead_score}/100`\n"
+                    f"📂 {result.get('conversation_category', '')} | "
+                    f"✅ {result.get('business_fit', '')}\n"
+                    f"🔧 Servis: {result.get('service_direction', '')}\n"
+                )
+
+                # Client info
+                client_info = result.get("client_info", {})
+                if client_info and any(v for v in client_info.values() if v):
+                    reply += f"\n👤 **Mijoz:** "
+                    parts = []
+                    if client_info.get("position"):
+                        parts.append(client_info["position"])
+                    if client_info.get("company"):
+                        parts.append(client_info["company"])
+                    if client_info.get("location"):
+                        parts.append(client_info["location"])
+                    reply += " | ".join(parts) + "\n"
+                    details = client_info.get("details", [])
+                    for d in details[:3]:
+                        reply += f"  • {d}\n"
+
+                if result.get("coaching_tip"):
+                    reply += f"\n💡 {result['coaching_tip']}"
+
+                await event.reply(reply)
+                logger.info(f"🎯 [AUTO-ANALYZE] Score: {score}/100 for {sp_name}")
+
+            except Exception as e:
+                logger.error(f"[AUTO-ANALYZE] Error: {e}")
 
         @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/night_shift'))
         async def night_shift_handler(event):
@@ -488,11 +592,9 @@ class AdminBot:
             
             if not distribution:
                 await self.notify_team(
-                    "📋 **Bugungi vazifalar:**\n\n"
-                    "1️⃣ CLOSER'dagi mijozlardan boshlang'ich to'lovni oling\n"
-                    "2️⃣ Mavjud lidlar bilan ishlang (follow-up, takliflar)\n"
-                    "3️⃣ Eski mijozlarga qayta sotuv (upsell)\n\n"
-                    "💡 <i>Yangi lid izlash — faqat yuqoridagilar tugagandan keyin!</i>",
+                    "⚠️ **Pipeline bo'sh!** Aktiv lidlar yo'q.\n"
+                    "🎯 Yangi lidlar izlash kerak! @Oydin_JonBranding\n"
+                    "📞 Bugun kamida 5 ta yangi kontaktga qo'ng'iroq qiling!",
                     topic_id=settings.CRM_TOPIC_ID
                 )
                 return True
@@ -521,21 +623,9 @@ class AdminBot:
             logger.error(f"[ADMIN_BOT] trigger_daily_missions error: {e}")
             return False
 
-
     async def run_scheduler(self):
-        """Fon rejimida vaqtni nazorat qilish va vazifalarni ishga tushirish.
-        
-        JADVAL:
-        - 09:45 — Morning Briefing (Qarorlar uchun ma'lumot)
-        - 10:00 — Daily Mission Distribution (Plan)
-        - 14:00 — Afternoon Mission Distribution (Plan)
-        - 01:00 — Night Shift (CRM tozalash)
-        - 02:00 — Intelligence Audit (Kechalik AI tahlil)
-        - 21:00 — Evening Fact Report (Plan vs Natija)
-        """
-        import src.api_server as api_server_module
-        
-        logger.info("👸 [ADMIN_BOT] Full Autonomous Scheduler v2.0 ishga tushdi! 🛡️")
+        """Fon rejimida vaqtni nazorat qilish va vazifalarni ishga tushirish."""
+        logger.info("👸 [ADMIN_BOT] Scheduler loop started! Listening for 10:00 and 14:00 missions. 🛡️")
         while True:
             try:
                 now = get_local_now()
@@ -543,203 +633,33 @@ class AdminBot:
                 today = now.strftime("%Y-%m-%d")
 
                 if is_quiet_hours(now):
-                    logger.debug("[SCHEDULER] Quiet hours active. Automatic Telegram jobs are paused.")
                     await asyncio.sleep(30)
                     continue
 
-                # 1. Morning Briefing (09:45)
-                if current_time == "09:45":
-                    job_id = f"morning_briefing_{today}"
-                    if not await self.db.get_state(job_id):
-                        logger.info("👸 [SCHEDULER] Morning Briefing boshlandi...")
-                        try:
-                            from src.services.proactive_worker import send_morning_briefing
-                            await send_morning_briefing()
-                            await self.db.set_state(job_id, "done")
-                            api_server_module.add_activity("☀️ Morning Briefing", "Kunlik brifing jamoaga yuborildi.", "success")
-                        except Exception as e:
-                            logger.error(f"[BRIEFING ERROR] {e}")
-                            api_server_module.add_activity("⚠️ Morning Briefing", f"Xatolik: {e}", "error")
-
-                # 1.5 Daily Plan Discipline (10:15, 13:00, 16:30)
-                daily_plan_slots = {
-                    "10:15": "initial",
-                    "13:00": "reminder",
-                    "16:30": "escalation",
-                }
-                if current_time in daily_plan_slots:
-                    phase = daily_plan_slots[current_time]
-                    job_id = f"daily_plan_{phase}_{today}"
-                    if not await self.db.get_state(job_id):
-                        logger.info(f"[SCHEDULER] Daily plan discipline phase={phase}...")
-                        try:
-                            from src.services.proactive_worker import demand_daily_plans
-                            sent = await demand_daily_plans(phase)
-                            await self.db.set_state(job_id, "done")
-                            if sent:
-                                api_server_module.add_activity(
-                                    "ðŸ“ Daily Plan Discipline",
-                                    f"Kunlik plan bo'yicha {phase} faza yuborildi.",
-                                    "success",
-                                )
-                        except Exception as e:
-                            logger.error(f"[DAILY PLAN ERROR] {e}")
-                            api_server_module.add_activity("âš ï¸ Daily Plan Error", str(e), "error")
-
-                # 2. Daily Missions (10:00 va 14:00)
+                # 1. Kunlik missiyalar (10:00 va 14:00)
                 if current_time in ["10:00", "14:00"]:
                     job_id = f"daily_{today}_{current_time}"
-                    if not await self.db.get_state(job_id):
-                        logger.info(f"👸 [SCHEDULER] Mission Distribution {current_time}...")
-                        try:
-                            await self.trigger_daily_missions()
-                            await self.db.set_state(job_id, "done")
-                            api_server_module.add_activity(
-                                f"🎯 Mission Control ({current_time})",
-                                "Lidlar menejerlarga taqsimlandi va 'Morning Plan' guruhga yuborildi.",
-                                "success"
-                            )
-                        except Exception as e:
-                            logger.error(f"[MISSION ERROR] {e}")
-                            api_server_module.add_activity("⚠️ Mission Error", str(e), "error")
+                    if not self.db.get_state(job_id):
+                        logger.info(f"👸 [ADMIN_BOT] Starting scheduled daily missions for {current_time}")
+                        await self.trigger_daily_missions()
+                        self.db.set_state(job_id, "done")
 
-                # 3. Evening Fact Report (21:00)
-                if current_time == "21:00":
-                    job_id = f"evening_fact_{today}"
-                    if not await self.db.get_state(job_id):
-                        logger.info("👸 [SCHEDULER] Evening Fact Report boshlandi...")
-                        try:
-                            from src.services.proactive_worker import send_evening_fact_report
-                            await send_evening_fact_report()
-                            await self.db.set_state(job_id, "done")
-                            api_server_module.add_activity("📊 Plan-Fakt Tahlili", "Kechki natijalar auditlandi va Telegram guruhiga yuborildi.", "success")
-                        except Exception as e:
-                            logger.error(f"[FACT REPORT ERROR] {e}")
-                            api_server_module.add_activity("⚠️ Fact Report Error", str(e), "error")
+                # 2. Kechki coaching hisoboti (18:00) — Avtomatik
+                if current_time == "18:00":
+                    job_id = f"coaching_report_{today}"
+                    if not self.db.get_state(job_id):
+                        logger.info("🏆 [ADMIN_BOT] Generating daily coaching report...")
+                        await self._send_daily_coaching_report()
+                        self.db.set_state(job_id, "done")
 
-                # 4. Night Shift — CRM Cleanup (01:00)
+                # 3. Night Shift (01:00)
                 if current_time == "01:00":
                     job_id = f"night_shift_{today}"
-                    if not await self.db.get_state(job_id):
-                        logger.info("👸 [SCHEDULER] Night Shift CRM Cleanup boshlandi...")
-                        api_server_module.add_activity("🧹 Night Shift", "AmoCRM dublikatlar va qotib qolgan lidlar tozalanmoqda...", "thinking")
-                        try:
-                            if self.night_shift:
-                                await self.night_shift.run_cleanup()
-                            await self.db.set_state(job_id, "done")
-                            api_server_module.add_activity("✅ Night Shift", "CRM muvaffaqiyatli tozalandi.", "success")
-                        except Exception as e:
-                            logger.error(f"[NIGHT SHIFT ERROR] {e}")
-                            api_server_module.add_activity("⚠️ Night Shift Error", str(e), "error")
-
-                # 5. Intelligence Audit — Tungi AI Tahlili (02:00)
-                if current_time == "02:00":
-                    job_id = f"intelligence_audit_{today}"
-                    if not await self.db.get_state(job_id):
-                        logger.info("👸 [SCHEDULER] Intelligence Audit boshlandi (tungi)...")
-                        api_server_module.add_activity("🕵️ Intelligence Audit", "Tungi AI tahlili boshlandi. Faollik loglari o'rganilmoqda...", "thinking")
-                        try:
-                            from src.services.audit_agent import AuditAgent
-                            import src.config as config
-                            _audit = AuditAgent(api_key=config.GEMINI_API_KEY, db=self.db)
-                            report = await _audit.generate_audit_report(limit=200)
-                            # Egaga yuborish (user_client orqali)
-                            from src.api_server import user_client as uc
-                            if uc:
-                                # [FIX: PeerUser] Use 'me' directly for safer delivery to self
-                                try:
-                                    logger.info("📨 [AUDIT] Sending nighttime report to 'me'...")
-                                    await uc.send_message("me", f"🦉 **OISHA: Tungi Intelligence Audit**\n\n{report}")
-                                except Exception as entity_error:
-                                    logger.error(f"[AUDIT PEER ERROR] {entity_error}")
-                                    # Fallback: try direct 'me'
-                                    await uc.send_message("me", f"🦉 **OISHA: Tungi Intelligence Audit**\n\n{report}")
-                            await self.db.set_state(job_id, "done")
-                            api_server_module.add_activity("✅ Intelligence Audit", "Tungi audit yakunlandi. Hisobot Telegramga yuborildi.", "success")
-                        except Exception as e:
-                            logger.error(f"[AUDIT ERROR] {e}")
-                            api_server_module.add_activity("⚠️ Audit Error", str(e), "error")
-
-                # 6. Menejer Scorecard (18:30) — Kunlik KPI
-                if current_time == "18:30":
-                    job_id = f"scorecard_{today}"
-                    if not await self.db.get_state(job_id):
-                        logger.info("📊 [SCHEDULER] Menejer Scorecard boshlandi...")
-                        try:
-                            from src.services.core.sales_analytics import SalesAnalytics
-                            from telegram import Bot
-                            import src.config as config
-                            bot_token = getattr(config, "BOT_TOKEN", None)
-                            group_id = getattr(config, "CRM_GROUP_ID", None)
-                            thread_id = getattr(config, "TOPIC_REPORTS_ID", None)
-                            if bot_token and group_id:
-                                tg_bot = Bot(token=bot_token)
-                                analytics = SalesAnalytics(bot=tg_bot)
-                                await analytics.send_scorecard(group_id, thread_id)
-                            await self.db.set_state(job_id, "done")
-                            api_server_module.add_activity("📊 Scorecard", "Menejer KPI hisoboti yuborildi.", "success")
-                        except Exception as e:
-                            logger.error(f"[SCORECARD ERROR] {e}")
-                            api_server_module.add_activity("⚠️ Scorecard Error", str(e), "error")
-
-                # 7. Stagnatsiya Alert (12:00) — Harakatsiz lidlar
-                if current_time == "12:00":
-                    job_id = f"stagnation_{today}"
-                    if not await self.db.get_state(job_id):
-                        logger.info("[SCHEDULER] Sales Conversion Push boshlandi...")
-                        try:
-                            from src.services.proactive_worker import check_amocrm_stagnation
-                            await check_amocrm_stagnation()
-                            await self.db.set_state(job_id, "done")
-                            api_server_module.add_activity(
-                                "ðŸš¨ Sales Conversion Push",
-                                "Harakatsiz lidlar bo'yicha conversion push yuborildi.",
-                                "success",
-                            )
-                        except Exception as e:
-                            logger.error(f"[SALES PUSH ERROR] {e}")
-                            api_server_module.add_activity("âš ï¸ Sales Push Error", str(e), "error")
-                    job_id = f"stagnation_{today}"
-                    if not await self.db.get_state(job_id):
-                        logger.info("🚨 [SCHEDULER] Stagnatsiya Alert boshlandi...")
-                        try:
-                            from src.services.core.sales_analytics import SalesAnalytics
-                            from telegram import Bot
-                            import src.config as config
-                            bot_token = getattr(config, "BOT_TOKEN", None)
-                            group_id = getattr(config, "CRM_GROUP_ID", None)
-                            thread_id = getattr(config, "TOPIC_REPORTS_ID", None)
-                            if bot_token and group_id:
-                                tg_bot = Bot(token=bot_token)
-                                analytics = SalesAnalytics(bot=tg_bot)
-                                await analytics.send_stagnation_alert(group_id, thread_id)
-                            await self.db.set_state(job_id, "done")
-                            api_server_module.add_activity("🚨 Stagnatsiya", "Harakatsiz lidlar hisoboti yuborildi.", "success")
-                        except Exception as e:
-                            logger.error(f"[STAGNATION ERROR] {e}")
-                            api_server_module.add_activity("⚠️ Stagnation Error", str(e), "error")
-
-                # 8. Pipeline Funnel (Dushanba 09:30) — Haftalik conversiya
-                if now.weekday() == 0 and current_time == "09:30":
-                    job_id = f"funnel_{today}"
-                    if not await self.db.get_state(job_id):
-                        logger.info("📊 [SCHEDULER] Pipeline Funnel boshlandi...")
-                        try:
-                            from src.services.core.sales_analytics import SalesAnalytics
-                            from telegram import Bot
-                            import src.config as config
-                            bot_token = getattr(config, "BOT_TOKEN", None)
-                            group_id = getattr(config, "CRM_GROUP_ID", None)
-                            thread_id = getattr(config, "TOPIC_REPORTS_ID", None)
-                            if bot_token and group_id:
-                                tg_bot = Bot(token=bot_token)
-                                analytics = SalesAnalytics(bot=tg_bot)
-                                await analytics.send_funnel_report(group_id, thread_id)
-                            await self.db.set_state(job_id, "done")
-                            api_server_module.add_activity("📊 Pipeline Funnel", "Haftalik conversiya tahlili yuborildi.", "success")
-                        except Exception as e:
-                            logger.error(f"[FUNNEL ERROR] {e}")
-                            api_server_module.add_activity("⚠️ Funnel Error", str(e), "error")
+                    if not self.db.get_state(job_id):
+                        logger.info("👸 [ADMIN_BOT] Starting scheduled Night Shift cleanup...")
+                        if self.night_shift:
+                            await self.night_shift.run_cleanup()
+                        self.db.set_state(job_id, "done")
 
                 # Har 30 soniyada tekshirish
                 await asyncio.sleep(30)
@@ -747,21 +667,86 @@ class AdminBot:
                 logger.error(f"[SCHEDULER ERROR] {e}")
                 await asyncio.sleep(60)
 
-    async def _show_settings_menu(self, event, edit=False):
-        """Tizim sozlamalarini ko'rsatish."""
-        from src.settings import settings
-        mode = settings.LEAD_DISTRIBUTION_MODE
-        msg = f"⚙️ **TIZIM SOZLAMALARI**\n\n🎯 Taqsimot: `{mode}`"
-        btns = [
-            [Button.inline("CLAIM", b"set_dist_mode:CLAIM"), Button.inline("ROUND_ROBIN", b"set_dist_mode:ROUND_ROBIN")],
-            [Button.inline("⬅️ Orqaga", b"dashboard")]
-        ]
-        if edit: await event.edit(msg, buttons=btns)
-        else: await event.respond(msg, buttons=btns)
+    # [DEPRECATED] Merged into start()
 
-    async def _perform_global_lookup(self, phone: str):
-        """Global qidiruvni amalga oshirish."""
-        return await self._perform_global_lookup_userbot(phone)
+        @self.bot_client.on(events.CallbackQuery())
+        async def callback_handler(event):
+            data = event.data.decode('utf-8')
+            try:
+                if data == "dashboard":
+                    await self.send_dashboard(event)
+                elif data == "weekly_report":
+                    await self.send_weekly_report(event)
+                elif data == "get_id":
+                    await event.respond(f"🆔 Sizning Telegram ID: `{event.sender_id}`\nUni tizimga kiritish uchun Admin-ga bering.")
+                elif data == "search":
+                    self.active_searches[event.sender_id] = datetime.now()
+                    await event.respond("🔍 **Deep Search rejimiga xush kelibsiz!**\n\n"
+                                       "Qidirmoqchi bo'lgan **telefon nomeringizni** yozing (masalan: `+998991234567`).\n"
+                                       "Oisha butun Telegram tarmog'idan ushbu mijozni topib beradi. 👸🛡️")
+                elif data.startswith("social_spy:"):
+                    user_id = int(data.split(":")[1])
+                    await self.analyze_social_history(user_id, event)
+                elif data == "vps_status":
+                    await self.send_vps_status(event)
+                elif data == "logs":
+                    await self.send_recent_logs(event)
+                elif data.startswith("send_draft:"):
+                    draft_id = data.split(":")[1]
+                    target_user_id = int(data.split(":")[2])
+                    if draft_id in self.pending_drafts:
+                        draft_text = self.pending_drafts[draft_id]
+                        await self.user_client.send_message(target_user_id, draft_text)
+                        await event.edit(f"✅ **Yuborildi!**\n\n\"{draft_text[:100]}...\"")
+                        del self.pending_drafts[draft_id]
+                    else:
+                        await event.answer("⚠️ Draft muddati o'tgan yoki topilmadi.", alert=True)
+                elif data.startswith("reject_draft:"):
+                    draft_id = data.split(":")[1]
+                    if draft_id in self.pending_drafts:
+                        del self.pending_drafts[draft_id]
+                    await event.edit("❌ Draft bekor qilindi.")
+                elif data.startswith("claim_lead:"):
+                    lead_id = data.split(":")[1]
+                    user_id = data.split(":")[2]
+                    
+                    sender = await event.get_sender()
+                    claimer = getattr(sender, 'first_name', 'Menejer')
+                    
+                    # Prevent multiple claims if already claimed
+                    if "✅" in event.message.text:
+                        await event.answer("⚠️ Bu lid allaqachon qabul qilingan!", alert=True)
+                        return
+                        
+                    await event.edit(event.message.text + f"\n\n🚀 **Bitimni {claimer} qabul qildi!** ✅")
+                    await event.answer("Bitim sizga biriktirildi!", alert=True)
+                    logger.info(f"[ADMIN_BOT] Lead {lead_id} claimed by {claimer} ({event.sender_id})")
+                elif data.startswith("accept_lead:"):
+                    lead_id = data.split(":")[1]
+                    user_id = data.split(":")[2]
+                    assigned_to = int(data.split(":")[3])
+                    
+                    if event.sender_id != assigned_to:
+                        await event.answer("⚠️ Bu lid sizga biriktirilmagan!", alert=True)
+                        return
+                    
+                    if "✅" in event.message.text:
+                        await event.answer("⚠️ Allaqachon qabul qilingan!", alert=True)
+                        return
+
+                    sender = await event.get_sender()
+                    claimer = getattr(sender, 'first_name', 'Menejer')
+                    await event.edit(event.message.text + f"\n\n✅ **Menejer ({claimer}) qabul qildi.**")
+                    await event.answer("Tasdiqlandi!", alert=True)
+                elif data == "call_kpi":
+                    await self.send_call_kpi(event)
+                elif data == "coaching":
+                    await self.send_team_coaching(event)
+                else:
+                    await event.answer("⚠️ Bu funksiya hozircha ish faoliyatida emas.", alert=True)
+            except Exception as e:
+                logger.error(f"❌ [ADMIN_BOT] CALLBACK ERROR: {str(e)}")
+                await event.answer("⚠️ Xatolik yuz berdi.", alert=True)
 
         # [ENTERPRISE: SEARCH] Phone number listener for Deep Search
         @self.bot_client.on(events.NewMessage())
@@ -820,14 +805,16 @@ class AdminBot:
             
             # 1. Search in DB
             results = []
-            async with await self.db.get_connection() as conn:
-                async with conn.execute("""
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                # Search by name, username, or phone
+                cursor.execute("""
                     SELECT user_id, first_name, username, phone, intent 
                     FROM users 
                     WHERE first_name LIKE ? OR username LIKE ? OR phone LIKE ?
                     LIMIT 10
-                """, (f"%{query}%", f"%{query}%", f"%{query}%")) as cursor:
-                    rows = await cursor.fetchall()
+                """, (f"%{query}%", f"%{query}%", f"%{query}%"))
+                rows = cursor.fetchall()
 
             from telethon import types
             for row in rows:
@@ -856,7 +843,7 @@ class AdminBot:
             
             await event.answer(results)
 
-    async def _perform_global_lookup_userbot(self, phone: str):
+    async def _perform_global_lookup(self, phone: str):
         """Userbot orqali Telegramdan qidirish."""
         from telethon import functions, types
         import random
@@ -903,6 +890,7 @@ class AdminBot:
         if role == "OWNER":
             return [
                 [Button.inline("📊 ROI Dashboard", b"dashboard"), Button.inline("📅 Haftalik Hisobot", b"weekly_report")],
+                [Button.inline("🎯 Savdo Tahlili", b"call_kpi"), Button.inline("🏆 Coaching", b"coaching")],
                 [Button.inline("👥 Jamoa KPI", b"kpi"), Button.inline("🚨 Deadline Control", b"deadlines")],
                 [Button.inline("🔍 Deep Search", b"search"), Button.inline("🖥 VPS Status", b"vps_status")],
                 [Button.inline("📜 So'nggi Loglar", b"logs"), Button.inline("⚙️ Sozlamalar", b"settings")]
@@ -926,7 +914,7 @@ class AdminBot:
             ]
 
     async def send_dashboard(self, event):
-        stats = await self.db.get_today_stats()
+        stats = self.db.get_today_stats()
         msg = (
             "📊 **KUNLIK ROI HISOBOTI**\n"
             "──────────────────────\n"
@@ -964,7 +952,7 @@ class AdminBot:
         cpu_usage = psutil.cpu_percent()
         ram = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
-        
+
         status_msg = (
             "🖥 **VPS SERVER HOLATI**\n"
             "──────────────────────\n"
@@ -977,6 +965,114 @@ class AdminBot:
             "🟢 *Oisha-OS barcha resurslardan unumli foydalanmoqda.*"
         )
         await event.respond(status_msg)
+
+    # ═══════════════════════════════════════════════════
+    # MetaSell-style: Call Analysis & Sales Coaching
+    # ═══════════════════════════════════════════════════
+
+    def _get_call_analyzer(self):
+        """Lazy-init CallAnalyzer."""
+        if not hasattr(self, '_call_analyzer'):
+            api_key = os.environ.get("GEMINI_API_KEY") or ""
+            from src.services.call_analyzer import CallAnalyzer
+            self._call_analyzer = CallAnalyzer(api_key=api_key, db=self.db)
+        return self._call_analyzer
+
+    async def send_call_kpi(self, event):
+        """MetaSell-style KPI dashboard for call analysis."""
+        analyzer = self._get_call_analyzer()
+        kpi = await analyzer.get_kpi_summary()
+
+        if not kpi or not kpi.get("week", {}).get("calls"):
+            await event.respond(
+                "🎯 **SAVDO TAHLILI — KPI**\n"
+                "──────────────────────\n"
+                "📭 Hali tahlil qilingan suhbatlar yo'q.\n\n"
+                "💡 **Boshlash:** Guruhga savdo suhbatlarini (matn/ovozli) yuboring.\n"
+                "Oisha avtomatik tahlil qiladi va ball beradi.\n\n"
+                "Yoki: `/analyze` buyrug'i bilan suhbatni reply qiling."
+            )
+            return
+
+        trend = kpi.get("trend_label", "")
+        msg = (
+            f"🎯 **SAVDO TAHLILI — KPI DASHBOARD**\n"
+            f"──────────────────────\n\n"
+            f"📅 **Bugun:**\n"
+            f"   Tahlillar: `{kpi['today']['calls']}` | O'rtacha ball: `{kpi['today']['avg_score']}/100`\n\n"
+            f"📆 **Shu hafta:**\n"
+            f"   Tahlillar: `{kpi['week']['calls']}` | O'rtacha ball: `{kpi['week']['avg_score']}/100`\n\n"
+            f"📊 **Shu oy:**\n"
+            f"   Tahlillar: `{kpi['month']['calls']}` | O'rtacha ball: `{kpi['month']['avg_score']}/100`\n\n"
+            f"📈 **Trend:** {trend} ({kpi.get('trend', 0):+.1f} ball)\n"
+            f"──────────────────────\n"
+            f"💡 */analyze* — suhbatni tahlil qilish\n"
+            f"💡 */coaching @ism* — shaxsiy coaching"
+        )
+        await event.respond(msg)
+
+    async def send_team_coaching(self, event):
+        """Generate AI coaching for the whole team."""
+        analyzer = self._get_call_analyzer()
+        report = await analyzer.get_team_report(period_days=7)
+
+        if not report.get("team"):
+            await event.respond(
+                "🏆 **JAMOA COACHING**\n"
+                "──────────────────────\n"
+                "📭 Hali jamoa a'zolari tahlil qilinmagan.\n\n"
+                "Savdo suhbatlarini guruhga yuboring — Oisha avtomatik tahlil qiladi."
+            )
+            return
+
+        msg = f"🏆 **JAMOA COACHING HISOBOTI** (7 kun)\n──────────────────────\n\n"
+        msg += f"📊 Umumiy tahlillar: `{report['total_analyses']}` | Jamoa o'rtachasi: `{report['team_avg_score']}/100`\n\n"
+
+        for i, member in enumerate(report["team"], 1):
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👤"
+            bd = member["breakdown"]
+            msg += (
+                f"{medal} **{member['name']}** — `{member['avg_score']}/100` ({member['call_count']} suhbat)\n"
+                f"   Salom: `{bd['greeting']}` | Ehtiyoj: `{bd['needs_discovery']}` | "
+                f"Taklif: `{bd['pitch']}` | E'tiroz: `{bd['objection_handling']}` | Yakunlash: `{bd['closing']}`\n\n"
+            )
+
+        msg += "──────────────────────\n💡 */coaching @ism* — shaxsiy AI coaching olish"
+        await event.respond(msg)
+
+    async def _send_daily_coaching_report(self):
+        """Avtomatik kechki coaching hisoboti — har kuni 18:00 da jamoa guruhiga yuboriladi."""
+        try:
+            analyzer = self._get_call_analyzer()
+            report = await analyzer.get_team_report(period_days=1)
+
+            if not report.get("team"):
+                logger.info("[COACHING REPORT] No analyses today, skipping.")
+                return
+
+            msg = f"🏆 **KUNLIK SAVDO TAHLILI** ({datetime.now().strftime('%d.%m.%Y')})\n──────────────────────\n\n"
+            msg += f"📊 Bugun tahlil qilingan: `{report['total_analyses']}` suhbat\n"
+            msg += f"📈 Jamoa o'rtachasi: `{report['team_avg_score']}/100`\n\n"
+
+            for i, member in enumerate(report["team"], 1):
+                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👤"
+                msg += f"{medal} **{member['name']}** — `{member['avg_score']}/100` ({member['call_count']} suhbat)\n"
+
+            # Generate coaching for weakest performer
+            if len(report["team"]) > 0:
+                weakest = report["team"][-1]  # sorted by score DESC, last = weakest
+                coaching = await analyzer.generate_coaching(weakest["id"], weakest["name"], "kun")
+                if coaching and "hali tahlil qilingan" not in coaching.lower():
+                    msg += f"\n──────────────────────\n"
+                    msg += f"💡 **AI Coaching ({weakest['name']} uchun):**\n{coaching[:500]}"
+
+            from src.settings import settings
+            topic_id = getattr(settings, 'TOPIC_REPORTS_ID', None) or getattr(settings, 'CRM_TOPIC_ID', None)
+            await self.notify_team(msg, topic_id=topic_id)
+            logger.info(f"[COACHING REPORT] Daily report sent to team group.")
+
+        except Exception as e:
+            logger.error(f"[COACHING REPORT] Error: {e}")
 
     async def send_recent_logs(self, event):
         """Oxirgi 15 qator logni ko'rsatish."""
@@ -1170,8 +1266,5 @@ class AdminBot:
             await self.bot_client.send_message(
                 self.access_manager.owner_id, 
                 msg, 
-                buttons=[[
-                    Button.inline("🚀 Ayt!", f"send_draft:{draft_id}:{user_id}"),
-                    Button.inline("❌ Rad et", f"reject_draft:{draft_id}"),
-                ]]
+                buttons=[[Button.inline("🚀 Ayt!", f"send_draft:{draft_id}:{user_id}")]]
             )
