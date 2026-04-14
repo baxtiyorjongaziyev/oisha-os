@@ -622,3 +622,77 @@ class EnterpriseReporter:
             report.append("🚀 Bugun o'z ustimizda ishlash va CRM ni tozalash kuni. Olaysizlar!")
 
         return "\n".join(report)
+
+    async def generate_weekly_report_uz(self, period_start: str, period_end: str, 
+                                        active_deals: int, active_value: int,
+                                        completed_deals: int, completed_value: int,
+                                        lost_deals: int, lost_value: int,
+                                        new_deals: int, new_companies: int, new_contacts: int) -> str:
+        """Generate weekly CRM report in Uzbek language.
+        
+        Args:
+            period_start: Start date (DD.MM.YYYY)
+            period_end: End date (DD.MM.YYYY)
+            active_deals: Number of active deals at end of period
+            active_value: Value of active deals in UZS
+            completed_deals: Number of successfully completed deals
+            completed_value: Value of completed deals
+            lost_deals: Number of unrealized deals
+            lost_value: Value of lost deals
+            new_deals: New deals created
+            new_companies: New companies created
+            new_contacts: New contacts created
+            
+        Returns:
+            Formatted report string in Uzbek
+        """
+        # Format numbers with spaces for thousands
+        def format_money(amount: int) -> str:
+            if amount == 0:
+                return "0"
+            return f"{amount:,}".replace(",", " ")
+        
+        report = []
+        
+        # Header
+        report.append(f"📊 *HAFTALIK HISOBOT*")
+        report.append(f"📅 *Davri: {period_start} - {period_end}*\n")
+        
+        # Active deals section
+        report.append(f"💼 *AKTIV BITIMLAR (davr oxirida):*")
+        report.append(f"• Jami: *{active_deals} ta*")
+        report.append(f"• Qiymati: *{format_money(active_value)} soʻm*\n")
+        
+        # Completed deals section
+        report.append(f"✅ *YOPILGAN BITIMLAR:*")
+        if completed_deals > 0:
+            report.append(f"• Muvaffaqiyatli: *{completed_deals} ta* ({format_money(completed_value)} soʻm)")
+        else:
+            report.append(f"• Muvaffaqiyatli: *0 ta* ⚠️")
+        
+        if lost_deals > 0:
+            report.append(f"• Bekor qilingan: *{lost_deals} ta* ({format_money(lost_value)} soʻm)")
+        report.append("")
+        
+        # New entries section
+        report.append(f"🆕 *YANGI YARATILGAN:*")
+        report.append(f"• Bitimlar: *{new_deals} ta* 📈")
+        report.append(f"• Kompaniyalar: *{new_companies} ta* 🏢")
+        report.append(f"• Kontaktlar: *{new_contacts} ta* 👥\n")
+        
+        # Summary analysis
+        report.append(f"📈 *OISHA TAHLILI:*")
+        
+        if new_deals > 100:
+            report.append(f"_✅ Ajoyib! Haftada {new_deals} ta yangi bitim - aktiv sotuv jarayoni._")
+        elif new_deals > 50:
+            report.append(f"_🟡 O'rtacha. Yangi bitimlar oqimi yaxshi, lekin yanada kuchaytirish mumkin._")
+        else:
+            report.append(f"_🔴 Diqqat! Yangi leadlar kam. Marketing kanallarini ko'rib chiqish vaqt._")
+        
+        if completed_deals == 0 and active_deals > 100:
+            report.append(f"_⚠️ {active_deals} ta aktiv bitim ichida yopilgan yo'q - menejerlar nazoratini kuchaytiring._")
+        
+        report.append(f"\n📊 *Davom ettirish uchun @baxtiyorjong_gaziyev nazoratida* 👑")
+        
+        return "\n".join(report)
