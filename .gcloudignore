@@ -1,19 +1,53 @@
+# Google Cloud Build ignore file
+# This file controls what gets uploaded to Google Cloud Build
+
+# Version control
 .git
+.gitignore
+
+# Python
 .venv
 __pycache__
 *.pyc
+*.pyo
+*.pyd
+.Python
+
+# Session files (will be mounted from GCS)
 *.session
 *.session-journal
+
+# Data files (mounted from GCS)
 data/bot.db
 data/*.db
 data/logs/
-node_modules/
+
+# IDE
 .vscode/
 .idea/
-sync_output.txt
-trace.txt
-tests/
+*.swp
+*.swo
+*~
+
+# Node.js
+node_modules/
+
+# Temporary files
 tmp/
 *.pickle
+sync_output.txt
+trace.txt
+*.log
+
+# Credentials (should be in Secret Manager)
 credentials.json
 service_account.json
+.env
+.env.local
+
+# Claude/AI specific
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
