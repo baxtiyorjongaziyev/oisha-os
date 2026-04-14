@@ -10,6 +10,13 @@ import queue
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from src.services.core.agent_runtime import (
+    collect_legacy_runtime_inventory,
+    get_runtime_context,
+    get_storage_health,
+    set_runtime_context,
+)
+from src.time_utils import get_local_now
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -33,12 +40,19 @@ app.add_middleware(
 @app.get("/")
 async def root_status():
     """Health check for Google Cloud Run."""
-    return {
+    runtime = get_runtime_context()
+    response = {
         "status": "online",
         "service": "Oisha-OS Enterprise",
         "version": "2.1.0-GodMode",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": get_local_now().isoformat(),
+        "runtime_source": runtime.get("runtime_source"),
+        "service_name": runtime.get("service_name"),
+        "runtime_id": runtime.get("runtime_id"),
+        "userbot_authorized": runtime.get("userbot_authorized"),
     }
+    response.update(cached_status)
+    return response
 
 # Global references
 user_client = None
@@ -52,24 +66,26 @@ command_queue = queue.Queue()
 cached_status: Dict[str, Any] = {
     "status": "offline",
     "message": "Tizim tayyorlanmoqda...",
-    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    "timestamp": get_local_now().strftime("%Y-%m-%d %H:%M:%S")
 }
 
 # --- CRM AUDIT CACHE ---
 cached_crm_audit: Dict[str, Any] = {
     "health_score": 98,
     "summary": "Audit kutilmoqda...",
-    "timestamp": datetime.now().isoformat()
+    "timestamp": get_local_now().isoformat()
 }
 # --- DASHBOARD ACTIVITY FEED ---
 system_activities: List[Dict[str, Any]] = [
     {
-        "timestamp": datetime.now().strftime("%H:%M:%S"),
+        "timestamp": get_local_now().strftime("%H:%M:%S"),
         "action": "🚀 System Boot",
         "details": "Oisha-OS Strategic Intelligence is online and listening.",
         "type": "success"
     }
 ]
+
+legacy_runtime_inventory_cache: Optional[List[Dict[str, Any]]] = None
 
 # --- WAZZUP BRIDGE (Outgoing Messages Queue) ---
 outgoing_messages = asyncio.Queue()
@@ -77,7 +93,7 @@ outgoing_messages = asyncio.Queue()
 def add_activity(action: str, details: str = "", type: str = "info"):
     """Tizimdagi amallarni Dashboard uchun ro'yxatga olish."""
     activity = {
-        "timestamp": datetime.now().strftime("%H:%M:%S"),
+        "timestamp": get_local_now().strftime("%H:%M:%S"),
         "action": action,
         "details": details,
         "type": type # info, success, warning, error, thinking
@@ -88,12 +104,56 @@ def add_activity(action: str, details: str = "", type: str = "info"):
         system_activities.pop()
     logger.info(f"📊 [DASHBOARD] {action}: {details}")
 
+def get_legacy_runtime_inventory() -> List[Dict[str, Any]]:
+    global legacy_runtime_inventory_cache
+    if legacy_runtime_inventory_cache is None:
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        legacy_runtime_inventory_cache = collect_legacy_runtime_inventory(repo_root)
+    return list(legacy_runtime_inventory_cache)
+
+
+async def build_health_snapshot(include_inventory: bool = False, include_traces: bool = False) -> Dict[str, Any]:
+    runtime = get_runtime_context()
+    db_path = runtime.get("state_db_path") or getattr(db_instance, "db_path", None)
+    recent_job_runs: List[Dict[str, Any]] = []
+    recent_agent_actions: List[Dict[str, Any]] = []
+
+    if db_instance:
+        try:
+            recent_job_runs = await db_instance.get_recent_job_runs(limit=10)
+        except Exception as exc:
+            logger.warning(f"[API] Could not fetch recent job runs: {exc}")
+
+        if include_traces:
+            try:
+                recent_agent_actions = await db_instance.get_recent_agent_actions(limit=25)
+            except Exception as exc:
+                logger.warning(f"[API] Could not fetch agent actions: {exc}")
+
+    snapshot = {
+        "timestamp": get_local_now().isoformat(),
+        "status": cached_status.copy(),
+        "runtime": runtime,
+        "storage": get_storage_health(db_path, recent_job_runs=recent_job_runs),
+    }
+    if include_inventory:
+        snapshot["legacy_runtime_inventory"] = get_legacy_runtime_inventory()
+    if include_traces:
+        snapshot["agent_actions"] = recent_agent_actions
+    return snapshot
+
+
 @app.get("/api/system/status")
 async def get_system_status():
     global cached_status, cached_crm_audit
     # Update health score from audit cache
     data = cached_status.copy()
     data["crm_health"] = f"{cached_crm_audit.get('health_score', 98)}%"
+    runtime = get_runtime_context()
+    data["runtime_source"] = runtime.get("runtime_source")
+    data["service_name"] = runtime.get("service_name")
+    data["state_backend"] = runtime.get("state_backend")
+    data["userbot_authorized"] = runtime.get("userbot_authorized")
     return data
 
 def update_api_status(status: str, message: str):
@@ -102,7 +162,44 @@ def update_api_status(status: str, message: str):
     cached_status = {
         "status": status,
         "message": message,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "timestamp": get_local_now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+
+@app.get("/api/system/runtime")
+async def get_system_runtime():
+    return {
+        "timestamp": get_local_now().isoformat(),
+        "runtime": get_runtime_context(),
+        "legacy_runtime_inventory": get_legacy_runtime_inventory(),
+    }
+
+
+@app.get("/api/system/health")
+async def get_system_health():
+    snapshot = await build_health_snapshot()
+    snapshot["crm_audit"] = cached_crm_audit
+    return snapshot
+
+
+@app.get("/api/system/traces")
+async def get_system_traces():
+    snapshot = await build_health_snapshot(include_traces=True)
+    return {
+        "timestamp": snapshot["timestamp"],
+        "runtime": snapshot["runtime"],
+        "job_runs": snapshot["storage"].get("recent_job_runs", []),
+        "agent_actions": snapshot.get("agent_actions", []),
+    }
+
+
+@app.get("/api/system/inventory")
+async def get_system_inventory():
+    snapshot = await build_health_snapshot(include_inventory=True)
+    return {
+        "timestamp": snapshot["timestamp"],
+        "runtime": snapshot["runtime"],
+        "legacy_runtime_inventory": snapshot.get("legacy_runtime_inventory", []),
     }
 
 @app.get("/api/system/activity")
@@ -137,7 +234,7 @@ async def get_stats():
         elif health >= 50: stats["automation_efficiency"] = "Nominal"
         else: stats["automation_efficiency"] = "Action Required"
         
-        stats["last_audit"] = cached_crm_audit.get("timestamp", datetime.now().isoformat())
+        stats["last_audit"] = cached_crm_audit.get("timestamp", get_local_now().isoformat())
         return stats
     except Exception as e:
         logger.error(f"Stats Error: {e}")
@@ -159,7 +256,8 @@ async def lifespan(app: FastAPI):
 @app.get("/api/chat/lookup/{phone}")
 async def lookup_user_by_phone(phone: str, secret_key: str):
     """AmoCRM mijoz telefoni orqali Telegram ID sini topish."""
-    if secret_key != os.environ.get("OISHA_API_SECRET", "oisha_safe_123"):
+    expected_secret = os.environ.get("OISHA_API_SECRET")
+    if not expected_secret or secret_key != expected_secret:
         return {"error": "Unauthorized"}
     
     if not db_instance:
@@ -173,7 +271,8 @@ async def lookup_user_by_phone(phone: str, secret_key: str):
 @app.get("/api/chat/history/{user_id}")
 async def get_chat_history(user_id: int, secret_key: str):
     """Mijoz bilan shaxsiy suhbat tarixini widget uchun qaytarish."""
-    if secret_key != os.environ.get("OISHA_API_SECRET", "oisha_safe_123"):
+    expected_secret = os.environ.get("OISHA_API_SECRET")
+    if not expected_secret or secret_key != expected_secret:
         return {"error": "Unauthorized"}
     
     if not db_instance:
@@ -187,7 +286,8 @@ async def get_chat_history(user_id: int, secret_key: str):
 @app.post("/api/chat/send")
 async def send_chat_message(request: SendMessageRequest):
     """AmoCRM widgetidan kelgan xabarni Telegramga yuborish (Queued)."""
-    if request.secret_key != os.environ.get("OISHA_API_SECRET", "oisha_safe_123"):
+    expected_secret = os.environ.get("OISHA_API_SECRET")
+    if not expected_secret or request.secret_key != expected_secret:
         return {"error": "Unauthorized"}
     
     # Push to queue for Main Thread execution
