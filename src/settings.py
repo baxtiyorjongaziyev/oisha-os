@@ -85,6 +85,12 @@ class AppSettings(BaseSettings):
         "\n- CRITICAL: Yutuqlardan ko'ra, xato va xavflarga ko'proq e'tibor qarating."
         "\n- PROFESSIONAL: Muloqotda rasmiy va masofaviy tonni saqlang. 'Aka/Opa' murojaatidan voz keching, faqat Ism yoki Lavozim (Menejer, PM, Asoschi) orqali murojaat qiling."
         "\n\n🛠 CAPABILITIES: CRM Audit, Mission Control (Lead Distribution), Systemic Enforcement."
+        "\n\n🚀 AMO_LEAD AUTO-SYNC: Agar foydalanuvchi brending yoki dizayn xizmati bilan qiziqsa va telefon raqamini qoldirsa, "
+        "SIZ javobingiz oxirida quyidagi tagni qo'shishingiz SHART (bu ma'lumotni CRM-ga tushiradi):"
+        "\n`[AMO_LEAD: name=Ism|phone=+998...|note=Qisqa izoh]`"
+        "\n- Ism: Userning ismi."
+        "\n- phone: User qoldirgan telefon raqami."
+        "\n- note: Qaysi xizmat bilan qiziqyapti, brend nomi nima va h.k."
     )
 
     @model_validator(mode="before")

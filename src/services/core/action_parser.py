@@ -190,8 +190,45 @@ class ActionParser:
             except Exception as e:
                 logger.error(f"[ACTION_PARSER] Invoice parsing error: {e}")
             reply_text = re.sub(r'\[GENERATE_INVOICE:.*?\]', '', reply_text).strip()
+            
+        # 7. AMO_LEAD (Lead creation/sync)
+        amo_lead_match = re.search(r'\[AMO_LEAD:\s*(.*?)\]', reply_text, re.IGNORECASE)
+        if amo_lead_match:
+            try:
+                amo_raw = str(amo_lead_match.group(1) or "")
+                amo_data = {}
+                for part in amo_raw.split('|'):
+                    if '=' in part:
+                        k_v = part.split('=', 1)
+                        if len(k_v) == 2:
+                            amo_data[k_v[0].strip().lower()] = k_v[1].strip()
+                
+                lead_name = amo_data.get('name') or sender_name
+                lead_phone = amo_data.get('phone') or saved_phone
+                lead_note = amo_data.get('note', 'Telegram orqali avtomatik lead')
+                
+                if lead_phone and lead_phone != "Raqam yo'q":
+                    # Run lead creation in background
+                    async def run_amo_sync():
+                        l_id = await self.amocrm.ensure_lead(lead_name, lead_phone, lead_note)
+                        if l_id and self.config.CRM_GROUP_ID:
+                            # Notify CRM Group
+                            crm_msg = (
+                                f"🔥 <b>YANGI LEAD AMOCRM-GA TUSHDI!</b>\n"
+                                f"━━━━━━━━━━━━━━━━━━━━\n"
+                                f"👤 <b>Mijoz:</b> {lead_name}\n"
+                                f"📞 <b>Tel:</b> <code>{lead_phone}</code>\n"
+                                f"📝 <b>Izoh:</b> {lead_note}\n"
+                                f"🔗 <a href='https://{self.config.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{l_id}'>Bitimni ko'rish</a>"
+                            )
+                            await context.bot.send_message(chat_id=self.config.CRM_GROUP_ID, text=crm_msg, parse_mode="HTML")
+                    
+                    asyncio.create_task(run_amo_sync())
+            except Exception as e:
+                logger.error(f"[ACTION_PARSER] AMO_LEAD parsing error: {e}")
+            reply_text = re.sub(r'\[AMO_LEAD:.*?\]', '', reply_text, flags=re.IGNORECASE).strip()
 
-        # 7. SYNC_LEADS
+        # 8. SYNC_LEADS
         sync_match = re.search(r'\[SYNC_LEADS:\s*topic=(\d+)\|?(limit=(\d+))?\]', reply_text, re.IGNORECASE)
         if sync_match and self.lead_scraper:
             try:
