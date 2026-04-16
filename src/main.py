@@ -1,6 +1,8 @@
 import asyncio
 import base64
+import json
 import os
+import re
 import sys
 
 # Force UTF-8 console output on Windows to avoid emoji-related crashes.
@@ -135,6 +137,274 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
         # API module may not be initialized yet during startup
         logger.warning(f"[AUTH] Could not update API status: {e}")
     return False
+
+
+def _income_state_key(message_id: int) -> str:
+    return f"income_workflow:{message_id}"
+
+
+def _income_gate_key(message_id: int) -> str:
+    return f"income_workflow_gate:{message_id}"
+
+
+def _normalize_income_lookup(text: str) -> str:
+    normalized = re.sub(r"[^\w]+", " ", (text or "").lower(), flags=re.UNICODE)
+    return " ".join(normalized.split())
+
+
+def _extract_income_amount(text: str) -> Dict[str, Any]:
+    lowered = (text or "").lower()
+    currency = "USD" if ("$" in lowered or "usd" in lowered) else "UZS"
+    matches = list(re.finditer(r"\d[\d\s,.]*", text or ""))
+    if not matches:
+        return {"raw": "noma'lum", "value": None, "currency": currency}
+
+    raw_amount = max(matches, key=lambda match: len(match.group(0))).group(0).strip()
+    if currency == "USD":
+        cleaned = raw_amount.replace(" ", "").replace(",", ".")
+        if cleaned.count(".") > 1:
+            parts = cleaned.split(".")
+            cleaned = "".join(parts[:-1]) + "." + parts[-1]
+        try:
+            value = float(cleaned)
+        except ValueError:
+            value = None
+    else:
+        cleaned = re.sub(r"[^\d]", "", raw_amount)
+        value = int(cleaned) if cleaned else None
+
+    return {"raw": raw_amount, "value": value, "currency": currency}
+
+
+def _detect_payment_type(text: str, is_first_payment: bool) -> str:
+    lowered = (text or "").lower()
+    if "to'liq" in lowered or "toliq" in lowered or "full" in lowered:
+        return "Oldindan to'liq" if is_first_payment else "Yakuniy"
+    if "yakuniy" in lowered or "final" in lowered or "qoldiq" in lowered:
+        return "Yakuniy"
+    return "Avans" if is_first_payment else "Orada to'lov"
+
+
+def _detect_payment_source(text: str) -> Optional[str]:
+    lowered = (text or "").lower()
+    if "naqd" in lowered or "cash" in lowered:
+        return "Naqd"
+    if "bank" in lowered or "hisob" in lowered:
+        return "Bank hisobi"
+    if "p2p" in lowered or "card" in lowered or "karta" in lowered:
+        return "P2P card"
+    return None
+
+
+def _format_person_mention(person: Optional[Dict[str, Any]], fallback: str) -> str:
+    if not person:
+        return fallback
+    username = (person.get("username") or "").strip()
+    if username:
+        return username if username.startswith("@") else f"@{username}"
+    user_id = person.get("user_id")
+    name = person.get("name") or fallback
+    if user_id:
+        return f"<a href='tg://user?id={user_id}'>{name}</a>"
+    return name
+
+
+async def _resolve_finance_approver(db: Database) -> Optional[Dict[str, Any]]:
+    for role_name in ("finance", "moliya", "accountant", "buxgalter"):
+        person = db.get_user_by_role(role_name)
+        if person:
+            return person
+
+    owner_id = getattr(settings, "OWNER_ID", None) or getattr(config, "OWNER_ID", None)
+    if owner_id:
+        return {"user_id": owner_id, "name": "Owner", "username": None}
+    return None
+
+
+async def _find_project_for_income(message_text: str) -> Optional[Dict[str, Any]]:
+    from src.services.airtable_sync import AirtableSync
+
+    sync = AirtableSync()
+    projects = await asyncio.to_thread(sync.get_projects)
+    if not projects:
+        return None
+
+    normalized_text = _normalize_income_lookup(message_text)
+    best_match = None
+    best_score = 0.0
+
+    for project in projects:
+        fields = project.get("fields", {})
+        project_name = AirtableSync._get_field(fields, "project_name", "") or ""
+        normalized_name = _normalize_income_lookup(project_name)
+        if len(normalized_name) < 4:
+            continue
+
+        if normalized_name in normalized_text:
+            score = 2.0 + (len(normalized_name) / 1000)
+        else:
+            tokens = [token for token in normalized_name.split() if len(token) >= 4]
+            if not tokens:
+                continue
+            hits = sum(1 for token in tokens if token in normalized_text)
+            score = hits / len(tokens)
+
+        if score > best_score:
+            best_score = score
+            best_match = {
+                "record_id": project.get("id"),
+                "project_name": project_name,
+                "client_ids": fields.get("Mijoz nomi") or [],
+                "seller_ids": fields.get("Seller") or [],
+                "project_fields": fields,
+            }
+
+    return best_match if best_score >= 0.6 else None
+
+
+async def _count_income_records_for_project(project_record_id: str) -> int:
+    from src.services.airtable_sync import AirtableSync
+
+    sync = AirtableSync()
+    records = await asyncio.to_thread(sync.get_finance_records)
+    count = 0
+    for record in records:
+        if record.get("_record_type") != "income":
+            continue
+        if project_record_id in (record.get("fields", {}).get("Loyiha nomi") or []):
+            count += 1
+    return count
+
+
+async def _create_income_airtable_record(workflow: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    from src.services.airtable_sync import AirtableSync
+    from src.time_utils import get_local_now
+
+    project_id = workflow.get("project_id")
+    if not project_id:
+        return None
+
+    project_fields = workflow.get("project_fields") or {}
+    amount_value = workflow.get("amount_value")
+    if amount_value is None:
+        return None
+
+    currency = workflow.get("currency") or "UZS"
+    kurs = project_fields.get("Kurs") or 12000
+    fields: Dict[str, Any] = {
+        "Loyiha nomi": [project_id],
+        "Valyuta": currency,
+        "To'lov sanasi": get_local_now().strftime("%Y-%m-%d"),
+        "To‘lov miqdori": amount_value,
+        "Kurs": kurs,
+        "To'lov turi": _detect_payment_type(workflow.get("source_text", ""), workflow.get("is_first_payment", False)),
+    }
+
+    payment_source = _detect_payment_source(workflow.get("source_text", ""))
+    if payment_source:
+        fields["To'lov manbasi"] = payment_source
+    if workflow.get("client_ids"):
+        fields["Mijoz"] = workflow["client_ids"]
+    if workflow.get("seller_ids"):
+        fields["Seller"] = workflow["seller_ids"]
+
+    sync = AirtableSync(table_name="Kirim")
+    return await asyncio.to_thread(sync.create_record, fields)
+
+
+async def _save_income_workflow_state(db: Database, payload: Dict[str, Any]) -> None:
+    await db.set_state(
+        _income_state_key(int(payload["original_message_id"])),
+        json.dumps(payload, ensure_ascii=False),
+    )
+    gate_message_id = payload.get("gate_message_id")
+    if gate_message_id:
+        await db.set_state(_income_gate_key(int(gate_message_id)), int(payload["original_message_id"]))
+
+
+async def _load_income_workflow_state(db: Database, reply_message_id: Optional[int]) -> Optional[Dict[str, Any]]:
+    if not reply_message_id:
+        return None
+
+    raw = await db.get_state(_income_state_key(int(reply_message_id)))
+    if raw:
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+
+    original_id = await db.get_state(_income_gate_key(int(reply_message_id)))
+    if not original_id:
+        return None
+
+    raw = await db.get_state(_income_state_key(int(original_id)))
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+
+def _is_group_open_confirmation(text: str) -> bool:
+    lowered = (text or "").lower()
+    keywords = (
+        "guruh ochildi",
+        "group opened",
+        "group open",
+        "gruppa ochildi",
+        "mijoz bilan guruh",
+        "client group",
+    )
+    return any(keyword in lowered for keyword in keywords) or "t.me/" in lowered
+
+
+def _is_finance_approval(text: str) -> bool:
+    lowered = (text or "").lower()
+    keywords = (
+        "tasdiq",
+        "tasdiqlandi",
+        "confirmed",
+        "confirm",
+        "ok",
+        "okey",
+        "tushdi",
+        "tushgan",
+    )
+    return any(keyword in lowered for keyword in keywords)
+
+
+def _is_finance_rejection(text: str) -> bool:
+    lowered = (text or "").lower()
+    keywords = (
+        "rad",
+        "reject",
+        "rejected",
+        "tasdiqlamadi",
+        "tasdiqlanmadi",
+        "xato",
+        "xatolik",
+        "tushmadi",
+        "bekor",
+    )
+    return any(keyword in lowered for keyword in keywords)
+
+
+def _is_kirim_topic_message(message: Any) -> bool:
+    if not settings.TOPIC_KIRIM_ID:
+        return False
+
+    topic_id = settings.TOPIC_KIRIM_ID
+    direct_reply_id = getattr(message, "reply_to_msg_id", None)
+    reply_to = getattr(message, "reply_to", None)
+    reply_top_id = getattr(message, "reply_to_top_id", None) or getattr(reply_to, "reply_to_top_id", None)
+    forum_topic = getattr(reply_to, "forum_topic", False)
+
+    return bool(
+        direct_reply_id == topic_id
+        or reply_top_id == topic_id
+        or (forum_topic and direct_reply_id == topic_id)
+    )
 
 # Callbacks and Helper Functions (defined after globals)
 async def push_block_to_amocrm(user_id: int, phone: str, block_text: str) -> None:
@@ -1088,45 +1358,205 @@ async def main():
             if settings.TOPIC_KIRIM_ID:
                 @bot_client.on(events.NewMessage(chats=settings.TEAM_GROUP_ID))
                 async def kirim_celebration_handler(event):
-                    # Filter for Kirim Topic
-                    if event.message.reply_to_msg_id != settings.TOPIC_KIRIM_ID:
+                    if not _is_kirim_topic_message(event.message):
                         return
-                    
-                    text = event.text or ""
-                    # Detection for income reports (contains digits and keywords)
-                    import re
-                    is_inflow = re.search(r'\d+', text) and any(kw in text.lower() for kw in ['$', 'som', 'so\'m', 'sum', 'usd', 'uzs', 'kirim', 'to\'lov', 'tulov'])
-                    
-                    if is_inflow:
-                        sender = await event.get_sender()
-                        sender_id = sender.id
-                        
-                        # skip bot itself or owner if he doesn't want to be congratulated
-                        if sender_id == settings.OWNER_ID:
-                            logger.info(f"👸 [KIRIM] Owner ({sender_id}) reported inflow. Quietly logging.")
+
+                    sender = await event.get_sender()
+                    if getattr(sender, "bot", False):
+                        return
+
+                    text = (event.raw_text or "").strip()
+                    lowered = text.lower()
+                    reply_to_id = getattr(event.message, "reply_to_msg_id", None)
+                    workflow = await _load_income_workflow_state(db, reply_to_id)
+
+                    if workflow:
+                        finance_approver = workflow.get("finance_approver")
+                        finance_user_id = (finance_approver or {}).get("user_id")
+                        finance_mention = _format_person_mention(finance_approver, "finance")
+                        sender_name = getattr(sender, "first_name", "Xodim")
+
+                        if workflow.get("status") in {"confirmed", "rejected"}:
                             return
 
-                        first_name = getattr(sender, 'first_name', 'Xodim')
-                        
-                        # Extract amount for AI context
-                        amount_match = re.search(r'(\d[\d\s,.]+)', text)
-                        amount_str = amount_match.group(1) if amount_match else "noma'lum"
+                        if _is_group_open_confirmation(text):
+                            if not workflow.get("requires_client_group"):
+                                await event.reply("ℹ️ Bu kirim uchun mijoz guruhi majburiy bosqich emas.")
+                                return
 
-                        logger.info(f"👸 [KIRIM] Generating AI celebration for {first_name} for {amount_str}...")
-                        
-                        # Generate Premium AI Celebration
-                        try:
-                            celebration_text = await advisor_agent.generate_sales_celebration(
-                                manager_name=first_name,
-                                amount=amount_str
+                            workflow["client_group_confirmed"] = True
+                            workflow["client_group_confirmed_by"] = sender.id
+                            workflow["client_group_confirmation_text"] = text
+                            workflow["status"] = "awaiting_finance"
+                            await _save_income_workflow_state(db, workflow)
+                            await event.reply(
+                                f"✅ Mijoz bilan guruh ochilgani qayd qilindi. "
+                                f"{finance_mention}, endi tushumni tekshirib <code>tasdiq</code> yoki <code>rad</code> deb yozing.",
+                                parse_mode="html",
                             )
-                            await event.reply(celebration_text, parse_mode='html')
-                        except Exception as e:
-                            logger.error(f"👸 [CELEBRATION ERROR] AI failed: {e}")
-                            # Fallback to a nice manual one
-                            await event.reply(f"🎉 **BARAKALLA, {first_name}!** 🎉\n\nSizni ajoyib natija bilan tabriklaymiz! 👸🛡️")
-                        
-                        logger.info(f"👸 [KIRIM] Successfully celebrated {first_name}.")
+                            return
+
+                        if _is_finance_rejection(text):
+                            if sender.id != finance_user_id and sender.id != settings.OWNER_ID:
+                                await event.reply(
+                                    f"⚠️ Bu kirim bo‘yicha rad qarorini faqat {finance_mention} yoki owner bera oladi.",
+                                    parse_mode="html",
+                                )
+                                return
+
+                            workflow["status"] = "rejected"
+                            workflow["finance_rejected_by"] = sender.id
+                            workflow["finance_rejection_text"] = text
+                            await _save_income_workflow_state(db, workflow)
+                            await event.reply(
+                                f"❌ Finance bu kirimni tasdiqlamadi. {sender_name} sababni yozib, qayta yuboring."
+                            )
+                            return
+
+                        if _is_finance_approval(text):
+                            if sender.id != finance_user_id and sender.id != settings.OWNER_ID:
+                                await event.reply(
+                                    f"⚠️ Bu kirimni faqat {finance_mention} yoki owner tasdiqlaydi.",
+                                    parse_mode="html",
+                                )
+                                return
+
+                            if workflow.get("requires_client_group") and not workflow.get("client_group_confirmed"):
+                                await event.reply(
+                                    "❗ Bu loyiha uchun birinchi kirim. Avval mijoz bilan guruh ochilganini tasdiqlang, keyin finance tasdiqlaydi."
+                                )
+                                return
+
+                            if not workflow.get("project_id"):
+                                await event.reply(
+                                    "⚠️ Loyiha avtomatik aniqlanmadi. Kirimni Airtablega yozishdan oldin loyiha nomini aniq ko‘rsatib qayta yuboring."
+                                )
+                                return
+
+                            record = await _create_income_airtable_record(workflow)
+                            if not record:
+                                await event.reply(
+                                    "⚠️ Finance tasdig‘i olindi, lekin Airtablega yozishda xatolik chiqdi. Logni tekshiraman."
+                                )
+                                return
+
+                            workflow["status"] = "confirmed"
+                            workflow["finance_approved"] = True
+                            workflow["finance_approved_by"] = sender.id
+                            workflow["finance_approval_text"] = text
+                            workflow["airtable_record_id"] = record.get("id")
+                            await _save_income_workflow_state(db, workflow)
+
+                            project_name = workflow.get("project_name") or "noma'lum loyiha"
+                            await event.reply(
+                                f"✅ Kirim finance tomonidan tasdiqlandi va Airtablega yozildi.\n"
+                                f"📁 Loyiha: {project_name}\n"
+                                f"🧾 Kirim ID: <code>{record.get('id', 'nomaʼlum')}</code>",
+                                parse_mode="html",
+                            )
+                            return
+
+                    is_inflow = re.search(r"\d+", text) and any(
+                        kw in lowered for kw in ["$", "som", "so'm", "sum", "usd", "uzs", "kirim", "to'lov", "tulov"]
+                    )
+                    if not is_inflow:
+                        return
+
+                    sender_id = sender.id
+                    if sender_id == settings.OWNER_ID:
+                        logger.info(f"👸 [KIRIM] Owner ({sender_id}) reported inflow. Quietly logging.")
+                        return
+
+                    first_name = getattr(sender, "first_name", "Xodim")
+                    amount_info = _extract_income_amount(text)
+                    amount_str = amount_info.get("raw") or "noma'lum"
+                    logger.info(f"👸 [KIRIM] Generating AI celebration for {first_name} for {amount_str}...")
+
+                    try:
+                        celebration_text = await advisor_agent.generate_sales_celebration(
+                            manager_name=first_name,
+                            amount=amount_str,
+                        )
+                    except Exception as e:
+                        logger.error(f"👸 [CELEBRATION ERROR] AI failed: {e}")
+                        celebration_text = (
+                            f"🎉 <b>BARAKALLA, {first_name}!</b>\n\n"
+                            "Sizni ajoyib natija bilan tabriklaymiz."
+                        )
+
+                    await event.reply(celebration_text, parse_mode="html")
+
+                    project_match = await _find_project_for_income(text)
+                    is_first_payment = False
+                    if project_match and project_match.get("record_id"):
+                        is_first_payment = (await _count_income_records_for_project(project_match["record_id"])) == 0
+
+                    finance_approver = await _resolve_finance_approver(db)
+                    finance_mention = _format_person_mention(finance_approver, "finance")
+                    seller_mention = _format_person_mention(
+                        {
+                            "user_id": sender.id,
+                            "name": first_name,
+                            "username": getattr(sender, "username", None),
+                        },
+                        first_name,
+                    )
+
+                    workflow = {
+                        "original_message_id": event.message.id,
+                        "source_chat_id": event.chat_id,
+                        "source_text": text,
+                        "sender_id": sender.id,
+                        "sender_name": first_name,
+                        "sender_username": getattr(sender, "username", None),
+                        "amount_raw": amount_info.get("raw"),
+                        "amount_value": amount_info.get("value"),
+                        "currency": amount_info.get("currency"),
+                        "project_id": (project_match or {}).get("record_id"),
+                        "project_name": (project_match or {}).get("project_name"),
+                        "client_ids": (project_match or {}).get("client_ids") or [],
+                        "seller_ids": (project_match or {}).get("seller_ids") or [],
+                        "project_fields": (project_match or {}).get("project_fields") or {},
+                        "is_first_payment": is_first_payment,
+                        "requires_client_group": bool(is_first_payment and project_match),
+                        "client_group_confirmed": False,
+                        "finance_approver": finance_approver,
+                        "status": "awaiting_client_group" if is_first_payment and project_match else "awaiting_finance",
+                    }
+
+                    instructions = []
+                    if project_match:
+                        instructions.append(f"📁 Loyiha: <b>{project_match['project_name']}</b>")
+                    else:
+                        instructions.append("⚠️ Loyiha avtomatik aniqlanmadi. Keyingi tasdiqdan oldin loyiha nomini aniq yozing.")
+
+                    if workflow["requires_client_group"]:
+                        instructions.append(
+                            "🚪 Bu loyiha uchun <b>birinchi kirim</b>. Mijoz bilan alohida guruh ochilgani tasdiqlanmasdan finance bu kirimni yopmaydi."
+                        )
+                        instructions.append(
+                            f"{seller_mention}, shu threadda <code>guruh ochildi</code> deb yozing yoki guruh linkini yuboring."
+                        )
+                        instructions.append(
+                            f"{finance_mention}, guruh tasdig‘idan keyin <code>tasdiq</code> yoki <code>rad</code> deb yozing."
+                        )
+                    else:
+                        instructions.append(
+                            f"{finance_mention}, tushumni tekshirib shu threadda <code>tasdiq</code> yoki <code>rad</code> deb yozing."
+                        )
+
+                    gate_message = await event.reply(
+                        "\n".join(instructions),
+                        parse_mode="html",
+                        link_preview=False,
+                    )
+                    workflow["gate_message_id"] = gate_message.id
+                    await _save_income_workflow_state(db, workflow)
+
+                    logger.info(
+                        f"👸 [KIRIM] Workflow created for {first_name}; project={workflow.get('project_name')} "
+                        f"first_payment={workflow.get('is_first_payment')}"
+                    )
     
     print("✅ Userbot ulandi va xabarlarni eshita boshladi!")
 

@@ -16,6 +16,8 @@ from src.services.core.agent_runtime import (
     get_storage_health,
     set_runtime_context,
 )
+from src.services.core.amocrm_sync import AmoCRMSync
+from src.settings import settings
 from src.time_utils import get_local_now
 
 # Setup logging
@@ -58,6 +60,7 @@ async def root_status():
 user_client = None
 db_instance = None
 audit_agent = None
+amocrm_instance = None
 
 # --- COMMAND QUEUE (Shared with Main Thread) ---
 command_queue = queue.Queue()
@@ -240,6 +243,12 @@ async def get_stats():
         logger.error(f"Stats Error: {e}")
         return {"leads_found": 0, "messages_synced": 0, "status": "Ready"}
 
+class CreateLeadRequest(BaseModel):
+    name: str
+    phone: str
+    note: Optional[str] = None
+    secret_key: str
+
 class SendMessageRequest(BaseModel):
     user_id: int
     text: str
@@ -298,6 +307,34 @@ async def send_chat_message(request: SendMessageRequest):
     })
     
     return {"status": "success", "message": "Xabar navbatga qo'yildi"}
+
+@app.post("/api/leads")
+async def create_amo_lead(request: CreateLeadRequest):
+    """Vebsaytdan kelgan leadni AmoCRM-ga yuborish."""
+    global amocrm_instance
+    expected_secret = os.environ.get("OISHA_API_SECRET")
+    if not expected_secret or request.secret_key != expected_secret:
+        return {"error": "Unauthorized"}
+    
+    if not amocrm_instance:
+        amocrm_instance = AmoCRMSync(
+            subdomain=settings.AMOCRM_SUBDOMAIN,
+            client_id=settings.AMOCRM_CLIENT_ID,
+            client_secret=settings.AMOCRM_CLIENT_SECRET.get_secret_value() if settings.AMOCRM_CLIENT_SECRET else '',
+            redirect_url=settings.AMOCRM_REDIRECT_URL
+        )
+    
+    logger.info(f"🚀 [API] Website Lead qabul qilindi: {request.name}")
+    lead_id = await amocrm_instance.ensure_lead(
+        name=request.name,
+        phone=request.phone,
+        note=request.note
+    )
+    
+    if lead_id:
+        add_activity("Lead Created", f"Website lead: {request.name}", type="success")
+        return {"status": "success", "lead_id": lead_id}
+    return {"error": "Lead creation failed"}
 
 @app.post("/webhook/amocrm")
 async def amocrm_webhook(request: Request):
