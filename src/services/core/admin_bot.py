@@ -6,7 +6,7 @@ import psutil
 import platform
 from datetime import datetime, timedelta
 from telethon import events, Button, functions, types
-from src.services.mission_control import MissionControl
+from src.services.mission_control import MissionControl, MissionControlFetchError
 from src.database import Database
 from src.controllers.message_controller import MessageController
 from src.time_utils import get_local_now, is_quiet_hours
@@ -484,7 +484,22 @@ class AdminBot:
                     managers.append({"id": mid, "name": str(mid), "username": str(mid)})
 
             # Vazifalarni taqsimlaymiz
-            distribution = await mc.distribute_missions(managers)
+            try:
+                distribution = await mc.distribute_missions(managers)
+            except MissionControlFetchError as exc:
+                logger.error(f"[ADMIN_BOT] Mission fetch skipped because AmoCRM state is unknown: {exc}")
+                owner_id = getattr(self.access_manager, "owner_id", None)
+                if owner_id:
+                    try:
+                        await self.bot_client.send_message(
+                            owner_id,
+                            "⚠️ AmoCRM pipeline holatini olib bo'lmadi.\n"
+                            "Shu sabab jamoaga 'pipeline bo'sh' degan noto'g'ri signal yuborilmadi.\n\n"
+                            f"Tafsilot: {exc}",
+                        )
+                    except Exception as owner_error:
+                        logger.error(f"[ADMIN_BOT] Failed to notify owner about AmoCRM issue: {owner_error}")
+                return False
             
             if not distribution:
                 await self.notify_team(
