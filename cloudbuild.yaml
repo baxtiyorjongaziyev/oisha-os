@@ -31,8 +31,9 @@ steps:
       - --timeout=3600
       - --max-instances=3
       - --allow-unauthenticated
-      - --set-env-vars=RUNNING_IN_CLOUD=True,ENVIRONMENT=production,API_ID=30643078,DATABASE_URL=bot_database.db,TURSO_DATABASE_URL=libsql://oisha-os-db-baxtiyorjongaziyev.turso.io,AMOCRM_SUBDOMAIN=jonbrandingagency,AMOCRM_CLIENT_ID=5a755b58-f5d1-477d-965d-a50ddaa3d55e,AMOCRM_REDIRECT_URL=https://us-central1-jonbranding-85662071-ea38e.cloudfunctions.net/amocrmOAuthCallback,AIRTABLE_BASE_ID=app8xoyx1XCumYFXV,CRM_GROUP_ID=-1002566480563,CRM_TOPIC_ID=,TEAM_GROUP_ID=-4860594772,TOPIC_KIRIM_ID=168,GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k,GSHEET_CREDS_FILE=service_account.json,OWNER_ID=150074828
-      - --set-secrets=API_HASH=oisha-api-hash:latest,BOT_TOKEN=oisha-bot-token:latest,GEMINI_API_KEY=oisha-gemini-api-key:latest,DEEPSEEK_API_KEY=oisha-deepseek-api-key:latest,TURSO_AUTH_TOKEN=oisha-turso-auth-token:latest,AMOCRM_CLIENT_SECRET=oisha-amocrm-client-secret:latest,AIRTABLE_API_KEY=oisha-airtable-api-key:latest,USERBOT_SESSION_B64=oisha-userbot-session-b64:latest,GOOGLE_SERVICE_ACCOUNT_JSON=oisha-google-service-account-json:latest
+      - --update-env-vars=RUNNING_IN_CLOUD=True,ENVIRONMENT=production,API_ID=30643078,DATABASE_URL=bot_database.db,TURSO_DATABASE_URL=libsql://oisha-os-db-baxtiyorjongaziyev.turso.io,AMOCRM_SUBDOMAIN=jonbrandingagency,AMOCRM_CLIENT_ID=5a755b58-f5d1-477d-965d-a50ddaa3d55e,AMOCRM_REDIRECT_URL=https://us-central1-jonbranding-85662071-ea38e.cloudfunctions.net/amocrmOAuthCallback,AIRTABLE_BASE_ID=app8xoyx1XCumYFXV,CRM_GROUP_ID=-1002566480563,CRM_TOPIC_ID=,TEAM_GROUP_ID=-4860594772,TOPIC_KIRIM_ID=168,GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k,GSHEET_CREDS_FILE=service_account.json,OWNER_ID=150074828
+      - --remove-secrets=API_ID,AMOCRM_CLIENT_ID,AMOCRM_REDIRECT_URL,OISHA_API_SECRET,GCS_BUCKET
+      - --update-secrets=API_HASH=oisha-api-hash:latest,BOT_TOKEN=oisha-bot-token:latest,GEMINI_API_KEY=oisha-gemini-api-key:latest,DEEPSEEK_API_KEY=oisha-deepseek-api-key:latest,TURSO_AUTH_TOKEN=oisha-turso-auth-token:latest,AMOCRM_CLIENT_SECRET=oisha-amocrm-client-secret:latest,AIRTABLE_API_KEY=oisha-airtable-api-key:latest,USERBOT_SESSION_B64=oisha-userbot-session-b64:latest,GOOGLE_SERVICE_ACCOUNT_JSON=oisha-google-service-account-json:latest
       - --quiet
 
 images:
