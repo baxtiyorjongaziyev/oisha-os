@@ -88,10 +88,6 @@ class AmoCRMSync:
             if response.status_code == 400: # If JSON fails, fallback to standard data
                 response = requests.post(url, data=data)
 
-            if response.status_code == 200:
-                self._save_token(response.json())
-                logger.info("[AMOCRM OK] Token yangilandi.")
-                return True
             else:
                 resp_json = {}
                 try: resp_json = response.json()
@@ -100,6 +96,8 @@ class AmoCRMSync:
                 error_msg = resp_json.get("detail", response.text)
                 print(f"!!! AMOCRM REFRESH FAILED: {response.status_code} - {error_msg}")
                 logger.error(f"[AMOCRM ERROR] Token yangilashda xato: {error_msg}")
+                if response.status_code == 401:
+                    logger.critical("🆘 AMOCRM AUTH EXPIRED: Yangi Auth Code kerak!")
                 return False
         except Exception as e:
             logger.error(f"[AMOCRM ERROR] Request yuborishda xato: {e}")
@@ -216,6 +214,76 @@ class AmoCRMSync:
         except Exception as e:
             logger.error(f"[AMOCRM ERROR] create_lead_for_contact error: {e}")
             return False
+
+    @retry_with_backoff(max_retries=3, initial_delay=1)
+    def create_contact(self, name: str, phone: str) -> Optional[int]:
+        """Yangi kontakt yaratish."""
+        self._load_token()
+        url = f"{self.base_url}/api/v4/contacts"
+        data = [
+            {
+                "name": name,
+                "custom_fields_values": [
+                    {
+                        "field_code": "PHONE",
+                        "values": [{"value": phone, "enum_code": "MOB"}]
+                    }
+                ]
+            }
+        ]
+        try:
+            response = requests.post(url, headers=self._get_headers(), json=data)
+            if response.status_code in [200, 201]:
+                return response.json().get("_embedded", {}).get("contacts", [{}])[0].get("id")
+            return None
+        except Exception as e:
+            logger.error(f"[AMOCRM CONTACT CREATE ERROR] {e}")
+            return None
+
+    async def ensure_lead(self, name: str, phone: str, note: str = None) -> Optional[int]:
+        """
+        Kontaktni qidiradi yoki yaratadi, so'ngra unga yangi Bitim (Lead) bog'laydi.
+        'Hunter bosqichlari' (10117998) -> 'Yangi so'rov' (80178230).
+        """
+        try:
+            # 1. Kontaktni qidirish
+            contact = self.get_contact_by_phone(phone)
+            contact_id = contact.get("id") if contact else None
+
+            # 2. Agar yo'q bo'lsa, yaratish
+            if not contact_id:
+                contact_id = self.create_contact(name, phone)
+                if not contact_id:
+                    logger.error(f"[AMOCRM SYNC] Kontaktni yaratib bo'lmadi: {name}")
+                    return None
+
+            # 3. Yangi Lead yaratish (Hunter bosqichlari)
+            url = f"{self.base_url}/api/v4/leads"
+            lead_data = [
+                {
+                    "name": f"Telegram Lead: {name}",
+                    "status_id": 80178230,
+                    "pipeline_id": 10117998,
+                    "_embedded": {
+                        "contacts": [{"id": int(contact_id)}]
+                    }
+                }
+            ]
+            
+            response = requests.post(url, headers=self._get_headers(), json=lead_data)
+            if response.status_code in [200, 201]:
+                lead_id = response.json().get("_embedded", {}).get("leads", [{}])[0].get("id")
+                
+                # 4. Izoh qo'shish (agar bo'lsa)
+                if lead_id and note:
+                    self.add_lead_note(lead_id, note)
+                
+                return lead_id
+            
+            return None
+        except Exception as e:
+            logger.error(f"[AMOCRM ENSURE LEAD ERROR] {e}")
+            return None
 
     @retry_with_backoff(max_retries=3, initial_delay=1)
     def get_contact_by_phone(self, phone: str) -> Optional[dict]:
@@ -622,7 +690,7 @@ class AmoCRMSync:
         
         try:
             response = requests.post(url, headers=self._get_headers(), json=data)
-            if response.status_code == 201:
+            if response.status_code in [200, 201]:
                 logger.info(f"[AMOCRM OK] {entity_type} {entity_id} ga izoh qo'shildi.")
                 return True
             else:
