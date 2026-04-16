@@ -1,12 +1,19 @@
-import logging
 import asyncio
-import requests
 import json
-from src.services.amocrm_sync import AmoCRMSync
-from src.settings import settings
+import logging
+
+import requests
+
 from src.database import Database
+from .amocrm_sync import AmoCRMSync
+from src.settings import settings
 
 logger = logging.getLogger(__name__)
+
+
+class MissionControlFetchError(RuntimeError):
+    """AmoCRM holati noaniq bo'lib qolganida ko'tariladi."""
+
 
 class MissionControl:
     def __init__(self, db=None):
@@ -14,48 +21,92 @@ class MissionControl:
             subdomain=settings.AMOCRM_SUBDOMAIN,
             client_id=settings.AMOCRM_CLIENT_ID,
             client_secret=settings.AMOCRM_CLIENT_SECRET.get_secret_value() if settings.AMOCRM_CLIENT_SECRET else None,
-            redirect_url=settings.AMOCRM_REDIRECT_URL
+            redirect_url=settings.AMOCRM_REDIRECT_URL,
         )
         self.amo._load_token()
         self.db = db if db else Database()
-        
-        self.PIPELINES = {
-            "HUNTER": 10117998,
-            "CLOSER": 10123314
-        }
-        
+        self.last_fetch_errors = []
+
+    def _fetch_pipeline_leads_sync(self, pipeline_name, pipeline_id):
+        """Bitta pipeline uchun leadlarni olib kelish, kerak bo'lsa tokenni yangilash."""
+        url = f"{self.amo.base_url}/api/v4/leads?filter[pipeline_id]={pipeline_id}&limit=250"
+        response = requests.get(url, headers=self.amo._get_headers(), timeout=30)
+
+        if response.status_code == 401:
+            logger.warning(
+                f"[MISSION CONTROL] {pipeline_name} returned 401, attempting token refresh."
+            )
+            if self.amo.refresh_token():
+                response = requests.get(url, headers=self.amo._get_headers(), timeout=30)
+
+        if response.status_code != 200:
+            details = response.text.strip()
+            if len(details) > 200:
+                details = details[:200]
+            error = f"{pipeline_name}: HTTP {response.status_code}" + (f" - {details}" if details else "")
+            logger.error(f"[MISSION CONTROL] Error fetching leads for {pipeline_name}: {error}")
+            return [], error
+
+        leads = response.json().get("_embedded", {}).get("leads", [])
+        return leads, None
+
     async def get_active_missions(self):
-        """Hunter va Closer pipelinelaridan barcha faol lidlarni yig'ish."""
+        """AmoCRM-dagi BARCHA voronkalardan barcha faol lidlarni yig'ish."""
         missions = []
-        
-        for p_name, p_id in self.PIPELINES.items():
-            # Get leads for this pipeline
-            url = f"{self.amo.base_url}/api/v4/leads?filter[pipeline_id]={p_id}&limit=250"
-            resp = requests.get(url, headers=self.amo._get_headers())
+        self.last_fetch_errors = []
+
+        # 1. Barcha voronkalarni olish
+        p_url = f"{self.amo.base_url}/api/v4/leads/pipelines"
+        try:
+            p_res = requests.get(p_url, headers=self.amo._get_headers(), timeout=30)
+            if p_res.status_code == 401 and self.amo.refresh_token():
+                p_res = requests.get(p_url, headers=self.amo._get_headers(), timeout=30)
             
-            if resp.status_code == 200:
-                leads = resp.json().get("_embedded", {}).get("leads", [])
+            if p_res.status_code != 200:
+                logger.error(f"[MISSION CONTROL] Pipelines fetch failed: {p_res.status_code}")
+                return []
+            
+            pipelines = p_res.json().get("_embedded", {}).get("pipelines", [])
+            for p in pipelines:
+                p_id = p.get("id")
+                p_name = p.get("name")
+                
+                # 2. Har bir voronka uchun lidlarni olish
+                leads, error = await asyncio.to_thread(
+                    self._fetch_pipeline_leads_sync,
+                    p_name,
+                    p_id,
+                )
+                if error:
+                    self.last_fetch_errors.append(error)
+                    continue
+
                 for lead in leads:
-                    # Filter out closed ones
+                    # Won (142) va Lost (143) bo'lmagan barcha lidlar aktiv
                     if lead.get("status_id") in [142, 143]:
                         continue
-                        
-                    mission_text = ""
-                    if p_name == "HUNTER":
-                        mission_text = "🎯 Lidni Closer bosqichiga olib o'ting"
-                    else: # CLOSER
-                        mission_text = "💰 Sotuvni yakunlang (Tugating)"
-                        
-                    missions.append({
-                        "lead_id": lead["id"],
-                        "lead_name": lead["name"],
-                        "mission": mission_text,
-                        "pipeline": p_name,
-                        "link": f"https://{settings.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead['id']}"
-                    })
-            else:
-                logger.error(f"Error fetching leads for {p_name}: {resp.status_code}")
-                
+
+                    missions.append(
+                        {
+                            "lead_id": lead["id"],
+                            "lead_name": lead["name"],
+                            "mission": f"Bitimni keyingi bosqichga o'tkazing ({p_name})",
+                            "pipeline": p_name,
+                            "link": f"https://{settings.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead['id']}",
+                        }
+                    )
+        except Exception as e:
+            logger.error(f"[MISSION CONTROL] Universal fetch error: {e}")
+            self.last_fetch_errors.append(str(e))
+
+        if not missions and self.last_fetch_errors:
+            raise MissionControlFetchError(
+                "AmoCRM pipeline fetch failed; pipeline holati noaniq. "
+                + " | ".join(self.last_fetch_errors)
+            )
+
+        return missions
+
         return missions
 
     async def distribute_missions(self, managers):
@@ -64,54 +115,49 @@ class MissionControl:
         if not missions:
             return {}
 
-        distribution = {m['id']: [] for m in managers}
-        manager_ids = [m['id'] for m in managers]
-        
+        distribution = {m["id"]: [] for m in managers}
+        manager_ids = [m["id"] for m in managers]
+
         if not manager_ids:
             return {}
 
-        # Round-robin distribution
-        for i, mission in enumerate(missions):
-            m_id = manager_ids[i % len(manager_ids)]
-            distribution[m_id].append(mission)
-            
-            # [ENTERPRISE] Plan-Fact uchun saqlaymiz (Hunter vs Closer KPI ajratish)
+        for index, mission in enumerate(missions):
+            manager_id = manager_ids[index % len(manager_ids)]
+            distribution[manager_id].append(mission)
+
             await self.db.save_daily_plan(
-                manager_id=m_id,
+                manager_id=manager_id,
                 lead_id=mission["lead_id"],
                 lead_name=mission["lead_name"],
                 mission=mission["mission"],
                 source_pipeline=mission.get("pipeline", "HUNTER"),
             )
-            
+
         return distribution
 
     async def get_manager_list(self):
         """Settings va DB dan faol menejerlarni olish."""
-        # 1. From settings (Hard-coded/Env)
         manager_ids = list(settings.SALES_MANAGER_IDS) if hasattr(settings, "SALES_MANAGER_IDS") else []
-        
-        # 2. From DB state (Dynamic)
+
         managers_data = self.db.get_state("sales_managers", "")
         if managers_data:
             db_ids = [int(i) for i in managers_data.split(",") if i]
             for db_id in db_ids:
                 if db_id not in manager_ids:
                     manager_ids.append(db_id)
-        
+
         if manager_ids:
-            # TODO: Kelajakda ismlarni ham DB dan olish mumkin
             return [{"id": mid, "name": f"Manager_{mid}"} for mid in manager_ids]
-            
+
         return []
 
+
 if __name__ == "__main__":
-    # Simple test run
     async def test():
-        mc = MissionControl()
-        m = await mc.get_active_missions()
-        print(f"Total missions found: {len(m)}")
-        if m:
-            print(json.dumps(m[:2], indent=2))
-        
+        mission_control = MissionControl()
+        missions = await mission_control.get_active_missions()
+        print(f"Total missions found: {len(missions)}")
+        if missions:
+            print(json.dumps(missions[:2], indent=2))
+
     asyncio.run(test())
