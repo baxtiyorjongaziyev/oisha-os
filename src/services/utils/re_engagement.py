@@ -64,11 +64,16 @@ async def run_re_engagement():
                     if user_id:
                         logger.info(f"Re-engaging user {user_id} for lead {lead_id}")
                         try:
-                            message = (
-                                "Assalomu alaykum! 😊 Jon Branding jamoasidan Oishaman. \n\n"
-                                "Siz bilan muloqotimiz biroz to'xtab qolgan edi. Xizmatlarimiz bo'yicha yana biror savolingiz yoki yordam kerakmi? "
-                                "Biz doim aloqadamiz! ✨"
-                            )
+                            # Persona-based dynamic message
+                            from src.services.core.persona_hub import EXTERNAL_CONCIERGE_PROMPT
+                            # We use ResearcherAgent to generate a personalized nudge
+                            from src.agents.researcher_agent import ResearcherAgent
+                            api_keys = {"gemini": settings.settings.GEMINI_API_KEY.get_secret_value()}
+                            agent = ResearcherAgent("re_engager", EXTERNAL_CONCIERGE_PROMPT, api_keys)
+                            
+                            prompt = f"Mijoz bilan muloqot 24 soatdan beri to'xtab qolgan. Uni samimiy va ekspert sifatida 're-engage' qiling. Uning loyihasi/qiziqishi bo'yicha yordam taklif qiling."
+                            message = await agent.process_task(user_id, prompt)
+                            
                             await bot.send_message(chat_id=user_id, text=message)
                             
                             # AmoCRM-da statusni yangilash (Muloqot boshlandi - 80178222)

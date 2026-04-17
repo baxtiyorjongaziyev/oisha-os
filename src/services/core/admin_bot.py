@@ -86,12 +86,12 @@ class AdminBot:
                 await event.respond("👸 Oisha: Hozircha yangi amallar bajarilmadi. Tizim kutish rejimida. 🛡️")
                 return
             
-            report = "🕵️‍♀️ **OISHA: LIVE AUDIT REPORT**\n──────────────────────\n"
+            report = "🕵️‍♀️ **OISHA: LIVE AUDIT REPORT**\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             for act in system_activities[-5:]:
                 icon = "⚙️" if act['type'] == 'info' else "✨" if act['type'] == 'success' else "🤔" if act['type'] == 'thinking' else "⚠️"
                 report += f"{icon} **{act['action']}** ({act['timestamp']})\n┗ _{act['details']}_\n\n"
             
-            report += "──────────────────────\n💡 *To'liq tahlil dashboardda mavjud.*"
+            report += "━━━━━━━━━━━━━━━━━━━━━━━━━━\n💡 *To'liq tahlil dashboardda mavjud.*"
             await event.respond(report)
 
         @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/oisha_plan'))
@@ -129,11 +129,11 @@ class AdminBot:
             stats = await self.db.get_today_stats()
             msg = (
                 f"📊 **OISHA: BUSINESS PERFORMANCE**\n"
-                f"──────────────────────\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"🎯 **Yangi Lidlar:** `{stats.get('leads_found', 0)}` ta\n"
                 f"✉️ **Xabarlar:** `{stats.get('messages_synced', 0)}` ta\n"
                 f"🧹 **CRM Tozalik:** `{health}%` ({'Optimal' if health > 80 else 'Diqqat kerak' if health > 50 else 'KRITIK HOLAT'})\n"
-                f"──────────────────────\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"👸 *Oisha hozirda avtonom rejimda ishlamoqda.*"
             )
             await event.respond(msg)
@@ -627,6 +627,27 @@ class AdminBot:
                         except Exception as e:
                             logger.error(f"[MISSION ERROR] {e}")
                             api_server_module.add_activity("⚠️ Mission Error", str(e), "error")
+
+                # 2.25 Client Journey Excellence (11:00 va 17:00)
+                if current_time in ["11:00", "17:00"]:
+                    job_id = f"client_journey_{today}_{current_time}"
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        await self.db.set_state(job_id, "running")
+                        logger.info("[SCHEDULER] Client Journey Excellence boshlandi...")
+                        try:
+                            from src.services.proactive_worker import check_client_journey_excellence
+                            sent = await check_client_journey_excellence()
+                            await self.db.set_state(job_id, "done")
+                            if sent:
+                                api_server_module.add_activity(
+                                    "ðŸŒŸ Client Journey",
+                                    "Mijoz yo'li bo'yicha wow-service mikromanagement report yuborildi.",
+                                    "success"
+                                )
+                        except Exception as e:
+                            logger.error(f"[CLIENT JOURNEY ERROR] {e}")
+                            api_server_module.add_activity("âš ï¸ Client Journey Error", str(e), "error")
 
                 # 2.5 Lunch Reminder (13:00) - Ertalabki vazifalar haqida eslatish
                 if current_time == "13:00":
