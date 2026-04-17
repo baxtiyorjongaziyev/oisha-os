@@ -73,7 +73,9 @@ class AdminBot:
 
         # Start background tasks
         asyncio.create_task(heartbeat())
-        asyncio.create_task(self.run_scheduler())
+        if not getattr(self, "_scheduler_started", False):
+            self._scheduler_started = True
+            asyncio.create_task(self.run_scheduler())
         
         @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/oisha_audit'))
         async def oisha_audit_handler(event):
