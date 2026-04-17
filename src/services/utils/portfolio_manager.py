@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, Any, Optional
-from src.services.airtable_sync import AirtableSync
+from src.services.core.airtable_sync import AirtableSync
 
 logger = logging.getLogger(__name__)
 

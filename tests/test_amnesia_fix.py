@@ -1,16 +1,17 @@
 import asyncio
 import os
 from dotenv import load_dotenv
-from database import Database
-import userbot
+from src.database import Database
+import src.userbot as userbot
 
 load_dotenv()
 
 async def test_memory():
     # Setup test DB user
     db = Database("bot_database.db")
+    await db.init_db()
     test_user_id = 999111222
-    db.upsert_user(test_user_id, "Test User", phone="+998901234567", service_type="Logotip vizitka", deadline="1 hafta")
+    await db.upsert_user(test_user_id, "Test User", phone="+998901234567", service_type="Logotip vizitka", deadline="1 hafta")
     
     # Send a message to get reply
     print("Testing get_reply() with DB injected context...")

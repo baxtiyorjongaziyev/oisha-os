@@ -3,9 +3,9 @@ import asyncio
 from typing import Optional
 from telethon import TelegramClient, events, functions, types
 from src.database import Database
-from src.services.admin_bot import AdminBot
-from src.services.advisor_agent import AdvisorAgent
-from src.services.airtable_sync import AirtableSync
+from src.services.core.admin_bot import AdminBot
+from src.services.core.advisor_agent import AdvisorAgent
+from src.services.core.airtable_sync import AirtableSync
 from src.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ class OnboardingManager:
             await self._send_internal_briefing(chat_peer, client_id, manager_id, project_name)
 
             # 3.8. DEPLOY PROJECT CHECKLIST (v5.0 Delegation)
-            from src.services.checklist_manager import ChecklistManager
+            from src.services.core.checklist_manager import ChecklistManager
             check_manager = ChecklistManager(self.db)
             service_type = client_data.get('service_type', 'Logo')
             checklist_report = await check_manager.deploy_checklist(project_name, client_id, service_type)
