@@ -86,7 +86,7 @@ class NightShiftService:
                 analysis = await self.researcher.process_task(0, prompt)
                 
                 # Write back to CRM
-                await self.crm.add_lead_note(lead_id, f"🔍 OISHA LEAD INTELLIGENCE:\n\n{analysis}")
+                self.crm.add_lead_note(lead_id, f"🔍 OISHA LEAD INTELLIGENCE:\n\n{analysis}")
                 from src.api_server import add_activity
                 add_activity("Lid boyitildi", f"{lead_name} bo'yicha OSINT ma'lumotlar AmoCRM'ga yozildi.", "success")
                 logger.info(f"✅ Researched lead: {lead_name}")

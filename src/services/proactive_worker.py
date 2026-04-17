@@ -478,6 +478,8 @@ async def send_morning_briefing():
             logger.warning(f"[MORNING BRIEFING] HTML xato, Plain-ga o'tilmoqda: {html_err}")
             await bot.send_message(chat_id=group_id, text=briefing, parse_mode=None, message_thread_id=thread_id)
 
+        db.mark_job_run("morning_briefing", today)
+
     except Exception as e:
         logger.error(f"[XATO] Morning Briefing yuborishda: {e}", exc_info=True)
 
