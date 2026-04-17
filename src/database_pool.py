@@ -148,6 +148,7 @@ class ConnectionPool:
                 await conn.execute(query, *args)
             else:
                 await conn.execute(query, args)
+                await conn.commit()
             return "OK"
     
     async def fetchone(self, query: str, *args) -> Optional[Dict[str, Any]]:
@@ -216,6 +217,7 @@ class SQLiteConnectionPool:
         self.db_path = db_path
         self.max_connections = max_connections
         self._available: asyncio.Queue = asyncio.Queue()
+        self._all_connections: set = set()
         self._in_use: set = set()
         self._lock = asyncio.Lock()
         self._initialized = False
@@ -229,6 +231,7 @@ class SQLiteConnectionPool:
             # Create initial connections
             for _ in range(min(2, self.max_connections)):
                 conn = await self._create_connection()
+                self._all_connections.add(conn)
                 await self._available.put(conn)
             
             self._initialized = True
@@ -264,6 +267,7 @@ class SQLiteConnectionPool:
         async with self._lock:
             if len(self._in_use) < self.max_connections:
                 conn = await self._create_connection()
+                self._all_connections.add(conn)
                 self._in_use.add(id(conn))
                 return conn
         
@@ -293,12 +297,15 @@ class SQLiteConnectionPool:
         """Close all connections."""
         # Close in-use connections
         async with self._lock:
-            while not self._available.empty():
+            for conn in self._all_connections:
                 try:
-                    conn = self._available.get_nowait()
                     await conn.close()
                 except Exception:
                     pass
+            self._all_connections.clear()
+            while not self._available.empty():
+                self._available.get_nowait()
+            self._in_use.clear()
         
         self._initialized = False
 
