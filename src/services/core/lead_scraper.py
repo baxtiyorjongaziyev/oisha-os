@@ -5,7 +5,7 @@ import os
 import random
 from typing import Dict, Any, Optional
 from telethon import TelegramClient, functions, types
-from src.services.google_service import GoogleService
+from src.services.debug.google_service import GoogleService
 from src.settings import settings
 from google import genai
 
@@ -250,7 +250,7 @@ class LeadScraper:
         logger.info(f"[SCRAPER] Shaxsiy suhbatlar (DM) tahlili boshlandi (Limit: {limit})... 👸🛡️")
         
         sync_count = 0
-        from src.services.auto_lead_agent import AutoLeadAgent
+        from src.services.core.auto_lead_agent import AutoLeadAgent
         from src.settings import settings
         auto_lead_agent = AutoLeadAgent(api_key=settings.GEMINI_API_KEY.get_secret_value())
 
