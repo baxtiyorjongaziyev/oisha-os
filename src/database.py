@@ -590,6 +590,18 @@ class Database:
         await conn.commit()
         return True
 
+    async def get_all_tasks(self, limit=10):
+        conn = await self.get_connection()
+        async with conn.execute("SELECT id, title, description, assigned_to, deadline, status FROM tasks ORDER BY created_at DESC LIMIT ?", (limit,)) as cursor:
+            rows = await cursor.fetchall()
+            return [{"id": r[0], "title": r[1], "description": r[2], "assigned_to": r[3], "deadline": r[4], "status": r[5]} for r in rows]
+
+    async def get_recent_agent_actions(self, limit=5):
+        conn = await self.get_connection()
+        async with conn.execute("SELECT id, user_id, action_type, action_data, success, created_at FROM agent_actions ORDER BY created_at DESC LIMIT ?", (limit,)) as cursor:
+            rows = await cursor.fetchall()
+            return [{"id": r[0], "user_id": r[1], "action_type": r[2], "action_data": r[3], "success": r[4], "created_at": r[5]} for r in rows]
+
     async def get_missing_reports(
         self,
         report_type: str = "morning_plan",

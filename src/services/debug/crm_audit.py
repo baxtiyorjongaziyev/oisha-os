@@ -3,7 +3,7 @@ import logging
 import time
 import requests
 from datetime import datetime, timezone, timedelta
-from src.services.amocrm_sync import AmoCRMSync
+from src.services.core.amocrm_sync import AmoCRMSync
 from src.settings import settings
 
 logger = logging.getLogger(__name__)
