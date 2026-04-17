@@ -11,6 +11,7 @@ class AdvisorAgent:
     """
     Shadow Advisor (Coach Mode) that listens to private chats and 
     provides strategic advice + action suggestions to the owner.
+    Now equipped with Dual-Persona intelligence.
     """
 
     def __init__(self, api_key: str, db, action_parser):
@@ -18,6 +19,9 @@ class AdvisorAgent:
         self.db = db
         self.action_parser = action_parser
         self.model_name = "gemini-2.0-flash"
+        from src.services.core.persona_hub import INTERNAL_COO_PROMPT, EXTERNAL_CONCIERGE_PROMPT
+        self.internal_prompt = INTERNAL_COO_PROMPT
+        self.external_prompt = EXTERNAL_CONCIERGE_PROMPT
 
     async def generate_sales_celebration(self, manager_name: str, amount: Any) -> str:
         """
@@ -25,17 +29,16 @@ class AdvisorAgent:
         """
         # Ensure amount is a string for the prompt
         amt_str = str(amount)
-        system_instruction = """
         Siz jamoaning samimiy va tajribali yordamchisisiz. 
         Vazifangiz: Sotuv menejerini yangi bitim (Kirim) yoki muvaffaqiyatli yakunlangan ish bilan samimiy tabriklash.
+        Uslub: {self.external_prompt}
         
         Qoidalar:
         1. Xabar jamoa guruhida (Telegram) yuboriladi. Uslubingiz iliq, ruhlantiruvchi va xuddi jilmayib turgan insondek bo'lsin.
-        2. Robot ekanligingizni bildirmang. 'Enterprise AI' yoki 'Operatsion tizim' kabi so'zlarni ishlatmang.
+        2. Robot ekanligingizni bildirmang.
         3. Manager ismini va bitim summasini (agar berilgan bo'lsa) albatta eslatib o'ting.
-        4. Har safar har xil so'zlar ishlating, xuddi inson har kuni bir xil gapirmaganidek.
+        4. Har safar har xil so'zlar ishlating.
         5. O'zbek tilida, lotin alifbosida.
-        6. Emoji'lardan ham o'z o'rnida, insoniy tarzda foydalaning (masalan: 🎉, 🚀, 🙌, 👏). Robotic 👸🤴🛡️ belgilaridan qoching.
         
         Javob faqat tabrik matnidan iborat bo'lsin.
         """
@@ -61,20 +64,28 @@ class AdvisorAgent:
         """
         
         system_instruction = f"""
-        Siz {sender_name} va @baxtiyor_uz uchun shaxsiy maslahat chi va yordamchisiz.
-        Hozir menejer "{sender_name}" mijoz bilan suhbatlashmoqda.
+        {self.internal_prompt}
         
-        Sizning vazifangiz (Shadow Mode):
-        1. Suhbatni tahlil qilish va menejerga eng samarali keyingi qadamni ko'rsatish.
-        2. Mijozning PSIXOTIPINI aniqlash (Analitik, Pragmatik, Emotsional, Shoshqaloq).
-        3. Robotligingizni bildirmasdan, tajribali hamkasbdek maslahat bering.
-        4. Mijozga TO'G'RIDAN-TO'G'RI yozmang. Faqat ichki guruhga tavsiya bering.
+        Siz hozir "{sender_name}" va @baxtiyor_uz uchun strategik maslahatchisiz.
+        Menejer "{sender_name}" mijoz bilan suhbatlashmoqda.
+        
+        Vazifangiz:
+        1. Mijozning PSIXOTIPINI aniqlash (Analitik, Pragmatik, Emotsional, Shoshqaloq).
+        2. Menejerga ushbu mijozni qanday yopish (Closing) bo'yicha tactical maslahat bering.
+        3. MIJOZ UCHUN JAVOB DRAFTLARINI TAYYORLASH (ENG MUHIMI):
+           Ushbu draftlarda quyidagi personadan foydalaning:
+           ---
+           {self.external_prompt}
+           ---
         
         Javob formati (O'zbek tilida):
-        🧠 [PSIXOTIP]: (Mijozning uslubini 1 ta so'zda ayting va qisqa asoslang)
-        💡 [MASLAHAT]: (Vaziyat tahlili va amaliy tavsiya)
-        ✍️ [DRAFT]: (Menejer nusxalab yuborishi uchun 3 xil uslubdagi javob varianti: Tezkor, Ekspert, Sotuvga yo'naltirilgan)
-        ⚙️ [ACTION]: (Agar tizimda biror narsani o'zgartirish kerak bo'lsa, Action Taglar: [CALENDAR_EVENT:...] yoki [TASK:...])
+        🧠 [PSIXOTIP]: (Uslub va qisqa asos)
+        💡 [STRATEGIYA]: (Mijozni qanday ishontirish va "Wow" qilish siri)
+        ✍️ [DRAFTLAR (MIJOZGA)]:
+           1. ⚡️ TEZKOR: ...
+           2. 💎 EKSPERT: ...
+           3. 🚀 PERSUASIVE (SOTUV): ...
+        ⚙️ [ACTION]: (Agar kerak bo'lsa: [TASK:...] yoki [AMO_UPDATE:...])
         """
 
         contents = [
