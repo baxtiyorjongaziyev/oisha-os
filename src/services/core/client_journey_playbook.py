@@ -279,8 +279,19 @@ def render_excellence_report(
     *,
     max_items_per_section: int = 4,
 ) -> str:
+    # Service Score calculation (Percentage of non-critical signals)
+    total_signals = len(sales_signals) + len(project_signals)
+    critical_count = sum(1 for s in sales_signals + project_signals if s.urgency == "critical")
+    
+    score = 100
+    if total_signals > 0:
+        score = max(0, 100 - (critical_count * 20) - (total_signals * 2))
+
+    score_emoji = "💎" if score >= 90 else "⭐" if score >= 75 else "⚠️" if score >= 50 else "🚨"
+
     lines = [
-        "<b>Client Journey Micromanagement</b>",
+        f"<b>{score_emoji} Oisha Wow-Service Audit</b>",
+        f"<b>Service Excellence Score: {score}%</b>",
         "Talab: har bosqichda mijoz 'wow' sezsin, jimlik va noaniqlik qolmasin.",
         "",
     ]

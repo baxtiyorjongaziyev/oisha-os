@@ -32,7 +32,7 @@ jobs:
 
       - name: 🧪 Run Tests
         run: |
-          pytest tests/ -v --tb=short || true
+          python -m pytest tests/ -v --tb=short || true
 
   deploy:
     name: 🚀 Deploy to Cloud Run
