@@ -1,7 +1,7 @@
 
 import logging
-from src.services.amocrm_sync import AmoCRMSync
-from src.services.airtable_sync import AirtableSync
+from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.airtable_sync import AirtableSync
 import src.config as config
 
 logger = logging.getLogger(__name__)

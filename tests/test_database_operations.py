@@ -95,8 +95,8 @@ class TestDatabaseConnection:
         """Test message logging functionality."""
         await temp_db.log_message(
             user_id=12345,
-            message_text="Test message",
-            is_ai_reply=False
+            text="Test message",
+            is_ai=False
         )
         
         messages = await temp_db.get_recent_messages(12345, limit=10)

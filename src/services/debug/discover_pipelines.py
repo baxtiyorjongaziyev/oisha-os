@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import requests
-from src.services.amocrm_sync import AmoCRMSync
+from src.services.core.amocrm_sync import AmoCRMSync
 from src.settings import settings
 
 logging.basicConfig(level=logging.INFO)

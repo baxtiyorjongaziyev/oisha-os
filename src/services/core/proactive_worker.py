@@ -20,6 +20,7 @@ from src.services.core.client_journey_playbook import (
 from src.services.core.tool_adapters import build_default_tool_registry
 from src.services.core.escalation_agent import EscalationAgent
 from src.services.core.persona_hub import get_persona
+from telegram import Bot
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -28,21 +29,21 @@ logger = logging.getLogger(__name__)
 DAILY_PLAN_PHASES: Dict[str, Dict[str, str]] = {
     "initial": {
         "job": "daily_plan_initial",
-        "title": "📝 <b>Kunlik plan topshirish vaqti</b>",
+        "title": "📝 <b>Kunlik plan (Internal PM Audit)</b>",
         "deadline": "11:30",
-        "tone": "Bugungi planingizni aniq yozing. Kim nima yopishi va qaysi blocker borligi hozir kerak.",
+        "tone": "Loyiha bo'yicha bugungi aniq delivery-planingizni topshiring. Hech bir loyiha stagnatsiyada qolmasligi shart.",
     },
     "reminder": {
         "job": "daily_plan_reminder",
-        "title": "⏰ <b>Kunlik plan hali yopilmadi</b>",
+        "title": "⏰ <b>PM Audit: Plan hanuz yo'q</b>",
         "deadline": "14:00",
-        "tone": "Plan topshirmaganlar hozir yozadi. Bugun qaysi natija olinishi ochiq ko'rinishi shart.",
+        "tone": "Loyiha bosqichlari bo'yicha kechikish xavfi bor. Plan topshirish intizomini ta'minlang.",
     },
     "escalation": {
         "job": "daily_plan_escalation",
-        "title": "🚨 <b>Plan intizomi bo'yicha eskalatsiya</b>",
+        "title": "🚨 <b>Operatsion eskalatsiya (Strict COO)</b>",
         "deadline": "Darhol",
-        "tone": "Plan hanuz yo'q. Bu intizom masalasi. Hozirning o'zida yozib, keyingi natija uchun javobgarlikni oling.",
+        "tone": "Audit natijasida intizom buzilishi aniqlandi. Loyihalar xavf ostida. PM darhol hisobot bersin.",
     },
 }
 
@@ -462,8 +463,7 @@ async def distribute_team_tasks(force: bool = False):
     """10:00 va 14:00 da Hunter/Closer lidlarni menejerlar o'rtasida taqsimlash."""
     from src.database import Database
     import src.config as config
-    from src.services.amocrm_sync import AmoCRMSync
-    from telegram import Bot
+    from src.services.core.amocrm_sync import AmoCRMSync
     
     db = Database()
     now = get_local_now()
@@ -483,9 +483,9 @@ async def distribute_team_tasks(force: bool = False):
 
     logger.info(f"[DISTRIBUTION] Starting {hour_to_mark}:00 lead assignment cycle (Force={force})...")
     
-    from src.services.mission_control import MissionControl
-    from src.services.enterprise_reporter import EnterpriseReporter
-    from src.services.crm_service import CRMService
+    from src.services.core.mission_control import MissionControl
+    from src.services.core.enterprise_reporter import EnterpriseReporter
+    from src.services.core.crm_service import CRMService
     
     mc = MissionControl(db)
     crm_service = CRMService()
@@ -511,7 +511,6 @@ async def distribute_team_tasks(force: bool = False):
     thread_id = getattr(config, "TOPIC_GENERAL_ID", None)
 
     if bot_token and group_id:
-        from telegram import Bot
         bot = Bot(token=bot_token)
         try:
             await bot.send_message(chat_id=group_id, text=msg, parse_mode="HTML", disable_web_page_preview=True, message_thread_id=thread_id)
@@ -540,7 +539,7 @@ async def _legacy_check_amocrm_stagnation_direct():
         return
 
     logger.info("[STAGNATION] Time to audit! Checking AmoCRM...")
-    from src.services.amocrm_sync import AmoCRMSync
+    from src.services.core.amocrm_sync import AmoCRMSync
     amo = AmoCRMSync(config.AMOCRM_SUBDOMAIN, config.AMOCRM_CLIENT_ID, config.AMOCRM_CLIENT_SECRET, config.AMOCRM_REDIRECT_URL)
     stagnated = amo.check_stagnated_leads(hours=24)
     
@@ -551,7 +550,6 @@ async def _legacy_check_amocrm_stagnation_direct():
         if not (bot_token and (group_id or owner_id)): 
             return
         
-        from telegram import Bot
         bot = Bot(token=bot_token)
         
         # [ENTERPRISE] Daily Memory: Ensure it fires 3 times per day (10:00, 14:00, 18:00)
@@ -599,7 +597,7 @@ async def _legacy_check_amocrm_stagnation_direct():
 async def check_airtable_deadlines():
     """Airtable 72 soatlik deadline monitoringi."""
     logger.info("Project deadline check started...")
-    from src.services.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync
     import src.config as config
     
     sync = AirtableSync()
@@ -610,7 +608,6 @@ async def check_airtable_deadlines():
         group_id = getattr(config, "PROJECTS_GROUP_ID", None)
         if not (bot_token and group_id): return
         
-        from telegram import Bot
         bot = Bot(token=bot_token)
         
         msg = "⏳ **URGENT PROJECT DEADLINE (24h)**\n\nQuyidagi topshiriqlar muddati tugashiga 1 kun qoldi:\n"
@@ -631,7 +628,7 @@ async def check_airtable_deadlines():
 async def _legacy_check_airtable_stagnation():
     """Airtable loyihalar stagnatsiyasini tekshirish va Inomjonga eslatma yuborish."""
     logger.info("Airtable stagnation check started...")
-    from src.services.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync
     import src.config as config
     from src.database import Database
     
@@ -661,7 +658,6 @@ async def _legacy_check_airtable_stagnation():
         
         if not (bot_token and group_id): return
         
-        from telegram import Bot
         bot = Bot(token=bot_token)
         
         msg = "🏗 **AIRTABLE STAGNATION ALERT** 🏗\n\n"
@@ -725,7 +721,7 @@ async def _legacy_check_amocrm_stagnation_mixed():
         return
 
     logger.info("[STAGNATION] Checking AmoCRM for stalled conversion opportunities...")
-    from src.services.amocrm_sync import AmoCRMSync
+    from src.services.core.amocrm_sync import AmoCRMSync
 
     amo = AmoCRMSync(
         config.AMOCRM_SUBDOMAIN,
@@ -849,7 +845,7 @@ async def _deprecated_check_airtable_stagnation_direct():
     """Qimirlamay qolgan loyihalarni topib, PMga keyingi stage bo'yicha push yuborish."""
     logger.info("Airtable stagnation check started...")
     from telegram import Bot
-    from src.services.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync
     from src.services.core.airtable_sync import AirtableSync as AirtableCore
     import src.config as config
 
@@ -967,7 +963,7 @@ async def _legacy_check_airtable_stagnation_mixed():
     """Qimirlamay qolgan loyihalarni topib, PMga keyingi stage bo'yicha push yuborish."""
     logger.info("Airtable stagnation check started...")
     from telegram import Bot
-    from src.services.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync
     from src.services.core.airtable_sync import AirtableSync as AirtableCore
     import src.config as config
 
@@ -1124,10 +1120,10 @@ async def _legacy_check_airtable_stagnation_mixed():
 async def send_daily_report():
     """Kunlik umumiy statistika va jamoa samaradorligi hisoboti."""
     logger.info("Daily report job started...")
-    from src.services.amocrm_sync import AmoCRMSync
-    from src.services.airtable_sync import AirtableSync
-    from src.services.enterprise_reporter import EnterpriseReporter
-    from src.services.crm_service import CRMService
+    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.airtable_sync import AirtableSync
+    from src.services.core.enterprise_reporter import EnterpriseReporter
+    from src.services.core.crm_service import CRMService
     import src.config as config
     
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
@@ -1202,8 +1198,8 @@ async def send_morning_briefing():
         logger.info("[MORNING BRIEFING] Allaqachon bugun yuborilgan. Skip.")
         return
 
-    from src.services.crm_service import CRMService
-    from src.services.enterprise_reporter import EnterpriseReporter
+    from src.services.core.crm_service import CRMService
+    from src.services.core.enterprise_reporter import EnterpriseReporter
     
     crm = CRMService()
     reporter = EnterpriseReporter(db, crm)
@@ -1228,7 +1224,7 @@ async def send_morning_briefing():
     )
 
     
-    from src.services.proactive_worker import generate_ai_message
+    from src.services.core.proactive_worker import generate_ai_message
     ai_intro = await generate_ai_message(999, prompt)
     
     # Combined Briefing
@@ -1313,8 +1309,8 @@ async def send_overdue_nudges():
 async def send_lunch_reminder():
     """Tushlik vaqtida ertalabki vazifalar haqida eslatish."""
     logger.info("Lunch reminder job started...")
-    from src.services.enterprise_reporter import EnterpriseReporter
-    from src.services.crm_service import CRMService
+    from src.services.core.enterprise_reporter import EnterpriseReporter
+    from src.services.core.crm_service import CRMService
     import src.config as config
     
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
@@ -1390,8 +1386,8 @@ async def send_lunch_reminder():
 async def send_evening_fact_report():
     """Kechki Plan-Fakt natijalarini audit qilish va guruhga yuborish."""
     logger.info("Evening Fact report job started...")
-    from src.services.enterprise_reporter import EnterpriseReporter
-    from src.services.crm_service import CRMService
+    from src.services.core.enterprise_reporter import EnterpriseReporter
+    from src.services.core.crm_service import CRMService
     import src.config as config
     
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
@@ -1453,7 +1449,7 @@ async def _execute_telegram_notification(
 async def check_amocrm_stagnation():
     """Qotib qolgan leadlarni topib, menejerlarga conversion push yuborish."""
     import src.config as config
-    from src.services.amocrm_sync import AmoCRMSync
+    from src.services.core.amocrm_sync import AmoCRMSync
 
     db = Database()
     now = get_local_now()
@@ -1586,8 +1582,7 @@ async def check_amocrm_stagnation():
 async def check_airtable_stagnation():
     """Qimirlamay qolgan loyihalarni topib, PMga keyingi stage bo'yicha push yuborish."""
     logger.info("Airtable stagnation check started...")
-    from src.services.airtable_sync import AirtableSync
-    from src.services.core.airtable_sync import AirtableSync as AirtableCore
+    from src.services.core.airtable_sync import AirtableSync
     import src.config as config
 
     db = Database()
@@ -1733,8 +1728,8 @@ async def check_airtable_stagnation():
 async def check_client_journey_excellence():
     """Mijoz yo'li bo'yicha wow-service signal va mikromanagement push yuborish."""
     import src.config as config
-    from src.services.airtable_sync import AirtableSync
-    from src.services.amocrm_sync import AmoCRMSync
+    from src.services.core.airtable_sync import AirtableSync
+    from src.services.core.amocrm_sync import AmoCRMSync
 
     db = Database()
     now = get_local_now()
