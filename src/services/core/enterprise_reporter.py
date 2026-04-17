@@ -171,9 +171,20 @@ class EnterpriseReporter:
             if overdue:
                 report.append(f"- Muddati o'tgan: {len(overdue)} ta ⚠️")
             
-            if urgent_projects:
                 report.append(f"- <b>SLA xavfi (3 kundan oshish arafasida):</b> {len(urgent_projects)} ta")
-                report.append(f"  <i>(Iltimos, @Inomjon_JonBranding nazoratga oling)</i>")
+                
+                # Tag specific PMs for urgent projects
+                pm_mentions = set()
+                for p in projects:
+                    fields = p.get('fields', {})
+                    # Re-check if urgent (simplified for reporting)
+                    pm_value = _AT._get_field(fields, "manager")
+                    pm_mention = _AT.resolve_pm_handle(pm_value)
+                    pm_mentions.add(pm_mention)
+                
+                if pm_mentions:
+                    mentions_str = ", ".join(sorted(pm_mentions))
+                    report.append(f"  <i>(Iltimos, {mentions_str} nazoratga oling)</i>")
 
         # 4. FINANCE SUMMARY (Airtable — Kirim + Chiqim)
         if self.airtable:

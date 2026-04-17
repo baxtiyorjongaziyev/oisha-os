@@ -32,6 +32,7 @@ sys.path.append(os.path.join(os.getcwd(), "src", "services"))
 import logging
 from typing import Optional, Dict, Any, List
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 from src.settings import settings
 from src.database import Database
 from src.services.safe_responder import SafeResponder
@@ -104,6 +105,16 @@ def _restore_cloud_artifacts() -> None:
         except Exception as exc:
             logger.error(f"[CLOUD] Failed to restore userbot session: {exc}")
 
+    amocrm_token_json = os.environ.get("AMOCRM_TOKEN_JSON")
+    amocrm_token_path = os.path.join("data", "amocrm_token.json")
+    if amocrm_token_json and not os.path.exists(amocrm_token_path):
+        try:
+            with open(amocrm_token_path, "w", encoding="utf-8") as fh:
+                fh.write(amocrm_token_json)
+            logger.info("[CLOUD] Restored AmoCRM token file from secret.")
+        except Exception as exc:
+            logger.error(f"[CLOUD] Failed to restore AmoCRM token file: {exc}")
+
     service_account_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
     creds_path = os.environ.get("GSHEET_CREDS_FILE", "service_account.json")
     if service_account_json and not os.path.exists(creds_path):
@@ -124,7 +135,21 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
     Returns:
         bool: True if authorized, False otherwise
     """
-    await telegram_client.connect()
+    try:
+        await telegram_client.connect()
+    except Exception as exc:
+        duplicate_marker = "AUTH_KEY_DUPLICATED"
+        if duplicate_marker in str(exc).upper():
+            logger.error("[AUTH] Userbot session is already in use by another runtime.")
+            try:
+                import src.api_server as api_module
+                api_module.update_api_status("degraded", "Userbot session delegated to another runtime")
+                api_module.set_runtime_context(userbot_authorized=False)
+            except (ImportError, AttributeError) as api_exc:
+                logger.warning(f"[AUTH] Could not update API status: {api_exc}")
+            return False
+        raise
+
     if await telegram_client.is_user_authorized():
         return True
 
@@ -501,6 +526,7 @@ async def background_monitor_task() -> None:
         check_airtable_deadlines,
         send_overdue_nudges,
         check_airtable_stagnation,
+        check_client_journey_excellence,
     )
     from src.time_utils import get_local_now, is_quiet_hours
     
@@ -518,6 +544,7 @@ async def background_monitor_task() -> None:
             # 1. Stagnatsiya va Deadline tekshirish
             await check_amocrm_stagnation()
             await check_airtable_stagnation()
+            await check_client_journey_excellence()
             await check_airtable_deadlines()
 
             # 3. Shaxsiy eslatmalar (17:00 da - faqat bir marta)
@@ -584,7 +611,12 @@ async def shadow_advisor_handler(event):
     # 2. AI Advice & Sync Context
     history = []
     async for msg in client.iter_messages(chat_id, limit=5):
-        history.append(f"{'Mijoz' if msg.incoming else 'Siz'}: {msg.text}")
+        msg_text = getattr(msg, "text", None) or getattr(msg, "raw_text", None) or ""
+        if not msg_text:
+            continue
+        is_outgoing = bool(getattr(msg, "out", False))
+        speaker = "Siz" if is_outgoing else "Mijoz"
+        history.append(f"{speaker}: {msg_text}")
     history_context = "\n".join(history)
 
     # 2.1 AI Tahlili (Advice)
@@ -1092,18 +1124,37 @@ async def main():
     await db.init_instance()
     msg_controller = MessageController(api_keys=api_keys, db=db)
     
+    cloud_control_plane = bool(os.getenv("K_SERVICE"))
+
     # [GOD MODE] Authorized Session Discovery
-    SESSION_PATH = 'data/userbot_session'
-    if not os.path.exists('data/userbot_session.session') and os.path.exists('userbot_session.session'):
-        SESSION_PATH = 'userbot_session'
-    
-    client = TelegramClient(
-        SESSION_PATH,
-        settings.API_ID,
-        settings.API_HASH,
-        device_model="Oisha Enterprise v2",
-        system_version="Windows 11 Agent"
-    )
+    session_string = os.environ.get("USERBOT_SESSION_STRING", "").strip()
+    if cloud_control_plane:
+        # Cloud Run acts as the API/control plane only. Telegram runtime stays on the VM.
+        client = TelegramClient(
+            StringSession(),
+            settings.API_ID,
+            settings.API_HASH,
+            device_model="Oisha Enterprise Control Plane",
+            system_version="Cloud Run"
+        )
+    elif session_string:
+        client = TelegramClient(
+            StringSession(session_string),
+            settings.API_ID,
+            settings.API_HASH,
+            device_model="Oisha Enterprise v2",
+            system_version="Windows 11 Agent"
+        )
+    else:
+        SESSION_PATH = 'data/oisha_user_active'
+        
+        client = TelegramClient(
+            SESSION_PATH,
+            settings.API_ID,
+            settings.API_HASH,
+            device_model="Oisha Enterprise v2",
+            system_version="Windows 11 Agent"
+        )
     
     # Head 2: Main Bot (Public interface and Admin Dashboard)
     BOT_TOKEN = settings.BOT_TOKEN.get_secret_value()
@@ -1183,9 +1234,14 @@ async def main():
         userbot_authorized=None,
     )
 
-    # 5. Background Tasks
-    asyncio.create_task(session_manager.monitor_sessions())
-    asyncio.create_task(orchestrator.background_loop(interval_minutes=15))
+    if cloud_control_plane:
+        api_module.set_runtime_context(
+            state_db_path=msg_controller.db.db_path,
+            userbot_authorized=False,
+        )
+        api_module.update_api_status("online", "Control plane active; Telegram runtime delegated to VM")
+        logger.info("[CLOUD] Control-plane mode active; Telegram runtime delegated to VM.")
+        await asyncio.Event().wait()
 
     # 3. Userbotni (Shaxsiy akkaunt) ishga tushirish
     userbot_ready = await _connect_user_client(client)
@@ -1200,6 +1256,7 @@ async def main():
             except Exception as bot_exc:
                 logger.error(f"[AUTH] Bot-token head startup failed in degraded mode: {bot_exc}")
                 bot_client = None
+        api_module.update_api_status("degraded", "Userbot features are disabled")
         logger.error("[AUTH] Runtime is alive for health checks, but userbot features are disabled.")
         await asyncio.Event().wait()
     
@@ -1216,6 +1273,10 @@ async def main():
             logger.error(f"[AUTH] Bot-token head startup failed: {bot_exc}")
             bot_client = None
     api_module.update_api_status("online", "Canonical runtime active")
+
+    # 5. Background Tasks
+    asyncio.create_task(session_manager.monitor_sessions())
+    asyncio.create_task(orchestrator.background_loop(interval_minutes=15))
     
     # [STABILITY] Registrating event handlers AFTER client initialization
     client.add_event_handler(handle_new_message, events.NewMessage)

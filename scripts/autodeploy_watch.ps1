@@ -81,35 +81,54 @@ function Should-WatchPath {
     return $false
 }
 
-function Invoke-CloudDeploy {
+function Invoke-GitSync {
     if ($script:isDeploying) {
-        Write-Log "Deploy already running. New deploy request will wait for the next change."
+        Write-Log "Sync already running. New request queued."
         return
     }
 
     $script:isDeploying = $true
     try {
-        Write-Log "Deploy started."
+        Write-Log "🚀 Git Sync started."
         Push-Location $ProjectRoot
 
-        $pyFiles = Get-ChildItem -Path (Join-Path $ProjectRoot "src") -Recurse -Filter *.py -File |
-            Select-Object -ExpandProperty FullName
-        if ($pyFiles.Count -gt 0) {
-            & python -m py_compile @pyFiles
-            if ($LASTEXITCODE -ne 0) {
-                Write-Log "py_compile failed. Deploy skipped."
-                return
+        # Check if there are changes
+        $status = & git status --porcelain
+        if ([string]::IsNullOrWhiteSpace($status)) {
+            Write-Log "No changes detected. Skipping push."
+            return
+        }
+
+        # 1. Compile check (optional but good for Python)
+        $srcDir = Join-Path $ProjectRoot "src"
+        if (Test-Path $srcDir) {
+            Write-Log "Checking syntax..."
+            $pyFiles = Get-ChildItem -Path $srcDir -Recurse -Filter *.py -File | Select-Object -ExpandProperty FullName
+            if ($pyFiles) {
+                & python -m py_compile $pyFiles
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Log "❌ Syntax error detected. Push aborted."
+                    return
+                }
             }
         }
 
-        & gcloud builds submit $ProjectRoot --config (Join-Path $ProjectRoot "cloudbuild.yaml") --region=europe-west3
+        # 2. Git Automation
+        Write-Log "Committing changes..."
+        & git add .
+        & git commit -m "🚀 auto-deploy: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        
+        Write-Log "Pushing to GitHub..."
+        & git pull --rebase origin main
+        & git push origin main
+        
         if ($LASTEXITCODE -eq 0) {
-            Write-Log "Deploy finished successfully."
+            Write-Log "✅ Sync & Push successful!"
         } else {
-            Write-Log "Deploy failed with exit code $LASTEXITCODE."
+            Write-Log "⚠️ Push failed (Exit Code: $LASTEXITCODE). Check for conflicts."
         }
     } catch {
-        Write-Log "Deploy crashed: $($_.Exception.Message)"
+        Write-Log "🚨 Sync crashed: $($_.Exception.Message)"
     } finally {
         Pop-Location
         $script:isDeploying = $false
@@ -165,7 +184,7 @@ $script:subscriptions += Register-ObjectEvent -InputObject $script:timer -EventN
     }
 
     $script:pendingChange = $false
-    Invoke-CloudDeploy
+    Invoke-GitSync
 }
 $script:timer.Start()
 
