@@ -1,65 +1,45 @@
-import asyncio
 import os
-import sys
-from telethon import TelegramClient, errors
-from src.settings import settings
+import asyncio
+from telethon import TelegramClient
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 async def main():
-    print("[OISHA] Userbot Login Starting...")
+    api_id = os.getenv("API_ID")
+    api_hash = os.getenv("API_HASH")
     
-    session_file = 'data/oisha_user_active' # Note: .session is appended by Telethon
-    
-    api_id = settings.API_ID
-    api_hash = settings.API_HASH
-    phone = "998336450097"
-    
-    # 3. Get password from sys.argv
-    password = sys.argv[1] if len(sys.argv) > 1 else "Telegram0097"
+    if not api_id or not api_hash:
+        print("❌ Error: API_ID or API_HASH not found in .env file.")
+        return
 
-    print(f"Connecting for phone: {phone}...")
+    print("🚀 Starting Userbot Login Process...")
+    print(f"Using API_ID: {api_id}")
     
-    client = TelegramClient(
-        session_file, 
-        api_id, 
-        api_hash,
-        device_model="Oisha-OS VM",
-        system_version="Linux/Windows",
-        app_version="1.0"
-    )
-
-    try:
-        await client.connect()
-        
-        if not await client.is_user_authorized():
-            # 1. Send Code Request
-            print(f"Requesting new code for {phone}...")
-            sent_code = await client.send_code_request(phone)
-            phone_code_hash = sent_code.phone_code_hash
+    # Ensure data directory exists
+    os.makedirs("data", exist_ok=True)
+    session_path = os.path.join("data", "oisha_user.session")
+    
+    client = TelegramClient(session_path, int(api_id), api_hash)
+    
+    await client.connect()
+    
+    if not await client.is_user_authorized():
+        phone = input("📱 Enter your phone number (with +country code): ")
+        await client.send_code_request(phone)
+        code = input("🔢 Enter the code you received on Telegram: ")
+        try:
+            await client.sign_in(phone, code)
+        except Exception as e:
+            password = input("🔐 Two-factor authentication detected. Enter your password: ")
+            await client.sign_in(password=password)
             
-            # 2. Ask User for Code via Stdout/Prompt (Interactive is better here for ONE step)
-            print("Action: Enter the code from Telegram below.")
-            user_code = input("CODE: ")
-            
-            try:
-                await client.sign_in(phone, user_code, phone_code_hash=phone_code_hash)
-            except errors.SessionPasswordNeededError:
-                print(f"Password required. Using provided password.")
-                await client.sign_in(password=password)
-            except Exception as e:
-                print(f"Sign-in error: {e}")
-                return
-
-        if await client.is_user_authorized():
-            me = await client.get_me()
-            print(f"SUCCESS: Logged in as: {me.first_name}")
-            print(f"SESSION_SAVED: {session_file}.session")
-        else:
-            print("FAILED: Client not authorized.")
-            
-    except Exception as e:
-        print(f"ERROR: {e}")
-    finally:
-        await client.disconnect()
+    me = await client.get_me()
+    print(f"✅ Successfully logged in as: {me.first_name} (@{me.username})")
+    print(f"📂 Session saved at: {session_path}")
+    
+    await client.disconnect()
 
 if __name__ == "__main__":
     asyncio.run(main())
