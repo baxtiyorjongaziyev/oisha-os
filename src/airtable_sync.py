@@ -1,1 +1,1 @@
-from src.services.airtable_sync import *
+from src.services.core.airtable_sync import *

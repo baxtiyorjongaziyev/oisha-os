@@ -20,7 +20,7 @@ class TestRetryDecorator:
         
         call_count = 0
         
-        @retry_with_backoff(max_retries=3, initial_delay=0.1)
+        @retry_with_backoff(max_retries=3, initial_delay=0.1, exceptions=(Exception,))
         def flaky_function():
             nonlocal call_count
             call_count += 1
@@ -36,7 +36,7 @@ class TestRetryDecorator:
         """Test that exception is raised after max retries."""
         from src.services.core.amocrm_sync import retry_with_backoff
         
-        @retry_with_backoff(max_retries=3, initial_delay=0.1)
+        @retry_with_backoff(max_retries=3, initial_delay=0.1, exceptions=(Exception,))
         def always_fails():
             raise Exception("Always fails")
         
@@ -54,7 +54,7 @@ class TestRetryDecorator:
             delays.append(duration)
             # Don't actually sleep in tests
         
-        @retry_with_backoff(max_retries=3, initial_delay=1, backoff_factor=2)
+        @retry_with_backoff(max_retries=3, initial_delay=1, backoff_factor=2, exceptions=(Exception,))
         def flaky_with_timing():
             raise Exception("fail")
         
