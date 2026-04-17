@@ -3,7 +3,7 @@ import logging
 import json
 import time
 from datetime import datetime, timedelta, timezone
-from src.services.amocrm_sync import AmoCRMSync
+from src.services.core.amocrm_sync import AmoCRMSync
 from src.settings import settings
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

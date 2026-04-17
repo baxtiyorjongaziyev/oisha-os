@@ -140,17 +140,18 @@ class TestTelegramRateLimiter:
         # Should not be able to send immediately
         assert not await tg_limiter.can_send_message(1, is_group=True)
 
-    def test_flood_wait_recovery(self, tg_limiter):
+    @pytest.mark.asyncio
+    async def test_flood_wait_recovery(self, tg_limiter):
         """Test that requests are allowed after flood wait expires."""
         # Set short flood wait
         tg_limiter.report_flood_wait(0.1)
         
         # Wait for it to expire
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
         
         # Should be able to check now
         # Note: actual sending still rate limited
-        result = asyncio.run(tg_limiter.can_send_message(1, is_group=True))
+        result = await tg_limiter.can_send_message(1, is_group=True)
         # Result depends on rate limiter state, but should not be blocked by flood
 
 
