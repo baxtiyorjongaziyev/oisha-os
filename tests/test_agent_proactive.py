@@ -12,9 +12,9 @@ load_dotenv()
 # Paths
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-import config
-from database import Database
-from controllers.message_controller import MessageController
+import src.config as config
+from src.database import Database
+from src.controllers.message_controller import MessageController
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +33,7 @@ async def test_proactive_behavior():
 
     # 1. Controller va Database
     db = Database()
+    await db.init_db()
     controller = MessageController(api_keys, db=db)
     
     # Fake bot_app (notificator uchun, shunchaki print qiladigan mock)
@@ -58,10 +59,10 @@ async def test_proactive_behavior():
     
     # 3. Bazani tekshirish (Vazifa ochildimi?)
     print("\n[DEBUG] Bazani tekshirish...")
-    all_tasks = db.get_all_tasks(limit=5)
+    all_tasks = await db.get_all_tasks(limit=5)
     print(f"Jami vazifalar (oxirgi 5 ta): {all_tasks}")
     
-    agent_actions = db.get_recent_agent_actions(limit=5)
+    agent_actions = await db.get_recent_agent_actions(limit=5)
     print(f"Agent amallari (oxirgi 5 ta): {agent_actions}")
     
     if all_tasks:

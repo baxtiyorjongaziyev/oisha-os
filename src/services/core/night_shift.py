@@ -5,11 +5,11 @@ import os
 import time
 from src import config
 from src.database import Database
-from src.services.amocrm_sync import AmoCRMSync
-from src.services.crm_service import CRMService
+from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm_service import CRMService
 from src.agents.researcher_agent import ResearcherAgent
-from src.services.google_service import GoogleService
-from src.services.airtable_sync import AirtableSync
+from src.services.debug.google_service import GoogleService
+from src.services.core.airtable_sync import AirtableSync
 
 logger = logging.getLogger("NightShift")
 
@@ -145,7 +145,7 @@ class NightShiftService:
             # 2. Overdue project alerts from Airtable (faqat log, xabar 09:00 dan keyin yuboriladi)
             overdue = self.airtable.get_overdue_projects()
             if overdue:
-                from src.services.airtable_sync import AirtableSync as _AT
+                from src.services.core.airtable_sync import AirtableSync as _AT
                 logger.info(f"🌙 [HYGIENE] Found {len(overdue)} overdue projects")
                 _now = datetime.datetime.now()
                 if self.bot and _now.hour >= 9:

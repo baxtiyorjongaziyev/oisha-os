@@ -6,15 +6,15 @@ import psutil
 import platform
 from datetime import datetime, timedelta
 from telethon import events, Button, functions, types
-from src.services.mission_control import MissionControl, MissionControlFetchError
+from src.services.core.mission_control import MissionControl, MissionControlFetchError
 from src.database import Database
 from src.controllers.message_controller import MessageController
 from src.time_utils import get_local_now, is_quiet_hours
 
-from src.services.crm_night_shift import CRMNightShift
+from src.services.core.crm_night_shift import CRMNightShift
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from src.services.access_manager import AccessManager
+    from src.services.utils.access_manager import AccessManager
 
 logger = logging.getLogger(__name__)
 class AdminBot:
@@ -101,7 +101,7 @@ class AdminBot:
             await event.respond("👸 Oisha: Mission Control ishga tushirildi. Bugungi reja tayyorlanmoqda... 🚀")
             
             try:
-                from src.services.proactive_worker import distribute_team_tasks
+                from src.services.core.proactive_worker import distribute_team_tasks
                 await distribute_team_tasks(force=True)
                 await event.respond("✅ Bugun uchun barcha vazifalar taqsimlandi va jamoa guruhiga yuborildi.")
             except Exception as e:
@@ -114,7 +114,7 @@ class AdminBot:
             await event.respond("👸 Oisha: Kunlik Plan-Fakt tahlili boshlandi. AmoCRM raqamlarini tekshiryapman... 🕵️‍♀️")
             
             try:
-                from src.services.proactive_worker import send_evening_fact_report
+                from src.services.core.proactive_worker import send_evening_fact_report
                 await send_evening_fact_report()
             except Exception as e:
                 await event.respond(f"❌ Tahlil davomida xato yuz berdi: {e}")
@@ -344,7 +344,7 @@ class AdminBot:
                 await event.respond("⚠️ **Xato qo'llanildi!**\n\nTo'g'ri ko'rinishi:\n1. Reply qilib: `/set_position PM`\n2. Mention bilan: `/set_position @username PM`")
                 return
 
-            from src.services.team_hub import TeamHub
+            from src.services.utils.team_hub import TeamHub
             res = TeamHub.set_position(target_user.id, position)
             
             # Username-ni ham DB-da yangilab qo'yamiz (Accountability uchun kerak)
@@ -572,7 +572,7 @@ class AdminBot:
                         await self.db.set_state(job_id, "running")
                         logger.info("👸 [SCHEDULER] Morning Briefing boshlandi...")
                         try:
-                            from src.services.proactive_worker import send_morning_briefing
+                            from src.services.core.proactive_worker import send_morning_briefing
                             await send_morning_briefing()
                             await self.db.set_state(job_id, "done")
                             api_server_module.add_activity("☀️ Morning Briefing", "Kunlik brifing jamoaga yuborildi.", "success")
@@ -595,7 +595,7 @@ class AdminBot:
                         await self.db.set_state(job_id, "running")
                         logger.info(f"[SCHEDULER] Daily plan discipline phase={phase}...")
                         try:
-                            from src.services.proactive_worker import demand_daily_plans
+                            from src.services.core.proactive_worker import demand_daily_plans
                             sent = await demand_daily_plans(phase)
                             await self.db.set_state(job_id, "done")
                             if sent:
@@ -636,7 +636,7 @@ class AdminBot:
                         await self.db.set_state(job_id, "running")
                         logger.info("[SCHEDULER] Client Journey Excellence boshlandi...")
                         try:
-                            from src.services.proactive_worker import check_client_journey_excellence
+                            from src.services.core.proactive_worker import check_client_journey_excellence
                             sent = await check_client_journey_excellence()
                             await self.db.set_state(job_id, "done")
                             if sent:
@@ -658,7 +658,7 @@ class AdminBot:
                         await self.db.set_state(job_id, "running")
                         logger.info("👸 [SCHEDULER] Lunch Reminder boshlandi...")
                         try:
-                            from src.services.proactive_worker import send_lunch_reminder
+                            from src.services.core.proactive_worker import send_lunch_reminder
                             await send_lunch_reminder()
                             await self.db.set_state(job_id, "done")
                             api_server_module.add_activity("🍽 Lunch Reminder", "Tushlik vaqtida ertalabki vazifalar haqida eslatma yuborildi.", "success")
@@ -675,7 +675,7 @@ class AdminBot:
                         await self.db.set_state(job_id, "running")
                         logger.info("👸 [SCHEDULER] Evening Fact Report boshlandi...")
                         try:
-                            from src.services.proactive_worker import send_evening_fact_report
+                            from src.services.core.proactive_worker import send_evening_fact_report
                             await send_evening_fact_report()
                             await self.db.set_state(job_id, "done")
                             api_server_module.add_activity("📊 Plan-Fakt Tahlili", "Kechki natijalar auditlandi va Telegram guruhiga yuborildi.", "success")
@@ -711,7 +711,7 @@ class AdminBot:
                         logger.info("👸 [SCHEDULER] Intelligence Audit boshlandi (tungi)...")
                         api_server_module.add_activity("🕵️ Intelligence Audit", "Tungi AI tahlili boshlandi. Faollik loglari o'rganilmoqda...", "thinking")
                         try:
-                            from src.services.audit_agent import AuditAgent
+                            from src.services.core.audit_agent import AuditAgent
                             import src.config as config
                             _audit = AuditAgent(api_key=config.GEMINI_API_KEY, db=self.db)
                             report = await _audit.generate_audit_report(limit=200)
@@ -766,7 +766,7 @@ class AdminBot:
                         await self.db.set_state(job_id, "running")
                         logger.info("[SCHEDULER] Sales Conversion Push boshlandi...")
                         try:
-                            from src.services.proactive_worker import check_amocrm_stagnation
+                            from src.services.core.proactive_worker import check_amocrm_stagnation
                             await check_amocrm_stagnation()
                             # Stagnation Alert is part of same job
                             from src.services.core.sales_analytics import SalesAnalytics
@@ -1203,7 +1203,7 @@ class AdminBot:
             
             # Using advisor_agent's logic for simplicity or direct Gemini call
             # For now, let's use a direct call if advisor_agent is available
-            from src.services.auto_lead_agent import AutoLeadAgent
+            from src.services.core.auto_lead_agent import AutoLeadAgent
             # Use AutoLeadAgent credentials for AI processing
             analysis_text = "AI tahlil tayyorlanmoqda..."
             try:

@@ -374,7 +374,7 @@ def run_api(host: str = "0.0.0.0", port: int = 8080):
 
 async def background_crm_audit_task():
     """Background task to refresh CRM audit data every 15 minutes."""
-    from src.services.crm_audit import AmoCRMAudit
+    from src.services.debug.crm_audit import AmoCRMAudit
     global cached_crm_audit
     audit = AmoCRMAudit()
     while True:

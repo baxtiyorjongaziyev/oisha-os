@@ -13,9 +13,9 @@ from src.agents.pm_agent import PMAgent
 from src.agents.researcher_agent import ResearcherAgent
 from src.agents.support_agent import SupportAgent
 from src.agents.orchestrator import AgentOrchestrator
-from src.services.crm_service import CRMService
-from src.services.google_service import GoogleService
-from src.services.enterprise_reporter import EnterpriseReporter
+from src.services.core.crm_service import CRMService
+from src.services.debug.google_service import GoogleService
+from src.services.core.enterprise_reporter import EnterpriseReporter
 from src.agents.tools import AgentToolExecutor
 from src.database import Database
 import src.config as config
