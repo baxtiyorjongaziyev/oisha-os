@@ -723,7 +723,7 @@ class AgentToolExecutor:
             return {"success": False, "error": "Foydalanuvchi telefoni topilmadi. Avval raqamni saqlang."}
             
         try:
-            from src.services.crm_service import CRMService
+            from src.services.core.crm_service import CRMService
             crm = CRMService()
             status = await crm.get_user_context(phone)
             return {"success": True, "status": status}
@@ -993,7 +993,7 @@ class AgentToolExecutor:
 
     async def _sherlock_user_profile(self, user_id: int) -> Dict[str, Any]:
         """Mijozning profilini Scouter orqali tahlil qilish."""
-        from src.services.scouter import Scouter
+        from src.services.utils.scouter import Scouter
         import os
         
         if not self._scouter:

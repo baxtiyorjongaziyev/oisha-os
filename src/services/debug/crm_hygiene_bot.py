@@ -2,7 +2,7 @@
 import asyncio
 import logging
 import datetime
-from src.services.crm_service import CRMService
+from src.services.core.crm_service import CRMService
 from src.database import Database
 import src.config as config
 

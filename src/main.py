@@ -35,30 +35,30 @@ from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from src.settings import settings
 from src.database import Database
-from src.services.safe_responder import SafeResponder
-from src.services.action_parser import ActionParser
-from src.services.lead_scraper import LeadScraper
-from src.services.enterprise_reporter import EnterpriseReporter
+from src.services.core.safe_responder import SafeResponder
+from src.services.core.action_parser import ActionParser
+from src.services.core.lead_scraper import LeadScraper
+from src.services.core.enterprise_reporter import EnterpriseReporter
 from src.controllers.message_controller import MessageController
-from src.services.scouter import Scouter
-from src.services.advisor_agent import AdvisorAgent
-from src.services.auto_lead_agent import AutoLeadAgent
-from src.services.activity_monitor import ActivityMonitor
-from src.services.audit_agent import AuditAgent
+from src.services.utils.scouter import Scouter
+from src.services.core.advisor_agent import AdvisorAgent
+from src.services.core.auto_lead_agent import AutoLeadAgent
+from src.services.core.activity_monitor import ActivityMonitor
+from src.services.core.audit_agent import AuditAgent
 import threading
 import src.config as config
-from src.services.session_manager import SessionManager
-from src.services.chat_bridge import ChatBridge
+from src.services.core.session_manager import SessionManager
+from src.services.core.chat_bridge import ChatBridge
 from src.api_server import app as api_app
 import uvicorn
 from telethon import functions, types
 import random
 import time
-from src.services.admin_bot import AdminBot
-from src.services.folder_manager import FolderManager
-from src.services.voice_processor import VoiceProcessor
-from src.services.access_manager import AccessManager
-from src.services.juma_notifier import JumaNotifier
+from src.services.core.admin_bot import AdminBot
+from src.services.core.folder_manager import FolderManager
+from src.services.utils.voice_processor import VoiceProcessor
+from src.services.utils.access_manager import AccessManager
+from src.services.core.juma_notifier import JumaNotifier
 
 # Global Managers
 folder_manager: Optional[FolderManager] = None
@@ -247,7 +247,7 @@ async def _resolve_finance_approver(db: Database) -> Optional[Dict[str, Any]]:
 
 
 async def _find_project_for_income(message_text: str) -> Optional[Dict[str, Any]]:
-    from src.services.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync
 
     sync = AirtableSync()
     projects = await asyncio.to_thread(sync.get_projects)
@@ -288,7 +288,7 @@ async def _find_project_for_income(message_text: str) -> Optional[Dict[str, Any]
 
 
 async def _count_income_records_for_project(project_record_id: str) -> int:
-    from src.services.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync
 
     sync = AirtableSync()
     records = await asyncio.to_thread(sync.get_finance_records)
@@ -302,7 +302,7 @@ async def _count_income_records_for_project(project_record_id: str) -> int:
 
 
 async def _create_income_airtable_record(workflow: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    from src.services.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync
     from src.time_utils import get_local_now
 
     project_id = workflow.get("project_id")
@@ -521,7 +521,7 @@ async def background_monitor_task() -> None:
     Runs indefinitely with 5-minute intervals between checks.
     Handles errors gracefully and continues operation.
     """
-    from src.services.proactive_worker import (
+    from src.services.core.proactive_worker import (
         check_amocrm_stagnation,
         check_airtable_deadlines,
         send_overdue_nudges,
@@ -787,7 +787,7 @@ async def handle_new_message(event):
             return
             
         if event.message.text == '/efficiency' or event.message.text == '/report':
-            from src.services.airtable_sync import AirtableSync
+            from src.services.core.airtable_sync import AirtableSync
             at_sync = AirtableSync()
             msg_controller.enterprise_reporter.airtable = at_sync
             
@@ -795,7 +795,7 @@ async def handle_new_message(event):
             await event.respond(report, parse_mode='markdown')
             return
             
-            from src.services.airtable_sync import AirtableSync
+            from src.services.core.airtable_sync import AirtableSync
             at_sync = AirtableSync()
             projects = at_sync.get_projects()
             if not projects:
@@ -1184,7 +1184,7 @@ async def main():
     auto_lead_agent = AutoLeadAgent(api_key=api_keys["gemini"])
     safe_responder = SafeResponder()
     
-    from src.services.workflow_manager import WorkflowManager
+    from src.services.core.workflow_manager import WorkflowManager
     activity_monitor = ActivityMonitor(db=msg_controller.db)
     audit_agent = AuditAgent(api_key=api_keys["gemini"], db=msg_controller.db)
     
@@ -1203,12 +1203,12 @@ async def main():
         access_manager=access_manager,
         team_group_id=settings.TEAM_GROUP_ID
     )
-    from src.services.welcome_manager import WelcomeManager
+    from src.services.utils.welcome_manager import WelcomeManager
     welcome_manager = WelcomeManager(client=client)
     
     lead_scraper.notify_callback = admin_bot.notify_lead
 
-    from src.services.workflow_orchestrator import WorkflowOrchestrator
+    from src.services.core.workflow_orchestrator import WorkflowOrchestrator
     orchestrator = WorkflowOrchestrator(
         amocrm=msg_controller.crm.amocrm,
         airtable=msg_controller.crm.airtable,
@@ -1355,7 +1355,7 @@ async def main():
                 await event.respond("👸 **Oisha:** Vazifa qabul qilindi. AI assistant tahlil qilmoqda... 👸🛡️")
                 
                 # Import here to avoid circular imports
-                from src.services.userbot_legacy import task_command
+                from src.services.debug.userbot_legacy import task_command
                 # Create a mock update/context if needed, or just run the logic
                 # For simplicity, we assume the PTB bot in userbot_legacy is also running and will pick this up
                 # If not, we could implement a unified handler here.

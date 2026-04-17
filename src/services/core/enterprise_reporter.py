@@ -6,7 +6,7 @@ import time
 import requests
 from typing import Dict, Any, List, Set
 from src.database import Database
-from src.services.crm_service import CRMService
+from src.services.core.crm_service import CRMService
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
@@ -145,7 +145,7 @@ class EnterpriseReporter:
             urgent_projects = []
             now_dt = get_local_now()
             
-            from src.services.airtable_sync import AirtableSync as _AT
+            from src.services.core.airtable_sync import AirtableSync as _AT
             for p in projects:
                 fields = p.get('fields', {})
                 created_str = _AT._get_field(fields, "start_date")

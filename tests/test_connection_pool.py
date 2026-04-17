@@ -228,18 +228,21 @@ class TestGlobalPool:
     @pytest.mark.asyncio
     async def test_close_pool_cleanup(self):
         """Test that close_pool properly cleans up."""
-        from database_pool import get_pool, close_pool, _pool_instance
+        import database_pool
         
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             db_path = os.path.join(tmpdir, "cleanup.db")
             
             # Create pool
-            await get_pool(sqlite_path=db_path)
-            assert _pool_instance is not None
+            await database_pool.get_pool(sqlite_path=db_path)
+            assert database_pool._pool_instance is not None
             
             # Close pool
-            await close_pool()
-            assert _pool_instance is None
+            await database_pool.close_pool()
+            assert database_pool._pool_instance is None
+        
+        # On Windows, we might need a tiny delay for aiosqlite threads to release the file
+        await asyncio.sleep(0.1)
 
 
 if __name__ == "__main__":
