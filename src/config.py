@@ -28,4 +28,4 @@ GSHEET_CREDS_FILE = settings.GSHEET_CREDS_FILE
 # RBAC / Permissions
 OWNER_ID = settings.OWNER_ID
 WHITELIST_IDS = settings.WHITELIST_IDS
-SYSTEM_INSTRUCTION = settings.SYSTEM_INSTRUCTION
+SYSTEM_INSTRUCTION = settings.SYSTEM_INSTRUCTION + "\n\n[AGENTIC OPS] Suhbat davomida aniq topshiriqlar berilsa yoki kelishilsa, avtomatik ravishda [TASK: title=...|assigned_to=...|deadline=...] formatida javob oxirida vazifa yarating."

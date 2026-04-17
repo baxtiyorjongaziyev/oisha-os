@@ -1,4 +1,5 @@
 import asyncio
+import random
 import logging
 from datetime import datetime, time
 from telethon import TelegramClient, functions, types
@@ -14,8 +15,8 @@ class JumaNotifier:
         self.client = client
         self.db = db
         self.group_id = group_id # Default primary group
-        self.RUN_WINDOW_START = time(8, 0)   # 08:00 AM
-        self.RUN_WINDOW_END = time(21, 0)    # 09:00 PM
+        self.RUN_WINDOW_START = time(0, 0)   # 00:00 AM (Start immediately at midnight)
+        self.RUN_WINDOW_END = time(23, 59)   # 11:59 PM
 
     async def check_and_send(self):
         """Check if it's Friday morning and we haven't sent greetings yet."""
@@ -190,4 +191,3 @@ class JumaNotifier:
         await self._mark_as_sent(date_str)
         logger.info(f"👸 [JUMA] Success! Sent {success_count} greetings for {date_str}.")
 
-import random
