@@ -8,13 +8,13 @@ from src import config
 logger = logging.getLogger(__name__)
 
 from src.database import Database # type: ignore
-from src.services.airtable_sync import AirtableSync
-from src.services.gcontacts import GoogleContactsSync
+from src.services.core.airtable_sync import AirtableSync
+from src.services.core.gcontacts import GoogleContactsSync
 from src.services.debug.global_super_hub import GiantResourceHub, GlobalSuperAI # type: ignore
 from src.services.core.escalation_agent import EscalationAgent
 from src.services.core.wow_service_engine import WowServiceEngine
-from src.services.crm_integration import CRMIntegration # type: ignore
-from src.services.gdrive import GoogleDriveSync
+from src.services.core.crm_integration import CRMIntegration # type: ignore
+from src.services.core.gdrive import GoogleDriveSync
 
 
 from src.database import Database # type: ignore
@@ -156,7 +156,7 @@ class ProactiveWorker:
         """VPS va Cloud resurslarni monitor qilish."""
         logger.info("[PROACTIVE] Monitoring system resources...")
         try:
-            from src.services.monitor_resources import ResourceMonitor, check_resources_now
+            from src.services.core.monitor_resources import ResourceMonitor, check_resources_now
             # Fallback to global db if self.db not set
             mon_db = getattr(self, 'db', db)
             monitor = ResourceMonitor(mon_db)
@@ -438,7 +438,7 @@ class ProactiveWorker:
             pms = [u for u in team if u['role'] == 'PM']
 
             # 2. AmoCRM -> Hunter & Closer
-            from crm_integration import CRMIntegration
+            from src.services.core.crm_integration import CRMIntegration
             crm = CRMIntegration()
             # Eslatma: Haqiqiy tokenni ishlatish kerak, hozircha mavjud API orqali
             # Bu qismda Amo-dan yangi lead/vazifalarni olish mantiqi bo'ladi

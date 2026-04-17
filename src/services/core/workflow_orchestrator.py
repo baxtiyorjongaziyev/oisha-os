@@ -2,8 +2,8 @@ import asyncio
 import logging
 from datetime import datetime
 
-from src.services.amocrm_sync import AmoCRMSync
-from src.services.airtable_sync import AirtableSync
+from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.airtable_sync import AirtableSync
 
 logger = logging.getLogger(__name__)
 

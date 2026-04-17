@@ -3,10 +3,10 @@ import asyncio
 import datetime
 import logging
 from src.database import Database
-from src.services.amocrm_sync import AmoCRMSync
+from src.services.core.amocrm_sync import AmoCRMSync
 from src.settings import settings
 import src.config as config
-from src.services.enterprise_reporter import EnterpriseReporter
+from src.services.core.enterprise_reporter import EnterpriseReporter
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ class WorkflowManager:
         """Airtable-dagi loyihalarni monitoring qilish va PMga eslatma yuborish."""
         logger.info("[WORKFLOW] Airtable monitoringi boshlandi... 👸🛡️")
         
-        from airtable_sync import AirtableSync
+        from src.services.core.airtable_sync import AirtableSync
         at_sync = AirtableSync(table_name="Projects")
         records = at_sync.get_projects()
         
@@ -157,7 +157,7 @@ class WorkflowManager:
         hour = now.hour
         minute = now.minute
         
-        from src.services.team_hub import TeamHub
+        from src.services.utils.team_hub import TeamHub
 
         # 1. MORNING PLAN REQUEST (09:00 - 09:15)
         if hour == 9 and 0 <= minute <= 15:
