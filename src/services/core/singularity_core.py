@@ -10,7 +10,9 @@ logger = logging.getLogger(__name__)
 from src.database import Database # type: ignore
 from src.services.airtable_sync import AirtableSync
 from src.services.gcontacts import GoogleContactsSync
-from src.services.global_super_hub import GiantResourceHub, GlobalSuperAI # type: ignore
+from src.services.debug.global_super_hub import GiantResourceHub, GlobalSuperAI # type: ignore
+from src.services.core.escalation_agent import EscalationAgent
+from src.services.core.wow_service_engine import WowServiceEngine
 from src.services.crm_integration import CRMIntegration # type: ignore
 from src.services.gdrive import GoogleDriveSync
 
@@ -64,7 +66,7 @@ class ProactiveWorker:
                     await db.mark_job_run("morning_brief", now.strftime('%Y-%m-%d'))
 
                 # 4. Avtonom topshiriqlar tahlili (Har 2 soatda)
-                if now.hour % 2 == 0 and now.minute == 5: # :05 da bo'shroq vaqtda
+                if now.hour % 2 == 0 and now.minute == 0: 
                     await self.analyze_and_extract_tasks()
 
                 # 5. Strategik rivojlanish va Recruiter (Har 6 soatda)
@@ -100,6 +102,16 @@ class ProactiveWorker:
                 if await self._should_run_job("enforcer_evening", 18, 30):
                     await self.enforce_team_accountability("evening")
                     await self.db.mark_job_run("enforcer_evening", now.strftime('%Y-%m-%d'))
+
+                # 10. ESCALATION & FEEDBACK LOOP (Every 30 minutes)
+                if now.minute % 30 == 0:
+                    escalator = EscalationAgent(self.db, self.context.bot if self.context else None)
+                    await escalator.check_pending_feedbacks()
+
+                # 11. WOW-SERVICE AUDIT (Every 60 minutes)
+                if now.minute == 15: # Run at HH:15
+                    wow_engine = WowServiceEngine(self.db, self.context.bot if self.context else None)
+                    await wow_engine.process_active_journeys()
 
                 await asyncio.sleep(60) # Har minutda tekshirish
             except Exception as e:

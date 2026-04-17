@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class ActionParser:
     """Parses and executes [TAG:...] actions from AI responses."""
 
-    def __init__(self, db, gcontacts, gcalendar, invoicer, amocrm, config, lead_scraper=None, bot_app=None):
+    def __init__(self, db, gcontacts=None, gcalendar=None, invoicer=None, amocrm=None, config=None, lead_scraper=None, bot_app=None):
         self.db = db
         self.gcontacts = gcontacts
         self.gcalendar = gcalendar
@@ -24,7 +24,7 @@ class ActionParser:
         self.lead_scraper = lead_scraper
         self.bot_app = bot_app
 
-    async def parse_and_execute(self, reply_text: str, sender_id: int, sender_name: str, username: str, saved_phone: str, context, is_business: bool, msg_business_connection_id: Optional[str] = None) -> str:
+    async def parse_and_execute(self, reply_text: str, sender_id: int, sender_name: str = "", username: str = "", saved_phone: str = "", context=None, is_business: bool = False, msg_business_connection_id: Optional[str] = None) -> str:
         """Parses all tags and executes their specific side-effects. Returns cleaned text."""
         
         # 1. Lead Quality Analysis
@@ -246,6 +246,42 @@ class ActionParser:
             except Exception as e:
                 logger.error(f"[ACTION_PARSER] Sync leads error: {e}")
             reply_text = re.sub(r'\[SYNC_LEADS:.*?\]', '', reply_text).strip()
+            
+        # 9. TASK (Autonomous task creation)
+        task_match = re.search(r'\[TASK:\s*(.*?)\]', reply_text, re.IGNORECASE)
+        if task_match:
+            try:
+                task_raw = str(task_match.group(1) or "")
+                task_data = {}
+                for part in task_raw.split('|'):
+                    if '=' in part:
+                        k_v = part.split('=', 1)
+                        if len(k_v) == 2:
+                            task_data[k_v[0].strip().lower()] = k_v[1].strip()
+                
+                title = task_data.get('title')
+                desc = task_data.get('desc') or task_data.get('description', '')
+                assigned_to = task_data.get('assigned_to')
+                deadline = task_data.get('deadline')
+                
+                if title:
+                    # Resolve assigned_to (could be username or mention)
+                    assigned_id = 0
+                    if assigned_to:
+                        # Simple username to ID resolution pattern
+                        # We might need a database method for this
+                        pass
+                    
+                    conn = await self.db.get_connection()
+                    await conn.execute(
+                        "INSERT INTO tasks (title, description, assigned_to, deadline, status, created_by, created_at) VALUES (?, ?, ?, ?, 'Pending', ?, ?)",
+                        (title, desc, assigned_to, deadline, sender_id, datetime.datetime.now().isoformat())
+                    )
+                    await conn.commit()
+                    logger.info(f"[ACTION_PARSER] Task created: {title}")
+            except Exception as e:
+                logger.error(f"[ACTION_PARSER] Task parsing error: {e}")
+            reply_text = re.sub(r'\[TASK:.*?\]', '', reply_text, flags=re.IGNORECASE).strip()
 
         # Final Clean-up
         reply_text = re.sub(r'\[LEAD_REPORT:.*?\]', '', reply_text, flags=re.IGNORECASE).strip()

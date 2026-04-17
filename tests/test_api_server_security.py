@@ -62,11 +62,16 @@ class TestAPIEndpoints:
     def mock_db(self):
         """Create a mock database instance."""
         mock = MagicMock()
-        mock.get_user_id_by_phone = MagicMock(return_value=12345)
-        mock.get_recent_messages = MagicMock(return_value=[
-            {"text": "Hello", "is_ai": False},
-            {"text": "Hi there", "is_ai": True}
-        ])
+        # Mocked methods must be async to be awaited
+        async def mock_get_user_id(phone): return 12345
+        async def mock_get_recent(user_id, limit=30):
+            return [
+                {"text": "Hello", "is_ai": False, "created_at": "2024-01-01 10:00:00"},
+                {"text": "Hi there", "is_ai": True, "created_at": "2024-01-01 10:05:00"}
+            ]
+        
+        mock.get_user_id_by_phone = mock_get_user_id
+        mock.get_recent_messages = mock_get_recent
         return mock
 
     def test_lookup_user_found(self, mock_db):
@@ -82,7 +87,8 @@ class TestAPIEndpoints:
 
     def test_lookup_user_not_found(self, mock_db):
         """Test user lookup when user doesn't exist."""
-        mock_db.get_user_id_by_phone = MagicMock(return_value=None)
+        async def mock_none(phone): return None
+        mock_db.get_user_id_by_phone = mock_none
         
         with patch.dict(os.environ, {"OISHA_API_SECRET": "test_secret"}):
             with patch('src.api_server.db_instance', mock_db):
