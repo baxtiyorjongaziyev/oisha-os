@@ -126,6 +126,7 @@ class NightShiftService:
         """Airtable va AmoCRM sinxronizatsiyasi, dublikatlarni tozalash (Soat 01:00)."""
         logger.info("🌙 [HYGIENE] Starting CRM cleanup...")
         try:
+            now = datetime.datetime.now()
             # 1. Stagnated leads tagging
             stagnated = self.crm.check_stagnated_leads(hours=48)
             for lead in stagnated:
