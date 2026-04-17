@@ -114,6 +114,9 @@ class AmoCRMLeadAdapter:
     def __init__(self, amocrm: AmoCRMSync):
         self.amocrm = amocrm
 
+    async def fetch_leads(self, limit: int = 50) -> List[Dict[str, Any]]:
+        return await self.amocrm.get_leads_detailed(limit=limit)
+
     async def fetch_stagnated_leads(self, hours: int = 24) -> List[Dict[str, Any]]:
         return await asyncio.to_thread(self.amocrm.check_stagnated_leads, hours)
 
