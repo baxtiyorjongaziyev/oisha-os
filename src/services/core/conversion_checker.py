@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime
 from typing import List, Dict, Any
 from src.services.amocrm_sync import AmoCRMSync
 from src.services.airtable_sync import AirtableSync
@@ -31,6 +32,7 @@ class ConversionChecker:
         with open(self.processed_leads_file, "a") as f:
             f.write(f"{lead_id}\n")
 
+
     async def check_conversions(self):
         """
         Polls amoCRM for 'Won' leads (Status 142).
@@ -53,16 +55,23 @@ class ConversionChecker:
             
             # Get Contact Info
             phone = self.amocrm.get_lead_phone(int(lead_id))
+
+            start_date = lead.get("closed_at_date")
+            if isinstance(start_date, (int, float)):
+                start_date = datetime.fromtimestamp(start_date).strftime("%Y-%m-%d")
+            elif isinstance(start_date, str):
+                start_date = start_date[:10].strip() or None
+            else:
+                start_date = None
             
             # 2. Sync to Airtable (haqiqiy maydon nomlari)
             airtable_fields = {
                 "Loyihani nomi?": lead_name,
-                "Client Phone": phone or "N/A",
-                "Jami loyiha narxi (UZS)": price,
-                "Source": "amoCRM Conversion",
-                "Loyiha bosqichi": "Boshlanmoqda",
-                "Start sana": lead.get("closed_at_date") or ""
+                "Kelishgan narx": price,
+                "Loyiha bosqichi": "Brief (Kelishuv)",
             }
+            if start_date:
+                airtable_fields["Start sana"] = start_date
             
             result = self.airtable.create_record(airtable_fields)
             
@@ -72,15 +81,19 @@ class ConversionChecker:
                 
                 # 3. Notify Team
                 if self.admin_bot:
+                    # Get PM from the created record (Airtable might have auto-assigned it)
+                    pm_value = self.airtable._get_field(result.get("fields", {}), "manager")
+                    pm_mention = self.airtable.resolve_pm_handle(pm_value)
+
                     msg = (
-                        f"🎊 **YANGI LOYIHA BOSHLANDI!** 🎊\n"
-                        f"──────────────────────\n"
-                        f"🚀 **Loyiha:** {lead_name}\n"
+                        f"🏢 **YANGI LOYIHA BOSHLANDI** 🏢\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📂 **Loyiha:** {lead_name}\n"
                         f"💰 **Budjet:** {price:,} so'm\n"
                         f"📞 **Mijoz:** {phone or 'Raqam yoq'}\n"
-                        f"──────────────────────\n"
-                        f"✅ Airtable-ga ('Loyihalar') muvaffaqiyatli qo'shildi.\n"
-                        f"CC: @Inomjon (Project Manager)"
+                        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"✅ Airtable va CRM muvaffaqiyatli bog'landi.\n"
+                        f"PM: {pm_mention}"
                     )
                     await self.admin_bot.notify_team(msg)
 

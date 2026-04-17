@@ -1,0 +1,113 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: oisha-master-bot
+  namespace: "982617914297"
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "3"
+        run.googleapis.com/startup-cpu-boost: "true"
+      labels:
+        run.googleapis.com/startupProbeType: Default
+    spec:
+      containerConcurrency: 80
+      serviceAccountName: 982617914297-compute@developer.gserviceaccount.com
+      timeoutSeconds: 3600
+      containers:
+        - image: europe-west3-docker.pkg.dev/jonbranding-85662071-ea38e/cloud-run-source-deploy/oisha-master-bot:e60f7f1d-71c1-425b-aa01-84108a46db25
+          env:
+            - name: RUNNING_IN_CLOUD
+              value: "True"
+            - name: ENVIRONMENT
+              value: "production"
+            - name: API_ID
+              value: "30643078"
+            - name: DATABASE_URL
+              value: "bot_database.db"
+            - name: TURSO_DATABASE_URL
+              value: "libsql://oisha-os-db-baxtiyorjongaziyev.turso.io"
+            - name: AMOCRM_SUBDOMAIN
+              value: "jonbrandingagency"
+            - name: AMOCRM_CLIENT_ID
+              value: "5a755b58-f5d1-477d-965d-a50ddaa3d55e"
+            - name: AMOCRM_REDIRECT_URL
+              value: "https://us-central1-jonbranding-85662071-ea38e.cloudfunctions.net/amocrmOAuthCallback"
+            - name: AIRTABLE_BASE_ID
+              value: "app8xoyx1XCumYFXV"
+            - name: CRM_GROUP_ID
+              value: "-1002566480563"
+            - name: TEAM_GROUP_ID
+              value: "-4860594772"
+            - name: TOPIC_KIRIM_ID
+              value: "168"
+            - name: GSHEET_ID
+              value: "1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k"
+            - name: GSHEET_CREDS_FILE
+              value: "service_account.json"
+            - name: OWNER_ID
+              value: "150074828"
+            - name: API_HASH
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: oisha-api-hash
+            - name: BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: oisha-bot-token
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: oisha-gemini-api-key
+            - name: DEEPSEEK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: oisha-deepseek-api-key
+            - name: TURSO_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: oisha-turso-auth-token
+            - name: AMOCRM_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: oisha-amocrm-client-secret
+            - name: AIRTABLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: oisha-airtable-api-key
+            - name: USERBOT_SESSION_B64
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: oisha-userbot-session-b64
+            - name: GOOGLE_SERVICE_ACCOUNT_JSON
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: oisha-google-service-account-json
+          ports:
+            - containerPort: 8080
+              name: http1
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          startupProbe:
+            failureThreshold: 1
+            periodSeconds: 240
+            tcpSocket:
+              port: 8080
+            timeoutSeconds: 240
+  traffic:
+    - latestRevision: true
+      percent: 100
