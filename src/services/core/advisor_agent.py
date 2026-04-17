@@ -29,6 +29,7 @@ class AdvisorAgent:
         """
         # Ensure amount is a string for the prompt
         amt_str = str(amount)
+        system_instruction = f"""
         Siz jamoaning samimiy va tajribali yordamchisisiz. 
         Vazifangiz: Sotuv menejerini yangi bitim (Kirim) yoki muvaffaqiyatli yakunlangan ish bilan samimiy tabriklash.
         Uslub: {self.external_prompt}
