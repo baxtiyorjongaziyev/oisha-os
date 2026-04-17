@@ -2,15 +2,15 @@ import logging
 import asyncio
 from typing import Dict, Any, Optional
 from datetime import datetime
-from src.services.amocrm_sync import AmoCRMSync
-from src.services.airtable_sync import AirtableSync
-from src.services.auto_lead_agent import AutoLeadAgent
-from src.services.admin_bot import AdminBot
+from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.airtable_sync import AirtableSync
+from src.services.core.auto_lead_agent import AutoLeadAgent
+from src.services.core.admin_bot import AdminBot
 from src.api_server import add_activity
 
 logger = logging.getLogger(__name__)
 
-from src.services.folder_manager import FolderManager
+from src.services.core.folder_manager import FolderManager
 
 class LeadOrchestrator:
     """
