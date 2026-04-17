@@ -2,7 +2,7 @@ import logging
 import time
 import asyncio
 from datetime import datetime, timedelta
-from src.services.amocrm_sync import AmoCRMSync
+from src.services.core.amocrm_sync import AmoCRMSync
 from src.database import Database
 from src.api_server import add_activity
 

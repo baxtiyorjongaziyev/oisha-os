@@ -1,8 +1,8 @@
 import logging
-from src.services.gsheets import GoogleSheetsSync
-from src.services.gcalendar import GoogleCalendarSync
-from src.services.gcontacts import GoogleContactsSync
-from src.services.gdrive import GoogleDriveSync
+from src.services.core.gsheets import GoogleSheetsSync
+from src.services.core.gcalendar import GoogleCalendarSync
+from src.services.core.gcontacts import GoogleContactsSync
+from src.services.core.gdrive import GoogleDriveSync
 from src import config
 
 logger = logging.getLogger(__name__)
