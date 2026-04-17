@@ -78,7 +78,8 @@ class Database:
                     processed_at DATETIME,
                     detailed_role TEXT,
                     meeting_time TEXT,
-                    meeting_status TEXT DEFAULT 'pending'
+                    meeting_status TEXT DEFAULT 'pending',
+                    lead_quality TEXT
                 )
             """)
             
@@ -89,7 +90,8 @@ class Database:
                 ("social_analysis", "TEXT"), ("lead_score", "INTEGER DEFAULT 0"),
                 ("position", "TEXT"), ("intent", "TEXT"), ("crm_synced", "BOOLEAN DEFAULT 0"),
                 ("processed_at", "DATETIME"), ("detailed_role", "TEXT"),
-                ("meeting_time", "TEXT"), ("meeting_status", "TEXT DEFAULT 'pending'")
+                ("meeting_time", "TEXT"), ("meeting_status", "TEXT DEFAULT 'pending'"),
+                ("lead_quality", "TEXT")
             ]
             for col, col_type in cols_needed:
                 try:
@@ -109,6 +111,17 @@ class Database:
             await conn.execute("CREATE TABLE IF NOT EXISTS kv_settings (key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS agent_actions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action_type TEXT, action_data TEXT, success BOOLEAN DEFAULT 1, created_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS learned_facts (id INTEGER PRIMARY KEY AUTOINCREMENT, fact_key TEXT, fact_value TEXT, user_id INTEGER, created_at DATETIME)")
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS service_checkpoints (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                    external_id TEXT, 
+                    checkpoint_key TEXT, 
+                    status TEXT DEFAULT 'Pending', 
+                    last_notified_at DATETIME, 
+                    created_at DATETIME,
+                    UNIQUE(external_id, checkpoint_key)
+                )
+            """)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS daily_plans (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -138,6 +151,7 @@ class Database:
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_team_reports_user_id ON team_reports(user_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_service_checkpoints_ext_id ON service_checkpoints(external_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_team_reports_date ON team_reports(report_date)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_actions_user_id ON agent_actions(user_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_actions_created ON agent_actions(created_at)")
@@ -300,7 +314,8 @@ class Database:
         async with conn.execute(
             """
             SELECT first_name, username, phone, business_type, region, brand_name,
-                   service_type, deadline, role, detailed_role, intent
+                   service_type, deadline, role, detailed_role, intent,
+                   is_lead_forwarded, lead_quality
             FROM users
             WHERE user_id = ?
             """,
@@ -320,8 +335,21 @@ class Database:
                     "role": row[8],
                     "detailed_role": row[9],
                     "intent": row[10],
+                    "is_lead_forwarded": row[11],
+                    "lead_quality": row[12],
                 }
             return None
+
+    async def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT user_id, first_name, username FROM users WHERE username = ?",
+            (username,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return {"user_id": row[0], "first_name": row[1], "username": row[2]}
+        return None
 
     async def get_daily_chats_summary(self):
         one_day_ago = (datetime.datetime.now() - datetime.timedelta(days=1)).isoformat()
@@ -339,7 +367,19 @@ class Database:
                     chats[uid] = {"name": name or f"User_{uid}", "username": uname or "n/a", "messages": []}
                 role = "OISHA" if is_ai else "Client"
                 chats[uid]["messages"].append(f"{role} ({time}): {text}")
-            return chats
+    async def get_recent_all_messages(self, limit=50):
+        """Barcha chatlardan oxirgi xabarlarni olish (Task extraction uchun)."""
+        conn = await self.get_connection()
+        query = """
+            SELECT user_id, message_text, is_ai_reply, created_at
+            FROM message_logs
+            WHERE message_text IS NOT NULL AND message_text != ''
+            ORDER BY created_at DESC
+            LIMIT ?
+        """
+        async with conn.execute(query, (limit,)) as cursor:
+            rows = await cursor.fetchall()
+            return [(r[0], r[1], r[2], r[3]) for r in reversed(rows)]
 
     async def get_stats(self):
         conn = await self.get_connection()
@@ -795,3 +835,40 @@ class Database:
             )
 
         return actions
+
+    async def get_checkpoint(self, external_id: str, checkpoint_key: str) -> Optional[Dict[str, Any]]:
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT id, status, last_notified_at, created_at FROM service_checkpoints WHERE external_id = ? AND checkpoint_key = ?",
+            (str(external_id), checkpoint_key)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return {"id": row[0], "status": row[1], "last_notified_at": row[2], "created_at": row[3]}
+        return None
+
+    async def mark_checkpoint_done(self, external_id: str, checkpoint_key: str):
+        now = datetime.datetime.now().isoformat()
+        conn = await self.get_connection()
+        await conn.execute(
+            "INSERT OR REPLACE INTO service_checkpoints (external_id, checkpoint_key, status, created_at) VALUES (?, ?, 'Done', ?)",
+            (str(external_id), checkpoint_key, now)
+        )
+        await conn.commit()
+
+    async def mark_checkpoint_notified(self, external_id: str, checkpoint_key: str):
+        now = datetime.datetime.now().isoformat()
+        conn = await self.get_connection()
+        # UPSERT style
+        async with conn.execute("SELECT id FROM service_checkpoints WHERE external_id = ? AND checkpoint_key = ?", (str(external_id), checkpoint_key)) as cursor:
+            if await cursor.fetchone():
+                await conn.execute(
+                    "UPDATE service_checkpoints SET last_notified_at = ? WHERE external_id = ? AND checkpoint_key = ?",
+                    (now, str(external_id), checkpoint_key)
+                )
+            else:
+                await conn.execute(
+                    "INSERT INTO service_checkpoints (external_id, checkpoint_key, status, last_notified_at, created_at) VALUES (?, ?, 'Pending', ?, ?)",
+                    (str(external_id), checkpoint_key, now, now)
+                )
+        await conn.commit()

@@ -1,5 +1,5 @@
 import asyncio
-from database import Database
+from src.database import Database
 
 async def mock_forward_to_crm(context, user_info, message_text, reply_text, quality):
     print(f"\n[MOCK CRM SEND] Quality: {quality}")
@@ -7,26 +7,29 @@ async def mock_forward_to_crm(context, user_info, message_text, reply_text, qual
 
 async def test_lead_progression():
     db = Database("bot_database.db")
+    await db.init_db()
+    
     sender_id = 999111222
     sender_name = "Test User"
     username = "testuser"
     
     # 1. User says hi, gives name and phone
-    db.upsert_user(sender_id, sender_name, username, phone="+998901234567")
+    await db.upsert_user(sender_id, sender_name, username, phone="+998901234567")
     
     # Reset status for test
-    with db.get_connection() as conn:
-        conn.cursor().execute("UPDATE users SET is_lead_forwarded=0 WHERE user_id=?", (sender_id,))
-        conn.commit()
+    conn = await db.get_connection()
+    async with conn.execute("UPDATE users SET is_lead_forwarded=0 WHERE user_id=?", (sender_id,)) as cursor:
+        await conn.commit()
 
-    print("Initial status:", db.get_user_info(sender_id)['is_lead_forwarded'])
+    user_info_record = await db.get_user_info(sender_id)
+    print("Initial status:", user_info_record['is_lead_forwarded'])
     
     # 2. Simulate AI deciding it's an 'oddiy' lead
     lead_quality = "oddiy"
     text = "Men logotip xizmati bo'yicha yozgandim."
     reply_text = "[LEAD_REPORT:QUALITY=Oddiy]"
     
-    forward_status = db.get_user_info(sender_id).get('is_lead_forwarded', 0)
+    forward_status = (await db.get_user_info(sender_id)).get('is_lead_forwarded', 0)
     should_forward = False
     new_status = 0
     
@@ -45,18 +48,19 @@ async def test_lead_progression():
             "phone": "+998901234567"
         }
         await mock_forward_to_crm(None, user_info, text, reply_text, quality=lead_quality.capitalize())
-        with db.get_connection() as conn:
-            conn.cursor().execute("UPDATE users SET is_lead_forwarded=? WHERE user_id=?", (new_status, sender_id))
-            conn.commit()
+        conn = await db.get_connection()
+        async with conn.execute("UPDATE users SET is_lead_forwarded=? WHERE user_id=?", (new_status, sender_id)) as cursor:
+            await conn.commit()
             
-    print("Status after Oddiy:", db.get_user_info(sender_id)['is_lead_forwarded'])
+    user_info_record = await db.get_user_info(sender_id)
+    print("Status after Oddiy:", user_info_record['is_lead_forwarded'])
     
     # 3. Simulate AI deciding it's now a 'sifatli' lead
     lead_quality = "sifatli"
     text = "Menga arxitektura firmam uchun qora rangda tezkor logotip kerak."
     reply_text = "[LEAD_REPORT:QUALITY=Sifatli]"
     
-    forward_status = db.get_user_info(sender_id).get('is_lead_forwarded', 0)
+    forward_status = (await db.get_user_info(sender_id)).get('is_lead_forwarded', 0)
     should_forward = False
     new_status = 0
     
@@ -79,11 +83,12 @@ async def test_lead_progression():
         else:
             await mock_forward_to_crm(None, user_info, text, reply_text, quality=lead_quality.capitalize())
 
-        with db.get_connection() as conn:
-            conn.cursor().execute("UPDATE users SET is_lead_forwarded=? WHERE user_id=?", (new_status, sender_id))
-            conn.commit()
+        conn = await db.get_connection()
+        async with conn.execute("UPDATE users SET is_lead_forwarded=? WHERE user_id=?", (new_status, sender_id)) as cursor:
+            await conn.commit()
 
-    print("Status after Sifatli:", db.get_user_info(sender_id)['is_lead_forwarded'])
+    user_info_record = await db.get_user_info(sender_id)
+    print("Status after Sifatli:", user_info_record['is_lead_forwarded'])
 
 if __name__ == "__main__":
     asyncio.run(test_lead_progression())

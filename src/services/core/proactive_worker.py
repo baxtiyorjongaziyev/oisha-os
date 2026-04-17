@@ -11,7 +11,15 @@ from src.time_utils import get_local_now
 from src.services.core.agent_loop import AgentTask, AgentTaskResult, MinimalAgentLoop
 from src.services.core.agent_policy import AgentPolicyEngine
 from src.services.core.agent_verifier import NotificationOutcomeVerifier
+from src.services.core.client_journey_playbook import (
+    assess_project_portfolio,
+    assess_sales_pipeline,
+    build_department_direct_messages,
+    render_excellence_report,
+)
 from src.services.core.tool_adapters import build_default_tool_registry
+from src.services.core.escalation_agent import EscalationAgent
+from src.services.core.persona_hub import get_persona
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -60,7 +68,11 @@ async def generate_ai_message(user_id: int, prompt: str):
         "groq": os.environ.get("GROQ_API_KEY", "")
     }
     
-    agent = ResearcherAgent("proactive_bot", config.SYSTEM_INSTRUCTION, api_keys)
+    # Determine persona based on user_id (context)
+    # If user_id is a manager/team member, use Internal (but check if task is client-facing)
+    system_instruction = get_persona(is_team_member=True) 
+    
+    agent = ResearcherAgent("proactive_bot", system_instruction, api_keys)
     # ResearcherAgent ning process_task metodidan foydalanamiz (u fallback ga ega)
     response = await agent.process_task(user_id, prompt)
     
@@ -356,7 +368,7 @@ class ProactiveWorker:
             for lead in stagnated_leads[:5]: # Maksimum 5 ta
                 msg += f"- **{lead.get('name')}** uchun draft:\n   `Assalomu alaykum, {lead.get('name')}. Loyihangiz bo'yicha qandaydir savollar bormi?`\n"
             
-            msg += "\n@Oydin_JonBranding va @Inomjon_JonBranding, ushbu xabarlarni ko'rib chiqing va mijozga yuboring."
+            msg += "\n@Oydin_JonBranding, @Inomjon_JonBranding va @jonbranding_pm, ushbu xabarlarni ko'rib chiqing va mijozga yuboring."
             await self.bot.send_message(config.CRM_GROUP_ID, msg, parse_mode="Markdown")
 
     async def _send_daily_sales_report(self):
@@ -562,7 +574,7 @@ async def _legacy_check_amocrm_stagnation_direct():
         for lead in stagnated[:5]:
             msg += f"• <a href='https://{config.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead.get('id')}'>{lead.get('name')}</a>\n"
         
-        msg += "\n@Oydin_JonBranding va @tezmenejer, iltimos statusni tekshiring."
+        msg += "\n@Oydin_JonBranding, @Inomjon_JonBranding va @jonbranding_pm, iltimos statusni tekshiring."
         
         # Target topic for CRM alerts
         thread_id = getattr(config, "TOPIC_CRM_ID", None)
@@ -653,8 +665,8 @@ async def _legacy_check_airtable_stagnation():
         bot = Bot(token=bot_token)
         
         msg = "🏗 **AIRTABLE STAGNATION ALERT** 🏗\n\n"
-        msg += "📢 @Inomjon_JonBranding, quyidagi loyihalar to'xtab qolgan yoki muddati o'tgan:\n\n"
         
+        pm_mentions = set()
         for p in overdue[:5]:
             fields = p.get("fields", {})
             from src.services.core.airtable_sync import AirtableSync as _AT
@@ -662,7 +674,15 @@ async def _legacy_check_airtable_stagnation():
             stage = _AT._get_field(fields, "stage") or "Noma'lum"
             deadline = _AT._get_field(fields, "deadline") or "Belgilanmagan"
             
-            msg += f"• <b>{p_name}</b> (Bosqich: {stage}, Muddat: {deadline})\n"
+            pm_value = _AT._get_field(fields, "manager")
+            pm_mention = _AT.resolve_pm_handle(pm_value)
+            pm_mentions.add(pm_mention)
+            
+            msg += f"• <b>{p_name}</b> (Bosqich: {stage}, Muddat: {deadline}) — PM: {pm_mention}\n"
+            
+        if pm_mentions:
+            mentions_str = ", ".join(sorted(pm_mentions))
+            msg = msg.replace("🏗 **AIRTABLE STAGNATION ALERT** 🏗\n\n", f"🏗 **AIRTABLE STAGNATION ALERT** 🏗\n\n📢 {mentions_str}, quyidagi loyihalar qotib qolgan:\n\n")
             
         msg += "\nIltimos, ushbu loyihalarni harakatga keltiring yoki statusni yangilang!"
         
@@ -1709,10 +1729,127 @@ async def check_airtable_stagnation():
     await db.mark_job_run(job_key, today)
     logger.info(f"[AIRTABLE STAGNATION] Project stage push sent for hour {now.hour}.")
 
+
+async def check_client_journey_excellence():
+    """Mijoz yo'li bo'yicha wow-service signal va mikromanagement push yuborish."""
+    import src.config as config
+    from src.services.airtable_sync import AirtableSync
+    from src.services.amocrm_sync import AmoCRMSync
+
+    db = Database()
+    now = get_local_now()
+    today = now.strftime("%Y-%m-%d")
+    target_hours = [11, 17]
+
+    if now.hour not in target_hours or now.minute > 10:
+        return False
+
+    job_key = f"client_journey_excellence_{now.hour}"
+    if await db.is_job_run(job_key, today):
+        return False
+
+    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+    group_id = (
+        getattr(config, "TEAM_GROUP_ID", None)
+        or getattr(config, "CRM_GROUP_ID", None)
+        or getattr(config, "PROJECTS_GROUP_ID", None)
+    )
+    thread_id = (
+        getattr(config, "TOPIC_GENERAL_ID", None)
+        or getattr(config, "TOPIC_REPORTS_ID", None)
+        or getattr(config, "TOPIC_TASKS_ID", None)
+    )
+    if not (bot_token and group_id):
+        return False
+
+    amo = AmoCRMSync(
+        config.AMOCRM_SUBDOMAIN,
+        config.AMOCRM_CLIENT_ID,
+        config.AMOCRM_CLIENT_SECRET,
+        config.AMOCRM_REDIRECT_URL,
+    )
+    airtable = AirtableSync()
+    registry = build_default_tool_registry(bot_token=bot_token, amocrm=amo, airtable=airtable)
+    amocrm_tool = registry.get("amocrm_leads")
+    airtable_tool = registry.get("airtable_projects")
+
+    leads = await amocrm_tool.fetch_leads(limit=100)
+    projects = await airtable_tool.fetch_projects()
+    owner_lookup: Dict[int, str] = {}
+    responsible_ids = sorted(
+        {
+            int(lead.get("responsible_user_id") or 0)
+            for lead in leads
+            if int(lead.get("responsible_user_id") or 0) > 0
+        }
+    )
+    for responsible_id in responsible_ids:
+        owner_lookup[responsible_id] = await amocrm_tool.get_user_name(responsible_id)
+
+    sales_signals = assess_sales_pipeline(
+        leads,
+        owner_lookup=lambda user_id: owner_lookup.get(user_id, "Sales"),
+    )
+    project_signals = assess_project_portfolio(projects)
+    if not sales_signals and not project_signals:
+        return False
+
+    team_members = await db.get_team_roles()
+    message = render_excellence_report(sales_signals, project_signals)
+    direct_messages = build_department_direct_messages(team_members, sales_signals, project_signals)
+
+    task = AgentTask(
+        task_id=f"{job_key}:{today}",
+        kind="client_journey_excellence",
+        goal="Lead first-touchdan tortib referralgacha wow-service mikromanagementini ushlash",
+        payload={
+            "group_id": group_id,
+            "thread_id": thread_id,
+            "sales_signal_count": len(sales_signals),
+            "project_signal_count": len(project_signals),
+            "direct_message_count": len(direct_messages),
+        },
+        planner_notes=[
+            "AmoCRM lidlari va Airtable loyihalari wow-service risklari bo'yicha baholanadi",
+            "Jamoa guruhiga umumiy excellence report yuboriladi",
+            "Sales va PM rollarga mos ravishda alohida DM mikromanagement push beriladi",
+        ],
+        requested_by="scheduler",
+    )
+
+    async def executor(agent_task: AgentTask) -> Dict[str, Any]:
+        execution = await _execute_telegram_notification(
+            registry,
+            group_id=group_id,
+            message=message,
+            thread_id=thread_id,
+            direct_messages=direct_messages,
+        )
+        execution.update(
+            {
+                "sales_signal_count": agent_task.payload.get("sales_signal_count"),
+                "project_signal_count": agent_task.payload.get("project_signal_count"),
+            }
+        )
+        return execution
+
+    result = await _run_notification_agent(db, task, executor)
+    if not result.success:
+        logger.error(f"[CLIENT JOURNEY] Excellence report delivery failed: {result.verification}")
+        return False
+
+    await db.mark_job_run(job_key, today)
+    logger.info(
+        "[CLIENT JOURNEY] Excellence report sent. sales=%s projects=%s",
+        len(sales_signals),
+        len(project_signals),
+    )
+    return True
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Proactive AI Worker")
-    parser.add_argument("--job", choices=["followup", "report", "briefing", "stagnation", "deadlines", "distribute", "fact", "lunch"], default="followup", help="Kaysi vazifani bajarish kerak?")
+    parser.add_argument("--job", choices=["followup", "report", "briefing", "stagnation", "deadlines", "distribute", "fact", "lunch", "journey"], default="followup", help="Kaysi vazifani bajarish kerak?")
     args = parser.parse_args()
     
     if args.job == "followup":
@@ -1731,3 +1868,5 @@ if __name__ == "__main__":
         asyncio.run(send_evening_fact_report())
     elif args.job == "lunch":
         asyncio.run(send_lunch_reminder())
+    elif args.job == "journey":
+        asyncio.run(check_client_journey_excellence())
