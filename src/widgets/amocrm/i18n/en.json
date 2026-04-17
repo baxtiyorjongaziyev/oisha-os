@@ -1,0 +1,14 @@
+{
+  "en": {
+    "widget": {
+      "name": "Oisha-OS Intelligence",
+      "short_description": "Real-time chat and AI strategy without third-party fees.",
+      "description": "Real-time chat and AI strategy without third-party fees.",
+      "vendor": "JonBranding"
+    },
+    "settings": {
+      "oisha_vps_url": "Oisha VPS URL (example: https://your-domain.com:8080)",
+      "oisha_secret": "Oisha Secret Key"
+    }
+  }
+}
