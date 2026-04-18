@@ -373,6 +373,52 @@ class SalesAgent(BaseAgent):
 
         return cycle_results
 
+    async def review_conversation(
+        self,
+        user_id: int,
+        task_description: str,
+        context: Optional[Dict[str, Any]] = None,
+        *,
+        execute_actions: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Deterministic lead review path for 24/7 pipeline control.
+        It does not depend on an LLM reply to classify stage or trigger CRM actions.
+        """
+        context = context or {}
+        await self.load_session_history(user_id)
+
+        history = self.get_session_history(user_id)
+        crm_status = str(context.get("crm_status") or "Yangi mijoz")
+        autonomy_mode = await self._get_negotiation_mode()
+        assessment = NegotiationEngine.assess(
+            task_description,
+            crm_status,
+            autonomy_mode=autonomy_mode,
+            history=history,
+            context=context,
+        )
+
+        action_plan = await self._build_action_plan(user_id, task_description, context, assessment)
+        action_results: List[Dict[str, Any]] = []
+        if execute_actions and action_plan:
+            action_results = await self._execute_actions(user_id, action_plan)
+
+        verification = self.verifier.verify(action_results, planned_actions=action_plan)
+        recommended_reply = self._fallback_reply(assessment, task_description)
+
+        payload = {
+            "user_id": user_id,
+            "crm_status": crm_status,
+            "assessment": assessment.to_payload(),
+            "action_plan": action_plan,
+            "action_results": action_results,
+            "verification": verification.to_payload(),
+            "recommended_reply": recommended_reply,
+        }
+        await self._log_assessment(user_id, payload, success=verification.success or not action_plan)
+        return payload
+
     async def process_task(self, user_id: int, task_description: str, context: Optional[Dict[str, Any]] = None) -> str:
         context = context or {}
         await self.load_session_history(user_id)

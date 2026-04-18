@@ -64,4 +64,10 @@ class AgentOrchestrator:
         if not agent:
             agent = self.manager.get_agent("sales") # Fallback
             
-        return await agent.process_task(user_id, message, context=context)
+        response = await agent.process_task(user_id, message, context=context)
+        
+        # Orqa fonda (background) xulosa qilish kerakligini tekshirish
+        import asyncio
+        asyncio.create_task(agent.check_and_summarize(user_id))
+        
+        return response
