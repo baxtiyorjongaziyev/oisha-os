@@ -147,7 +147,7 @@ def _project_stage_recommendation(stage_name: str) -> tuple[str, str]:
 
 
 def _project_age_days(project: Dict[str, Any]) -> int:
-    from src.services.core.airtable_sync import AirtableSync as _AT
+    from src.services.core.airtable_sync import AirtableSync as _AT # type: ignore
 
     fields = project.get("fields", {})
     start_raw = _AT._get_field(fields, "start_date")
@@ -597,7 +597,7 @@ async def _legacy_check_amocrm_stagnation_direct():
 async def check_airtable_deadlines():
     """Airtable 72 soatlik deadline monitoringi."""
     logger.info("Project deadline check started...")
-    from src.services.core.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync # type: ignore
     import src.config as config
     
     sync = AirtableSync()
@@ -613,7 +613,7 @@ async def check_airtable_deadlines():
         msg = "⏳ **URGENT PROJECT DEADLINE (24h)**\n\nQuyidagi topshiriqlar muddati tugashiga 1 kun qoldi:\n"
         for p in upcoming[:5]:
             fields = p.get("fields", {})
-            from src.services.core.airtable_sync import AirtableSync as _AT
+            from src.services.core.airtable_sync import AirtableSync as _AT # type: ignore
             p_name = _AT._get_field(fields, "project_name") or "Nomsiz"
             stage = _AT._get_field(fields, "stage") or "?"
             deadline = _AT._get_field(fields, "deadline") or "?"
@@ -628,7 +628,7 @@ async def check_airtable_deadlines():
 async def _legacy_check_airtable_stagnation():
     """Airtable loyihalar stagnatsiyasini tekshirish va Inomjonga eslatma yuborish."""
     logger.info("Airtable stagnation check started...")
-    from src.services.core.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync # type: ignore
     import src.config as config
     from src.database import Database
     
@@ -665,7 +665,7 @@ async def _legacy_check_airtable_stagnation():
         pm_mentions = set()
         for p in overdue[:5]:
             fields = p.get("fields", {})
-            from src.services.core.airtable_sync import AirtableSync as _AT
+            from src.services.core.airtable_sync import AirtableSync as _AT # type: ignore
             p_name = _AT._get_field(fields, "project_name") or "Nomsiz"
             stage = _AT._get_field(fields, "stage") or "Noma'lum"
             deadline = _AT._get_field(fields, "deadline") or "Belgilanmagan"
@@ -845,8 +845,8 @@ async def _deprecated_check_airtable_stagnation_direct():
     """Qimirlamay qolgan loyihalarni topib, PMga keyingi stage bo'yicha push yuborish."""
     logger.info("Airtable stagnation check started...")
     from telegram import Bot
-    from src.services.core.airtable_sync import AirtableSync
-    from src.services.core.airtable_sync import AirtableSync as AirtableCore
+    from src.services.core.airtable_sync import AirtableSync # type: ignore
+    from src.services.core.airtable_sync import AirtableSync # type: ignore as AirtableSync
     import src.config as config
 
     db = Database()
@@ -867,12 +867,12 @@ async def _deprecated_check_airtable_stagnation_direct():
 
     for project in projects:
         fields = project.get("fields", {})
-        stage = _safe_text(AirtableCore._get_field(fields, "stage"), "")
-        if stage in AirtableCore.DONE_STAGES:
+        stage = _safe_text(AirtableSync._get_field(fields, "stage"), "")
+        if stage in AirtableSync.DONE_STAGES:
             continue
 
-        deadline = AirtableCore._get_field(fields, "deadline")
-        manager_name = _safe_text(AirtableCore._get_field(fields, "manager"), "PM")
+        deadline = AirtableSync._get_field(fields, "deadline")
+        manager_name = _safe_text(AirtableSync._get_field(fields, "manager"), "PM")
         age_days = _project_age_days(project)
         is_overdue = False
         if deadline:
@@ -886,7 +886,7 @@ async def _deprecated_check_airtable_stagnation_direct():
             next_stage, unblock_action = _project_stage_recommendation(stage)
             stalled_projects.append(
                 {
-                    "name": _safe_text(AirtableCore._get_field(fields, "project_name")),
+                    "name": _safe_text(AirtableSync._get_field(fields, "project_name")),
                     "stage": stage or "Noma'lum",
                     "manager": manager_name,
                     "deadline": deadline or "Belgilanmagan",
@@ -963,8 +963,8 @@ async def _legacy_check_airtable_stagnation_mixed():
     """Qimirlamay qolgan loyihalarni topib, PMga keyingi stage bo'yicha push yuborish."""
     logger.info("Airtable stagnation check started...")
     from telegram import Bot
-    from src.services.core.airtable_sync import AirtableSync
-    from src.services.core.airtable_sync import AirtableSync as AirtableCore
+    from src.services.core.airtable_sync import AirtableSync # type: ignore
+    from src.services.core.airtable_sync import AirtableSync # type: ignore as AirtableSync
     import src.config as config
 
     db = Database()
@@ -985,12 +985,12 @@ async def _legacy_check_airtable_stagnation_mixed():
 
     for project in projects:
         fields = project.get("fields", {})
-        stage = _safe_text(AirtableCore._get_field(fields, "stage"), "")
-        if stage in AirtableCore.DONE_STAGES:
+        stage = _safe_text(AirtableSync._get_field(fields, "stage"), "")
+        if stage in AirtableSync.DONE_STAGES:
             continue
 
-        deadline = AirtableCore._get_field(fields, "deadline")
-        manager_name = _safe_text(AirtableCore._get_field(fields, "manager"), "PM")
+        deadline = AirtableSync._get_field(fields, "deadline")
+        manager_name = _safe_text(AirtableSync._get_field(fields, "manager"), "PM")
         age_days = _project_age_days(project)
         is_overdue = False
         if deadline:
@@ -1004,7 +1004,7 @@ async def _legacy_check_airtable_stagnation_mixed():
             next_stage, unblock_action = _project_stage_recommendation(stage)
             stalled_projects.append(
                 {
-                    "name": _safe_text(AirtableCore._get_field(fields, "project_name")),
+                    "name": _safe_text(AirtableSync._get_field(fields, "project_name")),
                     "stage": stage or "Noma'lum",
                     "manager": manager_name,
                     "deadline": deadline or "Belgilanmagan",
@@ -1121,7 +1121,7 @@ async def send_daily_report():
     """Kunlik umumiy statistika va jamoa samaradorligi hisoboti."""
     logger.info("Daily report job started...")
     from src.services.core.amocrm_sync import AmoCRMSync
-    from src.services.core.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync # type: ignore
     from src.services.core.enterprise_reporter import EnterpriseReporter
     from src.services.core.crm_service import CRMService
     import src.config as config
@@ -1582,7 +1582,7 @@ async def check_amocrm_stagnation():
 async def check_airtable_stagnation():
     """Qimirlamay qolgan loyihalarni topib, PMga keyingi stage bo'yicha push yuborish."""
     logger.info("Airtable stagnation check started...")
-    from src.services.core.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync # type: ignore
     import src.config as config
 
     db = Database()
@@ -1611,12 +1611,12 @@ async def check_airtable_stagnation():
 
     for project in projects:
         fields = project.get("fields", {})
-        stage = _safe_text(AirtableCore._get_field(fields, "stage"), "")
-        if stage in AirtableCore.DONE_STAGES:
+        stage = _safe_text(AirtableSync._get_field(fields, "stage"), "")
+        if stage in AirtableSync.DONE_STAGES:
             continue
 
-        deadline = AirtableCore._get_field(fields, "deadline")
-        manager_name = _safe_text(AirtableCore._get_field(fields, "manager"), "PM")
+        deadline = AirtableSync._get_field(fields, "deadline")
+        manager_name = _safe_text(AirtableSync._get_field(fields, "manager"), "PM")
         age_days = _project_age_days(project)
         is_overdue = False
         if deadline:
@@ -1630,7 +1630,7 @@ async def check_airtable_stagnation():
             next_stage, unblock_action = _project_stage_recommendation(stage)
             stalled_projects.append(
                 {
-                    "name": _safe_text(AirtableCore._get_field(fields, "project_name")),
+                    "name": _safe_text(AirtableSync._get_field(fields, "project_name")),
                     "stage": stage or "Noma'lum",
                     "manager": manager_name,
                     "deadline": deadline or "Belgilanmagan",
@@ -1728,7 +1728,7 @@ async def check_airtable_stagnation():
 async def check_client_journey_excellence():
     """Mijoz yo'li bo'yicha wow-service signal va mikromanagement push yuborish."""
     import src.config as config
-    from src.services.core.airtable_sync import AirtableSync
+    from src.services.core.airtable_sync import AirtableSync # type: ignore
     from src.services.core.amocrm_sync import AmoCRMSync
 
     db = Database()
