@@ -6,21 +6,25 @@ This enables better performance under high concurrent load.
 import os
 import asyncio
 import logging
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict, TYPE_CHECKING
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+
+if TYPE_CHECKING:
+    import aiosqlite # type: ignore
+    import asyncpg # type: ignore
 
 logger = logging.getLogger(__name__)
 
 # Try to import database drivers
 try:
-    import aiosqlite
+    import aiosqlite # type: ignore
     HAS_SQLITE = True
 except ImportError:
     HAS_SQLITE = False
 
 try:
-    import asyncpg
+    import asyncpg # type: ignore
     HAS_POSTGRES = True
 except ImportError:
     HAS_POSTGRES = False
@@ -236,8 +240,10 @@ class SQLiteConnectionPool:
             
             self._initialized = True
     
-    async def _create_connection(self) -> aiosqlite.Connection:
+    async def _create_connection(self) -> "aiosqlite.Connection":
         """Create a new SQLite connection with optimizations."""
+        if not HAS_SQLITE:
+            raise ImportError("aiosqlite is not installed")
         conn = await aiosqlite.connect(self.db_path, timeout=30)
         
         # Performance optimizations
@@ -277,7 +283,7 @@ class SQLiteConnectionPool:
             self._in_use.add(id(conn))
         return conn
     
-    async def release(self, conn: aiosqlite.Connection):
+    async def release(self, conn: "aiosqlite.Connection"):
         """Release a connection back to the pool."""
         async with self._lock:
             self._in_use.discard(id(conn))
