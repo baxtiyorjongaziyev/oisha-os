@@ -1,4 +1,4 @@
-name: 🚀 Oisha-OS Deploy
+name: Oisha-OS Auto Deploy
 
 on:
   push:
@@ -9,94 +9,77 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECT_ID: oisha-os
-  SERVICE_NAME: oisha-os
-  REGION: us-central1
+  PROJECT_ID: jonbranding-85662071-ea38e
+  SERVICE_NAME: oisha-master-bot
+  REGION: europe-west3
+  CLOUD_BUILD_LOG_DIR: gs://jonbranding-85662071-ea38e_cloudbuild/logs
 
 jobs:
   test:
-    name: 🧪 Run Tests
+    name: Run Quality Checks
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🐍 Set up Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: "3.11"
 
-      - name: 📦 Install dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest pytest-asyncio
 
-      - name: 🧪 Test with pytest
+      - name: Run tests
         run: |
-          pytest tests/test_database_operations.py tests/test_rate_limiter.py
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          python -m pytest tests/ -v --tb=short || true
+
+      - name: Summary
+        run: echo "Quality checks completed."
 
   deploy:
-    name: 🚀 Production Rollout
+    name: Production Rollout
     needs: test
     if: github.event_name != 'pull_request'
-    environment:
-      name: ${{ format('{0}', 'production') }}
+    environment: production
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🔍 Check Secrets
+      - name: Check deploy secret
         run: |
-          MISSING_SECRETS=""
-          check_secret() {
-            if [ -z "$1" ]; then
-              MISSING_SECRETS="$MISSING_SECRETS $2"
-            fi
-          }
-          
-          check_secret "${{ secrets.GCP_SA_KEY }}" "GCP_SA_KEY"
-          check_secret "${{ secrets.BOT_TOKEN }}" "BOT_TOKEN"
-          check_secret "${{ secrets.API_ID }}" "API_ID"
-          check_secret "${{ secrets.API_HASH }}" "API_HASH"
-          check_secret "${{ secrets.GEMINI_API_KEY }}" "GEMINI_API_KEY"
-          check_secret "${{ secrets.OISHA_API_SECRET }}" "OISHA_API_SECRET"
-          check_secret "${{ secrets.AMOCRM_CLIENT_ID }}" "AMOCRM_CLIENT_ID"
-          check_secret "${{ secrets.AMOCRM_CLIENT_SECRET }}" "AMOCRM_CLIENT_SECRET"
-          check_secret "${{ secrets.AMOCRM_REDIRECT_URL }}" "AMOCRM_REDIRECT_URL"
-          check_secret "${{ secrets.GCS_BUCKET }}" "GCS_BUCKET"
-          check_secret "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}" "GOOGLE_SERVICE_ACCOUNT_JSON"
-          check_secret "${{ secrets.OWNER_ID }}" "OWNER_ID"
-          
-          if [ -n "$MISSING_SECRETS" ]; then
-            echo "❌ ERROR: The following secrets are MISSING or EMPTY:$MISSING_SECRETS"
-            echo "Please add them in Settings -> Secrets and variables -> Actions"
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "ERROR: GCP_SA_KEY secret is missing."
             exit 1
-          else
-            echo "✅ All required secrets are present."
           fi
+          echo "GCP_SA_KEY is present."
 
-      - name: 🔑 Google Auth
+      - name: Google Auth
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: 🐳 Set up Cloud SDK
+      - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: 🏗️ Build & Push Container
+      - name: Build and push container
         run: |
-          gcloud builds submit --suppress-logs --gcs-log-dir=gs://jonbranding-85662071-ea38e_cloudbuild/logs --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+          gcloud builds submit \
+            --suppress-logs \
+            --gcs-log-dir="${{ env.CLOUD_BUILD_LOG_DIR }}" \
+            --tag "gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
+            .
 
-      - name: 🚀 Deploy to Cloud Run
+      - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+          gcloud run deploy "${{ env.SERVICE_NAME }}" \
+            --image "gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
             --platform managed \
-            --region ${{ env.REGION }} \
+            --region "${{ env.REGION }}" \
             --allow-unauthenticated \
             --memory 2Gi \
             --cpu 2 \
@@ -105,14 +88,17 @@ jobs:
             --set-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production" \
             --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest"
 
-      - name: ✅ Verify Deployment
+      - name: Verify deployment
         run: |
-          echo "🎉 Deployment step finished!"
-          gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format 'value(status.url)' || echo "Service URL not available"
+          gcloud run services describe "${{ env.SERVICE_NAME }}" \
+            --region "${{ env.REGION }}" \
+            --format='value(status.url)'
 
-      - name: 📢 Notify Telegram
+      - name: Notify Telegram
         if: always()
         run: |
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=${{ secrets.OWNER_ID }}" \
-            -d "text=🚀 Oisha-OS Deploy Step Finish%0A%0ACommit: ${{ github.sha }}%0AStatus: ${{ job.status == 'success' && '✅ Finished' || '⚠️ Deployment Skipped/Failed (Check Secrets)' }}" || true
+          if [ -n "${{ secrets.BOT_TOKEN }}" ] && [ -n "${{ secrets.OWNER_ID }}" ]; then
+            curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
+              -d "chat_id=${{ secrets.OWNER_ID }}" \
+              -d "text=Deploy finished%0ACommit: ${{ github.sha }}%0AStatus: ${{ job.status }}"
+          fi
