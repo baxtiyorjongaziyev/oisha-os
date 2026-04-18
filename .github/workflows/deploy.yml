@@ -89,7 +89,7 @@ jobs:
 
       - name: 🏗️ Build & Push Container
         run: |
-          gcloud builds submit --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+          gcloud builds submit --suppress-logs --gcs-log-dir=gs://jonbranding-85662071-ea38e_cloudbuild/logs --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
 
       - name: 🚀 Deploy to Cloud Run
         run: |
