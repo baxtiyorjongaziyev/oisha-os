@@ -53,6 +53,7 @@ class AppSettings(BaseSettings):
     TOPIC_TASKS_ID: Optional[int] = None
     TOPIC_GENERAL_ID: Optional[int] = None
     TOPIC_KIRIM_ID: Optional[int] = None
+    GDRIVE_OFFLOAD_FOLDER_ID: Optional[str] = None
 
     GSHEET_ID: Optional[str] = None
     GSHEET_CREDS_FILE: str = "service_account.json"
@@ -120,6 +121,7 @@ class AppSettings(BaseSettings):
             "TOPIC_GENERAL_ID",
             "TOPIC_KIRIM_ID",
             "GSHEET_ID",
+            "GDRIVE_OFFLOAD_FOLDER_ID",
         }
         for key in optional_keys:
             if data.get(key) == "":

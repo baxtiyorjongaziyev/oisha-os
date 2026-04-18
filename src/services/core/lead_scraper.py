@@ -14,12 +14,13 @@ logger = logging.getLogger(__name__)
 class LeadScraper:
     """Enriched & Safe Lead Scraping from Telegram Forum Topics."""
 
-    def __init__(self, google_service, db, client=None, amocrm=None, notify_callback=None):
+    def __init__(self, google_service, db, client=None, amocrm=None, notify_callback=None, message_controller=None):
         self.google = google_service
         self.db = db
         self.client = client
         self.amocrm = amocrm
         self.notify_callback = notify_callback
+        self.message_controller = message_controller
         
         # Configure Gemini with modern SDK
         self.genai_client = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
@@ -73,7 +74,7 @@ class LeadScraper:
                     
                     # 4. AmoCRM-da yangi bitim yaratish
                     if self.amocrm:
-                        self.amocrm.create_lead(
+                        await self.amocrm.create_lead(
                             name=f"Potential: {full_name}",
                             price=0,
                             phone=phones[0],
@@ -211,7 +212,7 @@ class LeadScraper:
                     # 3. AmoCRM Lead
                     if self.amocrm:
                         try:
-                            self.amocrm.create_lead(
+                            await self.amocrm.create_lead(
                                 name=f"Potential: {first_name} {display_last_name}",
                                 price=0,
                                 phone=phones[0] if phones else "Raqam yo'q",
@@ -271,37 +272,105 @@ class LeadScraper:
 
             # 2. AI Lead Qualification
             is_lead, lead_details = await auto_lead_agent.qualify_chat(chat_text)
+            intent = lead_details.get('intent_category', 'SPAM')
             
-            if is_lead:
-                logger.info(f"[DM SYNC] Lid topildi: {dialog.name}")
+            # 3. Notification Logic - Now broad and proactive (Wow Factor)
+            # Notify for everything interesting, even if not a formal 'Lead' yet
+            INTERESTING_INTENTS = ['HOT_LEAD', 'POTENTIAL', 'VIP_CLIENT', 'PARTNER', 'NETWORKING', 'SUPPORT']
+            
+            if is_lead or intent in INTERESTING_INTENTS:
+                logger.info(f"[DM SYNC] Interaction found ({intent}): {dialog.name}")
                 phone = lead_details.get('phone') or getattr(dialog.entity, 'phone', 'Unknown')
                 
-                # 3. Save to CRM
-                if self.amocrm:
+                # 3a. Save formally recognized leads to CRM
+                if is_lead and self.amocrm:
                     try:
-                        self.amocrm.create_lead(
-                            name=f"DM Lead: {dialog.name}",
-                            price=0,
-                            phone=phone,
-                            note=f"AI Summary: {lead_details.get('summary')}\nUser: @{getattr(dialog.entity, 'username', 'N/A')}"
+                        note_text = (
+                            f"AI Summary: {lead_details.get('summary')}\n"
+                            f"Intent: {intent}\n"
+                            f"User: @{getattr(dialog.entity, 'username', 'N/A')}"
                         )
+                        if hasattr(self.amocrm, "create_lead"):
+                            await self.amocrm.create_lead(
+                                name=f"DM Lead: {dialog.name}",
+                                price=0,
+                                phone=phone,
+                                note=note_text,
+                            )
+                        elif hasattr(self.amocrm, "ensure_lead"):
+                            await self.amocrm.ensure_lead(
+                                name=f"DM Lead: {dialog.name}",
+                                phone=phone,
+                                note=note_text,
+                            )
+                        elif self.message_controller and getattr(self.message_controller, "crm", None):
+                            await self.message_controller.crm.sync_lead(
+                                user_id=user_id,
+                                name=f"DM Lead: {dialog.name}",
+                                phone=phone,
+                                note=note_text,
+                            )
+                        else:
+                            raise AttributeError("No supported CRM lead creation method found")
                         await self.db.set_crm_synced(user_id)
                         sync_count += 1
                         logger.info(f"[DM SYNC] AmoCRMga qo'shildi: {dialog.name}")
+                    except Exception as e:
+                        logger.error(f"[DM SYNC ERROR] AmoCRM save: {e}")
+
+                # 3b. [NEW] Autonomous Proactive Negotiation (Phase 3)
+                # If it's a lead or potential interaction, and Oisha hasn't responded yet, initiate outreach.
+                if self.message_controller and (is_lead or intent in ['HOT_LEAD', 'POTENTIAL', 'VIP_CLIENT']):
+                    try:
+                        # Check if the last message was from us to avoid double-responding
+                        last_msg = messages[0] if messages else None
+                        if last_msg and not last_msg.out:
+                            logger.info(f"👸 [AUTONOMOUS] Initiating negotiation outreach for {dialog.name}...")
+                            
+                            # Get last user message text
+                            user_text = last_msg.text or ""
+                            
+                            # Generate autonomous response using SalesAgent (via Controller)
+                            # We provide context that this is an autonomous sync trigger
+                            ai_response = await self.message_controller.get_response(
+                                user_id=user_id,
+                                text=user_text,
+                                message_obj=last_msg
+                            )
+                            
+                            if ai_response:
+                                await client.send_message(dialog.entity, ai_response)
+                                logger.info(f"✅ [AUTONOMOUS] Response sent to {dialog.name}")
+                                
+                                # Mark as responded in DB to prevent loops (optional, as get_messages check exists)
+                                # await self.db.set_negotiation_active(user_id, True)
+                    except Exception as auto_ex:
+                        logger.error(f"👸 [AUTONOMOUS ERROR] Failed to respond to {dialog.name}: {auto_ex}")
+                
+                # 4. Proactive Real-time Notification in Telegram (The 'Wow' Factor)
+                if self.notify_callback:
+                    try:
+                        intent_emojis = {
+                            'HOT_LEAD': '🔥 HOT LEAD',
+                            'POTENTIAL': '🌱 POTENTIAL',
+                            'VIP_CLIENT': '👑 VIP CLIENT',
+                            'PARTNER': '🤝 PARTNER',
+                            'NETWORKING': '☕️ NETWORKING',
+                            'SUPPORT': '🛠 SUPPORT'
+                        }
+                        emoji = intent_emojis.get(intent, '📢 NEW INTERACTION')
                         
-                        # 4. Notify Team in Telegram Group (CRM Topic)
-                        if self.notify_callback:
-                            try:
-                                msg = (
-                                    f"👸 **Yangi Shaxsiy Lead Topildi!**\n\n"
-                                    f"👤 **Ism:** {dialog.name}\n"
-                                    f"📞 **Tel:** {phone}\n"
-                                    f"📝 **Tahlil:** {lead_details.get('summary')}\n\n"
-                                    f"📁 AmoCRM-ga muvaffaqiyatli saqlandi. 👸🛡️"
-                                )
-                                await self.notify_callback(msg)
-                            except Exception as n_ex:
-                                logger.error(f"[DM SYNC] Notification error: {n_ex}")
+                        msg = (
+                            f"👸 **{emoji} aniqlandi!**\n\n"
+                            f"👤 **Mijoz:** {dialog.name}\n"
+                            f"📞 **Tel:** {phone}\n"
+                            f"📝 **Xulosa:** {lead_details.get('summary')}\n"
+                            f"💡 **Oisha Coach Maslahati:** _{lead_details.get('coaching_tip', 'Suhbatni davom ettiring.')}_\n\n"
+                            f"{'✅ AmoCRM-ga saqlandi.' if is_lead else '👁️ Oisha kuzatmoqda (Hali lead emas).'} 👸🛡️"
+                        )
+                        await self.notify_callback(msg)
+                    except Exception as n_ex:
+                        logger.error(f"[DM SYNC] Notification error: {n_ex}")
                     except Exception as e:
                         logger.error(f"[DM SYNC ERROR] AmoCRM save: {e}")
 

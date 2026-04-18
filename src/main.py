@@ -153,15 +153,21 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
     if await telegram_client.is_user_authorized():
         return True
 
-    logger.error("[AUTH] Userbot session missing or unauthorized. Interactive auth is disabled in runtime.")
-    try:
-        import src.api_server as api_module
-        api_module.update_api_status("degraded", "Userbot session missing or unauthorized")
-        api_module.set_runtime_context(userbot_authorized=False)
-    except (ImportError, AttributeError) as e:
-        # API module may not be initialized yet during startup
-        logger.warning(f"[AUTH] Could not update API status: {e}")
-    return False
+    # [GOD MODE] If not on Cloud Run, allow interactive login to regenerate session
+    cloud_control_plane = bool(os.getenv("K_SERVICE"))
+    if not cloud_control_plane:
+        logger.info("[AUTH] Interactive auth allowed for local runtime. Please follow the prompts in your terminal.")
+        await telegram_client.start()
+        if await telegram_client.is_user_authorized():
+            # Export session string for the user convenient copy-pasting
+            new_string = telegram_client.session.save()
+            print("\n" + "="*50)
+            print("🚀 [SUCCESS] NEW SESSION STRING GENERATED:")
+            print(new_string)
+            print("="*50 + "\n")
+            return True
+
+    logger.error("[AUTH] Userbot session missing or unauthorized. Interactive auth is disabled in cloud runtime.")
 
 
 def _income_state_key(message_id: int) -> str:
@@ -528,6 +534,7 @@ async def background_monitor_task() -> None:
         check_airtable_stagnation,
         check_client_journey_excellence,
     )
+    from src.services.core.lead_operating_system import LeadOperatingSystem
     from src.time_utils import get_local_now, is_quiet_hours
     
     logger.info("[MONITOR] Boshlandi (Interval: 5 daqiqa)")
@@ -546,6 +553,27 @@ async def background_monitor_task() -> None:
             await check_airtable_stagnation()
             await check_client_journey_excellence()
             await check_airtable_deadlines()
+
+            if msg_controller:
+                if not hasattr(background_monitor_task, "_lead_os"):
+                    background_monitor_task._lead_os = LeadOperatingSystem(msg_controller, msg_controller.db)
+                last_cycle_at = getattr(background_monitor_task, "_lead_cycle_at", None)
+                if not last_cycle_at or (now - last_cycle_at).total_seconds() >= 900:
+                    await background_monitor_task._lead_os.review_recent_active_leads(
+                        limit=12,
+                        lookback_hours=72,
+                        execute_actions=True,
+                    )
+                    background_monitor_task._lead_cycle_at = now
+
+                if now.hour in [10, 14, 18, 22] and now.minute == 0:
+                    today_str = now.strftime('%Y-%m-%d')
+                    job_key = f"lead_reengagement_{now.hour}_{today_str}"
+                    if not hasattr(background_monitor_task, '_sent_jobs'):
+                        background_monitor_task._sent_jobs = set()
+                    if job_key not in background_monitor_task._sent_jobs:
+                        await background_monitor_task._lead_os.run_reengagement_cycle(limit=8)
+                        background_monitor_task._sent_jobs.add(job_key)
 
             # 3. Shaxsiy eslatmalar (17:00 da - faqat bir marta)
             if now.hour == 17 and now.minute == 0:
@@ -583,6 +611,12 @@ async def self_command_handler(event):
         stats = await msg_controller.db.get_today_stats()
         msg = f"📊 **OISHA ROI DASHBOARD**\n📅 Bugun: {datetime.now().strftime('%d-%m-%Y')}\n\n👤 Yangi lidlar: {stats['leads_found']}\n💬 Sinxron: {stats['messages_synced']}\n"
         await event.respond(msg)
+    elif cmd.startswith('/lead_cockpit') or cmd.startswith('/pipeline'):
+        from src.services.core.lead_operating_system import LeadOperatingSystem
+
+        lead_os = LeadOperatingSystem(msg_controller, msg_controller.db)
+        report = await lead_os.render_cockpit_report(limit=12, lookback_hours=72)
+        await event.respond(report, parse_mode="HTML")
     elif cmd.startswith('/status'):
         await event.respond("🟢 **TIZIM HOLATI:** Active (GCP Master)")
 
@@ -863,6 +897,12 @@ async def handle_new_message(event):
 
     logger.info(f"[USERBOT] Processing message from {sender_name} in {chat_id}: {message_text[:50]}...")
 
+    if event.is_private and not event.out and message_text:
+        try:
+            await msg_controller.db.log_message(sender.id, message_text, is_ai=False)
+        except Exception as log_ex:
+            logger.error(f"[USERBOT] Failed to log incoming message: {log_ex}")
+
     # 3. New Message Logic (Elite Intake)
     if event.is_private and not event.out and not getattr(sender, 'bot', False):
         # Skanerlash (1.1, 1.2) - Now includes intent categorization
@@ -901,19 +941,22 @@ async def handle_new_message(event):
 
                 # AmoCRM-da yaratish (1.3)
                 phone = lead_data.get('phone') or getattr(sender, 'phone', 'Raqam yo\'q')
-                msg_controller.crm.amocrm.create_lead(
+                crm_sync = await msg_controller.crm.sync_lead(
+                    user_id=sender.id,
                     name=f"DM Lead: {sender_name}",
                     phone=phone,
                     note=f"AI Tahlil: {lead_data.get('needs')}\nIntent: {intent}\nUser: @{getattr(sender, 'username', 'N/A')}"
                 )
-                await msg_controller.db.set_crm_synced(event.sender_id)
+                if crm_sync.get("success"):
+                    await msg_controller.db.set_crm_synced(event.sender_id)
                 
                 # Elite Welcome (1.4)
                 await welcome_manager.send_welcome(event.sender_id)
                 
                 # Admin-ni ogohlantirish
                 if admin_bot:
-                    await admin_bot.notify_lead(f"👸 **Yangi Lid (DM)!**\n👤 {sender_name}\n🎯 Maqsad: {intent}\n📞 {phone}\n✅ AmoCRM-ga saqlandi.")
+                    sync_line = "✅ AmoCRM-ga saqlandi." if crm_sync.get("success") else f"⚠️ CRM sync xato: {crm_sync.get('error', 'nomaʼlum')}"
+                    await admin_bot.notify_lead(f"👸 **Yangi Lid (DM)!**\n👤 {sender_name}\n🎯 Maqsad: {intent}\n📞 {phone}\n{sync_line}")
 
     # [GOD MODE] Multi-Modal (Voice Note) Handling
     if event.is_private and not event.out and event.message.voice and voice_processor:
@@ -1014,6 +1057,10 @@ async def handle_new_message(event):
             # 6. Javobni yuborish
             if final_text:
                 await event.respond(final_text)
+                try:
+                    await msg_controller.db.log_message(sender.id, final_text, is_ai=True)
+                except Exception as log_ex:
+                    logger.error(f"[USERBOT] Failed to log AI reply: {log_ex}")
                 safe_responder.update_rate_limit(chat_id)
                 logger.info(f"[USERBOT] Replied successfully to {chat_id}")
 
@@ -1064,8 +1111,16 @@ async def sync_single_lead(event):
             
             # 2. Save to AmoCRM (Enterprise Automation)
             try:
-                msg_controller.crm.amocrm.create_lead(name=full_name, phone=primary_phone, note=bio)
-                logger.info(f"[ENTERPRISE] AmoCRM Lead created: {full_name}")
+                crm_sync = await msg_controller.crm.sync_lead(
+                    user_id=event.sender_id,
+                    name=full_name,
+                    phone=primary_phone,
+                    note=bio,
+                )
+                if crm_sync.get("success"):
+                    logger.info(f"[ENTERPRISE] AmoCRM Lead created: {full_name}")
+                else:
+                    logger.warning(f"[ENTERPRISE] AmoCRM Sync Error: {crm_sync.get('error')}")
             except Exception as amo_ex:
                 logger.warning(f"[ENTERPRISE] AmoCRM Sync Error: {amo_ex}")
             
@@ -1128,16 +1183,9 @@ async def main():
 
     # [GOD MODE] Authorized Session Discovery
     session_string = os.environ.get("USERBOT_SESSION_STRING", "").strip()
-    if cloud_control_plane:
-        # Cloud Run acts as the API/control plane only. Telegram runtime stays on the VM.
-        client = TelegramClient(
-            StringSession(),
-            settings.API_ID,
-            settings.API_HASH,
-            device_model="Oisha Enterprise Control Plane",
-            system_version="Cloud Run"
-        )
-    elif session_string:
+    
+    if session_string:
+        logger.info("[AUTH] Using USERBOT_SESSION_STRING for authentication.")
         client = TelegramClient(
             StringSession(session_string),
             settings.API_ID,
@@ -1145,9 +1193,21 @@ async def main():
             device_model="Oisha Enterprise v2",
             system_version="Windows 11 Agent"
         )
+    elif cloud_control_plane:
+        # Fallback for cloud environments where StringSession might be preferred but empty initially
+        logger.warning("[AUTH] Cloud environment detected but USERBOT_SESSION_STRING is empty. Attempting ephemeral session.")
+        client = TelegramClient(
+            StringSession(),
+            settings.API_ID,
+            settings.API_HASH,
+            device_model="Oisha Enterprise Control Plane",
+            system_version="Cloud Run"
+        )
     else:
+        # Final fallback to standard path, though we cleaned these up.
+        # This allows the bot to prompt for login if run interactively.
         SESSION_PATH = 'data/oisha_user_active'
-        
+        logger.info(f"[AUTH] No session string found. Using file-based path: {SESSION_PATH}")
         client = TelegramClient(
             SESSION_PATH,
             settings.API_ID,
@@ -1167,7 +1227,8 @@ async def main():
         google_service=msg_controller.google, 
         db=msg_controller.db, 
         client=client,
-        amocrm=msg_controller.crm.amocrm
+        amocrm=msg_controller.crm.amocrm,
+        message_controller=msg_controller
     )
 
     action_parser = ActionParser(
@@ -1657,7 +1718,7 @@ async def main():
                 await lead_scraper.sync_private_dialogs(client, limit=50)
             except Exception as e:
                 logger.error(f"[DM SYNC ERROR] {e}")
-            await asyncio.sleep(3600) # Run every 1 hour
+            await asyncio.sleep(900) # Run every 15 mins
     
     asyncio.create_task(dm_lead_sync_task())
     

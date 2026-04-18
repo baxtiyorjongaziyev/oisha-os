@@ -15,6 +15,9 @@ from src.services.core.escalation_agent import EscalationAgent
 from src.services.core.wow_service_engine import WowServiceEngine
 from src.services.core.crm_integration import CRMIntegration # type: ignore
 from src.services.core.gdrive import GoogleDriveSync
+from src.services.core.crm_file_offloader import CRMFileOffloader
+from src.services.core.amocrm_sync import AmoCRMSync
+from src.settings import settings
 
 
 from src.database import Database # type: ignore
@@ -29,6 +32,16 @@ class ProactiveWorker:
         self.context = context
         self.db = db_instance or db
         self.is_running = False
+        
+        # Offloader initialize
+        amo = AmoCRMSync(
+            subdomain=config.AMOCRM_SUBDOMAIN,
+            client_id=config.AMOCRM_CLIENT_ID,
+            client_secret=config.AMOCRM_CLIENT_SECRET,
+            redirect_url=config.AMOCRM_REDIRECT_URL
+        )
+        gdrive = GoogleDriveSync(settings.GSHEET_CREDS_FILE)
+        self.crm_offloader = CRMFileOffloader(amo, gdrive)
 
     async def _should_run_job(self, job_name: str, hour: int, minute: int = 0) -> bool:
         """Berilgan vaqtdan o'tgan bo'lsa va bugun hali bajarilmagan bo'lsa True qaytaradi."""
@@ -59,6 +72,12 @@ class ProactiveWorker:
                 if await self._should_run_job("daily_backup", 3):
                     await self.perform_daily_backup()
                     await db.mark_job_run("daily_backup", now.strftime('%Y-%m-%d'))
+                
+                # AmoCRM File Offload (Cleanup) - 03:15+
+                if await self._should_run_job("crm_file_offload", 3, 15):
+                    logger.info("[SINGULARITY] Starting AmoCRM File Offload cleanup...")
+                    await self.crm_offloader.run(dry_run=False)
+                    await db.mark_job_run("crm_file_offload", now.strftime('%Y-%m-%d'))
                 
                 # 2. Ertalabki bozor tahlili (08:00+)
                 if await self._should_run_job("morning_brief", 8):
