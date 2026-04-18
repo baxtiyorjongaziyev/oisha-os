@@ -49,7 +49,7 @@ jobs:
       - name: Google Auth
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          credentials_json: ${{ secrets['GCP_SA_KEY'] }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -70,18 +70,18 @@ jobs:
             --timeout 3600 \
             --max-instances 3 \
             --set-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production" \
-            --set-env-vars "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" \
-            --set-env-vars "API_ID=${{ secrets.API_ID }}" \
-            --set-env-vars "API_HASH=${{ secrets.API_HASH }}" \
-            --set-env-vars "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" \
-            --set-env-vars "OISHA_API_SECRET=${{ secrets.OISHA_API_SECRET }}" \
-            --set-env-vars "AMOCRM_CLIENT_ID=${{ secrets.AMOCRM_CLIENT_ID }}" \
-            --set-env-vars "AMOCRM_CLIENT_SECRET=${{ secrets.AMOCRM_CLIENT_SECRET }}" \
-            --set-env-vars "AMOCRM_REDIRECT_URL=${{ secrets.AMOCRM_REDIRECT_URL }}" \
-            --set-env-vars "AMOCRM_SUBDOMAIN=${{ secrets.AMOCRM_SUBDOMAIN }}" \
-            --set-env-vars "GCS_BUCKET=${{ secrets.GCS_BUCKET }}" \
-            --set-env-vars "GOOGLE_SERVICE_ACCOUNT_JSON=${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}" \
-            --set-env-vars "OWNER_ID=${{ secrets.OWNER_ID }}"
+            --set-env-vars "BOT_TOKEN=${{ secrets['BOT_TOKEN'] }}" \
+            --set-env-vars "API_ID=${{ secrets['API_ID'] }}" \
+            --set-env-vars "API_HASH=${{ secrets['API_HASH'] }}" \
+            --set-env-vars "GEMINI_API_KEY=${{ secrets['GEMINI_API_KEY'] }}" \
+            --set-env-vars "OISHA_API_SECRET=${{ secrets['OISHA_API_SECRET'] }}" \
+            --set-env-vars "AMOCRM_CLIENT_ID=${{ secrets['AMOCRM_CLIENT_ID'] }}" \
+            --set-env-vars "AMOCRM_CLIENT_SECRET=${{ secrets['AMOCRM_CLIENT_SECRET'] }}" \
+            --set-env-vars "AMOCRM_REDIRECT_URL=${{ secrets['AMOCRM_REDIRECT_URL'] }}" \
+            --set-env-vars "AMOCRM_SUBDOMAIN=${{ secrets['AMOCRM_SUBDOMAIN'] }}" \
+            --set-env-vars "GCS_BUCKET=${{ secrets['GCS_BUCKET'] }}" \
+            --set-env-vars "GOOGLE_SERVICE_ACCOUNT_JSON=${{ secrets['GOOGLE_SERVICE_ACCOUNT_JSON'] }}" \
+            --set-env-vars "OWNER_ID=${{ secrets['OWNER_ID'] }}"
 
       - name: Verify deployment
         run: |
@@ -92,8 +92,8 @@ jobs:
       - name: Notify Telegram
         if: always()
         run: |
-          if [ -n "${{ secrets.BOT_TOKEN }}" ] && [ -n "${{ secrets.OWNER_ID }}" ]; then
-            curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
-              -d "chat_id=${{ secrets.OWNER_ID }}" \
+          if [ -n "${{ secrets['BOT_TOKEN'] }}" ] && [ -n "${{ secrets['OWNER_ID'] }}" ]; then
+            curl -s -X POST "https://api.telegram.org/bot${{ secrets['BOT_TOKEN'] }}/sendMessage" \
+              -d "chat_id=${{ secrets['OWNER_ID'] }}" \
               -d "text=🚀 Oisha-OS Deploy Finish%0AStatus: ${{ job.status }}%0ACommit: ${{ github.sha }}"
           fi
