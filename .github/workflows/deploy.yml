@@ -12,6 +12,7 @@ env:
   PROJECT_ID: jonbranding-85662071-ea38e
   SERVICE_NAME: oisha-master-bot
   REGION: europe-west3
+  CLOUD_BUILD_LOG_DIR: gs://jonbranding-85662071-ea38e_cloudbuild/logs
 
 jobs:
   test:
@@ -36,71 +37,56 @@ jobs:
         run: |
           python -m pytest tests/ -v --tb=short || true
 
+      - name: Summary
+        run: echo "Quality checks completed."
+
   deploy:
     name: Production Rollout
     needs: test
     if: github.event_name != 'pull_request'
     environment: production
     runs-on: ubuntu-latest
-    env:
-      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-      API_ID: ${{ secrets.API_ID }}
-      API_HASH: ${{ secrets.API_HASH }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
-      AMOCRM_CLIENT_ID: ${{ secrets.AMOCRM_CLIENT_ID }}
-      AMOCRM_CLIENT_SECRET: ${{ secrets.AMOCRM_CLIENT_SECRET }}
-      AMOCRM_REDIRECT_URL: ${{ secrets.AMOCRM_REDIRECT_URL }}
-      AMOCRM_SUBDOMAIN: ${{ secrets.AMOCRM_SUBDOMAIN }}
-      GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
-      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-      OWNER_ID: ${{ secrets.OWNER_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check deploy secret
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "ERROR: GCP_SA_KEY secret is missing."
+            exit 1
+          fi
+          echo "GCP_SA_KEY is present."
+
       - name: Google Auth
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ env.GCP_SA_KEY }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: 🐳 Docker Auth
-        run: gcloud auth configure-docker gcr.io --quiet
-
-      - name: 🏗️ Build Container
-        run: docker build -t gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
-
-      - name: 📤 Push Container
-        run: docker push gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-
-      - name: 🚀 Deploy to Cloud Run
+      - name: Build and push container
         run: |
-          gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+          gcloud builds submit \
+            --suppress-logs \
+            --gcs-log-dir="${{ env.CLOUD_BUILD_LOG_DIR }}" \
+            --tag "gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
+            .
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "${{ env.SERVICE_NAME }}" \
+            --image "gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
             --platform managed \
-            --region ${{ env.REGION }} \
+            --region "${{ env.REGION }}" \
             --allow-unauthenticated \
             --memory 2Gi \
             --cpu 2 \
             --timeout 3600 \
             --max-instances 3 \
-            --set-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production" \
-            --set-env-vars "BOT_TOKEN=${{ env.BOT_TOKEN }}" \
-            --set-env-vars "API_ID=${{ env.API_ID }}" \
-            --set-env-vars "API_HASH=${{ env.API_HASH }}" \
-            --set-env-vars "GEMINI_API_KEY=${{ env.GEMINI_API_KEY }}" \
-            --set-env-vars "OISHA_API_SECRET=${{ env.OISHA_API_SECRET }}" \
-            --set-env-vars "AMOCRM_CLIENT_ID=${{ env.AMOCRM_CLIENT_ID }}" \
-            --set-env-vars "AMOCRM_CLIENT_SECRET=${{ env.AMOCRM_CLIENT_SECRET }}" \
-            --set-env-vars "AMOCRM_REDIRECT_URL=${{ env.AMOCRM_REDIRECT_URL }}" \
-            --set-env-vars "AMOCRM_SUBDOMAIN=${{ env.AMOCRM_SUBDOMAIN }}" \
-            --set-env-vars "GCS_BUCKET=${{ env.GCS_BUCKET }}" \
-            --set-env-vars "GOOGLE_SERVICE_ACCOUNT_JSON=${{ env.GOOGLE_SERVICE_ACCOUNT_JSON }}" \
-            --set-env-vars "OWNER_ID=${{ env.OWNER_ID }}"
+            --update-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production,DATABASE_URL=bot_database.db,TURSO_DATABASE_URL=libsql://oisha-os-db-baxtiyorjongaziyev.turso.io,AMOCRM_SUBDOMAIN=jonbrandingagency,AIRTABLE_BASE_ID=app8xoyx1XCumYFXV,CRM_GROUP_ID=-1002566480563,TEAM_GROUP_ID=-4860594772,TOPIC_KIRIM_ID=168,GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k,GSHEET_CREDS_FILE=service_account.json,OWNER_ID=150074828" \
+            --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,DEEPSEEK_API_KEY=oisha-deepseek-api-key:latest,TURSO_AUTH_TOKEN=oisha-turso-auth-token:latest,AIRTABLE_API_KEY=oisha-airtable-api-key:latest,AMOCRM_TOKEN_JSON=amocrm-token:latest"
 
       - name: Verify deployment
         run: |
@@ -111,8 +97,8 @@ jobs:
       - name: Notify Telegram
         if: always()
         run: |
-          if [ -n "${{ env.BOT_TOKEN }}" ] && [ -n "${{ env.OWNER_ID }}" ]; then
-            curl -s -X POST "https://api.telegram.org/bot${{ env.BOT_TOKEN }}/sendMessage" \
-              -d "chat_id=${{ env.OWNER_ID }}" \
-              -d "text=🚀 Oisha-OS Deploy Finish%0AStatus: ${{ job.status }}%0ACommit: ${{ github.sha }}"
+          if [ -n "${{ secrets.BOT_TOKEN }}" ] && [ -n "${{ secrets.OWNER_ID }}" ]; then
+            curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
+              -d "chat_id=${{ secrets.OWNER_ID }}" \
+              -d "text=Deploy finished%0ACommit: ${{ github.sha }}%0AStatus: ${{ job.status }}"
           fi
