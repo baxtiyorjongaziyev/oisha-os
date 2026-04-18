@@ -66,6 +66,34 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: 🔄 Sync Secrets to GCP
+        run: |
+          sync_secret() {
+            local name=$1
+            local value=$2
+            if [ -z "$value" ]; then
+              echo "⚠️ Skipping $name (empty value)"
+              return
+            fi
+            echo "Syncing $name..."
+            if gcloud secrets describe "$name" --project=${{ env.PROJECT_ID }} > /dev/null 2>&1; then
+              echo "$value" | gcloud secrets versions add "$name" --project=${{ env.PROJECT_ID }} --data-file=-
+            else
+              gcloud secrets create "$name" --project=${{ env.PROJECT_ID }} --replication-policy="automatic"
+              echo "$value" | gcloud secrets versions add "$name" --project=${{ env.PROJECT_ID }} --data-file=-
+            fi
+          }
+          # Mapping GitHub Secrets to cloudbuild.yaml names
+          sync_secret "oisha-bot-token" "${{ secrets.BOT_TOKEN }}"
+          sync_secret "oisha-api-hash" "${{ secrets.API_HASH }}"
+          sync_secret "oisha-gemini-api-key" "${{ secrets.GEMINI_API_KEY }}"
+          sync_secret "oisha-deepseek-api-key" "${{ secrets.DEEPSEEK_API_KEY }}"
+          sync_secret "oisha-turso-auth-token" "${{ secrets.TURSO_AUTH_TOKEN }}"
+          sync_secret "oisha-amocrm-client-secret" "${{ secrets.AMOCRM_CLIENT_SECRET }}"
+          sync_secret "oisha-airtable-api-key" "${{ secrets.AIRTABLE_API_KEY }}"
+          sync_secret "amocrm-token" "${{ secrets.AMOCRM_TOKEN_JSON }}"
+          sync_secret "oisha-google-service-account-json" "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}"
+
       - name: Build and deploy via Cloud Build
         run: |
           gcloud builds submit \
