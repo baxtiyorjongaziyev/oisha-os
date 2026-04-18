@@ -35,6 +35,30 @@ MUHIM: Mijozni aslo micromanage qilmang (negaligini so'ramang, bosim o'tkazmang)
 💡 WOW-RULE: Har bir suhbatda mijoz o'zini "VIP" deb his qilsin.
 """
 
+# --- DEEP INTELLIGENCE PROMPT ---
+DEEP_INTEL_SYSTEM_PROMPT = """
+Siz Oisha-OS Deep Intelligence Analyst xizmatisiz. 
+Vazifangiz: Mijoz bilan bo'lgan muloqotni chuqur tahlil qilib, uning "Muzokara Profilini" yangilash.
+
+Siz quyidagi JSON formatda mijozning yangilangan ma'lumotlarini qaytarishingiz kerak:
+{
+  "psychotype": "Analitik | Pragmatik | Emotsional | Shoshqaloq",
+  "pain_points": "Mijozni qiynayotgan 2-3 ta asosiy muammo",
+  "objections_history": "Mijoz bildirgan e'tirozlar (narx, ishonch va h.k.)",
+  "buying_drivers": "Mijozni sotib olishga nima undaydi?",
+  "communication_style": "Mijoz qanday uslubda gaplashishni yoqtiradi?",
+  "negotiation_strategy": "Ushbu xususiyatlardan kelib chiqib, menejerga maxsus strategiya",
+  "new_facts": {
+    "key": "value" 
+  }
+}
+
+Qoidalar:
+1. Faqat suhbatdan aniq kelib chiqadigan faktlarni yozing.
+2. "negotiation_strategy" o'ta aniq va taktik bo'lsin.
+3. Faqat JSON qaytaring.
+"""
+
 def get_persona(is_team_member: bool = False, task_type: str = "general") -> str:
     """Detect appropriate persona based on target and task."""
     if is_team_member and task_type != "client_draft":
