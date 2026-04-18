@@ -66,9 +66,26 @@ class MessageController:
         self.executor.bot_app = bot_app
         logger.info("[AGENT CONTROLLER] Bot application connected to executor.")
 
-    async def get_response(self, user_id: int, user_name: str, message: str, context: Optional[Dict[str, Any]] = None) -> str:
-        """Asosiy javob qaytarish mantiqi."""
+    async def get_response(
+        self,
+        user_id: int,
+        user_name: Optional[str] = None,
+        message: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+        **legacy_kwargs,
+    ) -> str:
+        """Asosiy javob qaytarish mantiqi.
+
+        Older callers still pass `text=` or `message_obj=`. We accept those
+        here so the live userbot flow does not silently fail.
+        """
         context = context or {}
+        if message is None:
+            message = legacy_kwargs.get("text")
+        if not user_name:
+            user_name = context.get("user_name") or "Mijoz"
+        if not message:
+            return ""
         
         # 1. CRM dan user haqida ma'lumot olish (agar tel bo'lsa)
         user_info = await self.db.get_user_info(user_id)
