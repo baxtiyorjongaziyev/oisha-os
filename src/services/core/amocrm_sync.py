@@ -386,7 +386,38 @@ class AmoCRMSync:
     async def get_user_context(self, phone: str) -> str:
         """User uchun kontekstni (lead statusini) olish."""
         lead = self.get_lead_by_phone(phone)
-        return self.get_lead_by_phone(phone) if lead else "Yangi mijoz"
+        return self.get_lead_status_text(lead) if lead else "Yangi mijoz"
+
+    async def create_lead(
+        self,
+        name: str,
+        phone: str,
+        note: str = None,
+        price: int = 0,
+        extra_fields: dict = None,
+    ) -> Optional[int]:
+        """
+        Backward-compatible async lead creation used by the userbot and scrapers.
+        Ensures a contact exists, then creates a lead for that contact and appends a note.
+        """
+        try:
+            contact = self.get_contact_by_phone(phone) if phone and phone != "Raqam yo'q" else None
+            contact_id = contact.get("id") if contact else None
+
+            if not contact_id and phone and phone != "Raqam yo'q":
+                contact_id = self.create_contact(name, phone)
+
+            if not contact_id:
+                logger.error(f"[AMOCRM CREATE LEAD] Contact yaratilmadi: {name}")
+                return None
+
+            lead_id = self.create_lead_for_contact(contact_id, name, price=price, extra_fields=extra_fields)
+            if lead_id and note:
+                self.add_lead_note(lead_id, note)
+            return lead_id
+        except Exception as e:
+            logger.error(f"[AMOCRM CREATE LEAD ERROR] {e}")
+            return None
 
     async def get_leads(self, status_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """Bitimlarni (Leads) olish. Basic plan uchun sodda so'rovlar."""
@@ -699,6 +730,56 @@ class AmoCRMSync:
         except Exception as e:
             logger.error(f"[AMOCRM NOTE EXCEPTION] {e}")
             return False
+
+    async def get_lead_notes(self, lead_id: int) -> List[Dict[str, Any]]:
+        """Bitim (Lead) ga tegishli barcha izohlarni (notes) olish."""
+        self._load_token()
+        url = f"{self.base_url}/api/v4/leads/{lead_id}/notes"
+        try:
+            response = requests.get(url, headers=self._get_headers())
+            if response.status_code == 200:
+                return response.json().get("_embedded", {}).get("notes", [])
+            return []
+        except Exception as e:
+            logger.error(f"[AMOCRM GET NOTES ERROR] {e}")
+            return []
+
+    async def delete_note(self, entity_type: str, entity_id: int, note_id: int):
+        """Izohni o'chirish."""
+        self._load_token()
+        url = f"{self.base_url}/api/v4/{entity_type}/{entity_id}/notes/{note_id}"
+        try:
+            response = requests.delete(url, headers=self._get_headers())
+            return response.status_code in [200, 204]
+        except Exception as e:
+            logger.error(f"[AMOCRM DELETE NOTE ERROR] {e}")
+            return False
+
+    def download_file(self, file_uuid: str) -> Optional[bytes]:
+        """AmoCRM dan faylni yuklab olish."""
+        self._load_token()
+        # AmoCRM Files API orqali faylni olish
+        url = f"{self.base_url}/api/v4/files/{file_uuid}"
+        headers = self._get_headers()
+        
+        try:
+            # 1. Metadatasini olish (download link uchun)
+            resp = requests.get(url, headers=headers)
+            if resp.status_code == 200:
+                file_data = resp.json()
+                download_url = file_data.get("download_url")
+                
+                if download_url:
+                    # 2. Haqiqiy faylni yuklab olish
+                    file_resp = requests.get(download_url, headers=headers)
+                    if file_resp.status_code == 200:
+                        return file_resp.content
+            
+            logger.error(f"[AMOCRM DOWNLOAD ERROR] {resp.status_code}: {resp.text}")
+            return None
+        except Exception as e:
+            logger.error(f"[AMOCRM DOWNLOAD EXCEPTION] {e}")
+            return None
 
     def get_sales_report(self) -> Dict[str, Any]:
         """Oylik sotuv hisobotini (Plan-Fakt) shakllantirish."""

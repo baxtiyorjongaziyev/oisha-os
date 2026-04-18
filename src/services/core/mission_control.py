@@ -7,6 +7,7 @@ import requests
 from src.database import Database
 from .amocrm_sync import AmoCRMSync
 from src.settings import settings
+from src.agents.negotiation_engine import NegotiationEngine
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,11 @@ class MissionControlFetchError(RuntimeError):
 
 
 class MissionControl:
+    # Pipeline Constants
+    HUNTER_PIPELINE_ID = 10117998
+    CLOSER_PIPELINE_ID = 10123314
+    FARMER_PIPELINE_ID = 10123318
+
     def __init__(self, db=None):
         self.amo = AmoCRMSync(
             subdomain=settings.AMOCRM_SUBDOMAIN,
@@ -26,6 +32,16 @@ class MissionControl:
         self.amo._load_token()
         self.db = db if db else Database()
         self.last_fetch_errors = []
+
+    def get_pipeline_role(self, pipeline_id: int) -> str:
+        """Pipeline ID ga qarab rolni aniqlash."""
+        if pipeline_id == self.HUNTER_PIPELINE_ID:
+            return "HUNTER"
+        if pipeline_id == self.CLOSER_PIPELINE_ID:
+            return "SETTER" # Oisha-OS terminologiyasida Setter/Closer ekvivalent
+        if pipeline_id == self.FARMER_PIPELINE_ID:
+            return "FARMER"
+        return "HUNTER" # Default
 
     def _fetch_pipeline_leads_sync(self, pipeline_name, pipeline_id):
         """Bitta pipeline uchun leadlarni olib kelish, kerak bo'lsa tokenni yangilash."""
@@ -86,13 +102,63 @@ class MissionControl:
                     if lead.get("status_id") in [142, 143]:
                         continue
 
+                    lead_id = lead["id"]
+                    
+                    # --- SURGICAL MISSION LOGIC ---
+                    surgical_mission = None
+                    
+                    # 1. AmoCRM-dan mavjud vazifalarni tekshirish
+                    try:
+                        tasks_url = f"{self.amo.base_url}/api/v4/tasks?filter[entity_id]={lead_id}&filter[entity_type]=leads&filter[is_completed]=0"
+                        t_res = requests.get(tasks_url, headers=self.amo._get_headers(), timeout=10)
+                        if t_res.status_code == 200:
+                            tasks = t_res.json().get("_embedded", {}).get("tasks", [])
+                            if tasks:
+                                # Oxirgi vazifani mission sifatida ishlatish (agar u AI tomonidan yaratilgan bo'lsa juda yaxshi)
+                                surgical_mission = tasks[0].get("text")
+                    except Exception as te:
+                        logger.warning(f"[MISSION CONTROL] Task fetch error for {lead_id}: {te}")
+
+                    # 2. Agar vazifa bo'lmasa, Chat Summary va AI orqali generatsiya qilish
+                    if not surgical_mission:
+                        try:
+                            # 1. Pipeline role aniqlash
+                            role = self.get_pipeline_role(p_id)
+
+                            # 2. Telefon raqami orqali DB dan xulosani topish
+                            phone = self.amo.get_lead_phone(lead_id)
+                            user_id = None
+                            summary = None
+                            
+                            if phone:
+                                user_info = await self.db.get_user_by_phone(phone)
+                                if user_info:
+                                    user_id = user_info.get("user_id")
+                                    summary = await self.db.get_chat_summary(user_id)
+                            
+                            # NegotiationEngine orqali mission generatsiya qilish
+                            assessment = NegotiationEngine.assess(
+                                message=summary or "Yangi lead",
+                                crm_status=p_name
+                            )
+                            surgical_mission = NegotiationEngine.generate_surgical_mission(
+                                assessment=assessment,
+                                summary=summary,
+                                pipeline_name=p_name,
+                                role=role
+                            )
+                        except Exception as ae:
+                            logger.warning(f"[MISSION CONTROL] AI mission generation failed for {lead_id}: {ae}")
+                            surgical_mission = f"Bitimni keyingi bosqichga o'tkazing ({p_name})"
+
                     missions.append(
                         {
-                            "lead_id": lead["id"],
+                            "lead_id": lead_id,
                             "lead_name": lead["name"],
-                            "mission": f"Bitimni keyingi bosqichga o'tkazing ({p_name})",
+                            "mission": surgical_mission,
                             "pipeline": p_name,
-                            "link": f"https://{settings.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead['id']}",
+                            "role": self.get_pipeline_role(p_id),
+                            "link": f"https://{settings.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead_id}",
                         }
                     )
         except Exception as e:
@@ -130,7 +196,7 @@ class MissionControl:
                 lead_id=mission["lead_id"],
                 lead_name=mission["lead_name"],
                 mission=mission["mission"],
-                source_pipeline=mission.get("pipeline", "HUNTER"),
+                source_pipeline=mission.get("role", "HUNTER"),
             )
 
         return distribution
