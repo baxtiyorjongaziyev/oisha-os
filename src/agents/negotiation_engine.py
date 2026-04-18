@@ -140,3 +140,44 @@ class NegotiationEngine:
             approval_needed=approval_needed,
             risk_flags=risk_flags,
         )
+
+    @staticmethod
+    def generate_surgical_mission(
+        assessment: NegotiationAssessment, 
+        summary: Optional[str] = None, 
+        pipeline_name: str = "HUNTER",
+        role: str = "HUNTER"
+    ) -> str:
+        """Suhbat xulosasi va roliga qarab konkret 'Surgical Mission' yaratish."""
+        
+        # 1. Objections handling (Highest priority across all roles)
+        if assessment.objection == "price":
+            if role == "HUNTER":
+                return "Narx e'tirozi: Budjetini aniqlang va arzonroq variant (minimum package) haqida ma'lumot bering."
+            return "Narx e'tirozi: Qiymatni (LTV) asoslang. Investitsiya sifatida ko'rsatib, yopishga harakat qiling."
+            
+        if assessment.objection == "trust":
+            return "Ishonch muammosi: Unga aynan o'z sohasi bo'yicha 2 ta top кейs (vignette) yuboring."
+
+        # 2. Intent-based actions
+        if assessment.intent == "meeting":
+            return "Uchrashuvga tayyor: Strategik sessiya vaqtini belgilab, Zoom linkini yuboring."
+        
+        if assessment.intent == "closing" and role == "SETTER":
+            return "Yopish vaqti: Shartnoma loyihasini tashlang va to'lov shartlarini mahkamlang."
+
+        # 3. Role-specific strategy
+        if role == "HUNTER":
+            if assessment.stage == "new_lead":
+                return "Yangi lid: Tezda bog'lanib, biznes turini va asosiy og'riqli nuqtasini aniqlang."
+            return "Kvalifikatsiya: Mijoz bizning ideal portretimizga mosmi? Savol-javob orqali aniqlang."
+            
+        elif role == "SETTER":
+            if assessment.close_probability >= 0.7:
+                return "Yuqori ehtimollik: Mijozni bugun yoping! Oxirgi 'Commercial Push'ni bering."
+            return "Strategiya: Commercial taklifni detalniy tushuntiring va qaror qabul qilishga yordam bering."
+            
+        elif role == "FARMER":
+            return "LTV o'sishi: Mijozga yangi xizmatlarimiz yoki up-sell imkoniyatlarini taklif qiling."
+
+        return f"Progress: Bitimni keyingi '{assessment.stage}' bosqichiga o'tkazing."

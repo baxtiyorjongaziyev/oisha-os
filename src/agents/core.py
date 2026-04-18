@@ -120,10 +120,25 @@ class BaseAgent(ABC):
         return None
 
     async def load_session_history(self, user_id: int, limit: int = 20) -> List[Dict[str, Any]]:
-        if user_id in self.memories:
+        """User uchun chat tarixini yuklash (Xulosa bilan birga)."""
+        if user_id in self.memories and self.memories[user_id]:
             return self.memories[user_id]
 
         self.memories[user_id] = []
+        
+        # 1. Avval saqlangan xulosani yuklash
+        summary = None
+        if self.db and hasattr(self.db, "get_chat_summary"):
+            summary = await self.db.get_chat_summary(user_id)
+        
+        if summary:
+            self.memories[user_id].append({
+                "role": "user", 
+                "content": f"[ESLATMA/CONTEXT: Avvalgi suhbatlar xulosasi: {summary}]"
+            })
+            logger.info(f"[{self.agent_id}] Long-term summary loaded for user {user_id}")
+
+        # 2. Oxirgi xabarlarni yuklash
         if self.db and hasattr(self.db, "get_recent_messages"):
             try:
                 recent = await self.db.get_recent_messages(user_id, limit=limit)
@@ -135,12 +150,64 @@ class BaseAgent(ABC):
                         text = str(parts[0].get("text", "")) if parts else ""
                         if text:
                             history.append({"role": role, "content": text})
-                    self.memories[user_id] = history
+                    
+                    self.memories[user_id].extend(history)
                     logger.info(f"[{self.agent_id}] Loaded {len(history)} messages from DB for user {user_id}")
             except Exception as e:
                 logger.error(f"[{self.agent_id}] Failed to load history for {user_id}: {e}")
 
         return self.memories[user_id]
+
+    async def check_and_summarize(self, user_id: int, threshold: int = 30):
+        """Agar xabarlar soni thresholddan oshsa, xulosa qiladi."""
+        if not self.db or not hasattr(self.db, "get_message_count"):
+            return
+
+        try:
+            count = await self.db.get_message_count(user_id)
+            if count >= threshold:
+                logger.info(f"[{self.agent_id}] Summarization triggered for user {user_id} (count: {count})")
+                
+                recent_all = await self.db.get_recent_messages(user_id, limit=100)
+                if not recent_all:
+                    return
+
+                history_str = "\n".join([f"{'AI' if m['role']=='model' else 'User'}: {m['parts'][0]['text']}" for m in recent_all])
+                new_summary = await self.summarize_history(user_id, history_str)
+                
+                if new_summary:
+                    await self.db.set_chat_summary(user_id, new_summary)
+                    # Muhim: Xotira keshini tozalaymiz, shunda keyingi safar yangi xulosa bilan yuklanadi
+                    if user_id in self.memories:
+                        del self.memories[user_id]
+                    logger.info(f"[{self.agent_id}] Updated chat summary and cleared cache for user {user_id}")
+        except Exception as e:
+            logger.error(f"[{self.agent_id}] Summarization error for {user_id}: {e}")
+
+    async def summarize_history(self, user_id: int, history_text: str) -> Optional[str]:
+        """Gemini yordamida suhbat tarixini qisqa va mazmuni xulosaga aylantiradi."""
+        prompt = f"""
+Siz profesional sales-assistent Oishasiz. Quyidagi suhbat tarixini tahlil qiling va mijoz haqidagi ENG MUHIM ma'lumotlarni qisqa (max 150-200 so'z) xulosa shaklida yozing.
+Xulosada quyidagilar bo'lishi shart (agar bo'lsa):
+1. Mijozning ismi va biznesi/sohasi.
+2. Qaysi xizmat bilan qiziqyapti.
+3. Asosiy ehtiyoji yoki muammosi.
+4. Muhokama qilingan narx yoki budjet.
+5. Hozirgi holat (qaysi bosqichda to'xtagan).
+6. Mijozning xarakteri yoki muhim e'tirozlari.
+
+Suhbat tarixi:
+{history_text}
+
+Xulosa (O'zbek tilida, profesional va lo'nda):
+"""
+        try:
+            response = await self.safe_ai_call(contents=[{"role": "user", "parts": [{"text": prompt}]}], tools=None)
+            if response and response.text:
+                return response.text.strip()
+        except Exception as e:
+            logger.error(f"[{self.agent_id}] Gemini summarization API error: {e}")
+        return None
 
     def get_session_history(self, user_id: int) -> List[Dict[str, Any]]:
         return self.memories.get(user_id, [])
