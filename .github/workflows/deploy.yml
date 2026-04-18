@@ -66,27 +66,13 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Build and push container
+      - name: Build and deploy via Cloud Build
         run: |
           gcloud builds submit \
+            --config=cloudbuild.yaml \
             --suppress-logs \
             --gcs-log-dir="${{ env.CLOUD_BUILD_LOG_DIR }}" \
-            --tag "gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
             .
-
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy "${{ env.SERVICE_NAME }}" \
-            --image "gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
-            --platform managed \
-            --region "${{ env.REGION }}" \
-            --allow-unauthenticated \
-            --memory 2Gi \
-            --cpu 2 \
-            --timeout 3600 \
-            --max-instances 3 \
-            --set-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production" \
-            --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest"
 
       - name: Verify deployment
         run: |
