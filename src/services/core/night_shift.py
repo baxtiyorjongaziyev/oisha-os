@@ -10,6 +10,7 @@ from src.services.core.crm_service import CRMService
 from src.agents.researcher_agent import ResearcherAgent
 from src.services.debug.google_service import GoogleService
 from src.services.core.airtable_sync import AirtableSync
+from src.services.core.historical_sync import HistoricalSyncService
 
 logger = logging.getLogger("NightShift")
 
@@ -50,6 +51,15 @@ class NightShiftService:
                 now = datetime.datetime.now()
                 # 2 daqiqalik oyna: soat 01:00:00–01:01:59 oralig'ida bir marta ishlaydi (o'tkazib yubormaslik)
                 slot_ok = lambda h, m: now.hour == h and m <= now.minute < m + 2
+
+                # 00:00 - Historical Backlog Sync (1 Year History)
+                if slot_ok(0, 0) and self._should_run_once_today("history_sync", now):
+                    from src.api_server import add_activity
+                    add_activity("🚀 Historical Sync boshlandi", "1 yillik yozishmalar tahlil qilinmoqda...", "info")
+                    if self.bot:
+                        sync_service = HistoricalSyncService(self.db, self.bot)
+                        asyncio.create_task(sync_service.start_backlog_sync(days=365))
+                    await asyncio.sleep(70)
 
                 # 01:00 - CRM Hygiene (Deduplication & Sync)
                 if slot_ok(1, 0) and self._should_run_once_today("hygiene", now):
