@@ -2,14 +2,14 @@
 Unit tests for Database operations.
 Tests: Connection pooling, CRUD operations, index optimization.
 """
-import pytest
+import pytest # type: ignore
 import asyncio
 import os
 import tempfile
 import sys
 from unittest.mock import patch, MagicMock, AsyncMock
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
 class TestDatabaseConnection:
@@ -21,7 +21,7 @@ class TestDatabaseConnection:
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             db_path = f.name
         
-        from database import Database
+        from src.database import Database
         db = Database(db_path)
         await db.init_db()
         
@@ -113,7 +113,7 @@ class TestDatabaseIndexes:
             db_path = f.name
         
         try:
-            from database import Database
+            from src.database import Database
             db = Database(db_path)
             await db.init_db()
             
@@ -150,7 +150,7 @@ class TestDatabaseErrorHandling:
     @pytest.mark.asyncio
     async def test_specific_exceptions_caught(self):
         """Test that specific exceptions are caught, not bare except."""
-        import aiosqlite
+        import aiosqlite # type: ignore
         
         # The database.py should use specific exceptions
         db_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'database.py')
