@@ -486,8 +486,19 @@ class EnterpriseReporter:
             if not missions:
                 report.append("  ▫️ Bugun yangi lidlar yo'q. Eski loyihalar ustida ishlang.")
             else:
-                for i, m in enumerate(missions, 1):
-                    report.append(f"  {i}. <a href='{m['link']}'>{m['lead_name']}</a> — {m['mission']}")
+                # Voronkalarni guruhlash (Refined with Role logic)
+                hunters = [m for m in missions if m.get('role') == "HUNTER" or any(x in (m.get('pipeline') or "").lower() for x in ["hunter", "so'rov", "qual"])]
+                setters = [m for m in missions if m not in hunters]
+
+                if hunters:
+                    report.append("  🏹 <b>HUNTER MISSIONS:</b>")
+                    for i, m in enumerate(hunters, 1):
+                        report.append(f"    {i}. {m['lead_name']} — {m['mission']} <a href='{m['link']}'>[CRM]</a>")
+                
+                if setters:
+                    report.append("  🎯 <b>SETTER / CLOSER MISSIONS:</b>")
+                    for i, m in enumerate(setters, 1):
+                        report.append(f"    {i}. {m['lead_name']} — {m['mission']} <a href='{m['link']}'>[CRM]</a>")
     async def generate_plan_fact_report(self) -> str:
         """Kechki 'Plan-Fakt' hisoboti."""
         today = get_local_now().strftime('%Y-%m-%d')

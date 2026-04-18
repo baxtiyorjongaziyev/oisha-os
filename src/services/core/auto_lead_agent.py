@@ -18,6 +18,24 @@ class AutoLeadAgent:
         self.client = genai.Client(api_key=api_key)
         self.model_name = "gemini-2.0-flash"
 
+    async def qualify_chat(self, chat_text: str) -> tuple[bool, Dict[str, Any]]:
+        """
+        Backward compatible wrapper for extract_lead_info.
+        Returns:
+            (is_lead, lead_details_dict)
+        """
+        user_profile = {"source": "Chat History Analysis"}
+        res = await self.extract_lead_info(chat_text, user_profile)
+        if not res:
+            return False, {}
+        
+        is_lead = res.get("is_lead", False)
+        # Add summary field if missing for scraper compatibility
+        if "summary" not in res:
+            res["summary"] = f"Intent: {res.get('intent_category')}. Needs: {res.get('needs', 'N/A')}"
+            
+        return is_lead, res
+
     async def extract_lead_info(self, message_text: str, user_profile: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Parses the message and user profile to extract structured lead data.
@@ -50,11 +68,14 @@ class AutoLeadAgent:
           "brand_name": string, // Brend nomi / Kompaniya nomi
           "business": string,  // Umumiy biznes ma'lumoti
           "needs": string,     // Mijozning ehtiyoji
+          "summary": string,   // Qisqa tahlil (menejer uchun)
+          "coaching_tip": string, // Sotuv menejeriga tavsiya: mijoz bilan qanday gaplashish, nimalarga e'tibor berish kerak (Metasell-style coach tip)
           "confidence_score": number
         }
         
         MUHIM (Filtrni yanada aqlli qiling): 
         - Agar foydalanuvchi "Logo", "Branding", "Sayt", "Dizayn", "Marketing", "Random Coffee" yoki "Uchrashuv" so'zlarini aytgan bo'lsa, uni ALBATTA HOT_LEAD, POTENTIAL yoki NETWORKING deb hisoblang.
+        - "coaching_tip" maydonida o'zbek tilida sotuv menejeriga juda qisqa va kreativ maslahat bering (masalan: "Mijozni natijaga qiziqtiring", "Portfolioni darhol tashlamang, avval ehtiyojini aniqlang").
         - "JonBranding" yoki "Oisha" jamoasiga tegishli xabarlarni TEAM qiling.
         
         Faqat JSON qaytaring.

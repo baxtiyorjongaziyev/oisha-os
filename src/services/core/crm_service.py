@@ -21,13 +21,29 @@ class CRMService:
     async def sync_lead(self, user_id: int, name: str, phone: str, **kwargs):
         """Leadni AmoCRM va Airtable-da sinxronizatsiya qilish."""
         try:
-            # 1. AmoCRM lead yaratish
-            self.amocrm.create_lead(name, phone, **kwargs)
+            note = kwargs.get("note")
+            lead_id = None
+
+            if hasattr(self.amocrm, "create_lead"):
+                lead_id = await self.amocrm.create_lead(
+                    name=name,
+                    phone=phone,
+                    note=note,
+                    price=kwargs.get("price", 0),
+                    extra_fields=kwargs.get("extra_fields"),
+                )
+            elif hasattr(self.amocrm, "ensure_lead"):
+                lead_id = await self.amocrm.ensure_lead(name=name, phone=phone, note=note)
+            else:
+                raise AttributeError("AmoCRM client does not expose a supported lead creation method")
+
             # 2. Airtable-da qayd etish (ixtiyoriy)
             # self.airtable.add_record(...)
-            logger.info(f"[CRM_SERVICE] Lead synced for {name}")
+            logger.info(f"[CRM_SERVICE] Lead synced for {name} (lead_id={lead_id})")
+            return {"success": bool(lead_id), "lead_id": lead_id}
         except Exception as e:
             logger.error(f"[CRM_SERVICE ERROR] {e}")
+            return {"success": False, "error": str(e)}
 
     async def get_user_context(self, phone: str) -> str:
         """User haqida AmoCRM'dan kontekst olish."""
