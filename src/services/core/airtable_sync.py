@@ -20,6 +20,7 @@ class AirtableSync:
         "payment_status": ["To'lov statusi", "To'lovlar holati"],
         "paid_usd": ["Jami to'langan USD"],
         "remaining_usd": ["Qoldiq to'lov $"],
+        "summary": ["Xulosa", "Summary", "Chat Summary"],
     }
 
     PROJECT_WRITE_ALIASES = {
@@ -30,6 +31,8 @@ class AirtableSync:
         "Budget": "Kelishgan narx",
         "Jami loyiha narxi (UZS)": "Kelishgan narx",
         "Created At": "Start sana",
+        "Summary": "Xulosa",
+        "Chat Summary": "Xulosa",
     }
 
     # Writable fields in the current "Loyihalar" schema.
@@ -46,6 +49,7 @@ class AirtableSync:
         "Xizmat turi",
         "PM",
         "Manager",
+        "Xulosa",
     }
 
     DONE_STAGES = [
@@ -212,16 +216,20 @@ class AirtableSync:
         """Loyihaning bosqichini yangilash (Record ID orqali)."""
         return self.update_project_fields(record_id, {"Loyiha bosqichi": next_stage})
 
-    def update_project_stage_by_name(self, project_name: str, next_stage: str):
-        """Loyihaning bosqichini nomi orqali topib yangilash."""
+    def update_project_fields_by_name(self, project_name: str, fields: dict):
+        """Loyihaning maydonlarini nomi orqali topib yangilash."""
         projects = self.get_projects()
         for project in projects:
-            fields = project.get("fields", {})
-            if self._get_field(fields, "project_name") == project_name:
-                return self.update_project_stage(project.get("id"), next_stage)
+            p_fields = project.get("fields", {})
+            if self._get_field(p_fields, "project_name") == project_name:
+                return self.update_project_fields(project.get("id"), fields)
 
         logger.warning(f"[AIRTABLE] Loyiha topilmadi: {project_name}")
         return False
+
+    def update_project_stage_by_name(self, project_name: str, next_stage: str):
+        """Loyihaning bosqichini nomi orqali topib yangilash."""
+        return self.update_project_fields_by_name(project_name, {"Loyiha bosqichi": next_stage})
 
     def get_upcoming_deadlines(self, hours=72):
         """Yaqin 72 soat ichida muddati tugaydigan loyihalarni topish."""

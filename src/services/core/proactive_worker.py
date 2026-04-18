@@ -20,6 +20,9 @@ from src.services.core.client_journey_playbook import (
 from src.services.core.tool_adapters import build_default_tool_registry
 from src.services.core.escalation_agent import EscalationAgent
 from src.services.core.persona_hub import get_persona
+from src.services.core.gdrive import GoogleDriveSync
+from src.services.core.crm_file_offloader import CRMFileOffloader
+from src.settings import settings
 from telegram import Bot
 
 # Setup logging
@@ -358,6 +361,10 @@ class ProactiveWorker:
     def __init__(self, bot, crm):
         self.bot = bot
         self.crm = crm
+        self.db = Database()
+        # Initialize offloader
+        gdrive = GoogleDriveSync(settings.GSHEET_CREDS_FILE)
+        self.crm_offloader = CRMFileOffloader(crm.amocrm, gdrive)
 
     async def _check_amocrm_stagnation(self):
         """AmoCRM stagnatsiya siyosatini tekshirish."""
@@ -398,6 +405,33 @@ class ProactiveWorker:
                 logger.info("[PROACTIVE] Daily sales report sent successfully.")
             except Exception as e:
                 logger.error(f"[PROACTIVE] Error sending daily sales report: {e}")
+
+    async def _run_crm_offload(self):
+        """AmoCRM diskini tozalash (offload) jarayonini boshqarish."""
+        now = get_local_now()
+        # Har kuni soat 03:00 da ishga tushirish
+        if now.hour == 3 and now.minute == 0:
+            today = now.strftime('%Y-%m-%d')
+            if await self.db.is_job_run("crm_file_offload", today):
+                return
+
+            logger.info("[PROACTIVE] Start AmoCRM File Offload process...")
+            try:
+                # Haqiqiy o'chirish bilan ishga tushirish
+                stats = await self.crm_offloader.run(dry_run=False)
+                
+                if stats and stats.get("offloaded", 0) > 0:
+                    msg = (
+                        f"🧹 **AMO_CRM STORAGE CLEANUP**\n\n"
+                        f"✅ Ko'chirilgan fayllar: {stats['offloaded']} ta\n"
+                        f"📂 Barcha fayllar Google Drive-ga xavfsiz o'tkazildi.\n"
+                        f"📊 Xatolar: {stats['errors']}"
+                    )
+                    await self.bot.send_message(config.CRM_GROUP_ID, msg, parse_mode="Markdown")
+                
+                await self.db.mark_job_run("crm_file_offload", today)
+            except Exception as e:
+                logger.error(f"[PROACTIVE] CRM Offload error: {e}")
 
 async def send_proactive_followups():
     """Bazadagi idle foydalanuvchilarni topadi va AI tomonidan yaratilgan follow-up yuboradi."""
@@ -1840,11 +1874,36 @@ async def check_client_journey_excellence():
         len(project_signals),
     )
     return True
+    
+async def run_crm_offload():
+    """CLI orqali AmoCRM fayllarini offload qilish."""
+    import src.config as config
+    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.gdrive import GoogleDriveSync
+    from src.services.core.crm_file_offloader import CRMFileOffloader
+    from src.settings import settings
+
+    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+    if not bot_token:
+        logger.error("BOT_TOKEN not found.")
+        return
+
+    amo = AmoCRMSync(
+        config.AMOCRM_SUBDOMAIN,
+        config.AMOCRM_CLIENT_ID,
+        config.AMOCRM_CLIENT_SECRET,
+        config.AMOCRM_REDIRECT_URL,
+    )
+    gdrive = GoogleDriveSync(settings.GSHEET_CREDS_FILE)
+    offloader = CRMFileOffloader(amo, gdrive)
+    
+    # CLI orqali chaqirilganda dry_run=False bo'lishi mumkin (manual trigger)
+    await offloader.run(dry_run=False)
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Proactive AI Worker")
-    parser.add_argument("--job", choices=["followup", "report", "briefing", "stagnation", "deadlines", "distribute", "fact", "lunch", "journey"], default="followup", help="Kaysi vazifani bajarish kerak?")
+    parser.add_argument("--job", choices=["followup", "report", "briefing", "stagnation", "deadlines", "distribute", "fact", "lunch", "journey", "offload"], default="followup", help="Kaysi vazifani bajarish kerak?")
     args = parser.parse_args()
     
     if args.job == "followup":
@@ -1865,3 +1924,5 @@ if __name__ == "__main__":
         asyncio.run(send_lunch_reminder())
     elif args.job == "journey":
         asyncio.run(check_client_journey_excellence())
+    elif args.job == "offload":
+        asyncio.run(run_crm_offload())
