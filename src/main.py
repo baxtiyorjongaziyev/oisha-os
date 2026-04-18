@@ -59,6 +59,8 @@ from src.services.core.folder_manager import FolderManager
 from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
+from src.services.core.historical_sync import HistoricalSyncService
+
 
 # Global Managers
 folder_manager: Optional[FolderManager] = None
@@ -500,7 +502,10 @@ async def global_phone_lookup(phone: str) -> Optional[Dict[str, Any]]:
             )
             
             # 4. Kontaktni darhol o'chirib tashlaymiz
-            await client(functions.contacts.DeleteContactsRequest(id=[user.id]))
+            try:
+                await client(functions.contacts.DeleteContactsRequest(id=[user.id]))
+            except:
+                pass
             return user_data
         
         return None
@@ -579,6 +584,11 @@ async def background_monitor_task() -> None:
             if now.hour == 17 and now.minute == 0:
                 # Bir marta yuborishni tekshirish
                 today_str = now.strftime('%Y-%m-%d')
+
+            # 3. Shaxsiy eslatmalar (17:00 da - faqat bir marta)
+            if now.hour == 17 and now.minute == 0:
+                # Bir marta yuborishni tekshirish
+                today_str = now.strftime('%Y-%m-%d')
                 job_key = f"overdue_nudges_{today_str}"
                 if not hasattr(background_monitor_task, '_sent_jobs'):
                     background_monitor_task._sent_jobs = set()
@@ -596,6 +606,14 @@ async def background_monitor_task() -> None:
                 if job_key not in background_monitor_task._sent_jobs:
                     await notify_admin("👸 **Oisha OS: Tizim nazoratda**\nAmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda.")
                     background_monitor_task._sent_jobs.add(job_key)
+
+            # 5. [ALWAYS ONLINE] Keep-alive pulse
+            if client:
+                try:
+                    await client(functions.account.UpdateStatusRequest(offline=False))
+                    logger.debug("[HEARTBEAT] Account status set to ONLINE")
+                except Exception as e:
+                    logger.warning(f"[HEARTBEAT] Failed to update status: {e}")
 
             # Intervalni 5 daqiqaga tushirdik (300 soniya)
             await asyncio.sleep(300)
@@ -620,168 +638,9 @@ async def self_command_handler(event):
     elif cmd.startswith('/status'):
         await event.respond("🟢 **TIZIM HOLATI:** Active (GCP Master)")
 
-async def shadow_advisor_handler(event):
-    """Xususiy suhbatlarni (DM) tahlil qilib, strategik maslahat va sync qilish."""
-    global client, msg_controller, advisor_agent, session_manager, chat_bridge, auto_lead_agent
-    if not event.is_private: return
-    
-    sender = await event.get_sender()
-    sender_name = getattr(sender, 'first_name', 'Mijoz')
-    chat_id = event.chat_id
-    
-    # 1. Komandalar (Basic)
-    cmd = event.message.text.lower() if event.message.text else ""
-    if cmd.startswith('/find'):
-        parts = cmd.split()
-        if len(parts) > 1:
-            query_phone = parts[1]
-            found = await msg_controller.db.get_user_by_phone_full(query_phone)
-            if found:
-                await event.respond(f"🔍 Topildi: {found.get('first_name')} (tg://user?id={found.get('user_id')})")
-            else:
-                await event.respond("❌ Topilmadi.")
-        return
-
-    # 2. AI Advice & Sync Context
-    history = []
-    async for msg in client.iter_messages(chat_id, limit=5):
-        msg_text = getattr(msg, "text", None) or getattr(msg, "raw_text", None) or ""
-        if not msg_text:
-            continue
-        is_outgoing = bool(getattr(msg, "out", False))
-        speaker = "Siz" if is_outgoing else "Mijoz"
-        history.append(f"{speaker}: {msg_text}")
-    history_context = "\n".join(history)
-
-    # 2.1 AI Tahlili (Advice)
-    advice = await advisor_agent.analyze_and_advise(
-        chat_id=chat_id,
-        message_text=event.message.text,
-        history_context=history_context,
-        sender_name=sender_name
-    )
-
-    # 2.2 Enterprise Sync & Chat Bridge
-    phone = getattr(sender, 'phone', 'Raqam yo\'q')
-    session_manager.add_message(chat_id, sender_name, event.message.text, phone)
-    
-    # Real-time sync for Chat Widget / AmoCRM
-    await chat_bridge.send_to_amocrm(
-        user_id=chat_id,
-        user_name=sender_name,
-        text=event.message.text,
-        message_id=str(event.id)
-    )
-
-    # 2.5 Avtomatik AmoCRM Sync (Agar yangi mijoz bo'lsa)
-    if not await msg_controller.db.is_crm_synced(chat_id):
-        first_name = getattr(sender, 'first_name', 'Mijoz')
-        last_name = getattr(sender, 'last_name', '')
-        full_name = f"{first_name} {last_name}".strip()
-        
-        # BLACKLIST CHECK (Name)
-        if any(name.lower() in full_name.lower() for name in settings.EXCLUDED_NAMES):
-            logger.info(f"[AUTO_CRM] SKIPPED (Blacklisted Name): {full_name}")
-        else:
-            user_profile = {
-                "id": chat_id,
-                "first_name": first_name,
-                "username": getattr(sender, 'username', 'yoq')
-            }
-            lead_data = await auto_lead_agent.extract_lead_info(event.message.text, user_profile)
-            
-            if lead_data and lead_data.get("is_lead"):
-                # DESIGNER/ROLE CHECK
-                business_type = (lead_data.get('business') or '').lower()
-                needs = (lead_data.get('needs') or '').lower()
-                if any(role.lower() in business_type or role.lower() in needs for role in settings.EXCLUDED_ROLES):
-                    logger.info(f"[AUTO_CRM] SKIPPED (Blacklisted Role): {full_name} - {business_type}")
-                else:
-                    logger.info(f"[AUTO_CRM] New lead detected: {full_name}")
-                    
-                    # Official Telegram data: Sender phone
-                    tg_phone = getattr(sender, 'phone', None)
-                    
-                    # PRIORITY: 1. TG Profile, 2. AI Extract
-                    phone = tg_phone or lead_data.get("phone")
-                    
-                    # USE UNIFIED NAMING LOGIC
-                    is_tn5_lead = (chat_id == settings.TN5_GROUP_ID)
-                    clean_name = lead_scraper.format_contact_name(first_name, last_name, lead_data=lead_data, is_tn5=is_tn5_lead)
-                    
-                    note_text = f"Suhbatdan auto-extract:\nBiznes: {lead_data.get('business')}\nEhtiyoj: {lead_data.get('needs')}"
-                    
-                    if not tg_phone and not lead_data.get("phone"):
-                        note_text += "\n⚠️ [RAQAM YO'Q] Profil va xabarda raqam topilmadi."
-
-                    # DEDUPLICATION CHECK
-                    existing_contact = await msg_controller.crm.amocrm.get_contact_by_phone(phone) if phone and phone != "Raqam yo'q" else None
-                    
-                    if existing_contact:
-                        logger.info(f"[AUTO_CRM] DEDUPE: Contact {clean_name} ({phone}) exists. Adding note.")
-                        await msg_controller.crm.amocrm.add_contact_note(existing_contact['id'], f"Yangi live-murojaat:\n{note_text}")
-                        # Notification to owner about repeat inquiry
-                        await client.send_message(
-                            'me', 
-                            f"📣 **Takroriy mijoz:** {clean_name} ({phone}) yana yozyapti.\nAmoCRM-ga yangi izoh qo'shildi."
-                        )
-                    else:
-                        success = await msg_controller.crm.sync_lead(
-                            user_id=chat_id,
-                            name=clean_name,
-                            phone=phone or "Raqam yo'q",
-                            note=note_text
-                        )
-                        if success:
-                            # [INTELLIGENCE] Enrich profile and provide expert advice
-                             await admin_bot.enrich_lead_profile(chat_id, sender, lead_data)
-                             logger.info(f"[AUTO_CRM] Lead synced and enriched: {clean_name}")
-                        
-                    # Final DB update with all extracted data
-                    await msg_controller.db.upsert_user(
-                        chat_id, 
-                        first_name, 
-                        last_name=last_name, 
-                        phone=phone,
-                        region=lead_data.get('city'),
-                        business_type=lead_data.get('activity'),
-                        brand_name=lead_data.get('brand_name'),
-                        intent=lead_data.get('intent_category')
-                    )
-                    await msg_controller.db.mark_crm_synced(chat_id)
-
-    # 3. Maslahatni yuborish (Advice logic)
-    if advice and advisor_agent.should_notify(chat_id, event.id, advice):
-        logger.info(f"[ADVISOR] Sending strategic tip for chat {chat_id}")
-        header = f"👸 **Oisha-OS Strategik Maslahati** (Suhbat: {sender_name})\n\n"
-        
-        # [GOD MODE] Visibility: Notify via Admin Bot if possible
-        notification_text = header + advice
-        if admin_bot:
-            await admin_bot.notify_lead(notification_text)
-        else:
-            await client.send_message('me', notification_text)
-        
-        # 4. Action Propose (Agar xabarda [TAG] bo'lsa)
-        if "[" in advice and "]" in advice:
-             await action_parser.parse_and_execute(
-                reply_text=advice,
-                sender_id=event.sender_id,
-                sender_name=sender_name,
-                username=getattr(sender, 'username', 'yoq'),
-                saved_phone=None,
-                context={'chat_id': 'me'},
-                is_business=False
-              )
-
-
-async def activity_monitor_handler(event):
-    """Foydalanuvchining (Baxtiyor aka) chiquvchi harakatlarini loglash (Audit uchun)."""
-    # Uzimizning xabarlarimizni log qilamiz
-    await activity_monitor.log_event(event)
-
 async def handle_new_message(event):
     """Barcha kiruvchi xabarlarni xavfsizlik va aqllilik bilan tahlil qilish."""
+
     
     # 0. Botning o'z ID sini olish (Sikl oldini olish uchun)
     me = await client.get_me()
@@ -880,6 +739,24 @@ async def handle_new_message(event):
                 await event.respond(audit_report)
             return
 
+        if event.message.text.startswith('/find '):
+            phone = event.message.text.split(' ', 1)[1].strip()
+            await event.respond(f"🔍 **{phone}** raqamini butun Telegramdan qidiryapman... 👸🛡️")
+            user_data = await global_phone_lookup(phone)
+            if user_data:
+                username = f"@{user_data['username']}" if user_data['username'] else "Mavjud emas"
+                response = (
+                    f"✅ **Foydalanuvchi topildi!**\n\n"
+                    f"👤 **Ism:** {user_data['first_name']} {user_data['last_name'] or ''}\n"
+                    f"🆔 **ID:** `{user_data['user_id']}`\n"
+                    f"🔗 **Username:** {username}\n"
+                    f"📱 **Raqam:** `{phone}`"
+                )
+                await event.respond(response)
+            else:
+                await event.respond("❌ **Afsus, foydalanuvchi topilmadi.**\n(Ehtimol, foydalanuvchi o'z maxfiylik sozlamalarida raqam orqali qidiruvni cheklagan bo'lishi mumkin).")
+            return
+
         if event.message.text == '/sync_today':
             await event.respond("👸 Oisha-OS: Kecha va bugungi shaxsiy suhbatlarni (DM) skanerlashni boshladim... 👸🛡️")
             # Run retro sync in background
@@ -888,6 +765,12 @@ async def handle_new_message(event):
                 limit=100
             ))
             return
+
+            if event.message.text == '/sync_history':
+                await event.respond("👸 Oisha-OS: O'tgan 1 yillik shaxsiy yozishmalarni (DM) bazaga kiritishni boshladim... 👸🛡️\nBu biroz vaqt olishi mumkin, orqa fonda xavfsiz ishlayman.")
+                sync_service = HistoricalSyncService(msg_controller.db, client)
+                asyncio.create_task(sync_service.start_backlog_sync(days=365))
+                return
     
     # 2. Xabar matnini olish
     message_text = event.message.message
@@ -900,6 +783,10 @@ async def handle_new_message(event):
     if event.is_private and not event.out and message_text:
         try:
             await msg_controller.db.log_message(sender.id, message_text, is_ai=False)
+            
+            # [AUTONOMOUS ADVISOR] Real-time Analysis
+            asyncio.create_task(run_autonomous_advice(chat_id, sender_name, message_text))
+            
         except Exception as log_ex:
             logger.error(f"[USERBOT] Failed to log incoming message: {log_ex}")
 
@@ -915,8 +802,16 @@ async def handle_new_message(event):
                 asyncio.create_task(folder_manager.assign_to_folder(sender.id, intent))
             
             if lead_data.get("is_lead") and not await msg_controller.db.is_crm_synced(event.sender_id):
-                logger.info(f"✨ [ELITE INTAKE] Yangi lid aniqlandi: {sender_name} (Intent: {intent})")
+                logger.info(f"[ELITE INTAKE] Yangi lid aniqlandi: {sender_name} (Intent: {intent})")
                 
+                # Intent -> O'zbek label
+                intent_label_map = {
+                    "HOT_LEAD":   "🔥 Qaynoq mijoz",
+                    "WARM_LEAD":  "♨️ Issiq mijoz",
+                    "POTENTIAL":  "🌱 Potensial mijoz",
+                }
+                intent_label = intent_label_map.get(intent, f"🔵 {intent}")
+
                 # [GOD MODE] Save intent and data to DB
                 await msg_controller.db.upsert_user(
                     sender.id, 
@@ -940,12 +835,13 @@ async def handle_new_message(event):
                     await admin_bot.send_draft_for_approval(sender.id, sender_name, draft)
 
                 # AmoCRM-da yaratish (1.3)
-                phone = lead_data.get('phone') or getattr(sender, 'phone', 'Raqam yo\'q')
+                phone = lead_data.get('phone') or getattr(sender, 'phone', "Raqam yo'q")
+                username_str = f"@{getattr(sender, 'username', None)}" if getattr(sender, 'username', None) else "Username yo'q"
                 crm_sync = await msg_controller.crm.sync_lead(
                     user_id=sender.id,
                     name=f"DM Lead: {sender_name}",
                     phone=phone,
-                    note=f"AI Tahlil: {lead_data.get('needs')}\nIntent: {intent}\nUser: @{getattr(sender, 'username', 'N/A')}"
+                    note=f"AI Tahlil: {lead_data.get('needs')}\nIntent: {intent}\nUser: {username_str}"
                 )
                 if crm_sync.get("success"):
                     await msg_controller.db.set_crm_synced(event.sender_id)
@@ -954,9 +850,33 @@ async def handle_new_message(event):
                 await welcome_manager.send_welcome(event.sender_id)
                 
                 # Admin-ni ogohlantirish
+                sync_line = "✅ AmoCRM-ga saqlandi." if crm_sync.get("success") else f"⚠️ CRM sync xato: {crm_sync.get('error', 'nomaʼlum')}"
+                lead_notify_text = (
+                    f"👸 **Yangi Lid aniqlandi!**\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 **Ism:** {sender_name}\n"
+                    f"🔗 **Username:** {username_str}\n"
+                    f"📞 **Raqam:** {phone}\n"
+                    f"🎯 **Holat:** {intent_label}\n"
+                    f"💬 **Xabar:** {(message_text or '')[:200]}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"{sync_line}"
+                )
                 if admin_bot:
-                    sync_line = "✅ AmoCRM-ga saqlandi." if crm_sync.get("success") else f"⚠️ CRM sync xato: {crm_sync.get('error', 'nomaʼlum')}"
-                    await admin_bot.notify_lead(f"👸 **Yangi Lid (DM)!**\n👤 {sender_name}\n🎯 Maqsad: {intent}\n📞 {phone}\n{sync_line}")
+                    await admin_bot.notify_lead(lead_notify_text)
+
+                # [GOD MODE] HOT_LEAD bo'lsa CRM guruhiga ham yuborish
+                if intent == 'HOT_LEAD' and bot_client and TN5_GROUP_ID:
+                    try:
+                        await bot_client.send_message(
+                            TN5_GROUP_ID,
+                            lead_notify_text,
+                            parse_mode="md"
+                        )
+                        logger.info(f"[HOT LEAD] CRM guruhiga yuborildi: {sender_name}")
+                    except Exception as crm_notif_err:
+                        logger.warning(f"[HOT LEAD] CRM guruh notif xato: {crm_notif_err}")
+
 
     # [GOD MODE] Multi-Modal (Voice Note) Handling
     if event.is_private and not event.out and event.message.voice and voice_processor:
