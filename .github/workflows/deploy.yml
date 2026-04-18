@@ -68,9 +68,14 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: 🏗️ Build & Push Container
-        run: |
-          gcloud builds submit --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+      - name: 🐳 Docker Auth
+        run: gcloud auth configure-docker gcr.io --quiet
+
+      - name: 🏗️ Build Container
+        run: docker build -t gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+
+      - name: 📤 Push Container
+        run: docker push gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
       - name: 🚀 Deploy to Cloud Run
         run: |
