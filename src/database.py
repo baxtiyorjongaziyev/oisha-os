@@ -141,6 +141,20 @@ class Database:
             """)
             await conn.execute("CREATE TABLE IF NOT EXISTS chat_summaries (user_id INTEGER PRIMARY KEY, summary TEXT, updated_at DATETIME)")
             await conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_intelligence (
+                    user_id INTEGER PRIMARY KEY,
+                    psychotype TEXT,
+                    pain_points TEXT,
+                    objections_history TEXT,
+                    buying_drivers TEXT,
+                    communication_style TEXT,
+                    negotiation_strategy TEXT,
+                    facts_json TEXT,
+                    updated_at DATETIME
+                )
+            """)
+            
+            await conn.execute("""
                 CREATE TABLE IF NOT EXISTS department_targets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     dept_name TEXT,
@@ -246,6 +260,27 @@ class Database:
                 (now, now, user_id),
             )
         await conn.commit()
+
+    async def log_messages_batch(self, messages_data: List[tuple]):
+        """
+        Xabarlarni ommaviy saqlash (Performance optimization for backlog sync).
+        messages_data: List of (user_id, message_text, is_ai_reply, created_at)
+        """
+        if not messages_data: return
+        conn = await self.get_connection()
+        await conn.executemany(
+            "INSERT INTO message_logs (user_id, message_text, is_ai_reply, created_at) VALUES (?, ?, ?, ?)",
+            messages_data
+        )
+        await conn.commit()
+
+    async def get_sync_status(self, key: str) -> Optional[str]:
+        """Sinxronizatsiya holatini olish."""
+        return await self.get_state(f"sync_status_{key}")
+
+    async def set_sync_status(self, key: str, value: str):
+        """Sinxronizatsiya holatini saqlash."""
+        await self.set_state(f"sync_status_{key}", value)
 
     async def get_user_by_phone(self, phone: str) -> Optional[Dict[str, Any]]:
         if not phone: return None
@@ -726,3 +761,86 @@ class Database:
         )
         await conn.commit()
         return True
+
+    async def get_chat_history_today(self, chat_id: int) -> str:
+        """Ma'lum bir chat uchun bugungi suhbat tarixini matn ko'rinishida olish."""
+        conn = await self.get_connection()
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        async with conn.execute(
+            """
+            SELECT is_ai_reply, text FROM messages 
+            WHERE user_id = ? AND date(created_at) = ?
+            ORDER BY created_at ASC
+            """, (chat_id, today)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            history = []
+            for is_ai, text in rows:
+                speaker = "AI" if is_ai else "Mijoz"
+                history.append(f"{speaker}: {text}")
+            return "\n".join(history)
+
+    async def get_user_intelligence(self, user_id: int) -> Dict[str, Any]:
+
+        """Foydalanuvchi haqidagi chuqur tahliliy ma'lumotlarni olish."""
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT psychotype, pain_points, objections_history, buying_drivers, communication_style, negotiation_strategy, facts_json FROM user_intelligence WHERE user_id = ?",
+            (user_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return {
+                    "psychotype": row[0],
+                    "pain_points": row[1],
+                    "objections_history": row[2],
+                    "buying_drivers": row[3],
+                    "communication_style": row[4],
+                    "negotiation_strategy": row[5],
+                    "facts_json": json.loads(row[6]) if row[6] else {}
+                }
+            return {}
+
+    async def upsert_user_intelligence(self, user_id: int, intel_data: Dict[str, Any]):
+        """Foydalanuvchi haqidagi chuqur ma'lumotlarni yangilash yoki qo'shish."""
+        conn = await self.get_connection()
+        now = datetime.datetime.now().isoformat()
+        
+        # Get existing facts if any
+        existing = await self.get_user_intelligence(user_id)
+        facts = existing.get("facts_json", {})
+        if "facts" in intel_data:
+            facts.update(intel_data["facts"])
+
+        await conn.execute(
+            """
+            INSERT INTO user_intelligence (
+                user_id, psychotype, pain_points, objections_history, 
+                buying_drivers, communication_style, negotiation_strategy, 
+                facts_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                psychotype = COALESCE(excluded.psychotype, user_intelligence.psychotype),
+                pain_points = COALESCE(excluded.pain_points, user_intelligence.pain_points),
+                objections_history = COALESCE(excluded.objections_history, user_intelligence.objections_history),
+                buying_drivers = COALESCE(excluded.buying_drivers, user_intelligence.buying_drivers),
+                communication_style = COALESCE(excluded.communication_style, user_intelligence.communication_style),
+                negotiation_strategy = COALESCE(excluded.negotiation_strategy, user_intelligence.negotiation_strategy),
+                facts_json = excluded.facts_json,
+                updated_at = excluded.updated_at
+            """,
+            (
+                user_id,
+                intel_data.get("psychotype"),
+                intel_data.get("pain_points"),
+                intel_data.get("objections_history"),
+                intel_data.get("buying_drivers"),
+                intel_data.get("communication_style"),
+                intel_data.get("negotiation_strategy"),
+                json.dumps(facts),
+                now
+            )
+        )
+        await conn.commit()
+        return True
+
