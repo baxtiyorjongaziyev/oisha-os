@@ -1,9 +1,10 @@
 import asyncio
 import uvicorn
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import os
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
 import queue
@@ -56,11 +57,99 @@ async def root_status():
     response.update(cached_status)
     return response
 
+
+@app.get("/healthz")
+async def liveness_probe():
+    """Cloud Run liveness probe.
+
+    Returns 200 when:
+      - Event loop heartbeat is fresh (< _heartbeat_stale_seconds old), AND
+      - Userbot client is connected (if present), AND
+      - DB responds to a trivial query (if present).
+
+    Returns 503 otherwise — Cloud Run livenessProbe will restart the container.
+
+    Grace period: for the first 60s after boot we return 200 to avoid
+    false-positive restarts while the loop finishes wiring up.
+    """
+    now = datetime.now(timezone.utc)
+    boot_age = (now - _boot_at).total_seconds()
+    checks: Dict[str, Any] = {
+        "boot_age_sec": round(boot_age, 1),
+        "heartbeat_age_sec": None,
+        "userbot_connected": None,
+        "db_ok": None,
+    }
+    problems: List[str] = []
+
+    # Heartbeat freshness
+    if _last_heartbeat_at is not None:
+        hb_age = (now - _last_heartbeat_at).total_seconds()
+        checks["heartbeat_age_sec"] = round(hb_age, 1)
+        if hb_age > _heartbeat_stale_seconds:
+            problems.append(f"heartbeat_stale({int(hb_age)}s)")
+    elif boot_age > 60:
+        # Loop should have ticked by now; if not, something is wrong.
+        problems.append("no_heartbeat_ever")
+
+    # Userbot client reachability (best-effort — don't block)
+    if user_client is not None:
+        try:
+            checks["userbot_connected"] = bool(user_client.is_connected())
+            if not checks["userbot_connected"]:
+                problems.append("userbot_disconnected")
+        except Exception as e:  # pragma: no cover - defensive
+            checks["userbot_connected"] = False
+            problems.append(f"userbot_check_error:{type(e).__name__}")
+
+    # DB trivial query
+    if db_instance is not None:
+        try:
+            conn = await db_instance.get_connection()
+            try:
+                cur = await conn.execute("SELECT 1")
+                await cur.fetchone()
+                await cur.close()
+                checks["db_ok"] = True
+            finally:
+                # aiosqlite connections are long-lived via pool; Turso adapter's
+                # close() is a no-op on the client. Don't disconnect.
+                pass
+        except Exception as e:
+            checks["db_ok"] = False
+            problems.append(f"db_error:{type(e).__name__}")
+
+    healthy = (
+        boot_age < 60  # grace period
+        or not problems
+    )
+
+    payload = {
+        "status": "ok" if healthy else "unhealthy",
+        "timestamp": now.isoformat(),
+        "checks": checks,
+        "problems": problems,
+    }
+    return JSONResponse(content=payload, status_code=200 if healthy else 503)
+
 # Global references
 user_client = None
 db_instance = None
 audit_agent = None
 amocrm_instance = None
+
+# [HEALTHZ] Liveness heartbeat — main event loop updates this via mark_heartbeat().
+# Cloud Run liveness probe reads /healthz; if heartbeat is stale, the probe fails
+# and the container is restarted (recovering from event-loop deadlocks).
+_last_heartbeat_at: Optional[datetime] = None
+_boot_at: datetime = datetime.now(timezone.utc)
+_heartbeat_stale_seconds: int = 300  # 5 min: loop silent longer than this => unhealthy
+
+
+def mark_heartbeat() -> None:
+    """Called by the main event loop every ~60s to prove liveness."""
+    global _last_heartbeat_at
+    _last_heartbeat_at = datetime.now(timezone.utc)
 
 # --- COMMAND QUEUE (Shared with Main Thread) ---
 command_queue = queue.Queue()
