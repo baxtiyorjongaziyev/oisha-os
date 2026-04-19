@@ -139,3 +139,12 @@ async def test_database_falls_back_to_sqlite_when_turso_probe_fails(monkeypatch,
         monkeypatch.setattr(database_module.settings, "TURSO_DATABASE_URL", original_url)
         monkeypatch.setattr(database_module.settings, "TURSO_AUTH_TOKEN", original_token)
         await db.close()
+
+
+async def test_api_exposes_health_aliases():
+    from src.api_server import app
+
+    paths = {getattr(route, "path", None) for route in app.routes}
+
+    assert "/health" in paths
+    assert "/healthz" in paths
