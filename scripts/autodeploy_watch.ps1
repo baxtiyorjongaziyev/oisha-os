@@ -2,7 +2,12 @@ param(
     [string]$ProjectRoot = "",
     [int]$QuietSeconds = 12,
     [int]$PollSeconds = 6,
-    [string]$Branch = ""
+    [string]$Branch = "",
+    [string]$GcpProject = "jonbranding-85662071-ea38e",
+    [string]$CloudBuildLogDir = "gs://jonbranding-85662071-ea38e_cloudbuild/logs",
+    [string]$ServiceName = "oisha-master-bot",
+    [string]$Region = "europe-west3",
+    [bool]$RunCloudDeploy = $true
 )
 
 $ErrorActionPreference = "Stop"
@@ -230,6 +235,37 @@ function Invoke-GitSync {
     }
 }
 
+function Invoke-CloudDeploy {
+    if (-not $RunCloudDeploy) {
+        Write-Log "Cloud deploy disabled. Push only mode."
+        return $true
+    }
+
+    Write-Log "☁️ Cloud Build deploy boshlandi."
+    Push-Location $ProjectRoot
+    try {
+        & gcloud builds submit `
+            --project=$GcpProject `
+            --config=cloudbuild.yaml `
+            --gcs-log-dir=$CloudBuildLogDir `
+            --substitutions="_SERVICE_NAME=$ServiceName,_DEPLOY_REGION=$Region" `
+            .
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "✅ Cloud deploy muvaffaqiyatli bo'ldi."
+            return $true
+        }
+
+        Write-Log "⚠️ Cloud deploy failed (Exit Code: $LASTEXITCODE)."
+        return $false
+    } catch {
+        Write-Log "🚨 Cloud deploy crashed: $($_.Exception.Message)"
+        return $false
+    } finally {
+        Pop-Location
+    }
+}
+
 Write-Log "Auto-deploy watcher starting for $ProjectRoot"
 Push-Location $ProjectRoot
 try {
@@ -276,6 +312,7 @@ try {
 
         $successful = Invoke-GitSync -Paths $candidatePaths -TargetBranch $targetBranch
         if ($successful) {
+            Invoke-CloudDeploy | Out-Null
             foreach ($path in $candidatePaths) {
                 $baselineSnapshot[$path] = Get-PathFingerprint -RelativePath $path
             }
