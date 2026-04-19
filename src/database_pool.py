@@ -132,6 +132,8 @@ class ConnectionPool:
         """Initialize Turso connection pool."""
         from src.database import TursoAdapter
         url = os.environ.get("TURSO_DATABASE_URL")
+        logger.info(f"[DB POOL] Connecting to Turso ({url[:15]}...)")
+        
         # Compatibility shim: replace libsql:// with https://
         if url and url.startswith("libsql://"):
             url = url.replace("libsql://", "https://")
