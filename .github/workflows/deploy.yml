@@ -87,7 +87,10 @@ jobs:
             --cpu 2 \
             --timeout 3600 \
             --max-instances 3 \
-            --update-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production,DATABASE_URL=bot_database.db,TURSO_DATABASE_URL=libsql://oisha-os-db-baxtiyorjongaziyev.turso.io,AMOCRM_SUBDOMAIN=jonbrandingagency,AIRTABLE_BASE_ID=app8xoyx1XCumYFXV,CRM_GROUP_ID=-1002566480563,TEAM_GROUP_ID=-4860594772,TOPIC_KIRIM_ID=168,GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k,GSHEET_CREDS_FILE=service_account.json,OWNER_ID=150074828" \
+            --min-instances 1 \
+            --no-cpu-throttling \
+            --execution-environment gen2 \
+            --update-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production,DATABASE_URL=bot_database.db,TURSO_DATABASE_URL=libsql://oisha-os-db-baxtiyorjongaziyev.turso.io,AMOCRM_SUBDOMAIN=jonbrandingagency,AIRTABLE_BASE_ID=app8xoyx1XCumYFXV,CRM_GROUP_ID=-1002566480563,TEAM_GROUP_ID=-4860594772,TOPIC_KIRIM_ID=168,GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k,GSHEET_CREDS_FILE=service_account.json,OWNER_ID=150074828,AUTO_REPLY_MODE=shadow,VIP_LEAD_SCORE_THRESHOLD=80" \
             --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,USERBOT_SESSION_STRING=USERBOT_SESSION_STRING:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,DEEPSEEK_API_KEY=oisha-deepseek-api-key:latest,TURSO_AUTH_TOKEN=TURSO_AUTH_TOKEN:latest,AIRTABLE_API_KEY=AIRTABLE_API_KEY:latest,AMOCRM_TOKEN_JSON=amocrm-token:latest"
 
       - name: Verify deployment
