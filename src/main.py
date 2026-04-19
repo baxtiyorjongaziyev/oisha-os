@@ -1096,9 +1096,7 @@ async def main():
     global workflow_manager, access_manager, admin_bot, session_manager, chat_bridge, BOT_TOKEN_STR, juma_notifier
 
     print("🚀 Oisha-OS Tizimi tayyorlanmoqda (Dual-Head Architecture)...")
-    
-    # [GOD MODE] Health Check for Cloud Run
-    asyncio.create_task(run_health_check_api())
+
     _restore_cloud_artifacts()
     
     # 1. Credentials, Foundations & Database
@@ -1228,7 +1226,7 @@ async def main():
 
     # [WAZZUP KILLER] Bridge Telegram & DB to API Server for the AmoCRM Widget
     import src.api_server as api_module
-    api_module.user_client = client
+    api_module.user_client = None
     api_module.db_instance = msg_controller.db
     api_module.set_runtime_context(
         service_name=os.getenv("K_SERVICE") or "oisha-main",
@@ -1239,6 +1237,18 @@ async def main():
         quiet_hours_enabled=True,
         userbot_authorized=None,
     )
+
+    async def _heartbeat_task():
+        while True:
+            try:
+                api_module.mark_heartbeat()
+            except Exception as e:  # defensive - never crash the loop
+                logger.debug(f"[HEARTBEAT] tick error: {e}")
+            await asyncio.sleep(15)
+
+    api_module.mark_heartbeat()
+    asyncio.create_task(_heartbeat_task(), name="api_heartbeat")
+    asyncio.create_task(run_health_check_api(), name="health_check_api")
 
     if cloud_control_plane:
         api_module.set_runtime_context(
@@ -1256,6 +1266,7 @@ async def main():
         userbot_authorized=userbot_ready,
     )
     if not userbot_ready:
+        api_module.user_client = None
         if BOT_TOKEN_STR:
             try:
                 await bot_client.start(bot_token=BOT_TOKEN_STR)
@@ -1265,6 +1276,8 @@ async def main():
         api_module.update_api_status("degraded", "Userbot features are disabled")
         logger.error("[AUTH] Runtime is alive for health checks, but userbot features are disabled.")
         await asyncio.Event().wait()
+
+    api_module.user_client = client
     
     # [GOD MODE] Initialize Managers
     global folder_manager, voice_processor
@@ -1702,18 +1715,6 @@ async def main():
             await asyncio.sleep(900) # Run every 15 mins
     
     asyncio.create_task(dm_lead_sync_task())
-
-    # [PHASE 1.2] Liveness heartbeat — proves event loop is alive to /healthz.
-    async def _heartbeat_task():
-        import src.api_server as api_module
-        while True:
-            try:
-                api_module.mark_heartbeat()
-            except Exception as e:  # defensive — never crash the loop
-                logger.debug(f"[HEARTBEAT] tick error: {e}")
-            await asyncio.sleep(60)
-
-    asyncio.create_task(_heartbeat_task())
 
     # [PHASE 1.4] Graceful SIGTERM drain for Cloud Run revision rollover.
     # Cloud Run sends SIGTERM with a 30s grace period; we drain in-flight
