@@ -88,17 +88,25 @@ class Database:
                 if url.startswith("libsql://"):
                     url = url.replace("libsql://", "https://")
                 
+                sync_conn = None
                 try:
                     # 'libsql' is stable and recently updated, 'libsql-client' is legacy.
                     sync_conn = libsql.connect(
                         url, 
                         auth_token=settings.TURSO_AUTH_TOKEN.get_secret_value()
                     )
-                    self._conn = TursoAdapter(sync_conn)
+                    candidate_conn = TursoAdapter(sync_conn)
+                    await candidate_conn.execute("SELECT 1")
+                    self._conn = candidate_conn
                     return self._conn
                 except Exception as e:
                     logger.error(f"❌ [DATABASE] Turso Connection Failed: {e}")
-                    raise
+                    try:
+                        sync_conn.close()
+                    except Exception:
+                        pass
+                    logger.warning("⚠️ [DATABASE] Falling back to local SQLite because Turso is unavailable.")
+                    self._conn = None
 
         if hasattr(self, '_conn') and self._conn:
             try:
