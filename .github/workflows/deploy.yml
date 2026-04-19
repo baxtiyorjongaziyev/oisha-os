@@ -252,6 +252,70 @@ jobs:
           echo "Deployment failed: ${{ steps.rollout.outputs.failure_reason }}"
           exit 1
 
+  update-devlog:
+    name: Auto-update DEV_LOG.md
+    needs:
+      - test
+      - deploy
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Build and prepend log entry
+        shell: bash
+        run: |
+          DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+          BRANCH="${GITHUB_REF_NAME}"
+          SHA="${GITHUB_SHA::7}"
+          ACTOR="${GITHUB_ACTOR}"
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+
+          DEPLOY_STATUS="${{ needs.deploy.outputs.final_status }}"
+          FAILURE_REASON="${{ needs.deploy.outputs.failure_reason }}"
+          REVISION="${{ needs.deploy.outputs.revision }}"
+
+          if [[ "${DEPLOY_STATUS}" == "success" ]]; then
+            STATUS_ICON="✅"
+            STATUS_LINE="Deploy muvaffaqiyatli | Revision: ${REVISION}"
+          elif [[ "${{ needs.test.result }}" != "success" ]]; then
+            STATUS_ICON="🔴"
+            STATUS_LINE="Test bosqichi muvaffaqiyatsiz"
+          else
+            STATUS_ICON="⚠️"
+            STATUS_LINE="Deploy muvaffaqiyatsiz | Sabab: ${FAILURE_REASON}"
+          fi
+
+          # Build the new entry
+          NEW_ENTRY="## ${DATE} | ${STATUS_ICON} ${BRANCH} \`${SHA}\`
+
+**Commit**: ${COMMIT_MSG}
+**Actor**: @${ACTOR}
+**Status**: ${STATUS_LINE}
+
+---
+
+"
+
+          # Prepend to DEV_LOG.md (after the title lines)
+          HEADER=$(head -6 DEV_LOG.md)
+          BODY=$(tail -n +7 DEV_LOG.md)
+          printf '%s\n\n%s\n%s' "$HEADER" "$NEW_ENTRY" "$BODY" > DEV_LOG.md
+
+      - name: Commit updated DEV_LOG.md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add DEV_LOG.md
+          git diff --staged --quiet || git commit -m "chore(auto): update DEV_LOG — $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push
+
   notify:
     name: Notify Telegram
     needs:
