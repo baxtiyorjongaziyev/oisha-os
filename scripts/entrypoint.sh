@@ -1,23 +1,20 @@
 #!/bin/sh
+set -e
 
-# [GOD MODE] Cloud Entrypoint for Oisha-OS
-echo "👸 Oisha-OS: Preparing 24/7 Cloud Environment..."
+# Oisha-OS Cloud Run entrypoint
+# ------------------------------
+# GCS Fuse bloki olib tashlandi (commit b490c77: Cloud Run managed gcsfuse'ni
+# qo'llab-quvvatlamaydi). Persistent storage endi Turso'da (src/database.py
+# TursoAdapter orqali). TURSO_DATABASE_URL + TURSO_AUTH_TOKEN env'lari
+# deploy.yml'da bind qilingan.
 
-# 1. Mount GCS Bucket for persistent Telegram sessions
-# This allows the .session file to survive Cloud Run restarts.
-if [ -n "$GCS_BUCKET" ]; then
-    echo "📦 Mounting GCS Bucket $GCS_BUCKET to /app/data..."
-    mkdir -p /app/data
-    gcsfuse --only-dir data $GCS_BUCKET /app/data
-    if [ $? -eq 0 ]; then
-        echo "✅ GCS Bucket mounted successfully."
-    else
-        echo "⚠️ GCS Bucket mounting failed. Continuing with local data storage..."
-    fi
+echo "Oisha-OS: boot sequence starting..."
+
+if [ -n "$TURSO_DATABASE_URL" ]; then
+    echo "[persistence] Turso cloud DB detected (restart-safe)."
 else
-    echo "ℹ️ GCS_BUCKET not set. Persistent sessions might be lost on restart."
+    echo "[persistence] WARNING: TURSO_DATABASE_URL not set — using ephemeral SQLite. Data lost on restart."
 fi
 
-# 2. Start the main bot
-echo "🚀 Oisha-OS: Igniting God Mode Agents..."
-exec python src/main.py
+echo "Oisha-OS: igniting agents..."
+exec python -u src/main.py
