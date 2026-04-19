@@ -127,18 +127,6 @@ jobs:
             fi
           }
 
-          get_service_field() {
-            local python_expr="$1"
-            python - "$python_expr" <<'PY'
-import json
-import sys
-
-expr = sys.argv[1]
-data = json.load(sys.stdin)
-print(eval(expr, {"data": data}))
-PY
-          }
-
           read_service_state() {
             local service_json
             service_json="$(gcloud run services describe "${SERVICE_NAME}" \
@@ -146,22 +134,9 @@ PY
               --project "${PROJECT_ID}" \
               --format=json)"
 
-            REVISION="$(printf '%s' "${service_json}" | get_service_field "data['status'].get('latestCreatedRevisionName', '')")"
-            SERVICE_URL="$(printf '%s' "${service_json}" | get_service_field "data['status'].get('url', '')")"
-            CANDIDATE_URL="$(python - "${CANDIDATE_TAG}" <<'PY' <<<"${service_json}"
-import json
-import sys
-
-tag = sys.argv[1]
-data = json.load(sys.stdin)
-for entry in data.get("status", {}).get("traffic", []):
-    if entry.get("tag") == tag:
-        print(entry.get("url", ""))
-        break
-else:
-    print("")
-PY
-)"
+            REVISION="$(printf '%s' "${service_json}" | python -c 'import json, sys; data = json.load(sys.stdin); print(data["status"].get("latestCreatedRevisionName", ""))')"
+            SERVICE_URL="$(printf '%s' "${service_json}" | python -c 'import json, sys; data = json.load(sys.stdin); print(data["status"].get("url", ""))')"
+            CANDIDATE_URL="$(printf '%s' "${service_json}" | python -c 'import json, sys; tag = sys.argv[1]; data = json.load(sys.stdin); print(next((entry.get("url", "") for entry in data.get("status", {}).get("traffic", []) if entry.get("tag") == tag), ""))' "${CANDIDATE_TAG}")"
           }
 
           check_health_endpoint() {
@@ -175,15 +150,7 @@ PY
               return 1
             fi
 
-            python - "${body_file}" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as fh:
-    payload = json.load(fh)
-if payload.get("status") != "ok":
-    raise SystemExit(1)
-PY
+            python -c 'import json, sys; payload = json.load(open(sys.argv[1], "r", encoding="utf-8")); raise SystemExit(0 if payload.get("status") == "ok" else 1)' "${body_file}"
             local status=$?
             rm -f "${body_file}"
             return "${status}"

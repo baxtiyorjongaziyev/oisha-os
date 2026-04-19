@@ -1002,14 +1002,19 @@ class _TursoCursor:
     """
     def __init__(self, result_set):
         self.result_set = result_set
-        cols = getattr(result_set, "columns", [])
-        self.description = [(str(col), None, None, None, None, None, None) for col in cols]
-        # In 'libsql' package, the result_set itself is the sequence of rows
-        self._rows = list(result_set) if result_set is not None else []
+        self.description = _normalize_cursor_description(result_set)
+        self._sync_cursor = result_set if hasattr(result_set, "fetchone") else None
+        self._rows = None if self._sync_cursor is not None else _extract_prefetched_rows(result_set)
         self._ptr = 0
-        self._rowcount = getattr(result_set, "rows_affected", -1)
+        self._rowcount = getattr(
+            result_set,
+            "rowcount",
+            getattr(result_set, "rows_affected", -1),
+        )
 
     async def fetchone(self):
+        if self._sync_cursor is not None:
+            return await asyncio.to_thread(self._sync_cursor.fetchone)
         if self._ptr < len(self._rows):
             row = self._rows[self._ptr]
             self._ptr += 1
@@ -1017,11 +1022,15 @@ class _TursoCursor:
         return None
 
     async def fetchall(self):
+        if self._sync_cursor is not None:
+            return await asyncio.to_thread(self._sync_cursor.fetchall)
         remaining = self._rows[self._ptr:]
         self._ptr = len(self._rows)
         return remaining
 
     async def fetchmany(self, size=1):
+        if self._sync_cursor is not None:
+            return await asyncio.to_thread(self._sync_cursor.fetchmany, size)
         end = min(self._ptr + size, len(self._rows))
         chunk = self._rows[self._ptr:end]
         self._ptr = end
@@ -1029,9 +1038,13 @@ class _TursoCursor:
 
     @property
     def rowcount(self):
+        if self._sync_cursor is not None:
+            return getattr(self._sync_cursor, "rowcount", -1)
         return self._rowcount if self._rowcount is not None else -1
 
     async def close(self):
+        if self._sync_cursor is not None and hasattr(self._sync_cursor, "close"):
+            await asyncio.to_thread(self._sync_cursor.close)
         self._rows = []
         self._ptr = 0
 
@@ -1076,8 +1089,14 @@ class _ExecuteProxy:
         elif isinstance(args, tuple):
             args = list(args)
         
-        # 'libsql' package is sync, so we run in thread
-        rs = await asyncio.to_thread(self._client.execute, sql, args)
+        try:
+            # 'libsql' package is sync, so we run in thread
+            rs = await asyncio.to_thread(self._client.execute, sql, args)
+        except KeyError as exc:
+            statement = sql.split(None, 1)[0] if sql.strip() else "UNKNOWN"
+            raise sqlite3.OperationalError(
+                f"Turso execute response was malformed for SQL '{statement}'"
+            ) from exc
         return _TursoCursor(rs)
 
     def __await__(self):
@@ -1095,13 +1114,29 @@ class _ExecuteProxy:
 class _EmptyResultSet:
     """Placeholder ResultSet for no-op PRAGMA responses."""
     columns = []
-    rows = []
+    description = []
     rows_affected = 0
+    rowcount = 0
+
+    def fetchone(self):
+        return None
+
+    def fetchall(self):
+        return []
+
+    def fetchmany(self, size=1):
+        return []
+
+    def close(self):
+        return None
+
+    def __iter__(self):
+        return iter(())
 
 
 class TursoAdapter:
     """
-    aiosqlite.Connection-compatible shim over libsql_client.Client.
+    aiosqlite.Connection-compatible shim over libsql connection/cursor APIs.
     Lets the existing 94+ callsites stay untouched.
     """
     def __init__(self, client):
@@ -1114,17 +1149,12 @@ class TursoAdapter:
 
     async def executemany(self, sql, parameter_list):
         # Synchronous batch execution via thread
-        await asyncio.to_thread(self.client.executemany, sql, parameter_list)
-        return _TursoCursor(_EmptyResultSet())
+        cursor = await asyncio.to_thread(self.client.executemany, sql, parameter_list)
+        return _TursoCursor(cursor)
 
     async def executescript(self, script):
-        # Split on ';' and execute each non-empty statement
-        statements = [s.strip() for s in script.split(";") if s.strip()]
-        for s in statements:
-            if s.upper().startswith("PRAGMA"):
-                continue
-            await asyncio.to_thread(self.client.execute, s)
-        return _TursoCursor(_EmptyResultSet())
+        cursor = await asyncio.to_thread(self.client.executescript, script)
+        return _TursoCursor(cursor or _EmptyResultSet())
 
     async def commit(self):
         # libsql auto-commits per execute in non-transactional mode
