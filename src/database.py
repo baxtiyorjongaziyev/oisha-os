@@ -4,6 +4,11 @@ import datetime
 import asyncio
 import logging
 import json
+try:
+    import libsql_client
+    HAS_LIBSQL = True
+except ImportError:
+    HAS_LIBSQL = False
 from google import genai
 from typing import List, Dict, Any, Optional, Union
 from src.settings import settings
@@ -25,13 +30,36 @@ class Database:
         await self.init_db()
 
     async def get_connection(self):
-        """Asenkron SQLite ulanishini olish (Persistent connection pattern)."""
+        """Asenkron SQLite yoki Turso ulanishini olish (Persistent connection pattern)."""
+        # [TURSO CLOUD DETECTION]
+        if settings.TURSO_DATABASE_URL and settings.TURSO_AUTH_TOKEN:
+            if not HAS_LIBSQL:
+                logger.error("❌ [DATABASE] Turso mode requested but libsql-client not installed!")
+                # Fallback to local sqlite or continue normally? 
+                # Better to let it fail or alert.
+            else:
+                if hasattr(self, '_conn') and isinstance(self._conn, TursoAdapter):
+                    return self._conn
+                
+                logger.info("👸 [DATABASE] Oisha found her CLOUD SOUL in Turso 🌩️")
+                url = settings.TURSO_DATABASE_URL
+                # Better compatibility: use https:// if libsql:// fails
+                if url.startswith("libsql://"):
+                    url = url.replace("libsql://", "https://")
+                
+                client = libsql_client.create_client(
+                    url=url,
+                    auth_token=settings.TURSO_AUTH_TOKEN.get_secret_value()
+                )
+                self._conn = TursoAdapter(client)
+                return self._conn
+
         if hasattr(self, '_conn') and self._conn:
             try:
                 # Test connection
                 await self._conn.execute("SELECT 1")
                 return self._conn
-            except (aiosqlite.Error, asyncio.TimeoutError):
+            except (aiosqlite.Error, asyncio.TimeoutError, Exception):
                 # Connection is dead, will recreate
                 self._conn = None
         
@@ -843,4 +871,65 @@ class Database:
         )
         await conn.commit()
         return True
+
+class TursoAdapter:
+    """Shim for libsql_client to mimic aiosqlite connection interface."""
+    def __init__(self, client):
+        self.client = client
+        self.row_factory = None
+
+    async def execute(self, sql, parameters=None):
+        return _ExecuteProxy(await self.client.execute(sql, parameters))
+
+    async def executemany(self, sql, parameter_list):
+        # Transactional batch execution
+        batch = [libsql_client.Statement(sql, params) for params in parameter_list]
+        return await self.client.batch(batch)
+
+    async def commit(self):
+        # libsql client is usually auto-committing per execute call in non-tx mode
+        pass
+
+    async def rollback(self):
+        pass
+
+    async def close(self):
+        self.client.close()
+
+    def cursor(self):
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+class _ExecuteProxy:
+    """Proxy for ResultSet to behave like aiosqlite cursor."""
+    def __init__(self, result_set):
+        self.result_set = result_set
+        self.description = [(col, None, None, None, None, None, None) for col in result_set.columns]
+        self._ptr = 0
+
+    async def fetchone(self):
+        if self._ptr < len(self.result_set.rows):
+            row = self.result_set.rows[self._ptr]
+            self._ptr += 1
+            return row
+        return None
+
+    async def fetchall(self):
+        return self.result_set.rows
+
+    @property
+    def rowcount(self):
+        # Note: libsql doesn't always provide rowcount for all drivers easily
+        return -1 
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
 

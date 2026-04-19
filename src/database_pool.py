@@ -29,6 +29,12 @@ try:
 except ImportError:
     HAS_POSTGRES = False
 
+try:
+    import libsql_client
+    HAS_LIBSQL = True
+except ImportError:
+    HAS_LIBSQL = False
+
 
 @dataclass
 class PoolConfig:
@@ -62,7 +68,12 @@ class ConnectionPool:
         self._is_postgres = False
         
         # Determine database type
-        if self._database_url and self._database_url.startswith("postgresql://"):
+        self._is_turso = False
+        if os.environ.get("TURSO_DATABASE_URL") and os.environ.get("TURSO_AUTH_TOKEN"):
+            self._is_turso = True
+            if not HAS_LIBSQL:
+                logger.warning("[DB POOL] Turso credentials found but libsql-client not installed")
+        elif self._database_url and self._database_url.startswith("postgresql://"):
             self._is_postgres = True
             if not HAS_POSTGRES:
                 raise ImportError(
@@ -79,12 +90,15 @@ class ConnectionPool:
             if self._pool is not None:
                 return
             
-            if self._is_postgres:
+            if self._is_turso:
+                await self._init_turso_pool()
+            elif self._is_postgres:
                 await self._init_postgres_pool()
             else:
                 await self._init_sqlite_pool()
             
-            logger.info(f"[DB POOL] Initialized ({'PostgreSQL' if self._is_postgres else 'SQLite'})")
+            mode = "Turso" if self._is_turso else ("PostgreSQL" if self._is_postgres else "SQLite")
+            logger.info(f"[DB POOL] Initialized ({mode})")
     
     async def _init_postgres_pool(self):
         """Initialize PostgreSQL connection pool."""
@@ -114,6 +128,21 @@ class ConnectionPool:
         )
         await self._pool.initialize()
     
+    async def _init_turso_pool(self):
+        """Initialize Turso connection pool."""
+        from src.database import TursoAdapter
+        url = os.environ.get("TURSO_DATABASE_URL")
+        # Compatibility shim: replace libsql:// with https://
+        if url and url.startswith("libsql://"):
+            url = url.replace("libsql://", "https://")
+            
+        self._pool = TursoConnectionPool(
+            url=url,
+            auth_token=os.environ.get("TURSO_AUTH_TOKEN"),
+            max_connections=self.config.max_size
+        )
+        await self._pool.initialize()
+    
     @asynccontextmanager
     async def acquire(self):
         """
@@ -129,7 +158,13 @@ class ConnectionPool:
         if self._is_postgres:
             async with self._pool.acquire() as conn:
                 yield conn
-        else:
+        elif self._is_turso:
+            conn = await self._pool.acquire()
+            try:
+                yield conn
+            finally:
+                await self._pool.release(conn)
+        else: # SQLite
             conn = await self._pool.acquire()
             try:
                 yield conn
@@ -314,6 +349,52 @@ class SQLiteConnectionPool:
             self._in_use.clear()
         
         self._initialized = False
+
+class TursoConnectionPool:
+    """Turso (libSQL) connection pool shim."""
+    def __init__(self, url: str, auth_token: str, max_connections: int = 10):
+        self.url = url
+        self.auth_token = auth_token
+        self.max_connections = max_connections
+        self._available = asyncio.Queue()
+        self._all_clients = set()
+        self._lock = asyncio.Lock()
+        self._initialized = False
+
+    async def initialize(self):
+        if self._initialized: return
+        async with self._lock:
+            for _ in range(min(2, self.max_connections)):
+                client = await self._create_client()
+                await self._available.put(client)
+            self._initialized = True
+
+    async def _create_client(self):
+        from src.database import TursoAdapter
+        client = libsql_client.create_client(url=self.url, auth_token=self.auth_token)
+        return TursoAdapter(client)
+
+    async def acquire(self):
+        try:
+            return self._available.get_nowait()
+        except asyncio.QueueEmpty:
+            async with self._lock:
+                if len(self._all_clients) < self.max_connections:
+                    client = await self._create_client()
+                    self._all_clients.add(client)
+                    return client
+            return await self._available.get()
+
+    async def release(self, client):
+        await self._available.put(client)
+
+    async def close(self):
+        async with self._lock:
+            while not self._available.empty():
+                client = await self._available.get()
+                await client.close()
+            self._all_clients.clear()
+            self._initialized = False
 
 
 # Global pool instance
