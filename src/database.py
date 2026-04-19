@@ -41,18 +41,23 @@ class Database:
                 if hasattr(self, '_conn') and isinstance(self._conn, TursoAdapter):
                     return self._conn
                 
-                logger.info("👸 [DATABASE] Oisha found her CLOUD SOUL in Turso 🌩️")
                 url = settings.TURSO_DATABASE_URL
-                # Better compatibility: use https:// if libsql:// fails
+                logger.info(f"👸 [DATABASE] Connecting to Turso Cloud Core: {url[:15]}...🌩️")
+                
+                # Turso's recent clients are best with https:// for cloud run/proxy environments
                 if url.startswith("libsql://"):
                     url = url.replace("libsql://", "https://")
                 
-                client = libsql_client.create_client(
-                    url=url,
-                    auth_token=settings.TURSO_AUTH_TOKEN.get_secret_value()
-                )
-                self._conn = TursoAdapter(client)
-                return self._conn
+                try:
+                    client = libsql_client.create_client(
+                        url=url,
+                        auth_token=settings.TURSO_AUTH_TOKEN.get_secret_value()
+                    )
+                    self._conn = TursoAdapter(client)
+                    return self._conn
+                except Exception as e:
+                    logger.error(f"❌ [DATABASE] Turso Connection Failed: {e}")
+                    raise
 
         if hasattr(self, '_conn') and self._conn:
             try:
