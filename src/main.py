@@ -56,6 +56,7 @@ from telethon import functions, types
 import random
 import time
 from src.services.core.admin_bot import AdminBot
+from src.services.core import auto_reply_gate
 from src.services.core.folder_manager import FolderManager
 from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
@@ -943,8 +944,8 @@ async def handle_new_message(event):
             logger.error(f"[MEDIA] Integration error: {e}")
 
     try:
-        # 2.5 Auto-Reply Check (Silent Mode)
-        # Boshida botning o'zi mention qilinganini tekshiramiz
+        # 2.5 Tiered Auto-Reply Gate (shadow/vip_only/live + kill-switch)
+        # Avval mention tekshiruvi — mention bo'lsa, gate'da short-circuit "send" qaytaradi.
         is_mentioned = False
         if event.message.text:
             me = await client.get_me()
@@ -952,10 +953,33 @@ async def handle_new_message(event):
             me_username = (me.username or "").lower()
             is_mentioned = (me_username and f"@{me_username}" in text_low) or "oisha" in text_low
 
-        if not settings.ENABLE_AUTO_REPLY and not is_mentioned:
-            # Faqat admin xabarlari (yuqorida) va lead syNC o'tadi
-            # Mention qilinmagan bo'lsa, conversational AI to'xtatiladi
+        # NOTE: lead_score=0 — Phase 3 scoring'gacha stub. VIP-only rejimida
+        # score 0 bo'lsa avtomatik shadow'ga tushadi (xavfsiz default).
+        decision = await auto_reply_gate.evaluate(
+            msg_controller.db,
+            is_mentioned=is_mentioned,
+            lead_score=0,
+            message_text=event.message.text or "",
+        )
+        logger.info(
+            f"[AUTO_GATE] chat={chat_id} action={decision.action} reason={decision.reason} "
+            f"mode={decision.effective_mode} kill={decision.kill_switch_on}"
+        )
+
+        if decision.action == "skip":
             return
+        if decision.action == "escalate":
+            if admin_bot:
+                try:
+                    await admin_bot.notify_lead(
+                        f"🚨 **REVIEW kerak** chat=`{chat_id}` sender={sender_name}\n"
+                        f"Sabab: `{decision.reason}`\n"
+                        f"Matn: {(event.message.text or '')[:500]}"
+                    )
+                except Exception as notify_ex:
+                    logger.warning(f"[AUTO_GATE] escalate notify failed: {notify_ex}")
+            return
+        # decision.action ∈ {"send", "shadow"} — pipeline davom etadi
 
         # 3. Odamdek tutilish (Delay + Typing...)
         # 3.1. Super-Analitika: Scouter orqali mijoz profilini tahlil qilish
@@ -987,15 +1011,46 @@ async def handle_new_message(event):
                 is_business=False
             )
 
-            # 6. Javobni yuborish
+            # 6. Javobni yuborish (gate decision'ga qarab)
             if final_text:
-                await event.respond(final_text)
-                try:
-                    await msg_controller.db.log_message(sender.id, final_text, is_ai=True)
-                except Exception as log_ex:
-                    logger.error(f"[USERBOT] Failed to log AI reply: {log_ex}")
-                safe_responder.update_rate_limit(chat_id)
-                logger.info(f"[USERBOT] Replied successfully to {chat_id}")
+                if decision.action == "shadow":
+                    # Shadow rejim: userga yubormaymiz — admin/owner'ga preview
+                    if admin_bot:
+                        try:
+                            await admin_bot.notify_lead(
+                                f"👁 **SHADOW PREVIEW** chat=`{chat_id}` sender={sender_name}\n"
+                                f"Rejim: `{decision.effective_mode}` ({decision.reason})\n"
+                                f"📥 User: {(event.message.text or '')[:300]}\n"
+                                f"🤖 Bot draft: {final_text[:500]}"
+                            )
+                        except Exception as notify_ex:
+                            logger.warning(f"[AUTO_GATE] shadow notify failed: {notify_ex}")
+                    try:
+                        await msg_controller.db.log_message(sender.id, final_text, is_ai=True)
+                    except Exception as log_ex:
+                        logger.error(f"[USERBOT] Failed to log AI reply (shadow): {log_ex}")
+                    logger.info(f"[USERBOT] Shadow preview queued for chat {chat_id}")
+                else:
+                    # Live send (decision.action == 'send') — oldin rate-limit tekshirish
+                    limited, rl_reason = safe_responder.is_rate_limited(chat_id)
+                    if limited:
+                        logger.warning(f"[USERBOT] Rate-limit skip chat={chat_id} reason={rl_reason}")
+                        if admin_bot:
+                            try:
+                                await admin_bot.notify_lead(
+                                    f"⏱ **RATE-LIMIT skip** chat=`{chat_id}` reason=`{rl_reason}`\n"
+                                    f"Matn tayyor edi, yuborilmadi (flood oldini olish)."
+                                )
+                            except Exception:
+                                pass
+                    else:
+                        await event.respond(final_text)
+                        try:
+                            await msg_controller.db.log_message(sender.id, final_text, is_ai=True)
+                        except Exception as log_ex:
+                            logger.error(f"[USERBOT] Failed to log AI reply: {log_ex}")
+                        safe_responder.update_rate_limit(chat_id)
+                        logger.info(f"[USERBOT] Replied successfully to {chat_id}")
 
     except Exception as e:
         logger.error(f"[USERBOT] Error while handling message: {e}")
