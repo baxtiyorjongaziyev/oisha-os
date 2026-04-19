@@ -4,7 +4,6 @@ param(
     [int]$PollSeconds = 6,
     [string]$Branch = "",
     [string]$GcpProject = "jonbranding-85662071-ea38e",
-    [string]$CloudBuildLogDir = "gs://jonbranding-85662071-ea38e_cloudbuild/logs",
     [string]$ServiceName = "oisha-master-bot",
     [string]$Region = "europe-west3",
     [bool]$RunCloudDeploy = $true
@@ -243,13 +242,24 @@ function Invoke-CloudDeploy {
 
     Write-Log "☁️ Cloud Build deploy boshlandi."
     Push-Location $ProjectRoot
+    $deployRoot = Join-Path $logDir "deploy_worktree"
     try {
+        if (Test-Path -LiteralPath $deployRoot) {
+            & git worktree remove --force $deployRoot *> $null
+            Remove-Item -LiteralPath $deployRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        & git worktree add --detach $deployRoot HEAD
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "⚠️ Clean deploy worktree yaratilmadi."
+            return $false
+        }
+
         & gcloud builds submit `
             --project=$GcpProject `
             --config=cloudbuild.yaml `
-            --gcs-log-dir=$CloudBuildLogDir `
             --substitutions="_SERVICE_NAME=$ServiceName,_DEPLOY_REGION=$Region" `
-            .
+            $deployRoot
 
         if ($LASTEXITCODE -eq 0) {
             Write-Log "✅ Cloud deploy muvaffaqiyatli bo'ldi."
@@ -262,6 +272,8 @@ function Invoke-CloudDeploy {
         Write-Log "🚨 Cloud deploy crashed: $($_.Exception.Message)"
         return $false
     } finally {
+        & git worktree remove --force $deployRoot *> $null
+        Remove-Item -LiteralPath $deployRoot -Recurse -Force -ErrorAction SilentlyContinue
         Pop-Location
     }
 }

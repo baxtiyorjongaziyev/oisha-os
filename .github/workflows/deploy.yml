@@ -12,7 +12,6 @@ env:
   PROJECT_ID: jonbranding-85662071-ea38e
   SERVICE_NAME: oisha-master-bot
   REGION: europe-west3
-  CLOUD_BUILD_LOG_DIR: gs://jonbranding-85662071-ea38e_cloudbuild/logs
   WORKLOAD_IDENTITY_PROVIDER: projects/982617914297/locations/global/workloadIdentityPools/github-actions/providers/oisha-os
   DEPLOY_SERVICE_ACCOUNT: github-actions-oisha@jonbranding-85662071-ea38e.iam.gserviceaccount.com
 
@@ -67,7 +66,6 @@ jobs:
         run: |
           gcloud builds submit \
             --config cloudbuild.yaml \
-            --gcs-log-dir="${{ env.CLOUD_BUILD_LOG_DIR }}" \
             --substitutions="_SERVICE_NAME=${{ env.SERVICE_NAME }},_DEPLOY_REGION=${{ env.REGION }}" \
             .
 
