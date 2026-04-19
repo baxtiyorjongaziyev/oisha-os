@@ -195,11 +195,21 @@ function Invoke-GitSync {
         }
 
         if (Has-RemoteBranch -TargetBranch $TargetBranch) {
-            & git pull --rebase origin $TargetBranch
+            & git fetch origin $TargetBranch
             if ($LASTEXITCODE -ne 0) {
-                Write-Log "⚠️ git pull --rebase failed. Manual conflict resolution kerak."
+                Write-Log "⚠️ git fetch failed."
                 return $false
             }
+
+            $remoteRef = "refs/remotes/origin/$TargetBranch"
+            $remoteSha = (& git rev-parse $remoteRef 2>$null | Select-Object -First 1).Trim()
+            $mergeBase = (& git merge-base HEAD $remoteRef 2>$null | Select-Object -First 1).Trim()
+
+            if (-not [string]::IsNullOrWhiteSpace($remoteSha) -and $mergeBase -ne $remoteSha) {
+                Write-Log "⚠️ Remote branch oldinga ketgan yoki diverged. Manual rebase kerak."
+                return $false
+            }
+
             & git push origin "HEAD:refs/heads/$TargetBranch"
         } else {
             & git push -u origin "HEAD:refs/heads/$TargetBranch"
