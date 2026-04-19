@@ -114,7 +114,9 @@ jobs:
               --limit=40 \
               --format='value(textPayload)' 2>/dev/null || true)"
 
-            if echo "${logs}" | grep -qi "_EmptyResultSet\|malformed for SQL\|init_instance"; then
+            if echo "${logs}" | grep -qi "InvalidToken\|JWT error"; then
+              echo "Turso auth token invalid"
+            elif echo "${logs}" | grep -qi "_EmptyResultSet\|malformed for SQL\|init_instance"; then
               echo "Turso adapter startup crash"
             elif echo "${logs}" | grep -qi "Default STARTUP TCP probe failed\|failed to start and listen on the port"; then
               echo "container startup failed"
