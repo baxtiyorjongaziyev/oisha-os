@@ -1,3 +1,4 @@
+import os
 import aiosqlite
 import sqlite3
 import datetime
@@ -7,34 +8,229 @@ import json
 from google import genai
 from typing import List, Dict, Any, Optional, Union
 from src.settings import settings
-from src import config 
+from src import config
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Turso (libsql) dual-mode support
+# ---------------------------------------------------------------------------
+# When TURSO_DATABASE_URL + TURSO_AUTH_TOKEN are set (production on Cloud Run),
+# Database uses libsql_client against Turso — no local disk dependency.
+# Otherwise it falls back to aiosqlite (local dev).
+#
+# To avoid rewriting ~94 aiosqlite callsites, TursoAdapter emulates the
+# aiosqlite.Connection interface (execute, executemany, commit, close, cursor)
+# and _ExecuteProxy mirrors the "awaitable + async ctx manager" return shape of
+# aiosqlite.Connection.execute().
+# ---------------------------------------------------------------------------
+
+try:
+    from libsql_client import create_client as _create_libsql_client  # type: ignore
+    _LIBSQL_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _LIBSQL_AVAILABLE = False
+
+
+class _NoOpCursor:
+    """Dummy cursor used for statements that don't yield results (PRAGMA/etc)."""
+    lastrowid = 0
+    rowcount = 0
+
+    async def fetchone(self):
+        return None
+
+    async def fetchall(self):
+        return []
+
+    async def close(self):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        pass
+
+
+class _TursoCursor:
+    """aiosqlite-compatible cursor wrapping a libsql ResultSet."""
+
+    def __init__(self, result_set):
+        self._rs = result_set
+        self._idx = 0
+
+    @property
+    def lastrowid(self):
+        return self._rs.last_insert_rowid or 0
+
+    @property
+    def rowcount(self):
+        return self._rs.rows_affected or 0
+
+    async def fetchone(self):
+        if self._idx >= len(self._rs.rows):
+            return None
+        row = self._rs.rows[self._idx]
+        self._idx += 1
+        return row  # libsql Row supports both row[0] and row["col"]
+
+    async def fetchall(self):
+        remaining = list(self._rs.rows[self._idx:])
+        self._idx = len(self._rs.rows)
+        return remaining
+
+    async def close(self):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        await self.close()
+
+
+class _ExecuteProxy:
+    """Proxy matching aiosqlite's conn.execute() return — awaitable + ctx mgr.
+
+    Supports both patterns:
+        cur = await conn.execute(...)
+        async with conn.execute(...) as cur: ...
+    """
+
+    def __init__(self, coro):
+        self._coro = coro
+        self._cursor = None
+
+    def __await__(self):
+        return self._coro.__await__()
+
+    async def __aenter__(self):
+        self._cursor = await self._coro
+        return self._cursor
+
+    async def __aexit__(self, *a):
+        if self._cursor is not None:
+            await self._cursor.close()
+
+
+class _NoOpCursorCtx:
+    """conn.cursor() context mgr — Turso doesn't need a real cursor object."""
+
+    async def __aenter__(self):
+        return _NoOpCursor()
+
+    async def __aexit__(self, *a):
+        pass
+
+
+class TursoAdapter:
+    """Emulates aiosqlite.Connection on top of libsql_client.Client."""
+
+    def __init__(self, client):
+        self._client = client
+
+    def execute(self, sql, params=None):
+        async def _run():
+            stripped = (sql or "").lstrip()
+            # Turso/libsql doesn't support PRAGMA — silently skip
+            if stripped.upper().startswith("PRAGMA"):
+                return _NoOpCursor()
+            args = list(params) if isinstance(params, tuple) else (params or [])
+            try:
+                rs = await self._client.execute(sql, args)
+                return _TursoCursor(rs)
+            except Exception as exc:
+                logger.error(f"[TURSO] execute failed: {exc} | sql={sql[:120]}")
+                raise
+        return _ExecuteProxy(_run())
+
+    async def executemany(self, sql, params_list):
+        stmts = []
+        for p in params_list:
+            args = list(p) if isinstance(p, tuple) else p
+            stmts.append((sql, args))
+        if stmts:
+            try:
+                await self._client.batch(stmts)
+            except Exception as exc:
+                logger.error(f"[TURSO] executemany failed: {exc} | sql={sql[:120]}")
+                raise
+        return _NoOpCursor()
+
+    async def commit(self):
+        # libsql auto-commits per statement when not inside a transaction block.
+        # Current codebase uses per-statement semantics — no-op is correct.
+        return None
+
+    async def close(self):
+        try:
+            await self._client.close()
+        except Exception:
+            pass
+
+    def cursor(self):
+        return _NoOpCursorCtx()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        pass
+
+
 class Database:
     def __init__(self, db_path=None):
-        if db_path is None:
-            import os
-            db_path = os.path.join(os.getcwd(), 'data', 'bot.db')
-            os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        self.db_path = db_path
-        logger.info(f"👸 [DATABASE] Oisha connected to her REAL memory: {self.db_path} 🛡️")
+        turso_url = (os.getenv("TURSO_DATABASE_URL") or "").strip()
+        turso_token = (os.getenv("TURSO_AUTH_TOKEN") or "").strip()
+        self._turso_url = turso_url
+        self._turso_token = turso_token
+        self._use_turso = bool(turso_url and turso_token and _LIBSQL_AVAILABLE)
+
+        if self._use_turso:
+            self.db_path = f"turso:{turso_url}"
+            logger.info(f"👸 [DATABASE] Cloud memory: Turso {turso_url} 🌩️")
+        else:
+            if db_path is None:
+                db_path = os.path.join(os.getcwd(), 'data', 'bot.db')
+                os.makedirs(os.path.dirname(db_path), exist_ok=True)
+            self.db_path = db_path
+            reason = (
+                "libsql_client not installed"
+                if (turso_url and turso_token and not _LIBSQL_AVAILABLE)
+                else "no Turso env (local dev)"
+            )
+            logger.info(f"👸 [DATABASE] Local SQLite fallback ({reason}): {self.db_path}")
 
     async def init_instance(self):
-        """Async initialization for aiosqlite."""
+        """Async initialization — creates tables / connects to Turso."""
         await self.init_db()
 
     async def get_connection(self):
-        """Asenkron SQLite ulanishini olish (Persistent connection pattern)."""
+        """Asenkron DB ulanishini olish (Turso yoki aiosqlite, persistent)."""
+        # Reuse existing connection if healthy
         if hasattr(self, '_conn') and self._conn:
             try:
-                # Test connection
                 await self._conn.execute("SELECT 1")
+                # aiosqlite returns a proxy that needs await; Turso returns _ExecuteProxy
+                # In both cases, reaching here without exception = healthy
                 return self._conn
-            except (aiosqlite.Error, asyncio.TimeoutError):
-                # Connection is dead, will recreate
+            except (aiosqlite.Error, asyncio.TimeoutError, Exception):
+                try:
+                    await self._conn.close()
+                except Exception:
+                    pass
                 self._conn = None
-        
+
+        if self._use_turso:
+            client = _create_libsql_client(
+                url=self._turso_url, auth_token=self._turso_token
+            )
+            self._conn = TursoAdapter(client)
+            logger.info("[DATABASE] Turso client connected.")
+            return self._conn
+
+        # Local dev fallback
         self._conn = await aiosqlite.connect(self.db_path, timeout=30)
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA synchronous=NORMAL")
@@ -105,7 +301,7 @@ class Database:
             ]
             for col, col_type in cols_needed:
                 try: await conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
-                except aiosqlite.Error: pass
+                except (aiosqlite.Error, Exception): pass
             await conn.execute("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, text TEXT, is_ai BOOLEAN, created_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS message_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, message_text TEXT, is_ai_reply BOOLEAN, created_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, description TEXT, assigned_to INTEGER, deadline DATETIME, priority TEXT DEFAULT 'Medium', status TEXT DEFAULT 'Pending', created_by INTEGER, created_at DATETIME, completed_at DATETIME)")
@@ -213,7 +409,30 @@ class Database:
         conn = await self.get_connection()
         await conn.execute("INSERT OR REPLACE INTO kv_settings (key, value, updated_at) VALUES (?, ?, ?)", (key, str(value), now))
         await conn.commit()
-        return True
+
+    async def list_states(self, prefix: str = "", limit: int = 200) -> List[Dict[str, Any]]:
+        conn = await self.get_connection()
+        if prefix:
+            query = """
+                SELECT key, value, updated_at
+                FROM kv_settings
+                WHERE key LIKE ?
+                ORDER BY updated_at DESC
+                LIMIT ?
+            """
+            params = (f"{prefix}%", limit)
+        else:
+            query = """
+                SELECT key, value, updated_at
+                FROM kv_settings
+                ORDER BY updated_at DESC
+                LIMIT ?
+            """
+            params = (limit,)
+
+        async with conn.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [{"key": row[0], "value": row[1], "updated_at": row[2]} for row in rows]
 
     async def upsert_user(self, user_id, first_name, username=None, phone=None, **kwargs):
         now = datetime.datetime.now().isoformat()
