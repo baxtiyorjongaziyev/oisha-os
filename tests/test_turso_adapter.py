@@ -83,3 +83,59 @@ async def test_database_init_instance_succeeds_with_turso_adapter(monkeypatch):
 
     assert "journey_stage" in column_names
     assert "lifecycle_updated_at" in column_names
+
+
+async def test_database_falls_back_to_sqlite_when_turso_probe_fails(monkeypatch, tmp_path):
+    _require_libsql()
+
+    from src import database as database_module
+
+    db = Database(str(tmp_path / "fallback.db"))
+
+    original_url = database_module.settings.TURSO_DATABASE_URL
+    original_token = database_module.settings.TURSO_AUTH_TOKEN
+
+    class DummySecret:
+        def __init__(self, value):
+            self._value = value
+
+        def get_secret_value(self):
+            return self._value
+
+        def __bool__(self):
+            return bool(self._value)
+
+        def __str__(self):
+            return self._value
+
+        def startswith(self, prefix):
+            return self._value.startswith(prefix)
+
+        def replace(self, old, new):
+            return self._value.replace(old, new)
+
+        def __getitem__(self, item):
+            return self._value[item]
+
+    monkeypatch.setattr(database_module.settings, "TURSO_DATABASE_URL", DummySecret("libsql://broken.example"))
+    monkeypatch.setattr(database_module.settings, "TURSO_AUTH_TOKEN", DummySecret("broken-token"))
+
+    class BrokenTursoConnection:
+        def execute(self, sql, parameters=None):
+            raise ValueError("JWT error: InvalidToken")
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(database_module.libsql, "connect", lambda *args, **kwargs: BrokenTursoConnection())
+
+    try:
+        conn = await db.get_connection()
+        assert not isinstance(conn, TursoAdapter)
+
+        cursor = await conn.execute("SELECT 1")
+        assert (await cursor.fetchone())[0] == 1
+    finally:
+        monkeypatch.setattr(database_module.settings, "TURSO_DATABASE_URL", original_url)
+        monkeypatch.setattr(database_module.settings, "TURSO_AUTH_TOKEN", original_token)
+        await db.close()
