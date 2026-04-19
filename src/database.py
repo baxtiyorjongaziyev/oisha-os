@@ -16,6 +16,46 @@ from src import config
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize_cursor_description(result_set: Any) -> List[Any]:
+    description = getattr(result_set, "description", None)
+    if description:
+        return list(description)
+
+    columns = getattr(result_set, "columns", None) or []
+    return [(str(col), None, None, None, None, None, None) for col in columns]
+
+
+def _extract_prefetched_rows(result_set: Any) -> List[Any]:
+    if result_set is None:
+        return []
+
+    rows = getattr(result_set, "rows", None)
+    if rows is not None:
+        try:
+            return list(rows)
+        except TypeError:
+            return []
+
+    try:
+        return list(result_set)
+    except TypeError:
+        return []
+
+
+def _is_benign_schema_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    if not message:
+        return False
+
+    markers = (
+        "duplicate column name",
+        "already exists",
+        "duplicate key name",
+        "column already exists",
+    )
+    return any(marker in message for marker in markers)
+
 class Database:
     def __init__(self, db_path=None):
         if db_path is None:
@@ -34,7 +74,7 @@ class Database:
         # [TURSO CLOUD DETECTION]
         if settings.TURSO_DATABASE_URL and settings.TURSO_AUTH_TOKEN:
             if not HAS_LIBSQL:
-                logger.error("❌ [DATABASE] Turso mode requested but libsql-client not installed!")
+                logger.error("❌ [DATABASE] Turso mode requested but libsql is not installed!")
                 # Fallback to local sqlite or continue normally? 
                 # Better to let it fail or alert.
             else:
@@ -137,9 +177,18 @@ class Database:
                 ("last_client_message_at", "DATETIME"), ("last_ai_message_at", "DATETIME"),
                 ("lifecycle_updated_at", "DATETIME"),
             ]
+            existing_user_columns = await self._get_table_columns(conn, "users")
             for col, col_type in cols_needed:
-                try: await conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
-                except aiosqlite.Error: pass
+                if col in existing_user_columns:
+                    continue
+                try:
+                    await conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
+                    existing_user_columns.add(col)
+                except (aiosqlite.Error, sqlite3.Error, ValueError, RuntimeError) as exc:
+                    if _is_benign_schema_error(exc):
+                        existing_user_columns.add(col)
+                        continue
+                    raise
             await conn.execute("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, text TEXT, is_ai BOOLEAN, created_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS message_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, message_text TEXT, is_ai_reply BOOLEAN, created_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, description TEXT, assigned_to INTEGER, deadline DATETIME, priority TEXT DEFAULT 'Medium', status TEXT DEFAULT 'Pending', created_by INTEGER, created_at DATETIME, completed_at DATETIME)")
@@ -237,6 +286,14 @@ class Database:
             logger.info("[DB] Async Base Ready.")
             if hasattr(config, 'OWNER_ID'):
                 await self.ensure_owner_admin(int(config.OWNER_ID))
+
+    async def _get_table_columns(self, conn, table_name: str) -> set[str]:
+        safe_name = table_name.replace("'", "''")
+        async with conn.execute(
+            f"SELECT name FROM pragma_table_info('{safe_name}')"
+        ) as cursor:
+            rows = await cursor.fetchall()
+        return {str(row[0]) for row in rows if row and row[0]}
 
     async def ensure_owner_admin(self, owner_id: int):
         now = datetime.datetime.now().isoformat()
