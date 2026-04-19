@@ -1,5 +1,6 @@
 name: Oisha-OS Auto Deploy
 
+
 on:
   push:
     branches:
@@ -8,10 +9,12 @@ on:
       - master
   workflow_dispatch:
 
+
 env:
   PROJECT_ID: jonbranding-85662071-ea38e
   SERVICE_NAME: oisha-master-bot
   REGION: europe-west3
+
 
 jobs:
   test:
@@ -23,271 +26,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y build-essential
+
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio
-
-      - name: Compile critical runtime files
-        run: |
-          python -m py_compile src/database.py src/api_server.py src/main.py
-
-    #  - name: Run deploy safety tests
-#        run: |
-#          python -m pytest tests/test_turso_adapter.py -q
-
-  deploy:
-    name: Healthy-Only Production Rollout
-    needs: test
-    if: github.event_name != 'pull_request'
-    environment: production
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      final_status: ${{ steps.rollout.outputs.final_status }}
-      failure_reason: ${{ steps.rollout.outputs.failure_reason }}
-      revision: ${{ steps.rollout.outputs.revision }}
-      service_url: ${{ steps.rollout.outputs.service_url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check deploy secret
-        run: |
-          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
-            echo "ERROR: GCP_SA_KEY secret is missing."
-            exit 1
-          fi
-          echo "GCP_SA_KEY is present."
-
-      - name: Google Auth
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Build, deploy candidate, and promote only if healthy
-        id: rollout
-        shell: bash
-        run: |
-          set -u -o pipefail
-
-          IMAGE="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:${GITHUB_SHA}"
-          CANDIDATE_TAG="sha-${GITHUB_SHA::7}"
-          REVISION=""
-          SERVICE_URL=""
-          FAILURE_REASON=""
-          FINAL_STATUS="failure"
-
-          write_outputs() {
-            {
-              echo "final_status=${FINAL_STATUS}"
-              echo "failure_reason=${FAILURE_REASON}"
-              echo "revision=${REVISION}"
-              echo "service_url=${SERVICE_URL}"
-            } >> "${GITHUB_OUTPUT}"
-          }
-
-          extract_failure_reason() {
-            local revision_name="$1"
-            if [[ -z "${revision_name}" ]]; then
-              echo "deploy command failed"
-              return
-            fi
-
-            local logs
-            logs="$(gcloud logging read \
-              "resource.type=cloud_run_revision AND resource.labels.service_name=${SERVICE_NAME} AND resource.labels.revision_name=${revision_name}" \
-              --project "${PROJECT_ID}" \
-              --limit=40 \
-              --format='value(textPayload)' 2>/dev/null || true)"
-
-            if echo "${logs}" | grep -qi "InvalidToken\|JWT error"; then
-              echo "Turso auth token invalid"
-            elif echo "${logs}" | grep -qi "_EmptyResultSet\|malformed for SQL\|init_instance"; then
-              echo "Turso adapter startup crash"
-            elif echo "${logs}" | grep -qi "Default STARTUP TCP probe failed\|failed to start and listen on the port"; then
-              echo "container startup failed"
-            elif echo "${logs}" | grep -qi "/healthz\|unhealthy\|heartbeat_stale"; then
-              echo "healthz failed"
-            elif [[ -n "${logs}" ]]; then
-              echo "${logs}" | tr '\n' ' ' | cut -c1-180
-            else
-              echo "deploy command failed"
-            fi
-          }
-
-          read_service_state() {
-            local service_json
-            service_json="$(gcloud run services describe "${SERVICE_NAME}" \
-              --region "${REGION}" \
-              --project "${PROJECT_ID}" \
-              --format=json)"
-
-            REVISION="$(printf '%s' "${service_json}" | python -c 'import json, sys; data = json.load(sys.stdin); print(data["status"].get("latestCreatedRevisionName", ""))')"
-            SERVICE_URL="$(printf '%s' "${service_json}" | python -c 'import json, sys; data = json.load(sys.stdin); print(data["status"].get("url", ""))')"
-            CANDIDATE_URL="$(printf '%s' "${service_json}" | python -c 'import json, sys; tag = sys.argv[1]; data = json.load(sys.stdin); print(next((entry.get("url", "") for entry in data.get("status", {}).get("traffic", []) if entry.get("tag") == tag), ""))' "${CANDIDATE_TAG}")"
-          }
-
-          check_health_endpoint() {
-            local url="$1"
-            local body_file
-            body_file="$(mktemp)"
-            local code
-            code="$(curl -fsS -o "${body_file}" -w "%{http_code}" "${url}/healthz" || true)"
-            if [[ "${code}" != "200" ]]; then
-              rm -f "${body_file}"
-              return 1
-            fi
-
-            python -c 'import json, sys; payload = json.load(open(sys.argv[1], "r", encoding="utf-8")); raise SystemExit(0 if payload.get("status") == "ok" else 1)' "${body_file}"
-            local status=$?
-            rm -f "${body_file}"
-            return "${status}"
-          }
-
-          if ! gcloud builds submit --tag "${IMAGE}" .; then
-            FAILURE_REASON="container build failed"
-            write_outputs
-            exit 0
-          fi
-
-          DEPLOY_OUTPUT="$(gcloud run deploy "${SERVICE_NAME}" \
-            --image "${IMAGE}" \
-            --platform managed \
-            --region "${REGION}" \
-            --allow-unauthenticated \
-            --memory 2Gi \
-            --cpu 2 \
-            --timeout 3600 \
-            --max-instances 3 \
-            --min-instances 1 \
-            --no-cpu-throttling \
-            --execution-environment gen2 \
-            --no-traffic \
-            --tag "${CANDIDATE_TAG}" \
-            --set-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production,DATABASE_URL=bot_database.db,TURSO_DATABASE_URL=libsql://oisha-os-db-baxtiyorjongaziyev.aws-ap-south-1.turso.io,AMOCRM_SUBDOMAIN=jonbrandingagency,AIRTABLE_BASE_ID=app8xoyx1XCumYFXV,CRM_GROUP_ID=-1002566480563,TEAM_GROUP_ID=-4860594772,TOPIC_KIRIM_ID=168,GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k,GSHEET_CREDS_FILE=service_account.json,OWNER_ID=150074828,AUTO_REPLY_MODE=shadow,VIP_LEAD_SCORE_THRESHOLD=80" \
-            --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,USERBOT_SESSION_STRING=USERBOT_SESSION_STRING:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,DEEPSEEK_API_KEY=oisha-deepseek-api-key:latest,TURSO_AUTH_TOKEN=TURSO_AUTH_TOKEN:latest,AIRTABLE_API_KEY=AIRTABLE_API_KEY:latest,AMOCRM_TOKEN_JSON=amocrm-token:latest" \
-            --labels "commit-sha=${GITHUB_SHA}" 2>&1)"
-          DEPLOY_RC=$?
-
-          read_service_state
-
-          if [[ ${DEPLOY_RC} -ne 0 ]]; then
-            FAILURE_REASON="$(extract_failure_reason "${REVISION}")"
-            write_outputs
-            exit 0
-          fi
-
-          if [[ -z "${CANDIDATE_URL}" ]]; then
-            FAILURE_REASON="candidate revision URL not found"
-            write_outputs
-            exit 0
-          fi
-
-          READY_STATUS="$(gcloud run revisions describe "${REVISION}" \
-            --region "${REGION}" \
-            --project "${PROJECT_ID}" \
-            --format='value(status.conditions[0].status)' 2>/dev/null || true)"
-          if [[ "${READY_STATUS}" != "True" ]]; then
-            FAILURE_REASON="revision not ready"
-            write_outputs
-            exit 0
-          fi
-
-          sleep 25
-          if ! check_health_endpoint "${CANDIDATE_URL}"; then
-            FAILURE_REASON="healthz failed"
-            write_outputs
-            exit 0
-          fi
-
-          sleep 20
-          if ! check_health_endpoint "${CANDIDATE_URL}"; then
-            FAILURE_REASON="healthz unstable"
-            write_outputs
-            exit 0
-          fi
-
-          if ! gcloud run services update-traffic "${SERVICE_NAME}" \
-            --region "${REGION}" \
-            --project "${PROJECT_ID}" \
-            --to-revisions "${REVISION}=100"; then
-            FAILURE_REASON="traffic promotion failed"
-            write_outputs
-            exit 0
-          fi
-
-          SERVICE_URL="$(gcloud run services describe "${SERVICE_NAME}" \
-            --region "${REGION}" \
-            --project "${PROJECT_ID}" \
-            --format='value(status.url)')"
-
-          sleep 10
-          if ! check_health_endpoint "${SERVICE_URL}"; then
-            FAILURE_REASON="post-promotion healthz failed"
-            write_outputs
-            exit 0
-          fi
-
-          FINAL_STATUS="success"
-          FAILURE_REASON=""
-          write_outputs
-
-      - name: Fail deploy job if rollout was not promoted
-        if: steps.rollout.outputs.final_status != 'success'
-        run: |
-          echo "Deployment failed: ${{ steps.rollout.outputs.failure_reason }}"
-          exit 1
-
-  notify:
-    name: Notify Telegram
-    needs:
-      - test
-      - deploy
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send final deploy status
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${{ secrets.BOT_TOKEN }}" || -z "${{ secrets.OWNER_ID }}" ]]; then
-            echo "Telegram secrets are missing; skipping notification."
-            exit 0
-          fi
-
-          STATUS="failure"
-          DETAILS=""
-
-          if [[ "${{ needs.test.result }}" != "success" ]]; then
-            DETAILS="tests failed"
-          elif [[ "${{ needs.deploy.outputs.final_status }}" == "success" ]]; then
-            STATUS="success"
-            DETAILS="Revision: ${{ needs.deploy.outputs.revision }}"
-          elif [[ -n "${{ needs.deploy.outputs.failure_reason }}" ]]; then
-            DETAILS="Reason: ${{ needs.deploy.outputs.failure_reason }}"
-          elif [[ "${{ needs.deploy.result }}" == "failure" ]]; then
-            DETAILS="Reason: deploy job failed before promotion"
-          else
-            DETAILS="Reason: deployment skipped"
-          fi
-
-          MESSAGE=$'Deploy finished\nCommit: ${{ github.sha }}\nStatus: '"${STATUS}"$'\n'"${DETAILS}"
-
-          curl -fsS -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
-            --data-urlencode "chat_id=${{ secrets.OWNER_ID }}" \
-            --data-urlencode "text=${MESSAGE}"
