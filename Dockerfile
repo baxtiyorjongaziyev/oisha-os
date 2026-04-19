@@ -31,7 +31,8 @@ COPY --from=builder /install /usr/local
 COPY . .
 
 # Ensure entrypoint is executable
-RUN chmod +x scripts/entrypoint.sh
+RUN sed -i 's/\r$//' scripts/entrypoint.sh \
+    && chmod +x scripts/entrypoint.sh
 
 # Entrypoint handles app startup
 ENTRYPOINT ["/bin/sh", "scripts/entrypoint.sh"]
