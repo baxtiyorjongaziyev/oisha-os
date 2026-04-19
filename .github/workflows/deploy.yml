@@ -41,7 +41,7 @@ jobs:
         run: |
           python -m py_compile src/database.py src/api_server.py src/main.py
 
-      - name: Run deploy safety tests
+    #  - name: Run deploy safety tests
 #        run: |
 #          python -m pytest tests/test_turso_adapter.py -q
 
