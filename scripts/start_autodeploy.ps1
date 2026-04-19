@@ -1,5 +1,6 @@
 $ErrorActionPreference = "Stop"
 
+# Launcher for the branch-aware auto-push watcher.
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $tmpDir = Join-Path $projectRoot "tmp"
 $pidPath = Join-Path $tmpDir "autodeploy.pid"
