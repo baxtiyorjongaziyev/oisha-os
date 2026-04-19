@@ -449,9 +449,9 @@ class AdminBot:
             """CRM tozalash rejimini qo'lda ishga tushirish."""
             if not self.access_manager.is_admin(event.sender_id):
                 return
-            
+
             await event.respond("👸 **Night Shift ishga tushirildi...**\nAmoCRM'dagi dublikatlar va qotib qolgan lidlar tozalanmoqda. 🧹")
-            
+
             if self.night_shift:
                 success = await self.night_shift.run_cleanup()
                 if success:
@@ -460,6 +460,104 @@ class AdminBot:
                     await event.respond("❌ Night Shift jarayonida xatolik yuz berdi.")
             else:
                 await event.respond("⚠️ Night Shift xizmati faollashtirilmagan.")
+
+        # ─── AUTO-REPLY KILL SWITCH & MODE CONTROL (Phase 2.1) ────────────
+        from src.services.core import auto_reply_gate as _arg
+
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/pause_auto'))
+        async def pause_auto_handler(event):
+            """Auto-reply kill-switch YOQADI (bot darhol jim bo'ladi)."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            try:
+                await self.db.set_state(_arg.FLAG_KILL_SWITCH, "false")
+                await event.respond(
+                    "🛑 **Auto-reply PAUSED**\n"
+                    "Kill-switch faollashtirildi — bot avtomatik javob bermaydi.\n"
+                    "Qayta yoqish uchun: `/resume_auto`"
+                )
+                logger.warning(f"[ADMIN_BOT] Auto-reply PAUSED by admin {event.sender_id}")
+            except Exception as e:
+                await event.respond(f"❌ Xato: {e}")
+
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/resume_auto'))
+        async def resume_auto_handler(event):
+            """Auto-reply kill-switch'ni o'chiradi — rejim qaytadan faollashadi."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            try:
+                await self.db.set_state(_arg.FLAG_KILL_SWITCH, "true")
+                mode = await self.db.get_state(_arg.FLAG_MODE) or os.environ.get("AUTO_REPLY_MODE", "off")
+                await event.respond(
+                    "▶️ **Auto-reply RESUMED**\n"
+                    f"Joriy rejim: `{mode}`\n"
+                    "Status: `/auto_status`"
+                )
+                logger.info(f"[ADMIN_BOT] Auto-reply RESUMED by admin {event.sender_id}")
+            except Exception as e:
+                await event.respond(f"❌ Xato: {e}")
+
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/auto_status'))
+        async def auto_status_handler(event):
+            """Auto-reply rejimi, kill-switch va VIP threshold ko'rsatish."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            try:
+                mode_db = await self.db.get_state(_arg.FLAG_MODE)
+                mode_env = os.environ.get("AUTO_REPLY_MODE", "off")
+                mode = (mode_db or mode_env).lower()
+                kill_raw = await self.db.get_state(_arg.FLAG_KILL_SWITCH)
+                if kill_raw is None:
+                    kill_active = False  # default: allowed (True in gate => not killed)
+                else:
+                    kill_active = str(kill_raw).lower() in ("0", "false", "off", "no")
+                vip = os.environ.get("VIP_LEAD_SCORE_THRESHOLD", "80")
+                triggers = ", ".join(_arg.ESCALATION_TRIGGERS)
+                status_icon = "🛑" if kill_active else "✅"
+                await event.respond(
+                    f"{status_icon} **AUTO-REPLY STATUS**\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Rejim (DB): `{mode_db or '—'}`\n"
+                    f"Rejim (env default): `{mode_env}`\n"
+                    f"Faol rejim: `{mode}`\n"
+                    f"Kill-switch: `{'ON (bot jim)' if kill_active else 'OFF (bot faol)'}`\n"
+                    f"VIP lead threshold: `{vip}`\n"
+                    f"Escalation triggers: {triggers}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Rejim o'zgartirish: `/set_mode off|shadow|vip_only|live`"
+                )
+            except Exception as e:
+                await event.respond(f"❌ Xato: {e}")
+
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/set_mode(\s+\S+)?'))
+        async def set_mode_handler(event):
+            """Auto-reply rejimini o'zgartirish: off | shadow | vip_only | live."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            text = (event.message.text or "").strip()
+            parts = text.split(maxsplit=1)
+            if len(parts) < 2:
+                await event.respond(
+                    "ℹ️ **Foydalanish:** `/set_mode <rejim>`\n"
+                    f"Ruxsat etilgan rejimlar: {', '.join(_arg.VALID_MODES)}"
+                )
+                return
+            new_mode = parts[1].strip().lower()
+            if new_mode not in _arg.VALID_MODES:
+                await event.respond(
+                    f"❌ Notanish rejim: `{new_mode}`\n"
+                    f"Ruxsat etilganlar: {', '.join(_arg.VALID_MODES)}"
+                )
+                return
+            try:
+                await self.db.set_state(_arg.FLAG_MODE, new_mode)
+                await event.respond(
+                    f"🔁 **Rejim yangilandi:** `{new_mode}`\n"
+                    f"Tekshirish: `/auto_status`"
+                )
+                logger.warning(f"[ADMIN_BOT] Auto-reply mode set to '{new_mode}' by admin {event.sender_id}")
+            except Exception as e:
+                await event.respond(f"❌ Xato: {e}")
 
     async def trigger_daily_missions(self):
         """Asosiy missiya taqsimlash logikasi."""
