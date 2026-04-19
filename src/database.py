@@ -197,6 +197,18 @@ class Database:
                     assigned_to TEXT
                 )
             """)
+
+            # [PHASE 1.6] Per-chat message checkpoint for boot-time catch-up.
+            # Every handled message updates last_processed_msg_id (via MAX).
+            # On boot, boot_catchup.py queries chats touched in last 7 days and
+            # replays any messages with id > last_processed_msg_id.
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS chat_checkpoints (
+                    chat_id INTEGER PRIMARY KEY,
+                    last_processed_msg_id INTEGER NOT NULL DEFAULT 0,
+                    last_processed_at DATETIME
+                )
+            """)
             
             # [PERFORMANCE] Create indexes
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)")
@@ -425,6 +437,49 @@ class Database:
         conn = await self.get_connection()
         await conn.execute("INSERT OR REPLACE INTO scheduled_jobs (job_name, run_date, created_at) VALUES (?, ?, ?)", (job_name, date_str, now))
         await conn.commit()
+
+    # [PHASE 1.6] Chat checkpoints — used by handle_new_message + boot_catchup.
+    async def update_chat_checkpoint(self, chat_id: int, msg_id: int) -> None:
+        """Advance the per-chat checkpoint to max(existing, msg_id).
+
+        Idempotent — restart after partial catch-up is safe because we only
+        move the checkpoint forward, never backward.
+        """
+        if not chat_id or not msg_id:
+            return
+        now = datetime.datetime.utcnow().isoformat()
+        conn = await self.get_connection()
+        # SQLite UPSERT: INSERT ... ON CONFLICT ... DO UPDATE with MAX semantics
+        await conn.execute(
+            """
+            INSERT INTO chat_checkpoints (chat_id, last_processed_msg_id, last_processed_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(chat_id) DO UPDATE SET
+                last_processed_msg_id = MAX(chat_checkpoints.last_processed_msg_id, excluded.last_processed_msg_id),
+                last_processed_at = excluded.last_processed_at
+            """,
+            (int(chat_id), int(msg_id), now),
+        )
+        await conn.commit()
+
+    async def get_recent_chat_checkpoints(self, since_days: int = 7) -> List[Dict[str, Any]]:
+        """Return chats touched within the last N days for boot-time replay."""
+        cutoff = (datetime.datetime.utcnow() - datetime.timedelta(days=since_days)).isoformat()
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT chat_id, last_processed_msg_id, last_processed_at FROM chat_checkpoints "
+            "WHERE last_processed_at >= ? ORDER BY last_processed_at DESC",
+            (cutoff,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                {
+                    "chat_id": r[0],
+                    "last_processed_msg_id": r[1] or 0,
+                    "last_processed_at": r[2],
+                }
+                for r in rows
+            ]
 
     async def get_user_info(self, user_id):
         conn = await self.get_connection()
