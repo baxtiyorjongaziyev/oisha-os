@@ -1,5 +1,6 @@
 $ErrorActionPreference = "Stop"
 
+# Stops the background auto-push watcher if it is running.
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $pidPath = Join-Path $projectRoot "tmp\autodeploy.pid"
 
