@@ -872,32 +872,164 @@ class Database:
         await conn.commit()
         return True
 
+class _TursoCursor:
+    """
+    aiosqlite.Cursor-compatible cursor over a libsql ResultSet.
+
+    Supports:
+      - await cursor.fetchone() / fetchall()
+      - async for row in cursor   (async iteration)
+      - cursor.description / cursor.rowcount
+      - cursor.close()
+    """
+    def __init__(self, result_set):
+        self.result_set = result_set
+        # aiosqlite-style description: tuple of 7-element tuples per column
+        cols = getattr(result_set, "columns", None) or []
+        self.description = [(str(col), None, None, None, None, None, None) for col in cols]
+        self._rows = list(getattr(result_set, "rows", None) or [])
+        self._ptr = 0
+        self._rowcount = getattr(result_set, "rows_affected", -1)
+
+    async def fetchone(self):
+        if self._ptr < len(self._rows):
+            row = self._rows[self._ptr]
+            self._ptr += 1
+            return row
+        return None
+
+    async def fetchall(self):
+        remaining = self._rows[self._ptr:]
+        self._ptr = len(self._rows)
+        return remaining
+
+    async def fetchmany(self, size=1):
+        end = min(self._ptr + size, len(self._rows))
+        chunk = self._rows[self._ptr:end]
+        self._ptr = end
+        return chunk
+
+    @property
+    def rowcount(self):
+        return self._rowcount if self._rowcount is not None else -1
+
+    async def close(self):
+        self._rows = []
+        self._ptr = 0
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        row = await self.fetchone()
+        if row is None:
+            raise StopAsyncIteration
+        return row
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+
+class _ExecuteProxy:
+    """
+    Dual-mode result of TursoAdapter.execute(sql, ...).
+
+    Must behave like aiosqlite's execute():
+      - awaitable:   cursor = await conn.execute("...")
+      - ctx manager: async with conn.execute("...") as cursor:
+    """
+    def __init__(self, client, sql, parameters):
+        self._client = client
+        self._sql = sql
+        self._params = parameters
+        self._cursor = None
+
+    async def _run(self):
+        sql = self._sql or ""
+        # libsql does NOT understand PRAGMA — skip silently (no-op cursor)
+        if sql.lstrip().upper().startswith("PRAGMA"):
+            return _TursoCursor(_EmptyResultSet())
+        args = self._params
+        if args is None:
+            args = []
+        elif isinstance(args, tuple):
+            args = list(args)
+        rs = await self._client.execute(sql, args)
+        return _TursoCursor(rs)
+
+    def __await__(self):
+        return self._run().__await__()
+
+    async def __aenter__(self):
+        self._cursor = await self._run()
+        return self._cursor
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._cursor is not None:
+            await self._cursor.close()
+
+
+class _EmptyResultSet:
+    """Placeholder ResultSet for no-op PRAGMA responses."""
+    columns = []
+    rows = []
+    rows_affected = 0
+
+
 class TursoAdapter:
-    """Shim for libsql_client to mimic aiosqlite connection interface."""
+    """
+    aiosqlite.Connection-compatible shim over libsql_client.Client.
+    Lets the existing 94+ callsites stay untouched.
+    """
     def __init__(self, client):
         self.client = client
         self.row_factory = None
 
-    async def execute(self, sql, parameters=None):
-        return _ExecuteProxy(await self.client.execute(sql, parameters))
+    def execute(self, sql, parameters=None):
+        # NOT async — returns a dual-mode proxy (awaitable + ctx manager)
+        return _ExecuteProxy(self.client, sql, parameters)
 
     async def executemany(self, sql, parameter_list):
-        # Transactional batch execution
-        batch = [libsql_client.Statement(sql, params) for params in parameter_list]
-        return await self.client.batch(batch)
+        batch = [
+            libsql_client.Statement(sql, list(p) if isinstance(p, tuple) else p)
+            for p in parameter_list
+        ]
+        await self.client.batch(batch)
+        return _TursoCursor(_EmptyResultSet())
+
+    async def executescript(self, script):
+        # Split on ';' and execute each non-empty statement
+        statements = [s.strip() for s in script.split(";") if s.strip()]
+        for s in statements:
+            if s.upper().startswith("PRAGMA"):
+                continue
+            await self.client.execute(s)
+        return _TursoCursor(_EmptyResultSet())
 
     async def commit(self):
-        # libsql client is usually auto-committing per execute call in non-tx mode
+        # libsql auto-commits per execute in non-transactional mode
         pass
 
     async def rollback(self):
         pass
 
     async def close(self):
-        self.client.close()
+        close_fn = getattr(self.client, "close", None)
+        if close_fn is None:
+            return
+        try:
+            result = close_fn()
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception as exc:
+            logger.warning(f"[TURSO] close() raised: {exc}")
 
     def cursor(self):
-        return self
+        # Return a lightweight proxy so `async with conn.cursor() as cursor:` still works.
+        return _CursorContext(self)
 
     async def __aenter__(self):
         return self
@@ -905,31 +1037,36 @@ class TursoAdapter:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
-class _ExecuteProxy:
-    """Proxy for ResultSet to behave like aiosqlite cursor."""
-    def __init__(self, result_set):
-        self.result_set = result_set
-        self.description = [(col, None, None, None, None, None, None) for col in result_set.columns]
-        self._ptr = 0
+
+class _CursorContext:
+    """
+    Context manager returned by TursoAdapter.cursor().
+    Provides a placeholder cursor — real execution happens via conn.execute().
+    """
+    def __init__(self, conn):
+        self._conn = conn
+        self._cursor = _TursoCursor(_EmptyResultSet())
+
+    async def __aenter__(self):
+        return self._cursor
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._cursor.close()
+
+    async def execute(self, sql, parameters=None):
+        proxy = self._conn.execute(sql, parameters)
+        self._cursor = await proxy
+        return self._cursor
+
+    async def executemany(self, sql, parameter_list):
+        return await self._conn.executemany(sql, parameter_list)
 
     async def fetchone(self):
-        if self._ptr < len(self.result_set.rows):
-            row = self.result_set.rows[self._ptr]
-            self._ptr += 1
-            return row
-        return None
+        return await self._cursor.fetchone()
 
     async def fetchall(self):
-        return self.result_set.rows
+        return await self._cursor.fetchall()
 
-    @property
-    def rowcount(self):
-        # Note: libsql doesn't always provide rowcount for all drivers easily
-        return -1 
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
+    async def close(self):
+        await self._cursor.close()
 
