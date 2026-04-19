@@ -12,6 +12,21 @@ from .negotiation_reengagement import NegotiationReengagementPlanner
 from .negotiation_verifier import NegotiationOutcomeVerifier
 from src.time_utils import get_local_now
 
+# Escalation safety-net — auto_reply_gate'dagi trigger list bilan bir xil.
+# (Gate main.py entry'da filtrlaydi, bu yerda ikkinchi qatlam himoya.)
+try:
+    from src.services.core.auto_reply_gate import ESCALATION_TRIGGERS
+except Exception:  # pragma: no cover — agar modul yo'q bo'lsa (unit test uchun)
+    ESCALATION_TRIGGERS = (
+        "shikoyat", "qaytarish", "advokat", "sud",
+        "vaqtida bermadi", "aldadi", "firibgar", "qaytarib bering",
+    )
+
+# Agar assessment.close_probability shu qiymatdan past bo'lsa — admin review.
+ESCALATION_CLOSE_PROB_THRESHOLD = 0.30
+# Shu risk flag'lardan birortasi bo'lsa — majburiy admin review.
+ESCALATION_RISK_FLAGS = {"legal_review", "competitive_pressure", "negative_sentiment"}
+
 logger = logging.getLogger(__name__)
 
 
@@ -419,6 +434,28 @@ class SalesAgent(BaseAgent):
         await self._log_assessment(user_id, payload, success=verification.success or not action_plan)
         return payload
 
+    def _detect_escalation(self, task_description: str, assessment: Any) -> Optional[str]:
+        """Xavfli vaziyatlarni aniqlash — admin review'ga belgilash uchun.
+
+        Return: sabab (str) yoki None. Bu metod reply generatsiyasini to'xtatmaydi;
+        u faqat log + flag qo'yadi. Yakuniy yuborish qarori main.py'dagi gate'da.
+        """
+        text = (task_description or "").lower()
+        for trigger in ESCALATION_TRIGGERS:
+            if trigger in text:
+                return f"trigger_word:{trigger}"
+        try:
+            prob = float(getattr(assessment, "close_probability", 1.0))
+        except (TypeError, ValueError):
+            prob = 1.0
+        if prob < ESCALATION_CLOSE_PROB_THRESHOLD:
+            return f"low_close_prob:{prob:.2f}"
+        risk_flags = set(getattr(assessment, "risk_flags", []) or [])
+        matched = risk_flags & ESCALATION_RISK_FLAGS
+        if matched:
+            return f"risk_flag:{','.join(sorted(matched))}"
+        return None
+
     async def process_task(self, user_id: int, task_description: str, context: Optional[Dict[str, Any]] = None) -> str:
         context = context or {}
         await self.load_session_history(user_id)
@@ -443,6 +480,27 @@ class SalesAgent(BaseAgent):
                 "assessment": assessment.to_payload(),
             },
         )
+
+        # Escalation check — log + flag, pipeline davom etadi (reply hali ham generatsiya bo'ladi,
+        # lekin main.py'dagi gate va admin review shadow mode'da uni bloklashi mumkin).
+        escalation_reason = self._detect_escalation(task_description, assessment)
+        if escalation_reason and self.db and hasattr(self.db, "log_agent_action"):
+            try:
+                await self.db.log_agent_action(
+                    user_id,
+                    "escalation_flagged",
+                    {
+                        "user_id": user_id,
+                        "reason": escalation_reason,
+                        "message": task_description[:500],
+                        "close_probability": getattr(assessment, "close_probability", None),
+                        "risk_flags": list(getattr(assessment, "risk_flags", []) or []),
+                    },
+                    success=False,  # False = diqqat kerakligini bildiradi
+                )
+                logger.warning(f"[SALES AGENT] Escalation flagged user={user_id} reason={escalation_reason}")
+            except Exception as e:
+                logger.error(f"[SALES AGENT] escalation log error: {e}")
 
         products_context = json.dumps(self.products, indent=2, ensure_ascii=False)
         history_text = "\n".join(f"{item['role']}: {item['content']}" for item in history[-8:])
