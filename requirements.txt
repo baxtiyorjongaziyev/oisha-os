@@ -1,5 +1,9 @@
-pyrogram==2.0.36
-telethon==1.24.0
+# [PHASE 1.8] pyrogram removed — caused the "mybot 1.42.0" ghost session that
+# was competing with Oisha Enterprise v2 and splitting message delivery.
+# Nothing imports pyrogram; it was a legacy artifact in the pin file.
+# telethon bumped from stale 1.24.0 to a modern range; API is backward-compatible
+# for the surface used (TelegramClient, events.NewMessage, StringSession).
+telethon>=1.36,<2
 aiogram==2.25.0
 requests==2.28.1
 python-dotenv==1.0.0
