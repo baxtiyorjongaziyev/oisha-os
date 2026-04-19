@@ -1138,8 +1138,20 @@ async def main():
         )
     
     # Head 2: Main Bot (Public interface and Admin Dashboard)
+    # [PHASE 1.5] Use StringSession so Cloud Run ephemeral disk does not lose
+    # bot DC cache on every revision rollover. BOT_SESSION_STRING env is
+    # optional — if set (via GCP Secret Manager), Telethon reuses it; otherwise
+    # a fresh in-memory session is created on each boot (bot tokens auto-auth,
+    # so the only cost is a few seconds of extra DC handshake).
     BOT_TOKEN = settings.BOT_TOKEN.get_secret_value()
-    bot_client = TelegramClient('data/bot_session', settings.API_ID, settings.API_HASH)
+    _bot_session_string = os.environ.get("BOT_SESSION_STRING", "").strip()
+    if _bot_session_string:
+        logger.info("[AUTH] Reusing BOT_SESSION_STRING for bot-token head.")
+        _bot_session = StringSession(_bot_session_string)
+    else:
+        logger.info("[AUTH] No BOT_SESSION_STRING — creating fresh StringSession for bot-token head.")
+        _bot_session = StringSession()
+    bot_client = TelegramClient(_bot_session, settings.API_ID, settings.API_HASH)
     BOT_TOKEN_STR = BOT_TOKEN
     juma_notifier = JumaNotifier(client=client, db=db)
 
@@ -1251,6 +1263,22 @@ async def main():
     if BOT_TOKEN_STR:
         try:
             await bot_client.start(bot_token=BOT_TOKEN_STR)
+            # [PHASE 1.5] Persist bot session string hint so Owner can save it
+            # as BOT_SESSION_STRING secret, eliminating re-handshake on deploy.
+            if not _bot_session_string:
+                try:
+                    _dumped = bot_client.session.save()
+                    if _dumped:
+                        # Log length only — never log the full session string
+                        # (it's an auth credential). Owner can retrieve via
+                        # /bot_session_export admin command if needed.
+                        logger.info(
+                            f"[AUTH] Bot StringSession ready ({len(_dumped)} chars). "
+                            "Owner: use /bot_session_export in admin bot to copy into "
+                            "BOT_SESSION_STRING secret."
+                        )
+                except Exception as dump_exc:
+                    logger.debug(f"[AUTH] Could not dump bot session: {dump_exc}")
         except Exception as bot_exc:
             logger.error(f"[AUTH] Bot-token head startup failed: {bot_exc}")
             bot_client = None
@@ -1642,11 +1670,104 @@ async def main():
             await asyncio.sleep(900) # Run every 15 mins
     
     asyncio.create_task(dm_lead_sync_task())
-    
+
+    # [PHASE 1.2] Liveness heartbeat — proves event loop is alive to /healthz.
+    async def _heartbeat_task():
+        import src.api_server as api_module
+        while True:
+            try:
+                api_module.mark_heartbeat()
+            except Exception as e:  # defensive — never crash the loop
+                logger.debug(f"[HEARTBEAT] tick error: {e}")
+            await asyncio.sleep(60)
+
+    asyncio.create_task(_heartbeat_task())
+
+    # [PHASE 1.4] Graceful SIGTERM drain for Cloud Run revision rollover.
+    # Cloud Run sends SIGTERM with a 30s grace period; we drain in-flight
+    # handlers for up to 25s, then disconnect cleanly so the new revision
+    # (already warm via min-instances=1) takes over with zero message loss.
+    _shutdown_event = asyncio.Event()
+
+    def _on_sigterm():
+        logger.warning("[SHUTDOWN] SIGTERM received — beginning graceful drain.")
+        _shutdown_event.set()
+
+    import signal as _signal
+    try:
+        loop.add_signal_handler(_signal.SIGTERM, _on_sigterm)
+        loop.add_signal_handler(_signal.SIGINT, _on_sigterm)
+        logger.info("[SHUTDOWN] SIGTERM/SIGINT handlers installed.")
+    except NotImplementedError:
+        # Windows asyncio does not support add_signal_handler for these.
+        logger.info("[SHUTDOWN] Signal handlers unavailable on this platform (Windows).")
+
+    async def _graceful_drain():
+        """Called once SIGTERM fires. Drains in-flight tasks, then disconnects."""
+        drain_deadline = 25.0
+        logger.info(f"[SHUTDOWN] Draining in-flight tasks for up to {drain_deadline}s...")
+        current = asyncio.current_task()
+        pending = [
+            t for t in asyncio.all_tasks(loop=asyncio.get_running_loop())
+            if t is not current and not t.done()
+        ]
+        # Filter out the long-lived background loops (heartbeat, scheduler, etc.)
+        # — we only want to wait for message-handler tasks. Heuristic: tasks
+        # whose coroutine is not one of our known daemon coroutines.
+        daemon_names = {
+            "_heartbeat_task", "background_scheduler", "dm_lead_sync_task",
+            "background_monitor_task", "background_loop", "monitor_sessions",
+            "background_crm_audit_task",
+        }
+        drainable = []
+        for t in pending:
+            coro = getattr(t, "get_coro", lambda: None)()
+            name = getattr(coro, "__name__", "") or ""
+            if name in daemon_names:
+                continue
+            drainable.append(t)
+        if drainable:
+            logger.info(f"[SHUTDOWN] Waiting on {len(drainable)} in-flight handler task(s).")
+            done, still_pending = await asyncio.wait(drainable, timeout=drain_deadline)
+            if still_pending:
+                logger.warning(f"[SHUTDOWN] {len(still_pending)} task(s) exceeded drain deadline; forcing.")
+        else:
+            logger.info("[SHUTDOWN] No in-flight handler tasks to drain.")
+        # Disconnect Telegram clients
+        try:
+            await client.disconnect()
+            logger.info("[SHUTDOWN] Userbot client disconnected.")
+        except Exception as e:
+            logger.warning(f"[SHUTDOWN] Userbot disconnect error: {e}")
+        if bot_client is not None:
+            try:
+                await bot_client.disconnect()
+                logger.info("[SHUTDOWN] Bot client disconnected.")
+            except Exception as e:
+                logger.warning(f"[SHUTDOWN] Bot disconnect error: {e}")
+        try:
+            await msg_controller.db.close()
+            logger.info("[SHUTDOWN] DB closed.")
+        except Exception as e:
+            logger.warning(f"[SHUTDOWN] DB close error: {e}")
+
     logger.info("✅ Oisha-OS: All High-Performance Agents are Online & Ready!")
-    
-    # Main client loop
-    await client.run_until_disconnected()
+
+    # Main client loop — race run_until_disconnected against SIGTERM.
+    disc_task = asyncio.create_task(client.run_until_disconnected(), name="userbot_disconnect_watcher")
+    shutdown_task = asyncio.create_task(_shutdown_event.wait(), name="shutdown_watcher")
+    done, pending = await asyncio.wait(
+        {disc_task, shutdown_task},
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+    if shutdown_task in done:
+        await _graceful_drain()
+        for t in pending:
+            t.cancel()
+    else:
+        # Client disconnected naturally (e.g. AUTH_KEY_DUPLICATED).
+        logger.warning("[SHUTDOWN] Telegram client disconnected unexpectedly.")
+        shutdown_task.cancel()
 
 if __name__ == "__main__":
     try:
