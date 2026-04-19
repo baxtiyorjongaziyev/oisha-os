@@ -1,6 +1,8 @@
 param(
     [string]$ProjectRoot = "",
-    [int]$QuietSeconds = 12
+    [int]$QuietSeconds = 12,
+    [int]$PollSeconds = 6,
+    [string]$Branch = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,13 +10,6 @@ $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 }
-
-$script:pendingChange = $false
-$script:isDeploying = $false
-$script:lastEventAt = Get-Date
-$script:watcher = $null
-$script:timer = $null
-$script:subscriptions = @()
 
 $logDir = Join-Path $ProjectRoot "tmp"
 $logPath = Join-Path $logDir "autodeploy.log"
@@ -32,6 +27,18 @@ function Write-Log {
     Write-Output $line
 }
 
+function Resolve-Branch {
+    if (-not [string]::IsNullOrWhiteSpace($Branch)) {
+        return $Branch.Trim()
+    }
+
+    $resolved = (& git branch --show-current 2>$null | Select-Object -First 1).Trim()
+    if ([string]::IsNullOrWhiteSpace($resolved)) {
+        throw "Current git branch aniqlanmadi."
+    }
+    return $resolved
+}
+
 function Should-WatchPath {
     param([string]$ChangedPath)
 
@@ -39,7 +46,7 @@ function Should-WatchPath {
         return $false
     }
 
-    $fullPath = [System.IO.Path]::GetFullPath($ChangedPath)
+    $fullPath = [System.IO.Path]::GetFullPath((Join-Path $ProjectRoot $ChangedPath))
     $normalized = $fullPath.Replace("/", "\")
 
     $ignoredParts = @(
@@ -47,8 +54,6 @@ function Should-WatchPath {
         "\.venv\",
         "\__pycache__\",
         "\tmp\",
-        "\tests\",
-        "\docs\",
         "\data\",
         "\.pytest_cache\",
         "\node_modules\"
@@ -60,153 +65,217 @@ function Should-WatchPath {
         }
     }
 
-    $rootFiles = @(
-        (Join-Path $ProjectRoot "Dockerfile"),
-        (Join-Path $ProjectRoot "requirements.txt"),
-        (Join-Path $ProjectRoot "cloudbuild.yaml"),
-        (Join-Path $ProjectRoot ".gcloudignore")
-    )
-    if ($rootFiles -contains $fullPath) {
-        return $true
-    }
-
-    $watchedDirs = @("src", "scripts", "deploy", ".github")
-    foreach ($dir in $watchedDirs) {
-        $fullDir = (Join-Path $ProjectRoot $dir)
-        if ($normalized.StartsWith($fullDir.Replace("/", "\") + "\")) {
-            return $true
-        }
-    }
-
-    return $false
+    return $true
 }
 
-function Invoke-GitSync {
-    if ($script:isDeploying) {
-        Write-Log "Sync already running. New request queued."
-        return
-    }
+function Get-RepoStatusEntries {
+    $raw = & git -c core.quotepath=off status --porcelain=v1 --untracked-files=all
+    $entries = @()
 
-    $script:isDeploying = $true
-    try {
-        Write-Log "🚀 Git Sync started."
-        Push-Location $ProjectRoot
-
-        # Check if there are changes
-        $status = & git status --porcelain
-        if ([string]::IsNullOrWhiteSpace($status)) {
-            Write-Log "No changes detected. Skipping push."
-            return
+    foreach ($line in $raw) {
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.Length -lt 4) {
+            continue
         }
 
-        # 1. Compile check (optional but good for Python)
-        $srcDir = Join-Path $ProjectRoot "src"
-        if (Test-Path $srcDir) {
-            Write-Log "Checking syntax..."
-            $pyFiles = Get-ChildItem -Path $srcDir -Recurse -Filter *.py -File | Select-Object -ExpandProperty FullName
-            if ($pyFiles) {
-                & python -m py_compile $pyFiles
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Log "❌ Syntax error detected. Push aborted."
-                    return
+        $status = $line.Substring(0, 2)
+        $pathPart = $line.Substring(3)
+        $paths = @()
+
+        if ($pathPart -like "* -> *") {
+            $split = $pathPart -split " -> "
+            foreach ($piece in $split) {
+                if (-not [string]::IsNullOrWhiteSpace($piece)) {
+                    $paths += $piece.Trim()
+                }
+            }
+        } else {
+            $paths += $pathPart.Trim()
+        }
+
+        foreach ($path in $paths) {
+            if (Should-WatchPath -ChangedPath $path) {
+                $entries += [PSCustomObject]@{
+                    Status = $status
+                    Path = $path
                 }
             }
         }
+    }
 
-        # 2. Git Automation
-        Write-Log "Committing changes..."
-        & git add .
-        & git commit -m "🚀 auto-deploy: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-        
-        Write-Log "Pushing to GitHub..."
-        & git pull --rebase origin main
-        & git push origin main
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-Log "✅ Sync & Push successful!"
-        } else {
-            Write-Log "⚠️ Push failed (Exit Code: $LASTEXITCODE). Check for conflicts."
-        }
+    return $entries
+}
+
+function Get-PathFingerprint {
+    param([string]$RelativePath)
+
+    $fullPath = Join-Path $ProjectRoot $RelativePath
+    if (-not (Test-Path -LiteralPath $fullPath)) {
+        return "__MISSING__"
+    }
+
+    try {
+        return (Get-FileHash -Algorithm SHA256 -LiteralPath $fullPath).Hash
     } catch {
-        Write-Log "🚨 Sync crashed: $($_.Exception.Message)"
-    } finally {
-        Pop-Location
-        $script:isDeploying = $false
+        return "__UNREADABLE__"
     }
 }
 
-function Queue-Deploy {
-    param([string]$ChangedPath, [string]$ChangeType)
+function New-BaselineSnapshot {
+    $snapshot = @{}
+    $entries = Get-RepoStatusEntries
+    foreach ($entry in $entries) {
+        $snapshot[$entry.Path] = Get-PathFingerprint -RelativePath $entry.Path
+    }
+    return $snapshot
+}
 
-    if (-not (Should-WatchPath -ChangedPath $ChangedPath)) {
-        return
+function Get-CommitCandidates {
+    param([hashtable]$BaselineSnapshot)
+
+    $entries = Get-RepoStatusEntries
+    $grouped = @{}
+
+    foreach ($entry in $entries) {
+        $path = $entry.Path
+        $fingerprint = Get-PathFingerprint -RelativePath $path
+        $isCandidate = $false
+
+        if (-not $BaselineSnapshot.ContainsKey($path)) {
+            $isCandidate = $true
+        } elseif ($BaselineSnapshot[$path] -ne $fingerprint) {
+            $isCandidate = $true
+        }
+
+        if ($isCandidate) {
+            $grouped[$path] = $entry.Status
+        }
     }
 
-    $script:lastEventAt = Get-Date
-    $script:pendingChange = $true
-    Write-Log "Queued deploy after ${ChangeType}: $ChangedPath"
+    return $grouped.Keys | Sort-Object
+}
+
+function Has-RemoteBranch {
+    param([string]$TargetBranch)
+    & git ls-remote --exit-code --heads origin $TargetBranch *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Invoke-GitSync {
+    param(
+        [string[]]$Paths,
+        [string]$TargetBranch
+    )
+
+    if (-not $Paths -or $Paths.Count -eq 0) {
+        Write-Log "No new watched changes to commit."
+        return $false
+    }
+
+    Write-Log "🚀 Auto sync started for branch '$TargetBranch' ($($Paths.Count) path)."
+    Push-Location $ProjectRoot
+    try {
+        $addArgs = @("add", "-A", "--") + $Paths
+        & git @addArgs
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "⚠️ git add failed."
+            return $false
+        }
+
+        & git diff --cached --quiet --exit-code
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "No staged diff after filtering. Skipping commit."
+            return $false
+        }
+
+        $commitMessage = "chore(auto): sync $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        & git commit -m $commitMessage
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "⚠️ git commit failed."
+            return $false
+        }
+
+        if (Has-RemoteBranch -TargetBranch $TargetBranch) {
+            & git pull --rebase origin $TargetBranch
+            if ($LASTEXITCODE -ne 0) {
+                Write-Log "⚠️ git pull --rebase failed. Manual conflict resolution kerak."
+                return $false
+            }
+            & git push origin "HEAD:refs/heads/$TargetBranch"
+        } else {
+            & git push -u origin "HEAD:refs/heads/$TargetBranch"
+        }
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "✅ Auto push muvaffaqiyatli bo'ldi."
+            return $true
+        }
+
+        Write-Log "⚠️ git push failed (Exit Code: $LASTEXITCODE)."
+        return $false
+    } catch {
+        Write-Log "🚨 Auto sync crashed: $($_.Exception.Message)"
+        return $false
+    } finally {
+        Pop-Location
+    }
 }
 
 Write-Log "Auto-deploy watcher starting for $ProjectRoot"
-
-$script:watcher = New-Object System.IO.FileSystemWatcher
-$script:watcher.Path = $ProjectRoot
-$script:watcher.IncludeSubdirectories = $true
-$script:watcher.NotifyFilter = [System.IO.NotifyFilters]'FileName, LastWrite, DirectoryName, CreationTime'
-$script:watcher.EnableRaisingEvents = $true
-
-$script:subscriptions += Register-ObjectEvent -InputObject $script:watcher -EventName Changed -Action {
-    Queue-Deploy -ChangedPath $Event.SourceEventArgs.FullPath -ChangeType "changed"
-}
-$script:subscriptions += Register-ObjectEvent -InputObject $script:watcher -EventName Created -Action {
-    Queue-Deploy -ChangedPath $Event.SourceEventArgs.FullPath -ChangeType "created"
-}
-$script:subscriptions += Register-ObjectEvent -InputObject $script:watcher -EventName Deleted -Action {
-    Queue-Deploy -ChangedPath $Event.SourceEventArgs.FullPath -ChangeType "deleted"
-}
-$script:subscriptions += Register-ObjectEvent -InputObject $script:watcher -EventName Renamed -Action {
-    Queue-Deploy -ChangedPath $Event.SourceEventArgs.FullPath -ChangeType "renamed"
-}
-
-$script:timer = New-Object System.Timers.Timer
-$script:timer.Interval = 3000
-$script:timer.AutoReset = $true
-$script:subscriptions += Register-ObjectEvent -InputObject $script:timer -EventName Elapsed -Action {
-    if (-not $script:pendingChange) {
-        return
-    }
-    if ($script:isDeploying) {
-        return
-    }
-    $secondsSinceLastEvent = ((Get-Date) - $script:lastEventAt).TotalSeconds
-    if ($secondsSinceLastEvent -lt $using:QuietSeconds) {
-        return
-    }
-
-    $script:pendingChange = $false
-    Invoke-GitSync
-}
-$script:timer.Start()
-
-Write-Log "Watcher is active. Waiting for source changes."
-
+Push-Location $ProjectRoot
 try {
+    $targetBranch = Resolve-Branch
+    Write-Log "Watching current branch: $targetBranch"
+    $baselineSnapshot = New-BaselineSnapshot
+    if ($baselineSnapshot.Count -gt 0) {
+        Write-Log "Baseline dirty set captured: $($baselineSnapshot.Count) path. Ular o'zgarmaguncha auto-push qilinmaydi."
+    }
+
+    $lastCandidateSignature = ""
+    $firstSeenAt = $null
+
     while ($true) {
-        Start-Sleep -Seconds 60
+        $candidatePaths = @(Get-CommitCandidates -BaselineSnapshot $baselineSnapshot)
+
+        if ($candidatePaths.Count -eq 0) {
+            $lastCandidateSignature = ""
+            $firstSeenAt = $null
+            Start-Sleep -Seconds $PollSeconds
+            continue
+        }
+
+        $signature = ($candidatePaths -join "|")
+        if ($signature -ne $lastCandidateSignature) {
+            $lastCandidateSignature = $signature
+            $firstSeenAt = Get-Date
+            Write-Log "Queued auto-push for: $($candidatePaths -join ', ')"
+            Start-Sleep -Seconds $PollSeconds
+            continue
+        }
+
+        if (-not $firstSeenAt) {
+            $firstSeenAt = Get-Date
+            Start-Sleep -Seconds $PollSeconds
+            continue
+        }
+
+        $elapsed = ((Get-Date) - $firstSeenAt).TotalSeconds
+        if ($elapsed -lt $QuietSeconds) {
+            Start-Sleep -Seconds $PollSeconds
+            continue
+        }
+
+        $successful = Invoke-GitSync -Paths $candidatePaths -TargetBranch $targetBranch
+        if ($successful) {
+            foreach ($path in $candidatePaths) {
+                $baselineSnapshot[$path] = Get-PathFingerprint -RelativePath $path
+            }
+        }
+
+        $lastCandidateSignature = ""
+        $firstSeenAt = $null
+        Start-Sleep -Seconds $PollSeconds
     }
 } finally {
-    foreach ($subscription in $script:subscriptions) {
-        if ($subscription) {
-            Unregister-Event -SubscriptionId $subscription.Id -ErrorAction SilentlyContinue
-        }
-    }
-    if ($script:timer) {
-        $script:timer.Stop()
-        $script:timer.Dispose()
-    }
-    if ($script:watcher) {
-        $script:watcher.EnableRaisingEvents = $false
-        $script:watcher.Dispose()
-    }
+    Pop-Location
     Write-Log "Watcher stopped."
 }
