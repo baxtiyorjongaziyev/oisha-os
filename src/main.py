@@ -540,6 +540,7 @@ async def background_monitor_task() -> None:
         check_airtable_stagnation,
         check_client_journey_excellence,
     )
+    from src.services.core.client_delivery_system import ClientDeliverySystem
     from src.services.core.lead_operating_system import LeadOperatingSystem
     from src.time_utils import get_local_now, is_quiet_hours
     
@@ -561,6 +562,14 @@ async def background_monitor_task() -> None:
             await check_airtable_deadlines()
 
             if msg_controller:
+                if not hasattr(background_monitor_task, "_delivery_system"):
+                    background_monitor_task._delivery_system = ClientDeliverySystem(
+                        msg_controller.db,
+                        bot_client=bot_client,
+                        admin_bot=admin_bot,
+                    )
+                await background_monitor_task._delivery_system.run_due_followups(limit=8)
+
                 if not hasattr(background_monitor_task, "_lead_os"):
                     background_monitor_task._lead_os = LeadOperatingSystem(msg_controller, msg_controller.db)
                 last_cycle_at = getattr(background_monitor_task, "_lead_cycle_at", None)
@@ -635,6 +644,12 @@ async def self_command_handler(event):
 
         lead_os = LeadOperatingSystem(msg_controller, msg_controller.db)
         report = await lead_os.render_cockpit_report(limit=12, lookback_hours=72)
+        await event.respond(report, parse_mode="HTML")
+    elif cmd.startswith('/delivery_cockpit'):
+        from src.services.core.client_delivery_system import ClientDeliverySystem
+
+        delivery_system = ClientDeliverySystem(msg_controller.db, bot_client=bot_client, admin_bot=admin_bot)
+        report = await delivery_system.render_delivery_cockpit(limit=12)
         await event.respond(report, parse_mode="HTML")
     elif cmd.startswith('/status'):
         await event.respond("🟢 **TIZIM HOLATI:** Active (GCP Master)")
@@ -1457,6 +1472,8 @@ async def main():
                             return
 
                         if _is_finance_approval(text):
+                            from src.services.core.client_delivery_system import ClientDeliverySystem
+
                             if sender.id != finance_user_id and sender.id != settings.OWNER_ID:
                                 await event.reply(
                                     f"⚠️ Bu kirimni faqat {finance_mention} yoki owner tasdiqlaydi.",
@@ -1490,11 +1507,27 @@ async def main():
                             workflow["airtable_record_id"] = record.get("id")
                             await _save_income_workflow_state(db, workflow)
 
+                            delivery_system = ClientDeliverySystem(
+                                db,
+                                bot_client=bot_client,
+                                admin_bot=admin_bot,
+                            )
+                            delivery_result = await delivery_system.handle_finance_approved(workflow, record)
+                            workflow["delivery_handoff_started"] = bool(delivery_result.get("success"))
+                            workflow["delivery_followups_scheduled"] = int(delivery_result.get("followup_count") or 0)
+                            pm_person = delivery_result.get("pm") or {}
+                            workflow["delivery_pm_user_id"] = pm_person.get("user_id")
+                            workflow["delivery_pm_username"] = pm_person.get("username")
+                            await _save_income_workflow_state(db, workflow)
+
                             project_name = workflow.get("project_name") or "noma'lum loyiha"
+                            pm_mention = _format_person_mention(delivery_result.get("pm"), "PM")
                             await event.reply(
                                 f"✅ Kirim finance tomonidan tasdiqlandi va Airtablega yozildi.\n"
                                 f"📁 Loyiha: {project_name}\n"
-                                f"🧾 Kirim ID: <code>{record.get('id', 'nomaʼlum')}</code>",
+                                f"🧾 Kirim ID: <code>{record.get('id', 'nomaʼlum')}</code>\n"
+                                f"👤 PM handoff: {pm_mention}\n"
+                                f"📌 Rejalashtirilgan checkpointlar: <b>{delivery_result.get('followup_count', 0)}</b> ta",
                                 parse_mode="html",
                             )
                             return
