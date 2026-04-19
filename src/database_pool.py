@@ -30,7 +30,7 @@ except ImportError:
     HAS_POSTGRES = False
 
 try:
-    import libsql_client
+    import libsql as libsql_modern
     HAS_LIBSQL = True
 except ImportError:
     HAS_LIBSQL = False
@@ -72,7 +72,7 @@ class ConnectionPool:
         if os.environ.get("TURSO_DATABASE_URL") and os.environ.get("TURSO_AUTH_TOKEN"):
             self._is_turso = True
             if not HAS_LIBSQL:
-                logger.warning("[DB POOL] Turso credentials found but libsql-client not installed")
+                logger.warning("[DB POOL] Turso credentials found but 'libsql' (modern) not installed")
         elif self._database_url and self._database_url.startswith("postgresql://"):
             self._is_postgres = True
             if not HAS_POSTGRES:
@@ -372,9 +372,10 @@ class TursoConnectionPool:
             self._initialized = True
 
     async def _create_client(self):
-        from src.database import TursoAdapter
-        client = libsql_client.create_client(url=self.url, auth_token=self.auth_token)
-        return TursoAdapter(client)
+        from src.database import Database
+        # Use the modern Database.get_connection logic which handles the new libsql package
+        conn = await Database.get_connection()
+        return conn
 
     async def acquire(self):
         try:
