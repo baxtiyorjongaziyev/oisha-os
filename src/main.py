@@ -642,10 +642,22 @@ async def self_command_handler(event):
 async def handle_new_message(event):
     """Barcha kiruvchi xabarlarni xavfsizlik va aqllilik bilan tahlil qilish."""
 
-    
+
     # 0. Botning o'z ID sini olish (Sikl oldini olish uchun)
     me = await client.get_me()
     await safe_responder.update_me_id(me.id)
+
+    # [PHASE 1.6] Advance per-chat checkpoint BEFORE any filtering.
+    # We advance even for spam/skipped messages so boot_catchup doesn't
+    # repeatedly re-replay the same skipped message after every restart.
+    # Idempotent via MAX() semantics in update_chat_checkpoint.
+    try:
+        _cp_chat = getattr(event, "chat_id", None)
+        _cp_msg = getattr(getattr(event, "message", None), "id", None) or getattr(event, "id", None)
+        if _cp_chat and _cp_msg and msg_controller is not None:
+            await msg_controller.db.update_chat_checkpoint(_cp_chat, _cp_msg)
+    except Exception as _cp_exc:
+        logger.debug(f"[CHECKPOINT] update skipped: {_cp_exc}")
 
     # 1. Spamdan himoya va Guruh filtrini tekshirish
     if not await safe_responder.should_respond(event):
@@ -1298,7 +1310,27 @@ async def main():
     # Register handlers for the Bot Token head
     if bot_client:
         bot_client.add_event_handler(handle_new_message, events.NewMessage)
-        
+
+    # [PHASE 1.6] Boot-time missed-messages catch-up.
+    # Fire-and-forget: runs in background so we don't block startup of other
+    # services. If catch-up takes longer than its internal 90s budget it will
+    # self-terminate and the remaining tail will be picked up by the next
+    # restart (at-least-once semantics, idempotent via chat_checkpoints).
+    async def _run_catchup():
+        try:
+            from src.services.core.boot_catchup import catch_up_missed_messages
+            stats = await catch_up_missed_messages(
+                client=client,
+                db=msg_controller.db,
+                handle_new_message=handle_new_message,
+            )
+            if stats.get("messages"):
+                logger.info(f"[BOOT] Catch-up replayed {stats['messages']} missed message(s) across {stats['chats']} chat(s).")
+        except Exception as exc:
+            logger.warning(f"[BOOT] Catch-up failed: {exc}")
+
+    asyncio.create_task(_run_catchup())
+
     # [GOD MODE] User Presence Tracker (Nudge Alerts)
     @client.on(events.UserUpdate)
     async def presence_handler(event):
