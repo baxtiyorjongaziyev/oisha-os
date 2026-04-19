@@ -69,7 +69,7 @@ async def liveness_probe():
 
     Returns 503 otherwise — Cloud Run livenessProbe will restart the container.
 
-    Grace period: for the first 60s after boot we return 200 to avoid
+    Grace period: for the first 20s after boot we return 200 to avoid
     false-positive restarts while the loop finishes wiring up.
     """
     now = datetime.now(timezone.utc)
@@ -88,7 +88,7 @@ async def liveness_probe():
         checks["heartbeat_age_sec"] = round(hb_age, 1)
         if hb_age > _heartbeat_stale_seconds:
             problems.append(f"heartbeat_stale({int(hb_age)}s)")
-    elif boot_age > 60:
+    elif boot_age > 20:
         # Loop should have ticked by now; if not, something is wrong.
         problems.append("no_heartbeat_ever")
 
@@ -120,7 +120,7 @@ async def liveness_probe():
             problems.append(f"db_error:{type(e).__name__}")
 
     healthy = (
-        boot_age < 60  # grace period
+        boot_age < 20  # grace period
         or not problems
     )
 
@@ -143,7 +143,7 @@ amocrm_instance = None
 # and the container is restarted (recovering from event-loop deadlocks).
 _last_heartbeat_at: Optional[datetime] = None
 _boot_at: datetime = datetime.now(timezone.utc)
-_heartbeat_stale_seconds: int = 300  # 5 min: loop silent longer than this => unhealthy
+_heartbeat_stale_seconds: int = 120  # 2 min: loop silent longer than this => unhealthy
 
 
 def mark_heartbeat() -> None:
