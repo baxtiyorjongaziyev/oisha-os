@@ -9,8 +9,9 @@ $watchScript = Join-Path $PSScriptRoot "autodeploy_watch.ps1"
 New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
 
 if (Test-Path $pidPath) {
-    $existingPid = (Get-Content $pidPath -ErrorAction SilentlyContinue | Select-Object -First 1).Trim()
-    if ($existingPid) {
+    $existingPidRaw = Get-Content $pidPath -ErrorAction SilentlyContinue | Select-Object -First 1
+    $existingPid = if ($null -ne $existingPidRaw) { $existingPidRaw.ToString().Trim() } else { "" }
+    if (-not [string]::IsNullOrWhiteSpace($existingPid)) {
         $existingProcess = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
         if ($existingProcess) {
             Write-Output "Auto-deploy watcher already running with PID $existingPid"
