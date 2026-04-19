@@ -29,6 +29,13 @@ try:
 except ImportError:
     HAS_POSTGRES = False
 
+try:
+    from libsql_client import create_client as _create_libsql_client # type: ignore
+    from src.database import TursoAdapter
+    HAS_TURSO = True
+except ImportError:
+    HAS_TURSO = False
+
 
 @dataclass
 class PoolConfig:
@@ -62,7 +69,20 @@ class ConnectionPool:
         self._is_postgres = False
         
         # Determine database type
-        if self._database_url and self._database_url.startswith("postgresql://"):
+        self._is_turso = False
+        self._turso_url = (os.getenv("TURSO_DATABASE_URL") or "").strip()
+        self._turso_token = (os.getenv("TURSO_AUTH_TOKEN") or "").strip()
+
+        if self._turso_url and self._turso_token:
+            self._is_turso = True
+            if not HAS_TURSO:
+                 logger.warning("[DB POOL] Turso credentials found but libsql-client not installed. Falling back.")
+                 self._is_turso = False
+
+        if self._is_turso:
+            self._is_postgres = False
+            logger.info(f"[DB POOL] Mode: Turso ({self._turso_url})")
+        elif self._database_url and self._database_url.startswith("postgresql://"):
             self._is_postgres = True
             if not HAS_POSTGRES:
                 raise ImportError(
@@ -79,12 +99,15 @@ class ConnectionPool:
             if self._pool is not None:
                 return
             
-            if self._is_postgres:
+            if self._is_turso:
+                await self._init_turso_pool()
+            elif self._is_postgres:
                 await self._init_postgres_pool()
             else:
                 await self._init_sqlite_pool()
             
-            logger.info(f"[DB POOL] Initialized ({'PostgreSQL' if self._is_postgres else 'SQLite'})")
+            mode = "Turso" if self._is_turso else ("PostgreSQL" if self._is_postgres else "SQLite")
+            logger.info(f"[DB POOL] Initialized ({mode})")
     
     async def _init_postgres_pool(self):
         """Initialize PostgreSQL connection pool."""
@@ -98,6 +121,17 @@ class ConnectionPool:
             command_timeout=self.config.command_timeout,
             max_inactive_time=self.config.max_inactive_time
         )
+
+    async def _init_turso_pool(self):
+        """Initialize Turso 'pool'."""
+        # For Turso, we can use a similar logic to SQLite or just a single client.
+        # However, to maintain the interface, we'll use a simplified version.
+        self._pool = TursoConnectionPool(
+            url=self._turso_url,
+            token=self._turso_token,
+            max_connections=self.config.max_size
+        )
+        await self._pool.initialize()
     
     async def _init_sqlite_pool(self):
         """
@@ -129,6 +163,12 @@ class ConnectionPool:
         if self._is_postgres:
             async with self._pool.acquire() as conn:
                 yield conn
+        elif self._is_turso:
+            conn = await self._pool.acquire()
+            try:
+                yield conn
+            finally:
+                await self._pool.release(conn)
         else:
             conn = await self._pool.acquire()
             try:
@@ -150,6 +190,9 @@ class ConnectionPool:
         async with self.acquire() as conn:
             if self._is_postgres:
                 await conn.execute(query, *args)
+            elif self._is_turso:
+                # Turso adapter execute is async and returns a proxy
+                await conn.execute(query, args)
             else:
                 await conn.execute(query, args)
                 await conn.commit()
@@ -302,6 +345,105 @@ class SQLiteConnectionPool:
     async def close(self):
         """Close all connections."""
         # Close in-use connections
+        async with self._lock:
+            for conn in self._all_connections:
+                try:
+                    await conn.close()
+                except Exception:
+                    pass
+            self._all_connections.clear()
+            while not self._available.empty():
+                self._available.get_nowait()
+            self._in_use.clear()
+        
+        self._initialized = False
+
+
+class TursoConnectionPool:
+    """
+    Turso (libSQL) connection pool implementation.
+    
+    Manages multiple persistent Turso clients wrapping them in TursoAdapter.
+    """
+    
+    def __init__(self, url: str, token: str, max_connections: int = 10):
+        self.url = url
+        self.token = token
+        self.max_connections = max_connections
+        self._available: asyncio.Queue = asyncio.Queue()
+        self._all_connections: set = set()
+        self._in_use: set = set()
+        self._lock = asyncio.Lock()
+        self._initialized = False
+    
+    async def initialize(self):
+        """Initialize the pool with connections."""
+        if self._initialized:
+            return
+        
+        async with self._lock:
+            # Create initial connections
+            for _ in range(min(2, self.max_connections)):
+                conn = await self._create_connection()
+                self._all_connections.add(conn)
+                await self._available.put(conn)
+            
+            self._initialized = True
+    
+    async def _create_connection(self) -> TursoAdapter:
+        """Create a new Turso connection."""
+        if not HAS_TURSO:
+            raise ImportError("libsql-client is not installed")
+        
+        client = _create_libsql_client(url=self.url, auth_token=self.token)
+        return TursoAdapter(client)
+    
+    async def acquire(self) -> TursoAdapter:
+        """Acquire a connection from the pool."""
+        # Fast path
+        try:
+            conn = self._available.get_nowait()
+            async with self._lock:
+                self._in_use.add(id(conn))
+            return conn
+        except asyncio.QueueEmpty:
+            pass
+        
+        # Slow path
+        async with self._lock:
+            if len(self._in_use) < self.max_connections:
+                conn = await self._create_connection()
+                self._all_connections.add(conn)
+                self._in_use.add(id(conn))
+                return conn
+        
+        # Wait
+        conn = await self._available.get()
+        async with self._lock:
+            self._in_use.add(id(conn))
+        return conn
+    
+    async def release(self, conn: TursoAdapter):
+        """Release a connection back to the pool."""
+        async with self._lock:
+            self._in_use.discard(id(conn))
+        
+        # Test connection
+        try:
+            # Simple check
+            await conn.execute("SELECT 1")
+            await self._available.put(conn)
+        except Exception:
+            # Dead, close and remove
+            try:
+                await conn.close()
+            except Exception:
+                pass
+            async with self._lock:
+                self._all_connections.discard(conn)
+    
+    async def close(self):
+        """Close all connections."""
         async with self._lock:
             for conn in self._all_connections:
                 try:
