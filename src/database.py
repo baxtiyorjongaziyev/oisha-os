@@ -5,7 +5,7 @@ import asyncio
 import logging
 import json
 try:
-    import libsql_client
+    import libsql
     HAS_LIBSQL = True
 except ImportError:
     HAS_LIBSQL = False
@@ -49,11 +49,12 @@ class Database:
                     url = url.replace("libsql://", "https://")
                 
                 try:
-                    client = libsql_client.create_client(
-                        url=url,
+                    # 'libsql' is stable and recently updated, 'libsql-client' is legacy.
+                    sync_conn = libsql.connect(
+                        url, 
                         auth_token=settings.TURSO_AUTH_TOKEN.get_secret_value()
                     )
-                    self._conn = TursoAdapter(client)
+                    self._conn = TursoAdapter(sync_conn)
                     return self._conn
                 except Exception as e:
                     logger.error(f"❌ [DATABASE] Turso Connection Failed: {e}")
@@ -944,10 +945,10 @@ class _TursoCursor:
     """
     def __init__(self, result_set):
         self.result_set = result_set
-        # aiosqlite-style description: tuple of 7-element tuples per column
-        cols = getattr(result_set, "columns", None) or []
+        cols = getattr(result_set, "columns", [])
         self.description = [(str(col), None, None, None, None, None, None) for col in cols]
-        self._rows = list(getattr(result_set, "rows", None) or [])
+        # In 'libsql' package, the result_set itself is the sequence of rows
+        self._rows = list(result_set) if result_set is not None else []
         self._ptr = 0
         self._rowcount = getattr(result_set, "rows_affected", -1)
 
@@ -1017,7 +1018,9 @@ class _ExecuteProxy:
             args = []
         elif isinstance(args, tuple):
             args = list(args)
-        rs = await self._client.execute(sql, args)
+        
+        # 'libsql' package is sync, so we run in thread
+        rs = await asyncio.to_thread(self._client.execute, sql, args)
         return _TursoCursor(rs)
 
     def __await__(self):
@@ -1029,7 +1032,7 @@ class _ExecuteProxy:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self._cursor is not None:
-            await self._cursor.close()
+            pass # Curors in libsql package are just result sets
 
 
 class _EmptyResultSet:
@@ -1053,11 +1056,8 @@ class TursoAdapter:
         return _ExecuteProxy(self.client, sql, parameters)
 
     async def executemany(self, sql, parameter_list):
-        batch = [
-            libsql_client.Statement(sql, list(p) if isinstance(p, tuple) else p)
-            for p in parameter_list
-        ]
-        await self.client.batch(batch)
+        # Synchronous batch execution via thread
+        await asyncio.to_thread(self.client.executemany, sql, parameter_list)
         return _TursoCursor(_EmptyResultSet())
 
     async def executescript(self, script):
@@ -1066,7 +1066,7 @@ class TursoAdapter:
         for s in statements:
             if s.upper().startswith("PRAGMA"):
                 continue
-            await self.client.execute(s)
+            await asyncio.to_thread(self.client.execute, s)
         return _TursoCursor(_EmptyResultSet())
 
     async def commit(self):
@@ -1077,13 +1077,8 @@ class TursoAdapter:
         pass
 
     async def close(self):
-        close_fn = getattr(self.client, "close", None)
-        if close_fn is None:
-            return
         try:
-            result = close_fn()
-            if asyncio.iscoroutine(result):
-                await result
+            await asyncio.to_thread(self.client.close)
         except Exception as exc:
             logger.warning(f"[TURSO] close() raised: {exc}")
 
