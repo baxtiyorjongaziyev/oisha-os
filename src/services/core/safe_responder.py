@@ -1,9 +1,18 @@
 import asyncio
 import random
 import logging
+import os
+from collections import deque
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
+
+# ─── Rate-limit constants (Phase 2.2) ────────────────────────────────────
+# Har chat uchun minimal oraliq (soniya). Spam/flood'dan himoya.
+PER_CHAT_LIMIT_SECS = int(os.environ.get("AUTO_REPLY_PER_CHAT_SECS", "30"))
+# Soatiga global maksimal javob soni (Telegram FloodWait threshold'dan past).
+GLOBAL_HOURLY_LIMIT = int(os.environ.get("AUTO_REPLY_GLOBAL_HOURLY", "30"))
+
 
 class SafeResponder:
     """
@@ -11,6 +20,8 @@ class SafeResponder:
     - Tasodifiy kechikishlar qo'shadi.
     - Guruhlarni filtrlash qoidalarini boshqaradi.
     - Rate-limiting (xabarlar orasidagi masofa)ni nazorat qiladi.
+      - Per-chat: `PER_CHAT_LIMIT_SECS` (default 30s)
+      - Global: `GLOBAL_HOURLY_LIMIT` (default 30/hour)
     """
 
     def __init__(self, allowed_groups: list = None):
@@ -19,6 +30,8 @@ class SafeResponder:
         self.last_response_time = {} # {chat_id: timestamp}
         self.global_rate_limit = 2.0 # Har bir xabarlar orasidagi minimal vaqt (soniya)
         self.me_id = None
+        # Global hourly limit uchun sliding window
+        self._global_response_times: deque = deque(maxlen=max(GLOBAL_HOURLY_LIMIT * 2, 60))
         # Jamoa a'zolari (Whitelist)
         self.team_whitelist = [
             1774538344630,      # Baxtiyor aka (Owner)
@@ -97,5 +110,34 @@ class SafeResponder:
             await asyncio.sleep(delay)
 
     def update_rate_limit(self, chat_id):
-        """Oxirgi javob vaqtini saqlash."""
-        self.last_response_time[chat_id] = datetime.now()
+        """Oxirgi javob vaqtini saqlash (per-chat + global sliding window)."""
+        now = datetime.now()
+        self.last_response_time[chat_id] = now
+        self._global_response_times.append(now)
+
+    def is_rate_limited(self, chat_id) -> tuple[bool, str]:
+        """
+        Rate-limit tekshiruvi. Return: (limited, reason).
+        - Per-chat: oxirgi javobdan `PER_CHAT_LIMIT_SECS` soniya o'tmagan bo'lsa bloklaydi.
+        - Global: oxirgi 1 soatda `GLOBAL_HOURLY_LIMIT` dan ko'p javob bo'lsa bloklaydi.
+
+        Chaqiruvchi `event.respond` oldidan tekshirib ko'rishi mumkin.
+        """
+        now = datetime.now()
+
+        # Per-chat check
+        last = self.last_response_time.get(chat_id)
+        if last is not None:
+            delta = (now - last).total_seconds()
+            if delta < PER_CHAT_LIMIT_SECS:
+                return True, f"per_chat({delta:.1f}s<{PER_CHAT_LIMIT_SECS}s)"
+
+        # Global hourly check (sliding 1-hour window)
+        cutoff = now - timedelta(hours=1)
+        # Eski yozuvlarni tozalash (amortized O(1))
+        while self._global_response_times and self._global_response_times[0] < cutoff:
+            self._global_response_times.popleft()
+        if len(self._global_response_times) >= GLOBAL_HOURLY_LIMIT:
+            return True, f"global_hourly({len(self._global_response_times)}/{GLOBAL_HOURLY_LIMIT})"
+
+        return False, "ok"
