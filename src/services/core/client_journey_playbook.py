@@ -142,6 +142,44 @@ def _humanize_stage(stage: Any) -> str:
     return STAGE_LABELS.get(text, text)
 
 
+def _render_owner_html(signal: JourneySignal, airtable: Optional[AirtableSync]) -> str:
+    raw_owner = signal.meta.get("manager_ref", signal.owner_hint)
+
+    if isinstance(raw_owner, list):
+        parts: List[str] = []
+        for item in raw_owner:
+            label = _humanize_owner_hint(item)
+            url = airtable.get_record_url(item) if airtable and _looks_like_airtable_id(str(item)) else None
+            if url:
+                parts.append(f"<a href='{escape(url, quote=True)}'>{escape(label)}</a>")
+            else:
+                parts.append(escape(label))
+        return ", ".join(parts) if parts else escape(_humanize_owner_hint(signal.owner_hint))
+
+    raw_owner_text = str(raw_owner).strip() if raw_owner is not None else ""
+    if airtable and _looks_like_airtable_id(raw_owner_text):
+        url = airtable.get_record_url(raw_owner_text)
+        if url:
+            return f"<a href='{escape(url, quote=True)}'>{escape(_humanize_owner_hint(raw_owner_text))}</a>"
+
+    return escape(_humanize_owner_hint(signal.owner_hint))
+
+
+def _render_airtable_card_line(signal: JourneySignal, airtable: Optional[AirtableSync]) -> Optional[str]:
+    if not airtable:
+        return None
+
+    record_id = signal.meta.get("project_id")
+    if not record_id or not _looks_like_airtable_id(str(record_id)):
+        return None
+
+    url = airtable.get_record_url(str(record_id))
+    if not url:
+        return None
+
+    return f"  Airtable kartasi: <a href='{escape(url, quote=True)}'>yozuvni ochish</a>"
+
+
 def _project_age_days(project: Dict[str, Any]) -> int:
     fields = project.get("fields", {})
     start_raw = AirtableSync._get_field(fields, "start_date")
@@ -257,7 +295,8 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
         fields = project.get("fields", {})
         stage = _safe_text(AirtableSync._get_field(fields, "stage"), "")
         project_name = _safe_text(AirtableSync._get_field(fields, "project_name"))
-        manager_name = _humanize_owner_hint(AirtableSync._get_field(fields, "manager"))
+        manager_raw = AirtableSync._get_field(fields, "manager")
+        manager_name = _humanize_owner_hint(manager_raw)
         payment_status = _safe_text(AirtableSync._get_field(fields, "payment_status"), "")
         paid_usd = _to_number(AirtableSync._get_field(fields, "paid_usd"))
         remaining_usd = _to_number(AirtableSync._get_field(fields, "remaining_usd"))
@@ -279,7 +318,7 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                         owner_action="48 soat ichida case permission, testimonial va referral so'rovini bitta oqimda yoping.",
                         wow_action="Mijozga handoff xulosasi, foydalanish bo'yicha mini qo'llanma va keyingi growth g'oyasini yuboring.",
                         proof_of_done="Testimonial so'rovi, referral savoli va handoff xabari yuborilgan bo'lsin.",
-                        meta={"project_id": project.get("id"), "age_days": age_days},
+                        meta={"project_id": project.get("id"), "age_days": age_days, "manager_ref": manager_raw},
                     )
                 )
             continue
@@ -296,7 +335,7 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                     owner_action="Bugun boshlanish xulosasi, timeline va ownership xaritasini mijozga yuboring.",
                     wow_action="Mijozga keyingi 7 kunlik aniq reja ko'rsatib, noaniqlikni yoping.",
                     proof_of_done="Boshlanish xulosasi va timeline Telegram guruhida ko'rinishi kerak.",
-                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline},
+                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline, "manager_ref": manager_raw},
                 )
             )
             continue
@@ -313,7 +352,7 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                     owner_action="Oraliq ko'rinish yuboring, feedback savollarini toraytiring va qayta topshirish muddatini bering.",
                     wow_action="Faqat draft emas, qaror qabul qilishni osonlashtiradigan asos bilan chiqing.",
                     proof_of_done="Oraliq ko'rinish, feedback savoli va qayta topshirish muddati yozilgan bo'lsin.",
-                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline},
+                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline, "manager_ref": manager_raw},
                 )
             )
             continue
@@ -330,7 +369,7 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                     owner_action="Feedbackni checklist ko'rinishida yoping va har band uchun mas'ul odam hamda muddat yozing.",
                     wow_action="Mijozga 'nimani qabul qildik, nimani o'zgartiramiz' degan aniq yakuniy xabarni yuboring.",
                     proof_of_done="Feedback jadvali va keyingi topshirish sanasi ko'rinishi kerak.",
-                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline},
+                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline, "manager_ref": manager_raw},
                 )
             )
             continue
@@ -347,7 +386,7 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                     owner_action="Final paket, izoh, qo'llab-quvvatlash muddati va qabul checklistini oldindan tayyorlang.",
                     wow_action="Topshirishni shunchaki 'tugadi' emas, 'siz endi bemalol ishlata olasiz' hissi bilan yoping.",
                     proof_of_done="Final fayllar, izoh va qo'llab-quvvatlash muddati bitta xabarda jamlangan bo'lsin.",
-                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline},
+                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline, "manager_ref": manager_raw},
                 )
             )
 
@@ -363,7 +402,7 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                     owner_action="Mijozga qiymat xulosasi bilan birga to'lovni yopish va sana bo'yicha aniq follow-up qiling.",
                     wow_action="To'lov eslatmasini sovuq billing emas, topshirilgan ishlar xulosasi bilan birga yuboring.",
                     proof_of_done="To'lov sanasi yoki yopilish statusi CRM/Airtableda yangilangan bo'lsin.",
-                    meta={"project_id": project.get("id"), "remaining_usd": remaining_usd, "payment_status": payment_status},
+                    meta={"project_id": project.get("id"), "remaining_usd": remaining_usd, "payment_status": payment_status, "manager_ref": manager_raw},
                 )
             )
 
@@ -377,15 +416,19 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
     return signals
 
 
-def _render_signal_lines(signal: JourneySignal) -> List[str]:
-    return [
+def _render_signal_lines(signal: JourneySignal, airtable: Optional[AirtableSync]) -> List[str]:
+    lines = [
         f"• <b>{escape(signal.client_name)}</b>",
         f"  Bosqich: {escape(_humanize_stage(signal.stage))}",
-        f"  Mas'ul: {escape(_humanize_owner_hint(signal.owner_hint))}",
+        f"  Mas'ul: {_render_owner_html(signal, airtable)}",
         f"  Xavf: {escape(_normalize_copy(signal.risk))}",
         f"  Bugungi qadam: {escape(_normalize_copy(signal.owner_action))}",
         f"  Mijoz ko'radigan wow qadam: {escape(_normalize_copy(signal.wow_action))}",
     ]
+    card_line = _render_airtable_card_line(signal, airtable)
+    if card_line:
+        lines.append(card_line)
+    return lines
 
 
 def render_excellence_report(
@@ -394,6 +437,11 @@ def render_excellence_report(
     *,
     max_items_per_section: int = 4,
 ) -> str:
+    try:
+        airtable = AirtableSync()
+    except Exception:
+        airtable = None
+
     total_signals = len(sales_signals) + len(project_signals)
     critical_count = sum(1 for signal in sales_signals + project_signals if signal.urgency == "critical")
 
@@ -420,13 +468,13 @@ def render_excellence_report(
     if sales_signals:
         lines.append(f"<b>Sotuv / Birinchi taassurot</b> - {len(sales_signals)} ta signal")
         for signal in sales_signals[:max_items_per_section]:
-            lines.extend(_render_signal_lines(signal))
+            lines.extend(_render_signal_lines(signal, airtable))
         lines.append("")
 
     if project_signals:
         lines.append(f"<b>PM / Yetkazib berish sifati</b> - {len(project_signals)} ta signal")
         for signal in project_signals[:max_items_per_section]:
-            lines.extend(_render_signal_lines(signal))
+            lines.extend(_render_signal_lines(signal, airtable))
         lines.append("")
 
     lines.append(
