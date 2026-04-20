@@ -246,7 +246,7 @@ def _format_person_mention(person: Optional[Dict[str, Any]], fallback: str) -> s
 
 async def _resolve_finance_approver(db: Database) -> Optional[Dict[str, Any]]:
     for role_name in ("finance", "moliya", "accountant", "buxgalter"):
-        person = db.get_user_by_role(role_name)
+        person = await db.get_user_by_role(role_name)
         if person:
             return person
 
@@ -1286,7 +1286,7 @@ async def main():
     api_module.set_runtime_context(
         service_name=os.getenv("K_SERVICE") or "oisha-main",
         canonical_entrypoint="src/main.py",
-        state_backend="sqlite",
+        state_backend=db.get_backend_name(),
         state_db_path=msg_controller.db.db_path,
         scheduler_mode="persistent",
         quiet_hours_enabled=True,
@@ -1307,6 +1307,7 @@ async def main():
 
     if cloud_control_plane:
         api_module.set_runtime_context(
+            state_backend=db.get_backend_name(),
             state_db_path=msg_controller.db.db_path,
             userbot_authorized=False,
         )
@@ -1317,6 +1318,7 @@ async def main():
     # 3. Userbotni (Shaxsiy akkaunt) ishga tushirish
     userbot_ready = await _connect_user_client(client)
     api_module.set_runtime_context(
+        state_backend=db.get_backend_name(),
         state_db_path=msg_controller.db.db_path,
         userbot_authorized=userbot_ready,
     )
