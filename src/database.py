@@ -13,6 +13,7 @@ from google import genai
 from typing import List, Dict, Any, Optional, Union
 from src.settings import settings
 from src import config 
+from src.database_pool import db_pool, SmartRow
 
 logger = logging.getLogger(__name__)
 
@@ -75,37 +76,16 @@ class Database:
         if settings.TURSO_DATABASE_URL and settings.TURSO_AUTH_TOKEN:
             if not HAS_LIBSQL:
                 logger.error("❌ [DATABASE] Turso mode requested but libsql is not installed!")
-                # Fallback to local sqlite or continue normally? 
-                # Better to let it fail or alert.
             else:
                 if hasattr(self, '_conn') and isinstance(self._conn, TursoAdapter):
                     return self._conn
                 
-                url = settings.TURSO_DATABASE_URL
-                logger.info(f"👸 [DATABASE] Connecting to Turso Cloud Core: {url[:15]}...🌩️")
-                
-                # Turso's recent clients are best with https:// for cloud run/proxy environments
-                if url.startswith("libsql://"):
-                    url = url.replace("libsql://", "https://")
-                
-                sync_conn = None
+                logger.info(f"👸 [DATABASE] Shifting to Centralized Cloud Pool...🌩️")
                 try:
-                    # 'libsql' is stable and recently updated, 'libsql-client' is legacy.
-                    sync_conn = libsql.connect(
-                        url, 
-                        auth_token=settings.TURSO_AUTH_TOKEN.get_secret_value()
-                    )
-                    candidate_conn = TursoAdapter(sync_conn)
-                    await candidate_conn.execute("SELECT 1")
-                    self._conn = candidate_conn
+                    self._conn = TursoAdapter()
                     return self._conn
                 except Exception as e:
-                    logger.error(f"❌ [DATABASE] Turso Connection Failed: {e}")
-                    try:
-                        sync_conn.close()
-                    except Exception:
-                        pass
-                    logger.warning("⚠️ [DATABASE] Falling back to local SQLite because Turso is unavailable.")
+                    logger.error(f"❌ [DATABASE] Pool Initialization Failed: {e}")
                     self._conn = None
 
         if hasattr(self, '_conn') and self._conn:
@@ -1023,29 +1003,16 @@ class Database:
 
 class _TursoCursor:
     """
-    aiosqlite.Cursor-compatible cursor over a libsql ResultSet.
-
-    Supports:
-      - await cursor.fetchone() / fetchall()
-      - async for row in cursor   (async iteration)
-      - cursor.description / cursor.rowcount
-      - cursor.close()
+    aiosqlite.Cursor-compatible cursor for high-speed operation.
     """
-    def __init__(self, result_set):
-        self.result_set = result_set
-        self.description = _normalize_cursor_description(result_set)
-        self._sync_cursor = result_set if hasattr(result_set, "fetchone") else None
-        self._rows = None if self._sync_cursor is not None else _extract_prefetched_rows(result_set)
+    def __init__(self, rows=None, description=None):
+        self._rows = rows or []
+        self._description = description
         self._ptr = 0
-        self._rowcount = getattr(
-            result_set,
-            "rowcount",
-            getattr(result_set, "rows_affected", -1),
-        )
+        self.rowcount = len(self._rows)
+        self.description = description
 
     async def fetchone(self):
-        if self._sync_cursor is not None:
-            return await asyncio.to_thread(self._sync_cursor.fetchone)
         if self._ptr < len(self._rows):
             row = self._rows[self._ptr]
             self._ptr += 1
@@ -1053,29 +1020,17 @@ class _TursoCursor:
         return None
 
     async def fetchall(self):
-        if self._sync_cursor is not None:
-            return await asyncio.to_thread(self._sync_cursor.fetchall)
         remaining = self._rows[self._ptr:]
         self._ptr = len(self._rows)
         return remaining
 
     async def fetchmany(self, size=1):
-        if self._sync_cursor is not None:
-            return await asyncio.to_thread(self._sync_cursor.fetchmany, size)
         end = min(self._ptr + size, len(self._rows))
         chunk = self._rows[self._ptr:end]
         self._ptr = end
         return chunk
 
-    @property
-    def rowcount(self):
-        if self._sync_cursor is not None:
-            return getattr(self._sync_cursor, "rowcount", -1)
-        return self._rowcount if self._rowcount is not None else -1
-
     async def close(self):
-        if self._sync_cursor is not None and hasattr(self._sync_cursor, "close"):
-            await asyncio.to_thread(self._sync_cursor.close)
         self._rows = []
         self._ptr = 0
 
@@ -1098,37 +1053,26 @@ class _TursoCursor:
 class _ExecuteProxy:
     """
     Dual-mode result of TursoAdapter.execute(sql, ...).
-
-    Must behave like aiosqlite's execute():
-      - awaitable:   cursor = await conn.execute("...")
-      - ctx manager: async with conn.execute("...") as cursor:
     """
-    def __init__(self, client, sql, parameters):
-        self._client = client
+    def __init__(self, sql, parameters):
         self._sql = sql
         self._params = parameters
         self._cursor = None
 
     async def _run(self):
         sql = self._sql or ""
-        # libsql does NOT understand PRAGMA — skip silently (no-op cursor)
+        # Skip PRAGMAs for Turso
         if sql.lstrip().upper().startswith("PRAGMA"):
-            return _TursoCursor(_EmptyResultSet())
-        args = self._params
-        if args is None:
-            args = []
-        elif isinstance(args, tuple):
-            args = list(args)
+            return _TursoCursor()
         
-        try:
-            # 'libsql' package is sync, so we run in thread
-            rs = await asyncio.to_thread(self._client.execute, sql, args)
-        except KeyError as exc:
-            statement = sql.split(None, 1)[0] if sql.strip() else "UNKNOWN"
-            raise sqlite3.OperationalError(
-                f"Turso execute response was malformed for SQL '{statement}'"
-            ) from exc
-        return _TursoCursor(rs)
+        rows = await db_pool.execute(sql, self._params)
+        # We don't have easy access to description here from the pool yet, 
+        # but SmartRow knows its keys.
+        desc = None
+        if rows:
+            desc = [(k, None, None, None, None, None, None) for k in rows[0].keys()]
+            
+        return _TursoCursor(rows, desc)
 
     def __await__(self):
         return self._run().__await__()
@@ -1138,8 +1082,7 @@ class _ExecuteProxy:
         return self._cursor
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self._cursor is not None:
-            pass # Curors in libsql package are just result sets
+        pass
 
 
 class _EmptyResultSet:
@@ -1167,16 +1110,13 @@ class _EmptyResultSet:
 
 class TursoAdapter:
     """
-    aiosqlite.Connection-compatible shim over libsql connection/cursor APIs.
-    Lets the existing 94+ callsites stay untouched.
+    aiosqlite.Connection-compatible shim over Centralized DatabasePool.
     """
-    def __init__(self, client):
-        self.client = client
+    def __init__(self):
         self.row_factory = None
 
     def execute(self, sql, parameters=None):
-        # NOT async — returns a dual-mode proxy (awaitable + ctx manager)
-        return _ExecuteProxy(self.client, sql, parameters)
+        return _ExecuteProxy(sql, parameters)
 
     async def executemany(self, sql, parameter_list):
         # Synchronous batch execution via thread
@@ -1196,9 +1136,9 @@ class TursoAdapter:
 
     async def close(self):
         try:
-            await asyncio.to_thread(self.client.close)
+            db_pool.close()
         except Exception as exc:
-            logger.warning(f"[TURSO] close() raised: {exc}")
+            logger.warning(f"[TURSO] db_pool.close() raised: {exc}")
 
     def cursor(self):
         # Return a lightweight proxy so `async with conn.cursor() as cursor:` still works.

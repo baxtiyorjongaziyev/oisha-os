@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
+import asyncio
+from src.settings import settings
+import google.generativeai as genai
 
 
 @dataclass
@@ -142,42 +145,56 @@ class NegotiationEngine:
         )
 
     @staticmethod
-    def generate_surgical_mission(
+    async def generate_surgical_mission(
         assessment: NegotiationAssessment, 
         summary: Optional[str] = None, 
         pipeline_name: str = "HUNTER",
         role: str = "HUNTER"
     ) -> str:
-        """Suhbat xulosasi va roliga qarab konkret 'Surgical Mission' yaratish."""
+        """Suhbat xulosasi va roliga qarab Gemini orqali 'Surgical Mission' yaratish."""
         
-        # 1. Objections handling (Highest priority across all roles)
+        if not summary:
+            return f"Bitimni keyingi '{assessment.stage}' bosqichiga o'tkazing."
+
+        try:
+            genai.configure(api_key=settings.GEMINI_API_KEY.get_secret_value())
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            
+            prompt = f"""
+            Siz "Oisha-OS Surgical Strategist"siz. Mijoz bilan suhbat xulosasini tahlil qiling va sotuvchi (Manager) uchun 
+            keyingi 3 ta aniq va jarrohlik darajasida aniq (surgical) harakatni belgilang.
+
+            Menejer roli: {role} (Vazifasi: {pipeline_name})
+            Suhbat xulosasi: {summary}
+            Tahlil natijasi: {assessment.stage}, Intent: {assessment.intent}, Probability: {assessment.close_probability}
+
+            Qoidalar:
+            1. Javob faqat 3 ta qisqa qadamdan iborat bo'lsin.
+            2. Har bir qadam "ACTION" (Harakat) ga yo'naltirilgan bo'lsin.
+            3. Ohang: Professional, qat'iy va strategik.
+            
+            Format:
+            [1] Strategiya: ...
+            [2] Keyingi savol: ...
+            [3] Xavf faktori: ...
+            """
+            
+            response = await asyncio.to_thread(model.generate_content, prompt)
+            return response.text.strip()
+            
+        except Exception:
+            # Fallback to legacy logic if AI fails
+            return NegotiationEngine._generate_legacy_mission(assessment, role)
+
+    @staticmethod
+    def _generate_legacy_mission(assessment: NegotiationAssessment, role: str) -> str:
+        # 1. Objections handling
         if assessment.objection == "price":
-            if role == "HUNTER":
-                return "Narx e'tirozi: Budjetini aniqlang va arzonroq variant (minimum package) haqida ma'lumot bering."
-            return "Narx e'tirozi: Qiymatni (LTV) asoslang. Investitsiya sifatida ko'rsatib, yopishga harakat qiling."
-            
+            return "Narx e'tirozi: Qiymatni (LTV) asoslang va investitsiya sifatida ko'rsating."
         if assessment.objection == "trust":
-            return "Ishonch muammosi: Unga aynan o'z sohasi bo'yicha 2 ta top кейs (vignette) yuboring."
-
-        # 2. Intent-based actions
-        if assessment.intent == "meeting":
-            return "Uchrashuvga tayyor: Strategik sessiya vaqtini belgilab, Zoom linkini yuboring."
+            return "Ishonch muammosi: Unga aynan o'z sohasi bo'yicha 2 ta top cases yuboring."
         
-        if assessment.intent == "closing" and role == "SETTER":
-            return "Yopish vaqti: Shartnoma loyihasini tashlang va to'lov shartlarini mahkamlang."
-
-        # 3. Role-specific strategy
+        # 2. Role strategy
         if role == "HUNTER":
-            if assessment.stage == "new_lead":
-                return "Yangi lid: Tezda bog'lanib, biznes turini va asosiy og'riqli nuqtasini aniqlang."
             return "Kvalifikatsiya: Mijoz bizning ideal portretimizga mosmi? Savol-javob orqali aniqlang."
-            
-        elif role == "SETTER":
-            if assessment.close_probability >= 0.7:
-                return "Yuqori ehtimollik: Mijozni bugun yoping! Oxirgi 'Commercial Push'ni bering."
-            return "Strategiya: Commercial taklifni detalniy tushuntiring va qaror qabul qilishga yordam bering."
-            
-        elif role == "FARMER":
-            return "LTV o'sishi: Mijozga yangi xizmatlarimiz yoki up-sell imkoniyatlarini taklif qiling."
-
         return f"Progress: Bitimni keyingi '{assessment.stage}' bosqichiga o'tkazing."
