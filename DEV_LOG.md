@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-20 08:20 UTC | ⚠️ main `8cd2452`
+
+**Commit**: refactor: remove legacy handle_new_message and enhance SafeResponder flexibility
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-20 07:40 UTC | 🔴 main `d266fa2`
 
 **Commit**: chore: reanimate bot - bypass control-plane, resolve db conflicts, and optimize cloud run deployment
