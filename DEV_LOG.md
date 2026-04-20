@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-20 06:29 UTC | ⚠️ main `a9812b0`
+
+**Commit**: fix(ci): inject dummy env for AppSettings + Phase 3.1 advisor scoring cols
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-20 06:24 UTC | 🔴 main `59a7521`
 
 **Commit**: fix(ci): wrap DEV_LOG heredoc to satisfy YAML block indent
