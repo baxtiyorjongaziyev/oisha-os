@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-20 11:45 UTC | 🔴 main `9b79671`
+
+**Commit**: fix(ci): make github deploy the only production path
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-04-20 11:36 UTC | ⚠️ main `7bec92f`
 
 **Commit**: fix(ai): migrate negotiation engine to google genai
