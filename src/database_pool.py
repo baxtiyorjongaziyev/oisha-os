@@ -1,23 +1,24 @@
-import logging
 import asyncio
-from typing import Optional, List, Any, Dict, Union
+import logging
+from typing import Any, List, Optional
+
 import libsql
+
 from src.settings import settings
 
 logger = logging.getLogger(__name__)
 
+
 class SmartRow(dict):
     """
-    A dictionary that also supports integer indexing for backward compatibility.
-    Behaves like a sqlite3.Row or a tuple when subscripted with an int.
+    Dict ko'rinishida ishlaydi, lekin int index bilan ham eski tuple kabi o'qiladi.
     """
+
     def __init__(self, values, columns):
-        # Initialize as a dict: {col_name: value}
-        # Filter out None values from zip if columns/values lengths differ
         data = dict(zip(columns, values))
         super().__init__(data)
         self._values = tuple(values)
-        self._columns = columns
+        self._columns = list(columns)
 
     def __getitem__(self, key):
         if isinstance(key, int):
@@ -33,11 +34,12 @@ class SmartRow(dict):
     def keys(self):
         return self._columns
 
+
 class DatabasePool:
     """
-    Managed database pool for Turso/LibSQL.
-    Optimized for resource conservation and Cloud Run connection management.
+    Turso/LibSQL uchun bitta ulanishni boshqaradi.
     """
+
     _instance = None
     _connection = None
 
@@ -47,72 +49,98 @@ class DatabasePool:
         return cls._instance
 
     def __init__(self):
-        if not hasattr(self, 'initialized'):
-            self.url = str(settings.TURSO_DATABASE_URL)
+        if not hasattr(self, "initialized"):
+            self.url = str(settings.TURSO_DATABASE_URL or "")
             self.auth_token = settings.TURSO_AUTH_TOKEN.get_secret_value() if settings.TURSO_AUTH_TOKEN else ""
             self.initialized = True
-            logger.info(f"👸 [DB POOL] Initialized for Cloud Core: {self.url[:15]}...🌩️")
+            logger.info("[DB POOL] Initialized for Turso backend.")
 
     def get_connection(self):
-        """Returns a synchronized connection."""
         if self._connection is None:
             try:
-                # libsql native package is best used with https/libsql urls
                 url = self.url
                 if url.startswith("libsql://"):
                     url = url.replace("libsql://", "https://")
-                
-                self._connection = libsql.connect(url, auth_token=self.auth_token)
-                logger.info("[DB POOL] 🚀 New secure connection established.")
-            except Exception as e:
-                logger.error(f"❌ [DB POOL] Connection failed: {e}")
+
+                if self.auth_token:
+                    self._connection = libsql.connect(url, auth_token=self.auth_token)
+                else:
+                    self._connection = libsql.connect(url)
+                logger.info("[DB POOL] New connection established.")
+            except Exception as exc:
+                logger.error(f"[DB POOL] Connection failed: {exc}")
                 raise
         return self._connection
 
-    async def execute(self, query: str, params: List[Any] = None) -> List[SmartRow]:
-        """Executes a SQL query asynchronously and returns SmartRows."""
+    async def execute(self, query: str, params: Optional[List[Any]] = None) -> List[SmartRow]:
         params = params or []
         conn = self.get_connection()
-        
+
         def _run():
-            res = conn.execute(query, params)
-            if not hasattr(res, 'columns'):
+            result = conn.execute(query, params)
+            description = getattr(result, "description", None)
+            columns = getattr(result, "columns", None)
+
+            normalized_columns: List[str] = []
+            if description:
+                for column in description:
+                    if isinstance(column, (list, tuple)) and column:
+                        normalized_columns.append(str(column[0]))
+                    else:
+                        normalized_columns.append(str(getattr(column, "name", column)))
+            elif columns:
+                normalized_columns = [str(column) for column in columns]
+
+            if hasattr(result, "fetchall"):
+                raw_rows = result.fetchall() or []
+            else:
+                raw_rows = getattr(result, "rows", None)
+                if raw_rows is None:
+                    try:
+                        raw_rows = list(result)
+                    except TypeError:
+                        raw_rows = []
+
+            if not normalized_columns:
                 return []
-            
-            cols = res.columns
-            # In modern libsql, res is iterable and yields Row objects
-            # We convert each row (which might not be subscriptable) to a list first
-            rows = []
-            for item in res:
-                try:
-                    # Try to convert to list/tuple to ensure subscriptability
-                    val_list = list(item)
-                except TypeError:
-                    # Fallback for weird objects
-                    val_list = [item[i] for i in range(len(cols))]
-                rows.append(SmartRow(val_list, cols))
+
+            rows: List[SmartRow] = []
+            for item in raw_rows or []:
+                if isinstance(item, SmartRow):
+                    rows.append(item)
+                    continue
+
+                if isinstance(item, dict):
+                    values = [item.get(column) for column in normalized_columns]
+                else:
+                    try:
+                        values = list(item)
+                    except TypeError:
+                        if len(normalized_columns) == 1:
+                            values = [item]
+                        else:
+                            values = [getattr(item, column, None) for column in normalized_columns]
+                rows.append(SmartRow(values, normalized_columns))
             return rows
-            
+
         try:
             return await asyncio.to_thread(_run)
-        except Exception as e:
-            logger.error(f"❌ [DB POOL] Execution error: {e} | Query: {query}")
+        except Exception as exc:
+            logger.error(f"[DB POOL] Execution error: {exc} | Query: {query}")
             raise
 
-    async def execute_one(self, query: str, params: List[Any] = None) -> Optional[SmartRow]:
-        """Helper to get a single row."""
+    async def execute_one(self, query: str, params: Optional[List[Any]] = None) -> Optional[SmartRow]:
         rows = await self.execute(query, params)
         return rows[0] if rows else None
 
     def close(self):
-        """Closes the connection."""
         if self._connection:
             try:
                 self._connection.close()
-            except:
+            except Exception:
                 pass
             self._connection = None
-            logger.info("[DB POOL] Connection released. 🛡️")
+            logger.info("[DB POOL] Connection released.")
 
-# Global instance for easy access
+
 db_pool = DatabasePool()
