@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-20 11:36 UTC | ⚠️ main `7bec92f`
+
+**Commit**: fix(ai): migrate negotiation engine to google genai
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-20 08:20 UTC | ⚠️ main `8cd2452`
 
 **Commit**: refactor: remove legacy handle_new_message and enhance SafeResponder flexibility
