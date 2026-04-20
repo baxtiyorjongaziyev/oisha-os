@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-20 12:02 UTC | ⚠️ main `b25876a`
+
+**Commit**: test(db): assert sqlite backend after turso fallback
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-20 11:51 UTC | ⚠️ main `b516e22`
 
 **Commit**: fix(db): restore turso fallback for ci
