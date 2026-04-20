@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-20 07:17 UTC | 🔴 main `a796879`
+
+**Commit**: fix(turso): Final Cloud Run Turso authentication and connector stabilization
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-04-20 06:56 UTC | ⚠️ main `a323351`
 
 **Commit**: chore(repo): make main the canonical deploy branch
