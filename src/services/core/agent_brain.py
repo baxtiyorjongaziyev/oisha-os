@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from src.services.core.github_manager import github_manager
 
 class OishaBrain:
