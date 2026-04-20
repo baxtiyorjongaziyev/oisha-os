@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-20 06:39 UTC | ⚠️ main `6951bf2`
+
+**Commit**: feat(core): Initial Agentic Setup (GitHub Manager & OishaBrain)
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-20 06:29 UTC | ⚠️ main `a9812b0`
 
 **Commit**: fix(ci): inject dummy env for AppSettings + Phase 3.1 advisor scoring cols
