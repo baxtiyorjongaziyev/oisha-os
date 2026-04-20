@@ -84,52 +84,48 @@ class Database:
         await self.init_db()
 
     async def get_connection(self):
-        """Asenkron SQLite yoki Turso ulanishini olish."""
-        turso_url = _setting_text(settings.TURSO_DATABASE_URL)
-        turso_token = _setting_text(settings.TURSO_AUTH_TOKEN)
-        if turso_url and turso_token:
-            if not HAS_LIBSQL:
-                logger.error("[DATABASE] Turso mode requested but libsql is not installed.")
-            else:
-                if hasattr(self, '_conn') and isinstance(self._conn, TursoAdapter):
-                    return self._conn
-                logger.info("[DATABASE] Switching to Turso pool.")
-                try:
-                    db_pool.url = turso_url
-                    db_pool.auth_token = turso_token
-                    db_pool.close()
-                    if turso_url == ":memory:":
-                        probe_conn = libsql.connect(turso_url)
-                    else:
-                        probe_conn = libsql.connect(turso_url, auth_token=turso_token)
-                    try:
-                        probe_result = probe_conn.execute("SELECT 1")
-                        if hasattr(probe_result, "fetchone"):
-                            probe_result.fetchone()
-                        else:
-                            list(probe_result)
-                    finally:
-                        try:
-                            probe_conn.close()
-                        except Exception:
-                            pass
-                    self._conn = TursoAdapter()
-                    self._state_backend = "turso"
-                    return self._conn
-                except Exception as exc:
-                    logger.error(f"[DATABASE] Turso probe failed, falling back to sqlite: {exc}")
-                    try:
-                        db_pool.close()
-                    except Exception:
-                        pass
-                    self._state_backend = "sqlite"
+        """
+        Returns a TursoAdapter for Cloud Core or falls back to local SQLite.
+        """
+        if settings.TURSO_DATABASE_URL and libsql:
+            try:
+                # Update pool settings just in case
+                db_pool.url = str(settings.TURSO_DATABASE_URL)
+                db_pool.auth_token = settings.TURSO_AUTH_TOKEN.get_secret_value() if settings.TURSO_AUTH_TOKEN else ""
+                
+                # Probe connection to verify auth/url before returning adapter
+                await db_pool.execute("SELECT 1")
+                self._state_backend = "turso"
+                return TursoAdapter()
+            except Exception as e:
+                logger.warning(f"👸 [DB] Turso probe failed, using SQLite fallback: {e}")
+        
+        # Standard SQLite fallback
+        self._state_backend = "sqlite"
+        self._conn = await aiosqlite.connect(self.db_path, timeout=30)
                     self._conn = None
+<<<<<<< HEAD
         if hasattr(self, '_conn') and self._conn:
             try:
                 await self._conn.execute("SELECT 1")
                 return self._conn
             except (aiosqlite.Error, asyncio.TimeoutError, Exception):
                 self._conn = None
+=======
+        """
+        Returns a TursoAdapter for Cloud Core or falls back to local SQLite.
+        """
+        if settings.TURSO_DATABASE_URL and libsql:
+            try:
+                # Probe connection to verify auth/url before returning adapter
+                # This ensures we fallback on failure (e.g. invalid token)
+                await db_pool.execute("SELECT 1")
+                return TursoAdapter()
+            except Exception as e:
+                logger.warning(f"👸 [DB] Turso probe failed, using SQLite fallback: {e}")
+        
+        # Standard SQLite fallback
+>>>>>>> b0ff1ad (refactor: stabilize database layer and restore missing handlers)
         self._conn = await aiosqlite.connect(self.db_path, timeout=30)
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA synchronous=NORMAL")
@@ -656,7 +652,7 @@ class Database:
             LIMIT ?
         """
         async with conn.execute(query, (limit,)) as cursor:
-            rows = await cursor.fetchall()
+            rows = await conn.fetchall()
             return [(r[0], r[1], r[2], r[3]) for r in reversed(rows)]
 
     async def get_stats(self):
@@ -686,7 +682,7 @@ class Database:
         conn = await self.get_connection()
         normalized_phone = "".join(ch for ch in (phone or "") if ch.isdigit())
         async with conn.execute("SELECT user_id, phone FROM users WHERE phone IS NOT NULL") as cursor:
-            rows = await cursor.fetchall()
+            rows = await conn.fetchall()
             for user_id, stored_phone in rows:
                 stored_normalized = "".join(ch for ch in (stored_phone or "") if ch.isdigit())
                 if stored_normalized and stored_normalized.endswith(normalized_phone):
@@ -704,7 +700,7 @@ class Database:
             WHERE phone IS NOT NULL
             """
         ) as cursor:
-            rows = await cursor.fetchall()
+            rows = await conn.fetchall()
             for row in rows:
                 stored_normalized = "".join(ch for ch in (row[3] or "") if ch.isdigit())
                 if stored_normalized and stored_normalized.endswith(normalized_phone):
@@ -798,7 +794,7 @@ class Database:
         if not date_str: date_str = datetime.datetime.now().strftime("%Y-%m-%d")
         conn = await self.get_connection()
         async with conn.execute("SELECT manager_id, lead_id, lead_name, mission, source_pipeline FROM daily_plans WHERE report_date = ?", (date_str,)) as cursor:
-            rows = await cursor.fetchall()
+            rows = await conn.fetchall()
             return [{"manager_id": r[0], "lead_id": r[1], "lead_name": r[2], "mission": r[3], "source_pipeline": r[4]} for r in rows]
 
     async def save_team_report(self, user_id: int, report_type: str, content: str, report_date: Optional[str] = None, status: str = "submitted") -> bool:
@@ -818,7 +814,7 @@ class Database:
     async def get_all_tasks(self, limit=10):
         conn = await self.get_connection()
         async with conn.execute("SELECT id, title, description, assigned_to, deadline, status FROM tasks ORDER BY created_at DESC LIMIT ?", (limit,)) as cursor:
-            rows = await cursor.fetchall()
+            rows = await conn.fetchall()
             return [{"id": r[0], "title": r[1], "description": r[2], "assigned_to": r[3], "deadline": r[4], "status": r[5]} for r in rows]
 
     async def get_missing_reports(self, report_type: str = "morning_plan", date_str: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -830,7 +826,7 @@ class Database:
         if not eligible: return []
         conn = await self.get_connection()
         async with conn.execute("SELECT DISTINCT user_id FROM team_reports WHERE report_date = ? AND report_type = ? AND status != 'ignored'", (report_day, report_type)) as cursor:
-            submitted_ids = {row[0] for row in await cursor.fetchall()}
+            submitted_ids = {row[0] for row in await conn.fetchall()}
         return [m for m in eligible if m["user_id"] not in submitted_ids]
 
     async def get_team_members(self) -> List[Dict[str, Any]]:
@@ -840,7 +836,7 @@ class Database:
         from src.time_utils import get_local_now
         conn = await self.get_connection()
         async with conn.execute("SELECT t.id, t.title, t.description, t.assigned_to, t.deadline, t.priority, t.status, u.first_name, u.username FROM tasks t LEFT JOIN users u ON u.user_id = t.assigned_to WHERE t.deadline IS NOT NULL AND COALESCE(t.status, 'Pending') NOT IN ('Done', 'Completed', 'Closed', 'Cancelled')") as cursor:
-            rows = await cursor.fetchall()
+            rows = await conn.fetchall()
         now = get_local_now()
         overdue = []
         for row in rows:
@@ -855,7 +851,7 @@ class Database:
     async def get_priority_tasks(self, limit: int = 3) -> List[Dict[str, Any]]:
         conn = await self.get_connection()
         async with conn.execute("SELECT t.id, t.title, t.description, t.assigned_to, t.deadline, t.priority, t.status, u.first_name, u.username FROM tasks t LEFT JOIN users u ON u.user_id = t.assigned_to WHERE COALESCE(t.status, 'Pending') NOT IN ('Done', 'Completed', 'Closed', 'Cancelled') ORDER BY CASE COALESCE(t.priority, 'Medium') WHEN 'High' THEN 0 WHEN 'Medium' THEN 1 ELSE 2 END, COALESCE(t.deadline, '9999-12-31T23:59:59') LIMIT ?", (limit,)) as cursor:
-            rows = await cursor.fetchall()
+            rows = await conn.fetchall()
         return [{"id": r[0], "title": r[1], "description": r[2], "assigned_to": r[3], "deadline": r[4], "priority": r[5], "status": r[6], "name": r[7], "username": r[8]} for r in rows]
 
     async def get_user_by_role(self, role: str) -> Optional[Dict[str, Any]]:
@@ -878,12 +874,12 @@ class Database:
     async def get_recent_job_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
         conn = await self.get_connection()
         async with conn.execute("SELECT job_name, run_date, created_at FROM scheduled_jobs ORDER BY created_at DESC LIMIT ?", (limit,)) as cursor:
-            return [{"job_name": r[0], "run_date": r[1], "created_at": r[2]} for r in await cursor.fetchall()]
+            return [{"job_name": r[0], "run_date": r[1], "created_at": r[2]} for r in await conn.fetchall()]
 
     async def get_recent_agent_actions(self, limit: int = 50) -> List[Dict[str, Any]]:
         conn = await self.get_connection()
         async with conn.execute("SELECT id, user_id, action_type, action_data, success, created_at FROM agent_actions ORDER BY id DESC LIMIT ?", (limit,)) as cursor:
-            rows = await cursor.fetchall()
+            rows = await conn.fetchall()
             actions = []
             for r in rows:
                 try: data = json.loads(r[3]) if r[3] else {}
@@ -938,7 +934,7 @@ class Database:
             ORDER BY COALESCE(MAX(CASE WHEN ml.is_ai_reply = 0 THEN ml.created_at END), MAX(ml.created_at)) DESC
             LIMIT ?
         """, (since, limit)) as cursor:
-            return [{"user_id": r[0], "last_client_message_at": r[1], "last_ai_message_at": r[2], "last_message_at": r[3], "client_message_count": r[4], "ai_message_count": r[5], "last_client_message": r[6], "last_ai_message": r[7], "first_name": r[8], "username": r[9], "phone": r[10], "business_type": r[11], "region": r[12], "brand_name": r[13], "service_type": r[14], "intent": r[15], "meeting_time": r[16], "meeting_status": r[17], "journey_stage": r[18], "journey_status": r[19], "journey_next_action": r[20], "close_probability": r[21], "lifecycle_updated_at": r[22]} for r in await cursor.fetchall()]
+            return [{"user_id": r[0], "last_client_message_at": r[1], "last_ai_message_at": r[2], "last_message_at": r[3], "client_message_count": r[4], "ai_message_count": r[5], "last_client_message": r[6], "last_ai_message": r[7], "first_name": r[8], "username": r[9], "phone": r[10], "business_type": r[11], "region": r[12], "brand_name": r[13], "service_type": r[14], "intent": r[15], "meeting_time": r[16], "meeting_status": r[17], "journey_stage": r[18], "journey_status": r[19], "journey_next_action": r[20], "close_probability": r[21], "lifecycle_updated_at": r[22]} for r in await conn.fetchall()]
 
     async def get_department_targets(self, month_str: str) -> List[Dict[str, Any]]:
         """Oylik bo'lim rejalarini olish."""
@@ -947,7 +943,7 @@ class Database:
             "SELECT dept_name, target_value FROM department_targets WHERE month = ?", 
             (month_str,)
         ) as cursor:
-            rows = await cursor.fetchall()
+            rows = await conn.fetchall()
             return [{"dept": r[0], "value": r[1]} for r in rows]
 
     async def set_department_target(self, dept_name: str, target_value: float, month: str):
@@ -975,7 +971,7 @@ class Database:
             ORDER BY created_at ASC
             """, (chat_id, today)
         ) as cursor:
-            rows = await cursor.fetchall()
+            rows = await conn.fetchall()
             history = []
             for is_ai, text in rows:
                 speaker = "AI" if is_ai else "Mijoz"
@@ -1046,16 +1042,28 @@ class Database:
         await conn.commit()
         return True
 
+    def __iter__(self):
+        return iter(())
+
+
 class _TursoCursor:
     """
     aiosqlite.Cursor-compatible cursor for high-speed operation.
     """
     def __init__(self, rows=None, description=None):
         self._rows = _extract_prefetched_rows(rows)
+<<<<<<< HEAD
         self._description = description if description is not None else _normalize_cursor_description(rows)
         self._ptr = 0
         self.rowcount = len(self._rows)
         self.description = self._description
+=======
+        self._description = description or _normalize_cursor_description(rows)
+        self._ptr = 0
+        self.rowcount = len(self._rows)
+        self.description = self._description
+
+>>>>>>> b0ff1ad (refactor: stabilize database layer and restore missing handlers)
     async def fetchone(self):
         if self._ptr < len(self._rows):
             row = self._rows[self._ptr]
@@ -1099,11 +1107,9 @@ class _ExecuteProxy:
         sql = self._sql or ""
         # Skip PRAGMAs for Turso
         if sql.lstrip().upper().startswith("PRAGMA"):
-            return _TursoCursor()
+            return _TursoCursor(_EmptyResultSet())
         
         rows = await db_pool.execute(sql, self._params)
-        # We don't have easy access to description here from the pool yet, 
-        # but SmartRow knows its keys.
         desc = None
         if rows:
             desc = [(k, None, None, None, None, None, None) for k in rows[0].keys()]
@@ -1135,15 +1141,19 @@ class _EmptyResultSet:
         return []
     def close(self):
         return None
+<<<<<<< HEAD
+=======
+
+    def __len__(self):
+        return 0
+
+>>>>>>> b0ff1ad (refactor: stabilize database layer and restore missing handlers)
     def __iter__(self):
         return iter(())
     def __len__(self):
         return 0
 
 class TursoAdapter:
-    """
-    aiosqlite.Connection-compatible shim over Centralized DatabasePool.
-    """
     def __init__(self):
         self.row_factory = None
 
