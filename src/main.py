@@ -1223,30 +1223,6 @@ async def activity_monitor_handler(event):
     if activity_monitor:
         await activity_monitor.log_event(event)
 
-async def handle_new_message(event):
-    """Main message handler for lead discovery and automated triage."""
-    # Ensure client identity
-    me = await client.get_me()
-    if not await safe_responder.should_respond(event, me.id):
-        return
-
-    message_text = event.message.message
-    chat_id = event.chat_id
-    sender = await event.get_sender()
-    sender_name = getattr(sender, 'first_name', 'User')
-
-    # Log incoming (idempotent)
-    if event.is_private and not event.out and message_text:
-        try:
-            await msg_controller.db.log_message(sender.id, message_text, is_ai=False)
-            asyncio.create_task(run_autonomous_advice(chat_id, sender_name, message_text))
-        except Exception as log_ex:
-            logger.error(f"[USERBOT] Log error: {log_ex}")
-
-    # Standard Pipeline (simplified triage for main loop)
-    # ... (Actual logic is inside handle_new_message implementation) ...
-    # For now, we restore the core handler logic.
-
 async def main():
     """Botlarni ishga tushirish (Userbot + Admin Bot)."""
     global msg_controller, client, bot_client, lead_scraper, action_parser
