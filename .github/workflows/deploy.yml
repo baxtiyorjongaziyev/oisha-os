@@ -292,16 +292,20 @@ jobs:
             STATUS_LINE="Deploy muvaffaqiyatsiz | Sabab: ${FAILURE_REASON}"
           fi
 
-          # Build the new entry
-          NEW_ENTRY="## ${DATE} | ${STATUS_ICON} ${BRANCH} \`${SHA}\`
+          # Build the new entry (use heredoc to avoid YAML block indent issues)
+          cat > /tmp/new_entry.md <<EOF
+          ## ${DATE} | ${STATUS_ICON} ${BRANCH} \`${SHA}\`
 
-**Commit**: ${COMMIT_MSG}
-**Actor**: @${ACTOR}
-**Status**: ${STATUS_LINE}
+          **Commit**: ${COMMIT_MSG}
+          **Actor**: @${ACTOR}
+          **Status**: ${STATUS_LINE}
 
----
+          ---
 
-"
+          EOF
+          # Strip the 10-space indent that YAML block indentation forced on us
+          sed -i 's/^          //' /tmp/new_entry.md
+          NEW_ENTRY="$(cat /tmp/new_entry.md)"
 
           # Prepend to DEV_LOG.md (after the title lines)
           HEADER=$(head -6 DEV_LOG.md)
