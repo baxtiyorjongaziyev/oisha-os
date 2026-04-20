@@ -64,6 +64,7 @@ class Database:
             db_path = os.path.join(os.getcwd(), 'data', 'bot.db')
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.db_path = db_path
+        self._state_backend = "sqlite"
         logger.info(f"👸 [DATABASE] Oisha connected to her REAL memory: {self.db_path} 🛡️")
 
     async def init_instance(self):
@@ -83,9 +84,11 @@ class Database:
                 logger.info(f"👸 [DATABASE] Shifting to Centralized Cloud Pool...🌩️")
                 try:
                     self._conn = TursoAdapter()
+                    self._state_backend = "turso"
                     return self._conn
                 except Exception as e:
                     logger.error(f"❌ [DATABASE] Pool Initialization Failed: {e}")
+                    self._state_backend = "sqlite"
                     self._conn = None
 
         if hasattr(self, '_conn') and self._conn:
@@ -100,7 +103,11 @@ class Database:
         self._conn = await aiosqlite.connect(self.db_path, timeout=30)
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._state_backend = "sqlite"
         return self._conn
+
+    def get_backend_name(self) -> str:
+        return self._state_backend
 
     async def close(self):
         """Ulanishni yopish."""
@@ -797,6 +804,9 @@ class Database:
             submitted_ids = {row[0] for row in await cursor.fetchall()}
         return [m for m in eligible if m["user_id"] not in submitted_ids]
 
+    async def get_team_members(self) -> List[Dict[str, Any]]:
+        return await self.get_team_roles()
+
     async def get_overdue_tasks(self) -> List[Dict[str, Any]]:
         from src.time_utils import get_local_now
         conn = await self.get_connection()
@@ -819,16 +829,22 @@ class Database:
             rows = await cursor.fetchall()
         return [{"id": r[0], "title": r[1], "description": r[2], "assigned_to": r[3], "deadline": r[4], "priority": r[5], "status": r[6], "name": r[7], "username": r[8]} for r in rows]
 
-    def get_user_by_role(self, role: str) -> Optional[Dict[str, Any]]:
+    async def get_user_by_role(self, role: str) -> Optional[Dict[str, Any]]:
         normalized_role = (role or "").strip().lower()
-        if not normalized_role: return None
-        conn = sqlite3.connect(self.db_path)
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT user_id, first_name, username, role, detailed_role, position FROM users WHERE lower(COALESCE(role, '')) = ? OR lower(COALESCE(detailed_role, '')) = ? OR lower(COALESCE(position, '')) = ? LIMIT 1", (normalized_role, normalized_role, normalized_role))
-            row = cursor.fetchone()
-            return {"user_id": row[0], "name": row[1], "username": row[2], "role": row[3], "detailed_role": row[4], "position": row[5]} if row else None
-        finally: conn.close()
+        if not normalized_role:
+            return None
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT user_id, first_name, username, role, detailed_role, position "
+            "FROM users "
+            "WHERE lower(COALESCE(role, '')) = ? "
+            "OR lower(COALESCE(detailed_role, '')) = ? "
+            "OR lower(COALESCE(position, '')) = ? "
+            "LIMIT 1",
+            (normalized_role, normalized_role, normalized_role),
+        ) as cursor:
+            row = await cursor.fetchone()
+        return {"user_id": row[0], "name": row[1], "username": row[2], "role": row[3], "detailed_role": row[4], "position": row[5]} if row else None
 
     async def get_recent_job_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
         conn = await self.get_connection()
@@ -1119,13 +1135,19 @@ class TursoAdapter:
         return _ExecuteProxy(sql, parameters)
 
     async def executemany(self, sql, parameter_list):
-        # Synchronous batch execution via thread
-        cursor = await asyncio.to_thread(self.client.executemany, sql, parameter_list)
-        return _TursoCursor(cursor)
+        affected = 0
+        for params in parameter_list or []:
+            await db_pool.execute(sql, params)
+            affected += 1
+        cursor = _TursoCursor()
+        cursor.rowcount = affected
+        return cursor
 
     async def executescript(self, script):
-        cursor = await asyncio.to_thread(self.client.executescript, script)
-        return _TursoCursor(cursor or _EmptyResultSet())
+        statements = [stmt.strip() for stmt in (script or "").split(";") if stmt.strip()]
+        for statement in statements:
+            await db_pool.execute(statement, None)
+        return _TursoCursor(_EmptyResultSet())
 
     async def commit(self):
         # libsql auto-commits per execute in non-transactional mode
