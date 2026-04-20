@@ -1,6 +1,7 @@
 import pytest
 
 from src.database import Database, TursoAdapter
+from src.database_pool import db_pool
 
 try:
     import libsql
@@ -16,20 +17,30 @@ def _require_libsql():
         pytest.skip("libsql is not installed")
 
 
-async def test_turso_adapter_handles_empty_pragma_cursor():
+async def test_turso_adapter_handles_empty_pragma_cursor(monkeypatch):
     _require_libsql()
 
-    adapter = TursoAdapter(libsql.connect(":memory:"))
+    # Force db_pool to use memory for testing
+    monkeypatch.setattr(db_pool, "url", ":memory:")
+    monkeypatch.setattr(db_pool, "auth_token", "")
+    db_pool._connection = None
+
+    adapter = TursoAdapter()
     cursor = await adapter.execute("PRAGMA journal_mode=WAL")
 
     assert await cursor.fetchone() is None
     assert await cursor.fetchall() == []
 
 
-async def test_turso_adapter_handles_select_create_and_alter():
+async def test_turso_adapter_handles_select_create_and_alter(monkeypatch):
     _require_libsql()
 
-    adapter = TursoAdapter(libsql.connect(":memory:"))
+    # Force db_pool to use memory for testing
+    monkeypatch.setattr(db_pool, "url", ":memory:")
+    monkeypatch.setattr(db_pool, "auth_token", "")
+    db_pool._connection = None
+
+    adapter = TursoAdapter()
 
     await adapter.execute("CREATE TABLE users (user_id INTEGER PRIMARY KEY)")
     await adapter.execute("ALTER TABLE users ADD COLUMN first_name TEXT")
@@ -37,6 +48,7 @@ async def test_turso_adapter_handles_select_create_and_alter():
     select_cursor = await adapter.execute("SELECT 1")
     row = await select_cursor.fetchone()
 
+    # SmartRow supports indexing
     assert row[0] == 1
 
     pragma_cursor = await adapter.execute("SELECT name FROM pragma_table_info('users')")
@@ -47,9 +59,15 @@ async def test_turso_adapter_handles_select_create_and_alter():
 async def test_database_init_instance_succeeds_with_turso_adapter(monkeypatch):
     _require_libsql()
 
-    connection = libsql.connect(":memory:")
-    connection.execute(
-        """
+    # Force db_pool to use memory for testing
+    monkeypatch.setattr(db_pool, "url", ":memory:")
+    monkeypatch.setattr(db_pool, "auth_token", "")
+    db_pool._connection = None
+
+    adapter = TursoAdapter()
+    
+    # Pre-populate schema for test
+    await adapter.execute("""
         CREATE TABLE users (
             user_id INTEGER PRIMARY KEY,
             username TEXT,
@@ -65,10 +83,8 @@ async def test_database_init_instance_succeeds_with_turso_adapter(monkeypatch):
             last_seen DATETIME,
             created_at DATETIME
         )
-        """
-    )
+    """)
 
-    adapter = TursoAdapter(connection)
     db = Database(":memory:")
 
     async def fake_get_connection():
