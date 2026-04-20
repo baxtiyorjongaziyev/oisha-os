@@ -56,7 +56,7 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 **Nima qilindi:**
 - `uv` paket menejeri o'rnatildi (`C:\Users\baxti\.local\bin`) — Claude Desktop uchun
 - `deploy.yml` `requirements.txt` yo'li tuzatildi (`data/` → root)
-- Siz GitHub'da `claude/infallible-kalam` branch triggerini qo'shdingiz
+- Siz GitHub'da dastlab eski auto-deploy branch triggerini qo'shdingiz
 - `--suppress-logs` → `--gcs-log-dir` deploy.yml'da o'zgartirildi
 
 ---

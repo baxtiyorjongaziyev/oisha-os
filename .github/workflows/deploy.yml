@@ -3,7 +3,6 @@ name: Oisha-OS Auto Deploy
 on:
   push:
     branches:
-      - claude/infallible-kalam
       - main
       - master
   workflow_dispatch:
