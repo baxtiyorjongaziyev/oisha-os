@@ -201,6 +201,29 @@ class Database:
             await conn.execute("CREATE TABLE IF NOT EXISTS message_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, message_text TEXT, is_ai_reply BOOLEAN, created_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, description TEXT, assigned_to INTEGER, deadline DATETIME, priority TEXT DEFAULT 'Medium', status TEXT DEFAULT 'Pending', created_by INTEGER, created_at DATETIME, completed_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS advisor_logs (chat_id INTEGER, message_id INTEGER, advice_type TEXT, content TEXT, created_at DATETIME, PRIMARY KEY (chat_id, message_id, advice_type))")
+            # [PHASE 3.1] MetaSell-parity scoring columns
+            advisor_scoring_cols = [
+                ("quality_score", "REAL"),
+                ("lead_score", "REAL"),
+                ("conversation_family", "TEXT"),
+                ("conversation_domain", "TEXT"),
+                ("business_fit", "TEXT"),
+                ("business_fit_reason", "TEXT"),
+                ("service_tag", "TEXT"),
+                ("analyst_version", "TEXT"),
+            ]
+            existing_advisor_columns = await self._get_table_columns(conn, "advisor_logs")
+            for col, col_type in advisor_scoring_cols:
+                if col in existing_advisor_columns:
+                    continue
+                try:
+                    await conn.execute(f"ALTER TABLE advisor_logs ADD COLUMN {col} {col_type}")
+                    existing_advisor_columns.add(col)
+                except (aiosqlite.Error, sqlite3.Error, ValueError, RuntimeError) as exc:
+                    if _is_benign_schema_error(exc):
+                        existing_advisor_columns.add(col)
+                        continue
+                    raise
             await conn.execute("CREATE TABLE IF NOT EXISTS crm_sync_status (user_id INTEGER PRIMARY KEY, amo_lead_id INTEGER, status TEXT DEFAULT 'synced', synced_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS team_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, report_date TEXT, report_type TEXT, content TEXT, status TEXT DEFAULT 'submitted', created_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS scheduled_jobs (job_name TEXT, run_date TEXT, created_at DATETIME, PRIMARY KEY (job_name, run_date))")
