@@ -50,7 +50,7 @@ class WorkflowManager:
                 continue
 
             # Role dagi xodimni topish
-            team_member = self.db.get_user_by_role(target_role)
+            team_member = await self.db.get_user_by_role(target_role)
             if not team_member:
                 logger.warning(f"[WORKFLOW] No team member found for role: {target_role}")
                 continue
@@ -115,7 +115,7 @@ class WorkflowManager:
             if stage.lower() not in ["done", "yakunlandi", "arxiv"]:
                 # 1. PM (Inomjon) ga eslatma yuzborish
                 # Mas'ul kishini DB-dan qidirish
-                pm_user = self.db.get_user_by_role("pm")
+                pm_user = await self.db.get_user_by_role("pm")
                 pm_mention = f"@{pm_user['username']}" if pm_user and pm_user.get('username') else "@baxtiyorjon"
                 pm_id = pm_user['user_id'] if pm_user else settings.OWNER_ID
                 
@@ -162,9 +162,9 @@ class WorkflowManager:
         # 1. MORNING PLAN REQUEST (09:00 - 09:15)
         if hour == 9 and 0 <= minute <= 15:
             job_name = "morning_plan_request"
-            if not self.db.is_job_run(job_name, today_date):
+            if not await self.db.is_job_run(job_name, today_date):
                 logger.info(f"[WORKFLOW] Requesting morning plans for {today_date}")
-                members = self.db.get_team_roles() # Barcha jamoa a'zolari
+                members = await self.db.get_team_roles() # Barcha jamoa a'zolari
                 
                 msg = f"☀️ **Xayrli tong, Princess Safety jamoasi!** 👸🛡️\n\n"
                 msg += f"Bugun: **{today_date}**\n\n"
@@ -178,12 +178,12 @@ class WorkflowManager:
                 
                 if settings.CRM_GROUP_ID:
                     await self.client.send_message(settings.CRM_GROUP_ID, msg)
-                    self.db.mark_job_run(job_name, today_date)
+                    await self.db.mark_job_run(job_name, today_date)
 
         # 2. EVENING RESULT CHECK (18:00 - 18:30)
         if hour == 18 and 0 <= minute <= 30:
             job_name = "evening_result_request"
-            if not self.db.is_job_run(job_name, today_date):
+            if not await self.db.is_job_run(job_name, today_date):
                 logger.info(f"[WORKFLOW] Checking evening results for {today_date}")
                 
                 msg = f"🌙 **Kechki Hisobot Vaqti Keldi!** 👸🛡️\n\n"
@@ -197,7 +197,7 @@ class WorkflowManager:
                 
                 if settings.CRM_GROUP_ID:
                     await self.client.send_message(settings.CRM_GROUP_ID, msg)
-                    self.db.mark_job_run(job_name, today_date)
+                    await self.db.mark_job_run(job_name, today_date)
 
     async def workflow_monitor_loop(self):
         """Barcha monitoring vazifalarini ishga tushirish."""
