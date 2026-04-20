@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-20 06:56 UTC | ⚠️ main `a323351`
+
+**Commit**: chore(repo): make main the canonical deploy branch
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-20 06:39 UTC | ⚠️ main `6951bf2`
 
 **Commit**: feat(core): Initial Agentic Setup (GitHub Manager & OishaBrain)
