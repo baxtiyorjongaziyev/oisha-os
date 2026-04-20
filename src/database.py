@@ -57,6 +57,18 @@ def _is_benign_schema_error(exc: Exception) -> bool:
     )
     return any(marker in message for marker in markers)
 
+
+def _setting_text(value: Any) -> str:
+    if value is None:
+        return ""
+    getter = getattr(value, "get_secret_value", None)
+    if callable(getter):
+        try:
+            value = getter()
+        except Exception:
+            value = str(value)
+    return str(value).strip()
+
 class Database:
     def __init__(self, db_path=None):
         if db_path is None:
@@ -72,40 +84,57 @@ class Database:
         await self.init_db()
 
     async def get_connection(self):
-        """Asenkron SQLite yoki Turso ulanishini olish (Persistent connection pattern)."""
-        # [TURSO CLOUD DETECTION]
-        if settings.TURSO_DATABASE_URL and settings.TURSO_AUTH_TOKEN:
+        """Asenkron SQLite yoki Turso ulanishini olish."""
+        turso_url = _setting_text(settings.TURSO_DATABASE_URL)
+        turso_token = _setting_text(settings.TURSO_AUTH_TOKEN)
+        if turso_url and turso_token:
             if not HAS_LIBSQL:
-                logger.error("❌ [DATABASE] Turso mode requested but libsql is not installed!")
+                logger.error("[DATABASE] Turso mode requested but libsql is not installed.")
             else:
                 if hasattr(self, '_conn') and isinstance(self._conn, TursoAdapter):
                     return self._conn
-                
-                logger.info(f"👸 [DATABASE] Shifting to Centralized Cloud Pool...🌩️")
+                logger.info("[DATABASE] Switching to Turso pool.")
                 try:
+                    db_pool.url = turso_url
+                    db_pool.auth_token = turso_token
+                    db_pool.close()
+                    if turso_url == ":memory:":
+                        probe_conn = libsql.connect(turso_url)
+                    else:
+                        probe_conn = libsql.connect(turso_url, auth_token=turso_token)
+                    try:
+                        probe_result = probe_conn.execute("SELECT 1")
+                        if hasattr(probe_result, "fetchone"):
+                            probe_result.fetchone()
+                        else:
+                            list(probe_result)
+                    finally:
+                        try:
+                            probe_conn.close()
+                        except Exception:
+                            pass
                     self._conn = TursoAdapter()
                     self._state_backend = "turso"
                     return self._conn
-                except Exception as e:
-                    logger.error(f"❌ [DATABASE] Pool Initialization Failed: {e}")
+                except Exception as exc:
+                    logger.error(f"[DATABASE] Turso probe failed, falling back to sqlite: {exc}")
+                    try:
+                        db_pool.close()
+                    except Exception:
+                        pass
                     self._state_backend = "sqlite"
                     self._conn = None
-
         if hasattr(self, '_conn') and self._conn:
             try:
-                # Test connection
                 await self._conn.execute("SELECT 1")
                 return self._conn
             except (aiosqlite.Error, asyncio.TimeoutError, Exception):
-                # Connection is dead, will recreate
                 self._conn = None
-        
         self._conn = await aiosqlite.connect(self.db_path, timeout=30)
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA synchronous=NORMAL")
         self._state_backend = "sqlite"
         return self._conn
-
     def get_backend_name(self) -> str:
         return self._state_backend
 
@@ -1022,49 +1051,40 @@ class _TursoCursor:
     aiosqlite.Cursor-compatible cursor for high-speed operation.
     """
     def __init__(self, rows=None, description=None):
-        self._rows = rows or []
-        self._description = description
+        self._rows = _extract_prefetched_rows(rows)
+        self._description = description if description is not None else _normalize_cursor_description(rows)
         self._ptr = 0
         self.rowcount = len(self._rows)
-        self.description = description
-
+        self.description = self._description
     async def fetchone(self):
         if self._ptr < len(self._rows):
             row = self._rows[self._ptr]
             self._ptr += 1
             return row
         return None
-
     async def fetchall(self):
         remaining = self._rows[self._ptr:]
         self._ptr = len(self._rows)
         return remaining
-
     async def fetchmany(self, size=1):
         end = min(self._ptr + size, len(self._rows))
         chunk = self._rows[self._ptr:end]
         self._ptr = end
         return chunk
-
     async def close(self):
         self._rows = []
         self._ptr = 0
-
     def __aiter__(self):
         return self
-
     async def __anext__(self):
         row = await self.fetchone()
         if row is None:
             raise StopAsyncIteration
         return row
-
     async def __aenter__(self):
         return self
-
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
-
 
 class _ExecuteProxy:
     """
@@ -1107,22 +1127,18 @@ class _EmptyResultSet:
     description = []
     rows_affected = 0
     rowcount = 0
-
     def fetchone(self):
         return None
-
     def fetchall(self):
         return []
-
     def fetchmany(self, size=1):
         return []
-
     def close(self):
         return None
-
     def __iter__(self):
         return iter(())
-
+    def __len__(self):
+        return 0
 
 class TursoAdapter:
     """
@@ -1204,4 +1220,5 @@ class _CursorContext:
 
     async def close(self):
         await self._cursor.close()
+
 
