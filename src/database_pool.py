@@ -8,12 +8,10 @@ from src.settings import settings
 
 logger = logging.getLogger(__name__)
 
-
 class SmartRow(dict):
     """
     Dict ko'rinishida ishlaydi, lekin int index bilan ham eski tuple kabi o'qiladi.
     """
-
     def __init__(self, values, columns):
         data = dict(zip(columns, values))
         super().__init__(data)
@@ -34,12 +32,10 @@ class SmartRow(dict):
     def keys(self):
         return self._columns
 
-
 class DatabasePool:
     """
     Turso/LibSQL uchun bitta ulanishni boshqaradi.
     """
-
     _instance = None
     _connection = None
 
@@ -77,50 +73,36 @@ class DatabasePool:
         conn = self.get_connection()
 
         def _run():
-            result = conn.execute(query, params)
-            description = getattr(result, "description", None)
-            columns = getattr(result, "columns", None)
-
-            normalized_columns: List[str] = []
-            if description:
-                for column in description:
-                    if isinstance(column, (list, tuple)) and column:
-                        normalized_columns.append(str(column[0]))
-                    else:
-                        normalized_columns.append(str(getattr(column, "name", column)))
-            elif columns:
-                normalized_columns = [str(column) for column in columns]
-
-            if hasattr(result, "fetchall"):
-                raw_rows = result.fetchall() or []
-            else:
-                raw_rows = getattr(result, "rows", None)
-                if raw_rows is None:
-                    try:
-                        raw_rows = list(result)
-                    except TypeError:
-                        raw_rows = []
-
-            if not normalized_columns:
+            res = conn.execute(query, params)
+            
+            # Extract column names - handle both libsql ResultSet and sqlite3 Cursor
+            cols = []
+            if hasattr(res, 'columns'):
+                cols = res.columns
+            elif hasattr(res, 'description') and res.description:
+                cols = [d[0] for d in res.description]
+            
+            # If no columns and no description, it might be a DML (CREATE/INSERT/UPDATE)
+            if not cols:
                 return []
-
-            rows: List[SmartRow] = []
-            for item in raw_rows or []:
-                if isinstance(item, SmartRow):
-                    rows.append(item)
-                    continue
-
-                if isinstance(item, dict):
-                    values = [item.get(column) for column in normalized_columns]
-                else:
-                    try:
-                        values = list(item)
-                    except TypeError:
-                        if len(normalized_columns) == 1:
-                            values = [item]
-                        else:
-                            values = [getattr(item, column, None) for column in normalized_columns]
-                rows.append(SmartRow(values, normalized_columns))
+            
+            # Convert results to SmartRow
+            rows = []
+            raw_rows = []
+            try:
+                # Try iterating directly
+                raw_rows = list(res)
+            except TypeError:
+                # If not iterable, try fetchall()
+                if hasattr(res, 'fetchall'):
+                    raw_rows = res.fetchall()
+            
+            for item in raw_rows:
+                try:
+                    val_list = list(item)
+                except TypeError:
+                    val_list = [item[i] for i in range(len(cols))]
+                rows.append(SmartRow(val_list, cols))
             return rows
 
         try:
@@ -141,6 +123,5 @@ class DatabasePool:
                 pass
             self._connection = None
             logger.info("[DB POOL] Connection released.")
-
 
 db_pool = DatabasePool()
