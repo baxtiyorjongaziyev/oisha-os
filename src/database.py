@@ -87,9 +87,9 @@ class Database:
         """
         Returns a TursoAdapter for Cloud Core or falls back to local SQLite.
         """
-        if settings.TURSO_DATABASE_URL and libsql:
+        if settings.TURSO_DATABASE_URL and HAS_LIBSQL:
             try:
-                # Update pool settings just in case
+                # Update pool settings
                 db_pool.url = str(settings.TURSO_DATABASE_URL)
                 db_pool.auth_token = settings.TURSO_AUTH_TOKEN.get_secret_value() if settings.TURSO_AUTH_TOKEN else ""
                 
@@ -101,34 +101,11 @@ class Database:
                 logger.warning(f"👸 [DB] Turso probe failed, using SQLite fallback: {e}")
         
         # Standard SQLite fallback
-        self._state_backend = "sqlite"
-        self._conn = await aiosqlite.connect(self.db_path, timeout=30)
-                    self._conn = None
-<<<<<<< HEAD
-        if hasattr(self, '_conn') and self._conn:
-            try:
-                await self._conn.execute("SELECT 1")
-                return self._conn
-            except (aiosqlite.Error, asyncio.TimeoutError, Exception):
-                self._conn = None
-=======
-        """
-        Returns a TursoAdapter for Cloud Core or falls back to local SQLite.
-        """
-        if settings.TURSO_DATABASE_URL and libsql:
-            try:
-                # Probe connection to verify auth/url before returning adapter
-                # This ensures we fallback on failure (e.g. invalid token)
-                await db_pool.execute("SELECT 1")
-                return TursoAdapter()
-            except Exception as e:
-                logger.warning(f"👸 [DB] Turso probe failed, using SQLite fallback: {e}")
+        if not hasattr(self, '_conn') or self._conn is None:
+            self._conn = await aiosqlite.connect(self.db_path, timeout=30)
+            await self._conn.execute("PRAGMA journal_mode=WAL")
+            await self._conn.execute("PRAGMA synchronous=NORMAL")
         
-        # Standard SQLite fallback
->>>>>>> b0ff1ad (refactor: stabilize database layer and restore missing handlers)
-        self._conn = await aiosqlite.connect(self.db_path, timeout=30)
-        await self._conn.execute("PRAGMA journal_mode=WAL")
-        await self._conn.execute("PRAGMA synchronous=NORMAL")
         self._state_backend = "sqlite"
         return self._conn
     def get_backend_name(self) -> str:
@@ -1052,18 +1029,10 @@ class _TursoCursor:
     """
     def __init__(self, rows=None, description=None):
         self._rows = _extract_prefetched_rows(rows)
-<<<<<<< HEAD
         self._description = description if description is not None else _normalize_cursor_description(rows)
         self._ptr = 0
         self.rowcount = len(self._rows)
         self.description = self._description
-=======
-        self._description = description or _normalize_cursor_description(rows)
-        self._ptr = 0
-        self.rowcount = len(self._rows)
-        self.description = self._description
-
->>>>>>> b0ff1ad (refactor: stabilize database layer and restore missing handlers)
     async def fetchone(self):
         if self._ptr < len(self._rows):
             row = self._rows[self._ptr]
@@ -1141,13 +1110,6 @@ class _EmptyResultSet:
         return []
     def close(self):
         return None
-<<<<<<< HEAD
-=======
-
-    def __len__(self):
-        return 0
-
->>>>>>> b0ff1ad (refactor: stabilize database layer and restore missing handlers)
     def __iter__(self):
         return iter(())
     def __len__(self):
