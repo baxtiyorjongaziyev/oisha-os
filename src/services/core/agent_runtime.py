@@ -67,7 +67,21 @@ def get_runtime_context() -> Dict[str, Any]:
     return dict(_runtime_context)
 
 
-def get_storage_health(db_path: Optional[str], recent_job_runs: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+def get_storage_health(db_path: Optional[str], recent_job_runs: Optional[List[Dict[str, Any]]] = None, backend: str = "sqlite") -> Dict[str, Any]:
+    if backend != "sqlite":
+        return {
+            "backend": backend,
+            "path": db_path,
+            "exists": True,
+            "writable": True,
+            "size_bytes": 0,
+            "scheduler_rows": 0,
+            "kv_rows": 0,
+            "agent_action_rows": 0,
+            "recent_job_runs": recent_job_runs or [],
+            "error": None,
+        }
+
     resolved_path = Path(db_path).resolve() if db_path else None
     writable = False
     exists = False
@@ -106,7 +120,7 @@ def get_storage_health(db_path: Optional[str], recent_job_runs: Optional[List[Di
             error = str(exc)
 
     return {
-        "backend": "sqlite",
+        "backend": backend,
         "path": str(resolved_path) if resolved_path else None,
         "exists": exists,
         "writable": writable,
