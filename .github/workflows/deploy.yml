@@ -42,6 +42,17 @@ jobs:
           python -m py_compile src/database.py src/api_server.py src/main.py
 
       - name: Run deploy safety tests
+        env:
+          # AppSettings requires these at import time. CI uses dummy values —
+          # tests that need real creds should skip (and we have none right now).
+          BOT_TOKEN: "dummy-ci-token"
+          API_ID: "12345"
+          API_HASH: "dummy-ci-hash"
+          GEMINI_API_KEY: "dummy-ci-gemini"
+          AMOCRM_SUBDOMAIN: "dummy"
+          AMOCRM_CLIENT_ID: "dummy-client"
+          AMOCRM_CLIENT_SECRET: "dummy-secret"
+          AMOCRM_REDIRECT_URL: "https://example.invalid/cb"
         run: |
           python -m pytest tests/test_turso_adapter.py -q
 
