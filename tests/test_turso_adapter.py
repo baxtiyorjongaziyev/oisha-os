@@ -148,6 +148,7 @@ async def test_database_falls_back_to_sqlite_when_turso_probe_fails(monkeypatch,
     try:
         conn = await db.get_connection()
         assert not isinstance(conn, TursoAdapter)
+        assert db.get_backend_name() == "sqlite"
 
         cursor = await conn.execute("SELECT 1")
         assert (await cursor.fetchone())[0] == 1
