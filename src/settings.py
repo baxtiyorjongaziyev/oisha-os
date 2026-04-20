@@ -24,14 +24,14 @@ class AppSettings(BaseSettings):
     AUTORUN_MASS_SYNC: bool = True
     RUNNING_IN_CLOUD: bool = False
     APP_TIMEZONE: str = "Asia/Tashkent"
-    BOT_TOKEN: SecretStr
+    BOT_TOKEN: SecretStr = SecretStr("")
     ADMIN_BOT_TOKEN: Optional[SecretStr] = None
-    API_ID: int
-    API_HASH: str
-    GEMINI_API_KEY: SecretStr
+    API_ID: int = 0
+    API_HASH: str = ""
+    GEMINI_API_KEY: SecretStr = SecretStr("")
     DEEPSEEK_API_KEY: Optional[SecretStr] = None
-    AMOCRM_SUBDOMAIN: str
-    AMOCRM_CLIENT_ID: str
+    AMOCRM_SUBDOMAIN: str = ""
+    AMOCRM_CLIENT_ID: str = ""
     AMOCRM_CLIENT_SECRET: Optional[SecretStr] = None
     AMOCRM_REDIRECT_URL: str = "https://localhost"
     AIRTABLE_API_KEY: Optional[SecretStr] = None
@@ -134,6 +134,22 @@ class AppSettings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+    def missing_runtime_settings(self) -> list[str]:
+        missing: list[str] = []
+        if not self.BOT_TOKEN.get_secret_value().strip():
+            missing.append("BOT_TOKEN")
+        if not self.API_ID:
+            missing.append("API_ID")
+        if not self.API_HASH.strip():
+            missing.append("API_HASH")
+        if not self.GEMINI_API_KEY.get_secret_value().strip():
+            missing.append("GEMINI_API_KEY")
+        if not self.AMOCRM_SUBDOMAIN.strip():
+            missing.append("AMOCRM_SUBDOMAIN")
+        if not self.AMOCRM_CLIENT_ID.strip():
+            missing.append("AMOCRM_CLIENT_ID")
+        return missing
 
 settings = AppSettings()
 logger = structlog.get_logger()
