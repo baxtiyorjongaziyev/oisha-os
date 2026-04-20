@@ -47,7 +47,7 @@ class AdvisorAgent:
         prompt = f"Manager: {manager_name}, Summa: {amt_str}. Uni ajoyib sotuv bilan tabriklang!"
         
         try:
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
             response = await safe_ai_call(
                 client=self.client,
                 prompt=[prompt],
@@ -94,7 +94,7 @@ class AdvisorAgent:
         ]
 
         try:
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
             response = await safe_ai_call(
                 client=self.client,
                 prompt=contents,
@@ -114,7 +114,7 @@ class AdvisorAgent:
         Deep analysis of client context for onboarding briefings.
         """
         try:
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
             response = await safe_ai_call(
                 client=self.client,
                 prompt=[prompt],
