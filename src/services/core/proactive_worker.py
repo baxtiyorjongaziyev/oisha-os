@@ -975,7 +975,7 @@ async def _deprecated_check_airtable_stagnation_direct():
         message_thread_id=thread_id,
     )
 
-    pm_user = db.get_user_by_role("pm")
+    pm_user = await db.get_user_by_role("pm")
     if pm_user and pm_user.get("user_id"):
         try:
             await bot.send_message(
@@ -1086,7 +1086,7 @@ async def _legacy_check_airtable_stagnation_mixed():
         lines.append("")
 
     message = "\n".join(lines).strip()
-    pm_user = db.get_user_by_role("pm")
+    pm_user = await db.get_user_by_role("pm")
     task = AgentTask(
         task_id=f"{job_key}:{today}",
         kind="pm_stage_push",
@@ -1706,7 +1706,7 @@ async def check_airtable_stagnation():
         lines.append("")
 
     message = "\n".join(lines).strip()
-    pm_user = db.get_user_by_role("pm")
+    pm_user = await db.get_user_by_role("pm")
     direct_messages = []
     if pm_user and pm_user.get("user_id"):
         direct_messages.append(
