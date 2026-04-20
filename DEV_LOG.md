@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-20 16:02 UTC | ⚠️ main `287a3bd`
+
+**Commit**: fix(report): add airtable record links
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-20 15:55 UTC | ⚠️ main `81d84ec`
 
 **Commit**: fix(report): humanize wow-service audit wording
