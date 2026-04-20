@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-20 11:51 UTC | ⚠️ main `b516e22`
+
+**Commit**: fix(db): restore turso fallback for ci
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-20 11:45 UTC | 🔴 main `9b79671`
 
 **Commit**: fix(ci): make github deploy the only production path
