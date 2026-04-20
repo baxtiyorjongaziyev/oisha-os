@@ -8,11 +8,14 @@ from src.settings import settings
 
 logger = logging.getLogger(__name__)
 
+
 class SmartRow(dict):
     """
     Dict ko'rinishida ishlaydi, lekin int index bilan ham eski tuple kabi o'qiladi.
     """
+
     def __init__(self, values, columns):
+        # Initialize as a dict: {col_name: value}
         data = dict(zip(columns, values))
         super().__init__(data)
         self._values = tuple(values)
@@ -32,10 +35,12 @@ class SmartRow(dict):
     def keys(self):
         return self._columns
 
+
 class DatabasePool:
     """
     Turso/LibSQL uchun bitta ulanishni boshqaradi.
     """
+
     _instance = None
     _connection = None
 
@@ -62,13 +67,14 @@ class DatabasePool:
                     self._connection = libsql.connect(url, auth_token=self.auth_token)
                 else:
                     self._connection = libsql.connect(url)
-                logger.info("[DB POOL] New connection established.")
+                logger.debug("[DB POOL] New connection established.")
             except Exception as exc:
                 logger.error(f"[DB POOL] Connection failed: {exc}")
                 raise
         return self._connection
 
     async def execute(self, query: str, params: Optional[List[Any]] = None) -> List[SmartRow]:
+        """Executes a SQL query asynchronously and returns SmartRows."""
         params = params or []
         conn = self.get_connection()
 
@@ -77,9 +83,9 @@ class DatabasePool:
             
             # Extract column names - handle both libsql ResultSet and sqlite3 Cursor
             cols = []
-            if hasattr(res, 'columns'):
+            if hasattr(res, "columns"):
                 cols = res.columns
-            elif hasattr(res, 'description') and res.description:
+            elif hasattr(res, "description") and res.description:
                 cols = [d[0] for d in res.description]
             
             # If no columns and no description, it might be a DML (CREATE/INSERT/UPDATE)
@@ -94,24 +100,21 @@ class DatabasePool:
                 raw_rows = list(res)
             except TypeError:
                 # If not iterable, try fetchall()
-                if hasattr(res, 'fetchall'):
+                if hasattr(res, "fetchall"):
                     raw_rows = res.fetchall()
             
             for item in raw_rows:
-                try:
-                    val_list = list(item)
-                except TypeError:
-                    val_list = [item[i] for i in range(len(cols))]
-                rows.append(SmartRow(val_list, cols))
+                rows.append(SmartRow(item, cols))
             return rows
 
         try:
             return await asyncio.to_thread(_run)
         except Exception as exc:
-            logger.error(f"[DB POOL] Execution error: {exc} | Query: {query}")
+            logger.error(f"❌ [DB POOL] Execution error: {exc} | Query: {query}")
             raise
 
     async def execute_one(self, query: str, params: Optional[List[Any]] = None) -> Optional[SmartRow]:
+        """Convenience method to get a single row."""
         rows = await self.execute(query, params)
         return rows[0] if rows else None
 
@@ -119,9 +122,11 @@ class DatabasePool:
         if self._connection:
             try:
                 self._connection.close()
-            except Exception:
-                pass
-            self._connection = None
-            logger.info("[DB POOL] Connection released.")
+                logger.info("[DB POOL] Connection released. 🛡️")
+            except Exception as e:
+                logger.debug(f"[DB POOL] Close warning: {e}")
+            finally:
+                self._connection = None
+
 
 db_pool = DatabasePool()
