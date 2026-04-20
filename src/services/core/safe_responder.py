@@ -56,8 +56,11 @@ class SafeResponder:
     async def update_me_id(self, me_id: int):
         self.me_id = me_id
 
-    async def should_respond(self, event) -> bool:
+    async def should_respond(self, event, my_id: int = None) -> bool:
         """Xabarga javob berish kerakmi yoki yo'qligini tekshirish."""
+        if my_id:
+            await self.update_me_id(my_id)
+
         # 0. Botning o'z xabarlariga javob bermaslik (Sikl oldini olish)
         if event.out:
             return False
