@@ -227,7 +227,7 @@ async def build_health_snapshot(include_inventory: bool = False, include_traces:
         "timestamp": get_local_now().isoformat(),
         "status": cached_status.copy(),
         "runtime": runtime,
-        "storage": get_storage_health(db_path, recent_job_runs=recent_job_runs),
+        "storage": get_storage_health(db_path, recent_job_runs=recent_job_runs, backend=runtime.get("state_backend", "sqlite")),
     }
     if include_inventory:
         snapshot["legacy_runtime_inventory"] = get_legacy_runtime_inventory()
