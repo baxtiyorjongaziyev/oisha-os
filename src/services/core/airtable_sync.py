@@ -7,6 +7,9 @@ logger = logging.getLogger(__name__)
 
 
 class AirtableSync:
+    _base_tables_cache = {}
+    _record_url_cache = {}
+
     # Field name mapping: code key -> actual Airtable field names (priority order)
     FIELD_MAP = {
         "stage": ["Loyiha bosqichi", "Stage", "Status", "Holati"],
@@ -107,6 +110,100 @@ class AirtableSync:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+
+    def _get_base_tables(self):
+        cache_key = self.base_id
+        cached = self._base_tables_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        meta_url = f"https://api.airtable.com/v0/meta/bases/{self.base_id}/tables"
+        try:
+            response = requests.get(meta_url, headers=self.headers, timeout=15)
+            if response.status_code != 200:
+                logger.warning(
+                    f"[AIRTABLE] Jadval metadata olib bo'lmadi: {response.status_code}"
+                )
+                self._base_tables_cache[cache_key] = []
+                return []
+
+            tables = []
+            for table in response.json().get("tables", []):
+                views = table.get("views") or []
+                view_id = None
+                for view in views:
+                    if view.get("type") == "grid":
+                        view_id = view.get("id")
+                        break
+                if not view_id and views:
+                    view_id = views[0].get("id")
+
+                tables.append(
+                    {
+                        "id": table.get("id"),
+                        "name": table.get("name"),
+                        "view_id": view_id,
+                    }
+                )
+
+            self._base_tables_cache[cache_key] = tables
+            return tables
+        except Exception as exc:
+            logger.warning(f"[AIRTABLE] Jadval metadata xatosi: {exc}")
+            self._base_tables_cache[cache_key] = []
+            return []
+
+    def get_record_url(self, record_id: str):
+        record_id = str(record_id or "").strip()
+        if not record_id.startswith("rec"):
+            return None
+
+        cache_key = (self.base_id, record_id)
+        cached = self._record_url_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        tables = self._get_base_tables()
+        if not tables:
+            self._record_url_cache[cache_key] = None
+            return None
+
+        ordered_tables = sorted(
+            tables,
+            key=lambda table: (
+                table.get("name") != self.table_name and table.get("id") != self.table_name
+            ),
+        )
+
+        for table in ordered_tables:
+            table_id = table.get("id")
+            if not table_id:
+                continue
+
+            probe_url = f"https://api.airtable.com/v0/{self.base_id}/{table_id}/{record_id}"
+            try:
+                response = requests.get(probe_url, headers=self.headers, timeout=10)
+            except Exception:
+                continue
+
+            if response.status_code == 200:
+                view_id = table.get("view_id")
+                if view_id:
+                    record_url = f"https://airtable.com/{self.base_id}/{table_id}/{view_id}/{record_id}"
+                else:
+                    record_url = f"https://airtable.com/{self.base_id}/{table_id}/{record_id}"
+                self._record_url_cache[cache_key] = record_url
+                return record_url
+
+            if response.status_code in {404, 422}:
+                continue
+
+            if response.status_code == 403:
+                logger.warning("[AIRTABLE] Record URL probe uchun ruxsat yetarli emas.")
+                break
+
+        self._record_url_cache[cache_key] = None
+        return None
 
     def _normalize_fields_for_table(self, fields: dict) -> dict:
         """Translate legacy field names to the actual Airtable schema and drop unknown keys."""
