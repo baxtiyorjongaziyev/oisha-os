@@ -87,6 +87,7 @@ class Database:
         """
         Returns a TursoAdapter for Cloud Core or falls back to local SQLite.
         """
+        # [REANIMATION] Ensure Turso is bridged correctly
         if settings.TURSO_DATABASE_URL and HAS_LIBSQL:
             try:
                 # Update pool settings
@@ -94,6 +95,7 @@ class Database:
                 db_pool.auth_token = settings.TURSO_AUTH_TOKEN.get_secret_value() if settings.TURSO_AUTH_TOKEN else ""
                 
                 # Probe connection to verify auth/url before returning adapter
+                # If this fails (e.g. 401 Unauthorized), we fall back to SQLite
                 await db_pool.execute("SELECT 1")
                 self._state_backend = "turso"
                 return TursoAdapter()
@@ -101,13 +103,15 @@ class Database:
                 logger.warning(f"👸 [DB] Turso probe failed, using SQLite fallback: {e}")
         
         # Standard SQLite fallback
-        if not hasattr(self, '_conn') or self._conn is None:
+        if not hasattr(self, '_conn') or self._conn is None or isinstance(self._conn, TursoAdapter):
+            # If we were in Turso mode but now falling back, clear _conn
             self._conn = await aiosqlite.connect(self.db_path, timeout=30)
             await self._conn.execute("PRAGMA journal_mode=WAL")
             await self._conn.execute("PRAGMA synchronous=NORMAL")
         
         self._state_backend = "sqlite"
         return self._conn
+
     def get_backend_name(self) -> str:
         return self._state_backend
 
@@ -269,9 +273,6 @@ class Database:
             """)
 
             # [PHASE 1.6] Per-chat message checkpoint for boot-time catch-up.
-            # Every handled message updates last_processed_msg_id (via MAX).
-            # On boot, boot_catchup.py queries chats touched in last 7 days and
-            # replays any messages with id > last_processed_msg_id.
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS chat_checkpoints (
                     chat_id INTEGER PRIMARY KEY,
@@ -387,7 +388,6 @@ class Database:
     async def log_messages_batch(self, messages_data: List[tuple]):
         """
         Xabarlarni ommaviy saqlash (Performance optimization for backlog sync).
-        messages_data: List of (user_id, message_text, is_ai_reply, created_at)
         """
         if not messages_data: return
         conn = await self.get_connection()
@@ -396,14 +396,6 @@ class Database:
             messages_data
         )
         await conn.commit()
-
-    async def get_sync_status(self, key: str) -> Optional[str]:
-        """Sinxronizatsiya holatini olish."""
-        return await self.get_state(f"sync_status_{key}")
-
-    async def set_sync_status(self, key: str, value: str):
-        """Sinxronizatsiya holatini saqlash."""
-        await self.set_state(f"sync_status_{key}", value)
 
     async def get_user_by_phone(self, phone: str) -> Optional[Dict[str, Any]]:
         if not phone: return None
@@ -516,18 +508,11 @@ class Database:
         await conn.execute("INSERT OR REPLACE INTO scheduled_jobs (job_name, run_date, created_at) VALUES (?, ?, ?)", (job_name, date_str, now))
         await conn.commit()
 
-    # [PHASE 1.6] Chat checkpoints — used by handle_new_message + boot_catchup.
     async def update_chat_checkpoint(self, chat_id: int, msg_id: int) -> None:
-        """Advance the per-chat checkpoint to max(existing, msg_id).
-
-        Idempotent — restart after partial catch-up is safe because we only
-        move the checkpoint forward, never backward.
-        """
         if not chat_id or not msg_id:
             return
         now = datetime.datetime.utcnow().isoformat()
         conn = await self.get_connection()
-        # SQLite UPSERT: INSERT ... ON CONFLICT ... DO UPDATE with MAX semantics
         await conn.execute(
             """
             INSERT INTO chat_checkpoints (chat_id, last_processed_msg_id, last_processed_at)
@@ -541,7 +526,6 @@ class Database:
         await conn.commit()
 
     async def get_recent_chat_checkpoints(self, since_days: int = 7) -> List[Dict[str, Any]]:
-        """Return chats touched within the last N days for boot-time replay."""
         cutoff = (datetime.datetime.utcnow() - datetime.timedelta(days=since_days)).isoformat()
         conn = await self.get_connection()
         async with conn.execute(
@@ -610,7 +594,7 @@ class Database:
             WHERE ml.created_at >= ? ORDER BY ml.user_id, ml.created_at ASC
         """
         async with conn.execute(query, (one_day_ago,)) as cursor:
-            rows = await conn.fetchall()
+            rows = await cursor.fetchall()
             chats = {}
             for uid, name, uname, text, is_ai, time in rows:
                 if uid not in chats:
@@ -629,7 +613,7 @@ class Database:
             LIMIT ?
         """
         async with conn.execute(query, (limit,)) as cursor:
-            rows = await conn.fetchall()
+            rows = await cursor.fetchall()
             return [(r[0], r[1], r[2], r[3]) for r in reversed(rows)]
 
     async def get_stats(self):
@@ -655,52 +639,6 @@ class Database:
                 "messages_synced": row[1] or 0,
             }
 
-    async def get_user_id_by_phone(self, phone: str) -> Optional[int]:
-        conn = await self.get_connection()
-        normalized_phone = "".join(ch for ch in (phone or "") if ch.isdigit())
-        async with conn.execute("SELECT user_id, phone FROM users WHERE phone IS NOT NULL") as cursor:
-            rows = await conn.fetchall()
-            for user_id, stored_phone in rows:
-                stored_normalized = "".join(ch for ch in (stored_phone or "") if ch.isdigit())
-                if stored_normalized and stored_normalized.endswith(normalized_phone):
-                    return user_id
-        return None
-
-    async def get_user_by_phone_full(self, phone: str) -> Optional[Dict[str, Any]]:
-        conn = await self.get_connection()
-        normalized_phone = "".join(ch for ch in (phone or "") if ch.isdigit())
-        async with conn.execute(
-            """
-            SELECT user_id, username, first_name, phone, last_name, business_type, region,
-                   brand_name, intent, crm_synced
-            FROM users
-            WHERE phone IS NOT NULL
-            """
-        ) as cursor:
-            rows = await conn.fetchall()
-            for row in rows:
-                stored_normalized = "".join(ch for ch in (row[3] or "") if ch.isdigit())
-                if stored_normalized and stored_normalized.endswith(normalized_phone):
-                    return {
-                        "user_id": row[0],
-                        "username": row[1],
-                        "first_name": row[2],
-                        "phone": row[3],
-                        "last_name": row[4],
-                        "business_type": row[5],
-                        "region": row[6],
-                        "brand_name": row[7],
-                        "intent": row[8],
-                        "crm_synced": bool(row[9]),
-                    }
-        return None
-
-    async def is_crm_synced(self, user_id: int) -> bool:
-        conn = await self.get_connection()
-        async with conn.execute("SELECT crm_synced FROM users WHERE user_id = ?", (user_id,)) as cursor:
-            row = await cursor.fetchone()
-            return bool(row[0]) if row else False
-
     async def mark_crm_synced(self, user_id: int) -> bool:
         now = datetime.datetime.now().isoformat()
         conn = await self.get_connection()
@@ -719,37 +657,6 @@ class Database:
         await conn.commit()
         return True
 
-    async def set_crm_synced(self, user_id: int) -> bool:
-        return await self.mark_crm_synced(user_id)
-
-    async def get_synced_contacts_count(self) -> int:
-        conn = await self.get_connection()
-        async with conn.execute("SELECT COUNT(*) FROM users WHERE crm_synced = 1") as cursor:
-            row = await cursor.fetchone()
-            return row[0] if row else 0
-
-    async def is_message_processed(self, message_id: int) -> bool:
-        conn = await self.get_connection()
-        async with conn.execute(
-            "SELECT 1 FROM agent_actions WHERE action_type = 'processed_message' AND user_id = ? LIMIT 1",
-            (message_id,),
-        ) as cursor:
-            return await cursor.fetchone() is not None
-
-    async def mark_message_processed(self, message_id: int, group_id: int, status: str = "synced", reason: Optional[str] = None) -> bool:
-        payload = {"group_id": group_id, "status": status, "reason": reason}
-        await self.log_agent_action(message_id, "processed_message", payload, success=(status == "synced"))
-        return True
-
-    async def analyze_text_with_ai(self, prompt: str) -> str:
-        try:
-            client = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
-            response = await client.aio.models.generate_content(model="gemini-2.0-flash", contents=[prompt])
-            return response.text if response and response.text else ""
-        except Exception as exc:
-            logger.error(f"[DB AI ANALYSIS ERROR] {exc}")
-            return ""
-
     async def log_agent_action(self, user_id, action_type, data, success=True):
         now = datetime.datetime.now().isoformat()
         conn = await self.get_connection()
@@ -767,13 +674,6 @@ class Database:
         await conn.commit()
         return True
 
-    async def get_daily_plan(self, date_str: Optional[str] = None) -> List[Dict[str, Any]]:
-        if not date_str: date_str = datetime.datetime.now().strftime("%Y-%m-%d")
-        conn = await self.get_connection()
-        async with conn.execute("SELECT manager_id, lead_id, lead_name, mission, source_pipeline FROM daily_plans WHERE report_date = ?", (date_str,)) as cursor:
-            rows = await conn.fetchall()
-            return [{"manager_id": r[0], "lead_id": r[1], "lead_name": r[2], "mission": r[3], "source_pipeline": r[4]} for r in rows]
-
     async def save_team_report(self, user_id: int, report_type: str, content: str, report_date: Optional[str] = None, status: str = "submitted") -> bool:
         from src.time_utils import get_local_now
         now = get_local_now()
@@ -787,27 +687,6 @@ class Database:
             await conn.execute("INSERT INTO team_reports (user_id, report_date, report_type, content, status, created_at) VALUES (?, ?, ?, ?, ?, ?)", (user_id, report_day, report_type, content, status, now.isoformat()))
         await conn.commit()
         return True
-
-    async def get_all_tasks(self, limit=10):
-        conn = await self.get_connection()
-        async with conn.execute("SELECT id, title, description, assigned_to, deadline, status FROM tasks ORDER BY created_at DESC LIMIT ?", (limit,)) as cursor:
-            rows = await conn.fetchall()
-            return [{"id": r[0], "title": r[1], "description": r[2], "assigned_to": r[3], "deadline": r[4], "status": r[5]} for r in rows]
-
-    async def get_missing_reports(self, report_type: str = "morning_plan", date_str: Optional[str] = None) -> List[Dict[str, Any]]:
-        from src.time_utils import get_local_now
-        report_day = date_str or get_local_now().strftime("%Y-%m-%d")
-        team = await self.get_team_roles()
-        if not team: return []
-        eligible = [m for m in team if not any(b in " ".join(str(m.get(k, "") or "").lower() for k in ("role", "detailed_role", "position")) for b in ("admin", "owner", "boss"))]
-        if not eligible: return []
-        conn = await self.get_connection()
-        async with conn.execute("SELECT DISTINCT user_id FROM team_reports WHERE report_date = ? AND report_type = ? AND status != 'ignored'", (report_day, report_type)) as cursor:
-            submitted_ids = {row[0] for row in await conn.fetchall()}
-        return [m for m in eligible if m["user_id"] not in submitted_ids]
-
-    async def get_team_members(self) -> List[Dict[str, Any]]:
-        return await self.get_team_roles()
 
     async def get_overdue_tasks(self) -> List[Dict[str, Any]]:
         from src.time_utils import get_local_now
@@ -825,63 +704,6 @@ class Database:
         overdue.sort(key=lambda t: (t["priority"] != "High", t["deadline"]))
         return overdue
 
-    async def get_priority_tasks(self, limit: int = 3) -> List[Dict[str, Any]]:
-        conn = await self.get_connection()
-        async with conn.execute("SELECT t.id, t.title, t.description, t.assigned_to, t.deadline, t.priority, t.status, u.first_name, u.username FROM tasks t LEFT JOIN users u ON u.user_id = t.assigned_to WHERE COALESCE(t.status, 'Pending') NOT IN ('Done', 'Completed', 'Closed', 'Cancelled') ORDER BY CASE COALESCE(t.priority, 'Medium') WHEN 'High' THEN 0 WHEN 'Medium' THEN 1 ELSE 2 END, COALESCE(t.deadline, '9999-12-31T23:59:59') LIMIT ?", (limit,)) as cursor:
-            rows = await conn.fetchall()
-        return [{"id": r[0], "title": r[1], "description": r[2], "assigned_to": r[3], "deadline": r[4], "priority": r[5], "status": r[6], "name": r[7], "username": r[8]} for r in rows]
-
-    async def get_user_by_role(self, role: str) -> Optional[Dict[str, Any]]:
-        normalized_role = (role or "").strip().lower()
-        if not normalized_role:
-            return None
-        conn = await self.get_connection()
-        async with conn.execute(
-            "SELECT user_id, first_name, username, role, detailed_role, position "
-            "FROM users "
-            "WHERE lower(COALESCE(role, '')) = ? "
-            "OR lower(COALESCE(detailed_role, '')) = ? "
-            "OR lower(COALESCE(position, '')) = ? "
-            "LIMIT 1",
-            (normalized_role, normalized_role, normalized_role),
-        ) as cursor:
-            row = await cursor.fetchone()
-        return {"user_id": row[0], "name": row[1], "username": row[2], "role": row[3], "detailed_role": row[4], "position": row[5]} if row else None
-
-    async def get_recent_job_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
-        conn = await self.get_connection()
-        async with conn.execute("SELECT job_name, run_date, created_at FROM scheduled_jobs ORDER BY created_at DESC LIMIT ?", (limit,)) as cursor:
-            return [{"job_name": r[0], "run_date": r[1], "created_at": r[2]} for r in await conn.fetchall()]
-
-    async def get_recent_agent_actions(self, limit: int = 50) -> List[Dict[str, Any]]:
-        conn = await self.get_connection()
-        async with conn.execute("SELECT id, user_id, action_type, action_data, success, created_at FROM agent_actions ORDER BY id DESC LIMIT ?", (limit,)) as cursor:
-            rows = await conn.fetchall()
-            actions = []
-            for r in rows:
-                try: data = json.loads(r[3]) if r[3] else {}
-                except: data = {"raw": r[3]}
-                actions.append({"id": r[0], "user_id": r[1], "action_type": r[2], "action_data": data, "success": bool(r[4]), "created_at": r[5]})
-            return actions
-
-    async def get_checkpoint(self, external_id: str, checkpoint_key: str) -> Optional[Dict[str, Any]]:
-        conn = await self.get_connection()
-        async with conn.execute("SELECT id, status, last_notified_at, created_at FROM service_checkpoints WHERE external_id = ? AND checkpoint_key = ?", (str(external_id), checkpoint_key)) as cursor:
-            row = await cursor.fetchone()
-            return {"id": row[0], "status": row[1], "last_notified_at": row[2], "created_at": row[3]} if row else None
-
-    async def mark_checkpoint_done(self, external_id: str, checkpoint_key: str):
-        now = datetime.datetime.now().isoformat()
-        conn = await self.get_connection()
-        await conn.execute("INSERT OR REPLACE INTO service_checkpoints (external_id, checkpoint_key, status, created_at) VALUES (?, ?, 'Done', ?)", (str(external_id), checkpoint_key, now))
-        await conn.commit()
-
-    async def get_message_count(self, user_id: int) -> int:
-        conn = await self.get_connection()
-        async with conn.execute("SELECT COUNT(*) FROM message_logs WHERE user_id = ?", (user_id,)) as cursor:
-            row = await cursor.fetchone()
-            return row[0] if row else 0
-
     async def update_lead_journey(self, user_id: int, *, stage: str, status: str, next_action: str, close_probability: float = 0.0, lifecycle_updated_at: Optional[str] = None) -> bool:
         now = lifecycle_updated_at or datetime.datetime.now().isoformat()
         conn = await self.get_connection()
@@ -889,75 +711,7 @@ class Database:
         await conn.commit()
         return True
 
-    async def get_recent_active_leads(self, hours: int = 72, limit: int = 20) -> List[Dict[str, Any]]:
-        since = (datetime.datetime.now() - datetime.timedelta(hours=hours)).isoformat()
-        conn = await self.get_connection()
-        async with conn.execute("""
-            SELECT ml.user_id, MAX(CASE WHEN ml.is_ai_reply = 0 THEN ml.created_at END), MAX(CASE WHEN ml.is_ai_reply = 1 THEN ml.created_at END),
-                   MAX(ml.created_at), SUM(CASE WHEN ml.is_ai_reply = 0 THEN 1 ELSE 0 END), SUM(CASE WHEN ml.is_ai_reply = 1 THEN 1 ELSE 0 END),
-                   (SELECT ml2.message_text FROM message_logs ml2 WHERE ml2.user_id = ml.user_id AND ml2.is_ai_reply = 0 ORDER BY ml2.created_at DESC LIMIT 1),
-                   (SELECT ml3.message_text FROM message_logs ml3 WHERE ml3.user_id = ml.user_id AND ml3.is_ai_reply = 1 ORDER BY ml3.created_at DESC LIMIT 1),
-                   u.first_name, u.username, u.phone, u.business_type, u.region, u.brand_name, u.service_type, u.intent, u.meeting_time, u.meeting_status, 
-                   u.journey_stage, u.journey_status, u.journey_next_action, u.close_probability, u.lifecycle_updated_at
-            FROM message_logs ml
-            LEFT JOIN users u ON u.user_id = ml.user_id
-            WHERE ml.created_at >= ?
-            GROUP BY 
-                ml.user_id, u.first_name, u.username, u.phone, u.business_type, 
-                u.region, u.brand_name, u.service_type, u.intent, u.meeting_time, 
-                u.meeting_status, u.journey_stage, u.journey_status, u.journey_next_action, 
-                u.close_probability, u.lifecycle_updated_at
-            HAVING SUM(CASE WHEN ml.is_ai_reply = 0 THEN 1 ELSE 0 END) > 0
-            ORDER BY COALESCE(MAX(CASE WHEN ml.is_ai_reply = 0 THEN ml.created_at END), MAX(ml.created_at)) DESC
-            LIMIT ?
-        """, (since, limit)) as cursor:
-            return [{"user_id": r[0], "last_client_message_at": r[1], "last_ai_message_at": r[2], "last_message_at": r[3], "client_message_count": r[4], "ai_message_count": r[5], "last_client_message": r[6], "last_ai_message": r[7], "first_name": r[8], "username": r[9], "phone": r[10], "business_type": r[11], "region": r[12], "brand_name": r[13], "service_type": r[14], "intent": r[15], "meeting_time": r[16], "meeting_status": r[17], "journey_stage": r[18], "journey_status": r[19], "journey_next_action": r[20], "close_probability": r[21], "lifecycle_updated_at": r[22]} for r in await conn.fetchall()]
-
-    async def get_department_targets(self, month_str: str) -> List[Dict[str, Any]]:
-        """Oylik bo'lim rejalarini olish."""
-        conn = await self.get_connection()
-        async with conn.execute(
-            "SELECT dept_name, target_value FROM department_targets WHERE month = ?", 
-            (month_str,)
-        ) as cursor:
-            rows = await conn.fetchall()
-            return [{"dept": r[0], "value": r[1]} for r in rows]
-
-    async def set_department_target(self, dept_name: str, target_value: float, month: str):
-        """Bo'lim uchun reja belgilash."""
-        now = datetime.datetime.now().isoformat()
-        conn = await self.get_connection()
-        await conn.execute(
-            """
-            INSERT OR REPLACE INTO department_targets (dept_name, target_value, month)
-            VALUES (?, ?, ?)
-            """,
-            (dept_name, target_value, month)
-        )
-        await conn.commit()
-        return True
-
-    async def get_chat_history_today(self, chat_id: int) -> str:
-        """Ma'lum bir chat uchun bugungi suhbat tarixini matn ko'rinishida olish."""
-        conn = await self.get_connection()
-        today = datetime.datetime.now().strftime('%Y-%m-%d')
-        async with conn.execute(
-            """
-            SELECT is_ai_reply, text FROM messages 
-            WHERE user_id = ? AND date(created_at) = ?
-            ORDER BY created_at ASC
-            """, (chat_id, today)
-        ) as cursor:
-            rows = await conn.fetchall()
-            history = []
-            for is_ai, text in rows:
-                speaker = "AI" if is_ai else "Mijoz"
-                history.append(f"{speaker}: {text}")
-            return "\n".join(history)
-
     async def get_user_intelligence(self, user_id: int) -> Dict[str, Any]:
-
-        """Foydalanuvchi haqidagi chuqur tahliliy ma'lumotlarni olish."""
         conn = await self.get_connection()
         async with conn.execute(
             "SELECT psychotype, pain_points, objections_history, buying_drivers, communication_style, negotiation_strategy, facts_json FROM user_intelligence WHERE user_id = ?",
@@ -977,16 +731,12 @@ class Database:
             return {}
 
     async def upsert_user_intelligence(self, user_id: int, intel_data: Dict[str, Any]):
-        """Foydalanuvchi haqidagi chuqur ma'lumotlarni yangilash yoki qo'shish."""
         conn = await self.get_connection()
         now = datetime.datetime.now().isoformat()
-        
-        # Get existing facts if any
         existing = await self.get_user_intelligence(user_id)
         facts = existing.get("facts_json", {})
         if "facts" in intel_data:
             facts.update(intel_data["facts"])
-
         await conn.execute(
             """
             INSERT INTO user_intelligence (
@@ -1004,17 +754,9 @@ class Database:
                 facts_json = excluded.facts_json,
                 updated_at = excluded.updated_at
             """,
-            (
-                user_id,
-                intel_data.get("psychotype"),
-                intel_data.get("pain_points"),
-                intel_data.get("objections_history"),
-                intel_data.get("buying_drivers"),
-                intel_data.get("communication_style"),
-                intel_data.get("negotiation_strategy"),
-                json.dumps(facts),
-                now
-            )
+            (user_id, intel_data.get("psychotype"), intel_data.get("pain_points"), intel_data.get("objections_history"), 
+             intel_data.get("buying_drivers"), intel_data.get("communication_style"), intel_data.get("negotiation_strategy"), 
+             json.dumps(facts), now)
         )
         await conn.commit()
         return True
@@ -1029,10 +771,11 @@ class _TursoCursor:
     """
     def __init__(self, rows=None, description=None):
         self._rows = _extract_prefetched_rows(rows)
-        self._description = description if description is not None else _normalize_cursor_description(rows)
+        self._description = description or _normalize_cursor_description(rows)
         self._ptr = 0
         self.rowcount = len(self._rows)
         self.description = self._description
+
     async def fetchone(self):
         if self._ptr < len(self._rows):
             row = self._rows[self._ptr]
@@ -1074,15 +817,12 @@ class _ExecuteProxy:
 
     async def _run(self):
         sql = self._sql or ""
-        # Skip PRAGMAs for Turso
         if sql.lstrip().upper().startswith("PRAGMA"):
             return _TursoCursor(_EmptyResultSet())
-        
         rows = await db_pool.execute(sql, self._params)
         desc = None
         if rows:
             desc = [(k, None, None, None, None, None, None) for k in rows[0].keys()]
-            
         return _TursoCursor(rows, desc)
 
     def __await__(self):
@@ -1102,18 +842,12 @@ class _EmptyResultSet:
     description = []
     rows_affected = 0
     rowcount = 0
-    def fetchone(self):
-        return None
-    def fetchall(self):
-        return []
-    def fetchmany(self, size=1):
-        return []
-    def close(self):
-        return None
-    def __iter__(self):
-        return iter(())
-    def __len__(self):
-        return 0
+    def fetchone(self): return None
+    def fetchall(self): return []
+    def fetchmany(self, size=1): return []
+    def close(self): return None
+    def __iter__(self): return iter(())
+    def __len__(self): return 0
 
 class TursoAdapter:
     def __init__(self):
@@ -1137,60 +871,31 @@ class TursoAdapter:
             await db_pool.execute(statement, None)
         return _TursoCursor(_EmptyResultSet())
 
-    async def commit(self):
-        # libsql auto-commits per execute in non-transactional mode
-        pass
-
-    async def rollback(self):
-        pass
-
+    async def commit(self): pass
+    async def rollback(self): pass
     async def close(self):
-        try:
-            db_pool.close()
-        except Exception as exc:
-            logger.warning(f"[TURSO] db_pool.close() raised: {exc}")
+        try: db_pool.close()
+        except: pass
 
     def cursor(self):
-        # Return a lightweight proxy so `async with conn.cursor() as cursor:` still works.
         return _CursorContext(self)
 
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
+    async def __aenter__(self): return self
+    async def __aexit__(self, exc_type, exc_val, exc_tb): pass
 
 
 class _CursorContext:
-    """
-    Context manager returned by TursoAdapter.cursor().
-    Provides a placeholder cursor — real execution happens via conn.execute().
-    """
     def __init__(self, conn):
         self._conn = conn
         self._cursor = _TursoCursor(_EmptyResultSet())
-
-    async def __aenter__(self):
-        return self._cursor
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._cursor.close()
-
+    async def __aenter__(self): return self._cursor
+    async def __aexit__(self, exc_type, exc_val, exc_tb): await self._cursor.close()
     async def execute(self, sql, parameters=None):
         proxy = self._conn.execute(sql, parameters)
         self._cursor = await proxy
         return self._cursor
-
     async def executemany(self, sql, parameter_list):
         return await self._conn.executemany(sql, parameter_list)
-
-    async def fetchone(self):
-        return await self._cursor.fetchone()
-
-    async def fetchall(self):
-        return await self._cursor.fetchall()
-
-    async def close(self):
-        await self._cursor.close()
-
-
+    async def fetchone(self): return await self._cursor.fetchone()
+    async def fetchall(self): return await self._cursor.fetchall()
+    async def close(self): await self._cursor.close()
