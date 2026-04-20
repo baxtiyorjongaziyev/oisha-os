@@ -141,7 +141,7 @@ class MissionControl:
                                 message=summary or "Yangi lead",
                                 crm_status=p_name
                             )
-                            surgical_mission = NegotiationEngine.generate_surgical_mission(
+                            surgical_mission = await NegotiationEngine.generate_surgical_mission(
                                 assessment=assessment,
                                 summary=summary,
                                 pipeline_name=p_name,
