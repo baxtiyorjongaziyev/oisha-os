@@ -1281,6 +1281,9 @@ async def main():
     msg_controller = MessageController(api_keys=api_keys, db=db)
     
     cloud_control_plane = bool(os.getenv("K_SERVICE"))
+    enable_cloud_userbot = os.getenv("ENABLE_CLOUD_USERBOT", "").strip().lower() in {"1", "true", "yes", "on"}
+    force_control_plane_only = os.getenv("CLOUD_RUN_CONTROL_PLANE_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}
+    cloud_control_plane_only = force_control_plane_only or (cloud_control_plane and not enable_cloud_userbot)
 
     # [GOD MODE] Authorized Session Discovery
     session_string = os.environ.get("USERBOT_SESSION_STRING", "").strip()
@@ -1420,11 +1423,13 @@ async def main():
     asyncio.create_task(_heartbeat_task(), name="api_heartbeat")
     asyncio.create_task(run_health_check_api(), name="health_check_api")
 
-    # [MOD] Bypass control-plane blockade to allow Oisha to run on Cloud Run
-    if False: # cloud_control_plane:
+    # Cloud Run is the health/API control-plane. The personal Telegram userbot
+    # must run only on the VM, otherwise Telegram revokes the shared session.
+    if cloud_control_plane_only:
         api_module.set_runtime_context(
             state_backend=db.get_backend_name(),
             state_db_path=msg_controller.db.db_path,
+            scheduler_mode="control-plane",
             userbot_authorized=False,
         )
         api_module.update_api_status("online", "Control plane active; Telegram runtime delegated to VM")
