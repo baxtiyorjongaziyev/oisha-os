@@ -152,6 +152,10 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
         if any(marker in error_fingerprint for marker in duplicate_markers):
             logger.error("[AUTH] Userbot session is already in use by another runtime.")
             try:
+                await telegram_client.disconnect()
+            except Exception as disconnect_exc:
+                logger.warning(f"[AUTH] Could not disconnect invalid userbot session: {disconnect_exc}")
+            try:
                 import src.api_server as api_module
                 api_module.update_api_status("degraded", "Userbot session delegated to another runtime")
                 api_module.set_runtime_context(userbot_authorized=False)
