@@ -1,5 +1,7 @@
 import logging
+import time
 from datetime import datetime
+from urllib.parse import quote
 
 import requests
 
@@ -7,6 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 class AirtableSync:
+    READ_RETRIES = 3
+    REQUEST_TIMEOUT_SECONDS = 20
+
     _base_tables_cache = {}
     _record_url_cache = {}
 
@@ -105,11 +110,51 @@ class AirtableSync:
         self.api_key = api_key or settings.AIRTABLE_API_KEY.get_secret_value()
         self.base_id = base_id or settings.AIRTABLE_BASE_ID
         self.table_name = table_name
-        self.endpoint = f"https://api.airtable.com/v0/{self.base_id}/{self.table_name}"
+        self.endpoint = self._table_url()
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+
+    def _table_url(self, table_name=None):
+        table = quote(str(table_name or self.table_name), safe="")
+        return f"https://api.airtable.com/v0/{self.base_id}/{table}"
+
+    def _refresh_endpoint(self):
+        self.endpoint = self._table_url()
+
+    def _request(self, method: str, url: str, *, retry: bool = True, **kwargs):
+        attempts = self.READ_RETRIES if retry and method.upper() == "GET" else 1
+        last_exc = None
+
+        for attempt in range(1, attempts + 1):
+            try:
+                request_kwargs = dict(kwargs)
+                request_kwargs.setdefault("headers", self.headers)
+                request_kwargs.setdefault("timeout", self.REQUEST_TIMEOUT_SECONDS)
+                response = requests.request(method, url, **request_kwargs)
+
+                if response.status_code in {429, 500, 502, 503, 504} and attempt < attempts:
+                    retry_after = response.headers.get("Retry-After")
+                    delay = float(retry_after) if retry_after and retry_after.isdigit() else attempt * 1.5
+                    logger.warning(
+                        f"[AIRTABLE] Transient {response.status_code}, retry {attempt}/{attempts} in {delay:.1f}s"
+                    )
+                    time.sleep(delay)
+                    continue
+
+                return response
+            except requests.RequestException as exc:
+                last_exc = exc
+                if attempt >= attempts:
+                    raise
+                delay = attempt * 1.5
+                logger.warning(f"[AIRTABLE] Network error, retry {attempt}/{attempts} in {delay:.1f}s: {exc}")
+                time.sleep(delay)
+
+        if last_exc:
+            raise last_exc
+        raise RuntimeError("Airtable request failed without a response")
 
     def _get_base_tables(self):
         cache_key = self.base_id
@@ -119,7 +164,7 @@ class AirtableSync:
 
         meta_url = f"https://api.airtable.com/v0/meta/bases/{self.base_id}/tables"
         try:
-            response = requests.get(meta_url, headers=self.headers, timeout=15)
+            response = self._request("GET", meta_url)
             if response.status_code != 200:
                 logger.warning(
                     f"[AIRTABLE] Jadval metadata olib bo'lmadi: {response.status_code}"
@@ -182,7 +227,7 @@ class AirtableSync:
 
             probe_url = f"https://api.airtable.com/v0/{self.base_id}/{table_id}/{record_id}"
             try:
-                response = requests.get(probe_url, headers=self.headers, timeout=10)
+                response = self._request("GET", probe_url)
             except Exception:
                 continue
 
@@ -235,18 +280,27 @@ class AirtableSync:
             return []
 
         try:
-            response = requests.get(self.endpoint, headers=self.headers)
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("records", [])
-            if response.status_code == 403:
-                logger.error(
-                    f"[AIRTABLE 403] Ruxsat xatosi! Tokeningizda 'data.records:read' ruxsati bormi? "
-                    f"Yoki '{self.table_name}' jadvali mavjud emas."
-                )
-                return []
-            logger.error(f"[AIRTABLE ERROR] {response.status_code}: {response.text}")
-            return []
+            records = []
+            params = {"pageSize": 100}
+            while True:
+                response = self._request("GET", self.endpoint, params=params)
+                if response.status_code == 200:
+                    data = response.json()
+                    records.extend(data.get("records", []))
+                    offset = data.get("offset")
+                    if not offset:
+                        return records
+                    params["offset"] = offset
+                    continue
+
+                if response.status_code == 403:
+                    logger.error(
+                        f"[AIRTABLE 403] Ruxsat xatosi! Tokeningizda 'data.records:read' ruxsati bormi? "
+                        f"Yoki '{self.table_name}' jadvali mavjud emas."
+                    )
+                    return records
+                logger.error(f"[AIRTABLE ERROR] {response.status_code}: {response.text}")
+                return records
         except Exception as exc:
             logger.error(f"[AIRTABLE EXCEPTION] {exc}")
             return []
@@ -282,7 +336,7 @@ class AirtableSync:
         for table_name, record_type in [("Kirim", "income"), ("Chiqim", "expense")]:
             original_table = self.table_name
             self.table_name = table_name
-            self.endpoint = f"https://api.airtable.com/v0/{self.base_id}/{self.table_name}"
+            self._refresh_endpoint()
             try:
                 table_records = self.get_projects()
                 for record in table_records:
@@ -290,7 +344,7 @@ class AirtableSync:
                 records.extend(table_records)
             finally:
                 self.table_name = original_table
-                self.endpoint = f"https://api.airtable.com/v0/{self.base_id}/{self.table_name}"
+                self._refresh_endpoint()
         return records
 
     def update_project_fields(self, record_id: str, fields: dict):
@@ -303,7 +357,7 @@ class AirtableSync:
         url = f"{self.endpoint}/{record_id}"
         data = {"fields": fields}
         try:
-            response = requests.patch(url, headers=self.headers, json=data)
+            response = self._request("PATCH", url, retry=False, json=data)
             return response.status_code == 200
         except Exception as exc:
             logger.error(f"[AIRTABLE UPDATE ERROR] {exc}")
@@ -359,7 +413,7 @@ class AirtableSync:
             return None
 
         try:
-            response = requests.post(self.endpoint, headers=self.headers, json={"fields": fields})
+            response = self._request("POST", self.endpoint, retry=False, json={"fields": fields})
             if response.status_code in [200, 201]:
                 project_label = fields.get("Loyihani nomi?") or fields.get("Project Name") or fields.get("Name") or "Unknown"
                 logger.info(f"[AIRTABLE OK] Yangi yozuv yaratildi: {project_label}")
@@ -374,7 +428,7 @@ class AirtableSync:
         """Lid topilganini tarixiy audit uchun Airtable'ga yozish."""
         original_table = self.table_name
         self.table_name = "Leads"
-        self.endpoint = f"https://api.airtable.com/v0/{self.base_id}/{self.table_name}"
+        self._refresh_endpoint()
 
         fields = {
             "Name": name,
@@ -388,7 +442,7 @@ class AirtableSync:
             return self.create_record(fields)
         finally:
             self.table_name = original_table
-            self.endpoint = f"https://api.airtable.com/v0/{self.base_id}/{self.table_name}"
+            self._refresh_endpoint()
 
     def verify_qc_standards(self, record_id: str) -> bool:
         """Loyihaning Sifat Nazorati talablariga javob berishini tekshirish."""
