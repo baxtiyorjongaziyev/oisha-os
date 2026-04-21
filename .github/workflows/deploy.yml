@@ -185,8 +185,14 @@ jobs:
             --project "${PROJECT_ID}" \
             --format=json | python -c 'import json, sys; data=json.load(sys.stdin); print(next((entry.get("revisionName", "") for entry in data.get("status", {}).get("traffic", []) if entry.get("percent", 0) == 100), ""))' 2>/dev/null || true)"
 
-          if ! gcloud builds submit --tag "${IMAGE}" .; then
-            FAILURE_REASON="container build failed"
+          BUILD_OUTPUT="$(gcloud builds submit --tag "${IMAGE}" --suppress-logs --quiet . 2>&1)"
+          BUILD_RC=$?
+          if [[ ${BUILD_RC} -ne 0 ]]; then
+            if [[ -n "${BUILD_OUTPUT}" ]]; then
+              FAILURE_REASON="$(echo "${BUILD_OUTPUT}" | tr '\n' ' ' | cut -c1-180)"
+            else
+              FAILURE_REASON="container build command failed"
+            fi
             write_outputs
             exit 0
           fi
