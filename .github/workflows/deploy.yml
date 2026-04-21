@@ -15,6 +15,7 @@ env:
 jobs:
   test:
     name: Run Deploy Safety Checks
+    if: "${{ github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, '[skip ci]') && !startsWith(github.event.head_commit.message, 'chore(auto): update DEV_LOG')) }}"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -56,7 +57,7 @@ jobs:
   deploy:
     name: Healthy-Only Production Rollout
     needs: test
-    if: github.event_name != 'pull_request'
+    if: "${{ github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, '[skip ci]') && !startsWith(github.event.head_commit.message, 'chore(auto): update DEV_LOG')) }}"
     environment: production
     runs-on: ubuntu-latest
     permissions:
@@ -90,12 +91,13 @@ jobs:
         id: rollout
         shell: bash
         run: |
-          set -u -o pipefail
+          set -euo pipefail
 
           IMAGE="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:${GITHUB_SHA}"
           CANDIDATE_TAG="sha-${GITHUB_SHA::7}"
           REVISION=""
           SERVICE_URL=""
+          CANDIDATE_URL=""
           FAILURE_REASON=""
           FINAL_STATUS="failure"
 
@@ -110,8 +112,19 @@ jobs:
 
           extract_failure_reason() {
             local revision_name="$1"
+            local deploy_output="$2"
             if [[ -z "${revision_name}" ]]; then
-              echo "deploy command failed"
+              if echo "${deploy_output}" | grep -qi "secret.*not found"; then
+                echo "deploy secret topilmadi"
+              elif echo "${deploy_output}" | grep -qi "permission\|forbidden\|denied"; then
+                echo "deploy ruxsati rad etildi"
+              elif echo "${deploy_output}" | grep -qi "image.*not found"; then
+                echo "deploy image topilmadi"
+              elif [[ -n "${deploy_output}" ]]; then
+                echo "${deploy_output}" | tr '\n' ' ' | cut -c1-180
+              else
+                echo "deploy command failed"
+              fi
               return
             fi
 
@@ -172,6 +185,7 @@ jobs:
             exit 0
           fi
 
+          FAILURE_REASON="deploy command failed"
           DEPLOY_OUTPUT="$(gcloud run deploy "${SERVICE_NAME}" \
             --image "${IMAGE}" \
             --platform managed \
@@ -194,7 +208,7 @@ jobs:
           read_service_state
 
           if [[ ${DEPLOY_RC} -ne 0 ]]; then
-            FAILURE_REASON="$(extract_failure_reason "${REVISION}")"
+            FAILURE_REASON="$(extract_failure_reason "${REVISION}" "${DEPLOY_OUTPUT}")"
             write_outputs
             exit 0
           fi
@@ -317,7 +331,7 @@ jobs:
     needs:
       - test
       - deploy
-    if: always() && github.ref == 'refs/heads/main'
+    if: "${{ always() && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]') && !startsWith(github.event.head_commit.message, 'chore(auto): update DEV_LOG') }}"
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -377,7 +391,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add DEV_LOG.md
-          git diff --staged --quiet || git commit -m "chore(auto): update DEV_LOG — $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git diff --staged --quiet || git commit -m "chore(auto): update DEV_LOG [skip ci] — $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push
 
   notify:
@@ -385,7 +399,7 @@ jobs:
     needs:
       - test
       - deploy
-    if: always()
+    if: "${{ always() && !contains(github.event.head_commit.message, '[skip ci]') && !startsWith(github.event.head_commit.message, 'chore(auto): update DEV_LOG') }}"
     runs-on: ubuntu-latest
     steps:
       - name: Send final deploy status
