@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-21 04:32 UTC | ⚠️ main `da40979`
+
+**Commit**: fix(agent): remove broken amocrm import
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-21 04:24 UTC | ⚠️ main `5547a9f`
 
 **Commit**: fix(deps): include legacy gemini sdk
