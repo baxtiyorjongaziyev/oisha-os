@@ -91,13 +91,14 @@ jobs:
         id: rollout
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
 
           IMAGE="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:${GITHUB_SHA}"
           CANDIDATE_TAG="sha-${GITHUB_SHA::7}"
           REVISION=""
           SERVICE_URL=""
           CANDIDATE_URL=""
+          PREVIOUS_TRAFFIC_REVISION=""
           FAILURE_REASON=""
           FINAL_STATUS="failure"
 
@@ -141,7 +142,7 @@ jobs:
               echo "Turso adapter startup crash"
             elif echo "${logs}" | grep -qi "Default STARTUP TCP probe failed\|failed to start and listen on the port"; then
               echo "container startup failed"
-            elif echo "${logs}" | grep -qi "/health\|unhealthy\|heartbeat_stale"; then
+            elif echo "${logs}" | grep -qi "/healthz\|unhealthy\|heartbeat_stale"; then
               echo "health check failed"
             elif [[ -n "${logs}" ]]; then
               echo "${logs}" | tr '\n' ' ' | cut -c1-180
@@ -167,7 +168,7 @@ jobs:
             local body_file
             body_file="$(mktemp)"
             local code
-            code="$(curl -fsS -o "${body_file}" -w "%{http_code}" "${url}/health" || true)"
+            code="$(curl -fsS -o "${body_file}" -w "%{http_code}" "${url}/healthz" || true)"
             if [[ "${code}" != "200" ]]; then
               rm -f "${body_file}"
               return 1
@@ -178,6 +179,11 @@ jobs:
             rm -f "${body_file}"
             return "${status}"
           }
+
+          PREVIOUS_TRAFFIC_REVISION="$(gcloud run services describe "${SERVICE_NAME}" \
+            --region "${REGION}" \
+            --project "${PROJECT_ID}" \
+            --format=json | python -c 'import json, sys; data=json.load(sys.stdin); print(next((entry.get("revisionName", "") for entry in data.get("status", {}).get("traffic", []) if entry.get("percent", 0) == 100), ""))' 2>/dev/null || true)"
 
           if ! gcloud builds submit --tag "${IMAGE}" .; then
             FAILURE_REASON="container build failed"
@@ -205,13 +211,20 @@ jobs:
             --labels "commit-sha=${GITHUB_SHA}" 2>&1)"
           DEPLOY_RC=$?
 
-          read_service_state
-
           if [[ ${DEPLOY_RC} -ne 0 ]]; then
+            REVISION="$(gcloud run revisions list \
+              --service "${SERVICE_NAME}" \
+              --region "${REGION}" \
+              --project "${PROJECT_ID}" \
+              --filter "metadata.labels.commit-sha=${GITHUB_SHA}" \
+              --limit 1 \
+              --format='value(metadata.name)' 2>/dev/null || true)"
             FAILURE_REASON="$(extract_failure_reason "${REVISION}" "${DEPLOY_OUTPUT}")"
             write_outputs
             exit 0
           fi
+
+          read_service_state
 
           if [[ -z "${CANDIDATE_URL}" ]]; then
             FAILURE_REASON="candidate revision URL not found"
@@ -260,70 +273,24 @@ jobs:
           sleep 10
           if ! check_health_endpoint "${SERVICE_URL}"; then
             FAILURE_REASON="post-promotion health check failed"
+            if [[ -n "${PREVIOUS_TRAFFIC_REVISION}" ]]; then
+              gcloud run services update-traffic "${SERVICE_NAME}" \
+                --region "${REGION}" \
+                --project "${PROJECT_ID}" \
+                --to-revisions "${PREVIOUS_TRAFFIC_REVISION}=100" || true
+            fi
             write_outputs
             exit 0
           fi
-
-          # [ZERO-DOWNTIME] Gradual traffic shifting with health checks
-          echo "🔄 Starting zero-downtime traffic shift..."
-          
-          # Shift 10% traffic to new revision
-          echo "➡️ Shifting 10% traffic to new revision..."
-          gcloud run services update-traffic ${{ env.SERVICE }} \
-            --to-revisions ${REVISION}=10,LATEST=90 \
-            --region=${{ env.REGION }} --quiet
-          sleep 15
-          if ! check_health_endpoint "${SERVICE_URL}"; then
-            FAILURE_REASON="health check failed at 10% traffic"
-            write_outputs
-            exit 0
-          fi
-          
-          # Shift 50% traffic
-          echo "➡️ Shifting 50% traffic to new revision..."
-          gcloud run services update-traffic ${{ env.SERVICE }} \
-            --to-revisions ${REVISION}=50,LATEST=50 \
-            --region=${{ env.REGION }} --quiet
-          sleep 20
-          if ! check_health_endpoint "${SERVICE_URL}"; then
-            FAILURE_REASON="health check failed at 50% traffic"
-            write_outputs
-            exit 0
-          fi
-          
-          # Shift 100% traffic
-          echo "➡️ Shifting 100% traffic to new revision..."
-          gcloud run services update-traffic ${{ env.SERVICE }} \
-            --to-revisions ${REVISION}=100 \
-            --region=${{ env.REGION }} --quiet
-          sleep 15
-          if ! check_health_endpoint "${SERVICE_URL}"; then
-            FAILURE_REASON="health check failed at 100% traffic"
-            write_outputs
-            exit 0
-          fi
-          
-          echo "✅ Zero-downtime deployment complete!"
 
           FINAL_STATUS="success"
           FAILURE_REASON=""
           write_outputs
 
-      - name: Automatic rollback on deployment failure
+      - name: Mark deployment failed
         if: steps.rollout.outputs.final_status != 'success'
         run: |
-          echo "❌ Deployment failed: ${{ steps.rollout.outputs.failure_reason }}"
-          echo "🔄 Rolling back to previous stable revision..."
-          
-          # Get previous revision (second in the list, first is current failed one)
-          PREV_REV=$(gcloud run revisions list --service=${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(name)' | head -2 | tail -1)
-          if [ -n "$PREV_REV" ]; then
-            echo "⏮️  Rolling back to revision: $PREV_REV"
-            gcloud run services update-traffic ${{ env.SERVICE }} --to-revisions $PREV_REV=100 --region=${{ env.REGION }} --quiet
-            echo "✅ Rollback complete - traffic restored to stable revision"
-          else
-            echo "⚠️ No previous revision found for rollback"
-          fi
+          echo "Deployment failed: ${{ steps.rollout.outputs.failure_reason }}"
           exit 1
 
   update-devlog:
