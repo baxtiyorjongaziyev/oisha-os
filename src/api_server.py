@@ -655,6 +655,210 @@ async def trigger_intelligence_audit():
     
     return {"status": "success", "message": "Audit jarayonga tushirildi. Telegram hisobotini kuting."}
 
+
+# --- AI QUALITY ANALYTICS ENDPOINTS ---
+from src.services.ai import QualityAnalyzer, CallAnalytics, AITaskManager
+
+# Global analytics storage
+_quality_analyzer = QualityAnalyzer()
+_call_analytics = CallAnalytics()
+_ai_task_manager: Optional[AITaskManager] = None
+
+@app.post("/api/ai/analyze-conversation")
+async def analyze_conversation(request: Request):
+    """
+    Suhbatni AI tahlil qilish va sifat ballari berish.
+    
+    Request body:
+    {
+        "conversation_text": "Suhbat matni...",
+        "conversation_id": "conv_123",
+        "lead_id": 12345,
+        "manager_id": 678,
+        "manager_name": "John Doe",
+        "duration_seconds": 300,
+        "auto_create_tasks": false  // AmoCRM da vazifa yaratish
+    }
+    """
+    try:
+        data = await request.json()
+        
+        # Suhbatni tahlil qilish
+        analysis = _quality_analyzer.analyze_conversation(
+            conversation_text=data.get("conversation_text", ""),
+            conversation_id=data.get("conversation_id", ""),
+            lead_id=data.get("lead_id"),
+            manager_id=data.get("manager_id"),
+            manager_name=data.get("manager_name", ""),
+            duration_seconds=data.get("duration_seconds", 0)
+        )
+        
+        # Analitika saqlash
+        _call_analytics.add_analysis(analysis)
+        
+        # Agar auto_create_tasks=True bo'lsa, AmoCRM da vazifa yaratish
+        tasks = []
+        if data.get("auto_create_tasks", False) and amocrm_instance:
+            global _ai_task_manager
+            if _ai_task_manager is None:
+                _ai_task_manager = AITaskManager(amocrm_instance)
+            
+            tasks = await _ai_task_manager.create_tasks_from_analysis(
+                analysis, 
+                auto_create=True
+            )
+        
+        return {
+            "status": "success",
+            "analysis": analysis.to_dict(),
+            "tasks_created": len([t for t in tasks if t.get("created_in_crm")]),
+            "tasks": tasks[:5]  # Faqat 5 tasini qaytarish
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Analyze conversation error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ai/dashboard")
+async def get_ai_dashboard(
+    days: int = 7,
+    manager_id: Optional[int] = None
+):
+    """
+    AI analitika dashboard ma'lumotlari.
+    
+    Query params:
+    - days: N kunlik statistika (default: 7)
+    - manager_id: Faqat bitta manager (optional)
+    """
+    try:
+        from datetime import datetime, timedelta
+        
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        if manager_id:
+            data = _call_analytics.get_manager_dashboard(
+                manager_id=manager_id,
+                start_date=start_date,
+                end_date=end_date
+            )
+        else:
+            data = _call_analytics.get_dashboard_data(
+                start_date=start_date,
+                end_date=end_date
+            )
+        
+        return {
+            "status": "success",
+            "period": {
+                "days": days,
+                "start": start_date.isoformat(),
+                "end": end_date.isoformat()
+            },
+            "data": data
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Dashboard error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ai/manager-ratings")
+async def get_manager_ratings(days: int = 7):
+    """Manager reytinglari."""
+    try:
+        from datetime import datetime, timedelta
+        
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        data = _call_analytics.get_dashboard_data(
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        return {
+            "status": "success",
+            "ratings": data.get("manager_ratings", []),
+            "period_days": days
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Manager ratings error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ai/lost-clients-analysis")
+async def get_lost_clients_analysis(days: int = 30):
+    """Yo'qotilgan mijozlar tahlili."""
+    try:
+        from datetime import datetime, timedelta
+        
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        data = _call_analytics.get_dashboard_data(
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        return {
+            "status": "success",
+            "lost_clients": data.get("lost_clients", {}),
+            "recommendations": data.get("recommendations", []),
+            "period_days": days
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Lost clients analysis error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/ai/create-tasks-from-analysis")
+async def create_tasks_from_analysis(request: Request):
+    """
+    Tahlil asosida AmoCRM da vazifa yaratish.
+    
+    Request body:
+    {
+        "lead_id": 12345,
+        "analysis_id": "conv_123"
+    }
+    """
+    try:
+        if not amocrm_instance:
+            return {"status": "error", "message": "AmoCRM not configured"}
+        
+        data = await request.json()
+        lead_id = data.get("lead_id")
+        
+        # Task manager init
+        global _ai_task_manager
+        if _ai_task_manager is None:
+            _ai_task_manager = AITaskManager(amocrm_instance)
+        
+        # Lead uchun tahlil topish
+        analyses = [a for a in _call_analytics.analyses if a.lead_id == lead_id]
+        
+        if not analyses:
+            return {"status": "error", "message": f"Analysis not found for lead {lead_id}"}
+        
+        # Oxirgi tahlil uchun vazifa yaratish
+        latest_analysis = max(analyses, key=lambda x: x.analyzed_at)
+        tasks = await _ai_task_manager.create_tasks_from_analysis(
+            latest_analysis,
+            auto_create=True
+        )
+        
+        return {
+            "status": "success",
+            "lead_id": lead_id,
+            "tasks_created": len(tasks),
+            "tasks": tasks
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Create tasks error: {e}")
+        return {"status": "error", "message": str(e)}
+
 def run_api(host: str = "0.0.0.0", port: int = 8080):
     uvicorn.run(app, host=host, port=port)
 
