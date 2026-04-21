@@ -142,7 +142,7 @@ jobs:
               echo "Turso adapter startup crash"
             elif echo "${logs}" | grep -qi "Default STARTUP TCP probe failed\|failed to start and listen on the port"; then
               echo "container startup failed"
-            elif echo "${logs}" | grep -qi "/healthz\|unhealthy\|heartbeat_stale"; then
+            elif echo "${logs}" | grep -qi "/health\|unhealthy\|heartbeat_stale"; then
               echo "health check failed"
             elif [[ -n "${logs}" ]]; then
               echo "${logs}" | tr '\n' ' ' | cut -c1-180
@@ -168,7 +168,7 @@ jobs:
             local body_file
             body_file="$(mktemp)"
             local code
-            code="$(curl -fsS -o "${body_file}" -w "%{http_code}" "${url}/healthz" || true)"
+            code="$(curl -fsS -o "${body_file}" -w "%{http_code}" "${url}/health" || true)"
             if [[ "${code}" != "200" ]]; then
               rm -f "${body_file}"
               return 1
@@ -196,7 +196,6 @@ jobs:
             --image "${IMAGE}" \
             --platform managed \
             --region "${REGION}" \
-            --allow-unauthenticated \
             --memory 2Gi \
             --cpu 2 \
             --timeout 3600 \
