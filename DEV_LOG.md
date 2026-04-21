@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-21 04:24 UTC | ⚠️ main `5547a9f`
+
+**Commit**: fix(deps): include legacy gemini sdk
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-21 04:16 UTC | ⚠️ main `0944269`
 
 **Commit**: fix(ci): make rollout healthz-only and fail accurately
