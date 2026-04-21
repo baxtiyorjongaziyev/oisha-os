@@ -142,8 +142,14 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
     try:
         await telegram_client.connect()
     except Exception as exc:
-        duplicate_marker = "AUTH_KEY_DUPLICATED"
-        if duplicate_marker in str(exc).upper():
+        error_fingerprint = f"{type(exc).__name__} {exc}".upper()
+        duplicate_markers = (
+            "AUTH_KEY_DUPLICATED",
+            "AUTHKEYDUPLICATEDERROR",
+            "AUTHORIZATION KEY",
+            "USED UNDER TWO DIFFERENT IP",
+        )
+        if any(marker in error_fingerprint for marker in duplicate_markers):
             logger.error("[AUTH] Userbot session is already in use by another runtime.")
             try:
                 import src.api_server as api_module
