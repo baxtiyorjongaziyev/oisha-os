@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-21 19:11 UTC | ⚠️ main `791b407`
+
+**Commit**: fix(ci): restore healthy-only Cloud Run rollout
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: health check failed
+
+---
+
 ## 2026-04-21 19:02 UTC | ⚠️ main `721725b`
 
 **Commit**: feat(dashboard): add sales quality analytics view
