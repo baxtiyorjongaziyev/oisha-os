@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-21 14:45 UTC | ✅ main `66be1f7`
+
+**Commit**: fix(userbot): degrade gracefully on duplicated session
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00102-yez
+
+---
+
 ## 2026-04-21 14:16 UTC | ✅ main `871bf94`
 
 **Commit**: fix(ci): avoid duplicate Turso env on deploy
