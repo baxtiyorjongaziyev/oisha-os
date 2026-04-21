@@ -339,7 +339,7 @@ class CallAnalytics:
     
     def _get_outcome_analysis(self, analyses: List[ConversationAnalysis]) -> Dict[str, Any]:
         """Natija tahlili."""
-        outcomes = defaultdict(lambda: {"count": 0, "avg_score": 0, "total_duration": 0})
+        outcomes = defaultdict(lambda: {"count": 0, "avg_score": 0.0, "total_duration": 0.0})
         
         for a in analyses:
             outcomes[a.outcome]["count"] += 1
