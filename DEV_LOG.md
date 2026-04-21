@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-21 19:18 UTC | ✅ main `b744ab2`
+
+**Commit**: fix(cloud): restore control-plane runtime gate
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00107-zus
+
+---
+
 ## 2026-04-21 19:11 UTC | ⚠️ main `791b407`
 
 **Commit**: fix(ci): restore healthy-only Cloud Run rollout
