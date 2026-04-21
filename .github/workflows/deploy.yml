@@ -185,7 +185,7 @@ jobs:
             --project "${PROJECT_ID}" \
             --format=json | python -c 'import json, sys; data=json.load(sys.stdin); print(next((entry.get("revisionName", "") for entry in data.get("status", {}).get("traffic", []) if entry.get("percent", 0) == 100), ""))' 2>/dev/null || true)"
 
-          BUILD_OUTPUT="$(gcloud builds submit --tag "${IMAGE}" --suppress-logs --quiet . 2>&1)"
+          BUILD_OUTPUT="$(gcloud builds submit --tag "${IMAGE}" --async --quiet . 2>&1)"
           BUILD_RC=$?
           if [[ ${BUILD_RC} -ne 0 ]]; then
             if [[ -n "${BUILD_OUTPUT}" ]]; then
@@ -193,6 +193,21 @@ jobs:
             else
               FAILURE_REASON="container build command failed"
             fi
+            write_outputs
+            exit 0
+          fi
+
+          IMAGE_READY="false"
+          for attempt in {1..36}; do
+            if gcloud container images describe "${IMAGE}" >/dev/null 2>&1; then
+              IMAGE_READY="true"
+              break
+            fi
+            sleep 10
+          done
+
+          if [[ "${IMAGE_READY}" != "true" ]]; then
+            FAILURE_REASON="container image not ready after build wait"
             write_outputs
             exit 0
           fi
