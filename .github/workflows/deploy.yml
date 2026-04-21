@@ -252,14 +252,66 @@ jobs:
             exit 0
           fi
 
+          # [ZERO-DOWNTIME] Gradual traffic shifting with health checks
+          echo "🔄 Starting zero-downtime traffic shift..."
+          
+          # Shift 10% traffic to new revision
+          echo "➡️ Shifting 10% traffic to new revision..."
+          gcloud run services update-traffic ${{ env.SERVICE }} \
+            --to-revisions ${REVISION}=10,LATEST=90 \
+            --region=${{ env.REGION }} --quiet
+          sleep 15
+          if ! check_health_endpoint "${SERVICE_URL}"; then
+            FAILURE_REASON="health check failed at 10% traffic"
+            write_outputs
+            exit 0
+          fi
+          
+          # Shift 50% traffic
+          echo "➡️ Shifting 50% traffic to new revision..."
+          gcloud run services update-traffic ${{ env.SERVICE }} \
+            --to-revisions ${REVISION}=50,LATEST=50 \
+            --region=${{ env.REGION }} --quiet
+          sleep 20
+          if ! check_health_endpoint "${SERVICE_URL}"; then
+            FAILURE_REASON="health check failed at 50% traffic"
+            write_outputs
+            exit 0
+          fi
+          
+          # Shift 100% traffic
+          echo "➡️ Shifting 100% traffic to new revision..."
+          gcloud run services update-traffic ${{ env.SERVICE }} \
+            --to-revisions ${REVISION}=100 \
+            --region=${{ env.REGION }} --quiet
+          sleep 15
+          if ! check_health_endpoint "${SERVICE_URL}"; then
+            FAILURE_REASON="health check failed at 100% traffic"
+            write_outputs
+            exit 0
+          fi
+          
+          echo "✅ Zero-downtime deployment complete!"
+
           FINAL_STATUS="success"
           FAILURE_REASON=""
           write_outputs
 
-      - name: Fail deploy job if rollout was not promoted
+      - name: Automatic rollback on deployment failure
         if: steps.rollout.outputs.final_status != 'success'
         run: |
-          echo "Deployment failed: ${{ steps.rollout.outputs.failure_reason }}"
+          echo "❌ Deployment failed: ${{ steps.rollout.outputs.failure_reason }}"
+          echo "🔄 Rolling back to previous stable revision..."
+          
+          # Get previous revision (second in the list, first is current failed one)
+          PREV_REV=$(gcloud run revisions list --service=${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(name)' | head -2 | tail -1)
+          if [ -n "$PREV_REV" ]; then
+            echo "⏮️  Rolling back to revision: $PREV_REV"
+            gcloud run services update-traffic ${{ env.SERVICE }} --to-revisions $PREV_REV=100 --region=${{ env.REGION }} --quiet
+            echo "✅ Rollback complete - traffic restored to stable revision"
+          else
+            echo "⚠️ No previous revision found for rollback"
+          fi
           exit 1
 
   update-devlog:
