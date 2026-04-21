@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-21 14:52 UTC | ✅ main `1ad3f17`
+
+**Commit**: fix(userbot): disconnect invalid duplicated session
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00104-som
+
+---
+
 ## 2026-04-21 14:45 UTC | ✅ main `66be1f7`
 
 **Commit**: fix(userbot): degrade gracefully on duplicated session
