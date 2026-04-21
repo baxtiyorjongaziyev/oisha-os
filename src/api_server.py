@@ -658,11 +658,17 @@ async def trigger_intelligence_audit():
 
 # --- AI QUALITY ANALYTICS ENDPOINTS ---
 from src.services.ai import QualityAnalyzer, CallAnalytics, AITaskManager
+from src.services.ai.conversation_engine import (
+    ConversationEngine, 
+    CallRecord, 
+    get_conversation_engine
+)
 
 # Global analytics storage
 _quality_analyzer = QualityAnalyzer()
 _call_analytics = CallAnalytics()
 _ai_task_manager: Optional[AITaskManager] = None
+_conversation_engine: Optional[ConversationEngine] = None
 
 @app.post("/api/ai/analyze-conversation")
 async def analyze_conversation(request: Request):
@@ -857,6 +863,235 @@ async def create_tasks_from_analysis(request: Request):
         
     except Exception as e:
         logger.error(f"[API AI] Create tasks error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+# --- METASELL.AI STYLE ENDPOINTS ---
+
+@app.get("/api/ai/metasell-dashboard")
+async def get_metasell_dashboard(days: int = 7):
+    """
+    Metasell.ai o'xshash dashboard ma'lumotlari.
+    
+    Returns:
+        - Umumiy statistika
+        - Manager reytinglari
+        - Natija taqsimoti
+        - E'tirozlar tahlili
+        - Tavsiyalar
+    """
+    try:
+        global _conversation_engine
+        if _conversation_engine is None:
+            _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
+        
+        # Dashboard metrikalari
+        metrics = _conversation_engine.get_dashboard_metrics(days=days)
+        
+        # Manager taqqoslash
+        manager_comparison = _conversation_engine.get_manager_comparison(days=days)
+        
+        # Radar data (jamoa bo'yicha)
+        radar_data = _conversation_engine.get_skills_radar_data(days=days)
+        
+        # Trend (so'nggi 14 kun)
+        trend = _conversation_engine.get_trend_analysis(metric="score", days=min(days, 14))
+        
+        return {
+            "status": "success",
+            "period_days": days,
+            "summary": {
+                "total_calls": metrics.total_calls_week,
+                "total_calls_today": metrics.total_calls_today,
+                "avg_score": metrics.avg_score_week,
+                "avg_score_today": metrics.avg_score_today,
+                "conversion_rate": metrics.conversion_rate,
+                "sales_count": metrics.sales_count,
+                "active_managers": metrics.active_managers,
+                "total_talk_time_hours": metrics.total_talk_time // 60
+            },
+            "outcomes": {
+                "sales": metrics.sales_count,
+                "follow_up": metrics.followup_count,
+                "lost": metrics.lost_count
+            },
+            "top_objections": metrics.top_objections,
+            "weak_areas": metrics.weak_areas,
+            "recommendations": metrics.recommendations,
+            "manager_comparison": manager_comparison,
+            "skills_radar": radar_data,
+            "trend": trend
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Metasell dashboard error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ai/call-details/{call_id}")
+async def get_call_details(call_id: str):
+    """Qo'ng'iroq tafsilotlari (metasell.ai o'xshash)."""
+    try:
+        global _conversation_engine
+        if _conversation_engine is None:
+            _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
+        
+        details = _conversation_engine.get_call_details(call_id)
+        
+        if not details:
+            return {"status": "error", "message": "Call not found"}
+        
+        return {
+            "status": "success",
+            "data": details
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Call details error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ai/skills-radar")
+async def get_skills_radar(
+    manager_id: Optional[int] = None,
+    days: int = 7
+):
+    """
+    Manager mahorati radar chart ma'lumotlari.
+    Metasell.ai dagi 'Manager Radar' ga o'xshash.
+    """
+    try:
+        global _conversation_engine
+        if _conversation_engine is None:
+            _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
+        
+        radar_data = _conversation_engine.get_skills_radar_data(
+            manager_id=manager_id,
+            days=days
+        )
+        
+        return {
+            "status": "success",
+            "data": radar_data
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Skills radar error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ai/trend-analysis")
+async def get_trend_analysis(
+    metric: str = "score",
+    days: int = 14
+):
+    """
+    Dinamik tahlil (trend).
+    
+    Query params:
+    - metric: 'score', 'conversion', 'duration'
+    - days: Kunlar soni
+    """
+    try:
+        global _conversation_engine
+        if _conversation_engine is None:
+            _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
+        
+        trend = _conversation_engine.get_trend_analysis(
+            metric=metric,
+            days=days
+        )
+        
+        return {
+            "status": "success",
+            "metric": metric,
+            "data": trend
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Trend analysis error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ai/manager-comparison")
+async def get_manager_comparison(days: int = 7):
+    """Managerlar taqqoslash (reyting)."""
+    try:
+        global _conversation_engine
+        if _conversation_engine is None:
+            _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
+        
+        comparison = _conversation_engine.get_manager_comparison(days=days)
+        
+        return {
+            "status": "success",
+            "period_days": days,
+            "managers": comparison
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Manager comparison error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/ai/process-call")
+async def process_call(request: Request):
+    """
+    Yangi qo'ng'iroqni qayta ishlash.
+    AmoCRM webhook orqali chaqiriladi.
+    """
+    try:
+        global _conversation_engine
+        if _conversation_engine is None:
+            _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
+        
+        data = await request.json()
+        
+        # CallRecord yaratish
+        call_record = CallRecord(
+            call_id=data.get("call_id", ""),
+            lead_id=data.get("lead_id", 0),
+            manager_id=data.get("manager_id", 0),
+            manager_name=data.get("manager_name", ""),
+            started_at=datetime.fromisoformat(data.get("started_at", datetime.now().isoformat())),
+            duration_seconds=data.get("duration_seconds", 0),
+            audio_url=data.get("audio_url"),
+            transcript=data.get("transcript", ""),
+            lead_name=data.get("lead_name", ""),
+            lead_status=data.get("lead_status", "")
+        )
+        
+        # Qayta ishlash
+        analysis = await _conversation_engine.process_call(
+            call_record=call_record,
+            auto_analyze=data.get("auto_analyze", True),
+            auto_create_tasks=data.get("auto_create_tasks", True)
+        )
+        
+        return {
+            "status": "success",
+            "call_id": call_record.call_id,
+            "analyzed": analysis is not None,
+            "score": analysis.overall_score if analysis else None,
+            "category": analysis.category if analysis else None
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Process call error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ai/daily-report")
+async def get_daily_report():
+    """Kunlik hisobot (Telegramga yuborish uchun)."""
+    try:
+        global _conversation_engine
+        if _conversation_engine is None:
+            _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
+        
+        report = _conversation_engine.generate_daily_report()
+        
+        return {
+            "status": "success",
+            "report": report
+        }
+        
+    except Exception as e:
+        logger.error(f"[API AI] Daily report error: {e}")
         return {"status": "error", "message": str(e)}
 
 def run_api(host: str = "0.0.0.0", port: int = 8080):
