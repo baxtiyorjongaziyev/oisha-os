@@ -5,6 +5,62 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-20 16:02 UTC | ⚠️ main `287a3bd`
+
+**Commit**: fix(report): add airtable record links
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
+## 2026-04-20 15:55 UTC | ⚠️ main `81d84ec`
+
+**Commit**: fix(report): humanize wow-service audit wording
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
+## 2026-04-20 12:02 UTC | ⚠️ main `b25876a`
+
+**Commit**: test(db): assert sqlite backend after turso fallback
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
+## 2026-04-20 11:51 UTC | ⚠️ main `b516e22`
+
+**Commit**: fix(db): restore turso fallback for ci
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
+## 2026-04-20 11:45 UTC | 🔴 main `9b79671`
+
+**Commit**: fix(ci): make github deploy the only production path
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-04-20 11:36 UTC | ⚠️ main `7bec92f`
+
+**Commit**: fix(ai): migrate negotiation engine to google genai
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
+## 2026-04-20 08:20 UTC | ⚠️ main `8cd2452`
+
+**Commit**: refactor: remove legacy handle_new_message and enhance SafeResponder flexibility
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-20 07:40 UTC | 🔴 main `d266fa2`
 
 **Commit**: chore: reanimate bot - bypass control-plane, resolve db conflicts, and optimize cloud run deployment

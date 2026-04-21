@@ -87,28 +87,54 @@ class Database:
         """
         Returns a TursoAdapter for Cloud Core or falls back to local SQLite.
         """
-        # [REANIMATION] Ensure Turso is bridged correctly
-        if settings.TURSO_DATABASE_URL and HAS_LIBSQL:
+        turso_url = _setting_text(settings.TURSO_DATABASE_URL)
+        turso_token = _setting_text(settings.TURSO_AUTH_TOKEN)
+
+        if turso_url and turso_token and HAS_LIBSQL:
             try:
-                # Update pool settings
-                db_pool.url = str(settings.TURSO_DATABASE_URL)
-                db_pool.auth_token = settings.TURSO_AUTH_TOKEN.get_secret_value() if settings.TURSO_AUTH_TOKEN else ""
-                
-                # Probe connection to verify auth/url before returning adapter
-                # If this fails (e.g. 401 Unauthorized), we fall back to SQLite
-                await db_pool.execute("SELECT 1")
+                db_pool.url = turso_url
+                db_pool.auth_token = turso_token
+                db_pool.close()
+
+                if turso_url == ":memory:":
+                    probe_conn = libsql.connect(turso_url)
+                else:
+                    probe_conn = libsql.connect(turso_url, auth_token=turso_token)
+
+                try:
+                    probe_result = probe_conn.execute("SELECT 1")
+                    if hasattr(probe_result, "fetchone"):
+                        probe_result.fetchone()
+                    else:
+                        list(probe_result)
+                finally:
+                    try:
+                        probe_conn.close()
+                    except Exception:
+                        pass
+
+                self._conn = TursoAdapter()
                 self._state_backend = "turso"
-                return TursoAdapter()
-            except Exception as e:
-                logger.warning(f"👸 [DB] Turso probe failed, using SQLite fallback: {e}")
-        
-        # Standard SQLite fallback
-        if not hasattr(self, '_conn') or self._conn is None or isinstance(self._conn, TursoAdapter):
-            # If we were in Turso mode but now falling back, clear _conn
-            self._conn = await aiosqlite.connect(self.db_path, timeout=30)
-            await self._conn.execute("PRAGMA journal_mode=WAL")
-            await self._conn.execute("PRAGMA synchronous=NORMAL")
-        
+                return self._conn
+            except Exception as exc:
+                logger.warning(f"[DB] Turso probe failed, using SQLite fallback: {exc}")
+                try:
+                    db_pool.close()
+                except Exception:
+                    pass
+                self._conn = None
+
+        if hasattr(self, "_conn") and self._conn and not isinstance(self._conn, TursoAdapter):
+            try:
+                await self._conn.execute("SELECT 1")
+                self._state_backend = "sqlite"
+                return self._conn
+            except (aiosqlite.Error, asyncio.TimeoutError, Exception):
+                self._conn = None
+
+        self._conn = await aiosqlite.connect(self.db_path, timeout=30)
+        await self._conn.execute("PRAGMA journal_mode=WAL")
+        await self._conn.execute("PRAGMA synchronous=NORMAL")
         self._state_backend = "sqlite"
         return self._conn
 
