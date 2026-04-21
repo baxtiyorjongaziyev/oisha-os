@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-21 04:05 UTC | ⚠️ main `7ff9b61`
+
+**Commit**: fix(cloud): keep cloud run control-plane only
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-21 03:58 UTC | ⚠️ main `9787a21`
 
 **Commit**: Merge branch 'main' of github.com:baxtiyorjongaziyev/oisha-os
