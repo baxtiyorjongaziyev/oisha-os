@@ -849,8 +849,43 @@ async def handle_new_message(event):
                     await admin_bot.send_draft_for_approval(sender.id, sender_name, draft)
 
                 # AmoCRM-da yaratish (1.3)
-                phone = lead_data.get('phone') or getattr(sender, 'phone', "Raqam yo'q")
-                username_str = f"@{getattr(sender, 'username', None)}" if getattr(sender, 'username', None) else "Username yo'q"
+                # [TELETHON PHONE EXTRACTION] Try to get phone from sender or fetch full user info
+                phone = lead_data.get('phone')
+                if not phone and sender:
+                    # First try direct attribute
+                    phone = getattr(sender, 'phone', None)
+                    
+                    # If no phone and we have bot_client, try fetching full user entity
+                    if not phone and bot_client:
+                        try:
+                            full_user = await bot_client.get_entity(sender.id)
+                            phone = getattr(full_user, 'phone', None)
+                            if phone:
+                                logger.info(f"📞 [PHONE] Telethon orqali raqam olindi: {sender.id}")
+                        except Exception as e:
+                            logger.debug(f"[PHONE] Telethon get_entity xato: {e}")
+                
+                if not phone:
+                    phone = "Raqam yo'q"
+                
+                # [USERNAME EXTRACTION] Try to get username from sender or fetch full user info
+                username = getattr(sender, 'username', None)
+                if not username and sender and bot_client:
+                    # If no username and we have bot_client, try fetching full user entity
+                    try:
+                        # Re-use full_user if already fetched for phone
+                        if 'full_user' not in locals():
+                            full_user = await bot_client.get_entity(sender.id)
+                        username = getattr(full_user, 'username', None)
+                        if username:
+                            logger.info(f"[USERNAME] Telethon orqali username olindi: @{username}")
+                    except Exception as e:
+                        logger.debug(f"[USERNAME] Telethon get_entity xato: {e}")
+                
+                if not username:
+                    username = "Username yo'q"
+                
+                username_str = f"@{username}" if username != "Username yo'q" else username
                 crm_sync = await msg_controller.crm.sync_lead(
                     user_id=sender.id,
                     name=f"DM Lead: {sender_name}",
