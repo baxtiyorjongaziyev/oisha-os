@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-21 04:45 UTC | ⚠️ main `98e2a1b`
+
+**Commit**: fix(health): make cloud rollout probe control-plane aware
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container build failed
+
+---
+
 ## 2026-04-21 04:32 UTC | ⚠️ main `da40979`
 
 **Commit**: fix(agent): remove broken amocrm import
