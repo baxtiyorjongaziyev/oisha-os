@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import logging
 import os
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
 import queue
@@ -354,6 +354,180 @@ async def get_stats():
     except Exception as e:
         logger.error(f"Stats Error: {e}")
         return {"leads_found": 0, "messages_synced": 0, "status": "Ready"}
+
+
+@app.get("/dashboard/sales-quality")
+async def sales_quality_dashboard():
+    """Metasell-style sales quality dashboard page."""
+    dashboard_path = os.path.join(static_dir, "sales-quality.html")
+    if not os.path.exists(dashboard_path):
+        return JSONResponse(
+            status_code=404,
+            content={"status": "not_found", "message": "Sales quality dashboard is not deployed yet."},
+        )
+    return FileResponse(dashboard_path)
+
+
+@app.get("/api/sales-quality/overview")
+async def get_sales_quality_overview():
+    """Return the sales-call QA payload consumed by the dashboard.
+
+    This contract is intentionally stable: AmoCRM calls, call transcriptions,
+    and AI scoring can be connected behind it without changing the frontend.
+    """
+    generated_at = get_local_now().isoformat()
+    return {
+        "generated_at": generated_at,
+        "source": "demo_contract",
+        "period": "Bugungi sotuv qo'ng'iroqlari",
+        "team": {
+            "quality_score": 82,
+            "trend": "+6.4%",
+            "calls_total": 124,
+            "calls_analyzed": 97,
+            "connected_calls": 68,
+            "missed_calls": 11,
+            "sales_count": 7,
+            "conversion": 11.3,
+            "avg_call_minutes": 2.8,
+            "callback_agreed": 31,
+        },
+        "managers": [
+            {
+                "name": "Oydin",
+                "role": "Sales manager",
+                "score": 91,
+                "calls": 38,
+                "connected": 24,
+                "missed": 2,
+                "sales": 3,
+                "conversion": 12.5,
+                "trend": "+8%",
+                "avatar": "OY",
+            },
+            {
+                "name": "Ifora",
+                "role": "Sales manager",
+                "score": 84,
+                "calls": 31,
+                "connected": 18,
+                "missed": 4,
+                "sales": 2,
+                "conversion": 11.1,
+                "trend": "+4%",
+                "avatar": "IF",
+            },
+            {
+                "name": "Sarvara",
+                "role": "Sales manager",
+                "score": 76,
+                "calls": 29,
+                "connected": 16,
+                "missed": 3,
+                "sales": 1,
+                "conversion": 6.3,
+                "trend": "-2%",
+                "avatar": "SA",
+            },
+            {
+                "name": "Hasan",
+                "role": "Sales manager",
+                "score": 69,
+                "calls": 26,
+                "connected": 10,
+                "missed": 2,
+                "sales": 1,
+                "conversion": 10.0,
+                "trend": "+1%",
+                "avatar": "HA",
+            },
+        ],
+        "outcomes": [
+            {"label": "Qayta qo'ng'iroq kelishildi", "value": 36, "color": "#2f80ed"},
+            {"label": "Ma'lumot yuborildi", "value": 22, "color": "#00a676"},
+            {"label": "Qiziqmagan", "value": 18, "color": "#f2994a"},
+            {"label": "Narx bo'yicha e'tiroz", "value": 14, "color": "#eb5757"},
+            {"label": "Noto'g'ri raqam", "value": 10, "color": "#7f8ea3"},
+        ],
+        "radar": [
+            {"label": "Tanishtirish", "score": 88},
+            {"label": "Ehtiyojni ochish", "score": 72},
+            {"label": "Qiymatni tushuntirish", "score": 64},
+            {"label": "E'tirozni yengish", "score": 58},
+            {"label": "Keyingi qadam", "score": 81},
+            {"label": "Ohang va hurmat", "score": 90},
+        ],
+        "loss_reasons": [
+            {
+                "title": "Javob sekin berilgan",
+                "count": 10,
+                "impact": "high",
+                "fix": "5 daqiqadan kech qolgan lidlarga avtomatik qayta aloqa task ochilsin.",
+            },
+            {
+                "title": "Narx qimmat ko'ringan",
+                "count": 8,
+                "impact": "medium",
+                "fix": "Narxdan oldin natija, risk va kafolat qiymati tushuntirilsin.",
+            },
+            {
+                "title": "Ehtiyoj aniq ochilmagan",
+                "count": 7,
+                "impact": "medium",
+                "fix": "Kamida 3 ta diagnostika savoli berilmaguncha taklif yuborilmasin.",
+            },
+        ],
+        "weaknesses": [
+            {"label": "Qiymatni tushuntirish", "count": 11, "severity": "critical"},
+            {"label": "E'tiroz bilan ishlash", "count": 9, "severity": "warning"},
+            {"label": "Aniq callback vaqti", "count": 7, "severity": "warning"},
+        ],
+        "recommendations": [
+            "Har qo'ng'iroqda mijozning real muammosi bitta jumlada qaytarib aytilsin.",
+            "Narxdan oldin 3 ta natija va 1 ta xavfsizlik kafolati tushuntirilsin.",
+            "Qayta qo'ng'iroq uchun aniq sana/soat CRM taskga yozilmaguncha suhbat yopilmasin.",
+            "Javobsiz qo'ng'iroqlarga 10 daqiqa ichida Telegram follow-up xabari yuborilsin.",
+        ],
+        "calls": [
+            {
+                "client": "Petron Polymer",
+                "manager": "Oydin",
+                "score": 92,
+                "result": "Taklif yuborildi",
+                "duration": "04:12",
+                "summary": "Ehtiyoj aniqlandi, rebranding bo'yicha keyingi uchrashuv kelishildi.",
+                "risk": "Past",
+            },
+            {
+                "client": "Bekbazar",
+                "manager": "Ifora",
+                "score": 81,
+                "result": "Qayta qo'ng'iroq",
+                "duration": "02:48",
+                "summary": "Mijoz logo variantlarini ko'rmoqchi, callback vaqti CRMga yozilishi kerak.",
+                "risk": "O'rta",
+            },
+            {
+                "client": "Ravza",
+                "manager": "Sarvara",
+                "score": 64,
+                "result": "Narx e'tirozi",
+                "duration": "01:57",
+                "summary": "Qiymat yetarli ochilmagan, natija va portfolio bilan qayta ishlash kerak.",
+                "risk": "Yuqori",
+            },
+        ],
+        "assistant_answers": [
+            {
+                "question": "Bugun kim eng yaxshi ishladi?",
+                "answer": "Oydin: 91 ball, 38 ta qo'ng'iroq, 3 ta sotuv. Kuchli tomoni - keyingi qadamni aniq yopgan.",
+            },
+            {
+                "question": "Qaysi leadlar yo'qolish xavfida?",
+                "answer": "Narx e'tirozi va callback vaqti belgilanmagan leadlar. Ularni bugun 18:00 gacha qayta jonlantirish kerak.",
+            },
+        ],
+    }
 
 class CreateLeadRequest(BaseModel):
     name: str
