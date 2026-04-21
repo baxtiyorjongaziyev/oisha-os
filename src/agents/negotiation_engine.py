@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
-import asyncio
+
+from google import genai
+
 from src.settings import settings
-import google.generativeai as genai
 
 
 @dataclass
@@ -157,8 +158,7 @@ class NegotiationEngine:
             return f"Bitimni keyingi '{assessment.stage}' bosqichiga o'tkazing."
 
         try:
-            genai.configure(api_key=settings.GEMINI_API_KEY.get_secret_value())
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            client = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
             
             prompt = f"""
             Siz "Oisha-OS Surgical Strategist"siz. Mijoz bilan suhbat xulosasini tahlil qiling va sotuvchi (Manager) uchun 
@@ -179,8 +179,11 @@ class NegotiationEngine:
             [3] Xavf faktori: ...
             """
             
-            response = await asyncio.to_thread(model.generate_content, prompt)
-            return response.text.strip()
+            response = await client.aio.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=prompt,
+            )
+            return (response.text or "").strip()
             
         except Exception:
             # Fallback to legacy logic if AI fails
