@@ -1434,7 +1434,11 @@ async def main():
 
     api_module.mark_heartbeat()
     asyncio.create_task(_heartbeat_task(), name="api_heartbeat")
+    # [REANIMATION] Decouple health-check from startup sequence to ensure Cloud Run marks revision as healthy early.
     asyncio.create_task(run_health_check_api(), name="health_check_api")
+    
+    api_module.set_runtime_context(
+
 
     # Cloud Run is the health/API control-plane. The personal Telegram userbot
     # must run only on the VM, otherwise Telegram revokes the shared session.
