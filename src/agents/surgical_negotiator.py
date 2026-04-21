@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from src.agents.autonomous_sales_agent import (
     AutonomousSalesAgent, 
@@ -22,7 +22,6 @@ from src.agents.deal_lifecycle_manager import (
 from src.agents.negotiation_engine import NegotiationEngine, NegotiationAssessment
 from src.agents.contract_generator import ContractGenerator, RiskAssessor
 from src.services.core.gcontacts import GoogleContactsSync
-from src.services.core.amocrm_sync import AmoCRM  # Assuming this exists
 
 
 class SurgicalNegotiator:
