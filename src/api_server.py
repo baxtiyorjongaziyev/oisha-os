@@ -94,44 +94,63 @@ async def liveness_probe():
         problems.append("no_heartbeat_ever")
 
     # Userbot client reachability (best-effort — don't block)
-    if user_client is not None:
         try:
-            checks["userbot_connected"] = bool(user_client.is_connected())
-            if not checks["userbot_connected"]:
-                problems.append("userbot_disconnected")
-        except Exception as e:  # pragma: no cover - defensive
-            checks["userbot_connected"] = False
-            problems.append(f"userbot_check_error:{type(e).__name__}")
-
-    # DB trivial query
-    if db_instance is not None:
-        try:
-            conn = await db_instance.get_connection()
-            try:
-                cur = await conn.execute("SELECT 1")
-                await cur.fetchone()
-                await cur.close()
-                checks["db_ok"] = True
-            finally:
-                # aiosqlite connections are long-lived via pool; Turso adapter's
-                # close() is a no-op on the client. Don't disconnect.
-                pass
+            from sqlalchemy import text
+            async with db_instance.engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+                db_ok = True
         except Exception as e:
-            checks["db_ok"] = False
-            problems.append(f"db_error:{type(e).__name__}")
+            logger.warning(f"[HEALTH] Database connection failed: {e}")
+            db_ok = False
+    else:
+        db_ok = True  # No database configured, skip check
 
-    healthy = (
-        boot_age < 20  # grace period
-        or not problems
+    # Check userbot authorization
+    runtime = get_runtime_context()
+    userbot_authorized = runtime.get("userbot_authorized", False)
+    
+    # [HEALTH] Check Telegram bot connection
+    telegram_bot_ok = False
+    try:
+        # Import bot from main module
+        from src.main import bot
+        if bot and hasattr(bot, 'bot'):
+            # Check if bot is connected by getting me
+            me = await bot.bot.get_me()
+            telegram_bot_ok = True
+            logger.debug(f"[HEALTH] Telegram bot connected: @{me.username}")
+    except Exception as e:
+        logger.warning(f"[HEALTH] Telegram bot connection failed: {e}")
+        telegram_bot_ok = False
+    
+    # [HEALTH] Check CRM connection (AmoCRM)
+    crm_ok = False
+    try:
+        # Try to get AmoCRM status from runtime
+        crm_status = runtime.get("crm_connected", False)
+        crm_ok = crm_status
+    except Exception as e:
+        logger.warning(f"[HEALTH] CRM check failed: {e}")
+        crm_ok = False
+    
+    # Determine overall health - all critical services must be up
+    healthy = db_ok and telegram_bot_ok and crm_ok
+    status_code = 200 if healthy else 503
+    
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if healthy else "unhealthy",
+            "checks": {
+                "database": db_ok,
+                "userbot": userbot_authorized,
+                "telegram_bot": telegram_bot_ok,
+                "crm": crm_ok,
+            },
+            "timestamp": get_local_now().isoformat()
+        }
     )
 
-    payload = {
-        "status": "ok" if healthy else "unhealthy",
-        "timestamp": now.isoformat(),
-        "checks": checks,
-        "problems": problems,
-    }
-    return JSONResponse(content=payload, status_code=200 if healthy else 503)
 
 # Global references
 user_client = None
