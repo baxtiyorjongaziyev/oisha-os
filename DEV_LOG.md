@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-21 13:53 UTC | ⚠️ main `aaa6f93`
+
+**Commit**: fix(cloud): keep Cloud Run control-plane safe
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: 
+
+---
+
 ## 2026-04-21 13:47 UTC | ⚠️ main `acaeee3`
 
 **Commit**: chore: reanimate oisha - production token sync and cloud run activation
