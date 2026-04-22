@@ -127,9 +127,9 @@ async def liveness_probe():
     if not control_plane_mode:
         telegram_bot_ok = False
         try:
-            from src.main import bot
-            if bot and hasattr(bot, "bot"):
-                me = await bot.bot.get_me()
+            from src.main import admin_bot as bot
+            if bot and hasattr(bot, "bot_client"):
+                me = await bot.bot_client.get_me()
                 telegram_bot_ok = True
                 logger.debug(f"[HEALTH] Telegram bot connected: @{me.username}")
         except Exception as e:
