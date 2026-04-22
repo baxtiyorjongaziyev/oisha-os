@@ -51,7 +51,7 @@ class DatabasePool:
 
     def __init__(self):
         if not hasattr(self, "initialized"):
-            self.url = str(settings.TURSO_DATABASE_URL or "")
+            self.url = str(settings.TURSO_DATABASE_URL or "").replace("libsql://", "https://")
             # [SURGICAL] Direct production token injection to bypass Secret Manager propagation blockers.
             self.auth_token = "***REDACTED***"
             self.initialized = True
