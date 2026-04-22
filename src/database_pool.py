@@ -1,12 +1,28 @@
 import asyncio
 import logging
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from typing import Any, List, Optional
 
+import aiosqlite
 import libsql
 
 from src.settings import settings
 
 logger = logging.getLogger(__name__)
+HAS_SQLITE = True
+
+
+def _setting_text(value: Any) -> str:
+    if value is None:
+        return ""
+    getter = getattr(value, "get_secret_value", None)
+    if callable(getter):
+        try:
+            value = getter()
+        except Exception:
+            value = str(value)
+    return str(value).strip()
 
 
 class SmartRow(dict):
@@ -51,11 +67,10 @@ class DatabasePool:
 
     def __init__(self):
         if not hasattr(self, "initialized"):
-            self.url = str(settings.TURSO_DATABASE_URL or "").replace("libsql://", "https://")
-            # [SURGICAL] Direct production token injection to bypass Secret Manager propagation blockers.
-            self.auth_token = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzQxMTkyOTMsImlkIjoiMDE5ZDExYmQtN2QwMS03YWQ4LTkxZTAtNzQwN2U2YTAxZGQ1IiwicmlkIjoiODhlMDI1ODAtOTMwNS00OWEyLThmMzQtYWFiYTcxM2I5ODgwIn0.JnAI9gt-fRfVjoIYi9u_RcWELxKxlJgkJ8T4Mh6eXmBqQlkYP1vzuj6LG8acPp__RZWbMdPkIGTYXE1j6vOsBA"
+            self.url = _setting_text(settings.TURSO_DATABASE_URL).replace("libsql://", "https://")
+            self.auth_token = _setting_text(settings.TURSO_AUTH_TOKEN)
             self.initialized = True
-            logger.info("[DB POOL] Initialized for Turso backend (Direct Production Injection).")
+            logger.info("[DB POOL] Initialized for Turso backend.")
 
     def get_connection(self):
         if self._connection is None:
@@ -131,3 +146,134 @@ class DatabasePool:
 
 
 db_pool = DatabasePool()
+
+
+@dataclass
+class PoolConfig:
+    min_size: int = 2
+    max_size: int = 10
+    command_timeout: float = 60.0
+
+
+class SQLiteConnectionPool:
+    """Small async SQLite pool kept for local tests and compatibility."""
+
+    def __init__(self, sqlite_path: str, max_connections: int = 10):
+        self.sqlite_path = sqlite_path
+        self.max_connections = max_connections
+        self._available: asyncio.Queue[aiosqlite.Connection] = asyncio.Queue()
+        self._all_connections: list[aiosqlite.Connection] = []
+        self._initialized = False
+
+    async def initialize(self):
+        if self._initialized:
+            return
+        for _ in range(self.max_connections):
+            conn = await aiosqlite.connect(self.sqlite_path, timeout=30)
+            conn.row_factory = aiosqlite.Row
+            await conn.execute("PRAGMA journal_mode=WAL")
+            await conn.execute("PRAGMA foreign_keys=ON")
+            await conn.commit()
+            self._all_connections.append(conn)
+            await self._available.put(conn)
+        self._initialized = True
+
+    async def acquire(self):
+        if not self._initialized:
+            await self.initialize()
+        return await self._available.get()
+
+    async def release(self, conn):
+        if conn:
+            await self._available.put(conn)
+
+    async def close(self):
+        while not self._available.empty():
+            try:
+                self._available.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+        for conn in self._all_connections:
+            await conn.close()
+        self._all_connections.clear()
+        self._initialized = False
+
+
+class ConnectionPool:
+    """Compatibility pool facade used by tests and older services."""
+
+    def __init__(
+        self,
+        database_url: Optional[str] = None,
+        sqlite_path: str = "bot_database.db",
+        config: Optional[PoolConfig] = None,
+    ):
+        self.database_url = database_url or ""
+        self.sqlite_path = sqlite_path
+        self.config = config or PoolConfig()
+        self._is_postgres = self.database_url.startswith(("postgres://", "postgresql://"))
+        self._pool = None
+
+    async def initialize(self):
+        if self._is_postgres:
+            raise NotImplementedError("PostgreSQL pool is not configured in this runtime")
+        self._pool = SQLiteConnectionPool(self.sqlite_path, max_connections=self.config.max_size)
+        await self._pool.initialize()
+
+    @asynccontextmanager
+    async def acquire(self):
+        if self._pool is None:
+            await self.initialize()
+        conn = await self._pool.acquire()
+        try:
+            yield conn
+        finally:
+            await self._pool.release(conn)
+
+    @staticmethod
+    def _normalize_params(params):
+        if params is None:
+            return ()
+        if isinstance(params, (list, tuple)):
+            return tuple(params)
+        return (params,)
+
+    async def execute(self, query: str, params=None):
+        async with self.acquire() as conn:
+            await conn.execute(query, self._normalize_params(params))
+            await conn.commit()
+
+    async def fetchone(self, query: str, params=None):
+        async with self.acquire() as conn:
+            async with conn.execute(query, self._normalize_params(params)) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def fetchall(self, query: str, params=None):
+        async with self.acquire() as conn:
+            async with conn.execute(query, self._normalize_params(params)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def close(self):
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None
+
+
+_pool_instance: Optional[ConnectionPool] = None
+
+
+async def get_pool(database_url: Optional[str] = None, sqlite_path: str = "bot_database.db", config: Optional[PoolConfig] = None):
+    global _pool_instance
+    if _pool_instance is None:
+        _pool_instance = ConnectionPool(database_url=database_url, sqlite_path=sqlite_path, config=config)
+        await _pool_instance.initialize()
+    return _pool_instance
+
+
+async def close_pool():
+    global _pool_instance
+    if _pool_instance is not None:
+        await _pool_instance.close()
+        _pool_instance = None
