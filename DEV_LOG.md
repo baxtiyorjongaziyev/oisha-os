@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-22 10:43 UTC | 🔴 main `4f95854`
+
+**Commit**: fix: ROOT CAUSE - strip trailing newlines from Turso secrets and restore health checks
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-04-22 02:47 UTC | ✅ main `f62c761`
 
 **Commit**: fix(core): block fake health and hardcoded secrets
