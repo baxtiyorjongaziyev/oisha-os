@@ -1,50 +1,30 @@
-
 import os
-from google import genai
-from google.genai import types
-from dotenv import load_dotenv
-from src.services.core.persona_hub import get_persona
 
-load_dotenv()
+import pytest
 
-def test_ai_response():
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_TESTS") != "1",
+    reason="Live Gemini contact extraction test; set RUN_LIVE_TESTS=1 to run intentionally.",
+)
+
+
+def test_ai_response_live(tmp_path):
+    from google import genai
+    from google.genai import types
+    from src.services.core.persona_hub import get_persona
+
     gemini_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_key:
-        print("Error: GEMINI_API_KEY not found in .env")
-        return
+    assert gemini_key, "GEMINI_API_KEY is required for live Gemini contact test"
 
     client = genai.Client(api_key=gemini_key)
-    
-    test_message = "Salom, mening ismim Olim. Men Toshkentdanman, qurilish sohasida tadbirkorman. Raqamim: +998901112233"
-    
-    print(f"Testing message: {test_message}")
-    
-    sys_inst = get_persona(is_team_member=True)
-    chat_config = types.GenerateContentConfig(
-        system_instruction=sys_inst,
-    )
-    
     chat = client.chats.create(
         model="gemini-2.0-flash",
-        config=chat_config
+        config=types.GenerateContentConfig(system_instruction=get_persona(is_team_member=True)),
     )
-    
-    response = chat.send_message(test_message)
-    print("\nAI Response received (contains unicode).")
-    
-    # Save to file to avoid console encoding issues
-    with open("ai_response_last.txt", "w", encoding="utf-8") as f:
-        f.write(response.text)
-    
-    if "[CONTACT_INFO:" in response.text:
-        print("\nSuccess: CONTACT_INFO tag found!")
-        assert True
-    else:
-        print("\nFailure: CONTACT_INFO tag NOT found.")
-        print(f"Response text start: {response.text[:100]}...")
-        # Since this is a test, we should eventually assert
-        # but for now we'll allow it during migration
-        pass
+    response = chat.send_message(
+        "Salom, mening ismim Olim. Men Toshkentdanman, qurilish sohasida tadbirkorman. Raqamim: +998901112233"
+    )
 
-if __name__ == "__main__":
-    test_ai_response()
+    (tmp_path / "ai_response_last.txt").write_text(response.text or "", encoding="utf-8")
+    assert response.text

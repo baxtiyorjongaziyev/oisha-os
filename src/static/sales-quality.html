@@ -628,6 +628,16 @@
             text-align: right;
         }
 
+        .empty-state {
+            padding: 18px;
+            border: 1px dashed #c9d5e5;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.62);
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
         @media (max-width: 1180px) {
             .shell {
                 grid-template-columns: 1fr;
@@ -726,7 +736,7 @@
                     <h1>Sotuv Sifat Nazorati</h1>
                     <p>Qo'ng'iroq sifati, menejer reytingi, yo'qotilgan lead sabablari va keyingi qadamlar bo'yicha AI dashboard.</p>
                 </div>
-                <div class="status-pill"><span class="pulse"></span><span id="liveStatus">AI tahlil faol</span></div>
+                <div class="status-pill"><span class="pulse"></span><span id="liveStatus">Real data tekshirilmoqda</span></div>
             </div>
 
             <section class="hero">
@@ -848,7 +858,15 @@
             return 'var(--red)';
         }
 
+        function emptyState(message) {
+            return `<div class="empty-state">${message}</div>`;
+        }
+
         function renderManagers(managers) {
+            if (!managers.length) {
+                byId('managerList').innerHTML = emptyState("Real qo'ng'iroq tahlili kelmaguncha menejer reytingi ko'rsatilmaydi.");
+                return;
+            }
             byId('managerList').innerHTML = managers.map((manager) => `
                 <div class="manager">
                     <div class="avatar">${manager.avatar}</div>
@@ -866,12 +884,16 @@
         }
 
         function renderOutcomes(outcomes) {
+            if (!outcomes.length) {
+                byId('outcomes').innerHTML = emptyState("Real outcome ma'lumotlari hali yo'q.");
+                return;
+            }
             const max = Math.max(...outcomes.map(item => item.value), 1);
             byId('outcomes').innerHTML = outcomes.map((item) => `
                 <div class="outcome-row">
                     <div class="outcome-top">
                         <span>${item.label}</span>
-                        <span>${item.value}%</span>
+                        <span>${item.value} ta</span>
                     </div>
                     <div class="outcome-track" style="--value:${(item.value / max) * 100}%; --color:${item.color};"><i></i></div>
                 </div>
@@ -888,6 +910,10 @@
         }
 
         function renderRadar(items) {
+            if (!items.length) {
+                byId('radarChart').innerHTML = `<text x="110" y="110" text-anchor="middle" fill="#6b778c">Real skill score yo'q</text>`;
+                return;
+            }
             const center = 110;
             const radius = 72;
             const levels = [25, 50, 75, 100];
@@ -905,6 +931,10 @@
         }
 
         function renderWeaknesses(items) {
+            if (!items.length) {
+                byId('weaknesses').innerHTML = emptyState("Real zaif joy signallari hali yo'q.");
+                return;
+            }
             byId('weaknesses').innerHTML = items.map((item) => `
                 <div class="weak-row">
                     <div class="risk-top">
@@ -916,6 +946,10 @@
         }
 
         function renderLossReasons(items) {
+            if (!items.length) {
+                byId('lossReasons').innerHTML = emptyState("Yo'qotish sabablari faqat real tahlil yozuvlaridan chiqadi.");
+                return;
+            }
             byId('lossReasons').innerHTML = items.map((item) => `
                 <div class="risk-card ${item.impact}">
                     <div class="risk-top">
@@ -928,6 +962,10 @@
         }
 
         function renderCalls(calls) {
+            if (!calls.length) {
+                byId('callList').innerHTML = emptyState("Oxirgi real qo'ng'iroq tahlillari hali kelmagan.");
+                return;
+            }
             byId('callList').innerHTML = calls.map((call) => `
                 <article class="call-card">
                     <div class="call-head">
@@ -947,6 +985,10 @@
         }
 
         function renderRecommendations(items) {
+            if (!items.length) {
+                byId('recommendations').innerHTML = emptyState("Real tahlil bo'lmasa Oisha tavsiya to'qib chiqarmaydi.");
+                return;
+            }
             byId('recommendations').innerHTML = items.map((item, index) => `
                 <div class="insight">
                     <i>${index + 1}</i>
@@ -956,6 +998,10 @@
         }
 
         function renderQa(items) {
+            if (!items.length) {
+                byId('qaList').innerHTML = emptyState("Real data kelgandan keyin savol-javob xulosalari chiqadi.");
+                return;
+            }
             byId('qaList').innerHTML = items.map((item) => `
                 <div class="qa">
                     <strong>${item.question}</strong>
@@ -969,11 +1015,15 @@
                 const response = await fetch('/api/sales-quality/overview');
                 const data = await response.json();
                 const team = data.team || {};
+                const hasRealData = data.real_data === true;
 
                 byId('qualityScore').textContent = team.quality_score ?? '--';
                 byId('scoreRing').style.setProperty('--score', team.quality_score || 0);
                 byId('scoreRing').style.color = scoreTone(team.quality_score || 0);
-                byId('heroText').textContent = `${team.calls_analyzed || 0} ta suhbat tahlil qilindi. Oisha menejerlar sifatini, callback intizomini va yo'qolish xavfidagi leadlarni kuzatyapti.`;
+                byId('liveStatus').textContent = hasRealData ? 'Real tahlil faol' : 'Real data ulanmagan';
+                byId('heroText').textContent = hasRealData
+                    ? `${team.calls_analyzed || 0} ta real suhbat tahlil qilindi. Oisha menejerlar sifatini, callback intizomini va yo'qolish xavfidagi leadlarni kuzatyapti.`
+                    : (data.message || "Real qo'ng'iroq tahlili kelmaguncha Oisha fake raqam ko'rsatmaydi.");
                 byId('periodChip').textContent = data.period || 'Bugun';
                 byId('trendChip').textContent = `Trend: ${team.trend || '--'}`;
                 byId('callsTotal').textContent = fmt.format(team.calls_total || 0);
@@ -982,7 +1032,7 @@
                 byId('salesCount').textContent = fmt.format(team.sales_count || 0);
                 byId('conversion').textContent = `Konversiya ${team.conversion || 0}%`;
                 byId('callbackAgreed').textContent = fmt.format(team.callback_agreed || 0);
-                byId('generatedAt').textContent = `Oxirgi yangilanish: ${new Date(data.generated_at).toLocaleString('uz-UZ')} | Manba: ${data.source === 'demo_contract' ? 'demo kontrakt, real integratsiyaga tayyor' : data.source}`;
+                byId('generatedAt').textContent = `Oxirgi yangilanish: ${new Date(data.generated_at).toLocaleString('uz-UZ')} | Manba: ${data.source || "noma'lum"} | Holat: ${data.status || '--'}`;
 
                 renderManagers(data.managers || []);
                 renderOutcomes(data.outcomes || []);
