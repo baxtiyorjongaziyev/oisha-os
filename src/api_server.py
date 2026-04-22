@@ -49,7 +49,7 @@ async def root_status():
     response = {
         "status": "online",
         "service": "Oisha-OS Enterprise",
-        "version": "2.1.0-GodMode",
+        "version": "2.1.0",
         "timestamp": get_local_now().isoformat(),
         "runtime_source": runtime.get("runtime_source"),
         "service_name": runtime.get("service_name"),
@@ -137,8 +137,7 @@ async def liveness_probe():
     
     crm_ok = True if control_plane_mode else bool(runtime.get("crm_connected", False))
     
-    healthy = not problems and db_ok  # [GOD MODE] Force healthy to bypass Cloud Run rollout blockers
-    # healthy = not problems and db_ok and telegram_bot_ok and crm_ok
+    healthy = not problems and db_ok and telegram_bot_ok and crm_ok
     status_code = 200 if healthy else 503
     
     return JSONResponse(
@@ -861,7 +860,7 @@ async def get_system_info():
     """Tizim haqida umumiy ma'lumot."""
     return {
         "os": "Windows",
-        "version": "2.1.0-GodMode",
+        "version": "2.1.0",
         "agent_count": 8,
         "active_modules": ["NightShift", "OSINT", "CRM_Sync", "Advisor", "Audit"]
     }
