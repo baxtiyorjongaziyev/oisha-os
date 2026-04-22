@@ -484,6 +484,13 @@ class Database:
                 return dict(zip(cols, row))
         return None
 
+    async def get_user_id_by_phone(self, phone: str) -> Optional[int]:
+        user = await self.get_user_by_phone(phone)
+        if not user:
+            return None
+        user_id = user.get("user_id")
+        return int(user_id) if user_id is not None else None
+
     async def get_chat_summary(self, user_id: int) -> Optional[str]:
         conn = await self.get_connection()
         async with conn.execute("SELECT summary FROM chat_summaries WHERE user_id = ?", (user_id,)) as cursor:
@@ -951,8 +958,10 @@ class TursoAdapter:
     async def commit(self): pass
     async def rollback(self): pass
     async def close(self):
-        try: db_pool.close()
-        except: pass
+        try:
+            db_pool.close()
+        except Exception as exc:
+            logger.debug(f"[DB] Turso pool close warning: {exc}")
 
     def cursor(self):
         return _CursorContext(self)
