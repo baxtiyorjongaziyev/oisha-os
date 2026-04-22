@@ -1,37 +1,21 @@
-
 import os
-import asyncio
-from telegram import Bot
-from dotenv import load_dotenv
 
-load_dotenv()
+import pytest
 
-async def test_reach():
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_TESTS") != "1",
+    reason="Live Telegram reach test sends real messages; set RUN_LIVE_TESTS=1 to run intentionally.",
+)
+
+
+async def test_bot_reach_live():
+    from telegram import Bot
+
     token = os.getenv("BOT_TOKEN")
-    owner_id = 5824905101
-    group_id = -1002361131012
-    
-    bot = Bot(token=token)
-    
-    print(f"Testing bot: {token[:10]}...")
-    
-    # 1. Test Owner
-    try:
-        chat = await bot.get_chat(owner_id)
-        print(f"Owner found: {chat.first_name}")
-        await bot.send_message(chat_id=owner_id, text="TEST: Bot sizga bog'lana oladi!")
-        print("Message sent to Owner.")
-    except Exception as e:
-        print(f"Owner Error: {e}")
-        
-    # 2. Test Group
-    try:
-        chat = await bot.get_chat(group_id)
-        print(f"Group found: {chat.title}")
-        await bot.send_message(chat_id=group_id, text="TEST: Bot guruhga bog'lana oladi!")
-        print("Message sent to Group.")
-    except Exception as e:
-        print(f"Group Error: {e}")
+    assert token, "BOT_TOKEN is required for live Telegram reach test"
 
-if __name__ == "__main__":
-    asyncio.run(test_reach())
+    owner_id = int(os.getenv("LIVE_TEST_OWNER_ID", "5824905101"))
+    bot = Bot(token=token)
+    chat = await bot.get_chat(owner_id)
+    assert chat.id == owner_id
