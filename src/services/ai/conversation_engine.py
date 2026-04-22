@@ -186,13 +186,14 @@ class ConversationEngine:
         
         try:
             query = """
-                INSERT INTO call_analyses (
-                    call_id, lead_id, manager_id, manager_name,
-                    duration_seconds, overall_score, category,
+                INSERT OR REPLACE INTO call_analyses (
+                    call_id, lead_id, manager_id, manager_name, client_name,
+                    duration_seconds, overall_score, category, scores,
                     summary, strengths, weaknesses, client_mood,
                     client_interest_level, objections, outcome,
-                    next_steps, recommended_tasks, analyzed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    next_steps, recommended_tasks, transcript, audio_url,
+                    source, analyzed_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
             
             await self.db.execute(query, (
@@ -200,19 +201,32 @@ class ConversationEngine:
                 analysis.lead_id,
                 analysis.manager_id,
                 analysis.manager_name,
+                call_record.lead_name,
                 analysis.duration_seconds,
                 analysis.overall_score,
                 analysis.category,
+                json.dumps([score.to_dict() if hasattr(score, "to_dict") else {
+                    "metric": getattr(getattr(score, "metric", None), "value", str(getattr(score, "metric", ""))),
+                    "score": getattr(score, "score", None),
+                    "weight": getattr(score, "weight", None),
+                    "feedback": getattr(score, "feedback", ""),
+                    "examples": getattr(score, "examples", []),
+                    "improvement_tips": getattr(score, "improvement_tips", []),
+                } for score in analysis.scores], ensure_ascii=False),
                 analysis.summary,
-                json.dumps(analysis.strengths),
-                json.dumps(analysis.weaknesses),
+                json.dumps(analysis.strengths, ensure_ascii=False),
+                json.dumps(analysis.weaknesses, ensure_ascii=False),
                 analysis.client_mood,
                 analysis.client_interest_level,
-                json.dumps(analysis.objections_raised),
+                json.dumps(analysis.objections_raised, ensure_ascii=False),
                 analysis.outcome,
-                json.dumps(analysis.next_steps),
-                json.dumps([t.to_dict() if hasattr(t, 'to_dict') else t for t in analysis.recommended_tasks]),
-                analysis.analyzed_at.isoformat()
+                json.dumps(analysis.next_steps, ensure_ascii=False),
+                json.dumps([t.to_dict() if hasattr(t, 'to_dict') else t for t in analysis.recommended_tasks], ensure_ascii=False),
+                call_record.transcript,
+                call_record.audio_url,
+                "conversation_engine",
+                analysis.analyzed_at.isoformat(),
+                datetime.now().isoformat(),
             ))
             
         except Exception as e:
