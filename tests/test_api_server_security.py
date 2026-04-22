@@ -54,6 +54,26 @@ class TestAPISecurity:
         assert 'oisha_safe_123' not in content, "Hardcoded secret found!"
         assert 'os.environ.get("OISHA_API_SECRET", "")' not in content, "Empty default found!"
 
+    def test_health_check_is_not_force_green(self):
+        """Deploy health must not be hardcoded to ignore Telegram/CRM gates."""
+        api_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'api_server.py')
+        with open(api_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        assert "healthy = not problems and db_ok and telegram_bot_ok and crm_ok" in content
+        assert "Force healthy" not in content
+        assert "GOD MODE" not in content
+
+    def test_database_pool_has_no_hardcoded_turso_token(self):
+        """Turso token must come from environment/Secret Manager, never source code."""
+        pool_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'database_pool.py')
+        with open(pool_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        assert "settings.TURSO_AUTH_TOKEN" in content
+        assert "self.auth_token = _setting_text(settings.TURSO_AUTH_TOKEN)" in content
+        assert "eyJhbGci" not in content
+
 
 class TestAPIEndpoints:
     """Test API endpoint functionality."""
