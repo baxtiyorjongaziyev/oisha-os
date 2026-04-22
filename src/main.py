@@ -1293,7 +1293,7 @@ async def main():
     cloud_control_plane = bool(os.getenv("K_SERVICE"))
     enable_cloud_userbot = os.getenv("ENABLE_CLOUD_USERBOT", "").strip().lower() in {"1", "true", "yes", "on"}
     force_control_plane_only = os.getenv("CLOUD_RUN_CONTROL_PLANE_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}
-    cloud_control_plane_only = False  # [REANIMATION] Forced autonomous polling for Cloud Run deployment
+    cloud_control_plane_only = force_control_plane_only or (cloud_control_plane and not enable_cloud_userbot)
 
     # [GOD MODE] Authorized Session Discovery
     session_string = os.environ.get("USERBOT_SESSION_STRING", "").strip()
