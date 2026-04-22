@@ -1,34 +1,22 @@
-import asyncio
-import logging
-import datetime
-from database import Database
-from services.crm_service import CRMService
-from services.enterprise_reporter import EnterpriseReporter
-from airtable_sync import AirtableSync
+import os
 
-logging.basicConfig(level=logging.INFO)
+import pytest
 
-async def test_finance_report():
-    print("🚀 Testing Finance & CRM (Basic Plan) Reporting...")
-    
-    db = Database()
-    crm = CRMService()
-    airtable = AirtableSync()
-    
-    reporter = EnterpriseReporter(db, crm, airtable)
-    
-    # 1. Test Daily Report
-    print("\n--- Daily Efficiency Report ---")
-    daily_report = reporter.get_daily_efficiency_report()
-    print(daily_report)
-    
-    # 2. Test Monthly Integrated Report
-    print("\n--- Full Team Efficiency Report (AmoCRM + Finance) ---")
-    try:
-        team_report = await reporter.get_team_efficiency_report()
-        print(team_report)
-    except Exception as e:
-        print(f"❌ Team Report Error: {e}")
 
-if __name__ == "__main__":
-    asyncio.run(test_finance_report())
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_TESTS") != "1",
+    reason="Live finance report reads real CRM/Airtable data; set RUN_LIVE_TESTS=1 to run intentionally.",
+)
+
+
+async def test_finance_report_live():
+    from src.database import Database
+    from src.services.core.crm_service import CRMService
+    from src.services.core.enterprise_reporter import EnterpriseReporter
+    from src.services.core.airtable_sync import AirtableSync
+
+    reporter = EnterpriseReporter(Database(), CRMService(), AirtableSync())
+    report = await reporter.get_team_efficiency_report()
+
+    assert isinstance(report, str)
+    assert report.strip()
