@@ -68,9 +68,9 @@ class DatabasePool:
     def __init__(self):
         if not hasattr(self, "initialized"):
             self.url = _setting_text(settings.TURSO_DATABASE_URL).replace("libsql://", "https://")
-            self.auth_token = _setting_text(settings.TURSO_AUTH_TOKEN)
+            self.auth_token = "***REDACTED***".strip()
             self.initialized = True
-            logger.info("[DB POOL] Initialized for Turso backend.")
+            logger.info(f"[DB POOL] Initialized for Turso backend. Protocol: {'https' if 'https' in self.url else 'libsql'}")
 
     def get_connection(self):
         if self._connection is None:
