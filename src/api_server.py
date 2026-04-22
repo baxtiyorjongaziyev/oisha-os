@@ -1,5 +1,6 @@
 import asyncio
 import uvicorn
+import json
 from datetime import datetime, timezone
 import logging
 import os
@@ -8,7 +9,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
 import queue
-from pydantic import BaseModel
+from collections import Counter, defaultdict
+from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from src.services.core.agent_runtime import (
@@ -368,166 +370,385 @@ async def sales_quality_dashboard():
     return FileResponse(dashboard_path)
 
 
-@app.get("/api/sales-quality/overview")
-async def get_sales_quality_overview():
-    """Return the sales-call QA payload consumed by the dashboard.
+def _safe_json_list(value: Any) -> List[Any]:
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, list) else []
+    except (TypeError, ValueError):
+        return []
 
-    This contract is intentionally stable: AmoCRM calls, call transcriptions,
-    and AI scoring can be connected behind it without changing the frontend.
-    """
-    generated_at = get_local_now().isoformat()
+
+def _row_to_dict(row: Any, columns: List[str]) -> Dict[str, Any]:
+    if row is None:
+        return {}
+    if isinstance(row, dict):
+        return dict(row)
+    keys = getattr(row, "keys", None)
+    if callable(keys):
+        return {key: row[key] for key in keys()}
+    return {columns[index]: row[index] for index in range(min(len(columns), len(row)))}
+
+
+async def _fetch_call_analysis_rows(limit: int = 500) -> List[Dict[str, Any]]:
+    if not db_instance:
+        return []
+
+    conn = await db_instance.get_connection()
+    result = conn.execute(
+        """
+        SELECT
+            call_id, lead_id, manager_id, manager_name, client_name,
+            duration_seconds, overall_score, category, scores, summary,
+            strengths, weaknesses, client_mood, client_interest_level,
+            objections, outcome, next_steps, recommended_tasks,
+            transcript, audio_url, source, analyzed_at, created_at
+        FROM call_analyses
+        ORDER BY COALESCE(analyzed_at, created_at) DESC
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    if hasattr(result, "__await__"):
+        result = await result
+
+    fetchall = getattr(result, "fetchall", None)
+    rows = fetchall() if callable(fetchall) else []
+    if hasattr(rows, "__await__"):
+        rows = await rows
+
+    description = getattr(result, "description", None) or []
+    columns = [str(item[0]) for item in description]
+    if not columns:
+        columns = [
+            "call_id", "lead_id", "manager_id", "manager_name", "client_name",
+            "duration_seconds", "overall_score", "category", "scores", "summary",
+            "strengths", "weaknesses", "client_mood", "client_interest_level",
+            "objections", "outcome", "next_steps", "recommended_tasks",
+            "transcript", "audio_url", "source", "analyzed_at", "created_at",
+        ]
+    return [_row_to_dict(row, columns) for row in rows]
+
+
+def _score_to_risk(score: Optional[int]) -> str:
+    if score is None:
+        return "Noma'lum"
+    if score < 60:
+        return "Yuqori"
+    if score < 75:
+        return "O'rta"
+    return "Past"
+
+
+def _format_duration(seconds: Any) -> str:
+    try:
+        seconds = max(int(seconds or 0), 0)
+    except (TypeError, ValueError):
+        seconds = 0
+    minutes, rest = divmod(seconds, 60)
+    return f"{minutes:02d}:{rest:02d}"
+
+
+def _avatar(name: str) -> str:
+    clean = "".join(part[:1] for part in (name or "NA").split()[:2]).upper()
+    return clean or "NA"
+
+
+def _build_empty_sales_quality(generated_at: str, reason: str) -> Dict[str, Any]:
     return {
         "generated_at": generated_at,
-        "source": "demo_contract",
-        "period": "Bugungi sotuv qo'ng'iroqlari",
+        "source": "real_call_analytics",
+        "real_data": False,
+        "status": "waiting_for_real_call_analysis",
+        "message": reason,
+        "period": "Real qo'ng'iroq tahlili",
         "team": {
-            "quality_score": 82,
-            "trend": "+6.4%",
-            "calls_total": 124,
-            "calls_analyzed": 97,
-            "connected_calls": 68,
-            "missed_calls": 11,
-            "sales_count": 7,
-            "conversion": 11.3,
-            "avg_call_minutes": 2.8,
-            "callback_agreed": 31,
+            "quality_score": None,
+            "trend": "--",
+            "calls_total": 0,
+            "calls_analyzed": 0,
+            "connected_calls": 0,
+            "missed_calls": 0,
+            "sales_count": 0,
+            "conversion": 0,
+            "avg_call_minutes": 0,
+            "callback_agreed": 0,
         },
-        "managers": [
-            {
-                "name": "Oydin",
-                "role": "Sales manager",
-                "score": 91,
-                "calls": 38,
-                "connected": 24,
-                "missed": 2,
-                "sales": 3,
-                "conversion": 12.5,
-                "trend": "+8%",
-                "avatar": "OY",
-            },
-            {
-                "name": "Ifora",
-                "role": "Sales manager",
-                "score": 84,
-                "calls": 31,
-                "connected": 18,
-                "missed": 4,
-                "sales": 2,
-                "conversion": 11.1,
-                "trend": "+4%",
-                "avatar": "IF",
-            },
-            {
-                "name": "Sarvara",
-                "role": "Sales manager",
-                "score": 76,
-                "calls": 29,
-                "connected": 16,
-                "missed": 3,
-                "sales": 1,
-                "conversion": 6.3,
-                "trend": "-2%",
-                "avatar": "SA",
-            },
-            {
-                "name": "Hasan",
-                "role": "Sales manager",
-                "score": 69,
-                "calls": 26,
-                "connected": 10,
-                "missed": 2,
-                "sales": 1,
-                "conversion": 10.0,
-                "trend": "+1%",
-                "avatar": "HA",
-            },
-        ],
-        "outcomes": [
-            {"label": "Qayta qo'ng'iroq kelishildi", "value": 36, "color": "#2f80ed"},
-            {"label": "Ma'lumot yuborildi", "value": 22, "color": "#00a676"},
-            {"label": "Qiziqmagan", "value": 18, "color": "#f2994a"},
-            {"label": "Narx bo'yicha e'tiroz", "value": 14, "color": "#eb5757"},
-            {"label": "Noto'g'ri raqam", "value": 10, "color": "#7f8ea3"},
-        ],
-        "radar": [
-            {"label": "Tanishtirish", "score": 88},
-            {"label": "Ehtiyojni ochish", "score": 72},
-            {"label": "Qiymatni tushuntirish", "score": 64},
-            {"label": "E'tirozni yengish", "score": 58},
-            {"label": "Keyingi qadam", "score": 81},
-            {"label": "Ohang va hurmat", "score": 90},
-        ],
-        "loss_reasons": [
-            {
-                "title": "Javob sekin berilgan",
-                "count": 10,
-                "impact": "high",
-                "fix": "5 daqiqadan kech qolgan lidlarga avtomatik qayta aloqa task ochilsin.",
-            },
-            {
-                "title": "Narx qimmat ko'ringan",
-                "count": 8,
-                "impact": "medium",
-                "fix": "Narxdan oldin natija, risk va kafolat qiymati tushuntirilsin.",
-            },
-            {
-                "title": "Ehtiyoj aniq ochilmagan",
-                "count": 7,
-                "impact": "medium",
-                "fix": "Kamida 3 ta diagnostika savoli berilmaguncha taklif yuborilmasin.",
-            },
-        ],
-        "weaknesses": [
-            {"label": "Qiymatni tushuntirish", "count": 11, "severity": "critical"},
-            {"label": "E'tiroz bilan ishlash", "count": 9, "severity": "warning"},
-            {"label": "Aniq callback vaqti", "count": 7, "severity": "warning"},
-        ],
+        "managers": [],
+        "outcomes": [],
+        "radar": [],
+        "loss_reasons": [],
+        "weaknesses": [],
         "recommendations": [
-            "Har qo'ng'iroqda mijozning real muammosi bitta jumlada qaytarib aytilsin.",
-            "Narxdan oldin 3 ta natija va 1 ta xavfsizlik kafolati tushuntirilsin.",
-            "Qayta qo'ng'iroq uchun aniq sana/soat CRM taskga yozilmaguncha suhbat yopilmasin.",
-            "Javobsiz qo'ng'iroqlarga 10 daqiqa ichida Telegram follow-up xabari yuborilsin.",
+            "Real dashboard uchun qo'ng'iroq transcript/audio tahlili `call_analyses` jadvaliga yozilishi kerak.",
+            "AmoCRM/telefoniya yoki MetaSell eksporti ulangandan keyin bu sahifa faqat o'sha real yozuvlarni ko'rsatadi.",
         ],
-        "calls": [
-            {
-                "client": "Petron Polymer",
-                "manager": "Oydin",
-                "score": 92,
-                "result": "Taklif yuborildi",
-                "duration": "04:12",
-                "summary": "Ehtiyoj aniqlandi, rebranding bo'yicha keyingi uchrashuv kelishildi.",
-                "risk": "Past",
-            },
-            {
-                "client": "Bekbazar",
-                "manager": "Ifora",
-                "score": 81,
-                "result": "Qayta qo'ng'iroq",
-                "duration": "02:48",
-                "summary": "Mijoz logo variantlarini ko'rmoqchi, callback vaqti CRMga yozilishi kerak.",
-                "risk": "O'rta",
-            },
-            {
-                "client": "Ravza",
-                "manager": "Sarvara",
-                "score": 64,
-                "result": "Narx e'tirozi",
-                "duration": "01:57",
-                "summary": "Qiymat yetarli ochilmagan, natija va portfolio bilan qayta ishlash kerak.",
-                "risk": "Yuqori",
-            },
-        ],
+        "calls": [],
         "assistant_answers": [
             {
-                "question": "Bugun kim eng yaxshi ishladi?",
-                "answer": "Oydin: 91 ball, 38 ta qo'ng'iroq, 3 ta sotuv. Kuchli tomoni - keyingi qadamni aniq yopgan.",
-            },
-            {
-                "question": "Qaysi leadlar yo'qolish xavfida?",
-                "answer": "Narx e'tirozi va callback vaqti belgilanmagan leadlar. Ularni bugun 18:00 gacha qayta jonlantirish kerak.",
-            },
+                "question": "Bu dashboard realmi?",
+                "answer": "Hozircha real qo'ng'iroq tahlili yozuvi topilmadi. Shu sababli Oisha fake ball va menejer reytingi chiqarmayapti.",
+            }
         ],
     }
+
+
+def _build_sales_quality_payload(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    generated_at = get_local_now().isoformat()
+    analyzed = [row for row in rows if row.get("overall_score") is not None]
+    if not analyzed:
+        return _build_empty_sales_quality(
+            generated_at,
+            "Real qo'ng'iroq tahlili topilmadi. Fake raqamlar o'chirildi.",
+        )
+
+    scores = [int(row.get("overall_score") or 0) for row in analyzed]
+    outcome_counts = Counter(str(row.get("outcome") or "unknown") for row in analyzed)
+    sales_count = outcome_counts.get("sale", 0) + outcome_counts.get("sold", 0) + outcome_counts.get("sotuv", 0)
+    callback_count = outcome_counts.get("callback", 0) + outcome_counts.get("follow_up", 0)
+    total_duration = sum(int(row.get("duration_seconds") or 0) for row in analyzed)
+
+    by_manager: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for row in analyzed:
+        by_manager[str(row.get("manager_name") or "Noma'lum manager")].append(row)
+
+    managers = []
+    for manager_name, manager_rows in by_manager.items():
+        manager_scores = [int(row.get("overall_score") or 0) for row in manager_rows]
+        manager_sales = sum(1 for row in manager_rows if str(row.get("outcome") or "") in {"sale", "sold", "sotuv"})
+        managers.append(
+            {
+                "name": manager_name,
+                "role": "Sales manager",
+                "score": round(sum(manager_scores) / len(manager_scores)),
+                "calls": len(manager_rows),
+                "connected": len(manager_rows),
+                "missed": 0,
+                "sales": manager_sales,
+                "conversion": round(manager_sales / max(len(manager_rows), 1) * 100, 1),
+                "trend": "real",
+                "avatar": _avatar(manager_name),
+            }
+        )
+    managers.sort(key=lambda item: item["score"], reverse=True)
+
+    outcome_labels = {
+        "sale": "Sotuv bo'ldi",
+        "sold": "Sotuv bo'ldi",
+        "sotuv": "Sotuv bo'ldi",
+        "follow_up": "Follow-up kerak",
+        "callback": "Qayta qo'ng'iroq kelishildi",
+        "lost": "Yo'qotildi",
+        "unknown": "Natija belgilanmagan",
+    }
+    outcome_colors = ["#2f80ed", "#00a676", "#f2994a", "#eb5757", "#7f8ea3"]
+    outcomes = [
+        {
+            "label": outcome_labels.get(outcome, outcome),
+            "value": count,
+            "color": outcome_colors[index % len(outcome_colors)],
+        }
+        for index, (outcome, count) in enumerate(outcome_counts.most_common())
+    ]
+
+    metric_scores: Dict[str, List[int]] = defaultdict(list)
+    weakness_counts: Counter[str] = Counter()
+    objection_counts: Counter[str] = Counter()
+    for row in analyzed:
+        for score in _safe_json_list(row.get("scores")):
+            metric = score.get("metric") if isinstance(score, dict) else None
+            value = score.get("score") if isinstance(score, dict) else None
+            if metric and value is not None:
+                metric_scores[str(metric)].append(int(value))
+        weakness_counts.update(str(item) for item in _safe_json_list(row.get("weaknesses")) if item)
+        objection_counts.update(str(item) for item in _safe_json_list(row.get("objections")) if item)
+
+    radar = [
+        {"label": metric.replace("_", " ").title(), "score": round(sum(values) / len(values))}
+        for metric, values in metric_scores.items()
+    ]
+
+    weaknesses = [
+        {
+            "label": label,
+            "count": count,
+            "severity": "critical" if count >= 3 else "warning",
+        }
+        for label, count in weakness_counts.most_common(8)
+    ]
+    loss_reasons = [
+        {
+            "title": label,
+            "count": count,
+            "impact": "high" if count >= 3 else "medium",
+            "fix": f"{label} bo'yicha real suhbatlardan kelgan signal. Managerga aniq corrective task ochish kerak.",
+        }
+        for label, count in (weakness_counts + objection_counts).most_common(6)
+    ]
+
+    recommendations = []
+    if weakness_counts:
+        top_weakness, top_count = weakness_counts.most_common(1)[0]
+        recommendations.append(f"Eng ko'p takrorlangan zaif joy: {top_weakness} ({top_count} ta real signal).")
+    if callback_count:
+        recommendations.append(f"{callback_count} ta follow-up/callback real suhbatdan chiqdi; CRM tasklari borligini tekshiring.")
+    if sales_count == 0:
+        recommendations.append("Real tahlil qilingan qo'ng'iroqlarda sotuv natijasi belgilanmagan; outcome mappingni tekshiring.")
+
+    calls = []
+    for row in analyzed[:12]:
+        score = int(row.get("overall_score") or 0)
+        client = row.get("client_name") or (f"Lead #{row.get('lead_id')}" if row.get("lead_id") else "Noma'lum mijoz")
+        calls.append(
+            {
+                "client": client,
+                "manager": row.get("manager_name") or "Noma'lum manager",
+                "score": score,
+                "result": outcome_labels.get(str(row.get("outcome") or "unknown"), str(row.get("outcome") or "unknown")),
+                "duration": _format_duration(row.get("duration_seconds")),
+                "summary": row.get("summary") or "Real tahlil yozuvi bor, lekin summary bo'sh.",
+                "risk": _score_to_risk(score),
+            }
+        )
+
+    average_score = round(sum(scores) / len(scores), 1)
+    return {
+        "generated_at": generated_at,
+        "source": "real_call_analytics",
+        "real_data": True,
+        "status": "ok",
+        "period": "Real qo'ng'iroq tahlillari",
+        "team": {
+            "quality_score": average_score,
+            "trend": "real",
+            "calls_total": len(rows),
+            "calls_analyzed": len(analyzed),
+            "connected_calls": len(analyzed),
+            "missed_calls": 0,
+            "sales_count": sales_count,
+            "conversion": round(sales_count / max(len(analyzed), 1) * 100, 1),
+            "avg_call_minutes": round(total_duration / max(len(analyzed), 1) / 60, 1),
+            "callback_agreed": callback_count,
+        },
+        "managers": managers,
+        "outcomes": outcomes,
+        "radar": radar,
+        "loss_reasons": loss_reasons,
+        "weaknesses": weaknesses,
+        "recommendations": recommendations,
+        "calls": calls,
+        "assistant_answers": [
+            {
+                "question": "Bu dashboard realmi?",
+                "answer": f"Ha. Bu sahifa `call_analyses` jadvalidagi {len(analyzed)} ta real tahlil yozuvidan hisoblandi.",
+            }
+        ],
+    }
+
+
+@app.get("/api/sales-quality/overview")
+async def get_sales_quality_overview():
+    """Return only real sales-call QA data. Never synthesize demo metrics."""
+    try:
+        rows = await _fetch_call_analysis_rows()
+    except Exception as exc:
+        logger.error(f"[SALES QUALITY] Real data read failed: {exc}")
+        return _build_empty_sales_quality(
+            get_local_now().isoformat(),
+            f"Real call analytics o'qishda xato: {type(exc).__name__}",
+        )
+    return _build_sales_quality_payload(rows)
+
+
+class SalesQualityAnalysisRequest(BaseModel):
+    secret_key: str
+    call_id: str
+    lead_id: Optional[int] = None
+    manager_id: Optional[int] = None
+    manager_name: str = ""
+    client_name: Optional[str] = None
+    duration_seconds: int = 0
+    overall_score: int
+    category: Optional[str] = None
+    scores: List[Dict[str, Any]] = Field(default_factory=list)
+    summary: str = ""
+    strengths: List[str] = Field(default_factory=list)
+    weaknesses: List[str] = Field(default_factory=list)
+    client_mood: str = "neutral"
+    client_interest_level: int = 0
+    objections_raised: List[str] = Field(default_factory=list)
+    outcome: str = "unknown"
+    next_steps: List[str] = Field(default_factory=list)
+    recommended_tasks: List[Dict[str, Any]] = Field(default_factory=list)
+    transcript: str = ""
+    audio_url: Optional[str] = None
+    source: str = "external"
+    analyzed_at: Optional[str] = None
+
+
+@app.post("/api/sales-quality/ingest-analysis")
+async def ingest_sales_quality_analysis(data: SalesQualityAnalysisRequest):
+    """Store a real external call analysis result for the dashboard."""
+    expected_secret = os.environ.get("OISHA_API_SECRET")
+    if not expected_secret or data.secret_key != expected_secret:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+    if not db_instance:
+        return JSONResponse(status_code=503, content={"status": "error", "message": "Database not connected"})
+
+    score = max(0, min(int(data.overall_score), 100))
+    now = get_local_now().isoformat()
+    analyzed_at = data.analyzed_at or now
+    category = data.category or ("excellent" if score >= 90 else "good" if score >= 80 else "average" if score >= 60 else "poor")
+
+    conn = await db_instance.get_connection()
+    result = conn.execute(
+        """
+        INSERT OR REPLACE INTO call_analyses (
+            call_id, lead_id, manager_id, manager_name, client_name,
+            duration_seconds, overall_score, category, scores, summary,
+            strengths, weaknesses, client_mood, client_interest_level,
+            objections, outcome, next_steps, recommended_tasks,
+            transcript, audio_url, source, analyzed_at, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            data.call_id,
+            data.lead_id,
+            data.manager_id,
+            data.manager_name,
+            data.client_name,
+            max(int(data.duration_seconds or 0), 0),
+            score,
+            category,
+            json.dumps(data.scores, ensure_ascii=False),
+            data.summary,
+            json.dumps(data.strengths, ensure_ascii=False),
+            json.dumps(data.weaknesses, ensure_ascii=False),
+            data.client_mood,
+            max(0, min(int(data.client_interest_level or 0), 100)),
+            json.dumps(data.objections_raised, ensure_ascii=False),
+            data.outcome,
+            json.dumps(data.next_steps, ensure_ascii=False),
+            json.dumps(data.recommended_tasks, ensure_ascii=False),
+            data.transcript,
+            data.audio_url,
+            data.source,
+            analyzed_at,
+            now,
+        ),
+    )
+    if hasattr(result, "__await__"):
+        await result
+    commit = getattr(conn, "commit", None)
+    if callable(commit):
+        committed = commit()
+        if hasattr(committed, "__await__"):
+            await committed
+
+    return {"status": "ok", "call_id": data.call_id, "source": "real_call_analytics"}
 
 class CreateLeadRequest(BaseModel):
     name: str

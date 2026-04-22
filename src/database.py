@@ -250,6 +250,54 @@ class Database:
             await conn.execute("CREATE TABLE IF NOT EXISTS agent_actions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action_type TEXT, action_data TEXT, success BOOLEAN DEFAULT 1, created_at DATETIME)")
             await conn.execute("CREATE TABLE IF NOT EXISTS learned_facts (id INTEGER PRIMARY KEY AUTOINCREMENT, fact_key TEXT, fact_value TEXT, user_id INTEGER, created_at DATETIME)")
             await conn.execute("""
+                CREATE TABLE IF NOT EXISTS call_analyses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    call_id TEXT UNIQUE NOT NULL,
+                    lead_id INTEGER,
+                    manager_id INTEGER,
+                    manager_name TEXT,
+                    client_name TEXT,
+                    duration_seconds INTEGER DEFAULT 0,
+                    overall_score INTEGER,
+                    category TEXT,
+                    scores TEXT,
+                    summary TEXT,
+                    strengths TEXT,
+                    weaknesses TEXT,
+                    client_mood TEXT,
+                    client_interest_level INTEGER,
+                    objections TEXT,
+                    outcome TEXT,
+                    next_steps TEXT,
+                    recommended_tasks TEXT,
+                    transcript TEXT,
+                    audio_url TEXT,
+                    source TEXT DEFAULT 'external',
+                    analyzed_at TEXT,
+                    created_at TEXT
+                )
+            """)
+            call_analysis_cols = [
+                ("client_name", "TEXT"),
+                ("scores", "TEXT"),
+                ("transcript", "TEXT"),
+                ("audio_url", "TEXT"),
+                ("source", "TEXT DEFAULT 'external'"),
+                ("created_at", "TEXT"),
+            ]
+            existing_call_analysis_columns = await self._get_table_columns(conn, "call_analyses")
+            for col, col_type in call_analysis_cols:
+                if col in existing_call_analysis_columns:
+                    continue
+                try:
+                    await conn.execute(f"ALTER TABLE call_analyses ADD COLUMN {col} {col_type}")
+                    existing_call_analysis_columns.add(col)
+                except (aiosqlite.Error, sqlite3.Error, ValueError, RuntimeError) as exc:
+                    if _is_benign_schema_error(exc):
+                        existing_call_analysis_columns.add(col)
+                        continue
+                    raise
+            await conn.execute("""
                 CREATE TABLE IF NOT EXISTS service_checkpoints (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, 
                     external_id TEXT, 
@@ -328,6 +376,9 @@ class Database:
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_daily_plans_manager ON daily_plans(manager_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_daily_plans_date ON daily_plans(report_date)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_summaries_user ON chat_summaries(user_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_call_analyses_analyzed_at ON call_analyses(analyzed_at)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_call_analyses_manager ON call_analyses(manager_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_call_analyses_outcome ON call_analyses(outcome)")
             
             await conn.commit()
             logger.info("[DB] Async Base Ready.")
