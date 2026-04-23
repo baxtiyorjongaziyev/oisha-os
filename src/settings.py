@@ -102,6 +102,9 @@ class AppSettings(BaseSettings):
         for key, value in list(data.items()):
             if isinstance(value, str):
                 data[key] = value.strip()
+            elif hasattr(value, "get_secret_value"):
+                data[key] = value.get_secret_value().strip()
+                
         optional_keys = {
             "ADMIN_BOT_TOKEN",
             "DEEPSEEK_API_KEY",
