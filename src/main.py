@@ -50,7 +50,7 @@ import threading
 import src.config as config
 from src.services.core.session_manager import SessionManager
 from src.services.core.chat_bridge import ChatBridge
-from src.api_server import app as api_app
+# from src.api_server import app as api_app # Moved to main() to break circular imports
 import uvicorn
 from telethon import functions, types
 import random
@@ -1180,6 +1180,12 @@ async def run_health_check_api() -> None:
     
     Handles port conflicts gracefully by logging warnings instead of crashing.
     """
+    try:
+        from src.api_server import app as api_app
+    except ImportError:
+        logger.error("[API] Could not import api_app. Health check server will not start.")
+        return
+
     config_uvicorn = uvicorn.Config(api_app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)), log_level="info")
     server = uvicorn.Server(config_uvicorn)
     try:
