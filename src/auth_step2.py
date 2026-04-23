@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 load_dotenv()
 api_id = os.getenv('API_ID')
 api_hash = os.getenv('API_HASH')
-phone = '+998336450097'
-password = 'Telegram0097' # User provided this earlier
+phone = os.getenv('TELEGRAM_PHONE')
+password = os.getenv('TELEGRAM_PASSWORD')
 
 async def main():
     if len(sys.argv) < 2:

@@ -5,7 +5,7 @@ import os
 import random
 from typing import Dict, Any, Optional
 from telethon import TelegramClient, functions, types
-from src.services.debug.google_service import GoogleService
+from src.services.core.google_service import GoogleService
 from src.settings import settings
 from google import genai
 
