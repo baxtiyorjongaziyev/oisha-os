@@ -1,4 +1,5 @@
 import asyncio
+import hmac
 import uvicorn
 import json
 from datetime import datetime, timezone
@@ -34,12 +35,21 @@ static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# Enable CORS for AmoCRM
+# Enable CORS for AmoCRM and trusted domains
+_CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+] or [
+    "https://oisha.uz",
+    "https://www.oisha.uz",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # AmoCRM domains vary
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_CORS_ORIGINS,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    allow_credentials=True,
 )
 
 @app.get("/")
@@ -698,7 +708,7 @@ class SalesQualityAnalysisRequest(BaseModel):
 async def ingest_sales_quality_analysis(data: SalesQualityAnalysisRequest):
     """Store a real external call analysis result for the dashboard."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
-    if not expected_secret or data.secret_key != expected_secret:
+    if not expected_secret or not hmac.compare_digest(data.secret_key, expected_secret):
         return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
     if not db_instance:
         return JSONResponse(status_code=503, content={"status": "error", "message": "Database not connected"})
@@ -778,7 +788,7 @@ async def lifespan(app: FastAPI):
 async def lookup_user_by_phone(phone: str, secret_key: str):
     """AmoCRM mijoz telefoni orqali Telegram ID sini topish."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
-    if not expected_secret or secret_key != expected_secret:
+    if not expected_secret or not hmac.compare_digest(secret_key, expected_secret):
         return {"error": "Unauthorized"}
     
     if not db_instance:
@@ -793,7 +803,7 @@ async def lookup_user_by_phone(phone: str, secret_key: str):
 async def get_chat_history(user_id: int, secret_key: str):
     """Mijoz bilan shaxsiy suhbat tarixini widget uchun qaytarish."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
-    if not expected_secret or secret_key != expected_secret:
+    if not expected_secret or not hmac.compare_digest(secret_key, expected_secret):
         return {"error": "Unauthorized"}
     
     if not db_instance:
@@ -808,9 +818,9 @@ async def get_chat_history(user_id: int, secret_key: str):
 async def send_chat_message(request: SendMessageRequest):
     """AmoCRM widgetidan kelgan xabarni Telegramga yuborish (Queued)."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
-    if not expected_secret or request.secret_key != expected_secret:
+    if not expected_secret or not hmac.compare_digest(request.secret_key, expected_secret):
         return {"error": "Unauthorized"}
-    
+
     # Push to queue for Main Thread execution
     command_queue.put({
         "cmd": "send_message",
@@ -825,9 +835,9 @@ async def create_amo_lead(request: CreateLeadRequest):
     """Vebsaytdan kelgan leadni AmoCRM-ga yuborish."""
     global amocrm_instance
     expected_secret = os.environ.get("OISHA_API_SECRET")
-    if not expected_secret or request.secret_key != expected_secret:
+    if not expected_secret or not hmac.compare_digest(request.secret_key, expected_secret):
         return {"error": "Unauthorized"}
-    
+
     if not amocrm_instance:
         amocrm_instance = AmoCRMSync(
             subdomain=settings.AMOCRM_SUBDOMAIN,
