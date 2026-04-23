@@ -1604,12 +1604,6 @@ async def main():
                 # AI tahlilini PTB botga yoki ichki handlerga yo'naltirish
                 # Hozircha oddiy tasdiq va AI Assistant orqali tahlilni boshlaymiz
                 await event.respond("👸 **Oisha:** Vazifa qabul qilindi. AI assistant tahlil qilmoqda... 👸🛡️")
-                
-                # Import here to avoid circular imports
-                from src.services.debug.userbot_legacy import task_command
-                # Create a mock update/context if needed, or just run the logic
-                # For simplicity, we assume the PTB bot in userbot_legacy is also running and will pick this up
-                # If not, we could implement a unified handler here.
 
             @bot_client.on(events.NewMessage(pattern='/audit'))
             async def audit_command_handler(event):
