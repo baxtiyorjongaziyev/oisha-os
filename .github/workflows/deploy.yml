@@ -35,7 +35,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio
+          pip install pytest pytest-asyncio bandit
+
+      - name: Security scan (bandit)
+        run: |
+          bandit -r src/ -ll -x src/services/debug/ --quiet || true
 
       - name: Compile critical runtime files
         run: |
