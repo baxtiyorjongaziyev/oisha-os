@@ -154,3 +154,4 @@ async def get_db_connection():
         yield conn
     finally:
         pass # Pool handles persistence
+db_pool = DatabasePool()
