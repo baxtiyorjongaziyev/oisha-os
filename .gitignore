@@ -1,6 +1,7 @@
 # Environment & Virtual Environments
 .env
 .env.*
+!.env.example
 .venv/
 .venv_oi/
 env/
@@ -58,6 +59,7 @@ Icon?
 *.log
 *.txt
 !requirements.txt
+!requirements-dev.txt
 logs/
 audit/
 out/
@@ -77,6 +79,9 @@ data/synced_contacts.txt
 oisha_audit.docx
 oisha_deploy.zip
 oisha_widget_v1.zip
+
+# Debug scripts (contain sensitive SSH/VPS operations - not for version control)
+src/services/debug/
 
 # Custom Filters
 !src/**/*.py
