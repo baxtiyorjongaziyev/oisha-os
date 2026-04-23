@@ -10,10 +10,10 @@ api_id = os.getenv('API_ID')
 api_hash = os.getenv('API_HASH')
 
 async def main():
-    phone = '+998336450097'
-    code = '21614'
-    hash = 'a3a37c2c414758ddaa'
-    password = 'Telegram0097'
+    phone = os.getenv('TELEGRAM_PHONE')
+    code = os.getenv('TELEGRAM_CODE')
+    hash = os.getenv('TELEGRAM_HASH')
+    password = os.getenv('TELEGRAM_PASSWORD')
     
     client = TelegramClient(StringSession(), int(api_id), api_hash)
     await client.connect()
