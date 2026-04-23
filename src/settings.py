@@ -18,7 +18,7 @@ structlog.configure(
 )
 
 class AppSettings(BaseSettings):
-    OWNER_ID: int = 150074828
+    OWNER_ID: int = 0
     WHITELIST_IDS: list[int] = Field(default_factory=list)
     ENABLE_AUTO_REPLY: bool = False
     AUTORUN_MASS_SYNC: bool = True
