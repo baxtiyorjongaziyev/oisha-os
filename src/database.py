@@ -385,10 +385,17 @@ class Database:
             if hasattr(config, 'OWNER_ID'):
                 await self.ensure_owner_admin(int(config.OWNER_ID))
 
+    _ALLOWED_TABLES = frozenset({
+        "users", "messages", "message_logs", "tasks", "crm_sync_status",
+        "call_analyses", "advisor_logs", "team_reports", "daily_plans",
+        "chat_summaries", "user_intelligence", "kv_settings",
+    })
+
     async def _get_table_columns(self, conn, table_name: str) -> set[str]:
-        safe_name = table_name.replace("'", "''")
+        if table_name not in self._ALLOWED_TABLES:
+            raise ValueError(f"Unknown table: {table_name!r}")
         async with conn.execute(
-            f"SELECT name FROM pragma_table_info('{safe_name}')"
+            "SELECT name FROM pragma_table_info(?)", (table_name,)
         ) as cursor:
             rows = await cursor.fetchall()
         return {str(row[0]) for row in rows if row and row[0]}
