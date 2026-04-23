@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-23 06:59 UTC | ✅ main `4471a2b`
+
+**Commit**: fix(core): resolve circular imports, enable cloud userbot, and harden secret sanitization
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00127-lob
+
+---
+
 ## 2026-04-22 10:43 UTC | 🔴 main `4f95854`
 
 **Commit**: fix: ROOT CAUSE - strip trailing newlines from Turso secrets and restore health checks
