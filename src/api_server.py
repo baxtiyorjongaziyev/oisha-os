@@ -28,7 +28,13 @@ from src.time_utils import get_local_now
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("OishaAPI")
 
+# Global Bridges
+user_client = None
+db_instance = None
+msg_controller = None
+
 app = FastAPI(title="Oisha-OS Enterprise API")
+
 
 
 def _setting_text(value: Any) -> str:
@@ -150,7 +156,15 @@ async def liveness_probe():
     else:
         checks["db_ok"] = True
 
+    # Check runtime flag, but fallback to live check if we have a client reference
     userbot_authorized = runtime.get("userbot_authorized", False)
+    if not userbot_authorized and user_client:
+        try:
+            # Quick check if connected and authorized
+            userbot_authorized = await user_client.is_user_authorized()
+        except Exception:
+            userbot_authorized = False
+
     
     # Cloud Run status check
     telegram_bot_ok = True
@@ -162,7 +176,19 @@ async def liveness_probe():
         telegram_bot_ok = userbot_authorized
         checks["telegram_bot"] = userbot_authorized
 
-    crm_ok = True if control_plane_mode else bool(runtime.get("crm_connected", False))
+    # Check CRM connectivity
+    crm_ok = False
+    if msg_controller and hasattr(msg_controller, 'crm') and msg_controller.crm:
+        try:
+            # Check if AmoCRM is actually responding
+            crm_ok = await msg_controller.crm.amocrm.check_connection()
+        except Exception:
+            crm_ok = False
+    elif control_plane_mode:
+        crm_ok = True
+    else:
+        crm_ok = bool(runtime.get("crm_connected", False))
+
     
     # Decouple functional problems from HTTP 200 health
     # This prevents Cloud Run from killing the container during long startup/sync phases
