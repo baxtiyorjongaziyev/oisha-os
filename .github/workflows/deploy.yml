@@ -198,11 +198,27 @@ jobs:
               return 0
             fi
 
-            gcloud run services update-traffic "${SERVICE_NAME}" \
+            local cleanup_output
+            if cleanup_output="$(gcloud run services update-traffic "${SERVICE_NAME}" \
               --region "${REGION}" \
               --project "${PROJECT_ID}" \
               --remove-tags "${stale_tags}" \
-              --quiet
+              --quiet 2>&1)"; then
+              return 0
+            fi
+
+            stale_tags="$(gcloud run services describe "${SERVICE_NAME}" \
+              --region "${REGION}" \
+              --project "${PROJECT_ID}" \
+              --format=json | python -c 'import json, sys; data=json.load(sys.stdin); tags=[entry.get("tag", "") for entry in data.get("status", {}).get("traffic", [])]; print(",".join(tag for tag in tags if tag.startswith("sha-") or tag.startswith("debug")))')"
+            if [[ -z "${stale_tags}" ]]; then
+              echo "${cleanup_output}"
+              echo "Generated traffic tags were removed despite a non-zero cleanup response; continuing."
+              return 0
+            fi
+
+            echo "${cleanup_output}"
+            return 1
           }
 
           cleanup_legacy_userbot_secret_binding() {
