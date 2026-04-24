@@ -25,7 +25,7 @@ if ! command -v openclaw &>/dev/null; then
     npm install -g openclaw@latest
     echo "[OK] OpenClaw o'rnatildi"
 else
-    echo "[OK] OpenClaw allaqachon o'rnatilgan: $(openclaw --version 2>/dev/null || echo 'noma`lum')"
+    echo "[OK] OpenClaw: $(openclaw --version 2>/dev/null || echo 'noma`lum')"
 fi
 
 # ── 3. Workspace yaratish ─────────────────────────────────────────────────────
@@ -33,7 +33,6 @@ echo "[...] Workspace sozlanmoqda: $WORKSPACE"
 mkdir -p "$WORKSPACE/skills/oisha-crm"
 mkdir -p "$WORKSPACE/skills/oisha-web"
 
-# Fayllarni nusxalash
 cp "$OPENCLAW_DIR/workspace/SOUL.md"   "$WORKSPACE/SOUL.md"
 cp "$OPENCLAW_DIR/workspace/AGENTS.md" "$WORKSPACE/AGENTS.md"
 cp "$OPENCLAW_DIR/workspace/skills/oisha-crm/SKILL.md" \
@@ -47,89 +46,81 @@ OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
 mkdir -p "$HOME/.openclaw"
 
 if [ ! -f "$OPENCLAW_CONFIG" ]; then
-    # Muhit o'zgaruvchilari o'rniga real qiymatlar bilan config yaratish
-    OISHA_URL="${OISHA_API_URL:-http://localhost:8080}"
     OC_SECRET="${OPENCLAW_SECRET:-$(openssl rand -hex 32)}"
 
-    cat > "$OPENCLAW_CONFIG" <<EOF
-{
-  "agent": {
-    "model": "google/gemini-2.0-flash",
-    "workspaceRoot": "$WORKSPACE"
-  },
-  "gateway": {
-    "port": 18789,
-    "webhook": {
-      "url": "$OISHA_URL/webhook/openclaw",
-      "secret": "$OC_SECRET",
-      "signatureHeader": "x-openclaw-signature"
-    }
-  },
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "token": "${TELEGRAM_BOT_TOKEN:-YOUR_BOT_TOKEN_HERE}",
-      "dmPolicy": "open"
-    },
-    "whatsapp": {
-      "enabled": false,
-      "dmPolicy": "open"
-    },
-    "slack": {
-      "enabled": false,
-      "dmPolicy": "open"
-    },
-    "discord": {
-      "enabled": false,
-      "dmPolicy": "open"
-    }
-  },
-  "agents": {
-    "defaults": {
-      "sandbox": {
-        "mode": "non-main"
-      }
-    }
-  },
-  "skills": ["oisha-crm", "oisha-web"]
-}
-EOF
+    sed \
+      -e "s|~/.openclaw/workspace/oisha|$WORKSPACE|g" \
+      "$OPENCLAW_DIR/openclaw.json" > "$OPENCLAW_CONFIG"
+
     echo "[OK] openclaw.json yaratildi: $OPENCLAW_CONFIG"
     echo ""
-    echo "[MUHIM] Quyidagi tokenlarni $OPENCLAW_CONFIG fayliga qo'shing:"
-    echo "  - TELEGRAM_BOT_TOKEN"
-    echo "  - OISHA_API_URL (masalan: https://your-service.run.app)"
-    echo "  - OPENCLAW_SECRET (yaratilgan: $OC_SECRET)"
-    echo ""
-    echo "  OPENCLAW_SECRET ni .env ga ham qo'shing:"
+    echo "[MUHIM] Quyidagi muhit o'zgaruvchilarini .env ga qo'shing:"
+    echo "  GEMINI_API_KEY=<Google AI Studio dan oling>"
     echo "  OPENCLAW_SECRET=$OC_SECRET"
+    echo "  OISHA_API_URL=https://your-service.run.app"
+    echo "  TELEGRAM_BOT_TOKEN=<ixtiyoriy>"
 else
     echo "[OK] openclaw.json allaqachon mavjud: $OPENCLAW_CONFIG"
 fi
 
-# ── 5. Daemon o'rnatish (ixtiyoriy) ──────────────────────────────────────────
-echo ""
-read -r -p "OpenClaw daemon o'rnatilsinmi? (y/N): " INSTALL_DAEMON
-if [[ "$INSTALL_DAEMON" =~ ^[Yy]$ ]]; then
-    openclaw onboard --install-daemon
-    echo "[OK] Daemon o'rnatildi"
+# ── 5. Auth profiles ──────────────────────────────────────────────────────────
+AUTH_FILE="$HOME/.openclaw/agents/main/agent/auth-profiles.json"
+mkdir -p "$(dirname "$AUTH_FILE")"
+
+if [ ! -f "$AUTH_FILE" ] && [ -n "${GEMINI_API_KEY:-}" ]; then
+    cat > "$AUTH_FILE" <<EOF
+{
+  "profiles": {
+    "default": {
+      "providers": {
+        "google": {
+          "apiKey": "${GEMINI_API_KEY}"
+        }
+      }
+    }
+  },
+  "default": "default"
+}
+EOF
+    echo "[OK] auth-profiles.json yaratildi (Gemini)"
 fi
 
-# ── 6. Tekshiruv ─────────────────────────────────────────────────────────────
+# ── 6. Config tekshiruvi ──────────────────────────────────────────────────────
+echo ""
+echo "[...] Config tekshirilmoqda..."
+openclaw config validate 2>&1 && echo "[OK] Config valid" || echo "[OGOHLANTIRISH] Config muammosi bor"
+
+# ── 7. Oisha-OS API server ────────────────────────────────────────────────────
+echo ""
+OISHA_URL="${OISHA_API_URL:-http://localhost:8080}"
+if curl -sf "$OISHA_URL/webhook/openclaw/health" &>/dev/null; then
+    echo "[OK] Oisha-OS API ishlayapti: $OISHA_URL"
+else
+    echo "[OGOHLANTIRISH] Oisha-OS API ishlamayapti ($OISHA_URL)"
+    echo "  Avval Oisha-OS ni ishga tushiring:"
+    echo "  python -m uvicorn src.api_server:app --host 0.0.0.0 --port 8080"
+fi
+
+# ── 8. Kanal qo'shish (ixtiyoriy) ────────────────────────────────────────────
 echo ""
 echo "=== O'rnatish tugadi ==="
 echo ""
-echo "Ishga tushirish:"
-echo "  openclaw gateway --port 18789 --verbose"
+echo "Gateway ishga tushirish:"
+echo "  openclaw gateway --port 18789"
 echo ""
-echo "Oisha-OS webhook holati:"
-echo "  curl ${OISHA_API_URL:-http://localhost:8080}/webhook/openclaw/health"
-echo ""
-echo "Kanal ulash (Telegram misol):"
-echo "  openclaw channel add telegram --token YOUR_BOT_TOKEN"
+echo "Telegram kanali ulash:"
+echo "  openclaw channels add telegram --token \$TELEGRAM_BOT_TOKEN"
 echo ""
 echo "WhatsApp ulash:"
-echo "  openclaw channel add whatsapp"
+echo "  openclaw channels add whatsapp"
 echo ""
 echo "Slack ulash:"
-echo "  openclaw channel add slack"
+echo "  openclaw channels add slack"
+echo ""
+echo "Agent test:"
+echo "  openclaw agent --message 'salom' --session-id oisha-main"
+echo ""
+echo "Oisha-OS webhook test:"
+echo "  curl -X POST $OISHA_URL/webhook/openclaw \\"
+echo "    -H 'Content-Type: application/json' \\"
+echo "    -d '{\"text\":\"salom\",\"sender\":\"test\",\"sender_id\":\"1\",\"channel\":\"slack\"}'"
