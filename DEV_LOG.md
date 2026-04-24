@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-24 19:36 UTC | ⚠️ main `6a1759e`
+
+**Commit**: fix(ci): tolerate completed Cloud Run tag cleanup
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
 ## 2026-04-24 19:29 UTC | ⚠️ main `994359c`
 
 **Commit**: fix(cloud): skip userbot session in control plane
