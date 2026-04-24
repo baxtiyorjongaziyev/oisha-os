@@ -82,27 +82,31 @@ class AmoCRMSync:
             "refresh_token": self.token_data.get("refresh_token", ""),
             "redirect_uri": self.redirect_url,
         }
-        
-        try:
-            response = requests.post(url, json=data) # Trying JSON as it's more modern
-            if response.status_code == 400: # If JSON fails, fallback to standard data
-                response = requests.post(url, data=data)
 
-            else:
-                resp_json = {}
-                try: resp_json = response.json()
-                except: pass
-                
-                error_msg = resp_json.get("detail", response.text)
-                print(f"!!! AMOCRM REFRESH FAILED: {response.status_code} - {error_msg}")
-                logger.error(f"[AMOCRM ERROR] Token yangilashda xato: {error_msg}")
-                if response.status_code == 401:
-                    logger.critical("🆘 AMOCRM AUTH EXPIRED: Yangi Auth Code kerak!")
-                return False
+        try:
+            response = requests.post(url, json=data, timeout=30)
+            if response.status_code == 400:
+                response = requests.post(url, data=data, timeout=30)
+
+            if response.status_code == 200:
+                self._save_token(response.json())
+                logger.info("[AMOCRM OK] Access token refreshed successfully.")
+                return True
+
+            resp_json = {}
+            try:
+                resp_json = response.json()
+            except Exception:
+                pass
+
+            error_msg = resp_json.get("detail") or resp_json.get("title") or response.text
+            logger.error(f"[AMOCRM ERROR] Token yangilashda xato: {error_msg}")
+            if response.status_code == 401:
+                logger.critical("[AMOCRM AUTH EXPIRED] Yangi authorization code kerak.")
+            return False
         except Exception as e:
             logger.error(f"[AMOCRM ERROR] Request yuborishda xato: {e}")
             return False
-
     def authorize_initial(self, auth_code):
         """Birinchi marta kod yordamida token olish."""
         url = f"{self.base_url}/oauth2/access_token"
