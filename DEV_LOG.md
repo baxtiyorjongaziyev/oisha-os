@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-24 19:08 UTC | ⚠️ main `3d75d3f`
+
+**Commit**: fix(ci): prune stale Cloud Run traffic tags
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: Deploying container to Cloud Run service [oisha-master-bot] in project [jonbranding-85662071-ea38e] region [europe-west3] Deploying... failed Deployment failed ERROR: (gcloud.run.deploy) Cannot update environment variable [ENABLE_CLOUD_USERBOT] to string literal because it has already been set with a different type. 
+
+---
+
 ## 2026-04-24 18:59 UTC | ⚠️ main `f7c72fe`
 
 **Commit**: fix(cloud): keep Cloud Run control-plane healthy-only
