@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-24 09:19 UTC | 🔴 main `47785fe`
+
+**Commit**: fix: robust boolean parsing for BOM-confused secrets
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-04-24 08:52 UTC | 🔴 main `982c006`
 
 **Commit**: Merge branch 'main' of https://github.com/baxtiyorjongaziyev/oisha-os
