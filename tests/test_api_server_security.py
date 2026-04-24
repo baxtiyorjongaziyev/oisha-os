@@ -60,6 +60,7 @@ class TestAPISecurity:
         assert "db_ok" in content
         assert "healthy = True" not in content
         assert "healthy = not problems and db_ok and telegram_bot_ok and crm_ok" in content
+        assert '"crm_required": not control_plane_mode' in content
 
     def test_database_pool_has_no_hardcoded_turso_token(self):
         """Turso token must come from environment/Secret Manager, never source code."""
