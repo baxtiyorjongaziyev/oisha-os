@@ -1477,6 +1477,112 @@ async def get_daily_report():
         logger.error(f"[API AI] Daily report error: {e}")
         return {"status": "error", "message": str(e)}
 
+# ─── OPENAI-COMPATIBLE ENDPOINT (OpenClaw model backend) ─────────────────────
+
+@app.get("/v1/models")
+async def list_models():
+    """OpenAI-compatible model list — OpenClaw uses this to discover oisha-os."""
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "oisha-agent",
+                "object": "model",
+                "created": 1700000000,
+                "owned_by": "oisha-os",
+            }
+        ],
+    }
+
+
+@app.post("/v1/chat/completions")
+async def chat_completions(request: Request):
+    """
+    OpenAI-compatible chat completions endpoint.
+
+    OpenClaw bu endpointga barcha kanal xabarlarini yuboradi,
+    Oisha agenti qayta ishlaydi va OpenAI formatida javob qaytaradi.
+    """
+    data = await request.json()
+
+    messages = data.get("messages", [])
+    session_id = data.get("user", "openclaw-main")
+    stream = data.get("stream", False)
+
+    # Oxirgi user xabarini olish
+    user_text = ""
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            content = msg.get("content", "")
+            user_text = content if isinstance(content, str) else str(content)
+            break
+
+    if not user_text:
+        user_text = "salom"
+
+    logger.info(f"[OpenAI-compat] session={session_id} msg={user_text[:60]}")
+
+    try:
+        from src.openclaw_bridge import handle_openclaw_message
+        reply = await handle_openclaw_message(
+            text=user_text,
+            sender=session_id,
+            sender_id=session_id,
+            channel="openclaw",
+            session=session_id,
+            db=db_instance,
+            metadata={"source": "openai-compat"},
+        )
+    except Exception as exc:
+        logger.error(f"[OpenAI-compat] Agent xatosi: {exc}")
+        reply = "Kechirasiz, texnik muammo yuz berdi."
+
+    import time
+    completion_id = f"chatcmpl-oisha-{int(time.time())}"
+
+    if stream:
+        # Stream formatida javob
+        from fastapi.responses import StreamingResponse
+        async def event_stream():
+            chunk = {
+                "id": completion_id,
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": "oisha-agent",
+                "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply}, "finish_reason": None}],
+            }
+            yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+            done = {
+                "id": completion_id,
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": "oisha-agent",
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            }
+            yield f"data: {json.dumps(done)}\n\n"
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+    return {
+        "id": completion_id,
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": "oisha-agent",
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": reply},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": len(user_text.split()),
+            "completion_tokens": len(reply.split()),
+            "total_tokens": len(user_text.split()) + len(reply.split()),
+        },
+    }
+
+
 def run_api(host: str = "0.0.0.0", port: int = 8080):
     uvicorn.run(app, host=host, port=port)
 
