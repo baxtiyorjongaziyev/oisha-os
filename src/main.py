@@ -1296,9 +1296,15 @@ async def main():
     await db.init_instance()
     msg_controller = MessageController(api_keys=api_keys, db=db)
     
+    def _parse_bool(val: str) -> bool:
+        if not val: return False
+        # Remove BOM and other invisible junk
+        clean = val.replace("\ufeff", "").strip().lower()
+        return clean in {"1", "true", "yes", "on"}
+
     cloud_control_plane = bool(os.getenv("K_SERVICE"))
-    enable_cloud_userbot = os.getenv("ENABLE_CLOUD_USERBOT", "").strip().lower() in {"1", "true", "yes", "on"}
-    force_control_plane_only = os.getenv("CLOUD_RUN_CONTROL_PLANE_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}
+    enable_cloud_userbot = _parse_bool(os.getenv("ENABLE_CLOUD_USERBOT", ""))
+    force_control_plane_only = _parse_bool(os.getenv("CLOUD_RUN_CONTROL_PLANE_ONLY", ""))
     cloud_control_plane_only = force_control_plane_only or (cloud_control_plane and not enable_cloud_userbot)
 
     # [GOD MODE] Authorized Session Discovery
