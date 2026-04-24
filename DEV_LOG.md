@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-24 19:22 UTC | ⚠️ main `14701c9`
+
+**Commit**: fix(cloud): clean legacy userbot binding before deploy
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
 ## 2026-04-24 19:08 UTC | ⚠️ main `3d75d3f`
 
 **Commit**: fix(ci): prune stale Cloud Run traffic tags
