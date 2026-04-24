@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-24 19:51 UTC | ✅ main `ea1ad40`
+
+**Commit**: fix(health): do not gate control plane on CRM OAuth
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00152-pow
+
+---
+
 ## 2026-04-24 19:43 UTC | ⚠️ main `de707c9`
 
 **Commit**: fix(agent): implement autonomous sales task adapter
