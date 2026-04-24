@@ -205,6 +205,25 @@ jobs:
               --quiet
           }
 
+          cleanup_legacy_userbot_secret_binding() {
+            local userbot_binding_type
+            userbot_binding_type="$(gcloud run services describe "${SERVICE_NAME}" \
+              --region "${REGION}" \
+              --project "${PROJECT_ID}" \
+              --format=json | python -c 'import json, sys; data=json.load(sys.stdin); envs=data.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [{}])[0].get("env", []); target=next((env for env in envs if env.get("name") == "ENABLE_CLOUD_USERBOT"), {}); print("secret" if target.get("valueFrom") else ("literal" if "value" in target else "missing"))')"
+
+            if [[ "${userbot_binding_type}" != "secret" ]]; then
+              return 0
+            fi
+
+            gcloud run services update "${SERVICE_NAME}" \
+              --region "${REGION}" \
+              --project "${PROJECT_ID}" \
+              --remove-secrets ENABLE_CLOUD_USERBOT \
+              --no-traffic \
+              --quiet
+          }
+
           PREVIOUS_TRAFFIC_REVISION="$(gcloud run services describe "${SERVICE_NAME}" \
             --region "${REGION}" \
             --project "${PROJECT_ID}" \
@@ -241,6 +260,14 @@ jobs:
           TAG_CLEANUP_RC=$?
           if [[ ${TAG_CLEANUP_RC} -ne 0 ]]; then
             FAILURE_REASON="traffic tag cleanup failed: $(echo "${TAG_CLEANUP_OUTPUT}" | tr '\n' ' ' | cut -c1-500)"
+            write_outputs
+            exit 0
+          fi
+
+          USERBOT_BINDING_CLEANUP_OUTPUT="$(cleanup_legacy_userbot_secret_binding 2>&1)"
+          USERBOT_BINDING_CLEANUP_RC=$?
+          if [[ ${USERBOT_BINDING_CLEANUP_RC} -ne 0 ]]; then
+            FAILURE_REASON="userbot secret binding cleanup failed: $(echo "${USERBOT_BINDING_CLEANUP_OUTPUT}" | tr '\n' ' ' | cut -c1-500)"
             write_outputs
             exit 0
           fi
