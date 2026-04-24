@@ -4,6 +4,7 @@ from database import Database
 async def test_crm():
     db = Database("bot_database.db")
     try:
+        await db.init_db()
         info = await db.get_user_info(999111222)
         print("User info:", info)
         assert info is None or isinstance(info, dict)
