@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-24 06:23 UTC | 🔴 main `2a26689`
+
+**Commit**: eagle(fix): activate userbot on cloud run and ensure db_pool export
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-04-24 06:21 UTC | ⚠️ main `242157e`
 
 **Commit**: ci(deploy): capture rollout failures without aborting
