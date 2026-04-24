@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-24 11:01 UTC | ⚠️ main `d33344e`
+
+**Commit**: fix: safely handle fetchall returning None in DatabasePool
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: Deploying container to Cloud Run service [oisha-master-bot] in project [jonbranding-85662071-ea38e] region [europe-west3] Deploying... failed Deployment failed ERROR: (gcloud.run.d
+
+---
+
 ## 2026-04-24 10:54 UTC | 🔴 main `38b8591`
 
 **Commit**: fix: update test_connection_pool.py to test the new DatabasePool logic
