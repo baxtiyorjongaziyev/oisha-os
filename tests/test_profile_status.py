@@ -13,14 +13,17 @@ async def test_logic():
     print("Test 2: With history ->", check_status_injection([("user", "hi")]))
     
     db = Database("bot_database.db")
-    await db.init_db()
-    # Simulate upserting a new user
-    sender_id = 999333444
-    await db.upsert_user(sender_id, "Ahror", "ahror99")
-    
-    # 2. Status olish
-    user_info = await db.get_user_info(sender_id)
-    print("Upserted user info:", user_info)
+    try:
+        await db.init_db()
+        # Simulate upserting a new user
+        sender_id = 999333444
+        await db.upsert_user(sender_id, "Ahror", "ahror99")
+        
+        # 2. Status olish
+        user_info = await db.get_user_info(sender_id)
+        print("Upserted user info:", user_info)
+    finally:
+        await db.close()
 
 if __name__ == "__main__":
     asyncio.run(test_logic())
