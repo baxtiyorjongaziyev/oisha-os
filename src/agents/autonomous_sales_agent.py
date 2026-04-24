@@ -77,9 +77,15 @@ class AutonomousSalesAgent(BaseAgent):
     """
 
     def __init__(self, db=None):
+        api_keys: Dict[str, str] = {}
+        try:
+            api_keys["gemini"] = settings.GEMINI_API_KEY.get_secret_value()
+        except Exception:
+            api_keys = {}
+
         super().__init__(
-            name="SurgicalCloser",
-            system_instruction="""Siz "Oisha-OS Surgical Closer"siz - Jon.Branding agentligining
+            agent_id="SurgicalCloser",
+            system_prompt="""Siz "Oisha-OS Surgical Closer"siz - Jon.Branding agentligining
             avtonom savdo agenti. Vazifangiz:
 
             1. Mijoz ehtiyojlarini aniqlang (Qualification)
@@ -93,12 +99,30 @@ class AutonomousSalesAgent(BaseAgent):
    - Narxni qiymat bilan asoslang
             - Vaqt chegaralarini hurmat qiling
             - Kimyoviy tortishish (rapport) yaratib, professional qoling
-            """
+            """,
+            api_keys=api_keys,
+            db=db,
         )
         self.db = db
         self.conversations: Dict[str, ConversationState] = {}
         self.pricing_engine = PricingEngine()
         self.negotiation = NegotiationEngine()
+
+    async def process_task(
+        self,
+        user_id: int,
+        task_description: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """BaseAgent adapter: route orchestrator tasks into the sales conversation flow."""
+        context = context or {}
+        result = await self.handle_incoming(
+            user_id=str(user_id),
+            message=task_description,
+            crm_data=context,
+            autonomy_level=context.get("autonomy_level", "assisted"),
+        )
+        return str(result.get("response") or "")
         
     async def handle_incoming(
         self,
