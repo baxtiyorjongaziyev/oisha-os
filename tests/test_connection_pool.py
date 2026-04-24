@@ -1,248 +1,102 @@
 """
 Unit tests for database connection pooling.
-Tests: Pool creation, connection acquisition, SQLite optimizations.
+Tests: DatabasePool singleton, SmartRow behavior, and execution via libsql.
 """
 import pytest
 import asyncio
-import os
-import tempfile
-import sys
 from unittest.mock import patch, MagicMock
+
+import sys
+import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
+from database_pool import DatabasePool, SmartRow, get_db_connection
 
-class TestConnectionPool:
-    """Test connection pool functionality."""
 
-    @pytest.fixture
-    async def temp_pool(self):
-        """Create a temporary connection pool."""
-        from database_pool import ConnectionPool, PoolConfig
+class TestSmartRow:
+    """Test the SmartRow dict/list hybrid class."""
+    
+    def test_smart_row_dict_access(self):
+        row = SmartRow([1, "Alice"], ["id", "name"])
+        assert row["id"] == 1
+        assert row["name"] == "Alice"
+        assert row.get("id") == 1
         
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = os.path.join(tmpdir, "test.db")
-            
-            pool = ConnectionPool(
-                sqlite_path=db_path,
-                config=PoolConfig(min_size=2, max_size=5)
-            )
-            await pool.initialize()
-            
-            yield pool
-            
-            await pool.close()
-
-    @pytest.mark.asyncio
-    async def test_pool_initialization(self, temp_pool):
-        """Test that pool initializes successfully."""
-        assert temp_pool._pool is not None
-        assert temp_pool._is_postgres is False
-
-    @pytest.mark.asyncio
-    async def test_connection_acquisition(self, temp_pool):
-        """Test acquiring connections from pool."""
-        async with temp_pool.acquire() as conn:
-            assert conn is not None
-            
-            # Test connection works
-            from database_pool import HAS_SQLITE
-            if HAS_SQLITE:
-                import aiosqlite
-                if isinstance(conn, aiosqlite.Connection):
-                    async with conn.execute("SELECT 1") as cursor:
-                        result = await cursor.fetchone()
-                        assert result[0] == 1
-
-    @pytest.mark.asyncio
-    async def test_multiple_connections(self, temp_pool):
-        """Test acquiring multiple concurrent connections."""
-        connections = []
+    def test_smart_row_index_access(self):
+        row = SmartRow([1, "Alice"], ["id", "name"])
+        assert row[0] == 1
+        assert row[1] == "Alice"
         
-        # Acquire multiple connections
-        for _ in range(3):
-            conn = await temp_pool._pool.acquire()
-            connections.append(conn)
+    def test_smart_row_keys(self):
+        row = SmartRow([1, "Alice"], ["id", "name"])
+        assert list(row.keys()) == ["id", "name"]
+
+
+class TestDatabasePool:
+    """Test the DatabasePool singleton."""
+
+    @pytest.fixture(autouse=True)
+    def reset_singleton(self):
+        # Reset the singleton state before each test
+        DatabasePool._instance = None
+        DatabasePool._connection = None
+
+    @patch("database_pool.libsql.connect")
+    def test_singleton_instance(self, mock_connect):
+        pool1 = DatabasePool()
+        pool2 = DatabasePool()
+        assert pool1 is pool2
+
+    @patch("database_pool.libsql.connect")
+    @patch("database_pool._setting_text")
+    def test_get_connection_auth(self, mock_setting, mock_connect):
+        # Setup mocks
+        mock_setting.side_effect = ["https://mock.turso.io", "mock-token"]
         
-        # Verify all are different connections
-        assert len(set(id(c) for c in connections)) == 3
+        mock_conn = MagicMock()
+        mock_connect.return_value = mock_conn
         
-        # Release them
-        for conn in connections:
-            await temp_pool._pool.release(conn)
+        pool = DatabasePool()
+        conn = pool.get_connection()
+        
+        assert conn is mock_conn
+        mock_connect.assert_called_once_with("https://mock.turso.io", auth_token="mock-token")
+        
+        # Second call should reuse the connection
+        conn2 = pool.get_connection()
+        assert conn2 is mock_conn
+        assert mock_connect.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_connection_reuse(self, temp_pool):
-        """Test that connections are reused."""
-        # Acquire and release
-        conn1 = await temp_pool._pool.acquire()
-        conn1_id = id(conn1)
-        await temp_pool._pool.release(conn1)
+    @patch("database_pool.libsql.connect")
+    async def test_execute_query(self, mock_connect):
+        mock_conn = MagicMock()
+        mock_res = MagicMock()
+        mock_res.columns = ["id", "val"]
+        mock_res.fetchall.return_value = [(1, "A"), (2, "B")]
+        mock_conn.execute.return_value = mock_res
+        mock_connect.return_value = mock_conn
         
-        # Acquire again - should potentially reuse
-        conn2 = await temp_pool._pool.acquire()
+        pool = DatabasePool()
         
-        # Release
-        await temp_pool._pool.release(conn2)
+        rows = await pool.execute("SELECT * FROM test WHERE val = ?", ["A"])
+        
+        assert len(rows) == 2
+        assert isinstance(rows[0], SmartRow)
+        assert rows[0]["id"] == 1
+        assert rows[0]["val"] == "A"
+        assert rows[0][0] == 1
+        assert rows[1]["val"] == "B"
 
     @pytest.mark.asyncio
-    async def test_execute_query(self, temp_pool):
-        """Test executing queries through pool."""
-        # Create a test table
-        await temp_pool.execute(
-            "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, name TEXT)"
-        )
+    @patch("database_pool.libsql.connect")
+    async def test_get_db_connection_context(self, mock_connect):
+        mock_conn = MagicMock()
+        mock_connect.return_value = mock_conn
         
-        # Insert data
-        await temp_pool.execute(
-            "INSERT INTO test (name) VALUES (?)",
-            "test_name"
-        )
-        
-        # Fetch
-        result = await temp_pool.fetchone(
-            "SELECT * FROM test WHERE name = ?",
-            "test_name"
-        )
-        
-        assert result is not None
-        assert result['name'] == 'test_name'
-
-    @pytest.mark.asyncio
-    async def test_fetchall(self, temp_pool):
-        """Test fetching multiple rows."""
-        # Create table and insert data
-        await temp_pool.execute(
-            "CREATE TABLE IF NOT EXISTS test_fetch (id INTEGER PRIMARY KEY, val INTEGER)"
-        )
-        
-        for i in range(5):
-            await temp_pool.execute(
-                "INSERT INTO test_fetch (val) VALUES (?)", i
-            )
-        
-        # Fetch all
-        results = await temp_pool.fetchall(
-            "SELECT * FROM test_fetch ORDER BY val"
-        )
-        
-        assert len(results) == 5
-        for i, row in enumerate(results):
-            assert row['val'] == i
-
-
-class TestSQLitePool:
-    """Test SQLite-specific pool features."""
-
-    @pytest.mark.asyncio
-    async def test_wal_mode_enabled(self):
-        """Test that WAL mode is enabled for SQLite."""
-        from database_pool import SQLiteConnectionPool
-        
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = os.path.join(tmpdir, "wal_test.db")
-            pool = SQLiteConnectionPool(db_path, max_connections=3)
-            await pool.initialize()
-            
-            # Acquire connection and check journal mode
-            conn = await pool.acquire()
-            try:
-                async with conn.execute("PRAGMA journal_mode") as cursor:
-                    result = await cursor.fetchone()
-                    assert result[0].upper() == "WAL"
-            finally:
-                await pool.release(conn)
-                await pool.close()
-
-    @pytest.mark.asyncio
-    async def test_foreign_keys_enabled(self):
-        """Test that foreign keys are enabled."""
-        from database_pool import SQLiteConnectionPool
-        
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = os.path.join(tmpdir, "fk_test.db")
-            pool = SQLiteConnectionPool(db_path, max_connections=3)
-            await pool.initialize()
-            
-            conn = await pool.acquire()
-            try:
-                async with conn.execute("PRAGMA foreign_keys") as cursor:
-                    result = await cursor.fetchone()
-                    assert result[0] == 1  # Enabled
-            finally:
-                await pool.release(conn)
-                await pool.close()
-
-
-class TestPoolConfiguration:
-    """Test pool configuration."""
-
-    def test_pool_config_defaults(self):
-        """Test default pool configuration."""
-        from database_pool import PoolConfig
-        
-        config = PoolConfig()
-        assert config.min_size == 2
-        assert config.max_size == 10
-        assert config.command_timeout == 60.0
-
-    def test_postgres_detection(self):
-        """Test PostgreSQL URL detection."""
-        from database_pool import ConnectionPool
-        
-        pool = ConnectionPool(database_url="postgresql://user:pass@localhost/db")
-        assert pool._is_postgres is True
-
-    def test_sqlite_fallback(self):
-        """Test SQLite fallback when no PostgreSQL URL."""
-        from database_pool import ConnectionPool
-        
-        with patch.dict(os.environ, {}, clear=True):
-            pool = ConnectionPool(sqlite_path="test.db")
-            assert pool._is_postgres is False
-
-
-class TestGlobalPool:
-    """Test global pool instance management."""
-
-    @pytest.mark.asyncio
-    async def test_get_pool_singleton(self):
-        """Test that get_pool returns singleton."""
-        from database_pool import get_pool, close_pool, _pool_instance
-        
-        # Close any existing pool
-        await close_pool()
-        
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = os.path.join(tmpdir, "global.db")
-            
-            # Get pool twice
-            pool1 = await get_pool(sqlite_path=db_path)
-            pool2 = await get_pool(sqlite_path=db_path)
-            
-            # Should be same instance
-            assert pool1 is pool2
-            
-            await close_pool()
-
-    @pytest.mark.asyncio
-    async def test_close_pool_cleanup(self):
-        """Test that close_pool properly cleans up."""
-        import database_pool
-        
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
-            db_path = os.path.join(tmpdir, "cleanup.db")
-            
-            # Create pool
-            await database_pool.get_pool(sqlite_path=db_path)
-            assert database_pool._pool_instance is not None
-            
-            # Close pool
-            await database_pool.close_pool()
-            assert database_pool._pool_instance is None
-        
-        # On Windows, we might need a tiny delay for aiosqlite threads to release the file
-        await asyncio.sleep(0.1)
+        async with get_db_connection() as conn:
+            assert conn is mock_conn
 
 
 if __name__ == "__main__":
