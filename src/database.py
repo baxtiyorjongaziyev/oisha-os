@@ -67,7 +67,7 @@ def _setting_text(value: Any) -> str:
             value = getter()
         except Exception:
             value = str(value)
-    return str(value).strip()
+    return str(value).lstrip("\ufeff").strip()
 
 class Database:
     def __init__(self, db_path=None):
