@@ -1415,8 +1415,10 @@ async def main():
 
     # [WAZZUP KILLER] Bridge Telegram & DB to API Server for the AmoCRM Widget
     import src.api_server as api_module
-    api_module.user_client = None
+    api_module.user_client = client
     api_module.db_instance = msg_controller.db
+    api_module.msg_controller = msg_controller
+
     api_module.set_runtime_context(
         service_name=os.getenv("K_SERVICE") or "oisha-main",
         canonical_entrypoint="src/main.py",
