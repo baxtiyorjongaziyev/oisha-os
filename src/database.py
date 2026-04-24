@@ -69,6 +69,13 @@ def _setting_text(value: Any) -> str:
             value = str(value)
     return str(value).lstrip("\ufeff").strip()
 
+
+def _normalize_turso_url(url: str) -> str:
+    if url.startswith("libsql://"):
+        return "https://" + url[len("libsql://") :]
+    return url
+
+
 class Database:
     def __init__(self, db_path=None):
         if db_path is None:
@@ -87,7 +94,7 @@ class Database:
         """
         Returns a TursoAdapter for Cloud Core or falls back to local SQLite.
         """
-        turso_url = _setting_text(settings.TURSO_DATABASE_URL)
+        turso_url = _normalize_turso_url(_setting_text(settings.TURSO_DATABASE_URL))
         turso_token = _setting_text(settings.TURSO_AUTH_TOKEN)
 
         if turso_url and turso_token and HAS_LIBSQL:
