@@ -61,7 +61,7 @@ from src.services.core.folder_manager import FolderManager
 from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
-
+from src.controllers.surgical_integration import get_surgical_integration
 
 
 # Global Managers
@@ -89,6 +89,7 @@ juma_notifier = None
 session_manager = None
 chat_bridge = None
 BOT_TOKEN_STR = None
+surgical_integration = None
 
 # TN5 Group Config (env-configurable; fallback keeps legacy behavior)
 TN5_GROUP_ID = settings.CRM_GROUP_ID if settings.CRM_GROUP_ID is not None else -1003820339529
@@ -1031,18 +1032,51 @@ async def handle_new_message(event):
         dosye = await scouter.get_user_dosye(sender.id)
         
         await safe_responder.prepare_to_reply(event, client)
-        
-        # 4. AI orqali javob tayyorlash (Gemini 2.0 Flash)
-        ai_raw_response = await msg_controller.get_response(
-            user_id=sender.id,
-            user_name=sender_name,
-            message=message_text,
-            context={
-                'chat_id': chat_id, 
-                'is_group': not event.is_private,
-                'dosye': dosye
-            }
-        )
+
+        # 4. AI orqali javob tayyorlash
+        # 4a. Surgical Negotiator (savdo so'rovlari uchun avtonom agent)
+        ai_raw_response = None
+        if surgical_integration and surgical_integration.should_use_surgical(
+            str(sender.id), message_text or ""
+        ):
+            try:
+                surgical_result = await surgical_integration.process_message(
+                    user_id=str(sender.id),
+                    message=message_text or "",
+                    context={
+                        "user_info": {
+                            "first_name": getattr(sender, "first_name", ""),
+                            "last_name": getattr(sender, "last_name", ""),
+                            "username": getattr(sender, "username", ""),
+                        },
+                        "chat_id": chat_id,
+                        "source": "telegram",
+                    },
+                )
+                if surgical_result.get("mode") == "surgical":
+                    ai_raw_response = surgical_result.get("response")
+                    logger.info(
+                        f"[SURGICAL] Autonomous response uid={sender.id} "
+                        f"stage={surgical_result.get('deal_info', {}).get('stage')} "
+                        f"prob={surgical_result.get('deal_info', {}).get('probability', 0):.0%}"
+                    )
+                    if surgical_result.get("deal_info", {}).get("probability", 1) < 0.2:
+                        ai_raw_response = None  # Fallback to legacy for very uncertain cases
+            except Exception as surg_ex:
+                logger.warning(f"[SURGICAL] Fallback to legacy: {surg_ex}")
+
+        # 4b. Legacy AI (Gemini 2.0 Flash) — fallback yoki savdo bo'lmagan so'rovlar
+        if not ai_raw_response:
+            ai_raw_response = await msg_controller.get_response(
+                user_id=sender.id,
+                user_name=sender_name,
+                message=message_text,
+                context={
+                    'chat_id': chat_id,
+                    'is_group': not event.is_private,
+                    'dosye': dosye
+                }
+            )
 
         if ai_raw_response:
             # 5. Harakatlarni bajarish (Action Parsing)
@@ -1280,6 +1314,7 @@ async def main():
     from src.services.core.historical_sync import HistoricalSyncService
     global advisor_agent, auto_lead_agent, safe_responder, activity_monitor, audit_agent
     global workflow_manager, access_manager, admin_bot, session_manager, chat_bridge, BOT_TOKEN_STR, juma_notifier
+    global surgical_integration
 
     print("🚀 Oisha-OS Tizimi tayyorlanmoqda (Dual-Head Architecture)...")
 
@@ -1382,7 +1417,28 @@ async def main():
     advisor_agent = AdvisorAgent(api_key=api_keys["gemini"], db=msg_controller.db, action_parser=action_parser)
     auto_lead_agent = AutoLeadAgent(api_key=api_keys["gemini"])
     safe_responder = SafeResponder()
-    
+
+    # Surgical Negotiator — autonomous negotiations agent
+    async def _surgical_send(user_id: int, text: str):
+        """Proactive Telegram send callback for SurgicalNegotiator."""
+        try:
+            if client:
+                await client.send_message(user_id, text)
+        except Exception as exc:
+            logger.warning(f"[SURGICAL] Proactive send failed uid={user_id}: {exc}")
+
+    surgical_integration = get_surgical_integration()
+    surgical_integration.negotiator = __import__(
+        'src.agents.surgical_negotiator', fromlist=['get_surgical_negotiator']
+    ).get_surgical_negotiator(
+        db=msg_controller.db,
+        amocrm=msg_controller.crm.amocrm,
+        send_fn=_surgical_send,
+    )
+    surgical_integration.enabled = settings.SURGICAL_MODE
+    surgical_integration.autonomy_threshold = settings.AUTONOMY_THRESHOLD
+    logger.info(f"[SURGICAL] Autonomous negotiations agent initialized (enabled={settings.SURGICAL_MODE})")
+
     from src.services.core.workflow_manager import WorkflowManager
     activity_monitor = ActivityMonitor(db=msg_controller.db)
     audit_agent = AuditAgent(api_key=api_keys["gemini"], db=msg_controller.db)
