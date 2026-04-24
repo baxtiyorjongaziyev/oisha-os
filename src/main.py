@@ -1974,7 +1974,7 @@ async def main():
         except Exception as e:
             logger.warning(f"[SHUTDOWN] DB close error: {e}")
 
-    logger.info("✅ Oisha-OS: All High-Performance Agents are Online & Ready!")
+    logger.info("Oisha-OS userbot runtime is online and ready.")
 
     # Main client loop — race run_until_disconnected against SIGTERM.
     disc_task = asyncio.create_task(client.run_until_disconnected(), name="userbot_disconnect_watcher")
