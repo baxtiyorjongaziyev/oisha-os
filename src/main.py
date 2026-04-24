@@ -1343,9 +1343,19 @@ async def main():
     cloud_control_plane_only = force_control_plane_only or (cloud_control_plane and not enable_cloud_userbot)
 
     # [GOD MODE] Authorized Session Discovery
-    session_string = os.environ.get("USERBOT_SESSION_STRING", "").strip()
-    
-    if session_string:
+    if cloud_control_plane_only:
+        logger.info("[AUTH] Control-plane mode; skipping USERBOT_SESSION_STRING parsing.")
+        client = TelegramClient(
+            StringSession(),
+            settings.API_ID,
+            settings.API_HASH,
+            device_model="Oisha Enterprise Control Plane",
+            system_version="Cloud Run"
+        )
+    else:
+        session_string = os.environ.get("USERBOT_SESSION_STRING", "").strip()
+
+    if not cloud_control_plane_only and session_string:
         logger.info("[AUTH] Using USERBOT_SESSION_STRING for authentication.")
         client = TelegramClient(
             StringSession(session_string),
@@ -1354,7 +1364,7 @@ async def main():
             device_model="Oisha Enterprise v2",
             system_version="Windows 11 Agent"
         )
-    elif cloud_control_plane:
+    elif not cloud_control_plane_only and cloud_control_plane:
         # Fallback for cloud environments where StringSession might be preferred but empty initially
         logger.warning("[AUTH] Cloud environment detected but USERBOT_SESSION_STRING is empty. Attempting ephemeral session.")
         client = TelegramClient(
@@ -1364,7 +1374,7 @@ async def main():
             device_model="Oisha Enterprise Control Plane",
             system_version="Cloud Run"
         )
-    else:
+    elif not cloud_control_plane_only:
         # Final fallback to standard path, though we cleaned these up.
         # This allows the bot to prompt for login if run interactively.
         SESSION_PATH = 'data/oisha_user_active'

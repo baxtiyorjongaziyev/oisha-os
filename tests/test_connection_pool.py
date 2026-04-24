@@ -48,6 +48,16 @@ class TestDatabasePool:
         pool2 = DatabasePool()
         assert pool1 is pool2
 
+    def test_close_resets_connection(self):
+        pool = DatabasePool()
+        mock_conn = MagicMock()
+        pool._connection = mock_conn
+
+        pool.close()
+
+        mock_conn.close.assert_called_once()
+        assert pool._connection is None
+
     @patch("database_pool.libsql.connect")
     @patch("database_pool._setting_text")
     def test_get_connection_auth(self, mock_setting, mock_connect):
