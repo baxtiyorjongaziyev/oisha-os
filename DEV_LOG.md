@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-24 18:59 UTC | ⚠️ main `f7c72fe`
+
+**Commit**: fix(cloud): keep Cloud Run control-plane healthy-only
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: Deploying container to Cloud Run service [oisha-master-bot] in project [jonbranding-85662071-ea38e] region [europe-west3] Deploying... failed Deployment failed ERROR: (gcloud.run.d
+
+---
+
 ## 2026-04-24 18:30 UTC | ⚠️ main `ba774c4`
 
 **Commit**: Merge pull request #11 from baxtiyorjongaziyev/claude/investigate-openclaw-query-HdLAv
