@@ -76,8 +76,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check deploy secret
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
         run: |
-          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+          if [ -z "${GCP_SA_KEY}" ]; then
             echo "ERROR: GCP_SA_KEY secret is missing."
             exit 1
           fi
@@ -96,6 +98,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
+          set +e
 
           IMAGE="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:${GITHUB_SHA}"
           CANDIDATE_TAG="sha-${GITHUB_SHA::7}"
