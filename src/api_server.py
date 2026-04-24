@@ -905,11 +905,117 @@ async def amocrm_webhook(request: Request):
     # BackgroundTasks is handled by FastAPI if needed, simplifying here
     data = await request.json()
     logger.info(f"Received AmoCRM webhook: {data}")
-    
+
     # Logic to bridge to Telegram (Wazzup Killer)
     # process_amocrm_message(data)
-    
+
     return {"status": "received"}
+
+
+# ─── OPENCLAW GATEWAY BRIDGE ──────────────────────────────────────────────────
+
+class OpenClawMessage(BaseModel):
+    """Incoming message from OpenClaw gateway."""
+    session: str = "main"
+    channel: str = "unknown"
+    sender: str = ""
+    sender_id: Optional[str] = None
+    text: str = ""
+    attachments: List[Dict[str, Any]] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class OpenClawResponse(BaseModel):
+    reply: str
+    actions: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+@app.post("/webhook/openclaw")
+async def openclaw_webhook(request: Request):
+    """
+    OpenClaw Gateway → Oisha-OS köprüsü.
+
+    OpenClaw barcha kanallardan (WhatsApp, Slack, Discord, Telegram, ...)
+    xabarlarni shu endpointga yuboradi. Oisha agenti javob qaytaradi,
+    OpenClaw esa javobni tegishli kanalga jo'natadi.
+
+    Xavfsizlik: OPENCLAW_SECRET env o'zgaruvchisi orqali HMAC tekshiruvi.
+    """
+    # HMAC signature tekshiruvi
+    expected_secret = os.environ.get("OPENCLAW_SECRET")
+    if expected_secret:
+        signature = request.headers.get("x-openclaw-signature", "")
+        body = await request.body()
+        expected_sig = hmac.new(
+            expected_secret.encode(),
+            body,
+            "sha256"
+        ).hexdigest()
+        if not hmac.compare_digest(f"sha256={expected_sig}", signature):
+            return JSONResponse(status_code=401, content={"error": "Invalid signature"})
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+    else:
+        try:
+            data = await request.json()
+        except Exception:
+            return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
+    text = data.get("text") or data.get("message") or ""
+    sender = data.get("sender") or data.get("from") or "unknown"
+    sender_id = data.get("sender_id") or data.get("user_id") or sender
+    channel = data.get("channel") or "openclaw"
+    session = data.get("session") or "main"
+
+    if not text.strip():
+        return {"reply": "", "status": "empty"}
+
+    logger.info(f"[OPENCLAW] {channel}/{sender}: {text[:80]}")
+    add_activity(
+        f"OpenClaw [{channel}]",
+        f"{sender}: {text[:60]}",
+        type="info"
+    )
+
+    # Agent orqali javob olish
+    try:
+        from src.openclaw_bridge import handle_openclaw_message
+        reply = await handle_openclaw_message(
+            text=text,
+            sender=sender,
+            sender_id=str(sender_id),
+            channel=channel,
+            session=session,
+            db=db_instance,
+            metadata=data.get("metadata", {}),
+        )
+    except Exception as e:
+        logger.error(f"[OPENCLAW] Agent xatosi: {e}")
+        reply = "Kechirasiz, hozir texnik muammo bor. Biroz kutib qayta yozing."
+
+    add_activity(
+        f"OpenClaw reply [{channel}]",
+        f"→ {reply[:60]}",
+        type="success"
+    )
+    return {"reply": reply, "status": "ok", "channel": channel, "session": session}
+
+
+@app.get("/webhook/openclaw/health")
+async def openclaw_health():
+    """OpenClaw gateway uchun ping endpoint."""
+    return {
+        "status": "ok",
+        "service": "oisha-os",
+        "version": "2.1.0",
+        "capabilities": [
+            "sales", "support", "crm", "calendar",
+            "lead_management", "negotiation", "research"
+        ],
+        "channels_accepted": ["whatsapp", "telegram", "slack", "discord", "any"],
+    }
 
 @app.get("/api/system/info")
 async def get_system_info():
