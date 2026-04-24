@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-24 19:29 UTC | ⚠️ main `994359c`
+
+**Commit**: fix(cloud): skip userbot session in control plane
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic.......failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% oisha-master-bot-00132-rip ERROR: (gcloud.run.services.update-traffic) The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Log
+
+---
+
 ## 2026-04-24 19:22 UTC | ⚠️ main `14701c9`
 
 **Commit**: fix(cloud): clean legacy userbot binding before deploy
