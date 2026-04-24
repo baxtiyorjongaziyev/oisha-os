@@ -30,6 +30,15 @@ logger = logging.getLogger("OishaAPI")
 
 app = FastAPI(title="Oisha-OS Enterprise API")
 
+
+def _setting_text(value: Any) -> str:
+    if value is None:
+        return ""
+    getter = getattr(value, "get_secret_value", None)
+    if callable(getter):
+        value = getter()
+    return str(value).lstrip("\ufeff").strip()
+
 # Mount Static Files
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
@@ -122,6 +131,17 @@ async def liveness_probe():
                 if hasattr(row, "__await__"):
                     await row
             checks["db_ok"] = True
+            turso_required = bool(
+                settings.RUNNING_IN_CLOUD
+                and _setting_text(settings.TURSO_DATABASE_URL)
+                and _setting_text(settings.TURSO_AUTH_TOKEN)
+            )
+            backend_name = getattr(db_instance, "get_backend_name", lambda: "unknown")()
+            checks["db_backend"] = backend_name
+            if turso_required and backend_name != "turso":
+                db_ok = False
+                checks["db_ok"] = False
+                problems.append("turso_fallback")
         except Exception as e:
             logger.warning(f"[HEALTH] Database connection failed: {e}")
             db_ok = False
@@ -149,11 +169,8 @@ async def liveness_probe():
     
     crm_ok = True if control_plane_mode else bool(runtime.get("crm_connected", False))
     
-    # [DECOUPLING] Decouple health status from functional checks to prevent deployment deadlocks.
-    # The service is 'healthy' if it can respond to HTTP requests. 
-    # Functional issues are logged and visible in the JSON response but don't cause 503.
-    healthy = True 
-    status_code = 200
+    healthy = not problems and db_ok and telegram_bot_ok and crm_ok
+    status_code = 200 if healthy else 503
     
     return JSONResponse(
         status_code=status_code,
@@ -161,6 +178,7 @@ async def liveness_probe():
             "status": "ok" if healthy else "unhealthy",
             "checks": {
                 "database": db_ok,
+                "database_backend": checks.get("db_backend"),
                 "userbot": userbot_authorized,
                 "telegram_bot": telegram_bot_ok,
                 "crm": crm_ok,

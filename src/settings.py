@@ -101,9 +101,9 @@ class AppSettings(BaseSettings):
             return data
         for key, value in list(data.items()):
             if isinstance(value, str):
-                data[key] = value.strip()
+                data[key] = value.lstrip("\ufeff").strip()
             elif hasattr(value, "get_secret_value"):
-                data[key] = value.get_secret_value().strip()
+                data[key] = value.get_secret_value().lstrip("\ufeff").strip()
                 
         optional_keys = {
             "ADMIN_BOT_TOKEN",
