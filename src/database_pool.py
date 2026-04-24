@@ -98,6 +98,15 @@ class DatabasePool:
     def get_backend_name(self) -> str:
         return "turso"
 
+    def close(self) -> None:
+        conn = self._connection
+        self._connection = None
+        if conn is None:
+            return
+        close = getattr(conn, "close", None)
+        if callable(close):
+            close()
+
 
 # Singleton instance
 db_pool = DatabasePool()
