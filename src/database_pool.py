@@ -83,8 +83,15 @@ class DatabasePool:
         
         def _run():
             res = conn.execute(query, params)
-            columns = res.columns
-            return [SmartRow(row, columns) for row in res.fetchall()]
+            columns = getattr(res, "columns", None)
+            if columns is None and getattr(res, "description", None):
+                columns = [desc[0] for desc in res.description]
+            columns = columns or []
+            rows = res.fetchall()
+            if rows is None:
+                rows = []
+            return [SmartRow(row, columns) for row in rows]
+
 
         return await asyncio.get_event_loop().run_in_executor(None, _run)
 
