@@ -1,6 +1,5 @@
 """
 Unit tests for API Server security and endpoints.
-Updated for Eagle Architecture (Cloud Userbot Enabled).
 """
 import pytest
 import os
@@ -51,14 +50,16 @@ class TestAPISecurity:
         assert 'oisha_safe_123' not in content, "Hardcoded secret found!"
         assert 'os.environ.get("OISHA_API_SECRET", "")' not in content, "Empty default found!"
 
-    def test_health_check_implementation_exists(self):
-        """Ensure health check is implemented with proper validation."""
+    def test_health_check_is_not_force_green(self):
+        """Health must fail when its dependency checks fail."""
         api_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'api_server.py')
         with open(api_file, 'r', encoding='utf-8') as f:
             content = f.read()
 
         assert "async def liveness_probe" in content
         assert "db_ok" in content
+        assert "healthy = True" not in content
+        assert "healthy = not problems and db_ok and telegram_bot_ok and crm_ok" in content
 
     def test_database_pool_has_no_hardcoded_turso_token(self):
         """Turso token must come from environment/Secret Manager, never source code."""
@@ -69,15 +70,15 @@ class TestAPISecurity:
         assert "settings.TURSO_AUTH_TOKEN" in content
         assert "eyJhbGci" not in content
 
-    def test_deploy_workflow_allows_cloud_userbot(self):
-        """Cloud Run is now allowed to run the userbot session (Eagle Mode)."""
+    def test_deploy_workflow_keeps_cloud_run_as_control_plane(self):
+        """Cloud Run must not run the personal Telegram userbot session."""
         workflow_file = os.path.join(os.path.dirname(__file__), '..', '.github', 'workflows', 'deploy.yml')
         with open(workflow_file, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Eagle Mode: Userbot is enabled on Cloud Run
-        assert "CLOUD_RUN_CONTROL_PLANE_ONLY=False" in content
-        assert "ENABLE_CLOUD_USERBOT=True" in content
+        assert "CLOUD_RUN_CONTROL_PLANE_ONLY=True" in content
+        assert "ENABLE_CLOUD_USERBOT=False" in content
+        assert "ENABLE_CLOUD_USERBOT=True" not in content
         assert "python -m pytest -q" in content
 
 
