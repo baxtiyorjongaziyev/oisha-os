@@ -22,6 +22,8 @@ class AppSettings(BaseSettings):
     WHITELIST_IDS: list[int] = Field(default_factory=list)
     ENABLE_AUTO_REPLY: bool = False
     AUTORUN_MASS_SYNC: bool = True
+    SURGICAL_MODE: bool = False        # Autonomous negotiations agent (enable via env)
+    AUTONOMY_THRESHOLD: float = 0.6   # Min confidence for auto-send without approval
     RUNNING_IN_CLOUD: bool = False
     APP_TIMEZONE: str = "Asia/Tashkent"
     BOT_TOKEN: SecretStr = SecretStr("")
