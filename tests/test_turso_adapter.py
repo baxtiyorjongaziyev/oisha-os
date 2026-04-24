@@ -1,6 +1,6 @@
 import pytest
 
-from src.database import Database, TursoAdapter
+from src.database import Database, TursoAdapter, _normalize_turso_url
 from src.database_pool import db_pool
 
 try:
@@ -10,6 +10,12 @@ except ImportError:  # pragma: no cover - environment specific
 
 
 pytestmark = pytest.mark.asyncio
+
+
+async def test_turso_url_normalization_supports_secret_manager_format():
+    assert _normalize_turso_url("libsql://example.turso.io") == "https://example.turso.io"
+    assert _normalize_turso_url("https://example.turso.io") == "https://example.turso.io"
+    assert _normalize_turso_url(":memory:") == ":memory:"
 
 
 def _require_libsql():
