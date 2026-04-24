@@ -176,18 +176,20 @@ async def liveness_probe():
         telegram_bot_ok = userbot_authorized
         checks["telegram_bot"] = userbot_authorized
 
-    # Check CRM connectivity
-    crm_ok = False
+    # Check CRM connectivity. CRM OAuth can be degraded without making the
+    # Cloud Run control plane unsafe to serve health/API traffic.
+    crm_connected = False
     if msg_controller and hasattr(msg_controller, 'crm') and msg_controller.crm:
         try:
             # Check if AmoCRM is actually responding
-            crm_ok = await msg_controller.crm.amocrm.check_connection()
+            crm_connected = await msg_controller.crm.amocrm.check_connection()
         except Exception:
-            crm_ok = False
-    elif control_plane_mode:
+            crm_connected = False
+
+    if control_plane_mode:
         crm_ok = True
     else:
-        crm_ok = bool(runtime.get("crm_connected", False))
+        crm_ok = crm_connected or bool(runtime.get("crm_connected", False))
 
     
     # /healthz is the production rollout gate. Keep it honest so a broken
@@ -204,7 +206,8 @@ async def liveness_probe():
                 "database_backend": checks.get("db_backend"),
                 "userbot": userbot_authorized,
                 "telegram_bot": telegram_bot_ok,
-                "crm": crm_ok,
+                "crm": crm_connected,
+                "crm_required": not control_plane_mode,
                 "scheduler_mode": scheduler_mode,
                 "problems": problems,
             },
