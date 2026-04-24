@@ -75,18 +75,18 @@ class AutonomousSalesAgent(BaseAgent):
     Avtonom savdo agenti - mustaqil ravishda mijozlar bilan
     suhbatlashib, kelishuvlarga erishadi
     """
-    
-    def __init__(self):
+
+    def __init__(self, db=None):
         super().__init__(
             name="SurgicalCloser",
-            system_instruction="""Siz "Oisha-OS Surgical Closer"siz - Jon.Branding agentligining 
+            system_instruction="""Siz "Oisha-OS Surgical Closer"siz - Jon.Branding agentligining
             avtonom savdo agenti. Vazifangiz:
-            
+
             1. Mijoz ehtiyojlarini aniqlang (Qualification)
             2. Qiymat taklif qiling (Value Proposition)
             3. E'tirozlarni yenging (Objection Handling)
             4. Konsensusga erishing (Closing)
-            
+
             Ohang: Professional, ishonchli, hos'iyatli.
             Qoidalaringiz:
             - Har doim mijoz manfaatini o'ylang
@@ -95,21 +95,22 @@ class AutonomousSalesAgent(BaseAgent):
             - Kimyoviy tortishish (rapport) yaratib, professional qoling
             """
         )
+        self.db = db
         self.conversations: Dict[str, ConversationState] = {}
         self.pricing_engine = PricingEngine()
         self.negotiation = NegotiationEngine()
         
     async def handle_incoming(
-        self, 
-        user_id: str, 
-        message: str, 
+        self,
+        user_id: str,
+        message: str,
         crm_data: Dict = None,
         autonomy_level: str = "full"
     ) -> Dict[str, Any]:
         """Kiruvchi xabarni qayta ishlash"""
-        
-        # 1. Conversation state ni olish/yaratish
-        state = self._get_or_create_state(user_id, crm_data)
+
+        # 1. Conversation state ni olish/yaratish (DB dan yoki xotiradan)
+        state = await self._get_or_create_state(user_id, crm_data)
         state.add_message("user", message)
         state.autonomy_level = autonomy_level
         
@@ -138,7 +139,10 @@ class AutonomousSalesAgent(BaseAgent):
             "assessment": assessment.to_payload(),
             "decision": decision
         })
-        
+
+        # Persistently save state to DB
+        await self._save_state_to_db(state)
+
         return {
             "response": response,
             "assessment": assessment.to_payload(),
@@ -308,18 +312,61 @@ class AutonomousSalesAgent(BaseAgent):
         }
         return strategies.get(objection, "explore_deeper")
     
-    def _get_or_create_state(
-        self, 
-        user_id: str, 
+    async def _get_or_create_state(
+        self,
+        user_id: str,
         crm_data: Dict = None
     ) -> ConversationState:
-        """State olish yoki yaratish"""
-        if user_id not in self.conversations:
-            self.conversations[user_id] = ConversationState(
-                user_id=user_id,
-                context=crm_data or {}
-            )
-        return self.conversations[user_id]
+        """State olish yoki yaratish (xotira → DB → yangi)"""
+        if user_id in self.conversations:
+            return self.conversations[user_id]
+
+        # DB dan yuklashga harakat qilish
+        if self.db:
+            try:
+                raw = await self.db.get_state(f"surgical_conv_{user_id}")
+                if raw:
+                    data = json.loads(raw)
+                    state = ConversationState(
+                        user_id=user_id,
+                        stage=data.get("stage", "initial"),
+                        context=data.get("context", crm_data or {}),
+                        history=data.get("history", []),
+                        last_interaction=datetime.fromisoformat(
+                            data.get("last_interaction", datetime.now().isoformat())
+                        ),
+                        deal_value=data.get("deal_value"),
+                        objections=data.get("objections", []),
+                        commitment_achieved=data.get("commitment_achieved", False),
+                        autonomy_level=data.get("autonomy_level", "full"),
+                    )
+                    self.conversations[user_id] = state
+                    return state
+            except Exception:
+                pass
+
+        state = ConversationState(user_id=user_id, context=crm_data or {})
+        self.conversations[user_id] = state
+        return state
+
+    async def _save_state_to_db(self, state: ConversationState):
+        """State ni DB ga saqlash"""
+        if not self.db:
+            return
+        try:
+            data = {
+                "stage": state.stage,
+                "context": state.context,
+                "history": state.history[-50:],  # Oxirgi 50 ta xabar
+                "last_interaction": state.last_interaction.isoformat(),
+                "deal_value": state.deal_value,
+                "objections": state.objections,
+                "commitment_achieved": state.commitment_achieved,
+                "autonomy_level": state.autonomy_level,
+            }
+            await self.db.set_state(f"surgical_conv_{state.user_id}", json.dumps(data, ensure_ascii=False))
+        except Exception:
+            pass
     
     def get_active_deals(self) -> List[Dict]:
         """Aktiv bitimlarni olish"""
@@ -446,9 +493,11 @@ class PricingEngine:
 _autonomous_agent: Optional[AutonomousSalesAgent] = None
 
 
-def get_autonomous_agent() -> AutonomousSalesAgent:
-    """Global agent instance"""
+def get_autonomous_agent(db=None) -> AutonomousSalesAgent:
+    """Global agent instance. Pass db on first call to enable persistence."""
     global _autonomous_agent
     if _autonomous_agent is None:
-        _autonomous_agent = AutonomousSalesAgent()
+        _autonomous_agent = AutonomousSalesAgent(db=db)
+    elif db is not None and _autonomous_agent.db is None:
+        _autonomous_agent.db = db
     return _autonomous_agent
