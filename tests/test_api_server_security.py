@@ -81,6 +81,15 @@ class TestAPISecurity:
         assert "ENABLE_CLOUD_USERBOT=True" not in content
         assert "python -m pytest -q" in content
 
+    def test_cloud_run_control_plane_skips_userbot_session_parsing(self):
+        """Cloud Run control-plane must not parse the personal userbot session."""
+        main_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'main.py')
+        with open(main_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        assert "Control-plane mode; skipping USERBOT_SESSION_STRING parsing." in content
+        assert "if not cloud_control_plane_only and session_string:" in content
+
 
 class TestAPIEndpoints:
     """Test API endpoint functionality."""
