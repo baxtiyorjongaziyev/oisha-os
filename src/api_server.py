@@ -190,10 +190,10 @@ async def liveness_probe():
         crm_ok = bool(runtime.get("crm_connected", False))
 
     
-    # Decouple functional problems from HTTP 200 health
-    # This prevents Cloud Run from killing the container during long startup/sync phases
-    healthy = True 
-    status_code = 200
+    # /healthz is the production rollout gate. Keep it honest so a broken
+    # revision never receives traffic just because the HTTP server started.
+    healthy = not problems and db_ok and telegram_bot_ok and crm_ok
+    status_code = 200 if healthy else 503
     
     return JSONResponse(
         status_code=status_code,
