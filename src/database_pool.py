@@ -2,7 +2,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import aiosqlite
 import libsql
@@ -22,7 +22,7 @@ def _setting_text(value: Any) -> str:
             value = getter()
         except Exception:
             value = str(value)
-    return str(value).strip()
+    return str(value).lstrip("\ufeff").strip()
 
 
 class SmartRow(dict):
@@ -144,6 +144,136 @@ class DatabasePool:
                 logger.warning(f"[DB POOL] Close error: {e}")
             finally:
                 self._connection = None
+
+
+@dataclass
+class PoolConfig:
+    min_size: int = 2
+    max_size: int = 10
+    command_timeout: float = 60.0
+
+
+class SQLiteConnectionPool:
+    def __init__(self, db_path: str, max_connections: int = 10):
+        self.db_path = db_path
+        self.max_connections = max_connections
+        self._queue: asyncio.Queue[aiosqlite.Connection] = asyncio.Queue(maxsize=max_connections)
+        self._connections: List[aiosqlite.Connection] = []
+        self._initialized = False
+
+    async def initialize(self) -> None:
+        if self._initialized:
+            return
+        for _ in range(self.max_connections):
+            conn = await aiosqlite.connect(self.db_path, timeout=30)
+            conn.row_factory = aiosqlite.Row
+            await conn.execute("PRAGMA journal_mode=WAL")
+            await conn.execute("PRAGMA foreign_keys=ON")
+            await conn.execute("PRAGMA synchronous=NORMAL")
+            await conn.commit()
+            self._connections.append(conn)
+            await self._queue.put(conn)
+        self._initialized = True
+
+    async def acquire(self) -> aiosqlite.Connection:
+        if not self._initialized:
+            await self.initialize()
+        return await self._queue.get()
+
+    async def release(self, conn: aiosqlite.Connection) -> None:
+        if conn in self._connections:
+            await self._queue.put(conn)
+
+    async def close(self) -> None:
+        while not self._queue.empty():
+            try:
+                self._queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+        for conn in list(self._connections):
+            await conn.close()
+        self._connections.clear()
+        self._initialized = False
+
+
+class ConnectionPool:
+    def __init__(
+        self,
+        database_url: Optional[str] = None,
+        sqlite_path: str = "bot_database.db",
+        config: Optional[PoolConfig] = None,
+    ):
+        self.database_url = database_url or ""
+        self.sqlite_path = sqlite_path
+        self.config = config or PoolConfig()
+        self._is_postgres = self.database_url.startswith(("postgres://", "postgresql://"))
+        self._pool: Optional[Any] = None
+
+    async def initialize(self) -> None:
+        if self._is_postgres:
+            raise RuntimeError("PostgreSQL pool is not configured in this runtime")
+        self._pool = SQLiteConnectionPool(self.sqlite_path, max_connections=self.config.max_size)
+        await self._pool.initialize()
+
+    @asynccontextmanager
+    async def acquire(self):
+        if self._pool is None:
+            await self.initialize()
+        conn = await self._pool.acquire()
+        try:
+            yield conn
+        finally:
+            await self._pool.release(conn)
+
+    def _normalize_params(self, params: tuple[Any, ...]) -> tuple[Any, ...]:
+        if len(params) == 1 and isinstance(params[0], (tuple, list)):
+            return tuple(params[0])
+        return params
+
+    async def execute(self, query: str, *params: Any) -> None:
+        async with self.acquire() as conn:
+            await conn.execute(query, self._normalize_params(params))
+            await conn.commit()
+
+    async def fetchone(self, query: str, *params: Any) -> Optional[Dict[str, Any]]:
+        async with self.acquire() as conn:
+            async with conn.execute(query, self._normalize_params(params)) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row is not None else None
+
+    async def fetchall(self, query: str, *params: Any) -> List[Dict[str, Any]]:
+        async with self.acquire() as conn:
+            async with conn.execute(query, self._normalize_params(params)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def close(self) -> None:
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None
+
+
+_pool_instance: Optional[ConnectionPool] = None
+
+
+async def get_pool(
+    database_url: Optional[str] = None,
+    sqlite_path: str = "bot_database.db",
+    config: Optional[PoolConfig] = None,
+) -> ConnectionPool:
+    global _pool_instance
+    if _pool_instance is None:
+        _pool_instance = ConnectionPool(database_url=database_url, sqlite_path=sqlite_path, config=config)
+        await _pool_instance.initialize()
+    return _pool_instance
+
+
+async def close_pool() -> None:
+    global _pool_instance
+    if _pool_instance is not None:
+        await _pool_instance.close()
+        _pool_instance = None
+
 
 # Legacy/Simple helper for direct access (optional)
 @asynccontextmanager
