@@ -1,19 +1,24 @@
 import os
-from google import genai
-from dotenv import load_dotenv
 
-load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
-print(f"API Key present: {bool(api_key)}")
+import pytest
 
-try:
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_TESTS") != "1",
+    reason="Live Gemini smoke test; set RUN_LIVE_TESTS=1 to run intentionally.",
+)
+
+
+def test_gemini_generate_content_live():
+    from google import genai
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    assert api_key, "GEMINI_API_KEY is required for live Gemini smoke test"
+
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
         model="gemini-2.0-flash",
-        contents="Salom, sen kimsan?"
+        contents="Salom, sen kimsan?",
     )
-    print(f"Response: {response.text}")
-except Exception as e:
-    print(f"Error: {e}")
-    import traceback
-    traceback.print_exc()
+
+    assert response.text

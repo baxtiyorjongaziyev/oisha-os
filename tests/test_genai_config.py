@@ -1,17 +1,25 @@
-from google import genai
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+import pytest
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-try:
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_TESTS") != "1",
+    reason="Live Gemini chat config test; set RUN_LIVE_TESTS=1 to run intentionally.",
+)
+
+
+def test_gemini_chat_config_live():
+    from google import genai
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    assert api_key, "GEMINI_API_KEY is required for live Gemini config test"
+
+    client = genai.Client(api_key=api_key)
     chat = client.chats.create(
         model="gemini-2.0-flash",
-        config={"system_instruction": "You are a helpful pirate. Talk like a pirate."}
+        config={"system_instruction": "You are a helpful assistant."},
     )
     response = chat.send_message("Hello, who are you?")
-    print(f"Response: {response.text}")
-except Exception as e:
-    print(f"Error: {e}")
+
+    assert response.text
