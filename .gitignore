@@ -104,3 +104,4 @@ src/services/debug/
 !scripts/**/*.py
 !scripts/**/*.ps1
 !scripts/**/*.sh
+.gstack/
