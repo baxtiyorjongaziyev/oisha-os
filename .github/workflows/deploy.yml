@@ -129,7 +129,7 @@ jobs:
               elif echo "${deploy_output}" | grep -qi "image.*not found"; then
                 echo "deploy image topilmadi"
               elif [[ -n "${deploy_output}" ]]; then
-                echo "${deploy_output}" | tr '\n' ' ' | cut -c1-180
+                echo "${deploy_output}" | tr '\n' ' ' | cut -c1-500
               else
                 echo "deploy command failed"
               fi
@@ -152,7 +152,7 @@ jobs:
             elif echo "${logs}" | grep -qi "/health\|unhealthy\|heartbeat_stale"; then
               echo "health check failed"
             elif [[ -n "${logs}" ]]; then
-              echo "${logs}" | tr '\n' ' ' | cut -c1-180
+              echo "${logs}" | tr '\n' ' ' | cut -c1-500
             else
               echo "deploy command failed"
             fi
@@ -187,6 +187,24 @@ jobs:
             return "${status}"
           }
 
+          cleanup_generated_traffic_tags() {
+            local stale_tags
+            stale_tags="$(gcloud run services describe "${SERVICE_NAME}" \
+              --region "${REGION}" \
+              --project "${PROJECT_ID}" \
+              --format=json | python -c 'import json, sys; data=json.load(sys.stdin); tags=[entry.get("tag", "") for entry in data.get("status", {}).get("traffic", [])]; print(",".join(tag for tag in tags if tag.startswith("sha-") or tag.startswith("debug")))')"
+
+            if [[ -z "${stale_tags}" ]]; then
+              return 0
+            fi
+
+            gcloud run services update-traffic "${SERVICE_NAME}" \
+              --region "${REGION}" \
+              --project "${PROJECT_ID}" \
+              --remove-tags "${stale_tags}" \
+              --quiet
+          }
+
           PREVIOUS_TRAFFIC_REVISION="$(gcloud run services describe "${SERVICE_NAME}" \
             --region "${REGION}" \
             --project "${PROJECT_ID}" \
@@ -196,7 +214,7 @@ jobs:
           BUILD_RC=$?
           if [[ ${BUILD_RC} -ne 0 ]]; then
             if [[ -n "${BUILD_OUTPUT}" ]]; then
-              FAILURE_REASON="$(echo "${BUILD_OUTPUT}" | tr '\n' ' ' | cut -c1-180)"
+              FAILURE_REASON="$(echo "${BUILD_OUTPUT}" | tr '\n' ' ' | cut -c1-500)"
             else
               FAILURE_REASON="container build command failed"
             fi
@@ -215,6 +233,14 @@ jobs:
 
           if [[ "${IMAGE_READY}" != "true" ]]; then
             FAILURE_REASON="container image not ready after build wait"
+            write_outputs
+            exit 0
+          fi
+
+          TAG_CLEANUP_OUTPUT="$(cleanup_generated_traffic_tags 2>&1)"
+          TAG_CLEANUP_RC=$?
+          if [[ ${TAG_CLEANUP_RC} -ne 0 ]]; then
+            FAILURE_REASON="traffic tag cleanup failed: $(echo "${TAG_CLEANUP_OUTPUT}" | tr '\n' ' ' | cut -c1-500)"
             write_outputs
             exit 0
           fi
