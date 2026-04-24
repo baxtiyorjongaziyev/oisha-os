@@ -1,0 +1,62 @@
+{
+  "$schema": "https://openclaw.ai/config.schema.json",
+
+  "gateway": {
+    "port": 18789,
+    "mode": "local"
+  },
+
+  "agents": {
+    "defaults": {
+      "workspace": "~/.openclaw/workspace/oisha",
+      "model": "google/gemini-2.0-flash"
+    }
+  },
+
+  "models": {
+    "providers": {
+      "google": {
+        "apiKey": {
+          "source": "env",
+          "id": "GEMINI_API_KEY"
+        }
+      }
+    }
+  },
+
+  "skills": {
+    "load": {
+      "extraDirs": ["~/.openclaw/workspace/oisha/skills"]
+    },
+    "allowBundled": ["weather", "github"]
+  },
+
+  "channels": {
+    "telegram": {
+      "enabled": false,
+      "token": {
+        "source": "env",
+        "id": "TELEGRAM_BOT_TOKEN"
+      }
+    },
+    "whatsapp": {
+      "enabled": false
+    },
+    "slack": {
+      "enabled": false
+    },
+    "discord": {
+      "enabled": false
+    }
+  },
+
+  "hooks": {
+    "enabled": true,
+    "path": "/hooks/oisha",
+    "token": {
+      "source": "env",
+      "id": "OPENCLAW_SECRET"
+    },
+    "defaultSessionKey": "oisha-main"
+  }
+}
