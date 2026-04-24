@@ -22,7 +22,11 @@ def _setting_text(value: Any) -> str:
             value = getter()
         except Exception:
             value = str(value)
-    return str(value).lstrip("\ufeff").strip()
+    
+    # Remove BOM and all invisible/whitespace characters
+    text = str(value).replace("\ufeff", "").strip()
+    # Remove any other potential control characters
+    return "".join(char for char in text if ord(char) >= 32)
 
 
 class SmartRow(dict):
