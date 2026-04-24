@@ -24,6 +24,7 @@ build/
 !package.json
 !manifest.json
 !src/widgets/**/*.json
+!deploy/openclaw/openclaw.json
 service_account.json
 credentials.json
 token.pickle
