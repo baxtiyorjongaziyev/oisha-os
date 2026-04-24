@@ -27,7 +27,7 @@ from src.services.core.gcontacts import GoogleContactsSync
 class SurgicalNegotiator:
     """
     Asosiy negotiator - barcha komponentlarni muvofiqlashtiruvchi
-    
+
     Vazifalari:
     1. Kiruvchi leadlarni qabul qilish va tahlil qilish
     2. Avtonom suhbatlarni boshqarish
@@ -36,17 +36,21 @@ class SurgicalNegotiator:
     5. Risklarni baholash
     6. CRM bilan sinxronlash
     """
-    
-    def __init__(self):
-        self.sales_agent = get_autonomous_agent()
+
+    def __init__(self, db=None, amocrm=None, send_fn=None):
+        self.db = db
+        self.amocrm = amocrm        # AmoCRM client (injected from main.py)
+        self.send_fn = send_fn      # async fn(user_id: int, text: str) for proactive sends
+
+        self.sales_agent = get_autonomous_agent(db=db)
         self.lifecycle = get_lifecycle_manager()
         self.contract_gen = ContractGenerator()
         self.risk_assessor = RiskAssessor()
         self.gcontacts = GoogleContactsSync()
-        
+
         # Register lifecycle handlers
         self._register_handlers()
-        
+
         # Active negotiations
         self.active_sessions: Dict[str, Dict] = {}
     
@@ -250,17 +254,20 @@ class SurgicalNegotiator:
     
     async def _on_deal_won(self, deal: Any, old_stage: Optional[DealStage] = None):
         """Bitim yutganda"""
-        
-        # Create task for fulfillment
         deal.tasks.append({
             "type": "fulfillment",
             "description": f"Start {deal.service_type} project",
             "due": (datetime.now() + timedelta(days=1)).isoformat(),
             "status": "pending"
         })
-        
-        # Send to project management
         print(f"[SURGICAL] DEAL WON! {deal.id} - ${deal.value}")
+        # Foydalanuvchiga tabriklash xabarini yuborish
+        if deal.user_id:
+            msg = (
+                "🎉 Hamkorlikka rahmat! Shartnoma shartlari va keyingi qadamlar "
+                "haqida tez orada bog'lanamiz."
+            )
+            await self._send_proactive(int(deal.user_id), msg)
     
     async def _generate_contract_if_needed(
         self, 
@@ -309,14 +316,81 @@ class SurgicalNegotiator:
             print(f"[SURGICAL] Contact save error: {e}")
     
     async def _get_crm_data(self, user_id: str) -> Dict:
-        """CRM'dan ma'lumot olish"""
-        # This would integrate with AmoCRM
-        return {}
-    
+        """CRM dan foydalanuvchi ma'lumotlarini olish"""
+        if not self.amocrm:
+            return {}
+        try:
+            # DB dan saqlangan telefon raqamini olish
+            phone = None
+            if self.db:
+                row = await self.db.get_state(f"user_phone_{user_id}")
+                if row:
+                    phone = row
+            if not phone:
+                return {}
+            contact = await asyncio.to_thread(self.amocrm.get_contact_by_phone, phone)
+            if not contact:
+                return {}
+            leads = await asyncio.to_thread(
+                self.amocrm.get_active_leads_for_contact, contact["id"]
+            )
+            latest = leads[0] if leads else {}
+            return {
+                "contact_id": contact.get("id"),
+                "name": contact.get("name", ""),
+                "phone": phone,
+                "lead_id": latest.get("id"),
+                "status": self.amocrm.get_lead_status_text(latest) if latest else "",
+                "pipeline_id": latest.get("pipeline_id"),
+            }
+        except Exception as e:
+            return {}
+
     async def _save_to_crm(self, user_id: str, result: Dict, deal: Any):
-        """CRM'ga saqlash"""
-        # This would push to AmoCRM
-        pass
+        """CRM ga lead va not saqlash"""
+        if not self.amocrm:
+            return
+        try:
+            crm_data = self.active_sessions.get(user_id, {}).get("crm_data", {})
+            assessment = result.get("assessment", {})
+            stage = assessment.get("stage", "")
+            response_text = result.get("response", "")
+
+            note_lines = [
+                f"[Oisha Surgical] Stage: {stage}",
+                f"Intent: {assessment.get('intent', '')}",
+                f"Close prob: {assessment.get('close_probability', 0):.0%}",
+                f"Draft response: {response_text[:300]}",
+            ]
+            if assessment.get("objection") and assessment["objection"] != "none":
+                note_lines.append(f"Objection: {assessment['objection']}")
+            note = "\n".join(note_lines)
+
+            lead_id = crm_data.get("lead_id")
+            contact_id = crm_data.get("contact_id")
+
+            if lead_id:
+                await asyncio.to_thread(self.amocrm.add_lead_note, lead_id, note)
+            elif contact_id:
+                await asyncio.to_thread(self.amocrm.add_contact_note, contact_id, note)
+            else:
+                # Yangi lead yaratish (nomi yo'q bo'lsa user_id ishlatiladi)
+                name = crm_data.get("name") or f"Telegram {user_id}"
+                phone = crm_data.get("phone", "")
+                if phone:
+                    await asyncio.to_thread(
+                        self.amocrm.ensure_lead, name, phone, note
+                    )
+        except Exception as e:
+            pass  # CRM xatoligi asosiy oqimni to'xtatmasligi kerak
+
+    async def _send_proactive(self, user_id: int, text: str):
+        """Foydalanuvchiga proaktiv xabar yuborish (follow-up, shartnoma va h.k.)"""
+        if self.send_fn:
+            try:
+                await self.send_fn(user_id, text)
+            except Exception:
+                pass
     
     async def run_daily_cycle(self) -> Dict[str, Any]:
         """Kunlik avtomatlashtirish tsikli"""
@@ -328,8 +402,14 @@ class SurgicalNegotiator:
             "pipeline_stats": {}
         }
         
-        # 1. Stale leads'ga follow-up
+        # 1. Stale leads'ga follow-up — proaktiv xabar yuborish
         follow_ups = await self.sales_agent.follow_up_stale_leads()
+        for fu in follow_ups:
+            try:
+                uid = int(fu["user_id"])
+                await self._send_proactive(uid, fu["message"])
+            except Exception:
+                pass
         results["follow_ups_sent"] = follow_ups
         
         # 2. Automation rules
@@ -374,11 +454,20 @@ class SurgicalNegotiator:
 _surgical_negotiator: Optional[SurgicalNegotiator] = None
 
 
-def get_surgical_negotiator() -> SurgicalNegotiator:
-    """Global negotiator instance"""
+def get_surgical_negotiator(db=None, amocrm=None, send_fn=None) -> SurgicalNegotiator:
+    """Global negotiator instance. Pass deps on first call to inject them."""
     global _surgical_negotiator
     if _surgical_negotiator is None:
-        _surgical_negotiator = SurgicalNegotiator()
+        _surgical_negotiator = SurgicalNegotiator(db=db, amocrm=amocrm, send_fn=send_fn)
+    else:
+        # Late injection — allows main.py to wire deps after startup
+        if db is not None and _surgical_negotiator.db is None:
+            _surgical_negotiator.db = db
+            _surgical_negotiator.sales_agent.db = db
+        if amocrm is not None and _surgical_negotiator.amocrm is None:
+            _surgical_negotiator.amocrm = amocrm
+        if send_fn is not None and _surgical_negotiator.send_fn is None:
+            _surgical_negotiator.send_fn = send_fn
     return _surgical_negotiator
 
 
