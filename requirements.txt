@@ -15,6 +15,7 @@ anthropic
 google-generativeai
 google-genai
 google-auth-oauthlib
+gspread
 libsql
 libsql-client
 pytest
