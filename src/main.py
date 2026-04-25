@@ -1580,6 +1580,7 @@ async def main():
         _shutdown_event.set()
 
     import signal as _signal
+    loop = asyncio.get_running_loop()
     try:
         loop.add_signal_handler(_signal.SIGTERM, _on_sigterm)
         loop.add_signal_handler(_signal.SIGINT, _on_sigterm)
@@ -1657,11 +1658,10 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("👸 Oisha-OS: To'xtatildi (KeyboardInterrupt).")
     except Exception as e:
         logger.critical(f"👸 Oisha-OS: Fatal Error: {e}", exc_info=True)
     finally:
-        loop.close()
         print("Stopping bot...")
