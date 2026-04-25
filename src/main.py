@@ -1614,12 +1614,6 @@ async def main():
             "and scheduled CRM/Airtable jobs are active."
         )
         await asyncio.Event().wait()
-                await lead_scraper.sync_private_dialogs(client, limit=50)
-            except Exception as e:
-                logger.error(f"[DM SYNC ERROR] {e}")
-            await asyncio.sleep(900) # Run every 15 mins
-    
-    asyncio.create_task(dm_lead_sync_task())
 
     # [PHASE 1.4] Graceful SIGTERM drain for Cloud Run revision rollover.
     # Cloud Run sends SIGTERM with a 30s grace period; we drain in-flight
