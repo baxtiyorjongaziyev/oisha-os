@@ -10,10 +10,10 @@ export class StorageService {
 
   constructor(private cfg: ConfigService) {
     this.bucket = cfg.getOrThrow('S3_BUCKET');
+    const endpoint = cfg.get<string>('S3_ENDPOINT');
     this.s3 = new S3Client({
       region: cfg.get('AWS_REGION', 'us-east-1'),
-      endpoint: cfg.get('S3_ENDPOINT'),
-      forcePathStyle: cfg.get('S3_FORCE_PATH_STYLE', 'false') === 'true',
+      ...(endpoint ? { endpoint, forcePathStyle: cfg.get('S3_FORCE_PATH_STYLE', 'false') === 'true' } : {}),
       credentials: {
         accessKeyId: cfg.getOrThrow('AWS_ACCESS_KEY_ID'),
         secretAccessKey: cfg.getOrThrow('AWS_SECRET_ACCESS_KEY'),
