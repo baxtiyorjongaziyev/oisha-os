@@ -20,6 +20,7 @@ sys.path.append(os.path.join(os.getcwd(), "src"))
 
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
+from src import config
 from src.settings import settings
 from src.database import Database
 from src.services.core.safe_responder import SafeResponder
