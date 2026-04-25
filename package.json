@@ -1,0 +1,24 @@
+{
+  "name": "oisha-os-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "build": "turbo build",
+    "clean": "turbo clean",
+    "dev": "turbo dev --parallel",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "typecheck": "turbo typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "prettier": "^3.6.2",
+    "turbo": "^2.6.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.4"
+  }
+}
