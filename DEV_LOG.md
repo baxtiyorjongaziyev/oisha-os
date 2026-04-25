@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-25 19:50 UTC | ⚠️ main `c642a9a`
+
+**Commit**: fix(deploy): include runtime startup dependencies
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
 ## 2026-04-25 19:41 UTC | ⚠️ main `1c47bec`
 
 **Commit**: fix(startup): repair audit agent exception handling
