@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-25 20:10 UTC | ⚠️ main `95d1e53`
+
+**Commit**: fix: resolve deployment secrets and permissions 👸🛡️🦅 ✅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
 ## 2026-04-25 19:58 UTC | ⚠️ main `0dafcfe`
 
 **Commit**: fix(startup): use asyncio run entrypoint
