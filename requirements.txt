@@ -15,6 +15,7 @@ anthropic
 google-generativeai
 google-genai
 google-auth-oauthlib
+google-api-python-client
 gspread
 libsql
 libsql-client
@@ -30,3 +31,4 @@ structlog
 tenacity
 beautifulsoup4
 pytz
+psutil
