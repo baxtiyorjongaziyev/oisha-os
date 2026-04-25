@@ -11,7 +11,7 @@ class UpdateLocaleDto {
   @ApiProperty({ enum: ['uz', 'ru'] })
   @IsString()
   @IsIn(['uz', 'ru'])
-  locale: 'uz' | 'ru';
+  declare locale: 'uz' | 'ru';
 }
 
 @ApiTags('users')
