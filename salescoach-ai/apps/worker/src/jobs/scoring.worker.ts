@@ -6,7 +6,7 @@ import { ScoringService } from '../services/scoring.service';
 const QUEUE_NAME = 'scoring';
 
 export class ScoringWorker {
-  private worker: Worker;
+  private worker!: Worker;
   private scorer = new ScoringService();
 
   start() {
