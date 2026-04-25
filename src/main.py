@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 import logging
+import base64
 from typing import Optional, Dict, Any, List
 
 # [STABILITY] Windows and UTF-8 setup
@@ -23,6 +24,7 @@ from telethon.sessions import StringSession
 from src import config
 from src.settings import settings
 from src.database import Database
+from src.services.core.amocrm_sync import AmoCRMSync
 from src.services.core.safe_responder import SafeResponder
 from src.services.core.action_parser import ActionParser
 from src.services.core.lead_scraper import LeadScraper
