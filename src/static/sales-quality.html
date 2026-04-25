@@ -1,1056 +1,215 @@
 <!DOCTYPE html>
 <html lang="uz">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oisha Sales Quality AI</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap"
-        rel="stylesheet">
+    <title>SalesCoach AI | Premium Sales Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --ink: #152033;
-            --muted: #6b778c;
-            --line: #e7edf5;
-            --paper: #f5f8fc;
-            --card: #ffffff;
-            --blue: #2f80ed;
-            --blue-soft: #eaf3ff;
-            --green: #00a676;
-            --green-soft: #e9fbf4;
-            --orange: #f2994a;
-            --orange-soft: #fff4e8;
-            --red: #eb5757;
-            --red-soft: #fff0f0;
-            --violet: #6658f6;
-            --shadow: 0 24px 70px rgba(40, 55, 90, 0.12);
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            background:
-                radial-gradient(circle at 15% 0%, rgba(47, 128, 237, 0.16), transparent 32rem),
-                radial-gradient(circle at 95% 20%, rgba(0, 166, 118, 0.14), transparent 28rem),
-                linear-gradient(180deg, #fbfdff 0%, var(--paper) 100%);
-            color: var(--ink);
-            font-family: Manrope, sans-serif;
-        }
-
-        .shell {
-            display: grid;
-            grid-template-columns: 268px minmax(0, 1fr);
-            min-height: 100vh;
-        }
-
-        .sidebar {
-            position: sticky;
-            top: 0;
-            height: 100vh;
-            padding: 28px 22px;
-            background: rgba(255, 255, 255, 0.78);
-            border-right: 1px solid var(--line);
-            backdrop-filter: blur(18px);
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 32px;
-        }
-
-        .brand-mark {
-            width: 42px;
-            height: 42px;
-            display: grid;
-            place-items: center;
-            border-radius: 14px;
-            background: linear-gradient(135deg, var(--blue), var(--green));
-            color: white;
-            font-family: "Space Grotesk", sans-serif;
-            font-weight: 700;
-            box-shadow: 0 12px 30px rgba(47, 128, 237, 0.28);
-        }
-
-        .brand strong {
-            display: block;
-            font-family: "Space Grotesk", sans-serif;
-            font-size: 18px;
-        }
-
-        .brand span {
-            color: var(--muted);
-            font-size: 12px;
-        }
-
-        .nav-title {
-            color: #9aa7b8;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: .12em;
-            margin: 24px 10px 10px;
-            text-transform: uppercase;
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 11px 12px;
-            border-radius: 14px;
-            color: var(--muted);
-            font-size: 14px;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-
-        .nav-item.active {
-            background: var(--blue-soft);
-            color: var(--blue);
-        }
-
-        .nav-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: currentColor;
-        }
-
-        .ai-card {
-            margin-top: 28px;
-            padding: 18px;
-            border-radius: 22px;
-            background: #101928;
-            color: white;
-            box-shadow: var(--shadow);
-            overflow: hidden;
-            position: relative;
-        }
-
-        .ai-card::after {
-            content: "";
-            position: absolute;
-            width: 150px;
-            height: 150px;
-            right: -70px;
-            top: -70px;
-            border-radius: 50%;
-            background: rgba(47, 128, 237, .38);
-        }
-
-        .ai-card small {
-            color: #a8b4c7;
-            display: block;
-            line-height: 1.6;
-            margin-top: 8px;
-        }
-
-        .main {
-            padding: 28px 34px 44px;
-            min-width: 0;
-        }
-
-        .topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 18px;
-            margin-bottom: 24px;
-        }
-
-        .title h1 {
-            margin: 0;
-            font-family: "Space Grotesk", sans-serif;
-            font-size: clamp(28px, 4vw, 44px);
-            letter-spacing: -0.04em;
-        }
-
-        .title p {
-            margin: 6px 0 0;
-            color: var(--muted);
-            max-width: 720px;
-        }
-
-        .status-pill {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 12px 16px;
-            border-radius: 999px;
-            background: var(--green-soft);
-            color: var(--green);
-            font-size: 13px;
-            font-weight: 800;
-            white-space: nowrap;
-        }
-
-        .pulse {
-            width: 9px;
-            height: 9px;
-            border-radius: 50%;
-            background: currentColor;
-            box-shadow: 0 0 0 0 rgba(0, 166, 118, .5);
-            animation: pulse 1.8s infinite;
-        }
-
-        @keyframes pulse {
-            70% {
-                box-shadow: 0 0 0 10px rgba(0, 166, 118, 0);
-            }
-        }
-
-        .hero {
-            display: grid;
-            grid-template-columns: minmax(0, 1.5fr) minmax(320px, .8fr);
-            gap: 18px;
-            margin-bottom: 18px;
-        }
-
-        .panel {
-            background: rgba(255, 255, 255, 0.86);
-            border: 1px solid var(--line);
-            border-radius: 28px;
-            box-shadow: var(--shadow);
-        }
-
-        .hero-card {
-            padding: 26px;
-            display: grid;
-            grid-template-columns: 190px minmax(0, 1fr);
-            gap: 26px;
-            align-items: center;
-        }
-
-        .score-ring {
-            --score: 82;
-            width: 176px;
-            aspect-ratio: 1;
-            display: grid;
-            place-items: center;
-            border-radius: 50%;
-            background:
-                radial-gradient(circle at center, white 56%, transparent 57%),
-                conic-gradient(var(--green) calc(var(--score) * 1%), #e7edf5 0);
-            box-shadow: inset 0 0 0 1px #edf2f8;
-        }
-
-        .score-ring strong {
-            font-family: "Space Grotesk", sans-serif;
-            font-size: 46px;
-            letter-spacing: -0.05em;
-        }
-
-        .score-ring span {
-            display: block;
-            color: var(--muted);
-            font-size: 12px;
-            text-align: center;
-            margin-top: -6px;
-        }
-
-        .hero-copy h2,
-        .panel-title h2 {
-            margin: 0;
-            font-family: "Space Grotesk", sans-serif;
-            font-size: 22px;
-            letter-spacing: -0.03em;
-        }
-
-        .hero-copy p {
-            margin: 10px 0 18px;
-            color: var(--muted);
-            line-height: 1.7;
-        }
-
-        .chips {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .chip {
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: #f0f5fb;
-            color: #536176;
-            font-size: 12px;
-            font-weight: 800;
-        }
-
-        .grid-metrics {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 12px;
-        }
-
-        .metric {
-            padding: 18px;
-            border-radius: 22px;
-            background: var(--card);
-            border: 1px solid var(--line);
-        }
-
-        .metric span {
-            display: block;
-            color: var(--muted);
-            font-size: 12px;
-            font-weight: 800;
-            margin-bottom: 8px;
-        }
-
-        .metric strong {
-            font-family: "Space Grotesk", sans-serif;
-            font-size: 28px;
-        }
-
-        .metric small {
-            display: block;
-            color: var(--green);
-            font-weight: 800;
-            margin-top: 4px;
-        }
-
-        .panel-pad {
-            padding: 22px;
-        }
-
-        .panel-title {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        .panel-title span {
-            color: var(--muted);
-            font-size: 12px;
-            font-weight: 800;
-        }
-
-        .layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1.1fr) minmax(360px, .9fr);
-            gap: 18px;
-        }
-
-        .manager-list {
-            display: grid;
-            gap: 12px;
-        }
-
-        .manager {
-            display: grid;
-            grid-template-columns: 46px minmax(0, 1fr) 90px;
-            align-items: center;
-            gap: 12px;
-            padding: 14px;
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            background: #fbfdff;
-        }
-
-        .avatar {
-            width: 46px;
-            height: 46px;
-            border-radius: 16px;
-            display: grid;
-            place-items: center;
-            color: white;
-            font-weight: 900;
-            background: linear-gradient(135deg, var(--blue), var(--violet));
-        }
-
-        .manager h3 {
-            margin: 0;
-            font-size: 15px;
-        }
-
-        .manager p {
-            margin: 4px 0 0;
-            color: var(--muted);
-            font-size: 12px;
-        }
-
-        .bar {
-            height: 9px;
-            border-radius: 99px;
-            background: #e9eef6;
-            overflow: hidden;
-            margin-top: 8px;
-        }
-
-        .bar i {
-            display: block;
-            height: 100%;
-            width: var(--value);
-            background: linear-gradient(90deg, var(--blue), var(--green));
-            border-radius: inherit;
-        }
-
-        .manager-score {
-            text-align: right;
-            font-family: "Space Grotesk", sans-serif;
-            font-size: 26px;
-            font-weight: 700;
-        }
-
-        .manager-score small {
-            display: block;
-            color: var(--muted);
-            font-family: Manrope, sans-serif;
-            font-size: 11px;
-            font-weight: 800;
-        }
-
-        .outcome-row,
-        .risk-row,
-        .weak-row {
-            display: grid;
-            gap: 8px;
-            padding: 13px 0;
-            border-bottom: 1px solid var(--line);
-        }
-
-        .outcome-top,
-        .risk-top {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-            font-size: 13px;
-            font-weight: 800;
-        }
-
-        .outcome-track {
-            height: 10px;
-            background: #edf2f8;
-            border-radius: 99px;
-            overflow: hidden;
-        }
-
-        .outcome-track i {
-            display: block;
-            height: 100%;
-            width: var(--value);
-            background: var(--color);
-            border-radius: inherit;
-        }
-
-        .radar-wrap {
-            display: grid;
-            grid-template-columns: 230px minmax(0, 1fr);
-            gap: 18px;
-            align-items: center;
-        }
-
-        .radar {
-            width: 220px;
-            height: 220px;
-        }
-
-        .radar polygon.grid {
-            fill: none;
-            stroke: #dfe7f2;
-            stroke-width: 1;
-        }
-
-        .radar polygon.score {
-            fill: rgba(47, 128, 237, .22);
-            stroke: var(--blue);
-            stroke-width: 3;
-        }
-
-        .radar text {
-            fill: #6b778c;
-            font-size: 9px;
-            font-weight: 800;
-        }
-
-        .risk-card {
-            padding: 14px;
-            border-radius: 18px;
-            border: 1px solid var(--line);
-            background: #fbfdff;
-            margin-bottom: 12px;
-        }
-
-        .risk-card.high {
-            background: var(--red-soft);
-            border-color: rgba(235, 87, 87, .2);
-        }
-
-        .risk-card.medium {
-            background: var(--orange-soft);
-            border-color: rgba(242, 153, 74, .25);
-        }
-
-        .risk-card h3 {
-            margin: 0;
-            font-size: 14px;
-        }
-
-        .risk-card p {
-            margin: 8px 0 0;
-            color: var(--muted);
-            font-size: 13px;
-            line-height: 1.55;
-        }
-
-        .calls {
-            display: grid;
-            gap: 12px;
-        }
-
-        .call-card {
-            padding: 16px;
-            border-radius: 20px;
-            border: 1px solid var(--line);
-            background: #fbfdff;
-            display: grid;
-            gap: 10px;
-        }
-
-        .call-head {
-            display: flex;
-            justify-content: space-between;
-            gap: 14px;
-        }
-
-        .call-head h3 {
-            margin: 0;
-            font-size: 15px;
-        }
-
-        .call-head span {
-            color: var(--muted);
-            font-size: 12px;
-            display: block;
-            margin-top: 3px;
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 7px 10px;
-            border-radius: 999px;
-            background: var(--blue-soft);
-            color: var(--blue);
-            font-size: 12px;
-            font-weight: 900;
-            white-space: nowrap;
-        }
-
-        .badge.red {
-            background: var(--red-soft);
-            color: var(--red);
-        }
-
-        .call-card p {
-            margin: 0;
-            color: var(--muted);
-            font-size: 13px;
-            line-height: 1.6;
-        }
-
-        .call-meta {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .insight-list {
-            display: grid;
-            gap: 10px;
-        }
-
-        .insight {
-            display: grid;
-            grid-template-columns: 26px minmax(0, 1fr);
-            gap: 10px;
-            align-items: start;
-            padding: 12px;
-            border-radius: 16px;
-            background: #f7faff;
-            color: #48566d;
-            font-size: 13px;
-            line-height: 1.55;
-        }
-
-        .insight i {
-            width: 26px;
-            height: 26px;
-            border-radius: 9px;
-            display: grid;
-            place-items: center;
-            background: var(--green-soft);
-            color: var(--green);
-            font-style: normal;
-            font-weight: 900;
-        }
-
-        .chat-card {
-            display: grid;
-            gap: 12px;
-        }
-
-        .qa {
-            padding: 14px;
-            border-radius: 18px;
-            background: #111827;
-            color: white;
-        }
-
-        .qa strong {
-            display: block;
-            color: #9fd2ff;
-            margin-bottom: 8px;
-            font-size: 13px;
-        }
-
-        .qa p {
-            margin: 0;
-            color: #d9e4f2;
-            line-height: 1.65;
-            font-size: 13px;
-        }
-
-        .footer-note {
-            margin-top: 16px;
-            color: var(--muted);
-            font-size: 12px;
-            text-align: right;
-        }
-
-        .empty-state {
-            padding: 18px;
-            border: 1px dashed #c9d5e5;
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.62);
-            color: var(--muted);
-            font-size: 13px;
-            line-height: 1.6;
-        }
-
-        @media (max-width: 1180px) {
-            .shell {
-                grid-template-columns: 1fr;
-            }
-
-            .sidebar {
-                position: relative;
-                height: auto;
-                display: none;
-            }
-
-            .main {
-                padding: 22px;
-            }
-
-            .hero,
-            .layout {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 760px) {
-            .topbar {
-                align-items: flex-start;
-                flex-direction: column;
-            }
-
-            .hero-card,
-            .radar-wrap {
-                grid-template-columns: 1fr;
-            }
-
-            .score-ring,
-            .radar {
-                margin: 0 auto;
-            }
-
-            .grid-metrics {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            .manager {
-                grid-template-columns: 46px minmax(0, 1fr);
-            }
-
-            .manager-score {
-                grid-column: 1 / -1;
-                text-align: left;
-            }
-        }
-
-        @media (max-width: 520px) {
-            .main {
-                padding: 16px;
-            }
-
-            .grid-metrics {
-                grid-template-columns: 1fr;
-            }
-
-            .panel,
-            .metric {
-                border-radius: 20px;
-            }
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3); }
+        .sidebar { width: 320px; border-right: 1px solid #e2e8f0; height: 100vh; position: sticky; top: 0; }
+        .transcript-bubble { max-width: 85%; padding: 12px 16px; border-radius: 16px; margin-bottom: 12px; }
+        .manager-bubble { background-color: #2563eb; color: white; align-self: flex-start; border-bottom-left-radius: 4px; }
+        .client-bubble { background-color: white; color: #1e293b; align-self: flex-end; border-bottom-right-radius: 4px; border: 1px solid #e2e8f0; }
+        .score-badge { width: 48px; height: 48px; border-radius: 50%; display: flex; items-center: center; justify-content: center; font-weight: 700; }
+        .metric-card { transition: transform 0.2s; }
+        .metric-card:hover { transform: translateY(-2px); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
+<body class="text-slate-900">
 
-<body>
-    <div class="shell">
-        <aside class="sidebar">
-            <div class="brand">
-                <div class="brand-mark">OI</div>
-                <div>
-                    <strong>Oisha QA</strong>
-                    <span>Sales Quality AI</span>
+<div class="flex">
+    <!-- Sidebar -->
+    <aside class="sidebar bg-white flex flex-col p-6 hidden lg:flex">
+        <div class="flex items-center gap-2 mb-10">
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">O</div>
+            <h1 class="text-xl font-bold tracking-tight">SalesCoach AI</h1>
+        </div>
+
+        <nav class="space-y-1">
+            <a href="#" class="flex items-center gap-3 px-4 py-3 bg-blue-50 text-blue-700 rounded-xl font-medium">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                Dashboard
+            </a>
+            <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+                Call History
+            </a>
+            <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                Team Analytics
+            </a>
+        </nav>
+
+        <div class="mt-auto p-4 bg-slate-900 rounded-2xl text-white">
+            <p class="text-xs text-slate-400 mb-1">Current Plan</p>
+            <p class="font-bold mb-3 text-sm">Enterprise v2.1</p>
+            <div class="w-full bg-slate-700 h-1.5 rounded-full mb-3">
+                <div class="bg-blue-500 h-1.5 rounded-full w-3/4"></div>
+            </div>
+            <button class="w-full py-2 bg-white text-slate-900 text-xs font-bold rounded-lg">Upgrade Now</button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 min-h-screen p-4 lg:p-8">
+        <!-- Top Nav -->
+        <header class="flex items-center justify-between mb-8">
+            <div>
+                <h2 class="text-2xl font-bold tracking-tight">Call Analysis</h2>
+                <p class="text-slate-500 text-sm">Reviewing call with <span class="font-semibold text-slate-900" id="client_name">Baxtiyorjon Gaziyev</span></p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="px-4 py-2 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                    <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Call Score</span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl font-bold text-blue-600" id="main_score">86%</span>
+                        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    </div>
                 </div>
             </div>
+        </header>
 
-            <div class="nav-title">Menyu</div>
-            <div class="nav-item active"><span class="nav-dot"></span> Bosh sahifa</div>
-            <div class="nav-item"><span class="nav-dot"></span> Menejerlar</div>
-            <div class="nav-item"><span class="nav-dot"></span> Qo'ng'iroqlar</div>
-            <div class="nav-item"><span class="nav-dot"></span> Yo'qotish sabablari</div>
-            <div class="nav-item"><span class="nav-dot"></span> AI chat</div>
-
-            <div class="ai-card">
-                <strong>24/7 sifat nazorati</strong>
-                <small>Oisha qo'ng'iroqlar, CRM stage, follow-up va menejer intizomini bitta oynada kuzatadi.</small>
-            </div>
-        </aside>
-
-        <main class="main">
-            <div class="topbar">
-                <div class="title">
-                    <h1>Sotuv Sifat Nazorati</h1>
-                    <p>Qo'ng'iroq sifati, menejer reytingi, yo'qotilgan lead sabablari va keyingi qadamlar bo'yicha AI dashboard.</p>
-                </div>
-                <div class="status-pill"><span class="pulse"></span><span id="liveStatus">Real data tekshirilmoqda</span></div>
-            </div>
-
-            <section class="hero">
-                <div class="panel hero-card">
-                    <div class="score-ring" id="scoreRing">
-                        <div>
-                            <strong id="qualityScore">--</strong>
-                            <span>jamoa bali</span>
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <!-- Left Column: Transcript -->
+            <div class="xl:col-span-2 space-y-6">
+                <!-- Audio Player -->
+                <div class="p-6 bg-white rounded-3xl shadow-sm border border-slate-100">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-4">
+                            <button class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            </button>
+                            <div>
+                                <p class="font-bold text-sm">Call Recording #8921</p>
+                                <p class="text-xs text-slate-400">Duration: 04:22 • April 25, 2026</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button class="p-2 text-slate-400 hover:text-slate-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg></button>
+                            <button class="p-2 text-slate-400 hover:text-slate-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg></button>
                         </div>
                     </div>
-                    <div class="hero-copy">
-                        <h2>Bugungi servis sifati</h2>
-                        <p id="heroText">Ma'lumot yuklanmoqda...</p>
-                        <div class="chips">
-                            <span class="chip" id="periodChip">Bugun</span>
-                            <span class="chip" id="trendChip">Trend: --</span>
-                            <span class="chip">CRM + Call AI</span>
-                            <span class="chip">Uzbek service mode</span>
+                    <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                        <div class="bg-blue-600 h-full w-1/3"></div>
+                    </div>
+                </div>
+
+                <!-- Transcript View -->
+                <div class="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col h-[600px]">
+                    <div class="p-6 border-b border-slate-50 flex items-center justify-between">
+                        <h3 class="font-bold">Smart Transcript</h3>
+                        <div class="flex gap-2">
+                            <span class="px-3 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-full uppercase">Manager</span>
+                            <span class="px-3 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-full uppercase">Client</span>
                         </div>
                     </div>
-                </div>
-
-                <div class="grid-metrics">
-                    <div class="metric">
-                        <span>Jami qo'ng'iroq</span>
-                        <strong id="callsTotal">--</strong>
-                        <small id="callsAnalyzed">-- tahlil</small>
-                    </div>
-                    <div class="metric">
-                        <span>Bog'langan</span>
-                        <strong id="connectedCalls">--</strong>
-                        <small>real suhbatlar</small>
-                    </div>
-                    <div class="metric">
-                        <span>Sotuvlar</span>
-                        <strong id="salesCount">--</strong>
-                        <small id="conversion">--%</small>
-                    </div>
-                    <div class="metric">
-                        <span>Callback</span>
-                        <strong id="callbackAgreed">--</strong>
-                        <small>kelishilgan</small>
+                    <div class="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col" id="transcript_container">
+                        <!-- Transcripts injected here -->
                     </div>
                 </div>
-            </section>
+            </div>
 
-            <section class="layout">
-                <div class="panel panel-pad">
-                    <div class="panel-title">
-                        <h2>Menejerlar reytingi</h2>
-                        <span>Ball + konversiya + faollik</span>
-                    </div>
-                    <div class="manager-list" id="managerList"></div>
+            <!-- Right Column: Insights & Score -->
+            <div class="space-y-6">
+                <!-- Summary Card -->
+                <div class="p-6 bg-white rounded-3xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        AI Summary
+                    </h3>
+                    <p class="text-sm text-slate-600 leading-relaxed" id="call_summary">
+                        Mijoz Oisha-OS integratsiyasi bo'yicha qiziqish bildirdi. Asosiy ehtiyoj - CRM dagi bitimlarni avtomatlashtirish va menejerlar ishini nazorat qilish.
+                    </p>
                 </div>
 
-                <div class="panel panel-pad">
-                    <div class="panel-title">
-                        <h2>Natijalar taqsimoti</h2>
-                        <span>qo'ng'iroq qanday tugagan</span>
-                    </div>
-                    <div id="outcomes"></div>
-                </div>
-            </section>
-
-            <section class="layout" style="margin-top:18px;">
-                <div class="panel panel-pad">
-                    <div class="panel-title">
-                        <h2>Sotuv radari</h2>
-                        <span>zaif joylar qayerda</span>
-                    </div>
-                    <div class="radar-wrap">
-                        <svg class="radar" viewBox="0 0 220 220" id="radarChart" role="img" aria-label="Sales radar"></svg>
-                        <div id="weaknesses"></div>
+                <!-- Score Breakdown -->
+                <div class="p-6 bg-white rounded-3xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold mb-4">Metric Breakdown</h3>
+                    <div class="space-y-4" id="metrics_list">
+                        <!-- Metrics injected here -->
                     </div>
                 </div>
 
-                <div class="panel panel-pad">
-                    <div class="panel-title">
-                        <h2>Nima uchun lead yo'qolyapti?</h2>
-                        <span>AI risk signal</span>
-                    </div>
-                    <div id="lossReasons"></div>
+                <!-- Next Steps -->
+                <div class="p-6 bg-blue-600 rounded-3xl shadow-lg shadow-blue-100 text-white">
+                    <h3 class="font-bold mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Recommended Actions
+                    </h3>
+                    <ul class="space-y-3" id="next_steps">
+                        <!-- Steps injected here -->
+                    </ul>
                 </div>
-            </section>
+            </div>
+        </div>
+    </main>
+</div>
 
-            <section class="layout" style="margin-top:18px;">
-                <div class="panel panel-pad">
-                    <div class="panel-title">
-                        <h2>Oxirgi qo'ng'iroqlar tahlili</h2>
-                        <span>mijoz bo'yicha xulosa</span>
-                    </div>
-                    <div class="calls" id="callList"></div>
-                </div>
+<script>
+    async function loadData() {
+        // Fetch real data from our new API
+        try {
+            const response = await fetch('/api/v1/dashboard/call/787f4c7d-d374-476b-8e4d-bdbb531caba7');
+            const data = await response.json();
 
-                <div class="panel panel-pad">
-                    <div class="panel-title">
-                        <h2>AI tavsiyalar va chat</h2>
-                        <span>oddiy savol-javob formatida</span>
-                    </div>
-                    <div class="insight-list" id="recommendations"></div>
-                    <div class="chat-card" id="qaList" style="margin-top:14px;"></div>
-                </div>
-            </section>
+            document.getElementById('client_name').innerText = data.lead_name;
+            document.getElementById('call_summary').innerText = data.summary;
+            document.getElementById('main_score').innerText = data.metrics.reduce((acc, m) => acc + m.score, 0) / data.metrics.length + '%';
 
-            <div class="footer-note" id="generatedAt">Yuklanmoqda...</div>
-        </main>
-    </div>
-
-    <script>
-        const fmt = new Intl.NumberFormat('uz-UZ');
-
-        function byId(id) {
-            return document.getElementById(id);
-        }
-
-        function scoreTone(score) {
-            if (score >= 85) return 'var(--green)';
-            if (score >= 70) return 'var(--orange)';
-            return 'var(--red)';
-        }
-
-        function emptyState(message) {
-            return `<div class="empty-state">${message}</div>`;
-        }
-
-        function renderManagers(managers) {
-            if (!managers.length) {
-                byId('managerList').innerHTML = emptyState("Real qo'ng'iroq tahlili kelmaguncha menejer reytingi ko'rsatilmaydi.");
-                return;
-            }
-            byId('managerList').innerHTML = managers.map((manager) => `
-                <div class="manager">
-                    <div class="avatar">${manager.avatar}</div>
+            // Render Metrics
+            const metricsList = document.getElementById('metrics_list');
+            data.metrics.forEach(m => {
+                const colorClass = m.status === 'success' ? 'bg-green-500' : (m.status === 'warning' ? 'bg-orange-500' : 'bg-red-500');
+                metricsList.innerHTML += `
                     <div>
-                        <h3>${manager.name}</h3>
-                        <p>${manager.calls} ta qo'ng'iroq, ${manager.sales} ta sotuv, konversiya ${manager.conversion}%</p>
-                        <div class="bar" style="--value:${manager.score}%"><i></i></div>
-                    </div>
-                    <div class="manager-score" style="color:${scoreTone(manager.score)}">
-                        ${manager.score}
-                        <small>${manager.trend}</small>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function renderOutcomes(outcomes) {
-            if (!outcomes.length) {
-                byId('outcomes').innerHTML = emptyState("Real outcome ma'lumotlari hali yo'q.");
-                return;
-            }
-            const max = Math.max(...outcomes.map(item => item.value), 1);
-            byId('outcomes').innerHTML = outcomes.map((item) => `
-                <div class="outcome-row">
-                    <div class="outcome-top">
-                        <span>${item.label}</span>
-                        <span>${item.value} ta</span>
-                    </div>
-                    <div class="outcome-track" style="--value:${(item.value / max) * 100}%; --color:${item.color};"><i></i></div>
-                </div>
-            `).join('');
-        }
-
-        function radarPoint(index, total, radius, center, score = 100) {
-            const angle = (Math.PI * 2 * index / total) - Math.PI / 2;
-            const scaled = radius * (score / 100);
-            return [
-                center + Math.cos(angle) * scaled,
-                center + Math.sin(angle) * scaled,
-            ];
-        }
-
-        function renderRadar(items) {
-            if (!items.length) {
-                byId('radarChart').innerHTML = `<text x="110" y="110" text-anchor="middle" fill="#6b778c">Real skill score yo'q</text>`;
-                return;
-            }
-            const center = 110;
-            const radius = 72;
-            const levels = [25, 50, 75, 100];
-            const grid = levels.map(level => {
-                const points = items.map((_, index) => radarPoint(index, items.length, radius, center, level).join(',')).join(' ');
-                return `<polygon class="grid" points="${points}"></polygon>`;
-            }).join('');
-            const axes = items.map((item, index) => {
-                const [x, y] = radarPoint(index, items.length, radius + 20, center, 100);
-                const [x2, y2] = radarPoint(index, items.length, radius, center, 100);
-                return `<line x1="${center}" y1="${center}" x2="${x2}" y2="${y2}" stroke="#dfe7f2"/><text x="${x}" y="${y}" text-anchor="middle">${item.label}</text>`;
-            }).join('');
-            const score = items.map((item, index) => radarPoint(index, items.length, radius, center, item.score).join(',')).join(' ');
-            byId('radarChart').innerHTML = `${grid}${axes}<polygon class="score" points="${score}"></polygon>`;
-        }
-
-        function renderWeaknesses(items) {
-            if (!items.length) {
-                byId('weaknesses').innerHTML = emptyState("Real zaif joy signallari hali yo'q.");
-                return;
-            }
-            byId('weaknesses').innerHTML = items.map((item) => `
-                <div class="weak-row">
-                    <div class="risk-top">
-                        <span>${item.label}</span>
-                        <span class="badge ${item.severity === 'critical' ? 'red' : ''}">${item.count} ta signal</span>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function renderLossReasons(items) {
-            if (!items.length) {
-                byId('lossReasons').innerHTML = emptyState("Yo'qotish sabablari faqat real tahlil yozuvlaridan chiqadi.");
-                return;
-            }
-            byId('lossReasons').innerHTML = items.map((item) => `
-                <div class="risk-card ${item.impact}">
-                    <div class="risk-top">
-                        <h3>${item.title}</h3>
-                        <span class="badge ${item.impact === 'high' ? 'red' : ''}">${item.count} ta</span>
-                    </div>
-                    <p>${item.fix}</p>
-                </div>
-            `).join('');
-        }
-
-        function renderCalls(calls) {
-            if (!calls.length) {
-                byId('callList').innerHTML = emptyState("Oxirgi real qo'ng'iroq tahlillari hali kelmagan.");
-                return;
-            }
-            byId('callList').innerHTML = calls.map((call) => `
-                <article class="call-card">
-                    <div class="call-head">
-                        <div>
-                            <h3>${call.client}</h3>
-                            <span>${call.manager} bilan ${call.duration} suhbat</span>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="font-medium">${m.label}</span>
+                            <span class="font-bold">${m.score}%</span>
                         </div>
-                        <span class="badge ${call.risk === 'Yuqori' ? 'red' : ''}">${call.score}%</span>
+                        <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                            <div class="${colorClass} h-full" style="width: ${m.score}%"></div>
+                        </div>
                     </div>
-                    <p>${call.summary}</p>
-                    <div class="call-meta">
-                        <span class="badge">${call.result}</span>
-                        <span class="badge ${call.risk === 'Yuqori' ? 'red' : ''}">Risk: ${call.risk}</span>
+                `;
+            });
+
+            // Render Transcript
+            const container = document.getElementById('transcript_container');
+            data.transcript.forEach(t => {
+                const isManager = t.speaker.toLowerCase() === 'manager';
+                container.innerHTML += `
+                    <div class="transcript-bubble ${isManager ? 'manager-bubble' : 'client-bubble shadow-sm'}">
+                        <p class="text-xs ${isManager ? 'text-blue-200' : 'text-slate-400'} mb-1 font-semibold uppercase tracking-tighter">${t.speaker} • ${t.timestamp}</p>
+                        <p class="text-sm leading-relaxed">${t.text}</p>
                     </div>
-                </article>
-            `).join('');
+                `;
+            });
+
+            // Render Next Steps
+            const stepsList = document.getElementById('next_steps');
+            data.next_steps.forEach(step => {
+                stepsList.innerHTML += `
+                    <li class="flex items-start gap-3 text-sm">
+                        <div class="mt-1 w-4 h-4 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                        ${step}
+                    </li>
+                `;
+            });
+
+        } catch (e) {
+            console.error("Dashboard error:", e);
         }
+    }
 
-        function renderRecommendations(items) {
-            if (!items.length) {
-                byId('recommendations').innerHTML = emptyState("Real tahlil bo'lmasa Oisha tavsiya to'qib chiqarmaydi.");
-                return;
-            }
-            byId('recommendations').innerHTML = items.map((item, index) => `
-                <div class="insight">
-                    <i>${index + 1}</i>
-                    <span>${item}</span>
-                </div>
-            `).join('');
-        }
+    loadData();
+</script>
 
-        function renderQa(items) {
-            if (!items.length) {
-                byId('qaList').innerHTML = emptyState("Real data kelgandan keyin savol-javob xulosalari chiqadi.");
-                return;
-            }
-            byId('qaList').innerHTML = items.map((item) => `
-                <div class="qa">
-                    <strong>${item.question}</strong>
-                    <p>${item.answer}</p>
-                </div>
-            `).join('');
-        }
-
-        async function loadDashboard() {
-            try {
-                const response = await fetch('/api/sales-quality/overview');
-                const data = await response.json();
-                const team = data.team || {};
-                const hasRealData = data.real_data === true;
-
-                byId('qualityScore').textContent = team.quality_score ?? '--';
-                byId('scoreRing').style.setProperty('--score', team.quality_score || 0);
-                byId('scoreRing').style.color = scoreTone(team.quality_score || 0);
-                byId('liveStatus').textContent = hasRealData ? 'Real tahlil faol' : 'Real data ulanmagan';
-                byId('heroText').textContent = hasRealData
-                    ? `${team.calls_analyzed || 0} ta real suhbat tahlil qilindi. Oisha menejerlar sifatini, callback intizomini va yo'qolish xavfidagi leadlarni kuzatyapti.`
-                    : (data.message || "Real qo'ng'iroq tahlili kelmaguncha Oisha fake raqam ko'rsatmaydi.");
-                byId('periodChip').textContent = data.period || 'Bugun';
-                byId('trendChip').textContent = `Trend: ${team.trend || '--'}`;
-                byId('callsTotal').textContent = fmt.format(team.calls_total || 0);
-                byId('callsAnalyzed').textContent = `${fmt.format(team.calls_analyzed || 0)} tahlil`;
-                byId('connectedCalls').textContent = fmt.format(team.connected_calls || 0);
-                byId('salesCount').textContent = fmt.format(team.sales_count || 0);
-                byId('conversion').textContent = `Konversiya ${team.conversion || 0}%`;
-                byId('callbackAgreed').textContent = fmt.format(team.callback_agreed || 0);
-                byId('generatedAt').textContent = `Oxirgi yangilanish: ${new Date(data.generated_at).toLocaleString('uz-UZ')} | Manba: ${data.source || "noma'lum"} | Holat: ${data.status || '--'}`;
-
-                renderManagers(data.managers || []);
-                renderOutcomes(data.outcomes || []);
-                renderRadar(data.radar || []);
-                renderWeaknesses(data.weaknesses || []);
-                renderLossReasons(data.loss_reasons || []);
-                renderCalls(data.calls || []);
-                renderRecommendations(data.recommendations || []);
-                renderQa(data.assistant_answers || []);
-            } catch (error) {
-                byId('liveStatus').textContent = 'API ulanmagan';
-                byId('heroText').textContent = `Dashboard ma'lumot yuklay olmadi: ${error.message}`;
-            }
-        }
-
-        loadDashboard();
-        setInterval(loadDashboard, 30000);
-    </script>
 </body>
-
 </html>
