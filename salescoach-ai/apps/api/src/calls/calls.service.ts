@@ -20,8 +20,8 @@ export class CallsService {
       data: {
         orgId,
         managerId,
-        customerPhone: dto.customerPhone,
-        customerName: dto.customerName,
+        customerPhone: dto.customerPhone ?? null,
+        customerName: dto.customerName ?? null,
         direction: dto.direction ?? 'OUTBOUND',
         status: 'UPLOADED',
       },

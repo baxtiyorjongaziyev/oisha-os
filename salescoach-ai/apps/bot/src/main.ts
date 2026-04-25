@@ -1,13 +1,12 @@
 import 'dotenv/config';
-import { Bot, session } from 'grammy';
-import { registerCommands } from './commands';
-import { registerHandlers } from './handlers';
+import { Bot } from 'grammy';
+import { registerCommands } from './commands/index.js';
+import { registerHandlers } from './handlers/index.js';
 
-const token = process.env.BOT_TOKEN;
+const token = process.env['BOT_TOKEN'];
 if (!token) throw new Error('BOT_TOKEN is required');
 
 const bot = new Bot(token);
-bot.use(session({ initial: () => ({}) }));
 
 registerCommands(bot);
 registerHandlers(bot);

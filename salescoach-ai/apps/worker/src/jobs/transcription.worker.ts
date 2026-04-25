@@ -6,7 +6,7 @@ import { WhisperService } from '../services/whisper.service';
 const QUEUE_NAME = 'transcription';
 
 export class TranscriptionWorker {
-  private worker: Worker;
+  private worker!: Worker;
   private whisper = new WhisperService();
 
   start() {
