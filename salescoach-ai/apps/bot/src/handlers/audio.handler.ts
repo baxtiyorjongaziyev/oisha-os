@@ -1,22 +1,32 @@
 import { Context } from 'grammy';
 
+interface UploadInitResponse {
+  callId: string;
+  uploadUrl: string;
+  audioKey: string;
+}
+
 export async function handleAudio(ctx: Context) {
   const msg = ctx.message;
   const fileId = msg?.audio?.file_id ?? msg?.voice?.file_id ?? msg?.document?.file_id;
-  if (!fileId) return ctx.reply('Could not read audio file.');
+  if (!fileId) {
+    await ctx.reply('Could not read audio file.');
+    return;
+  }
 
   const statusMsg = await ctx.reply('Processing your call recording...');
 
   try {
-    const apiUrl = process.env.API_URL ?? 'http://localhost:4000/v1';
-    const apiToken = process.env.BOT_API_TOKEN;
-    if (!apiToken) return ctx.reply('Bot not configured for API access.');
+    const apiUrl = process.env['API_URL'] ?? 'http://localhost:4000/v1';
+    const apiToken = process.env['BOT_API_TOKEN'];
+    if (!apiToken) {
+      await ctx.reply('Bot not configured for API access.');
+      return;
+    }
 
-    // Get Telegram file URL
     const fileInfo = await ctx.api.getFile(fileId);
-    const telegramUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
+    const telegramUrl = `https://api.telegram.org/file/bot${process.env['BOT_TOKEN']}/${fileInfo.file_path}`;
 
-    // Initiate upload
     const initRes = await fetch(`${apiUrl}/calls`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiToken}` },
@@ -29,9 +39,8 @@ export async function handleAudio(ctx: Context) {
     });
 
     if (!initRes.ok) throw new Error('Failed to initiate upload');
-    const { callId, uploadUrl } = await initRes.json();
+    const { callId, uploadUrl } = (await initRes.json()) as UploadInitResponse;
 
-    // Fetch from Telegram and upload to S3
     const audioRes = await fetch(telegramUrl);
     if (!audioRes.ok) throw new Error('Failed to download from Telegram');
     const audioBuffer = await audioRes.arrayBuffer();
@@ -42,7 +51,6 @@ export async function handleAudio(ctx: Context) {
       headers: { 'Content-Type': 'audio/ogg' },
     });
 
-    // Confirm and enqueue
     await fetch(`${apiUrl}/calls/${callId}/confirm`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiToken}` },
@@ -55,11 +63,12 @@ export async function handleAudio(ctx: Context) {
       `You'll receive the report once transcription and scoring complete.`,
       { parse_mode: 'Markdown' },
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
     await ctx.api.editMessageText(
       ctx.chat!.id,
       statusMsg.message_id,
-      `Failed to process: ${err.message}`,
+      `Failed to process: ${message}`,
     );
   }
 }

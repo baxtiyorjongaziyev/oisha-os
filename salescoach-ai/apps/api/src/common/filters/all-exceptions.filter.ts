@@ -1,5 +1,8 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
-import { FastifyReply, FastifyRequest } from 'fastify';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type FastifyReply = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type FastifyRequest = any;
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {

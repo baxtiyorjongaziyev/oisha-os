@@ -21,14 +21,14 @@ export class WhisperService {
   private bucket: string;
 
   constructor() {
-    this.bucket = process.env.S3_BUCKET!;
+    this.bucket = process.env['S3_BUCKET']!;
+    const endpoint = process.env['S3_ENDPOINT'];
     this.s3 = new S3Client({
-      region: process.env.AWS_REGION ?? 'us-east-1',
-      endpoint: process.env.S3_ENDPOINT,
-      forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
+      region: process.env['AWS_REGION'] ?? 'us-east-1',
+      ...(endpoint ? { endpoint, forcePathStyle: process.env['S3_FORCE_PATH_STYLE'] === 'true' } : {}),
       credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+        accessKeyId: process.env['AWS_ACCESS_KEY_ID']!,
+        secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY']!,
       },
     });
   }
