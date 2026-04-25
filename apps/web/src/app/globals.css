@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --background: #f8f3ea;
+  --foreground: #111827;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(217, 146, 46, 0.25), transparent 30rem),
+    linear-gradient(135deg, #f8f3ea 0%, #eef4ef 100%);
+  color: var(--foreground);
+  min-height: 100vh;
+}
