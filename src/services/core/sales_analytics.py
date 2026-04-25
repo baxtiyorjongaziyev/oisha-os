@@ -64,12 +64,16 @@ class SalesAnalytics:
         return all_leads
 
     def _get_user_name(self, user_id: int) -> str:
-        """AmoCRM user ismini olish."""
+        """AmoCRM user ismini olish (Mapping bilan)."""
         try:
             url = f"{self.amo.base_url}/api/v4/users/{user_id}"
             resp = requests.get(url, headers=self.amo._get_headers())
             if resp.status_code == 200:
-                return resp.json().get("name", f"User_{user_id}")
+                name = resp.json().get("name", f"User_{user_id}")
+                # Name Mapping for Oydin
+                if "Baxtiyorjon Gaziyev" in name:
+                    return "Oydin (Sales Manager)"
+                return name
         except:
             pass
         return f"User_{user_id}"
