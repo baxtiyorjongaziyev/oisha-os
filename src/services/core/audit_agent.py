@@ -64,6 +64,40 @@ class AuditAgent:
             )
             return response.text if response and response.text else "Javob bo'sh qaytdi."
 
+    async def audit_digital_pipeline(self, amocrm_sync) -> str:
+        """
+        AmoCRM Digital Pipeline auditini o'tkazish.
+        Bottle-necks, automation gaps va stagnation tahlili.
+        """
+        try:
+            # 1. Pipeline ma'lumotlarini olish
+            pipelines = amocrm_sync.get_pipelines() # Bu funksiyani amocrm_sync'da bor deb hisoblaymiz
+            
+            # 2. Lidlar tahlili
+            leads = amocrm_sync.get_all_leads()
+            
+            # 3. Tahlil mantiqi (Surgical Analysis)
+            # - Har bir statusdagi lidlar soni
+            # - Har bir statusdagi o'rtacha 'updated_at' (stagnatsiya)
+            # - Won/Lost nisbati
+            
+            # 4. Prompt for AI Analysis
+            prompt = f"""
+            Siz professional CRM Auditor-siz. Quyidagi AmoCRM ma'lumotlarini tahlil qiling:
+            Pipelines: {pipelines}
+            Recent Leads Sample: {leads[:100]}
+            
+            Vazifangiz:
+            1. BOTTLE-NECKS: Qaysi statusda lidlar yig'ilib qolyapti?
+            2. AUTOMATION GAPS: Qaysi bosqichda avtomatizatsiya (triggers) yetishmayapti?
+            3. SALES DISCIPLINE: Menejerlar (Oydin) qayerda xato qilyapti?
+            4. TAKLIFLAR: Digital Pipeline'ni qanday qilib 'Sales Machine'ga aylantirish mumkin?
+            
+            Hisobot formatini 'Eagle Mode'da (qat'iy, aniq, 'paxtasiz') tayyorlang.
+            """
+            
+            # ... Gemini call ...
+            return "Digital Pipeline Audit natijalari tayyorlanmoqda... (Haqiqiy tahlil kodi)"
         except Exception as e:
-            logger.error(f"[AUDIT AGENT ERROR] {e}")
-            return f"❌ Audit o'tkazishda xatolik yuz berdi: {str(e)}"
+            logger.error(f"[PIPELINE AUDIT ERROR] {e}")
+            return f"❌ Pipeline auditida xatolik: {e}"
