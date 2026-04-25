@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-25 19:32 UTC | ⚠️ main `a974e39`
+
+**Commit**: fix(deploy): include gspread runtime dependency
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
 ## 2026-04-25 19:20 UTC | 🔴 main `da2681c`
 
 **Commit**: fix(ci): install runtime packages used by tests
