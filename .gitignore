@@ -8,6 +8,15 @@ env/
 venv/
 ENV/
 
+# JavaScript / TypeScript
+node_modules/
+.turbo/
+.next/
+apps/**/.next/
+apps/**/dist/
+packages/**/dist/
+*.tsbuildinfo
+
 # Python
 __pycache__/
 *.py[cod]
@@ -22,6 +31,12 @@ build/
 *.json
 !cloudbuild.yaml
 !package.json
+!tsconfig*.json
+!turbo.json
+!.prettierrc.json
+!apps/**/tsconfig*.json
+!packages/**/tsconfig*.json
+!packages/config/**/*.json
 !manifest.json
 !src/widgets/**/*.json
 !deploy/openclaw/openclaw.json
