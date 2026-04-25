@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-25 07:13 UTC | 🔴 main `9c50edd`
+
+**Commit**: fix: Added missing dependencies for CI tests (aiosqlite, structlog, etc) 👸🛡️🦅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-04-25 07:09 UTC | 🔴 main `59f6f03`
 
 **Commit**: fix: Fixed IndentationError in main.py (Surgical Clean) 👸🛡️🦅
