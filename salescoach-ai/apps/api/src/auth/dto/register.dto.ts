@@ -4,19 +4,19 @@ import { IsEmail, IsString, MinLength, MaxLength, IsOptional, IsIn } from 'class
 export class RegisterDto {
   @ApiProperty()
   @IsEmail()
-  email: string;
+  declare email: string;
 
   @ApiProperty({ minLength: 8 })
   @IsString()
   @MinLength(8)
   @MaxLength(128)
-  password: string;
+  declare password: string;
 
   @ApiProperty({ description: 'Organization name' })
   @IsString()
   @MinLength(2)
   @MaxLength(100)
-  orgName: string;
+  declare orgName: string;
 
   @ApiPropertyOptional({ enum: ['uz', 'ru'] })
   @IsOptional()
