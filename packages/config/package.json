@@ -1,0 +1,18 @@
+{
+  "name": "@salescoach/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./eslint": "./eslint/base.mjs",
+    "./prettier": "./prettier.json",
+    "./tsconfig/base": "./tsconfig/base.json"
+  },
+  "scripts": {
+    "build": "node -e \"const fs=require('node:fs'); fs.mkdirSync('dist',{recursive:true}); fs.writeFileSync('dist/ready.txt','ok\\n'); console.log('config package ready')\"",
+    "clean": "node -e \"console.log('nothing to clean')\"",
+    "lint": "node -e \"console.log('config lint placeholder')\"",
+    "test": "node -e \"console.log('config smoke test placeholder')\"",
+    "typecheck": "node -e \"console.log('config typecheck placeholder')\""
+  }
+}

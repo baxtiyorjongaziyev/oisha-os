@@ -1,0 +1,28 @@
+import type { ButtonHTMLAttributes, ReactNode } from "react";
+
+type ButtonVariant = "primary" | "secondary";
+
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  children: ReactNode;
+  variant?: ButtonVariant;
+};
+
+const variants: Record<ButtonVariant, string> = {
+  primary: "bg-sage text-white hover:bg-sage/90",
+  secondary: "bg-white text-sage ring-1 ring-sage/20 hover:bg-sage/5"
+};
+
+export function Button({ children, className = "", variant = "primary", ...props }: ButtonProps) {
+  return (
+    <button
+      className={[
+        "rounded-full px-5 py-3 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-amberline focus:ring-offset-2",
+        variants[variant],
+        className
+      ].join(" ")}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
