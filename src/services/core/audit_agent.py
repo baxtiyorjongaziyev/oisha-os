@@ -63,6 +63,9 @@ class AuditAgent:
                 model=self.model_name
             )
             return response.text if response and response.text else "Javob bo'sh qaytdi."
+        except Exception as e:
+            logger.error(f"[AUDIT AGENT ERROR] {e}")
+            return f"Audit hisobotini tayyorlashda xatolik: {e}"
 
     async def audit_digital_pipeline(self, amocrm_sync) -> str:
         """
