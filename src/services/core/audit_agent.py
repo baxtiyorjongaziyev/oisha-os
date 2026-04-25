@@ -10,9 +10,18 @@ class AuditAgent:
     """
 
     def __init__(self, api_key: str, db):
-        self.api_key = api_key
         self.db = db
-        self.client = genai.Client(api_key=api_key)
+        self.deepseek_key = os.environ.get("DEEPSEEK_API_KEY") or getattr(self, 'settings_DEEPSEEK_API_KEY', None)
+        self.client = None
+        if self.deepseek_key and "dummy" not in self.deepseek_key.lower():
+            try:
+                from openai import AsyncOpenAI
+                self.client = AsyncOpenAI(api_key=self.deepseek_key, base_url="https://api.deepseek.com")
+            except Exception as e:
+                logger.error(f"[AUDIT] DeepSeek init failed: {e}")
+        else:
+            logger.warning("[AUDIT] DeepSeek API key missing or dummy. Audit features will be limited.")
+        self.gemini_client = genai.Client(api_key=api_key)
         self.model_name = 'gemini-2.0-flash'
 
     async def generate_audit_report(self, limit=100) -> str:
