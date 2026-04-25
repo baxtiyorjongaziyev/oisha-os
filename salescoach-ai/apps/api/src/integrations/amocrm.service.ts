@@ -32,7 +32,7 @@ export class AmoCrmService {
     });
 
     if (!res.ok) throw new Error('AmoCRM auth failed');
-    const data = await res.json();
+    const data = await res.json() as { access_token: string; expires_in: number };
     this.accessToken = data.access_token;
     setTimeout(() => { this.accessToken = null; }, (data.expires_in - 60) * 1000);
     return this.accessToken!;
@@ -50,7 +50,7 @@ export class AmoCrmService {
       },
     });
     if (!res.ok) throw new Error(`AmoCRM ${path} → ${res.status}`);
-    return res.json();
+    return res.json() as Promise<T>;
   }
 
   async pushCallNote(phone: string, callId: string, score: number, summary: string) {
