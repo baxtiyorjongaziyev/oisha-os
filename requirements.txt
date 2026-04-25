@@ -20,3 +20,8 @@ pyjwt
 bcrypt
 python-multipart
 phonenumbers
+aiosqlite
+structlog
+tenacity
+beautifulsoup4
+pytz
