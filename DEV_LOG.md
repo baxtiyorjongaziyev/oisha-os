@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-25 19:03 UTC | 🔴 main `961aa7c`
+
+**Commit**: fix: restore deploy helpers and enable Cloud Userbot sync 👸🛡️🦅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-04-25 19:01 UTC | 🔴 main `48a541c`
 
 **Commit**: Merge remote-tracking branch 'origin/main'
