@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-25 20:30 UTC | ✅ main `ce5afa9`
+
+**Commit**: fix(runtime): avoid crm guard crash on empty lead source
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00187-wed
+
+---
+
 ## 2026-04-25 20:19 UTC | ✅ main `571739f`
 
 **Commit**: fix(startup): wire sales coach provider
