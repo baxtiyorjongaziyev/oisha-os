@@ -1543,8 +1543,21 @@ async def main():
             except Exception as bot_exc:
                 logger.error(f"[AUTH] Bot-token head startup failed in degraded mode: {bot_exc}")
                 bot_client = None
-        api_module.update_api_status("degraded", "Userbot features are disabled")
-        logger.error("[AUTH] Runtime is alive for health checks, but userbot features are disabled.")
+        if admin_bot and bot_client:
+            try:
+                admin_bot.user_client = None
+                await admin_bot.start()
+                logger.info("[BOT_ONLY] Admin bot and scheduler started without userbot.")
+            except Exception as admin_exc:
+                logger.error(f"[BOT_ONLY] Admin bot startup failed: {admin_exc}", exc_info=True)
+        api_module.update_api_status(
+            "degraded",
+            "Bot-token mode active; userbot session needs re-login",
+        )
+        logger.error(
+            "[AUTH] Userbot features are disabled, but bot-token commands "
+            "and scheduled CRM/Airtable jobs are active."
+        )
         await asyncio.Event().wait()
 
     api_module.user_client = client
