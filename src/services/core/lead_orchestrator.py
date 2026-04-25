@@ -167,14 +167,34 @@ class LeadOrchestrator:
                 [Button.url("🌐 AmoCRM-da ko'rish", amo_url)]
             ]
             
+            # [CRITICAL UPDATE] Personal DM for assigned manager
             if assigned_manager_id:
-                # Agar Round-Robin bilan biriktirilgan bo'lsa, "Men shug'ullanaman" tugmasi shart emas yoki boshqacha bo'ladi
                 buttons.append([Button.inline("✅ Qabul qildim", f"accept_lead:{lead_id}:{user_id}:{assigned_manager_id}")])
-                # Menenjerga shaxsiy xabar ham yuborish mumkin
+                
+                personal_msg = (
+                    f"📥 **YANGI LID BIRIKTIRILDI!**\n\n"
+                    f"👤 Mijoz: {name}\n"
+                    f"🎯 Intent: {intent}\n"
+                    f"📝 Xulosa: {summary}\n\n"
+                    f"⚡ **Vazifa:** Mijozga darhol javob bering! 15 daqiqa ichida javob berilmasa, tizim eskalatsiya qiladi."
+                )
+                
                 try:
-                    await self.admin_bot.bot_client.send_message(assigned_manager_id, f"📥 **Sizga yangi lid biriktirildi!**\n\nMijoz: {name}\nAsosiy guruhda ko'ring.")
+                    # Send direct message to the manager
+                    await self.admin_bot.bot_client.send_message(assigned_manager_id, personal_msg, buttons=[[Button.url("💬 Chatni ochish", amo_url)]])
+                    logger.info(f"👸 [ORCHESTRATOR] Personal DM sent to manager {assigned_manager_id}")
                 except Exception as e:
                     logger.warning(f"Could not notify manager {assigned_manager_id} directly: {e}")
+
+                # [ESCALATION] Start a background task to check if manager responds
+                async def check_escalation(mgr_id, lid_id, cust_name):
+                    await asyncio.sleep(900) # 15 minutes
+                    is_claimed = await self.db.get_state(f"lead_claimed_{lid_id}", "false")
+                    if is_claimed == "false":
+                        esc_msg = f"🚨 **DIQQAT! ESCALATION!**\n\nMenejer <a href='tg://user?id={mgr_id}'>Menejer</a> 15 daqiqadan beri yangi lidga ({cust_name}) javob bermadi! @jonbranding_pm ko'rib chiqing."
+                        await self.admin_bot.notify_team(esc_msg, topic_id=settings.CRM_TOPIC_ID, parse_mode='html')
+
+                asyncio.create_task(check_escalation(assigned_manager_id, lead_id, name))
             else:
                 buttons.append([Button.inline("🚀 Men shug'ullanaman (Claim)", f"claim_lead:{lead_id}:{user_id}")])
             
