@@ -43,13 +43,59 @@ from src.services.core.enterprise_reporter import EnterpriseReporter
 from src.controllers.message_controller import MessageController
 from src.services.utils.scouter import Scouter
 from src.services.core.advisor_agent import AdvisorAgent
+import asyncio
+import base64
+from datetime import datetime
+import json
+import os
+import re
+import sys
+
+# Force UTF-8 console output on Windows to avoid emoji-related crashes.
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, OSError) as e:
+    # Non-critical: console encoding failure won't stop the bot
+    print(f"[INIT] Warning: Could not reconfigure console encoding: {e}")
+
+# [STABILITY] Windows loop policy configuration
+if os.name == 'nt':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+# [STABILITY] Create and set loop EARLY to support library imports that check for a loop
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
+# Set project root and source directories to sys.path for backward compatibility
+# and to support current mixed-import structure.
+sys.path.append(os.getcwd())
+sys.path.append(os.path.join(os.getcwd(), "src"))
+sys.path.append(os.path.join(os.getcwd(), "src", "services"))
+
+import logging
+from typing import Optional, Dict, Any, List
+from telethon import TelegramClient, events
+from telethon.sessions import StringSession
+from src.settings import settings
+from src.database import Database
+from src.services.core.safe_responder import SafeResponder
+from src.services.core.action_parser import ActionParser
+from src.services.core.lead_scraper import LeadScraper
+from src.services.core.enterprise_reporter import EnterpriseReporter
+from src.controllers.message_controller import MessageController
+from src.services.utils.scouter import Scouter
+from src.services.core.advisor_agent import AdvisorAgent
 from src.services.core.auto_lead_agent import AutoLeadAgent
 from src.services.core.activity_monitor import ActivityMonitor
 from src.services.core.audit_agent import AuditAgent
 import threading
 import src.config as config
 from src.services.core.session_manager import SessionManager
-from src.services.core.chat_bridge import ChatBridge
+# from src.services.core.chat_bridge import ChatBridge  # Moved inside main()
+# from src.services.core.unanswered_monitor import UnansweredMonitor # Moved inside main()
 # from src.api_server import app as api_app # Moved to main() to break circular imports
 import uvicorn
 from telethon import functions, types
@@ -62,7 +108,6 @@ from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
 from src.controllers.surgical_integration import get_surgical_integration
-from src.services.core.unanswered_monitor import UnansweredMonitor
 
 
 # Global Managers
@@ -1484,7 +1529,6 @@ async def main():
     )
     
     session_manager = SessionManager(sync_callback=push_block_to_amocrm)
-    chat_bridge = ChatBridge(amocrm_subdomain=config.AMOCRM_SUBDOMAIN, amocrm_token=msg_controller.crm.amocrm.access_token or "")
 
     # [WAZZUP KILLER] Bridge Telegram & DB to API Server for the AmoCRM Widget
     import src.api_server as api_module
@@ -1560,456 +1604,6 @@ async def main():
             "and scheduled CRM/Airtable jobs are active."
         )
         await asyncio.Event().wait()
-
-    api_module.user_client = client
-    
-    # [GOD MODE] Initialize Managers
-    global folder_manager, voice_processor
-    folder_manager = FolderManager(client)
-    voice_processor = VoiceProcessor(api_key=settings.GEMINI_API_KEY.get_secret_value())
-    
-    # 4. Botni ishga tushirish
-    if BOT_TOKEN_STR:
-        try:
-            await bot_client.start(bot_token=BOT_TOKEN_STR)
-            # [PHASE 1.5] Persist bot session string hint so Owner can save it
-            # as BOT_SESSION_STRING secret, eliminating re-handshake on deploy.
-            if not _bot_session_string:
-                try:
-                    _dumped = bot_client.session.save()
-                    if _dumped:
-                        # Log length only — never log the full session string
-                        # (it's an auth credential). Owner can retrieve via
-                        # /bot_session_export admin command if needed.
-                        logger.info(
-                            f"[AUTH] Bot StringSession ready ({len(_dumped)} chars). "
-                            "Owner: use /bot_session_export in admin bot to copy into "
-                            "BOT_SESSION_STRING secret."
-                        )
-                except Exception as dump_exc:
-                    logger.debug(f"[AUTH] Could not dump bot session: {dump_exc}")
-        except Exception as bot_exc:
-            logger.error(f"[AUTH] Bot-token head startup failed: {bot_exc}")
-            bot_client = None
-    api_module.update_api_status("online", "Canonical runtime active")
-
-    # 5. Background Tasks
-    asyncio.create_task(session_manager.monitor_sessions())
-    asyncio.create_task(orchestrator.background_loop(interval_minutes=15))
-    
-    # [STABILITY] Registrating event handlers AFTER client initialization
-    client.add_event_handler(handle_new_message, events.NewMessage)
-    client.add_event_handler(self_command_handler, events.NewMessage(chats='me'))
-    client.add_event_handler(shadow_advisor_handler, events.NewMessage(incoming=True))
-    client.add_event_handler(shadow_advisor_handler, events.NewMessage(outgoing=True)) # Bi-directional Shadow Advisor
-    client.add_event_handler(activity_monitor_handler, events.NewMessage(outgoing=True))
-    
-    # Register handlers for the Bot Token head
-    if bot_client:
-        bot_client.add_event_handler(handle_new_message, events.NewMessage)
-
-    # [PHASE 1.6] Boot-time missed-messages catch-up.
-    # Fire-and-forget: runs in background so we don't block startup of other
-    # services. If catch-up takes longer than its internal 90s budget it will
-    # self-terminate and the remaining tail will be picked up by the next
-    # restart (at-least-once semantics, idempotent via chat_checkpoints).
-    async def _run_catchup():
-        try:
-            from src.services.core.boot_catchup import catch_up_missed_messages
-            stats = await catch_up_missed_messages(
-                client=client,
-                db=msg_controller.db,
-                handle_new_message=handle_new_message,
-            )
-            if stats.get("messages"):
-                logger.info(f"[BOOT] Catch-up replayed {stats['messages']} missed message(s) across {stats['chats']} chat(s).")
-        except Exception as exc:
-            logger.warning(f"[BOOT] Catch-up failed: {exc}")
-
-    asyncio.create_task(_run_catchup())
-
-    # [GOD MODE] User Presence Tracker (Nudge Alerts)
-    @client.on(events.UserUpdate)
-    async def presence_handler(event):
-        if event.online:
-            user_id = event.user_id
-            # 1. Check if user is a HOT_LEAD
-            user_info = await msg_controller.db.get_user_info(user_id)
-            intent = user_info.get("intent") if user_info else None
-            
-            if intent == 'HOT_LEAD':
-                # 2. Check if we need to nudge (last msg was from user and > 5 mins ago)
-                logger.info(f"🔥 [NUDGE] Hot Lead online: {user_id}")
-                # We could fetch last message from DB or TG
-                # For high-performance, we notify the admin immediately
-                if admin_bot:
-                    name = (await client.get_entity(user_id)).first_name
-                    await admin_bot.notify_lead(f"🔥 **HOT LEAD ONLINE!**\n👤 {name} hozir onlayn. Uni suhbatga tortishning ayni vaqti! 👸🛡️")
-
-    # [STABILITY] Registrating event handlers AFTER client initialization
-        if settings.TEAM_GROUP_ID:
-            @bot_client.on(events.NewMessage(pattern='/team'))
-            async def team_audit_handler(event):
-                """Guruhda taniqlik a'zolarni ko'rsatish."""
-                logger.info(f"👸 [TEAM AUDIT] Command from {event.chat_id}")
-                from src.database import Database
-                db = Database()
-                async with await db.get_connection() as conn:
-                    async with conn.execute(
-                        "SELECT user_id, first_name, username, role FROM users WHERE role IS NOT NULL"
-                    ) as cursor:
-                        members = await cursor.fetchall()
-                
-                if not members:
-                    await event.respond("👸 **Oisha:** Hozircha hech qanday xodimni tanimayapman. Ularga role biriktirish kerak.")
-                    return
-                
-                msg = "👸 **Taniqlik xodimlarimiz:**\n\n"
-                for mid, name, uname, role in members:
-                    tag = f"@{uname}" if uname else f"<a href='tg://user?id={mid}'>{name}</a>"
-                    msg += f"• {tag} — <i>{role}</i>\n"
-                
-                await event.respond(msg, parse_mode='html')
-            
-            @bot_client.on(events.NewMessage(pattern='/topic_info'))
-            async def topic_info_handler(event):
-                """Guruhdagi Topic ID raqamini aniqlash uchun."""
-                chat_id = event.chat_id
-                thread_id = event.message.reply_to_msg_id
-                
-                msg = (
-                    f"👸 **Mavzu ma'lumotlari:**\n\n"
-                    f"🔹 **Group ID:** `{chat_id}`\n"
-                    f"🔸 **Topic ID (Thread):** `{thread_id or 'General (Asosiy)'}`\n\n"
-                    f"💡 Ushbu Topic ID-ni `.env` faylida sozlash uchun foydalaning."
-                )
-                await event.respond(msg)
-            
-            @bot_client.on(events.NewMessage(pattern='/task'))
-            async def task_command_handler(event):
-                """Vazifani tahlil qilish va yaratish."""
-                logger.info(f"👸 [TASK] Command from {event.chat_id}")
-                # AI tahlilini PTB botga yoki ichki handlerga yo'naltirish
-                # Hozircha oddiy tasdiq va AI Assistant orqali tahlilni boshlaymiz
-                await event.respond("👸 **Oisha:** Vazifa qabul qilindi. AI assistant tahlil qilmoqda... 👸🛡️")
-
-            @bot_client.on(events.NewMessage(pattern='/audit'))
-            async def audit_command_handler(event):
-                """Jamoa va loyihalarni real raqamlarda audit qilish."""
-                sender = await event.get_sender()
-                if getattr(sender, 'id', 0) != settings.OWNER_ID:
-                    await event.respond("👸 **Oisha:** Bu maxfiy audit hisoboti faqat Baxtiyor aka uchun. 👸🛡️")
-                    return
-                
-                logger.info(f"👸 [AUDIT] Running real performance audit for Owner...")
-                await event.respond("👸 **Oisha:** Real raqamlarni yig'yapman, bir soniya... 👸🛡️")
-                
-                try:
-                    audit_text = await msg_controller.enterprise_reporter.get_real_numbers_audit()
-                    await event.respond(audit_text, parse_mode='markdown')
-                except Exception as e:
-                    logger.error(f"👸 [AUDIT ERROR] {e}")
-                    await event.respond(f"👸 **Xatolik:** Hisobatni tayyorlashda muammo yuz berdi: {e}")
-
-            @bot_client.on(events.NewMessage(chats=settings.TEAM_GROUP_ID))
-            async def team_group_handler(event):
-                sender = await event.get_sender()
-                if getattr(sender, "bot", False):
-                    return
-
-                text = (event.raw_text or "").strip()
-                normalized = text.lower()
-
-                report_type = None
-                if normalized.startswith(("plan:", "reja:", "#plan", "#reja")):
-                    report_type = "morning_plan"
-                elif normalized.startswith(("result:", "natija:", "#result", "#natija")):
-                    report_type = "evening_result"
-
-                if report_type:
-                    await msg_controller.db.upsert_user(
-                        sender.id,
-                        first_name=getattr(sender, "first_name", "Xodim"),
-                        username=getattr(sender, "username", None),
-                    )
-                    await msg_controller.db.save_team_report(
-                        user_id=sender.id,
-                        report_type=report_type,
-                        content=text,
-                    )
-                    report_label = "PLAN" if report_type == "morning_plan" else "NATIJA"
-                    await event.reply(f"✅ {report_label} qabul qilindi.")
-                    return
-
-                # Faqat mention bo'lganda yoki savol berilganda javob beramiz
-                if event.mentioned:
-                    logger.info(f"👸 [TEAM ASSISTANT] Mentioned in group {event.chat_id}")
-                    # AdvisorAgent orqali aqlli javob tayyorlash
-                    response = await advisor_agent.generate_advice(event.text)
-                    await event.respond(f"👸 **Oisha Assistant:**\n\n{response}")
-            
-            # [NEW] Kirim (Inflow) Celebration Listener
-            if settings.TOPIC_KIRIM_ID:
-                @bot_client.on(events.NewMessage(chats=settings.TEAM_GROUP_ID))
-                async def kirim_celebration_handler(event):
-                    if not _is_kirim_topic_message(event.message):
-                        return
-
-                    sender = await event.get_sender()
-                    if getattr(sender, "bot", False):
-                        return
-
-                    text = (event.raw_text or "").strip()
-                    lowered = text.lower()
-                    reply_to_id = getattr(event.message, "reply_to_msg_id", None)
-                    workflow = await _load_income_workflow_state(db, reply_to_id)
-
-                    if workflow:
-                        finance_approver = workflow.get("finance_approver")
-                        finance_user_id = (finance_approver or {}).get("user_id")
-                        finance_mention = _format_person_mention(finance_approver, "finance")
-                        sender_name = getattr(sender, "first_name", "Xodim")
-
-                        if workflow.get("status") in {"confirmed", "rejected"}:
-                            return
-
-                        if _is_group_open_confirmation(text):
-                            if not workflow.get("requires_client_group"):
-                                await event.reply("ℹ️ Bu kirim uchun mijoz guruhi majburiy bosqich emas.")
-                                return
-
-                            workflow["client_group_confirmed"] = True
-                            workflow["client_group_confirmed_by"] = sender.id
-                            workflow["client_group_confirmation_text"] = text
-                            workflow["status"] = "awaiting_finance"
-                            await _save_income_workflow_state(db, workflow)
-                            await event.reply(
-                                f"✅ Mijoz bilan guruh ochilgani qayd qilindi. "
-                                f"{finance_mention}, endi tushumni tekshirib <code>tasdiq</code> yoki <code>rad</code> deb yozing.",
-                                parse_mode="html",
-                            )
-                            return
-
-                        if _is_finance_rejection(text):
-                            if sender.id != finance_user_id and sender.id != settings.OWNER_ID:
-                                await event.reply(
-                                    f"⚠️ Bu kirim bo‘yicha rad qarorini faqat {finance_mention} yoki owner bera oladi.",
-                                    parse_mode="html",
-                                )
-                                return
-
-                            workflow["status"] = "rejected"
-                            workflow["finance_rejected_by"] = sender.id
-                            workflow["finance_rejection_text"] = text
-                            await _save_income_workflow_state(db, workflow)
-                            await event.reply(
-                                f"❌ Finance bu kirimni tasdiqlamadi. {sender_name} sababni yozib, qayta yuboring."
-                            )
-                            return
-
-                        if _is_finance_approval(text):
-                            if sender.id != finance_user_id and sender.id != settings.OWNER_ID:
-                                await event.reply(
-                                    f"⚠️ Bu kirimni faqat {finance_mention} yoki owner tasdiqlaydi.",
-                                    parse_mode="html",
-                                )
-                                return
-
-                            if workflow.get("requires_client_group") and not workflow.get("client_group_confirmed"):
-                                await event.reply(
-                                    "❗ Bu loyiha uchun birinchi kirim. Avval mijoz bilan guruh ochilganini tasdiqlang, keyin finance tasdiqlaydi."
-                                )
-                                return
-
-                            if not workflow.get("project_id"):
-                                await event.reply(
-                                    "⚠️ Loyiha avtomatik aniqlanmadi. Kirimni Airtablega yozishdan oldin loyiha nomini aniq ko‘rsatib qayta yuboring."
-                                )
-                                return
-
-                            record = await _create_income_airtable_record(workflow)
-                            if not record:
-                                await event.reply(
-                                    "⚠️ Finance tasdig‘i olindi, lekin Airtablega yozishda xatolik chiqdi. Logni tekshiraman."
-                                )
-                                return
-
-                            workflow["status"] = "confirmed"
-                            workflow["finance_approved"] = True
-                            workflow["finance_approved_by"] = sender.id
-                            workflow["finance_approval_text"] = text
-                            workflow["airtable_record_id"] = record.get("id")
-                            await _save_income_workflow_state(db, workflow)
-
-                            project_name = workflow.get("project_name") or "noma'lum loyiha"
-                            await event.reply(
-                                f"✅ Kirim finance tomonidan tasdiqlandi va Airtablega yozildi.\n"
-                                f"📁 Loyiha: {project_name}\n"
-                                f"🧾 Kirim ID: <code>{record.get('id', 'nomaʼlum')}</code>",
-                                parse_mode="html",
-                            )
-                            return
-
-                    is_inflow = re.search(r"\d+", text) and any(
-                        kw in lowered for kw in ["$", "som", "so'm", "sum", "usd", "uzs", "kirim", "to'lov", "tulov"]
-                    )
-                    if not is_inflow:
-                        return
-
-                    sender_id = sender.id
-                    if sender_id == settings.OWNER_ID:
-                        logger.info(f"👸 [KIRIM] Owner ({sender_id}) reported inflow. Quietly logging.")
-                        return
-
-                    first_name = getattr(sender, "first_name", "Xodim")
-                    amount_info = _extract_income_amount(text)
-                    amount_str = amount_info.get("raw") or "noma'lum"
-                    logger.info(f"👸 [KIRIM] Generating AI celebration for {first_name} for {amount_str}...")
-
-                    try:
-                        celebration_text = await advisor_agent.generate_sales_celebration(
-                            manager_name=first_name,
-                            amount=amount_str,
-                        )
-                    except Exception as e:
-                        logger.error(f"👸 [CELEBRATION ERROR] AI failed: {e}")
-                        celebration_text = (
-                            f"🎉 <b>BARAKALLA, {first_name}!</b>\n\n"
-                            "Sizni ajoyib natija bilan tabriklaymiz."
-                        )
-
-                    await event.reply(celebration_text, parse_mode="html")
-
-                    project_match = await _find_project_for_income(text)
-                    is_first_payment = False
-                    if project_match and project_match.get("record_id"):
-                        is_first_payment = (await _count_income_records_for_project(project_match["record_id"])) == 0
-
-                    finance_approver = await _resolve_finance_approver(db)
-                    finance_mention = _format_person_mention(finance_approver, "finance")
-                    seller_mention = _format_person_mention(
-                        {
-                            "user_id": sender.id,
-                            "name": first_name,
-                            "username": getattr(sender, "username", None),
-                        },
-                        first_name,
-                    )
-
-                    workflow = {
-                        "original_message_id": event.message.id,
-                        "source_chat_id": event.chat_id,
-                        "source_text": text,
-                        "sender_id": sender.id,
-                        "sender_name": first_name,
-                        "sender_username": getattr(sender, "username", None),
-                        "amount_raw": amount_info.get("raw"),
-                        "amount_value": amount_info.get("value"),
-                        "currency": amount_info.get("currency"),
-                        "project_id": (project_match or {}).get("record_id"),
-                        "project_name": (project_match or {}).get("project_name"),
-                        "client_ids": (project_match or {}).get("client_ids") or [],
-                        "seller_ids": (project_match or {}).get("seller_ids") or [],
-                        "project_fields": (project_match or {}).get("project_fields") or {},
-                        "is_first_payment": is_first_payment,
-                        "requires_client_group": bool(is_first_payment and project_match),
-                        "client_group_confirmed": False,
-                        "finance_approver": finance_approver,
-                        "status": "awaiting_client_group" if is_first_payment and project_match else "awaiting_finance",
-                    }
-
-                    instructions = []
-                    if project_match:
-                        instructions.append(f"📁 Loyiha: <b>{project_match['project_name']}</b>")
-                    else:
-                        instructions.append("⚠️ Loyiha avtomatik aniqlanmadi. Keyingi tasdiqdan oldin loyiha nomini aniq yozing.")
-
-                    if workflow["requires_client_group"]:
-                        instructions.append(
-                            "🚪 Bu loyiha uchun <b>birinchi kirim</b>. Mijoz bilan alohida guruh ochilgani tasdiqlanmasdan finance bu kirimni yopmaydi."
-                        )
-                        instructions.append(
-                            f"{seller_mention}, shu threadda <code>guruh ochildi</code> deb yozing yoki guruh linkini yuboring."
-                        )
-                        instructions.append(
-                            f"{finance_mention}, guruh tasdig‘idan keyin <code>tasdiq</code> yoki <code>rad</code> deb yozing."
-                        )
-                    else:
-                        instructions.append(
-                            f"{finance_mention}, tushumni tekshirib shu threadda <code>tasdiq</code> yoki <code>rad</code> deb yozing."
-                        )
-
-                    gate_message = await event.reply(
-                        "\n".join(instructions),
-                        parse_mode="html",
-                        link_preview=False,
-                    )
-                    workflow["gate_message_id"] = gate_message.id
-                    await _save_income_workflow_state(db, workflow)
-
-                    logger.info(
-                        f"👸 [KIRIM] Workflow created for {first_name}; project={workflow.get('project_name')} "
-                        f"first_payment={workflow.get('is_first_payment')}"
-                    )
-    
-    print("✅ Userbot ulandi va xabarlarni eshita boshladi!")
-
-    # 4. Admin Botni ishga tushirish (on bot_client)
-    if admin_bot and bot_client:
-        await admin_bot.start()
-        print(f"✅ Oisha Admin Bot (Bot Token-da) faollashtirildi.")
-
-    # [ENTERPRISE] Auto-run Mass Sync
-    if getattr(settings, 'AUTORUN_MASS_SYNC', False):
-        logger.info("[ENTERPRISE] 👸 Oisha-OS: 'Loyiha TN5' kontaktlarini ommaviy saqlash jarayoni boshlandi... 👸🛡️")
-        asyncio.create_task(lead_scraper.sync_all_group_members(
-            client=client, 
-            group_id=TN5_GROUP_ID,
-            limit=500
-        ))
-
-    # [ENTERPRISE] Background Monitor
-    asyncio.create_task(background_monitor_task())
-    
-    # [GOD MODE] Periodic tasks (Juma, Maintenance)
-    async def background_scheduler():
-        while True:
-            try:
-                await juma_notifier.check_and_send()
-            except Exception as e:
-                logger.error(f"[SCHEDULER] Task Error: {e}")
-            await asyncio.sleep(600) # Check every 10 mins
-    
-    asyncio.create_task(background_scheduler())
-
-    # [ENTERPRISE] Unanswered Messages Monitor
-    unanswered_monitor = UnansweredMonitor(
-        amocrm=msg_controller.amocrm.amocrm, 
-        bot_client=bot_client, 
-        db=db, 
-        auto_lead=auto_lead_agent
-    )
-    asyncio.create_task(unanswered_monitor.start_monitoring(interval_seconds=1800))
-    
-    # Callback for sending AI drafts directly
-    @bot_client.on(events.CallbackQuery(pattern=r'send_draft:(\d+)'))
-    async def handle_send_draft(event):
-        lead_id = int(event.pattern_match.group(1))
-        # Get the AI draft text from the message
-        lines = event.message.message.split("👸 **Oisha Tavsiyasi:**\n")
-        if len(lines) > 1:
-            draft_text = lines[1].strip("`").strip()
-            await unanswered_monitor.send_draft_to_crm(lead_id, draft_text)
-            await event.answer("✅ Xabar amoCRM-ga (Notaga) yuborildi!", alert=True)
-            await event.edit(event.message.message + "\n\n✅ **Menejer tomonidan tasdiqlandi.**")
-        else:
-            await event.answer("⚠️ Draft topilmadi.", alert=True)
-    
-    # [ENTERPRISE] Periodic DM Lead Sync (Personal Account)
-    async def dm_lead_sync_task():
-        while True:
-            try:
-                logger.info("👸 [DM SYNC] Starting periodic private dialogs analysis...")
                 await lead_scraper.sync_private_dialogs(client, limit=50)
             except Exception as e:
                 logger.error(f"[DM SYNC ERROR] {e}")
