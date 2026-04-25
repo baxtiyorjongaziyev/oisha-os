@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-25 20:19 UTC | ✅ main `571739f`
+
+**Commit**: fix(startup): wire sales coach provider
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00184-jaw
+
+---
+
 ## 2026-04-25 20:10 UTC | ⚠️ main `95d1e53`
 
 **Commit**: fix: resolve deployment secrets and permissions 👸🛡️🦅 ✅
