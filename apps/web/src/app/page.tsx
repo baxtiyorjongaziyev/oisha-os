@@ -15,7 +15,7 @@ export default function HomePage() {
           Oisha OS platform layer
         </p>
         <h1 className="max-w-3xl font-display text-5xl leading-tight text-ink md:text-7xl">
-          SalesCoach AI sotuv qo'ng'iroqlarini sifat nazoratiga aylantiradi.
+          SalesCoach AI sotuv qo&apos;ng&apos;iroqlarini sifat nazoratiga aylantiradi.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-8 text-ink/70">
           Bu sahifa MVP poydevori: real audio pipeline, CRM ingestion, AI scoring va Telegram

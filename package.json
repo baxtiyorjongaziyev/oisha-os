@@ -13,8 +13,10 @@
     "typecheck": "turbo typecheck"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
     "@eslint/js": "^9.39.1",
     "eslint": "^9.39.1",
+    "eslint-config-next": "^15.5.15",
     "globals": "^16.5.0",
     "prettier": "^3.6.2",
     "turbo": "^2.6.1",
