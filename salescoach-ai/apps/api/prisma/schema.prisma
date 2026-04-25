@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MANAGER
+}
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CallLanguage {
+  UZ
+  RU
+  EN
+}
+
+enum CallStatus {
+  UPLOADED
+  TRANSCRIBING
+  SCORING
+  DONE
+  FAILED
+}
+
+enum SubscriptionPlan {
+  FREE
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
+
+model Organization {
+  id               String           @id @default(uuid())
+  name             String
+  plan             SubscriptionPlan @default(FREE)
+  monthlyCallQuota Int              @default(50)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  users     User[]
+  calls     Call[]
+  shareLinks ShareLink[]
+}
+
+model User {
+  id           String    @id @default(uuid())
+  orgId        String
+  email        String    @unique
+  passwordHash String?
+  googleId     String?   @unique
+  role         UserRole  @default(MANAGER)
+  locale       String    @default("uz")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  org           Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  calls         Call[]
+  refreshTokens RefreshToken[]
+  shareLinks    ShareLink[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Call {
+  id            String        @id @default(uuid())
+  orgId         String
+  managerId     String
+  customerPhone String?
+  customerName  String?
+  direction     CallDirection @default(OUTBOUND)
+  language      CallLanguage?
+  durationSec   Int?
+  audioKey      String?
+  status        CallStatus    @default(UPLOADED)
+  errorMessage  String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  manager    User         @relation(fields: [managerId], references: [id])
+  transcript TranscriptSegment[]
+  scorecard  Scorecard?
+  shareLinks ShareLink[]
+}
+
+model TranscriptSegment {
+  id      String  @id @default(uuid())
+  callId  String
+  speaker String
+  start   Float
+  end     Float
+  text    String
+  seq     Int
+
+  call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@index([callId, seq])
+}
+
+model Scorecard {
+  id                 String   @id @default(uuid())
+  callId             String   @unique
+  overallScore       Float
+  stageScores        Json
+  voiceAnalytics     Json
+  summary            String
+  goodPoints         String[]
+  improvementPoints  String[]
+  recommendedPhrase  String
+  nextStepCommitments Json
+  riskFlags          String[]
+  leadQualityScore   Float
+  createdAt          DateTime @default(now())
+
+  call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
+}
+
+model ShareLink {
+  id          String    @id @default(uuid())
+  callId      String
+  orgId       String
+  createdBy   String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  passwordHash String?
+  accessCount Int       @default(0)
+  maskCustomerName Boolean @default(false)
+  createdAt   DateTime  @default(now())
+
+  call Call         @relation(fields: [callId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [createdBy], references: [id])
+}
