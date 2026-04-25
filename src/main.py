@@ -46,6 +46,7 @@ from src.services.core.folder_manager import FolderManager
 from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
+from src.services.core.session_manager import SessionManager
 from src.controllers.surgical_integration import get_surgical_integration
 
 
@@ -1421,7 +1422,7 @@ async def main():
 
     advisor_agent = AdvisorAgent(api_key=api_keys["gemini"], db=msg_controller.db, action_parser=action_parser)
     auto_lead_agent = AutoLeadAgent(api_key=api_keys["gemini"])
-    sales_coach = SalesCoach(ai_provider=auto_lead_agent.ai) # Use shared AI provider
+    sales_coach = SalesCoach(ai_provider=auto_lead_agent) # Use shared AI provider
     crm_guard = CRMGuard(amo=msg_controller.crm.amocrm, bot=None) # TODO: Connect admin bot
     safe_responder = SafeResponder()
 
