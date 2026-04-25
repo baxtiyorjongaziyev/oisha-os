@@ -42,21 +42,40 @@ class AmoCRMSync:
         self.base_url = f"https://{subdomain}.amocrm.ru"
         self.access_token: Optional[str] = None
         self.token_data: Dict[str, Any] = {}
+        self.last_error: Optional[str] = None
         
         # Security: Masked log for safety
         logger.info(f"[AMOCRM INIT] Subdomain: {subdomain}")
 
     def _load_token(self):
         """Tokenni fayldan o'qish."""
-        if os.path.exists(self.token_file):
+        env_token_json = os.environ.get("AMOCRM_TOKEN_JSON")
+        if env_token_json:
             try:
-                with open(self.token_file, "r") as f:
-                    data = json.load(f)
+                data = json.loads(env_token_json)
+                if isinstance(data, dict):
+                    self.token_data = data
+                    self.access_token = str(data.get("access_token", "")) if data.get("access_token") else None
+                    return
+            except Exception as e:
+                self.last_error = "token_env_parse_failed"
+                logger.error(f"[AMOCRM] Env token parse xatosi: {type(e).__name__}")
+
+        if os.path.exists(self.token_file):
+            for encoding in ("utf-8-sig", "utf-16"):
+                try:
+                    with open(self.token_file, "r", encoding=encoding) as f:
+                        data = json.load(f)
                     if isinstance(data, dict):
                         self.token_data = data
                         self.access_token = str(data.get("access_token", "")) if data.get("access_token") else None
-            except Exception as e:
-                logger.error(f"[AMOCRM] Token yuklashda xato: {e}")
+                        return
+                except UnicodeError:
+                    continue
+                except Exception as e:
+                    self.last_error = "token_file_load_failed"
+                    logger.error(f"[AMOCRM] Token yuklashda xato: {type(e).__name__}")
+                    return
 
     def _save_token(self, token_data):
         """Tokenni faylga saqlash."""
@@ -71,6 +90,7 @@ class AmoCRMSync:
     def refresh_token(self):
         """Refresh token yordamida yangi access token olish."""
         if not self.token_data.get("refresh_token"):
+            self.last_error = "refresh_token_missing"
             logger.error("[AMOCRM] Refresh token topilmadi.")
             return False
 
@@ -90,6 +110,7 @@ class AmoCRMSync:
 
             if response.status_code == 200:
                 self._save_token(response.json())
+                self.last_error = None
                 logger.info("[AMOCRM OK] Access token refreshed successfully.")
                 return True
 
@@ -100,11 +121,13 @@ class AmoCRMSync:
                 pass
 
             error_msg = resp_json.get("detail") or resp_json.get("title") or response.text
+            self.last_error = f"refresh_failed_http_{response.status_code}"
             logger.error(f"[AMOCRM ERROR] Token yangilashda xato: {error_msg}")
             if response.status_code == 401:
                 logger.critical("[AMOCRM AUTH EXPIRED] Yangi authorization code kerak.")
             return False
         except Exception as e:
+            self.last_error = "refresh_request_failed"
             logger.error(f"[AMOCRM ERROR] Request yuborishda xato: {e}")
             return False
     def authorize_initial(self, auth_code):
@@ -447,29 +470,42 @@ class AmoCRMSync:
             logger.error(f"[AMOCRM GET LEADS ERROR] {e}")
             return []
 
-    async def create_task(self, element_id: int, text: str, complete_till: int):
+    async def create_task(
+        self,
+        element_id: int,
+        text: str,
+        complete_till: int,
+        responsible_user_id: Optional[int] = None,
+    ):
         """Lid uchun vazifa yaratish."""
         if not self.access_token:
             self._load_token()
             
         url = f"{self.base_url}/api/v4/tasks"
-        data = [
-            {
-                "task_type_id": 1, # Call or generic task
-                "text": text,
-                "complete_till": complete_till,
-                "entity_id": element_id,
-                "entity_type": "leads"
-            }
-        ]
+        task_payload = {
+            "task_type_id": 1, # Call or generic task
+            "text": text,
+            "complete_till": complete_till,
+            "entity_id": element_id,
+            "entity_type": "leads"
+        }
+        if responsible_user_id:
+            task_payload["responsible_user_id"] = int(responsible_user_id)
+
+        data = [task_payload]
         
         try:
             response = requests.post(url, headers=self._get_headers(), json=data)
+            if response.status_code == 401 and self.refresh_token():
+                response = requests.post(url, headers=self._get_headers(), json=data)
             if response.status_code == 201:
+                self.last_error = None
                 logger.info(f"[AMOCRM OK] Vazifa yaratildi: {element_id}")
-                return True
+                return response.json()
+            self.last_error = f"create_task_http_{response.status_code}"
             return False
         except Exception as e:
+            self.last_error = "create_task_exception"
             logger.error(f"[AMOCRM TASK ERROR] {e}")
             return False
 
@@ -505,14 +541,24 @@ class AmoCRMSync:
             if response.status_code == 401:
                 if self.refresh_token():
                     response = requests.get(url, headers=self._get_headers(), params=params)
+                else:
+                    self.last_error = "amocrm_unauthorized"
+                    return []
 
             if response.status_code == 200:
+                self.last_error = None
                 data = response.json()
                 return data.get("_embedded", {}).get("leads", [])
             elif response.status_code == 402:
+                self.last_error = "amocrm_payment_required"
                 logger.error("[AMOCRM 402] Payment Required. Basic tarifda limitlar bor.")
+            elif response.status_code == 401:
+                self.last_error = "amocrm_unauthorized"
+            else:
+                self.last_error = f"get_leads_http_{response.status_code}"
             return []
         except Exception as e:
+            self.last_error = "get_leads_exception"
             logger.error(f"[AMOCRM DETAILED LEADS ERROR] {e}")
             return []
 
@@ -542,11 +588,16 @@ class AmoCRMSync:
         
         try:
             response = requests.patch(url, headers=self._get_headers(), json=data)
+            if response.status_code == 401 and self.refresh_token():
+                response = requests.patch(url, headers=self._get_headers(), json=data)
             if response.status_code == 200:
+                self.last_error = None
                 logger.info(f"[AMOCRM OK] Status yangilandi: {lead_id} -> {status_id} (P:{pipeline_id})")
-                return True
+                return response.json()
+            self.last_error = f"update_lead_status_http_{response.status_code}"
             return False
         except Exception as e:
+            self.last_error = "update_lead_status_exception"
             logger.error(f"[AMOCRM UPDATE ERROR] {e}")
             return False
 
@@ -725,13 +776,18 @@ class AmoCRMSync:
         
         try:
             response = requests.post(url, headers=self._get_headers(), json=data)
+            if response.status_code == 401 and self.refresh_token():
+                response = requests.post(url, headers=self._get_headers(), json=data)
             if response.status_code in [200, 201]:
+                self.last_error = None
                 logger.info(f"[AMOCRM OK] {entity_type} {entity_id} ga izoh qo'shildi.")
-                return True
+                return response.json()
             else:
+                self.last_error = f"add_note_http_{response.status_code}"
                 logger.error(f"[AMOCRM NOTE ERROR] {response.status_code}: {response.text}")
                 return False
         except Exception as e:
+            self.last_error = "add_note_exception"
             logger.error(f"[AMOCRM NOTE EXCEPTION] {e}")
             return False
 
@@ -741,10 +797,20 @@ class AmoCRMSync:
         url = f"{self.base_url}/api/v4/leads/{lead_id}/notes"
         try:
             response = requests.get(url, headers=self._get_headers())
+            if response.status_code == 401:
+                if self.refresh_token():
+                    response = requests.get(url, headers=self._get_headers())
+                else:
+                    self.last_error = "amocrm_unauthorized"
+                    return []
             if response.status_code == 200:
+                self.last_error = None
                 return response.json().get("_embedded", {}).get("notes", [])
+            if response.status_code == 401:
+                self.last_error = "amocrm_unauthorized"
             return []
         except Exception as e:
+            self.last_error = "get_notes_exception"
             logger.error(f"[AMOCRM GET NOTES ERROR] {e}")
             return []
 
@@ -829,11 +895,18 @@ class AmoCRMSync:
         # Buning uchun barchaOpen status idlarni filtrlash kerak yoki oddiygina barchasini olib tahlil qilamiz
         try:
             response = requests.get(url, headers=self._get_headers())
+            if response.status_code == 401:
+                if self.refresh_token():
+                    response = requests.get(url, headers=self._get_headers())
+                else:
+                    self.last_error = "amocrm_unauthorized"
+                    return []
             stagnated = []
             now = int(time.time())
             limit = hours * 3600
             
             if response.status_code == 200:
+                self.last_error = None
                 leads = response.json().get("_embedded", {}).get("leads", [])
                 for lead in leads:
                     # Agar bitim ochiq bo'lsa (status_id != 142 va != 143)
@@ -841,8 +914,13 @@ class AmoCRMSync:
                         updated_at = lead.get("updated_at")
                         if (now - updated_at) > limit:
                             stagnated.append(lead)
+            elif response.status_code == 401:
+                self.last_error = "amocrm_unauthorized"
+            else:
+                self.last_error = f"check_stagnated_http_{response.status_code}"
             return stagnated
         except Exception as e:
+            self.last_error = "check_stagnated_exception"
             logger.error(f"[AMOCRM STAGNATION ERROR] {e}")
             return []
 
