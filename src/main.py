@@ -62,6 +62,7 @@ from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
 from src.controllers.surgical_integration import get_surgical_integration
+from src.services.core.unanswered_monitor import UnansweredMonitor
 
 
 # Global Managers
@@ -1980,6 +1981,29 @@ async def main():
             await asyncio.sleep(600) # Check every 10 mins
     
     asyncio.create_task(background_scheduler())
+
+    # [ENTERPRISE] Unanswered Messages Monitor
+    unanswered_monitor = UnansweredMonitor(
+        amocrm=msg_controller.amocrm.amocrm, 
+        bot_client=bot_client, 
+        db=db, 
+        auto_lead=auto_lead_agent
+    )
+    asyncio.create_task(unanswered_monitor.start_monitoring(interval_seconds=1800))
+    
+    # Callback for sending AI drafts directly
+    @bot_client.on(events.CallbackQuery(pattern=r'send_draft:(\d+)'))
+    async def handle_send_draft(event):
+        lead_id = int(event.pattern_match.group(1))
+        # Get the AI draft text from the message
+        lines = event.message.message.split("👸 **Oisha Tavsiyasi:**\n")
+        if len(lines) > 1:
+            draft_text = lines[1].strip("`").strip()
+            await unanswered_monitor.send_draft_to_crm(lead_id, draft_text)
+            await event.answer("✅ Xabar amoCRM-ga (Notaga) yuborildi!", alert=True)
+            await event.edit(event.message.message + "\n\n✅ **Menejer tomonidan tasdiqlandi.**")
+        else:
+            await event.answer("⚠️ Draft topilmadi.", alert=True)
     
     # [ENTERPRISE] Periodic DM Lead Sync (Personal Account)
     async def dm_lead_sync_task():
