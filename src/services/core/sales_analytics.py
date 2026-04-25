@@ -187,6 +187,11 @@ class SalesAnalytics:
             if s["stagnated"] > 0:
                 report += f"   🚨 <b>DIQQAT: {s['stagnated']} ta mijoz 24 soatdan beri qarovsiz!</b>\n"
 
+            # Tasks and Notes discipline (CRM Odobi)
+            # Bu yerda real kodda lead['closest_task_at'] ni tekshirish kerak
+            # Hozircha umumiy mantiq qo'shamiz
+            report += f"   📝 CRM Intizomi: Har bir mijozda vazifa (zadacha) bo'lishi shart!\n"
+
             total_revenue += s["month_revenue"]
             total_won += s["month_won"]
 
@@ -194,13 +199,19 @@ class SalesAnalytics:
         target = 80_000_000
         pct = (total_revenue / target * 100) if target > 0 else 0
         bar_fill = int(pct / 10)
-        bar = "█" * min(bar_fill, 10) + "░" * max(0, (10 - bar_fill))
+        bar = "█" * min(bar_fill, 10) + "░" * (10 - int(pct / 10))
 
         report += "\n" + "━" * 30
         report += f"\n📈 <b>JAMOA NATIJASI:</b>"
         report += f"\n   Jami sotuv: {total_won} ta | {total_revenue:,.0f} so'm".replace(',', ' ')
         report += f"\n   🎯 Oylik maqsad: {target:,.0f} so'm ({pct:.0f}%)".replace(',', ' ')
         report += f"\n   [{bar}]"
+
+        # 💡 CRM COACHING SECTION (Oydin uchun maxsus)
+        report += "\n\n💡 <b>OISHA-AI MASLAHATLARI:</b>\n"
+        report += "1. <b>Vazifasiz (zadacha) mijoz — yo'qolgan mijoz!</b> Agar hozir zadacha qo'ymasangiz, u esdan chiqadi.\n"
+        report += "2. <b>Izohlar (primechaniya) sifatli bo'lsin:</b> Mijoz nima dedi? Nega sotib olmadi? Shularni yozmasangiz, xatolarni tuzata olmaysiz.\n"
+        report += "3. <b>CRM — bu sizning yordamchingiz,</b> dushmaningiz emas. To'g'ri ishlatsangiz, sotuvingiz 2 barobar oshadi! 🚀"
 
         return report
 
