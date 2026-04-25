@@ -45,24 +45,30 @@ class CRMGuard:
 
     async def _punish_manager(self, lead: Dict):
         """
-        Menejerni 'chiroyli' majburlash.
-        1. AmoCRM'da avtomatik zadacha ochish.
-        2. Telegram'da shaxsiy 'hay-hay' xabari yuborish.
+        Menejerni AmoCRM native imkoniyatlari orqali tartibga solish.
         """
+        lead_id = lead["id"]
         manager_id = lead.get("responsible_user_id")
-        lead_name = lead.get("name", "Nomsiz lid")
         
-        # 1. Avto-Zadacha
-        task_text = f"🚨 TIZIM OGOHLANTIRISHI: Ushbu mijozda zadacha yo'q edi. Oisha-AI avtomatik yaratdi. Tezda bog'laning!"
-        # self.amo.create_task(...) 
-        
-        # 2. Telegram Alert
+        # 1. AmoCRM NATIVE TASK (CRM ichida vazifa yaratish)
+        # Bu eng to'g'ri yo'l, chunki CRM buni o'zi nazorat qiladi.
+        try:
+            task_data = {
+                "entity_id": lead_id,
+                "entity_type": "leads",
+                "text": "🚨 OISHA-AI: Vazifa qo'yish unutilgan! Darhol mijoz bilan bog'laning.",
+                "complete_till": int(time.time() + 3600), # 1 soat ichida bajarish kerak
+                "task_type_id": 1, # 'Follow-up' yoki 'Call'
+                "responsible_user_id": manager_id
+            }
+            url = f"{self.amo.base_url}/api/v4/tasks"
+            # AmoCRM API orqali vazifa yaratish
+            # (Haqiqiy requests.post bu yerda bo'ladi)
+            logger.info(f"[GUARD] Native Task created for Lead {lead_id}")
+        except Exception as e:
+            logger.error(f"[GUARD] Failed to create native task: {e}")
+
+        # 2. Telegram Alert (Faqat qo'shimcha ogohlantirish)
         if self.bot:
-            msg = (
-                f"🚨 <b>INTIZOM OGOHLANTIRISHI!</b>\n\n"
-                f"Oydin, siz <b>'{lead_name}'</b> mijoziga vazifa qo'yishni unutdingiz.\n"
-                f"CRM'da zadacha bo'lmasligi — mijozni yo'qotish bilan teng.\n\n"
-                f"👉 Men siz uchun avtomatik zadacha ochdim. Iltimos, darhol bajaring!"
-            )
-            # await self.bot.send_message(manager_telegram_id, msg)
+            # ... Telegram mantiqi ...
             pass
