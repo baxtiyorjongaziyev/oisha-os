@@ -299,6 +299,7 @@ jobs:
             --max-instances 1 \
             --min-instances 1 \
             --no-cpu-throttling \
+            --cpu-boost \
             --execution-environment gen2 \
             --no-traffic \
             --tag "${CANDIDATE_TAG}" \
@@ -338,7 +339,7 @@ jobs:
             exit 0
           fi
 
-          sleep 25
+          sleep 45
           if ! check_health_endpoint "${CANDIDATE_URL}"; then
             FAILURE_REASON="health check failed"
             write_outputs
