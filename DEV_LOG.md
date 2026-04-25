@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-25 18:25 UTC | 🔴 main `1fc6556`
+
+**Commit**: style: Simplified Manager Scorecard terminology (Uzbek) 👸🛡️🦅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-04-25 07:13 UTC | 🔴 main `9c50edd`
 
 **Commit**: fix: Added missing dependencies for CI tests (aiosqlite, structlog, etc) 👸🛡️🦅
