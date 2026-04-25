@@ -1,60 +1,64 @@
 import logging
-import aiohttp
-import json
+import asyncio
 import os
-from typing import Optional, Dict, Any
+from telethon import TelegramClient, events, types
+from src.settings import settings
 
 logger = logging.getLogger("ChatBridge")
 
 class ChatBridge:
-    def __init__(self, amocrm_subdomain: str, amocrm_token: str):
-        self.subdomain = amocrm_subdomain
-        self.token = amocrm_token
-        # AmoCRM Chat Backend (Amojo)
-        self.amojo_url = f"https://amojo.amocrm.ru/v1/chats"
-        self.channel_id = os.environ.get("AMOCRM_CHAT_CHANNEL_ID")
-        self.session = aiohttp.ClientSession()
+    def __init__(self, user_client: TelegramClient, bot_client: TelegramClient, db):
+        self.user_client = user_client
+        self.bot_client = bot_client
+        self.db = db
+        self.team_group_id = settings.CRM_GROUP_ID
+        self.owner_id = settings.OWNER_ID
 
-    async def send_to_amocrm(self, user_id: int, user_name: str, text: str, message_id: str):
+    async def setup_handlers(self):
         """
-        Send a message from Telegram to AmoCRM Chat.
-        This simulates an incoming message from a customer.
+        [GOD MODE] Intercepts personal DMs and bridges them to the team.
         """
-        if not self.channel_id:
-            logger.warning("[CHAT BRIDGE] AMOCRM_CHAT_CHANNEL_ID not set. Skipping real-time sync.")
-            return
+        # 1. Listen for Incoming DMs on the User (Personal) account
+        @self.user_client.on(events.NewMessage(incoming=True, func=lambda e: e.is_private))
+        async def incoming_dm_handler(event):
+            sender = await event.get_sender()
+            if not sender or event.sender_id == self.owner_id:
+                return
 
-        payload = {
-            "conversation_id": f"tg_{user_id}",
-            "user": {
-                "id": str(user_id),
-                "name": user_name,
-                "avatar": "" # Optional
-            },
-            "message": {
-                "id": message_id,
-                "type": "text",
-                "text": text,
-                "timestamp": int(os.sys.time.time())
-            }
-        }
-        
-        # Note: In real life, we need a secret/token for Amojo.
-        # This is a simplified version.
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.token}"
-        }
-        
-        try:
-            # Placeholder for actual Amojo endpoint call
-            # response = await self.session.post(f"{self.amojo_url}/incoming", json=payload, headers=headers)
-            logger.info(f"[CHAT BRIDGE] Pushed message from {user_name} to AmoCRM Chat.")
-        except Exception as e:
-            logger.error(f"[CHAT BRIDGE ERROR] Push failed: {e}")
+            # Check if this is a business message (Simple AI filter placeholder)
+            text = event.raw_text or ""
+            # Forward to team group via Bot
+            forward_msg = (
+                f"📥 **YANGI XABAR (SHAXSIYDAN)**\n\n"
+                f"👤 Mijoz: {getattr(sender, 'first_name', 'Mijoz')} (@{getattr(sender, 'username', 'yoq')})\n"
+                f"🆔 ID: `{event.sender_id}`\n"
+                f"📝 Xabar: {text}\n\n"
+                f"💬 Javob berish uchun shu xabarga **Reply** qiling."
+            )
+            
+            # Store the mapping to know who to reply to
+            await self.db.set_state(f"bridge_map_{event.id}", event.sender_id)
+            await self.bot_client.send_message(self.team_group_id, forward_msg)
+            logger.info(f"👸 [BRIDGE] Forwarded message from {event.sender_id} to team.")
+
+        # 2. Listen for Team Replies in the Group
+        @self.bot_client.on(events.NewMessage(chats=self.team_group_id))
+        async def team_reply_handler(event):
+            if not event.is_reply:
+                return
+
+            # Get the original bridge message
+            reply_to = await event.get_reply_message()
+            target_user_id = await self.db.get_state(f"bridge_map_{reply_to.id}")
+            
+            if target_user_id:
+                # Send the team's reply to the customer via YOUR (userbot) account
+                try:
+                    await self.user_client.send_message(int(target_user_id), event.raw_text)
+                    await event.reply("✅ Xabaringiz mijozga shaxsiy Telegramdan yuborildi.")
+                    logger.info(f"👸 [BRIDGE] Sent team reply to {target_user_id} via userbot.")
+                except Exception as e:
+                    logger.error(f"👸 [BRIDGE ERROR] Failed to send reply: {e}")
 
     async def close(self):
-        await self.session.close()
-
-# Note: The mapping TG user -> AmoCRM contact is assumed to be handled 
-# by the existing phone number lookup logic.
+        pass # No session to close in this implementation
