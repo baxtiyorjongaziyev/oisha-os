@@ -256,6 +256,31 @@ class AdminBot:
                             pass
                     else:
                         await event.answer("ℹ️ Draft allaqachon qayta ishlangan.", alert=True)
+                elif data.startswith("accept_lead:") or data.startswith("claim_lead:"):
+                    # accept_lead:lead_id:user_id:manager_id or claim_lead:lead_id:user_id
+                    parts = data.split(":")
+                    lid_id = parts[1]
+                    # Mark as claimed to stop escalation background task
+                    await self.db.set_state(f"lead_claimed_{lid_id}", "true")
+                    
+                    if data.startswith("accept_lead:"):
+                        mgr_id = int(parts[3])
+                        if event.sender_id != mgr_id:
+                            await event.answer("⚠️ Bu lid sizga biriktirilmagan!", alert=True)
+                            return
+                        await event.answer("✅ Lid qabul qilindi. Omad!", alert=False)
+                    else:
+                        # Claim logic
+                        await self.db.set_state(f"lead_manager_{lid_id}", event.sender_id)
+                        await event.answer("🚀 Lid sizga biriktirildi!", alert=True)
+                    
+                    # Update message to show who claimed
+                    sender = await event.get_sender()
+                    name = getattr(sender, 'first_name', 'Menejer')
+                    try:
+                        await event.edit(event.message.message + f"\n\n🤝 **Qabul qildi:** {name}")
+                    except Exception:
+                        pass
                 else:
                     await event.answer("⚠️ Bu funksiya hozircha ish faoliyatida emas.", alert=True)
             except Exception as e:
