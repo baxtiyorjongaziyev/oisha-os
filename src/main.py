@@ -1,82 +1,23 @@
 import asyncio
-import base64
-from datetime import datetime
-import json
 import os
-import re
 import sys
+import logging
+from typing import Optional, Dict, Any, List
 
-# Force UTF-8 console output on Windows to avoid emoji-related crashes.
+# [STABILITY] Windows and UTF-8 setup
 try:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except (AttributeError, OSError) as e:
-    # Non-critical: console encoding failure won't stop the bot
-    print(f"[INIT] Warning: Could not reconfigure console encoding: {e}")
+except: pass
 
-# [STABILITY] Windows loop policy configuration
 if os.name == 'nt':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-# [STABILITY] Create and set loop EARLY to support library imports that check for a loop
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
-
-# Set project root and source directories to sys.path for backward compatibility
-# and to support current mixed-import structure.
 sys.path.append(os.getcwd())
 sys.path.append(os.path.join(os.getcwd(), "src"))
-sys.path.append(os.path.join(os.getcwd(), "src", "services"))
 
-import logging
-from typing import Optional, Dict, Any, List
-from telethon import TelegramClient, events
-from telethon.sessions import StringSession
-from src.settings import settings
-from src.database import Database
-from src.services.core.safe_responder import SafeResponder
-from src.services.core.action_parser import ActionParser
-from src.services.core.lead_scraper import LeadScraper
-from src.services.core.enterprise_reporter import EnterpriseReporter
-from src.controllers.message_controller import MessageController
-from src.services.utils.scouter import Scouter
-from src.services.core.advisor_agent import AdvisorAgent
-import asyncio
-import base64
-from datetime import datetime
-import json
-import os
-import re
-import sys
-
-# Force UTF-8 console output on Windows to avoid emoji-related crashes.
-try:
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    if hasattr(sys.stderr, "reconfigure"):
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except (AttributeError, OSError) as e:
-    # Non-critical: console encoding failure won't stop the bot
-    print(f"[INIT] Warning: Could not reconfigure console encoding: {e}")
-
-# [STABILITY] Windows loop policy configuration
-if os.name == 'nt':
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-# [STABILITY] Create and set loop EARLY to support library imports that check for a loop
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
-
-# Set project root and source directories to sys.path for backward compatibility
-# and to support current mixed-import structure.
-sys.path.append(os.getcwd())
-sys.path.append(os.path.join(os.getcwd(), "src"))
-sys.path.append(os.path.join(os.getcwd(), "src", "services"))
-
-import logging
-from typing import Optional, Dict, Any, List
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from src.settings import settings
@@ -91,13 +32,10 @@ from src.services.core.advisor_agent import AdvisorAgent
 from src.services.core.auto_lead_agent import AutoLeadAgent
 from src.services.core.activity_monitor import ActivityMonitor
 from src.services.core.audit_agent import AuditAgent
-import threading
-import src.config as config
-from src.services.core.session_manager import SessionManager
-# from src.services.core.chat_bridge import ChatBridge  # Moved inside main()
-# from src.services.core.unanswered_monitor import UnansweredMonitor # Moved inside main()
-# from src.api_server import app as api_app # Moved to main() to break circular imports
+from src.services.core.sales_coach import SalesCoach
+from src.services.core.crm_guard import CRMGuard
 import uvicorn
+import threading
 from telethon import functions, types
 import random
 import time
@@ -1482,7 +1420,23 @@ async def main():
 
     advisor_agent = AdvisorAgent(api_key=api_keys["gemini"], db=msg_controller.db, action_parser=action_parser)
     auto_lead_agent = AutoLeadAgent(api_key=api_keys["gemini"])
+    sales_coach = SalesCoach(ai_provider=auto_lead_agent.ai) # Use shared AI provider
+    crm_guard = CRMGuard(amo=msg_controller.crm.amocrm, bot=None) # TODO: Connect admin bot
     safe_responder = SafeResponder()
+
+    # Background Task: CRM Discipline Guard (Every 2 hours)
+    async def crm_discipline_loop():
+        while True:
+            try:
+                # 10117998 - Hunter Pipeline ID
+                await crm_guard.check_discipline(pipeline_id=10117998)
+                # 10123314 - Closer Pipeline ID
+                await crm_guard.check_discipline(pipeline_id=10123314)
+            except Exception as e:
+                logger.error(f"[CRM_GUARD_LOOP] Error: {e}")
+            await asyncio.sleep(7200) # 2 hours
+    
+    asyncio.create_task(crm_discipline_loop())
 
     # Surgical Negotiator — autonomous negotiations agent
     async def _surgical_send(user_id: int, text: str):
