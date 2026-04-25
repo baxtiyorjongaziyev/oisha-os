@@ -153,12 +153,12 @@ class SalesAnalytics:
             manager_stats[uid]["name"] = self._get_user_name(uid)
 
         # Hisobot generatsiya
-        report = "📊 <b>MENEJER SCORECARD</b>\n"
+        report = "📊 <b>BUGUNGI SOTUV HISOBOTI</b>\n"
         report += f"📅 {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
         report += "━" * 30 + "\n"
 
         if not manager_stats:
-            report += "\n⚠️ Menejerlar topilmadi yoki lidlar yo'q."
+            report += "\n⚠️ Hozircha hech qanday ma'lumot yo'q."
             return report
 
         # Sort by month_revenue descending
@@ -168,23 +168,20 @@ class SalesAnalytics:
         total_won = 0
 
         for i, (uid, s) in enumerate(sorted_managers, 1):
-            name = s["name"] or f"User_{uid}"
+            name = s["name"] or f"Menejer_{uid}"
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
 
             report += f"\n{medal} <b>{name}</b>\n"
-            report += f"   🎯 Aktiv: {s['total_active']} ta"
-            if s["hunter_active"] or s["closer_active"]:
-                report += f" (H:{s['hunter_active']} C:{s['closer_active']})"
-            report += "\n"
-            report += f"   ✅ Bugun teggan: {s['today_touched']} | Won: {s['today_won']}\n"
+            report += f"   👥 Ish jarayonidagi mijozlar: {s['total_active']} ta\n"
+            report += f"   ✅ Bugun muloqot qilgan: {s['today_touched']} | Sotuv: {s['today_won']}\n"
 
             if s["month_won"] > 0:
-                report += f"   💰 Oylik: {s['month_won']} ta = {s['month_revenue']:,.0f} so'm\n".replace(',', ' ')
+                report += f"   💰 Oylik natija: {s['month_won']} ta sotuv = {s['month_revenue']:,.0f} so'm\n".replace(',', ' ')
             else:
-                report += f"   💰 Oylik: 0 ta = 0 so'm\n"
+                report += f"   💰 Oylik natija: 0 ta sotuv\n"
 
             if s["stagnated"] > 0:
-                report += f"   ⚠️ <b>Stagnatsiya: {s['stagnated']} ta lid 24h+ harakatsiz!</b>\n"
+                report += f"   🚨 <b>DIQQAT: {s['stagnated']} ta mijoz 24 soatdan beri qarovsiz!</b>\n"
 
             total_revenue += s["month_revenue"]
             total_won += s["month_won"]
@@ -192,12 +189,13 @@ class SalesAnalytics:
         # Jamoa umumiy ko'rsatkichi
         target = 80_000_000
         pct = (total_revenue / target * 100) if target > 0 else 0
-        bar = "█" * int(pct / 10) + "░" * (10 - int(pct / 10))
+        bar_fill = int(pct / 10)
+        bar = "█" * min(bar_fill, 10) + "░" * max(0, (10 - bar_fill))
 
         report += "\n" + "━" * 30
-        report += f"\n📈 <b>JAMOA UMUMIY:</b>"
-        report += f"\n   Won: {total_won} ta | {total_revenue:,.0f} so'm".replace(',', ' ')
-        report += f"\n   Target: {target:,.0f} so'm ({pct:.0f}%)".replace(',', ' ')
+        report += f"\n📈 <b>JAMOA NATIJASI:</b>"
+        report += f"\n   Jami sotuv: {total_won} ta | {total_revenue:,.0f} so'm".replace(',', ' ')
+        report += f"\n   🎯 Oylik maqsad: {target:,.0f} so'm ({pct:.0f}%)".replace(',', ' ')
         report += f"\n   [{bar}]"
 
         return report
