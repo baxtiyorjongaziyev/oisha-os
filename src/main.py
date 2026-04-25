@@ -452,6 +452,16 @@ def _is_group_open_confirmation(text: str) -> bool:
 
 
 def _is_finance_approval(text: str) -> bool:
+    from src.api import dashboard
+
+    app = FastAPI(
+        title="Oisha-OS API",
+        description="Enterprise AI Automation for amoCRM",
+        version="2.0.0"
+    )
+
+    # Include Routers
+    app.include_router(dashboard.router)
     lowered = (text or "").lower()
     keywords = (
         "tasdiq",
