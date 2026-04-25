@@ -23,6 +23,7 @@ from src.services.core.agent_runtime import (
 from src.services.core.amocrm_sync import AmoCRMSync
 from src.settings import settings
 from src.time_utils import get_local_now
+from src.api import dashboard
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +35,9 @@ db_instance = None
 msg_controller = None
 
 app = FastAPI(title="Oisha-OS Enterprise API")
+
+# Include Dashboard Router
+app.include_router(dashboard.router)
 
 
 
