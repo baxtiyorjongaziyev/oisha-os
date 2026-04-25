@@ -93,22 +93,14 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Sync USERBOT_SESSION_STRING to GCP Secret Manager
+      - name: Sync Userbot Session to Secret Manager
         env:
-          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
+          SESSION: ${{ secrets.USERBOT_SESSION_STRING }}
         run: |
-          if [ -z "${USERBOT_SESSION_STRING}" ]; then
-            echo "USERBOT_SESSION_STRING not set as GitHub secret; using existing GCP version."
-          else
-            if gcloud secrets describe USERBOT_SESSION_STRING --project "${PROJECT_ID}" >/dev/null 2>&1; then
-              echo -n "${USERBOT_SESSION_STRING}" | gcloud secrets versions add USERBOT_SESSION_STRING \
-                --project "${PROJECT_ID}" --data-file=-
-              echo "USERBOT_SESSION_STRING updated in GCP Secret Manager."
-            else
-              echo -n "${USERBOT_SESSION_STRING}" | gcloud secrets create USERBOT_SESSION_STRING \
-                --project "${PROJECT_ID}" --data-file=- --replication-policy=automatic
-              echo "USERBOT_SESSION_STRING created in GCP Secret Manager."
-            fi
+          if [ -n "${SESSION}" ]; then
+            echo -n "${SESSION}" | gcloud secrets versions add USERBOT_SESSION_STRING --data-file=- || \
+            (gcloud secrets create USERBOT_SESSION_STRING --replication-policy="automatic" && \
+             echo -n "${SESSION}" | gcloud secrets versions add USERBOT_SESSION_STRING --data-file=-)
           fi
 
       - name: Build, deploy candidate, and promote only if healthy
@@ -466,6 +458,8 @@ jobs:
           HEADER=$(head -6 DEV_LOG.md)
           BODY=$(tail -n +7 DEV_LOG.md)
           printf '%s\n\n%s\n%s' "$HEADER" "$NEW_ENTRY" "$BODY" > DEV_LOG.md
+          # Force UTF-8 encoding for safety
+          # Note: The original file header should be preserved.
 
       - name: Commit updated DEV_LOG.md
         run: |
