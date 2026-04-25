@@ -12,6 +12,8 @@ requests
 openai
 anthropic
 google-generativeai
+google-genai
+libsql
 libsql-client
 pytest
 pytest-asyncio
