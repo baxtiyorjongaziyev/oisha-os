@@ -5,6 +5,7 @@ pydantic
 pydantic-settings
 python-dotenv
 aiogram
+python-telegram-bot
 telethon
 httpx
 aiohttp
@@ -13,6 +14,7 @@ openai
 anthropic
 google-generativeai
 google-genai
+google-auth-oauthlib
 libsql
 libsql-client
 pytest
