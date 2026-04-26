@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-26 07:19 UTC | 🔴 main `7b5e6a1`
+
+**Commit**: feat: Enable cloud userbot — ENABLE_CLOUD_USERBOT=True + GCP secret sync step
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-04-25 22:23 UTC | ✅ main `9899a55`
 
 **Commit**: fix(deploy): fix AuditAgent imports, increase health grace period to 120s, and enable cpu-boost 👸🛡️🦅 ✅
