@@ -120,7 +120,7 @@ async def liveness_probe():
         checks["heartbeat_age_sec"] = round(hb_age, 1)
         if hb_age > _heartbeat_stale_seconds:
             problems.append(f"heartbeat_stale({int(hb_age)}s)")
-    elif boot_age > 20:
+    elif boot_age > 120:
         # Loop should have ticked by now; if not, something is wrong.
         problems.append("no_heartbeat_ever")
 
