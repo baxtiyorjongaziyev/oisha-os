@@ -5,6 +5,118 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-25 22:23 UTC | ✅ main `9899a55`
+
+**Commit**: fix(deploy): fix AuditAgent imports, increase health grace period to 120s, and enable cpu-boost 👸🛡️🦅 ✅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00194-wug
+
+---
+
+## 2026-04-25 21:58 UTC | ⚠️ main `e74566f`
+
+**Commit**: Update audit_agent.py
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 21:13 UTC | ⚠️ main `dcce4af`
+
+**Commit**: fix(ci): final strike to turn status GREEN 👸🛡️🦅 ✅ - Fix missing base64 import in main.py - Add AmoCRMSync import to prevent ModuleNotFoundError - Safe DeepSeek initialization in AuditAgent - Verified requirements.txt
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 20:30 UTC | ✅ main `ce5afa9`
+
+**Commit**: fix(runtime): avoid crm guard crash on empty lead source
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00187-wed
+
+---
+
+## 2026-04-25 20:19 UTC | ✅ main `571739f`
+
+**Commit**: fix(startup): wire sales coach provider
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00184-jaw
+
+---
+
+## 2026-04-25 20:10 UTC | ⚠️ main `95d1e53`
+
+**Commit**: fix: resolve deployment secrets and permissions 👸🛡️🦅 ✅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:58 UTC | ⚠️ main `0dafcfe`
+
+**Commit**: fix(startup): use asyncio run entrypoint
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:50 UTC | ⚠️ main `c642a9a`
+
+**Commit**: fix(deploy): include runtime startup dependencies
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:41 UTC | ⚠️ main `1c47bec`
+
+**Commit**: fix(startup): repair audit agent exception handling
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:32 UTC | ⚠️ main `a974e39`
+
+**Commit**: fix(deploy): include gspread runtime dependency
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:20 UTC | 🔴 main `da2681c`
+
+**Commit**: fix(ci): install runtime packages used by tests
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-04-25 19:18 UTC | 🔴 main `5a140b2`
+
+**Commit**: chore: Re-triggering deploy to turn status GREEN 👸🛡️🦅 ✅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-04-25 19:03 UTC | 🔴 main `961aa7c`
+
+**Commit**: fix: restore deploy helpers and enable Cloud Userbot sync 👸🛡️🦅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-04-25 19:01 UTC | 🔴 main `48a541c`
+
+**Commit**: Merge remote-tracking branch 'origin/main'
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-04-25 18:53 UTC | 🔴 main `60d36a8`
 
 **Commit**: feat: Integrated Digital Pipeline Audit and Monitoring 👸🛡️🦅
