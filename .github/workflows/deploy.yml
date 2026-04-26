@@ -93,6 +93,24 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Sync USERBOT_SESSION_STRING to GCP Secret Manager
+        env:
+          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
+        run: |
+          if [ -z "${USERBOT_SESSION_STRING}" ]; then
+            echo "USERBOT_SESSION_STRING not set as GitHub secret; using existing GCP version."
+          else
+            if gcloud secrets describe USERBOT_SESSION_STRING --project "${PROJECT_ID}" >/dev/null 2>&1; then
+              echo -n "${USERBOT_SESSION_STRING}" | gcloud secrets versions add USERBOT_SESSION_STRING \
+                --project "${PROJECT_ID}" --data-file=-
+              echo "USERBOT_SESSION_STRING updated in GCP Secret Manager."
+            else
+              echo -n "${USERBOT_SESSION_STRING}" | gcloud secrets create USERBOT_SESSION_STRING \
+                --project "${PROJECT_ID}" --data-file=- --replication-policy=automatic
+              echo "USERBOT_SESSION_STRING created in GCP Secret Manager."
+            fi
+          fi
+
       - name: Build, deploy candidate, and promote only if healthy
         id: rollout
         shell: bash
@@ -303,7 +321,7 @@ jobs:
             --execution-environment gen2 \
             --no-traffic \
             --tag "${CANDIDATE_TAG}" \
-            --set-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production,CLOUD_RUN_CONTROL_PLANE_ONLY=True,ENABLE_CLOUD_USERBOT=False,DATABASE_URL=bot_database.db,AMOCRM_SUBDOMAIN=jonbrandingagency,AIRTABLE_BASE_ID=app8xoyx1XCumYFXV,CRM_GROUP_ID=-1002566480563,TEAM_GROUP_ID=-4860594772,TOPIC_KIRIM_ID=168,GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k,GSHEET_CREDS_FILE=service_account.json,OWNER_ID=150074828,AUTO_REPLY_MODE=shadow,VIP_LEAD_SCORE_THRESHOLD=80" \
+            --set-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production,CLOUD_RUN_CONTROL_PLANE_ONLY=False,ENABLE_CLOUD_USERBOT=True,DATABASE_URL=bot_database.db,AMOCRM_SUBDOMAIN=jonbrandingagency,AIRTABLE_BASE_ID=app8xoyx1XCumYFXV,CRM_GROUP_ID=-1002566480563,TEAM_GROUP_ID=-4860594772,TOPIC_KIRIM_ID=168,GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k,GSHEET_CREDS_FILE=service_account.json,OWNER_ID=150074828,AUTO_REPLY_MODE=shadow,VIP_LEAD_SCORE_THRESHOLD=80" \
             --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,USERBOT_SESSION_STRING=USERBOT_SESSION_STRING:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,DEEPSEEK_API_KEY=oisha-deepseek-api-key:latest,TURSO_DATABASE_URL=TURSO_DATABASE_URL:latest,TURSO_AUTH_TOKEN=TURSO_AUTH_TOKEN:latest,AIRTABLE_API_KEY=AIRTABLE_API_KEY:latest,AMOCRM_TOKEN_JSON=amocrm-token:latest" \
             --labels "commit-sha=${GITHUB_SHA}" 2>&1)"
           DEPLOY_RC=$?
