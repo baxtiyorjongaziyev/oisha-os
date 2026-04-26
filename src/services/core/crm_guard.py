@@ -21,7 +21,10 @@ class CRMGuard:
         Zadachasi yo'qlarni aniqlaydi.
         """
         logger.info(f"[GUARD] {pipeline_id} pipeline tekshirilyapti...")
-        leads = self._get_active_leads(pipeline_id)
+        leads = self._get_active_leads(pipeline_id) or []
+        if not leads:
+            logger.info(f"[GUARD] {pipeline_id} pipeline uchun tekshiriladigan aktiv lead topilmadi.")
+            return
         
         for lead in leads:
             lead_id = lead["id"]
@@ -34,7 +37,7 @@ class CRMGuard:
     def _get_active_leads(self, pipeline_id: int) -> List[Dict]:
         # AmoCRM API orqali aktiv lidlarni olish
         # (Surgical: biz buni amocrm_sync orqali qilamiz)
-        pass
+        return []
 
     def _get_lead_tasks(self, lead_id: int) -> List[Dict]:
         # Leadga bog'langan vazifalarni tekshirish
