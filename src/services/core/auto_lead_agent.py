@@ -18,6 +18,14 @@ class AutoLeadAgent:
         self.client = genai.Client(api_key=api_key)
         self.model_name = "gemini-2.0-flash"
 
+    async def generate_content(self, prompt: str) -> str:
+        """Shared lightweight AI provider interface used by SalesCoach."""
+        response = await self.client.aio.models.generate_content(
+            model=self.model_name,
+            contents=[prompt],
+        )
+        return response.text or ""
+
     async def qualify_chat(self, chat_text: str) -> tuple[bool, Dict[str, Any]]:
         """
         Backward compatible wrapper for extract_lead_info.
