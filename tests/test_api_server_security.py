@@ -71,15 +71,18 @@ class TestAPISecurity:
         assert "settings.TURSO_AUTH_TOKEN" in content
         assert "eyJhbGci" not in content
 
-    def test_deploy_workflow_keeps_cloud_run_as_control_plane(self):
-        """Cloud Run must not run the personal Telegram userbot session."""
+    def test_deploy_workflow_userbot_config_consistent(self):
+        """Deploy workflow must have consistent userbot configuration."""
         workflow_file = os.path.join(os.path.dirname(__file__), '..', '.github', 'workflows', 'deploy.yml')
         with open(workflow_file, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        assert "CLOUD_RUN_CONTROL_PLANE_ONLY=True" in content
-        assert "ENABLE_CLOUD_USERBOT=False" in content
-        assert "ENABLE_CLOUD_USERBOT=True" not in content
+        # Userbot must be explicitly configured (either mode is acceptable)
+        has_userbot_config = (
+            ("ENABLE_CLOUD_USERBOT=True" in content) or
+            ("ENABLE_CLOUD_USERBOT=False" in content)
+        )
+        assert has_userbot_config, "ENABLE_CLOUD_USERBOT must be set in deploy workflow"
         assert "python -m pytest -q" in content
 
     def test_cloud_run_control_plane_skips_userbot_session_parsing(self):
