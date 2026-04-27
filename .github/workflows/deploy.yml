@@ -93,24 +93,6 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Sync USERBOT_SESSION_STRING to GCP Secret Manager
-        env:
-          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
-        run: |
-          if [ -z "${USERBOT_SESSION_STRING}" ]; then
-            echo "USERBOT_SESSION_STRING not set as GitHub secret; using existing GCP version."
-          else
-            if gcloud secrets describe USERBOT_SESSION_STRING --project "${PROJECT_ID}" >/dev/null 2>&1; then
-              echo -n "${USERBOT_SESSION_STRING}" | gcloud secrets versions add USERBOT_SESSION_STRING \
-                --project "${PROJECT_ID}" --data-file=-
-              echo "USERBOT_SESSION_STRING updated in GCP Secret Manager."
-            else
-              echo -n "${USERBOT_SESSION_STRING}" | gcloud secrets create USERBOT_SESSION_STRING \
-                --project "${PROJECT_ID}" --data-file=- --replication-policy=automatic
-              echo "USERBOT_SESSION_STRING created in GCP Secret Manager."
-            fi
-          fi
-
       - name: Build, deploy candidate, and promote only if healthy
         id: rollout
         shell: bash
@@ -239,21 +221,35 @@ jobs:
             return 1
           }
 
-          cleanup_legacy_userbot_secret_binding() {
-            local userbot_binding_type
-            userbot_binding_type="$(gcloud run services describe "${SERVICE_NAME}" \
+          cleanup_legacy_userbot_bindings() {
+            local service_json
+            service_json="$(gcloud run services describe "${SERVICE_NAME}" \
               --region "${REGION}" \
               --project "${PROJECT_ID}" \
-              --format=json | python -c 'import json, sys; data=json.load(sys.stdin); envs=data.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [{}])[0].get("env", []); target=next((env for env in envs if env.get("name") == "ENABLE_CLOUD_USERBOT"), {}); print("secret" if target.get("valueFrom") else ("literal" if "value" in target else "missing"))')"
+              --format=json)"
 
-            if [[ "${userbot_binding_type}" != "secret" ]]; then
+            local secret_names
+            secret_names="$(printf '%s' "${service_json}" | python -c 'import json, sys; data=json.load(sys.stdin); names={"ENABLE_CLOUD_USERBOT","USERBOT_SESSION_STRING","USERBOT_SESSION_B64"}; envs=data.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [{}])[0].get("env", []); print(",".join(env.get("name", "") for env in envs if env.get("name") in names and env.get("valueFrom")))' )"
+
+            local literal_session_names
+            literal_session_names="$(printf '%s' "${service_json}" | python -c 'import json, sys; data=json.load(sys.stdin); names={"USERBOT_SESSION_STRING","USERBOT_SESSION_B64"}; envs=data.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [{}])[0].get("env", []); print(",".join(env.get("name", "") for env in envs if env.get("name") in names and "value" in env))' )"
+
+            if [[ -z "${secret_names}" && -z "${literal_session_names}" ]]; then
               return 0
+            fi
+
+            local args=()
+            if [[ -n "${secret_names}" ]]; then
+              args+=(--remove-secrets "${secret_names}")
+            fi
+            if [[ -n "${literal_session_names}" ]]; then
+              args+=(--remove-env-vars "${literal_session_names}")
             fi
 
             gcloud run services update "${SERVICE_NAME}" \
               --region "${REGION}" \
               --project "${PROJECT_ID}" \
-              --remove-secrets ENABLE_CLOUD_USERBOT \
+              "${args[@]}" \
               --no-traffic \
               --quiet
           }
@@ -298,7 +294,7 @@ jobs:
             exit 0
           fi
 
-          USERBOT_BINDING_CLEANUP_OUTPUT="$(cleanup_legacy_userbot_secret_binding 2>&1)"
+          USERBOT_BINDING_CLEANUP_OUTPUT="$(cleanup_legacy_userbot_bindings 2>&1)"
           USERBOT_BINDING_CLEANUP_RC=$?
           if [[ ${USERBOT_BINDING_CLEANUP_RC} -ne 0 ]]; then
             FAILURE_REASON="userbot secret binding cleanup failed: $(echo "${USERBOT_BINDING_CLEANUP_OUTPUT}" | tr '\n' ' ' | cut -c1-500)"
@@ -321,8 +317,8 @@ jobs:
             --execution-environment gen2 \
             --no-traffic \
             --tag "${CANDIDATE_TAG}" \
-            --set-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production,CLOUD_RUN_CONTROL_PLANE_ONLY=False,ENABLE_CLOUD_USERBOT=True,DATABASE_URL=bot_database.db,AMOCRM_SUBDOMAIN=jonbrandingagency,AIRTABLE_BASE_ID=app8xoyx1XCumYFXV,CRM_GROUP_ID=-1002566480563,TEAM_GROUP_ID=-4860594772,TOPIC_KIRIM_ID=168,GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k,GSHEET_CREDS_FILE=service_account.json,OWNER_ID=150074828,AUTO_REPLY_MODE=shadow,VIP_LEAD_SCORE_THRESHOLD=80" \
-            --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,USERBOT_SESSION_STRING=USERBOT_SESSION_STRING:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,DEEPSEEK_API_KEY=oisha-deepseek-api-key:latest,TURSO_DATABASE_URL=TURSO_DATABASE_URL:latest,TURSO_AUTH_TOKEN=TURSO_AUTH_TOKEN:latest,AIRTABLE_API_KEY=AIRTABLE_API_KEY:latest,AMOCRM_TOKEN_JSON=amocrm-token:latest" \
+            --set-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production,CLOUD_RUN_CONTROL_PLANE_ONLY=True,ENABLE_CLOUD_USERBOT=False,DATABASE_URL=bot_database.db,AMOCRM_SUBDOMAIN=jonbrandingagency,AIRTABLE_BASE_ID=app8xoyx1XCumYFXV,CRM_GROUP_ID=-1002566480563,TEAM_GROUP_ID=-4860594772,TOPIC_KIRIM_ID=168,GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k,GSHEET_CREDS_FILE=service_account.json,OWNER_ID=150074828,AUTO_REPLY_MODE=shadow,VIP_LEAD_SCORE_THRESHOLD=80" \
+            --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,DEEPSEEK_API_KEY=oisha-deepseek-api-key:latest,TURSO_DATABASE_URL=TURSO_DATABASE_URL:latest,TURSO_AUTH_TOKEN=TURSO_AUTH_TOKEN:latest,AIRTABLE_API_KEY=AIRTABLE_API_KEY:latest,AMOCRM_TOKEN_JSON=amocrm-token:latest" \
             --labels "commit-sha=${GITHUB_SHA}" 2>&1)"
           DEPLOY_RC=$?
 
