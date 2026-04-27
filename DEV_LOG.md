@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-27 17:36 UTC | ✅ main `98aae9b`
+
+**Commit**: fix(crm): add AmoCRM health connection check
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00205-diw
+
+---
+
 ## 2026-04-27 17:00 UTC | ✅ main `eccb488`
 
 **Commit**: fix(deploy): keep Cloud Run userbot disabled
