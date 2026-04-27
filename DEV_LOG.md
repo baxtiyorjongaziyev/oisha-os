@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-27 17:00 UTC | ✅ main `eccb488`
+
+**Commit**: fix(deploy): keep Cloud Run userbot disabled
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00202-fof
+
+---
+
 ## 2026-04-27 16:49 UTC | ⚠️ main `be80d78`
 
 **Commit**: chore(auto): update DEV_LOG [skip ci] — 2026-04-27 13:46 UTC
