@@ -72,17 +72,16 @@ class TestAPISecurity:
         assert "eyJhbGci" not in content
 
     def test_deploy_workflow_userbot_config_consistent(self):
-        """Deploy workflow must have consistent userbot configuration."""
+        """Cloud Run deploy must stay control-plane only."""
         workflow_file = os.path.join(os.path.dirname(__file__), '..', '.github', 'workflows', 'deploy.yml')
         with open(workflow_file, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Userbot must be explicitly configured (either mode is acceptable)
-        has_userbot_config = (
-            ("ENABLE_CLOUD_USERBOT=True" in content) or
-            ("ENABLE_CLOUD_USERBOT=False" in content)
-        )
-        assert has_userbot_config, "ENABLE_CLOUD_USERBOT must be set in deploy workflow"
+        assert "CLOUD_RUN_CONTROL_PLANE_ONLY=True" in content
+        assert "ENABLE_CLOUD_USERBOT=False" in content
+        assert "ENABLE_CLOUD_USERBOT=True" not in content
+        assert "Sync USERBOT_SESSION_STRING" not in content
+        assert "USERBOT_SESSION_STRING=USERBOT_SESSION_STRING" not in content
         assert "python -m pytest -q" in content
 
     def test_cloud_run_control_plane_skips_userbot_session_parsing(self):
