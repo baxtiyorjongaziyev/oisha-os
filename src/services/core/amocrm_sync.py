@@ -180,6 +180,35 @@ class AmoCRMSync:
             return resp.json()
         return None
 
+    async def check_connection(self) -> bool:
+        """AmoCRM OAuth tokenini real account endpoint orqali tekshiradi."""
+        if not self.access_token:
+            self._load_token()
+
+        if not self.access_token:
+            self.last_error = "access_token_missing"
+            return False
+
+        url = f"{self.base_url}/api/v4/account"
+        try:
+            response = requests.get(url, headers=self._get_headers(), timeout=15)
+            if response.status_code == 200:
+                self.last_error = None
+                return True
+
+            if response.status_code == 401 and self.refresh_token():
+                response = requests.get(url, headers=self._get_headers(), timeout=15)
+                if response.status_code == 200:
+                    self.last_error = None
+                    return True
+
+            self.last_error = f"check_connection_http_{response.status_code}"
+            return False
+        except Exception as e:
+            self.last_error = "check_connection_exception"
+            logger.error(f"[AMOCRM CHECK ERROR] {type(e).__name__}")
+            return False
+
     def _get_headers(self):
         token = str(self.access_token or "")
         if not token:
