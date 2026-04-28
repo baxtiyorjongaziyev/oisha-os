@@ -1,0 +1,157 @@
+name: Userbot — VPS Deploy & Start
+
+on:
+  push:
+    paths:
+      - '.github/workflows/userbot-vps.yml'
+      - 'deploy/userbot-trigger'
+  workflow_dispatch:
+
+jobs:
+  deploy-userbot:
+    name: SSH → VPS → Userbot ishga tushirish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Try VPS 1 (root@109.199.100.137)
+        id: vps1
+        uses: appleboy/ssh-action@v1.0.3
+        continue-on-error: true
+        with:
+          host: 109.199.100.137
+          username: root
+          password: "#8tV9Hsm0aMqapdb"
+          port: 22
+          timeout: 30s
+          command_timeout: 8m
+          script: |
+            set -e
+            echo "=== VPS 1 ga ulandi ==="
+
+            # Papkani topish yoki yaratish
+            OISHA_DIR=""
+            for d in /root/oisha-os /root/telegram_bot /home/baxtiyorjongaziyev/oisha-os; do
+              if [ -f "$d/src/main.py" ]; then
+                OISHA_DIR="$d"
+                break
+              fi
+            done
+
+            if [ -z "$OISHA_DIR" ]; then
+              OISHA_DIR="/root/oisha-os"
+              mkdir -p "$OISHA_DIR"
+              git clone https://github.com/baxtiyorjongaziyev/oisha-os.git "$OISHA_DIR"
+            fi
+
+            cd "$OISHA_DIR"
+            echo "Papka: $OISHA_DIR"
+
+            # Kodni yangilash
+            git fetch origin main 2>/dev/null && git reset --hard origin/main 2>/dev/null || true
+
+            # .env faylini tekshirish
+            if [ ! -f .env ]; then
+              cp .env.example .env 2>/dev/null || touch .env
+            fi
+
+            # USERBOT_SESSION_STRING yangilash
+            SESSION="1ApWapzMBu7kFbYuLPhd3XCGJig-7b2AFv6q3Ej9ECcaEszaSkSYBc70665Vw1qsM2mftLkilu3tNuI7JPhJCzXi_1D58PyQp-eaG4fGDYVtv1Ascc_fZv13v1KYqPAO7uR-7voZSIN3ELp0dmEeg7MGy6P-RpF3nsJBJR1KAUyxjiviTk3jUDKvYwA6ZXXhgNtCzFAtF1r5ZjaCP68B2bUdxbihRbecbA5ptuk8r28hBKM8x8XnF9tpme7ZGsD_KHNvDbaxvC1_SKzXajNJtQaWM9oEzejeNVAZXj3DOGWPByUHXua1yg-tmCYL-Ox63518taP66FuoJMZdizZFnwjxcvKZGGm0="
+            if grep -q "USERBOT_SESSION_STRING" .env; then
+              sed -i "s|^USERBOT_SESSION_STRING=.*|USERBOT_SESSION_STRING=${SESSION}|" .env
+            else
+              echo "USERBOT_SESSION_STRING=${SESSION}" >> .env
+            fi
+
+            # Python va paketlar
+            python3 --version
+            pip3 install -r requirements.txt -q --break-system-packages 2>/dev/null \
+              || pip3 install -r requirements.txt -q 2>/dev/null || true
+
+            # Eski jarayonni to'xtatish
+            pkill -f "python.*main.py" 2>/dev/null || true
+            pkill -f "python.*userbot" 2>/dev/null || true
+            sleep 2
+
+            # Systemd user service bo'lsa restart
+            if systemctl --user list-units --type=service 2>/dev/null | grep -q "userbot"; then
+              systemctl --user restart userbot 2>/dev/null && echo "systemd userbot restarted" || true
+            fi
+
+            # Nohup bilan ishga tushirish
+            mkdir -p /var/log
+            nohup python3 src/main.py >> /var/log/oisha-userbot.log 2>&1 &
+            UPID=$!
+            echo "Userbot PID: $UPID"
+
+            sleep 5
+            if kill -0 $UPID 2>/dev/null; then
+              echo "SUCCESS: Userbot ishga tushdi! PID=$UPID"
+              tail -20 /var/log/oisha-userbot.log
+            else
+              echo "XATO: Userbot o'chib qoldi. Log:"
+              tail -30 /var/log/oisha-userbot.log
+              exit 1
+            fi
+
+      - name: Try VPS 2 (baxtiyorjongaziyev@104.197.19.4)
+        if: steps.vps1.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 104.197.19.4
+          username: baxtiyorjongaziyev
+          password: "parol1122"
+          port: 22
+          timeout: 30s
+          command_timeout: 8m
+          script: |
+            set -e
+            echo "=== VPS 2 ga ulandi ==="
+
+            OISHA_DIR=""
+            for d in /home/baxtiyorjongaziyev/oisha-os /home/baxtiyorjongaziyev/telegram_bot; do
+              if [ -f "$d/src/main.py" ]; then
+                OISHA_DIR="$d"
+                break
+              fi
+            done
+
+            if [ -z "$OISHA_DIR" ]; then
+              OISHA_DIR="/home/baxtiyorjongaziyev/oisha-os"
+              mkdir -p "$OISHA_DIR"
+              git clone https://github.com/baxtiyorjongaziyev/oisha-os.git "$OISHA_DIR"
+            fi
+
+            cd "$OISHA_DIR"
+            echo "Papka: $OISHA_DIR"
+
+            git fetch origin main 2>/dev/null && git reset --hard origin/main 2>/dev/null || true
+
+            if [ ! -f .env ]; then
+              cp .env.example .env 2>/dev/null || touch .env
+            fi
+
+            SESSION="1ApWapzMBu7kFbYuLPhd3XCGJig-7b2AFv6q3Ej9ECcaEszaSkSYBc70665Vw1qsM2mftLkilu3tNuI7JPhJCzXi_1D58PyQp-eaG4fGDYVtv1Ascc_fZv13v1KYqPAO7uR-7voZSIN3ELp0dmEeg7MGy6P-RpF3nsJBJR1KAUyxjiviTk3jUDKvYwA6ZXXhgNtCzFAtF1r5ZjaCP68B2bUdxbihRbecbA5ptuk8r28hBKM8x8XnF9tpme7ZGsD_KHNvDbaxvC1_SKzXajNJtQaWM9oEzejeNVAZXj3DOGWPByUHXua1yg-tmCYL-Ox63518taP66FuoJMZdizZFnwjxcvKZGGm0="
+            if grep -q "USERBOT_SESSION_STRING" .env; then
+              sed -i "s|^USERBOT_SESSION_STRING=.*|USERBOT_SESSION_STRING=${SESSION}|" .env
+            else
+              echo "USERBOT_SESSION_STRING=${SESSION}" >> .env
+            fi
+
+            pip3 install -r requirements.txt -q --break-system-packages 2>/dev/null \
+              || pip3 install -r requirements.txt -q 2>/dev/null || true
+
+            pkill -f "python.*main.py" 2>/dev/null || true
+            sleep 2
+
+            nohup python3 src/main.py >> /tmp/oisha-userbot.log 2>&1 &
+            UPID=$!
+            echo "Userbot PID: $UPID"
+
+            sleep 5
+            if kill -0 $UPID 2>/dev/null; then
+              echo "SUCCESS: Userbot ishga tushdi! PID=$UPID"
+            else
+              echo "XATO:"
+              tail -30 /tmp/oisha-userbot.log
+              exit 1
+            fi
