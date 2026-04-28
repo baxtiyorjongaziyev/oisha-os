@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-28 04:33 UTC | ✅ main `9d5dfd9`
+
+**Commit**: feat: VPS userbot deploy workflow — SSH orqali ishga tushirish
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00208-feh
+
+---
+
 ## 2026-04-27 17:36 UTC | ✅ main `98aae9b`
 
 **Commit**: fix(crm): add AmoCRM health connection check
