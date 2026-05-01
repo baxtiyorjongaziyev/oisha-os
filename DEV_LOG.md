@@ -5,6 +5,182 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-04-30 20:08 UTC | ✅ main `1764103`
+
+**Commit**: feat(salescoach-ai): full MVP scaffold + TypeScript fixes + SESSION_NOTES
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00214-duy
+
+---
+
+## 2026-04-28 04:33 UTC | ✅ main `9d5dfd9`
+
+**Commit**: feat: VPS userbot deploy workflow — SSH orqali ishga tushirish
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00208-feh
+
+---
+
+## 2026-04-27 17:36 UTC | ✅ main `98aae9b`
+
+**Commit**: fix(crm): add AmoCRM health connection check
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00205-diw
+
+---
+
+## 2026-04-27 17:00 UTC | ✅ main `eccb488`
+
+**Commit**: fix(deploy): keep Cloud Run userbot disabled
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00202-fof
+
+---
+
+## 2026-04-27 16:49 UTC | ⚠️ main `be80d78`
+
+**Commit**: chore(auto): update DEV_LOG [skip ci] — 2026-04-27 13:46 UTC
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: 
+
+---
+
+## 2026-04-27 13:46 UTC | ⚠️ main `83421b2`
+
+**Commit**: Merge remote-tracking branch 'origin/main'
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: 
+
+---
+
+## 2026-04-26 07:19 UTC | 🔴 main `7b5e6a1`
+
+**Commit**: feat: Enable cloud userbot — ENABLE_CLOUD_USERBOT=True + GCP secret sync step
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-04-25 22:23 UTC | ✅ main `9899a55`
+
+**Commit**: fix(deploy): fix AuditAgent imports, increase health grace period to 120s, and enable cpu-boost 👸🛡️🦅 ✅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00194-wug
+
+---
+
+## 2026-04-25 21:58 UTC | ⚠️ main `e74566f`
+
+**Commit**: Update audit_agent.py
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 21:13 UTC | ⚠️ main `dcce4af`
+
+**Commit**: fix(ci): final strike to turn status GREEN 👸🛡️🦅 ✅ - Fix missing base64 import in main.py - Add AmoCRMSync import to prevent ModuleNotFoundError - Safe DeepSeek initialization in AuditAgent - Verified requirements.txt
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 20:30 UTC | ✅ main `ce5afa9`
+
+**Commit**: fix(runtime): avoid crm guard crash on empty lead source
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00187-wed
+
+---
+
+## 2026-04-25 20:19 UTC | ✅ main `571739f`
+
+**Commit**: fix(startup): wire sales coach provider
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00184-jaw
+
+---
+
+## 2026-04-25 20:10 UTC | ⚠️ main `95d1e53`
+
+**Commit**: fix: resolve deployment secrets and permissions 👸🛡️🦅 ✅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:58 UTC | ⚠️ main `0dafcfe`
+
+**Commit**: fix(startup): use asyncio run entrypoint
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:50 UTC | ⚠️ main `c642a9a`
+
+**Commit**: fix(deploy): include runtime startup dependencies
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:41 UTC | ⚠️ main `1c47bec`
+
+**Commit**: fix(startup): repair audit agent exception handling
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:32 UTC | ⚠️ main `a974e39`
+
+**Commit**: fix(deploy): include gspread runtime dependency
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:20 UTC | 🔴 main `da2681c`
+
+**Commit**: fix(ci): install runtime packages used by tests
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-04-25 19:18 UTC | 🔴 main `5a140b2`
+
+**Commit**: chore: Re-triggering deploy to turn status GREEN 👸🛡️🦅 ✅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-04-25 19:03 UTC | 🔴 main `961aa7c`
+
+**Commit**: fix: restore deploy helpers and enable Cloud Userbot sync 👸🛡️🦅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-04-25 19:01 UTC | 🔴 main `48a541c`
+
+**Commit**: Merge remote-tracking branch 'origin/main'
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-04-25 18:53 UTC | 🔴 main `60d36a8`
+
+**Commit**: feat: Integrated Digital Pipeline Audit and Monitoring 👸🛡️🦅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-04-25 18:50 UTC | 🔴 main `d688b0d`
 
 **Commit**: feat: Optimized CRM integration with Native Tasks and Webhooks 👸🛡️🦅
