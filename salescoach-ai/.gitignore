@@ -1,0 +1,26 @@
+node_modules/
+.turbo/
+dist/
+.next/
+build/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+*.log
+coverage/
+.DS_Store
+Thumbs.db
+prisma/migrations/*/migration_lock.toml
+*.sqlite
+*.db
+uploads/
+.pnpm-store/
+# Build outputs
+apps/api/dist/
+apps/worker/dist/
+apps/bot/dist/
+packages/shared-types/src/*.js
+packages/shared-types/src/*.d.ts
+packages/shared-types/src/*.map
+*.tsbuildinfo
