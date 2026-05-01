@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 import logging
+import base64
 from typing import Optional, Dict, Any, List
 
 # [STABILITY] Windows and UTF-8 setup
@@ -20,8 +21,10 @@ sys.path.append(os.path.join(os.getcwd(), "src"))
 
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
+from src import config
 from src.settings import settings
 from src.database import Database
+from src.services.core.amocrm_sync import AmoCRMSync
 from src.services.core.safe_responder import SafeResponder
 from src.services.core.action_parser import ActionParser
 from src.services.core.lead_scraper import LeadScraper
@@ -45,6 +48,7 @@ from src.services.core.folder_manager import FolderManager
 from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
+from src.services.core.session_manager import SessionManager
 from src.controllers.surgical_integration import get_surgical_integration
 
 
@@ -1420,7 +1424,7 @@ async def main():
 
     advisor_agent = AdvisorAgent(api_key=api_keys["gemini"], db=msg_controller.db, action_parser=action_parser)
     auto_lead_agent = AutoLeadAgent(api_key=api_keys["gemini"])
-    sales_coach = SalesCoach(ai_provider=auto_lead_agent.ai) # Use shared AI provider
+    sales_coach = SalesCoach(ai_provider=auto_lead_agent) # Use shared AI provider
     crm_guard = CRMGuard(amo=msg_controller.crm.amocrm, bot=None) # TODO: Connect admin bot
     safe_responder = SafeResponder()
 
@@ -1580,6 +1584,7 @@ async def main():
         _shutdown_event.set()
 
     import signal as _signal
+    loop = asyncio.get_running_loop()
     try:
         loop.add_signal_handler(_signal.SIGTERM, _on_sigterm)
         loop.add_signal_handler(_signal.SIGINT, _on_sigterm)
@@ -1657,11 +1662,10 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("👸 Oisha-OS: To'xtatildi (KeyboardInterrupt).")
     except Exception as e:
         logger.critical(f"👸 Oisha-OS: Fatal Error: {e}", exc_info=True)
     finally:
-        loop.close()
         print("Stopping bot...")
