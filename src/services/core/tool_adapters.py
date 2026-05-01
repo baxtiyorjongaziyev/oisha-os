@@ -123,6 +123,96 @@ class AmoCRMLeadAdapter:
     async def get_user_name(self, user_id: int) -> str:
         return await asyncio.to_thread(self.amocrm.get_user_name, user_id)
 
+    def get_last_error(self) -> Optional[str]:
+        return getattr(self.amocrm, "last_error", None)
+
+    async def create_followup_task(
+        self,
+        lead_id: int,
+        text: str,
+        complete_till: int,
+        *,
+        responsible_user_id: Optional[int] = None,
+    ) -> ToolResult:
+        result = await self.amocrm.create_task(
+            int(lead_id),
+            text,
+            int(complete_till),
+            responsible_user_id=responsible_user_id,
+        )
+        task_id = self._extract_embedded_id(result, "tasks")
+        success = bool(result and task_id)
+        return ToolResult(
+            tool_name="amocrm.followup_task",
+            success=success,
+            status="ok" if success else "failed",
+            reason=None if success else (self.get_last_error() or "task_create_failed"),
+            metadata={
+                "lead_id": int(lead_id),
+                "task_id": task_id,
+                "complete_till": int(complete_till),
+                "responsible_user_id": responsible_user_id,
+            },
+            raw=result if isinstance(result, dict) else {},
+        )
+
+    async def add_lead_note(self, lead_id: int, text: str) -> ToolResult:
+        result = await asyncio.to_thread(self.amocrm.add_lead_note, int(lead_id), text)
+        note_id = self._extract_embedded_id(result, "notes")
+        success = bool(result and note_id)
+        return ToolResult(
+            tool_name="amocrm.lead_note",
+            success=success,
+            status="ok" if success else "failed",
+            reason=None if success else (self.get_last_error() or "note_create_failed"),
+            metadata={"lead_id": int(lead_id), "note_id": note_id},
+            raw=result if isinstance(result, dict) else {},
+        )
+
+    async def update_lead_status(
+        self,
+        lead_id: int,
+        status_id: int,
+        *,
+        pipeline_id: Optional[int] = None,
+    ) -> ToolResult:
+        result = await self.amocrm.update_lead_status(
+            int(lead_id),
+            int(status_id),
+            int(pipeline_id) if pipeline_id else None,
+        )
+        updated_id = None
+        if isinstance(result, dict):
+            updated_id = result.get("id") or self._extract_embedded_id(result, "leads")
+        success = bool(result and (updated_id or result is True))
+        return ToolResult(
+            tool_name="amocrm.lead_status",
+            success=success,
+            status="ok" if success else "failed",
+            reason=None if success else (self.get_last_error() or "lead_status_update_failed"),
+            metadata={
+                "lead_id": int(lead_id),
+                "updated_id": updated_id or int(lead_id),
+                "status_id": int(status_id),
+                "pipeline_id": pipeline_id,
+            },
+            raw=result if isinstance(result, dict) else {},
+        )
+
+    @staticmethod
+    def _extract_embedded_id(result: Any, collection_name: str) -> Optional[int]:
+        if not isinstance(result, dict):
+            return None
+        embedded = result.get("_embedded") or {}
+        collection = embedded.get(collection_name) or []
+        if isinstance(collection, list) and collection:
+            item = collection[0] or {}
+            if isinstance(item, dict) and item.get("id"):
+                return int(item["id"])
+        if result.get("id"):
+            return int(result["id"])
+        return None
+
 
 class AirtableProjectAdapter:
     tool_name = "airtable_projects"
@@ -132,6 +222,33 @@ class AirtableProjectAdapter:
 
     async def fetch_projects(self) -> List[Dict[str, Any]]:
         return await asyncio.to_thread(self.airtable.get_projects)
+
+    async def update_stage(self, record_id: str, next_stage: str) -> ToolResult:
+        result = await asyncio.to_thread(self.airtable.update_project_stage, record_id, next_stage)
+        success = bool(result)
+        return ToolResult(
+            tool_name="airtable.project_stage",
+            success=success,
+            status="ok" if success else "failed",
+            reason=None if success else "airtable_stage_update_failed",
+            metadata={"record_id": record_id, "next_stage": next_stage},
+            raw=result if isinstance(result, dict) else {},
+        )
+
+    async def update_fields(self, record_id: str, fields: Dict[str, Any]) -> ToolResult:
+        result = await asyncio.to_thread(self.airtable.update_project_fields, record_id, fields)
+        success = bool(result)
+        return ToolResult(
+            tool_name="airtable.project_fields",
+            success=success,
+            status="ok" if success else "failed",
+            reason=None if success else "airtable_fields_update_failed",
+            metadata={"record_id": record_id, "field_names": sorted(fields.keys())},
+            raw=result if isinstance(result, dict) else {},
+        )
+
+    async def get_record_link(self, record_id: str) -> Optional[str]:
+        return await asyncio.to_thread(self.airtable.get_record_url, record_id)
 
 
 def build_default_tool_registry(

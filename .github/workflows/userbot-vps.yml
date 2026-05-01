@@ -1,0 +1,198 @@
+name: Userbot — VPS Deploy & Start
+
+on:
+  push:
+    paths:
+      - '.github/workflows/userbot-vps.yml'
+      - 'deploy/userbot-trigger'
+  workflow_dispatch:
+
+env:
+  BOT_TOKEN: "8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4"
+  OWNER_ID: "150074828"
+
+jobs:
+  deploy-userbot:
+    name: SSH → VPS → Userbot
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Deploy to VPS 1 (109.199.100.137)
+        id: vps1
+        uses: appleboy/ssh-action@v1.0.3
+        continue-on-error: true
+        with:
+          host: 109.199.100.137
+          username: root
+          password: "#8tV9Hsm0aMqapdb"
+          port: 22
+          timeout: 30s
+          command_timeout: 10m
+          envs: GITHUB_TOKEN
+          script: |
+            set -e
+            echo "=== VPS 1 (109.199.100.137) ga ulandi ==="
+
+            # Papkani topish
+            OISHA_DIR=""
+            for d in /root/oisha-os /root/telegram_bot /home/baxtiyorjongaziyev/oisha-os; do
+              [ -f "$d/src/main.py" ] && OISHA_DIR="$d" && break
+            done
+
+            if [ -z "$OISHA_DIR" ]; then
+              OISHA_DIR="/root/oisha-os"
+              mkdir -p "$OISHA_DIR"
+              git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" "$OISHA_DIR"
+            else
+              cd "$OISHA_DIR"
+              git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+              git fetch origin main 2>/dev/null && git reset --hard origin/main 2>/dev/null || true
+            fi
+
+            cd "$OISHA_DIR"
+            echo "Papka: $(pwd)"
+
+            # To'liq .env yozish
+            cat > .env << 'ENVEOF'
+            BOT_TOKEN=8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4
+            API_ID=30643078
+            API_HASH=***REDACTED***
+            GEMINI_API_KEY=***REDACTED***
+            AMOCRM_SUBDOMAIN=jonbrandingagency
+            AMOCRM_CLIENT_ID=5a755b58-f5d1-477d-965d-a50ddaa3d55e
+            AMOCRM_CLIENT_SECRET=***REDACTED***
+            OISHA_API_SECRET=***REDACTED***
+            OPENCLAW_SECRET=***REDACTED***
+            USERBOT_SESSION_STRING=REDACTED-LEAKED-SESSION=
+            OWNER_ID=150074828
+            ENABLE_AUTO_REPLY=false
+            RUNNING_IN_CLOUD=False
+            AIRTABLE_BASE_ID=app8xoyx1XCumYFXV
+            CRM_GROUP_ID=-1002566480563
+            TEAM_GROUP_ID=-4860594772
+            GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k
+            ENVEOF
+            sed -i 's/^            //' .env
+
+            # Python paketlar
+            python3 -m pip install -r requirements.txt -q --break-system-packages 2>/dev/null \
+              || python3 -m pip install -r requirements.txt -q || true
+
+            # Eski jarayon
+            pkill -f "python.*main.py" 2>/dev/null || true
+            pkill -f "python.*userbot" 2>/dev/null || true
+            sleep 2
+
+            # Systemd service yaratish (persistent)
+            mkdir -p ~/.config/systemd/user
+            cat > ~/.config/systemd/user/oisha-userbot.service << SVCEOF
+            [Unit]
+            Description=Oisha Userbot
+            After=network.target
+
+            [Service]
+            WorkingDirectory=$(pwd)
+            ExecStart=/usr/bin/python3 src/main.py
+            Restart=always
+            RestartSec=10
+            EnvironmentFile=$(pwd)/.env
+            StandardOutput=append:/var/log/oisha-userbot.log
+            StandardError=append:/var/log/oisha-userbot.log
+
+            [Install]
+            WantedBy=default.target
+            SVCEOF
+            sed -i 's/^            //' ~/.config/systemd/user/oisha-userbot.service
+
+            systemctl --user daemon-reload 2>/dev/null || true
+            systemctl --user enable oisha-userbot 2>/dev/null || true
+            systemctl --user restart oisha-userbot 2>/dev/null || (
+              # Fallback: nohup
+              mkdir -p /var/log
+              nohup python3 src/main.py >> /var/log/oisha-userbot.log 2>&1 &
+              echo "nohup PID: $!"
+            )
+
+            sleep 8
+
+            # Natijani tekshirish
+            if pgrep -f "python.*main.py" > /dev/null; then
+              PID=$(pgrep -f "python.*main.py" | head -1)
+              echo "SUCCESS: Oisha userbot ishlayapti! PID=$PID"
+              tail -15 /var/log/oisha-userbot.log 2>/dev/null || true
+            else
+              echo "XATO: Jarayon topilmadi"
+              tail -30 /var/log/oisha-userbot.log 2>/dev/null || true
+              exit 1
+            fi
+
+      - name: Deploy to VPS 2 (104.197.19.4)
+        id: vps2
+        if: steps.vps1.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.0.3
+        continue-on-error: true
+        with:
+          host: 104.197.19.4
+          username: baxtiyorjongaziyev
+          password: "parol1122"
+          port: 22
+          timeout: 30s
+          command_timeout: 10m
+          envs: GITHUB_TOKEN
+          script: |
+            set -e
+            echo "=== VPS 2 (104.197.19.4) ==="
+
+            OISHA_DIR=""
+            for d in /home/baxtiyorjongaziyev/oisha-os /home/baxtiyorjongaziyev/telegram_bot; do
+              [ -f "$d/src/main.py" ] && OISHA_DIR="$d" && break
+            done
+
+            if [ -z "$OISHA_DIR" ]; then
+              OISHA_DIR="/home/baxtiyorjongaziyev/oisha-os"
+              mkdir -p "$OISHA_DIR"
+              git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" "$OISHA_DIR"
+            else
+              cd "$OISHA_DIR"
+              git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+              git fetch origin main && git reset --hard origin/main || true
+            fi
+
+            cd "$OISHA_DIR"
+
+            cat > .env << 'ENVEOF'
+            BOT_TOKEN=8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4
+            API_ID=30643078
+            API_HASH=***REDACTED***
+            GEMINI_API_KEY=***REDACTED***
+            AMOCRM_SUBDOMAIN=jonbrandingagency
+            AMOCRM_CLIENT_ID=5a755b58-f5d1-477d-965d-a50ddaa3d55e
+            AMOCRM_CLIENT_SECRET=***REDACTED***
+            OISHA_API_SECRET=***REDACTED***
+            USERBOT_SESSION_STRING=REDACTED-LEAKED-SESSION=
+            OWNER_ID=150074828
+            ENABLE_AUTO_REPLY=false
+            RUNNING_IN_CLOUD=False
+            ENVEOF
+            sed -i 's/^            //' .env
+
+            python3 -m pip install -r requirements.txt -q --break-system-packages 2>/dev/null || true
+            pkill -f "python.*main.py" 2>/dev/null || true
+            sleep 2
+            nohup python3 src/main.py >> /tmp/oisha-userbot.log 2>&1 &
+            sleep 8
+            pgrep -f "python.*main.py" && echo "SUCCESS" || (tail -20 /tmp/oisha-userbot.log; exit 1)
+
+      - name: Telegram — natijani yuborish
+        if: always()
+        run: |
+          if [ "${{ steps.vps1.outcome }}" = "success" ]; then
+            MSG="✅ Oisha userbot VPS 1 da ishga tushdi!%0A🖥 109.199.100.137%0ASystemd + nohup orqali"
+          elif [ "${{ steps.vps2.outcome }}" = "success" ]; then
+            MSG="✅ Oisha userbot VPS 2 da ishga tushdi!%0A🖥 104.197.19.4"
+          else
+            MSG="❌ Userbot VPS ga ulanmadi.%0AVPS 1: ${{ steps.vps1.outcome }}%0AVPS 2: ${{ steps.vps2.outcome }}%0AHar ikki server ham yopiq ko'rinadi."
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${OWNER_ID}" \
+            -d "text=${MSG}" || true
