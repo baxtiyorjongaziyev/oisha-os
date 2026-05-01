@@ -1513,6 +1513,41 @@ async def check_amocrm_stagnation():
     amocrm_tool = registry.get("amocrm_leads")
     stagnated = await amocrm_tool.fetch_stagnated_leads(hours=24)
     if not stagnated:
+        last_error = amocrm_tool.get_last_error() if hasattr(amocrm_tool, "get_last_error") else None
+        if last_error:
+            message = (
+                "⚠️ <b>AmoCRM ulanishi ishlamayapti</b>\n\n"
+                "Oisha hozir CRMdan leadlarni ishonchli torta olmadi, shuning uchun "
+                "<b>pipeline bo'sh</b> deb xulosa chiqarmaydi.\n"
+                f"Sabab: <code>{escape(str(last_error))}</code>\n\n"
+                "Kerakli ish: AmoCRM OAuth'ni qayta avtorizatsiya qiling; token yangilangach "
+                "Oisha qotib qolgan leadlar uchun task/note yaratishni davom ettiradi."
+            )
+            task = AgentTask(
+                task_id=f"{job_key}:amocrm_auth:{today}",
+                kind="crm_auth_blocked",
+                goal="AmoCRM token nosozligini yolg'on pipeline xulosasisiz xabar qilish",
+                payload={"group_id": group_id, "thread_id": thread_id, "crm_error": last_error},
+                planner_notes=[
+                    "CRM token holati tekshiriladi",
+                    "Pipeline bo'sh degan yolg'on xulosa yuborilmaydi",
+                    "Jamoaga qayta avtorizatsiya kerakligi aytiladi",
+                ],
+                requested_by="scheduler",
+            )
+
+            async def auth_executor(agent_task: AgentTask) -> Dict[str, Any]:
+                return await _execute_telegram_notification(
+                    registry,
+                    group_id=group_id,
+                    message=message,
+                    thread_id=thread_id,
+                    disable_web_page_preview=True,
+                )
+
+            result = await _run_notification_agent(db, task, auth_executor)
+            if result.success:
+                await db.mark_job_run(job_key, today)
         return
 
     grouped: Dict[int, List[Dict[str, Any]]] = {}
@@ -1588,6 +1623,33 @@ async def check_amocrm_stagnation():
     )
 
     async def executor(agent_task: AgentTask) -> Dict[str, Any]:
+        tool_results = []
+        complete_till = int((now + datetime.timedelta(hours=6)).timestamp())
+        for lead in sorted(
+            stagnated,
+            key=lambda item: (_lead_idle_hours(item, now_ts), int(item.get("price") or 0)),
+            reverse=True,
+        )[:10]:
+            lead_id = int(lead.get("id") or 0)
+            if not lead_id:
+                continue
+            responsible_id = int(lead.get("responsible_user_id") or 0) or None
+            lead_name = _safe_text(lead.get("name"), "Lead")
+            next_step = _sales_action_for_lead(lead)
+            task_text = f"Oisha: qotib qolgan lead. Bugun {next_step}. Natijani CRM izohiga yozing."
+            note_text = (
+                "Oisha agent signal: lead 24+ soat qimirlamagan. "
+                f"Tavsiya: {next_step}. Mas'ul: bugun keyingi sana va sababni CRMga kiritsin."
+            )
+            task_result = await amocrm_tool.create_followup_task(
+                lead_id,
+                task_text[:500],
+                complete_till,
+                responsible_user_id=responsible_id,
+            )
+            note_result = await amocrm_tool.add_lead_note(lead_id, note_text[:1000])
+            tool_results.extend([task_result.to_payload(), note_result.to_payload()])
+
         execution = await _execute_telegram_notification(
             registry,
             group_id=group_id,
@@ -1602,6 +1664,12 @@ async def check_amocrm_stagnation():
                 "risk_sum": agent_task.payload.get("risk_sum"),
             }
         )
+        execution["tool_results"] = tool_results
+        failed_actions = [item for item in tool_results if not item.get("success")]
+        if failed_actions:
+            execution["success"] = False
+            execution["reason"] = "crm_action_failed"
+            execution["failed_action_count"] = len(failed_actions)
         return execution
 
     result = await _run_notification_agent(db, task, executor)
