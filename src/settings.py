@@ -20,10 +20,10 @@ structlog.configure(
 class AppSettings(BaseSettings):
     OWNER_ID: int = 0
     WHITELIST_IDS: list[int] = Field(default_factory=list)
-    ENABLE_AUTO_REPLY: bool = False
+    ENABLE_AUTO_REPLY: bool = True       # Autonomous Telegram replies enabled by default
     AUTORUN_MASS_SYNC: bool = True
-    SURGICAL_MODE: bool = False        # Autonomous negotiations agent (enable via env)
-    AUTONOMY_THRESHOLD: float = 0.6   # Min confidence for auto-send without approval
+    SURGICAL_MODE: bool = True           # Autonomous negotiations agent — ON by default
+    AUTONOMY_THRESHOLD: float = 0.55     # Min confidence for auto-send (lowered for proactivity)
     RUNNING_IN_CLOUD: bool = False
     APP_TIMEZONE: str = "Asia/Tashkent"
     BOT_TOKEN: SecretStr = SecretStr("")
