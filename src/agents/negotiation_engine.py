@@ -296,6 +296,7 @@ JSON:"""
 
             pain_str = ", ".join(assessment.pain_points) if assessment.pain_points else "aniqlanmagan"
             signals_str = ", ".join(assessment.buying_signals) if assessment.buying_signals else "yo'q"
+            risk_str = ", ".join(assessment.risk_flags) if assessment.risk_flags else "yo'q"
 
             prompt = f"""
 Siz "Oisha-OS Surgical Strategist"siz. Menejer uchun keyingi 3 ta aniq harakat belgilang.
@@ -306,7 +307,7 @@ Tahlil: bosqich={assessment.stage}, intent={assessment.intent}, ehtimol={assessm
 E'tiroz: {assessment.objection} | Sentiment: {assessment.sentiment}
 Og'riq nuqtalar: {pain_str}
 Sotib olish signallari: {signals_str}
-Risk: {', '.join(assessment.risk_flags) or 'yo\'q'}
+Risk: {risk_str}
 
 Format (qisqa, actionable):
 [1] Strategiya: ...
