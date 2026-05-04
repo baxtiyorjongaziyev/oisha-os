@@ -93,7 +93,11 @@ class DatabasePool:
             return [SmartRow(row, columns) for row in rows]
 
 
-        return await asyncio.get_event_loop().run_in_executor(None, _run)
+        # Use wait_for to prevent silent query hangs
+        return await asyncio.wait_for(
+            asyncio.to_thread(_run), 
+            timeout=15.0
+        )
 
     def get_backend_name(self) -> str:
         return "turso"
