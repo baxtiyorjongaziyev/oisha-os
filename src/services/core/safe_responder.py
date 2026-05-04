@@ -80,7 +80,7 @@ class SafeResponder:
 
         if not is_team_member:
             # Mijoz yoki notanish odam bo'lsa, javob bermaymiz
-            logger.info(f"[SAFE] Blocking non-team member: {sender_id} ({sender_username})")
+            logger.debug(f"[SAFE] Blocking non-team member: {sender_id} ({sender_username})")
             return False
 
         # 3. Agar jamoa a'zosi bo'lsa, qayerda yozganiga qarab tekshiramiz
