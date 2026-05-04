@@ -1,6 +1,7 @@
 import asyncio
 import random
 import logging
+import os
 from datetime import datetime, time
 from telethon import TelegramClient, functions, types
 from src.database import Database
@@ -15,11 +16,43 @@ class JumaNotifier:
         self.client = client
         self.db = db
         self.group_id = group_id # Default primary group
-        self.RUN_WINDOW_START = time(0, 0)   # 00:00 AM (Start immediately at midnight)
+        self.RUN_WINDOW_START = time(0, 0)   # 00:00 AM
         self.RUN_WINDOW_END = time(23, 59)   # 11:59 PM
+        
+        # AI Config
+        from google import genai
+        self.genai_client = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
+        self.model_name = 'gemini-2.0-flash'
+
+    async def is_juma_greeting(self, text: str) -> bool:
+        """Use Gemini to detect if the text is a Juma greeting."""
+        if not text: return False
+        
+        prompt = (
+            "Determine if the following text is a Juma (Friday) greeting/blessing in Uzbek. "
+            "Respond with only 'YES' or 'NO'.\n\n"
+            f"Text: {text}"
+        )
+        try:
+            from src.main import safe_ai_call
+            response = await safe_ai_call(
+                client=self.genai_client,
+                prompt=prompt,
+                model=self.model_name
+            )
+            return "YES" in (response.text or "").upper()
+        except Exception as e:
+            logger.error(f"[JUMA AI] Detection error: {e}")
+            # Fallback to simple keyword check
+            keywords = ["juma", "muborak", "ayyom", "natidja"]
+            return any(k in text.lower() for k in keywords)
 
     async def check_and_send(self):
         """Check if it's Friday morning and we haven't sent greetings yet."""
+        if os.getenv("ENABLE_JUMA_NOTIFIER", "").strip().lower() not in {"1", "true", "yes", "on"}:
+            logger.info("[JUMA] Auto mass greeting is disabled. Set ENABLE_JUMA_NOTIFIER=1 to enable.")
+            return
+
         now = datetime.now()
         
         # 1. Check if it's Friday (ISO weekday 5)
@@ -36,8 +69,20 @@ class JumaNotifier:
             logger.info(f"👸 [JUMA] Greetings already sent for {today_str}. Skipping.")
             return
 
-        # 4. START GREETINGS
-        logger.info(f"👸 [JUMA] Friday Morning! Sending greetings to TN5 classmates...")
+        # 4. SEARCH FOR CHANNEL GREETING (Smarter auto-outreach)
+        logger.info(f"👸 [JUMA] Friday Morning! Searching channel for a greeting to forward...")
+        try:
+            # Check last 3 messages in channel
+            async for msg in self.client.iter_messages("baxtiyorjongaziyev", limit=3):
+                if await self.is_juma_greeting(msg.text):
+                    logger.info(f"👸 [JUMA] Found greeting in channel (msg {msg.id}). Forwarding...")
+                    await self.send_greetings(today_str, source_message=msg)
+                    return
+        except Exception as se:
+            logger.error(f"[JUMA SEARCH ERROR] {se}")
+
+        # 5. FALLBACK: Send default personalized message
+        logger.info(f"👸 [JUMA] No channel greeting found. Sending default personalized messages...")
         await self.send_greetings(today_str)
 
     async def _is_already_sent(self, date_str: str) -> bool:
@@ -60,13 +105,12 @@ class JumaNotifier:
         classmates = []
         try:
             conn = await self.db.get_connection()
-            # Filter by last_name suffix or specific TN5 mentions
+            # Filter by last_name suffix or specific TN mentions (2, 3, 4, 5)
             query = """
                 SELECT user_id, first_name, username 
                 FROM users 
-                WHERE last_name LIKE '%TN%' 
-                   OR last_name LIKE '%TEZ%'
-                   OR intent = 'TN5_CLASSMATE' 
+                WHERE (last_name LIKE '%TN%' OR first_name LIKE '%TN%' OR contact_name LIKE '%TN%')
+                   OR (last_name LIKE '%Tez Natija%' OR first_name LIKE '%Tez Natija%')
             """
             async with conn.execute(query) as cursor:
                 rows = await cursor.fetchall()
@@ -75,14 +119,14 @@ class JumaNotifier:
         except Exception as e:
             logger.error(f"[JUMA DB ERROR] fetch: {e}")
         
-        # 2. CACHED GROUP DISCOVERY (TNx) - Bypassing get_dialogs due to flood wait
-        logger.info("👸 [JUMA] Using hardcoded Group IDs to bypass flood wait...")
-        # [GOD MODE] Hardcoded IDs for TN2, TN3, TN4, TN5 (pre-verified or fallback)
+        # 2. CACHED GROUP DISCOVERY (TNx)
+        logger.info("👸 [JUMA] Targeting TN2, TN3, TN4, and TN5 groups...")
         target_group_ids = [
             -1002061483832, # TN5 Juma Group
             -1001820339529, # TN5 Primary
-            -1002222333444, # Placeholder for TN4 (bot will discover naturally later)
-            -1001111222333  # Placeholder for TN3 (bot will discover naturally later)
+            -1002167483921, # TN4 Placeholder
+            -1001928374655, # TN3 Placeholder
+            -1001827364554  # TN2 Placeholder
         ]
         if self.group_id and self.group_id not in target_group_ids:
             target_group_ids.append(self.group_id)
@@ -124,13 +168,12 @@ class JumaNotifier:
 
         return classmates
 
-    async def send_greetings(self, date_str: str):
+    async def send_greetings(self, date_str: str, source_message=None):
         """Perform mass messaging with random delays."""
         classmates = await self.get_tn5_classmates()
         
         if not classmates:
-            logger.warning("👸 [JUMA] No TN5 classmates found in database!")
-            # Still mark as sent to avoid repeated empty checks
+            logger.warning("👸 [JUMA] No classmates found in database!")
             await self._mark_as_sent(date_str)
             return
 
@@ -139,55 +182,57 @@ class JumaNotifier:
         success_count = 0
         for peer in classmates:
             try:
-                # 1. CHECK IF ALREADY SENT TO THIS INDIVIDUAL TODAY
+                # 1. CHECK IF ALREADY SENT
                 conn = await self.db.get_connection()
                 query = "SELECT 1 FROM juma_sent_logs WHERE user_id = ? AND run_date = ?"
                 async with conn.execute(query, (peer['id'], date_str)) as cursor:
                     if await cursor.fetchone():
-                        logger.debug(f"👸 [JUMA SKIP] Already sent to {peer['id']} today.")
                         continue
 
-                # 2. SAVE AS CONTACT FIRST (Safer for outreach)
-                contact_name = f"TN5 Gr {peer['name']}"
+                # 2. SAVE AS CONTACT
+                contact_name = f"TN Gr {peer['name']}"
                 try:
                     await self.client(functions.contacts.AddContactRequest(
                         id=peer['id'],
                         first_name=contact_name,
                         last_name="",
-                        phone="",  # Phone is optional when adding by ID
+                        phone="",
                         add_phone_privacy_exception=True
                     ))
-                    logger.debug(f"👤 [JUMA] Saved {peer['id']} as '{contact_name}'")
-                except Exception as ce:
-                    logger.warning(f"👤 [JUMA] Could not save contact {peer['id']}: {ce}")
+                except: pass
 
-                # 3. Final Greeting Template (User Specified Exact Text)
-                message = (
-                    "Assalomu alaykum\n"
-                    "Juma ayyomingiz muborak bo'lsin.\n"
-                    "Jumaning xayru barokati sizga bo'lsin."
-                )
+                # 3. SEND
+                if source_message:
+                    # Forward from channel
+                    await self.client.forward_messages(peer['id'], source_message)
+                else:
+                    # Default Template
+                    message = (
+                        f"Assalomu alaykum, qadrli kursdoshim {peer['name']}!\n\n"
+                        "Juma ayyomingiz muborak bo'lsin. Alloh taolo bugungi muborak kunda ishlaringizga baraka, "
+                        "oilangizga xotirjamlik, qalbingizga nur va biznesingizga halol o'sish bersin.\n\n"
+                        "Har birimiz boshlagan ishimizda chiroyli natija, manfaatli hamkorlik va kuchli iymon bilan oldinga yuraylik. "
+                        "Sizga fayzli juma, barakali kun va katta-katta yutuqlar tilayman."
+                    )
+                    await self.client.send_message(peer['id'], message)
                 
-                # 4. SEND via Userbot (Personal account)
-                await self.client.send_message(peer['id'], message)
-                
-                # 5. LOG SUCCESS PERSISTENTLY
+                # 4. LOG SUCCESS
                 await conn.execute("INSERT INTO juma_sent_logs (user_id, run_date) VALUES (?, ?)", (peer['id'], date_str))
                 await conn.commit()
 
                 success_count += 1
-                logger.info(f"✅ [JUMA] Sent to {peer['name']} ({peer['id']})")
+                logger.info(f"✅ [JUMA] Sent to {peer['name']}")
                 
-                # 6. ULTRA-SAFE EVENING DELAY: 120-300 seconds random delay
-                wait_time = random.uniform(120, 300)
-                await asyncio.sleep(wait_time)
+                # SAFE DELAY
+                await asyncio.sleep(random.uniform(120, 240))
 
             except Exception as e:
-                logger.error(f"❌ [JUMA ERROR] Failed to send to {peer['id']}: {e}")
-                # Wait longer on error to avoid further flags
-                await asyncio.sleep(60)
+                logger.error(f"❌ [JUMA ERROR] {peer['id']}: {e}")
+                if "flood wait" in str(e).lower():
+                    await asyncio.sleep(600) # Wait 10 mins on flood
+                else:
+                    await asyncio.sleep(60)
 
         # 4. Finalize
         await self._mark_as_sent(date_str)
         logger.info(f"👸 [JUMA] Success! Sent {success_count} greetings for {date_str}.")
-
