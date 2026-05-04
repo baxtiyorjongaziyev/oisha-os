@@ -103,17 +103,22 @@ class Database:
                 db_pool.auth_token = turso_token
                 db_pool.close()
 
-                if turso_url == ":memory:":
-                    probe_conn = libsql.connect(turso_url)
-                else:
-                    probe_conn = libsql.connect(turso_url, auth_token=turso_token)
-
-                try:
-                    probe_result = probe_conn.execute("SELECT 1")
-                    if hasattr(probe_result, "fetchone"):
-                        probe_result.fetchone()
+                def _probe_turso():
+                    if turso_url == ":memory:":
+                        conn = libsql.connect(turso_url)
                     else:
-                        list(probe_result)
+                        conn = libsql.connect(turso_url, auth_token=turso_token)
+                    res = conn.execute("SELECT 1")
+                    if hasattr(res, "fetchone"):
+                        res.fetchone()
+                    else:
+                        list(res)
+                    return conn
+
+                probe_conn = await asyncio.wait_for(asyncio.to_thread(_probe_turso), timeout=5.0)
+                
+                try:
+                    pass
                 finally:
                     try:
                         probe_conn.close()
