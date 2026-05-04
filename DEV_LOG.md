@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-04 14:50 UTC | ⚠️ main `ae01f6a`
+
+**Commit**: chore: stage remaining local changes before merge
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic.......failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container 
+
+---
+
 ## 2026-05-04 12:43 UTC | ⚠️ main `4dea453`
 
 **Commit**: fix(syntax): f-string backslash in negotiation_engine.py — Python 3.11 compat
