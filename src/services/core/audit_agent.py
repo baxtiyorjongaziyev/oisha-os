@@ -26,6 +26,8 @@ class AuditAgent:
         
         # Gemini setup (core)
         try:
+            # [STABILITY] Explicitly use the new google-genai Client
+            from google import genai
             self.gemini_client = genai.Client(api_key=api_key)
             self.model_name = 'gemini-2.0-flash'
         except Exception as e:
