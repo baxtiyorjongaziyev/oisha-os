@@ -13,7 +13,6 @@ import json
 from src.agents.core import BaseAgent
 from src.agents.negotiation_engine import NegotiationEngine, NegotiationAssessment
 from src.settings import settings
-import google.generativeai as genai
 
 
 @dataclass
@@ -138,12 +137,12 @@ class AutonomousSalesAgent(BaseAgent):
         state.add_message("user", message)
         state.autonomy_level = autonomy_level
         
-        # 2. Tahlil qilish
-        assessment = self.negotiation.assess(
+        # 2. Tahlil qilish — semantic Gemini preferred, keyword fallback
+        assessment = await NegotiationEngine.assess_async(
             message=message,
             crm_status=crm_data.get("status", "") if crm_data else "",
             autonomy_mode=autonomy_level,
-            history=state.history
+            history=state.history,
         )
         
         # 3. Stage yangilash
@@ -256,8 +255,9 @@ class AutonomousSalesAgent(BaseAgent):
         """AI yordamida javob yaratish"""
         
         try:
-            genai.configure(api_key=settings.GEMINI_API_KEY.get_secret_value())
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            from google import genai
+            from google.genai import types
+            client = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
             
             # Context tayyorlash
             context_str = json.dumps({
@@ -292,9 +292,13 @@ class AutonomousSalesAgent(BaseAgent):
             """
             
             response = await asyncio.to_thread(
-                model.generate_content,
-                prompt,
-                generation_config={"temperature": 0.7, "max_output_tokens": 300}
+                client.models.generate_content,
+                model='gemini-2.0-flash',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.7,
+                    max_output_tokens=300
+                )
             )
             
             return response.text.strip()

@@ -54,9 +54,30 @@ export class CallsService {
   }
 
   async findOne(callId: string, orgId: string) {
-    const call = await this.getOrgCall(callId, orgId);
+    const call = await this.prisma.call.findUnique({
+      where: { id: callId },
+      include: { scorecard: true },
+    });
+    if (!call) throw new NotFoundException('Call not found');
+    if (call.orgId !== orgId) throw new ForbiddenException();
+
     const audioUrl = call.audioKey ? await this.storage.presignedDownload(call.audioKey) : null;
-    return { ...call, audioUrl };
+
+    // Transform stageScores array → object for frontend consumption
+    let scorecard: any = null;
+    if (call.scorecard) {
+      const stageArr: { stage: string; score: number; reasoning: string }[] =
+        Array.isArray(call.scorecard.stageScores) ? (call.scorecard.stageScores as any) : [];
+      const stageScoresObj: Record<string, number> = {};
+      for (const s of stageArr) stageScoresObj[s.stage] = s.score;
+
+      scorecard = {
+        ...call.scorecard,
+        stageScores: stageScoresObj,
+      };
+    }
+
+    return { ...call, scorecard, audioUrl };
   }
 
   async getTranscript(callId: string, orgId: string) {
