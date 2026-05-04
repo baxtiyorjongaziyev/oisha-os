@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import os
 import sys
 import logging
@@ -84,6 +85,10 @@ TN5_GROUP_ID = settings.CRM_GROUP_ID if settings.CRM_GROUP_ID is not None else -
 TN5_TOPIC_ID = settings.CRM_TOPIC_ID if settings.CRM_TOPIC_ID is not None else 7  # Ishtirokchilar ma'lumotlari
 
 
+def _env_enabled(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _restore_cloud_artifacts() -> None:
     """Materialize Cloud Run secrets into runtime files when provided."""
     os.makedirs("data", exist_ok=True)
@@ -119,7 +124,14 @@ def _restore_cloud_artifacts() -> None:
             logger.error(f"[CLOUD] Failed to restore Google credentials file: {exc}")
 
 
+    logger.error("[AUTH] Userbot session missing or unauthorized. Interactive auth is disabled in cloud runtime.")
+    return False
+
 async def _connect_user_client(telegram_client: TelegramClient) -> bool:
+    if os.environ.get("CLOUD_RUN_CONTROL_PLANE_ONLY") == "1":
+        logger.info("[AUTH] Skipping userbot login: CLOUD_RUN_CONTROL_PLANE_ONLY=1")
+        return False
+    
     """Connect the userbot without ever falling back to interactive auth.
     
     Args:
@@ -462,9 +474,12 @@ async def push_block_to_amocrm(user_id: int, phone: str, block_text: str) -> Non
     global msg_controller
     if not msg_controller: return
     try:
-        contact = await msg_controller.crm.amocrm.get_contact_by_phone(phone)
+        contact_result = msg_controller.crm.amocrm.get_contact_by_phone(phone)
+        contact = await contact_result if inspect.isawaitable(contact_result) else contact_result
         if contact:
-            await msg_controller.crm.amocrm.add_contact_note(contact['id'], block_text)
+            note_result = msg_controller.crm.amocrm.add_contact_note(contact['id'], block_text)
+            if inspect.isawaitable(note_result):
+                await note_result
             logger.info(f"[ENTERPRISE SYNC] Block pushed for {user_id}")
         else:
             logger.warning(f"[ENTERPRISE SYNC] Contact not found for {user_id} ({phone})")
@@ -591,14 +606,8 @@ async def background_monitor_task() -> None:
                         await background_monitor_task._lead_os.run_reengagement_cycle(limit=8)
                         background_monitor_task._sent_jobs.add(job_key)
 
-            # 3. Shaxsiy eslatmalar (17:00 da - faqat bir marta)
+            # 3. Muddati o'tgan eslatmalar (17:00 - faqat bir marta)
             if now.hour == 17 and now.minute == 0:
-                # Bir marta yuborishni tekshirish
-                today_str = now.strftime('%Y-%m-%d')
-
-            # 3. Shaxsiy eslatmalar (17:00 da - faqat bir marta)
-            if now.hour == 17 and now.minute == 0:
-                # Bir marta yuborishni tekshirish
                 today_str = now.strftime('%Y-%m-%d')
                 job_key = f"overdue_nudges_{today_str}"
                 if not hasattr(background_monitor_task, '_sent_jobs'):
@@ -609,13 +618,72 @@ async def background_monitor_task() -> None:
 
             # 4. Har 4 soatda "Hushyor" xabari (13:00, 17:00, 21:00 - faqat bir marta)
             if now.hour in [13, 17, 21] and now.minute == 0:
-                # Bir marta yuborishni tekshirish
                 today_str = now.strftime('%Y-%m-%d')
                 job_key = f"status_notify_{now.hour}_{today_str}"
                 if not hasattr(background_monitor_task, '_sent_jobs'):
                     background_monitor_task._sent_jobs = set()
                 if job_key not in background_monitor_task._sent_jobs:
-                    await notify_admin("👸 **Oisha OS: Tizim nazoratda**\nAmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda.")
+                    await notify_admin("👸 **Oisha OS: Tizim nazoratda**\nAmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda.", client)
+                    background_monitor_task._sent_jobs.add(job_key)
+
+            # ─────────────────────────────────────────────────────────
+            # 6. [JUMA] Juma kuni 09:00 — JumaNotifier
+            # ─────────────────────────────────────────────────────────
+            if now.weekday() == 4 and now.hour == 9 and now.minute == 0:
+                today_str = now.strftime('%Y-%m-%d')
+                job_key = f"juma_notifier_{today_str}"
+                if not hasattr(background_monitor_task, '_sent_jobs'):
+                    background_monitor_task._sent_jobs = set()
+                if job_key not in background_monitor_task._sent_jobs:
+                    try:
+                        if juma_notifier:
+                            await juma_notifier.check_and_send()
+                            logger.info("[SCHEDULE] JumaNotifier sent.")
+                        else:
+                            logger.warning("[SCHEDULE] JumaNotifier not initialized, skipping.")
+                    except Exception as juma_exc:
+                        logger.error(f"[SCHEDULE][JUMA] Error: {juma_exc}")
+                    background_monitor_task._sent_jobs.add(job_key)
+
+            # ─────────────────────────────────────────────────────────
+            # 7. [MISSIONS] Har kuni 09:30 — MissionControl (Surgical Missions)
+            # ─────────────────────────────────────────────────────────
+            if now.hour == 9 and now.minute == 30:
+                today_str = now.strftime('%Y-%m-%d')
+                job_key = f"surgical_missions_{today_str}"
+                if not hasattr(background_monitor_task, '_sent_jobs'):
+                    background_monitor_task._sent_jobs = set()
+                if job_key not in background_monitor_task._sent_jobs:
+                    try:
+                        from src.services.core.mission_control import MissionControl
+                        mc = MissionControl(db=msg_controller.db if msg_controller else None)
+                        managers = await mc.get_manager_list()
+                        if managers:
+                            await mc.distribute_missions(managers)
+                            logger.info(f"[SCHEDULE] Surgical Missions distributed to {len(managers)} managers.")
+                        else:
+                            logger.warning("[SCHEDULE] No managers found for mission distribution.")
+                    except Exception as mc_exc:
+                        logger.error(f"[SCHEDULE][MISSIONS] Error: {mc_exc}")
+                    background_monitor_task._sent_jobs.add(job_key)
+
+            # ─────────────────────────────────────────────────────────
+            # 8. [REPORT] Har kuni 18:00 — EnterpriseReporter kunlik hisobot
+            # ─────────────────────────────────────────────────────────
+            if now.hour == 18 and now.minute == 0:
+                today_str = now.strftime('%Y-%m-%d')
+                job_key = f"daily_report_{today_str}"
+                if not hasattr(background_monitor_task, '_sent_jobs'):
+                    background_monitor_task._sent_jobs = set()
+                if job_key not in background_monitor_task._sent_jobs:
+                    try:
+                        if msg_controller:
+                            report = await msg_controller.enterprise_reporter.get_daily_efficiency_report()
+                            if report:
+                                await notify_admin(f"📊 **KUNLIK HISOBOT**\n\n{report}", client)
+                                logger.info("[SCHEDULE] Daily EnterpriseReport sent.")
+                    except Exception as rep_exc:
+                        logger.error(f"[SCHEDULE][REPORT] Error: {rep_exc}")
                     background_monitor_task._sent_jobs.add(job_key)
 
             # 5. [ALWAYS ONLINE] Keep-alive pulse
@@ -1278,6 +1346,8 @@ async def safe_ai_call(client, prompt, system_instruction=None, model="gemini-2.
 async def run_autonomous_advice(chat_id, sender_name, message_text):
     """Background worker to provide strategic advice without blocking regular message handling."""
     global advisor_agent, client
+    if not _env_enabled("ENABLE_SHADOW_ADVISOR"):
+        return
     if not advisor_agent or not client:
         return
 
@@ -1316,10 +1386,16 @@ async def run_autonomous_advice(chat_id, sender_name, message_text):
 
 async def shadow_advisor_handler(event):
     """Event-driven shadow advisor for real-time monitoring."""
-    if not event.is_private or not event.message.text:
+    if not _env_enabled("ENABLE_SHADOW_ADVISOR"):
+        return
+    if event.out or not event.is_private or not event.message.text:
         return
     
     sender = await event.get_sender()
+    if getattr(sender, "bot", False):
+        logger.info(f"[ADVISOR] Bot chat ignored: {getattr(sender, 'id', event.chat_id)}")
+        return
+
     sender_name = getattr(sender, 'first_name', 'User')
     await run_autonomous_advice(event.chat_id, sender_name, event.message.text)
 
@@ -1345,8 +1421,141 @@ async def self_command_handler(event):
 
 async def activity_monitor_handler(event):
     """Log outgoing activities for auditing."""
+    if not _env_enabled("ENABLE_ACTIVITY_MONITOR"):
+        return
     if activity_monitor:
         await activity_monitor.log_event(event)
+
+
+def _negotiation_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+async def negotiation_agent_handler(event):
+    """Safe autonomous negotiation for real private inbound messages."""
+    if not _env_enabled("ENABLE_AI_NEGOTIATION"):
+        return
+    if event.out or not event.is_private or not getattr(event.message, "text", None):
+        return
+
+    message_date = getattr(event.message, "date", None)
+    max_age = _negotiation_int("NEGOTIATION_MAX_MESSAGE_AGE_SECS", 600)
+    if message_date and time.time() - message_date.timestamp() > max_age:
+        return
+
+    sender = await event.get_sender()
+    if getattr(sender, "bot", False):
+        return
+    if safe_responder and await safe_responder.is_team_member(event.sender_id, getattr(sender, "username", None)):
+        return
+
+    text = (event.message.text or "").strip()
+    if not text or text.startswith("/"):
+        return
+
+    chat_id = event.chat_id
+    db = msg_controller.db
+    last_msg_key = f"negotiation:last_msg:{chat_id}"
+    if str(await db.get_state(last_msg_key, "")) == str(event.id):
+        return
+    await db.set_state(last_msg_key, event.id)
+
+    reply_delay = _negotiation_int("NEGOTIATION_REPLY_DELAY_SECS", 8)
+    if reply_delay > 0:
+        await asyncio.sleep(reply_delay)
+        latest = await client.get_messages(chat_id, limit=1)
+        if latest and latest[0].id != event.id:
+            return
+
+    now = time.time()
+    cooldown = _negotiation_int("NEGOTIATION_COOLDOWN_SECS", 120)
+    last_reply_key = f"negotiation:last_reply_at:{chat_id}"
+    try:
+        last_reply_at = float(await db.get_state(last_reply_key, "0") or 0)
+    except (TypeError, ValueError):
+        last_reply_at = 0.0
+    if now - last_reply_at < cooldown:
+        logger.info(f"[NEGOTIATION] Cooldown skip chat={chat_id}")
+        return
+
+    day = time.strftime("%Y-%m-%d", time.localtime(now))
+    daily_key = f"negotiation:daily_count:{chat_id}:{day}"
+    try:
+        daily_count = int(await db.get_state(daily_key, "0") or 0)
+    except (TypeError, ValueError):
+        daily_count = 0
+    daily_limit = _negotiation_int("NEGOTIATION_DAILY_LIMIT", 25)
+    if daily_count >= daily_limit:
+        logger.info(f"[NEGOTIATION] Daily limit skip chat={chat_id}")
+        return
+
+    sender_name = getattr(sender, "first_name", "Mijoz")
+    username = getattr(sender, "username", None)
+
+    try:
+        await db.log_message(sender.id, text, is_ai=False)
+    except Exception as exc:
+        logger.debug(f"[NEGOTIATION] Incoming log skipped: {exc}")
+
+    try:
+        lead_data = await auto_lead_agent.extract_lead_info(text, {"id": sender.id, "first_name": sender_name})
+        if lead_data and lead_data.get("is_lead") and not await db.is_crm_synced(sender.id):
+            phone = lead_data.get("phone") or getattr(sender, "phone", None) or "Raqam yo'q"
+            await msg_controller.crm.sync_lead(
+                user_id=sender.id,
+                name=f"DM Lead: {sender_name}",
+                phone=phone,
+                note=f"AI negotiation intake\nIntent: {lead_data.get('intent_category')}\nEhtiyoj: {lead_data.get('needs')}\nTelegram: @{username or 'yoq'}",
+            )
+            await db.set_crm_synced(sender.id)
+    except Exception as exc:
+        logger.warning(f"[NEGOTIATION] CRM intake skipped chat={chat_id}: {type(exc).__name__}")
+
+    high_risk_terms = ("shikoyat", "qaytarish", "advokat", "sud", "aldadi", "firibgar")
+    if any(term in text.lower() for term in high_risk_terms):
+        final_text = (
+            "Xabaringizni qabul qildim. Bu masalani e'tibor bilan ko'rib chiqish kerak, "
+            "shuning uchun Baxtiyor akaga yetkazaman va sizga aniq javob bilan qaytamiz."
+        )
+    else:
+        try:
+            final_text = await msg_controller.get_response(
+                user_id=sender.id,
+                user_name=sender_name,
+                message=text,
+                context={
+                    "source": "autonomous_negotiation",
+                    "policy": "Be concise, warm, professional. Ask one clear next-step question. Do not overpromise discounts, deadlines, or legal guarantees.",
+                    "telegram_username": username,
+                },
+            )
+        except Exception as exc:
+            logger.warning(f"[NEGOTIATION] AI response fallback chat={chat_id}: {type(exc).__name__}")
+            final_text = (
+                "Assalomu alaykum! Xabaringizni oldim. Loyihangiz bo'yicha to'g'ri yo'naltirishim uchun "
+                "faoliyatingiz, asosiy maqsadingiz va sizga qulay bog'lanish vaqtini yozib yuboring."
+            )
+
+    final_text = (final_text or "").strip()
+    if not final_text:
+        return
+    if len(final_text) > 1200:
+        final_text = final_text[:1190].rstrip() + "..."
+
+    async with client.action(chat_id, "typing"):
+        await asyncio.sleep(1)
+    sent = await event.respond(final_text)
+    await db.set_state(last_reply_key, int(now))
+    await db.set_state(daily_key, daily_count + 1)
+    await db.set_state(f"negotiation:last_sent_msg:{chat_id}", getattr(sent, "id", ""))
+    try:
+        await db.log_message(sender.id, final_text, is_ai=True)
+    except Exception as exc:
+        logger.debug(f"[NEGOTIATION] Outgoing log skipped: {exc}")
+    logger.info(f"[NEGOTIATION] Replied chat={chat_id} msg={event.id}")
 
 async def main():
     """Botlarni ishga tushirish (Userbot + Admin Bot)."""
@@ -1357,6 +1566,9 @@ async def main():
     global surgical_integration
 
     print("🚀 Oisha-OS Tizimi tayyorlanmoqda (Dual-Head Architecture)...")
+
+    # [STABILITY] Start health-check early so Cloud Run readiness probes pass during heavy initialization.
+    asyncio.create_task(run_health_check_api(), name="health_check_api")
 
     _restore_cloud_artifacts()
     
@@ -1566,8 +1778,7 @@ async def main():
 
     api_module.mark_heartbeat()
     asyncio.create_task(_heartbeat_task(), name="api_heartbeat")
-    # [REANIMATION] Decouple health-check from startup sequence to ensure Cloud Run marks revision as healthy early.
-    asyncio.create_task(run_health_check_api(), name="health_check_api")
+
 
     # Cloud Run is the health/API control-plane. The personal Telegram userbot
     # must run only on the VM, otherwise Telegram revokes the shared session.
