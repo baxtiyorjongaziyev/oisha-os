@@ -1,6 +1,6 @@
 import os
 import logging
-import google.generativeai as genai
+from google import genai
 from src.settings import settings
 
 logger = logging.getLogger("AuditAgent")

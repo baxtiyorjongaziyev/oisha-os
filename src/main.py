@@ -936,27 +936,69 @@ async def handle_new_message(event):
                         logger.warning(f"[HOT LEAD] CRM guruh notif xato: {crm_notif_err}")
 
 
-    # [GOD MODE] Multi-Modal (Voice Note) Handling
+    # [GOD MODE] Multi-Modal (Voice Note) Handling — Gemini STT + Surgical Assessment
     if event.is_private and not event.out and event.message.voice and voice_processor:
         logger.info(f"🎙️ [VOICE] New voice from {sender_name}...")
         try:
             temp_path = f"temp_voice_{event.id}.ogg"
             await client.download_media(event.message, file=temp_path)
-            
-            # AI Transcription
-            result = await voice_processor.transcribe(temp_path)
-            if result:
-                # Notify Admin
-                if admin_bot:
+
+            # --- Gemini multimodal STT + NegotiationAssessment ---
+            try:
+                from src.agents.negotiation_engine import transcribe_and_assess_audio
+                with open(temp_path, "rb") as f:
+                    audio_bytes = f.read()
+                crm_status = ""
+                if hasattr(msg_controller, "crm"):
+                    try:
+                        user_info = await msg_controller.db.get_user_info(event.sender_id)
+                        phone = user_info.get("phone") if user_info else None
+                        if phone:
+                            crm_status = await msg_controller.crm.get_user_context(phone)
+                    except Exception:
+                        pass
+
+                stt_result = await transcribe_and_assess_audio(
+                    audio_bytes, mime_type="audio/ogg", crm_status=crm_status
+                )
+                transcript = stt_result.get("transcript", "")
+                assessment = stt_result.get("assessment")
+
+                if transcript:
+                    admin_note = (
+                        f"🎙️ **Ovozli xabar ({sender_name}):**\n\n{transcript}"
+                    )
+                    if assessment:
+                        admin_note += (
+                            f"\n\n🔍 **Assessment:** stage={assessment.stage} "
+                            f"| intent={assessment.intent} "
+                            f"| prob={assessment.close_probability:.0%}"
+                        )
+                    if admin_bot:
+                        await admin_bot.notify_lead(admin_note)
+
+                    # Route transcript through surgical negotiator (same as text)
+                    if surgical_integration and surgical_integration.should_use_surgical(
+                        str(event.sender_id), transcript
+                    ):
+                        surgical_result = await surgical_integration.process_message(
+                            str(event.sender_id),
+                            transcript,
+                            context={"source": "voice", "user_info": {}},
+                        )
+                        if surgical_result.get("mode") == "surgical":
+                            voice_reply = surgical_result.get("response", "")
+                            if voice_reply:
+                                await event.reply(voice_reply)
+                                logger.info(f"[VOICE→SURGICAL] Auto-replied to {sender_name}")
+
+            except Exception as stt_err:
+                logger.warning(f"[VOICE] Gemini STT failed, fallback: {stt_err}")
+                # Fallback: legacy voice_processor
+                result = await voice_processor.transcribe(temp_path)
+                if result and admin_bot:
                     await admin_bot.notify_lead(f"🎙️ **Ovozli xabar ({sender_name}):**\n\n{result}")
-                
-                # Update AmoCRM Note if lead
-                if await msg_controller.db.is_crm_synced(event.sender_id):
-                    # We don't have lead ID here, but create_lead with same phone should handle it or just notify.
-                    # For now, notification to Admin is the primary 'God Mode' feature.
-                    pass
-            
-            # Cleanup
+
             asyncio.create_task(voice_processor.cleanup(temp_path))
         except Exception as e:
             logger.error(f"[VOICE] Integration error: {e}")
