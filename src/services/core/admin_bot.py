@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 class AdminBot:
-    def __init__(self, bot_client, user_client, db: Database, msg_controller: MessageController, access_manager: 'AccessManager', night_shift: CRMNightShift = None, team_group_id: int = None):
+    def __init__(self, bot_client, user_client, db: Database, msg_controller: MessageController, access_manager: 'AccessManager', night_shift: CRMNightShift = None, team_group_id: int = None, juma_notifier=None):
         self.bot_client = bot_client
         self.user_client = user_client
         self.db = db
@@ -26,6 +26,7 @@ class AdminBot:
         self.access_manager = access_manager
         self.night_shift = night_shift
         self.team_group_id = team_group_id
+        self.juma_notifier = juma_notifier
         self.active_searches = {}  # user_id -> timestamp
         self.pending_drafts = {}   # draft_id -> draft_text
 
@@ -74,7 +75,10 @@ class AdminBot:
 
         # Start background tasks
         asyncio.create_task(heartbeat())
-        asyncio.create_task(self.run_scheduler())
+        if os.getenv("ENABLE_ADMIN_SCHEDULER", "").strip().lower() in {"1", "true", "yes", "on"}:
+            asyncio.create_task(self.run_scheduler())
+        else:
+            logger.info("[SAFETY] AdminBot autonomous scheduler disabled by default.")
         
         @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/oisha_audit'))
         async def oisha_audit_handler(event):
@@ -584,6 +588,23 @@ class AdminBot:
             except Exception as e:
                 await event.respond(f"❌ Xato: {e}")
 
+        @self.bot_client.on(events.NewMessage(pattern=r'(?i)^/juma_send'))
+        async def juma_send_handler(event):
+            """Manual Juma Mubarak outreach trigger."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            
+            if not self.juma_notifier:
+                await event.respond("❌ JumaNotifier sozlanmagan!")
+                return
+
+            await event.respond("🕌 **Juma Mubarak outreach boshlanmoqda...**\nFonda barcha kursdoshlarga tabriklar yuboriladi. 👸🛡️")
+            
+            # Start in background
+            asyncio.create_task(self.juma_notifier.check_and_send())
+            logger.info(f"🕌 [ADMIN_BOT] Juma outreach triggered manually by {event.sender_id}")
+
+
     async def trigger_daily_missions(self):
         """Asosiy missiya taqsimlash logikasi."""
         try:
@@ -908,12 +929,24 @@ class AdminBot:
                                 "success",
                             )
                         except Exception as e:
-                            logger.error(f"[SALES PUSH ERROR] {e}")
-                            api_server_module.add_activity("⚠️ Sales Push Error", str(e), "error")
-                            api_server_module.add_activity("🚨 Stagnatsiya", "Harakatsiz lidlar hisoboti yuborildi.", "success")
-                        except Exception as e:
                             logger.error(f"[STAGNATION ERROR] {e}")
                             api_server_module.add_activity("⚠️ Stagnation Error", str(e), "error")
+
+                # 9. Juma Mubarak (Juma 09:00) — Outreach
+                if now.weekday() == 4 and current_time == "09:00":
+                    job_id = f"juma_mubarak_{today}"
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        await self.db.set_state(job_id, "running")
+                        logger.info("🕌 [SCHEDULER] Juma Mubarak outreach boshlandi...")
+                        try:
+                            if self.juma_notifier:
+                                await self.juma_notifier.check_and_send()
+                            await self.db.set_state(job_id, "done")
+                            api_server_module.add_activity("🕌 Juma Mubarak", "Kursdoshlarga tabriklar yuborildi.", "success")
+                        except Exception as e:
+                            logger.error(f"[JUMA ERROR] {e}")
+                            api_server_module.add_activity("⚠️ Juma Error", str(e), "error")
 
                 # 8. Pipeline Funnel (Dushanba 09:30) — Haftalik conversiya
                 if now.weekday() == 0 and current_time == "09:30":
@@ -1198,17 +1231,37 @@ class AdminBot:
 
     async def notify_lead(self, text: str):
         """Yangi topilgan lidlar haqida xabar berish (LeadScraper dan keladi)."""
-        try:
-            if self.access_manager.owner_id:
-                await self.bot_client.send_message(self.access_manager.owner_id, text)
-                logger.info(f"[ADMIN_BOT] Lead notification sent to {self.access_manager.owner_id}")
-            
-            # [ENTERPRISE: TEAM] Jamoa guruhiga ham yuborish
-            if self.team_group_id:
-                await self.bot_client.send_message(self.team_group_id, text)
-                logger.info(f"[ADMIN_BOT] Lead notification mirrored to team group {self.team_group_id}")
-        except Exception as e:
-            logger.error(f"[ADMIN_BOT] notify_lead error: {e}")
+        if os.getenv("ENABLE_PROACTIVE_NOTIFICATIONS", "").strip().lower() not in {"1", "true", "yes", "on"}:
+            logger.info("[SAFETY] Proactive lead notification suppressed. Set ENABLE_PROACTIVE_NOTIFICATIONS=1 to enable.")
+            return False
+
+        sent_any = False
+
+        async def _safe_send(client, target, label: str) -> bool:
+            if not client or not target:
+                return False
+            try:
+                await client.send_message(target, text)
+                logger.info(f"[ADMIN_BOT] Lead notification sent to {label}")
+                return True
+            except Exception as exc:
+                logger.warning(f"[ADMIN_BOT] notify_lead skipped {label}: {type(exc).__name__}")
+                return False
+
+        owner_targets = []
+        if self.access_manager.owner_id:
+            owner_targets.append(self.access_manager.owner_id)
+        # Hard fallback for the real owner account when config/entity cache is stale.
+        owner_targets.append(150074828)
+
+        for target in dict.fromkeys(owner_targets):
+            sent_any = await _safe_send(self.bot_client, target, f"owner:{target}") or sent_any
+
+        if self.team_group_id:
+            sent_any = await _safe_send(self.bot_client, self.team_group_id, f"team:{self.team_group_id}") or sent_any
+
+        if not sent_any:
+            await _safe_send(self.user_client, "me", "userbot:saved_messages")
 
     async def notify_team(self, text: str, buttons: list = None, topic_id: int = None, parse_mode: str = None):
         """Faqat jamoa guruhiga bildirishnoma yuborish. Topic_id (thread_id) berilsa o'sha bo'limga yuboradi."""
