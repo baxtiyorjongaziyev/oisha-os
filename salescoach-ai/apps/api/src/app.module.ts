@@ -8,6 +8,8 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { CallsModule } from './calls/calls.module';
 import { ScorecardsModule } from './scorecards/scorecards.module';
 import { SharesModule } from './shares/shares.module';
+import { NegotiationsModule } from './negotiations/negotiations.module';
+import { CoachingModule } from './coaching/coaching.module';
 import { PrismaModule } from './common/prisma.module';
 import { QueueModule } from './common/queue.module';
 
@@ -24,6 +26,8 @@ import { QueueModule } from './common/queue.module';
     CallsModule,
     ScorecardsModule,
     SharesModule,
+    NegotiationsModule,
+    CoachingModule,
   ],
 })
 export class AppModule {}
