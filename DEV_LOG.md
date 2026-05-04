@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-04 06:02 UTC | 🔴 main `4d2a1e7`
+
+**Commit**: fix: remove deprecated google-generativeai to resolve Cloud Run crash
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
 ## 2026-05-01 06:47 UTC | ⚠️ main `62e8388`
 
 **Commit**: Merge pull request #15 from baxtiyorjongaziyev/claude/investigate-openclaw-query-HdLAv
