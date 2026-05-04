@@ -129,6 +129,7 @@ model Scorecard {
   nextStepCommitments Json
   riskFlags          String[]
   leadQualityScore   Float
+  predictedOutcome   String?
   createdAt          DateTime @default(now())
 
   call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
