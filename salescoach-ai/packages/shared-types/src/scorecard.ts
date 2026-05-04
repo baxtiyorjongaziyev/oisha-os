@@ -47,6 +47,12 @@ export const LLMScorecardOutputSchema = ScorecardSchema.omit({
     customerTalkRatio: true,
     wpm: true,
   }),
+  predictedOutcome: z.enum(['sale', 'follow_up', 'lost', 'nurture']).optional(),
+  objections: z.array(z.object({
+    type: z.string(),
+    handled: z.boolean(),
+    quality: z.enum(['excellent', 'good', 'poor']),
+  })).optional(),
 });
 
 export type LLMScorecardOutput = z.infer<typeof LLMScorecardOutputSchema>;
