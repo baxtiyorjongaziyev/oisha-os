@@ -22,6 +22,8 @@ class AppSettings(BaseSettings):
     WHITELIST_IDS: list[int] = Field(default_factory=list)
     ENABLE_AUTO_REPLY: bool = True       # Autonomous Telegram replies enabled by default
     AUTORUN_MASS_SYNC: bool = True
+    ENABLE_CLOUD_USERBOT: bool = False   # Set to True to enable userbot session
+    USERBOT_SESSION_STRING: Optional[SecretStr] = None
     SURGICAL_MODE: bool = True           # Autonomous negotiations agent — ON by default
     AUTONOMY_THRESHOLD: float = 0.55     # Min confidence for auto-send (lowered for proactivity)
     RUNNING_IN_CLOUD: bool = False

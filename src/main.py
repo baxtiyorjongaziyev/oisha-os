@@ -33,7 +33,7 @@ from src.services.core.enterprise_reporter import EnterpriseReporter
 from src.controllers.message_controller import MessageController
 from src.services.utils.scouter import Scouter
 from src.services.core.advisor_agent import AdvisorAgent
-from src.services.core.auto_lead_agent import AutoLeadAgent
+from src.services.core.auto_lead_agent import AutoLeadAgent, detect_non_customer_context
 from src.services.core.activity_monitor import ActivityMonitor
 from src.services.core.audit_agent import AuditAgent
 from src.services.core.sales_coach import SalesCoach
@@ -87,6 +87,66 @@ TN5_TOPIC_ID = settings.CRM_TOPIC_ID if settings.CRM_TOPIC_ID is not None else 7
 
 def _env_enabled(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+_EXCLUDED_FOLDER_USER_CACHE: Dict[str, Any] = {"expires_at": 0.0, "user_ids": set()}
+
+
+def _folder_exclusion_enabled() -> bool:
+    return os.getenv("ENABLE_PERSONAL_FOLDER_EXCLUSION", "1").strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _excluded_folder_keywords() -> tuple[str, ...]:
+    raw = os.getenv("PERSONAL_FOLDER_KEYWORDS", "oila,family,shaxsiy,personal,do'st,dost,friends")
+    return tuple(item.strip().lower() for item in raw.split(",") if item.strip())
+
+
+def _dialog_filter_title(dialog_filter: Any) -> str:
+    title = getattr(dialog_filter, "title", "")
+    if isinstance(title, str):
+        return title
+    return getattr(title, "text", str(title or ""))
+
+
+def _peer_user_id(peer: Any) -> Optional[int]:
+    return getattr(peer, "user_id", None) or getattr(peer, "userId", None)
+
+
+async def _excluded_folder_user_ids() -> set[int]:
+    now = time.time()
+    if _EXCLUDED_FOLDER_USER_CACHE["expires_at"] > now:
+        return set(_EXCLUDED_FOLDER_USER_CACHE["user_ids"])
+
+    user_ids: set[int] = set()
+    try:
+        raw_filters = await client(functions.messages.GetDialogFiltersRequest())
+        filters = getattr(raw_filters, "filters", raw_filters)
+        keywords = _excluded_folder_keywords()
+        for dialog_filter in filters or []:
+            title = _dialog_filter_title(dialog_filter).lower()
+            if not title or not any(keyword in title for keyword in keywords):
+                continue
+            for attr in ("include_peers", "pinned_peers"):
+                for peer in getattr(dialog_filter, attr, []) or []:
+                    user_id = _peer_user_id(peer)
+                    if user_id:
+                        user_ids.add(int(user_id))
+    except Exception as exc:
+        logger.warning(f"[FOLDER_GUARD] Could not inspect Telegram folders: {type(exc).__name__}")
+
+    ttl = _negotiation_int("PERSONAL_FOLDER_CACHE_SECS", 600)
+    _EXCLUDED_FOLDER_USER_CACHE["expires_at"] = now + ttl
+    _EXCLUDED_FOLDER_USER_CACHE["user_ids"] = user_ids
+    return set(user_ids)
+
+
+async def _is_personal_folder_sender(sender: Any) -> bool:
+    if not _folder_exclusion_enabled() or not sender:
+        return False
+    sender_id = getattr(sender, "id", None)
+    if sender_id is None:
+        return False
+    return int(sender_id) in await _excluded_folder_user_ids()
 
 
 def _restore_cloud_artifacts() -> None:
@@ -868,6 +928,8 @@ async def handle_new_message(event):
     chat_id = event.chat_id
     sender = await event.get_sender()
     sender_name = getattr(sender, 'first_name', 'User')
+    non_customer_reason = detect_non_customer_context(message_text)
+    personal_folder_sender = await _is_personal_folder_sender(sender)
 
     logger.info(f"[USERBOT] Processing message from {sender_name} in {chat_id}: {message_text[:50]}...")
 
@@ -882,7 +944,11 @@ async def handle_new_message(event):
             logger.error(f"[USERBOT] Failed to log incoming message: {log_ex}")
 
     # 3. New Message Logic (Elite Intake)
-    if event.is_private and not event.out and not getattr(sender, 'bot', False):
+    if personal_folder_sender:
+        logger.info(f"[ELITE INTAKE] Personal/family folder skipped: {sender_name}")
+    elif non_customer_reason:
+        logger.info(f"[ELITE INTAKE] Non-customer context skipped: {sender_name} reason={non_customer_reason}")
+    elif event.is_private and not event.out and not getattr(sender, 'bot', False):
         # Skanerlash (1.1, 1.2) - Now includes intent categorization
         lead_data = await auto_lead_agent.extract_lead_info(message_text, {"id": sender.id, "first_name": sender_name})
         
@@ -1451,9 +1517,16 @@ async def negotiation_agent_handler(event):
         return
     if safe_responder and await safe_responder.is_team_member(event.sender_id, getattr(sender, "username", None)):
         return
+    if await _is_personal_folder_sender(sender):
+        logger.info(f"[NEGOTIATION] Personal/family folder skip chat={event.chat_id}")
+        return
 
     text = (event.message.text or "").strip()
     if not text or text.startswith("/"):
+        return
+    non_customer_reason = detect_non_customer_context(text)
+    if non_customer_reason:
+        logger.info(f"[NEGOTIATION] Non-customer context skip chat={event.chat_id} reason={non_customer_reason}")
         return
 
     chat_id = event.chat_id
@@ -1495,13 +1568,29 @@ async def negotiation_agent_handler(event):
     sender_name = getattr(sender, "first_name", "Mijoz")
     username = getattr(sender, "username", None)
 
+    sender_profile = {"id": sender.id, "first_name": sender_name, "username": username}
+    try:
+        known_customer = await db.is_crm_synced(sender.id)
+    except Exception:
+        known_customer = False
+
+    lead_data = None
+    try:
+        lead_data = await auto_lead_agent.extract_lead_info(text, sender_profile)
+    except Exception as exc:
+        logger.warning(f"[NEGOTIATION] Lead classification failed chat={chat_id}: {type(exc).__name__}")
+
+    if not known_customer and not (lead_data and lead_data.get("is_lead")):
+        intent = (lead_data or {}).get("intent_category", "NO_SIGNAL")
+        logger.info(f"[NEGOTIATION] Non-customer/no-lead skip chat={chat_id} intent={intent}")
+        return
+
     try:
         await db.log_message(sender.id, text, is_ai=False)
     except Exception as exc:
         logger.debug(f"[NEGOTIATION] Incoming log skipped: {exc}")
 
     try:
-        lead_data = await auto_lead_agent.extract_lead_info(text, {"id": sender.id, "first_name": sender_name})
         if lead_data and lead_data.get("is_lead") and not await db.is_crm_synced(sender.id):
             phone = lead_data.get("phone") or getattr(sender, "phone", None) or "Raqam yo'q"
             await msg_controller.crm.sync_lead(
