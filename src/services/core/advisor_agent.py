@@ -1,6 +1,7 @@
 
 import logging
 import datetime
+import time
 from typing import Optional, List, Dict, Any
 from google import genai
 from google.genai import types
@@ -126,21 +127,34 @@ class AdvisorAgent:
             return f"Xatolik yuz berdi: {e}"
 
     async def should_notify(self, chat_id: int, message_id: int, advice_content: str) -> bool:
-        """Checks if this advice was already sent to avoid spam."""
+        """Checks if this advice was already sent and rate-limits advisor pings."""
         try:
+            msg_key = f"advisor_notify:msg:{chat_id}:{message_id}"
+            cooldown_key = f"advisor_notify:cooldown:{chat_id}"
+            now = time.time()
+
+            if await self.db.get_state(msg_key):
+                return False
+
+            last_sent_raw = await self.db.get_state(cooldown_key, "0")
+            try:
+                last_sent = float(last_sent_raw or 0)
+            except (TypeError, ValueError):
+                last_sent = 0.0
+            if now - last_sent < 1800:
+                logger.info(f"[ADVISOR] Cooldown active for chat {chat_id}; notification skipped.")
+                return False
+
+            await self.db.set_state(msg_key, "sent")
+            await self.db.set_state(cooldown_key, str(now))
+
             async with await self.db.get_connection() as conn:
-                async with conn.execute("SELECT 1 FROM advisor_logs WHERE chat_id = ? AND message_id = ?", (chat_id, message_id)) as cursor:
-                    exists = await cursor.fetchone()
-                    if exists:
-                        return False
-                
-                # Log it now
                 await conn.execute(
                     "INSERT INTO advisor_logs (chat_id, message_id, advice_type, content, created_at) VALUES (?, ?, ?, ?, ?)",
                     (chat_id, message_id, 'tactical', advice_content, datetime.datetime.now())
                 )
                 await conn.commit()
-                return True
+            return True
         except Exception as e:
             logger.error(f"[ADVISOR] DB check error: {e}")
-            return True
+            return False

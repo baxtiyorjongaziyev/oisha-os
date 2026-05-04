@@ -320,7 +320,12 @@ class LeadScraper:
 
                 # 3b. [NEW] Autonomous Proactive Negotiation (Phase 3)
                 # If it's a lead or potential interaction, and Oisha hasn't responded yet, initiate outreach.
-                if self.message_controller and (is_lead or intent in ['HOT_LEAD', 'POTENTIAL', 'VIP_CLIENT']):
+                autonomous_outreach_enabled = os.getenv("ENABLE_AUTONOMOUS_OUTREACH", "").strip().lower() in {"1", "true", "yes", "on"}
+                if (
+                    autonomous_outreach_enabled
+                    and self.message_controller
+                    and (is_lead or intent in ['HOT_LEAD', 'POTENTIAL', 'VIP_CLIENT'])
+                ):
                     try:
                         # Check if the last message was from us to avoid double-responding
                         last_msg = messages[0] if messages else None
