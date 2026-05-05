@@ -1,9 +1,9 @@
 import logging
 import json
 from google import genai
-from google.genai import types
 
 logger = logging.getLogger(__name__)
+
 
 class LearningEngine:
     def __init__(self, api_keys, db):
@@ -14,17 +14,17 @@ class LearningEngine:
         self.client = None
         if isinstance(api_keys, dict) and "gemini" in api_keys:
             self.client = genai.Client(api_key=api_keys["gemini"])
-        elif isinstance(api_keys, str): # Old backward compatibility
+        elif isinstance(api_keys, str):  # Old backward compatibility
             self.client = genai.Client(api_key=api_keys)
 
     async def analyze_and_learn(self, user_id, history):
         """Chat tarixini tahlil qilib, yangi bilimlarni ajratib olish."""
-        if not history or len(history) < 4: # Kamida 2 ta savol-javob bo'lishi kerak
+        if not history or len(history) < 4:  # Kamida 2 ta savol-javob bo'lishi kerak
             return 0
 
         # Tarixni matn ko'rinishiga o'tkazish
         chat_text = ""
-        for entry in history[-10:]: # Oxirgi 10 ta xabar tahlil uchun yetarli
+        for entry in history[-10:]:  # Oxirgi 10 ta xabar tahlil uchun yetarli
             role = "Aisha (AI)" if entry["role"] == "model" else "Mijoz"
             chat_text += f"{role}: {entry['parts'][0]['text']}\n"
 
@@ -45,24 +45,25 @@ CHAT TARIXI:
 
         try:
             from src.main import safe_ai_call
+
             response = await safe_ai_call(
                 client=self.client,
                 prompt=prompt,
                 model=self.model_id,
-                mime_type="application/json"
+                mime_type="application/json",
             )
-            
+
             if not response:
                 return 0
-            
+
             # JSON-ni tozalash (ba'zida AI markdown bloklariga o'raydi)
             text = response.text.strip()
             if text.startswith("```json"):
                 text = text[7:-3].strip()
-            
+
             result = json.loads(text)
             facts = result.get("facts", [])
-            
+
             added_count = 0
             for fact in facts:
                 key = fact.get("key")
@@ -70,8 +71,10 @@ CHAT TARIXI:
                 if key and value:
                     if self.db.add_learned_fact(key, value, user_id):
                         added_count += 1
-                        logger.info(f"[LEARNING] Yangi bilim saqlandi: {key} -> {value}")
-            
+                        logger.info(
+                            f"[LEARNING] Yangi bilim saqlandi: {key} -> {value}"
+                        )
+
             return added_count
         except Exception as e:
             logger.error(f"[LEARNING ERROR] {e}")

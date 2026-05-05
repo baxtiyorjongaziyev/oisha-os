@@ -1,9 +1,6 @@
-
 import os
 import sys
-import asyncio
 import logging
-from typing import Optional
 
 # Ensure the project root is in sys.path so we can import from src
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,18 +10,18 @@ if project_root not in sys.path:
 
 from mcp.server.fastmcp import FastMCP
 from src.database import Database
-import src.config as config
 
 # Configure logging to stderr to avoid interfering with stdout-based MCP protocol
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    stream=sys.stderr
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stderr,
 )
 logger = logging.getLogger("telegram-mcp")
 
 # Initialize FastMCP server
 mcp = FastMCP("telegram")
+
 
 @mcp.tool()
 async def send_telegram_message(user_id: int, text: str) -> str:
@@ -36,6 +33,7 @@ async def send_telegram_message(user_id: int, text: str) -> str:
     # For now, we simulate success to verify the MCP connection
     return f"Successfully sent message to {user_id}: {text}"
 
+
 @mcp.tool()
 async def get_user_info(user_id: int) -> str:
     """
@@ -46,6 +44,7 @@ async def get_user_info(user_id: int) -> str:
     if user:
         return f"User Info: {user}"
     return "User not found."
+
 
 if __name__ == "__main__":
     # Start the server using stdio transport

@@ -1,9 +1,9 @@
-import requests
 import logging
 import re
-from googlesearch import search # type: ignore
+from googlesearch import search  # type: ignore
 
 logger = logging.getLogger(__name__)
+
 
 class OSINTExplorer:
     def __init__(self):
@@ -15,27 +15,22 @@ class OSINTExplorer:
         """
         Internet tarmog'idan mijoz profillarini qidirish.
         """
-        results = {
-            "instagram": None,
-            "linkedin": None,
-            "facebook": None,
-            "other": []
-        }
-        
+        results = {"instagram": None, "linkedin": None, "facebook": None, "other": []}
+
         query = f'"{full_name}"'
         if username:
             query += f' OR "@{username}"'
         if phone:
             # Telefon raqamini turli formatlarda qidirish
-            clean_phone = re.sub(r'\D', '', str(phone))
+            clean_phone = re.sub(r"\D", "", str(phone))
             query += f' OR "{phone}" OR "{clean_phone}"'
-            
+
         logger.info(f"[OSINT] Searching for: {query}")
-        
+
         try:
             # Google orqali qidiruv (birinchi 10 ta natija)
             search_results = list(search(query, num_results=10, sleep_interval=2))
-            
+
             for url in search_results:
                 if "instagram.com" in url.lower():
                     results["instagram"] = url
@@ -46,10 +41,10 @@ class OSINTExplorer:
                     results["facebook"] = url
                 else:
                     results["other"].append(url)
-                    
+
         except Exception as e:
             logger.error(f"[OSINT ERROR] {e}")
-            
+
         return results
 
     def analyze_presence(self, profiles):
@@ -57,11 +52,14 @@ class OSINTExplorer:
         Topilgan profillar asosida qisqacha xulosa chiqarish.
         """
         summary = []
-        if profiles["linkedin"]: summary.append("Professional (LinkedIn) mavjud.")
-        if profiles["instagram"]: summary.append("Ijtimoiy (Instagram) faol.")
-        if profiles["facebook"]: summary.append("Facebook profili topildi.")
-        
+        if profiles["linkedin"]:
+            summary.append("Professional (LinkedIn) mavjud.")
+        if profiles["instagram"]:
+            summary.append("Ijtimoiy (Instagram) faol.")
+        if profiles["facebook"]:
+            summary.append("Facebook profili topildi.")
+
         if not summary:
             return "Ochiq manbalarda ma'lumot kam."
-        
+
         return " | ".join(summary)
