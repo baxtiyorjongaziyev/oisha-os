@@ -1,39 +1,38 @@
-
 import logging
 import asyncio
-import re
-import os
-import json
-import base64
-import time
-from typing import Optional, Dict, Any, List
-from telegram import Update, Message
+from typing import Optional
+from telegram import Update
 from telegram.ext import ContextTypes
 import config
 
 logger = logging.getLogger(__name__)
 
+
 async def process_message_logic(
-    update: Update, 
-    context: ContextTypes.DEFAULT_TYPE, 
-    db, 
-    action_parser, 
-    msg_controller, 
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    db,
+    action_parser,
+    msg_controller,
     is_business: bool = False,
-    msg_business_connection_id: Optional[str] = None
+    msg_business_connection_id: Optional[str] = None,
 ) -> None:
     """Core logic to process incoming messages (text, photo, voice)."""
     user = update.effective_user
     chat = update.effective_chat
-    message = update.message if not is_business else (update.business_message or update.message)
-    
+    message = (
+        update.message
+        if not is_business
+        else (update.business_message or update.message)
+    )
+
     if not message:
         return
 
     user_id = user.id
     username = user.username or "yoq"
     first_name = user.first_name or "Noma'lum"
-    
+
     # 1. Basic Rate Limiting / Security (Simplified for now)
     # TODO: Migrate rate limiting check here if needed
 
@@ -69,7 +68,11 @@ async def process_message_logic(
                 should_respond = True
             # Check if it's a reply to the bot
             reply_to = message.reply_to_message
-            if reply_to and reply_to.from_user and reply_to.from_user.username == bot_username.replace("@", ""):
+            if (
+                reply_to
+                and reply_to.from_user
+                and reply_to.from_user.username == bot_username.replace("@", "")
+            ):
                 should_respond = True
 
         if not should_respond:
@@ -80,49 +83,88 @@ async def process_message_logic(
             user_id=user_id,
             user_name=first_name,
             message=text_content,
-            context={"username": username, "is_business": is_business, "chat_title": chat.title}
+            context={
+                "username": username,
+                "is_business": is_business,
+                "chat_title": chat.title,
+            },
         )
-        
+
         # 5. Execute Actions and Clean Response
         final_text = await action_parser.parse_and_execute(
             reply_text=ai_response,
             sender_id=user_id,
             sender_name=first_name,
             username=username,
-            saved_phone=None, # To be fetched from DB if needed
+            saved_phone=None,  # To be fetched from DB if needed
             context=context,
             is_business=is_business,
-            msg_business_connection_id=msg_business_connection_id
+            msg_business_connection_id=msg_business_connection_id,
         )
 
         # 6. Send Reply
         if final_text:
             if is_business:
-                await message.reply_text(final_text, parse_mode="HTML", business_connection_id=msg_business_connection_id)
+                await message.reply_text(
+                    final_text,
+                    parse_mode="HTML",
+                    business_connection_id=msg_business_connection_id,
+                )
             else:
                 await message.reply_text(final_text, parse_mode="HTML")
-                
+
     except Exception as e:
         logger.error(f"[MESSAGE_HANDLER] Error processing message: {e}")
         # await message.reply_text("Kechirasiz, xatolik yuz berdi.")
 
-async def handle_direct_message(update: Update, context: ContextTypes.DEFAULT_TYPE, db, action_parser, msg_controller) -> None:
+
+async def handle_direct_message(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    db,
+    action_parser,
+    msg_controller,
+) -> None:
     """Entry point for direct messages."""
-    await process_message_logic(update, context, db, action_parser, msg_controller, is_business=False)
+    await process_message_logic(
+        update, context, db, action_parser, msg_controller, is_business=False
+    )
 
-async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_TYPE, db, action_parser, msg_controller) -> None:
+
+async def handle_business_message(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    db,
+    action_parser,
+    msg_controller,
+) -> None:
     """Entry point for business messages."""
-    conn_id = update.business_message.business_connection_id if update.business_message else None
-    await process_message_logic(update, context, db, action_parser, msg_controller, is_business=True, msg_business_connection_id=conn_id)
+    conn_id = (
+        update.business_message.business_connection_id
+        if update.business_message
+        else None
+    )
+    await process_message_logic(
+        update,
+        context,
+        db,
+        action_parser,
+        msg_controller,
+        is_business=True,
+        msg_business_connection_id=conn_id,
+    )
 
-async def handle_business_connection(update: Update, context: ContextTypes.DEFAULT_TYPE, business_connections: dict) -> None:
+
+async def handle_business_connection(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, business_connections: dict
+) -> None:
     """Handle business account connection/disconnection."""
     conn = update.business_connection
     user = conn.user
     conn_id = conn.id
 
     if conn.is_enabled:
-        can_reply_val = getattr(conn, 'can_reply', getattr(conn, 'can_reply_to', False))
+        can_reply_val = getattr(conn, "can_reply", getattr(conn, "can_reply_to", False))
         business_connections[conn_id] = {
             "user_id": user.id,
             "user_name": user.first_name,
@@ -133,12 +175,15 @@ async def handle_business_connection(update: Update, context: ContextTypes.DEFAU
         business_connections.pop(conn_id, None)
         logger.info(f"[BUSINESS] Connection lost: {user.first_name} ({user.id})")
 
-async def handle_edited_business_message(update: Update, context: ContextTypes.DEFAULT_TYPE, db, learner) -> None:
+
+async def handle_edited_business_message(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, db, learner
+) -> None:
     """Learn from owner-edited messages."""
     msg = update.edited_business_message
     if not msg or not msg.from_user or msg.from_user.id != config.OWNER_ID:
         return
-    
+
     text = msg.text or msg.caption or ""
     if text:
         client_chat_id = msg.chat.id
@@ -147,4 +192,8 @@ async def handle_edited_business_message(update: Update, context: ContextTypes.D
         # Trigger learning analysis
         # (Assuming learner is available in context or passed)
         if learner:
-             asyncio.create_task(learner.analyze_and_learn(client_chat_id, db.get_recent_messages(client_chat_id, limit=6)))
+            asyncio.create_task(
+                learner.analyze_and_learn(
+                    client_chat_id, db.get_recent_messages(client_chat_id, limit=6)
+                )
+            )

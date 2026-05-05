@@ -3,7 +3,6 @@ import os
 from src.controllers.message_controller import MessageController
 from src.database import Database
 
-
 ai_client = None
 db = Database()
 

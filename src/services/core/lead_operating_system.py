@@ -44,7 +44,9 @@ class LeadOperatingSystem:
         if not sales_agent:
             return []
 
-        recent_leads = await self.db.get_recent_active_leads(hours=lookback_hours, limit=limit)
+        recent_leads = await self.db.get_recent_active_leads(
+            hours=lookback_hours, limit=limit
+        )
         reviewed: List[Dict[str, Any]] = []
 
         for lead in recent_leads:
@@ -68,22 +70,29 @@ class LeadOperatingSystem:
             last_client_dt = self._parse_dt(lead.get("last_client_message_at"))
             lifecycle_dt = self._parse_dt(lead.get("lifecycle_updated_at"))
             should_execute = execute_actions and (
-                lifecycle_dt is None or (last_client_dt is not None and lifecycle_dt < last_client_dt)
+                lifecycle_dt is None
+                or (last_client_dt is not None and lifecycle_dt < last_client_dt)
             )
 
             context = {
-                "user_name": lead.get("first_name") or user_info.get("first_name") or f"User {user_id}",
+                "user_name": lead.get("first_name")
+                or user_info.get("first_name")
+                or f"User {user_id}",
                 "crm_status": crm_status,
                 "phone": phone,
-                "service_type": lead.get("service_type") or user_info.get("service_type"),
-                "business_type": lead.get("business_type") or user_info.get("business_type"),
+                "service_type": lead.get("service_type")
+                or user_info.get("service_type"),
+                "business_type": lead.get("business_type")
+                or user_info.get("business_type"),
                 "user_profile": {
                     **user_info,
                     "brand_name": lead.get("brand_name") or user_info.get("brand_name"),
                     "region": lead.get("region") or user_info.get("region"),
                     "intent": lead.get("intent") or user_info.get("intent"),
-                    "meeting_time": lead.get("meeting_time") or user_info.get("meeting_time"),
-                    "meeting_status": lead.get("meeting_status") or user_info.get("meeting_status"),
+                    "meeting_time": lead.get("meeting_time")
+                    or user_info.get("meeting_time"),
+                    "meeting_status": lead.get("meeting_status")
+                    or user_info.get("meeting_status"),
                 },
             }
 
@@ -94,10 +103,10 @@ class LeadOperatingSystem:
                 execute_actions=should_execute,
             )
             assessment = review.get("assessment", {})
-            
+
             # 3. Chat Summary yuklash (Infinite Memory)
             chat_summary = await self.db.get_chat_summary(user_id)
-            
+
             await self.db.update_lead_journey(
                 user_id,
                 stage=str(assessment.get("stage") or "new_lead"),
@@ -108,10 +117,16 @@ class LeadOperatingSystem:
             )
 
             # 4. Airtable ga xulosani sinxronizatsiya qilish
-            if should_execute and chat_summary and hasattr(self.controller.crm, "airtable"):
+            if (
+                should_execute
+                and chat_summary
+                and hasattr(self.controller.crm, "airtable")
+            ):
                 at_client = self.controller.crm.airtable
                 client_name = context["user_name"]
-                at_client.update_project_fields_by_name(client_name, {"Xulosa": chat_summary})
+                at_client.update_project_fields_by_name(
+                    client_name, {"Xulosa": chat_summary}
+                )
 
             reviewed.append(
                 {
@@ -143,7 +158,9 @@ class LeadOperatingSystem:
             return []
         return await sales_agent.run_reengagement_cycle(limit=limit)
 
-    async def render_cockpit_report(self, *, limit: int = 10, lookback_hours: int = 72) -> str:
+    async def render_cockpit_report(
+        self, *, limit: int = 10, lookback_hours: int = 72
+    ) -> str:
         leads = await self.review_recent_active_leads(
             limit=limit,
             lookback_hours=lookback_hours,
@@ -159,11 +176,31 @@ class LeadOperatingSystem:
         ]
         for lead in leads:
             assessment = lead.get("assessment", {})
-            stage = escape(str(assessment.get("stage") or lead.get("journey_stage") or "new_lead"))
-            status = escape(str(assessment.get("recommended_status") or lead.get("journey_status") or "Initial Contact"))
-            next_action = escape(str(assessment.get("next_action") or lead.get("journey_next_action") or "qualify_need"))
-            probability = float(assessment.get("close_probability") or lead.get("close_probability") or 0.0)
-            client_name = escape(str(lead.get("first_name") or f"User {lead.get('user_id')}"))
+            stage = escape(
+                str(assessment.get("stage") or lead.get("journey_stage") or "new_lead")
+            )
+            status = escape(
+                str(
+                    assessment.get("recommended_status")
+                    or lead.get("journey_status")
+                    or "Initial Contact"
+                )
+            )
+            next_action = escape(
+                str(
+                    assessment.get("next_action")
+                    or lead.get("journey_next_action")
+                    or "qualify_need"
+                )
+            )
+            probability = float(
+                assessment.get("close_probability")
+                or lead.get("close_probability")
+                or 0.0
+            )
+            client_name = escape(
+                str(lead.get("first_name") or f"User {lead.get('user_id')}")
+            )
             last_text = escape(str(lead.get("last_client_message") or "")[:90])
             lines.append(
                 f"• <b>{client_name}</b> — {stage} / {status} / {int(probability * 100)}%"
@@ -172,7 +209,7 @@ class LeadOperatingSystem:
             if summary:
                 # Snippet: only first 120 chars for the cockpit
                 lines.append(f"  📝 <i>Xulosa: {summary[:120]}...</i>")
-            
+
             lines.append(f"  Keyingi qadam: {next_action}")
             if last_text:
                 lines.append(f"  Oxirgi xabar: {last_text}")

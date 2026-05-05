@@ -149,12 +149,20 @@ def _render_owner_html(signal: JourneySignal, airtable: Optional[AirtableSync]) 
         parts: List[str] = []
         for item in raw_owner:
             label = _humanize_owner_hint(item)
-            url = airtable.get_record_url(item) if airtable and _looks_like_airtable_id(str(item)) else None
+            url = (
+                airtable.get_record_url(item)
+                if airtable and _looks_like_airtable_id(str(item))
+                else None
+            )
             if url:
                 parts.append(f"<a href='{escape(url, quote=True)}'>{escape(label)}</a>")
             else:
                 parts.append(escape(label))
-        return ", ".join(parts) if parts else escape(_humanize_owner_hint(signal.owner_hint))
+        return (
+            ", ".join(parts)
+            if parts
+            else escape(_humanize_owner_hint(signal.owner_hint))
+        )
 
     raw_owner_text = str(raw_owner).strip() if raw_owner is not None else ""
     if airtable and _looks_like_airtable_id(raw_owner_text):
@@ -165,7 +173,9 @@ def _render_owner_html(signal: JourneySignal, airtable: Optional[AirtableSync]) 
     return escape(_humanize_owner_hint(signal.owner_hint))
 
 
-def _render_airtable_card_line(signal: JourneySignal, airtable: Optional[AirtableSync]) -> Optional[str]:
+def _render_airtable_card_line(
+    signal: JourneySignal, airtable: Optional[AirtableSync]
+) -> Optional[str]:
     if not airtable:
         return None
 
@@ -187,7 +197,9 @@ def _project_age_days(project: Dict[str, Any]) -> int:
         return 0
 
     try:
-        created_dt = datetime.datetime.fromisoformat(str(start_raw).replace("Z", "+00:00"))
+        created_dt = datetime.datetime.fromisoformat(
+            str(start_raw).replace("Z", "+00:00")
+        )
     except ValueError:
         return 0
 
@@ -226,7 +238,9 @@ def assess_sales_pipeline(
 
         price = int(lead.get("price") or 0)
         responsible_id = int(lead.get("responsible_user_id") or 0)
-        owner_name = owner_lookup(responsible_id) if owner_lookup and responsible_id else "Sales"
+        owner_name = (
+            owner_lookup(responsible_id) if owner_lookup and responsible_id else "Sales"
+        )
         lead_name = _safe_text(lead.get("name"))
 
         if idle_hours >= 48 and price >= 10_000_000:
@@ -241,7 +255,11 @@ def assess_sales_pipeline(
                     owner_action="15 daqiqa ichida qo'ng'iroq qiling, qaror beruvchini aniqlang va keyingi qadam sanasini CRMga yozing.",
                     wow_action="Mijozga qisqa xulosa, 2 ta aniq yechim varianti va uchrashuv vaqti yuboring.",
                     proof_of_done="CRM note, vazifa va keyingi qaror sanasi yozilgan bo'lishi kerak.",
-                    meta={"idle_hours": idle_hours, "price": price, "lead_id": lead.get("id")},
+                    meta={
+                        "idle_hours": idle_hours,
+                        "price": price,
+                        "lead_id": lead.get("id"),
+                    },
                 )
             )
             continue
@@ -258,7 +276,11 @@ def assess_sales_pipeline(
                     owner_action="Bugun javob yoki qo'ng'iroq qilib, e'tiroz sababini va keyingi qadamni yopib chiqing.",
                     wow_action="Qisqa shaxsiy voice yoki matn xulosasi yuborib, nega aynan biz ekanini eslating.",
                     proof_of_done="CRMda sabab, bosqich va follow-up sanasi yangilansin.",
-                    meta={"idle_hours": idle_hours, "price": price, "lead_id": lead.get("id")},
+                    meta={
+                        "idle_hours": idle_hours,
+                        "price": price,
+                        "lead_id": lead.get("id"),
+                    },
                 )
             )
             continue
@@ -274,7 +296,11 @@ def assess_sales_pipeline(
                 owner_action="Mijozga bugunning o'zida discovery savollari va keyingi qadamni yuboring.",
                 wow_action="3 qatorlik tezkor audit yoki mini foyda g'oyasi bilan birinchi wow taassurot yarating.",
                 proof_of_done="Lid bo'yicha javob va keyingi status CRMda ko'rinishi kerak.",
-                meta={"idle_hours": idle_hours, "price": price, "lead_id": lead.get("id")},
+                meta={
+                    "idle_hours": idle_hours,
+                    "price": price,
+                    "lead_id": lead.get("id"),
+                },
             )
         )
 
@@ -297,7 +323,9 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
         project_name = _safe_text(AirtableSync._get_field(fields, "project_name"))
         manager_raw = AirtableSync._get_field(fields, "manager")
         manager_name = _humanize_owner_hint(manager_raw)
-        payment_status = _safe_text(AirtableSync._get_field(fields, "payment_status"), "")
+        payment_status = _safe_text(
+            AirtableSync._get_field(fields, "payment_status"), ""
+        )
         paid_usd = _to_number(AirtableSync._get_field(fields, "paid_usd"))
         remaining_usd = _to_number(AirtableSync._get_field(fields, "remaining_usd"))
         age_days = _project_age_days(project)
@@ -318,12 +346,18 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                         owner_action="48 soat ichida case permission, testimonial va referral so'rovini bitta oqimda yoping.",
                         wow_action="Mijozga handoff xulosasi, foydalanish bo'yicha mini qo'llanma va keyingi growth g'oyasini yuboring.",
                         proof_of_done="Testimonial so'rovi, referral savoli va handoff xabari yuborilgan bo'lsin.",
-                        meta={"project_id": project.get("id"), "age_days": age_days, "manager_ref": manager_raw},
+                        meta={
+                            "project_id": project.get("id"),
+                            "age_days": age_days,
+                            "manager_ref": manager_raw,
+                        },
                     )
                 )
             continue
 
-        if any(token in stage_norm for token in ("brief", "brif", "research", "strateg")) and (age_days >= 2 or overdue):
+        if any(
+            token in stage_norm for token in ("brief", "brif", "research", "strateg")
+        ) and (age_days >= 2 or overdue):
             signals.append(
                 JourneySignal(
                     department="pm",
@@ -335,12 +369,20 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                     owner_action="Bugun boshlanish xulosasi, timeline va ownership xaritasini mijozga yuboring.",
                     wow_action="Mijozga keyingi 7 kunlik aniq reja ko'rsatib, noaniqlikni yoping.",
                     proof_of_done="Boshlanish xulosasi va timeline Telegram guruhida ko'rinishi kerak.",
-                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline, "manager_ref": manager_raw},
+                    meta={
+                        "project_id": project.get("id"),
+                        "age_days": age_days,
+                        "deadline": deadline,
+                        "manager_ref": manager_raw,
+                    },
                 )
             )
             continue
 
-        if any(token in stage_norm for token in ("design", "dizayn", "concept", "draft", "maket")) and (age_days >= 4 or overdue):
+        if any(
+            token in stage_norm
+            for token in ("design", "dizayn", "concept", "draft", "maket")
+        ) and (age_days >= 4 or overdue):
             signals.append(
                 JourneySignal(
                     department="pm",
@@ -352,12 +394,20 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                     owner_action="Oraliq ko'rinish yuboring, feedback savollarini toraytiring va qayta topshirish muddatini bering.",
                     wow_action="Faqat draft emas, qaror qabul qilishni osonlashtiradigan asos bilan chiqing.",
                     proof_of_done="Oraliq ko'rinish, feedback savoli va qayta topshirish muddati yozilgan bo'lsin.",
-                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline, "manager_ref": manager_raw},
+                    meta={
+                        "project_id": project.get("id"),
+                        "age_days": age_days,
+                        "deadline": deadline,
+                        "manager_ref": manager_raw,
+                    },
                 )
             )
             continue
 
-        if any(token in stage_norm for token in ("review", "feedback", "approval", "tasdiq")) and (age_days >= 3 or overdue):
+        if any(
+            token in stage_norm
+            for token in ("review", "feedback", "approval", "tasdiq")
+        ) and (age_days >= 3 or overdue):
             signals.append(
                 JourneySignal(
                     department="pm",
@@ -369,12 +419,20 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                     owner_action="Feedbackni checklist ko'rinishida yoping va har band uchun mas'ul odam hamda muddat yozing.",
                     wow_action="Mijozga 'nimani qabul qildik, nimani o'zgartiramiz' degan aniq yakuniy xabarni yuboring.",
                     proof_of_done="Feedback jadvali va keyingi topshirish sanasi ko'rinishi kerak.",
-                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline, "manager_ref": manager_raw},
+                    meta={
+                        "project_id": project.get("id"),
+                        "age_days": age_days,
+                        "deadline": deadline,
+                        "manager_ref": manager_raw,
+                    },
                 )
             )
             continue
 
-        if any(token in stage_norm for token in ("production", "dev", "fayl", "delivery", "topshir")) and (age_days >= 3 or overdue):
+        if any(
+            token in stage_norm
+            for token in ("production", "dev", "fayl", "delivery", "topshir")
+        ) and (age_days >= 3 or overdue):
             signals.append(
                 JourneySignal(
                     department="pm",
@@ -386,11 +444,23 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                     owner_action="Final paket, izoh, qo'llab-quvvatlash muddati va qabul checklistini oldindan tayyorlang.",
                     wow_action="Topshirishni shunchaki 'tugadi' emas, 'siz endi bemalol ishlata olasiz' hissi bilan yoping.",
                     proof_of_done="Final fayllar, izoh va qo'llab-quvvatlash muddati bitta xabarda jamlangan bo'lsin.",
-                    meta={"project_id": project.get("id"), "age_days": age_days, "deadline": deadline, "manager_ref": manager_raw},
+                    meta={
+                        "project_id": project.get("id"),
+                        "age_days": age_days,
+                        "deadline": deadline,
+                        "manager_ref": manager_raw,
+                    },
                 )
             )
 
-        if payment_status and remaining_usd > 0 and any(token in stage_norm for token in ("review", "delivery", "topshir", "done")):
+        if (
+            payment_status
+            and remaining_usd > 0
+            and any(
+                token in stage_norm
+                for token in ("review", "delivery", "topshir", "done")
+            )
+        ):
             signals.append(
                 JourneySignal(
                     department="sales",
@@ -402,7 +472,12 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
                     owner_action="Mijozga qiymat xulosasi bilan birga to'lovni yopish va sana bo'yicha aniq follow-up qiling.",
                     wow_action="To'lov eslatmasini sovuq billing emas, topshirilgan ishlar xulosasi bilan birga yuboring.",
                     proof_of_done="To'lov sanasi yoki yopilish statusi CRM/Airtableda yangilangan bo'lsin.",
-                    meta={"project_id": project.get("id"), "remaining_usd": remaining_usd, "payment_status": payment_status, "manager_ref": manager_raw},
+                    meta={
+                        "project_id": project.get("id"),
+                        "remaining_usd": remaining_usd,
+                        "payment_status": payment_status,
+                        "manager_ref": manager_raw,
+                    },
                 )
             )
 
@@ -416,7 +491,9 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
     return signals
 
 
-def _render_signal_lines(signal: JourneySignal, airtable: Optional[AirtableSync]) -> List[str]:
+def _render_signal_lines(
+    signal: JourneySignal, airtable: Optional[AirtableSync]
+) -> List[str]:
     lines = [
         f"• <b>{escape(signal.client_name)}</b>",
         f"  Bosqich: {escape(_humanize_stage(signal.stage))}",
@@ -443,7 +520,9 @@ def render_excellence_report(
         airtable = None
 
     total_signals = len(sales_signals) + len(project_signals)
-    critical_count = sum(1 for signal in sales_signals + project_signals if signal.urgency == "critical")
+    critical_count = sum(
+        1 for signal in sales_signals + project_signals if signal.urgency == "critical"
+    )
 
     score = 100
     if total_signals > 0:
@@ -466,13 +545,17 @@ def render_excellence_report(
     ]
 
     if sales_signals:
-        lines.append(f"<b>Sotuv / Birinchi taassurot</b> - {len(sales_signals)} ta signal")
+        lines.append(
+            f"<b>Sotuv / Birinchi taassurot</b> - {len(sales_signals)} ta signal"
+        )
         for signal in sales_signals[:max_items_per_section]:
             lines.extend(_render_signal_lines(signal, airtable))
         lines.append("")
 
     if project_signals:
-        lines.append(f"<b>PM / Yetkazib berish sifati</b> - {len(project_signals)} ta signal")
+        lines.append(
+            f"<b>PM / Yetkazib berish sifati</b> - {len(project_signals)} ta signal"
+        )
         for signal in project_signals[:max_items_per_section]:
             lines.extend(_render_signal_lines(signal, airtable))
         lines.append("")
@@ -516,7 +599,9 @@ def build_department_direct_messages(
             pm_lines.append(
                 f"• <b>{escape(signal.client_name)}</b>: {escape(_normalize_copy(signal.owner_action))}"
             )
-        pm_lines.append("Talab: mijozga yakuniy xabar, mas'ul odam va muddat aniq yozilsin.")
+        pm_lines.append(
+            "Talab: mijozga yakuniy xabar, mas'ul odam va muddat aniq yozilsin."
+        )
         pm_text = "\n".join(pm_lines)
 
     for member in team_members:
@@ -524,7 +609,9 @@ def build_department_direct_messages(
         if not user_id:
             continue
         if sales_text and _belongs(member, sales_role_tokens):
-            messages.append({"user_id": user_id, "text": sales_text, "parse_mode": "HTML"})
+            messages.append(
+                {"user_id": user_id, "text": sales_text, "parse_mode": "HTML"}
+            )
         elif pm_text and _belongs(member, pm_role_tokens):
             messages.append({"user_id": user_id, "text": pm_text, "parse_mode": "HTML"})
 
