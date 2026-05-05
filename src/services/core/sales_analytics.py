@@ -7,7 +7,7 @@ import logging
 import time
 import requests
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, List
 
 logger = logging.getLogger("SalesAnalytics")
 
@@ -33,11 +33,16 @@ class SalesAnalytics:
         if amocrm_sync is None:
             from src.services.core.amocrm_sync import AmoCRMSync
             from src.settings import settings
+
             self.amo = AmoCRMSync(
                 settings.AMOCRM_SUBDOMAIN,
                 settings.AMOCRM_CLIENT_ID,
-                settings.AMOCRM_CLIENT_SECRET.get_secret_value() if settings.AMOCRM_CLIENT_SECRET else None,
-                settings.AMOCRM_REDIRECT_URL
+                (
+                    settings.AMOCRM_CLIENT_SECRET.get_secret_value()
+                    if settings.AMOCRM_CLIENT_SECRET
+                    else None
+                ),
+                settings.AMOCRM_REDIRECT_URL,
             )
             self.amo._load_token()
         else:
@@ -92,8 +97,12 @@ class SalesAnalytics:
         - O'rtacha javob vaqti
         """
         now = time.time()
-        today_start = int(datetime.now().replace(hour=0, minute=0, second=0).timestamp())
-        month_start = int(datetime.now().replace(day=1, hour=0, minute=0, second=0).timestamp())
+        today_start = int(
+            datetime.now().replace(hour=0, minute=0, second=0).timestamp()
+        )
+        month_start = int(
+            datetime.now().replace(day=1, hour=0, minute=0, second=0).timestamp()
+        )
 
         # Barcha lidlarni olamiz
         hunter_leads = self._get_all_leads(self.HUNTER_PIPELINE)
@@ -166,7 +175,9 @@ class SalesAnalytics:
             return report
 
         # Sort by month_revenue descending
-        sorted_managers = sorted(manager_stats.items(), key=lambda x: x[1]["month_revenue"], reverse=True)
+        sorted_managers = sorted(
+            manager_stats.items(), key=lambda x: x[1]["month_revenue"], reverse=True
+        )
 
         total_revenue = 0
         total_won = 0
@@ -180,9 +191,11 @@ class SalesAnalytics:
             report += f"   ✅ Bugun muloqot qilgan: {s['today_touched']} | Sotuv: {s['today_won']}\n"
 
             if s["month_won"] > 0:
-                report += f"   💰 Oylik natija: {s['month_won']} ta sotuv = {s['month_revenue']:,.0f} so'm\n".replace(',', ' ')
+                report += f"   💰 Oylik natija: {s['month_won']} ta sotuv = {s['month_revenue']:,.0f} so'm\n".replace(
+                    ",", " "
+                )
             else:
-                report += f"   💰 Oylik natija: 0 ta sotuv\n"
+                report += "   💰 Oylik natija: 0 ta sotuv\n"
 
             if s["stagnated"] > 0:
                 report += f"   🚨 <b>DIQQAT: {s['stagnated']} ta mijoz 24 soatdan beri qarovsiz!</b>\n"
@@ -190,7 +203,9 @@ class SalesAnalytics:
             # Tasks and Notes discipline (CRM Odobi)
             # Bu yerda real kodda lead['closest_task_at'] ni tekshirish kerak
             # Hozircha umumiy mantiq qo'shamiz
-            report += f"   📝 CRM Intizomi: Har bir mijozda vazifa (zadacha) bo'lishi shart!\n"
+            report += (
+                "   📝 CRM Intizomi: Har bir mijozda vazifa (zadacha) bo'lishi shart!\n"
+            )
 
             total_revenue += s["month_revenue"]
             total_won += s["month_won"]
@@ -202,9 +217,15 @@ class SalesAnalytics:
         bar = "█" * min(bar_fill, 10) + "░" * (10 - int(pct / 10))
 
         report += "\n" + "━" * 30
-        report += f"\n📈 <b>JAMOA NATIJASI:</b>"
-        report += f"\n   Jami sotuv: {total_won} ta | {total_revenue:,.0f} so'm".replace(',', ' ')
-        report += f"\n   🎯 Oylik maqsad: {target:,.0f} so'm ({pct:.0f}%)".replace(',', ' ')
+        report += "\n📈 <b>JAMOA NATIJASI:</b>"
+        report += (
+            f"\n   Jami sotuv: {total_won} ta | {total_revenue:,.0f} so'm".replace(
+                ",", " "
+            )
+        )
+        report += f"\n   🎯 Oylik maqsad: {target:,.0f} so'm ({pct:.0f}%)".replace(
+            ",", " "
+        )
         report += f"\n   [{bar}]"
 
         # 💡 CRM COACHING SECTION (Oydin uchun maxsus)
@@ -225,7 +246,10 @@ class SalesAnalytics:
         limit = hours * 3600
         result: Dict[int, List[Dict]] = {}
 
-        for pipeline_name, pipeline_id in [("HUNTER", self.HUNTER_PIPELINE), ("CLOSER", self.CLOSER_PIPELINE)]:
+        for pipeline_name, pipeline_id in [
+            ("HUNTER", self.HUNTER_PIPELINE),
+            ("CLOSER", self.CLOSER_PIPELINE),
+        ]:
             leads = self._get_all_leads(pipeline_id)
             for lead in leads:
                 status_id = lead.get("status_id", 0)
@@ -241,15 +265,21 @@ class SalesAnalytics:
                     idle_hours = int((now - updated_at) / 3600)
                     idle_days = idle_hours // 24
 
-                    result[responsible].append({
-                        "id": lead["id"],
-                        "name": lead.get("name", "Nomsiz"),
-                        "pipeline": pipeline_name,
-                        "idle_hours": idle_hours,
-                        "idle_text": f"{idle_days} kun" if idle_days >= 1 else f"{idle_hours} soat",
-                        "link": f"https://{self.amo.subdomain}.amocrm.ru/leads/detail/{lead['id']}",
-                        "price": lead.get("price", 0) or 0,
-                    })
+                    result[responsible].append(
+                        {
+                            "id": lead["id"],
+                            "name": lead.get("name", "Nomsiz"),
+                            "pipeline": pipeline_name,
+                            "idle_hours": idle_hours,
+                            "idle_text": (
+                                f"{idle_days} kun"
+                                if idle_days >= 1
+                                else f"{idle_hours} soat"
+                            ),
+                            "link": f"https://{self.amo.subdomain}.amocrm.ru/leads/detail/{lead['id']}",
+                            "price": lead.get("price", 0) or 0,
+                        }
+                    )
 
         return result
 
@@ -267,7 +297,7 @@ class SalesAnalytics:
         report += f"📅 {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
         report += f"⚠️ {total_count} ta lid {hours}+ soat harakatsiz"
         if total_value > 0:
-            report += f" (umumiy: {total_value:,.0f} so'm)".replace(',', ' ')
+            report += f" (umumiy: {total_value:,.0f} so'm)".replace(",", " ")
         report += "\n" + "━" * 30 + "\n"
 
         for uid, leads in stagnated.items():
@@ -275,10 +305,14 @@ class SalesAnalytics:
             report += f"\n👤 <b>{name}</b> — {len(leads)} ta lid:\n"
 
             for lead in sorted(leads, key=lambda x: x["idle_hours"], reverse=True)[:5]:
-                emoji = "🔴" if lead["idle_hours"] >= 72 else "🟡" if lead["idle_hours"] >= 48 else "⚠️"
+                emoji = (
+                    "🔴"
+                    if lead["idle_hours"] >= 72
+                    else "🟡" if lead["idle_hours"] >= 48 else "⚠️"
+                )
                 report += f"   {emoji} {lead['name']} ({lead['pipeline']}) — <b>{lead['idle_text']}</b>"
                 if lead["price"] > 0:
-                    report += f" 💰{lead['price']:,.0f}".replace(',', ' ')
+                    report += f" 💰{lead['price']:,.0f}".replace(",", " ")
                 report += "\n"
 
             if len(leads) > 5:
@@ -350,7 +384,9 @@ class SalesAnalytics:
 
         # Conversiya hisoblash
         total_leads = hunter_total + closer_total
-        conversion_to_closer = (closer_total / hunter_total * 100) if hunter_total > 0 else 0
+        conversion_to_closer = (
+            (closer_total / hunter_total * 100) if hunter_total > 0 else 0
+        )
         win_rate = (closer_won / closer_total * 100) if closer_total > 0 else 0
         overall_conversion = (closer_won / total_leads * 100) if total_leads > 0 else 0
         avg_deal = (closer_revenue / closer_won) if closer_won > 0 else 0
@@ -368,13 +404,17 @@ class SalesAnalytics:
             report += f"   ⚠️ Stagnatsiya (3+ kun): {hunter_stagnated}\n"
 
         # Arrow visualization
-        report += f"\n   ⬇️ Conversiya HUNTER → CLOSER: <b>{conversion_to_closer:.0f}%</b>\n"
+        report += (
+            f"\n   ⬇️ Conversiya HUNTER → CLOSER: <b>{conversion_to_closer:.0f}%</b>\n"
+        )
 
         # CLOSER Funnel
-        report += f"\n💰 <b>CLOSER Pipeline</b>\n"
+        report += "\n💰 <b>CLOSER Pipeline</b>\n"
         report += f"   Jami: {closer_total} ta lid\n"
         report += f"   ✅ Aktiv: {closer_active}\n"
-        report += f"   🏆 Won: {closer_won} ({closer_revenue:,.0f} so'm)\n".replace(',', ' ')
+        report += f"   🏆 Won: {closer_won} ({closer_revenue:,.0f} so'm)\n".replace(
+            ",", " "
+        )
         report += f"   ❌ Lost: {closer_lost}\n"
 
         report += f"\n   ⬇️ Win Rate (CLOSER): <b>{win_rate:.0f}%</b>\n"
@@ -383,8 +423,8 @@ class SalesAnalytics:
         report += "\n" + "━" * 30
         report += f"\n📈 <b>HAFTALIK NATIJALAR ({days} kun):</b>\n"
         report += f"   🏆 Yopilgan: {closer_won_week} ta bitim\n"
-        report += f"   💰 Tushum: {closer_revenue_week:,.0f} so'm\n".replace(',', ' ')
-        report += f"   📊 O'rtacha bitim: {avg_deal:,.0f} so'm\n".replace(',', ' ')
+        report += f"   💰 Tushum: {closer_revenue_week:,.0f} so'm\n".replace(",", " ")
+        report += f"   📊 O'rtacha bitim: {avg_deal:,.0f} so'm\n".replace(",", " ")
 
         # Overall
         report += f"\n🔄 <b>UMUMIY CONVERSIYA:</b> {overall_conversion:.1f}%"
@@ -397,9 +437,9 @@ class SalesAnalytics:
         if win_rate < 30:
             report += f"   📉 Win Rate past ({win_rate:.0f}%) — CLOSER bosqichida tayyorgarlik yaxshilang\n"
         if hunter_lost > hunter_active:
-            report += f"   🚫 HUNTER'da ko'p lid yo'qolmoqda — kvalifikatsiya sifatini oshiring\n"
+            report += "   🚫 HUNTER'da ko'p lid yo'qolmoqda — kvalifikatsiya sifatini oshiring\n"
         if closer_won_week == 0:
-            report += f"   🔴 Bu hafta 0 ta bitim yopilgan — URGENT harakatlar kerak!\n"
+            report += "   🔴 Bu hafta 0 ta bitim yopilgan — URGENT harakatlar kerak!\n"
         if win_rate >= 50:
             report += f"   🌟 Win Rate yuqori ({win_rate:.0f}%) — ajoyib natija!\n"
 
@@ -437,7 +477,8 @@ class SalesAnalytics:
         except Exception as e:
             logger.warning(f"[ANALYTICS] HTML xato, plain text-ga o'tildi: {e}")
             import re
-            clean = re.sub(r'<[^>]+>', '', text)
+
+            clean = re.sub(r"<[^>]+>", "", text)
             kwargs = {"chat_id": chat_id, "text": clean}
             if thread_id:
                 kwargs["message_thread_id"] = thread_id

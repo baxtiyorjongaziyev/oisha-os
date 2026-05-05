@@ -4,7 +4,7 @@ AI Agent Tools — Gemini Function Calling uchun barcha toollar.
 Bu modul botni chatbot darajasidan AI Agent darajasiga ko'taradi.
 Gemini o'zi qaysi tool ni qachon ishlatishini hal qiladi va chaqiradi.
 """
-import json
+
 import logging
 import datetime
 import asyncio
@@ -30,44 +30,44 @@ TOOL_DECLARATIONS = [
             "properties": {
                 "user_id": {
                     "type": "integer",
-                    "description": "Telegram foydalanuvchi ID si"
+                    "description": "Telegram foydalanuvchi ID si",
                 },
                 "name": {
                     "type": "string",
-                    "description": "Mijoz ismi (Telegram ismi yoki o'zi aytgan ism)"
+                    "description": "Mijoz ismi (Telegram ismi yoki o'zi aytgan ism)",
                 },
                 "phone": {
                     "type": "string",
-                    "description": "Telefon raqam (+998XXXXXXXXX formatida)"
+                    "description": "Telefon raqam (+998XXXXXXXXX formatida)",
                 },
                 "business_type": {
                     "type": "string",
-                    "description": "Biznes turi (restoran, salon, do'kon va h.k.)"
+                    "description": "Biznes turi (restoran, salon, do'kon va h.k.)",
                 },
                 "region": {
                     "type": "string",
-                    "description": "Hudud yoki shahar (Toshkent, Samarqand va h.k.)"
+                    "description": "Hudud yoki shahar (Toshkent, Samarqand va h.k.)",
                 },
                 "brand_name": {
                     "type": "string",
-                    "description": "Brend yoki kompaniya nomi"
+                    "description": "Brend yoki kompaniya nomi",
                 },
                 "service_type": {
                     "type": "string",
-                    "description": "Kerakli xizmat (logo, naming, branding strategiya va h.k.)"
+                    "description": "Kerakli xizmat (logo, naming, branding strategiya va h.k.)",
                 },
                 "deadline": {
                     "type": "string",
-                    "description": "Muddat yoki sana (masalan: '2 hafta', '1 mart')"
+                    "description": "Muddat yoki sana (masalan: '2 hafta', '1 mart')",
                 },
                 "lead_quality": {
                     "type": "string",
                     "description": "Lead sifati: 'Sifatli', 'Oddiy', yoki 'Unknown'",
-                    "enum": ["Sifatli", "Oddiy", "Unknown", "Sifatsiz"]
-                }
+                    "enum": ["Sifatli", "Oddiy", "Unknown", "Sifatsiz"],
+                },
             },
-            "required": ["user_id"]
-        }
+            "required": ["user_id"],
+        },
     },
     {
         "name": "create_calendar_event",
@@ -81,23 +81,23 @@ TOOL_DECLARATIONS = [
             "properties": {
                 "summary": {
                     "type": "string",
-                    "description": "Uchrashuv mavzusi yoki nomi"
+                    "description": "Uchrashuv mavzusi yoki nomi",
                 },
                 "start_time": {
                     "type": "string",
-                    "description": "Boshlanish vaqti ISO 8601 formatida (masalan: '2026-03-13T14:00:00')"
+                    "description": "Boshlanish vaqti ISO 8601 formatida (masalan: '2026-03-13T14:00:00')",
                 },
                 "end_time": {
                     "type": "string",
-                    "description": "Tugash vaqti ISO 8601 formatida. Ko'rsatilmasa, 1 soat qo'shiladi."
+                    "description": "Tugash vaqti ISO 8601 formatida. Ko'rsatilmasa, 1 soat qo'shiladi.",
                 },
                 "description": {
                     "type": "string",
-                    "description": "Uchrashuv tavsifi yoki qo'shimcha ma'lumot"
-                }
+                    "description": "Uchrashuv tavsifi yoki qo'shimcha ma'lumot",
+                },
             },
-            "required": ["summary", "start_time"]
-        }
+            "required": ["summary", "start_time"],
+        },
     },
     {
         "name": "save_google_contact",
@@ -109,21 +109,15 @@ TOOL_DECLARATIONS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Mijoz ismi"
-                },
-                "phone": {
-                    "type": "string",
-                    "description": "Telefon raqam"
-                },
+                "name": {"type": "string", "description": "Mijoz ismi"},
+                "phone": {"type": "string", "description": "Telefon raqam"},
                 "note": {
                     "type": "string",
-                    "description": "Qo'shimcha izoh (masalan: kerakli xizmat)"
-                }
+                    "description": "Qo'shimcha izoh (masalan: kerakli xizmat)",
+                },
             },
-            "required": ["name", "phone"]
-        }
+            "required": ["name", "phone"],
+        },
     },
     {
         "name": "send_stars_invoice",
@@ -136,16 +130,16 @@ TOOL_DECLARATIONS = [
             "properties": {
                 "user_id": {
                     "type": "integer",
-                    "description": "Invoice yuboriladigan Telegram user ID"
+                    "description": "Invoice yuboriladigan Telegram user ID",
                 },
                 "product_id": {
                     "type": "string",
                     "description": "Mahsulot ID si (config.DIGITAL_PRODUCTS dan)",
-                    "enum": ["logo_template", "branding_guide"]
-                }
+                    "enum": ["logo_template", "branding_guide"],
+                },
             },
-            "required": ["user_id", "product_id"]
-        }
+            "required": ["user_id", "product_id"],
+        },
     },
     {
         "name": "forward_to_crm_group",
@@ -157,22 +151,19 @@ TOOL_DECLARATIONS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "user_id": {
-                    "type": "integer",
-                    "description": "Telegram user ID"
-                },
+                "user_id": {"type": "integer", "description": "Telegram user ID"},
                 "quality": {
                     "type": "string",
                     "description": "Lead sifati",
-                    "enum": ["Sifatli", "Oddiy", "Unknown", "Sifatsiz"]
+                    "enum": ["Sifatli", "Oddiy", "Unknown", "Sifatsiz"],
                 },
                 "summary": {
                     "type": "string",
-                    "description": "Mijoz so'rovining qisqacha bayoni"
-                }
+                    "description": "Mijoz so'rovining qisqacha bayoni",
+                },
             },
-            "required": ["user_id", "quality"]
-        }
+            "required": ["user_id", "quality"],
+        },
     },
     {
         "name": "get_user_profile",
@@ -183,13 +174,10 @@ TOOL_DECLARATIONS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "user_id": {
-                    "type": "integer",
-                    "description": "Telegram user ID"
-                }
+                "user_id": {"type": "integer", "description": "Telegram user ID"}
             },
-            "required": ["user_id"]
-        }
+            "required": ["user_id"],
+        },
     },
     {
         "name": "get_team_members",
@@ -197,10 +185,7 @@ TOOL_DECLARATIONS = [
             "Agentlikning barcha inson jamoa a'zolarini va ularning rollarini olish. "
             "Kimga topshiriq berishni bilmasangiz, avval buni chaqiring."
         ),
-        "parameters": {
-            "type": "object",
-            "properties": {}
-        }
+        "parameters": {"type": "object", "properties": {}},
     },
     {
         "name": "assign_task_to_human",
@@ -213,23 +198,23 @@ TOOL_DECLARATIONS = [
             "properties": {
                 "assigned_to": {
                     "type": "integer",
-                    "description": "Vazifa biriktiriladigan xodimning Telegram ID si"
+                    "description": "Vazifa biriktiriladigan xodimning Telegram ID si",
                 },
                 "title": {
                     "type": "string",
-                    "description": "Vazifa nomi (qisqa va aniq)"
+                    "description": "Vazifa nomi (qisqa va aniq)",
                 },
                 "description": {
                     "type": "string",
-                    "description": "Vazifa haqida to'liq tafsilotlar"
+                    "description": "Vazifa haqida to'liq tafsilotlar",
                 },
                 "deadline": {
                     "type": "string",
-                    "description": "Muddat (masalan: 'Bugun', 'Ertaga soat 18:00')"
-                }
+                    "description": "Muddat (masalan: 'Bugun', 'Ertaga soat 18:00')",
+                },
             },
-            "required": ["assigned_to", "title", "description"]
-        }
+            "required": ["assigned_to", "title", "description"],
+        },
     },
     {
         "name": "sherlock_user_profile",
@@ -242,11 +227,11 @@ TOOL_DECLARATIONS = [
             "properties": {
                 "user_id": {
                     "type": "integer",
-                    "description": "Tahlil qilinadigan Telegram user ID"
+                    "description": "Tahlil qilinadigan Telegram user ID",
                 }
             },
-            "required": ["user_id"]
-        }
+            "required": ["user_id"],
+        },
     },
     {
         "name": "get_crm_status_tool",
@@ -257,13 +242,10 @@ TOOL_DECLARATIONS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "user_id": {
-                    "type": "integer",
-                    "description": "Telegram user ID"
-                }
+                "user_id": {"type": "integer", "description": "Telegram user ID"}
             },
-            "required": ["user_id"]
-        }
+            "required": ["user_id"],
+        },
     },
     {
         "name": "update_lead_status",
@@ -275,18 +257,23 @@ TOOL_DECLARATIONS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "user_id": {
-                    "type": "integer",
-                    "description": "Telegram user ID"
-                },
+                "user_id": {"type": "integer", "description": "Telegram user ID"},
                 "status_name": {
                     "type": "string",
                     "description": "Yangi status nomi",
-                    "enum": ["Initial Contact", "Negotiation", "Qualified", "Interested", "Meeting Scheduled", "Conversation Over", "Closed Lost"]
-                }
+                    "enum": [
+                        "Initial Contact",
+                        "Negotiation",
+                        "Qualified",
+                        "Interested",
+                        "Meeting Scheduled",
+                        "Conversation Over",
+                        "Closed Lost",
+                    ],
+                },
             },
-            "required": ["user_id", "status_name"]
-        }
+            "required": ["user_id", "status_name"],
+        },
     },
     {
         "name": "create_followup_task",
@@ -299,31 +286,25 @@ TOOL_DECLARATIONS = [
             "properties": {
                 "user_id": {
                     "type": "integer",
-                    "description": "Telegram user ID. lead_id berilmasa shu orqali lead topiladi."
+                    "description": "Telegram user ID. lead_id berilmasa shu orqali lead topiladi.",
                 },
                 "lead_id": {
                     "type": "integer",
-                    "description": "AmoCRM lead ID. To'g'ridan-to'g'ri lead ma'lum bo'lsa ishlatiladi."
+                    "description": "AmoCRM lead ID. To'g'ridan-to'g'ri lead ma'lum bo'lsa ishlatiladi.",
                 },
-                "title": {
-                    "type": "string",
-                    "description": "Follow-up vazifa nomi"
-                },
+                "title": {"type": "string", "description": "Follow-up vazifa nomi"},
                 "details": {
                     "type": "string",
-                    "description": "Vazifa bo'yicha aniq next step yoki izoh"
+                    "description": "Vazifa bo'yicha aniq next step yoki izoh",
                 },
-                "due_at": {
-                    "type": "string",
-                    "description": "ISO 8601 muddat vaqti"
-                },
+                "due_at": {"type": "string", "description": "ISO 8601 muddat vaqti"},
                 "due_in_hours": {
                     "type": "integer",
-                    "description": "Agar due_at bo'lmasa, hozirdan necha soatdan keyin bajariladi"
-                }
+                    "description": "Agar due_at bo'lmasa, hozirdan necha soatdan keyin bajariladi",
+                },
             },
-            "required": ["title"]
-        }
+            "required": ["title"],
+        },
     },
     {
         "name": "add_lead_note",
@@ -336,19 +317,16 @@ TOOL_DECLARATIONS = [
             "properties": {
                 "user_id": {
                     "type": "integer",
-                    "description": "Telegram user ID. lead_id berilmasa shu orqali lead topiladi."
+                    "description": "Telegram user ID. lead_id berilmasa shu orqali lead topiladi.",
                 },
-                "lead_id": {
-                    "type": "integer",
-                    "description": "AmoCRM lead ID"
-                },
+                "lead_id": {"type": "integer", "description": "AmoCRM lead ID"},
                 "note": {
                     "type": "string",
-                    "description": "CRMga yoziladigan izoh matni"
-                }
+                    "description": "CRMga yoziladigan izoh matni",
+                },
             },
-            "required": ["note"]
-        }
+            "required": ["note"],
+        },
     },
     {
         "name": "qualify_lead",
@@ -360,15 +338,30 @@ TOOL_DECLARATIONS = [
             "type": "object",
             "properties": {
                 "user_id": {"type": "integer", "description": "Telegram user ID"},
-                "source": {"type": "string", "enum": ["Telegram", "Instagram", "Facebook", "Sayt"]},
-                "service": {"type": "string", "enum": ["Naming", "Logo", "Brandbook", "Web", "SMM"]},
+                "source": {
+                    "type": "string",
+                    "enum": ["Telegram", "Instagram", "Facebook", "Sayt"],
+                },
+                "service": {
+                    "type": "string",
+                    "enum": ["Naming", "Logo", "Brandbook", "Web", "SMM"],
+                },
                 "temperature": {"type": "string", "enum": ["Sovuq", "Issiq"]},
-                "need": {"type": "string", "description": "Mijozning asosiy ehtiyoji yoki muammosi"},
-                "budget_range": {"type": "string", "enum": ["< 500$", "500$ - 1500$", "1500$ - 3000$", "> 3000$"]},
-                "tag": {"type": "string", "description": "Qo'shimcha teg (masalan: 'High-Intent')"}
+                "need": {
+                    "type": "string",
+                    "description": "Mijozning asosiy ehtiyoji yoki muammosi",
+                },
+                "budget_range": {
+                    "type": "string",
+                    "enum": ["< 500$", "500$ - 1500$", "1500$ - 3000$", "> 3000$"],
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "Qo'shimcha teg (masalan: 'High-Intent')",
+                },
             },
-            "required": ["user_id"]
-        }
+            "required": ["user_id"],
+        },
     },
     {
         "name": "search_local_files",
@@ -376,11 +369,17 @@ TOOL_DECLARATIONS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Fayl nomi yoki qidirilayotgan kalit so'z"},
-                "extension": {"type": "string", "description": ".pdf, .docx, .jpg kabi kengaytma (ixtiyoriy)"}
+                "query": {
+                    "type": "string",
+                    "description": "Fayl nomi yoki qidirilayotgan kalit so'z",
+                },
+                "extension": {
+                    "type": "string",
+                    "description": ".pdf, .docx, .jpg kabi kengaytma (ixtiyoriy)",
+                },
             },
-            "required": ["query"]
-        }
+            "required": ["query"],
+        },
     },
     {
         "name": "google_drive_search",
@@ -388,10 +387,13 @@ TOOL_DECLARATIONS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Drive dan qidirilayotgan fayl nomi"}
+                "query": {
+                    "type": "string",
+                    "description": "Drive dan qidirilayotgan fayl nomi",
+                }
             },
-            "required": ["query"]
-        }
+            "required": ["query"],
+        },
     },
     {
         "name": "execute_shell_safe",
@@ -401,13 +403,14 @@ TOOL_DECLARATIONS = [
             "properties": {
                 "command": {"type": "string", "description": "Bajariladigan buyruq"}
             },
-            "required": ["command"]
-        }
-    }
+            "required": ["command"],
+        },
+    },
 ]
 
 
 # ==================== TOOL EXECUTOR ====================
+
 
 class AgentToolExecutor:
     """Gemini chaqirgan tool larni bajaruvchi sinf."""
@@ -422,7 +425,12 @@ class AgentToolExecutor:
         self.config = config
         self._scouter = None
 
-    async def execute(self, function_name: str, function_args: dict, context_user_id: Optional[int] = None) -> Dict[str, Any]:
+    async def execute(
+        self,
+        function_name: str,
+        function_args: dict,
+        context_user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """Gemini chaqirgan tool ni bajarish va natijani qaytarish."""
         logger.info(f"[AGENT TOOL] Executing: {function_name}({function_args})")
         try:
@@ -464,7 +472,13 @@ class AgentToolExecutor:
                 return {"success": False, "error": f"Unknown tool: {function_name}"}
         except Exception as e:
             logger.error(f"[AGENT TOOL ERROR] {function_name}: {e}")
-            self._log_action(context_user_id, function_name, function_args, success=False, error=str(e))
+            self._log_action(
+                context_user_id,
+                function_name,
+                function_args,
+                success=False,
+                error=str(e),
+            )
             return {"success": False, "error": str(e)}
 
     async def _call_maybe_async(self, fn, *args, **kwargs):
@@ -502,7 +516,9 @@ class AgentToolExecutor:
             lead = {"id": resolved_lead_id}
             if hasattr(self.amocrm, "get_lead_phone"):
                 try:
-                    phone = phone or await asyncio.to_thread(self.amocrm.get_lead_phone, resolved_lead_id)
+                    phone = phone or await asyncio.to_thread(
+                        self.amocrm.get_lead_phone, resolved_lead_id
+                    )
                 except Exception as e:
                     logger.warning(f"[AGENT TOOL] Lead phone resolve error: {e}")
 
@@ -515,22 +531,36 @@ class AgentToolExecutor:
 
     # ---- Tool Implementations ----
 
-    async def _save_lead_info(self, user_id: int, name: Optional[str] = None, phone: Optional[str] = None,
-                               business_type: Optional[str] = None, region: Optional[str] = None,
-                               brand_name: Optional[str] = None, service_type: Optional[str] = None,
-                               deadline: Optional[str] = None, lead_quality: Optional[str] = None) -> Dict[str, Any]:
+    async def _save_lead_info(
+        self,
+        user_id: int,
+        name: Optional[str] = None,
+        phone: Optional[str] = None,
+        business_type: Optional[str] = None,
+        region: Optional[str] = None,
+        brand_name: Optional[str] = None,
+        service_type: Optional[str] = None,
+        deadline: Optional[str] = None,
+        lead_quality: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Mijoz ma'lumotlarini SQLite va Google Sheets ga saqlash."""
         import asyncio
+
         saved_fields = []
 
         # SQLite
         try:
             kwargs = {}
-            if business_type: kwargs["business_type"] = business_type
-            if region: kwargs["region"] = region
-            if brand_name: kwargs["brand_name"] = brand_name
-            if service_type: kwargs["service_type"] = service_type
-            if deadline: kwargs["deadline"] = deadline
+            if business_type:
+                kwargs["business_type"] = business_type
+            if region:
+                kwargs["region"] = region
+            if brand_name:
+                kwargs["brand_name"] = brand_name
+            if service_type:
+                kwargs["service_type"] = service_type
+            if deadline:
+                kwargs["deadline"] = deadline
 
             await asyncio.to_thread(
                 self.db.upsert_user, user_id, name or "Unknown", None, phone, **kwargs
@@ -542,16 +572,16 @@ class AgentToolExecutor:
         # Google Sheets
         try:
             await asyncio.to_thread(
-                self.gsheet.sync_user, 
-                user_id, 
-                name or "Unknown", 
-                None, 
+                self.gsheet.sync_user,
+                user_id,
+                name or "Unknown",
+                None,
                 phone=phone,
                 business_type=business_type,
                 region=region,
                 brand_name=brand_name,
                 service_type=service_type,
-                deadline=deadline
+                deadline=deadline,
             )
             saved_fields.append("Google Sheets")
         except Exception as e:
@@ -561,29 +591,48 @@ class AgentToolExecutor:
         try:
             if phone:
                 await asyncio.to_thread(
-                    self.amocrm.create_lead, name or f"User {user_id}", phone, price=0, note=f"Biznes: {business_type}, Hudud: {region}"
+                    self.amocrm.create_lead,
+                    name or f"User {user_id}",
+                    phone,
+                    price=0,
+                    note=f"Biznes: {business_type}, Hudud: {region}",
                 )
                 saved_fields.append("AmoCRM")
         except Exception as e:
             logger.error(f"[TOOL] save_lead_info AmoCRM xato: {e}")
 
         # Agent action log
-        self._log_action(user_id, "save_lead_info", {
-            "name": name, "phone": phone, "business_type": business_type,
-            "lead_quality": lead_quality
-        }, success=True)
+        self._log_action(
+            user_id,
+            "save_lead_info",
+            {
+                "name": name,
+                "phone": phone,
+                "business_type": business_type,
+                "lead_quality": lead_quality,
+            },
+            success=True,
+        )
 
         return {
             "success": True,
             "message": f"Ma'lumotlar saqlandi: {', '.join(saved_fields)}",
             "saved": {
-                "name": name, "phone": phone, "business_type": business_type,
-                "region": region, "lead_quality": lead_quality
-            }
+                "name": name,
+                "phone": phone,
+                "business_type": business_type,
+                "region": region,
+                "lead_quality": lead_quality,
+            },
         }
 
-    async def _create_calendar_event(self, summary: str, start_time: str,
-                                      end_time: Optional[str] = None, description: Optional[str] = None) -> Dict[str, Any]:
+    async def _create_calendar_event(
+        self,
+        summary: str,
+        start_time: str,
+        end_time: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Google Calendar da tadbir yaratish."""
         import asyncio
 
@@ -601,43 +650,56 @@ class AgentToolExecutor:
                 summary=summary,
                 start_time=start_time,
                 end_time=end_time,
-                description=description or ""
+                description=description or "",
             )
-            self._log_action(None, "create_calendar_event", {
-                "summary": summary, "start_time": start_time
-            }, success=True)
+            self._log_action(
+                None,
+                "create_calendar_event",
+                {"summary": summary, "start_time": start_time},
+                success=True,
+            )
             return {
                 "success": True,
                 "message": f"Tadbir yaratildi: '{summary}' — {start_time}",
-                "event": result
+                "event": result,
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _save_google_contact(self, name: str, phone: str, note: Optional[str] = None) -> Dict[str, Any]:
+    async def _save_google_contact(
+        self, name: str, phone: str, note: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Google Contacts ga kontakt saqlash."""
         import asyncio
+
         try:
             await asyncio.to_thread(
                 self.gcontacts.create_contact,
                 first_name=name,
                 phone=phone,
-                note=note or "Telegram orqali — AI Agent tomonidan saqlandi"
+                note=note or "Telegram orqali — AI Agent tomonidan saqlandi",
             )
-            self._log_action(None, "save_google_contact", {"name": name, "phone": phone}, success=True)
+            self._log_action(
+                None,
+                "save_google_contact",
+                {"name": name, "phone": phone},
+                success=True,
+            )
             return {
                 "success": True,
-                "message": f"Google Contacts ga saqlandi: {name} ({phone})"
+                "message": f"Google Contacts ga saqlandi: {name} ({phone})",
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _send_stars_invoice(self, user_id: int, product_id: str) -> Dict[str, Any]:
+    async def _send_stars_invoice(
+        self, user_id: int, product_id: str
+    ) -> Dict[str, Any]:
         """Telegram Stars invoice yuborish (bot.send_invoice)."""
         # Bu amal userbot.py dagi context.bot ga muhtoj.
         # Shuning uchun bu tool faqat "pending" ni qaytaradi,
         # va userbot.py o'zi invoice yuboradi.
-        products = getattr(self.config, 'DIGITAL_PRODUCTS', {})
+        products = getattr(self.config, "DIGITAL_PRODUCTS", {})
         p_info = products.get(product_id, {})
         if not p_info:
             return {"success": False, "error": f"Mahsulot topilmadi: {product_id}"}
@@ -645,13 +707,18 @@ class AgentToolExecutor:
         # DB ga log
         try:
             if hasattr(self.db, "log_purchase"):
-                await self._db_call("log_purchase", user_id, product_id, p_info.get("price", 0))
+                await self._db_call(
+                    "log_purchase", user_id, product_id, p_info.get("price", 0)
+                )
         except Exception as e:
             logger.warning(f"[TOOL] Stars purchase log xato: {e}")
 
-        self._log_action(user_id, "send_stars_invoice", {
-            "product_id": product_id, "price": p_info.get("price")
-        }, success=True)
+        self._log_action(
+            user_id,
+            "send_stars_invoice",
+            {"product_id": product_id, "price": p_info.get("price")},
+            success=True,
+        )
 
         return {
             "success": True,
@@ -660,27 +727,33 @@ class AgentToolExecutor:
             "product_id": product_id,
             "product_title": p_info.get("title", "Mahsulot"),
             "price": p_info.get("price", 0),
-            "message": f"Invoice tayyor: {p_info.get('title')} — {p_info.get('price')} Stars"
+            "message": f"Invoice tayyor: {p_info.get('title')} — {p_info.get('price')} Stars",
         }
 
-    async def _forward_to_crm_group(self, user_id: int, quality: str, summary: Optional[str] = None) -> Dict[str, Any]:
+    async def _forward_to_crm_group(
+        self, user_id: int, quality: str, summary: Optional[str] = None
+    ) -> Dict[str, Any]:
         """CRM Telegram guruhiga lead yuborish."""
-        import asyncio
-        crm_group_id = getattr(self.config, 'CRM_GROUP_ID', None)
-        crm_topic_id = getattr(self.config, 'CRM_TOPIC_ID', None)
+        crm_group_id = getattr(self.config, "CRM_GROUP_ID", None)
+        crm_topic_id = getattr(self.config, "CRM_TOPIC_ID", None)
 
         if not crm_group_id:
             return {"success": False, "error": "CRM_GROUP_ID sozlanmagan"}
 
         # Bazadan mijoz ma'lumotlarini olish
         user_data = await self._db_call("get_user_info", user_id) or {}
-        name = user_data.get('first_name', 'Noma\'lum')
-        phone = user_data.get('phone', '—')
-        username = user_data.get('username', '')
-        business = user_data.get('business_type', '—')
-        service = user_data.get('service_type', '—')
+        name = user_data.get("first_name", "Noma'lum")
+        phone = user_data.get("phone", "—")
+        username = user_data.get("username", "")
+        business = user_data.get("business_type", "—")
+        service = user_data.get("service_type", "—")
 
-        quality_emoji = {"Sifatli": "🔥", "Oddiy": "✅", "Unknown": "🔸", "Sifatsiz": "❌"}.get(quality, "🔸")
+        quality_emoji = {
+            "Sifatli": "🔥",
+            "Oddiy": "✅",
+            "Unknown": "🔸",
+            "Sifatsiz": "❌",
+        }.get(quality, "🔸")
 
         crm_msg = (
             f"{quality_emoji} <b>{quality.upper()} LEAD</b>\n"
@@ -699,17 +772,19 @@ class AgentToolExecutor:
             # Topic ID mantiqi: Agar lead uchun maxsus topic bo'lsa, o'shanga yuborish
             # Hozircha default topic_id config dan olinadi
             topic_id = crm_topic_id
-            
+
             await self.bot_app.bot.send_message(
                 chat_id=crm_group_id,
                 text=crm_msg,
                 parse_mode="HTML",
-                message_thread_id=topic_id
+                message_thread_id=topic_id,
             )
             # Mark as forwarded
             if hasattr(self.db, "mark_lead_forwarded"):
                 await self._db_call("mark_lead_forwarded", user_id)
-            self._log_action(user_id, "forward_to_crm_group", {"quality": quality}, success=True)
+            self._log_action(
+                user_id, "forward_to_crm_group", {"quality": quality}, success=True
+            )
             return {"success": True, "message": f"CRM guruhiga yuborildi ({quality})"}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -718,39 +793,69 @@ class AgentToolExecutor:
         """AmoCRM dan lead holatini olib kelish."""
         user_info = await self._db_call("get_user_info", user_id)
         phone = user_info.get("phone") if user_info else None
-        
+
         if not phone:
-            return {"success": False, "error": "Foydalanuvchi telefoni topilmadi. Avval raqamni saqlang."}
-            
+            return {
+                "success": False,
+                "error": "Foydalanuvchi telefoni topilmadi. Avval raqamni saqlang.",
+            }
+
         try:
             from src.services.core.crm_service import CRMService
+
             crm = CRMService()
             status = await crm.get_user_context(phone)
             return {"success": True, "status": status}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _update_lead_status(self, user_id: int, status_name: str) -> Dict[str, Any]:
+    async def _update_lead_status(
+        self, user_id: int, status_name: str
+    ) -> Dict[str, Any]:
         """AmoCRM da bitim statusini o'zgartirish."""
         import asyncio
+
         user_info = await self._db_call("get_user_info", user_id)
         phone = user_info.get("phone") if user_info else None
-        
+
         if not phone:
             return {"success": False, "error": "Raqam yo'q - status o'zgartirilmadi."}
-            
+
         # Hunter Pipeline (ID: 10117998)
         hunter_id = 10117998
         status_map = {
-            "Initial Contact": {"id": 80178218, "pid": hunter_id, "name": "Malakalash kutilmoqda"}, 
-            "Negotiation": {"id": 80178222, "pid": hunter_id, "name": "Muloqot boshlandi"},
-            "Qualified": {"id": 80178222, "pid": hunter_id, "name": "Muloqot boshlandi"},       
-            "Interested": {"id": 80178226, "pid": hunter_id, "name": "Qiziqish tasdiqlandi"},      
-            "Meeting Scheduled": {"id": 80178230, "pid": hunter_id, "name": "Strategik sessiya"},
-            "Conversation Over": {"id": 80215318, "pid": 10123314}, # Closer pipeline: Konsultatsiya o'tdi
-            "Closed Lost": {"id": 143, "pid": hunter_id}
+            "Initial Contact": {
+                "id": 80178218,
+                "pid": hunter_id,
+                "name": "Malakalash kutilmoqda",
+            },
+            "Negotiation": {
+                "id": 80178222,
+                "pid": hunter_id,
+                "name": "Muloqot boshlandi",
+            },
+            "Qualified": {
+                "id": 80178222,
+                "pid": hunter_id,
+                "name": "Muloqot boshlandi",
+            },
+            "Interested": {
+                "id": 80178226,
+                "pid": hunter_id,
+                "name": "Qiziqish tasdiqlandi",
+            },
+            "Meeting Scheduled": {
+                "id": 80178230,
+                "pid": hunter_id,
+                "name": "Strategik sessiya",
+            },
+            "Conversation Over": {
+                "id": 80215318,
+                "pid": 10123314,
+            },  # Closer pipeline: Konsultatsiya o'tdi
+            "Closed Lost": {"id": 143, "pid": hunter_id},
         }
-        
+
         status_info = status_map.get(status_name)
         if not status_info:
             return {"success": False, "error": f"Unknown status: {status_name}"}
@@ -759,12 +864,24 @@ class AgentToolExecutor:
             lead = await asyncio.to_thread(self.amocrm.get_lead_by_phone, phone)
             if lead:
                 lead_id = lead.get("id")
-                success = await self.amocrm.update_lead_status(lead_id, status_info["id"], status_info["pid"])
+                success = await self.amocrm.update_lead_status(
+                    lead_id, status_info["id"], status_info["pid"]
+                )
                 if success:
                     # Also add a note about the status change
-                    await self.amocrm.add_lead_note(lead_id, f"AI statusni o'zgartirdi: {status_name}")
-                    self._log_action(user_id, "update_lead_status", {"status": status_name}, success=True)
-                    return {"success": True, "message": f"Status o'zgartirildi: {status_name}"}
+                    await self.amocrm.add_lead_note(
+                        lead_id, f"AI statusni o'zgartirdi: {status_name}"
+                    )
+                    self._log_action(
+                        user_id,
+                        "update_lead_status",
+                        {"status": status_name},
+                        success=True,
+                    )
+                    return {
+                        "success": True,
+                        "message": f"Status o'zgartirildi: {status_name}",
+                    }
             return {"success": False, "error": "Lead topilmadi."}
         except Exception as e:
             logger.error(f"[TOOL ERROR] update_lead_status: {e}")
@@ -780,10 +897,15 @@ class AgentToolExecutor:
         due_in_hours: Optional[int] = None,
     ) -> Dict[str, Any]:
         """AmoCRM ichida lead uchun follow-up vazifa yaratish."""
-        lead_context = await self._resolve_lead_context(user_id=user_id, lead_id=lead_id)
+        lead_context = await self._resolve_lead_context(
+            user_id=user_id, lead_id=lead_id
+        )
         resolved_lead_id = lead_context.get("lead_id")
         if not resolved_lead_id:
-            return {"success": False, "error": "Lead topilmadi - follow-up task yaratilmadi."}
+            return {
+                "success": False,
+                "error": "Lead topilmadi - follow-up task yaratilmadi.",
+            }
 
         deadline_hours = max(1, int(due_in_hours or 24))
         if due_at:
@@ -792,7 +914,9 @@ class AgentToolExecutor:
             except ValueError:
                 return {"success": False, "error": f"Noto'g'ri due_at format: {due_at}"}
         else:
-            due_dt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=deadline_hours)
+            due_dt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+                hours=deadline_hours
+            )
 
         complete_till = int(due_dt.timestamp())
         task_text = title.strip()
@@ -800,7 +924,9 @@ class AgentToolExecutor:
             task_text = f"{task_text}. {details.strip()}"
 
         try:
-            created = await self.amocrm.create_task(resolved_lead_id, task_text[:500], complete_till)
+            created = await self.amocrm.create_task(
+                resolved_lead_id, task_text[:500], complete_till
+            )
             if not created:
                 return {"success": False, "error": "AmoCRM follow-up task yaratilmadi."}
 
@@ -832,13 +958,17 @@ class AgentToolExecutor:
         lead_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """AmoCRM lead kartasiga izoh qo'shish."""
-        lead_context = await self._resolve_lead_context(user_id=user_id, lead_id=lead_id)
+        lead_context = await self._resolve_lead_context(
+            user_id=user_id, lead_id=lead_id
+        )
         resolved_lead_id = lead_context.get("lead_id")
         if not resolved_lead_id:
             return {"success": False, "error": "Lead topilmadi - note yozilmadi."}
 
         try:
-            added = await asyncio.to_thread(self.amocrm.add_lead_note, resolved_lead_id, note[:1500])
+            added = await asyncio.to_thread(
+                self.amocrm.add_lead_note, resolved_lead_id, note[:1500]
+            )
             if not added:
                 return {"success": False, "error": "AmoCRM lead note yozilmadi."}
 
@@ -860,25 +990,54 @@ class AgentToolExecutor:
             logger.error(f"[TOOL ERROR] add_lead_note: {e}")
             return {"success": False, "error": str(e)}
 
-
-    async def _qualify_lead(self, user_id: int, source: str = None, service: str = None, 
-                             temperature: str = None, need: str = None, budget_range: str = None,
-                             tag: str = None) -> Dict[str, Any]:
+    async def _qualify_lead(
+        self,
+        user_id: int,
+        source: str = None,
+        service: str = None,
+        temperature: str = None,
+        need: str = None,
+        budget_range: str = None,
+        tag: str = None,
+    ) -> Dict[str, Any]:
         """AmoCRM maydonlarini va teglarini yangilash."""
         import asyncio
+
         user_info = await self._db_call("get_user_info", user_id)
         phone = user_info.get("phone") if user_info else None
-        
+
         if not phone:
             return {"success": False, "error": "Raqam yo'q - ma'lumotlar yangilanmadi."}
 
         fields_to_update = {}
         # Mapping Enums
         field_maps = {
-            "source": {1034663: {"Telegram": 965705, "Instagram": 965707, "Facebook": 965709, "Sayt": 965703}},
-            "service": {1034671: {"Naming": 965739, "Logo": 965741, "Brandbook": 965743, "Web": 965747, "SMM": 965749}},
+            "source": {
+                1034663: {
+                    "Telegram": 965705,
+                    "Instagram": 965707,
+                    "Facebook": 965709,
+                    "Sayt": 965703,
+                }
+            },
+            "service": {
+                1034671: {
+                    "Naming": 965739,
+                    "Logo": 965741,
+                    "Brandbook": 965743,
+                    "Web": 965747,
+                    "SMM": 965749,
+                }
+            },
             "temperature": {1034667: {"Sovuq": 965725, "Issiq": 965727}},
-            "budget": {1427495: {"< 500$": 1262133, "500$ - 1500$": 1262135, "1500$ - 3000$": 1262137, "> 3000$": 1262139}}
+            "budget": {
+                1427495: {
+                    "< 500$": 1262133,
+                    "500$ - 1500$": 1262135,
+                    "1500$ - 3000$": 1262137,
+                    "> 3000$": 1262139,
+                }
+            },
         }
 
         if source and source in field_maps["source"][1034663]:
@@ -887,11 +1046,11 @@ class AgentToolExecutor:
             fields_to_update[1034671] = field_maps["service"][1034671][service]
         if temperature and temperature in field_maps["temperature"][1034667]:
             fields_to_update[1034667] = field_maps["temperature"][1034667][temperature]
-        
+
         # Textarea field
         if need:
             fields_to_update[1427493] = need
-            
+
         # Select field for budget
         if budget_range and budget_range in field_maps["budget"][1427495]:
             fields_to_update[1427495] = field_maps["budget"][1427495][budget_range]
@@ -900,28 +1059,37 @@ class AgentToolExecutor:
             lead = await asyncio.to_thread(self.amocrm.get_lead_by_phone, phone)
             if not lead:
                 return {"success": False, "error": "Lead topilmadi."}
-            
+
             lead_id = lead.get("id")
             results = []
-            
+
             if fields_to_update:
-                f_ok = await self.amocrm.update_lead_custom_fields(lead_id, fields_to_update)
+                f_ok = await self.amocrm.update_lead_custom_fields(
+                    lead_id, fields_to_update
+                )
                 results.append(f"Fields: {'OK' if f_ok else 'Fail'}")
-            
+
             if tag:
                 t_ok = await self.amocrm.add_lead_tag(lead_id, tag)
                 results.append(f"Tag: {'OK' if t_ok else 'Fail'}")
             elif temperature == "Issiq":
                 await self.amocrm.add_lead_tag(lead_id, "High-Intent")
                 results.append("Tag: High-Intent")
-            
+
             # 3. Avtomatik Task (IDEAL PIPELINE) - Agar Issiq bo'lsa
             if temperature == "Issiq":
                 import time
-                deadline = int(time.time() + 3600) # 1 soat ichida bog'lanish
-                await self.amocrm.create_task(lead_id, f"ISSUR: {phone} - Tezkor aloqa! (AI malakaladi)", deadline)
+
+                deadline = int(time.time() + 3600)  # 1 soat ichida bog'lanish
+                await self.amocrm.create_task(
+                    lead_id, f"ISSUR: {phone} - Tezkor aloqa! (AI malakaladi)", deadline
+                )
                 # Shuningdek jamoaga xabar yuborish
-                await self._assign_task_to_human(1774538344630, f"Issiq lid! Telefon: {phone}. Ehtiyoj: {need or 'aniqlanmoqda'}", "High")
+                await self._assign_task_to_human(
+                    1774538344630,
+                    f"Issiq lid! Telefon: {phone}. Ehtiyoj: {need or 'aniqlanmoqda'}",
+                    "High",
+                )
                 results.append("Task: Created")
 
             # Always add Oisha-AI tag if qualified
@@ -933,28 +1101,35 @@ class AgentToolExecutor:
 
     async def _get_user_profile(self, user_id: int) -> Dict[str, Any]:
         """Bazadan mijoz profilini olish."""
-        import asyncio
         try:
             data = await self._db_call("get_user_info", user_id)
             if data:
                 return {"success": True, "profile": data}
             else:
-                return {"success": True, "profile": None, "message": "Yangi foydalanuvchi — bazada yo'q"}
+                return {
+                    "success": True,
+                    "profile": None,
+                    "message": "Yangi foydalanuvchi — bazada yo'q",
+                }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     async def _get_team_members(self) -> Dict[str, Any]:
         """Jamoa a'zolarini bazadan olish."""
-        import asyncio
         try:
             members = await self._db_call("get_team_roles")
             return {"success": True, "members": members}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _assign_task_to_human(self, assigned_to: int, title: str, description: str, deadline: Optional[str] = None) -> Dict[str, Any]:
+    async def _assign_task_to_human(
+        self,
+        assigned_to: int,
+        title: str,
+        description: str,
+        deadline: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Inson xodimga vazifa biriktirish."""
-        import asyncio
         try:
             # 1. Vazifani bazaga qo'shish
             if hasattr(self.db, "add_task"):
@@ -966,11 +1141,13 @@ class AgentToolExecutor:
                 )
             else:
                 task_id = None
-            
+
             # 2. Xodimga xabar yuborish
             member_info = await self._db_call("get_user_info", assigned_to)
-            member_name = member_info.get("first_name", "Xodim") if member_info else "Xodim"
-            
+            member_name = (
+                member_info.get("first_name", "Xodim") if member_info else "Xodim"
+            )
+
             notification = (
                 f"📌 <b>Yangi Vazifa Biriktirildi!</b>\n\n"
                 f"👤 <b>Xodim:</b> {member_name}\n"
@@ -979,15 +1156,19 @@ class AgentToolExecutor:
                 f"📅 <b>Muddat:</b> {deadline or 'Tezda'}\n\n"
                 f"<i>Bot tomonidan avtomatik yaratildi.</i>"
             )
-            
+
             await self.bot_app.bot.send_message(
-                chat_id=assigned_to,
-                text=notification,
-                parse_mode="HTML"
+                chat_id=assigned_to, text=notification, parse_mode="HTML"
             )
-            
-            self._log_action(assigned_to, "assign_task_to_human", {"title": title}, success=True)
-            return {"success": True, "message": f"Vazifa {member_name}ga biriktirildi va xabar berildi.", "task_id": task_id}
+
+            self._log_action(
+                assigned_to, "assign_task_to_human", {"title": title}, success=True
+            )
+            return {
+                "success": True,
+                "message": f"Vazifa {member_name}ga biriktirildi va xabar berildi.",
+                "task_id": task_id,
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -995,31 +1176,44 @@ class AgentToolExecutor:
         """Mijozning profilini Scouter orqali tahlil qilish."""
         from src.services.utils.scouter import Scouter
         import os
-        
+
         if not self._scouter:
             # Session path logic
             session_path = os.path.join("data", "userbot_session")
-            
+
             self._scouter = Scouter(session_path=session_path)
 
         try:
             dosye = await self._scouter.get_user_dosye(user_id)
             if dosye:
-                self._log_action(user_id, "sherlock_user_profile", {"found": True}, success=True)
+                self._log_action(
+                    user_id, "sherlock_user_profile", {"found": True}, success=True
+                )
                 return {"success": True, "dosye": dosye}
             else:
-                return {"success": False, "error": "Profil ma'lumotlarini olib bo'lmadi (ehtimol maxfiylik sozalamalari tufayli)."}
+                return {
+                    "success": False,
+                    "error": "Profil ma'lumotlarini olib bo'lmadi (ehtimol maxfiylik sozalamalari tufayli).",
+                }
         except Exception as e:
             logger.error(f"[TOOL] Sherlock error: {e}")
             return {"success": False, "error": str(e)}
 
     # ---- Helper ----
 
-    def _log_action(self, user_id: Optional[int], action_type: str,
-                    action_data: dict, success: bool, error: Optional[str] = None) -> None:
+    def _log_action(
+        self,
+        user_id: Optional[int],
+        action_type: str,
+        action_data: dict,
+        success: bool,
+        error: Optional[str] = None,
+    ) -> None:
         """Agent amalini DB ga yozish."""
         try:
-            payload = action_data if not error else {"data": action_data, "error": error}
+            payload = (
+                action_data if not error else {"data": action_data, "error": error}
+            )
             result = self.db.log_agent_action(user_id, action_type, payload, success)
             if inspect.isawaitable(result):
                 asyncio.create_task(result)
@@ -1028,22 +1222,30 @@ class AgentToolExecutor:
 
     # ---- NEW AUTONOMOUS TOOLS (OpenClaw Style) ----
 
-    async def _search_local_files(self, query: str, extension: Optional[str] = None) -> Dict[str, Any]:
+    async def _search_local_files(
+        self, query: str, extension: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Lokal fayl tizimidan qidirish."""
         import os
         import glob
+
         results = []
         search_pattern = f"**/*{query}*"
         if extension:
-            search_pattern += extension if extension.startswith('.') else f".{extension}"
-        
+            search_pattern += (
+                extension if extension.startswith(".") else f".{extension}"
+            )
+
         # Xavfsiz qidirish uchun loyiha papkasidan boshlaymiz
         try:
             for file in glob.glob(search_pattern, recursive=True):
                 if os.path.isfile(file):
-                    results.append({"name": os.path.basename(file), "path": os.path.abspath(file)})
-                if len(results) > 5: break # Max 5 result
-            
+                    results.append(
+                        {"name": os.path.basename(file), "path": os.path.abspath(file)}
+                    )
+                if len(results) > 5:
+                    break  # Max 5 result
+
             return {"success": True, "files": results, "count": len(results)}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -1052,7 +1254,9 @@ class AgentToolExecutor:
         """Google Drive API orqali qidirish."""
         # google_service orqali integration
         try:
-            files = await asyncio.to_thread(self.google_service.search_drive_files, query)
+            files = await asyncio.to_thread(
+                self.google_service.search_drive_files, query
+            )
             return {"success": True, "files": files}
         except Exception as e:
             return {"success": False, "error": f"Google Drive xatosi: {e}"}
@@ -1060,14 +1264,20 @@ class AgentToolExecutor:
     async def _execute_shell_safe(self, command: str) -> Dict[str, Any]:
         """Faqat ma'lum (whitelist) buyruqlarni bajarish."""
         import subprocess
+
         allowed_commands = ["uptime", "df -h", "free -m", "ls -la", "date", "dir"]
-        
+
         base_cmd = command.split()[0]
         if base_cmd not in [c.split()[0] for c in allowed_commands]:
-            return {"success": False, "error": "Xavfsizlik! Bu buyruqni bajarishga ruxsat yo'q."}
-        
+            return {
+                "success": False,
+                "error": "Xavfsizlik! Bu buyruqni bajarishga ruxsat yo'q.",
+            }
+
         try:
-            result = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT).decode()
+            result = subprocess.check_output(
+                command, shell=True, stderr=subprocess.STDOUT
+            ).decode()
             return {"success": True, "output": result}
         except Exception as e:
             return {"success": False, "error": str(e)}

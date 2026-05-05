@@ -1,6 +1,5 @@
 import os
 import structlog
-import logging
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr, Field, model_validator
 from typing import Optional
@@ -17,15 +16,18 @@ structlog.configure(
     cache_logger_on_first_use=True,
 )
 
+
 class AppSettings(BaseSettings):
     OWNER_ID: int = 0
     WHITELIST_IDS: list[int] = Field(default_factory=list)
-    ENABLE_AUTO_REPLY: bool = True       # Autonomous Telegram replies enabled by default
+    ENABLE_AUTO_REPLY: bool = True  # Autonomous Telegram replies enabled by default
     AUTORUN_MASS_SYNC: bool = True
-    ENABLE_CLOUD_USERBOT: bool = False   # Set to True to enable userbot session
+    ENABLE_CLOUD_USERBOT: bool = False  # Set to True to enable userbot session
     USERBOT_SESSION_STRING: Optional[SecretStr] = None
-    SURGICAL_MODE: bool = True           # Autonomous negotiations agent — ON by default
-    AUTONOMY_THRESHOLD: float = 0.55     # Min confidence for auto-send (lowered for proactivity)
+    SURGICAL_MODE: bool = True  # Autonomous negotiations agent — ON by default
+    AUTONOMY_THRESHOLD: float = (
+        0.55  # Min confidence for auto-send (lowered for proactivity)
+    )
     RUNNING_IN_CLOUD: bool = False
     APP_TIMEZONE: str = "Asia/Tashkent"
     BOT_TOKEN: SecretStr = SecretStr("")
@@ -43,15 +45,17 @@ class AppSettings(BaseSettings):
     DATABASE_URL: str = Field(default="bot_database.db")
     TURSO_DATABASE_URL: Optional[str] = None
     TURSO_AUTH_TOKEN: Optional[SecretStr] = None
-    AMOCRM_TG_CHAT_FIELD_ID: Optional[int] = None # Field ID for clickable Telegram Link
-    
+    AMOCRM_TG_CHAT_FIELD_ID: Optional[int] = (
+        None  # Field ID for clickable Telegram Link
+    )
+
     # Group IDs
     CRM_GROUP_ID: Optional[int] = None
     PROJECTS_GROUP_ID: Optional[int] = None
     TEAM_GROUP_ID: Optional[int] = None
-    
+
     # Topic IDs (Forum Groups)
-    CRM_TOPIC_ID: Optional[int] = 1 
+    CRM_TOPIC_ID: Optional[int] = 1
     TOPIC_CRM_ID: Optional[int] = None
     TOPIC_REPORTS_ID: Optional[int] = None
     TOPIC_TASKS_ID: Optional[int] = None
@@ -61,25 +65,51 @@ class AppSettings(BaseSettings):
 
     GSHEET_ID: Optional[str] = None
     GSHEET_CREDS_FILE: str = "service_account.json"
-    
+
     # Lead Distribution
-    SALES_MANAGER_IDS: list[int] = Field(default_factory=list) # List of Telegram IDs for managers
-    LEAD_DISTRIBUTION_MODE: str = "CLAIM" # Options: "CLAIM", "ROUND_ROBIN"
-    
+    SALES_MANAGER_IDS: list[int] = Field(
+        default_factory=list
+    )  # List of Telegram IDs for managers
+    LEAD_DISTRIBUTION_MODE: str = "CLAIM"  # Options: "CLAIM", "ROUND_ROBIN"
+
     # Blacklist / Excluded Entities (Enterprise Filtering)
     EXCLUDED_NAMES: list[str] = [
-        "Feruzabonu", "Asadulloh", "FeruzaBonu", "Baxtiyor aka", "Hasan aka", 
-        "Inomjon aka", "Oydin opa", "Admin", "Test", "Bot",
-        "Onajonim", "Dadam", "Firuzxon Opam", "Rahimjon Gaziyev", 
-        "Hasan Yahyo", "Fotimamni Dadalari", "Zuhraxon Hamroliyeva"
+        "Feruzabonu",
+        "Asadulloh",
+        "FeruzaBonu",
+        "Baxtiyor aka",
+        "Hasan aka",
+        "Inomjon aka",
+        "Oydin opa",
+        "Admin",
+        "Test",
+        "Bot",
+        "Onajonim",
+        "Dadam",
+        "Firuzxon Opam",
+        "Rahimjon Gaziyev",
+        "Hasan Yahyo",
+        "Fotimamni Dadalari",
+        "Zuhraxon Hamroliyeva",
     ]
     EXCLUDED_ROLES: list[str] = [
-        "Designer", "Dizayner", "Team Member", "Freelancer", "Talaba", 
-        "Student", "Work from home", "Masofaviy", "Xodim", "Employee",
-        "SMM Manager", "Targetolog", "Copywriter", "Junior"
+        "Designer",
+        "Dizayner",
+        "Team Member",
+        "Freelancer",
+        "Talaba",
+        "Student",
+        "Work from home",
+        "Masofaviy",
+        "Xodim",
+        "Employee",
+        "SMM Manager",
+        "Targetolog",
+        "Copywriter",
+        "Junior",
     ]
     WORKFLOW_INTERVAL: int = 600  # 10 minutes interval for monitoring loop
-    
+
     SYSTEM_INSTRUCTION: str = (
         "Siz Oisha — Jon.Branding agentligining 'Surgical COO' operatsion tizimisiz (Internal OS). "
         "\n\n🎯 MISSIYA: Agentlikda 100% tizim intizomi, ma'lumotlar tozaligi va har bir soniyani ROI-ga aylantirish. "
@@ -108,7 +138,7 @@ class AppSettings(BaseSettings):
                 data[key] = value.lstrip("\ufeff").strip()
             elif hasattr(value, "get_secret_value"):
                 data[key] = value.get_secret_value().lstrip("\ufeff").strip()
-                
+
         optional_keys = {
             "ADMIN_BOT_TOKEN",
             "DEEPSEEK_API_KEY",
@@ -135,11 +165,10 @@ class AppSettings(BaseSettings):
                 data[key] = None
         return data
 
-
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
     )
 
     def missing_runtime_settings(self) -> list[str]:
@@ -157,6 +186,7 @@ class AppSettings(BaseSettings):
         if not self.AMOCRM_CLIENT_ID.strip():
             missing.append("AMOCRM_CLIENT_ID")
         return missing
+
 
 settings = AppSettings()
 logger = structlog.get_logger()

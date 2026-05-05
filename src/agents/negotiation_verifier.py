@@ -26,13 +26,19 @@ class NegotiationOutcomeVerifier:
         planned_actions: Optional[List[Dict[str, Any]]] = None,
     ) -> NegotiationVerification:
         executed_actions = len(action_results)
-        failed_actions = [item for item in action_results if not item.get("success", False)]
+        failed_actions = [
+            item for item in action_results if not item.get("success", False)
+        ]
         successful_actions = executed_actions - len(failed_actions)
         notes: List[str] = []
         missing_actions: List[str] = []
 
         if planned_actions:
-            successful_names = [item.get("action") for item in action_results if item.get("success", False)]
+            successful_names = [
+                item.get("action")
+                for item in action_results
+                if item.get("success", False)
+            ]
             for planned in planned_actions:
                 action_name = planned.get("name")
                 if action_name and action_name not in successful_names:
