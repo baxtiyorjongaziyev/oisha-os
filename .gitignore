@@ -25,6 +25,11 @@ __pycache__/
 dist/
 build/
 *.spec
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
 
 # Credentials & Secrets
 # We ignore all JSON files by default except for specific known non-secret ones

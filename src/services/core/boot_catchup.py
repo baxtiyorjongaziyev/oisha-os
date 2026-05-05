@@ -28,12 +28,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable
 
 logger = logging.getLogger("boot_catchup")
 
 # Hard caps to prevent catch-up from hijacking the boot or thrashing Telegram.
-MAX_CHATS = 200          # stop after this many chats scanned
+MAX_CHATS = 200  # stop after this many chats scanned
 MAX_MESSAGES_PER_CHAT = 50  # cap per chat — anything older is written off
 PER_MSG_DELAY_SEC = 0.2  # ~5 msg/sec/chat
 OVERALL_BUDGET_SEC = 90  # give up if the whole catch-up takes longer
@@ -118,7 +118,9 @@ async def catch_up_missed_messages(
                 )
                 missed = missed[:max_per_chat]
 
-            logger.info(f"[CATCHUP] chat={chat_id}: replaying {len(missed)} message(s) (min_id={min_id})")
+            logger.info(
+                f"[CATCHUP] chat={chat_id}: replaying {len(missed)} message(s) (min_id={min_id})"
+            )
 
             for msg in missed:
                 try:
@@ -133,7 +135,9 @@ async def catch_up_missed_messages(
                     stats["messages"] += 1
                 except Exception as inner:
                     stats["errors"] += 1
-                    logger.warning(f"[CATCHUP] handler error chat={chat_id} msg={msg.id}: {inner}")
+                    logger.warning(
+                        f"[CATCHUP] handler error chat={chat_id} msg={msg.id}: {inner}"
+                    )
                 # Checkpoint advances inside the real handler, so we don't
                 # need to write it here. If the handler raised, we leave
                 # the checkpoint at its prior value so the next boot
@@ -163,8 +167,18 @@ class _EmulatedNewMessageEvent:
     read-receipts that we don't want during a catch-up).
     """
 
-    __slots__ = ("_client", "message", "chat_id", "sender_id", "raw_text",
-                 "text", "is_private", "is_group", "is_channel", "out")
+    __slots__ = (
+        "_client",
+        "message",
+        "chat_id",
+        "sender_id",
+        "raw_text",
+        "text",
+        "is_private",
+        "is_group",
+        "is_channel",
+        "out",
+    )
 
     def __init__(self, client: Any, message: Any):
         self._client = client

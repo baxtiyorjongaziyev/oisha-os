@@ -1,15 +1,14 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
-import aiosqlite
 import libsql
 
 from src.settings import settings
 
 logger = logging.getLogger(__name__)
+
 
 def _setting_text(value: Any) -> str:
     if value is None:
@@ -20,7 +19,7 @@ def _setting_text(value: Any) -> str:
             value = getter()
         except Exception:
             value = str(value)
-    
+
     # Remove BOM and all invisible/whitespace characters
     text = str(value).replace("\ufeff", "").strip()
     # Remove any other potential control characters
@@ -31,6 +30,7 @@ class SmartRow(dict):
     """
     Dict-like row that also supports index access.
     """
+
     def __init__(self, values, columns):
         data = dict(zip(columns, values))
         super().__init__(data)
@@ -50,6 +50,7 @@ class DatabasePool:
     """
     Simple and robust Turso/LibSQL connection manager.
     """
+
     _instance = None
     _connection = None
 
@@ -60,7 +61,9 @@ class DatabasePool:
 
     def __init__(self):
         if not hasattr(self, "initialized"):
-            self.url = _setting_text(settings.TURSO_DATABASE_URL).replace("libsql://", "https://")
+            self.url = _setting_text(settings.TURSO_DATABASE_URL).replace(
+                "libsql://", "https://"
+            )
             self.auth_token = _setting_text(settings.TURSO_AUTH_TOKEN)
             self.initialized = True
             logger.info(f"[DB POOL] Initialized for Turso: {self.url}")
@@ -69,7 +72,9 @@ class DatabasePool:
         if self._connection is None:
             try:
                 if self.auth_token:
-                    self._connection = libsql.connect(self.url, auth_token=self.auth_token)
+                    self._connection = libsql.connect(
+                        self.url, auth_token=self.auth_token
+                    )
                 else:
                     self._connection = libsql.connect(self.url)
             except Exception as e:
@@ -77,10 +82,12 @@ class DatabasePool:
                 raise
         return self._connection
 
-    async def execute(self, query: str, params: Optional[List[Any]] = None) -> List[SmartRow]:
+    async def execute(
+        self, query: str, params: Optional[List[Any]] = None
+    ) -> List[SmartRow]:
         params = params or []
         conn = self.get_connection()
-        
+
         def _run():
             res = conn.execute(query, params)
             columns = getattr(res, "columns", None)
@@ -92,12 +99,8 @@ class DatabasePool:
                 rows = []
             return [SmartRow(row, columns) for row in rows]
 
-
         # Use wait_for to prevent silent query hangs
-        return await asyncio.wait_for(
-            asyncio.to_thread(_run), 
-            timeout=15.0
-        )
+        return await asyncio.wait_for(asyncio.to_thread(_run), timeout=15.0)
 
     def get_backend_name(self) -> str:
         return "turso"
@@ -114,6 +117,7 @@ class DatabasePool:
 
 # Singleton instance
 db_pool = DatabasePool()
+
 
 @asynccontextmanager
 async def get_db_connection():
