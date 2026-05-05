@@ -1,7 +1,5 @@
-
 import logging
 import json
-import datetime
 import re
 import time
 from typing import Optional, Dict, Any
@@ -19,7 +17,9 @@ def detect_non_customer_context(message_text: str) -> str:
     if not lowered.strip():
         return ""
 
-    if "sotuv skript" in lowered and ("tasdiq" in lowered or "to'g'ri" in lowered or "tog'ri" in lowered):
+    if "sotuv skript" in lowered and (
+        "tasdiq" in lowered or "to'g'ri" in lowered or "tog'ri" in lowered
+    ):
         return "internal_sales_script_review"
     if "baholash mezonlari" in lowered and "menejer" in lowered:
         return "internal_sales_quality_rubric"
@@ -30,9 +30,13 @@ def detect_non_customer_context(message_text: str) -> str:
         and "baholash mezonlari" in lowered
     ):
         return "internal_company_script_document"
-    if re.search(r"@?\w+\s+aka\b.*(tasdiq|tasdiqlab|to'g'ri|tog'ri|skript)", lowered, re.DOTALL):
+    if re.search(
+        r"@?\w+\s+aka\b.*(tasdiq|tasdiqlab|to'g'ri|tog'ri|skript)", lowered, re.DOTALL
+    ):
         return "personal_advice_request"
-    if "shu sotuv" in lowered and ("tasdiq" in lowered or "to'g'ri" in lowered or "tog'ri" in lowered):
+    if "shu sotuv" in lowered and (
+        "tasdiq" in lowered or "to'g'ri" in lowered or "tog'ri" in lowered
+    ):
         return "internal_sales_review_request"
     return ""
 
@@ -46,6 +50,7 @@ def _normalize_phone(value: str) -> str:
     if len(digits) == 12 and digits.startswith("998"):
         return "+" + digits
     return ""
+
 
 class AutoLeadAgent:
     """
@@ -81,8 +86,25 @@ class AutoLeadAgent:
         lowered = text.lower()
         phone = self._extract_phone(text)
 
-        hot_terms = ("narx", "qancha", "uchrash", "konsultatsiya", "logo", "branding", "sayt", "dizayn")
-        lead_terms = hot_terms + ("marketing", "portfolio", "xizmat", "brend", "reklama", "smm", "kerak")
+        hot_terms = (
+            "narx",
+            "qancha",
+            "uchrash",
+            "konsultatsiya",
+            "logo",
+            "branding",
+            "sayt",
+            "dizayn",
+        )
+        lead_terms = hot_terms + (
+            "marketing",
+            "portfolio",
+            "xizmat",
+            "brend",
+            "reklama",
+            "smm",
+            "kerak",
+        )
         team_terms = ("jonbranding", "oisha-os", "oisha", "admin", "pm")
 
         if any(term in lowered for term in team_terms):
@@ -137,15 +159,19 @@ class AutoLeadAgent:
         res = await self.extract_lead_info(chat_text, user_profile)
         if not res:
             return False, {}
-        
+
         is_lead = res.get("is_lead", False)
         # Add summary field if missing for scraper compatibility
         if "summary" not in res:
-            res["summary"] = f"Intent: {res.get('intent_category')}. Needs: {res.get('needs', 'N/A')}"
-            
+            res["summary"] = (
+                f"Intent: {res.get('intent_category')}. Needs: {res.get('needs', 'N/A')}"
+            )
+
         return is_lead, res
 
-    async def extract_lead_info(self, message_text: str, user_profile: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def extract_lead_info(
+        self, message_text: str, user_profile: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """
         Parses the message and user profile to extract structured lead data.
         """
@@ -154,7 +180,9 @@ class AutoLeadAgent:
             return {
                 "is_lead": False,
                 "intent_category": "TEAM",
-                "first_name": str(user_profile.get("first_name") or user_profile.get("name") or "").strip(),
+                "first_name": str(
+                    user_profile.get("first_name") or user_profile.get("name") or ""
+                ).strip(),
                 "last_name": str(user_profile.get("last_name") or "").strip(),
                 "phone": "",
                 "city": "",
@@ -168,8 +196,10 @@ class AutoLeadAgent:
             }
 
         if time.monotonic() < self._cooldown_until:
-            return self._fallback_extract_lead_info(message_text, user_profile, reason="quota_cooldown")
-        
+            return self._fallback_extract_lead_info(
+                message_text, user_profile, reason="quota_cooldown"
+            )
+
         system_instruction = """
         Siz Oisha-OS Elite Lead Analyzer xizmatisiz. 
         Vazifangiz: Mijozning Telegram xabarini tahlil qilib, AmoCRM uchun ma'lumot chiqarish va mijozning maqsadini (intent) toifaga ajratish.
@@ -222,24 +252,30 @@ class AutoLeadAgent:
                 contents=[prompt],
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
-                    response_mime_type="application/json"
-                )
+                    response_mime_type="application/json",
+                ),
             )
-            
+
             if response.text:
                 data = json.loads(response.text)
                 # Ensure we always have an intent_category
                 if "intent_category" not in data:
-                    data["intent_category"] = "POTENTIAL" if data.get("is_lead") else "SPAM"
+                    data["intent_category"] = (
+                        "POTENTIAL" if data.get("is_lead") else "SPAM"
+                    )
                 return data
         except Exception as e:
             if self._is_quota_error(e):
                 self._cooldown_until = time.monotonic() + 300
                 now = time.monotonic()
                 if now - self._last_quota_warning > 60:
-                    logger.warning("[AUTO_LEAD] Gemini quota exhausted; using deterministic fallback for 5 minutes.")
+                    logger.warning(
+                        "[AUTO_LEAD] Gemini quota exhausted; using deterministic fallback for 5 minutes."
+                    )
                     self._last_quota_warning = now
-                return self._fallback_extract_lead_info(message_text, user_profile, reason="quota_429")
+                return self._fallback_extract_lead_info(
+                    message_text, user_profile, reason="quota_429"
+                )
             logger.error(f"[AUTO_LEAD] Error extracting info: {type(e).__name__}: {e}")
-            
+
         return None

@@ -2,14 +2,26 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-
 _FIELD_ALIASES = {
     "first_name": {"ism", "ismi", "name"},
     "last_name": {"familiya", "familya", "family name", "surname"},
-    "birthday": {"tug'ilgan kun", "tugilgan kun", "tug'ilgan kuni", "tugilgan kuni", "birthday"},
+    "birthday": {
+        "tug'ilgan kun",
+        "tugilgan kun",
+        "tug'ilgan kuni",
+        "tugilgan kuni",
+        "birthday",
+    },
     "birthplace": {"tug'ilgan joy", "tugilgan joy", "tug'ilgan joyi", "tugilgan joyi"},
     "brand": {"brend", "brand", "kompaniya", "company"},
-    "activity": {"faoliyat turi", "faoliyati", "soha", "yo'nalish", "yonalish", "activity"},
+    "activity": {
+        "faoliyat turi",
+        "faoliyati",
+        "soha",
+        "yo'nalish",
+        "yonalish",
+        "activity",
+    },
     "region": {"faoliyat hududi", "hudud", "shahar", "region", "city"},
     "position": {"lavozim", "position", "role"},
     "phone": {"tel", "telefon", "raqam", "phone", "mobile"},
@@ -20,7 +32,9 @@ _FIELD_ALIASES = {
 _PHONE_RE = re.compile(r"(?:(?:\+|00)?998[\s\-()]*)?(?:\d[\s\-()]*){9,12}")
 _USERNAME_RE = re.compile(r"@[\w\d_]{4,32}")
 _BULLET_RE = re.compile(r"^[\s\u2705\u2611\ufe0f\u2714\u25aa\u2022\-\*]+")
-_LABEL_RE = re.compile(r"^\s*([^:\uff1a\-\u2013\u2014]+?)\s*[:\uff1a\-\u2013\u2014]\s*(.+?)\s*$")
+_LABEL_RE = re.compile(
+    r"^\s*([^:\uff1a\-\u2013\u2014]+?)\s*[:\uff1a\-\u2013\u2014]\s*(.+?)\s*$"
+)
 _APOSTROPHES = ("\u2019", "\u2018", "\u02bc", "\u02bb", "`", "\u00b4")
 
 
@@ -42,7 +56,9 @@ class ContactIntro:
 
     @property
     def full_name(self) -> str:
-        return " ".join(part for part in [self.first_name, self.last_name] if part).strip()
+        return " ".join(
+            part for part in [self.first_name, self.last_name] if part
+        ).strip()
 
     @property
     def group_label(self) -> str:

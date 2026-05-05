@@ -18,7 +18,6 @@ from src.services.core.agent_runtime import (
     collect_legacy_runtime_inventory,
     get_runtime_context,
     get_storage_health,
-    set_runtime_context,
 )
 from src.services.core.amocrm_sync import AmoCRMSync
 from src.settings import settings
@@ -40,7 +39,6 @@ app = FastAPI(title="Oisha-OS Enterprise API")
 app.include_router(dashboard.router)
 
 
-
 def _setting_text(value: Any) -> str:
     if value is None:
         return ""
@@ -48,6 +46,7 @@ def _setting_text(value: Any) -> str:
     if callable(getter):
         value = getter()
     return str(value).lstrip("\ufeff").strip()
+
 
 # Mount Static Files
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -70,6 +69,7 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
     allow_credentials=True,
 )
+
 
 @app.get("/")
 async def root_status():
@@ -169,7 +169,6 @@ async def liveness_probe():
         except Exception:
             userbot_authorized = False
 
-    
     # Cloud Run status check
     telegram_bot_ok = True
     if control_plane_mode:
@@ -183,7 +182,7 @@ async def liveness_probe():
     # Check CRM connectivity. CRM OAuth can be degraded without making the
     # Cloud Run control plane unsafe to serve health/API traffic.
     crm_connected = False
-    if msg_controller and hasattr(msg_controller, 'crm') and msg_controller.crm:
+    if msg_controller and hasattr(msg_controller, "crm") and msg_controller.crm:
         try:
             # Check if AmoCRM is actually responding
             crm_connected = await msg_controller.crm.amocrm.check_connection()
@@ -195,12 +194,11 @@ async def liveness_probe():
     else:
         crm_ok = crm_connected or bool(runtime.get("crm_connected", False))
 
-    
     # /healthz is the production rollout gate. Keep it honest so a broken
     # revision never receives traffic just because the HTTP server started.
     healthy = not problems and db_ok and telegram_bot_ok and crm_ok
     status_code = 200 if healthy else 503
-    
+
     return JSONResponse(
         status_code=status_code,
         content={
@@ -215,8 +213,8 @@ async def liveness_probe():
                 "scheduler_mode": scheduler_mode,
                 "problems": problems,
             },
-            "timestamp": get_local_now().isoformat()
-        }
+            "timestamp": get_local_now().isoformat(),
+        },
     )
 
 
@@ -239,6 +237,7 @@ def mark_heartbeat() -> None:
     global _last_heartbeat_at
     _last_heartbeat_at = datetime.now(timezone.utc)
 
+
 # --- COMMAND QUEUE (Shared with Main Thread) ---
 command_queue = queue.Queue()
 
@@ -246,14 +245,14 @@ command_queue = queue.Queue()
 cached_status: Dict[str, Any] = {
     "status": "offline",
     "message": "Tizim tayyorlanmoqda...",
-    "timestamp": get_local_now().strftime("%Y-%m-%d %H:%M:%S")
+    "timestamp": get_local_now().strftime("%Y-%m-%d %H:%M:%S"),
 }
 
 # --- CRM AUDIT CACHE ---
 cached_crm_audit: Dict[str, Any] = {
     "health_score": 98,
     "summary": "Audit kutilmoqda...",
-    "timestamp": get_local_now().isoformat()
+    "timestamp": get_local_now().isoformat(),
 }
 # --- DASHBOARD ACTIVITY FEED ---
 system_activities: List[Dict[str, Any]] = [
@@ -261,7 +260,7 @@ system_activities: List[Dict[str, Any]] = [
         "timestamp": get_local_now().strftime("%H:%M:%S"),
         "action": "🚀 System Boot",
         "details": "Oisha-OS Strategic Intelligence is online and listening.",
-        "type": "success"
+        "type": "success",
     }
 ]
 
@@ -270,19 +269,21 @@ legacy_runtime_inventory_cache: Optional[List[Dict[str, Any]]] = None
 # --- WAZZUP BRIDGE (Outgoing Messages Queue) ---
 outgoing_messages = asyncio.Queue()
 
+
 def add_activity(action: str, details: str = "", type: str = "info"):
     """Tizimdagi amallarni Dashboard uchun ro'yxatga olish."""
     activity = {
         "timestamp": get_local_now().strftime("%H:%M:%S"),
         "action": action,
         "details": details,
-        "type": type # info, success, warning, error, thinking
+        "type": type,  # info, success, warning, error, thinking
     }
     system_activities.insert(0, activity)
     # Oxirgi 100 ta amalni saqlash (ko'proq ko'rinishi uchun)
     if len(system_activities) > 100:
         system_activities.pop()
     logger.info(f"📊 [DASHBOARD] {action}: {details}")
+
 
 def get_legacy_runtime_inventory() -> List[Dict[str, Any]]:
     global legacy_runtime_inventory_cache
@@ -292,7 +293,9 @@ def get_legacy_runtime_inventory() -> List[Dict[str, Any]]:
     return list(legacy_runtime_inventory_cache)
 
 
-async def build_health_snapshot(include_inventory: bool = False, include_traces: bool = False) -> Dict[str, Any]:
+async def build_health_snapshot(
+    include_inventory: bool = False, include_traces: bool = False
+) -> Dict[str, Any]:
     runtime = get_runtime_context()
     db_path = runtime.get("state_db_path") or getattr(db_instance, "db_path", None)
     recent_job_runs: List[Dict[str, Any]] = []
@@ -306,7 +309,9 @@ async def build_health_snapshot(include_inventory: bool = False, include_traces:
 
         if include_traces:
             try:
-                recent_agent_actions = await db_instance.get_recent_agent_actions(limit=25)
+                recent_agent_actions = await db_instance.get_recent_agent_actions(
+                    limit=25
+                )
             except Exception as exc:
                 logger.warning(f"[API] Could not fetch agent actions: {exc}")
 
@@ -314,7 +319,11 @@ async def build_health_snapshot(include_inventory: bool = False, include_traces:
         "timestamp": get_local_now().isoformat(),
         "status": cached_status.copy(),
         "runtime": runtime,
-        "storage": get_storage_health(db_path, recent_job_runs=recent_job_runs, backend=runtime.get("state_backend", "sqlite")),
+        "storage": get_storage_health(
+            db_path,
+            recent_job_runs=recent_job_runs,
+            backend=runtime.get("state_backend", "sqlite"),
+        ),
     }
     if include_inventory:
         snapshot["legacy_runtime_inventory"] = get_legacy_runtime_inventory()
@@ -336,13 +345,14 @@ async def get_system_status():
     data["userbot_authorized"] = runtime.get("userbot_authorized")
     return data
 
+
 def update_api_status(status: str, message: str):
     """Updates the thread-safe status cache for the dashboard."""
     global cached_status
     cached_status = {
         "status": status,
         "message": message,
-        "timestamp": get_local_now().strftime("%Y-%m-%d %H:%M:%S")
+        "timestamp": get_local_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
 
@@ -382,6 +392,7 @@ async def get_system_inventory():
         "legacy_runtime_inventory": snapshot.get("legacy_runtime_inventory", []),
     }
 
+
 @app.get("/api/system/activity")
 async def get_activity():
     return {
@@ -389,32 +400,39 @@ async def get_activity():
         "stats": {
             "uptime": "online",
             "mode": "Autonomous v2.1",
-            "server": "Oisha-OS Local Server"
-        }
+            "server": "Oisha-OS Local Server",
+        },
     }
+
 
 @app.get("/api/system/stats")
 async def get_stats():
     """Dashboard uchun biznes ko'rsatkichlarni hisoblash."""
     if not db_instance:
         return {"error": "DB not found"}
-    
+
     try:
         stats = await db_instance.get_today_stats()
         # Enriched metrics for Premium Dashboard from REAL CACHE
         global cached_crm_audit
         health = cached_crm_audit.get("health_score", 0)
-        
+
         stats["crm_health"] = f"{health}%"
         stats["leads_enriched_today"] = stats.get("leads_found", 0)
-        
+
         # Qualitative performance labels
-        if health >= 90: stats["automation_efficiency"] = "Exceptional"
-        elif health >= 75: stats["automation_efficiency"] = "High"
-        elif health >= 50: stats["automation_efficiency"] = "Nominal"
-        else: stats["automation_efficiency"] = "Action Required"
-        
-        stats["last_audit"] = cached_crm_audit.get("timestamp", get_local_now().isoformat())
+        if health >= 90:
+            stats["automation_efficiency"] = "Exceptional"
+        elif health >= 75:
+            stats["automation_efficiency"] = "High"
+        elif health >= 50:
+            stats["automation_efficiency"] = "Nominal"
+        else:
+            stats["automation_efficiency"] = "Action Required"
+
+        stats["last_audit"] = cached_crm_audit.get(
+            "timestamp", get_local_now().isoformat()
+        )
         return stats
     except Exception as e:
         logger.error(f"Stats Error: {e}")
@@ -428,7 +446,10 @@ async def sales_quality_dashboard():
     if not os.path.exists(dashboard_path):
         return JSONResponse(
             status_code=404,
-            content={"status": "not_found", "message": "Sales quality dashboard is not deployed yet."},
+            content={
+                "status": "not_found",
+                "message": "Sales quality dashboard is not deployed yet.",
+            },
         )
     return FileResponse(dashboard_path)
 
@@ -487,11 +508,29 @@ async def _fetch_call_analysis_rows(limit: int = 500) -> List[Dict[str, Any]]:
     columns = [str(item[0]) for item in description]
     if not columns:
         columns = [
-            "call_id", "lead_id", "manager_id", "manager_name", "client_name",
-            "duration_seconds", "overall_score", "category", "scores", "summary",
-            "strengths", "weaknesses", "client_mood", "client_interest_level",
-            "objections", "outcome", "next_steps", "recommended_tasks",
-            "transcript", "audio_url", "source", "analyzed_at", "created_at",
+            "call_id",
+            "lead_id",
+            "manager_id",
+            "manager_name",
+            "client_name",
+            "duration_seconds",
+            "overall_score",
+            "category",
+            "scores",
+            "summary",
+            "strengths",
+            "weaknesses",
+            "client_mood",
+            "client_interest_level",
+            "objections",
+            "outcome",
+            "next_steps",
+            "recommended_tasks",
+            "transcript",
+            "audio_url",
+            "source",
+            "analyzed_at",
+            "created_at",
         ]
     return [_row_to_dict(row, columns) for row in rows]
 
@@ -570,8 +609,14 @@ def _build_sales_quality_payload(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     scores = [int(row.get("overall_score") or 0) for row in analyzed]
     outcome_counts = Counter(str(row.get("outcome") or "unknown") for row in analyzed)
-    sales_count = outcome_counts.get("sale", 0) + outcome_counts.get("sold", 0) + outcome_counts.get("sotuv", 0)
-    callback_count = outcome_counts.get("callback", 0) + outcome_counts.get("follow_up", 0)
+    sales_count = (
+        outcome_counts.get("sale", 0)
+        + outcome_counts.get("sold", 0)
+        + outcome_counts.get("sotuv", 0)
+    )
+    callback_count = outcome_counts.get("callback", 0) + outcome_counts.get(
+        "follow_up", 0
+    )
     total_duration = sum(int(row.get("duration_seconds") or 0) for row in analyzed)
 
     by_manager: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
@@ -581,7 +626,11 @@ def _build_sales_quality_payload(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     managers = []
     for manager_name, manager_rows in by_manager.items():
         manager_scores = [int(row.get("overall_score") or 0) for row in manager_rows]
-        manager_sales = sum(1 for row in manager_rows if str(row.get("outcome") or "") in {"sale", "sold", "sotuv"})
+        manager_sales = sum(
+            1
+            for row in manager_rows
+            if str(row.get("outcome") or "") in {"sale", "sold", "sotuv"}
+        )
         managers.append(
             {
                 "name": manager_name,
@@ -626,11 +675,18 @@ def _build_sales_quality_payload(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
             value = score.get("score") if isinstance(score, dict) else None
             if metric and value is not None:
                 metric_scores[str(metric)].append(int(value))
-        weakness_counts.update(str(item) for item in _safe_json_list(row.get("weaknesses")) if item)
-        objection_counts.update(str(item) for item in _safe_json_list(row.get("objections")) if item)
+        weakness_counts.update(
+            str(item) for item in _safe_json_list(row.get("weaknesses")) if item
+        )
+        objection_counts.update(
+            str(item) for item in _safe_json_list(row.get("objections")) if item
+        )
 
     radar = [
-        {"label": metric.replace("_", " ").title(), "score": round(sum(values) / len(values))}
+        {
+            "label": metric.replace("_", " ").title(),
+            "score": round(sum(values) / len(values)),
+        }
         for metric, values in metric_scores.items()
     ]
 
@@ -655,24 +711,36 @@ def _build_sales_quality_payload(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     recommendations = []
     if weakness_counts:
         top_weakness, top_count = weakness_counts.most_common(1)[0]
-        recommendations.append(f"Eng ko'p takrorlangan zaif joy: {top_weakness} ({top_count} ta real signal).")
+        recommendations.append(
+            f"Eng ko'p takrorlangan zaif joy: {top_weakness} ({top_count} ta real signal)."
+        )
     if callback_count:
-        recommendations.append(f"{callback_count} ta follow-up/callback real suhbatdan chiqdi; CRM tasklari borligini tekshiring.")
+        recommendations.append(
+            f"{callback_count} ta follow-up/callback real suhbatdan chiqdi; CRM tasklari borligini tekshiring."
+        )
     if sales_count == 0:
-        recommendations.append("Real tahlil qilingan qo'ng'iroqlarda sotuv natijasi belgilanmagan; outcome mappingni tekshiring.")
+        recommendations.append(
+            "Real tahlil qilingan qo'ng'iroqlarda sotuv natijasi belgilanmagan; outcome mappingni tekshiring."
+        )
 
     calls = []
     for row in analyzed[:12]:
         score = int(row.get("overall_score") or 0)
-        client = row.get("client_name") or (f"Lead #{row.get('lead_id')}" if row.get("lead_id") else "Noma'lum mijoz")
+        client = row.get("client_name") or (
+            f"Lead #{row.get('lead_id')}" if row.get("lead_id") else "Noma'lum mijoz"
+        )
         calls.append(
             {
                 "client": client,
                 "manager": row.get("manager_name") or "Noma'lum manager",
                 "score": score,
-                "result": outcome_labels.get(str(row.get("outcome") or "unknown"), str(row.get("outcome") or "unknown")),
+                "result": outcome_labels.get(
+                    str(row.get("outcome") or "unknown"),
+                    str(row.get("outcome") or "unknown"),
+                ),
                 "duration": _format_duration(row.get("duration_seconds")),
-                "summary": row.get("summary") or "Real tahlil yozuvi bor, lekin summary bo'sh.",
+                "summary": row.get("summary")
+                or "Real tahlil yozuvi bor, lekin summary bo'sh.",
                 "risk": _score_to_risk(score),
             }
         )
@@ -757,14 +825,23 @@ async def ingest_sales_quality_analysis(data: SalesQualityAnalysisRequest):
     """Store a real external call analysis result for the dashboard."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
     if not expected_secret or not hmac.compare_digest(data.secret_key, expected_secret):
-        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+        return JSONResponse(
+            status_code=401, content={"status": "error", "message": "Unauthorized"}
+        )
     if not db_instance:
-        return JSONResponse(status_code=503, content={"status": "error", "message": "Database not connected"})
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "message": "Database not connected"},
+        )
 
     score = max(0, min(int(data.overall_score), 100))
     now = get_local_now().isoformat()
     analyzed_at = data.analyzed_at or now
-    category = data.category or ("excellent" if score >= 90 else "good" if score >= 80 else "average" if score >= 60 else "poor")
+    category = data.category or (
+        "excellent"
+        if score >= 90
+        else "good" if score >= 80 else "average" if score >= 60 else "poor"
+    )
 
     conn = await db_instance.get_connection()
     result = conn.execute(
@@ -813,16 +890,19 @@ async def ingest_sales_quality_analysis(data: SalesQualityAnalysisRequest):
 
     return {"status": "ok", "call_id": data.call_id, "source": "real_call_analytics"}
 
+
 class CreateLeadRequest(BaseModel):
     name: str
     phone: str
     note: Optional[str] = None
     secret_key: str
 
+
 class SendMessageRequest(BaseModel):
     user_id: int
     text: str
     secret_key: str
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -832,20 +912,22 @@ async def lifespan(app: FastAPI):
     # Shutdown logic
     logger.info("Oisha-OS API Server Stopping...")
 
+
 @app.get("/api/chat/lookup/{phone}")
 async def lookup_user_by_phone(phone: str, secret_key: str):
     """AmoCRM mijoz telefoni orqali Telegram ID sini topish."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
     if not expected_secret or not hmac.compare_digest(secret_key, expected_secret):
         return {"error": "Unauthorized"}
-    
+
     if not db_instance:
         return {"error": "Database not connected"}
-    
+
     user_id = await db_instance.get_user_id_by_phone(phone)
     if user_id:
         return {"user_id": user_id, "status": "found"}
     return {"status": "not_found"}
+
 
 @app.get("/api/chat/history/{user_id}")
 async def get_chat_history(user_id: int, secret_key: str):
@@ -853,58 +935,65 @@ async def get_chat_history(user_id: int, secret_key: str):
     expected_secret = os.environ.get("OISHA_API_SECRET")
     if not expected_secret or not hmac.compare_digest(secret_key, expected_secret):
         return {"error": "Unauthorized"}
-    
+
     if not db_instance:
         return {"error": "Database not connected"}
-    
+
     # Get history from DB (Enterprise v2.1+)
     # This includes both user messages and bot/admin replies
     history = await db_instance.get_recent_messages(user_id, limit=30)
     return {"history": history}
 
+
 @app.post("/api/chat/send")
 async def send_chat_message(request: SendMessageRequest):
     """AmoCRM widgetidan kelgan xabarni Telegramga yuborish (Queued)."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
-    if not expected_secret or not hmac.compare_digest(request.secret_key, expected_secret):
+    if not expected_secret or not hmac.compare_digest(
+        request.secret_key, expected_secret
+    ):
         return {"error": "Unauthorized"}
 
     # Push to queue for Main Thread execution
-    command_queue.put({
-        "cmd": "send_message",
-        "user_id": request.user_id,
-        "text": request.text
-    })
-    
+    command_queue.put(
+        {"cmd": "send_message", "user_id": request.user_id, "text": request.text}
+    )
+
     return {"status": "success", "message": "Xabar navbatga qo'yildi"}
+
 
 @app.post("/api/leads")
 async def create_amo_lead(request: CreateLeadRequest):
     """Vebsaytdan kelgan leadni AmoCRM-ga yuborish."""
     global amocrm_instance
     expected_secret = os.environ.get("OISHA_API_SECRET")
-    if not expected_secret or not hmac.compare_digest(request.secret_key, expected_secret):
+    if not expected_secret or not hmac.compare_digest(
+        request.secret_key, expected_secret
+    ):
         return {"error": "Unauthorized"}
 
     if not amocrm_instance:
         amocrm_instance = AmoCRMSync(
             subdomain=settings.AMOCRM_SUBDOMAIN,
             client_id=settings.AMOCRM_CLIENT_ID,
-            client_secret=settings.AMOCRM_CLIENT_SECRET.get_secret_value() if settings.AMOCRM_CLIENT_SECRET else '',
-            redirect_url=settings.AMOCRM_REDIRECT_URL
+            client_secret=(
+                settings.AMOCRM_CLIENT_SECRET.get_secret_value()
+                if settings.AMOCRM_CLIENT_SECRET
+                else ""
+            ),
+            redirect_url=settings.AMOCRM_REDIRECT_URL,
         )
-    
+
     logger.info(f"🚀 [API] Website Lead qabul qilindi: {request.name}")
     lead_id = await amocrm_instance.ensure_lead(
-        name=request.name,
-        phone=request.phone,
-        note=request.note
+        name=request.name, phone=request.phone, note=request.note
     )
-    
+
     if lead_id:
         add_activity("Lead Created", f"Website lead: {request.name}", type="success")
         return {"status": "success", "lead_id": lead_id}
     return {"error": "Lead creation failed"}
+
 
 @app.post("/webhook/amocrm")
 async def amocrm_webhook(request: Request):
@@ -921,8 +1010,10 @@ async def amocrm_webhook(request: Request):
 
 # ─── OPENCLAW GATEWAY BRIDGE ──────────────────────────────────────────────────
 
+
 class OpenClawMessage(BaseModel):
     """Incoming message from OpenClaw gateway."""
+
     session: str = "main"
     channel: str = "unknown"
     sender: str = ""
@@ -953,11 +1044,7 @@ async def openclaw_webhook(request: Request):
     if expected_secret:
         signature = request.headers.get("x-openclaw-signature", "")
         body = await request.body()
-        expected_sig = hmac.new(
-            expected_secret.encode(),
-            body,
-            "sha256"
-        ).hexdigest()
+        expected_sig = hmac.new(expected_secret.encode(), body, "sha256").hexdigest()
         if not hmac.compare_digest(f"sha256={expected_sig}", signature):
             return JSONResponse(status_code=401, content={"error": "Invalid signature"})
         try:
@@ -980,15 +1067,12 @@ async def openclaw_webhook(request: Request):
         return {"reply": "", "status": "empty"}
 
     logger.info(f"[OPENCLAW] {channel}/{sender}: {text[:80]}")
-    add_activity(
-        f"OpenClaw [{channel}]",
-        f"{sender}: {text[:60]}",
-        type="info"
-    )
+    add_activity(f"OpenClaw [{channel}]", f"{sender}: {text[:60]}", type="info")
 
     # Agent orqali javob olish
     try:
         from src.openclaw_bridge import handle_openclaw_message
+
         reply = await handle_openclaw_message(
             text=text,
             sender=sender,
@@ -1002,11 +1086,7 @@ async def openclaw_webhook(request: Request):
         logger.error(f"[OPENCLAW] Agent xatosi: {e}")
         reply = "Kechirasiz, hozir texnik muammo bor. Biroz kutib qayta yozing."
 
-    add_activity(
-        f"OpenClaw reply [{channel}]",
-        f"→ {reply[:60]}",
-        type="success"
-    )
+    add_activity(f"OpenClaw reply [{channel}]", f"→ {reply[:60]}", type="success")
     return {"reply": reply, "status": "ok", "channel": channel, "session": session}
 
 
@@ -1018,11 +1098,17 @@ async def openclaw_health():
         "service": "oisha-os",
         "version": "2.1.0",
         "capabilities": [
-            "sales", "support", "crm", "calendar",
-            "lead_management", "negotiation", "research"
+            "sales",
+            "support",
+            "crm",
+            "calendar",
+            "lead_management",
+            "negotiation",
+            "research",
         ],
         "channels_accepted": ["whatsapp", "telegram", "slack", "discord", "any"],
     }
+
 
 @app.get("/api/system/info")
 async def get_system_info():
@@ -1031,27 +1117,28 @@ async def get_system_info():
         "os": "Windows",
         "version": "2.1.0",
         "agent_count": 8,
-        "active_modules": ["NightShift", "OSINT", "CRM_Sync", "Advisor", "Audit"]
+        "active_modules": ["NightShift", "OSINT", "CRM_Sync", "Advisor", "Audit"],
     }
+
 
 @app.post("/api/system/audit")
 async def trigger_intelligence_audit():
     """Dashboarddan auditni ishga tushirish (Queued)."""
     # Push to queue for Main Thread execution
-    command_queue.put({
-        "cmd": "audit",
-        "timestamp": datetime.now().isoformat()
-    })
-    
-    return {"status": "success", "message": "Audit jarayonga tushirildi. Telegram hisobotini kuting."}
+    command_queue.put({"cmd": "audit", "timestamp": datetime.now().isoformat()})
+
+    return {
+        "status": "success",
+        "message": "Audit jarayonga tushirildi. Telegram hisobotini kuting.",
+    }
 
 
 # --- AI QUALITY ANALYTICS ENDPOINTS ---
 from src.services.ai import QualityAnalyzer, CallAnalytics, AITaskManager
 from src.services.ai.conversation_engine import (
-    ConversationEngine, 
-    CallRecord, 
-    get_conversation_engine
+    ConversationEngine,
+    CallRecord,
+    get_conversation_engine,
 )
 
 # Global analytics storage
@@ -1060,11 +1147,12 @@ _call_analytics = CallAnalytics()
 _ai_task_manager: Optional[AITaskManager] = None
 _conversation_engine: Optional[ConversationEngine] = None
 
+
 @app.post("/api/ai/analyze-conversation")
 async def analyze_conversation(request: Request):
     """
     Suhbatni AI tahlil qilish va sifat ballari berish.
-    
+
     Request body:
     {
         "conversation_text": "Suhbat matni...",
@@ -1078,7 +1166,7 @@ async def analyze_conversation(request: Request):
     """
     try:
         data = await request.json()
-        
+
         # Suhbatni tahlil qilish
         analysis = _quality_analyzer.analyze_conversation(
             conversation_text=data.get("conversation_text", ""),
@@ -1086,133 +1174,128 @@ async def analyze_conversation(request: Request):
             lead_id=data.get("lead_id"),
             manager_id=data.get("manager_id"),
             manager_name=data.get("manager_name", ""),
-            duration_seconds=data.get("duration_seconds", 0)
+            duration_seconds=data.get("duration_seconds", 0),
         )
-        
+
         # Analitika saqlash
         _call_analytics.add_analysis(analysis)
-        
+
         # Agar auto_create_tasks=True bo'lsa, AmoCRM da vazifa yaratish
         tasks = []
         if data.get("auto_create_tasks", False) and amocrm_instance:
             global _ai_task_manager
             if _ai_task_manager is None:
                 _ai_task_manager = AITaskManager(amocrm_instance)
-            
+
             tasks = await _ai_task_manager.create_tasks_from_analysis(
-                analysis, 
-                auto_create=True
+                analysis, auto_create=True
             )
-        
+
         return {
             "status": "success",
             "analysis": analysis.to_dict(),
             "tasks_created": len([t for t in tasks if t.get("created_in_crm")]),
-            "tasks": tasks[:5]  # Faqat 5 tasini qaytarish
+            "tasks": tasks[:5],  # Faqat 5 tasini qaytarish
         }
-        
+
     except Exception as e:
         logger.error(f"[API AI] Analyze conversation error: {e}")
         return {"status": "error", "message": str(e)}
 
+
 @app.get("/api/ai/dashboard")
-async def get_ai_dashboard(
-    days: int = 7,
-    manager_id: Optional[int] = None
-):
+async def get_ai_dashboard(days: int = 7, manager_id: Optional[int] = None):
     """
     AI analitika dashboard ma'lumotlari.
-    
+
     Query params:
     - days: N kunlik statistika (default: 7)
     - manager_id: Faqat bitta manager (optional)
     """
     try:
         from datetime import datetime, timedelta
-        
+
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
-        
+
         if manager_id:
             data = _call_analytics.get_manager_dashboard(
-                manager_id=manager_id,
-                start_date=start_date,
-                end_date=end_date
+                manager_id=manager_id, start_date=start_date, end_date=end_date
             )
         else:
             data = _call_analytics.get_dashboard_data(
-                start_date=start_date,
-                end_date=end_date
+                start_date=start_date, end_date=end_date
             )
-        
+
         return {
             "status": "success",
             "period": {
                 "days": days,
                 "start": start_date.isoformat(),
-                "end": end_date.isoformat()
+                "end": end_date.isoformat(),
             },
-            "data": data
+            "data": data,
         }
-        
+
     except Exception as e:
         logger.error(f"[API AI] Dashboard error: {e}")
         return {"status": "error", "message": str(e)}
+
 
 @app.get("/api/ai/manager-ratings")
 async def get_manager_ratings(days: int = 7):
     """Manager reytinglari."""
     try:
         from datetime import datetime, timedelta
-        
+
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
-        
+
         data = _call_analytics.get_dashboard_data(
-            start_date=start_date,
-            end_date=end_date
+            start_date=start_date, end_date=end_date
         )
-        
+
         return {
             "status": "success",
             "ratings": data.get("manager_ratings", []),
-            "period_days": days
+            "period_days": days,
         }
-        
+
     except Exception as e:
         logger.error(f"[API AI] Manager ratings error: {e}")
         return {"status": "error", "message": str(e)}
+
 
 @app.get("/api/ai/lost-clients-analysis")
 async def get_lost_clients_analysis(days: int = 30):
     """Yo'qotilgan mijozlar tahlili."""
     try:
         from datetime import datetime, timedelta
-        
+
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
-        
+
         data = _call_analytics.get_dashboard_data(
-            start_date=start_date,
-            end_date=end_date
+            start_date=start_date, end_date=end_date
         )
-        
+
         return {
             "status": "success",
             "lost_clients": data.get("lost_clients", {}),
             "recommendations": data.get("recommendations", []),
-            "period_days": days
+            "period_days": days,
         }
-        
+
     except Exception as e:
         logger.error(f"[API AI] Lost clients analysis error: {e}")
         return {"status": "error", "message": str(e)}
+
 
 @app.post("/api/ai/create-tasks-from-analysis")
 async def create_tasks_from_analysis(request: Request):
     """
     Tahlil asosida AmoCRM da vazifa yaratish.
-    
+
     Request body:
     {
         "lead_id": 12345,
@@ -1222,35 +1305,37 @@ async def create_tasks_from_analysis(request: Request):
     try:
         if not amocrm_instance:
             return {"status": "error", "message": "AmoCRM not configured"}
-        
+
         data = await request.json()
         lead_id = data.get("lead_id")
-        
+
         # Task manager init
         global _ai_task_manager
         if _ai_task_manager is None:
             _ai_task_manager = AITaskManager(amocrm_instance)
-        
+
         # Lead uchun tahlil topish
         analyses = [a for a in _call_analytics.analyses if a.lead_id == lead_id]
-        
+
         if not analyses:
-            return {"status": "error", "message": f"Analysis not found for lead {lead_id}"}
-        
+            return {
+                "status": "error",
+                "message": f"Analysis not found for lead {lead_id}",
+            }
+
         # Oxirgi tahlil uchun vazifa yaratish
         latest_analysis = max(analyses, key=lambda x: x.analyzed_at)
         tasks = await _ai_task_manager.create_tasks_from_analysis(
-            latest_analysis,
-            auto_create=True
+            latest_analysis, auto_create=True
         )
-        
+
         return {
             "status": "success",
             "lead_id": lead_id,
             "tasks_created": len(tasks),
-            "tasks": tasks
+            "tasks": tasks,
         }
-        
+
     except Exception as e:
         logger.error(f"[API AI] Create tasks error: {e}")
         return {"status": "error", "message": str(e)}
@@ -1258,11 +1343,12 @@ async def create_tasks_from_analysis(request: Request):
 
 # --- METASELL.AI STYLE ENDPOINTS ---
 
+
 @app.get("/api/ai/metasell-dashboard")
 async def get_metasell_dashboard(days: int = 7):
     """
     Metasell.ai o'xshash dashboard ma'lumotlari.
-    
+
     Returns:
         - Umumiy statistika
         - Manager reytinglari
@@ -1274,19 +1360,21 @@ async def get_metasell_dashboard(days: int = 7):
         global _conversation_engine
         if _conversation_engine is None:
             _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
-        
+
         # Dashboard metrikalari
         metrics = _conversation_engine.get_dashboard_metrics(days=days)
-        
+
         # Manager taqqoslash
         manager_comparison = _conversation_engine.get_manager_comparison(days=days)
-        
+
         # Radar data (jamoa bo'yicha)
         radar_data = _conversation_engine.get_skills_radar_data(days=days)
-        
+
         # Trend (so'nggi 14 kun)
-        trend = _conversation_engine.get_trend_analysis(metric="score", days=min(days, 14))
-        
+        trend = _conversation_engine.get_trend_analysis(
+            metric="score", days=min(days, 14)
+        )
+
         return {
             "status": "success",
             "period_days": days,
@@ -1298,24 +1386,25 @@ async def get_metasell_dashboard(days: int = 7):
                 "conversion_rate": metrics.conversion_rate,
                 "sales_count": metrics.sales_count,
                 "active_managers": metrics.active_managers,
-                "total_talk_time_hours": metrics.total_talk_time // 60
+                "total_talk_time_hours": metrics.total_talk_time // 60,
             },
             "outcomes": {
                 "sales": metrics.sales_count,
                 "follow_up": metrics.followup_count,
-                "lost": metrics.lost_count
+                "lost": metrics.lost_count,
             },
             "top_objections": metrics.top_objections,
             "weak_areas": metrics.weak_areas,
             "recommendations": metrics.recommendations,
             "manager_comparison": manager_comparison,
             "skills_radar": radar_data,
-            "trend": trend
+            "trend": trend,
         }
-        
+
     except Exception as e:
         logger.error(f"[API AI] Metasell dashboard error: {e}")
         return {"status": "error", "message": str(e)}
+
 
 @app.get("/api/ai/call-details/{call_id}")
 async def get_call_details(call_id: str):
@@ -1324,26 +1413,21 @@ async def get_call_details(call_id: str):
         global _conversation_engine
         if _conversation_engine is None:
             _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
-        
+
         details = _conversation_engine.get_call_details(call_id)
-        
+
         if not details:
             return {"status": "error", "message": "Call not found"}
-        
-        return {
-            "status": "success",
-            "data": details
-        }
-        
+
+        return {"status": "success", "data": details}
+
     except Exception as e:
         logger.error(f"[API AI] Call details error: {e}")
         return {"status": "error", "message": str(e)}
 
+
 @app.get("/api/ai/skills-radar")
-async def get_skills_radar(
-    manager_id: Optional[int] = None,
-    days: int = 7
-):
+async def get_skills_radar(manager_id: Optional[int] = None, days: int = 7):
     """
     Manager mahorati radar chart ma'lumotlari.
     Metasell.ai dagi 'Manager Radar' ga o'xshash.
@@ -1352,29 +1436,23 @@ async def get_skills_radar(
         global _conversation_engine
         if _conversation_engine is None:
             _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
-        
+
         radar_data = _conversation_engine.get_skills_radar_data(
-            manager_id=manager_id,
-            days=days
+            manager_id=manager_id, days=days
         )
-        
-        return {
-            "status": "success",
-            "data": radar_data
-        }
-        
+
+        return {"status": "success", "data": radar_data}
+
     except Exception as e:
         logger.error(f"[API AI] Skills radar error: {e}")
         return {"status": "error", "message": str(e)}
 
+
 @app.get("/api/ai/trend-analysis")
-async def get_trend_analysis(
-    metric: str = "score",
-    days: int = 14
-):
+async def get_trend_analysis(metric: str = "score", days: int = 14):
     """
     Dinamik tahlil (trend).
-    
+
     Query params:
     - metric: 'score', 'conversion', 'duration'
     - days: Kunlar soni
@@ -1383,21 +1461,15 @@ async def get_trend_analysis(
         global _conversation_engine
         if _conversation_engine is None:
             _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
-        
-        trend = _conversation_engine.get_trend_analysis(
-            metric=metric,
-            days=days
-        )
-        
-        return {
-            "status": "success",
-            "metric": metric,
-            "data": trend
-        }
-        
+
+        trend = _conversation_engine.get_trend_analysis(metric=metric, days=days)
+
+        return {"status": "success", "metric": metric, "data": trend}
+
     except Exception as e:
         logger.error(f"[API AI] Trend analysis error: {e}")
         return {"status": "error", "message": str(e)}
+
 
 @app.get("/api/ai/manager-comparison")
 async def get_manager_comparison(days: int = 7):
@@ -1406,18 +1478,15 @@ async def get_manager_comparison(days: int = 7):
         global _conversation_engine
         if _conversation_engine is None:
             _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
-        
+
         comparison = _conversation_engine.get_manager_comparison(days=days)
-        
-        return {
-            "status": "success",
-            "period_days": days,
-            "managers": comparison
-        }
-        
+
+        return {"status": "success", "period_days": days, "managers": comparison}
+
     except Exception as e:
         logger.error(f"[API AI] Manager comparison error: {e}")
         return {"status": "error", "message": str(e)}
+
 
 @app.post("/api/ai/process-call")
 async def process_call(request: Request):
@@ -1429,41 +1498,44 @@ async def process_call(request: Request):
         global _conversation_engine
         if _conversation_engine is None:
             _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
-        
+
         data = await request.json()
-        
+
         # CallRecord yaratish
         call_record = CallRecord(
             call_id=data.get("call_id", ""),
             lead_id=data.get("lead_id", 0),
             manager_id=data.get("manager_id", 0),
             manager_name=data.get("manager_name", ""),
-            started_at=datetime.fromisoformat(data.get("started_at", datetime.now().isoformat())),
+            started_at=datetime.fromisoformat(
+                data.get("started_at", datetime.now().isoformat())
+            ),
             duration_seconds=data.get("duration_seconds", 0),
             audio_url=data.get("audio_url"),
             transcript=data.get("transcript", ""),
             lead_name=data.get("lead_name", ""),
-            lead_status=data.get("lead_status", "")
+            lead_status=data.get("lead_status", ""),
         )
-        
+
         # Qayta ishlash
         analysis = await _conversation_engine.process_call(
             call_record=call_record,
             auto_analyze=data.get("auto_analyze", True),
-            auto_create_tasks=data.get("auto_create_tasks", True)
+            auto_create_tasks=data.get("auto_create_tasks", True),
         )
-        
+
         return {
             "status": "success",
             "call_id": call_record.call_id,
             "analyzed": analysis is not None,
             "score": analysis.overall_score if analysis else None,
-            "category": analysis.category if analysis else None
+            "category": analysis.category if analysis else None,
         }
-        
+
     except Exception as e:
         logger.error(f"[API AI] Process call error: {e}")
         return {"status": "error", "message": str(e)}
+
 
 @app.get("/api/ai/daily-report")
 async def get_daily_report():
@@ -1472,19 +1544,18 @@ async def get_daily_report():
         global _conversation_engine
         if _conversation_engine is None:
             _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
-        
+
         report = _conversation_engine.generate_daily_report()
-        
-        return {
-            "status": "success",
-            "report": report
-        }
-        
+
+        return {"status": "success", "report": report}
+
     except Exception as e:
         logger.error(f"[API AI] Daily report error: {e}")
         return {"status": "error", "message": str(e)}
 
+
 # ─── OPENAI-COMPATIBLE ENDPOINT (OpenClaw model backend) ─────────────────────
+
 
 @app.get("/v1/models")
 async def list_models():
@@ -1531,6 +1602,7 @@ async def chat_completions(request: Request):
 
     try:
         from src.openclaw_bridge import handle_openclaw_message
+
         reply = await handle_openclaw_message(
             text=user_text,
             sender=session_id,
@@ -1545,18 +1617,26 @@ async def chat_completions(request: Request):
         reply = "Kechirasiz, texnik muammo yuz berdi."
 
     import time
+
     completion_id = f"chatcmpl-oisha-{int(time.time())}"
 
     if stream:
         # Stream formatida javob
         from fastapi.responses import StreamingResponse
+
         async def event_stream():
             chunk = {
                 "id": completion_id,
                 "object": "chat.completion.chunk",
                 "created": int(time.time()),
                 "model": "oisha-agent",
-                "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply}, "finish_reason": None}],
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"role": "assistant", "content": reply},
+                        "finish_reason": None,
+                    }
+                ],
             }
             yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
             done = {
@@ -1568,6 +1648,7 @@ async def chat_completions(request: Request):
             }
             yield f"data: {json.dumps(done)}\n\n"
             yield "data: [DONE]\n\n"
+
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
     return {
@@ -1593,9 +1674,11 @@ async def chat_completions(request: Request):
 def run_api(host: str = "0.0.0.0", port: int = 8080):
     uvicorn.run(app, host=host, port=port)
 
+
 async def background_crm_audit_task():
     """Background task to refresh CRM audit data every 15 minutes."""
     from src.services.debug.crm_audit import AmoCRMAudit
+
     global cached_crm_audit
     audit = AmoCRMAudit()
     while True:
@@ -1604,13 +1687,16 @@ async def background_crm_audit_task():
             results = await audit.run_full_audit()
             if results and "error" not in results:
                 cached_crm_audit = results
-                logger.info(f"✅ [API] CRM Audit complete. Health: {results.get('health_score')}%")
+                logger.info(
+                    f"✅ [API] CRM Audit complete. Health: {results.get('health_score')}%"
+                )
             else:
                 logger.warning(f"⚠️ [API] CRM Audit failed: {results.get('error')}")
         except Exception as e:
             logger.error(f"❌ [API] CRM Audit CRASH: {e}")
-        
-        await asyncio.sleep(900) # 15 minutes
+
+        await asyncio.sleep(900)  # 15 minutes
+
 
 if __name__ == "__main__":
     run_api()
