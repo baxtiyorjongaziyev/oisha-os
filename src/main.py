@@ -745,6 +745,25 @@ async def background_monitor_task() -> None:
                     except Exception as rep_exc:
                         logger.error(f"[SCHEDULE][REPORT] Error: {rep_exc}")
                     background_monitor_task._sent_jobs.add(job_key)
+            
+            # ─────────────────────────────────────────────────────────
+            # 9. [STAGNATION] Har kuni 10:00 va 22:00 — Stagnation Alert
+            # ─────────────────────────────────────────────────────────
+            if now.hour in [10, 22] and now.minute == 0:
+                today_str = now.strftime('%Y-%m-%d')
+                job_key = f"stagnation_alert_{now.hour}_{today_str}"
+                if not hasattr(background_monitor_task, '_sent_jobs'):
+                    background_monitor_task._sent_jobs = set()
+                if job_key not in background_monitor_task._sent_jobs:
+                    try:
+                        if msg_controller:
+                            alert = await msg_controller.enterprise_reporter.get_stagnant_leads_alert()
+                            if alert:
+                                await notify_admin(alert, client)
+                                logger.info(f"[SCHEDULE] Stagnation alert sent at {now.hour}:00")
+                    except Exception as stag_exc:
+                        logger.error(f"[SCHEDULE][STAGNATION] Error: {stag_exc}")
+                    background_monitor_task._sent_jobs.add(job_key)
 
             # 5. [ALWAYS ONLINE] Keep-alive pulse
             if client:
@@ -1508,6 +1527,20 @@ async def self_command_handler(event):
             except Exception as e:
                 logger.error(f"[COMMAND] /junk_audit error: {e}", exc_info=True)
                 await event.respond(f"❌ **Auditda xato:** {str(e)}")
+        else:
+            await event.respond("❌ **Xato:** EnterpriseReporter topilmadi.")
+    elif cmd.startswith('/stagnant'):
+        if msg_controller and msg_controller.enterprise_reporter:
+            await event.respond("🔍 **Stagnatsiya tahlili boshlandi...**")
+            try:
+                alert = await msg_controller.enterprise_reporter.get_stagnant_leads_alert()
+                if alert:
+                    await event.respond(alert)
+                else:
+                    await event.respond("✅ **Hammasi joyida:** Hozircha 24 soatdan oshgan stagnant lidlar yo'q.")
+            except Exception as e:
+                logger.error(f"[COMMAND] /stagnant error: {e}", exc_info=True)
+                await event.respond(f"❌ **Xato:** {str(e)}")
         else:
             await event.respond("❌ **Xato:** EnterpriseReporter topilmadi.")
 
