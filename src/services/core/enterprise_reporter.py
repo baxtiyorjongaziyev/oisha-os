@@ -534,25 +534,45 @@ class EnterpriseReporter:
 
 
 
-    async def get_stagnant_leads_alert(self) -> str:
-        """Kutilib qolgan lidlar uchun ogohlantirish."""
-        # Oxirgi 24 soatda o'zgarmagan lidlarni topish
-        leads = await self.crm.amocrm.get_leads_detailed(limit=50)
+    async def get_stagnant_leads_alert(self, limit: int = 50) -> str:
+        """Stagnant leads alert (24h+) in the specific format requested by user."""
+        leads = await self.crm.amocrm.get_leads_detailed(limit=limit)
+        if not leads:
+            return ""
+
         now = get_local_now().timestamp()
         day_seconds = 24 * 3600
         
-        stagnant = []
+        stagnant_items = []
         for l in leads:
-            # status_id 142, 143 bo'lsa tekshirmaymiz
+            # Skip Won/Lost statuses
             if l.get('status_id') in [self.WON_STATUS, self.LOST_STATUS]:
                 continue
                 
             updated_at = l.get('updated_at', 0)
             if (now - updated_at) > day_seconds:
-                stagnant.append(l.get('name', f"ID:{l.get('id')}"))
+                name = l.get('name', 'Nomsiz')
+                l_id = l.get('id')
+                # Extract phone from custom fields if possible (simplified here)
+                phone = "Raqam yo'q"
+                for cf in l.get('custom_fields_values') or []:
+                    if cf.get('field_code') == 'PHONE':
+                        phone = cf.get('values', [{}])[0].get('value', 'Raqam yo\'q')
+                        break
+                
+                link = f"https://{self.crm.amocrm.subdomain}.amocrm.ru/leads/detail/{l_id}"
+                stagnant_items.append(f"• {name} {phone} ({link})")
         
-        if stagnant:
-            return f"🚨 **DIQQAT - Sales Stagnation!**\nQuyidagi lidlar 24 soatdan beri o'zgarmagan: {', '.join(stagnant[:5])}...\nIltimos, @Oydin_JonBranding va @tezmenejer harakat qiling!"
+        if stagnant_items:
+            # Limit to top 10 for readability
+            items_str = "\n".join(stagnant_items[:10])
+            report = (
+                f"🚨 **STAGNATION ALERT (24h+)**\n\n"
+                f"Quyidagi bitimlar harakatsiz qolmoqda:\n"
+                f"{items_str}\n\n"
+                f"@Oydin_JonBranding va @tezmenejer, iltimos statusni tekshiring."
+            )
+            return report
         return ""
 
     async def generate_morning_plan(self, distribution: Dict[int, List[Dict]]) -> str:
