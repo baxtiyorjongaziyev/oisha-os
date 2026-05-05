@@ -11,14 +11,27 @@ class NotificationOutcomeVerifier:
         dm_result = dict(execution.get("dm_result") or {})
         tool_results = list(execution.get("tool_results") or [])
 
-        group_sent = bool(group_result.get("success", execution.get("group_sent", False)))
+        group_sent = bool(
+            group_result.get("success", execution.get("group_sent", False))
+        )
         group_message_id = group_result.get("group_message_id")
-        dm_attempted = int(dm_result.get("metadata", {}).get("attempted", execution.get("dm_attempted", 0)) or 0)
-        dm_delivered_count = int(dm_result.get("sent_count", execution.get("dm_sent", 0)) or 0)
-        dm_failed_count = len(dm_result.get("failed_targets", execution.get("dm_failed", [])) or [])
+        dm_attempted = int(
+            dm_result.get("metadata", {}).get(
+                "attempted", execution.get("dm_attempted", 0)
+            )
+            or 0
+        )
+        dm_delivered_count = int(
+            dm_result.get("sent_count", execution.get("dm_sent", 0)) or 0
+        )
+        dm_failed_count = len(
+            dm_result.get("failed_targets", execution.get("dm_failed", [])) or []
+        )
         sent_count = int(execution.get("sent_count", 0) or 0)
 
-        action_success, action_reason, failed_actions = verify_tool_results(tool_results)
+        action_success, action_reason, failed_actions = verify_tool_results(
+            tool_results
+        )
 
         reason = execution.get("reason")
         if not reason:
@@ -64,7 +77,9 @@ class ActionOutcomeVerifier:
         }
 
 
-def verify_tool_results(tool_results: List[Dict[str, Any]]) -> Tuple[bool, str, List[Dict[str, Any]]]:
+def verify_tool_results(
+    tool_results: List[Dict[str, Any]],
+) -> Tuple[bool, str, List[Dict[str, Any]]]:
     if not tool_results:
         return True, "no_tool_actions_to_verify", []
 
@@ -76,11 +91,23 @@ def verify_tool_results(tool_results: List[Dict[str, Any]]) -> Tuple[bool, str, 
         success = bool(result.get("success"))
 
         if tool_name == "amocrm.followup_task":
-            success = success and bool(metadata.get("task_id")) and bool(metadata.get("lead_id"))
+            success = (
+                success
+                and bool(metadata.get("task_id"))
+                and bool(metadata.get("lead_id"))
+            )
         elif tool_name == "amocrm.lead_note":
-            success = success and bool(metadata.get("note_id")) and bool(metadata.get("lead_id"))
+            success = (
+                success
+                and bool(metadata.get("note_id"))
+                and bool(metadata.get("lead_id"))
+            )
         elif tool_name == "amocrm.lead_status":
-            success = success and bool(metadata.get("lead_id")) and bool(metadata.get("status_id"))
+            success = (
+                success
+                and bool(metadata.get("lead_id"))
+                and bool(metadata.get("status_id"))
+            )
         elif tool_name.startswith("airtable."):
             success = success and bool(metadata.get("record_id"))
         elif tool_name.startswith("telegram."):

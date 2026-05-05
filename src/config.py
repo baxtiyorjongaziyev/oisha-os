@@ -53,7 +53,10 @@ def __getattr__(name: str):
     if name == "WHITELIST_IDS":
         return settings.WHITELIST_IDS
     if name == "SYSTEM_INSTRUCTION":
-        return settings.SYSTEM_INSTRUCTION + "\n\n[AGENTIC OPS] Suhbat davomida aniq topshiriqlar berilsa yoki kelishilsa, avtomatik ravishda [TASK: title=...|assigned_to=...|deadline=...] formatida javob oxirida vazifa yarating."
+        return (
+            settings.SYSTEM_INSTRUCTION
+            + "\n\n[AGENTIC OPS] Suhbat davomida aniq topshiriqlar berilsa yoki kelishilsa, avtomatik ravishda [TASK: title=...|assigned_to=...|deadline=...] formatida javob oxirida vazifa yarating."
+        )
     raise AttributeError(name)
 
 

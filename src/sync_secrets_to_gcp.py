@@ -19,39 +19,63 @@ SECRETS_TO_SYNC = {
     "AIRTABLE_API_KEY": os.getenv("AIRTABLE_API_KEY"),
 }
 
+
 def sync_secret(name, value):
     if not value:
         print(f"Skipping {name} - No value found in .env")
         return
-    
+
     print(f"Syncing {name}...")
     try:
         # Check if secret exists
         cmd_exists = ["gcloud", "secrets", "describe", name, "--project", PROJECT_ID]
         result = subprocess.run(cmd_exists, capture_output=True, text=True, shell=True)
-        
+
         if result.returncode != 0:
             print(f"Creating secret {name}...")
-            subprocess.run(["gcloud", "secrets", "create", name, "--project", PROJECT_ID, "--replication-policy", "automatic"], check=True, shell=True)
-            
+            subprocess.run(
+                [
+                    "gcloud",
+                    "secrets",
+                    "create",
+                    name,
+                    "--project",
+                    PROJECT_ID,
+                    "--replication-policy",
+                    "automatic",
+                ],
+                check=True,
+                shell=True,
+            )
+
         # Add version
         process = subprocess.Popen(
-            ["gcloud", "secrets", "versions", "add", name, "--project", PROJECT_ID, "--data-file=-"],
+            [
+                "gcloud",
+                "secrets",
+                "versions",
+                "add",
+                name,
+                "--project",
+                PROJECT_ID,
+                "--data-file=-",
+            ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            shell=True
+            shell=True,
         )
         stdout, stderr = process.communicate(input=value)
-        
+
         if process.returncode == 0:
             print(f"{name} updated successfully.")
         else:
             print(f"Failed to update {name}: {stderr}")
-            
+
     except Exception as e:
         print(f"Error syncing {name}: {e}")
+
 
 if __name__ == "__main__":
     print(f"Starting Secret Sync to Project: {PROJECT_ID}")
