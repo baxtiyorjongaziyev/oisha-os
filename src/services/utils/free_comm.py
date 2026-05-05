@@ -1,7 +1,8 @@
-import requests # type: ignore
+import requests  # type: ignore
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class FreeComm:
     """Bepul SMS va qo'ng'iroqlar integratsiyasi (Free tiers/Trials)."""
@@ -11,9 +12,9 @@ class FreeComm:
         """TextBelt orqali kuniga 1 ta bepul SMS (Global)."""
         url = "https://textbelt.com/text"
         data = {
-            'phone': phone,
-            'message': message,
-            'key': 'textbelt',
+            "phone": phone,
+            "message": message,
+            "key": "textbelt",
         }
         try:
             response = requests.post(url, data=data, timeout=10)
