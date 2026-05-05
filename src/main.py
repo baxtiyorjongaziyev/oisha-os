@@ -559,19 +559,6 @@ def _is_group_open_confirmation(text: str) -> bool:
 
 
 def _is_finance_approval(text: str) -> bool:
-<<<<<<< Updated upstream
-=======
-    from src.api import dashboard
-
-    app = FastAPI(
-        title="Oisha-OS API",
-        description="Enterprise AI Automation for amoCRM",
-        version="2.0.0",
-    )
-
-    # Include Routers
-    app.include_router(dashboard.router)
->>>>>>> Stashed changes
     lowered = (text or "").lower()
     keywords = (
         "tasdiq",
@@ -2015,7 +2002,6 @@ async def negotiation_agent_handler(event):
     logger.info(f"[NEGOTIATION] Replied chat={chat_id} msg={event.id}")
 
 
-<<<<<<< Updated upstream
 async def kirim_topic_handler(event):
     """Team guruhidagi Kirim topicda sotuvchi kirim e'lon qilsa tabriklaydi."""
     if not settings.TEAM_GROUP_ID or not settings.TOPIC_KIRIM_ID:
@@ -2081,8 +2067,6 @@ async def kirim_topic_handler(event):
         logger.error(f"[KIRIM] Celebration send failed: {exc}", exc_info=True)
 
 
-=======
->>>>>>> Stashed changes
 async def main():
     """Botlarni ishga tushirish (Userbot + Admin Bot)."""
     global msg_controller, client, bot_client, lead_scraper, action_parser
