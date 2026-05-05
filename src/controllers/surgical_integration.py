@@ -8,8 +8,15 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, Optional
 
-from src.agents import get_surgical_negotiator
 from src.settings import settings
+
+try:
+    from src.agents.surgical_negotiator import get_surgical_negotiator
+except Exception as exc:  # pragma: no cover - production safety net
+    get_surgical_negotiator = None
+    _SURGICAL_IMPORT_ERROR = exc
+else:
+    _SURGICAL_IMPORT_ERROR = None
 
 
 class SurgicalIntegration:
@@ -21,8 +28,8 @@ class SurgicalIntegration:
     """
 
     def __init__(self):
-        self.negotiator = get_surgical_negotiator()
-        self.enabled = getattr(settings, "SURGICAL_MODE", False)
+        self.negotiator = get_surgical_negotiator() if get_surgical_negotiator else None
+        self.enabled = bool(getattr(settings, "SURGICAL_MODE", False) and self.negotiator)
         self.autonomy_threshold = getattr(settings, "AUTONOMY_THRESHOLD", 0.6)
 
     async def process_message(
@@ -40,9 +47,10 @@ class SurgicalIntegration:
             }
         """
 
-        if not self.enabled:
+        if not self.enabled or not self.negotiator:
             # Legacy mode - return None to indicate no handling
-            return {"mode": "disabled"}
+            reason = type(_SURGICAL_IMPORT_ERROR).__name__ if _SURGICAL_IMPORT_ERROR else "disabled"
+            return {"mode": "disabled", "reason": reason}
 
         try:
             # Get user info from context
@@ -91,7 +99,7 @@ class SurgicalIntegration:
         - Narx, xizmat, shartnoma so'zlari
         """
 
-        if not self.enabled:
+        if not self.enabled or not self.negotiator:
             return False
 
         sales_keywords = [
