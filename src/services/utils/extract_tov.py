@@ -1,8 +1,5 @@
 import asyncio
 import logging
-import json
-import os
-import random
 from telethon import TelegramClient, functions, types
 from datetime import datetime, timezone
 
@@ -11,63 +8,70 @@ from settings import settings
 from google import genai
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 SESSION_NAME = "userbot_session"
 
 # Configure Gemini with modern SDK
 client_ai = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
-model_name = 'gemini-2.0-flash'
+model_name = "gemini-2.0-flash"
 
 # Business Folders/Folders to Study Tone of Voice
 TARGET_FOLDERS = [
     "Aktiv loyiha",
     "Lead",
-    "Closed Costu", 
+    "Closed Costu",
     "KP Yuborildi",
     "To'lov kutil",
-    "Faol mijoz"
+    "Faol mijoz",
 ]
+
 
 async def main():
     client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
     await client.start()
-    
+
     logger.info("Biznes papkalarni qidirish va Tone of Voice tahlilini boshlash... 📈")
-    
+
     # 1. Get Dialog Filters (Folders)
     try:
         dialog_filters = await client(functions.messages.GetDialogFiltersRequest())
         target_peers = set()
-        
+
         found_folders = []
         for f in dialog_filters.filters:
             if isinstance(f, types.DialogFilter):
                 # Search for target folder names (partial match allowed)
                 # Since title can be TextWithEntities, use .text or str()
-                title_text = f.title.text if hasattr(f.title, 'text') else str(f.title)
-                is_target = any(target.lower() in title_text.lower() for target in TARGET_FOLDERS)
+                title_text = f.title.text if hasattr(f.title, "text") else str(f.title)
+                is_target = any(
+                    target.lower() in title_text.lower() for target in TARGET_FOLDERS
+                )
                 if is_target:
                     found_folders.append(title_text)
                     # Add all peer accounts from this folder
                     all_peers = (f.include_peers or []) + (f.pinned_peers or [])
                     for peer in all_peers:
                         # Extract the peer ID or other identifier
-                        if hasattr(peer, 'user_id'):
+                        if hasattr(peer, "user_id"):
                             target_peers.add(peer.user_id)
-                        elif hasattr(peer, 'chat_id'):
+                        elif hasattr(peer, "chat_id"):
                             target_peers.add(peer.chat_id)
-                        elif hasattr(peer, 'channel_id'):
+                        elif hasattr(peer, "channel_id"):
                             target_peers.add(peer.channel_id)
-        
+
         if not found_folders:
-            logger.error(f"Belgilangan papkalar topilmadi. Mavjud papkalar: {[f.title for f in dialog_filters if hasattr(f, 'title')]}")
+            logger.error(
+                f"Belgilangan papkalar topilmadi. Mavjud papkalar: {[f.title for f in dialog_filters if hasattr(f, 'title')]}"
+            )
             return
-            
+
         logger.info(f"Target papkalar topildi: {found_folders}")
         logger.info(f"Jami {len(target_peers)} ta chat tahlilga olinadi.")
-        
+
     except Exception as e:
         logger.error(f"Papkalar ro'yxatini olishda xato: {e}")
         return
@@ -82,35 +86,41 @@ async def main():
         try:
             # We try to get dialog or entity directly
             entity = await client.get_entity(peer_id)
-            entity_name = getattr(entity, 'first_name', '') or getattr(entity, 'title', '') or str(peer_id)
-            
+            entity_name = (
+                getattr(entity, "first_name", "")
+                or getattr(entity, "title", "")
+                or str(peer_id)
+            )
+
             logger.info(f"O'qiyapman: {entity_name}...")
-            
+
             # Fetch last 500 messages from "me"
-            async for msg in client.iter_messages(entity, from_user='me', offset_date=datetime.now(), limit=500):
+            async for msg in client.iter_messages(
+                entity, from_user="me", offset_date=datetime.now(), limit=500
+            ):
                 if not msg.text:
                     continue
                 if msg.date < start_date:
                     break
-                
+
                 text = msg.text.strip()
                 if len(text) > 2:
                     all_my_messages.append(text)
                     total_messages_scanned += 1
-                
+
                 # Banning prevention & context window management
                 if total_messages_scanned >= 5000:
                     break
-                    
+
             if total_messages_scanned >= 5000:
                 break
-                
+
         except Exception as e:
             logger.debug(f"Peer {peer_id} tahlilida xato: {e}")
             continue
 
     logger.info(f"Jami yig'ilgan biznes xabarlar: {len(all_my_messages)} ta.")
-    
+
     if len(all_my_messages) < 30:
         logger.error("Vakillik tahlil qilish uchun xabarlar juda kam!")
         return
@@ -148,21 +158,21 @@ async def main():
     """
 
     logger.info("AI tahlili boshlandi (Gemini 2.0 Flash)... 👸")
-    
+
     try:
-        response = client_ai.models.generate_content(
-            model=model_name,
-            contents=prompt
-        )
+        response = client_ai.models.generate_content(model=model_name, contents=prompt)
         ai_analysis = response.text.strip()
-        
+
         save_path = "business_tov_persona.md"
-        with open(save_path, "w", encoding='utf-8') as f:
+        with open(save_path, "w", encoding="utf-8") as f:
             f.write(ai_analysis)
-            
-        logger.info(f"Ajoyib! Biznes tahlil yakunlandi va '{save_path}' fayliga saqlandi!")
+
+        logger.info(
+            f"Ajoyib! Biznes tahlil yakunlandi va '{save_path}' fayliga saqlandi!"
+        )
     except Exception as e:
         logger.error(f"AI Analizida muammo: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
