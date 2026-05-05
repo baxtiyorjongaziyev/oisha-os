@@ -2251,17 +2251,22 @@ async def main():
             logger.warning(f"[SURGICAL] Proactive send failed uid={user_id}: {exc}")
 
     surgical_integration = get_surgical_integration()
-    surgical_integration.negotiator = __import__(
-        "src.agents.surgical_negotiator", fromlist=["get_surgical_negotiator"]
-    ).get_surgical_negotiator(
-        db=msg_controller.db,
-        amocrm=msg_controller.crm.amocrm,
-        send_fn=_surgical_send,
-    )
-    surgical_integration.enabled = settings.SURGICAL_MODE
+    try:
+        surgical_integration.negotiator = __import__(
+            "src.agents.surgical_negotiator", fromlist=["get_surgical_negotiator"]
+        ).get_surgical_negotiator(
+            db=msg_controller.db,
+            amocrm=msg_controller.crm.amocrm,
+            send_fn=_surgical_send,
+        )
+        surgical_integration.enabled = settings.SURGICAL_MODE
+    except Exception as surg_init_exc:
+        surgical_integration.negotiator = None
+        surgical_integration.enabled = False
+        logger.warning(f"[SURGICAL] Disabled until agent modules are synced: {type(surg_init_exc).__name__}")
     surgical_integration.autonomy_threshold = settings.AUTONOMY_THRESHOLD
     logger.info(
-        f"[SURGICAL] Autonomous negotiations agent initialized (enabled={settings.SURGICAL_MODE})"
+        f"[SURGICAL] Autonomous negotiations agent initialized (enabled={surgical_integration.enabled})"
     )
 
     from src.services.core.workflow_manager import WorkflowManager
