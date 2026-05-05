@@ -14,15 +14,15 @@ logger = logging.getLogger("OpenClawBridge")
 
 # Kanal → user_id prefiks (har bir kanal uchun noyob ID maydoni)
 _CHANNEL_PREFIX: Dict[str, int] = {
-    "telegram":  0,
-    "whatsapp":  1_000_000_000,
-    "slack":     2_000_000_000,
-    "discord":   3_000_000_000,
-    "signal":    4_000_000_000,
-    "imessage":  5_000_000_000,
-    "teams":     6_000_000_000,
-    "matrix":    7_000_000_000,
-    "webchat":   8_000_000_000,
+    "telegram": 0,
+    "whatsapp": 1_000_000_000,
+    "slack": 2_000_000_000,
+    "discord": 3_000_000_000,
+    "signal": 4_000_000_000,
+    "imessage": 5_000_000_000,
+    "teams": 6_000_000_000,
+    "matrix": 7_000_000_000,
+    "webchat": 8_000_000_000,
 }
 
 # Singleton agent manager (birinchi chaqiruvda yaratiladi)
@@ -40,7 +40,9 @@ def _get_numeric_user_id(sender_id: str, channel: str) -> int:
         return prefix + abs(hash(sender_id)) % 1_000_000_000
 
 
-def _build_context(channel: str, sender: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+def _build_context(
+    channel: str, sender: str, metadata: Dict[str, Any]
+) -> Dict[str, Any]:
     return {
         "source": "openclaw",
         "channel": channel,
@@ -103,7 +105,10 @@ async def handle_openclaw_message(
 
     logger.info(
         "[OpenClawBridge] %s/%s (uid=%d): %s",
-        channel, sender, user_id, text[:80],
+        channel,
+        sender,
+        user_id,
+        text[:80],
     )
 
     try:

@@ -34,30 +34,30 @@ from typing import Any, Optional
 # Escalation triggers — if the user message contains any of these, the bot
 # must NOT auto-reply and instead escalate to the Owner. Matched case-insensitive.
 ESCALATION_TRIGGERS = (
-    "shikoyat",        # complaint
-    "qaytarish",       # refund
-    "advokat",         # lawyer
-    "sud",             # court
-    "vaqtida bermadi", # did not deliver on time
-    "aldadi",          # cheated
-    "firibgar",        # fraud
-    "qaytarib bering", # give back
+    "shikoyat",  # complaint
+    "qaytarish",  # refund
+    "advokat",  # lawyer
+    "sud",  # court
+    "vaqtida bermadi",  # did not deliver on time
+    "aldadi",  # cheated
+    "firibgar",  # fraud
+    "qaytarib bering",  # give back
 )
 
 VALID_MODES = ("off", "shadow", "vip_only", "live")
 
 # DB flag keys
-FLAG_KILL_SWITCH = "auto_reply_live"   # bool, True=allowed, False=killed
-FLAG_MODE = "auto_reply_mode"          # str, one of VALID_MODES (overrides env)
+FLAG_KILL_SWITCH = "auto_reply_live"  # bool, True=allowed, False=killed
+FLAG_MODE = "auto_reply_mode"  # str, one of VALID_MODES (overrides env)
 
 
 @dataclass
 class Decision:
     """Result of a gate evaluation."""
 
-    action: str           # "send" | "shadow" | "skip" | "escalate"
-    reason: str           # human-readable explanation (shown in logs/admin)
-    effective_mode: str   # which mode was actually applied after overrides
+    action: str  # "send" | "shadow" | "skip" | "escalate"
+    reason: str  # human-readable explanation (shown in logs/admin)
+    effective_mode: str  # which mode was actually applied after overrides
     kill_switch_on: bool  # True if kill-switch is pulled (forces "skip")
 
 

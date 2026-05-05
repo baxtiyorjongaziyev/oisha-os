@@ -3,6 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class CRMIntegration:
     """AmoCRM va Airtable bilan integratsiya moduli."""
 
@@ -12,11 +13,11 @@ class CRMIntegration:
         """AmoCRM da yangi Lead yaratish."""
         if not api_token or not domain:
             return None
-            
+
         url = f"https://{domain}.amocrm.ru/api/v4/leads/complex"
         headers = {
             "Authorization": f"Bearer {api_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
         data = [
             {
@@ -27,14 +28,11 @@ class CRMIntegration:
                         {
                             "first_name": name,
                             "custom_fields_values": [
-                                {
-                                    "field_code": "PHONE",
-                                    "values": [{"value": phone}]
-                                }
-                            ]
+                                {"field_code": "PHONE", "values": [{"value": phone}]}
+                            ],
                         }
                     ]
-                }
+                },
             }
         ]
         try:
@@ -51,11 +49,11 @@ class CRMIntegration:
         """AmoCRM dan vazifalarni olish."""
         if not api_token or not domain:
             return []
-            
+
         url = f"https://{domain}.amocrm.ru/api/v4/tasks"
         headers = {
             "Authorization": f"Bearer {api_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
         try:
             response = requests.get(url, headers=headers, timeout=10)
@@ -73,19 +71,13 @@ class CRMIntegration:
         """Airtable bazasiga yangi qator (record) qo'shish."""
         if not api_token:
             return False
-            
+
         url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
         headers = {
             "Authorization": f"Bearer {api_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
-        data = {
-            "records": [
-                {
-                    "fields": fields
-                }
-            ]
-        }
+        data = {"records": [{"fields": fields}]}
         try:
             response = requests.post(url, headers=headers, json=data, timeout=10)
             return response.status_code == 200
@@ -98,15 +90,13 @@ class CRMIntegration:
         """Airtable dan oxirgi yozuvlarni olish."""
         if not api_token:
             return []
-            
+
         url = f"https://api.airtable.com/v0/{base_id}/{table_name}?maxRecords={max_records}&sortField=Created&sortDirection=desc"
-        headers = {
-            "Authorization": f"Bearer {api_token}"
-        }
+        headers = {"Authorization": f"Bearer {api_token}"}
         try:
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
-                return response.json().get('records', [])
+                return response.json().get("records", [])
             return []
         except Exception as e:
             logger.error(f"[AIRTABLE FETCH ERROR] {e}")

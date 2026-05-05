@@ -3,13 +3,15 @@ from telethon import TelegramClient
 
 logger = logging.getLogger(__name__)
 
+
 class WelcomeManager:
     """
     Yangi lidlar uchun birinchi 'WOW' xabarini yuborish servisi.
     """
+
     def __init__(self, client: TelegramClient):
         self.client = client
-        self.PORTFOLIO_LINK = "https://jonbranding.uz/uz/portfolio" 
+        self.PORTFOLIO_LINK = "https://jonbranding.uz/uz/portfolio"
         self.WELCOME_TEMPLATE = (
             "Assalomu alaykum! 👸🛡️\n\n"
             "Jon Branding agentligiga murojaat qilganingiz uchun rahmat. "

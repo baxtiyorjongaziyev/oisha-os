@@ -1,18 +1,22 @@
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from src.services.core.airtable_sync import AirtableSync
 
 logger = logging.getLogger(__name__)
+
 
 class PortfolioManager:
     """
     Tayyor loyihalarni portfolioga tayyorlash va joylash servisi.
     """
+
     def __init__(self, airtable: AirtableSync):
         self.airtable = airtable
-        self.PORTFOLIO_TABLE = "Portfolio" # Placeholder for Airtable Portfolio table
+        self.PORTFOLIO_TABLE = "Portfolio"  # Placeholder for Airtable Portfolio table
 
-    def format_project_for_portfolio(self, project_data: Dict[str, Any], description: str, image_url: str):
+    def format_project_for_portfolio(
+        self, project_data: Dict[str, Any], description: str, image_url: str
+    ):
         """
         Loyiha ma'lumotlarini portfolio uchun formatlash va Airtable'ga yozish.
         """
@@ -21,14 +25,14 @@ class PortfolioManager:
             "Description": description,
             "Image": [{"url": image_url}],
             "Date": project_data.get("Created At"),
-            "Client": project_data.get("Client")
+            "Client": project_data.get("Client"),
         }
-        
+
         # Portfolio jadvaliga yozish
         original_table = self.airtable.table_name
         self.airtable.table_name = self.PORTFOLIO_TABLE
         self.airtable.endpoint = f"https://api.airtable.com/v0/{self.airtable.base_id}/{self.airtable.table_name}"
-        
+
         try:
             result = self.airtable.create_record(fields)
             return result is not None
