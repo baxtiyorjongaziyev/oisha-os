@@ -1664,6 +1664,22 @@ async def main():
     global workflow_manager, access_manager, admin_bot, session_manager, chat_bridge, BOT_TOKEN_STR, juma_notifier
     global surgical_integration
 
+
+    # [ENTERPRISE] Anti-Local Execution Lock
+    # To protect the owner's Telegram session from being revoked by simultaneous 
+    # logins (Local vs Cloud), we strictly prevent local execution unless 
+    # explicitly requested via ALLOW_LOCAL_RUN=1.
+    is_cloud = os.getenv("K_SERVICE") or os.getenv("RUNNING_IN_CLOUD") == "1"
+    allow_local = os.getenv("ALLOW_LOCAL_RUN") == "1"
+    
+    if not is_cloud and not allow_local:
+        print("\n" + "!"*60)
+        print("🚨 [SECURITY LOCK] Oisha-OS Local Execution is DISABLED.")
+        print("Telegram sessions can only be active in bir joyda (Cloud Run).")
+        print("To override this on your dev machine, set ALLOW_LOCAL_RUN=1")
+        print("!"*60 + "\n")
+        return
+
     print("🚀 Oisha-OS Tizimi tayyorlanmoqda (Dual-Head Architecture)...")
 
     # [STABILITY] Start health-check early so Cloud Run readiness probes pass during heavy initialization.
