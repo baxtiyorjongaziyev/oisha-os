@@ -22,9 +22,10 @@ import src.config as config
 
 logger = logging.getLogger(__name__)
 
+
 class MessageController:
     """Xabarlarni qayta ishlash mantiqini boshqaruvchi controller."""
-    
+
     def __init__(self, api_keys: Dict[str, str], db: Optional[Database] = None):
         self.api_keys = api_keys
         self.db = db or Database()
@@ -33,33 +34,54 @@ class MessageController:
         self.crm = CRMService()
         self.google = GoogleService()
         self.enterprise_reporter = EnterpriseReporter(db=self.db, crm=self.crm)
-        
+
         # Executor initialization (bot_app to be set later)
         self.executor = AgentToolExecutor(
             db=self.db,
             gcontacts=self.google.contacts,
             gcalendar=self.google.calendar,
             gsheet=self.google.sheets,
-            amocrm=self.crm.amocrm, # Corrected parameter name
-            bot_app=None, # Will be set via set_bot_app
-            config=config
+            amocrm=self.crm.amocrm,  # Corrected parameter name
+            bot_app=None,  # Will be set via set_bot_app
+            config=config,
         )
-        
+
         # Agentlarni ro'yxatdan o'tkazish
         # Barcha agentlar uchun Oisha (Biznes ToV) asosiy ko'rsatma bo'ladi
-        system_instruction = getattr(settings, 'SYSTEM_INSTRUCTION', "Siz JonBranding yordamchisisiz.")
-        
-        self.agent_manager.register_agent(SalesAgent("sales", system_instruction, api_keys, self.executor, self.db))
-        
+        system_instruction = getattr(
+            settings, "SYSTEM_INSTRUCTION", "Siz JonBranding yordamchisisiz."
+        )
+
+        self.agent_manager.register_agent(
+            SalesAgent("sales", system_instruction, api_keys, self.executor, self.db)
+        )
+
         # PM va Researcher uchun faqat vazifa qo'shamiz, lekin Oisha obrazini saqlaymiz
-        pm_prompt = system_instruction + "\n\nSiz ayniqsa loyihalarni rejalashtirish va ularni boshqarish bo'yicha masuliyatlisiz."
-        self.agent_manager.register_agent(PMAgent("strategist", pm_prompt, api_keys, self.executor, self.db))
-        
-        research_prompt = system_instruction + "\n\nSiz ayniqsa bozor tahlili, OSINT yoki chuqur tadqiqotlar uchun masuliyatlisiz."
-        self.agent_manager.register_agent(ResearcherAgent("researcher", research_prompt, api_keys, self.executor, self.db))
-        
-        support_prompt = system_instruction + "\n\nSiz ayniqsa tezkor yordam va texnik savollar uchun masuliyatlisiz."
-        self.agent_manager.register_agent(SupportAgent("support", support_prompt, api_keys, self.executor, self.db))
+        pm_prompt = (
+            system_instruction
+            + "\n\nSiz ayniqsa loyihalarni rejalashtirish va ularni boshqarish bo'yicha masuliyatlisiz."
+        )
+        self.agent_manager.register_agent(
+            PMAgent("strategist", pm_prompt, api_keys, self.executor, self.db)
+        )
+
+        research_prompt = (
+            system_instruction
+            + "\n\nSiz ayniqsa bozor tahlili, OSINT yoki chuqur tadqiqotlar uchun masuliyatlisiz."
+        )
+        self.agent_manager.register_agent(
+            ResearcherAgent(
+                "researcher", research_prompt, api_keys, self.executor, self.db
+            )
+        )
+
+        support_prompt = (
+            system_instruction
+            + "\n\nSiz ayniqsa tezkor yordam va texnik savollar uchun masuliyatlisiz."
+        )
+        self.agent_manager.register_agent(
+            SupportAgent("support", support_prompt, api_keys, self.executor, self.db)
+        )
 
     def set_bot_app(self, bot_app):
         """Telegram application built bo'lgandan so'ng executorga uzatish."""
@@ -86,15 +108,15 @@ class MessageController:
             user_name = context.get("user_name") or "Mijoz"
         if not message:
             return ""
-        
+
         # 1. CRM dan user haqida ma'lumot olish (agar tel bo'lsa)
         user_info = await self.db.get_user_info(user_id)
         crm_status = "Yangi mijoz"
         phone = user_info.get("phone") if user_info else None
-        
+
         if phone:
             crm_status = await self.crm.get_user_context(phone)
-        
+
         context["crm_status"] = crm_status
         context["user_name"] = user_name
         context["phone"] = phone
@@ -113,7 +135,11 @@ class MessageController:
             )
 
         # 3. Intentni aniqlash (LLM routing)
-        agent_id = await self.orchestrator.determine_intent(message, history=history_str)
-        
+        agent_id = await self.orchestrator.determine_intent(
+            message, history=history_str
+        )
+
         # 4. Agent orqali javob olish (kontekst bilan birga)
-        return await self.orchestrator.get_agent_response(agent_id, user_id, message, context=context)
+        return await self.orchestrator.get_agent_response(
+            agent_id, user_id, message, context=context
+        )

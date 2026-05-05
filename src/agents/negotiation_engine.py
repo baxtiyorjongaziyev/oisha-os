@@ -2,9 +2,9 @@
 NegotiationEngine — Semantic AI-powered assessment + surgical mission generation.
 Replaces pure keyword matching with Gemini semantic understanding.
 """
+
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from dataclasses import asdict, dataclass, field
@@ -130,10 +130,11 @@ JSON:"""
                 decision_factors=data.get("decision_factors", []),
             )
 
-        except Exception as e:
+        except Exception:
             # Graceful fallback to keyword-based
             return NegotiationEngine.assess(
-                message, crm_status,
+                message,
+                crm_status,
                 autonomy_mode=autonomy_mode,
                 history=history,
                 context=context,
@@ -159,31 +160,51 @@ JSON:"""
 
         # ── Objection detection ──
         objection = "none"
-        if any(w in msg for w in ["qimmat", "narx", "chegirma", "discount", "budget", "arzon"]):
+        if any(
+            w in msg
+            for w in ["qimmat", "narx", "chegirma", "discount", "budget", "arzon"]
+        ):
             objection = "price"
             risk_flags.append("price_pressure")
-        elif any(w in msg for w in ["portfolio", "ishlar", "case", "garant", "ishonch", "tajriba"]):
+        elif any(
+            w in msg
+            for w in ["portfolio", "ishlar", "case", "garant", "ishonch", "tajriba"]
+        ):
             objection = "trust"
-        elif any(w in msg for w in ["keyin", "vaqt", "hozir emas", "kechroq", "keyinroq"]):
+        elif any(
+            w in msg for w in ["keyin", "vaqt", "hozir emas", "kechroq", "keyinroq"]
+        ):
             objection = "timing"
-        elif any(w in msg for w in ["raqobatchi", "boshqa agentlik", "arzonroq", "taqqos"]):
+        elif any(
+            w in msg for w in ["raqobatchi", "boshqa agentlik", "arzonroq", "taqqos"]
+        ):
             objection = "competition"
             risk_flags.append("competitive_pressure")
-        elif any(w in msg for w in ["shartnoma", "nda", "akt", "kpi", "yuridik", "legal", "advokat"]):
+        elif any(
+            w in msg
+            for w in ["shartnoma", "nda", "akt", "kpi", "yuridik", "legal", "advokat"]
+        ):
             objection = "legal"
             risk_flags.append("legal_review")
         elif any(w in msg for w in ["byudjet", "mablag", "pul yo'q", "moliya"]):
             objection = "budget"
             risk_flags.append("budget_constraint")
-        elif any(w in msg for w in ["rahbar", "direktor", "boshiq", "ruxsat", "kelishuv"]):
+        elif any(
+            w in msg for w in ["rahbar", "direktor", "boshiq", "ruxsat", "kelishuv"]
+        ):
             objection = "authority"
             risk_flags.append("authority_gate")
 
         # ── Sentiment ──
-        if any(w in msg for w in ["jahlim", "yomon", "norozi", "muammo", "ishonmayman", "aldov"]):
+        if any(
+            w in msg
+            for w in ["jahlim", "yomon", "norozi", "muammo", "ishonmayman", "aldov"]
+        ):
             sentiment = "negative"
             risk_flags.append("negative_sentiment")
-        elif any(w in msg for w in ["zo'r", "yoqdi", "qiziq", "maqul", "ajoyib", "yaxshi"]):
+        elif any(
+            w in msg for w in ["zo'r", "yoqdi", "qiziq", "maqul", "ajoyib", "yaxshi"]
+        ):
             sentiment = "positive"
         elif any(w in msg for w in ["tushunmadim", "aniqla", "nima", "qanday"]):
             sentiment = "confused"
@@ -192,7 +213,10 @@ JSON:"""
 
         # ── Urgency ──
         urgency = "normal"
-        if any(w in msg for w in ["tez", "bugun", "ertaga", "shoshilinch", "deadline", "zudlik"]):
+        if any(
+            w in msg
+            for w in ["tez", "bugun", "ertaga", "shoshilinch", "deadline", "zudlik"]
+        ):
             urgency = "high"
         elif any(w in msg for w in ["keyinroq", "vaqt bor", "shoshilmaymiz", "asta"]):
             urgency = "low"
@@ -201,22 +225,44 @@ JSON:"""
         intent = "qualify"
         if any(w in msg for w in ["narx", "qancha", "budget", "chegirma", "to'lov"]):
             intent = "pricing"
-        elif any(w in msg for w in ["uchrashuv", "qo'ng'iroq", "call", "zoom", "meeting", "uchrash"]):
+        elif any(
+            w in msg
+            for w in ["uchrashuv", "qo'ng'iroq", "call", "zoom", "meeting", "uchrash"]
+        ):
             intent = "meeting"
-        elif any(w in msg for w in ["tayyor", "boshlaymiz", "start", "to'laymiz", "shartnoma", "kelishdik"]):
+        elif any(
+            w in msg
+            for w in [
+                "tayyor",
+                "boshlaymiz",
+                "start",
+                "to'laymiz",
+                "shartnoma",
+                "kelishdik",
+            ]
+        ):
             intent = "closing"
-        elif any(w in msg for w in ["portfolio", "case", "misol", "ishlaringiz", "ko'rsating"]):
+        elif any(
+            w in msg
+            for w in ["portfolio", "case", "misol", "ishlaringiz", "ko'rsating"]
+        ):
             intent = "proof"
-        elif any(w in msg for w in ["keyin", "o'ylab", "o'ylab ko'raman", "bayon qilaman"]):
+        elif any(
+            w in msg for w in ["keyin", "o'ylab", "o'ylab ko'raman", "bayon qilaman"]
+        ):
             intent = "nurture"
-        elif any(w in msg for w in ["xato", "shikoyat", "norozi", "muammo", "noto'g'ri"]):
+        elif any(
+            w in msg for w in ["xato", "shikoyat", "norozi", "muammo", "noto'g'ri"]
+        ):
             intent = "complaint"
 
         # ── Stage ──
         stage = "new_lead"
         if "meeting" in crm or intent == "meeting":
             stage = "meeting_ready"
-        elif "qualified" in crm or "interested" in crm or intent in {"pricing", "proof"}:
+        elif (
+            "qualified" in crm or "interested" in crm or intent in {"pricing", "proof"}
+        ):
             stage = "qualified"
         elif "won" in crm or "success" in crm or intent == "closing":
             stage = "closing"
@@ -239,18 +285,31 @@ JSON:"""
 
         # ── Probability ──
         prob = 0.3
-        if stage == "qualified":      prob += 0.15
-        if stage == "meeting_ready":  prob += 0.25
-        if intent == "closing":       prob += 0.20
-        if sentiment == "positive":   prob += 0.10
-        if objection in {"price", "competition", "legal"}:  prob -= 0.15
-        if "negative_sentiment" in risk_flags:              prob -= 0.20
-        if urgency == "high":         prob += 0.10
+        if stage == "qualified":
+            prob += 0.15
+        if stage == "meeting_ready":
+            prob += 0.25
+        if intent == "closing":
+            prob += 0.20
+        if sentiment == "positive":
+            prob += 0.10
+        if objection in {"price", "competition", "legal"}:
+            prob -= 0.15
+        if "negative_sentiment" in risk_flags:
+            prob -= 0.20
+        if urgency == "high":
+            prob += 0.10
         prob = max(0.05, min(0.95, prob))
 
-        approval_needed = any(f in risk_flags for f in [
-            "legal_review", "competitive_pressure", "negative_sentiment", "budget_constraint"
-        ])
+        approval_needed = any(
+            f in risk_flags
+            for f in [
+                "legal_review",
+                "competitive_pressure",
+                "negative_sentiment",
+                "budget_constraint",
+            ]
+        )
         if objection == "price" and any(w in msg for w in ["chegirma", "discount"]):
             approval_needed = True
             risk_flags.append("discount_request")
@@ -294,8 +353,16 @@ JSON:"""
         try:
             client = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
 
-            pain_str = ", ".join(assessment.pain_points) if assessment.pain_points else "aniqlanmagan"
-            signals_str = ", ".join(assessment.buying_signals) if assessment.buying_signals else "yo'q"
+            pain_str = (
+                ", ".join(assessment.pain_points)
+                if assessment.pain_points
+                else "aniqlanmagan"
+            )
+            signals_str = (
+                ", ".join(assessment.buying_signals)
+                if assessment.buying_signals
+                else "yo'q"
+            )
 
             prompt = f"""
 Siz "Oisha-OS Surgical Strategist"siz. Menejer uchun keyingi 3 ta aniq harakat belgilang.
@@ -331,11 +398,12 @@ Faqat 3 qatorni qaytarish."""
         if assessment.objection == "trust":
             return "[1] Ishonch qur: Case study yuboring\n[2] Keyingi savol: 'Qaysi sohadan case ko'rsatay?'\n[3] Xavf: Munosabat sovishi"
         if role == "HUNTER":
-            return f"[1] Kvalifikatsiya: Ehtiyojni aniqla\n[2] Keyingi savol: 'Hozir asosiy muammoyingiz nima?'\n[3] Xavf: Vaqt yo'qotish"
+            return "[1] Kvalifikatsiya: Ehtiyojni aniqla\n[2] Keyingi savol: 'Hozir asosiy muammoyingiz nima?'\n[3] Xavf: Vaqt yo'qotish"
         return f"[1] Progress: '{assessment.stage}' bosqichiga o'tkazing\n[2] Keyingi savol: 'Qachon boshlashni xohlaysiz?'\n[3] Xavf: Muddatlar"
 
 
 # ─────────────────── Gemini Audio STT (Voice → Assessment) ──────────────────
+
 
 async def transcribe_and_assess_audio(
     audio_bytes: bytes,
