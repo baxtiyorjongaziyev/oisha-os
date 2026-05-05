@@ -1123,8 +1123,18 @@ async def handle_new_message(event):
                         if surgical_result.get("mode") == "surgical":
                             voice_reply = surgical_result.get("response", "")
                             if voice_reply:
-                                await event.reply(voice_reply)
-                                logger.info(f"[VOICE→SURGICAL] Auto-replied to {sender_name}")
+                                # [AUTO_REPLY_OFF] Gate tekshiruvi — off rejimida ovozga ham javob berilmaydi
+                                _voice_decision = await auto_reply_gate.evaluate(
+                                    msg_controller.db,
+                                    is_mentioned=False,
+                                    lead_score=0,
+                                    message_text=transcript or "",
+                                )
+                                if _voice_decision.action == "send":
+                                    await event.reply(voice_reply)
+                                    logger.info(f"[VOICE→SURGICAL] Auto-replied to {sender_name}")
+                                else:
+                                    logger.info(f"[VOICE→SURGICAL] Skipped reply (gate={_voice_decision.action})")
 
             except Exception as stt_err:
                 logger.warning(f"[VOICE] Gemini STT failed, fallback: {stt_err}")
@@ -1171,7 +1181,7 @@ async def handle_new_message(event):
             me = await client.get_me()
             text_low = event.message.text.lower()
             me_username = (me.username or "").lower()
-            is_mentioned = (me_username and f"@{me_username}" in text_low) or "oisha" in text_low
+            is_mentioned = bool(me_username and f"@{me_username}" in text_low)
 
         # NOTE: lead_score=0 — Phase 3 scoring'gacha stub. VIP-only rejimida
         # score 0 bo'lsa avtomatik shadow'ga tushadi (xavfsiz default).
