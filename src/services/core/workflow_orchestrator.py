@@ -60,7 +60,9 @@ class WorkflowOrchestrator:
         2. Airtable'da loyiha yaratadi.
         3. Done loyihalarni portfolio oqimiga tayyorlaydi.
         """
-        logger.info("👸 Oisha-OS: 'Order-to-Portfolio' tizimlashtirish tekshiruvi boshlandi... 🛡️")
+        logger.info(
+            "👸 Oisha-OS: 'Order-to-Portfolio' tizimlashtirish tekshiruvi boshlandi... 🛡️"
+        )
 
         leads = await self.amocrm.get_leads(status_id=self.AMO_TRIGGER_STATUS)
         existing_projects = self.airtable.get_projects()
@@ -71,13 +73,17 @@ class WorkflowOrchestrator:
 
             matched_project = None
             for project in existing_projects:
-                project_name = self.airtable._get_field(project.get("fields", {}), "project_name")
+                project_name = self.airtable._get_field(
+                    project.get("fields", {}), "project_name"
+                )
                 if project_name == lead_name:
                     matched_project = project
                     break
 
             if matched_project is None:
-                logger.info(f"🚀 Yangi bitim aniqlandi! Airtable-da loyiha yaratilmoqda: {lead_name}")
+                logger.info(
+                    f"🚀 Yangi bitim aniqlandi! Airtable-da loyiha yaratilmoqda: {lead_name}"
+                )
 
                 manager = self._get_next_manager()
                 new_project_fields = {
@@ -92,7 +98,9 @@ class WorkflowOrchestrator:
                     existing_projects.append(result)
                     self._stage_sync_cache[str(lead_id)] = "Brief (Kelishuv)"
 
-                self.amocrm.add_lead_note(lead_id, f"Oisha: Airtable-da loyiha ochildi. Mas'ul: {manager} ✅")
+                self.amocrm.add_lead_note(
+                    lead_id, f"Oisha: Airtable-da loyiha ochildi. Mas'ul: {manager} ✅"
+                )
                 continue
 
             fields = matched_project.get("fields", {})
@@ -108,7 +116,10 @@ class WorkflowOrchestrator:
                 self._stage_sync_cache[str(lead_id)] = current_stage
 
                 if current_stage == self.AIRTABLE_DONE_STAGE:
-                    manager_name = self.airtable._get_field(fields, "manager") or "PM tayinlanmagan"
+                    manager_name = (
+                        self.airtable._get_field(fields, "manager")
+                        or "PM tayinlanmagan"
+                    )
                     await self._notify(
                         f"🥳 **Muvaffaqiyat!**\n\n"
                         f"'{lead_name}' loyihasi yakunlandi! ✅\n"
@@ -123,8 +134,12 @@ class WorkflowOrchestrator:
                 continue
 
             fields = project.get("fields", {})
-            project_name = self.airtable._get_field(fields, "project_name") or "Nomsiz loyiha"
-            manager_name = self.airtable._get_field(fields, "manager") or "PM tayinlanmagan"
+            project_name = (
+                self.airtable._get_field(fields, "project_name") or "Nomsiz loyiha"
+            )
+            manager_name = (
+                self.airtable._get_field(fields, "manager") or "PM tayinlanmagan"
+            )
             logger.warning(f"⏰ [ALERT] Loyiha muddati yaqin: {project_name}")
             await self._notify(
                 f"⚠️ **DIQQAT!**\n\n"
@@ -141,8 +156,12 @@ class WorkflowOrchestrator:
                 continue
 
             fields = project.get("fields", {})
-            project_name = self.airtable._get_field(fields, "project_name") or "Nomsiz loyiha"
-            logger.info(f"✨ Loyiha '{project_name}' yakunlandi! Portfolio so'rovi yuborilmoqda...")
+            project_name = (
+                self.airtable._get_field(fields, "project_name") or "Nomsiz loyiha"
+            )
+            logger.info(
+                f"✨ Loyiha '{project_name}' yakunlandi! Portfolio so'rovi yuborilmoqda..."
+            )
             self._portfolio_requested_ids.add(record_id)
 
         logger.info("👸 Oisha-OS: Tizimlashtirish tekshiruvi yakunlandi. 👸🛡️")

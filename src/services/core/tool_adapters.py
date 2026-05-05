@@ -10,7 +10,6 @@ from src.services.core.airtable_sync import AirtableSync
 from src.services.core.amocrm_sync import AmoCRMSync
 from src.services.core.tool_registry import ToolRegistry, ToolResult
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -79,13 +78,17 @@ class TelegramNotificationAdapter:
                 message = await self.bot.send_message(
                     chat_id=user_id,
                     text=text,
-                    parse_mode=item.get("parse_mode") or parse_mode or self.default_parse_mode,
+                    parse_mode=item.get("parse_mode")
+                    or parse_mode
+                    or self.default_parse_mode,
                     disable_web_page_preview=disable_web_page_preview,
                 )
                 delivered_to.append(user_id)
                 direct_message_ids.append(message.message_id)
             except Exception as exc:
-                logger.warning("[TELEGRAM TOOL] DM send failed for %s: %s", user_id, exc)
+                logger.warning(
+                    "[TELEGRAM TOOL] DM send failed for %s: %s", user_id, exc
+                )
                 failed_targets.append({"user_id": user_id, "error": str(exc)})
 
         success = attempted == 0 or bool(delivered_to)
@@ -189,7 +192,11 @@ class AmoCRMLeadAdapter:
             tool_name="amocrm.lead_status",
             success=success,
             status="ok" if success else "failed",
-            reason=None if success else (self.get_last_error() or "lead_status_update_failed"),
+            reason=(
+                None
+                if success
+                else (self.get_last_error() or "lead_status_update_failed")
+            ),
             metadata={
                 "lead_id": int(lead_id),
                 "updated_id": updated_id or int(lead_id),
@@ -224,7 +231,9 @@ class AirtableProjectAdapter:
         return await asyncio.to_thread(self.airtable.get_projects)
 
     async def update_stage(self, record_id: str, next_stage: str) -> ToolResult:
-        result = await asyncio.to_thread(self.airtable.update_project_stage, record_id, next_stage)
+        result = await asyncio.to_thread(
+            self.airtable.update_project_stage, record_id, next_stage
+        )
         success = bool(result)
         return ToolResult(
             tool_name="airtable.project_stage",
@@ -236,7 +245,9 @@ class AirtableProjectAdapter:
         )
 
     async def update_fields(self, record_id: str, fields: Dict[str, Any]) -> ToolResult:
-        result = await asyncio.to_thread(self.airtable.update_project_fields, record_id, fields)
+        result = await asyncio.to_thread(
+            self.airtable.update_project_fields, record_id, fields
+        )
         success = bool(result)
         return ToolResult(
             tool_name="airtable.project_fields",

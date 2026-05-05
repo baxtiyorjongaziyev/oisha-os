@@ -68,7 +68,7 @@ TASK_TO_TIER: Dict[str, str] = {
 MODEL_CATALOG: Dict[str, Dict[str, Any]] = {
     "L1": {
         "model": "gemini-2.0-flash",
-        "cost_in_per_1m": 0.0,   # bepul tier
+        "cost_in_per_1m": 0.0,  # bepul tier
         "cost_out_per_1m": 0.0,
         "max_tokens_default": 2048,
     },
@@ -80,7 +80,7 @@ MODEL_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "L3": {
         "model": "gemini-1.5-pro",
-        "cost_in_per_1m": 0.0,   # bepul tier 50 RPM
+        "cost_in_per_1m": 0.0,  # bepul tier 50 RPM
         "cost_out_per_1m": 0.0,
         "max_tokens_default": 4096,
     },
@@ -142,13 +142,16 @@ def _get_gemini_client():
     try:
         from google import genai  # pyright: ignore[reportMissingImports]
     except ImportError:
-        logger.error("[AI_ROUTER] google-genai not installed. Run: pip install google-genai")
+        logger.error(
+            "[AI_ROUTER] google-genai not installed. Run: pip install google-genai"
+        )
         return None
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         try:
             from src import config
+
             api_key = getattr(config, "GEMINI_API_KEY", "")
         except Exception:
             pass
@@ -165,10 +168,12 @@ def _get_gemini_client():
 # Kunlik xarajat degradatsiyasi
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 async def _get_today_cost() -> float:
     """SQLite `ai_usage` jadvalidan bugungi jami xarajatni olish."""
     try:
         from src.database import Database
+
         db = Database()
         async with db.get_conn() as conn:
             cursor = await conn.execute(
@@ -188,10 +193,14 @@ async def _maybe_degrade_tier(tier: str) -> str:
         return tier
     today = await _get_today_cost()
     if today >= DAILY_COST_HARD_LIMIT:
-        logger.warning(f"[AI_ROUTER] Hard limit hit (${today:.2f}). Degrading {tier} → L1")
+        logger.warning(
+            f"[AI_ROUTER] Hard limit hit (${today:.2f}). Degrading {tier} → L1"
+        )
         return "L1"
     if today >= DAILY_COST_SOFT_LIMIT and tier in ("L3", "L4"):
-        logger.warning(f"[AI_ROUTER] Soft limit hit (${today:.2f}). Degrading {tier} → L1")
+        logger.warning(
+            f"[AI_ROUTER] Soft limit hit (${today:.2f}). Degrading {tier} → L1"
+        )
         return "L1"
     return tier
 
@@ -199,6 +208,7 @@ async def _maybe_degrade_tier(tier: str) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 # Asosiy router
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 async def route(
     prompt: str,
@@ -254,8 +264,11 @@ async def route(
     if client is None:
         return _error_result(
             "Gemini client unavailable",
-            task_type=task_type, tier=tier, model=model_name,
-            prompt_hash=prompt_hash, start=start,
+            task_type=task_type,
+            tier=tier,
+            model=model_name,
+            prompt_hash=prompt_hash,
+            start=start,
         )
 
     # 5. Fallback zanjiri: tanlangan tier → L2 → L1
@@ -280,7 +293,9 @@ async def route(
                 temperature=temperature,
             )
             # Muvaffaqiyat
-            cost = _estimate_cost(attempt_tier, result["tokens_in"], result["tokens_out"])
+            cost = _estimate_cost(
+                attempt_tier, result["tokens_in"], result["tokens_out"]
+            )
             final = {
                 "text": result["text"],
                 "model": attempt_model,
@@ -296,32 +311,47 @@ async def route(
             }
             _cache_put(prompt_hash, final)
             await _log_usage(
-                task_type=task_type, tier=attempt_tier, model=attempt_model,
-                prompt_hash=prompt_hash, prompt_preview=prompt[:200],
+                task_type=task_type,
+                tier=attempt_tier,
+                model=attempt_model,
+                prompt_hash=prompt_hash,
+                prompt_preview=prompt[:200],
                 response_preview=result["text"][:200],
-                tokens_in=result["tokens_in"], tokens_out=result["tokens_out"],
-                cost_usd=cost, latency_ms=final["latency_ms"],
-                user_id=user_id, context=context, success=True, error=None,
+                tokens_in=result["tokens_in"],
+                tokens_out=result["tokens_out"],
+                cost_usd=cost,
+                latency_ms=final["latency_ms"],
+                user_id=user_id,
+                context=context,
+                success=True,
+                error=None,
             )
             return final
         except Exception as e:
             last_error = str(e)
-            logger.warning(f"[AI_ROUTER] Tier {attempt_tier} ({attempt_model}) failed: {e}")
+            logger.warning(
+                f"[AI_ROUTER] Tier {attempt_tier} ({attempt_model}) failed: {e}"
+            )
             await asyncio.sleep(0.5 + random.random())
             continue
 
     # Barcha fallback'lar muvaffaqiyatsiz
     return _error_result(
         last_error or "All tiers failed",
-        task_type=task_type, tier=tier, model=model_name,
-        prompt_hash=prompt_hash, start=start,
-        user_id=user_id, context=context,
+        task_type=task_type,
+        tier=tier,
+        model=model_name,
+        prompt_hash=prompt_hash,
+        start=start,
+        user_id=user_id,
+        context=context,
     )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Gemini chaqiruvi
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 async def _call_gemini(
     client: Any,
@@ -360,6 +390,7 @@ async def _call_gemini(
 # Xarajat hisobi + logging
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def _estimate_cost(tier: str, tokens_in: int, tokens_out: int) -> float:
     cfg = MODEL_CATALOG[tier]
     return (
@@ -388,6 +419,7 @@ async def _log_usage(
     """SQLite `ai_usage` ga yozish. Xato bo'lsa sukunat — bot ishlashi to'xtamaydi."""
     try:
         from src.database import Database
+
         db = Database()
         async with db.get_conn() as conn:
             await conn.execute(
@@ -399,10 +431,20 @@ async def _log_usage(
                 VALUES (datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    task_type, tier, model, prompt_hash, prompt_preview,
-                    response_preview, tokens_in, tokens_out, cost_usd, latency_ms,
-                    user_id, json.dumps(context or {}, ensure_ascii=False),
-                    1 if success else 0, error,
+                    task_type,
+                    tier,
+                    model,
+                    prompt_hash,
+                    prompt_preview,
+                    response_preview,
+                    tokens_in,
+                    tokens_out,
+                    cost_usd,
+                    latency_ms,
+                    user_id,
+                    json.dumps(context or {}, ensure_ascii=False),
+                    1 if success else 0,
+                    error,
                 ),
             )
             await conn.commit()
@@ -437,13 +479,24 @@ def _error_result(
     }
     # Xatoni ham log qilamiz — analitika uchun
     try:
-        asyncio.create_task(_log_usage(
-            task_type=task_type, tier=tier, model=model,
-            prompt_hash=prompt_hash, prompt_preview="",
-            response_preview="", tokens_in=0, tokens_out=0,
-            cost_usd=0.0, latency_ms=latency_ms, user_id=user_id,
-            context=context, success=False, error=error,
-        ))
+        asyncio.create_task(
+            _log_usage(
+                task_type=task_type,
+                tier=tier,
+                model=model,
+                prompt_hash=prompt_hash,
+                prompt_preview="",
+                response_preview="",
+                tokens_in=0,
+                tokens_out=0,
+                cost_usd=0.0,
+                latency_ms=latency_ms,
+                user_id=user_id,
+                context=context,
+                success=False,
+                error=error,
+            )
+        )
     except RuntimeError:
         pass  # No running loop
     return result
@@ -453,13 +506,19 @@ def _error_result(
 # Kunlik xulosa
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 async def get_daily_summary(date: Optional[str] = None) -> Dict[str, Any]:
     """Kunlik AI xarajat va ishlatish xulosasi — admin bot uchun."""
     try:
         from src.database import Database
+
         db = Database()
         async with db.get_conn() as conn:
-            where = "DATE(created_at) = DATE('now')" if not date else f"DATE(created_at) = '{date}'"
+            where = (
+                "DATE(created_at) = DATE('now')"
+                if not date
+                else f"DATE(created_at) = '{date}'"
+            )
             cursor = await conn.execute(f"""
                 SELECT
                   COUNT(*) AS calls,
@@ -477,7 +536,9 @@ async def get_daily_summary(date: Optional[str] = None) -> Dict[str, Any]:
                 FROM ai_usage WHERE {where}
                 GROUP BY model ORDER BY c DESC
             """)
-            by_model = [{"model": r[0], "calls": r[1], "cost_usd": r[2]} async for r in cursor2]
+            by_model = [
+                {"model": r[0], "calls": r[1], "cost_usd": r[2]} async for r in cursor2
+            ]
             return {
                 "date": date or "today",
                 "calls": row[0] or 0,
