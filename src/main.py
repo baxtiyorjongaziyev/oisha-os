@@ -4,6 +4,9 @@ import os
 import sys
 import logging
 import base64
+import json
+import re
+from datetime import datetime
 from typing import Optional, Dict, Any, List
 
 # [STABILITY] Windows and UTF-8 setup
@@ -253,6 +256,10 @@ def _income_gate_key(message_id: int) -> str:
     return f"income_workflow_gate:{message_id}"
 
 
+def _kirim_celebration_key(chat_id: int, message_id: int) -> str:
+    return f"kirim_celebration:{chat_id}:{message_id}"
+
+
 def _normalize_income_lookup(text: str) -> str:
     normalized = re.sub(r"[^\w]+", " ", (text or "").lower(), flags=re.UNICODE)
     return " ".join(normalized.split())
@@ -300,6 +307,62 @@ def _detect_payment_source(text: str) -> Optional[str]:
     if "p2p" in lowered or "card" in lowered or "karta" in lowered:
         return "P2P card"
     return None
+
+
+def _format_income_amount_for_celebration(amount: Dict[str, Any]) -> str:
+    raw = str(amount.get("raw") or "").strip()
+    if not raw or raw == "noma'lum":
+        return "yangi kirim"
+
+    lowered = raw.lower()
+    if "$" in raw or "usd" in lowered:
+        return raw
+    if "so'm" in lowered or "sum" in lowered or "uzs" in lowered:
+        return raw
+    if (amount.get("currency") or "UZS") == "USD":
+        return f"{raw} USD"
+    return f"{raw} so'm"
+
+
+def _sender_display_name(sender: Any) -> str:
+    username = (getattr(sender, "username", None) or "").strip()
+    if username:
+        return username if username.startswith("@") else f"@{username}"
+
+    full_name = " ".join(
+        part
+        for part in (
+            getattr(sender, "first_name", None),
+            getattr(sender, "last_name", None),
+        )
+        if part
+    ).strip()
+    return full_name or "Sotuvchi"
+
+
+def _looks_like_income_announcement(text: str) -> bool:
+    lowered = (text or "").lower().strip()
+    if not lowered or lowered.startswith("/"):
+        return False
+    if _is_group_open_confirmation(lowered):
+        return False
+
+    amount = _extract_income_amount(text)
+    if amount.get("value") is not None:
+        return True
+    if _is_finance_approval(lowered) or _is_finance_rejection(lowered):
+        return False
+
+    income_terms = (
+        "kirim",
+        "to'lov",
+        "tolov",
+        "avans",
+        "predoplata",
+        "payment",
+        "paid",
+    )
+    return any(term in lowered for term in income_terms)
 
 
 def _format_person_mention(person: Optional[Dict[str, Any]], fallback: str) -> str:
@@ -466,16 +529,6 @@ def _is_group_open_confirmation(text: str) -> bool:
 
 
 def _is_finance_approval(text: str) -> bool:
-    from src.api import dashboard
-
-    app = FastAPI(
-        title="Oisha-OS API",
-        description="Enterprise AI Automation for amoCRM",
-        version="2.0.0"
-    )
-
-    # Include Routers
-    app.include_router(dashboard.router)
     lowered = (text or "").lower()
     keywords = (
         "tasdiq",
@@ -1705,6 +1758,72 @@ async def negotiation_agent_handler(event):
         logger.debug(f"[NEGOTIATION] Outgoing log skipped: {exc}")
     logger.info(f"[NEGOTIATION] Replied chat={chat_id} msg={event.id}")
 
+
+async def kirim_topic_handler(event):
+    """Team guruhidagi Kirim topicda sotuvchi kirim e'lon qilsa tabriklaydi."""
+    if not settings.TEAM_GROUP_ID or not settings.TOPIC_KIRIM_ID:
+        return
+    if event.chat_id != settings.TEAM_GROUP_ID:
+        return
+    if not _is_kirim_topic_message(event.message):
+        return
+
+    text = (getattr(event.message, "message", None) or getattr(event.message, "text", None) or "").strip()
+    if not _looks_like_income_announcement(text):
+        return
+
+    sender = await event.get_sender()
+    if getattr(sender, "bot", False):
+        return
+
+    db = msg_controller.db if msg_controller else None
+    if not db:
+        logger.warning("[KIRIM] DB unavailable; celebration skipped.")
+        return
+
+    state_key = _kirim_celebration_key(int(event.chat_id), int(event.id))
+    if await db.get_state(state_key):
+        return
+    await db.set_state(state_key, "started")
+
+    seller_name = _sender_display_name(sender)
+    amount_label = _format_income_amount_for_celebration(_extract_income_amount(text))
+    try:
+        if advisor_agent:
+            celebration = await advisor_agent.generate_sales_celebration(seller_name, amount_label)
+        else:
+            celebration = ""
+    except Exception as exc:
+        logger.warning(f"[KIRIM] AI celebration fallback: {type(exc).__name__}")
+        celebration = ""
+
+    if not celebration:
+        celebration = (
+            f"{seller_name}, tabriklaymiz!\n\n"
+            f"Yangi kirim: {amount_label}.\n"
+            "Zo'r natija. Mijoz ishonchini kelishuvga aylantirish oson ish emas. "
+            "Shu tempni ushlab turamiz!"
+        )
+    elif seller_name not in celebration:
+        celebration = f"{seller_name}, {celebration}"
+
+    try:
+        if bot_client:
+            await bot_client.send_message(
+                settings.TEAM_GROUP_ID,
+                celebration,
+                reply_to=event.id,
+                link_preview=False,
+            )
+        else:
+            await event.reply(celebration, link_preview=False)
+        await db.set_state(state_key, "done")
+        logger.info(f"[KIRIM] Celebration sent chat={event.chat_id} msg={event.id} seller={seller_name}")
+    except Exception as exc:
+        await db.set_state(state_key, f"failed:{type(exc).__name__}")
+        logger.error(f"[KIRIM] Celebration send failed: {exc}", exc_info=True)
+
+
 async def main():
     """Botlarni ishga tushirish (Userbot + Admin Bot)."""
     global msg_controller, client, bot_client, lead_scraper, action_parser
@@ -1989,6 +2108,48 @@ async def main():
             "and scheduled CRM/Airtable jobs are active."
         )
         await asyncio.Event().wait()
+
+    # Start the bot-token head in the healthy userbot path too. AdminBot registers
+    # bot commands here; Kirim celebrations still listen via the userbot account.
+    if BOT_TOKEN_STR and bot_client:
+        try:
+            await bot_client.start(bot_token=BOT_TOKEN_STR)
+            if admin_bot:
+                admin_bot.user_client = client
+                await admin_bot.start()
+            logger.info("[BOT] Bot-token head and AdminBot handlers started.")
+        except Exception as bot_exc:
+            logger.error(f"[BOT] Bot-token head startup failed: {bot_exc}", exc_info=True)
+
+    if settings.TEAM_GROUP_ID and settings.TOPIC_KIRIM_ID:
+        client.add_event_handler(
+            kirim_topic_handler,
+            events.NewMessage(chats=settings.TEAM_GROUP_ID),
+        )
+        logger.info(
+            f"[KIRIM] Celebration listener active team={settings.TEAM_GROUP_ID} "
+            f"topic={settings.TOPIC_KIRIM_ID}"
+        )
+    else:
+        logger.warning("[KIRIM] Celebration listener disabled: TEAM_GROUP_ID or TOPIC_KIRIM_ID is missing.")
+
+    client.add_event_handler(
+        negotiation_agent_handler,
+        events.NewMessage(incoming=True),
+    )
+    client.add_event_handler(
+        shadow_advisor_handler,
+        events.NewMessage(incoming=True),
+    )
+    client.add_event_handler(
+        activity_monitor_handler,
+        events.NewMessage(outgoing=True),
+    )
+    client.add_event_handler(
+        self_command_handler,
+        events.NewMessage(chats="me"),
+    )
+    logger.info("[EVENTS] Safe userbot handlers registered.")
 
     # [PHASE 1.4] Graceful SIGTERM drain for Cloud Run revision rollover.
     # Cloud Run sends SIGTERM with a 30s grace period; we drain in-flight
