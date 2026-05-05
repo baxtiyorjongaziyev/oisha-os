@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional
 from src.settings import settings
 from src.time_utils import get_local_now
 
-
 _runtime_context: Dict[str, Any] = {
     "runtime_source": "unknown",
     "canonical_entrypoint": "src/main.py",
@@ -34,9 +33,17 @@ def detect_runtime_source() -> str:
 
 def build_runtime_context(**overrides: Any) -> Dict[str, Any]:
     raw_runtime_source = overrides.get("runtime_source")
-    runtime_source = raw_runtime_source if raw_runtime_source and raw_runtime_source != "unknown" else detect_runtime_source()
-    service_name = overrides.get("service_name") or os.getenv("K_SERVICE") or "oisha-main"
-    runtime_id = overrides.get("runtime_id") or os.getenv("K_REVISION") or socket.gethostname()
+    runtime_source = (
+        raw_runtime_source
+        if raw_runtime_source and raw_runtime_source != "unknown"
+        else detect_runtime_source()
+    )
+    service_name = (
+        overrides.get("service_name") or os.getenv("K_SERVICE") or "oisha-main"
+    )
+    runtime_id = (
+        overrides.get("runtime_id") or os.getenv("K_REVISION") or socket.gethostname()
+    )
 
     context = {
         "runtime_source": runtime_source,
@@ -67,7 +74,11 @@ def get_runtime_context() -> Dict[str, Any]:
     return dict(_runtime_context)
 
 
-def get_storage_health(db_path: Optional[str], recent_job_runs: Optional[List[Dict[str, Any]]] = None, backend: str = "sqlite") -> Dict[str, Any]:
+def get_storage_health(
+    db_path: Optional[str],
+    recent_job_runs: Optional[List[Dict[str, Any]]] = None,
+    backend: str = "sqlite",
+) -> Dict[str, Any]:
     if backend != "sqlite":
         return {
             "backend": backend,

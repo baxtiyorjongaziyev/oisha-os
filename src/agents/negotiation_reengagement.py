@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Iterable, List
 
-
 DEFAULT_MIN_IDLE_HOURS = 48
 CLOSED_STATUS_IDS = {142, 143}
 
@@ -78,9 +77,15 @@ class NegotiationReengagementPlanner:
             elif priority == "high":
                 due_in_hours = 12
 
-            task_title = NegotiationReengagementPlanner._build_task_title(lead_name, reason)
-            task_details = NegotiationReengagementPlanner._build_task_details(lead_name, idle_hours, price, reason)
-            note = NegotiationReengagementPlanner._build_note(lead_name, idle_hours, price, reason)
+            task_title = NegotiationReengagementPlanner._build_task_title(
+                lead_name, reason
+            )
+            task_details = NegotiationReengagementPlanner._build_task_details(
+                lead_name, idle_hours, price, reason
+            )
+            note = NegotiationReengagementPlanner._build_note(
+                lead_name, idle_hours, price, reason
+            )
 
             candidates.append(
                 ReengagementCandidate(
@@ -101,7 +106,13 @@ class NegotiationReengagementPlanner:
             )
 
         priority_rank = {"critical": 0, "high": 1, "medium": 2}
-        candidates.sort(key=lambda item: (priority_rank.get(item.priority, 3), -item.idle_hours, -item.price))
+        candidates.sort(
+            key=lambda item: (
+                priority_rank.get(item.priority, 3),
+                -item.idle_hours,
+                -item.price,
+            )
+        )
         return candidates[:limit]
 
     @staticmethod
@@ -113,8 +124,12 @@ class NegotiationReengagementPlanner:
         return f"Follow-up commitment: {lead_name}"
 
     @staticmethod
-    def _build_task_details(lead_name: str, idle_hours: int, price: int, reason: str) -> str:
-        value_hint = f"Lead qiymati: {price:,} so'm." if price else "Qiymat aniqlanmagan."
+    def _build_task_details(
+        lead_name: str, idle_hours: int, price: int, reason: str
+    ) -> str:
+        value_hint = (
+            f"Lead qiymati: {price:,} so'm." if price else "Qiymat aniqlanmagan."
+        )
         if reason == "closer_no_response":
             return (
                 f"{lead_name} closer bosqichida {idle_hours} soat javobsiz qolgan. "
@@ -137,7 +152,9 @@ class NegotiationReengagementPlanner:
             "stalled_negotiation": "Negotiation uzoq pauzada qoldi.",
             "followup_gap": "Follow-up cadence uzilib qolgan.",
         }.get(reason, "Re-engagement kerak.")
-        value_line = f"Lead qiymati: {price:,} so'm." if price else "Lead qiymati aniqlanmagan."
+        value_line = (
+            f"Lead qiymati: {price:,} so'm." if price else "Lead qiymati aniqlanmagan."
+        )
         return (
             f"AI re-engagement signal. Lead: {lead_name}. "
             f"Idle: {idle_hours} soat. {reason_line} {value_line} "

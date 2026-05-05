@@ -1,6 +1,6 @@
 import os
-import base64
 from github import Github
+
 
 class GitHubManager:
     def __init__(self):
@@ -18,5 +18,6 @@ class GitHubManager:
         except Exception:
             self.repo.create_file(path, message, content)
         return True
+
 
 github_manager = GitHubManager()

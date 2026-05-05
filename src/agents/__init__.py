@@ -48,25 +48,21 @@ __all__ = [
     "SurgicalNegotiator",
     "get_surgical_negotiator",
     "negotiate",
-    
     # Sales agent
     "AutonomousSalesAgent",
     "ConversationState",
     "DealProposal",
     "PricingEngine",
     "get_autonomous_agent",
-    
     # Lifecycle
     "DealLifecycleManager",
     "DealStage",
     "DealPriority",
     "Deal",
     "get_lifecycle_manager",
-    
     # Negotiation
     "NegotiationEngine",
     "NegotiationAssessment",
-    
     # Contract
     "ContractGenerator",
     "RiskAssessor",
