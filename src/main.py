@@ -2259,12 +2259,12 @@ async def main():
             amocrm=msg_controller.crm.amocrm,
             send_fn=_surgical_send,
         )
-        surgical_integration.enabled = settings.SURGICAL_MODE
+        surgical_integration.enabled = getattr(settings, "SURGICAL_MODE", False)
     except Exception as surg_init_exc:
         surgical_integration.negotiator = None
         surgical_integration.enabled = False
         logger.warning(f"[SURGICAL] Disabled until agent modules are synced: {type(surg_init_exc).__name__}")
-    surgical_integration.autonomy_threshold = settings.AUTONOMY_THRESHOLD
+    surgical_integration.autonomy_threshold = getattr(settings, "AUTONOMY_THRESHOLD", 0.55)
     logger.info(
         f"[SURGICAL] Autonomous negotiations agent initialized (enabled={surgical_integration.enabled})"
     )
