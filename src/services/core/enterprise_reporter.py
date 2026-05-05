@@ -397,6 +397,15 @@ class EnterpriseReporter:
             report.append(f"\n📥 **SARALANMAGAN:**")
             report.append(f"• Saralanmagan xabarlar: **{unsorted_count} ta**")
         
+        # Junk Leads summary
+        try:
+            junk_leads = await self.identify_junk_leads(limit=100)
+            if junk_leads:
+                report.append(f"\n🧹 **JUNK LEADS (BEKORCHI):**")
+                report.append(f"• Jami shubhali sdelkalar: **{len(junk_leads)} ta**")
+                report.append(f"  _(Batafsil ko'rish uchun: `/junk_audit`)_")
+        except: pass
+
         # 7. Accountability (Managers) - FIXED
         report.append("\n👥 **MENEdjerlar FAOLLIGI:**")
         try:
@@ -441,9 +450,88 @@ class EnterpriseReporter:
             report.append("_\"⚠️ CRM tartibi yomon! Darhol vazifalar qo'shing va stagnat lidlar bilan ishlang.\"_")
         else:
             report.append("_\"🚨 KRITIK! CRM to'la tartibsizlikda! @baxtiyorjong_gaziyev darhol nazoratga oling!\"_")
-            report.append("_\"Barcha menejerlarga vazifa qo'shish buyurilsin.\"_")
-        
         return "\n".join(report)
+
+    async def identify_junk_leads(self, limit: int = 250) -> List[Dict[str, Any]]:
+        """Identify 'junk' leads in amoCRM based on inactivity, lack of data, or stagnation."""
+        # 1. Fetch leads
+        all_leads = await self.crm.amocrm.get_leads_detailed(limit=limit)
+        if not all_leads:
+            return []
+
+        # 2. Fetch all tasks to check for task-less leads
+        all_tasks = await self.crm.amocrm.get_tasks()
+        task_entity_ids: Set[int] = {t.get("entity_id") for t in all_tasks if t.get("entity_type") == "leads"}
+        
+        junk_leads = []
+        now_ts = time.time()
+        
+        for lead in all_leads:
+            reasons = []
+            status_id = lead.get('status_id')
+            
+            # Skip Won/Lost statuses
+            if status_id in [self.WON_STATUS, self.LOST_STATUS]:
+                continue
+                
+            # Rule 1: Extreme Stagnation (> 14 days)
+            updated_at = lead.get('updated_at', 0)
+            stagnant_days = (now_ts - updated_at) / (24 * 3600)
+            if stagnant_days > 14:
+                reasons.append(f"{int(stagnant_days)} kundan beri harakatsiz")
+            
+            # Rule 2: No Future Task
+            if lead.get('id') not in task_entity_ids:
+                reasons.append("Vazifasi yo'q (No Task)")
+            
+            # Rule 3: Missing Price in high-intent stages
+            price = lead.get('price', 0) or 0
+            if price == 0 and stagnant_days > 3:
+                reasons.append("Qiymati 0 so'm (Price is 0)")
+            
+            # Rule 4: No Contact Person linked
+            contacts = lead.get('_embedded', {}).get('contacts', [])
+            if not contacts:
+                reasons.append("Kontakt bog'lanmagan")
+
+            if reasons:
+                lead['junk_reasons'] = reasons
+                junk_leads.append(lead)
+                
+        # Sort by most reasons/stagnancy
+        junk_leads.sort(key=lambda x: len(x.get('junk_reasons', [])), reverse=True)
+        return junk_leads
+
+    async def get_junk_leads_report(self, limit: int = 200) -> str:
+        """Generate a formatted report of junk leads for administrative review."""
+        junk_leads = await self.identify_junk_leads(limit=limit)
+        
+        if not junk_leads:
+            return "✅ **CRM HYGIENE OK:** Hozircha keraksiz yoki 'bekorchi' sdelkalar topilmadi."
+            
+        report = [f"🧹 **OISHA: JUNK LEADS AUDIT (BEKORCHI SDELKALAR)**"]
+        report.append(f"🔍 Jami tekshirildi: {limit} ta lid")
+        report.append(f"⚠️ Topildi: **{len(junk_leads)} ta** shubhali sdelka\n")
+        
+        # Show top 15 junk leads
+        for i, lead in enumerate(junk_leads[:15], 1):
+            name = lead.get('name', 'Nomsiz')
+            l_id = lead.get('id')
+            reasons = ", ".join(lead.get('junk_reasons', []))
+            
+            # Simple link to AmoCRM
+            link = f"https://{self.crm.amocrm.subdomain}.amocrm.ru/leads/detail/{l_id}"
+            
+            report.append(f"{i}. <b>{name}</b> (ID: {l_id})")
+            report.append(f"   🛑 Sabab: <i>{reasons}</i>")
+            report.append(f"   🔗 [CRM LINK]({link})\n")
+            
+        if len(junk_leads) > 15:
+            report.append(f"... va yana {len(junk_leads)-15} ta shubhali sdelka.")
+            
+        report.append("\n💡 **MASLAHAT:** Bu sdelkalarni yopish yoki menejerlarga vazifa qo'shish tavsiya etiladi.")
+        return "\n".join(report)
+
 
 
     async def get_stagnant_leads_alert(self) -> str:
