@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-05 19:04 UTC | ⚠️ main `6fa4892`
+
+**Commit**: Merge branch 'main' of https://github.com/baxtiyorjongaziyev/oisha-os
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic........failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container
+
+---
+
 ## 2026-05-05 14:35 UTC | ⚠️ main `696d47b`
 
 **Commit**: Add MIT LICENSE file
