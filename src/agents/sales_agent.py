@@ -18,8 +18,14 @@ try:
     from src.services.core.auto_reply_gate import ESCALATION_TRIGGERS
 except Exception:  # pragma: no cover — agar modul yo'q bo'lsa (unit test uchun)
     ESCALATION_TRIGGERS = (
-        "shikoyat", "qaytarish", "advokat", "sud",
-        "vaqtida bermadi", "aldadi", "firibgar", "qaytarib bering",
+        "shikoyat",
+        "qaytarish",
+        "advokat",
+        "sud",
+        "vaqtida bermadi",
+        "aldadi",
+        "firibgar",
+        "qaytarib bering",
     )
 
 # Agar assessment.close_probability shu qiymatdan past bo'lsa — admin review.
@@ -66,16 +72,30 @@ class SalesAgent(BaseAgent):
                 logger.error(f"[SALES AGENT] negotiation mode read error: {e}")
         return "autonomous"
 
-    async def _log_assessment(self, user_id: int, payload: Dict[str, Any], success: bool = True) -> None:
+    async def _log_assessment(
+        self, user_id: int, payload: Dict[str, Any], success: bool = True
+    ) -> None:
         if self.db and hasattr(self.db, "log_agent_action"):
             try:
-                await self.db.log_agent_action(user_id, "negotiation_assessment", payload, success=success)
+                await self.db.log_agent_action(
+                    user_id, "negotiation_assessment", payload, success=success
+                )
             except Exception as e:
                 logger.error(f"[SALES AGENT] assessment log error: {e}")
 
     def _extract_meeting_window(self, text: str) -> Optional[Dict[str, str]]:
         lowered = (text or "").lower()
-        if not any(word in lowered for word in ["uchrashuv", "qo'ng'iroq", "call", "zoom", "meeting", "sessiya"]):
+        if not any(
+            word in lowered
+            for word in [
+                "uchrashuv",
+                "qo'ng'iroq",
+                "call",
+                "zoom",
+                "meeting",
+                "sessiya",
+            ]
+        ):
             return None
 
         match = re.search(r"(\d{1,2})(?::(\d{2}))?", lowered)
@@ -102,7 +122,9 @@ class SalesAgent(BaseAgent):
             "end_time": end_dt.isoformat(),
         }
 
-    async def _sync_meeting_state(self, user_id: int, meeting_window: Optional[Dict[str, str]]) -> None:
+    async def _sync_meeting_state(
+        self, user_id: int, meeting_window: Optional[Dict[str, str]]
+    ) -> None:
         if not self.db:
             return
         if meeting_window and hasattr(self.db, "upsert_user"):
@@ -152,7 +174,11 @@ class SalesAgent(BaseAgent):
         assessment,
         next_step: str,
     ) -> str:
-        service_type = context.get("service_type") or context.get("user_profile", {}).get("service_type") or "Aniqlanmagan"
+        service_type = (
+            context.get("service_type")
+            or context.get("user_profile", {}).get("service_type")
+            or "Aniqlanmagan"
+        )
         crm_status = context.get("crm_status") or "Yangi mijoz"
         excerpt = (task_description or "").strip().replace("\n", " ")
         excerpt = excerpt[:220]
@@ -225,21 +251,29 @@ class SalesAgent(BaseAgent):
         context: Dict[str, Any],
         assessment,
     ) -> List[Dict[str, Any]]:
-        if not self.executor or assessment.approval_needed or assessment.autonomy_mode == "advisory":
+        if (
+            not self.executor
+            or assessment.approval_needed
+            or assessment.autonomy_mode == "advisory"
+        ):
             return []
 
         actions: List[Dict[str, Any]] = []
         meeting_window = self._extract_meeting_window(task_description)
         recommended_status = assessment.recommended_status
         user_name = context.get("user_name") or f"User {user_id}"
-        service_type = context.get("service_type") or context.get("user_profile", {}).get("service_type")
+        service_type = context.get("service_type") or context.get(
+            "user_profile", {}
+        ).get("service_type")
         crm_status = str(context.get("crm_status") or "")
         crm_lower = crm_status.lower()
         note_next_step = "Negotiation keyingi bosqichga olib chiqilmoqda."
 
         if meeting_window:
             summary = f"Strategik sessiya - {user_name}"
-            description = "AI negotiation agent tomonidan meeting scheduling trigger qilindi."
+            description = (
+                "AI negotiation agent tomonidan meeting scheduling trigger qilindi."
+            )
             if service_type:
                 description += f" Xizmat: {service_type}."
             actions.append(
@@ -253,8 +287,15 @@ class SalesAgent(BaseAgent):
                     },
                 }
             )
-            actions.append({"name": "update_lead_status", "args": {"user_id": user_id, "status_name": "Meeting Scheduled"}})
-            note_next_step = f"Strategik sessiya {meeting_window['start_time']} ga belgilandi."
+            actions.append(
+                {
+                    "name": "update_lead_status",
+                    "args": {"user_id": user_id, "status_name": "Meeting Scheduled"},
+                }
+            )
+            note_next_step = (
+                f"Strategik sessiya {meeting_window['start_time']} ga belgilandi."
+            )
             actions.append(
                 {
                     "name": "create_followup_task",
@@ -267,17 +308,34 @@ class SalesAgent(BaseAgent):
                 }
             )
         elif recommended_status in {"Interested", "Qualified"}:
-            actions.append({"name": "update_lead_status", "args": {"user_id": user_id, "status_name": recommended_status}})
+            actions.append(
+                {
+                    "name": "update_lead_status",
+                    "args": {"user_id": user_id, "status_name": recommended_status},
+                }
+            )
             note_next_step = f"CRM status {recommended_status} ga ko'tarildi."
 
         if not meeting_window:
-            followup_payload = self._build_followup_payload(user_id, user_name, assessment, crm_status)
+            followup_payload = self._build_followup_payload(
+                user_id, user_name, assessment, crm_status
+            )
             if followup_payload:
                 note_next_step = followup_payload["details"]
-                actions.append({"name": "create_followup_task", "args": followup_payload})
+                actions.append(
+                    {"name": "create_followup_task", "args": followup_payload}
+                )
 
-        if assessment.intent == "closing" and any(token in crm_lower for token in ["meeting", "sessiya", "strategik", "consult"]):
-            actions.append({"name": "update_lead_status", "args": {"user_id": user_id, "status_name": "Conversation Over"}})
+        if assessment.intent == "closing" and any(
+            token in crm_lower
+            for token in ["meeting", "sessiya", "strategik", "consult"]
+        ):
+            actions.append(
+                {
+                    "name": "update_lead_status",
+                    "args": {"user_id": user_id, "status_name": "Conversation Over"},
+                }
+            )
             note_next_step = "Closer pipeline ga o'tkazildi va yakuniy commercial follow-up belgilandi."
 
         if assessment.close_probability >= 0.65 and service_type:
@@ -286,7 +344,12 @@ class SalesAgent(BaseAgent):
                     "name": "qualify_lead",
                     "args": {
                         "user_id": user_id,
-                        "service": service_type if service_type in {"Naming", "Logo", "Brandbook", "Web", "SMM"} else None,
+                        "service": (
+                            service_type
+                            if service_type
+                            in {"Naming", "Logo", "Brandbook", "Web", "SMM"}
+                            else None
+                        ),
                         "temperature": "Issiq",
                         "need": task_description[:240],
                         "tag": "Negotiation-Active",
@@ -294,14 +357,24 @@ class SalesAgent(BaseAgent):
                 }
             )
 
-        should_write_note = bool(actions) or assessment.close_probability >= 0.45 or assessment.intent in {"pricing", "proof", "nurture", "closing"}
+        should_write_note = (
+            bool(actions)
+            or assessment.close_probability >= 0.45
+            or assessment.intent in {"pricing", "proof", "nurture", "closing"}
+        )
         if should_write_note:
             actions.append(
                 {
                     "name": "add_lead_note",
                     "args": {
                         "user_id": user_id,
-                        "note": self._build_lead_note(user_id, task_description, context, assessment, note_next_step),
+                        "note": self._build_lead_note(
+                            user_id,
+                            task_description,
+                            context,
+                            assessment,
+                            note_next_step,
+                        ),
                     },
                 }
             )
@@ -319,13 +392,17 @@ class SalesAgent(BaseAgent):
             filtered_actions.append(action)
         return filtered_actions
 
-    async def _execute_actions(self, user_id: Optional[int], actions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    async def _execute_actions(
+        self, user_id: Optional[int], actions: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
         if not self.executor:
             return results
 
         for action in actions:
-            result = await self.executor.execute(action["name"], action["args"], context_user_id=user_id)
+            result = await self.executor.execute(
+                action["name"], action["args"], context_user_id=user_id
+            )
             results.append(
                 {
                     "action": action["name"],
@@ -339,7 +416,9 @@ class SalesAgent(BaseAgent):
         if not self.executor or not getattr(self.executor, "amocrm", None):
             return []
 
-        raw_leads = await asyncio.to_thread(self.executor.amocrm.get_all_leads, max(limit * 4, 100))
+        raw_leads = await asyncio.to_thread(
+            self.executor.amocrm.get_all_leads, max(limit * 4, 100)
+        )
         candidates = NegotiationReengagementPlanner.plan(raw_leads, limit=limit)
         return [candidate.to_payload() for candidate in candidates]
 
@@ -347,7 +426,9 @@ class SalesAgent(BaseAgent):
         if not self.executor or not getattr(self.executor, "amocrm", None):
             return []
 
-        raw_leads = await asyncio.to_thread(self.executor.amocrm.get_all_leads, max(limit * 4, 100))
+        raw_leads = await asyncio.to_thread(
+            self.executor.amocrm.get_all_leads, max(limit * 4, 100)
+        )
         candidates = NegotiationReengagementPlanner.plan(raw_leads, limit=limit)
         cycle_results: List[Dict[str, Any]] = []
 
@@ -371,7 +452,9 @@ class SalesAgent(BaseAgent):
                 },
             ]
             action_results = await self._execute_actions(None, action_plan)
-            verification = self.verifier.verify(action_results, planned_actions=action_plan)
+            verification = self.verifier.verify(
+                action_results, planned_actions=action_plan
+            )
             payload = {
                 "candidate": candidate.to_payload(),
                 "action_plan": action_plan,
@@ -382,7 +465,12 @@ class SalesAgent(BaseAgent):
 
             if self.db and hasattr(self.db, "log_agent_action"):
                 try:
-                    await self.db.log_agent_action(None, "negotiation_reengagement_cycle", payload, success=verification.success)
+                    await self.db.log_agent_action(
+                        None,
+                        "negotiation_reengagement_cycle",
+                        payload,
+                        success=verification.success,
+                    )
                 except Exception as e:
                     logger.error(f"[SALES AGENT] re-engagement log error: {e}")
 
@@ -414,7 +502,9 @@ class SalesAgent(BaseAgent):
             context=context,
         )
 
-        action_plan = await self._build_action_plan(user_id, task_description, context, assessment)
+        action_plan = await self._build_action_plan(
+            user_id, task_description, context, assessment
+        )
         action_results: List[Dict[str, Any]] = []
         if execute_actions and action_plan:
             action_results = await self._execute_actions(user_id, action_plan)
@@ -431,10 +521,14 @@ class SalesAgent(BaseAgent):
             "verification": verification.to_payload(),
             "recommended_reply": recommended_reply,
         }
-        await self._log_assessment(user_id, payload, success=verification.success or not action_plan)
+        await self._log_assessment(
+            user_id, payload, success=verification.success or not action_plan
+        )
         return payload
 
-    def _detect_escalation(self, task_description: str, assessment: Any) -> Optional[str]:
+    def _detect_escalation(
+        self, task_description: str, assessment: Any
+    ) -> Optional[str]:
         """Xavfli vaziyatlarni aniqlash — admin review'ga belgilash uchun.
 
         Return: sabab (str) yoki None. Bu metod reply generatsiyasini to'xtatmaydi;
@@ -456,7 +550,12 @@ class SalesAgent(BaseAgent):
             return f"risk_flag:{','.join(sorted(matched))}"
         return None
 
-    async def process_task(self, user_id: int, task_description: str, context: Optional[Dict[str, Any]] = None) -> str:
+    async def process_task(
+        self,
+        user_id: int,
+        task_description: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> str:
         context = context or {}
         await self.load_session_history(user_id)
         self.update_history(user_id, "user", task_description)
@@ -493,17 +592,23 @@ class SalesAgent(BaseAgent):
                         "user_id": user_id,
                         "reason": escalation_reason,
                         "message": task_description[:500],
-                        "close_probability": getattr(assessment, "close_probability", None),
+                        "close_probability": getattr(
+                            assessment, "close_probability", None
+                        ),
                         "risk_flags": list(getattr(assessment, "risk_flags", []) or []),
                     },
                     success=False,  # False = diqqat kerakligini bildiradi
                 )
-                logger.warning(f"[SALES AGENT] Escalation flagged user={user_id} reason={escalation_reason}")
+                logger.warning(
+                    f"[SALES AGENT] Escalation flagged user={user_id} reason={escalation_reason}"
+                )
             except Exception as e:
                 logger.error(f"[SALES AGENT] escalation log error: {e}")
 
         products_context = json.dumps(self.products, indent=2, ensure_ascii=False)
-        history_text = "\n".join(f"{item['role']}: {item['content']}" for item in history[-8:])
+        history_text = "\n".join(
+            f"{item['role']}: {item['content']}" for item in history[-8:]
+        )
         context_json = json.dumps(context, ensure_ascii=False)
 
         approval_instruction = ""
@@ -582,14 +687,21 @@ Context:
         original_prompt = self.system_prompt
         self.system_prompt = f"{original_prompt}\n\n{sales_instruction}"
         try:
-            reply = await self.call_ai_with_fallback(contents, user_id, enable_tools=False)
+            reply = await self.call_ai_with_fallback(
+                contents, user_id, enable_tools=False
+            )
         finally:
             self.system_prompt = original_prompt
 
-        if not reply or reply in {"Javob bo'sh qaytdi.", "Kechirasiz, texnik tanaffus."}:
+        if not reply or reply in {
+            "Javob bo'sh qaytdi.",
+            "Kechirasiz, texnik tanaffus.",
+        }:
             reply = self._fallback_reply(assessment, task_description)
 
-        action_plan = await self._build_action_plan(user_id, task_description, context, assessment)
+        action_plan = await self._build_action_plan(
+            user_id, task_description, context, assessment
+        )
         action_results = await self._execute_actions(user_id, action_plan)
         meeting_window = self._extract_meeting_window(task_description)
         if meeting_window:

@@ -398,6 +398,11 @@ jobs:
           FAILURE_REASON=""
           write_outputs
 
+      - name: Ecosystem Health Check
+        if: steps.rollout.outputs.final_status == 'success'
+        run: |
+          python scripts/health_check.py
+
       - name: Mark deployment failed
         if: steps.rollout.outputs.final_status != 'success'
         run: |
