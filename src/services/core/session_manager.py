@@ -1,9 +1,10 @@
 import time
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List
 import asyncio
 
 logger = logging.getLogger("SessionManager")
+
 
 class SessionManager:
     def __init__(self, sync_callback, inactivity_timeout=600):
@@ -20,28 +21,32 @@ class SessionManager:
     def add_message(self, user_id: int, sender: str, text: str, phone: str = None):
         if user_id not in self.sessions:
             self.sessions[user_id] = []
-        
-        self.sessions[user_id].append({
-            "sender": sender,
-            "text": text,
-            "time": time.strftime("%H:%M:%S"),
-            "phone": phone
-        })
+
+        self.sessions[user_id].append(
+            {
+                "sender": sender,
+                "text": text,
+                "time": time.strftime("%H:%M:%S"),
+                "phone": phone,
+            }
+        )
         self.last_activity[user_id] = time.time()
-        logger.info(f"[SESSION] Message added for {user_id}. Buffer size: {len(self.sessions[user_id])}")
+        logger.info(
+            f"[SESSION] Message added for {user_id}. Buffer size: {len(self.sessions[user_id])}"
+        )
 
     async def monitor_sessions(self):
         """Background task to flush inactive sessions."""
         while self.is_running:
             now = time.time()
             flushed_users = []
-            
+
             for user_id, last_time in list(self.last_activity.items()):
                 if now - last_time > self.timeout:
                     await self.flush_session(user_id)
                     flushed_users.append(user_id)
-            
-            await asyncio.sleep(60) # Check every minute
+
+            await asyncio.sleep(60)  # Check every minute
 
     async def flush_session(self, user_id: int):
         if user_id not in self.sessions or not self.sessions[user_id]:
@@ -49,7 +54,7 @@ class SessionManager:
 
         messages = self.sessions[user_id]
         phone = messages[0].get("phone")
-        
+
         # Build block text
         block_text = f"📝 --- SUHBAT BLOKI ({time.strftime('%Y-%m-%d')}) ---\n\n"
         for m in messages:
@@ -57,7 +62,7 @@ class SessionManager:
         block_text += "\n--- BLOK YAKUNI ---"
 
         logger.info(f"[SESSION] Flushing {len(messages)} messages for {user_id}")
-        
+
         try:
             await self.sync_callback(user_id, phone, block_text)
             # Clear session

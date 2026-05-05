@@ -8,6 +8,7 @@ from src.services.core.amocrm_sync import AmoCRMSync
 
 logger = logging.getLogger("AmoOptimizer")
 
+
 class AmoOptimizer:
     def __init__(self, amo: AmoCRMSync):
         self.amo = amo
@@ -24,8 +25,8 @@ class AmoOptimizer:
                 "add_lead",
                 "status_lead",
                 "add_contact",
-                "add_message" # Chat integratsiyasi uchun
-            ]
+                "add_message",  # Chat integratsiyasi uchun
+            ],
         }
         # AmoCRM native webhook registration
         # res = requests.post(url, json=data, headers=...)
@@ -33,10 +34,10 @@ class AmoOptimizer:
 
     async def ensure_native_tasks(self, lead_id: int):
         """
-        Agar lid 'Negotiation' statusida bo'lsa, 
+        Agar lid 'Negotiation' statusida bo'lsa,
         AmoCRM native 'Task' yaratish (tashqi kodsiz).
         """
-        # Bu mantiqni AmoCRM Digital Pipeline'da sozlash yaxshiroq, 
+        # Bu mantiqni AmoCRM Digital Pipeline'da sozlash yaxshiroq,
         # lekin API orqali ham nazorat qilsa bo'ladi.
         pass
 

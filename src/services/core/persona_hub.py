@@ -1,5 +1,4 @@
 import logging
-from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +89,7 @@ Qoidalar:
 3. Faqat JSON qaytaring.
 """
 
+
 def get_persona(is_team_member: bool = False, task_type: str = "general") -> str:
     """Detect appropriate persona based on target and task."""
     if is_team_member:
@@ -104,6 +104,7 @@ def get_persona(is_team_member: bool = False, task_type: str = "general") -> str
         if task_type != "client_draft":
             return INTERNAL_COO_PROMPT
     return EXTERNAL_CONCIERGE_PROMPT
+
 
 def get_draft_instruction(name: str, psychotype: str = "Unknown") -> str:
     """Instruction for generating high-quality customer drafts."""

@@ -85,23 +85,23 @@ class AirtableSync:
         """
         if not pm_value:
             return "@Inomjon"
-            
+
         # If it's a list (linked record), take the first one
         if isinstance(pm_value, list):
             pm_value = pm_value[0] if pm_value else None
-            
+
         if not pm_value:
             return "@Inomjon"
 
         mapping = {
-            "reccXjZIGIcRezKgB": "@Inomjon_JonBranding", # Inomjon Record ID
-            "recPi9SROzJNK8SX7": "@jonbranding_pm",      # New PM Record ID
+            "reccXjZIGIcRezKgB": "@Inomjon_JonBranding",  # Inomjon Record ID
+            "recPi9SROzJNK8SX7": "@jonbranding_pm",  # New PM Record ID
             "Inomjon": "@Inomjon_JonBranding",
             "Inomjon aka": "@Inomjon_JonBranding",
             "Dilorom": "@jonbranding_pm",
             "Dilorom opa": "@jonbranding_pm",
         }
-        
+
         return mapping.get(pm_value, "@Inomjon_JonBranding")
 
     def __init__(self, api_key=None, base_id=None, table_name="Loyihalar"):
@@ -134,9 +134,16 @@ class AirtableSync:
                 request_kwargs.setdefault("timeout", self.REQUEST_TIMEOUT_SECONDS)
                 response = requests.request(method, url, **request_kwargs)
 
-                if response.status_code in {429, 500, 502, 503, 504} and attempt < attempts:
+                if (
+                    response.status_code in {429, 500, 502, 503, 504}
+                    and attempt < attempts
+                ):
                     retry_after = response.headers.get("Retry-After")
-                    delay = float(retry_after) if retry_after and retry_after.isdigit() else attempt * 1.5
+                    delay = (
+                        float(retry_after)
+                        if retry_after and retry_after.isdigit()
+                        else attempt * 1.5
+                    )
                     logger.warning(
                         f"[AIRTABLE] Transient {response.status_code}, retry {attempt}/{attempts} in {delay:.1f}s"
                     )
@@ -149,7 +156,9 @@ class AirtableSync:
                 if attempt >= attempts:
                     raise
                 delay = attempt * 1.5
-                logger.warning(f"[AIRTABLE] Network error, retry {attempt}/{attempts} in {delay:.1f}s: {exc}")
+                logger.warning(
+                    f"[AIRTABLE] Network error, retry {attempt}/{attempts} in {delay:.1f}s: {exc}"
+                )
                 time.sleep(delay)
 
         if last_exc:
@@ -216,7 +225,8 @@ class AirtableSync:
         ordered_tables = sorted(
             tables,
             key=lambda table: (
-                table.get("name") != self.table_name and table.get("id") != self.table_name
+                table.get("name") != self.table_name
+                and table.get("id") != self.table_name
             ),
         )
 
@@ -225,7 +235,9 @@ class AirtableSync:
             if not table_id:
                 continue
 
-            probe_url = f"https://api.airtable.com/v0/{self.base_id}/{table_id}/{record_id}"
+            probe_url = (
+                f"https://api.airtable.com/v0/{self.base_id}/{table_id}/{record_id}"
+            )
             try:
                 response = self._request("GET", probe_url)
             except Exception:
@@ -236,7 +248,9 @@ class AirtableSync:
                 if view_id:
                     record_url = f"https://airtable.com/{self.base_id}/{table_id}/{view_id}/{record_id}"
                 else:
-                    record_url = f"https://airtable.com/{self.base_id}/{table_id}/{record_id}"
+                    record_url = (
+                        f"https://airtable.com/{self.base_id}/{table_id}/{record_id}"
+                    )
                 self._record_url_cache[cache_key] = record_url
                 return record_url
 
@@ -260,7 +274,14 @@ class AirtableSync:
         dropped_originals = []
         for key, value in normalized.items():
             actual_key = self.PROJECT_WRITE_ALIASES.get(key, key)
-            if actual_key in {"Client Phone", "AmoCRM_ID", "Manager", "PM", "Mijoz nomi", "Loyiha ID"}:
+            if actual_key in {
+                "Client Phone",
+                "AmoCRM_ID",
+                "Manager",
+                "PM",
+                "Mijoz nomi",
+                "Loyiha ID",
+            }:
                 dropped_originals.append(key)
                 continue
             if actual_key in self.PROJECT_ALLOWED_FIELDS:
@@ -270,7 +291,9 @@ class AirtableSync:
 
         if dropped_originals:
             dropped = ", ".join(sorted(set(dropped_originals)))
-            logger.warning(f"[AIRTABLE] Skipping unsupported Loyihalar fields: {dropped}")
+            logger.warning(
+                f"[AIRTABLE] Skipping unsupported Loyihalar fields: {dropped}"
+            )
         return translated
 
     def get_projects(self):
@@ -299,7 +322,9 @@ class AirtableSync:
                         f"Yoki '{self.table_name}' jadvali mavjud emas."
                     )
                     return records
-                logger.error(f"[AIRTABLE ERROR] {response.status_code}: {response.text}")
+                logger.error(
+                    f"[AIRTABLE ERROR] {response.status_code}: {response.text}"
+                )
                 return records
         except Exception as exc:
             logger.error(f"[AIRTABLE EXCEPTION] {exc}")
@@ -328,7 +353,11 @@ class AirtableSync:
     def get_projects_by_stage(self, stage_name: str):
         """Ma'lum bir bosqichdagi loyihalarni olish."""
         projects = self.get_projects()
-        return [project for project in projects if self._get_field(project.get("fields", {}), "stage") == stage_name]
+        return [
+            project
+            for project in projects
+            if self._get_field(project.get("fields", {}), "stage") == stage_name
+        ]
 
     def get_finance_records(self):
         """Kirim va Chiqim jadvallaridan barcha tranzaksiyalarni olish."""
@@ -351,7 +380,9 @@ class AirtableSync:
         """Loyihaning bir nechta maydonlarini yangilash."""
         fields = self._normalize_fields_for_table(fields)
         if not fields:
-            logger.warning("[AIRTABLE] No valid fields to update after schema normalization.")
+            logger.warning(
+                "[AIRTABLE] No valid fields to update after schema normalization."
+            )
             return False
 
         url = f"{self.endpoint}/{record_id}"
@@ -380,7 +411,9 @@ class AirtableSync:
 
     def update_project_stage_by_name(self, project_name: str, next_stage: str):
         """Loyihaning bosqichini nomi orqali topib yangilash."""
-        return self.update_project_fields_by_name(project_name, {"Loyiha bosqichi": next_stage})
+        return self.update_project_fields_by_name(
+            project_name, {"Loyiha bosqichi": next_stage}
+        )
 
     def get_upcoming_deadlines(self, hours=72):
         """Yaqin 72 soat ichida muddati tugaydigan loyihalarni topish."""
@@ -409,13 +442,22 @@ class AirtableSync:
         """Airtable-da yangi yozuv yaratish."""
         fields = self._normalize_fields_for_table(fields)
         if not fields:
-            logger.warning("[AIRTABLE] No valid fields to create after schema normalization.")
+            logger.warning(
+                "[AIRTABLE] No valid fields to create after schema normalization."
+            )
             return None
 
         try:
-            response = self._request("POST", self.endpoint, retry=False, json={"fields": fields})
+            response = self._request(
+                "POST", self.endpoint, retry=False, json={"fields": fields}
+            )
             if response.status_code in [200, 201]:
-                project_label = fields.get("Loyihani nomi?") or fields.get("Project Name") or fields.get("Name") or "Unknown"
+                project_label = (
+                    fields.get("Loyihani nomi?")
+                    or fields.get("Project Name")
+                    or fields.get("Name")
+                    or "Unknown"
+                )
                 logger.info(f"[AIRTABLE OK] Yangi yozuv yaratildi: {project_label}")
                 return response.json()
             logger.error(f"[AIRTABLE ERROR] {response.status_code}: {response.text}")
@@ -424,7 +466,9 @@ class AirtableSync:
             logger.error(f"[AIRTABLE EXCEPTION] {exc}")
             return None
 
-    def log_lead_acquisition(self, name: str, phone: str, source: str, intent: str = "WARM"):
+    def log_lead_acquisition(
+        self, name: str, phone: str, source: str, intent: str = "WARM"
+    ):
         """Lid topilganini tarixiy audit uchun Airtable'ga yozish."""
         original_table = self.table_name
         self.table_name = "Leads"
