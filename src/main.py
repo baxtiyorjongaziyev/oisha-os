@@ -2223,7 +2223,7 @@ async def main():
     auto_lead_agent = AutoLeadAgent(api_key=api_keys["gemini"])
     sales_coach = SalesCoach(ai_provider=auto_lead_agent)  # Use shared AI provider
     crm_guard = CRMGuard(
-        amo=msg_controller.crm.amocrm, bot=None
+        amo=msg_controller.crm.amocrm, db=msg_controller.db, bot=None
     )  # TODO: Connect admin bot
     safe_responder = SafeResponder()
 
