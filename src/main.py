@@ -1494,6 +1494,22 @@ async def self_command_handler(event):
         await event.respond(msg)
     elif cmd.startswith('/status'):
         await event.respond("🟢 **Oisha Engine:** Active\n🛰 **Server:** GCP Cloud Run")
+    elif cmd.startswith('/junk_audit'):
+        if msg_controller and msg_controller.enterprise_reporter:
+            await event.respond("🧹 **CRM Audit boshlandi...**\nOisha 'bekorchi' sdelkalarni qidirmoqda. Iltimos, kuting... ⏳")
+            try:
+                report = await msg_controller.enterprise_reporter.get_junk_leads_report(limit=250)
+                # Split report if too long
+                if len(report) > 4000:
+                    for chunk in [report[i:i+4000] for i in range(0, len(report), 4000)]:
+                        await event.respond(chunk)
+                else:
+                    await event.respond(report)
+            except Exception as e:
+                logger.error(f"[COMMAND] /junk_audit error: {e}", exc_info=True)
+                await event.respond(f"❌ **Auditda xato:** {str(e)}")
+        else:
+            await event.respond("❌ **Xato:** EnterpriseReporter topilmadi.")
 
 async def activity_monitor_handler(event):
     """Log outgoing activities for auditing."""
