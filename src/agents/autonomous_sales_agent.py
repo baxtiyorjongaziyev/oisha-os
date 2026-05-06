@@ -124,7 +124,7 @@ class AutonomousSalesAgent(BaseAgent):
             user_id=str(user_id),
             message=task_description,
             crm_data=context,
-            autonomy_level=context.get("autonomy_level", "assisted"),
+            autonomy_level=context.get("autonomy_level", "full"),
         )
         return str(result.get("response") or "")
 
@@ -142,12 +142,21 @@ class AutonomousSalesAgent(BaseAgent):
         state.add_message("user", message)
         state.autonomy_level = autonomy_level
 
+        # 1.5. Qo'ng'iroq tahlillarini integratsiya qilish
+        call_analysis = None
+        if self.db and crm_data and crm_data.get("lead_id"):
+            call_analysis = await self.db.get_latest_call_analysis(crm_data["lead_id"])
+            if call_analysis:
+                logger.info(f"📊 [Agent] Call Analysis topildi: {call_analysis.get('call_id')}")
+                state.context["latest_call_analysis"] = call_analysis
+
         # 2. Tahlil qilish — semantic Gemini preferred, keyword fallback
         assessment = await NegotiationEngine.assess_async(
             message=message,
             crm_status=crm_data.get("status", "") if crm_data else "",
             autonomy_mode=autonomy_level,
             history=state.history,
+            context=state.context,
         )
 
         # 3. Stage yangilash
@@ -289,6 +298,7 @@ class AutonomousSalesAgent(BaseAgent):
             - Urgency: {assessment.urgency}
             - Sentiment: {assessment.sentiment}
             - Close prob: {assessment.close_probability}
+            - Avtonom Missiya: {assessment.autonomous_mission}
             
             Tavsiya etilgan harakat: {assessment.next_action}
             
