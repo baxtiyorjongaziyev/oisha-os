@@ -11,7 +11,7 @@ def deploy():
     vps_ip = '34.159.150.1'
     username = 'baxti'
     password = 'parol1122'
-    remote_path = '/home/baxti/oisha-os'
+    remote_path = os.environ.get('VPS_DEPLOY_PATH', '/home/baxti/oisha-os')
 
     try:
         # 1. SSH ulanish
