@@ -132,6 +132,29 @@ class AdminBot:
             )
             await event.respond(report)
 
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/junk_audit"))
+        async def junk_audit_handler(event):
+            """CRM tozalik auditini (junk leads) qo'lda ishga tushirish."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+
+            await event.respond(
+                "👸 **Oisha CRM Audit:** Bekorchi sdelkalar tahlil qilinmoqda... 🧹"
+            )
+
+            try:
+                from src.services.core.enterprise_reporter import EnterpriseReporter
+                from src.services.core.crm_service import CRMService
+
+                crm_service = CRMService()
+                reporter = EnterpriseReporter(self.db, crm_service)
+                report_msg = await reporter.get_junk_leads_report()
+
+                await event.respond(report_msg, parse_mode="HTML", link_preview=False)
+            except Exception as e:
+                logger.error(f"❌ [JUNK_AUDIT ERROR] {e}")
+                await event.respond(f"❌ Audit davomida xato yuz berdi: {e}")
+
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/oisha_plan"))
         async def oisha_plan_handler(event):
             """Manual Morning Plan trigger."""
@@ -304,6 +327,23 @@ class AdminBot:
                     await self.analyze_social_history(user_id, event)
                 elif data == "vps_status":
                     await self.send_vps_status(event)
+                elif data == "junk_audit":
+                    # Re-use junk_audit_handler logic but for callback
+                    await event.answer("🧹 CRM Audit boshlandi...", alert=True)
+                    try:
+                        from src.services.core.enterprise_reporter import EnterpriseReporter
+                        from src.services.core.crm_service import CRMService
+
+                        crm_service = CRMService()
+                        reporter = EnterpriseReporter(self.db, crm_service)
+                        report_msg = await reporter.get_junk_leads_report()
+
+                        await event.respond(
+                            report_msg, parse_mode="HTML", link_preview=False
+                        )
+                    except Exception as e:
+                        logger.error(f"❌ [JUNK_AUDIT CALLBACK ERROR] {e}")
+                        await event.respond(f"❌ Xato: {e}")
                 elif data == "logs":
                     await self.send_recent_logs(event)
                 elif data.startswith("send_draft:"):
@@ -1115,6 +1155,36 @@ class AdminBot:
                                 "⚠️ Audit Error", str(e), "error"
                             )
 
+                # 5.5 Junk Audit — CRM Hygiene (02:30)
+                if current_time == "02:30":
+                    job_id = f"junk_audit_{today}"
+                    state = await self.db.get_state(job_id)
+                    if state not in ("done", "running"):
+                        await self.db.set_state(job_id, "running")
+                        logger.info("👸 [SCHEDULER] Junk Leads Audit boshlandi...")
+                        api_server_module.add_activity(
+                            "🧹 Junk Audit",
+                            "CRM bekorchi sdelkalar tahlili boshlandi...",
+                            "thinking",
+                        )
+                        try:
+                            from src.services.core.proactive_worker import (
+                                send_junk_leads_report,
+                            )
+
+                            await send_junk_leads_report()
+                            await self.db.set_state(job_id, "done")
+                            api_server_module.add_activity(
+                                "✅ Junk Audit",
+                                "Bekorchi sdelkalar tahlili yakunlandi va guruhga yuborildi.",
+                                "success",
+                            )
+                        except Exception as e:
+                            logger.error(f"[JUNK AUDIT ERROR] {e}")
+                            api_server_module.add_activity(
+                                "⚠️ Junk Audit Error", str(e), "error"
+                            )
+
                 # 6. Menejer Scorecard (18:30) — Kunlik KPI
                 if current_time == "18:30":
                     job_id = f"scorecard_{today}"
@@ -1439,6 +1509,7 @@ class AdminBot:
                 ],
                 [
                     Button.inline("📜 So'nggi Loglar", b"logs"),
+                    Button.inline("🧹 Junk Audit", b"junk_audit"),
                     Button.inline("⚙️ Sozlamalar", b"settings"),
                 ],
             ]
