@@ -32,6 +32,7 @@ class NegotiationAssessment:
     pain_points: List[str] = field(default_factory=list)
     buying_signals: List[str] = field(default_factory=list)
     decision_factors: List[str] = field(default_factory=list)
+    autonomous_mission: str = ""
 
     def to_payload(self) -> Dict[str, Any]:
         return asdict(self)
@@ -66,15 +67,29 @@ class NegotiationEngine:
                     f"{m['role'].upper()}: {m['content']}" for m in last_5
                 )
 
+            # Qo'ng'iroq tahlili kontekstini qo'shish
+            analysis_context = ""
+            if context and "latest_call_analysis" in context:
+                analysis = context["latest_call_analysis"]
+                analysis_context = f"""
+OXIRGI QO'NG'IROQ TAHLILI (Sifat bahosi: {analysis.get('overall_score')}/100):
+- Xulosa: {analysis.get('summary')}
+- Mijoz kayfiyati: {analysis.get('client_mood')}
+- E'tirozlar: {analysis.get('objections')}
+- Keyingi qadamlar: {analysis.get('next_steps')}
+"""
+
             prompt = f"""
-Sen "Oisha-OS" savdo tahlilchisisan. Quyidagi mijoz xabarini va suhbat tarixini
-CHUQUR tahlil qil va JSON formatida qaytarish.
+Sen "Oisha-OS" savdo tahlilchisisan. Quyidagi mijoz xabarini, suhbat tarixini va 
+real qo'ng'iroqlar tahlilini CHUQUR o'rganib, JSON formatida qaytarishing kerak.
 
 SUHBAT TARIXI (oxirgi 5 xabar):
 {history_text or "Yangi suhbat"}
-
+{analysis_context}
 JORIY XABAR: "{message}"
 CRM HOLATI: "{crm_status}"
+
+Sening maqsading - agentga ushbu mijoz bilan AVTONOM (mustaqil) gaplashish uchun yo'riqnoma berish.
 
 JSON sxemasi:
 {{
@@ -90,17 +105,15 @@ JSON sxemasi:
   "risk_flags": [],
   "pain_points": [],
   "buying_signals": [],
-  "decision_factors": []
+  "decision_factors": [],
+  "autonomous_mission": "Agent o'zi bajarishi kerak bo'lgan aniq vazifa (uzbek tilida)"
 }}
 
 Qoidalar:
-- close_probability: 0.0 (yangi) dan 1.0 (tayyor to'lash) gacha
-- pain_points: mijozning asosiy muammolari (3 tagacha)
-- buying_signals: sotib olishga tayyorlik belgilari
-- decision_factors: qaror qabul qilishga ta'sir etuvchi omillar
-- Faqat JSON qaytarish, izoh yozma
-
-JSON:"""
+- autonomous_mission: Agent inson aralashuvisiz bajaradigan aniq harakat (masalan: 'Mijozga 3-chi paket narxini taklif qilish va uchrashuv belgilash').
+- Agar qo'ng'iroq tahlilida e'tiroz bo'lgan bo'lsa, uni hozirgi matnli suhbatda hal qilishni hisobga ol.
+- Faqat JSON qaytarish.
+"""
 
             response = await client.aio.models.generate_content(
                 model="gemini-2.0-flash",
@@ -128,6 +141,7 @@ JSON:"""
                 pain_points=data.get("pain_points", []),
                 buying_signals=data.get("buying_signals", []),
                 decision_factors=data.get("decision_factors", []),
+                autonomous_mission=data.get("autonomous_mission", ""),
             )
 
         except Exception:

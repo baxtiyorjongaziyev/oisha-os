@@ -20,6 +20,7 @@ from src.services.core.agent_runtime import (
     get_storage_health,
 )
 from src.services.core.amocrm_sync import AmoCRMSync
+from src.agents.autonomous_sales_agent import AutonomousSalesAgent
 from src.settings import settings
 from src.time_utils import get_local_now
 from src.api import dashboard
@@ -32,6 +33,9 @@ logger = logging.getLogger("OishaAPI")
 user_client = None
 db_instance = None
 msg_controller = None
+
+# Health check cache
+cached_status = {"status": "initializing", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 app = FastAPI(title="Oisha-OS Enterprise API")
 
@@ -997,15 +1001,107 @@ async def create_amo_lead(request: CreateLeadRequest):
 
 @app.post("/webhook/amocrm")
 async def amocrm_webhook(request: Request):
-    """Handle incoming webhooks from AmoCRM (e.g. outgoing messages from Chat Widget)"""
-    # BackgroundTasks is handled by FastAPI if needed, simplifying here
-    data = await request.json()
-    logger.info(f"Received AmoCRM webhook: {data}")
+    """Handle incoming webhooks from AmoCRM."""
+    try:
+        # AmoCRM webhooks are often form-encoded
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form_data = await request.form()
+            data = dict(form_data)
 
-    # Logic to bridge to Telegram (Wazzup Killer)
-    # process_amocrm_message(data)
+        logger.info(f"📩 [Webhook] AmoCRM event received: {list(data.keys())}")
+        
+        # Process in background
+        asyncio.create_task(process_amocrm_event(data))
+        
+        return {"status": "ok", "message": "Event queued"}
+    except Exception as e:
+        logger.error(f"❌ [Webhook] Error: {e}")
+        return {"status": "error", "message": str(e)}
 
-    return {"status": "received"}
+
+async def process_amocrm_event(data: Dict[str, Any]):
+    """
+    AmoCRM eventini tahlil qilish va avtonom agentni ishga tushirish.
+    """
+    global amocrm_instance, db_instance
+    
+    try:
+        # 1. Lead ID ni aniqlash (AmoCRM standard webhook format)
+        lead_id = None
+        # leads[add][0][id] yoki leads[update][0][id] formatida keladi
+        for key in data.keys():
+            if "leads[" in key and "][id]" in key:
+                lead_id = data[key]
+                break
+        
+        if not lead_id:
+            return
+
+        # 2. AmoCRM va Agentni tayyorlash
+        if not amocrm_instance:
+            amocrm_instance = AmoCRMSync(
+                subdomain=settings.AMOCRM_SUBDOMAIN,
+                client_id=settings.AMOCRM_CLIENT_ID,
+                client_secret=(
+                    settings.AMOCRM_CLIENT_SECRET.get_secret_value()
+                    if settings.AMOCRM_CLIENT_SECRET
+                    else ""
+                ),
+                redirect_url=settings.AMOCRM_REDIRECT_URL,
+            )
+
+        agent = AutonomousSalesAgent(db=db_instance)
+        
+        # 3. Lead va Kontekst ma'lumotlarini olish
+        lead_data = await amocrm_instance.get_lead(int(lead_id))
+        if not lead_data:
+            return
+            
+        phone = amocrm_instance.get_lead_phone(int(lead_id))
+        
+        # 4. Agentni ishga tushirish
+        # Webhookdan kelgan trigger uchun maxsus xabar yuboramiz
+        trigger_msg = "CRM status yangilandi yoki yangi lead keldi. Muzokarani tahlil qiling."
+        
+        result = await agent.handle_incoming(
+            user_id=str(phone or lead_id),
+            message=trigger_msg,
+            crm_data={
+                "lead_id": int(lead_id),
+                "status_id": lead_data.get("status_id"),
+                "pipeline_id": lead_data.get("pipeline_id"),
+                "phone": phone,
+                "name": lead_data.get("name")
+            },
+            autonomy_level="full"
+        )
+        
+        # 5. Qarorni ijro etish
+        if result.get("decision") == "send" and result.get("response"):
+            response_text = result["response"]
+            
+            # AmoCRM ga note sifatida qo'shish (Audit trail uchun)
+            await amocrm_instance.add_lead_note(
+                int(lead_id), 
+                f"🤖 [Oisha Autonomous]: {response_text}"
+            )
+            
+            # Agar Telegram client bo'lsa va phone bo'lsa, to'g'ridan-to'g'ri yuborish mumkin
+            # (Bu qism loyiha talabiga ko'ra integratsiya qilinadi)
+            logger.info(f"✅ [Agent] Autonomous response sent for lead {lead_id}")
+            
+        elif result.get("decision") == "escalate":
+            logger.warning(f"⚠️ [Agent] Escalation triggered for lead {lead_id}: {result.get('reason')}")
+            await amocrm_instance.add_lead_note(
+                int(lead_id),
+                f"🚨 [Oisha Escalation]: {result.get('reason')}. Human intervention needed."
+            )
+
+    except Exception as e:
+        logger.error(f"❌ [Webhook Process] Error: {e}", exc_info=True)
 
 
 # ─── OPENCLAW GATEWAY BRIDGE ──────────────────────────────────────────────────
