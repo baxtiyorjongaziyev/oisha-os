@@ -8,7 +8,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 HOST = "104.197.19.4"
 USER = "baxtiyorjongaziyev"
 PASSWORD = "parol1122"
-REMOTE_DIR = "/home/baxtiyorjongaziyev/telegram_bot"
+REMOTE_DIR = os.environ.get('VPS_DEPLOY_PATH', '/home/baxtiyorjongaziyev/telegram_bot')
 
 files_to_sync = [
     'userbot.py',

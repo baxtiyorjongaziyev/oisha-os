@@ -8,7 +8,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 HOST = "109.199.100.137"
 USER = "root"
 PASSWORD = "#8tV9Hsm0aMqapdb"
-REMOTE_DIR = "/root/telegram_bot"
+REMOTE_DIR = os.environ.get('VPS_DEPLOY_PATH', '/root/telegram_bot')
 
 def deploy():
     ssh = paramiko.SSHClient()
