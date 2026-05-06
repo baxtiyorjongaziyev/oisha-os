@@ -25,3 +25,7 @@ structlog
 tenacity
 beautifulsoup4
 pytz
+psutil
+google-cloud-secret-manager
+alembic
+sqlalchemy
