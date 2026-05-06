@@ -1671,6 +1671,48 @@ async def send_evening_fact_report():
         logger.error(f"[XATO] Evening Fact: {e}")
 
 
+async def send_junk_leads_report():
+    """CRM'dagi bekorchi sdelkalar (junk leads) hisobotini yuborish."""
+    logger.info("Junk leads audit job started...")
+    from src.services.core.enterprise_reporter import EnterpriseReporter
+    from src.services.core.crm_service import CRMService
+    import src.config as config
+
+    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+    group_id = getattr(config, "CRM_GROUP_ID", None)
+    thread_id = getattr(config, "TOPIC_REPORTS_ID", None)
+
+    if not (bot_token and group_id):
+        return
+
+    db = Database()
+    today = get_local_now().strftime("%Y-%m-%d")
+
+    # Bir marta yuborishni tekshirish
+    if await db.is_job_run("junk_audit", today):
+        logger.info("[JUNK AUDIT] Allaqachon bugun yuborilgan. Skip.")
+        return
+
+    try:
+        crm_service = CRMService()
+        reporter = EnterpriseReporter(db, crm_service)
+        report_msg = await reporter.get_junk_leads_report()
+
+        from telegram import Bot
+
+        bot = Bot(token=bot_token)
+        await bot.send_message(
+            chat_id=group_id,
+            text=report_msg,
+            parse_mode="HTML",
+            message_thread_id=thread_id,
+        )
+        await db.mark_job_run("junk_audit", today)
+        logger.info("[JUNK AUDIT] Sent successfully.")
+    except Exception as e:
+        logger.error(f"[XATO] Junk Audit: {e}")
+
+
 async def _execute_telegram_notification(
     registry,
     *,
@@ -1781,57 +1823,15 @@ async def check_amocrm_stagnation():
                 await db.mark_job_run(job_key, today)
         return
 
-    grouped: Dict[int, List[Dict[str, Any]]] = {}
-    now_ts = int(now.timestamp())
-    for lead in stagnated:
-        responsible_id = int(lead.get("responsible_user_id") or 0)
-        grouped.setdefault(responsible_id, []).append(lead)
+    from src.services.core.enterprise_reporter import EnterpriseReporter
+    from src.services.core.crm_service import CRMService
 
-    total_value = sum(int(lead.get("price") or 0) for lead in stagnated)
-    lines = [
-        "ðŸš¨ <b>Sales Conversion Push</b>",
-        f"24 soatdan oshgan leadlar: <b>{len(stagnated)}</b> ta",
-        f"Risk ostidagi summa: <b>{total_value:,.0f} so'm</b>".replace(",", " "),
-        "",
-    ]
+    crm_service = CRMService()
+    reporter = EnterpriseReporter(db, crm_service)
+    message = await reporter.get_stagnant_leads_alert(limit=50)
 
-    manager_names: Dict[int, str] = {}
-    for responsible_id, leads in sorted(
-        grouped.items(), key=lambda item: len(item[1]), reverse=True
-    ):
-        if responsible_id not in manager_names:
-            manager_names[responsible_id] = await amocrm_tool.get_user_name(
-                responsible_id
-            )
-        manager_name = escape(
-            _safe_text(manager_names[responsible_id], "Sotuv menejeri")
-        )
-        lines.append(f"👤 <b>{manager_name}</b> — {len(leads)} ta lid")
-        for lead in sorted(
-            leads,
-            key=lambda item: (
-                _lead_idle_hours(item, now_ts),
-                int(item.get("price") or 0),
-            ),
-            reverse=True,
-        )[:3]:
-            idle_hours = _lead_idle_hours(lead, now_ts)
-            lead_name = escape(_safe_text(lead.get("name")))
-            amount = int(lead.get("price") or 0)
-            lead_link = f"https://{config.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead.get('id')}"
-            lines.append(
-                "• "
-                f"<a href='{lead_link}'>{lead_name}</a> — {_format_idle_text(idle_hours)}, "
-                f"{_sales_action_for_lead(lead)}"
-                + (f" <b>({amount:,.0f} so'm)</b>".replace(",", " ") if amount else "")
-            )
-        lines.append(f"  ðŸ“Œ Bugungi fokus: {_sales_manager_playbook(leads)}")
-        lines.append("")
-
-    lines.append(
-        "Talab: har bir qotib qolgan lid uchun bugun next step, sabab va keyingi sana CRMga yozilsin."
-    )
-    message = "\n".join(lines).strip()
+    if not message:
+        return
     manager_ids = list(getattr(config, "SALES_MANAGER_IDS", []) or [])
     direct_messages = [
         {
@@ -2240,16 +2240,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--job",
         choices=[
-            "followup",
-            "report",
-            "briefing",
-            "stagnation",
-            "deadlines",
-            "distribute",
-            "fact",
-            "lunch",
             "journey",
             "offload",
+            "junk",
         ],
         default="followup",
         help="Kaysi vazifani bajarish kerak?",
@@ -2276,3 +2269,5 @@ if __name__ == "__main__":
         asyncio.run(check_client_journey_excellence())
     elif args.job == "offload":
         asyncio.run(run_crm_offload())
+    elif args.job == "junk":
+        asyncio.run(send_junk_leads_report())

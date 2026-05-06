@@ -1138,6 +1138,30 @@ class Database:
         await conn.commit()
         return True
 
+    async def get_latest_call_analysis(self, lead_id: int) -> Optional[Dict[str, Any]]:
+        """Lid uchun oxirgi qo'ng'iroq tahlilini olish."""
+        conn = await self.get_connection()
+        query = """
+            SELECT * FROM call_analyses 
+            WHERE lead_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT 1
+        """
+        async with conn.execute(query, (lead_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                cols = [description[0] for description in cursor.description]
+                data = dict(zip(cols, row))
+                # JSON maydonlarni parse qilish
+                for json_col in ["scores", "strengths", "weaknesses", "objections", "next_steps", "recommended_tasks"]:
+                    if data.get(json_col):
+                        try:
+                            data[json_col] = json.loads(data[json_col])
+                        except Exception:
+                            pass
+                return data
+        return None
+
     def __iter__(self):
         return iter(())
 
@@ -1317,9 +1341,3 @@ class _CursorContext:
 
     async def fetchone(self):
         return await self._cursor.fetchone()
-
-    async def fetchall(self):
-        return await self._cursor.fetchall()
-
-    async def close(self):
-        await self._cursor.close()
