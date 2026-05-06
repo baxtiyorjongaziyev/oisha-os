@@ -11,9 +11,11 @@ from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
 import queue
 from collections import Counter, defaultdict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from src.services.core.agent_runtime import (
     collect_legacy_runtime_inventory,
     get_runtime_context,
@@ -70,6 +72,30 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
     allow_credentials=True,
 )
+
+
+# ─── GLOBAL EXCEPTION HANDLERS ───────────────────────────────────────────────
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    logger.warning(f"HTTP {exc.status_code} at {request.url.path}: {exc.detail}")
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning(f"Validation error at {request.url.path}: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"error": "Validation failed", "details": exc.errors()},
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception at {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(status_code=500, content={"error": "Internal server error"})
+
 
 @app.get("/")
 async def root_status():
@@ -906,11 +932,25 @@ async def create_amo_lead(request: CreateLeadRequest):
         return {"status": "success", "lead_id": lead_id}
     return {"error": "Lead creation failed"}
 
+class AmoCRMWebhookPayload(BaseModel):
+    """AmoCRM webhook payload — structure varies by event; extra fields accepted."""
+    model_config = ConfigDict(extra="allow")
+
+
 @app.post("/webhook/amocrm")
 async def amocrm_webhook(request: Request):
     """Handle incoming webhooks from AmoCRM (e.g. outgoing messages from Chat Widget)"""
-    # BackgroundTasks is handled by FastAPI if needed, simplifying here
-    data = await request.json()
+    try:
+        raw = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON payload"})
+
+    try:
+        payload = AmoCRMWebhookPayload.model_validate(raw)
+        data = payload.model_dump()
+    except Exception:
+        data = raw
+
     logger.info(f"Received AmoCRM webhook: {data}")
 
     # Logic to bridge to Telegram (Wazzup Killer)
@@ -1060,33 +1100,28 @@ _call_analytics = CallAnalytics()
 _ai_task_manager: Optional[AITaskManager] = None
 _conversation_engine: Optional[ConversationEngine] = None
 
+class ConversationAnalysisRequest(BaseModel):
+    conversation_text: str = ""
+    conversation_id: str = ""
+    lead_id: Optional[int] = None
+    manager_id: Optional[int] = None
+    manager_name: str = ""
+    duration_seconds: int = 0
+    auto_create_tasks: bool = False
+
+
 @app.post("/api/ai/analyze-conversation")
-async def analyze_conversation(request: Request):
-    """
-    Suhbatni AI tahlil qilish va sifat ballari berish.
-    
-    Request body:
-    {
-        "conversation_text": "Suhbat matni...",
-        "conversation_id": "conv_123",
-        "lead_id": 12345,
-        "manager_id": 678,
-        "manager_name": "John Doe",
-        "duration_seconds": 300,
-        "auto_create_tasks": false  // AmoCRM da vazifa yaratish
-    }
-    """
+async def analyze_conversation(data: ConversationAnalysisRequest):
+    """Suhbatni AI tahlil qilish va sifat ballari berish."""
     try:
-        data = await request.json()
-        
         # Suhbatni tahlil qilish
         analysis = _quality_analyzer.analyze_conversation(
-            conversation_text=data.get("conversation_text", ""),
-            conversation_id=data.get("conversation_id", ""),
-            lead_id=data.get("lead_id"),
-            manager_id=data.get("manager_id"),
-            manager_name=data.get("manager_name", ""),
-            duration_seconds=data.get("duration_seconds", 0)
+            conversation_text=data.conversation_text,
+            conversation_id=data.conversation_id,
+            lead_id=data.lead_id,
+            manager_id=data.manager_id,
+            manager_name=data.manager_name,
+            duration_seconds=data.duration_seconds,
         )
         
         # Analitika saqlash
@@ -1094,7 +1129,7 @@ async def analyze_conversation(request: Request):
         
         # Agar auto_create_tasks=True bo'lsa, AmoCRM da vazifa yaratish
         tasks = []
-        if data.get("auto_create_tasks", False) and amocrm_instance:
+        if data.auto_create_tasks and amocrm_instance:
             global _ai_task_manager
             if _ai_task_manager is None:
                 _ai_task_manager = AITaskManager(amocrm_instance)
@@ -1208,23 +1243,19 @@ async def get_lost_clients_analysis(days: int = 30):
         logger.error(f"[API AI] Lost clients analysis error: {e}")
         return {"status": "error", "message": str(e)}
 
+class CreateTasksFromAnalysisRequest(BaseModel):
+    lead_id: Optional[int] = None
+    analysis_id: Optional[str] = None
+
+
 @app.post("/api/ai/create-tasks-from-analysis")
-async def create_tasks_from_analysis(request: Request):
-    """
-    Tahlil asosida AmoCRM da vazifa yaratish.
-    
-    Request body:
-    {
-        "lead_id": 12345,
-        "analysis_id": "conv_123"
-    }
-    """
+async def create_tasks_from_analysis(data: CreateTasksFromAnalysisRequest):
+    """Tahlil asosida AmoCRM da vazifa yaratish."""
     try:
         if not amocrm_instance:
             return {"status": "error", "message": "AmoCRM not configured"}
-        
-        data = await request.json()
-        lead_id = data.get("lead_id")
+
+        lead_id = data.lead_id
         
         # Task manager init
         global _ai_task_manager
@@ -1419,38 +1450,50 @@ async def get_manager_comparison(days: int = 7):
         logger.error(f"[API AI] Manager comparison error: {e}")
         return {"status": "error", "message": str(e)}
 
+class ProcessCallRequest(BaseModel):
+    call_id: str = ""
+    lead_id: int = 0
+    manager_id: int = 0
+    manager_name: str = ""
+    started_at: Optional[str] = None
+    duration_seconds: int = 0
+    audio_url: Optional[str] = None
+    transcript: str = ""
+    lead_name: str = ""
+    lead_status: str = ""
+    auto_analyze: bool = True
+    auto_create_tasks: bool = True
+
+
 @app.post("/api/ai/process-call")
-async def process_call(request: Request):
-    """
-    Yangi qo'ng'iroqni qayta ishlash.
-    AmoCRM webhook orqali chaqiriladi.
-    """
+async def process_call(data: ProcessCallRequest):
+    """Yangi qo'ng'iroqni qayta ishlash. AmoCRM webhook orqali chaqiriladi."""
     try:
         global _conversation_engine
         if _conversation_engine is None:
             _conversation_engine = get_conversation_engine(amocrm_instance, db_instance)
-        
-        data = await request.json()
-        
+
+        started_at = datetime.fromisoformat(data.started_at) if data.started_at else datetime.now()
+
         # CallRecord yaratish
         call_record = CallRecord(
-            call_id=data.get("call_id", ""),
-            lead_id=data.get("lead_id", 0),
-            manager_id=data.get("manager_id", 0),
-            manager_name=data.get("manager_name", ""),
-            started_at=datetime.fromisoformat(data.get("started_at", datetime.now().isoformat())),
-            duration_seconds=data.get("duration_seconds", 0),
-            audio_url=data.get("audio_url"),
-            transcript=data.get("transcript", ""),
-            lead_name=data.get("lead_name", ""),
-            lead_status=data.get("lead_status", "")
+            call_id=data.call_id,
+            lead_id=data.lead_id,
+            manager_id=data.manager_id,
+            manager_name=data.manager_name,
+            started_at=started_at,
+            duration_seconds=data.duration_seconds,
+            audio_url=data.audio_url,
+            transcript=data.transcript,
+            lead_name=data.lead_name,
+            lead_status=data.lead_status,
         )
-        
+
         # Qayta ishlash
         analysis = await _conversation_engine.process_call(
             call_record=call_record,
-            auto_analyze=data.get("auto_analyze", True),
-            auto_create_tasks=data.get("auto_create_tasks", True)
+            auto_analyze=data.auto_analyze,
+            auto_create_tasks=data.auto_create_tasks,
         )
         
         return {
@@ -1502,26 +1545,39 @@ async def list_models():
     }
 
 
+class _ChatMessage(BaseModel):
+    role: str
+    content: str
+    model_config = ConfigDict(extra="allow")
+
+
+class ChatCompletionRequest(BaseModel):
+    model: str = "oisha-agent"
+    messages: List[_ChatMessage] = Field(default_factory=list)
+    user: Optional[str] = None
+    stream: bool = False
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    model_config = ConfigDict(extra="allow")
+
+
 @app.post("/v1/chat/completions")
-async def chat_completions(request: Request):
+async def chat_completions(data: ChatCompletionRequest):
     """
     OpenAI-compatible chat completions endpoint.
 
     OpenClaw bu endpointga barcha kanal xabarlarini yuboradi,
     Oisha agenti qayta ishlaydi va OpenAI formatida javob qaytaradi.
     """
-    data = await request.json()
-
-    messages = data.get("messages", [])
-    session_id = data.get("user", "openclaw-main")
-    stream = data.get("stream", False)
+    messages = data.messages
+    session_id = data.user or "openclaw-main"
+    stream = data.stream
 
     # Oxirgi user xabarini olish
     user_text = ""
     for msg in reversed(messages):
-        if msg.get("role") == "user":
-            content = msg.get("content", "")
-            user_text = content if isinstance(content, str) else str(content)
+        if msg.role == "user":
+            user_text = msg.content if isinstance(msg.content, str) else str(msg.content)
             break
 
     if not user_text:

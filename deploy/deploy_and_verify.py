@@ -4,7 +4,8 @@ import os
 hostname = '109.199.100.137'
 username = 'root'
 password = '#8tV9Hsm0aMqapdb'
-remote_path = '/root/telegram_bot/userbot.py'
+_deploy_base = os.environ.get('VPS_DEPLOY_PATH', '/root/telegram_bot')
+remote_path = f'{_deploy_base}/userbot.py'
 local_path = 'userbot.py'
 
 try:
@@ -18,15 +19,15 @@ try:
     
     # Root files
     for f in files_to_upload:
-        sftp.put(f, f'/root/telegram_bot/{f}')
+        sftp.put(f, f'{_deploy_base}/{f}')
         print(f"[OK] {f} uploaded.")
     
     # Webapp folder
     try:
-        ssh.exec_command('mkdir -p /root/telegram_bot/webapp')
+        ssh.exec_command(f'mkdir -p {_deploy_base}/webapp')
         webapp_files = os.listdir('webapp')
         for f in webapp_files:
-            sftp.put(f'webapp/{f}', f'/root/telegram_bot/webapp/{f}')
+            sftp.put(f'webapp/{f}', f'{_deploy_base}/webapp/{f}')
             print(f"[OK] webapp/{f} uploaded.")
     except Exception as e:
         print(f"[ERROR] Webapp upload failed: {e}")
@@ -35,8 +36,8 @@ try:
     
     # Rebuild and Restart
     commands = [
-        'cd /root/telegram_bot && docker compose down',
-        'cd /root/telegram_bot && docker compose up -d --build --force-recreate'
+        f'cd {_deploy_base} && docker compose down',
+        f'cd {_deploy_base} && docker compose up -d --build --force-recreate'
     ]
     for cmd in commands:
         stdin, stdout, stderr = ssh.exec_command(cmd)

@@ -156,5 +156,46 @@ class AppSettings(BaseSettings):
             missing.append("AMOCRM_CLIENT_ID")
         return missing
 
-settings = AppSettings()
+def _load_cloud_secrets() -> dict:
+    """Load secrets from Google Cloud Secret Manager when RUNNING_IN_CLOUD=True.
+
+    Falls back silently if the library is missing or the API is unreachable.
+    """
+    try:
+        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
+        running_in_cloud = os.environ.get("RUNNING_IN_CLOUD", "").lower() in ("1", "true")
+        if not project_id or not running_in_cloud:
+            return {}
+
+        from google.cloud import secretmanager  # noqa: PLC0415
+
+        client = secretmanager.SecretManagerServiceClient()
+        secret_names = [
+            "BOT_TOKEN", "ADMIN_BOT_TOKEN",
+            "GEMINI_API_KEY", "DEEPSEEK_API_KEY",
+            "AMOCRM_CLIENT_SECRET", "AIRTABLE_API_KEY",
+            "TURSO_AUTH_TOKEN", "TURSO_DATABASE_URL",
+            "API_ID", "API_HASH",
+        ]
+        loaded: dict = {}
+        for name in secret_names:
+            try:
+                resource = f"projects/{project_id}/secrets/{name}/versions/latest"
+                resp = client.access_secret_version(request={"name": resource})
+                value = resp.payload.data.decode("UTF-8").strip()
+                if value:
+                    loaded[name] = value
+            except Exception:
+                pass
+
+        return loaded
+    except ImportError:
+        return {}
+    except Exception:
+        return {}
+
+
+_base_settings = AppSettings()
+_cloud_overrides = _load_cloud_secrets()
+settings: AppSettings = _base_settings.model_copy(update=_cloud_overrides) if _cloud_overrides else _base_settings
 logger = structlog.get_logger()
