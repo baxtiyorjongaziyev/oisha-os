@@ -12,7 +12,6 @@ on:
   workflow_dispatch:
 
 env:
-  BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
   OWNER_ID: "150074828"
 
 jobs:
