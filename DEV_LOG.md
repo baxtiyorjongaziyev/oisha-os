@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-07 06:20 UTC | ⚠️ main `828118a`
+
+**Commit**: chore: standardize GitHub Action versions and complete AmoCRM integration setup
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
 ## 2026-05-07 06:07 UTC | ⚠️ main `7b303b9`
 
 **Commit**: Merge branch 'main' of https://github.com/baxtiyorjongaziyev/oisha-os
