@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Deploy to VPS 1 (109.199.100.137)
         id: vps1
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1
         continue-on-error: true
         with:
           host: 109.199.100.137
@@ -142,7 +142,7 @@ jobs:
       - name: Deploy to VPS 2 (104.197.19.4)
         id: vps2
         if: steps.vps1.outcome == 'failure'
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1
         continue-on-error: true
         with:
           host: 104.197.19.4
