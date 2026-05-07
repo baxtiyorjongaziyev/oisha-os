@@ -1,8 +1,88 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+import logging
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.time_utils import get_local_now
+
+logger = logging.getLogger(__name__)
+
+
+class CRMStateVerifier:
+    """Verifies that AmoCRM lead stage matches the expected stage after an update."""
+
+    async def verify(
+        self,
+        lead_id: Optional[str],
+        expected_status_id: Optional[str],
+        amocrm: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """
+        Fetch the live CRM record and confirm its status_id matches expected.
+
+        Returns a standard verification dict:
+          {success, verification_mode, lead_id, expected_status_id,
+           actual_status_id, reason, verified_at}
+        """
+        if not lead_id or not expected_status_id:
+            return {
+                "success": True,
+                "verification_mode": "crm_state",
+                "lead_id": lead_id,
+                "expected_status_id": expected_status_id,
+                "actual_status_id": None,
+                "reason": "skipped_no_lead_id_or_status",
+                "verified_at": get_local_now().isoformat(),
+            }
+
+        actual_status_id: Optional[str] = None
+        error: Optional[str] = None
+
+        if amocrm is not None:
+            try:
+                lead = await _fetch_crm_lead(amocrm, lead_id)
+                actual_status_id = str(lead.get("status_id") or "")
+            except Exception as exc:
+                error = str(exc)
+                logger.warning(f"[CRMStateVerifier] fetch failed for lead {lead_id}: {exc}")
+
+        matched = actual_status_id == str(expected_status_id) if actual_status_id else None
+
+        if error:
+            reason = f"crm_fetch_error: {error}"
+            success = False
+        elif actual_status_id is None:
+            reason = "crm_unavailable_skipped"
+            success = True  # non-fatal — no amocrm client injected
+        elif matched:
+            reason = "crm_state_confirmed"
+            success = True
+        else:
+            reason = f"crm_state_mismatch: expected={expected_status_id} actual={actual_status_id}"
+            success = False
+
+        return {
+            "success": success,
+            "verification_mode": "crm_state",
+            "lead_id": lead_id,
+            "expected_status_id": expected_status_id,
+            "actual_status_id": actual_status_id,
+            "reason": reason,
+            "verified_at": get_local_now().isoformat(),
+        }
+
+
+async def _fetch_crm_lead(amocrm: Any, lead_id: str) -> Dict[str, Any]:
+    """Thin wrapper — handles both sync and async CRM clients."""
+    import asyncio
+
+    fetch = getattr(amocrm, "get_lead", None) or getattr(amocrm, "fetch_lead", None)
+    if fetch is None:
+        return {}
+    result = fetch(lead_id)
+    if asyncio.iscoroutine(result):
+        result = await result
+    return result if isinstance(result, dict) else {}
 
 
 class NotificationOutcomeVerifier:
