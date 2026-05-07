@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-07 05:54 UTC | ⚠️ main `907d12c`
+
+**Commit**: fix: resolve deployment failure, exposed secrets, and startup timeout
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: userbot secret binding cleanup failed: Deploying... Creating Revision.........................failed Deployment failed ERROR: (gcloud.run.services.update) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision m
+
+---
+
 ## 2026-05-07 05:44 UTC | ⚠️ main `6002729`
 
 **Commit**: feat: add logging to sales agent and update GitHub Actions versions
