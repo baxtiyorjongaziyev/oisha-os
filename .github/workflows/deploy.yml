@@ -23,10 +23,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -75,7 +75,7 @@ jobs:
       service_url: ${{ steps.rollout.outputs.service_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       - name: Check deploy secret
         env:
@@ -88,12 +88,12 @@ jobs:
           echo "GCP_SA_KEY is present."
 
       - name: Google Auth
-        uses: google-github-actions/auth@v2.1.7
+        uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2.1.1
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Build, deploy candidate, and promote only if healthy
         id: rollout
@@ -446,7 +446,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
