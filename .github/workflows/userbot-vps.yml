@@ -1,5 +1,7 @@
 # Oisha-OS: Userbot VPS Deployment
 # [REFRESH: 2026-05-07]
+# ⚠️ NOTE: All secrets must be passed via GitHub Secrets or configured manually on VPS.
+#         No credentials should be hardcoded in public repo files.
 name: Userbot — VPS Deploy & Start
 
 on:
@@ -10,7 +12,7 @@ on:
   workflow_dispatch:
 
 env:
-  BOT_TOKEN: "8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4"
+  BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
   OWNER_ID: "150074828"
 
 jobs:
@@ -26,11 +28,11 @@ jobs:
         with:
           host: 109.199.100.137
           username: root
-          password: "#8tV9Hsm0aMqapdb"
+          password: ${{ secrets.VPS_PASSWORD_1 }}
           port: 22
           timeout: 30s
           command_timeout: 10m
-          envs: GITHUB_TOKEN
+          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING
           script: |
             set -e
             echo "=== VPS 1 (109.199.100.137) ga ulandi ==="
@@ -54,18 +56,18 @@ jobs:
             cd "$OISHA_DIR"
             echo "Papka: $(pwd)"
 
-            # To'liq .env yozish
+            # .env faylini GitHub Secrets dan yaratish
             cat > .env << 'ENVEOF'
-            BOT_TOKEN=8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4
-            API_ID=30643078
-            API_HASH=e5850001c1d86ac0fb439fbd8319cb7f
-            GEMINI_API_KEY=AIzaSyDaaPa_QQQ3E71oXP3gQq3NiCOBcx8Sv5Q
+            BOT_TOKEN=placeholder
+            API_ID=placeholder
+            API_HASH=placeholder
+            GEMINI_API_KEY=placeholder
             AMOCRM_SUBDOMAIN=jonbrandingagency
-            AMOCRM_CLIENT_ID=5a755b58-f5d1-477d-965d-a50ddaa3d55e
-            AMOCRM_CLIENT_SECRET=k1DoXJsQGSD6uIUL7VsslRtoMNzbYF7bxZtdHN2FCdaDXjuRtJ0OPDvh27dvKV5O
-            OISHA_API_SECRET=4044ab7961480d56b8c0a3277c739b47
-            OPENCLAW_SECRET=76ae980ba923a1bcf5bbaba02b88ca0c43d528b076999053bc8b5b62041fb8d7
-            USERBOT_SESSION_STRING=1ApWapzMBu7kFbYuLPhd3XCGJig-7b2AFv6q3Ej9ECcaEszaSkSYBc70665Vw1qsM2mftLkilu3tNuI7JPhJCzXi_1D58PyQp-eaG4fGDYVtv1Ascc_fZv13v1KYqPAO7uR-7voZSIN3ELp0dmEeg7MGy6P-RpF3nsJBJR1KAUyxjiviTk3jUDKvYwA6ZXXhgNtCzFAtF1r5ZjaCP68B2bUdxbihRbecbA5ptuk8r28hBKM8x8XnF9tpme7ZGsD_KHNvDbaxvC1_SKzXajNJtQaWM9oEzejeNVAZXj3DOGWPByUHXua1yg-tmCYL-Ox63518taP66FuoJMZdizZFnwjxcvKZGGm0=
+            AMOCRM_CLIENT_ID=placeholder
+            AMOCRM_CLIENT_SECRET=placeholder
+            OISHA_API_SECRET=placeholder
+            OPENCLAW_SECRET=placeholder
+            USERBOT_SESSION_STRING=placeholder
             OWNER_ID=150074828
             ENABLE_AUTO_REPLY=false
             RUNNING_IN_CLOUD=False
@@ -75,6 +77,15 @@ jobs:
             GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k
             ENVEOF
             sed -i 's/^            //' .env
+            sed -i "s|BOT_TOKEN=placeholder|BOT_TOKEN=${BOT_TOKEN}|" .env
+            sed -i "s|API_ID=placeholder|API_ID=${API_ID}|" .env
+            sed -i "s|API_HASH=placeholder|API_HASH=${API_HASH}|" .env
+            sed -i "s|GEMINI_API_KEY=placeholder|GEMINI_API_KEY=${GEMINI_API_KEY}|" .env
+            sed -i "s|AMOCRM_CLIENT_ID=placeholder|AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID}|" .env
+            sed -i "s|AMOCRM_CLIENT_SECRET=placeholder|AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET}|" .env
+            sed -i "s|OISHA_API_SECRET=placeholder|OISHA_API_SECRET=${OISHA_API_SECRET}|" .env
+            sed -i "s|OPENCLAW_SECRET=placeholder|OPENCLAW_SECRET=${OPENCLAW_SECRET}|" .env
+            sed -i "s|USERBOT_SESSION_STRING=placeholder|USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}|" .env
 
             # Python paketlar
             python3 -m pip install -r requirements.txt -q --break-system-packages 2>/dev/null \
@@ -136,11 +147,11 @@ jobs:
         with:
           host: 104.197.19.4
           username: baxtiyorjongaziyev
-          password: "parol1122"
+          password: ${{ secrets.VPS_PASSWORD_2 }}
           port: 22
           timeout: 30s
           command_timeout: 10m
-          envs: GITHUB_TOKEN
+          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,USERBOT_SESSION_STRING
           script: |
             set -e
             echo "=== VPS 2 (104.197.19.4) ==="
@@ -163,20 +174,28 @@ jobs:
             cd "$OISHA_DIR"
 
             cat > .env << 'ENVEOF'
-            BOT_TOKEN=8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4
-            API_ID=30643078
-            API_HASH=e5850001c1d86ac0fb439fbd8319cb7f
-            GEMINI_API_KEY=AIzaSyDaaPa_QQQ3E71oXP3gQq3NiCOBcx8Sv5Q
+            BOT_TOKEN=placeholder
+            API_ID=placeholder
+            API_HASH=placeholder
+            GEMINI_API_KEY=placeholder
             AMOCRM_SUBDOMAIN=jonbrandingagency
-            AMOCRM_CLIENT_ID=5a755b58-f5d1-477d-965d-a50ddaa3d55e
-            AMOCRM_CLIENT_SECRET=k1DoXJsQGSD6uIUL7VsslRtoMNzbYF7bxZtdHN2FCdaDXjuRtJ0OPDvh27dvKV5O
-            OISHA_API_SECRET=4044ab7961480d56b8c0a3277c739b47
-            USERBOT_SESSION_STRING=1ApWapzMBu7kFbYuLPhd3XCGJig-7b2AFv6q3Ej9ECcaEszaSkSYBc70665Vw1qsM2mftLkilu3tNuI7JPhJCzXi_1D58PyQp-eaG4fGDYVtv1Ascc_fZv13v1KYqPAO7uR-7voZSIN3ELp0dmEeg7MGy6P-RpF3nsJBJR1KAUyxjiviTk3jUDKvYwA6ZXXhgNtCzFAtF1r5ZjaCP68B2bUdxbihRbecbA5ptuk8r28hBKM8x8XnF9tpme7ZGsD_KHNvDbaxvC1_SKzXajNJtQaWM9oEzejeNVAZXj3DOGWPByUHXua1yg-tmCYL-Ox63518taP66FuoJMZdizZFnwjxcvKZGGm0=
+            AMOCRM_CLIENT_ID=placeholder
+            AMOCRM_CLIENT_SECRET=placeholder
+            OISHA_API_SECRET=placeholder
+            USERBOT_SESSION_STRING=placeholder
             OWNER_ID=150074828
             ENABLE_AUTO_REPLY=false
             RUNNING_IN_CLOUD=False
             ENVEOF
             sed -i 's/^            //' .env
+            sed -i "s|BOT_TOKEN=placeholder|BOT_TOKEN=${BOT_TOKEN}|" .env
+            sed -i "s|API_ID=placeholder|API_ID=${API_ID}|" .env
+            sed -i "s|API_HASH=placeholder|API_HASH=${API_HASH}|" .env
+            sed -i "s|GEMINI_API_KEY=placeholder|GEMINI_API_KEY=${GEMINI_API_KEY}|" .env
+            sed -i "s|AMOCRM_CLIENT_ID=placeholder|AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID}|" .env
+            sed -i "s|AMOCRM_CLIENT_SECRET=placeholder|AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET}|" .env
+            sed -i "s|OISHA_API_SECRET=placeholder|OISHA_API_SECRET=${OISHA_API_SECRET}|" .env
+            sed -i "s|USERBOT_SESSION_STRING=placeholder|USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}|" .env
 
             python3 -m pip install -r requirements.txt -q --break-system-packages 2>/dev/null || true
             pkill -f "python.*main.py" 2>/dev/null || true
@@ -195,6 +214,6 @@ jobs:
           else
             MSG="❌ Userbot VPS ga ulanmadi.%0AVPS 1: ${{ steps.vps1.outcome }}%0AVPS 2: ${{ steps.vps2.outcome }}%0AHar ikki server ham yopiq ko'rinadi."
           fi
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
             -d "chat_id=${OWNER_ID}" \
             -d "text=${MSG}" || true
