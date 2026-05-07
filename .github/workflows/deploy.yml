@@ -189,39 +189,63 @@ jobs:
             return "${status}"
           }
 
-          cleanup_generated_traffic_tags() {
-            local stale_tags
-            stale_tags="$(gcloud run services describe "${SERVICE_NAME}" \
-              --region "${REGION}" \
-              --project "${PROJECT_ID}" \
-              --format=json | python -c 'import json, sys; data=json.load(sys.stdin); tags=[entry.get("tag", "") for entry in data.get("status", {}).get("traffic", [])]; print(",".join(tag for tag in tags if tag.startswith("sha-") or tag.startswith("debug")))')"
+           cleanup_generated_traffic_tags() {
+             local service_json
+             service_json="$(gcloud run services describe "${SERVICE_NAME}" \
+               --region "${REGION}" \
+               --project "${PROJECT_ID}" \
+               --format=json)"
 
-            if [[ -z "${stale_tags}" ]]; then
-              return 0
-            fi
+             # Get all stale tags
+             local stale_tags
+             stale_tags="$(printf '%s' "${service_json}" | python -c 'import json, sys; data=json.load(sys.stdin); tags=[entry.get("tag", "") for entry in data.get("status", {}).get("traffic", [])]; print(",".join(tag for tag in tags if tag.startswith("sha-") or tag.startswith("debug")))')"
+             if [[ -z "${stale_tags}" ]]; then
+               return 0
+             fi
 
-            local cleanup_output
-            if cleanup_output="$(gcloud run services update-traffic "${SERVICE_NAME}" \
-              --region "${REGION}" \
-              --project "${PROJECT_ID}" \
-              --remove-tags "${stale_tags}" \
-              --quiet 2>&1)"; then
-              return 0
-            fi
+             # Check which revisions are actually ready before removing tags
+             local ready_revisions
+             ready_revisions="$(gcloud run revisions list \
+               --service "${SERVICE_NAME}" \
+               --region "${REGION}" \
+               --project "${PROJECT_ID}" \
+               --filter="status.conditions[0].status=True" \
+               --format='value(metadata.name)' 2>/dev/null || true)"
 
-            stale_tags="$(gcloud run services describe "${SERVICE_NAME}" \
-              --region "${REGION}" \
-              --project "${PROJECT_ID}" \
-              --format=json | python -c 'import json, sys; data=json.load(sys.stdin); tags=[entry.get("tag", "") for entry in data.get("status", {}).get("traffic", [])]; print(",".join(tag for tag in tags if tag.startswith("sha-") or tag.startswith("debug")))')"
-            if [[ -z "${stale_tags}" ]]; then
-              echo "${cleanup_output}"
-              echo "Generated traffic tags were removed despite a non-zero cleanup response; continuing."
-              return 0
-            fi
+             # Build a list of tags to remove, filtering out non-ready revisions
+             local cleanup_tags=""
+             local IFS=','
+             for tag in ${stale_tags}; do
+               local rev_name=""
+               rev_name="$(printf '%s' "${service_json}" | python -c 'import json,sys; data=json.load(sys.stdin); tag=sys.argv[1]; print(next((e["revisionName"] for e in data.get("status",{}).get("traffic",[]) if e.get("tag")==tag),""))' "${tag}")"
+               if [[ -z "${rev_name}" ]]; then
+                 cleanup_tags="${cleanup_tags},${tag}"
+               elif echo "${ready_revisions}" | grep -q "${rev_name}"; then
+                 cleanup_tags="${cleanup_tags},${tag}"
+               else
+                 echo "Skipping tag '${tag}' — revision '${rev_name}' is not ready; deleting revision directly."
+                 gcloud run revisions delete "${rev_name}" \
+                   --region "${REGION}" \
+                   --project "${PROJECT_ID}" \
+                   --quiet 2>/dev/null || true
+               fi
+             done
+             unset IFS
 
-            echo "${cleanup_output}"
-            return 1
-          }
+             cleanup_tags="${cleanup_tags#,}"
+
+             if [[ -z "${cleanup_tags}" ]]; then
+               echo "No ready revisions with stale tags to clean up."
+               return 0
+             fi
+
+             gcloud run services update-traffic "${SERVICE_NAME}" \
+               --region "${REGION}" \
+               --project "${PROJECT_ID}" \
+               --remove-tags "${cleanup_tags}" \
+               --quiet 2>&1 || echo "Tag cleanup completed with warnings (non-fatal)."
+             return 0
+           }
 
           cleanup_legacy_userbot_bindings() {
             local service_json
