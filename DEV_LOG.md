@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-07 14:53 UTC | ⚠️ main `21f2bf5`
+
+**Commit**: ci: pin appleboy/ssh-action to commit SHA for reproducibility
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
 ## 2026-05-07 06:20 UTC | ⚠️ main `828118a`
 
 **Commit**: chore: standardize GitHub Action versions and complete AmoCRM integration setup
