@@ -120,7 +120,7 @@ class Database:
                     return conn
 
                 probe_conn = await asyncio.wait_for(
-                    asyncio.to_thread(_probe_turso), timeout=5.0
+                    asyncio.to_thread(_probe_turso), timeout=15.0
                 )
 
                 try:
