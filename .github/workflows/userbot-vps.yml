@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Deploy to VPS 1 (109.199.100.137)
         id: vps1
-        uses: appleboy/ssh-action@v1.2.5
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -143,7 +143,7 @@ jobs:
       - name: Deploy to VPS 2 (104.197.19.4)
         id: vps2
         if: steps.vps1.outcome == 'failure'
-        uses: appleboy/ssh-action@v1.2.5
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
