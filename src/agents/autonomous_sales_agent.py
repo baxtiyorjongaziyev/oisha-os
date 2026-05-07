@@ -10,10 +10,13 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 import json
+import logging
 
 from src.agents.core import BaseAgent
 from src.agents.negotiation_engine import NegotiationEngine, NegotiationAssessment
 from src.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -30,7 +33,7 @@ class ConversationState:
     commitment_achieved: bool = False
     autonomy_level: str = "full"  # full, assisted, human_takeover
 
-    def add_message(self, role: str, content: str, metadata: Dict = None):
+    def add_message(self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         self.history.append(
             {
                 "role": role,
@@ -132,7 +135,7 @@ class AutonomousSalesAgent(BaseAgent):
         self,
         user_id: str,
         message: str,
-        crm_data: Dict = None,
+        crm_data: Optional[Dict[str, Any]] = None,
         autonomy_level: str = "full",
     ) -> Dict[str, Any]:
         """Kiruvchi xabarni qayta ishlash"""
@@ -149,6 +152,8 @@ class AutonomousSalesAgent(BaseAgent):
             if call_analysis:
                 logger.info(f"📊 [Agent] Call Analysis topildi: {call_analysis.get('call_id')}")
                 state.context["latest_call_analysis"] = call_analysis
+        elif not self.db:
+            logger.warning(f"⚠️ [Agent] Database uninitialized for user {user_id}; skipping call analysis.")
 
         # 2. Tahlil qilish — semantic Gemini preferred, keyword fallback
         assessment = await NegotiationEngine.assess_async(
@@ -321,6 +326,9 @@ class AutonomousSalesAgent(BaseAgent):
                 ),
             )
 
+            if not response or not response.text:
+                return self._generate_fallback_response(assessment, decision)
+
             return response.text.strip()
 
         except Exception:
@@ -359,7 +367,7 @@ class AutonomousSalesAgent(BaseAgent):
         return strategies.get(objection, "explore_deeper")
 
     async def _get_or_create_state(
-        self, user_id: str, crm_data: Dict = None
+        self, user_id: str, crm_data: Optional[Dict[str, Any]] = None
     ) -> ConversationState:
         """State olish yoki yaratish (xotira → DB → yangi)"""
         if user_id in self.conversations:
