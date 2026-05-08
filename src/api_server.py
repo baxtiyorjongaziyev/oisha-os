@@ -1148,6 +1148,44 @@ async def create_amo_lead(request: CreateLeadRequest):
     return {"error": "Lead creation failed"}
 
 
+@app.post("/api/amocrm-refresh")
+async def refresh_amocrm_token(request: Request):
+    """Cron yoki manual refresh uchun endpoint."""
+    global amocrm_instance
+    auth_header = request.headers.get("Authorization")
+
+    cron_secret = (
+        settings.AMOCRM_CRON_SECRET.get_secret_value()
+        if settings.AMOCRM_CRON_SECRET
+        else None
+    )
+
+    if not cron_secret:
+        return {"ok": False, "error": "CRON_SECRET not configured"}
+
+    if not auth_header or auth_header != f"Bearer {cron_secret}":
+        return {"ok": False, "error": "Unauthorized"}
+
+    if not amocrm_instance:
+        amocrm_instance = AmoCRMSync(
+            subdomain=settings.AMOCRM_SUBDOMAIN,
+            client_id=settings.AMOCRM_CLIENT_ID,
+            client_secret=(
+                settings.AMOCRM_CLIENT_SECRET.get_secret_value()
+                if settings.AMOCRM_CLIENT_SECRET
+                else ""
+            ),
+            redirect_url=settings.AMOCRM_REDIRECT_URL,
+        )
+
+    success = amocrm_instance.refresh_token()
+    if success:
+        expires_at = amocrm_instance.token_data.get("expires_at", "unknown")
+        return {"ok": True, "expires_at": expires_at}
+    else:
+        return {"ok": False, "error": amocrm_instance.last_error or "Refresh failed"}
+
+
 @app.post("/webhook/amocrm")
 async def amocrm_webhook(request: Request):
     """Handle incoming webhooks from AmoCRM."""
