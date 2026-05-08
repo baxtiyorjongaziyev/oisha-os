@@ -32,9 +32,10 @@ class BaseAgent(ABC):
         }
 
         # Clients initialization
-        if "gemini" in api_keys:
+        gemini_key = (api_keys.get("gemini") or "").strip()
+        if gemini_key:
             self.model_configs["gemini"]["client"] = genai.Client(
-                api_key=api_keys["gemini"]
+                api_key=gemini_key
             )
 
     @abstractmethod
