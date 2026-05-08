@@ -32,6 +32,12 @@ class AppSettings(BaseSettings):
     APP_TIMEZONE: str = "Asia/Tashkent"
     BOT_TOKEN: SecretStr = SecretStr("")
     ADMIN_BOT_TOKEN: Optional[SecretStr] = None
+    TELEGRAM_WEBHOOK_SECRET: Optional[SecretStr] = None
+    TELEGRAM_AI_GUEST_MODE_ENABLED: bool = True
+    TELEGRAM_AI_STREAMING_ENABLED: bool = True
+    TELEGRAM_BOT_TO_BOT_ENABLED: bool = True
+    TELEGRAM_MANAGED_BOTS_ENABLED: bool = False
+    TELEGRAM_MINI_APP_URL: Optional[str] = None
     API_ID: int = 0
     API_HASH: str = ""
     GEMINI_API_KEY: SecretStr = SecretStr("")
@@ -141,6 +147,8 @@ class AppSettings(BaseSettings):
 
         optional_keys = {
             "ADMIN_BOT_TOKEN",
+            "TELEGRAM_WEBHOOK_SECRET",
+            "TELEGRAM_MINI_APP_URL",
             "DEEPSEEK_API_KEY",
             "AMOCRM_CLIENT_SECRET",
             "AIRTABLE_API_KEY",
