@@ -1,9 +1,9 @@
 import logging
-import json
-from global_super_hub import GlobalSuperAI # type: ignore
+from global_super_hub import GlobalSuperAI  # type: ignore
 import config
 
 logger = logging.getLogger(__name__)
+
 
 class AgencyHR:
     """Branding agentligi uchun AI jamoasini shakllantirish va boshqarish moduli."""
@@ -11,10 +11,12 @@ class AgencyHR:
     @staticmethod
     def identify_talent_gap(current_tasks):
         """Hozirgi vazifalar asosida qanday 'talant' (agent) kerakligini aniqlash."""
-        logger.info(f"[HR] Analyzing talent gaps for current workload: {len(current_tasks)} tasks")
+        logger.info(
+            f"[HR] Analyzing talent gaps for current workload: {len(current_tasks)} tasks"
+        )
         query = f"Hozirgi vazifalar ({current_tasks}) asosida qiyin branding loyihasini bitkazish uchun qanday qo'shimcha AI mutaxassislar (Dizayner, Researcher, Copywriter) kerakligini aniqla."
-        api_key = getattr(config, 'DEEPSEEK_KEY', None)
-        
+        api_key = getattr(config, "DEEPSEEK_KEY", None)
+
         analysis = GlobalSuperAI.deepseek_reasoning(query, api_key)
         return analysis
 
@@ -27,9 +29,9 @@ class AgencyHR:
             "designer": "Midjourney API / Adobe Firefly",
             "copywriter": "Jasper / Copy.ai / Claude-3-Opus",
             "researcher": "Perplexity API / Tavily",
-            "automator": "Zapier Central / N8N"
+            "automator": "Zapier Central / N8N",
         }
-        
+
         selected = agents_market.get(specialty.lower(), "General AI Agent")
         logger.info(f"[HR] Successfully hired/connected: {selected}")
         return f"{selected} endi jamoamizda!"
@@ -39,6 +41,7 @@ class AgencyHR:
         """Jamoa (agentlar) samaradorligini tahlil qilish."""
         logger.info("[HR] Evaluating virtual team performance...")
         return "Jamoa 100% quvvatda ishlamoqda. Hamma agentlar 'Ambassador' rejimida."
+
 
 class AgencyOrchestrator:
     """Agentlar orasida vazifalarni taqsimlovchi CEO moduli."""

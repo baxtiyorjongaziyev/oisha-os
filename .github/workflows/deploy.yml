@@ -1,3 +1,5 @@
+# Oisha-OS: Production Deployment Pipeline
+# [REFRESH: 2026-05-07] Force IDE re-index
 name: Oisha-OS Auto Deploy
 
 on:
@@ -175,7 +177,7 @@ jobs:
             local body_file
             body_file="$(mktemp)"
             local code
-            code="$(curl -fsS -o "${body_file}" -w "%{http_code}" "${url}/health" || true)"
+            code="$(curl -fsS -o "${body_file}" -w "%{http_code}" "${url}/healthz/" || true)"
             if [[ "${code}" != "200" ]]; then
               rm -f "${body_file}"
               return 1
@@ -187,55 +189,106 @@ jobs:
             return "${status}"
           }
 
-          cleanup_generated_traffic_tags() {
-            local stale_tags
-            stale_tags="$(gcloud run services describe "${SERVICE_NAME}" \
-              --region "${REGION}" \
-              --project "${PROJECT_ID}" \
-              --format=json | python -c 'import json, sys; data=json.load(sys.stdin); tags=[entry.get("tag", "") for entry in data.get("status", {}).get("traffic", [])]; print(",".join(tag for tag in tags if tag.startswith("sha-") or tag.startswith("debug")))')"
-
-            if [[ -z "${stale_tags}" ]]; then
-              return 0
+          tag_candidate_revision() {
+            local args=(
+              --region "${REGION}"
+              --project "${PROJECT_ID}"
+              --update-tags "${CANDIDATE_TAG}=${REVISION}"
+              --quiet
+            )
+            if [[ -n "${PREVIOUS_TRAFFIC_REVISION}" ]]; then
+              args+=(--to-revisions "${PREVIOUS_TRAFFIC_REVISION}=100")
             fi
-
-            local cleanup_output
-            if cleanup_output="$(gcloud run services update-traffic "${SERVICE_NAME}" \
-              --region "${REGION}" \
-              --project "${PROJECT_ID}" \
-              --remove-tags "${stale_tags}" \
-              --quiet 2>&1)"; then
-              return 0
-            fi
-
-            stale_tags="$(gcloud run services describe "${SERVICE_NAME}" \
-              --region "${REGION}" \
-              --project "${PROJECT_ID}" \
-              --format=json | python -c 'import json, sys; data=json.load(sys.stdin); tags=[entry.get("tag", "") for entry in data.get("status", {}).get("traffic", [])]; print(",".join(tag for tag in tags if tag.startswith("sha-") or tag.startswith("debug")))')"
-            if [[ -z "${stale_tags}" ]]; then
-              echo "${cleanup_output}"
-              echo "Generated traffic tags were removed despite a non-zero cleanup response; continuing."
-              return 0
-            fi
-
-            echo "${cleanup_output}"
-            return 1
+            gcloud run services update-traffic "${SERVICE_NAME}" "${args[@]}"
           }
 
-          cleanup_legacy_userbot_secret_binding() {
-            local userbot_binding_type
-            userbot_binding_type="$(gcloud run services describe "${SERVICE_NAME}" \
+           cleanup_generated_traffic_tags() {
+             local service_json
+             service_json="$(gcloud run services describe "${SERVICE_NAME}" \
+               --region "${REGION}" \
+               --project "${PROJECT_ID}" \
+               --format=json)"
+
+             # Get all stale tags
+             local stale_tags
+             stale_tags="$(printf '%s' "${service_json}" | python -c 'import json, sys; data=json.load(sys.stdin); tags=[entry.get("tag", "") for entry in data.get("status", {}).get("traffic", [])]; print(",".join(tag for tag in tags if tag.startswith("sha-") or tag.startswith("debug")))')"
+             if [[ -z "${stale_tags}" ]]; then
+               return 0
+             fi
+
+             # Check which revisions are actually ready before removing tags
+             local ready_revisions
+             ready_revisions="$(gcloud run revisions list \
+               --service "${SERVICE_NAME}" \
+               --region "${REGION}" \
+               --project "${PROJECT_ID}" \
+               --filter="status.conditions[0].status=True" \
+               --format='value(metadata.name)' 2>/dev/null || true)"
+
+             # Build a list of tags to remove, filtering out non-ready revisions
+             local cleanup_tags=""
+             local IFS=','
+             for tag in ${stale_tags}; do
+               local rev_name=""
+               rev_name="$(printf '%s' "${service_json}" | python -c 'import json,sys; data=json.load(sys.stdin); tag=sys.argv[1]; print(next((e["revisionName"] for e in data.get("status",{}).get("traffic",[]) if e.get("tag")==tag),""))' "${tag}")"
+               if [[ -z "${rev_name}" ]]; then
+                 cleanup_tags="${cleanup_tags},${tag}"
+               elif echo "${ready_revisions}" | grep -q "${rev_name}"; then
+                 cleanup_tags="${cleanup_tags},${tag}"
+               else
+                 echo "Skipping tag '${tag}' — revision '${rev_name}' is not ready; deleting revision directly."
+                 gcloud run revisions delete "${rev_name}" \
+                   --region "${REGION}" \
+                   --project "${PROJECT_ID}" \
+                   --quiet 2>/dev/null || true
+               fi
+             done
+             unset IFS
+
+             cleanup_tags="${cleanup_tags#,}"
+
+             if [[ -z "${cleanup_tags}" ]]; then
+               echo "No ready revisions with stale tags to clean up."
+               return 0
+             fi
+
+             gcloud run services update-traffic "${SERVICE_NAME}" \
+               --region "${REGION}" \
+               --project "${PROJECT_ID}" \
+               --remove-tags "${cleanup_tags}" \
+               --quiet 2>&1 || echo "Tag cleanup completed with warnings (non-fatal)."
+             return 0
+           }
+
+          cleanup_legacy_userbot_bindings() {
+            local service_json
+            service_json="$(gcloud run services describe "${SERVICE_NAME}" \
               --region "${REGION}" \
               --project "${PROJECT_ID}" \
-              --format=json | python -c 'import json, sys; data=json.load(sys.stdin); envs=data.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [{}])[0].get("env", []); target=next((env for env in envs if env.get("name") == "ENABLE_CLOUD_USERBOT"), {}); print("secret" if target.get("valueFrom") else ("literal" if "value" in target else "missing"))')"
+              --format=json)"
 
-            if [[ "${userbot_binding_type}" != "secret" ]]; then
+            local secret_names
+            secret_names="$(printf '%s' "${service_json}" | python -c 'import json, sys; data=json.load(sys.stdin); names={"ENABLE_CLOUD_USERBOT","USERBOT_SESSION_STRING","USERBOT_SESSION_B64"}; envs=data.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [{}])[0].get("env", []); print(",".join(env.get("name", "") for env in envs if env.get("name") in names and env.get("valueFrom")))' )"
+
+            local literal_session_names
+            literal_session_names="$(printf '%s' "${service_json}" | python -c 'import json, sys; data=json.load(sys.stdin); names={"USERBOT_SESSION_STRING","USERBOT_SESSION_B64"}; envs=data.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [{}])[0].get("env", []); print(",".join(env.get("name", "") for env in envs if env.get("name") in names and "value" in env))' )"
+
+            if [[ -z "${secret_names}" && -z "${literal_session_names}" ]]; then
               return 0
+            fi
+
+            local args=()
+            if [[ -n "${secret_names}" ]]; then
+              args+=(--remove-secrets "${secret_names}")
+            fi
+            if [[ -n "${literal_session_names}" ]]; then
+              args+=(--remove-env-vars "${literal_session_names}")
             fi
 
             gcloud run services update "${SERVICE_NAME}" \
               --region "${REGION}" \
               --project "${PROJECT_ID}" \
-              --remove-secrets ENABLE_CLOUD_USERBOT \
+              "${args[@]}" \
               --no-traffic \
               --quiet
           }
@@ -280,7 +333,7 @@ jobs:
             exit 0
           fi
 
-          USERBOT_BINDING_CLEANUP_OUTPUT="$(cleanup_legacy_userbot_secret_binding 2>&1)"
+          USERBOT_BINDING_CLEANUP_OUTPUT="$(cleanup_legacy_userbot_bindings 2>&1)"
           USERBOT_BINDING_CLEANUP_RC=$?
           if [[ ${USERBOT_BINDING_CLEANUP_RC} -ne 0 ]]; then
             FAILURE_REASON="userbot secret binding cleanup failed: $(echo "${USERBOT_BINDING_CLEANUP_OUTPUT}" | tr '\n' ' ' | cut -c1-500)"
@@ -299,11 +352,12 @@ jobs:
             --max-instances 1 \
             --min-instances 1 \
             --no-cpu-throttling \
+            --cpu-boost \
             --execution-environment gen2 \
             --no-traffic \
             --tag "${CANDIDATE_TAG}" \
             --set-env-vars "RUNNING_IN_CLOUD=True,ENVIRONMENT=production,CLOUD_RUN_CONTROL_PLANE_ONLY=True,ENABLE_CLOUD_USERBOT=False,DATABASE_URL=bot_database.db,AMOCRM_SUBDOMAIN=jonbrandingagency,AIRTABLE_BASE_ID=app8xoyx1XCumYFXV,CRM_GROUP_ID=-1002566480563,TEAM_GROUP_ID=-4860594772,TOPIC_KIRIM_ID=168,GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k,GSHEET_CREDS_FILE=service_account.json,OWNER_ID=150074828,AUTO_REPLY_MODE=shadow,VIP_LEAD_SCORE_THRESHOLD=80" \
-            --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,USERBOT_SESSION_STRING=USERBOT_SESSION_STRING:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,DEEPSEEK_API_KEY=oisha-deepseek-api-key:latest,TURSO_DATABASE_URL=TURSO_DATABASE_URL:latest,TURSO_AUTH_TOKEN=TURSO_AUTH_TOKEN:latest,AIRTABLE_API_KEY=AIRTABLE_API_KEY:latest,AMOCRM_TOKEN_JSON=amocrm-token:latest" \
+            --set-secrets "BOT_TOKEN=BOT_TOKEN:latest,API_ID=API_ID:latest,API_HASH=API_HASH:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,OISHA_API_SECRET=OISHA_API_SECRET:latest,AMOCRM_CLIENT_ID=AMOCRM_CLIENT_ID:latest,AMOCRM_CLIENT_SECRET=AMOCRM_CLIENT_SECRET:latest,AMOCRM_REDIRECT_URL=AMOCRM_REDIRECT_URL:latest,GCS_BUCKET=GCS_BUCKET:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,DEEPSEEK_API_KEY=oisha-deepseek-api-key:latest,TURSO_DATABASE_URL=TURSO_DATABASE_URL:latest,TURSO_AUTH_TOKEN=TURSO_AUTH_TOKEN:latest,AIRTABLE_API_KEY=AIRTABLE_API_KEY:latest,AMOCRM_TOKEN_JSON=amocrm-token:latest" \
             --labels "commit-sha=${GITHUB_SHA}" 2>&1)"
           DEPLOY_RC=$?
 
@@ -315,17 +369,50 @@ jobs:
               --filter "metadata.labels.commit-sha=${GITHUB_SHA}" \
               --limit 1 \
               --format='value(metadata.name)' 2>/dev/null || true)"
-            FAILURE_REASON="$(extract_failure_reason "${REVISION}" "${DEPLOY_OUTPUT}")"
-            write_outputs
-            exit 0
+            if [[ -z "${REVISION}" ]]; then
+              FAILURE_REASON="$(extract_failure_reason "${REVISION}" "${DEPLOY_OUTPUT}")"
+              write_outputs
+              exit 0
+            fi
+
+            READY_STATUS="$(gcloud run revisions describe "${REVISION}" \
+              --region "${REGION}" \
+              --project "${PROJECT_ID}" \
+              --format='value(status.conditions[0].status)' 2>/dev/null || true)"
+            if [[ "${READY_STATUS}" != "True" ]]; then
+              FAILURE_REASON="$(extract_failure_reason "${REVISION}" "${DEPLOY_OUTPUT}")"
+              write_outputs
+              exit 0
+            fi
+
+            # gcloud can return non-zero after creating a ready revision. Recover
+            # by attaching the candidate tag, then continue with smoke checks.
+            TAG_RECOVERY_OUTPUT="$(tag_candidate_revision 2>&1)"
+            TAG_RECOVERY_RC=$?
+            if [[ ${TAG_RECOVERY_RC} -ne 0 ]]; then
+              FAILURE_REASON="candidate tag recovery failed: $(echo "${TAG_RECOVERY_OUTPUT}" | tr '\n' ' ' | cut -c1-500)"
+              write_outputs
+              exit 0
+            fi
           fi
 
           read_service_state
 
           if [[ -z "${CANDIDATE_URL}" ]]; then
-            FAILURE_REASON="candidate revision URL not found"
-            write_outputs
-            exit 0
+            TAG_RECOVERY_OUTPUT="$(tag_candidate_revision 2>&1)"
+            TAG_RECOVERY_RC=$?
+            if [[ ${TAG_RECOVERY_RC} -eq 0 ]]; then
+              read_service_state
+            fi
+
+            if [[ -z "${CANDIDATE_URL}" ]]; then
+              FAILURE_REASON="candidate revision URL not found"
+              if [[ ${TAG_RECOVERY_RC} -ne 0 ]]; then
+                FAILURE_REASON="${FAILURE_REASON}: $(echo "${TAG_RECOVERY_OUTPUT}" | tr '\n' ' ' | cut -c1-300)"
+              fi
+              write_outputs
+              exit 0
+            fi
           fi
 
           READY_STATUS="$(gcloud run revisions describe "${REVISION}" \
@@ -338,7 +425,7 @@ jobs:
             exit 0
           fi
 
-          sleep 25
+          sleep 45
           if ! check_health_endpoint "${CANDIDATE_URL}"; then
             FAILURE_REASON="health check failed"
             write_outputs
@@ -382,6 +469,14 @@ jobs:
           FINAL_STATUS="success"
           FAILURE_REASON=""
           write_outputs
+
+      - name: Ecosystem Health Check
+        if: steps.rollout.outputs.final_status == 'success'
+        env:
+          OISHA_HEALTH_URL: ${{ steps.rollout.outputs.service_url }}/healthz/
+          CHECK_OPTIONAL_SERVICES: "0"
+        run: |
+          python scripts/health_check.py
 
       - name: Mark deployment failed
         if: steps.rollout.outputs.final_status != 'success'

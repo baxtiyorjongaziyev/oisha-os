@@ -22,14 +22,14 @@ Recent agent failures (last {n} errors):
 {failures_json}
 
 Analyze these failures and return a JSON object with this exact schema:
-{{
+{
   "diagnosis": "root cause summary (2-3 sentences)",
   "affected_component": "module or function name",
   "proposed_fix": "concrete code-level fix description",
   "priority": "critical|high|medium|low",
   "safe_to_auto_apply": false,
   "owner_action_needed": "what the owner should do (1 sentence)"
-}}
+}
 
 Return ONLY valid JSON. No markdown, no explanation outside JSON.
 """

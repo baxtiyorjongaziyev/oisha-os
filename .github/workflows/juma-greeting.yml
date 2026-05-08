@@ -1,0 +1,32 @@
+# Oisha-OS: Juma Greeting Automation
+# [REFRESH: 2026-05-07]
+name: Juma Tabrigi — TN5 Kursdoshlar
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'deploy/juma-trigger'
+
+jobs:
+  send-greetings:
+    name: TN5 Juma Tabrigi
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Telethon
+        run: pip install telethon==1.36.0
+
+      - name: Send Juma greetings
+        env:
+          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: python scripts/send_juma_greetings.py

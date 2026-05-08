@@ -4,16 +4,17 @@ import datetime
 import asyncio
 import logging
 import json
+
 try:
     import libsql
+
     HAS_LIBSQL = True
 except ImportError:
     HAS_LIBSQL = False
-from google import genai
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 from src.settings import settings
-from src import config 
-from src.database_pool import db_pool, SmartRow
+from src import config
+from src.database_pool import db_pool
 
 logger = logging.getLogger(__name__)
 
@@ -80,11 +81,14 @@ class Database:
     def __init__(self, db_path=None):
         if db_path is None:
             import os
-            db_path = os.path.join(os.getcwd(), 'data', 'bot.db')
+
+            db_path = os.path.join(os.getcwd(), "data", "bot.db")
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.db_path = db_path
         self._state_backend = "sqlite"
-        logger.info(f"👸 [DATABASE] Oisha connected to her REAL memory: {self.db_path} 🛡️")
+        logger.info(
+            f"👸 [DATABASE] Oisha connected to her REAL memory: {self.db_path} 🛡️"
+        )
 
     async def init_instance(self):
         """Async initialization for aiosqlite."""
@@ -103,17 +107,24 @@ class Database:
                 db_pool.auth_token = turso_token
                 db_pool.close()
 
-                if turso_url == ":memory:":
-                    probe_conn = libsql.connect(turso_url)
-                else:
-                    probe_conn = libsql.connect(turso_url, auth_token=turso_token)
+                def _probe_turso():
+                    if turso_url == ":memory:":
+                        conn = libsql.connect(turso_url)
+                    else:
+                        conn = libsql.connect(turso_url, auth_token=turso_token)
+                    res = conn.execute("SELECT 1")
+                    if hasattr(res, "fetchone"):
+                        res.fetchone()
+                    else:
+                        list(res)
+                    return conn
+
+                probe_conn = await asyncio.wait_for(
+                    asyncio.to_thread(_probe_turso), timeout=15.0
+                )
 
                 try:
-                    probe_result = probe_conn.execute("SELECT 1")
-                    if hasattr(probe_result, "fetchone"):
-                        probe_result.fetchone()
-                    else:
-                        list(probe_result)
+                    pass
                 finally:
                     try:
                         probe_conn.close()
@@ -131,7 +142,11 @@ class Database:
                     pass
                 self._conn = None
 
-        if hasattr(self, "_conn") and self._conn and not isinstance(self._conn, TursoAdapter):
+        if (
+            hasattr(self, "_conn")
+            and self._conn
+            and not isinstance(self._conn, TursoAdapter)
+        ):
             try:
                 await self._conn.execute("SELECT 1")
                 self._state_backend = "sqlite"
@@ -150,7 +165,7 @@ class Database:
 
     async def close(self):
         """Ulanishni yopish."""
-        if hasattr(self, '_conn') and self._conn:
+        if hasattr(self, "_conn") and self._conn:
             await self._conn.close()
             self._conn = None
 
@@ -198,17 +213,28 @@ class Database:
                     lifecycle_updated_at DATETIME
                 )
             """)
-            
+
             # Migration helper for missing columns
             cols_needed = [
-                ("last_name", "TEXT"), ("contact_name", "TEXT"), ("bio", "TEXT"),
-                ("avatar_analysis", "TEXT"), ("mutual_groups_count", "INTEGER DEFAULT 0"),
-                ("social_analysis", "TEXT"), ("lead_score", "INTEGER DEFAULT 0"),
-                ("position", "TEXT"), ("intent", "TEXT"), ("crm_synced", "BOOLEAN DEFAULT 0"),
-                ("processed_at", "DATETIME"), ("detailed_role", "TEXT"),
-                ("lead_quality", "TEXT"), ("journey_stage", "TEXT"), ("journey_status", "TEXT"), 
-                ("journey_next_action", "TEXT"), ("close_probability", "REAL DEFAULT 0"),
-                ("last_client_message_at", "DATETIME"), ("last_ai_message_at", "DATETIME"),
+                ("last_name", "TEXT"),
+                ("contact_name", "TEXT"),
+                ("bio", "TEXT"),
+                ("avatar_analysis", "TEXT"),
+                ("mutual_groups_count", "INTEGER DEFAULT 0"),
+                ("social_analysis", "TEXT"),
+                ("lead_score", "INTEGER DEFAULT 0"),
+                ("position", "TEXT"),
+                ("intent", "TEXT"),
+                ("crm_synced", "BOOLEAN DEFAULT 0"),
+                ("processed_at", "DATETIME"),
+                ("detailed_role", "TEXT"),
+                ("lead_quality", "TEXT"),
+                ("journey_stage", "TEXT"),
+                ("journey_status", "TEXT"),
+                ("journey_next_action", "TEXT"),
+                ("close_probability", "REAL DEFAULT 0"),
+                ("last_client_message_at", "DATETIME"),
+                ("last_ai_message_at", "DATETIME"),
                 ("lifecycle_updated_at", "DATETIME"),
             ]
             existing_user_columns = await self._get_table_columns(conn, "users")
@@ -218,15 +244,28 @@ class Database:
                 try:
                     await conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
                     existing_user_columns.add(col)
-                except (aiosqlite.Error, sqlite3.Error, ValueError, RuntimeError) as exc:
+                except (
+                    aiosqlite.Error,
+                    sqlite3.Error,
+                    ValueError,
+                    RuntimeError,
+                ) as exc:
                     if _is_benign_schema_error(exc):
                         existing_user_columns.add(col)
                         continue
                     raise
-            await conn.execute("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, text TEXT, is_ai BOOLEAN, created_at DATETIME)")
-            await conn.execute("CREATE TABLE IF NOT EXISTS message_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, message_text TEXT, is_ai_reply BOOLEAN, created_at DATETIME)")
-            await conn.execute("CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, description TEXT, assigned_to INTEGER, deadline DATETIME, priority TEXT DEFAULT 'Medium', status TEXT DEFAULT 'Pending', created_by INTEGER, created_at DATETIME, completed_at DATETIME)")
-            await conn.execute("CREATE TABLE IF NOT EXISTS advisor_logs (chat_id INTEGER, message_id INTEGER, advice_type TEXT, content TEXT, created_at DATETIME, PRIMARY KEY (chat_id, message_id, advice_type))")
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, text TEXT, is_ai BOOLEAN, created_at DATETIME)"
+            )
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS message_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, message_text TEXT, is_ai_reply BOOLEAN, created_at DATETIME)"
+            )
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, description TEXT, assigned_to INTEGER, deadline DATETIME, priority TEXT DEFAULT 'Medium', status TEXT DEFAULT 'Pending', created_by INTEGER, created_at DATETIME, completed_at DATETIME)"
+            )
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS advisor_logs (chat_id INTEGER, message_id INTEGER, advice_type TEXT, content TEXT, created_at DATETIME, PRIMARY KEY (chat_id, message_id, advice_type))"
+            )
             # [PHASE 3.1] MetaSell-parity scoring columns
             advisor_scoring_cols = [
                 ("quality_score", "REAL"),
@@ -238,24 +277,45 @@ class Database:
                 ("service_tag", "TEXT"),
                 ("analyst_version", "TEXT"),
             ]
-            existing_advisor_columns = await self._get_table_columns(conn, "advisor_logs")
+            existing_advisor_columns = await self._get_table_columns(
+                conn, "advisor_logs"
+            )
             for col, col_type in advisor_scoring_cols:
                 if col in existing_advisor_columns:
                     continue
                 try:
-                    await conn.execute(f"ALTER TABLE advisor_logs ADD COLUMN {col} {col_type}")
+                    await conn.execute(
+                        f"ALTER TABLE advisor_logs ADD COLUMN {col} {col_type}"
+                    )
                     existing_advisor_columns.add(col)
-                except (aiosqlite.Error, sqlite3.Error, ValueError, RuntimeError) as exc:
+                except (
+                    aiosqlite.Error,
+                    sqlite3.Error,
+                    ValueError,
+                    RuntimeError,
+                ) as exc:
                     if _is_benign_schema_error(exc):
                         existing_advisor_columns.add(col)
                         continue
                     raise
-            await conn.execute("CREATE TABLE IF NOT EXISTS crm_sync_status (user_id INTEGER PRIMARY KEY, amo_lead_id INTEGER, status TEXT DEFAULT 'synced', synced_at DATETIME)")
-            await conn.execute("CREATE TABLE IF NOT EXISTS team_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, report_date TEXT, report_type TEXT, content TEXT, status TEXT DEFAULT 'submitted', created_at DATETIME)")
-            await conn.execute("CREATE TABLE IF NOT EXISTS scheduled_jobs (job_name TEXT, run_date TEXT, created_at DATETIME, PRIMARY KEY (job_name, run_date))")
-            await conn.execute("CREATE TABLE IF NOT EXISTS kv_settings (key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME)")
-            await conn.execute("CREATE TABLE IF NOT EXISTS agent_actions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action_type TEXT, action_data TEXT, success BOOLEAN DEFAULT 1, created_at DATETIME)")
-            await conn.execute("CREATE TABLE IF NOT EXISTS learned_facts (id INTEGER PRIMARY KEY AUTOINCREMENT, fact_key TEXT, fact_value TEXT, user_id INTEGER, created_at DATETIME)")
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS crm_sync_status (user_id INTEGER PRIMARY KEY, amo_lead_id INTEGER, status TEXT DEFAULT 'synced', synced_at DATETIME)"
+            )
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS team_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, report_date TEXT, report_type TEXT, content TEXT, status TEXT DEFAULT 'submitted', created_at DATETIME)"
+            )
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS scheduled_jobs (job_name TEXT, run_date TEXT, created_at DATETIME, PRIMARY KEY (job_name, run_date))"
+            )
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS kv_settings (key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME)"
+            )
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS agent_actions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action_type TEXT, action_data TEXT, success BOOLEAN DEFAULT 1, created_at DATETIME)"
+            )
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS learned_facts (id INTEGER PRIMARY KEY AUTOINCREMENT, fact_key TEXT, fact_value TEXT, user_id INTEGER, created_at DATETIME)"
+            )
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS call_analyses (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -292,14 +352,23 @@ class Database:
                 ("source", "TEXT DEFAULT 'external'"),
                 ("created_at", "TEXT"),
             ]
-            existing_call_analysis_columns = await self._get_table_columns(conn, "call_analyses")
+            existing_call_analysis_columns = await self._get_table_columns(
+                conn, "call_analyses"
+            )
             for col, col_type in call_analysis_cols:
                 if col in existing_call_analysis_columns:
                     continue
                 try:
-                    await conn.execute(f"ALTER TABLE call_analyses ADD COLUMN {col} {col_type}")
+                    await conn.execute(
+                        f"ALTER TABLE call_analyses ADD COLUMN {col} {col_type}"
+                    )
                     existing_call_analysis_columns.add(col)
-                except (aiosqlite.Error, sqlite3.Error, ValueError, RuntimeError) as exc:
+                except (
+                    aiosqlite.Error,
+                    sqlite3.Error,
+                    ValueError,
+                    RuntimeError,
+                ) as exc:
                     if _is_benign_schema_error(exc):
                         existing_call_analysis_columns.add(col)
                         continue
@@ -327,7 +396,9 @@ class Database:
                     created_at TEXT
                 )
             """)
-            await conn.execute("CREATE TABLE IF NOT EXISTS chat_summaries (user_id INTEGER PRIMARY KEY, summary TEXT, updated_at DATETIME)")
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS chat_summaries (user_id INTEGER PRIMARY KEY, summary TEXT, updated_at DATETIME)"
+            )
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS user_intelligence (
                     user_id INTEGER PRIMARY KEY,
@@ -341,7 +412,7 @@ class Database:
                     updated_at DATETIME
                 )
             """)
-            
+
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS department_targets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -361,42 +432,99 @@ class Database:
                     last_processed_at DATETIME
                 )
             """)
-            
+
             # [PERFORMANCE] Create indexes
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_intent ON users(intent)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_crm_synced ON users(crm_synced)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_last_client_message_at ON users(last_client_message_at)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_message_logs_user_id ON message_logs(user_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_message_logs_created_at ON message_logs(created_at)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_team_reports_user_id ON team_reports(user_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_service_checkpoints_ext_id ON service_checkpoints(external_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_team_reports_date ON team_reports(report_date)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_actions_user_id ON agent_actions(user_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_actions_created ON agent_actions(created_at)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_learned_facts_user ON learned_facts(user_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_daily_plans_manager ON daily_plans(manager_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_daily_plans_date ON daily_plans(report_date)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_summaries_user ON chat_summaries(user_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_call_analyses_analyzed_at ON call_analyses(analyzed_at)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_call_analyses_manager ON call_analyses(manager_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_call_analyses_outcome ON call_analyses(outcome)")
-            
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_users_intent ON users(intent)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_users_crm_synced ON users(crm_synced)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_users_last_client_message_at ON users(last_client_message_at)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_message_logs_user_id ON message_logs(user_id)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_message_logs_created_at ON message_logs(created_at)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_team_reports_user_id ON team_reports(user_id)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_service_checkpoints_ext_id ON service_checkpoints(external_id)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_team_reports_date ON team_reports(report_date)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_agent_actions_user_id ON agent_actions(user_id)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_agent_actions_created ON agent_actions(created_at)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_learned_facts_user ON learned_facts(user_id)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_daily_plans_manager ON daily_plans(manager_id)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_daily_plans_date ON daily_plans(report_date)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_chat_summaries_user ON chat_summaries(user_id)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_call_analyses_analyzed_at ON call_analyses(analyzed_at)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_call_analyses_manager ON call_analyses(manager_id)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_call_analyses_outcome ON call_analyses(outcome)"
+            )
+
             await conn.commit()
             logger.info("[DB] Async Base Ready.")
-            if hasattr(config, 'OWNER_ID'):
+            if hasattr(config, "OWNER_ID"):
                 await self.ensure_owner_admin(int(config.OWNER_ID))
 
-    _ALLOWED_TABLES = frozenset({
-        "users", "messages", "message_logs", "tasks", "crm_sync_status",
-        "call_analyses", "advisor_logs", "team_reports", "daily_plans",
-        "chat_summaries", "user_intelligence", "kv_settings",
-    })
+    _ALLOWED_TABLES = frozenset(
+        {
+            "users",
+            "messages",
+            "message_logs",
+            "tasks",
+            "crm_sync_status",
+            "call_analyses",
+            "advisor_logs",
+            "team_reports",
+            "daily_plans",
+            "chat_summaries",
+            "user_intelligence",
+            "kv_settings",
+        }
+    )
 
     async def _get_table_columns(self, conn, table_name: str) -> set[str]:
         if table_name not in self._ALLOWED_TABLES:
@@ -410,33 +538,70 @@ class Database:
     async def ensure_owner_admin(self, owner_id: int):
         now = datetime.datetime.now().isoformat()
         conn = await self.get_connection()
-        async with conn.execute("SELECT user_id FROM users WHERE user_id = ?", (owner_id,)) as cursor:
+        async with conn.execute(
+            "SELECT user_id FROM users WHERE user_id = ?", (owner_id,)
+        ) as cursor:
             if not await cursor.fetchone():
-                await conn.execute("INSERT INTO users (user_id, first_name, role, created_at) VALUES (?, 'Owner', 'admin', ?)", (owner_id, now))
+                await conn.execute(
+                    "INSERT INTO users (user_id, first_name, role, created_at) VALUES (?, 'Owner', 'admin', ?)",
+                    (owner_id, now),
+                )
             else:
-                await conn.execute("UPDATE users SET role = 'admin' WHERE user_id = ?", (owner_id,))
+                await conn.execute(
+                    "UPDATE users SET role = 'admin' WHERE user_id = ?", (owner_id,)
+                )
         await conn.commit()
 
     async def get_state(self, key: str, default: Any = None) -> Any:
         conn = await self.get_connection()
-        async with conn.execute("SELECT value FROM kv_settings WHERE key = ?", (key,)) as cursor:
+        async with conn.execute(
+            "SELECT value FROM kv_settings WHERE key = ?", (key,)
+        ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else default
 
     async def set_state(self, key: str, value: Any):
         now = datetime.datetime.now().isoformat()
         conn = await self.get_connection()
-        await conn.execute("INSERT OR REPLACE INTO kv_settings (key, value, updated_at) VALUES (?, ?, ?)", (key, str(value), now))
+        await conn.execute(
+            "INSERT OR REPLACE INTO kv_settings (key, value, updated_at) VALUES (?, ?, ?)",
+            (key, str(value), now),
+        )
         await conn.commit()
         return True
 
-    async def upsert_user(self, user_id, first_name, username=None, phone=None, **kwargs):
+    async def upsert_user(
+        self, user_id, first_name, username=None, phone=None, **kwargs
+    ):
         now = datetime.datetime.now().isoformat()
         conn = await self.get_connection()
-        update_fields = ["first_name=excluded.first_name", "username=excluded.username", "last_seen=excluded.last_seen"]
-        if phone: update_fields.append("phone=COALESCE(excluded.phone, users.phone)")
-        
-        valid_keys = ["business_type", "region", "brand_name", "service_type", "deadline", "last_name", "contact_name", "bio", "avatar_analysis", "social_analysis", "meeting_time", "meeting_status", "lead_score", "position", "role", "intent", "detailed_role"]
+        update_fields = [
+            "first_name=excluded.first_name",
+            "username=excluded.username",
+            "last_seen=excluded.last_seen",
+        ]
+        if phone:
+            update_fields.append("phone=COALESCE(excluded.phone, users.phone)")
+
+        valid_keys = [
+            "business_type",
+            "region",
+            "brand_name",
+            "service_type",
+            "deadline",
+            "last_name",
+            "contact_name",
+            "bio",
+            "avatar_analysis",
+            "social_analysis",
+            "meeting_time",
+            "meeting_status",
+            "lead_score",
+            "position",
+            "role",
+            "intent",
+            "detailed_role",
+        ]
         for key in kwargs:
             if key in valid_keys:
                 update_fields.append(f"{key}=COALESCE(excluded.{key}, users.{key})")
@@ -450,20 +615,38 @@ class Database:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET {", ".join(update_fields)}
         """
-        params = (user_id, first_name, username, phone, 
-                  kwargs.get("business_type"), kwargs.get("region"), kwargs.get("brand_name"), 
-                  kwargs.get("service_type"), kwargs.get("deadline"), 
-                  kwargs.get("last_name"), kwargs.get("contact_name"), kwargs.get("bio"), 
-                  kwargs.get("avatar_analysis"), kwargs.get("social_analysis"),
-                  kwargs.get("role"), kwargs.get("position"), kwargs.get("intent"), kwargs.get("detailed_role"),
-                  now, now)
+        params = (
+            user_id,
+            first_name,
+            username,
+            phone,
+            kwargs.get("business_type"),
+            kwargs.get("region"),
+            kwargs.get("brand_name"),
+            kwargs.get("service_type"),
+            kwargs.get("deadline"),
+            kwargs.get("last_name"),
+            kwargs.get("contact_name"),
+            kwargs.get("bio"),
+            kwargs.get("avatar_analysis"),
+            kwargs.get("social_analysis"),
+            kwargs.get("role"),
+            kwargs.get("position"),
+            kwargs.get("intent"),
+            kwargs.get("detailed_role"),
+            now,
+            now,
+        )
         await conn.execute(query, params)
         await conn.commit()
 
     async def log_message(self, user_id, text, is_ai=False):
         now = datetime.datetime.now().isoformat()
         conn = await self.get_connection()
-        await conn.execute("INSERT INTO message_logs (user_id, message_text, is_ai_reply, created_at) VALUES (?, ?, ?, ?)", (user_id, text, is_ai, now))
+        await conn.execute(
+            "INSERT INTO message_logs (user_id, message_text, is_ai_reply, created_at) VALUES (?, ?, ?, ?)",
+            (user_id, text, is_ai, now),
+        )
         if is_ai:
             await conn.execute(
                 "UPDATE users SET last_ai_message_at = ?, last_seen = COALESCE(last_seen, ?) WHERE user_id = ?",
@@ -480,18 +663,23 @@ class Database:
         """
         Xabarlarni ommaviy saqlash (Performance optimization for backlog sync).
         """
-        if not messages_data: return
+        if not messages_data:
+            return
         conn = await self.get_connection()
         await conn.executemany(
             "INSERT INTO message_logs (user_id, message_text, is_ai_reply, created_at) VALUES (?, ?, ?, ?)",
-            messages_data
+            messages_data,
         )
         await conn.commit()
 
     async def get_user_by_phone(self, phone: str) -> Optional[Dict[str, Any]]:
-        if not phone: return None
+        if not phone:
+            return None
         conn = await self.get_connection()
-        async with conn.execute("SELECT * FROM users WHERE phone = ? OR phone LIKE ?", (phone, f"%{phone[-9:]}")) as cursor:
+        async with conn.execute(
+            "SELECT * FROM users WHERE phone = ? OR phone LIKE ?",
+            (phone, f"%{phone[-9:]}"),
+        ) as cursor:
             row = await cursor.fetchone()
             if row:
                 cols = [description[0] for description in cursor.description]
@@ -507,7 +695,9 @@ class Database:
 
     async def get_chat_summary(self, user_id: int) -> Optional[str]:
         conn = await self.get_connection()
-        async with conn.execute("SELECT summary FROM chat_summaries WHERE user_id = ?", (user_id,)) as cursor:
+        async with conn.execute(
+            "SELECT summary FROM chat_summaries WHERE user_id = ?", (user_id,)
+        ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else None
 
@@ -516,21 +706,26 @@ class Database:
         conn = await self.get_connection()
         await conn.execute(
             "INSERT OR REPLACE INTO chat_summaries (user_id, summary, updated_at) VALUES (?, ?, ?)",
-            (user_id, summary, now)
+            (user_id, summary, now),
         )
         await conn.commit()
         return True
 
     async def get_recent_messages(self, user_id, limit=1000):
         conn = await self.get_connection()
-        async with conn.execute("SELECT message_text, is_ai_reply FROM message_logs WHERE user_id = ? AND message_text IS NOT NULL AND message_text != '' ORDER BY created_at DESC LIMIT ?", (user_id, limit)) as cursor:
+        async with conn.execute(
+            "SELECT message_text, is_ai_reply FROM message_logs WHERE user_id = ? AND message_text IS NOT NULL AND message_text != '' ORDER BY created_at DESC LIMIT ?",
+            (user_id, limit),
+        ) as cursor:
             rows = await cursor.fetchall()
             history = []
             for text, is_ai in reversed(rows):
                 role = "model" if is_ai else "user"
-                if text.startswith("ERROR:"): continue
+                if text.startswith("ERROR:"):
+                    continue
                 history.append({"role": role, "parts": [{"text": text}]})
-            if history and history[0]["role"] == "model": history.pop(0)
+            if history and history[0]["role"] == "model":
+                history.pop(0)
             sanitized = []
             last_role = None
             for entry in history:
@@ -547,13 +742,11 @@ class Database:
 
     async def get_team_roles(self):
         conn = await self.get_connection()
-        async with conn.execute(
-            """
+        async with conn.execute("""
             SELECT user_id, first_name, username, role, detailed_role, position
             FROM users
             WHERE role IS NOT NULL OR detailed_role IS NOT NULL OR position IS NOT NULL
-            """
-        ) as cursor:
+            """) as cursor:
             rows = await cursor.fetchall()
 
         members: list[Dict[str, Any]] = []
@@ -597,19 +790,25 @@ class Database:
 
     async def is_job_run(self, job_name, date_str):
         conn = await self.get_connection()
-        async with conn.execute("SELECT 1 FROM scheduled_jobs WHERE job_name = ? AND run_date = ?", (job_name, date_str)) as cursor:
+        async with conn.execute(
+            "SELECT 1 FROM scheduled_jobs WHERE job_name = ? AND run_date = ?",
+            (job_name, date_str),
+        ) as cursor:
             return await cursor.fetchone() is not None
 
     async def mark_job_run(self, job_name, date_str):
         now = datetime.datetime.now().isoformat()
         conn = await self.get_connection()
-        await conn.execute("INSERT OR REPLACE INTO scheduled_jobs (job_name, run_date, created_at) VALUES (?, ?, ?)", (job_name, date_str, now))
+        await conn.execute(
+            "INSERT OR REPLACE INTO scheduled_jobs (job_name, run_date, created_at) VALUES (?, ?, ?)",
+            (job_name, date_str, now),
+        )
         await conn.commit()
 
     async def update_chat_checkpoint(self, chat_id: int, msg_id: int) -> None:
         if not chat_id or not msg_id:
             return
-        now = datetime.datetime.utcnow().isoformat()
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         conn = await self.get_connection()
         await conn.execute(
             """
@@ -623,13 +822,18 @@ class Database:
         )
         await conn.commit()
 
-    async def get_recent_chat_checkpoints(self, since_days: int = 7) -> List[Dict[str, Any]]:
-        cutoff = (datetime.datetime.utcnow() - datetime.timedelta(days=since_days)).isoformat()
+    async def get_recent_chat_checkpoints(
+        self, since_days: int = 7
+    ) -> List[Dict[str, Any]]:
+        since_dt = (
+            datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(days=since_days)
+        ).isoformat()
         conn = await self.get_connection()
         async with conn.execute(
             "SELECT chat_id, last_processed_msg_id, last_processed_at FROM chat_checkpoints "
             "WHERE last_processed_at >= ? ORDER BY last_processed_at DESC",
-            (cutoff,),
+            (since_dt,),
         ) as cursor:
             rows = await cursor.fetchall()
             return [
@@ -676,7 +880,7 @@ class Database:
         conn = await self.get_connection()
         async with conn.execute(
             "SELECT user_id, first_name, username FROM users WHERE username = ?",
-            (username,)
+            (username,),
         ) as cursor:
             row = await cursor.fetchone()
             if row:
@@ -696,7 +900,11 @@ class Database:
             chats = {}
             for uid, name, uname, text, is_ai, time in rows:
                 if uid not in chats:
-                    chats[uid] = {"name": name or f"User_{uid}", "username": uname or "n/a", "messages": []}
+                    chats[uid] = {
+                        "name": name or f"User_{uid}",
+                        "username": uname or "n/a",
+                        "messages": [],
+                    }
                 role = "OISHA" if is_ai else "Client"
                 chats[uid]["messages"].append(f"{role} ({time}): {text}")
             return chats
@@ -716,8 +924,12 @@ class Database:
 
     async def get_stats(self):
         conn = await self.get_connection()
-        async with conn.execute("SELECT (SELECT COUNT(*) FROM users), (SELECT COUNT(*) FROM message_logs)") as cursor:
+        async with conn.execute(
+            "SELECT (SELECT COUNT(*) FROM users), (SELECT COUNT(*) FROM message_logs)"
+        ) as cursor:
             row = await cursor.fetchone()
+            if not row:
+                return {"total_users": 0, "total_messages": 0}
             return {"total_users": row[0], "total_messages": row[1]}
 
     async def get_today_stats(self):
@@ -732,6 +944,8 @@ class Database:
             (today, today),
         ) as cursor:
             row = await cursor.fetchone()
+            if not row:
+                return {"leads_found": 0, "messages_synced": 0}
             return {
                 "leads_found": row[0] or 0,
                 "messages_synced": row[1] or 0,
@@ -758,10 +972,20 @@ class Database:
     async def log_agent_action(self, user_id, action_type, data, success=True):
         now = datetime.datetime.now().isoformat()
         conn = await self.get_connection()
-        await conn.execute("INSERT INTO agent_actions (user_id, action_type, action_data, success, created_at) VALUES (?, ?, ?, ?, ?)", (user_id, action_type, json.dumps(data), success, now))
+        await conn.execute(
+            "INSERT INTO agent_actions (user_id, action_type, action_data, success, created_at) VALUES (?, ?, ?, ?, ?)",
+            (user_id, action_type, json.dumps(data), success, now),
+        )
         await conn.commit()
 
-    async def save_daily_plan(self, manager_id: int, lead_id: int, lead_name: str, mission: str, source_pipeline: str = "HUNTER"):
+    async def save_daily_plan(
+        self,
+        manager_id: int,
+        lead_id: int,
+        lead_name: str,
+        mission: str,
+        source_pipeline: str = "HUNTER",
+    ):
         today = datetime.datetime.now().strftime("%Y-%m-%d")
         now = datetime.datetime.now().isoformat()
         conn = await self.get_connection()
@@ -772,40 +996,92 @@ class Database:
         await conn.commit()
         return True
 
-    async def save_team_report(self, user_id: int, report_type: str, content: str, report_date: Optional[str] = None, status: str = "submitted") -> bool:
+    async def save_team_report(
+        self,
+        user_id: int,
+        report_type: str,
+        content: str,
+        report_date: Optional[str] = None,
+        status: str = "submitted",
+    ) -> bool:
         from src.time_utils import get_local_now
+
         now = get_local_now()
         report_day = report_date or now.strftime("%Y-%m-%d")
         conn = await self.get_connection()
-        async with conn.execute("SELECT id FROM team_reports WHERE user_id = ? AND report_date = ? AND report_type = ? ORDER BY id DESC LIMIT 1", (user_id, report_day, report_type)) as cursor:
+        async with conn.execute(
+            "SELECT id FROM team_reports WHERE user_id = ? AND report_date = ? AND report_type = ? ORDER BY id DESC LIMIT 1",
+            (user_id, report_day, report_type),
+        ) as cursor:
             existing = await cursor.fetchone()
         if existing:
-            await conn.execute("UPDATE team_reports SET content = ?, status = ?, created_at = ? WHERE id = ?", (content, status, now.isoformat(), existing[0]))
+            await conn.execute(
+                "UPDATE team_reports SET content = ?, status = ?, created_at = ? WHERE id = ?",
+                (content, status, now.isoformat(), existing[0]),
+            )
         else:
-            await conn.execute("INSERT INTO team_reports (user_id, report_date, report_type, content, status, created_at) VALUES (?, ?, ?, ?, ?, ?)", (user_id, report_day, report_type, content, status, now.isoformat()))
+            await conn.execute(
+                "INSERT INTO team_reports (user_id, report_date, report_type, content, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, report_day, report_type, content, status, now.isoformat()),
+            )
         await conn.commit()
         return True
 
     async def get_overdue_tasks(self) -> List[Dict[str, Any]]:
         from src.time_utils import get_local_now
+
         conn = await self.get_connection()
-        async with conn.execute("SELECT t.id, t.title, t.description, t.assigned_to, t.deadline, t.priority, t.status, u.first_name, u.username FROM tasks t LEFT JOIN users u ON u.user_id = t.assigned_to WHERE t.deadline IS NOT NULL AND COALESCE(t.status, 'Pending') NOT IN ('Done', 'Completed', 'Closed', 'Cancelled')") as cursor:
-            rows = await conn.fetchall()
+        async with conn.execute(
+            "SELECT t.id, t.title, t.description, t.assigned_to, t.deadline, t.priority, t.status, u.first_name, u.username FROM tasks t LEFT JOIN users u ON u.user_id = t.assigned_to WHERE t.deadline IS NOT NULL AND COALESCE(t.status, 'Pending') NOT IN ('Done', 'Completed', 'Closed', 'Cancelled')"
+        ) as cursor:
+            rows = await cursor.fetchall()
         now = get_local_now()
         overdue = []
         for row in rows:
-            try: deadline_dt = datetime.datetime.fromisoformat(str(row[4]).replace("Z", "+00:00"))
-            except ValueError: continue
-            now_cmp = now if deadline_dt.tzinfo is None else now.astimezone(datetime.timezone.utc)
+            try:
+                deadline_dt = datetime.datetime.fromisoformat(
+                    str(row[4]).replace("Z", "+00:00")
+                )
+            except ValueError:
+                continue
+            now_cmp = (
+                now
+                if deadline_dt.tzinfo is None
+                else now.astimezone(datetime.timezone.utc)
+            )
             if deadline_dt < now_cmp:
-                overdue.append({"id": row[0], "title": row[1], "description": row[2], "assigned_to": row[3], "deadline": row[4], "priority": row[5] or "Medium", "status": row[6] or "Pending", "name": row[7] or f"User_{row[3]}", "username": row[8]})
+                overdue.append(
+                    {
+                        "id": row[0],
+                        "title": row[1],
+                        "description": row[2],
+                        "assigned_to": row[3],
+                        "deadline": row[4],
+                        "priority": row[5] or "Medium",
+                        "status": row[6] or "Pending",
+                        "name": row[7] or f"User_{row[3]}",
+                        "username": row[8],
+                    }
+                )
         overdue.sort(key=lambda t: (t["priority"] != "High", t["deadline"]))
         return overdue
 
-    async def update_lead_journey(self, user_id: int, *, stage: str, status: str, next_action: str, close_probability: float = 0.0, lifecycle_updated_at: Optional[str] = None) -> bool:
+    async def update_lead_journey(
+        self,
+        user_id: int,
+        *,
+        stage: str,
+        status: str,
+        next_action: str,
+        close_probability: float = 0.0,
+        lifecycle_updated_at: Optional[str] = None,
+    ) -> bool:
         now = lifecycle_updated_at or datetime.datetime.now().isoformat()
         conn = await self.get_connection()
-        await conn.execute("UPDATE users SET journey_stage = ?, journey_status = ?, journey_next_action = ?, close_probability = ?, lifecycle_updated_at = ? WHERE user_id = ?", (stage, status, next_action, float(close_probability or 0.0), now, user_id))
+        await conn.execute(
+            "UPDATE users SET journey_stage = ?, journey_status = ?, journey_next_action = ?, close_probability = ?, lifecycle_updated_at = ? WHERE user_id = ?",
+            (stage, status, next_action, float(close_probability or 0.0), now, user_id),
+        )
         await conn.commit()
         return True
 
@@ -813,7 +1089,7 @@ class Database:
         conn = await self.get_connection()
         async with conn.execute(
             "SELECT psychotype, pain_points, objections_history, buying_drivers, communication_style, negotiation_strategy, facts_json FROM user_intelligence WHERE user_id = ?",
-            (user_id,)
+            (user_id,),
         ) as cursor:
             row = await cursor.fetchone()
             if row:
@@ -824,7 +1100,7 @@ class Database:
                     "buying_drivers": row[3],
                     "communication_style": row[4],
                     "negotiation_strategy": row[5],
-                    "facts_json": json.loads(row[6]) if row[6] else {}
+                    "facts_json": json.loads(row[6]) if row[6] else {},
                 }
             return {}
 
@@ -852,12 +1128,70 @@ class Database:
                 facts_json = excluded.facts_json,
                 updated_at = excluded.updated_at
             """,
-            (user_id, intel_data.get("psychotype"), intel_data.get("pain_points"), intel_data.get("objections_history"), 
-             intel_data.get("buying_drivers"), intel_data.get("communication_style"), intel_data.get("negotiation_strategy"), 
-             json.dumps(facts), now)
+            (
+                user_id,
+                intel_data.get("psychotype"),
+                intel_data.get("pain_points"),
+                intel_data.get("objections_history"),
+                intel_data.get("buying_drivers"),
+                intel_data.get("communication_style"),
+                intel_data.get("negotiation_strategy"),
+                json.dumps(facts),
+                now,
+            ),
         )
         await conn.commit()
         return True
+
+    async def get_latest_call_analysis(self, lead_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Lid uchun oxirgi qo'ng'iroq tahlilini olish.
+        
+        Args:
+            lead_id: amoCRM lead IDsi
+            
+        Returns:
+            Dict formatidagi tahlil ma'lumotlari yoki None
+        """
+        if not lead_id:
+            return None
+
+        conn = await self.get_connection()
+        if not conn:
+            logger.error("[DB] Connection failed while fetching call analysis")
+            return None
+
+        query = """
+            SELECT * FROM call_analyses 
+            WHERE lead_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT 1
+        """
+        try:
+            async with conn.execute(query, (lead_id,)) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    cols = [description[0] for description in cursor.description]
+                    data = dict(zip(cols, row))
+                    
+                    # JSON maydonlarni xavfsiz parse qilish
+                    json_fields = [
+                        "scores", "strengths", "weaknesses", 
+                        "objections", "next_steps", "recommended_tasks"
+                    ]
+                    for json_col in json_fields:
+                        val = data.get(json_col)
+                        if val and isinstance(val, str):
+                            try:
+                                data[json_col] = json.loads(val)
+                            except (json.JSONDecodeError, TypeError) as e:
+                                logger.warning(f"[DB] JSON parse error for {json_col} in lead {lead_id}: {e}")
+                                # Keep as string or set to empty dict/list if needed
+                    return data
+        except Exception as e:
+            logger.error(f"[DB] Error fetching call analysis for lead {lead_id}: {e}")
+            
+        return None
 
     def __iter__(self):
         return iter(())
@@ -867,6 +1201,7 @@ class _TursoCursor:
     """
     aiosqlite.Cursor-compatible cursor for high-speed operation.
     """
+
     def __init__(self, rows=None, description=None):
         self._rows = _extract_prefetched_rows(rows)
         self._description = description or _normalize_cursor_description(rows)
@@ -880,34 +1215,43 @@ class _TursoCursor:
             self._ptr += 1
             return row
         return None
+
     async def fetchall(self):
-        remaining = self._rows[self._ptr:]
+        remaining = self._rows[self._ptr :]
         self._ptr = len(self._rows)
         return remaining
+
     async def fetchmany(self, size=1):
         end = min(self._ptr + size, len(self._rows))
-        chunk = self._rows[self._ptr:end]
+        chunk = self._rows[self._ptr : end]
         self._ptr = end
         return chunk
+
     async def close(self):
         self._rows = []
         self._ptr = 0
+
     def __aiter__(self):
         return self
+
     async def __anext__(self):
         row = await self.fetchone()
         if row is None:
             raise StopAsyncIteration
         return row
+
     async def __aenter__(self):
         return self
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
+
 
 class _ExecuteProxy:
     """
     Dual-mode result of TursoAdapter.execute(sql, ...).
     """
+
     def __init__(self, sql, parameters):
         self._sql = sql
         self._params = parameters
@@ -936,16 +1280,30 @@ class _ExecuteProxy:
 
 class _EmptyResultSet:
     """Placeholder ResultSet for no-op PRAGMA responses."""
+
     columns = []
     description = []
     rows_affected = 0
     rowcount = 0
-    def fetchone(self): return None
-    def fetchall(self): return []
-    def fetchmany(self, size=1): return []
-    def close(self): return None
-    def __iter__(self): return iter(())
-    def __len__(self): return 0
+
+    def fetchone(self):
+        return None
+
+    def fetchall(self):
+        return []
+
+    def fetchmany(self, size=1):
+        return []
+
+    def close(self):
+        return None
+
+    def __iter__(self):
+        return iter(())
+
+    def __len__(self):
+        return 0
+
 
 class TursoAdapter:
     def __init__(self):
@@ -964,13 +1322,19 @@ class TursoAdapter:
         return cursor
 
     async def executescript(self, script):
-        statements = [stmt.strip() for stmt in (script or "").split(";") if stmt.strip()]
+        statements = [
+            stmt.strip() for stmt in (script or "").split(";") if stmt.strip()
+        ]
         for statement in statements:
             await db_pool.execute(statement, None)
         return _TursoCursor(_EmptyResultSet())
 
-    async def commit(self): pass
-    async def rollback(self): pass
+    async def commit(self):
+        pass
+
+    async def rollback(self):
+        pass
+
     async def close(self):
         try:
             db_pool.close()
@@ -980,22 +1344,31 @@ class TursoAdapter:
     def cursor(self):
         return _CursorContext(self)
 
-    async def __aenter__(self): return self
-    async def __aexit__(self, exc_type, exc_val, exc_tb): pass
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
 
 
 class _CursorContext:
     def __init__(self, conn):
         self._conn = conn
         self._cursor = _TursoCursor(_EmptyResultSet())
-    async def __aenter__(self): return self._cursor
-    async def __aexit__(self, exc_type, exc_val, exc_tb): await self._cursor.close()
+
+    async def __aenter__(self):
+        return self._cursor
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._cursor.close()
+
     async def execute(self, sql, parameters=None):
         proxy = self._conn.execute(sql, parameters)
         self._cursor = await proxy
         return self._cursor
+
     async def executemany(self, sql, parameter_list):
         return await self._conn.executemany(sql, parameter_list)
-    async def fetchone(self): return await self._cursor.fetchone()
-    async def fetchall(self): return await self._cursor.fetchall()
-    async def close(self): await self._cursor.close()
+
+    async def fetchone(self):
+        return await self._cursor.fetchone()

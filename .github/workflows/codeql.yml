@@ -1,0 +1,51 @@
+name: Security - CodeQL
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: "0 1 * * 1"
+  workflow_dispatch:
+
+permissions:
+  security-events: write
+  packages: read
+  actions: read
+  contents: read
+
+jobs:
+  codeql-unavailable:
+    name: CodeQL unavailable for this repo
+    runs-on: ubuntu-latest
+    if: ${{ github.event.repository.private && vars.ENABLE_CODEQL != 'true' }}
+    steps:
+      - name: Explain CodeQL requirement
+        run: |
+          echo "CodeQL code scanning upload is disabled for this private repository."
+          echo "GitHub Advanced Security is required before native CodeQL alerts can be uploaded."
+          echo "After enabling GitHub Advanced Security, set repository variable ENABLE_CODEQL=true."
+
+  analyze:
+    name: CodeQL Analyze
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.repository.private || vars.ENABLE_CODEQL == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python", "javascript-typescript"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3

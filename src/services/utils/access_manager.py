@@ -3,16 +3,18 @@ from typing import Optional, Dict
 
 logger = logging.getLogger(__name__)
 
+
 class AccessManager:
     """
     Oisha-OS Role-Based Access Control (RBAC).
     Handles permissions for Owner, CEO, PM, and Sales.
     """
+
     ROLES = {
         "OWNER": "Asoschi (Baxtiyor aka) 👑",
         "CEO": "CEO (Hasan aka) 📈",
         "PM": "Project Manager (Inomjon aka) 📅",
-        "SALES": "Sales (Oisha/Oydin opa) 🚀"
+        "SALES": "Sales (Oisha/Oydin opa) 🚀",
     }
 
     def __init__(self, owner_id: int):
@@ -20,15 +22,15 @@ class AccessManager:
         # Default mapping based on IDs
         self.user_roles: Dict[int, str] = {
             owner_id: "OWNER",
-            150074828: "OWNER", # Absolute fail-safe for Baxtiyor aka
-            8343217526: "SALES" # Legacy fallback
+            150074828: "OWNER",  # Absolute fail-safe for Baxtiyor aka
+            8343217526: "SALES",  # Legacy fallback
         }
-        
+
         # Hardcoded IDs for the team (can be moved to .env later)
         # Hasan aka, Inomjon aka IDs should be added here
         self.team_ids = {
-             # Add Hasan aka ID here
-             # Add Inomjon aka ID here
+            # Add Hasan aka ID here
+            # Add Inomjon aka ID here
         }
 
     def get_role(self, user_id: int) -> Optional[str]:

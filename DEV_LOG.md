@@ -5,6 +5,326 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-08 15:10 UTC | ✅ main `4f459bc`
+
+**Commit**: feat(telegram): add Bot API 10 AI feature layer
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00249-jem
+
+---
+
+## 2026-05-08 14:42 UTC | ✅ main `2117c41`
+
+**Commit**: fix(ci): make ecosystem health check production-aware
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00246-puh
+
+---
+
+## 2026-05-08 14:31 UTC | ✅ main `474a009`
+
+**Commit**: fix(ci): stabilize Cloud Run health gate
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00243-tad
+
+---
+
+## 2026-05-08 14:20 UTC | ⚠️ main `2a416e9`
+
+**Commit**: fix(ci): recover tagged Cloud Run candidate rollout
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-05-08 14:12 UTC | ⚠️ main `90276bf`
+
+**Commit**: fix(runtime): expose API runtime context for Cloud Run
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-05-08 14:01 UTC | ⚠️ main `f41e781`
+
+**Commit**: fix(ci): guard CodeQL on private repos without GHAS
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-05-07 14:53 UTC | ⚠️ main `21f2bf5`
+
+**Commit**: ci: pin appleboy/ssh-action to commit SHA for reproducibility
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-05-07 06:20 UTC | ⚠️ main `828118a`
+
+**Commit**: chore: standardize GitHub Action versions and complete AmoCRM integration setup
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-05-07 06:07 UTC | ⚠️ main `7b303b9`
+
+**Commit**: Merge branch 'main' of https://github.com/baxtiyorjongaziyev/oisha-os
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container image not ready after build wait
+
+---
+
+## 2026-05-07 05:54 UTC | ⚠️ main `907d12c`
+
+**Commit**: fix: resolve deployment failure, exposed secrets, and startup timeout
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: userbot secret binding cleanup failed: Deploying... Creating Revision.........................failed Deployment failed ERROR: (gcloud.run.services.update) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision m
+
+---
+
+## 2026-05-07 05:44 UTC | ⚠️ main `6002729`
+
+**Commit**: feat: add logging to sales agent and update GitHub Actions versions
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic...........failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided contai
+
+---
+
+## 2026-05-06 05:33 UTC | ⚠️ main `7ad2303`
+
+**Commit**: Merge branch 'main' of https://github.com/baxtiyorjongaziyev/oisha-os
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic..............failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided con
+
+---
+
+## 2026-05-05 19:45 UTC | ⚠️ main `9065d83`
+
+**Commit**: fix: keep runtime alive when surgical modules are missing
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic.......failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container 
+
+---
+
+## 2026-05-05 19:15 UTC | ⚠️ main `71862ef`
+
+**Commit**: feat: celebrate income posts in Kirim topic
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic.......failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container 
+
+---
+
+## 2026-05-05 19:04 UTC | ⚠️ main `6fa4892`
+
+**Commit**: Merge branch 'main' of https://github.com/baxtiyorjongaziyev/oisha-os
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic........failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container
+
+---
+
+## 2026-05-05 14:35 UTC | ⚠️ main `696d47b`
+
+**Commit**: Add MIT LICENSE file
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic.......failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container 
+
+---
+
+## 2026-05-05 11:55 UTC | ⚠️ main `476a28c`
+
+**Commit**: feat: implement requested STAGNATION ALERT format and scheduling
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic........failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container
+
+---
+
+## 2026-05-05 10:57 UTC | ⚠️ main `b59b06f`
+
+**Commit**: feat: implement Anti-Local Execution Lock to prevent session conflicts
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic...........failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided contai
+
+---
+
+## 2026-05-05 10:52 UTC | ⚠️ main `34de59c`
+
+**Commit**: fix: block all auto-replies (voice+text) — gate bypasses closed
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic.......failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container 
+
+---
+
+## 2026-05-04 14:50 UTC | ⚠️ main `ae01f6a`
+
+**Commit**: chore: stage remaining local changes before merge
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic.......failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container 
+
+---
+
+## 2026-05-04 12:43 UTC | ⚠️ main `4dea453`
+
+**Commit**: fix(syntax): f-string backslash in negotiation_engine.py — Python 3.11 compat
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container image not ready after build wait
+
+---
+
+## 2026-05-04 06:02 UTC | 🔴 main `4d2a1e7`
+
+**Commit**: fix: remove deprecated google-generativeai to resolve Cloud Run crash
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-05-01 06:47 UTC | ⚠️ main `62e8388`
+
+**Commit**: Merge pull request #15 from baxtiyorjongaziyev/claude/investigate-openclaw-query-HdLAv
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic.......failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00164-9sc   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00164-9sc' is not ready and cannot serve traffic. The user-provided container 
+
+---
+
+## 2026-04-30 20:08 UTC | ✅ main `1764103`
+
+**Commit**: feat(salescoach-ai): full MVP scaffold + TypeScript fixes + SESSION_NOTES
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00214-duy
+
+---
+
+## 2026-04-28 04:33 UTC | ✅ main `9d5dfd9`
+
+**Commit**: feat: VPS userbot deploy workflow — SSH orqali ishga tushirish
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00208-feh
+
+---
+
+## 2026-04-27 17:36 UTC | ✅ main `98aae9b`
+
+**Commit**: fix(crm): add AmoCRM health connection check
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00205-diw
+
+---
+
+## 2026-04-27 17:00 UTC | ✅ main `eccb488`
+
+**Commit**: fix(deploy): keep Cloud Run userbot disabled
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00202-fof
+
+---
+
+## 2026-04-27 16:49 UTC | ⚠️ main `be80d78`
+
+**Commit**: chore(auto): update DEV_LOG [skip ci] — 2026-04-27 13:46 UTC
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: 
+
+---
+
+## 2026-04-27 13:46 UTC | ⚠️ main `83421b2`
+
+**Commit**: Merge remote-tracking branch 'origin/main'
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: 
+
+---
+
+## 2026-04-26 07:19 UTC | 🔴 main `7b5e6a1`
+
+**Commit**: feat: Enable cloud userbot — ENABLE_CLOUD_USERBOT=True + GCP secret sync step
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-04-25 22:23 UTC | ✅ main `9899a55`
+
+**Commit**: fix(deploy): fix AuditAgent imports, increase health grace period to 120s, and enable cpu-boost 👸🛡️🦅 ✅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00194-wug
+
+---
+
+## 2026-04-25 21:58 UTC | ⚠️ main `e74566f`
+
+**Commit**: Update audit_agent.py
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 21:13 UTC | ⚠️ main `dcce4af`
+
+**Commit**: fix(ci): final strike to turn status GREEN 👸🛡️🦅 ✅ - Fix missing base64 import in main.py - Add AmoCRMSync import to prevent ModuleNotFoundError - Safe DeepSeek initialization in AuditAgent - Verified requirements.txt
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 20:30 UTC | ✅ main `ce5afa9`
+
+**Commit**: fix(runtime): avoid crm guard crash on empty lead source
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00187-wed
+
+---
+
+## 2026-04-25 20:19 UTC | ✅ main `571739f`
+
+**Commit**: fix(startup): wire sales coach provider
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00184-jaw
+
+---
+
+## 2026-04-25 20:10 UTC | ⚠️ main `95d1e53`
+
+**Commit**: fix: resolve deployment secrets and permissions 👸🛡️🦅 ✅
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:58 UTC | ⚠️ main `0dafcfe`
+
+**Commit**: fix(startup): use asyncio run entrypoint
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:50 UTC | ⚠️ main `c642a9a`
+
+**Commit**: fix(deploy): include runtime startup dependencies
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:41 UTC | ⚠️ main `1c47bec`
+
+**Commit**: fix(startup): repair audit agent exception handling
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-04-25 19:32 UTC | ⚠️ main `a974e39`
+
+**Commit**: fix(deploy): include gspread runtime dependency
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
 ## 2026-04-25 19:20 UTC | 🔴 main `da2681c`
 
 **Commit**: fix(ci): install runtime packages used by tests

@@ -1,15 +1,15 @@
-
 import logging
 import datetime
-from typing import Optional, List, Dict, Any
+import time
+from typing import Optional, Any
 from google import genai
-from google.genai import types
 
 logger = logging.getLogger(__name__)
 
+
 class AdvisorAgent:
     """
-    Shadow Advisor (Coach Mode) that listens to private chats and 
+    Shadow Advisor (Coach Mode) that listens to private chats and
     provides strategic advice + action suggestions to the owner.
     Now equipped with Dual-Persona intelligence.
     """
@@ -19,7 +19,11 @@ class AdvisorAgent:
         self.db = db
         self.action_parser = action_parser
         self.model_name = "gemini-2.0-flash"
-        from src.services.core.persona_hub import INTERNAL_COO_PROMPT, EXTERNAL_CONCIERGE_PROMPT
+        from src.services.core.persona_hub import (
+            INTERNAL_COO_PROMPT,
+            EXTERNAL_CONCIERGE_PROMPT,
+        )
+
         self.internal_prompt = INTERNAL_COO_PROMPT
         self.external_prompt = EXTERNAL_CONCIERGE_PROMPT
 
@@ -43,27 +47,34 @@ class AdvisorAgent:
         
         Javob faqat tabrik matnidan iborat bo'lsin.
         """
-        
+
         prompt = f"Manager: {manager_name}, Summa: {amt_str}. Uni ajoyib sotuv bilan tabriklang!"
-        
+
         try:
             from src.utils.ai_utils import safe_ai_call
+
             response = await safe_ai_call(
                 client=self.client,
                 prompt=[prompt],
                 system_instruction=system_instruction,
-                model=self.model_name
+                model=self.model_name,
             )
-            return response.text.strip() if response and response.text else "Tabriklayman! 🎉"
+            return (
+                response.text.strip()
+                if response and response.text
+                else "Tabriklayman! 🎉"
+            )
         except Exception as e:
             logger.error(f"[ADVISOR] Celebration generation error: {e}")
             return f"Tabriklaymiz! {manager_name} tomonidan yangi bitim yopildi: {amount} so'm. 👸🛡️"
 
-    async def analyze_and_advise(self, chat_id: int, message_text: str, history_context: str, sender_name: str) -> Optional[str]:
+    async def analyze_and_advise(
+        self, chat_id: int, message_text: str, history_context: str, sender_name: str
+    ) -> Optional[str]:
         """
         Analyzes the conversation and returns a strategic tip/action if necessary.
         """
-        
+
         system_instruction = f"""
         {self.internal_prompt}
         
@@ -90,23 +101,24 @@ class AdvisorAgent:
         """
 
         contents = [
-            f"Suhbat tarixi (oxirgi xabarlar):\n{history_context}\n\nYangi xabar: \"{message_text}\""
+            f'Suhbat tarixi (oxirgi xabarlar):\n{history_context}\n\nYangi xabar: "{message_text}"'
         ]
 
         try:
             from src.utils.ai_utils import safe_ai_call
+
             response = await safe_ai_call(
                 client=self.client,
                 prompt=contents,
                 system_instruction=system_instruction,
-                model=self.model_name
+                model=self.model_name,
             )
-            
+
             if response and response.text and len(response.text.strip()) > 5:
                 return response.text.strip()
         except Exception as e:
             logger.error(f"[ADVISOR] Analysis error: {e}")
-            
+
         return None
 
     async def analyze_lead_context(self, prompt: str) -> str:
@@ -115,32 +127,58 @@ class AdvisorAgent:
         """
         try:
             from src.utils.ai_utils import safe_ai_call
+
             response = await safe_ai_call(
-                client=self.client,
-                prompt=[prompt],
-                model=self.model_name
+                client=self.client, prompt=[prompt], model=self.model_name
             )
-            return response.text.strip() if response and response.text else "Tahlil natijasi bo'sh qaytdi."
+            return (
+                response.text.strip()
+                if response and response.text
+                else "Tahlil natijasi bo'sh qaytdi."
+            )
         except Exception as e:
             logger.error(f"[ADVISOR] Lead context analysis error: {e}")
             return f"Xatolik yuz berdi: {e}"
 
-    async def should_notify(self, chat_id: int, message_id: int, advice_content: str) -> bool:
-        """Checks if this advice was already sent to avoid spam."""
+    async def should_notify(
+        self, chat_id: int, message_id: int, advice_content: str
+    ) -> bool:
+        """Checks if this advice was already sent and rate-limits advisor pings."""
         try:
+            msg_key = f"advisor_notify:msg:{chat_id}:{message_id}"
+            cooldown_key = f"advisor_notify:cooldown:{chat_id}"
+            now = time.time()
+
+            if await self.db.get_state(msg_key):
+                return False
+
+            last_sent_raw = await self.db.get_state(cooldown_key, "0")
+            try:
+                last_sent = float(last_sent_raw or 0)
+            except (TypeError, ValueError):
+                last_sent = 0.0
+            if now - last_sent < 1800:
+                logger.info(
+                    f"[ADVISOR] Cooldown active for chat {chat_id}; notification skipped."
+                )
+                return False
+
+            await self.db.set_state(msg_key, "sent")
+            await self.db.set_state(cooldown_key, str(now))
+
             async with await self.db.get_connection() as conn:
-                async with conn.execute("SELECT 1 FROM advisor_logs WHERE chat_id = ? AND message_id = ?", (chat_id, message_id)) as cursor:
-                    exists = await cursor.fetchone()
-                    if exists:
-                        return False
-                
-                # Log it now
                 await conn.execute(
                     "INSERT INTO advisor_logs (chat_id, message_id, advice_type, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (chat_id, message_id, 'tactical', advice_content, datetime.datetime.now())
+                    (
+                        chat_id,
+                        message_id,
+                        "tactical",
+                        advice_content,
+                        datetime.datetime.now(),
+                    ),
                 )
                 await conn.commit()
-                return True
+            return True
         except Exception as e:
             logger.error(f"[ADVISOR] DB check error: {e}")
-            return True
+            return False

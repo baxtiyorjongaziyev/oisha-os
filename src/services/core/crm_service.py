@@ -1,4 +1,3 @@
-
 import logging
 from src.services.core.amocrm_sync import AmoCRMSync
 from src.services.core.airtable_sync import AirtableSync
@@ -6,17 +5,18 @@ import src.config as config
 
 logger = logging.getLogger(__name__)
 
+
 class CRMService:
     """AmoCRM va Airtable integratsiyasini birlashtirgan xizmat."""
-    
+
     def __init__(self):
         self.amocrm = AmoCRMSync(
             config.AMOCRM_SUBDOMAIN,
             config.AMOCRM_CLIENT_ID,
             config.AMOCRM_CLIENT_SECRET,
-            config.AMOCRM_REDIRECT_URL
+            config.AMOCRM_REDIRECT_URL,
         )
-        self.airtable = AirtableSync() # Config ichidan o'zi oladi
+        self.airtable = AirtableSync()  # Config ichidan o'zi oladi
 
     async def sync_lead(self, user_id: int, name: str, phone: str, **kwargs):
         """Leadni AmoCRM va Airtable-da sinxronizatsiya qilish."""
@@ -33,9 +33,13 @@ class CRMService:
                     extra_fields=kwargs.get("extra_fields"),
                 )
             elif hasattr(self.amocrm, "ensure_lead"):
-                lead_id = await self.amocrm.ensure_lead(name=name, phone=phone, note=note)
+                lead_id = await self.amocrm.ensure_lead(
+                    name=name, phone=phone, note=note
+                )
             else:
-                raise AttributeError("AmoCRM client does not expose a supported lead creation method")
+                raise AttributeError(
+                    "AmoCRM client does not expose a supported lead creation method"
+                )
 
             # 2. Airtable-da qayd etish (ixtiyoriy)
             # self.airtable.add_record(...)
@@ -57,5 +61,7 @@ class CRMService:
     def get_all_tasks(self):
         """Barcha ochiq vazifalarni olish."""
         amo_tasks = self.amocrm.get_tasks()
-        airtable_tasks = self.airtable.get_projects() # Airtable-da loyihalar vazifa sifatida
+        airtable_tasks = (
+            self.airtable.get_projects()
+        )  # Airtable-da loyihalar vazifa sifatida
         return {"amocrm": amo_tasks, "airtable": airtable_tasks}

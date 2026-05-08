@@ -43,7 +43,7 @@ export class ScoringWorker {
         .join('\n');
 
       const language = (call.language?.toLowerCase() ?? 'uz') as 'uz' | 'ru' | 'en';
-      const result = await this.scorer.score(transcript, language);
+      const result = await this.scorer.score(transcript, language, call.durationSec ?? undefined);
 
       const managerSegs = segments.filter((s) => s.speaker === 'manager');
       const customerSegs = segments.filter((s) => s.speaker === 'customer');
@@ -89,6 +89,7 @@ export class ScoringWorker {
           nextStepCommitments: result.nextStepCommitments as any,
           riskFlags: result.riskFlags,
           leadQualityScore: result.leadQualityScore,
+          predictedOutcome: result.predictedOutcome ?? null,
         },
         update: {
           overallScore: result.overallScore,
@@ -101,6 +102,7 @@ export class ScoringWorker {
             wpm: wpmMinutes > 0 ? Math.round(wpmWords / wpmMinutes) : 0,
             objectionReport: objectionReport ?? null,
           } as any,
+          predictedOutcome: result.predictedOutcome ?? null,
         },
       });
 

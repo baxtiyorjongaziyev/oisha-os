@@ -1,12 +1,12 @@
 import requests
 import logging
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+
 class CBUApi:
     """Markaziy Bank valyuta kurslari bilan ishlash uchun bepul API yordamchisi."""
-    
+
     BASE_URL = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/"
 
     @staticmethod
@@ -27,24 +27,24 @@ class CBUApi:
         rates = CBUApi.get_rates()
         if rates:
             for rate in rates:
-                if rate.get('Ccy') == 'USD':
+                if rate.get("Ccy") == "USD":
                     return {
-                        'rate': rate.get('Rate'),
-                        'diff': rate.get('Diff'),
-                        'date': rate.get('Date')
+                        "rate": rate.get("Rate"),
+                        "diff": rate.get("Diff"),
+                        "date": rate.get("Date"),
                     }
         return None
 
     @staticmethod
-    def convert_to_uzs(amount, currency='USD'):
+    def convert_to_uzs(amount, currency="USD"):
         """Miqdorni so'mga konvertatsiya qilish."""
         rates = CBUApi.get_rates()
         if rates:
             for rate in rates:
-                if rate.get('Ccy') == currency:
+                if rate.get("Ccy") == currency:
                     try:
-                        rate_val = float(rate.get('Rate'))
+                        rate_val = float(rate.get("Rate"))
                         return amount * rate_val
-                    except:
+                    except Exception:
                         return None
         return None
