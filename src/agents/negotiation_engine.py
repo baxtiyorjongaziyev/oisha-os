@@ -88,6 +88,8 @@ SUHBAT TARIXI (oxirgi 5 xabar):
 {analysis_context}
 JORIY XABAR: "{message}"
 CRM HOLATI: "{crm_status}"
+IS_GUEST: {context.get("is_guest", False)}
+IS_BOT: {context.get("is_bot", False)} (Bot-to-Bot negotiation awareness)
 
 Sening maqsading - agentga ushbu mijoz bilan AVTONOM (mustaqil) gaplashish uchun yo'riqnoma berish.
 
