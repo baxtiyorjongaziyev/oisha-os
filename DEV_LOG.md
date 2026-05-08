@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-08 14:12 UTC | ⚠️ main `90276bf`
+
+**Commit**: fix(runtime): expose API runtime context for Cloud Run
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
 ## 2026-05-08 14:01 UTC | ⚠️ main `f41e781`
 
 **Commit**: fix(ci): guard CodeQL on private repos without GHAS
