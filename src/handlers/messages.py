@@ -4,6 +4,7 @@ from typing import Optional
 from telegram import Update
 from telegram.ext import ContextTypes
 import config
+from src.services.core.telegram_ai_features import TelegramBotAPI10Client, build_text_article_result
 
 logger = logging.getLogger(__name__)
 
@@ -105,17 +106,80 @@ async def process_message_logic(
         # 6. Send Reply
         if final_text:
             if is_business:
+                # API 10: Use draft if long response
+                if len(final_text) > 200:
+                    api_client = TelegramBotAPI10Client(context.bot.token)
+                    await api_client.send_message_draft(
+                        chat_id=chat.id,
+                        draft_id=message.message_id,
+                        text="Oisha o'ylamoqda...",
+                    )
+                    await asyncio.sleep(1) # Simulate thinking
+
                 await message.reply_text(
                     final_text,
                     parse_mode="HTML",
                     business_connection_id=msg_business_connection_id,
                 )
             else:
+                # Bot-to-Bot check: if sender is a bot, add loop safeguard
+                if user.is_bot:
+                    final_text = f"🤖 [Bot-to-Bot] {final_text}"
+                
                 await message.reply_text(final_text, parse_mode="HTML")
 
     except Exception as e:
         logger.error(f"[MESSAGE_HANDLER] Error processing message: {e}")
-        # await message.reply_text("Kechirasiz, xatolik yuz berdi.")
+
+async def handle_guest_query(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    db,
+    msg_controller,
+    bot_token: str,
+) -> None:
+    """Handle Guest Mode queries."""
+    guest_query = update.guest_query
+    if not guest_query:
+        return
+
+    query_id = guest_query.id
+    text = guest_query.text
+    user = guest_query.from_user
+
+    logger.info(f"[GUEST] Received query from {user.first_name}: {text}")
+
+    try:
+        # Show 'thinking' draft if possible (API 10)
+        api_client = TelegramBotAPI10Client(bot_token)
+        
+        # Get AI Response
+        ai_response = await msg_controller.get_response(
+            user_id=user.id,
+            user_name=user.first_name,
+            message=text,
+            context={"is_guest": True, "username": user.username},
+        )
+
+        # Prepare result
+        result = build_text_article_result(ai_response, title="Oisha (AI Assistant)")
+
+        # Answer guest query
+        await api_client.answer_guest_query(query_id, result)
+        logger.info(f"[GUEST] Answered query {query_id}")
+
+    except Exception as e:
+        logger.error(f"[GUEST ERROR] {e}")
+
+async def handle_managed_bot(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Handle updates when bot is used as a managed bot."""
+    # Logic for managed bot access (e.g. tracking who is using it)
+    managed_bot = update.managed_bot
+    if managed_bot:
+        logger.info(f"[MANAGED] Bot update: {managed_bot.to_dict()}")
 
 
 async def handle_direct_message(
