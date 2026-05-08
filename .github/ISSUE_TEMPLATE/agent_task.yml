@@ -1,0 +1,39 @@
+name: AI Agent vazifasi
+description: Codex, Claude, Cursor yoki boshqa AI agentga aniq topshiriq
+title: "agent: "
+labels: ["Type: Agent Task", "Status: Ready"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Vazifa maqsadi
+      placeholder: "Agent nimani oxirigacha bajarishi kerak?"
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Chegara
+      description: Qaysi fayllar/modullar tegiladi, qaysilariga tegilmaydi?
+      placeholder: "Tegish mumkin: ...\nTegilmasin: ..."
+    validations:
+      required: true
+  - type: textarea
+    id: verify
+    attributes:
+      label: Verify rejasi
+      placeholder: "Qaysi test/command/log bilan 'bajarildi' deyamiz?"
+    validations:
+      required: true
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Majburiy qoidalar
+      options:
+        - label: User secret/tokenlarini logga chiqarmaslik
+          required: true
+        - label: Production deploy faqat health checkdan keyin
+          required: true
+        - label: Begona o'zgarishlarni revert qilmaslik
+          required: true
+
