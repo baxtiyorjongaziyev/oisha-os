@@ -472,6 +472,9 @@ jobs:
 
       - name: Ecosystem Health Check
         if: steps.rollout.outputs.final_status == 'success'
+        env:
+          OISHA_HEALTH_URL: ${{ steps.rollout.outputs.service_url }}/healthz/
+          CHECK_OPTIONAL_SERVICES: "0"
         run: |
           python scripts/health_check.py
 
