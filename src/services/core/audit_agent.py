@@ -63,6 +63,9 @@ class AuditAgent:
                 model=self.model_name
             )
             return response.text if response and response.text else "Javob bo'sh qaytdi."
+        except Exception as e:
+            logger.error(f"[AUDIT ERROR] {e}")
+            return f"❌ Audit hisobotida xatolik: {e}"
 
     async def audit_digital_pipeline(self, amocrm_sync) -> str:
         """
@@ -96,8 +99,13 @@ class AuditAgent:
             Hisobot formatini 'Eagle Mode'da (qat'iy, aniq, 'paxtasiz') tayyorlang.
             """
             
-            # ... Gemini call ...
-            return "Digital Pipeline Audit natijalari tayyorlanmoqda... (Haqiqiy tahlil kodi)"
+            from src.main import safe_ai_call
+            response = await safe_ai_call(
+                client=self.client,
+                prompt=prompt,
+                model=self.model_name
+            )
+            return response.text if response and response.text else "Gemini javob qaytarmadi."
         except Exception as e:
             logger.error(f"[PIPELINE AUDIT ERROR] {e}")
             return f"❌ Pipeline auditida xatolik: {e}"
