@@ -666,6 +666,10 @@ Products knowledge:
 
 Context:
 {context_json}
+
+Bot-to-Bot & Guest Rules:
+- Agar is_bot: True bo'lsa, suhbatdosh - boshqa bir AI agenti. Juda aniq, texnik, strukturaviy va professional gaplashing. Ortiqcha emotsiyaga berilmang, lekin hamkorlikka ochiqlikni ko'rsating.
+- Agar is_guest: True bo'lsa, bu yangi foydalanuvchi. Uni samimiy qarshilang, JonBranding imkoniyatlarini qisqa va londa tushuntiring.
 """
 
         contents = [

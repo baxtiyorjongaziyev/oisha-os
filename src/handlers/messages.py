@@ -79,6 +79,15 @@ async def process_message_logic(
         if not should_respond:
             return
 
+        # [NEW] API 10: Show draft status while AI is thinking
+        if is_business:
+            api_client = TelegramBotAPI10Client(context.bot.token if context and context.bot else config.BOT_TOKEN)
+            await api_client.send_message_draft(
+                chat_id=chat.id,
+                draft_id=message.message_id,
+                text="Oisha javob tayyorlamoqda...",
+            )
+
         # Use MessageController for agentic flow
         ai_response = await msg_controller.get_response(
             user_id=user_id,
@@ -88,6 +97,7 @@ async def process_message_logic(
                 "username": username,
                 "is_business": is_business,
                 "chat_title": chat.title,
+                "is_bot": user.is_bot,
             },
         )
 
@@ -106,16 +116,6 @@ async def process_message_logic(
         # 6. Send Reply
         if final_text:
             if is_business:
-                # API 10: Use draft if long response
-                if len(final_text) > 200:
-                    api_client = TelegramBotAPI10Client(context.bot.token)
-                    await api_client.send_message_draft(
-                        chat_id=chat.id,
-                        draft_id=message.message_id,
-                        text="Oisha o'ylamoqda...",
-                    )
-                    await asyncio.sleep(1) # Simulate thinking
-
                 await message.reply_text(
                     final_text,
                     parse_mode="HTML",
@@ -139,13 +139,13 @@ async def handle_guest_query(
     bot_token: str,
 ) -> None:
     """Handle Guest Mode queries."""
-    guest_query = update.guest_query
-    if not guest_query:
+    guest_message = update.guest_message
+    if not guest_message:
         return
 
-    query_id = guest_query.id
-    text = guest_query.text
-    user = guest_query.from_user
+    query_id = guest_message.guest_query_id
+    text = guest_message.text
+    user = guest_message.from_user
 
     logger.info(f"[GUEST] Received query from {user.first_name}: {text}")
 
@@ -176,10 +176,11 @@ async def handle_managed_bot(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
     """Handle updates when bot is used as a managed bot."""
-    # Logic for managed bot access (e.g. tracking who is using it)
     managed_bot = update.managed_bot
     if managed_bot:
-        logger.info(f"[MANAGED] Bot update: {managed_bot.to_dict()}")
+        logger.info(f"👸 [MANAGED] Bot state update received: {managed_bot.to_dict()}")
+        # Here we could update our local settings based on what the user allowed for the managed bot
+        # e.g. checking managed_bot.can_reply, managed_bot.can_read_all_group_messages
 
 
 async def handle_direct_message(
