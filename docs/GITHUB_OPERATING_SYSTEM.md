@@ -8,7 +8,7 @@ Bu repo GitHubni faqat kod saqlash uchun emas, loyiha boshqaruvi uchun ham ishla
 2. Har bir kod o'zgarishi alohida branch va `Pull Request` orqali yuradi.
 3. `Actions` test, security scan va deployni tekshiradi.
 4. `Projects` ishlarni `Backlog`, `Ready`, `In Progress`, `Review`, `Done` ustunlarida boshqaradi.
-5. `Security and quality` Dependabot, CodeQL va secret scanning orqali xavfni ko'rsatadi.
+5. `Security and quality` Dependabot va repo qo'llagan joyda CodeQL/secret scanning orqali xavfni ko'rsatadi.
 6. Stable holatlar `Release` qilib belgilanadi.
 
 ## Label standarti
@@ -37,7 +37,7 @@ Bu repo GitHubni faqat kod saqlash uchun emas, loyiha boshqaruvi uchun ham ishla
 - `Pull requests`: kod review va CI natijasi shu yerda ko'riladi.
 - `Actions`: test, deploy, security scan, userbot deploy.
 - `Projects`: ishlarni haftalik sprint bo'yicha boshqarish.
-- `Security`: Dependabot, CodeQL, secret scanning.
+- `Security`: Dependabot hozir faol. CodeQL va secret scanning private repo'da GitHub Advanced Security talab qiladi; u yoqilgach repository variable `ENABLE_CODEQL=true` qilinadi.
 - `Releases`: muhim stable versiyalar.
 - `Discussions`: katta g'oyalar va qarorlar uchun.
 - `Insights`: commit/activity va ishlash ritmini ko'rish.
