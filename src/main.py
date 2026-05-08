@@ -2317,6 +2317,7 @@ async def main():
     api_module.user_client = client
     api_module.db_instance = msg_controller.db
     api_module.msg_controller = msg_controller
+    api_module.action_parser = action_parser
 
     api_module.set_runtime_context(
         service_name=os.getenv("K_SERVICE") or "oisha-main",
@@ -2399,6 +2400,20 @@ async def main():
     if BOT_TOKEN_STR and bot_client:
         try:
             await bot_client.start(bot_token=BOT_TOKEN_STR)
+            
+            # [PHASE 1.5] Telegram Bot API 10.0 Features (Guest Mode, Business, etc.)
+            from src.services.core.telegram_ai_features import TelegramBotAPI10Client, BOT_API_10_ALLOWED_UPDATES
+            
+            tg_ai_client = TelegramBotAPI10Client(BOT_TOKEN_STR)
+            webhook_url = os.getenv("WEBHOOK_URL")
+            if webhook_url:
+                webhook_path = f"{webhook_url.rstrip('/')}/webhook/telegram"
+                logger.info(f"🤖 [BOT API 10] Setting webhook to: {webhook_path}")
+                # Set webhook in background to not block startup
+                asyncio.create_task(tg_ai_client.set_webhook(webhook_path, allowed_updates=BOT_API_10_ALLOWED_UPDATES))
+            else:
+                logger.warning("⚠️ [BOT API 10] WEBHOOK_URL not set. Guest Mode and Business features require a webhook.")
+
             if admin_bot:
                 admin_bot.user_client = client
                 await admin_bot.start()
