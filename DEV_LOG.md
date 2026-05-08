@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-08 14:42 UTC | ✅ main `2117c41`
+
+**Commit**: fix(ci): make ecosystem health check production-aware
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00246-puh
+
+---
+
 ## 2026-05-08 14:31 UTC | ✅ main `474a009`
 
 **Commit**: fix(ci): stabilize Cloud Run health gate
