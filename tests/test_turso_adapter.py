@@ -171,3 +171,21 @@ async def test_api_exposes_health_aliases():
 
     assert "/health" in paths
     assert "/healthz" in paths
+
+
+async def test_api_exposes_runtime_context_setter():
+    from src import api_server
+
+    previous = api_server.get_runtime_context()
+    try:
+        updated = api_server.set_runtime_context(
+            service_name="test-service",
+            scheduler_mode="control-plane",
+            userbot_authorized=False,
+        )
+    finally:
+        api_server.set_runtime_context(**previous)
+
+    assert updated["service_name"] == "test-service"
+    assert updated["scheduler_mode"] == "control-plane"
+    assert updated["userbot_authorized"] is False
