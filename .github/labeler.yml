@@ -1,0 +1,35 @@
+"Proj: DevOps":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "deploy/**"
+          - "Dockerfile"
+          - "cloudbuild.yaml"
+          - "scripts/**"
+"Proj: Telegram":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/services/core/*telegram*"
+          - "src/services/core/*juma*"
+          - "src/main.py"
+"Proj: CRM":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/services/core/*crm*"
+          - "src/services/core/*amocrm*"
+          - "src/agents/**"
+"Proj: Airtable":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/services/core/*airtable*"
+          - "tests/test_airtable*"
+"Proj: SalesCoach":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "salescoach-ai/**"
+          - "apps/**"
+          - "packages/**"
+"Type: Test":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "tests/**"
