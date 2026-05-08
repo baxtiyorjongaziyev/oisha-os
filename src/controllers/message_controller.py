@@ -113,21 +113,31 @@ class MessageController:
         if not message:
             return ""
 
-        # 1. CRM dan user haqida ma'lumot olish (agar tel bo'lsa)
-        user_info = await self.db.get_user_info(user_id)
+        # 1. CRM dan user haqida ma'lumot olish (agar tel bo'lsa va mehmon bo'lmasa)
         crm_status = "Yangi mijoz"
-        phone = user_info.get("phone") if user_info else None
+        phone = None
+        user_info = {}
 
-        if phone:
-            crm_status = await self.crm.get_user_context(phone)
+        if not context.get("is_guest"):
+            user_info = await self.db.get_user_info(user_id) or {}
+            phone = user_info.get("phone")
+            if phone:
+                crm_status = await self.crm.get_user_context(phone)
+        else:
+            crm_status = "Mehmon (Guest Mode)"
+            logger.info(f"👸 [GUEST] Skipping CRM lookup for guest: {user_id}")
+
+        # Bot-to-Bot negotiation awareness
+        if context.get("is_bot"):
+            crm_status = "🤖 Agent (Bot-to-Bot)"
+            logger.info(f"👸 [BOT-TO-BOT] Autonomous negotiation detected with uid: {user_id}")
 
         context["crm_status"] = crm_status
         context["user_name"] = user_name
         context["phone"] = phone
-        context["user_profile"] = user_info or {}
-        if user_info:
-            context["service_type"] = user_info.get("service_type")
-            context["business_type"] = user_info.get("business_type")
+        context["user_profile"] = user_info
+        context["service_type"] = user_info.get("service_type")
+        context["business_type"] = user_info.get("business_type")
 
         # 2. Tarixni olish (NegotiationEngine va Intent uchun)
         recent_history = await self.db.get_recent_messages(user_id, limit=5)
