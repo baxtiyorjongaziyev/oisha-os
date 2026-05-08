@@ -5,7 +5,7 @@ import json
 from datetime import datetime, timezone
 import logging
 import os
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
@@ -21,6 +21,14 @@ from src.services.core.agent_runtime import (
     set_runtime_context,
 )
 from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.telegram_ai_features import (
+    TelegramBotAPI10Client,
+    build_live_feature_status,
+    build_offline_feature_status,
+    build_text_article_result,
+    classify_update,
+    extract_guest_message_context,
+)
 from src.agents.autonomous_sales_agent import AutonomousSalesAgent
 from src.settings import settings
 from src.time_utils import get_local_now
@@ -51,6 +59,10 @@ def _setting_text(value: Any) -> str:
     if callable(getter):
         value = getter()
     return str(value).lstrip("\ufeff").strip()
+
+
+def _secret_setting_text(value: Any) -> str:
+    return _setting_text(value)
 
 
 # Mount Static Files
@@ -222,6 +234,141 @@ async def liveness_probe():
             "timestamp": get_local_now().isoformat(),
         },
     )
+
+
+@app.get("/api/telegram/ai-features")
+async def telegram_ai_features(live: bool = False):
+    """Bot API 10.0 feature readiness for Oisha.
+
+    Offline mode shows code readiness. live=true also calls Telegram getMe to
+    reveal which BotFather-side features are actually enabled for the bot.
+    """
+    token = _secret_setting_text(settings.BOT_TOKEN)
+    payload = build_offline_feature_status()
+    payload["configured"] = {
+        "bot_token": bool(token),
+        "webhook_secret": bool(_secret_setting_text(settings.TELEGRAM_WEBHOOK_SECRET)),
+        "guest_mode_env": settings.TELEGRAM_AI_GUEST_MODE_ENABLED,
+        "streaming_env": settings.TELEGRAM_AI_STREAMING_ENABLED,
+        "bot_to_bot_env": settings.TELEGRAM_BOT_TO_BOT_ENABLED,
+        "managed_bots_env": settings.TELEGRAM_MANAGED_BOTS_ENABLED,
+        "mini_app_url": bool(settings.TELEGRAM_MINI_APP_URL),
+    }
+
+    if not live:
+        payload["live"] = None
+        return payload
+
+    if not token:
+        payload["live"] = {"ok": False, "reason": "BOT_TOKEN missing"}
+        return JSONResponse(status_code=503, content=payload)
+
+    client = TelegramBotAPI10Client(token)
+    try:
+        me = await client.get_me()
+        webhook_info = await client.get_webhook_info()
+        payload["live"] = {
+            "ok": True,
+            "capabilities": build_live_feature_status(me),
+            "webhook": {
+                "url_set": bool(webhook_info.get("url")),
+                "pending_update_count": webhook_info.get("pending_update_count"),
+                "allowed_updates": webhook_info.get("allowed_updates"),
+                "last_error_message": webhook_info.get("last_error_message"),
+            },
+        }
+        return payload
+    except Exception as exc:
+        logger.warning("[TELEGRAM AI] live feature probe failed: %s", exc)
+        payload["live"] = {"ok": False, "reason": str(exc)}
+        return JSONResponse(status_code=503, content=payload)
+
+
+@app.post("/webhook/telegram-ai")
+async def telegram_ai_webhook(request: Request):
+    """Webhook endpoint for Bot API 10.0 AI features.
+
+    Supports guest_message immediately. Other update kinds are acknowledged
+    and surfaced in logs so enabling new BotFather features does not crash the
+    production webhook while we progressively attach business flows.
+    """
+    expected_secret = _secret_setting_text(settings.TELEGRAM_WEBHOOK_SECRET)
+    received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not expected_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="TELEGRAM_WEBHOOK_SECRET is required before enabling this webhook",
+        )
+    if not hmac.compare_digest(expected_secret, received_secret):
+        raise HTTPException(status_code=403, detail="Invalid Telegram webhook secret")
+
+    update = await request.json()
+    if not isinstance(update, dict):
+        raise HTTPException(status_code=400, detail="Invalid Telegram update payload")
+
+    update_type = classify_update(update)
+    if update_type != "guest_message":
+        logger.info("[TELEGRAM AI] accepted update type=%s", update_type)
+        return {"ok": True, "handled": False, "update_type": update_type}
+
+    guest_ctx = extract_guest_message_context(update)
+    if not guest_ctx:
+        return {
+            "ok": True,
+            "handled": False,
+            "update_type": "guest_message",
+            "reason": "missing_guest_query_id",
+        }
+
+    if not settings.TELEGRAM_AI_GUEST_MODE_ENABLED:
+        return {
+            "ok": True,
+            "handled": False,
+            "update_type": "guest_message",
+            "reason": "guest_mode_disabled_by_env",
+        }
+
+    token = _secret_setting_text(settings.BOT_TOKEN)
+    if not token or msg_controller is None:
+        return {
+            "ok": True,
+            "handled": False,
+            "update_type": "guest_message",
+            "reason": "bot_token_or_controller_not_ready",
+        }
+
+    caller_user = guest_ctx.caller_user or {}
+    caller_id = int(caller_user.get("id") or 0)
+    caller_name = str(caller_user.get("first_name") or "Telegram foydalanuvchi")
+    response_text = await msg_controller.get_response(
+        user_id=caller_id,
+        user_name=caller_name,
+        message=guest_ctx.text,
+        context={
+            "source": "telegram_guest_mode",
+            "update_id": guest_ctx.update_id,
+            "guest_query_id": guest_ctx.guest_query_id,
+            "caller_user": guest_ctx.caller_user,
+            "caller_chat": guest_ctx.caller_chat,
+        },
+    )
+
+    if not response_text:
+        response_text = "Oisha savolni qabul qildi, lekin hozir aniq javob shakllanmadi."
+
+    result = build_text_article_result(
+        response_text,
+        title="Oisha javobi",
+        description="Jon Branding AI agent javobi",
+    )
+    client = TelegramBotAPI10Client(token)
+    sent = await client.answer_guest_query(guest_ctx.guest_query_id, result)
+    return {
+        "ok": True,
+        "handled": True,
+        "update_type": "guest_message",
+        "sent_guest_message": sent,
+    }
 
 
 # Global references
