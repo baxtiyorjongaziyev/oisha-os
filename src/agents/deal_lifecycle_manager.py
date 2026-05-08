@@ -109,14 +109,19 @@ class Deal:
 class DealLifecycleManager:
     """
     Bitim lifecycle boshqaruvchisi - to'liq pipeline orchestration
+
+    send_fn: optional async callable(user_id: str, text: str) injected from
+             SurgicalNegotiator so stale-detection can dispatch re-engagement
+             messages back through the full agent pipeline.
     """
 
-    def __init__(self):
+    def __init__(self, send_fn: Optional[Callable] = None):
         self.deals: Dict[str, Deal] = {}
         self.stage_handlers: Dict[DealStage, List[Callable]] = {
             stage: [] for stage in DealStage
         }
         self.automation_rules: List[Dict] = []
+        self.send_fn = send_fn  # async (user_id: str, text: str) -> None
 
         # Default automation rules
         self._setup_default_rules()
@@ -299,42 +304,72 @@ class DealLifecycleManager:
         return None
 
     async def _action_revival(self, deal: Deal) -> Dict:
-        """Eski lead'ni qayta jonlantirish"""
+        """Eski lead'ni qayta jonlantirish — sends message via send_fn if available."""
         deal.notes.append(f"[{datetime.now().isoformat()}] Revival message scheduled")
+        content = "Sizga yuborgan ma'lumotlar yetib bordimi? Qanday savollaringiz bor?"
+        await self._dispatch(deal.user_id, content)
         return {
             "type": "message",
-            "content": "Sizga yuborgan ma'lumotlar yetib bordimi? Qanday savollaringiz bor?",
+            "content": content,
             "priority": "medium",
+            "dispatched": self.send_fn is not None,
         }
 
     async def _action_proposal_reminder(self, deal: Deal) -> Dict:
         """Taklif eslatmasi"""
+        content = (
+            f"Taklifimiz bo'yicha savollaringiz bormi? "
+            f"{deal.service_type} loyihasi qiziqtirayaptimi?"
+        )
+        await self._dispatch(deal.user_id, content)
         return {
             "type": "message",
-            "content": f"Taklifimiz bo'yicha savollaringiz bormi? {deal.service_type} loyihasi qiziqtirayaptimi?",
+            "content": content,
             "priority": "high",
+            "dispatched": self.send_fn is not None,
         }
 
     async def _action_urgency(self, deal: Deal) -> Dict:
         """Shoshilish yaratish"""
+        content = "Cheklangan vaqtli taklif: 10% chegirma agar shu hafta boshlasangiz"
+        await self._dispatch(deal.user_id, content)
         return {
             "type": "offer",
-            "content": "Cheklangan vaqtli taklif: 10% chegirma agar shu hafta boshlasangiz",
+            "content": content,
             "priority": "high",
+            "dispatched": self.send_fn is not None,
         }
 
     async def _action_prepare_contract(self, deal: Deal) -> Dict:
         """Shartnoma tayyorlash"""
+        content = f"Shartnoma tayyor: {deal.service_type} - ${deal.value}"
+        await self._dispatch(deal.user_id, content)
         return {
             "type": "contract",
-            "content": f"Shartnoma tayyor: {deal.service_type} - ${deal.value}",
+            "content": content,
             "priority": "urgent",
+            "dispatched": self.send_fn is not None,
             "metadata": {
                 "service": deal.service_type,
                 "value": deal.value,
                 "user_id": deal.user_id,
             },
         }
+
+    async def _dispatch(self, user_id: str, text: str) -> None:
+        """Send a re-engagement message via the injected send_fn, if available."""
+        if self.send_fn is None:
+            return
+        try:
+            if asyncio.iscoroutinefunction(self.send_fn):
+                await self.send_fn(user_id, text)
+            else:
+                self.send_fn(user_id, text)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"[DealLifecycleManager] _dispatch failed for {user_id}: {exc}"
+            )
 
     def get_pipeline_stats(self) -> Dict[str, Any]:
         """Pipeline statistikasi"""
