@@ -356,17 +356,58 @@ jobs:
               --filter "metadata.labels.commit-sha=${GITHUB_SHA}" \
               --limit 1 \
               --format='value(metadata.name)' 2>/dev/null || true)"
-            FAILURE_REASON="$(extract_failure_reason "${REVISION}" "${DEPLOY_OUTPUT}")"
-            write_outputs
-            exit 0
+            if [[ -z "${REVISION}" ]]; then
+              FAILURE_REASON="$(extract_failure_reason "${REVISION}" "${DEPLOY_OUTPUT}")"
+              write_outputs
+              exit 0
+            fi
+
+            READY_STATUS="$(gcloud run revisions describe "${REVISION}" \
+              --region "${REGION}" \
+              --project "${PROJECT_ID}" \
+              --format='value(status.conditions[0].status)' 2>/dev/null || true)"
+            if [[ "${READY_STATUS}" != "True" ]]; then
+              FAILURE_REASON="$(extract_failure_reason "${REVISION}" "${DEPLOY_OUTPUT}")"
+              write_outputs
+              exit 0
+            fi
+
+            # gcloud can return non-zero after creating a ready revision. Recover
+            # by attaching the candidate tag, then continue with smoke checks.
+            TAG_RECOVERY_OUTPUT="$(gcloud run services update-traffic "${SERVICE_NAME}" \
+              --region "${REGION}" \
+              --project "${PROJECT_ID}" \
+              --update-tags "${CANDIDATE_TAG}=${REVISION}" \
+              --quiet 2>&1)"
+            TAG_RECOVERY_RC=$?
+            if [[ ${TAG_RECOVERY_RC} -ne 0 ]]; then
+              FAILURE_REASON="candidate tag recovery failed: $(echo "${TAG_RECOVERY_OUTPUT}" | tr '\n' ' ' | cut -c1-500)"
+              write_outputs
+              exit 0
+            fi
           fi
 
           read_service_state
 
           if [[ -z "${CANDIDATE_URL}" ]]; then
-            FAILURE_REASON="candidate revision URL not found"
-            write_outputs
-            exit 0
+            TAG_RECOVERY_OUTPUT="$(gcloud run services update-traffic "${SERVICE_NAME}" \
+              --region "${REGION}" \
+              --project "${PROJECT_ID}" \
+              --update-tags "${CANDIDATE_TAG}=${REVISION}" \
+              --quiet 2>&1)"
+            TAG_RECOVERY_RC=$?
+            if [[ ${TAG_RECOVERY_RC} -eq 0 ]]; then
+              read_service_state
+            fi
+
+            if [[ -z "${CANDIDATE_URL}" ]]; then
+              FAILURE_REASON="candidate revision URL not found"
+              if [[ ${TAG_RECOVERY_RC} -ne 0 ]]; then
+                FAILURE_REASON="${FAILURE_REASON}: $(echo "${TAG_RECOVERY_OUTPUT}" | tr '\n' ' ' | cut -c1-300)"
+              fi
+              write_outputs
+              exit 0
+            fi
           fi
 
           READY_STATUS="$(gcloud run revisions describe "${REVISION}" \
