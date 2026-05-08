@@ -8,6 +8,10 @@ from telegram import Bot
 
 from src.services.core.airtable_sync import AirtableSync
 from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.telegram_ai_features import (
+    TelegramBotAPI10Client,
+    build_text_article_result,
+)
 from src.services.core.tool_registry import ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -17,7 +21,9 @@ class TelegramNotificationAdapter:
     tool_name = "telegram"
 
     def __init__(self, bot_token: str, default_parse_mode: str = "HTML"):
+        self.bot_token = bot_token
         self.bot = Bot(token=bot_token)
+        self.bot_api10 = TelegramBotAPI10Client(bot_token)
         self.default_parse_mode = default_parse_mode
 
     async def send_group_message(
@@ -109,6 +115,113 @@ class TelegramNotificationAdapter:
             reason=None if success else "all_direct_messages_failed",
             metadata={"attempted": attempted},
         )
+
+    async def stream_direct_message(
+        self,
+        chat_id: int,
+        final_text: str,
+        *,
+        draft_id: int,
+        draft_text: str = "",
+        thread_id: Optional[int] = None,
+        parse_mode: Optional[str] = None,
+    ) -> ToolResult:
+        """Show a temporary Bot API 10.0 draft, then persist the final message."""
+        try:
+            await self.bot_api10.send_message_draft(
+                chat_id,
+                draft_id,
+                text=draft_text,
+                message_thread_id=thread_id,
+                parse_mode=parse_mode or self.default_parse_mode,
+            )
+            message = await self.bot_api10.finalize_streamed_message(
+                chat_id,
+                final_text,
+                message_thread_id=thread_id,
+                parse_mode=parse_mode or self.default_parse_mode,
+            )
+            return ToolResult(
+                tool_name="telegram.streaming_message",
+                success=True,
+                sent_count=1,
+                direct_message_ids=[int(message.get("message_id", 0))],
+                metadata={"chat_id": chat_id, "thread_id": thread_id, "draft_id": draft_id},
+            )
+        except Exception as exc:
+            logger.warning("[TELEGRAM TOOL] Streaming send failed: %s", exc)
+            return ToolResult(
+                tool_name="telegram.streaming_message",
+                success=False,
+                status="failed",
+                reason=str(exc),
+                failed_targets=[{"chat_id": chat_id, "error": str(exc)}],
+                metadata={"chat_id": chat_id, "thread_id": thread_id, "draft_id": draft_id},
+            )
+
+    async def answer_guest_query(
+        self,
+        guest_query_id: str,
+        text: str,
+        *,
+        title: str = "Oisha javobi",
+        parse_mode: str = "HTML",
+    ) -> ToolResult:
+        try:
+            result = build_text_article_result(text, title=title, parse_mode=parse_mode)
+            sent = await self.bot_api10.answer_guest_query(guest_query_id, result)
+            return ToolResult(
+                tool_name="telegram.guest_query",
+                success=True,
+                sent_count=1,
+                direct_message_ids=[],
+                metadata={
+                    "guest_query_id": guest_query_id,
+                    "inline_message_id": sent.get("inline_message_id"),
+                },
+            )
+        except Exception as exc:
+            logger.warning("[TELEGRAM TOOL] Guest query answer failed: %s", exc)
+            return ToolResult(
+                tool_name="telegram.guest_query",
+                success=False,
+                status="failed",
+                reason=str(exc),
+                metadata={"guest_query_id": guest_query_id},
+            )
+
+    async def send_bot_to_bot_message(
+        self,
+        bot_username: str,
+        text: str,
+        *,
+        business_connection_id: Optional[str] = None,
+        parse_mode: Optional[str] = None,
+    ) -> ToolResult:
+        try:
+            message = await self.bot_api10.send_to_bot(
+                bot_username,
+                text,
+                business_connection_id=business_connection_id,
+                parse_mode=parse_mode or self.default_parse_mode,
+            )
+            return ToolResult(
+                tool_name="telegram.bot_to_bot",
+                success=True,
+                sent_count=1,
+                group_message_id=message.get("message_id"),
+                metadata={"bot_username": bot_username},
+            )
+        except Exception as exc:
+            logger.warning("[TELEGRAM TOOL] Bot-to-bot send failed: %s", exc)
+            return ToolResult(
+                tool_name="telegram.bot_to_bot",
+                success=False,
+                status="failed",
+                reason=str(exc),
+                failed_targets=[{"bot_username": bot_username, "error": str(exc)}],
+                metadata={"bot_username": bot_username},
+            )
 
 
 class AmoCRMLeadAdapter:
