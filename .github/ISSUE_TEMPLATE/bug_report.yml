@@ -1,0 +1,45 @@
+name: Xatolik
+description: Ishlamayotgan, sinayotgan yoki noto'g'ri natija berayotgan holat
+title: "bug: "
+labels: ["Type: Bug", "Status: Triage"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Muammo nima?
+      description: Qisqa va aniq yozing.
+      placeholder: "Masalan: Kirim topicda tabrik yubormayapti..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Kutilgan natija
+      placeholder: "Nima bo'lishi kerak edi?"
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Hozirgi natija
+      placeholder: "Aslida nima bo'lyapti?"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Dalil
+      description: Log, screenshot, Telegram xabar, workflow link yoki commit SHA.
+      placeholder: "Log yoki link..."
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Muhimlik
+      options:
+        - "Prio: Critical"
+        - "Prio: High"
+        - "Prio: Medium"
+        - "Prio: Low"
+    validations:
+      required: true
+
