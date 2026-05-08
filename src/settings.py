@@ -46,6 +46,7 @@ class AppSettings(BaseSettings):
     AMOCRM_CLIENT_ID: str = ""
     AMOCRM_CLIENT_SECRET: Optional[SecretStr] = None
     AMOCRM_REDIRECT_URL: str = "https://localhost"
+    AMOCRM_CRON_SECRET: Optional[SecretStr] = None
     AIRTABLE_API_KEY: Optional[SecretStr] = None
     AIRTABLE_BASE_ID: Optional[str] = None
     DATABASE_URL: str = Field(default="bot_database.db")
@@ -167,6 +168,7 @@ class AppSettings(BaseSettings):
             "TOPIC_KIRIM_ID",
             "GSHEET_ID",
             "GDRIVE_OFFLOAD_FOLDER_ID",
+            "AMOCRM_CRON_SECRET",
         }
         for key in optional_keys:
             if data.get(key) == "":
