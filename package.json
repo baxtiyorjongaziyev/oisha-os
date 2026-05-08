@@ -19,7 +19,7 @@
     "eslint-config-next": "^15.5.15",
     "globals": "^16.5.0",
     "prettier": "^3.6.2",
-    "turbo": "^2.6.1",
+    "turbo": "^2.9.10",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4"
   }
