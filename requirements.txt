@@ -31,3 +31,4 @@ tenacity
 beautifulsoup4
 pytz
 psutil
+google-cloud-firestore

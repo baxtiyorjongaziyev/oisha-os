@@ -6,6 +6,12 @@ import requests  # type: ignore
 from typing import Optional, Dict, Any, List
 from functools import wraps
 
+try:
+    from google.cloud import firestore
+    HAS_FIRESTORE = True
+except ImportError:
+    HAS_FIRESTORE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,12 +69,37 @@ class AmoCRMSync:
         self.access_token: Optional[str] = None
         self.token_data: Dict[str, Any] = {}
         self.last_error: Optional[str] = None
+        
+        self.db = None
+        if HAS_FIRESTORE:
+            try:
+                self.db = firestore.Client()
+                logger.info("[AMOCRM] Firestore client initialized.")
+            except Exception as e:
+                logger.warning(f"[AMOCRM] Firestore init failed: {e}")
 
         # Security: Masked log for safety
         logger.info(f"[AMOCRM INIT] Subdomain: {subdomain}")
+        self._load_token()
 
     def _load_token(self):
-        """Tokenni fayldan o'qish."""
+        """Tokenni Firestore'dan yoki fayldan o'qish."""
+        # 1. Firestore'dan o'qish (ustuvor)
+        if self.db:
+            try:
+                doc_ref = self.db.collection("amocrm").document("tokens")
+                doc = doc_ref.get()
+                if doc.exists:
+                    data = doc.to_dict()
+                    if data and data.get("access_token"):
+                        self.token_data = data
+                        self.access_token = str(data.get("access_token"))
+                        logger.info("[AMOCRM] Token loaded from Firestore.")
+                        return
+            except Exception as e:
+                logger.warning(f"[AMOCRM] Firestore load error: {e}")
+
+        # 2. Environment variable'dan o'qish
         env_token_json = os.environ.get("AMOCRM_TOKEN_JSON")
         if env_token_json:
             try:
@@ -85,7 +116,14 @@ class AmoCRMSync:
                 self.last_error = "token_env_parse_failed"
                 logger.error(f"[AMOCRM] Env token parse xatosi: {type(e).__name__}")
 
-        if os.path.exists(self.token_file):
+        # 3. Raw Refresh Token fallback (for first deploy)
+        raw_refresh = os.environ.get("AMOCRM_REFRESH_TOKEN")
+        if raw_refresh and not self.token_data:
+            logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
+            self.token_data = {"refresh_token": raw_refresh}
+            # Note: access_token is still None, so it will trigger refresh on first use
+
+        if os.path.exists(self.token_file) and not self.token_data:
             for encoding in ("utf-8-sig", "utf-16"):
                 try:
                     with open(self.token_file, "r", encoding=encoding) as f:
@@ -106,7 +144,17 @@ class AmoCRMSync:
                     return
 
     def _save_token(self, token_data):
-        """Tokenni faylga saqlash."""
+        """Tokenni Firestore va faylga saqlash."""
+        # 1. Firestore'ga saqlash
+        if self.db:
+            try:
+                doc_ref = self.db.collection("amocrm").document("tokens")
+                doc_ref.set(token_data)
+                logger.info("[AMOCRM] Token saved to Firestore.")
+            except Exception as e:
+                logger.error(f"[AMOCRM] Firestore save error: {e}")
+
+        # 2. Faylga saqlash (backup)
         try:
             with open(self.token_file, "w") as f:
                 json.dump(token_data, f)
@@ -137,7 +185,10 @@ class AmoCRMSync:
                 response = requests.post(url, data=data, timeout=30)
 
             if response.status_code == 200:
-                self._save_token(response.json())
+                resp_data = response.json()
+                if "expires_in" in resp_data:
+                    resp_data["expires_at"] = int(time.time()) + resp_data["expires_in"]
+                self._save_token(resp_data)
                 self.last_error = None
                 logger.info("[AMOCRM OK] Access token refreshed successfully.")
                 return True
@@ -175,7 +226,10 @@ class AmoCRMSync:
         try:
             response = requests.post(url, data=data)
             if response.status_code == 200:
-                self._save_token(response.json())
+                resp_data = response.json()
+                if "expires_in" in resp_data:
+                    resp_data["expires_at"] = int(time.time()) + resp_data["expires_in"]
+                self._save_token(resp_data)
                 logger.info("[AMOCRM OK] Dastlabki avtorizatsiya muvaffaqiyatli.")
                 return True
             else:
@@ -242,11 +296,26 @@ class AmoCRMSync:
             return False
 
     def _get_headers(self):
+        """API so'rovlari uchun headerlarni tayyorlash va token muddatini tekshirish."""
+        # 1. Token muddatini tekshirish
+        expires_at = self.token_data.get("expires_at")
+        now = int(time.time())
+        
+        # Agar token yo'q yoki muddati tugayotgan bo'lsa (60 soniya qolganida)
+        needs_refresh = False
+        if not self.access_token:
+            needs_refresh = True
+        elif expires_at and now > int(expires_at) - 60:
+            needs_refresh = True
+            
+        if needs_refresh and self.token_data.get("refresh_token"):
+            logger.info("[AMOCRM] Token expired or missing, refreshing...")
+            self.refresh_token()
+
         token = str(self.access_token or "")
         if not token:
-            logger.warning(
-                "[AMOCRM] Access token is missing, requests will likely fail."
-            )
+            logger.warning("[AMOCRM] Access token is missing, requests will likely fail.")
+            
         return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
     @retry_with_backoff(max_retries=3, initial_delay=1)
