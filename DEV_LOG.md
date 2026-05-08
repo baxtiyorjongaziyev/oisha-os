@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-08 14:01 UTC | ⚠️ main `f41e781`
+
+**Commit**: fix(ci): guard CodeQL on private repos without GHAS
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
 ## 2026-05-07 14:53 UTC | ⚠️ main `21f2bf5`
 
 **Commit**: ci: pin appleboy/ssh-action to commit SHA for reproducibility
