@@ -18,6 +18,7 @@ from src.services.core.agent_runtime import (
     collect_legacy_runtime_inventory,
     get_runtime_context,
     get_storage_health,
+    set_runtime_context,
 )
 from src.services.core.amocrm_sync import AmoCRMSync
 from src.agents.autonomous_sales_agent import AutonomousSalesAgent
@@ -229,7 +230,7 @@ audit_agent = None
 amocrm_instance = None
 
 # [HEALTHZ] Liveness heartbeat — main event loop updates this via mark_heartbeat().
-# Deploy smoke checks read /health; if heartbeat is stale, the probe fails
+# Deploy smoke checks read /healthz; if heartbeat is stale, the probe fails
 # and the container is restarted (recovering from event-loop deadlocks).
 _last_heartbeat_at: Optional[datetime] = None
 _boot_at: datetime = datetime.now(timezone.utc)
