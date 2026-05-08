@@ -42,6 +42,7 @@ logger = logging.getLogger("OishaAPI")
 user_client = None
 db_instance = None
 msg_controller = None
+action_parser = None
 
 # Health check cache
 cached_status = {"status": "initializing", "timestamp": datetime.now(timezone.utc).isoformat()}
@@ -1393,6 +1394,70 @@ async def openclaw_health():
     }
 
 
+        "os": "Windows",
+    }
+
+# ─── TELEGRAM BOT API 10.0 WEBHOOK ──────────────────────────────────────────
+
+@app.post("/webhook/telegram")
+async def telegram_webhook(request: Request):
+    """
+    Telegram Bot API 10.0 Webhook.
+    Handles Guest Mode, Business Messages, and other new AI features.
+    """
+    try:
+        data = await request.json()
+        update_type = classify_update(data)
+        
+        logger.info(f"🤖 [Telegram Webhook] Received update type: {update_type}")
+        
+        # We process this in background to avoid Telegram timeout
+        asyncio.create_task(process_telegram_update(data, update_type))
+        
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"❌ [Telegram Webhook] Error: {e}")
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(e)})
+
+async def process_telegram_update(update: Dict[str, Any], update_type: str):
+    """Processes the telegram update using appropriate handlers."""
+    from src.handlers.messages import handle_guest_query, handle_business_message, handle_business_connection
+    from telegram import Update
+    
+    # Simple mapping of raw update to PTB-like Update object if possible
+    # or just use raw data for our custom handlers
+    
+    try:
+        # We need the bot token for some API calls inside handlers
+        bot_token = os.environ.get("BOT_TOKEN") or settings.BOT_TOKEN.get_secret_value()
+        
+        if update_type == "guest_query":
+            # Guest mode handling
+            # We wrap it in a pseudo-Update object for our handlers if they expect it
+            # or just call directly
+            from telegram import Update, Bot
+            bot = Bot(token=bot_token)
+            ptb_update = Update.de_json(update, bot)
+            await handle_guest_query(ptb_update, None, db_instance, msg_controller, bot_token)
+            
+        elif update_type == "business_message":
+            from telegram import Update, Bot
+            bot = Bot(token=bot_token)
+            ptb_update = Update.de_json(update, bot)
+            await handle_business_message(ptb_update, None, db_instance, action_parser, msg_controller)
+            
+        elif update_type == "business_connection":
+            from telegram import Update, Bot
+            bot = Bot(token=bot_token)
+            ptb_update = Update.de_json(update, bot)
+            # Simple global dict for connections
+            business_connections = {} 
+            await handle_business_connection(ptb_update, None, business_connections)
+            
+        # Add other types as needed
+        
+    except Exception as e:
+        logger.error(f"❌ [Telegram Process] Error: {e}", exc_info=True)
 @app.get("/api/system/info")
 async def get_system_info():
     """Tizim haqida umumiy ma'lumot."""
@@ -1401,6 +1466,7 @@ async def get_system_info():
         "version": "2.1.0",
         "agent_count": 8,
         "active_modules": ["NightShift", "OSINT", "CRM_Sync", "Advisor", "Audit"],
+        "status": "active"
     }
 
 
