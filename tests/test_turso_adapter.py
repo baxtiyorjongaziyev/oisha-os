@@ -171,6 +171,7 @@ async def test_api_exposes_health_aliases():
 
     assert "/health" in paths
     assert "/healthz" in paths
+    assert "/healthz/" in paths
 
 
 async def test_api_exposes_runtime_context_setter():
