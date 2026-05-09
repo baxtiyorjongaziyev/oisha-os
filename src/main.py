@@ -2092,7 +2092,46 @@ async def main():
     print("🚀 Oisha-OS Tizimi tayyorlanmoqda (Dual-Head Architecture)...")
 
     # [STABILITY] Start health-check early so Cloud Run readiness probes pass during heavy initialization.
+    async def command_processor():
+        """Processes commands from the API Server (e.g. sending messages)."""
+        logger.info("👷 [COMMANDS] API Command Processor started.")
+        import src.api_server as api_module
+        while True:
+            try:
+                # Use wait_for to check for shutdown periodically
+                item = await api_module.command_queue.get()
+                cmd = item.get("cmd")
+                logger.info(f"👷 [COMMANDS] Received: {cmd}")
+
+                if cmd == "send_message":
+                    u_id = item.get("user_id")
+                    txt = item.get("text")
+                    model = item.get("model", "gemini-3-flash")
+                    
+                    if client:
+                        try:
+                            # We can also use advisor_agent to get an AI reply if desired,
+                            # but here we just send the raw text from the widget.
+                            await client.send_message(u_id, txt)
+                            logger.info(f"✅ [COMMANDS] Message sent to {u_id}")
+                            # Also log it to DB so it shows in history
+                            await msg_controller.db.log_message(u_id, txt, is_ai=True)
+                        except Exception as e:
+                            logger.error(f"❌ [COMMANDS] Failed to send msg to {u_id}: {e}")
+                
+                elif cmd == "audit":
+                    if audit_agent:
+                        # Start background audit
+                        asyncio.create_task(audit_agent.run_full_audit())
+                        logger.info("🕵️ [COMMANDS] Full audit triggered.")
+
+                api_module.command_queue.task_done()
+            except Exception as e:
+                logger.error(f"❌ [COMMANDS] Processor error: {e}")
+                await asyncio.sleep(1)
+
     asyncio.create_task(run_health_check_api(), name="health_check_api")
+    asyncio.create_task(command_processor(), name="command_processor")
 
     _restore_cloud_artifacts()
 

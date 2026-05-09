@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
-import queue
+import asyncio
 from collections import Counter, defaultdict
 from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
@@ -413,7 +413,7 @@ def mark_heartbeat() -> None:
 
 
 # --- COMMAND QUEUE (Shared with Main Thread) ---
-command_queue = queue.Queue()
+command_queue = asyncio.Queue()
 
 # --- DASHBOARD CACHE ---
 cached_status: Dict[str, Any] = {
@@ -1073,9 +1073,10 @@ class CreateLeadRequest(BaseModel):
 
 
 class SendMessageRequest(BaseModel):
-    user_id: int
+    user_id: Any
     text: str
     secret_key: str
+    model: Optional[str] = "gemini-3-flash"
 
 
 @asynccontextmanager
@@ -1129,8 +1130,13 @@ async def send_chat_message(request: SendMessageRequest):
         return {"error": "Unauthorized"}
 
     # Push to queue for Main Thread execution
-    command_queue.put(
-        {"cmd": "send_message", "user_id": request.user_id, "text": request.text}
+    command_queue.put_nowait(
+        {
+            "cmd": "send_message",
+            "user_id": request.user_id,
+            "text": request.text,
+            "model": request.model,
+        }
     )
 
     return {"status": "success", "message": "Xabar navbatga qo'yildi"}
@@ -1498,7 +1504,7 @@ async def get_system_info():
 async def trigger_intelligence_audit():
     """Dashboarddan auditni ishga tushirish (Queued)."""
     # Push to queue for Main Thread execution
-    command_queue.put({"cmd": "audit", "timestamp": datetime.now().isoformat()})
+    command_queue.put_nowait({"cmd": "audit", "timestamp": datetime.now().isoformat()})
 
     return {
         "status": "success",
