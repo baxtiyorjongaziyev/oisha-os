@@ -12,7 +12,7 @@ export enum NegotiationContext {
 export class NegotiateDto {
   @ApiProperty({ description: 'Customer message or transcript excerpt' })
   @IsString()
-  message: string;
+  message!: string;
 
   @ApiPropertyOptional({ description: 'Conversation history (last 5 turns)' })
   @IsArray()
@@ -43,7 +43,7 @@ export class NegotiateDto {
 export class RealtimeSuggestionDto {
   @ApiProperty({ description: 'Live transcript text from the ongoing call' })
   @IsString()
-  message: string;
+  message!: string;
 
   @ApiPropertyOptional()
   @IsString()
