@@ -37,21 +37,31 @@ export class ScoringWorker {
         prisma.call.findUniqueOrThrow({ where: { id: callId } }),
         prisma.transcriptSegment.findMany({ where: { callId }, orderBy: { seq: 'asc' } }),
       ]);
+      type TranscriptSegment = (typeof segments)[number];
 
       const transcript = segments
-        .map((s) => `[${s.speaker.toUpperCase()}] ${s.text}`)
+        .map((s: TranscriptSegment) => `[${s.speaker.toUpperCase()}] ${s.text}`)
         .join('\n');
 
       const language = (call.language?.toLowerCase() ?? 'uz') as 'uz' | 'ru' | 'en';
       const result = await this.scorer.score(transcript, language, call.durationSec ?? undefined);
 
-      const managerSegs = segments.filter((s) => s.speaker === 'manager');
-      const customerSegs = segments.filter((s) => s.speaker === 'customer');
+      const managerSegs = segments.filter((s: TranscriptSegment) => s.speaker === 'manager');
+      const customerSegs = segments.filter((s: TranscriptSegment) => s.speaker === 'customer');
       const totalDuration = call.durationSec ?? 1;
-      const managerDuration = managerSegs.reduce((acc, s) => acc + (s.end - s.start), 0);
-      const customerDuration = customerSegs.reduce((acc, s) => acc + (s.end - s.start), 0);
+      const managerDuration = managerSegs.reduce(
+        (acc: number, s: TranscriptSegment) => acc + (s.end - s.start),
+        0,
+      );
+      const customerDuration = customerSegs.reduce(
+        (acc: number, s: TranscriptSegment) => acc + (s.end - s.start),
+        0,
+      );
 
-      const wpmWords = managerSegs.reduce((acc, s) => acc + s.text.split(' ').length, 0);
+      const wpmWords = managerSegs.reduce(
+        (acc: number, s: TranscriptSegment) => acc + s.text.split(' ').length,
+        0,
+      );
       const wpmMinutes = managerDuration / 60;
 
       // Objection analysis (non-blocking — runs in parallel with upsert)
@@ -59,7 +69,7 @@ export class ScoringWorker {
         .analyze(
           callId,
           transcript,
-          segments.map((s) => ({ speaker: s.speaker, text: s.text, start: s.start })),
+          segments.map((s: TranscriptSegment) => ({ speaker: s.speaker, text: s.text, start: s.start })),
           language,
         )
         .catch((err) => {
