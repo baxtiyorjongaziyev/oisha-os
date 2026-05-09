@@ -111,6 +111,7 @@ export default function CallDetailPage({ params }: { params: Promise<{ id: strin
       }, 4000);
       return () => clearTimeout(t);
     }
+    return undefined;
   }, [call, id]);
 
   /* WebSocket coaching */
