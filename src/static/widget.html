@@ -3,21 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oisha Chat Bridge</title>
+    <title>Oisha AI Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #bb86fc;
-            --bg: #121212;
-            --surface: #1e1e1e;
-            --bubble-in: #2c2c2c;
-            --bubble-out: #3700b3;
-            --text: #e0e0e0;
-            --glass: rgba(255, 255, 255, 0.05);
+            --primary: #8B5CF6;
+            --primary-glow: rgba(139, 92, 246, 0.5);
+            --bg: #0F172A;
+            --surface: rgba(30, 41, 59, 0.7);
+            --bubble-in: rgba(51, 65, 85, 0.5);
+            --bubble-out: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);
+            --text: #F8FAFC;
+            --text-dim: #94A3B8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            transition: all 0.2s ease;
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Outfit', sans-serif;
             background: var(--bg);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.15) 0px, transparent 50%);
             color: var(--text);
             margin: 0;
             padding: 0;
@@ -28,23 +41,58 @@
         }
 
         .header {
-            padding: 15px;
+            padding: 16px 20px;
             background: var(--surface);
-            border-bottom: 1px solid var(--glass);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--glass-border);
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: space-between;
+            z-index: 10;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
         .avatar {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(45deg, #bb86fc, #6200ee);
-            border-radius: 50%;
+            width: 42px;
+            height: 42px;
+            background: var(--bubble-out);
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
+            font-weight: 600;
+            box-shadow: 0 4px 12px var(--primary-glow);
+            font-size: 18px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #10B981;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 4px;
+            box-shadow: 0 0 8px #10B981;
+        }
+
+        .model-selector {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--glass-border);
+            color: var(--text);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .model-selector:hover {
+            border-color: var(--primary);
         }
 
         #chat-window {
@@ -53,163 +101,280 @@
             padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            scrollbar-width: thin;
+            gap: 16px;
+            scroll-behavior: smooth;
+        }
+
+        #chat-window::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        #chat-window::-webkit-scrollbar-thumb {
+            background: var(--glass-border);
+            border-radius: 10px;
         }
 
         .bubble {
-            max-width: 80%;
-            padding: 10px 14px;
-            border-radius: 18px;
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 16px;
             font-size: 14px;
-            line-height: 1.4;
+            line-height: 1.5;
             position: relative;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .bubble.in {
             align-self: flex-start;
             background: var(--bubble-in);
             border-bottom-left-radius: 4px;
+            border: 1px solid var(--glass-border);
         }
 
         .bubble.out {
             align-self: flex-end;
             background: var(--bubble-out);
             border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
         }
 
         .input-area {
-            padding: 15px;
+            padding: 20px;
             background: var(--surface);
+            backdrop-filter: blur(12px);
             display: flex;
-            gap: 10px;
-            border-top: 1px solid var(--glass);
+            gap: 12px;
+            border-top: 1px solid var(--glass-border);
+            align-items: center;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
         }
 
         input {
-            flex: 1;
-            background: var(--bg);
-            border: 1px solid var(--glass);
-            border-radius: 20px;
-            padding: 10px 15px;
+            width: 100%;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 12px 16px;
             color: white;
             outline: none;
+            font-family: inherit;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--primary-glow);
         }
 
         button {
             background: var(--primary);
             border: none;
-            color: black;
-            padding: 8px 18px;
-            border-radius: 20px;
-            font-weight: bold;
+            color: white;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
             cursor: pointer;
-            transition: transform 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            background: #7C3AED;
         }
 
         button:active {
             transform: scale(0.95);
         }
 
-        .loading {
+        .loading-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            gap: 16px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--glass-border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-msg {
+            color: #EF4444;
+            font-size: 13px;
             text-align: center;
-            color: #666;
-            margin-top: 50px;
+            padding: 20px;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="avatar">O</div>
-        <div>
-            <div id="user-name" style="font-weight: bold;">Loading...</div>
-            <div style="font-size: 12px; color: #888;">Telegram Bridge</div>
+        <div class="user-info">
+            <div class="avatar">O</div>
+            <div>
+                <div id="user-name" style="font-weight: 600; font-size: 15px;">Yuklanmoqda...</div>
+                <div style="font-size: 11px; color: var(--text-dim);">
+                    <span class="status-dot"></span>Online • AI Assistant
+                </div>
+            </div>
         </div>
+        <select id="model-select" class="model-selector">
+            <option value="gemini-3-flash">Gemini 3 Flash</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            <option value="oisha-core">Oisha Core</option>
+        </select>
     </div>
 
     <div id="chat-window">
-        <div class="loading">Suhbat yuklanmoqda...</div>
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <div>Suhbat yuklanmoqda...</div>
+        </div>
     </div>
 
     <div class="input-area">
-        <input type="text" id="msg-input" placeholder="Xabar yuboring..." onkeypress="if(event.key==='Enter') sendMessage()">
-        <button onclick="sendMessage()">Yuborish</button>
+        <div class="input-wrapper">
+            <input type="text" id="msg-input" placeholder="Xabar yuboring..." autocomplete="off">
+        </div>
+        <button id="send-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+        </button>
     </div>
 
     <script>
-        const API_BASE = ""; // Same host
-        const SECRET = "oisha_safe_123"; // In production, this comes from AmoCRM settings
+        const API_BASE = window.location.origin; 
+        const SECRET = "oisha_safe_123";
         let currentUserId = null;
+        let isTyping = false;
 
-        // 1. Get Params from URL
         const urlParams = new URLSearchParams(window.location.search);
         const userPhone = urlParams.get('phone');
         const amoContactId = urlParams.get('contact_id');
 
+        const chatWindow = document.getElementById('chat-window');
+        const msgInput = document.getElementById('msg-input');
+        const sendBtn = document.getElementById('send-btn');
+        const modelSelect = document.getElementById('model-select');
+
         async function initChat() {
             if (!userPhone) {
-                document.getElementById('chat-window').innerHTML = '<div class="loading">Telefon raqami topilmadi.</div>';
+                chatWindow.innerHTML = '<div class="error-msg">Telefon raqami topilmadi. Widgetni AmoCRM orqali oching.</div>';
+                document.getElementById('user-name').innerText = "Xatolik";
                 return;
             }
 
-            // Lookup Telegram ID
-            const res = await fetch(`${API_BASE}/api/chat/lookup/${userPhone}?secret_key=${SECRET}`);
-            const data = await res.json();
-            
-            if (data.status === 'found') {
-                currentUserId = data.user_id;
-                document.getElementById('user-name').innerText = `ID: ${currentUserId}`;
-                loadHistory();
-                setInterval(loadHistory, 5000); // Poll every 5s
-            } else {
-                document.getElementById('chat-window').innerHTML = 
-                    '<div class="loading">Ushbu mijoz Telegramda topilmadi yoki hali muloqot qilmagan.</div>';
+            try {
+                const res = await fetch(`${API_BASE}/api/chat/lookup/${userPhone}?secret_key=${SECRET}`);
+                const data = await res.json();
+                
+                if (data.status === 'found') {
+                    currentUserId = data.user_id;
+                    document.getElementById('user-name').innerText = `Mijoz ID: ${currentUserId}`;
+                    await loadHistory();
+                    setInterval(loadHistory, 5000);
+                } else {
+                    chatWindow.innerHTML = `
+                        <div class="loading-container" style="text-align: center;">
+                            <div style="font-size: 40px; margin-bottom: 10px;">👋</div>
+                            <div style="font-weight: 600;">Yangi mijoz</div>
+                            <div style="font-size: 13px; max-width: 200px;">Ushbu raqam bilan hali muloqot qilinmagan. Birinchi xabarni yuboring.</div>
+                        </div>`;
+                    document.getElementById('user-name').innerText = "Yangi suhbat";
+                    currentUserId = userPhone; // Fallback to phone as ID for first message
+                }
+            } catch (err) {
+                chatWindow.innerHTML = '<div class="error-msg">Server bilan bog\'lanib bo\'lmadi.</div>';
             }
         }
 
         async function loadHistory() {
-            if (!currentUserId) return;
-            const res = await fetch(`${API_BASE}/api/chat/history/${currentUserId}?secret_key=${SECRET}`);
-            const data = await res.json();
-            
-            const window = document.getElementById('chat-window');
-            window.innerHTML = '';
-            
-            if (data.history) {
-                data.history.forEach(msg => {
-                    const bubble = document.createElement('div');
-                    bubble.className = `bubble ${msg.role === 'model' ? 'out' : 'in'}`;
-                    bubble.innerText = msg.parts[0].text;
-                    window.appendChild(bubble);
-                });
-                window.scrollTop = window.scrollHeight;
+            if (!currentUserId || isTyping) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/chat/history/${currentUserId}?secret_key=${SECRET}`);
+                const data = await res.json();
+                
+                if (data.history) {
+                    renderMessages(data.history);
+                }
+            } catch (err) {
+                console.error("History load error:", err);
+            }
+        }
+
+        function renderMessages(history) {
+            const currentScroll = chatWindow.scrollTop + chatWindow.clientHeight;
+            const isAtBottom = currentScroll >= chatWindow.scrollHeight - 50;
+
+            chatWindow.innerHTML = '';
+            history.forEach(msg => {
+                const bubble = document.createElement('div');
+                bubble.className = `bubble ${msg.role === 'model' ? 'in' : 'out'}`;
+                bubble.innerText = msg.parts[0].text;
+                chatWindow.appendChild(bubble);
+            });
+
+            if (isAtBottom) {
+                chatWindow.scrollTop = chatWindow.scrollHeight;
             }
         }
 
         async function sendMessage() {
-            const input = document.getElementById('msg-input');
-            const text = input.value.trim();
+            const text = msgInput.value.trim();
             if (!text || !currentUserId) return;
 
-            input.value = '';
+            msgInput.value = '';
+            
             // Optimistic Update
-            const window = document.getElementById('chat-window');
             const bubble = document.createElement('div');
             bubble.className = 'bubble out';
             bubble.innerText = text;
-            window.appendChild(bubble);
-            window.scrollTop = window.scrollHeight;
+            chatWindow.appendChild(bubble);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
 
-            const res = await fetch(`${API_BASE}/api/chat/send`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_id: currentUserId,
-                    text: text,
-                    secret_key: SECRET
-                })
-            });
+            try {
+                await fetch(`${API_BASE}/api/chat/send`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        text: text,
+                        model: modelSelect.value,
+                        secret_key: SECRET
+                    })
+                });
+            } catch (err) {
+                console.error("Send error:", err);
+            }
         }
+
+        sendBtn.addEventListener('click', sendMessage);
+        msgInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
 
         initChat();
     </script>
