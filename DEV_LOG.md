@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-09 11:58 UTC | ✅ main `5cf6290`
+
+**Commit**: fix(ci): restore installable dependency ranges
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00280-kis
+
+---
+
 ## 2026-05-09 11:47 UTC | 🔴 main `5afd8e8`
 
 **Commit**: fix(security): resolve dependency alerts
