@@ -25,6 +25,10 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
           
+      - name: Security scan
+        run: |
+          bandit -r src/ -ll -x src/services/debug/ --quiet
+          
       - name: Run tests with coverage
         run: |
           pytest --cov=src --cov-report=xml
