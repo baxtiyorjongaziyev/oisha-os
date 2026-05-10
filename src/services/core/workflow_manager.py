@@ -37,9 +37,9 @@ class WorkflowManager:
             return
 
         for lead in leads:
-            lead_id = lead.get("id")
+            lead.get("id")
             pipeline_id = lead.get("pipeline_id")
-            current_responsible = lead.get("responsible_user_id")
+            lead.get("responsible_user_id")
 
             target_role = self.PIPELINE_ROLE_MAP.get(pipeline_id)
             if not target_role:
@@ -114,7 +114,7 @@ class WorkflowManager:
 
         for record in records:
             fields = record.get("fields", {})
-            record_id = record.get("id")
+            record.get("id")
             project_name = (
                 fields.get("Project Name") or fields.get("Loyiha nomi") or "Unknown"
             )

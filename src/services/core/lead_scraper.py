@@ -302,7 +302,6 @@ class LeadScraper:
                         )
 
                     # 2. Telegram Contacts (High-Reliability Force Sync)
-                    tg_status = "skipped"
                     try:
                         from telethon import types
 
@@ -318,10 +317,9 @@ class LeadScraper:
                         logger.info(
                             f"[MASS SYNC] Telegramga majburiy qo'shildi: {contact_full_name}"
                         )
-                        tg_status = "success"
                     except Exception as tg_ex:
                         logger.warning(f"[MASS SYNC] TG xatosi: {tg_ex}")
-                        tg_status = f"error: {str(tg_ex)[:50]}"
+                        f"error: {str(tg_ex)[:50]}"
 
                     # 3. AmoCRM Lead
                     if self.amocrm:
