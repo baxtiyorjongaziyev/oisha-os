@@ -46,6 +46,7 @@ class MessageController:
             gcalendar=self.google.calendar,
             gsheet=self.google.sheets,
             amocrm=self.crm.amocrm,  # Corrected parameter name
+            gdrive=self.google.drive,
             bot_app=None,  # Will be set via set_bot_app
             config=config,
         )
