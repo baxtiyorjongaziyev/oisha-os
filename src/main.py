@@ -2143,6 +2143,18 @@ async def main():
             if settings.DEEPSEEK_API_KEY
             else None
         ),
+        "aws_access_key": (
+            settings.AWS_ACCESS_KEY_ID.get_secret_value()
+            if settings.AWS_ACCESS_KEY_ID
+            else None
+        ),
+        "aws_secret_key": (
+            settings.AWS_SECRET_ACCESS_KEY.get_secret_value()
+            if settings.AWS_SECRET_ACCESS_KEY
+            else None
+        ),
+        "aws_region": settings.AWS_REGION,
+        "bedrock_model_id": settings.BEDROCK_MODEL_ID,
     }
 
     # [AUDIT: RESTORATION] Centralized DB instance for global consistency
