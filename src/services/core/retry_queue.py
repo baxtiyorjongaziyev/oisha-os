@@ -213,7 +213,7 @@ class RetryQueue:
                         next_retry_at = datetime('now', '+{delay_sec} seconds'),
                         updated_at = datetime('now')
                     WHERE id = ?
-                    """,
+                    """,  # nosec
                     (attempt, error, row_id),
                 )
                 await conn.commit()

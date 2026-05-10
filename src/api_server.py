@@ -17,6 +17,7 @@ from src.services.core.agent_runtime import (
     collect_legacy_runtime_inventory,
     get_runtime_context,
     get_storage_health,
+    set_runtime_context,
 )
 from src.services.core.amocrm_sync import AmoCRMSync
 from src.services.core.telegram_ai_features import (
