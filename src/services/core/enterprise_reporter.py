@@ -199,7 +199,7 @@ class EnterpriseReporter:
                             urgent_projects.append(
                                 f"{proj_name} ({diff.days} kun o'tdi)"
                             )
-                    except:
+                    except (ValueError, TypeError, KeyError):
                         continue
 
             if overdue:
@@ -315,7 +315,7 @@ class EnterpriseReporter:
         all_leads: List[Dict] = []
         for page in [1, 2]:
             url = f"{self.crm.amocrm.base_url}/api/v4/leads?limit=100&page={page}"
-            resp = requests.get(url, headers=self.crm.amocrm._get_headers())
+            resp = requests.get(url, headers=self.crm.amocrm._get_headers(), timeout=30)
             if resp.status_code == 200:
                 page_leads = resp.json().get("_embedded", {}).get("leads", [])
                 all_leads.extend(page_leads)
@@ -381,6 +381,7 @@ class EnterpriseReporter:
             un_resp = requests.get(
                 f"{self.crm.amocrm.base_url}/api/v4/leads/unsorted",
                 headers=self.crm.amocrm._get_headers(),
+                timeout=30,
             )
             if un_resp.status_code == 200:
                 unsorted_count = len(
@@ -471,7 +472,7 @@ class EnterpriseReporter:
                 report.append("\n🧹 **JUNK LEADS (BEKORCHI):**")
                 report.append(f"• Jami shubhali sdelkalar: **{len(junk_leads)} ta**")
                 report.append("  _(Batafsil ko'rish uchun: `/junk_audit`)_")
-        except:
+        except Exception:
             pass
 
         # 7. Accountability (Managers) - FIXED
