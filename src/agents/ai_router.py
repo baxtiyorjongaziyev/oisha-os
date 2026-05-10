@@ -514,12 +514,14 @@ async def get_daily_summary(date: Optional[str] = None) -> Dict[str, Any]:
 
         db = Database()
         async with db.get_conn() as conn:
-            where = (
-                "DATE(created_at) = DATE('now')"
-                if not date
-                else f"DATE(created_at) = '{date}'"
-            )
-            cursor = await conn.execute(f"""
+            if not date:
+                where_clause = "DATE(created_at) = DATE('now')"
+                params: tuple = ()
+            else:
+                where_clause = "DATE(created_at) = ?"
+                params = (date,)
+            cursor = await conn.execute(
+                f"""
                 SELECT
                   COUNT(*) AS calls,
                   SUM(tokens_in) AS tok_in,
@@ -528,14 +530,19 @@ async def get_daily_summary(date: Optional[str] = None) -> Dict[str, Any]:
                   AVG(latency_ms) AS lat,
                   SUM(CASE WHEN success=1 THEN 1 ELSE 0 END) AS ok,
                   SUM(CASE WHEN success=0 THEN 1 ELSE 0 END) AS fail
-                FROM ai_usage WHERE {where}
-            """)
+                FROM ai_usage WHERE {where_clause}
+            """,  # nosec
+                params,
+            )
             row = await cursor.fetchone()
-            cursor2 = await conn.execute(f"""
+            cursor2 = await conn.execute(
+                f"""
                 SELECT model, COUNT(*) AS c, SUM(cost_usd) AS cost_sum
-                FROM ai_usage WHERE {where}
+                FROM ai_usage WHERE {where_clause}
                 GROUP BY model ORDER BY c DESC
-            """)
+            """,  # nosec
+                params,
+            )
             by_model = [
                 {"model": r[0], "calls": r[1], "cost_usd": r[2]} async for r in cursor2
             ]
