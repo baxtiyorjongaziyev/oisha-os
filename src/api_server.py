@@ -9,7 +9,6 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
-import asyncio
 from collections import Counter, defaultdict
 from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
@@ -18,7 +17,6 @@ from src.services.core.agent_runtime import (
     collect_legacy_runtime_inventory,
     get_runtime_context,
     get_storage_health,
-    set_runtime_context,
 )
 from src.services.core.amocrm_sync import AmoCRMSync
 from src.services.core.telegram_ai_features import (
@@ -38,6 +36,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("OishaAPI")
 
 # Global Bridges
+command_queue = asyncio.Queue()
+outgoing_messages = asyncio.Queue()
 user_client = None
 db_instance = None
 msg_controller = None
@@ -412,8 +412,6 @@ def mark_heartbeat() -> None:
     _last_heartbeat_at = datetime.now(timezone.utc)
 
 
-# --- COMMAND QUEUE (Shared with Main Thread) ---
-command_queue = asyncio.Queue()
 
 # --- DASHBOARD CACHE ---
 cached_status: Dict[str, Any] = {
@@ -440,8 +438,6 @@ system_activities: List[Dict[str, Any]] = [
 
 legacy_runtime_inventory_cache: Optional[List[Dict[str, Any]]] = None
 
-# --- WAZZUP BRIDGE (Outgoing Messages Queue) ---
-outgoing_messages = asyncio.Queue()
 
 
 def add_activity(action: str, details: str = "", type: str = "info"):
