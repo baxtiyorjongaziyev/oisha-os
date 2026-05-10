@@ -224,7 +224,7 @@ class AmoCRMSync:
         }
 
         try:
-            response = requests.post(url, data=data)
+            response = requests.post(url, data=data, timeout=30)
             if response.status_code == 200:
                 resp_data = response.json()
                 if "expires_in" in resp_data:
@@ -251,7 +251,7 @@ class AmoCRMSync:
         success_count = 0
         for lid in lead_ids:
             try:
-                resp = requests.delete(f"{url}/{lid}", headers=headers)
+                resp = requests.delete(f"{url}/{lid}", headers=headers, timeout=30)
                 if resp.status_code in [200, 204]:
                     success_count += 1
             except Exception as e:
@@ -261,7 +261,7 @@ class AmoCRMSync:
     async def get_account_status(self):
         """Akkaunt limitlarini tekshirish."""
         url = f"{self.base_url}/api/v4/account"
-        resp = requests.get(url, headers=self._get_headers())
+        resp = requests.get(url, headers=self._get_headers(), timeout=30)
         if resp.status_code == 200:
             return resp.json()
         return None
@@ -347,7 +347,7 @@ class AmoCRMSync:
         data = [lead_entry]
 
         try:
-            response = requests.post(url, headers=self._get_headers(), json=data)
+            response = requests.post(url, headers=self._get_headers(), json=data, timeout=30)
             if response.status_code == 200:
                 result = response.json()
                 return result.get("_embedded", {}).get("leads", [{}])[0].get("id")
@@ -367,7 +367,7 @@ class AmoCRMSync:
                                 f"🆘 **AMOCRM CRITICAL: 403 Forbidden**\n\n{err_msg}",
                             )
                         )
-                except:
+                except Exception:
                     pass
             elif response.status_code == 401:
                 logger.warning("[AMOCRM 401] Token expired. Attempting refresh...")
@@ -397,7 +397,7 @@ class AmoCRMSync:
             }
         ]
         try:
-            response = requests.post(url, headers=self._get_headers(), json=data)
+            response = requests.post(url, headers=self._get_headers(), json=data, timeout=30)
             if response.status_code in [200, 201]:
                 return (
                     response.json()
@@ -440,7 +440,7 @@ class AmoCRMSync:
                 }
             ]
 
-            response = requests.post(url, headers=self._get_headers(), json=lead_data)
+            response = requests.post(url, headers=self._get_headers(), json=lead_data, timeout=30)
             if response.status_code in [200, 201]:
                 lead_id = (
                     response.json().get("_embedded", {}).get("leads", [{}])[0].get("id")
@@ -474,7 +474,7 @@ class AmoCRMSync:
         params = {"query": clean_phone}
 
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
             if response.status_code == 200:
                 contacts = response.json().get("_embedded", {}).get("contacts", [])
                 if contacts:
@@ -482,7 +482,7 @@ class AmoCRMSync:
 
             # Ikkinchi marta qisqa raqam bilan qidirish (agar birinchi marta topilmasa)
             params = {"query": short_phone}
-            response = requests.get(url, headers=self._get_headers(), params=params)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
             if response.status_code == 200:
                 contacts = response.json().get("_embedded", {}).get("contacts", [])
                 if contacts:
@@ -501,7 +501,7 @@ class AmoCRMSync:
         params = {"with": "leads"}
 
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
             if response.status_code == 200:
                 leads_refs = response.json().get("_embedded", {}).get("leads", [])
                 if not leads_refs:
@@ -512,7 +512,7 @@ class AmoCRMSync:
                     l_id = ref.get("id")
                     # Bitim statusini tekshirish
                     l_url = f"{self.base_url}/api/v4/leads/{l_id}"
-                    l_resp = requests.get(l_url, headers=self._get_headers())
+                    l_resp = requests.get(l_url, headers=self._get_headers(), timeout=30)
                     if l_resp.status_code == 200:
                         lead = l_resp.json()
                         # 142 (Won) va 143 (Lost) bo'lmagan barcha statuslar AKTIV hisoblanadi
@@ -532,7 +532,7 @@ class AmoCRMSync:
         url = f"{self.base_url}/api/v4/contacts"
         params = {"query": phone}
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
             if response.status_code == 200:
                 data = response.json()
                 if not data:
@@ -544,7 +544,7 @@ class AmoCRMSync:
                     if leads:
                         lead_id = leads[0].get("id")
                         lead_url = f"{self.base_url}/api/v4/leads/{lead_id}"
-                        lead_resp = requests.get(lead_url, headers=self._get_headers())
+                        lead_resp = requests.get(lead_url, headers=self._get_headers(), timeout=30)
                         if lead_resp.status_code == 200:
                             return lead_resp.json()
             return None
@@ -613,12 +613,12 @@ class AmoCRMSync:
             params["filter[status]"] = status_id
 
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
             if response.status_code == 401:
                 if self.refresh_token():
                     response = requests.get(
-                        url, headers=self._get_headers(), params=params
-                    )
+                        url, headers=self._get_headers(), params=params,
+                        timeout=30)
 
             if response.status_code == 200:
                 data = response.json()
@@ -653,9 +653,9 @@ class AmoCRMSync:
         data = [task_payload]
 
         try:
-            response = requests.post(url, headers=self._get_headers(), json=data)
+            response = requests.post(url, headers=self._get_headers(), json=data, timeout=30)
             if response.status_code == 401 and self.refresh_token():
-                response = requests.post(url, headers=self._get_headers(), json=data)
+                response = requests.post(url, headers=self._get_headers(), json=data, timeout=30)
             if response.status_code == 201:
                 self.last_error = None
                 logger.info(f"[AMOCRM OK] Vazifa yaratildi: {element_id}")
@@ -676,7 +676,7 @@ class AmoCRMSync:
         params = {"filter[is_completed]": 1 if is_completed else 0}
 
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
             if response.status_code == 200:
                 data = response.json()
                 return data.get("_embedded", {}).get("tasks", [])
@@ -695,12 +695,12 @@ class AmoCRMSync:
         params = {"limit": min(limit, 50)}
 
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
             if response.status_code == 401:
                 if self.refresh_token():
                     response = requests.get(
-                        url, headers=self._get_headers(), params=params
-                    )
+                        url, headers=self._get_headers(), params=params,
+                        timeout=30)
                 else:
                     self.last_error = "amocrm_unauthorized"
                     return []
@@ -730,9 +730,9 @@ class AmoCRMSync:
             self._load_token()
         url = f"{self.base_url}/api/v4/leads/{lead_id}"
         try:
-            response = requests.get(url, headers=self._get_headers())
+            response = requests.get(url, headers=self._get_headers(), timeout=30)
             if response.status_code == 401 and self.refresh_token():
-                response = requests.get(url, headers=self._get_headers())
+                response = requests.get(url, headers=self._get_headers(), timeout=30)
             if response.status_code == 200:
                 return response.json()
             logger.warning(
@@ -753,9 +753,9 @@ class AmoCRMSync:
             data["pipeline_id"] = pipeline_id
 
         try:
-            response = requests.patch(url, headers=self._get_headers(), json=data)
+            response = requests.patch(url, headers=self._get_headers(), json=data, timeout=30)
             if response.status_code == 401 and self.refresh_token():
-                response = requests.patch(url, headers=self._get_headers(), json=data)
+                response = requests.patch(url, headers=self._get_headers(), json=data, timeout=30)
             if response.status_code == 200:
                 self.last_error = None
                 logger.info(
@@ -786,7 +786,7 @@ class AmoCRMSync:
 
         data = {"custom_fields_values": custom_fields}
         try:
-            response = requests.patch(url, headers=self._get_headers(), json=data)
+            response = requests.patch(url, headers=self._get_headers(), json=data, timeout=30)
             if response.status_code == 200:
                 logger.info(f"[AMOCRM OK] Custom fields yangilandi: {lead_id}")
                 return True
@@ -801,7 +801,7 @@ class AmoCRMSync:
         data = {"_embedded": {"tags": [{"name": tag_name}]}}
 
         try:
-            response = requests.patch(url, headers=self._get_headers(), json=data)
+            response = requests.patch(url, headers=self._get_headers(), json=data, timeout=30)
             if response.status_code == 200:
                 logger.info(f"[AMOCRM OK] Teg qo'shildi: {lead_id} -> {tag_name}")
                 return True
@@ -816,7 +816,7 @@ class AmoCRMSync:
         params = {"limit": limit, "order[updated_at]": "desc"}
 
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
             if response.status_code == 200:
                 return response.json().get("_embedded", {}).get("leads", [])
             return []
@@ -830,7 +830,7 @@ class AmoCRMSync:
         params = {"with": "contacts"}
 
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
             if response.status_code == 200:
                 contacts = response.json().get("_embedded", {}).get("contacts", [])
                 if not contacts:
@@ -839,7 +839,7 @@ class AmoCRMSync:
                 # Kontakt ID orqali telefonni olish
                 contact_id = contacts[0].get("id")
                 c_url = f"{self.base_url}/api/v4/contacts/{contact_id}"
-                c_resp = requests.get(c_url, headers=self._get_headers())
+                c_resp = requests.get(c_url, headers=self._get_headers(), timeout=30)
                 if c_resp.status_code == 200:
                     fields = c_resp.json().get("custom_fields_values", [])
                     for field in fields:
@@ -860,7 +860,7 @@ class AmoCRMSync:
         data = {"responsible_user_id": int(responsible_user_id)}
 
         try:
-            response = requests.patch(url, headers=headers, json=data)
+            response = requests.patch(url, headers=headers, json=data, timeout=30)
             if response.status_code == 200:
                 logger.info(
                     f"[AMOCRM UPDATE] Lead {lead_id} assigned to user {responsible_user_id}"
@@ -882,7 +882,7 @@ class AmoCRMSync:
 
         url = f"{self.base_url}/api/v4/users/{user_id}"
         try:
-            response = requests.get(url, headers=self._get_headers())
+            response = requests.get(url, headers=self._get_headers(), timeout=30)
             if response.status_code == 200:
                 user_data = response.json()
                 return user_data.get("name", "Sotuv menejeri")
@@ -900,7 +900,7 @@ class AmoCRMSync:
         headers = self._get_headers()
 
         try:
-            resp = requests.get(search_url, headers=headers, params=params)
+            resp = requests.get(search_url, headers=headers, params=params, timeout=30)
             if resp.status_code == 200:
                 contacts = resp.json().get("_embedded", {}).get("contacts", [])
                 if not contacts:
@@ -916,7 +916,7 @@ class AmoCRMSync:
                         }
                     ]
                 }
-                upd_resp = requests.patch(update_url, headers=headers, json=data)
+                upd_resp = requests.patch(update_url, headers=headers, json=data, timeout=30)
                 return upd_resp.status_code == 200
             return False
         except Exception as e:
@@ -942,9 +942,9 @@ class AmoCRMSync:
         data = [{"note_type": "common", "params": {"text": text}}]
 
         try:
-            response = requests.post(url, headers=self._get_headers(), json=data)
+            response = requests.post(url, headers=self._get_headers(), json=data, timeout=30)
             if response.status_code == 401 and self.refresh_token():
-                response = requests.post(url, headers=self._get_headers(), json=data)
+                response = requests.post(url, headers=self._get_headers(), json=data, timeout=30)
             if response.status_code in [200, 201]:
                 self.last_error = None
                 logger.info(f"[AMOCRM OK] {entity_type} {entity_id} ga izoh qo'shildi.")
@@ -965,10 +965,10 @@ class AmoCRMSync:
         self._load_token()
         url = f"{self.base_url}/api/v4/leads/{lead_id}/notes"
         try:
-            response = requests.get(url, headers=self._get_headers())
+            response = requests.get(url, headers=self._get_headers(), timeout=30)
             if response.status_code == 401:
                 if self.refresh_token():
-                    response = requests.get(url, headers=self._get_headers())
+                    response = requests.get(url, headers=self._get_headers(), timeout=30)
                 else:
                     self.last_error = "amocrm_unauthorized"
                     return []
@@ -988,7 +988,7 @@ class AmoCRMSync:
         self._load_token()
         url = f"{self.base_url}/api/v4/{entity_type}/{entity_id}/notes/{note_id}"
         try:
-            response = requests.delete(url, headers=self._get_headers())
+            response = requests.delete(url, headers=self._get_headers(), timeout=30)
             return response.status_code in [200, 204]
         except Exception as e:
             logger.error(f"[AMOCRM DELETE NOTE ERROR] {e}")
@@ -1003,14 +1003,14 @@ class AmoCRMSync:
 
         try:
             # 1. Metadatasini olish (download link uchun)
-            resp = requests.get(url, headers=headers)
+            resp = requests.get(url, headers=headers, timeout=30)
             if resp.status_code == 200:
                 file_data = resp.json()
                 download_url = file_data.get("download_url")
 
                 if download_url:
                     # 2. Haqiqiy faylni yuklab olish
-                    file_resp = requests.get(download_url, headers=headers)
+                    file_resp = requests.get(download_url, headers=headers, timeout=30)
                     if file_resp.status_code == 200:
                         return file_resp.content
 
@@ -1037,7 +1037,7 @@ class AmoCRMSync:
         }
 
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params)
+            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
             total_sum = 0
             count = 0
             if response.status_code == 200:
@@ -1064,10 +1064,10 @@ class AmoCRMSync:
         # Barcha ochiq (Won yoki Lost bo'lmagan) bitimlarni olamiz
         # Buning uchun barchaOpen status idlarni filtrlash kerak yoki oddiygina barchasini olib tahlil qilamiz
         try:
-            response = requests.get(url, headers=self._get_headers())
+            response = requests.get(url, headers=self._get_headers(), timeout=30)
             if response.status_code == 401:
                 if self.refresh_token():
-                    response = requests.get(url, headers=self._get_headers())
+                    response = requests.get(url, headers=self._get_headers(), timeout=30)
                 else:
                     self.last_error = "amocrm_unauthorized"
                     return []
