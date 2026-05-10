@@ -144,7 +144,7 @@ class GoogleContactsSync:
                         }
                     ]
 
-            result = self.service.people().createContact(body=contact_body).execute()
+            self.service.people().createContact(body=contact_body).execute()
             logger.info(
                 f"[GCONTACTS OK] Kontakt yaratildi: {first_name} {last_name} ({len(phone_entries)} ta raqam)"
             )

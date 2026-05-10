@@ -52,7 +52,8 @@ class NightShiftService:
             try:
                 now = datetime.datetime.now()
                 # 2 daqiqalik oyna: soat 01:00:00–01:01:59 oralig'ida bir marta ishlaydi (o'tkazib yubormaslik)
-                slot_ok = lambda h, m: now.hour == h and m <= now.minute < m + 2
+                def slot_ok(h, m):
+                    return now.hour == h and m <= now.minute < m + 2
 
                 # 00:00 - Historical Backlog Sync (1 Year History)
                 if slot_ok(0, 0) and self._should_run_once_today("history_sync", now):
