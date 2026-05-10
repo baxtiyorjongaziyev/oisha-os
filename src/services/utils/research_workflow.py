@@ -14,7 +14,7 @@ def research():
     headers = amocrm._get_headers()
 
     # 1. Pipelines
-    p_resp = requests.get(f"{amocrm.base_url}/api/v4/leads/pipelines", headers=headers)
+    p_resp = requests.get(f"{amocrm.base_url}/api/v4/leads/pipelines", headers=headers, timeout=30)
     pipelines = p_resp.json().get("_embedded", {}).get("pipelines", [])
     print("PIPELINES:")
     for pipe in pipelines:
@@ -24,7 +24,7 @@ def research():
             print(f"  - {status['id']} | {status['name']}")
 
     # 2. Users
-    u_resp = requests.get(f"{amocrm.base_url}/api/v4/users", headers=headers)
+    u_resp = requests.get(f"{amocrm.base_url}/api/v4/users", headers=headers, timeout=30)
     users = u_resp.json().get("_embedded", {}).get("users", [])
     print("\nAMO_USERS:")
     for user in users:

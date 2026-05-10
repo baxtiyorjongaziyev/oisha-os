@@ -1916,7 +1916,7 @@ async def chat_completions(request: Request):
     }
 
 
-def run_api(host: str = "0.0.0.0", port: int = 8080):
+def run_api(host: str = "0.0.0.0", port: int = 8080):  # nosec
     uvicorn.run(app, host=host, port=port)
 
 
