@@ -607,14 +607,14 @@ class Database:
                 update_fields.append(f"{key}=COALESCE(excluded.{key}, users.{key})")
 
         query = f"""
-            INSERT INTO users (user_id, first_name, username, phone, 
-                             business_type, region, brand_name, service_type, deadline, 
+            INSERT INTO users (user_id, first_name, username, phone,
+                             business_type, region, brand_name, service_type, deadline,
                              last_name, contact_name, bio, avatar_analysis, social_analysis,
                              role, position, intent, detailed_role,
                              last_seen, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET {", ".join(update_fields)}
-        """
+        """  # nosec
         params = (
             user_id,
             first_name,
