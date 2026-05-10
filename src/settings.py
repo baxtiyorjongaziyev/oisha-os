@@ -42,6 +42,10 @@ class AppSettings(BaseSettings):
     API_HASH: str = ""
     GEMINI_API_KEY: SecretStr = SecretStr("")
     DEEPSEEK_API_KEY: Optional[SecretStr] = None
+    AWS_ACCESS_KEY_ID: Optional[SecretStr] = None
+    AWS_SECRET_ACCESS_KEY: Optional[SecretStr] = None
+    AWS_REGION: str = "us-east-1"
+    BEDROCK_MODEL_ID: str = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     AMOCRM_SUBDOMAIN: str = ""
     AMOCRM_CLIENT_ID: str = ""
     AMOCRM_CLIENT_SECRET: Optional[SecretStr] = None
@@ -169,6 +173,8 @@ class AppSettings(BaseSettings):
             "GSHEET_ID",
             "GDRIVE_OFFLOAD_FOLDER_ID",
             "AMOCRM_CRON_SECRET",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
         }
         for key in optional_keys:
             if data.get(key) == "":
