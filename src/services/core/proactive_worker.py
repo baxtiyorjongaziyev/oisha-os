@@ -892,7 +892,7 @@ async def _legacy_check_amocrm_stagnation_mixed():
     )
     registry = build_default_tool_registry(bot_token=bot_token, amocrm=amo)
     amocrm_tool = registry.get("amocrm_leads")
-    telegram_tool = registry.get("telegram")
+    registry.get("telegram")
     stagnated = await amocrm_tool.fetch_stagnated_leads(hours=24)
     if not stagnated:
         return
@@ -1879,7 +1879,7 @@ async def check_amocrm_stagnation():
             if not lead_id:
                 continue
             responsible_id = int(lead.get("responsible_user_id") or 0) or None
-            lead_name = _safe_text(lead.get("name"), "Lead")
+            _safe_text(lead.get("name"), "Lead")
             next_step = _sales_action_for_lead(lead)
             task_text = f"Oisha: qotib qolgan lead. Bugun {next_step}. Natijani CRM izohiga yozing."
             note_text = (
