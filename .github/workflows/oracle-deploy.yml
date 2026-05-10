@@ -1,0 +1,104 @@
+name: Oracle Cloud — Deploy & Restart
+
+on:
+  push:
+    paths:
+      - '.github/workflows/oracle-deploy.yml'
+      - 'deploy/oracle-trigger'
+  workflow_dispatch:
+
+env:
+  OWNER_ID: "150074828"
+
+jobs:
+  deploy:
+    name: SSH → Oracle → Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Deploy to Oracle Cloud Free
+        id: oracle
+        uses: appleboy/ssh-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AMOCRM_CLIENT_ID: ${{ secrets.AMOCRM_CLIENT_ID }}
+          AMOCRM_CLIENT_SECRET: ${{ secrets.AMOCRM_CLIENT_SECRET }}
+          OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
+          OPENCLAW_SECRET: ${{ secrets.OPENCLAW_SECRET }}
+          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 5m
+          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN
+          script: |
+            set -e
+            OISHA_DIR="/home/ubuntu/oisha-os"
+            cd "$OISHA_DIR"
+
+            # Pull latest code
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+            git fetch origin main && git reset --hard origin/main
+
+            # Update dependencies
+            ./venv/bin/pip install -q -r requirements.txt
+
+            # Write .env from secrets
+            cat > .env <<ENVFILE
+            BOT_TOKEN=${BOT_TOKEN}
+            API_ID=${API_ID}
+            API_HASH=${API_HASH}
+            GEMINI_API_KEY=${GEMINI_API_KEY}
+            AMOCRM_SUBDOMAIN=jonbrandingagency
+            AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID}
+            AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET}
+            OISHA_API_SECRET=${OISHA_API_SECRET}
+            OPENCLAW_SECRET=${OPENCLAW_SECRET}
+            USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}
+            TURSO_DATABASE_URL=${TURSO_DATABASE_URL}
+            TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
+            OWNER_ID=150074828
+            ENABLE_AUTO_REPLY=false
+            RUNNING_IN_CLOUD=True
+            AIRTABLE_BASE_ID=app8xoyx1XCumYFXV
+            CRM_GROUP_ID=-1002566480563
+            TEAM_GROUP_ID=-4860594772
+            GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k
+            ENVFILE
+            sed -i 's/^            //' .env
+
+            # Restart service
+            sudo systemctl restart oisha-os
+            sleep 5
+
+            # Verify
+            if systemctl is-active --quiet oisha-os; then
+              echo "SUCCESS: Oisha-OS ishlayapti!"
+              sudo journalctl -u oisha-os --no-pager -n 10
+            else
+              echo "XATO: Service ishga tushmadi"
+              sudo journalctl -u oisha-os --no-pager -n 30
+              exit 1
+            fi
+
+      - name: Notify Telegram
+        if: always()
+        run: |
+          STATUS="${{ steps.oracle.outcome }}"
+          if [ "$STATUS" = "success" ]; then
+            MSG="✅ Oisha-OS Oracle Cloud'da muvaffaqiyatli deploy bo'ldi!%0A☁️ Free Tier (24/7)%0A🔄 Systemd + auto-restart"
+          else
+            MSG="❌ Oracle Cloud deploy xato!%0AStatus: $STATUS"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${OWNER_ID}" \
+            -d "text=${MSG}" || true
