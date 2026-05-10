@@ -60,7 +60,7 @@ class SalesAnalytics:
 
         all_leads = []
         try:
-            resp = requests.get(url, headers=self.amo._get_headers(), params=params)
+            resp = requests.get(url, headers=self.amo._get_headers(), params=params, timeout=30)
             if resp.status_code == 200:
                 leads = resp.json().get("_embedded", {}).get("leads", [])
                 all_leads.extend(leads)
@@ -72,14 +72,14 @@ class SalesAnalytics:
         """AmoCRM user ismini olish (Mapping bilan)."""
         try:
             url = f"{self.amo.base_url}/api/v4/users/{user_id}"
-            resp = requests.get(url, headers=self.amo._get_headers())
+            resp = requests.get(url, headers=self.amo._get_headers(), timeout=30)
             if resp.status_code == 200:
                 name = resp.json().get("name", f"User_{user_id}")
                 # Name Mapping for Oydin
                 if "Baxtiyorjon Gaziyev" in name:
                     return "Oydin (Sales Manager)"
                 return name
-        except:
+        except Exception:
             pass
         return f"User_{user_id}"
 

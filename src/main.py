@@ -15,7 +15,7 @@ try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except:
+except Exception:
     pass
 
 if os.name == "nt":
@@ -690,7 +690,7 @@ async def global_phone_lookup(phone: str) -> Optional[Dict[str, Any]]:
             # 4. Kontaktni darhol o'chirib tashlaymiz
             try:
                 await client(functions.contacts.DeleteContactsRequest(id=[user.id]))
-            except:
+            except Exception:
                 pass
             return user_data
 
@@ -1669,7 +1669,7 @@ async def run_health_check_api() -> None:
 
     config_uvicorn = uvicorn.Config(
         api_app,
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec
         port=int(os.environ.get("PORT", 8080)),
         log_level="info",
     )
