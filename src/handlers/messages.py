@@ -46,7 +46,6 @@ async def process_message_logic(
 
     # 3. Handle Special Input (Photos / Voice)
     # (Simplified: In a full refactor, specific processors would be here)
-    media_parts = []
     if message.photo:
         # Process photo...
         pass
