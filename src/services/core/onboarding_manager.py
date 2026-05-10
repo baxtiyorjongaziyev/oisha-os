@@ -35,7 +35,7 @@ class OnboardingManager:
         try:
             # 1. Get Client Info from DB (Assumes the manager was talking to them)
             # Find the most recent lead handled by this manager
-            user_info = await self.db.get_user_info(manager_id)  # Manager info
+            await self.db.get_user_info(manager_id)  # Manager info
 
             # Need to find the Client ID.
             # In a real scenario, the 'confirm_pay' button data should include the Client ID.
