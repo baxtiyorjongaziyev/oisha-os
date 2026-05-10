@@ -99,8 +99,17 @@ class DatabasePool:
                 rows = []
             return [SmartRow(row, columns) for row in rows]
 
-        # Use wait_for to prevent silent query hangs
-        return await asyncio.wait_for(asyncio.to_thread(_run), timeout=15.0)
+        # Use wait_for with retries to handle intermittent Turso connection drops
+        for attempt in range(3):
+            try:
+                return await asyncio.wait_for(asyncio.to_thread(_run), timeout=45.0)
+            except Exception as e:
+                if attempt < 2 and ("10054" in str(e) or "forcibly closed" in str(e).lower() or "connection error" in str(e).lower()):
+                    logger.warning(f"[DB POOL] Connection dropped. Retrying ({attempt+1}/3)...")
+                    self.close()  # Reset connection
+                    conn = self.get_connection()  # Get new one
+                    continue
+                raise
 
     def get_backend_name(self) -> str:
         return "turso"

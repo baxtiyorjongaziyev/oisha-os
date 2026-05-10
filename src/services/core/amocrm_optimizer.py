@@ -18,16 +18,6 @@ class AmoOptimizer:
         AmoCRM ichki webhoklarini sozlash.
         Lid yaratilganda, status o'zgarganda Oishaga xabar kelsin.
         """
-        url = f"{self.amo.base_url}/api/v4/webhooks"
-        data = {
-            "destination": f"https://{self.amo.subdomain}.oisha.uz/api/amocrm/webhook",
-            "settings": [
-                "add_lead",
-                "status_lead",
-                "add_contact",
-                "add_message",  # Chat integratsiyasi uchun
-            ],
-        }
         # AmoCRM native webhook registration
         # res = requests.post(url, json=data, headers=...)
         pass

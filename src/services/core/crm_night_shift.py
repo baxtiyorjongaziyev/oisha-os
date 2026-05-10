@@ -41,7 +41,7 @@ class CRMNightShift:
 
             # 3. Archive Old Leads (>30 days)
             add_activity("CRM Audit", "Eski lidlarni arxivlash...", "info")
-            archived = await self.archive_inactive_leads()
+            await self.archive_inactive_leads()
 
             # 4. Audit Data (Missing phones, etc.)
             await self.audit_data_integrity()
