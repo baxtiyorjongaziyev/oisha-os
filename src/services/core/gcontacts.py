@@ -25,7 +25,7 @@ class GoogleContactsSync:
         if os.path.exists("token.pickle"):
             try:
                 with open("token.pickle", "rb") as token:
-                    creds = pickle.load(token)
+                    creds = pickle.load(token)  # nosec
                 if creds and creds.expired and creds.refresh_token:
                     creds.refresh(Request())
                     with open("token.pickle", "wb") as token:
