@@ -346,12 +346,12 @@ jobs:
             --image "${IMAGE}" \
             --platform managed \
             --region "${REGION}" \
-            --memory 4Gi \
-            --cpu 2 \
+            --memory 1Gi \
+            --cpu 1 \
             --timeout 3600 \
-            --max-instances 1 \
-            --min-instances 1 \
-            --no-cpu-throttling \
+            --max-instances 10 \
+            --min-instances 0 \
+            --cpu-throttling \
             --cpu-boost \
             --execution-environment gen2 \
             --no-traffic \
