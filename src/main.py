@@ -7,7 +7,7 @@ import base64
 import json
 import re
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 # [STABILITY] Windows and UTF-8 setup
 try:
@@ -2092,7 +2092,46 @@ async def main():
     print("🚀 Oisha-OS Tizimi tayyorlanmoqda (Dual-Head Architecture)...")
 
     # [STABILITY] Start health-check early so Cloud Run readiness probes pass during heavy initialization.
+    async def command_processor():
+        """Processes commands from the API Server (e.g. sending messages)."""
+        logger.info("👷 [COMMANDS] API Command Processor started.")
+        import src.api_server as api_module
+        while True:
+            try:
+                # Use wait_for to check for shutdown periodically
+                item = await api_module.command_queue.get()
+                cmd = item.get("cmd")
+                logger.info(f"👷 [COMMANDS] Received: {cmd}")
+
+                if cmd == "send_message":
+                    u_id = item.get("user_id")
+                    txt = item.get("text")
+                    item.get("model", "gemini-3-flash")
+                    
+                    if client:
+                        try:
+                            # We can also use advisor_agent to get an AI reply if desired,
+                            # but here we just send the raw text from the widget.
+                            await client.send_message(u_id, txt)
+                            logger.info(f"✅ [COMMANDS] Message sent to {u_id}")
+                            # Also log it to DB so it shows in history
+                            await msg_controller.db.log_message(u_id, txt, is_ai=True)
+                        except Exception as e:
+                            logger.error(f"❌ [COMMANDS] Failed to send msg to {u_id}: {e}")
+                
+                elif cmd == "audit":
+                    if audit_agent:
+                        # Start background audit
+                        asyncio.create_task(audit_agent.run_full_audit())
+                        logger.info("🕵️ [COMMANDS] Full audit triggered.")
+
+                api_module.command_queue.task_done()
+            except Exception as e:
+                logger.error(f"❌ [COMMANDS] Processor error: {e}")
+                await asyncio.sleep(1)
+
     asyncio.create_task(run_health_check_api(), name="health_check_api")
+    asyncio.create_task(command_processor(), name="command_processor")
 
     _restore_cloud_artifacts()
 
@@ -2104,6 +2143,18 @@ async def main():
             if settings.DEEPSEEK_API_KEY
             else None
         ),
+        "aws_access_key": (
+            settings.AWS_ACCESS_KEY_ID.get_secret_value()
+            if settings.AWS_ACCESS_KEY_ID
+            else None
+        ),
+        "aws_secret_key": (
+            settings.AWS_SECRET_ACCESS_KEY.get_secret_value()
+            if settings.AWS_SECRET_ACCESS_KEY
+            else None
+        ),
+        "aws_region": settings.AWS_REGION,
+        "bedrock_model_id": settings.BEDROCK_MODEL_ID,
     }
 
     # [AUDIT: RESTORATION] Centralized DB instance for global consistency
@@ -2221,7 +2272,7 @@ async def main():
         api_key=api_keys["gemini"], db=msg_controller.db, action_parser=action_parser
     )
     auto_lead_agent = AutoLeadAgent(api_key=api_keys["gemini"])
-    sales_coach = SalesCoach(ai_provider=auto_lead_agent)  # Use shared AI provider
+    SalesCoach(ai_provider=auto_lead_agent)  # Use shared AI provider
     crm_guard = CRMGuard(
         amo=msg_controller.crm.amocrm, db=msg_controller.db, bot=None
     )  # TODO: Connect admin bot
@@ -2295,13 +2346,13 @@ async def main():
     )
     from src.services.utils.welcome_manager import WelcomeManager
 
-    welcome_manager = WelcomeManager(client=client)
+    WelcomeManager(client=client)
 
     lead_scraper.notify_callback = admin_bot.notify_lead
 
     from src.services.core.workflow_orchestrator import WorkflowOrchestrator
 
-    orchestrator = WorkflowOrchestrator(
+    WorkflowOrchestrator(
         amocrm=msg_controller.crm.amocrm,
         airtable=msg_controller.crm.airtable,
         notify_callback=admin_bot.notify_lead,
@@ -2317,6 +2368,7 @@ async def main():
     api_module.user_client = client
     api_module.db_instance = msg_controller.db
     api_module.msg_controller = msg_controller
+    api_module.action_parser = action_parser
 
     api_module.set_runtime_context(
         service_name=os.getenv("K_SERVICE") or "oisha-main",
@@ -2399,6 +2451,20 @@ async def main():
     if BOT_TOKEN_STR and bot_client:
         try:
             await bot_client.start(bot_token=BOT_TOKEN_STR)
+            
+            # [PHASE 1.5] Telegram Bot API 10.0 Features (Guest Mode, Business, etc.)
+            from src.services.core.telegram_ai_features import TelegramBotAPI10Client, BOT_API_10_ALLOWED_UPDATES
+            
+            tg_ai_client = TelegramBotAPI10Client(BOT_TOKEN_STR)
+            webhook_url = os.getenv("WEBHOOK_URL")
+            if webhook_url:
+                webhook_path = f"{webhook_url.rstrip('/')}/webhook/telegram"
+                logger.info(f"🤖 [BOT API 10] Setting webhook to: {webhook_path}")
+                # Set webhook in background to not block startup
+                asyncio.create_task(tg_ai_client.set_webhook(webhook_path, allowed_updates=BOT_API_10_ALLOWED_UPDATES))
+            else:
+                logger.warning("⚠️ [BOT API 10] WEBHOOK_URL not set. Guest Mode and Business features require a webhook.")
+
             if admin_bot:
                 admin_bot.user_client = client
                 await admin_bot.start()

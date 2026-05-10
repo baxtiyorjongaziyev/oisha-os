@@ -219,7 +219,7 @@ async def handle_webhook():
 
         logger.info(f"[META RAW] {json.dumps(data)}")
 
-        object_type = data.get("object", "")
+        data.get("object", "")
 
         # Instagram yoki Facebook Page xabarlari
         for entry in data.get("entry", []):
@@ -232,7 +232,7 @@ async def handle_webhook():
                 sender_id = change.get("from", {}).get("id")
                 sender_name = change.get("from", {}).get("username", "User")
                 text = change.get("text", "")
-                media_url = change.get("media", {}).get("media_url", "")
+                change.get("media", {}).get("media_url", "")
                 comment_id = change.get("id")
 
                 if text:

@@ -13,6 +13,8 @@ from src.agents.pm_agent import PMAgent
 from src.agents.researcher_agent import ResearcherAgent
 from src.agents.support_agent import SupportAgent
 from src.agents.orchestrator import AgentOrchestrator
+from src.agents.negotiation_engine import NegotiationEngine
+from src.agents.feedback_memory import FeedbackMemory
 from src.services.core.crm_service import CRMService
 from src.services.core.google_service import GoogleService
 from src.services.core.enterprise_reporter import EnterpriseReporter
@@ -31,6 +33,8 @@ class MessageController:
         self.db = db or Database()
         self.agent_manager = AgentManager(api_keys)
         self.orchestrator = AgentOrchestrator(self.agent_manager)
+        self.negotiation_engine = NegotiationEngine()
+        self.feedback_memory = FeedbackMemory(self.db)
         self.crm = CRMService()
         self.google = GoogleService()
         self.enterprise_reporter = EnterpriseReporter(db=self.db, crm=self.crm)
@@ -109,23 +113,33 @@ class MessageController:
         if not message:
             return ""
 
-        # 1. CRM dan user haqida ma'lumot olish (agar tel bo'lsa)
-        user_info = await self.db.get_user_info(user_id)
+        # 1. CRM dan user haqida ma'lumot olish (agar tel bo'lsa va mehmon bo'lmasa)
         crm_status = "Yangi mijoz"
-        phone = user_info.get("phone") if user_info else None
+        phone = None
+        user_info = {}
 
-        if phone:
-            crm_status = await self.crm.get_user_context(phone)
+        if not context.get("is_guest"):
+            user_info = await self.db.get_user_info(user_id) or {}
+            phone = user_info.get("phone")
+            if phone:
+                crm_status = await self.crm.get_user_context(phone)
+        else:
+            crm_status = "Mehmon (Guest Mode)"
+            logger.info(f"👸 [GUEST] Skipping CRM lookup for guest: {user_id}")
+
+        # Bot-to-Bot negotiation awareness
+        if context.get("is_bot"):
+            crm_status = "🤖 Agent (Bot-to-Bot)"
+            logger.info(f"👸 [BOT-TO-BOT] Autonomous negotiation detected with uid: {user_id}")
 
         context["crm_status"] = crm_status
         context["user_name"] = user_name
         context["phone"] = phone
-        context["user_profile"] = user_info or {}
-        if user_info:
-            context["service_type"] = user_info.get("service_type")
-            context["business_type"] = user_info.get("business_type")
+        context["user_profile"] = user_info
+        context["service_type"] = user_info.get("service_type")
+        context["business_type"] = user_info.get("business_type")
 
-        # 2. Tarixni olish (Intent uchun)
+        # 2. Tarixni olish (NegotiationEngine va Intent uchun)
         recent_history = await self.db.get_recent_messages(user_id, limit=5)
         history_str = ""
         if recent_history:
@@ -134,12 +148,42 @@ class MessageController:
                 for h in recent_history
             )
 
-        # 3. Intentni aniqlash (LLM routing)
+        # 3. NegotiationEngine — mandatory semantic assessment (Feedback Loop 1)
+        neg_history = await self.feedback_memory.get_as_negotiation_history(
+            user_id, limit=8
+        )
+        assessment = None
+        try:
+            assessment = await self.negotiation_engine.assess_async(
+                message=message,
+                crm_status=crm_status,
+                autonomy_mode="autonomous",
+                history=neg_history,
+                context=context,
+            )
+            context["assessment"] = assessment.to_payload()
+            context["close_probability"] = assessment.close_probability
+            context["autonomy_mode"] = assessment.autonomy_mode
+            context["lead_stage"] = assessment.stage
+        except Exception as exc:
+            logger.warning(f"[MessageController] NegotiationEngine failed: {exc}")
+
+        # 4. Intentni aniqlash (LLM routing)
         agent_id = await self.orchestrator.determine_intent(
             message, history=history_str
         )
 
-        # 4. Agent orqali javob olish (kontekst bilan birga)
-        return await self.orchestrator.get_agent_response(
+        # 5. Agent orqali javob olish (kontekst + assessment bilan birga)
+        response = await self.orchestrator.get_agent_response(
             agent_id, user_id, message, context=context
         )
+
+        # 6. Feedback loop — persist turn + assessment to conversation memory
+        try:
+            await self.feedback_memory.append(user_id, "user", message, assessment)
+            if response:
+                await self.feedback_memory.append(user_id, "assistant", response)
+        except Exception as exc:
+            logger.debug(f"[MessageController] feedback_memory append failed: {exc}")
+
+        return response

@@ -5,6 +5,62 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-10 05:09 UTC | 🔴 main `8fa9d86`
+
+**Commit**: chore: optimize cloud run resources and billing mode
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-05-09 12:07 UTC | ✅ main `adf051b`
+
+**Commit**: feat: enhance chat UI and update dependencies
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00283-xav
+
+---
+
+## 2026-05-09 11:58 UTC | ✅ main `5cf6290`
+
+**Commit**: fix(ci): restore installable dependency ranges
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00280-kis
+
+---
+
+## 2026-05-09 11:47 UTC | 🔴 main `5afd8e8`
+
+**Commit**: fix(security): resolve dependency alerts
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-05-08 18:45 UTC | 🔴 main `cdafa00`
+
+**Commit**: Merge branch 'main' of https://github.com/baxtiyorjongaziyev/oisha-os
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-05-08 15:59 UTC | 🔴 main `c2fcdce`
+
+**Commit**: feat: Integrate Telegram Bot API 10.0 AI features (Guest Mode, Business, Streaming)
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-05-08 15:47 UTC | ⚠️ main `9e4b53b`
+
+**Commit**: Merge PR #22: Bump google-github-actions/setup-gcloud from 2 to 3
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: health check failed
+
+---
+
 ## 2026-05-08 15:10 UTC | ✅ main `4f459bc`
 
 **Commit**: feat(telegram): add Bot API 10 AI feature layer

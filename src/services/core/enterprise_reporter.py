@@ -41,14 +41,15 @@ class EnterpriseReporter:
                     self.crm.amocrm.get_leads_detailed(limit=50),
                     asyncio.get_event_loop(),
                 ).result()
-                won_today = [l for l in leads if l.get("status_id") == self.WON_STATUS]
-                total_sum = sum(l.get("price", 0) for l in won_today)
+                won_today = [lead for lead in leads if lead.get("status_id") == self.WON_STATUS]
+                total_sum = sum(lead.get("price", 0) for lead in won_today)
 
                 report.append(f"- Yangi lidlar: <b>{len(leads)} ta</b>")
                 report.append(
                     f"- Yopilgan bitimlar: <b>{len(won_today)} ta</b> ({total_sum:,.0f} so'm)"
                 )
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Error getting lead statistics: {e}")
                 report.append("- Ma'lumotlar olinmoqda... ⏳")
 
             # Plan-Fakt (Monthly context)
@@ -121,14 +122,14 @@ class EnterpriseReporter:
 
         # Oylik yopilgan bitimlar summasi (Fact)
         # Eslatma: AmoCRM API limitlari tufayli 'Won' larni alohida filtrlab olish kerak bo'lishi mumkin
-        won_leads = [l for l in leads if l.get("status_id") == self.WON_STATUS]
-        total_won_sum = sum(l.get("price", 0) for l in won_leads)
+        won_leads = [lead for lead in leads if lead.get("status_id") == self.WON_STATUS]
+        total_won_sum = sum(lead.get("price", 0) for lead in won_leads)
 
         active_leads = len(
             [
-                l
-                for l in leads
-                if l.get("status_id") not in [self.WON_STATUS, self.LOST_STATUS]
+                lead
+                for lead in leads
+                if lead.get("status_id") not in [self.WON_STATUS, self.LOST_STATUS]
             ]
         )
 
@@ -145,9 +146,9 @@ class EnterpriseReporter:
         # 2. MARKETING (Channels)
         # Manbalar tahlili (Tags orqali)
         channels = {}
-        for l in leads:
+        for lead in leads:
             # AmoCRM tags structure: _embedded.tags
-            tags = l.get("_embedded", {}).get("tags", [])
+            tags = lead.get("_embedded", {}).get("tags", [])
             for tag in tags:
                 tag_name = tag.get("name", "Noma'lum")
                 channels[tag_name] = channels.get(tag_name, 0) + 1
@@ -326,7 +327,7 @@ class EnterpriseReporter:
 
         # 2. Fetch all tasks
         all_tasks = await self.crm.amocrm.get_tasks()
-        task_entity_ids: Set[int] = {
+        {
             t.get("entity_id") for t in all_tasks if t.get("entity_type") == "leads"
         }
         now_ts = time.time()
@@ -487,8 +488,8 @@ class EnterpriseReporter:
                 # Count all problematic leads for this manager
                 manager_problems = sum(
                     1
-                    for l in metrics["no_tasks"] + metrics["overdue_tasks"]
-                    if l.get("responsible_user_id") == name
+                    for lead in metrics["no_tasks"] + metrics["overdue_tasks"]
+                    if lead.get("responsible_user_id") == name
                 )
 
                 if manager_problems == 0:
@@ -507,9 +508,9 @@ class EnterpriseReporter:
         problem_leads = metrics["no_tasks"][:3]  # Show first 3 as examples
         if problem_leads:
             report.append("\n📝 **NAMUNA VAZIFASIZ LIDLAR:**")
-            for l in problem_leads:
-                l_name = l.get("name", "Nomsiz")
-                l_id = l.get("id")
+            for lead in problem_leads:
+                l_name = lead.get("name", "Nomsiz")
+                l_id = lead.get("id")
                 report.append(f"  • {l_name} (ID: {l_id})")
 
         # 9. OISHA Analysis - ACCURATE
@@ -627,12 +628,12 @@ class EnterpriseReporter:
         day_seconds = 24 * 3600
 
         stagnant_items = []
-        for l in leads:
+        for lead in leads:
             # Skip Won/Lost statuses
-            if l.get("status_id") in [self.WON_STATUS, self.LOST_STATUS]:
+            if lead.get("status_id") in [self.WON_STATUS, self.LOST_STATUS]:
                 continue
 
-            updated_at = l.get("updated_at", 0)
+            updated_at = lead.get("updated_at", 0)
             if (now - updated_at) > day_seconds:
                 name = l.get("name", "Nomsiz")
                 l_id = l.get("id")
@@ -818,11 +819,11 @@ class EnterpriseReporter:
         try:
             leads = await self.crm.amocrm.get_leads_detailed(limit=50)
             active_leads = [
-                l
-                for l in leads
-                if l.get("status_id") not in [self.WON_STATUS, self.LOST_STATUS]
+                lead
+                for lead in leads
+                if lead.get("status_id") not in [self.WON_STATUS, self.LOST_STATUS]
             ]
-            total_value = sum(int(l.get("price", 0) or 0) for l in active_leads)
+            total_value = sum(int(lead.get("price", 0) or 0) for lead in active_leads)
         except Exception as e:
             logger.warning(f"[MISSING PLAN] Lead fetch failed: {e}")
             active_leads = []
@@ -874,27 +875,20 @@ class EnterpriseReporter:
         try:
             # 1. CRM Diagnostika
             leads = await self.crm.amocrm.get_leads_detailed(limit=50)
-            stagnant = [
-                l
-                for l in leads
-                if l.get("status_id") not in [self.WON_STATUS, self.LOST_STATUS]
+            [
+                lead
+                for lead in leads
+                if lead.get("status_id") not in [self.WON_STATUS, self.LOST_STATUS]
             ]
 
             # 2. AI orqali strategik maslahat olish
 
-            api_key = getattr(
+            getattr(
                 self.crm.amocrm, "api_key", None
             )  # Internal fallback or use prompt
             # Aslida API key Enterprise uchun global bo'lishi kerak.
             # Biz buni advisor_agent orqali ham qilishimiz mumkin, lekin Reporter o'zida bo'lgani yaxshi.
 
-            prompt = (
-                "Siz Oisha-OS strategik direktorisiz. Bugun jamoada rejalashtirilgan konkret vazifalar yo'q. "
-                "Jamoani №1 qilish uchun 3 ta 'Growth Mission' (O'sish vazifasi) taklif qiling. "
-                "Vazifalar Sales (CRM tozalash, lost leads), Production (workflow optimallashtirish) "
-                "yoki Strategiya (bozor tahlili) yo'nalishlarida bo'lsin. "
-                "Ohang: Jangovar, professional, ilhomlantiruvchi. O'zbek tilida."
-            )
 
             # Note: We need a client. If not passed, we'll try to get it from context.
             # For robustness in this module, we use a simple set of hardcoded best practices if AI fails.

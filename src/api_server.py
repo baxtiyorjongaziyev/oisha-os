@@ -9,7 +9,6 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
-import queue
 from collections import Counter, defaultdict
 from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
@@ -18,7 +17,6 @@ from src.services.core.agent_runtime import (
     collect_legacy_runtime_inventory,
     get_runtime_context,
     get_storage_health,
-    set_runtime_context,
 )
 from src.services.core.amocrm_sync import AmoCRMSync
 from src.services.core.telegram_ai_features import (
@@ -26,7 +24,6 @@ from src.services.core.telegram_ai_features import (
     build_live_feature_status,
     build_offline_feature_status,
     build_text_article_result,
-    classify_update,
     extract_guest_message_context,
 )
 from src.agents.autonomous_sales_agent import AutonomousSalesAgent
@@ -39,9 +36,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("OishaAPI")
 
 # Global Bridges
+command_queue = asyncio.Queue()
+outgoing_messages = asyncio.Queue()
 user_client = None
 db_instance = None
 msg_controller = None
+action_parser = None
+business_connections = {}  # Store active Telegram Business connections
 
 # Health check cache
 cached_status = {"status": "initializing", "timestamp": datetime.now(timezone.utc).isoformat()}
@@ -104,6 +105,26 @@ async def root_status():
     }
     response.update(cached_status)
     return response
+
+
+@app.get("/api/telegram/status")
+async def telegram_status():
+    """Diagnostic info for Telegram Bot API 10.0 integration."""
+    try:
+        token = os.environ.get("BOT_TOKEN") or settings.BOT_TOKEN.get_secret_value()
+        client = TelegramBotAPI10Client(token)
+        
+        me = await client.get_me()
+        webhook_info = await client.get_webhook_info()
+        
+        return {
+            "status": "online",
+            "bot": build_live_feature_status(me),
+            "webhook": webhook_info,
+            "api_10_ready": True
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 @app.get("/health")
@@ -391,8 +412,6 @@ def mark_heartbeat() -> None:
     _last_heartbeat_at = datetime.now(timezone.utc)
 
 
-# --- COMMAND QUEUE (Shared with Main Thread) ---
-command_queue = queue.Queue()
 
 # --- DASHBOARD CACHE ---
 cached_status: Dict[str, Any] = {
@@ -419,8 +438,6 @@ system_activities: List[Dict[str, Any]] = [
 
 legacy_runtime_inventory_cache: Optional[List[Dict[str, Any]]] = None
 
-# --- WAZZUP BRIDGE (Outgoing Messages Queue) ---
-outgoing_messages = asyncio.Queue()
 
 
 def add_activity(action: str, details: str = "", type: str = "info"):
@@ -1052,9 +1069,10 @@ class CreateLeadRequest(BaseModel):
 
 
 class SendMessageRequest(BaseModel):
-    user_id: int
+    user_id: Any
     text: str
     secret_key: str
+    model: Optional[str] = "gemini-3-flash"
 
 
 @asynccontextmanager
@@ -1108,8 +1126,13 @@ async def send_chat_message(request: SendMessageRequest):
         return {"error": "Unauthorized"}
 
     # Push to queue for Main Thread execution
-    command_queue.put(
-        {"cmd": "send_message", "user_id": request.user_id, "text": request.text}
+    command_queue.put_nowait(
+        {
+            "cmd": "send_message",
+            "user_id": request.user_id,
+            "text": request.text,
+            "model": request.model,
+        }
     )
 
     return {"status": "success", "message": "Xabar navbatga qo'yildi"}
@@ -1146,6 +1169,44 @@ async def create_amo_lead(request: CreateLeadRequest):
         add_activity("Lead Created", f"Website lead: {request.name}", type="success")
         return {"status": "success", "lead_id": lead_id}
     return {"error": "Lead creation failed"}
+
+
+@app.post("/api/amocrm-refresh")
+async def refresh_amocrm_token(request: Request):
+    """Cron yoki manual refresh uchun endpoint."""
+    global amocrm_instance
+    auth_header = request.headers.get("Authorization")
+
+    cron_secret = (
+        settings.AMOCRM_CRON_SECRET.get_secret_value()
+        if settings.AMOCRM_CRON_SECRET
+        else None
+    )
+
+    if not cron_secret:
+        return {"ok": False, "error": "CRON_SECRET not configured"}
+
+    if not auth_header or auth_header != f"Bearer {cron_secret}":
+        return {"ok": False, "error": "Unauthorized"}
+
+    if not amocrm_instance:
+        amocrm_instance = AmoCRMSync(
+            subdomain=settings.AMOCRM_SUBDOMAIN,
+            client_id=settings.AMOCRM_CLIENT_ID,
+            client_secret=(
+                settings.AMOCRM_CLIENT_SECRET.get_secret_value()
+                if settings.AMOCRM_CLIENT_SECRET
+                else ""
+            ),
+            redirect_url=settings.AMOCRM_REDIRECT_URL,
+        )
+
+    success = amocrm_instance.refresh_token()
+    if success:
+        expires_at = amocrm_instance.token_data.get("expires_at", "unknown")
+        return {"ok": True, "expires_at": expires_at}
+    else:
+        return {"ok": False, "error": amocrm_instance.last_error or "Refresh failed"}
 
 
 @app.post("/webhook/amocrm")
@@ -1354,7 +1415,75 @@ async def openclaw_health():
         "channels_accepted": ["whatsapp", "telegram", "slack", "discord", "any"],
     }
 
+# ─── TELEGRAM BOT API 10.0 WEBHOOK ──────────────────────────────────────────
 
+@app.post("/webhook/telegram")
+async def telegram_webhook(request: Request):
+    """
+    Telegram Bot API 10.0 Webhook.
+    Handles Guest Mode, Business Messages, and other new AI features.
+    """
+    try:
+        data = await request.json()
+        update_type = classify_update(data)
+        
+        logger.info(f"🤖 [Telegram Webhook] Received update type: {update_type}")
+        
+        # We process this in background to avoid Telegram timeout
+        asyncio.create_task(process_telegram_update(data, update_type))
+        
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"❌ [Telegram Webhook] Error: {e}")
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(e)})
+
+def classify_update(data: Dict[str, Any]) -> str:
+    """Classifies the Telegram update type based on payload keys."""
+    if "guest_message" in data:
+        return "guest_message"
+    if "business_message" in data:
+        return "business_message"
+    if "business_connection" in data:
+        return "business_connection"
+    if "managed_bot" in data:
+        return "managed_bot"
+    if "message" in data:
+        return "message"
+    return "unknown"
+
+async def process_telegram_update(update: Dict[str, Any], update_type: str):
+    """Processes the telegram update using appropriate handlers."""
+    from src.handlers.messages import (
+        handle_guest_query, 
+        handle_business_message, 
+        handle_business_connection,
+        handle_managed_bot,
+        handle_direct_message
+    )
+    from telegram import Update, Bot
+    
+    try:
+        bot_token = os.environ.get("BOT_TOKEN") or settings.BOT_TOKEN.get_secret_value()
+        bot = Bot(token=bot_token)
+        ptb_update = Update.de_json(update, bot)
+        
+        if update_type == "guest_query":
+            await handle_guest_query(ptb_update, None, db_instance, msg_controller, bot_token)
+            
+        elif update_type == "business_message":
+            await handle_business_message(ptb_update, None, db_instance, action_parser, msg_controller)
+            
+        elif update_type == "business_connection":
+            await handle_business_connection(ptb_update, None, business_connections)
+            
+        elif update_type == "managed_bot":
+            await handle_managed_bot(ptb_update, None)
+
+        elif update_type == "message":
+            await handle_direct_message(ptb_update, None, db_instance, action_parser, msg_controller)
+            
+    except Exception as e:
+        logger.error(f"❌ [Telegram Process] Error: {e}", exc_info=True)
 @app.get("/api/system/info")
 async def get_system_info():
     """Tizim haqida umumiy ma'lumot."""
@@ -1363,6 +1492,7 @@ async def get_system_info():
         "version": "2.1.0",
         "agent_count": 8,
         "active_modules": ["NightShift", "OSINT", "CRM_Sync", "Advisor", "Audit"],
+        "status": "active"
     }
 
 
@@ -1370,7 +1500,7 @@ async def get_system_info():
 async def trigger_intelligence_audit():
     """Dashboarddan auditni ishga tushirish (Queued)."""
     # Push to queue for Main Thread execution
-    command_queue.put({"cmd": "audit", "timestamp": datetime.now().isoformat()})
+    command_queue.put_nowait({"cmd": "audit", "timestamp": datetime.now().isoformat()})
 
     return {
         "status": "success",

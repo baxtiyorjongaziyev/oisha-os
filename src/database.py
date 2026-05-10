@@ -172,7 +172,7 @@ class Database:
     async def init_db(self):
         """Ma'lumotlar bazasini va jadvallarni yaratish (Asenkron)."""
         conn = await self.get_connection()
-        async with conn.cursor() as cursor:
+        async with conn.cursor():
             # Users
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
