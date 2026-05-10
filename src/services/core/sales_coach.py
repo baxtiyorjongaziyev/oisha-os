@@ -54,7 +54,7 @@ class SalesCoach:
 
         try:
             # Clean transcript for the prompt
-            clean_text = transcript[:5000]  # Limit to avoid context overflow
+            transcript[:5000]  # Limit to avoid context overflow
 
             # AI request
             response = await self.ai.generate_content(prompt)

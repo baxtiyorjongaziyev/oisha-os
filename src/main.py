@@ -7,7 +7,7 @@ import base64
 import json
 import re
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 # [STABILITY] Windows and UTF-8 setup
 try:
@@ -2106,7 +2106,7 @@ async def main():
                 if cmd == "send_message":
                     u_id = item.get("user_id")
                     txt = item.get("text")
-                    model = item.get("model", "gemini-3-flash")
+                    item.get("model", "gemini-3-flash")
                     
                     if client:
                         try:
@@ -2272,7 +2272,7 @@ async def main():
         api_key=api_keys["gemini"], db=msg_controller.db, action_parser=action_parser
     )
     auto_lead_agent = AutoLeadAgent(api_key=api_keys["gemini"])
-    sales_coach = SalesCoach(ai_provider=auto_lead_agent)  # Use shared AI provider
+    SalesCoach(ai_provider=auto_lead_agent)  # Use shared AI provider
     crm_guard = CRMGuard(
         amo=msg_controller.crm.amocrm, db=msg_controller.db, bot=None
     )  # TODO: Connect admin bot
@@ -2346,13 +2346,13 @@ async def main():
     )
     from src.services.utils.welcome_manager import WelcomeManager
 
-    welcome_manager = WelcomeManager(client=client)
+    WelcomeManager(client=client)
 
     lead_scraper.notify_callback = admin_bot.notify_lead
 
     from src.services.core.workflow_orchestrator import WorkflowOrchestrator
 
-    orchestrator = WorkflowOrchestrator(
+    WorkflowOrchestrator(
         amocrm=msg_controller.crm.amocrm,
         airtable=msg_controller.crm.airtable,
         notify_callback=admin_bot.notify_lead,
