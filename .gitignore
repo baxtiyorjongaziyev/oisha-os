@@ -110,3 +110,22 @@ src/services/debug/
 !scripts/**/*.ps1
 !scripts/**/*.sh
 .gstack/
+
+# Database ^& Session files
+bot_database.db
+*.session
+
+# Credentials
+service_account.json
+billing_accounts.json
+
+# Log files
+bot_final.log
+bot_startup.log
+sync_progress.log
+ai_response_last.txt
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
