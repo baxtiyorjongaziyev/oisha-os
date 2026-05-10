@@ -29,7 +29,7 @@ def sync_secret(name, value):
     try:
         # Check if secret exists
         cmd_exists = ["gcloud", "secrets", "describe", name, "--project", PROJECT_ID]
-        result = subprocess.run(cmd_exists, capture_output=True, text=True, shell=True)
+        result = subprocess.run(cmd_exists, capture_output=True, text=True)  # nosec
 
         if result.returncode != 0:
             print(f"Creating secret {name}...")
@@ -45,8 +45,7 @@ def sync_secret(name, value):
                     "automatic",
                 ],
                 check=True,
-                shell=True,
-            )
+            )  # nosec
 
         # Add version
         process = subprocess.Popen(
@@ -64,8 +63,7 @@ def sync_secret(name, value):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            shell=True,
-        )
+        )  # nosec
         stdout, stderr = process.communicate(input=value)
 
         if process.returncode == 0:
