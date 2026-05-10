@@ -59,7 +59,7 @@ class PerplexityService:
             "messages": [{"role": "user", "content": prompt}],
         }
         logger.info(f"[PERPLEXITY] Search prompt: {prompt[:50]}...")
-        response = requests.post(url, headers=headers, json=data)
+        response = requests.post(url, headers=headers, json=data, timeout=30)
         if response.status_code == 200:
             return response.json()["choices"][0]["message"]["content"]
         return f"Perplexity Error: {response.status_code}"
