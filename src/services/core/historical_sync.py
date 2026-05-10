@@ -96,7 +96,7 @@ class HistoricalSyncService:
             # --- DEEP INTELLIGENCE ANALYSIS ---
             if full_chat_text:
                 # Build context (max 50 messages for AI analysis to save tokens)
-                recent_context = "\n".join(full_chat_text[:50])
+                "\n".join(full_chat_text[:50])
                 logger.info(
                     f"🧠 [DEEP INTEL] Analyzing chat profile for {dialog.name}..."
                 )

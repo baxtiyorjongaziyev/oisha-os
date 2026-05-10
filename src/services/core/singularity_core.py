@@ -518,15 +518,15 @@ class ProactiveWorker:
         try:
             # 1. Jamoani olish
             team = await self.db.get_team_roles()
-            hunters = [u for u in team if u["role"] == "Hunter"]
-            closers = [u for u in team if u["role"] == "Closer"]
+            [u for u in team if u["role"] == "Hunter"]
+            [u for u in team if u["role"] == "Closer"]
             namers = [u for u in team if u["role"] == "Namer"]
             pms = [u for u in team if u["role"] == "PM"]
 
             # 2. AmoCRM -> Hunter & Closer
             from src.services.core.crm_integration import CRMIntegration
 
-            crm = CRMIntegration()
+            CRMIntegration()
             # Eslatma: Haqiqiy tokenni ishlatish kerak, hozircha mavjud API orqali
             # Bu qismda Amo-dan yangi lead/vazifalarni olish mantiqi bo'ladi
 
