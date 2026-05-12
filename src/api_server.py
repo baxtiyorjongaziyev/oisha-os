@@ -1864,6 +1864,84 @@ async def get_manager_comparison(days: int = 7):
         return {"status": "error", "message": str(e)}
 
 
+@app.get("/api/ai/lead-classifier")
+async def get_lead_classification():
+    """
+    AI Lead Classifier — sdelkalarni audio/notes tahlili orqali klassifikatsiya.
+    Real mijoz / shaxsiy / spam aniqlaydi.
+    """
+    try:
+        global amocrm_instance
+        if not amocrm_instance:
+            from src.services.core.amocrm_sync import AmoCRMSync
+            amocrm_instance = AmoCRMSync(
+                subdomain=settings.AMOCRM_SUBDOMAIN,
+                client_id=settings.AMOCRM_CLIENT_ID,
+                client_secret=settings.AMOCRM_CLIENT_SECRET,
+            )
+
+        gemini_key = settings.GEMINI_API_KEY
+        if not gemini_key:
+            return {"status": "error", "message": "GEMINI_API_KEY not configured"}
+
+        from src.services.core.lead_classifier import LeadClassifier
+        classifier = LeadClassifier(amocrm_instance, gemini_key)
+        results = await classifier.classify_all_active_leads()
+
+        return {
+            "status": "success",
+            "summary": classifier.get_summary(),
+            "results": [
+                {
+                    "lead_id": r.lead_id,
+                    "lead_name": r.lead_name,
+                    "category": r.category.value,
+                    "confidence": r.confidence,
+                    "reason": r.reason,
+                    "evidence": r.evidence,
+                    "notes_analyzed": r.notes_analyzed,
+                    "audio_transcribed": r.audio_transcribed,
+                }
+                for r in results
+            ],
+        }
+    except Exception as e:
+        logger.error(f"[API AI] Lead classifier error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/ai/lead-classifier/tag")
+async def tag_unnecessary_leads():
+    """Keraksiz sdelkalarni tag qilish (PERSONAL_NOT_CLIENT, SPAM_DETECTED)."""
+    try:
+        global amocrm_instance
+        if not amocrm_instance:
+            from src.services.core.amocrm_sync import AmoCRMSync
+            amocrm_instance = AmoCRMSync(
+                subdomain=settings.AMOCRM_SUBDOMAIN,
+                client_id=settings.AMOCRM_CLIENT_ID,
+                client_secret=settings.AMOCRM_CLIENT_SECRET,
+            )
+
+        gemini_key = settings.GEMINI_API_KEY
+        if not gemini_key:
+            return {"status": "error", "message": "GEMINI_API_KEY not configured"}
+
+        from src.services.core.lead_classifier import LeadClassifier
+        classifier = LeadClassifier(amocrm_instance, gemini_key)
+        results = await classifier.classify_all_active_leads()
+        tagged = await classifier.tag_unnecessary_leads(results)
+
+        return {
+            "status": "success",
+            "tagged_count": tagged,
+            "summary": classifier.get_summary(),
+        }
+    except Exception as e:
+        logger.error(f"[API AI] Lead tagger error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
 @app.post("/api/ai/process-call")
 async def process_call(request: Request):
     """
