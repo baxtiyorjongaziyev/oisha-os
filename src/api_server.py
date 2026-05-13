@@ -166,7 +166,8 @@ async def liveness_probe():
 
     runtime = get_runtime_context()
     scheduler_mode = runtime.get("scheduler_mode")
-    control_plane_mode = scheduler_mode == "control-plane"
+    runtime_source = runtime.get("runtime_source", "unknown")
+    control_plane_mode = scheduler_mode == "control-plane" or runtime_source == "vm_service"
 
     db_ok = True
     if db_instance is not None:
