@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-13 16:04 UTC | ⚠️ main `ed5a47a`
+
+**Commit**: feat(agents): meeting scheduler + deal hygiene + self-evolution engine
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: post-promotion health check failed
+
+---
+
 ## 2026-05-12 14:58 UTC | ⚠️ main `c96fbbf`
 
 **Commit**: feat(crm): AI lead classifier + contact merge (dublikat birlashtirish)
