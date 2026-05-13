@@ -457,6 +457,56 @@ class AmoCRMSync:
             logger.error(f"[AMOCRM ENSURE LEAD ERROR] {e}")
             return None
 
+    async def create_standalone_lead(
+        self,
+        name: str,
+        note: str = None,
+        price: int = 0,
+        pipeline_id: int = 10117998,
+        status_id: int = 80178230,
+        tags: Optional[List[str]] = None,
+        responsible_user_id: Optional[int] = None,
+    ) -> Optional[int]:
+        """Create an AmoCRM lead even when Telegram phone is unavailable."""
+        if not self.access_token:
+            self._load_token()
+
+        url = f"{self.base_url}/api/v4/leads"
+        payload: Dict[str, Any] = {
+            "name": name,
+            "price": int(price or 0),
+            "pipeline_id": int(pipeline_id),
+            "status_id": int(status_id),
+        }
+        if responsible_user_id:
+            payload["responsible_user_id"] = int(responsible_user_id)
+        if tags:
+            payload["_embedded"] = {"tags": [{"name": str(tag)} for tag in tags if tag]}
+
+        try:
+            response = requests.post(url, headers=self._get_headers(), json=[payload], timeout=30)
+            if response.status_code == 401 and self.refresh_token():
+                response = requests.post(url, headers=self._get_headers(), json=[payload], timeout=30)
+
+            if response.status_code in [200, 201]:
+                lead_id = (
+                    response.json().get("_embedded", {}).get("leads", [{}])[0].get("id")
+                )
+                if lead_id and note:
+                    self.add_lead_note(int(lead_id), note)
+                logger.info(f"[AMOCRM OK] Standalone lead yaratildi: {lead_id}")
+                return int(lead_id) if lead_id else None
+
+            self.last_error = f"create_standalone_lead_http_{response.status_code}"
+            logger.error(
+                f"[AMOCRM STANDALONE LEAD ERROR] {response.status_code}: {response.text}"
+            )
+            return None
+        except Exception as e:
+            self.last_error = "create_standalone_lead_exception"
+            logger.error(f"[AMOCRM STANDALONE LEAD EXCEPTION] {e}")
+            return None
+
     @retry_with_backoff(max_retries=3, initial_delay=1)
     def get_contact_by_phone(self, phone: str) -> Optional[dict]:
         """Suhbatdoshni telefon raqami orqali qidirish (Robust normalization bilan)."""
