@@ -2,7 +2,10 @@ name: Oracle Cloud — Deploy & Restart
 
 on:
   push:
+    branches: [main]
     paths:
+      - 'src/**'
+      - 'requirements.txt'
       - '.github/workflows/oracle-deploy.yml'
       - 'deploy/oracle-trigger'
   workflow_dispatch:
@@ -69,6 +72,7 @@ jobs:
             OWNER_ID=150074828
             ENABLE_AUTO_REPLY=false
             RUNNING_IN_CLOUD=True
+            ALLOW_LOCAL_RUN=1
             AIRTABLE_BASE_ID=app8xoyx1XCumYFXV
             CRM_GROUP_ID=-1002566480563
             TEAM_GROUP_ID=-4860594772
