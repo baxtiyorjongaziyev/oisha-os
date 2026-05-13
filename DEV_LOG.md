@@ -5,6 +5,14 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-13 16:48 UTC | ⚠️ main `561c19a`
+
+**Commit**: fix(deploy): Oracle VM uses file-based session, not StringSession
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: post-promotion health check failed
+
+---
+
 ## 2026-05-13 16:04 UTC | ⚠️ main `ed5a47a`
 
 **Commit**: feat(agents): meeting scheduler + deal hygiene + self-evolution engine
