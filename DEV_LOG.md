@@ -5,6 +5,22 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-13 16:04 UTC | ⚠️ main `ed5a47a`
+
+**Commit**: feat(agents): meeting scheduler + deal hygiene + self-evolution engine
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: post-promotion health check failed
+
+---
+
+## 2026-05-12 14:58 UTC | ⚠️ main `c96fbbf`
+
+**Commit**: feat(crm): AI lead classifier + contact merge (dublikat birlashtirish)
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: Creating temporary archive of 558 file(s) totalling 9.8 MiB before compression. Uploading tarball of [.] to [gs://jonbranding-85662071-ea38e_cloudbuild/source/1778597894.38165-f3c82d5b7afd433ea709d0d064375fd5.tgz] ERROR: (gcloud.builds.submit) 403 Could not upload file [/tmp/tmpblxr640z/file.tgz] to [jonbranding-85662071-ea38e_cloudbuild/source/1778597894.38165-f3c82d5b7afd433ea709d0d064375fd5.tgz]: The billing account for the owning project is disabled in state absent. This command is authentic
+
+---
+
 ## 2026-05-10 08:05 UTC | ⚠️ main `240800d`
 
 **Commit**: feat(infra): add Oracle Cloud Free Tier deploy (24/7)
