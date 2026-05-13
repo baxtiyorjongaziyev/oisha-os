@@ -24,7 +24,7 @@ if os.name == "nt":
 sys.path.append(os.getcwd())
 sys.path.append(os.path.join(os.getcwd(), "src"))
 
-from telethon import TelegramClient
+from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from src import config
 from src.settings import settings
@@ -199,11 +199,6 @@ def _restore_cloud_artifacts() -> None:
             logger.info(f"[CLOUD] Restored Google credentials file at {creds_path}.")
         except Exception as exc:
             logger.error(f"[CLOUD] Failed to restore Google credentials file: {exc}")
-
-    logger.error(
-        "[AUTH] Userbot session missing or unauthorized. Interactive auth is disabled in cloud runtime."
-    )
-    return False
 
 
 async def _connect_user_client(telegram_client: TelegramClient) -> bool:
