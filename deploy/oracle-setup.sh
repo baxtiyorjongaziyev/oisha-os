@@ -66,7 +66,17 @@ sudo tee /etc/logrotate.d/oisha-os > /dev/null <<'LOGROTATE'
 }
 LOGROTATE
 
-# 7. Enable and start
+# 7. Watchdog cron (every 5 min)
+chmod +x "$OISHA_DIR/deploy/oracle-watchdog.sh"
+CRON_LINE="*/5 * * * * $OISHA_DIR/deploy/oracle-watchdog.sh >> /var/log/oisha-watchdog.log 2>&1"
+(crontab -l 2>/dev/null | grep -v "oracle-watchdog" ; echo "$CRON_LINE") | crontab -
+
+# 8. Auto-start on reboot
+sudo tee /etc/cron.d/oisha-reboot > /dev/null <<'REBOOT'
+@reboot ubuntu sleep 30 && sudo systemctl start oisha-os
+REBOOT
+
+# 9. Enable and start
 sudo systemctl daemon-reload
 sudo systemctl enable oisha-os
 echo ""
@@ -75,3 +85,4 @@ echo "Next steps:"
 echo "  1. Create .env file: nano /home/ubuntu/oisha-os/.env"
 echo "  2. Start: sudo systemctl start oisha-os"
 echo "  3. Check: sudo journalctl -u oisha-os -f"
+echo "  4. Watchdog: tail -f /var/log/oisha-watchdog.log"
