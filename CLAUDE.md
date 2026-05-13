@@ -152,6 +152,76 @@ OWNER_ID               Telegram user ID of owner
 - `WHITELIST_IDS` — only whitelisted Telegram IDs receive full agent capabilities
 - `src/services/debug/` — excluded from bandit scan and should NEVER be imported in production
 
+## TypeScript Monorepo (SalesCoach AI)
+
+The project also contains a TypeScript monorepo for the SalesCoach AI product:
+
+### Workspace Config
+- **Package manager:** pnpm 10.33.2
+- **Build system:** Turborepo 2.9.10
+- **TypeScript:** 6.0.3
+
+### Apps (`apps/`)
+| App | Stack | Purpose |
+|-----|-------|---------|
+| @salescoach/api | NestJS 11 | REST API backend |
+| @salescoach/web | Next.js 16 + React 19 | Dashboard frontend |
+| @salescoach/worker | BullMQ + ioredis | Async job processing |
+
+### Packages (`packages/`)
+| Package | Purpose |
+|---------|---------|
+| @salescoach/shared-types | Zod schemas, shared types |
+| @salescoach/ui | React component library |
+| @salescoach/config | ESLint, Prettier, TSConfig |
+
+### Separate workspace: `salescoach-ai/`
+Second monorepo with apps (api, bot, web, worker) + packages. Bot app added May 2025.
+
+### TypeScript Commands
+```bash
+pnpm run build       # Turbo build all
+pnpm run dev         # Turbo dev --parallel
+pnpm run lint        # Turbo lint
+pnpm run test        # Turbo test
+pnpm run typecheck   # Turbo typecheck
+pnpm run format      # Prettier
+```
+
+## Docker & Infrastructure
+
+### docker-compose.yml (dev stack)
+- **oisha** — main Python app
+- **postgres:16** — SalesCoach DB
+- **redis:7** — Cache + BullMQ queue
+- **minio** — S3-compatible object storage
+
+### Deployment Targets
+| Target | Use |
+|--------|-----|
+| Google Cloud Run (europe-west3) | Primary production |
+| Oracle Cloud Free Tier | Secondary (added May 2025) |
+| VPS | Legacy Telethon userbot |
+| Fly.io | Stub/legacy |
+
+### GitHub Workflows
+- `deploy.yml` — Main CI/CD (pytest + bandit + py_compile → Docker → Cloud Run)
+- `oracle-deploy.yml` — Oracle Cloud deployment
+- `userbot-vps.yml` — VPS userbot deployment
+- `codeql.yml` — Security scanning
+- `test.yml` — pytest
+- `juma-greeting.yml` — Scheduled Juma greetings
+
+## AI Providers
+
+| Provider | Use | Config |
+|----------|-----|--------|
+| Google Gemini 1.5 Flash | Fast responses | `GEMINI_API_KEY` |
+| Google Gemini 1.5 Pro | Complex reasoning | `GEMINI_API_KEY` |
+| AWS Bedrock (Claude) | Fallback (added May 2025) | AWS credentials |
+| Anthropic SDK | Direct Claude API | `ANTHROPIC_API_KEY` |
+| OpenAI | Fallback | `OPENAI_API_KEY` |
+
 ## Development Notes
 
 - All new agents should use `tool_registry.ToolResult` for standardised output
@@ -159,3 +229,5 @@ OWNER_ID               Telegram user ID of owner
 - Database writes must go through `database_pool.py` — never open raw connections
 - Quiet-hours and approval gates must not be bypassed for CRM or Telegram actions
 - `src/services/debug/` scripts are diagnostic one-offs — treat as read-only, never call from production code
+- TypeScript monorepo uses pnpm workspaces — always use `pnpm` not `npm`
+- Two separate workspaces exist: root `apps/` and `salescoach-ai/` — avoid confusion between them
