@@ -50,6 +50,7 @@ from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
 from src.services.core.session_manager import SessionManager
+from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
 
 # Global Managers
@@ -80,6 +81,8 @@ session_manager = None
 chat_bridge = None
 BOT_TOKEN_STR = None
 surgical_integration = None
+evolution_scheduler = None
+meeting_scheduler = None
 
 # TN5 Group Config (env-configurable; fallback keeps legacy behavior)
 TN5_GROUP_ID = (
@@ -1738,6 +1741,16 @@ async def run_autonomous_advice(chat_id, sender_name, message_text):
                     context={"chat_id": "me"},
                     is_business=False,
                 )
+
+        # [SELF-LEARNING] Extract lessons from this conversation
+        if evolution_scheduler and history_context:
+            await evolution_scheduler.on_conversation_end(
+                conversation=history_context,
+                client_type="lead",
+                outcome="advice_given" if advice else "no_action",
+                manager_name=sender_name,
+                chat_id=chat_id,
+            )
     except Exception as e:
         logger.error(f"[ADVISOR] Background advice error: {e}")
 
@@ -1817,9 +1830,31 @@ async def self_command_handler(event):
                     )
             except Exception as e:
                 logger.error(f"[COMMAND] /stagnant error: {e}", exc_info=True)
-                await event.respond(f"❌ **Xato:** {str(e)}")
+            await event.respond(f"❌ **Xato:** {str(e)}")
         else:
             await event.respond("❌ **Xato:** EnterpriseReporter topilmadi.")
+    elif cmd.startswith("/calendar_scan"):
+        if not meeting_scheduler:
+            await event.respond("❌ Calendar scanner hali ishga tushmagan.")
+            return
+        await event.respond("📅 Telegram chatlardan uchrashuvlarni qidiryapman...")
+        try:
+            result = await meeting_scheduler.scan_recent_dialogs(
+                client,
+                dialog_limit=_negotiation_int("CALENDAR_SCAN_DIALOG_LIMIT", 80),
+                message_limit=_negotiation_int("CALENDAR_SCAN_MESSAGE_LIMIT", 12),
+                max_age_hours=_negotiation_int("CALENDAR_SCAN_MAX_AGE_HOURS", 72),
+            )
+            await event.respond(
+                "📅 Calendar scan yakunlandi:\n"
+                f"Tekshirildi: {result.get('scanned', 0)} chat\n"
+                f"Yaratildi: {result.get('created', 0)} uchrashuv\n"
+                f"Eski/noaniq o'tkazildi: {result.get('skipped_old', 0)}\n"
+                f"Xato: {result.get('errors', 0)}"
+            )
+        except Exception as exc:
+            logger.error(f"[COMMAND] /calendar_scan error: {exc}", exc_info=True)
+            await event.respond(f"❌ Calendar scan xatosi: {type(exc).__name__}")
 
 
 async def activity_monitor_handler(event):
@@ -1828,6 +1863,16 @@ async def activity_monitor_handler(event):
         return
     if activity_monitor:
         await activity_monitor.log_event(event)
+
+
+async def meeting_scheduler_handler(event):
+    """Create Google Calendar events from clear Telegram meeting agreements."""
+    if not meeting_scheduler:
+        return
+    try:
+        await meeting_scheduler.process_event(event, client)
+    except Exception as exc:
+        logger.warning(f"[MEETING] Scheduler skipped: {type(exc).__name__}: {exc}")
 
 
 def _negotiation_int(name: str, default: int) -> int:
@@ -2072,7 +2117,8 @@ async def main():
     global msg_controller, client, bot_client, lead_scraper, action_parser
     global advisor_agent, auto_lead_agent, safe_responder, activity_monitor, audit_agent
     global workflow_manager, access_manager, admin_bot, session_manager, chat_bridge, BOT_TOKEN_STR, juma_notifier
-    global surgical_integration
+    global surgical_integration, evolution_scheduler
+    global meeting_scheduler
 
     # [ENTERPRISE] Anti-Local Execution Lock
     # To protect the owner's Telegram session from being revoked by simultaneous
@@ -2267,11 +2313,19 @@ async def main():
         config=config,
         lead_scraper=lead_scraper,
     )
+    meeting_scheduler = TelegramMeetingScheduler(
+        db=msg_controller.db,
+        gcalendar=msg_controller.google.calendar,
+        admin_notifier=admin_bot,
+        amocrm=msg_controller.crm.amocrm,
+    )
 
     advisor_agent = AdvisorAgent(
         api_key=api_keys["gemini"], db=msg_controller.db, action_parser=action_parser
     )
     auto_lead_agent = AutoLeadAgent(api_key=api_keys["gemini"])
+    if meeting_scheduler:
+        meeting_scheduler.lead_detector = auto_lead_agent
     SalesCoach(ai_provider=auto_lead_agent)  # Use shared AI provider
     crm_guard = CRMGuard(
         amo=msg_controller.crm.amocrm, db=msg_controller.db, bot=None
@@ -2325,6 +2379,11 @@ async def main():
     activity_monitor = ActivityMonitor(db=msg_controller.db)
     audit_agent = AuditAgent(api_key=api_keys["gemini"], db=msg_controller.db)
 
+    # [SELF-EVOLUTION] Learning + Evolution scheduler
+    from src.services.core.evolution_scheduler import EvolutionScheduler
+    evolution_scheduler = EvolutionScheduler(db=msg_controller.db, gemini_api_key=api_keys["gemini"])
+    asyncio.create_task(evolution_scheduler.start(), name="evolution_scheduler")
+
     workflow_manager = WorkflowManager(
         crm=msg_controller.crm.amocrm, db=msg_controller.db, client=client
     )
@@ -2344,6 +2403,8 @@ async def main():
         access_manager=access_manager,
         team_group_id=settings.TEAM_GROUP_ID,
     )
+    if meeting_scheduler:
+        meeting_scheduler.admin_notifier = admin_bot
     from src.services.utils.welcome_manager import WelcomeManager
 
     WelcomeManager(client=client)
@@ -2497,10 +2558,40 @@ async def main():
         events.NewMessage(outgoing=True),
     )
     client.add_event_handler(
+        meeting_scheduler_handler,
+        events.NewMessage(incoming=True),
+    )
+    client.add_event_handler(
+        meeting_scheduler_handler,
+        events.NewMessage(outgoing=True),
+    )
+    client.add_event_handler(
         self_command_handler,
         events.NewMessage(chats="me"),
     )
     logger.info("[EVENTS] Safe userbot handlers registered.")
+
+    async def calendar_autoscan_loop():
+        await asyncio.sleep(_negotiation_int("CALENDAR_SCAN_BOOT_DELAY_SECS", 60))
+        while True:
+            try:
+                if meeting_scheduler and os.getenv(
+                    "ENABLE_CALENDAR_AUTOSCAN", "1"
+                ).strip().lower() not in {"0", "false", "no", "off"}:
+                    result = await meeting_scheduler.scan_recent_dialogs(
+                        client,
+                        dialog_limit=_negotiation_int("CALENDAR_SCAN_DIALOG_LIMIT", 80),
+                        message_limit=_negotiation_int("CALENDAR_SCAN_MESSAGE_LIMIT", 12),
+                        max_age_hours=_negotiation_int("CALENDAR_SCAN_MAX_AGE_HOURS", 72),
+                    )
+                    logger.info(f"[MEETING SCAN] {result}")
+            except Exception as exc:
+                logger.warning(
+                    f"[MEETING SCAN] Autoscan failed: {type(exc).__name__}: {exc}"
+                )
+            await asyncio.sleep(_negotiation_int("CALENDAR_SCAN_INTERVAL_SECS", 900))
+
+    asyncio.create_task(calendar_autoscan_loop(), name="calendar_autoscan_loop")
 
     # [PHASE 1.4] Graceful SIGTERM drain for Cloud Run revision rollover.
     # Cloud Run sends SIGTERM with a 30s grace period; we drain in-flight
