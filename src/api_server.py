@@ -5,7 +5,7 @@ import json
 from datetime import datetime, timezone
 import logging
 import os
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
@@ -398,6 +398,35 @@ user_client = None
 db_instance = None
 audit_agent = None
 amocrm_instance = None
+
+
+def _get_amocrm_instance() -> AmoCRMSync:
+    """Create the shared AmoCRM client with the full OAuth config."""
+    global amocrm_instance
+    if amocrm_instance:
+        return amocrm_instance
+
+    amocrm_instance = AmoCRMSync(
+        subdomain=_setting_text(settings.AMOCRM_SUBDOMAIN),
+        client_id=_setting_text(settings.AMOCRM_CLIENT_ID),
+        client_secret=_secret_setting_text(settings.AMOCRM_CLIENT_SECRET),
+        redirect_url=_setting_text(settings.AMOCRM_REDIRECT_URL),
+    )
+    return amocrm_instance
+
+
+async def _get_db_instance():
+    """Return runtime DB, creating it when the API is started standalone."""
+    global db_instance
+    if db_instance:
+        return db_instance
+
+    from src.database import Database
+
+    db_instance = Database()
+    await db_instance.init_instance()
+    return db_instance
+
 
 # [HEALTHZ] Liveness heartbeat — main event loop updates this via mark_heartbeat().
 # Deploy smoke checks read /healthz/; if heartbeat is stale, the probe fails
@@ -1142,27 +1171,16 @@ async def send_chat_message(request: SendMessageRequest):
 @app.post("/api/leads")
 async def create_amo_lead(request: CreateLeadRequest):
     """Vebsaytdan kelgan leadni AmoCRM-ga yuborish."""
-    global amocrm_instance
     expected_secret = os.environ.get("OISHA_API_SECRET")
     if not expected_secret or not hmac.compare_digest(
         request.secret_key, expected_secret
     ):
         return {"error": "Unauthorized"}
 
-    if not amocrm_instance:
-        amocrm_instance = AmoCRMSync(
-            subdomain=settings.AMOCRM_SUBDOMAIN,
-            client_id=settings.AMOCRM_CLIENT_ID,
-            client_secret=(
-                settings.AMOCRM_CLIENT_SECRET.get_secret_value()
-                if settings.AMOCRM_CLIENT_SECRET
-                else ""
-            ),
-            redirect_url=settings.AMOCRM_REDIRECT_URL,
-        )
+    amocrm = _get_amocrm_instance()
 
     logger.info(f"🚀 [API] Website Lead qabul qilindi: {request.name}")
-    lead_id = await amocrm_instance.ensure_lead(
+    lead_id = await amocrm.ensure_lead(
         name=request.name, phone=request.phone, note=request.note
     )
 
@@ -1175,7 +1193,6 @@ async def create_amo_lead(request: CreateLeadRequest):
 @app.post("/api/amocrm-refresh")
 async def refresh_amocrm_token(request: Request):
     """Cron yoki manual refresh uchun endpoint."""
-    global amocrm_instance
     auth_header = request.headers.get("Authorization")
 
     cron_secret = (
@@ -1190,24 +1207,13 @@ async def refresh_amocrm_token(request: Request):
     if not auth_header or auth_header != f"Bearer {cron_secret}":
         return {"ok": False, "error": "Unauthorized"}
 
-    if not amocrm_instance:
-        amocrm_instance = AmoCRMSync(
-            subdomain=settings.AMOCRM_SUBDOMAIN,
-            client_id=settings.AMOCRM_CLIENT_ID,
-            client_secret=(
-                settings.AMOCRM_CLIENT_SECRET.get_secret_value()
-                if settings.AMOCRM_CLIENT_SECRET
-                else ""
-            ),
-            redirect_url=settings.AMOCRM_REDIRECT_URL,
-        )
-
-    success = amocrm_instance.refresh_token()
+    amocrm = _get_amocrm_instance()
+    success = amocrm.refresh_token()
     if success:
-        expires_at = amocrm_instance.token_data.get("expires_at", "unknown")
+        expires_at = amocrm.token_data.get("expires_at", "unknown")
         return {"ok": True, "expires_at": expires_at}
     else:
-        return {"ok": False, "error": amocrm_instance.last_error or "Refresh failed"}
+        return {"ok": False, "error": amocrm.last_error or "Refresh failed"}
 
 
 @app.post("/webhook/amocrm")
@@ -1252,17 +1258,7 @@ async def process_amocrm_event(data: Dict[str, Any]):
             return
 
         # 2. AmoCRM va Agentni tayyorlash
-        if not amocrm_instance:
-            amocrm_instance = AmoCRMSync(
-                subdomain=settings.AMOCRM_SUBDOMAIN,
-                client_id=settings.AMOCRM_CLIENT_ID,
-                client_secret=(
-                    settings.AMOCRM_CLIENT_SECRET.get_secret_value()
-                    if settings.AMOCRM_CLIENT_SECRET
-                    else ""
-                ),
-                redirect_url=settings.AMOCRM_REDIRECT_URL,
-            )
+        amocrm_instance = _get_amocrm_instance()
 
         agent = AutonomousSalesAgent(db=db_instance)
         
@@ -1871,21 +1867,14 @@ async def get_lead_classification():
     Real mijoz / shaxsiy / spam aniqlaydi.
     """
     try:
-        global amocrm_instance
-        if not amocrm_instance:
-            from src.services.core.amocrm_sync import AmoCRMSync
-            amocrm_instance = AmoCRMSync(
-                subdomain=settings.AMOCRM_SUBDOMAIN,
-                client_id=settings.AMOCRM_CLIENT_ID,
-                client_secret=settings.AMOCRM_CLIENT_SECRET,
-            )
+        amocrm = _get_amocrm_instance()
 
-        gemini_key = settings.GEMINI_API_KEY
+        gemini_key = _secret_setting_text(settings.GEMINI_API_KEY)
         if not gemini_key:
             return {"status": "error", "message": "GEMINI_API_KEY not configured"}
 
         from src.services.core.lead_classifier import LeadClassifier
-        classifier = LeadClassifier(amocrm_instance, gemini_key)
+        classifier = LeadClassifier(amocrm, gemini_key)
         results = await classifier.classify_all_active_leads()
 
         return {
@@ -1914,21 +1903,14 @@ async def get_lead_classification():
 async def tag_unnecessary_leads():
     """Keraksiz sdelkalarni tag qilish (PERSONAL_NOT_CLIENT, SPAM_DETECTED)."""
     try:
-        global amocrm_instance
-        if not amocrm_instance:
-            from src.services.core.amocrm_sync import AmoCRMSync
-            amocrm_instance = AmoCRMSync(
-                subdomain=settings.AMOCRM_SUBDOMAIN,
-                client_id=settings.AMOCRM_CLIENT_ID,
-                client_secret=settings.AMOCRM_CLIENT_SECRET,
-            )
+        amocrm = _get_amocrm_instance()
 
-        gemini_key = settings.GEMINI_API_KEY
+        gemini_key = _secret_setting_text(settings.GEMINI_API_KEY)
         if not gemini_key:
             return {"status": "error", "message": "GEMINI_API_KEY not configured"}
 
         from src.services.core.lead_classifier import LeadClassifier
-        classifier = LeadClassifier(amocrm_instance, gemini_key)
+        classifier = LeadClassifier(amocrm, gemini_key)
         results = await classifier.classify_all_active_leads()
         tagged = await classifier.tag_unnecessary_leads(results)
 
@@ -1940,6 +1922,50 @@ async def tag_unnecessary_leads():
     except Exception as e:
         logger.error(f"[API AI] Lead tagger error: {e}")
         return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/ai/deal-hygiene")
+async def get_deal_hygiene(
+    limit: int = 100,
+    apply_changes: bool = Query(False, alias="apply"),
+    create_tasks: bool = True,
+):
+    """
+    AmoCRM hygiene audit:
+    - MetaSell/call-analysis xulosalari asosida keraksiz sdelkalarni ajratadi.
+    - Telegram akkaunt + telefon mosligi orqali duplikat sdelka ehtimollarini topadi.
+    - apply_changes=True bo'lmasa AmoCRMga hech narsa yozmaydi.
+    """
+    try:
+        from src.services.core.deal_hygiene import AmoCRMDealHygieneAgent
+
+        amocrm = _get_amocrm_instance()
+        db = await _get_db_instance()
+        agent = AmoCRMDealHygieneAgent(amocrm=amocrm, db=db)
+        report = await agent.audit(limit=limit)
+
+        applied = None
+        if apply_changes:
+            applied = await agent.apply_report(report, create_tasks=create_tasks)
+
+        return {
+            "status": "success",
+            "applied": applied,
+            **report,
+        }
+    except Exception as e:
+        logger.error(f"[API AI] Deal hygiene error: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/ai/deal-hygiene/apply")
+async def apply_deal_hygiene(limit: int = 100, create_tasks: bool = True):
+    """Safe apply: tag, note and optional review task only. No delete/merge."""
+    return await get_deal_hygiene(
+        limit=limit,
+        apply_changes=True,
+        create_tasks=create_tasks,
+    )
 
 
 @app.post("/api/ai/process-call")
