@@ -35,6 +35,7 @@ jobs:
           USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
@@ -42,15 +43,22 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 5m
-          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN
+          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,AIRTABLE_API_KEY
           script: |
             set -e
             OISHA_DIR="/home/ubuntu/oisha-os"
             cd "$OISHA_DIR"
 
+            # Preserve session files across deploys
+            cp -a data/*.session /tmp/ 2>/dev/null || true
+
             # Pull latest code
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main && git reset --hard origin/main
+
+            # Restore session files
+            mkdir -p data
+            cp -a /tmp/*.session data/ 2>/dev/null || true
 
             # Update dependencies
             ./venv/bin/pip install -q -r requirements.txt
@@ -71,11 +79,11 @@ jobs:
             TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
             OWNER_ID=150074828
             ENABLE_AUTO_REPLY=false
-            RUNNING_IN_CLOUD=True
             ALLOW_LOCAL_RUN=1
             AIRTABLE_BASE_ID=app8xoyx1XCumYFXV
             CRM_GROUP_ID=-1002566480563
             TEAM_GROUP_ID=-4860594772
+            AIRTABLE_API_KEY=${AIRTABLE_API_KEY}
             GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k
             ENVFILE
             sed -i 's/^            //' .env
