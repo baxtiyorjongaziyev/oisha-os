@@ -108,6 +108,7 @@ jobs:
             OISHA_RUNTIME=vm_service
             CLOUD_RUN_CONTROL_PLANE_ONLY=false
             SESSION_MODE=file
+            HEALTH_LIVE_DB_PROBE=0
             ENABLE_CLOUD_USERBOT=true
             ENABLE_AUTO_REPLY=false
             ALLOW_LOCAL_RUN=1
