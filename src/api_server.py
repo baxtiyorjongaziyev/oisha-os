@@ -193,7 +193,9 @@ async def liveness_probe():
                 db_ok = False
                 checks["db_ok"] = False
                 problems.append("turso_fallback")
-        except Exception as e:
+        except BaseException as e:
+            if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
+                raise
             logger.warning(f"[HEALTH] Database connection failed: {e}")
             db_ok = False
             checks["db_ok"] = False
