@@ -33,6 +33,29 @@ class _FakeAmo:
     def __init__(self):
         self.ensure_calls = []
         self.standalone_calls = []
+        self.meeting_task_calls = []
+        self.notes = []
+        self.existing_lead = None
+
+    async def create_meeting_task_for_phone(
+        self, phone, task_text, complete_till, note=None
+    ):
+        self.meeting_task_calls.append(
+            {
+                "phone": phone,
+                "task_text": task_text,
+                "complete_till": complete_till,
+                "note": note,
+            }
+        )
+        if not self.existing_lead:
+            return {"success": False, "reason": "active_lead_not_found"}
+        self.notes.append({"lead_id": self.existing_lead["id"], "note": note})
+        return {
+            "success": True,
+            "lead_id": self.existing_lead["id"],
+            "task": {"id": 444},
+        }
 
     async def ensure_lead(self, name, phone, note=None):
         self.ensure_calls.append({"name": name, "phone": phone, "note": note})
@@ -217,6 +240,54 @@ async def test_calendar_meeting_syncs_to_amocrm_when_context_is_lead():
     assert amo.ensure_calls[0]["phone"] == "+998901112233"
     assert "Uchrashuv vaqti: 14.05.2026 13:00" in amo.ensure_calls[0]["note"]
     assert db.state["crm:lead:9001"] == "111"
+
+
+@pytest.mark.asyncio
+async def test_calendar_meeting_adds_task_to_existing_amocrm_deal_by_phone():
+    db = _FakeDB()
+    amo = _FakeAmo()
+    amo.existing_lead = {"id": 333, "responsible_user_id": 77}
+    detector = _FakeLeadDetector(
+        {
+            "is_lead": True,
+            "phone": "+998901112233",
+            "intent_category": "HOT_LEAD",
+            "needs": "Branding konsultatsiyasi",
+        }
+    )
+    scheduler = TelegramMeetingScheduler(
+        db=db,
+        gcalendar=None,
+        amocrm=amo,
+        lead_detector=detector,
+    )
+    candidate = MeetingCandidate(
+        summary="Suhbat: Ozodbek",
+        start_time=datetime(2026, 5, 14, 13, 0, tzinfo=TZ),
+        end_time=datetime(2026, 5, 14, 14, 0, tzinfo=TZ),
+        description="",
+        location="U Enter",
+    )
+
+    lead_id = await scheduler._sync_crm_lead_if_needed(
+        _Peer(),
+        "Ozodbek",
+        [
+            ContextMessage(
+                text="Logo va brending bo'yicha konsultatsiyaga kelaman",
+                is_outgoing=False,
+                created_at=datetime(2026, 5, 13, 20, 35, tzinfo=TZ),
+            )
+        ],
+        candidate,
+    )
+
+    assert lead_id == 333
+    assert amo.ensure_calls == []
+    assert amo.meeting_task_calls[0]["phone"] == "+998901112233"
+    assert "14.05.2026 13:00" in amo.meeting_task_calls[0]["task_text"]
+    assert "Uchrashuv vaqti: 14.05.2026 13:00" in amo.notes[0]["note"]
+    assert db.state["crm:lead:9001"] == "333"
 
 
 @pytest.mark.asyncio
