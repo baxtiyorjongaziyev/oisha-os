@@ -110,6 +110,20 @@ class DatabasePool:
                     conn = self.get_connection()  # Get new one
                     continue
                 raise
+            except BaseException as e:
+                if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
+                    raise
+                # libsql can surface Rust panics as BaseException subclasses
+                # (pyo3_runtime.PanicException). Reset the connection so a
+                # transient bad handle does not turn /healthz into ASGI 500.
+                self.close()
+                if attempt < 2:
+                    logger.warning(
+                        f"[DB POOL] Non-standard database error. Retrying ({attempt+1}/3): {type(e).__name__}"
+                    )
+                    conn = self.get_connection()
+                    continue
+                raise RuntimeError(f"database_pool_failed:{type(e).__name__}") from e
 
     def get_backend_name(self) -> str:
         return "turso"
