@@ -148,7 +148,7 @@ class EvolutionScheduler:
     async def _record_metrics_snapshot(self):
         """Record hourly metrics."""
         try:
-            async with self.db.get_connection() as conn:
+            async with await self.db.get_connection() as conn:
                 row = await conn.execute(
                     "SELECT COUNT(*) FROM learning_journal WHERE created_at > datetime('now', '-1 hour')"
                 )
