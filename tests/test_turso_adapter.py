@@ -164,6 +164,50 @@ async def test_database_falls_back_to_sqlite_when_turso_probe_fails(monkeypatch,
         await db.close()
 
 
+async def test_database_reuses_existing_turso_adapter(monkeypatch, tmp_path):
+    _require_libsql()
+
+    from src import database as database_module
+
+    db = Database(str(tmp_path / "reuse.db"))
+    original_url = database_module.settings.TURSO_DATABASE_URL
+    original_token = database_module.settings.TURSO_AUTH_TOKEN
+
+    class DummySecret:
+        def __init__(self, value):
+            self._value = value
+
+        def get_secret_value(self):
+            return self._value
+
+        def __bool__(self):
+            return bool(self._value)
+
+    calls = 0
+    original_connect = database_module.libsql.connect
+
+    def counting_connect(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_connect(":memory:")
+
+    monkeypatch.setattr(database_module.settings, "TURSO_DATABASE_URL", DummySecret(":memory:"))
+    monkeypatch.setattr(database_module.settings, "TURSO_AUTH_TOKEN", DummySecret("test-token"))
+    monkeypatch.setattr(database_module.libsql, "connect", counting_connect)
+
+    try:
+        first = await db.get_connection()
+        second = await db.get_connection()
+
+        assert isinstance(first, TursoAdapter)
+        assert second is first
+        assert calls == 1
+    finally:
+        monkeypatch.setattr(database_module.settings, "TURSO_DATABASE_URL", original_url)
+        monkeypatch.setattr(database_module.settings, "TURSO_AUTH_TOKEN", original_token)
+        await db.close()
+
+
 async def test_api_exposes_health_aliases():
     from src.api_server import app
 
