@@ -182,41 +182,52 @@ async def liveness_probe():
         return getattr(db_instance, "get_backend_name", lambda: "unknown")()
 
     dependency_timeout = float(os.getenv("HEALTH_DEPENDENCY_TIMEOUT_SECS", "3.0"))
+    live_db_probe_default = "0" if runtime_source == "vm_service" else "1"
+    live_db_probe = os.getenv(
+        "HEALTH_LIVE_DB_PROBE", live_db_probe_default
+    ).strip().lower() in {"1", "true", "yes", "on"}
     db_ok = True
     if db_instance is not None:
-        try:
-            backend_name = await asyncio.wait_for(
-                _probe_database(), timeout=dependency_timeout
-            )
-            checks["db_ok"] = True
-            checks["db_backend"] = backend_name
-            turso_required = bool(
-                settings.RUNNING_IN_CLOUD
-                and _setting_text(settings.TURSO_DATABASE_URL)
-                and _setting_text(settings.TURSO_AUTH_TOKEN)
-            )
-            if turso_required and backend_name != "turso":
+        if live_db_probe:
+            try:
+                backend_name = await asyncio.wait_for(
+                    _probe_database(), timeout=dependency_timeout
+                )
+                checks["db_ok"] = True
+                checks["db_backend"] = backend_name
+                turso_required = bool(
+                    settings.RUNNING_IN_CLOUD
+                    and _setting_text(settings.TURSO_DATABASE_URL)
+                    and _setting_text(settings.TURSO_AUTH_TOKEN)
+                )
+                if turso_required and backend_name != "turso":
+                    db_ok = False
+                    checks["db_ok"] = False
+                    problems.append("turso_fallback")
+            except asyncio.TimeoutError:
+                logger.warning("[HEALTH] Database probe timed out")
                 db_ok = False
                 checks["db_ok"] = False
-                problems.append("turso_fallback")
-        except asyncio.TimeoutError:
-            logger.warning("[HEALTH] Database probe timed out")
-            db_ok = False
-            checks["db_ok"] = False
-            checks["db_backend"] = getattr(
-                db_instance, "get_backend_name", lambda: "unknown"
-            )()
-            problems.append("db_timeout")
-        except BaseException as e:
-            if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
-                raise
-            logger.warning(f"[HEALTH] Database connection failed: {e}")
-            db_ok = False
-            checks["db_ok"] = False
-            checks["db_backend"] = getattr(
-                db_instance, "get_backend_name", lambda: "unknown"
-            )()
-            problems.append("db_failed")
+                checks["db_backend"] = getattr(
+                    db_instance, "get_backend_name", lambda: "unknown"
+                )()
+                problems.append("db_timeout")
+            except BaseException as e:
+                if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
+                    raise
+                logger.warning(f"[HEALTH] Database connection failed: {e}")
+                db_ok = False
+                checks["db_ok"] = False
+                checks["db_backend"] = getattr(
+                    db_instance, "get_backend_name", lambda: "unknown"
+                )()
+                problems.append("db_failed")
+        else:
+            backend_name = getattr(db_instance, "get_backend_name", lambda: "unknown")()
+            checks["db_ok"] = backend_name != "unknown"
+            checks["db_backend"] = backend_name
+            checks["db_probe"] = "skipped_runtime_cached"
+            db_ok = checks["db_ok"]
     else:
         checks["db_ok"] = True
 
