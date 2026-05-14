@@ -529,11 +529,19 @@ class TelegramMeetingScheduler:
         lead_id: Optional[int] = None
         try:
             if phone:
-                lead_id = await self.amocrm.ensure_lead(
-                    name=lead_name,
+                task_result = await self._create_existing_lead_meeting_task(
                     phone=str(phone),
+                    candidate=candidate,
+                    participant_name=participant_name,
                     note=note,
                 )
+                lead_id = task_result
+                if not lead_id:
+                    lead_id = await self.amocrm.ensure_lead(
+                        name=lead_name,
+                        phone=str(phone),
+                        note=note,
+                    )
             if not lead_id and hasattr(self.amocrm, "create_standalone_lead"):
                 lead_id = await self.amocrm.create_standalone_lead(
                     name=lead_name,
@@ -554,6 +562,56 @@ class TelegramMeetingScheduler:
 
         if lead_id:
             logger.info(f"[MEETING] AmoCRM meeting lead synced: {lead_id}")
+        return lead_id
+
+    async def _create_existing_lead_meeting_task(
+        self,
+        phone: str,
+        candidate: MeetingCandidate,
+        participant_name: str,
+        note: str,
+    ) -> Optional[int]:
+        """Mavjud ochiq AmoCRM sdelka bo'lsa, yangi lead emas task yaratish."""
+        task_text = self._build_meeting_task_text(candidate, participant_name)
+        complete_till = int(candidate.start_time.timestamp())
+
+        if hasattr(self.amocrm, "create_meeting_task_for_phone"):
+            result = await self.amocrm.create_meeting_task_for_phone(
+                phone=phone,
+                task_text=task_text,
+                complete_till=complete_till,
+                note=note,
+            )
+            if isinstance(result, dict) and result.get("success"):
+                return int(result["lead_id"])
+            if (
+                isinstance(result, dict)
+                and result.get("reason") != "active_lead_not_found"
+            ):
+                raise RuntimeError(
+                    f"existing_lead_task_failed:{result.get('reason') or 'unknown'}"
+                )
+            return None
+
+        if not hasattr(self.amocrm, "find_active_lead_by_phone"):
+            return None
+
+        lead = self.amocrm.find_active_lead_by_phone(phone)
+        if not lead:
+            return None
+
+        lead_id = int(lead["id"])
+        if hasattr(self.amocrm, "create_task"):
+            task = await self.amocrm.create_task(
+                element_id=lead_id,
+                text=task_text,
+                complete_till=complete_till,
+                responsible_user_id=lead.get("responsible_user_id"),
+            )
+            if not task:
+                raise RuntimeError("existing_lead_task_failed")
+        if hasattr(self.amocrm, "add_lead_note"):
+            self.amocrm.add_lead_note(lead_id, note)
         return lead_id
 
     async def _detect_lead(
@@ -594,7 +652,7 @@ class TelegramMeetingScheduler:
         lead_data: dict,
     ) -> str:
         return (
-            "Oisha: Telegram suhbatidan avtomatik lead yaratildi.\n"
+            "Oisha: Telegram suhbatidan avtomatik uchrashuv/lead signali.\n"
             f"Mijoz: {participant_name}\n"
             f"Telegram: @{username or 'yoq'}\n"
             f"Uchrashuv vaqti: {candidate.start_time.strftime('%d.%m.%Y %H:%M')}\n"
@@ -602,6 +660,16 @@ class TelegramMeetingScheduler:
             f"Lead turi: {lead_data.get('intent_category', 'meeting_lead')}\n"
             f"Ehtiyoj: {lead_data.get('needs') or 'Uchrashuv belgilandi'}\n\n"
             f"Suhbat konteksti:\n{context_text[-1800:]}"
+        )
+
+    def _build_meeting_task_text(
+        self, candidate: MeetingCandidate, participant_name: str
+    ) -> str:
+        location = candidate.location or "manzil ko'rsatilmagan"
+        return (
+            f"Uchrashuv: {participant_name} bilan "
+            f"{candidate.start_time.strftime('%d.%m.%Y %H:%M')} da. "
+            f"Manzil: {location}. Oisha Telegram suhbatidan avtomatik qo'ydi."
         )
 
     async def _notify_admin(
