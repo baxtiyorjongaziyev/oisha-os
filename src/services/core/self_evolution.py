@@ -258,7 +258,7 @@ class SelfEvolutionEngine:
         return ""
 
     async def _get_recent_lessons(self) -> List[Dict[str, Any]]:
-        async with self.db.get_connection() as conn:
+        async with await self.db.get_connection() as conn:
             rows = await conn.execute(
                 """SELECT pattern, lesson, strategy, confidence, category
                    FROM learning_journal
@@ -272,7 +272,7 @@ class SelfEvolutionEngine:
             ]
 
     async def _get_current_strategies(self) -> List[Dict[str, Any]]:
-        async with self.db.get_connection() as conn:
+        async with await self.db.get_connection() as conn:
             rows = await conn.execute(
                 """SELECT rule, trigger_condition, weight, success_count, applied_count
                    FROM strategy_rules WHERE active = 1
@@ -284,7 +284,7 @@ class SelfEvolutionEngine:
             ]
 
     async def _get_metrics_summary(self) -> Dict[str, Any]:
-        async with self.db.get_connection() as conn:
+        async with await self.db.get_connection() as conn:
             quality_row = await conn.execute(
                 """SELECT AVG(metric_value) FROM learning_metrics
                    WHERE metric_type = 'response_quality'

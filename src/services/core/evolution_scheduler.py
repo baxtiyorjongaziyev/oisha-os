@@ -95,24 +95,24 @@ class EvolutionScheduler:
 
     async def _run_loop(self):
         """Main scheduler loop."""
-        last_synthesis = datetime.min
-        last_evolution = datetime.min
-        last_metrics = datetime.min
+        last_synthesis: Optional[datetime] = None
+        last_evolution: Optional[datetime] = None
+        last_metrics: Optional[datetime] = None
 
         while self._running:
             try:
                 now = get_local_now()
 
-                if (now - last_synthesis) > timedelta(hours=6):
+                if last_synthesis is None or (now - last_synthesis) > timedelta(hours=6):
                     await self._do_synthesis()
                     last_synthesis = now
 
-                if (now - last_evolution) > timedelta(days=7):
+                if last_evolution is None or (now - last_evolution) > timedelta(days=7):
                     if now.weekday() == 6 and now.hour == 3:
                         await self._do_evolution()
                         last_evolution = now
 
-                if (now - last_metrics) > timedelta(hours=1):
+                if last_metrics is None or (now - last_metrics) > timedelta(hours=1):
                     await self._record_metrics_snapshot()
                     last_metrics = now
 
@@ -148,7 +148,7 @@ class EvolutionScheduler:
     async def _record_metrics_snapshot(self):
         """Record hourly metrics."""
         try:
-            async with self.db.get_connection() as conn:
+            async with await self.db.get_connection() as conn:
                 row = await conn.execute(
                     "SELECT COUNT(*) FROM learning_journal WHERE created_at > datetime('now', '-1 hour')"
                 )

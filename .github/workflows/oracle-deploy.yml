@@ -1,17 +1,19 @@
-name: Oracle Cloud — Deploy & Restart
+name: Oracle Production Deploy
 
 on:
   push:
     branches: [main]
     paths:
-      - 'src/**'
-      - 'requirements.txt'
-      - '.github/workflows/oracle-deploy.yml'
-      - 'deploy/oracle-trigger'
+      - "src/**"
+      - "tests/**"
+      - "requirements.txt"
+      - ".github/workflows/oracle-deploy.yml"
+      - "deploy/oracle-trigger"
+      - "deploy/oracle-setup.sh"
   workflow_dispatch:
 
 concurrency:
-  group: oracle-deploy
+  group: oracle-production-deploy
   cancel-in-progress: true
 
 env:
@@ -19,12 +21,16 @@ env:
 
 jobs:
   deploy:
-    name: SSH → Oracle → Deploy
+    name: Oracle VM healthy deploy
     if: "!startsWith(github.event.head_commit.message, 'chore(auto):')"
     runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      deployments: write
     timeout-minutes: 10
     steps:
-      - name: Deploy to Oracle Cloud Free
+      - name: Deploy to Oracle VM and verify health
         id: oracle
         uses: appleboy/ssh-action@v1
         env:
@@ -35,40 +41,62 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AMOCRM_CLIENT_ID: ${{ secrets.AMOCRM_CLIENT_ID }}
           AMOCRM_CLIENT_SECRET: ${{ secrets.AMOCRM_CLIENT_SECRET }}
+          AMOCRM_REDIRECT_URL: ${{ secrets.AMOCRM_REDIRECT_URL }}
+          AMOCRM_TOKEN_JSON: ${{ secrets.AMOCRM_TOKEN_JSON }}
+          AMOCRM_REFRESH_TOKEN: ${{ secrets.AMOCRM_REFRESH_TOKEN }}
           OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
           OPENCLAW_SECRET: ${{ secrets.OPENCLAW_SECRET }}
           USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GCP_SA_KEY }}
+          PROJECTS_GROUP_ID: ${{ secrets.PROJECTS_GROUP_ID }}
+          TOPIC_CRM_ID: ${{ secrets.TOPIC_CRM_ID }}
+          TOPIC_GENERAL_ID: ${{ secrets.TOPIC_GENERAL_ID }}
+          TOPIC_KIRIM_ID: ${{ secrets.TOPIC_KIRIM_ID }}
+          TOPIC_REPORTS_ID: ${{ secrets.TOPIC_REPORTS_ID }}
+          TOPIC_TASKS_ID: ${{ secrets.TOPIC_TASKS_ID }}
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
           key: ${{ secrets.ORACLE_SSH_KEY }}
           port: 22
           timeout: 30s
-          command_timeout: 5m
-          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,AIRTABLE_API_KEY
+          command_timeout: 7m
+          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,AMOCRM_REDIRECT_URL,AMOCRM_TOKEN_JSON,AMOCRM_REFRESH_TOKEN,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,AIRTABLE_API_KEY,GOOGLE_SERVICE_ACCOUNT_JSON,PROJECTS_GROUP_ID,TOPIC_CRM_ID,TOPIC_GENERAL_ID,TOPIC_KIRIM_ID,TOPIC_REPORTS_ID,TOPIC_TASKS_ID
           script: |
-            set -e
+            set -euo pipefail
             OISHA_DIR="/home/ubuntu/oisha-os"
             cd "$OISHA_DIR"
 
-            # Preserve session files across deploys
+            mkdir -p data
             cp -a data/*.session /tmp/ 2>/dev/null || true
+            cp -a data/amocrm_token.json /tmp/amocrm_token.json 2>/dev/null || true
+            cp -a service_account.json /tmp/service_account.json 2>/dev/null || true
+            cp -a token.pickle /tmp/token.pickle 2>/dev/null || true
 
-            # Pull latest code
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
-            git fetch origin main && git reset --hard origin/main
+            git fetch origin main
+            git reset --hard origin/main
 
-            # Restore session files
             mkdir -p data
             cp -a /tmp/*.session data/ 2>/dev/null || true
+            cp -a /tmp/amocrm_token.json data/amocrm_token.json 2>/dev/null || true
+            cp -a /tmp/service_account.json service_account.json 2>/dev/null || true
+            cp -a /tmp/token.pickle token.pickle 2>/dev/null || true
 
-            # Update dependencies
             ./venv/bin/pip install -q -r requirements.txt
 
-            # Write .env from secrets
+            : "${AMOCRM_REDIRECT_URL:=https://localhost}"
+            if [ -n "${AMOCRM_TOKEN_JSON:-}" ]; then
+              printf '%s' "$AMOCRM_TOKEN_JSON" > data/amocrm_token.json
+            fi
+            if [ -n "${GOOGLE_SERVICE_ACCOUNT_JSON:-}" ]; then
+              printf '%s' "$GOOGLE_SERVICE_ACCOUNT_JSON" > service_account.json
+              cp service_account.json data/service_account.json
+            fi
+
             cat > .env <<ENVFILE
             BOT_TOKEN=${BOT_TOKEN}
             API_ID=${API_ID}
@@ -77,43 +105,87 @@ jobs:
             AMOCRM_SUBDOMAIN=jonbrandingagency
             AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID}
             AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET}
+            AMOCRM_REDIRECT_URL=${AMOCRM_REDIRECT_URL}
+            AMOCRM_REFRESH_TOKEN=${AMOCRM_REFRESH_TOKEN}
             OISHA_API_SECRET=${OISHA_API_SECRET}
             OPENCLAW_SECRET=${OPENCLAW_SECRET}
             TURSO_DATABASE_URL=${TURSO_DATABASE_URL}
             TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
             OWNER_ID=150074828
+            OISHA_RUNTIME=vm_service
+            CLOUD_RUN_CONTROL_PLANE_ONLY=false
+            SESSION_MODE=file
+            ENABLE_CLOUD_USERBOT=true
             ENABLE_AUTO_REPLY=false
             ALLOW_LOCAL_RUN=1
             AIRTABLE_BASE_ID=app8xoyx1XCumYFXV
             CRM_GROUP_ID=-1002566480563
             TEAM_GROUP_ID=-4860594772
+            PROJECTS_GROUP_ID=${PROJECTS_GROUP_ID}
+            TOPIC_CRM_ID=${TOPIC_CRM_ID}
+            TOPIC_GENERAL_ID=${TOPIC_GENERAL_ID}
+            TOPIC_KIRIM_ID=${TOPIC_KIRIM_ID}
+            TOPIC_REPORTS_ID=${TOPIC_REPORTS_ID}
+            TOPIC_TASKS_ID=${TOPIC_TASKS_ID}
             AIRTABLE_API_KEY=${AIRTABLE_API_KEY}
             GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k
+            GSHEET_CREDS_FILE=service_account.json
             ENVFILE
             sed -i 's/^            //' .env
 
-            # Restart service
+            sudo sed -i '/^WatchdogSec=/d' /etc/systemd/system/oisha-os.service || true
+            sudo systemctl daemon-reload
+            sudo systemctl reset-failed oisha-os || true
             sudo systemctl restart oisha-os
-            sleep 5
 
-            # Verify
-            if systemctl is-active --quiet oisha-os; then
-              echo "SUCCESS: Oisha-OS ishlayapti!"
-              sudo journalctl -u oisha-os --no-pager -n 10
-            else
-              echo "XATO: Service ishga tushmadi"
-              sudo journalctl -u oisha-os --no-pager -n 30
+            HEALTH_OK=0
+            for _ in $(seq 1 24); do
+              HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/healthz/ || echo 000)"
+              if [ "$HTTP_CODE" = "200" ] && systemctl is-active --quiet oisha-os; then
+                HEALTH_OK=1
+                break
+              fi
+              sleep 5
+            done
+
+            if [ "$HEALTH_OK" != "1" ]; then
+              echo "XATO: Oisha /healthz sog'lom emas"
+              cat /tmp/oisha-health.json 2>/dev/null || true
+              sudo journalctl -u oisha-os --no-pager -n 80
               exit 1
             fi
+
+            # The userbot boot can briefly block the event loop while Telegram,
+            # Google and CRM clients initialize. Treat stability as a short
+            # window with retries, not a single brittle curl.
+            sleep 25
+            STABLE_OK=0
+            for _ in $(seq 1 12); do
+              HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/healthz/ || echo 000)"
+              if [ "$HTTP_CODE" = "200" ] && systemctl is-active --quiet oisha-os; then
+                STABLE_OK=1
+                break
+              fi
+              sleep 5
+            done
+            if [ "$STABLE_OK" != "1" ]; then
+              echo "XATO: Oisha stability window'dan o'tmadi"
+              cat /tmp/oisha-health.json 2>/dev/null || true
+              sudo journalctl -u oisha-os --no-pager -n 80
+              exit 1
+            fi
+
+            echo "SUCCESS: Oisha Oracle production sog'lom."
+            cat /tmp/oisha-health.json
 
       - name: Notify Telegram
         if: always()
         run: |
           STATUS="${{ steps.oracle.outcome }}"
           if [ "$STATUS" = "success" ]; then
-            MSG="✅ Oisha-OS Oracle Cloud'da muvaffaqiyatli deploy bo'ldi!%0A☁️ Free Tier (24/7)%0A🔄 Systemd + auto-restart"
+            MSG="Oisha deploy: success%0ACommit: ${{ github.sha }}%0AProduction: Oracle VM healthy"
           else
-            MSG="❌ Oracle Cloud deploy xato!%0AStatus: $STATUS"
+            MSG="Oisha deploy: failure%0ACommit: ${{ github.sha }}%0AReason: Oracle VM health check failed"
           fi
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
             -d "chat_id=${OWNER_ID}" \
