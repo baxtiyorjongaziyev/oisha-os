@@ -9,7 +9,7 @@ const capabilities = [
 
 export default function HomePage() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16">
+    <main id="main-content" className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16">
       <section className="rounded-[2rem] border border-sage/15 bg-white/80 p-8 shadow-2xl shadow-sage/10 backdrop-blur md:p-12">
         <p className="mb-4 text-sm font-semibold uppercase tracking-[0.35em] text-amberline">
           Oisha OS platform layer
