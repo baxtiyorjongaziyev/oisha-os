@@ -10,6 +10,20 @@ from src.settings import settings
 logger = logging.getLogger(__name__)
 
 
+def _is_resettable_connection_error(exc: BaseException) -> bool:
+    message = str(exc).lower()
+    markers = (
+        "10054",
+        "forcibly closed",
+        "connection error",
+        "connection reset",
+        "broken pipe",
+        "stream not found",
+        "hrana",
+    )
+    return any(marker in message for marker in markers)
+
+
 def _setting_text(value: Any) -> str:
     if value is None:
         return ""
@@ -104,7 +118,7 @@ class DatabasePool:
             try:
                 return await asyncio.wait_for(asyncio.to_thread(_run), timeout=45.0)
             except Exception as e:
-                if attempt < 2 and ("10054" in str(e) or "forcibly closed" in str(e).lower() or "connection error" in str(e).lower()):
+                if attempt < 2 and _is_resettable_connection_error(e):
                     logger.warning(f"[DB POOL] Connection dropped. Retrying ({attempt+1}/3)...")
                     self.close()  # Reset connection
                     conn = self.get_connection()  # Get new one
