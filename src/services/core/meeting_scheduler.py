@@ -500,6 +500,10 @@ class TelegramMeetingScheduler:
             return None
         if not self.amocrm:
             return None
+        is_auth_blocked = getattr(self.amocrm, "is_auth_blocked", None)
+        if callable(is_auth_blocked) and is_auth_blocked():
+            logger.info("[MEETING] AmoCRM sync skipped: OAuth reauthorization required.")
+            return None
 
         user_id = getattr(peer, "id", None)
         username = getattr(peer, "username", None)
