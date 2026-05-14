@@ -116,13 +116,8 @@ class AmoCRMSync:
                 self.last_error = "token_env_parse_failed"
                 logger.error(f"[AMOCRM] Env token parse xatosi: {type(e).__name__}")
 
-        # 3. Raw Refresh Token fallback (for first deploy)
-        raw_refresh = os.environ.get("AMOCRM_REFRESH_TOKEN")
-        if raw_refresh and not self.token_data:
-            logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
-            self.token_data = {"refresh_token": raw_refresh}
-            # Note: access_token is still None, so it will trigger refresh on first use
-
+        # 3. File token backup. Prefer the full token JSON over raw refresh
+        # because AmoCRM rotates refresh tokens and needs the matching payload.
         if os.path.exists(self.token_file) and not self.token_data:
             for encoding in ("utf-8-sig", "utf-16"):
                 try:
@@ -142,6 +137,13 @@ class AmoCRMSync:
                     self.last_error = "token_file_load_failed"
                     logger.error(f"[AMOCRM] Token yuklashda xato: {type(e).__name__}")
                     return
+
+        # 4. Raw Refresh Token fallback (for first deploy)
+        raw_refresh = os.environ.get("AMOCRM_REFRESH_TOKEN")
+        if raw_refresh and not self.token_data:
+            logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
+            self.token_data = {"refresh_token": raw_refresh}
+            # Note: access_token is still None, so it will trigger refresh on first use
 
     def _save_token(self, token_data):
         """Tokenni Firestore va faylga saqlash."""
@@ -573,6 +575,63 @@ class AmoCRMSync:
         except Exception as e:
             logger.error(f"[AMOCRM ACTIVE LEADS ERROR] {e}")
             return []
+
+    def find_active_lead_by_phone(self, phone: str) -> Optional[Dict[str, Any]]:
+        """Telefon orqali mavjud ochiq sdelkani topish.
+
+        Uchrashuv kabi aniq actionlar yangi lead yaratmasligi kerak: avval
+        shu telefon bog'langan ochiq sdelkani topamiz va ishni o'sha ichiga
+        qo'yamiz. Won/Lost yopiq sdelkalar hisobga olinmaydi.
+        """
+        contact = self.get_contact_by_phone(phone)
+        contact_id = contact.get("id") if contact else None
+        if not contact_id:
+            return None
+
+        active_leads = self.get_active_leads_for_contact(int(contact_id))
+        if not active_leads:
+            return None
+
+        return sorted(
+            active_leads,
+            key=lambda lead: int(
+                lead.get("updated_at") or lead.get("created_at") or 0
+            ),
+            reverse=True,
+        )[0]
+
+    async def create_meeting_task_for_phone(
+        self,
+        phone: str,
+        task_text: str,
+        complete_till: int,
+        note: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Telefon mavjud ochiq sdelkaga tegishli bo'lsa, uchrashuv task yaratadi."""
+        lead = self.find_active_lead_by_phone(phone)
+        if not lead:
+            return {
+                "success": False,
+                "reason": "active_lead_not_found",
+                "lead_id": None,
+            }
+
+        lead_id = int(lead["id"])
+        task = await self.create_task(
+            element_id=lead_id,
+            text=task_text,
+            complete_till=int(complete_till),
+            responsible_user_id=lead.get("responsible_user_id"),
+        )
+        if task and note:
+            self.add_lead_note(lead_id, note)
+
+        return {
+            "success": bool(task),
+            "reason": None if task else (self.last_error or "task_create_failed"),
+            "lead_id": lead_id,
+            "task": task,
+        }
 
     def get_lead_by_phone(self, phone: str) -> Optional[Dict[str, Any]]:
         """Telefon raqami orqali bitimni qidirish."""
