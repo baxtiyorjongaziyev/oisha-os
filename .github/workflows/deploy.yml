@@ -3,10 +3,6 @@
 name: Oisha-OS Auto Deploy
 
 on:
-  push:
-    branches:
-      - main
-      - master
   workflow_dispatch:
 
 env:
@@ -64,7 +60,7 @@ jobs:
     name: Healthy-Only Production Rollout
     needs: test
     if: "${{ github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, '[skip ci]') && !startsWith(github.event.head_commit.message, 'chore(auto): update DEV_LOG')) }}"
-    environment: production
+    environment: cloud-run-control-plane
     runs-on: ubuntu-latest
     permissions:
       contents: read
