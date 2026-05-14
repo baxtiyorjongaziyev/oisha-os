@@ -9,3 +9,7 @@
 ## 2026-05-13 - Focus Styles vs Focus-Visible
 **Learning:** Using `focus:ring` on buttons creates a noticeable and sometimes distracting outline when users simply click with a mouse, even though it's primarily meant for keyboard navigation.
 **Action:** Replace `focus:` pseudo-class with `focus-visible:` for focus rings (e.g., `focus-visible:ring-amberline`) in interactive components like `Button`. This ensures keyboard users still get clear, accessible focus indicators (using the standard amberline color) while mouse and touch users get a cleaner, undisturbed click experience.
+
+## 2024-05-14 - Skip to Content Links for Keyboard Navigation
+**Learning:** Adding a hidden "Skip to content" link that becomes visible on keyboard focus is a critical accessibility pattern. It allows keyboard-only and screen reader users to bypass repetitive navigation elements without compromising the visual design.
+**Action:** Always include a skip link (e.g., `<a href="#main-content" className="absolute -translate-y-full focus:translate-y-0...">`) at the top of the `<body>` and ensure the main content container has the corresponding `id="main-content"`.
