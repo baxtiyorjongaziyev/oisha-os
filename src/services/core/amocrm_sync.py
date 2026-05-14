@@ -69,6 +69,8 @@ class AmoCRMSync:
         self.access_token: Optional[str] = None
         self.token_data: Dict[str, Any] = {}
         self.last_error: Optional[str] = None
+        self.auth_blocked_until: float = 0.0
+        self.auth_block_reason: Optional[str] = None
         
         self.db = None
         if HAS_FIRESTORE:
@@ -162,13 +164,33 @@ class AmoCRMSync:
                 json.dump(token_data, f)
             self.token_data = token_data
             self.access_token = token_data.get("access_token")
+            self.auth_blocked_until = 0.0
+            self.auth_block_reason = None
         except Exception as e:
             logger.error(f"[AMOCRM] Token saqlashda xato: {e}")
 
+    def _mark_auth_blocked(self, reason: str, seconds: int = 3600) -> None:
+        self.auth_block_reason = reason
+        self.auth_blocked_until = time.time() + seconds
+        self.last_error = reason
+
+    def is_auth_blocked(self) -> bool:
+        if self.auth_blocked_until <= 0:
+            return False
+        if time.time() >= self.auth_blocked_until:
+            self.auth_blocked_until = 0.0
+            self.auth_block_reason = None
+            return False
+        self.last_error = self.auth_block_reason or "auth_blocked"
+        return True
+
     def refresh_token(self):
         """Refresh token yordamida yangi access token olish."""
+        if self.is_auth_blocked():
+            return False
+
         if not self.token_data.get("refresh_token"):
-            self.last_error = "refresh_token_missing"
+            self._mark_auth_blocked("refresh_token_missing", seconds=900)
             logger.error("[AMOCRM] Refresh token topilmadi.")
             return False
 
@@ -206,7 +228,11 @@ class AmoCRMSync:
             )
             self.last_error = f"refresh_failed_http_{response.status_code}"
             logger.error(f"[AMOCRM ERROR] Token yangilashda xato: {error_msg}")
-            if response.status_code == 401:
+            if response.status_code in {400, 401}:
+                self._mark_auth_blocked(
+                    f"oauth_reauthorization_required_http_{response.status_code}",
+                    seconds=3600,
+                )
                 logger.critical("[AMOCRM AUTH EXPIRED] Yangi authorization code kerak.")
             return False
         except Exception as e:
@@ -270,6 +296,9 @@ class AmoCRMSync:
 
     async def check_connection(self) -> bool:
         """AmoCRM OAuth tokenini real account endpoint orqali tekshiradi."""
+        if self.is_auth_blocked():
+            return False
+
         if not self.access_token:
             self._load_token()
 
@@ -299,6 +328,9 @@ class AmoCRMSync:
 
     def _get_headers(self):
         """API so'rovlari uchun headerlarni tayyorlash va token muddatini tekshirish."""
+        if self.is_auth_blocked():
+            return {"Authorization": "Bearer ", "Content-Type": "application/json"}
+
         # 1. Token muddatini tekshirish
         expires_at = self.token_data.get("expires_at")
         now = int(time.time())
