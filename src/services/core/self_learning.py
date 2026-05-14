@@ -71,7 +71,7 @@ class SelfLearningEngine:
         self.model = "gemini-2.0-flash"
 
     async def ensure_tables(self):
-        async with self.db.get_connection() as conn:
+        async with await self.db.get_connection() as conn:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS learning_journal (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,7 +155,7 @@ class SelfLearningEngine:
 
             now = get_local_now().isoformat()
             saved = []
-            async with self.db.get_connection() as conn:
+            async with await self.db.get_connection() as conn:
                 for lesson in lessons:
                     if not lesson.get("lesson"):
                         continue
@@ -191,7 +191,7 @@ class SelfLearningEngine:
         limit: int = 5,
     ) -> List[Dict[str, Any]]:
         """Kontekstga mos darslarni olish (keyingi prompt'ga inject qilish uchun)."""
-        async with self.db.get_connection() as conn:
+        async with await self.db.get_connection() as conn:
             if category:
                 rows = await conn.execute(
                     """SELECT pattern, lesson, strategy, confidence, times_applied, times_successful
@@ -225,7 +225,7 @@ class SelfLearningEngine:
 
     async def get_active_strategies(self) -> List[Dict[str, Any]]:
         """Faol strategiyalarni olish (prompt'ga qo'shish uchun)."""
-        async with self.db.get_connection() as conn:
+        async with await self.db.get_connection() as conn:
             rows = await conn.execute(
                 """SELECT rule, trigger_condition, weight
                    FROM strategy_rules
@@ -240,7 +240,7 @@ class SelfLearningEngine:
 
     async def mark_lesson_applied(self, pattern: str, success: bool):
         """Dars ishlatilganini belgilash (feedback loop)."""
-        async with self.db.get_connection() as conn:
+        async with await self.db.get_connection() as conn:
             now = get_local_now().isoformat()
             if success:
                 await conn.execute(
@@ -264,7 +264,7 @@ class SelfLearningEngine:
 
     async def synthesize_strategies(self) -> List[Dict[str, Any]]:
         """Yig'ilgan darslardan umumiy strategiyalar chiqarish (haftalik)."""
-        async with self.db.get_connection() as conn:
+        async with await self.db.get_connection() as conn:
             rows = await conn.execute(
                 """SELECT pattern, lesson, strategy, confidence, category
                    FROM learning_journal
@@ -306,7 +306,7 @@ class SelfLearningEngine:
 
             now = get_local_now().isoformat()
             saved = []
-            async with self.db.get_connection() as conn:
+            async with await self.db.get_connection() as conn:
                 for strat in strategies:
                     if not strat.get("rule"):
                         continue
@@ -332,7 +332,7 @@ class SelfLearningEngine:
 
     async def record_metric(self, metric_type: str, value: float, context: Optional[Dict] = None):
         """O'lchov yozish (response_quality, lead_conversion, etc)."""
-        async with self.db.get_connection() as conn:
+        async with await self.db.get_connection() as conn:
             await conn.execute(
                 """INSERT INTO learning_metrics (metric_type, metric_value, context_json, recorded_at)
                    VALUES (?, ?, ?, ?)""",

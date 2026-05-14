@@ -40,7 +40,6 @@ WorkingDirectory=/home/ubuntu/oisha-os
 ExecStart=/home/ubuntu/oisha-os/venv/bin/python src/main.py
 Restart=always
 RestartSec=10
-WatchdogSec=300
 EnvironmentFile=/home/ubuntu/oisha-os/.env
 StandardOutput=journal
 StandardError=journal
