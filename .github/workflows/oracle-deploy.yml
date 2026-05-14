@@ -143,9 +143,20 @@ jobs:
               exit 1
             fi
 
+            # The userbot boot can briefly block the event loop while Telegram,
+            # Google and CRM clients initialize. Treat stability as a short
+            # window with retries, not a single brittle curl.
             sleep 25
-            HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/healthz/ || echo 000)"
-            if [ "$HTTP_CODE" != "200" ] || ! systemctl is-active --quiet oisha-os; then
+            STABLE_OK=0
+            for _ in $(seq 1 12); do
+              HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/healthz/ || echo 000)"
+              if [ "$HTTP_CODE" = "200" ] && systemctl is-active --quiet oisha-os; then
+                STABLE_OK=1
+                break
+              fi
+              sleep 5
+            done
+            if [ "$STABLE_OK" != "1" ]; then
               echo "XATO: Oisha stability window'dan o'tmadi"
               cat /tmp/oisha-health.json 2>/dev/null || true
               sudo journalctl -u oisha-os --no-pager -n 80
