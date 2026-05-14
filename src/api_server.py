@@ -169,36 +169,53 @@ async def liveness_probe():
     runtime_source = runtime.get("runtime_source", "unknown")
     control_plane_mode = scheduler_mode == "control-plane" or runtime_source == "vm_service"
 
+    async def _probe_database() -> str:
+        conn = await db_instance.get_connection()
+        probe = conn.execute("SELECT 1")
+        if hasattr(probe, "__await__"):
+            probe = await probe
+        fetchone = getattr(probe, "fetchone", None)
+        if callable(fetchone):
+            row = fetchone()
+            if hasattr(row, "__await__"):
+                await row
+        return getattr(db_instance, "get_backend_name", lambda: "unknown")()
+
+    dependency_timeout = float(os.getenv("HEALTH_DEPENDENCY_TIMEOUT_SECS", "3.0"))
     db_ok = True
     if db_instance is not None:
         try:
-            conn = await db_instance.get_connection()
-            probe = conn.execute("SELECT 1")
-            if hasattr(probe, "__await__"):
-                probe = await probe
-            fetchone = getattr(probe, "fetchone", None)
-            if callable(fetchone):
-                row = fetchone()
-                if hasattr(row, "__await__"):
-                    await row
+            backend_name = await asyncio.wait_for(
+                _probe_database(), timeout=dependency_timeout
+            )
             checks["db_ok"] = True
+            checks["db_backend"] = backend_name
             turso_required = bool(
                 settings.RUNNING_IN_CLOUD
                 and _setting_text(settings.TURSO_DATABASE_URL)
                 and _setting_text(settings.TURSO_AUTH_TOKEN)
             )
-            backend_name = getattr(db_instance, "get_backend_name", lambda: "unknown")()
-            checks["db_backend"] = backend_name
             if turso_required and backend_name != "turso":
                 db_ok = False
                 checks["db_ok"] = False
                 problems.append("turso_fallback")
+        except asyncio.TimeoutError:
+            logger.warning("[HEALTH] Database probe timed out")
+            db_ok = False
+            checks["db_ok"] = False
+            checks["db_backend"] = getattr(
+                db_instance, "get_backend_name", lambda: "unknown"
+            )()
+            problems.append("db_timeout")
         except BaseException as e:
             if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
                 raise
             logger.warning(f"[HEALTH] Database connection failed: {e}")
             db_ok = False
             checks["db_ok"] = False
+            checks["db_backend"] = getattr(
+                db_instance, "get_backend_name", lambda: "unknown"
+            )()
             problems.append("db_failed")
     else:
         checks["db_ok"] = True
@@ -208,7 +225,9 @@ async def liveness_probe():
     if not userbot_authorized and user_client:
         try:
             # Quick check if connected and authorized
-            userbot_authorized = await user_client.is_user_authorized()
+            userbot_authorized = await asyncio.wait_for(
+                user_client.is_user_authorized(), timeout=2.0
+            )
         except Exception:
             userbot_authorized = False
 
@@ -225,12 +244,25 @@ async def liveness_probe():
     # Check CRM connectivity. CRM OAuth can be degraded without making the
     # Cloud Run control plane unsafe to serve health/API traffic.
     crm_connected = False
-    if msg_controller and hasattr(msg_controller, "crm") and msg_controller.crm:
+    if (
+        not control_plane_mode
+        and msg_controller
+        and hasattr(msg_controller, "crm")
+        and msg_controller.crm
+    ):
         try:
             # Check if AmoCRM is actually responding
-            crm_connected = await msg_controller.crm.amocrm.check_connection()
+            crm_connected = await asyncio.wait_for(
+                msg_controller.crm.amocrm.check_connection(),
+                timeout=dependency_timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("[HEALTH] CRM probe timed out")
+            crm_connected = False
         except Exception:
             crm_connected = False
+    elif control_plane_mode:
+        checks["crm_probe"] = "skipped_not_required"
 
     if control_plane_mode:
         crm_ok = True
