@@ -17,7 +17,7 @@ export function Button({ children, className = "", variant = "primary", type = "
     <button
       type={type}
       className={[
-        "rounded-full px-5 py-3 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-amberline focus:ring-offset-2",
+        "rounded-full px-5 py-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2",
         "disabled:cursor-not-allowed disabled:opacity-50",
         variants[variant],
         className
