@@ -102,6 +102,10 @@ class Database:
         turso_token = _setting_text(settings.TURSO_AUTH_TOKEN)
 
         if turso_url and turso_token and HAS_LIBSQL:
+            if hasattr(self, "_conn") and isinstance(self._conn, TursoAdapter):
+                self._state_backend = "turso"
+                return self._conn
+
             try:
                 db_pool.url = turso_url
                 db_pool.auth_token = turso_token
