@@ -89,11 +89,24 @@ class GoogleCalendarSync:
                 },
             }
 
-            event = (
-                self.service.events()
-                .insert(calendarId="primary", body=event, conferenceDataVersion=1)
-                .execute()
-            )
+            try:
+                event = (
+                    self.service.events()
+                    .insert(calendarId="primary", body=event, conferenceDataVersion=1)
+                    .execute()
+                )
+            except Exception as conference_exc:
+                if "Invalid conference type value" not in str(conference_exc):
+                    raise
+                logger.warning(
+                    "[GCALENDAR] Meet link yaratilmadi; oddiy calendar event bilan qayta uriniladi."
+                )
+                event.pop("conferenceData", None)
+                event = (
+                    self.service.events()
+                    .insert(calendarId="primary", body=event)
+                    .execute()
+                )
 
             logger.info(f"[GCALENDAR OK] Tadbir yaratildi: {event.get('htmlLink')}")
             return True
