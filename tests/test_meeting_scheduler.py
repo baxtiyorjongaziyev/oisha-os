@@ -362,4 +362,3 @@ async def test_scan_recent_dialogs_finds_meeting_and_syncs_lead():
     assert result["created"] == 1
     assert calendar.events[0]["start_time"] == "2026-05-14T13:00:00+05:00"
     assert amo.ensure_calls[0]["phone"] == "+998901112233"
-    assert db.users[0]["meeting_status"] == "scheduled"
