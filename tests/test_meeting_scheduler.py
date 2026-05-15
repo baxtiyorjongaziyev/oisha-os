@@ -318,7 +318,10 @@ async def test_calendar_meeting_does_not_sync_to_amocrm_when_not_lead():
     assert amo.standalone_calls == []
 
 
+import freezegun
+
 @pytest.mark.asyncio
+@freezegun.freeze_time("2026-05-13 20:36:00", tz_offset=5)
 async def test_scan_recent_dialogs_finds_meeting_and_syncs_lead():
     db = _FakeDB()
     amo = _FakeAmo()
