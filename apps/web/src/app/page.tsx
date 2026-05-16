@@ -9,7 +9,11 @@ const capabilities = [
 
 export default function HomePage() {
   return (
-    <main id="main-content" className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16 focus:outline-none" tabIndex={-1}>
+    <main
+      id="main-content"
+      className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16 focus:outline-none"
+      tabIndex={-1}
+    >
       <section className="rounded-[2rem] border border-sage/15 bg-white/80 p-8 shadow-2xl shadow-sage/10 backdrop-blur md:p-12">
         <p className="mb-4 text-sm font-semibold uppercase tracking-[0.35em] text-amberline">
           Oisha OS platform layer
@@ -27,13 +31,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mt-8 grid gap-4 md:grid-cols-2">
+      <ul aria-label="Platforma imkoniyatlari" className="mt-8 grid gap-4 md:grid-cols-2">
         {capabilities.map((item) => (
-          <div key={item} className="rounded-3xl border border-sage/10 bg-white/70 p-5 text-ink/75">
+          <li
+            key={item}
+            className="rounded-3xl border border-sage/10 bg-white/70 p-5 text-ink/75 transition-all hover:border-sage/30 hover:bg-white/90 hover:shadow-sm"
+          >
             {item}
-          </div>
+          </li>
         ))}
-      </section>
+      </ul>
     </main>
   );
 }

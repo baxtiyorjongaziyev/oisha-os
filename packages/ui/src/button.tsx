@@ -12,12 +12,18 @@ const variants: Record<ButtonVariant, string> = {
   secondary: "bg-white text-sage ring-1 ring-sage/20 hover:bg-sage/5"
 };
 
-export function Button({ children, className = "", variant = "primary", type = "button", ...props }: ButtonProps) {
+export function Button({
+  children,
+  className = "",
+  variant = "primary",
+  type = "button",
+  ...props
+}: ButtonProps) {
   return (
     <button
       type={type}
       className={[
-        "rounded-full px-5 py-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2",
+        "rounded-full px-5 py-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 active:scale-[0.98]",
         "disabled:cursor-not-allowed disabled:opacity-50",
         variants[variant],
         className
