@@ -13,3 +13,7 @@
 ## 2026-05-14 - Tailwind v4 Compatibility with config files
 **Learning:** Tailwind CSS v4 relies on `@import "tailwindcss";` in `globals.css` and configuring `@tailwindcss/postcss` in PostCSS rather than traditional `.config.ts` files, unless specifically configured to use them via `@config` directives. When using legacy configuration objects, custom colors like `amberline` won't be available unless explicitly imported into the new v4 format.
 **Action:** Always ensure any necessary custom theme variables like `--color-amberline: #d9922e;` or `@theme` blocks are properly configured for Tailwind v4 if the styling engine requires it.
+
+## 2026-05-18 - Tactile Feedback and Semantic Lists
+**Learning:** Users appreciate subtle visual feedback during interactions (like button presses), and screen readers require semantic HTML tags to correctly interpret content structure (like lists of features).
+**Action:** Use `active:scale-[0.98]` on buttons for a smooth, tactile press effect. Always use semantic tags like `<ul>` and `<li>` with descriptive `aria-label` attributes instead of generic `<div>` elements for presenting lists.
