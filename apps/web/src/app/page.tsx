@@ -27,13 +27,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mt-8 grid gap-4 md:grid-cols-2">
+      <ul aria-label="Platform imkoniyatlari" className="mt-8 grid gap-4 md:grid-cols-2">
         {capabilities.map((item) => (
-          <div key={item} className="rounded-3xl border border-sage/10 bg-white/70 p-5 text-ink/75">
+          <li key={item} className="rounded-3xl border border-sage/10 bg-white/70 p-5 text-ink/75">
             {item}
-          </div>
+          </li>
         ))}
-      </section>
+      </ul>
     </main>
   );
 }
