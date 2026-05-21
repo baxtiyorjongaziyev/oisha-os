@@ -247,9 +247,16 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
     if await telegram_client.is_user_authorized():
         return True
 
-    # [GOD MODE] If not on Cloud Run, allow interactive login to regenerate session
+    # Only an explicit local terminal may prompt for Telegram login.
+    # Production VMs run under systemd, so prompting there causes EOFError
+    # and makes health checks pass briefly before the process dies.
     cloud_control_plane = bool(os.getenv("K_SERVICE"))
-    if not cloud_control_plane:
+    interactive_auth_allowed = (
+        os.getenv("ALLOW_LOCAL_RUN") == "1"
+        and sys.stdin is not None
+        and sys.stdin.isatty()
+    )
+    if not cloud_control_plane and interactive_auth_allowed:
         logger.info(
             "[AUTH] Interactive auth allowed for local runtime. Please follow the prompts in your terminal."
         )
@@ -266,6 +273,7 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
     logger.error(
         "[AUTH] Userbot session missing or unauthorized. Interactive auth is disabled in cloud runtime."
     )
+    return False
 
 
 def _income_state_key(message_id: int) -> str:
