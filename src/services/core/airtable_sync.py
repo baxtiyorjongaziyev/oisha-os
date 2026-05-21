@@ -1,5 +1,7 @@
 import logging
+import os
 import time
+from copy import deepcopy
 from datetime import datetime
 from urllib.parse import quote
 
@@ -14,6 +16,7 @@ class AirtableSync:
 
     _base_tables_cache = {}
     _record_url_cache = {}
+    _records_cache = {}
 
     # Field name mapping: code key -> actual Airtable field names (priority order)
     FIELD_MAP = {
@@ -111,6 +114,9 @@ class AirtableSync:
         self.base_id = base_id or settings.AIRTABLE_BASE_ID
         self.table_name = table_name
         self.endpoint = self._table_url()
+        self.read_cache_ttl_seconds = int(
+            os.getenv("AIRTABLE_READ_CACHE_TTL_SECONDS", "600")
+        )
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -122,6 +128,29 @@ class AirtableSync:
 
     def _refresh_endpoint(self):
         self.endpoint = self._table_url()
+
+    def _records_cache_key(self):
+        return (self.base_id, self.table_name)
+
+    def _get_cached_records(self):
+        if self.read_cache_ttl_seconds <= 0:
+            return None
+        cached = self._records_cache.get(self._records_cache_key())
+        if not cached:
+            return None
+        created_at, records = cached
+        if time.time() - created_at > self.read_cache_ttl_seconds:
+            self._records_cache.pop(self._records_cache_key(), None)
+            return None
+        return deepcopy(records)
+
+    def _set_cached_records(self, records):
+        if self.read_cache_ttl_seconds <= 0:
+            return
+        self._records_cache[self._records_cache_key()] = (time.time(), deepcopy(records))
+
+    def _invalidate_records_cache(self):
+        self._records_cache.pop(self._records_cache_key(), None)
 
     def _request(self, method: str, url: str, *, retry: bool = True, **kwargs):
         attempts = self.READ_RETRIES if retry and method.upper() == "GET" else 1
@@ -296,11 +325,19 @@ class AirtableSync:
             )
         return translated
 
-    def get_projects(self):
+    def get_projects(self, force_refresh: bool = False):
         """Airtable-dan loyihalarni olish."""
         if not self.api_key or not self.base_id:
             logger.error("[AIRTABLE] API key yoki Base ID yetishmayapti.")
             return []
+
+        if not force_refresh:
+            cached_records = self._get_cached_records()
+            if cached_records is not None:
+                logger.info(
+                    f"[AIRTABLE CACHE] {self.table_name}: {len(cached_records)} cached records"
+                )
+                return cached_records
 
         try:
             records = []
@@ -312,6 +349,7 @@ class AirtableSync:
                     records.extend(data.get("records", []))
                     offset = data.get("offset")
                     if not offset:
+                        self._set_cached_records(records)
                         return records
                     params["offset"] = offset
                     continue
@@ -389,7 +427,10 @@ class AirtableSync:
         data = {"fields": fields}
         try:
             response = self._request("PATCH", url, retry=False, json=data)
-            return response.status_code == 200
+            ok = response.status_code == 200
+            if ok:
+                self._invalidate_records_cache()
+            return ok
         except Exception as exc:
             logger.error(f"[AIRTABLE UPDATE ERROR] {exc}")
             return False
@@ -452,6 +493,7 @@ class AirtableSync:
                 "POST", self.endpoint, retry=False, json={"fields": fields}
             )
             if response.status_code in [200, 201]:
+                self._invalidate_records_cache()
                 project_label = (
                     fields.get("Loyihani nomi?")
                     or fields.get("Project Name")
