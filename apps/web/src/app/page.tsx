@@ -23,6 +23,7 @@ export default function HomePage() {
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Button>Dashboard poydevori tayyor</Button>
+          <Button variant="secondary" isLoading={true}>Yuklanmoqda...</Button>
           <Button variant="secondary">API: /healthz</Button>
         </div>
       </section>

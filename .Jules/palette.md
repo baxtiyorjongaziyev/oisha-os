@@ -17,3 +17,6 @@
 ## 2024-05-15 - Semantic Lists and Tactile Feedback
 **Learning:** Generic wrappers like `<div>` or `<section>` for lists of items obscure content structure for screen readers. Using standard interactive components like buttons without tactile feedback (`active:` states) makes interfaces feel unresponsive.
 **Action:** Always use semantic `<ul>` or `<ol>` tags with descriptive `aria-label`s for lists of items to ensure they are properly parsed and announced by screen readers. For interactive elements like buttons, include a subtle tactile feedback (e.g., `active:scale-[0.98]`) to improve perceived responsiveness and the overall interactive feel.
+## 2024-05-21 - Accessible Async Loading Pattern for Buttons
+**Learning:** In the Oisha design system, components like buttons need an inherent, accessible way to indicate pending state without developers manually wiring up `disabled` combined with custom spinners each time.
+**Action:** Implemented an `isLoading` prop directly on the primary `Button` component in `@salescoach/ui`. When `isLoading` is true, an accessible SVG spinner is shown, `disabled={disabled || isLoading}` and `aria-disabled={disabled || isLoading}` attributes are applied, and `inline-flex items-center justify-center gap-2` styling ensures correct layout.
