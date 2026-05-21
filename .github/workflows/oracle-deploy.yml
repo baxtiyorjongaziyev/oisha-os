@@ -111,7 +111,7 @@ jobs:
             HEALTH_LIVE_DB_PROBE=0
             ENABLE_CLOUD_USERBOT=true
             ENABLE_AUTO_REPLY=false
-            ALLOW_LOCAL_RUN=1
+            ALLOW_LOCAL_RUN=0
             AIRTABLE_BASE_ID=app8xoyx1XCumYFXV
             CRM_GROUP_ID=-1002566480563
             TEAM_GROUP_ID=-4860594772
@@ -173,7 +173,7 @@ jobs:
             cat /tmp/oisha-health.json
 
       - name: Notify Telegram
-        if: always()
+        if: always() && !cancelled()
         run: |
           STATUS="${{ steps.oracle.outcome }}"
           if [ "$STATUS" = "success" ]; then
