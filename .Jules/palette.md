@@ -17,3 +17,7 @@
 ## 2024-05-15 - Semantic Lists and Tactile Feedback
 **Learning:** Generic wrappers like `<div>` or `<section>` for lists of items obscure content structure for screen readers. Using standard interactive components like buttons without tactile feedback (`active:` states) makes interfaces feel unresponsive.
 **Action:** Always use semantic `<ul>` or `<ol>` tags with descriptive `aria-label`s for lists of items to ensure they are properly parsed and announced by screen readers. For interactive elements like buttons, include a subtle tactile feedback (e.g., `active:scale-[0.98]`) to improve perceived responsiveness and the overall interactive feel.
+
+## $(date +%Y-%m-%d) - [UX Improvement] Add accessible loading state to Button
+**Learning:** Found that the primary UI Button lacked a standardized, built-in loading state. Without this, developers might omit visual feedback during async operations, leading to poor UX and potential double-submissions.
+**Action:** Always provide an \`isLoading\` prop on core button components that not only renders a spinner but automatically sets \`disabled\` and \`aria-disabled\` attributes to gracefully handle the pending state.
