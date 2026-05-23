@@ -21,3 +21,7 @@
 ## $(date +%Y-%m-%d) - [UX Improvement] Add accessible loading state to Button
 **Learning:** Found that the primary UI Button lacked a standardized, built-in loading state. Without this, developers might omit visual feedback during async operations, leading to poor UX and potential double-submissions.
 **Action:** Always provide an \`isLoading\` prop on core button components that not only renders a spinner but automatically sets \`disabled\` and \`aria-disabled\` attributes to gracefully handle the pending state.
+
+## 2026-05-16 - [UX Improvement] Add disabled tooltip and aria-busy to Button
+**Learning:** Disabled buttons do not trigger hover tooltips (titles) or receive keyboard focus by default because they don't fire pointer/focus events. Furthermore, loading states lack semantic meaning without `aria-busy`.
+**Action:** When providing a reason for a disabled button (`disabledReason`), wrap it in a focusable `<span>` (`tabIndex={0}`) with `cursor-not-allowed`, and set `pointer-events-none` on the button itself so the wrapper can show the title. Always add `aria-busy={isLoading}` for screen readers.

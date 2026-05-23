@@ -6,6 +6,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
   variant?: ButtonVariant;
   isLoading?: boolean;
+  disabledReason?: string;
 };
 
 const variants: Record<ButtonVariant, string> = {
@@ -20,17 +21,23 @@ export function Button({
   type = "button",
   isLoading,
   disabled,
+  disabledReason,
   ...props
 }: ButtonProps) {
-  return (
+  const isDisabled = disabled || isLoading;
+  const showTooltip = isDisabled && disabledReason;
+
+  const buttonElement = (
     <button
       type={type}
-      disabled={disabled || isLoading}
-      aria-disabled={disabled || isLoading}
+      disabled={isDisabled}
+      aria-disabled={isDisabled}
+      aria-busy={isLoading}
       className={[
         "inline-flex items-center justify-center gap-2",
         "rounded-full px-5 py-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 active:scale-[0.98]",
         "disabled:cursor-not-allowed disabled:opacity-50",
+        showTooltip ? "pointer-events-none" : "",
         variants[variant],
         className
       ].join(" ")}
@@ -38,6 +45,7 @@ export function Button({
     >
       {isLoading && (
         <svg
+          aria-hidden="true"
           className="animate-spin -ml-1 mr-3 h-5 w-5"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
@@ -61,4 +69,14 @@ export function Button({
       {children}
     </button>
   );
+
+  if (showTooltip) {
+    return (
+      <span title={disabledReason} tabIndex={0} className="inline-block cursor-not-allowed">
+        {buttonElement}
+      </span>
+    );
+  }
+
+  return buttonElement;
 }
