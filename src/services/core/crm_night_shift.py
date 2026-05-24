@@ -1,7 +1,9 @@
 import logging
+import os
 import time
 from datetime import datetime
 from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.lead_classifier import LeadClassifier
 from src.database import Database
 from src.api_server import add_activity
 
@@ -41,10 +43,19 @@ class CRMNightShift:
 
             # 3. Archive Old Leads (>30 days)
             add_activity("CRM Audit", "Eski lidlarni arxivlash...", "info")
-            archived = await self.archive_inactive_leads()
+            await self.archive_inactive_leads()
 
             # 4. Audit Data (Missing phones, etc.)
             await self.audit_data_integrity()
+
+            # 5. AI Lead Classification (audio + notes tahlili)
+            add_activity("CRM Audit", "AI klassifikatsiya boshlandi (audio/notes)...", "info")
+            classified = await self.classify_leads_ai()
+            add_activity(
+                "CRM Audit",
+                f"AI klassifikatsiya: {classified} ta keraksiz sdelka aniqlandi.",
+                "success",
+            )
 
             add_activity(
                 "Night Shift Yakunlandi",
@@ -59,37 +70,80 @@ class CRMNightShift:
             return False
 
     async def deduplicate_contacts(self):
-        """Find contacts with shared phones and tag them for merging."""
-        logger.info("👸 [NIGHT SHIFT] Scanning for duplicate contacts...")
-        # Get all leads (which include contact info)
+        """Dublikat kontaktlarni topib, birlashtrish (merge)."""
+        logger.info("👸 [NIGHT SHIFT] Scanning and merging duplicate contacts...")
         leads = await self.amocrm.get_leads_detailed(limit=250)
 
-        phone_map = {}  # phone -> [contact_ids]
-        duplicates_found = 0
+        # phone -> [{lead_id, contact_id, updated_at, price}]
+        phone_map = {}
+        merged_count = 0
 
         for lead in leads:
-            phone = self.amocrm.get_lead_phone(lead["id"])
-            if phone and phone != "Raqam yo'q":
-                clean_phone = "".join(filter(str.isdigit, phone))[-9:]
-                if clean_phone not in phone_map:
-                    phone_map[clean_phone] = []
+            lead_id = lead["id"]
+            # Kontakt ID va telefon olish
+            contact_id = self._get_contact_id_from_lead(lead)
+            if not contact_id:
+                continue
 
-                # Get the contact ID linked to this lead
-                # (Note: AmoCRM leads have contacts in _embedded)
-                # But get_lead_phone already did some work.
-                # Let's assume we tag the lead as having a duplicate contact.
-                phone_map[clean_phone].append(lead["id"])
+            phone = self.amocrm.get_lead_phone(lead_id)
+            if not phone or phone == "Raqam yo'q":
+                continue
 
-        for phone, lead_ids in phone_map.items():
-            if len(lead_ids) > 1:
-                # Multiple leads/contacts for the same phone
-                # Tag all but the first one (or all of them) as POTENTIAL_DUPLICATE
-                for l_id in lead_ids:
-                    await self.amocrm.add_lead_tag(l_id, "POTENTIAL_DUPLICATE")
-                duplicates_found += 1
+            clean_phone = "".join(filter(str.isdigit, phone))[-9:]
+            if not clean_phone:
+                continue
 
-        logger.info(f"👸 [NIGHT SHIFT] Identified {duplicates_found} duplicate groups.")
-        return duplicates_found
+            if clean_phone not in phone_map:
+                phone_map[clean_phone] = []
+
+            phone_map[clean_phone].append({
+                "lead_id": lead_id,
+                "contact_id": contact_id,
+                "updated_at": lead.get("updated_at", 0),
+                "price": lead.get("price", 0),
+                "status_id": lead.get("status_id"),
+            })
+
+        for phone, entries in phone_map.items():
+            if len(entries) <= 1:
+                continue
+
+            # Eng yangi yoki eng qimmat sdelkani asosiy (target) qilib olish
+            target = max(entries, key=lambda e: (e["price"], e["updated_at"]))
+            sources = [e for e in entries if e["contact_id"] != target["contact_id"]]
+
+            if not sources:
+                continue
+
+            # Kontaktlarni birlashtrish
+            source_contact_ids = list(set(e["contact_id"] for e in sources))
+            success = self.amocrm.merge_contacts(target["contact_id"], source_contact_ids)
+
+            if success:
+                merged_count += 1
+                # Source leadlarni target kontaktga ko'chirish
+                for entry in sources:
+                    if entry["lead_id"] != target["lead_id"]:
+                        self.amocrm.move_lead_to_contact(entry["lead_id"], target["contact_id"])
+
+                logger.info(
+                    f"👸 [MERGE] {phone}: {len(source_contact_ids)} kontakt "
+                    f"-> {target['contact_id']} ga birlashtirildi"
+                )
+            else:
+                # Merge API ishlamasa, tag qo'yib qo'yamiz
+                for entry in entries:
+                    await self.amocrm.add_lead_tag(entry["lead_id"], "POTENTIAL_DUPLICATE")
+
+        logger.info(f"👸 [NIGHT SHIFT] Merged {merged_count} duplicate groups.")
+        return merged_count
+
+    def _get_contact_id_from_lead(self, lead: dict) -> int | None:
+        """Lead ichidagi birinchi kontakt ID ni olish."""
+        contacts = lead.get("_embedded", {}).get("contacts", [])
+        if contacts:
+            return contacts[0].get("id")
+        return None
 
     async def flag_stagnated_leads(self):
         """Tag leads that haven't moved in 7 days."""
@@ -151,3 +205,25 @@ class CRMNightShift:
 
         logger.info(f"👸 [NIGHT SHIFT] Audited {audit_count} leads with missing info.")
         return audit_count
+
+    async def classify_leads_ai(self) -> int:
+        """AI orqali sdelkalarni klassifikatsiya qilish (audio + notes tahlili)."""
+        gemini_key = os.environ.get("GEMINI_API_KEY", "")
+        if not gemini_key:
+            logger.warning("[NIGHT SHIFT] GEMINI_API_KEY yo'q, AI klassifikatsiya o'tkazildi.")
+            return 0
+
+        try:
+            classifier = LeadClassifier(self.amocrm, gemini_key)
+            results = await classifier.classify_all_active_leads()
+            tagged = await classifier.tag_unnecessary_leads(results)
+
+            summary = classifier.get_summary()
+            logger.info(
+                f"👸 [NIGHT SHIFT] AI Classification: "
+                f"total={summary['total']}, unnecessary={summary['unnecessary_count']}"
+            )
+            return tagged
+        except Exception as e:
+            logger.error(f"[NIGHT SHIFT] AI classification error: {e}")
+            return 0
