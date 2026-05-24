@@ -1,0 +1,73 @@
+name: Read jonbranding channel
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Nechta post"
+        default: "20"
+        required: false
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install telethon
+
+      - name: Read channel posts
+        env:
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          OWNER_ID: ${{ secrets.OWNER_ID }}
+          LIMIT: ${{ github.event.inputs.limit || '20' }}
+        run: |
+          python3 - <<'EOF'
+          import asyncio, os
+          from telethon import TelegramClient
+          from telethon.sessions import StringSession
+
+          API_ID   = int(os.environ["API_ID"])
+          API_HASH = os.environ["API_HASH"]
+          SESSION  = os.environ["USERBOT_SESSION_STRING"]
+          BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+          OWNER_ID  = os.environ.get("OWNER_ID", "")
+          LIMIT     = int(os.environ.get("LIMIT", "20"))
+
+          async def main():
+              client = TelegramClient(StringSession(SESSION), API_ID, API_HASH)
+              await client.start()
+
+              posts = []
+              async for msg in client.iter_messages("jonbranding", limit=LIMIT):
+                  if msg.text:
+                      posts.append(f"[{msg.date.strftime('%Y-%m-%d %H:%M')}] #{msg.id}\n{msg.text}\n{'─'*40}")
+
+              result = "\n".join(reversed(posts))
+              print(result)
+
+              # Natijani Telegram orqali yuborish
+              if BOT_TOKEN and OWNER_ID:
+                  import urllib.request, urllib.parse
+                  preview = result[:4000] if len(result) > 4000 else result
+                  data = urllib.parse.urlencode({
+                      "chat_id": OWNER_ID,
+                      "text": f"📢 jonbranding — oxirgi {LIMIT} post:\n\n{preview}",
+                  }).encode()
+                  urllib.request.urlopen(
+                      f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", data
+                  )
+                  print("Telegram ga yuborildi.")
+
+              await client.disconnect()
+
+          asyncio.run(main())
+          EOF
