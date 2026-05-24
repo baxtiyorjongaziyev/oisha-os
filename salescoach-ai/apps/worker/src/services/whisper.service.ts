@@ -33,42 +33,43 @@ export class WhisperService {
     });
   }
 
-  async transcribe(audioKey: string): Promise<{ segments: TranscriptSegment[]; language: string; durationSec: number }> {
+  /**
+   * Returns tmpDir so the caller can run diarization on the audio file.
+   * Caller is responsible for cleanup: fs.rm(tmpDir, { recursive: true, force: true })
+   */
+  async transcribe(audioKey: string): Promise<{ segments: TranscriptSegment[]; language: string; durationSec: number; tmpDir: string }> {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sc-'));
     const localFile = path.join(tmpDir, 'audio.mp3');
 
-    try {
-      await this.downloadToFile(audioKey, localFile);
+    await this.downloadToFile(audioKey, localFile);
 
-      // whisper-ctranslate2 or whisper CLI — must be installed in the worker container
-      const whisperModel = process.env.WHISPER_MODEL ?? 'large-v3';
-      const { stdout } = await execFileAsync('whisper', [
-        localFile,
-        '--model', whisperModel,
-        '--output_format', 'json',
-        '--output_dir', tmpDir,
-        '--task', 'transcribe',
-      ], { timeout: 300_000 });
+    // whisper-ctranslate2 or whisper CLI — must be installed in the worker container
+    const whisperModel = process.env.WHISPER_MODEL ?? 'large-v3';
+    await execFileAsync('whisper', [
+      localFile,
+      '--model', whisperModel,
+      '--output_format', 'json',
+      '--output_dir', tmpDir,
+      '--task', 'transcribe',
+    ], { timeout: 300_000 });
 
-      const jsonPath = path.join(tmpDir, 'audio.json');
-      const raw = JSON.parse(await fs.readFile(jsonPath, 'utf-8'));
+    const jsonPath = path.join(tmpDir, 'audio.json');
+    const raw = JSON.parse(await fs.readFile(jsonPath, 'utf-8'));
 
-      const segments: TranscriptSegment[] = raw.segments.map((s: any, i: number) => ({
-        speaker: 'unknown',
-        start: s.start,
-        end: s.end,
-        text: s.text.trim(),
-        seq: i,
-      }));
+    const segments: TranscriptSegment[] = raw.segments.map((s: any, i: number) => ({
+      speaker: 'unknown',
+      start: s.start,
+      end: s.end,
+      text: s.text.trim(),
+      seq: i,
+    }));
 
-      return {
-        segments,
-        language: raw.language ?? 'uz',
-        durationSec: Math.round(raw.segments.at(-1)?.end ?? 0),
-      };
-    } finally {
-      await fs.rm(tmpDir, { recursive: true, force: true });
-    }
+    return {
+      segments,
+      language: raw.language ?? 'uz',
+      durationSec: Math.round(raw.segments.at(-1)?.end ?? 0),
+      tmpDir,
+    };
   }
 
   private async downloadToFile(key: string, dest: string) {

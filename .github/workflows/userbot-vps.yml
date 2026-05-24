@@ -1,3 +1,7 @@
+# Oisha-OS: Userbot VPS Deployment
+# [REFRESH: 2026-05-07.1] Final sync
+# ⚠️ NOTE: All secrets must be passed via GitHub Secrets or configured manually on VPS.
+#         No credentials should be hardcoded in public repo files.
 name: Userbot — VPS Deploy & Start
 
 on:
@@ -8,7 +12,6 @@ on:
   workflow_dispatch:
 
 env:
-  BOT_TOKEN: "8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4"
   OWNER_ID: "150074828"
 
 jobs:
@@ -19,16 +22,27 @@ jobs:
     steps:
       - name: Deploy to VPS 1 (109.199.100.137)
         id: vps1
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AMOCRM_CLIENT_ID: ${{ secrets.AMOCRM_CLIENT_ID }}
+          AMOCRM_CLIENT_SECRET: ${{ secrets.AMOCRM_CLIENT_SECRET }}
+          OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
+          OPENCLAW_SECRET: ${{ secrets.OPENCLAW_SECRET }}
+          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
         with:
           host: 109.199.100.137
           username: root
-          password: "#8tV9Hsm0aMqapdb"
+          password: ${{ secrets.VPS_PASSWORD_1 }}
           port: 22
           timeout: 30s
           command_timeout: 10m
-          envs: GITHUB_TOKEN
+          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING
           script: |
             set -e
             echo "=== VPS 1 (109.199.100.137) ga ulandi ==="
@@ -46,72 +60,72 @@ jobs:
             else
               cd "$OISHA_DIR"
               git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
-              git fetch origin main 2>/dev/null && git reset --hard origin/main 2>/dev/null || true
+              git fetch origin main 2>/dev/null && git reset --hard origin/main 2>/dev/null || echo "Git sync skipped (branch may not exist or no changes)"
             fi
 
             cd "$OISHA_DIR"
             echo "Papka: $(pwd)"
 
-            # To'liq .env yozish
-            cat > .env << 'ENVEOF'
-            BOT_TOKEN=8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4
-            API_ID=30643078
-            API_HASH=***REDACTED***
-            GEMINI_API_KEY=***REDACTED***
-            AMOCRM_SUBDOMAIN=jonbrandingagency
-            AMOCRM_CLIENT_ID=5a755b58-f5d1-477d-965d-a50ddaa3d55e
-            AMOCRM_CLIENT_SECRET=***REDACTED***
-            OISHA_API_SECRET=***REDACTED***
-            OPENCLAW_SECRET=***REDACTED***
-            USERBOT_SESSION_STRING=1ApWapzMBu7kFbYuLPhd3XCGJig-7b2AFv6q3Ej9ECcaEszaSkSYBc70665Vw1qsM2mftLkilu3tNuI7JPhJCzXi_1D58PyQp-eaG4fGDYVtv1Ascc_fZv13v1KYqPAO7uR-7voZSIN3ELp0dmEeg7MGy6P-RpF3nsJBJR1KAUyxjiviTk3jUDKvYwA6ZXXhgNtCzFAtF1r5ZjaCP68B2bUdxbihRbecbA5ptuk8r28hBKM8x8XnF9tpme7ZGsD_KHNvDbaxvC1_SKzXajNJtQaWM9oEzejeNVAZXj3DOGWPByUHXua1yg-tmCYL-Ox63518taP66FuoJMZdizZFnwjxcvKZGGm0=
-            OWNER_ID=150074828
-            ENABLE_AUTO_REPLY=false
-            RUNNING_IN_CLOUD=False
-            AIRTABLE_BASE_ID=app8xoyx1XCumYFXV
-            CRM_GROUP_ID=-1002566480563
-            TEAM_GROUP_ID=-4860594772
-            GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k
-            ENVEOF
-            sed -i 's/^            //' .env
+            # .env faylini GitHub Secrets dan yaratish
+            > .env
+            echo "BOT_TOKEN=${BOT_TOKEN}" >> .env
+            echo "API_ID=${API_ID}" >> .env
+            echo "API_HASH=${API_HASH}" >> .env
+            echo "GEMINI_API_KEY=${GEMINI_API_KEY}" >> .env
+            echo "AMOCRM_SUBDOMAIN=jonbrandingagency" >> .env
+            echo "AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID}" >> .env
+            echo "AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET}" >> .env
+            echo "OISHA_API_SECRET=${OISHA_API_SECRET}" >> .env
+            echo "OPENCLAW_SECRET=${OPENCLAW_SECRET}" >> .env
+            echo "USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}" >> .env
+            echo "OWNER_ID=150074828" >> .env
+            echo "ENABLE_AUTO_REPLY=false" >> .env
+            echo "RUNNING_IN_CLOUD=False" >> .env
+            echo "AIRTABLE_BASE_ID=app8xoyx1XCumYFXV" >> .env
+            echo "CRM_GROUP_ID=-1002566480563" >> .env
+            echo "TEAM_GROUP_ID=-4860594772" >> .env
+            echo "GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k" >> .env
 
             # Python paketlar
-            python3 -m pip install -r requirements.txt -q --break-system-packages 2>/dev/null \
-              || python3 -m pip install -r requirements.txt -q || true
+            if [ -f requirements.txt ]; then
+              python3 -m pip install -r requirements.txt -q --break-system-packages 2>/dev/null \
+                || python3 -m pip install -r requirements.txt -q || true
+            else
+              echo "WARNING: requirements.txt not found, skipping pip install"
+            fi
 
             # Eski jarayon
             pkill -f "python.*main.py" 2>/dev/null || true
             pkill -f "python.*userbot" 2>/dev/null || true
             sleep 2
 
-            # Systemd service yaratish (persistent)
-            mkdir -p ~/.config/systemd/user
-            cat > ~/.config/systemd/user/oisha-userbot.service << SVCEOF
-            [Unit]
-            Description=Oisha Userbot
-            After=network.target
+            # Systemd service yaratish (persistent) — root uchun system service
+            mkdir -p /etc/systemd/system
+            > /etc/systemd/system/oisha-userbot.service
+            echo "[Unit]" >> /etc/systemd/system/oisha-userbot.service
+            echo "Description=Oisha Userbot" >> /etc/systemd/system/oisha-userbot.service
+            echo "After=network.target" >> /etc/systemd/system/oisha-userbot.service
+            echo "" >> /etc/systemd/system/oisha-userbot.service
+            echo "[Service]" >> /etc/systemd/system/oisha-userbot.service
+            echo "WorkingDirectory=${OISHA_DIR}" >> /etc/systemd/system/oisha-userbot.service
+            echo "ExecStart=/usr/bin/python3 ${OISHA_DIR}/src/main.py" >> /etc/systemd/system/oisha-userbot.service
+            echo "Restart=always" >> /etc/systemd/system/oisha-userbot.service
+            echo "RestartSec=10" >> /etc/systemd/system/oisha-userbot.service
+            echo "EnvironmentFile=${OISHA_DIR}/.env" >> /etc/systemd/system/oisha-userbot.service
+            echo "StandardOutput=append:/var/log/oisha-userbot.log" >> /etc/systemd/system/oisha-userbot.service
+            echo "StandardError=append:/var/log/oisha-userbot.log" >> /etc/systemd/system/oisha-userbot.service
+            echo "" >> /etc/systemd/system/oisha-userbot.service
+            echo "[Install]" >> /etc/systemd/system/oisha-userbot.service
+            echo "WantedBy=multi-user.target" >> /etc/systemd/system/oisha-userbot.service
 
-            [Service]
-            WorkingDirectory=$(pwd)
-            ExecStart=/usr/bin/python3 src/main.py
-            Restart=always
-            RestartSec=10
-            EnvironmentFile=$(pwd)/.env
-            StandardOutput=append:/var/log/oisha-userbot.log
-            StandardError=append:/var/log/oisha-userbot.log
-
-            [Install]
-            WantedBy=default.target
-            SVCEOF
-            sed -i 's/^            //' ~/.config/systemd/user/oisha-userbot.service
-
-            systemctl --user daemon-reload 2>/dev/null || true
-            systemctl --user enable oisha-userbot 2>/dev/null || true
-            systemctl --user restart oisha-userbot 2>/dev/null || (
-              # Fallback: nohup
+            systemctl daemon-reload 2>/dev/null || true
+            systemctl enable oisha-userbot 2>/dev/null || true
+            if ! systemctl restart oisha-userbot 2>/dev/null; then
+              # Fallback: nohup (if systemd not available)
               mkdir -p /var/log
-              nohup python3 src/main.py >> /var/log/oisha-userbot.log 2>&1 &
+              nohup python3 ${OISHA_DIR}/src/main.py >> /var/log/oisha-userbot.log 2>&1 &
               echo "nohup PID: $!"
-            )
+            fi
 
             sleep 8
 
@@ -129,16 +143,27 @@ jobs:
       - name: Deploy to VPS 2 (104.197.19.4)
         id: vps2
         if: steps.vps1.outcome == 'failure'
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AMOCRM_CLIENT_ID: ${{ secrets.AMOCRM_CLIENT_ID }}
+          AMOCRM_CLIENT_SECRET: ${{ secrets.AMOCRM_CLIENT_SECRET }}
+          OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
+          OPENCLAW_SECRET: ${{ secrets.OPENCLAW_SECRET }}
+          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
         with:
           host: 104.197.19.4
           username: baxtiyorjongaziyev
-          password: "parol1122"
+          password: ${{ secrets.VPS_PASSWORD_2 }}
           port: 22
           timeout: 30s
           command_timeout: 10m
-          envs: GITHUB_TOKEN
+          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING
           script: |
             set -e
             echo "=== VPS 2 (104.197.19.4) ==="
@@ -155,28 +180,30 @@ jobs:
             else
               cd "$OISHA_DIR"
               git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
-              git fetch origin main && git reset --hard origin/main || true
+              git fetch origin main 2>/dev/null && git reset --hard origin/main 2>/dev/null || echo "Git sync skipped"
             fi
 
             cd "$OISHA_DIR"
 
-            cat > .env << 'ENVEOF'
-            BOT_TOKEN=8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4
-            API_ID=30643078
-            API_HASH=***REDACTED***
-            GEMINI_API_KEY=***REDACTED***
-            AMOCRM_SUBDOMAIN=jonbrandingagency
-            AMOCRM_CLIENT_ID=5a755b58-f5d1-477d-965d-a50ddaa3d55e
-            AMOCRM_CLIENT_SECRET=***REDACTED***
-            OISHA_API_SECRET=***REDACTED***
-            USERBOT_SESSION_STRING=1ApWapzMBu7kFbYuLPhd3XCGJig-7b2AFv6q3Ej9ECcaEszaSkSYBc70665Vw1qsM2mftLkilu3tNuI7JPhJCzXi_1D58PyQp-eaG4fGDYVtv1Ascc_fZv13v1KYqPAO7uR-7voZSIN3ELp0dmEeg7MGy6P-RpF3nsJBJR1KAUyxjiviTk3jUDKvYwA6ZXXhgNtCzFAtF1r5ZjaCP68B2bUdxbihRbecbA5ptuk8r28hBKM8x8XnF9tpme7ZGsD_KHNvDbaxvC1_SKzXajNJtQaWM9oEzejeNVAZXj3DOGWPByUHXua1yg-tmCYL-Ox63518taP66FuoJMZdizZFnwjxcvKZGGm0=
-            OWNER_ID=150074828
-            ENABLE_AUTO_REPLY=false
-            RUNNING_IN_CLOUD=False
-            ENVEOF
-            sed -i 's/^            //' .env
+            > .env
+            echo "BOT_TOKEN=${BOT_TOKEN}" >> .env
+            echo "API_ID=${API_ID}" >> .env
+            echo "API_HASH=${API_HASH}" >> .env
+            echo "GEMINI_API_KEY=${GEMINI_API_KEY}" >> .env
+            echo "AMOCRM_SUBDOMAIN=jonbrandingagency" >> .env
+            echo "AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID}" >> .env
+            echo "AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET}" >> .env
+            echo "OISHA_API_SECRET=${OISHA_API_SECRET}" >> .env
+            echo "OPENCLAW_SECRET=${OPENCLAW_SECRET}" >> .env
+            echo "USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}" >> .env
+            echo "OWNER_ID=150074828" >> .env
+            echo "ENABLE_AUTO_REPLY=false" >> .env
+            echo "RUNNING_IN_CLOUD=False" >> .env
 
-            python3 -m pip install -r requirements.txt -q --break-system-packages 2>/dev/null || true
+            if [ -f requirements.txt ]; then
+              python3 -m pip install -r requirements.txt -q --break-system-packages 2>/dev/null || true
+            fi
+
             pkill -f "python.*main.py" 2>/dev/null || true
             sleep 2
             nohup python3 src/main.py >> /tmp/oisha-userbot.log 2>&1 &
@@ -186,13 +213,15 @@ jobs:
       - name: Telegram — natijani yuborish
         if: always()
         run: |
-          if [ "${{ steps.vps1.outcome }}" = "success" ]; then
-            MSG="✅ Oisha userbot VPS 1 da ishga tushdi!%0A🖥 109.199.100.137%0ASystemd + nohup orqali"
-          elif [ "${{ steps.vps2.outcome }}" = "success" ]; then
-            MSG="✅ Oisha userbot VPS 2 da ishga tushdi!%0A🖥 104.197.19.4"
+          VPS1_STATUS="${{ steps.vps1.conclusion }}"
+          VPS2_STATUS="${{ steps.vps2.conclusion }}"
+          if [ "$VPS1_STATUS" = "success" ]; then
+            MSG="✅ Oisha userbot VPS 1 da ishga tushdi!%0A%F0%9F%96%A5 109.199.100.137%0ASystemd + nohup orqali"
+          elif [ "$VPS2_STATUS" = "success" ]; then
+            MSG="✅ Oisha userbot VPS 2 da ishga tushdi!%0A%F0%9F%96%A5 104.197.19.4"
           else
-            MSG="❌ Userbot VPS ga ulanmadi.%0AVPS 1: ${{ steps.vps1.outcome }}%0AVPS 2: ${{ steps.vps2.outcome }}%0AHar ikki server ham yopiq ko'rinadi."
+            MSG="❌ Userbot VPS ga ulanmadi.%0AVPS 1: $VPS1_STATUS%0AVPS 2: $VPS2_STATUS%0AHar ikki server ham yopiq ko'rinadi."
           fi
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
             -d "chat_id=${OWNER_ID}" \
             -d "text=${MSG}" || true

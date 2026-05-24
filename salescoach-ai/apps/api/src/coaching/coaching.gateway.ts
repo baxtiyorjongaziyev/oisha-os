@@ -32,14 +32,14 @@ import { RealtimeSuggestionDto } from '../negotiations/dto/negotiate.dto';
 })
 export class CoachingGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private readonly logger = new Logger(CoachingGateway.name);
 
   // Map: callId → Set<socketId>  (multiple managers can observe same call)
   private callRooms = new Map<string, Set<string>>();
   // Map: socketId → { orgId, managerId, callId }
-  private connections = new Map<string, { orgId: string; managerId: string; callId?: string }>();
+  private connections = new Map<string, { orgId: string; managerId: string; callId: string | undefined }>();
 
   constructor(private negotiations: NegotiationsService) {}
 
@@ -49,7 +49,7 @@ export class CoachingGateway implements OnGatewayConnection, OnGatewayDisconnect
     // Auth: expect ?token=<jwt> or Authorization header
     const managerId = (socket.handshake.query.managerId as string) ?? 'unknown';
     const orgId = (socket.handshake.query.orgId as string) ?? 'unknown';
-    this.connections.set(socket.id, { orgId, managerId });
+    this.connections.set(socket.id, { orgId, managerId, callId: undefined });
     this.logger.log(`[WS] Connected: ${managerId} (${socket.id})`);
   }
 

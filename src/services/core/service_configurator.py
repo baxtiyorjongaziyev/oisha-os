@@ -285,7 +285,7 @@ class ServiceConfigurator:
         import hashlib
         import time
 
-        project_id = f"JB-{int(time.time())}-{hashlib.md5(client_name.encode()).hexdigest()[:6].upper()}"
+        project_id = f"JB-{int(time.time())}-{hashlib.md5(client_name.encode(), usedforsecurity=False).hexdigest()[:6].upper()}"
 
         return {
             "project_id": project_id,
