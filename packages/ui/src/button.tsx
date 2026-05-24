@@ -27,6 +27,7 @@ export function Button({
       type={type}
       disabled={disabled || isLoading}
       aria-disabled={disabled || isLoading}
+      aria-busy={isLoading}
       className={[
         "inline-flex items-center justify-center gap-2",
         "rounded-full px-5 py-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 active:scale-[0.98]",
@@ -38,6 +39,7 @@ export function Button({
     >
       {isLoading && (
         <svg
+          aria-hidden="true"
           className="animate-spin -ml-1 mr-3 h-5 w-5"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
