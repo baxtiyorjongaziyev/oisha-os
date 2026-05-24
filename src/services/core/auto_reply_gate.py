@@ -44,7 +44,7 @@ ESCALATION_TRIGGERS = (
     "qaytarib bering",  # give back
 )
 
-VALID_MODES = ("off", "shadow", "vip_only", "live")
+VALID_MODES = ("off", "shadow", "vip_only", "live", "auto")
 
 # DB flag keys
 FLAG_KILL_SWITCH = "auto_reply_live"  # bool, True=allowed, False=killed
@@ -197,9 +197,19 @@ async def evaluate(
             kill_switch_on=kill_on,
         )
     # live
+    if mode == "live":
+        return Decision(
+            action="send",
+            reason="tier3_live",
+            effective_mode="live",
+            kill_switch_on=kill_on,
+        )
+    # auto — Telegram Chat Automation mode: bot is connected to owner's profile,
+    # replies on behalf of the owner in ALL chats without score threshold.
+    # Only active when user explicitly connects the bot via Telegram settings.
     return Decision(
         action="send",
-        reason="tier3_live",
-        effective_mode="live",
+        reason="tier4_auto_chat_automation",
+        effective_mode="auto",
         kill_switch_on=kill_on,
     )
