@@ -216,16 +216,21 @@ Respond as JSON: {"response": "...", "strategy": "...", "examples": ["...", "...
       include: { scorecard: true },
     });
 
+    type PipelineCall = (typeof calls)[number];
+
     const total = calls.length;
-    const scored = calls.filter((c) => c.scorecard).length;
+    const scored = calls.filter((c: PipelineCall) => c.scorecard).length;
     const avgScore =
       scored > 0
-        ? calls.reduce((sum, c) => sum + (c.scorecard?.overallScore ?? 0), 0) / scored
+        ? calls.reduce(
+            (sum: number, c: PipelineCall) => sum + (c.scorecard?.overallScore ?? 0),
+            0,
+          ) / scored
         : 0;
 
     const riskFlags: Record<string, number> = {};
     for (const c of calls) {
-      for (const flag of (c.scorecard?.riskFlags ?? [])) {
+      for (const flag of (c.scorecard?.riskFlags ?? []) as string[]) {
         riskFlags[flag] = (riskFlags[flag] ?? 0) + 1;
       }
     }

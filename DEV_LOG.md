@@ -5,6 +5,198 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-05-13 16:48 UTC | ⚠️ main `561c19a`
+
+**Commit**: fix(deploy): Oracle VM uses file-based session, not StringSession
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: post-promotion health check failed
+
+---
+
+## 2026-05-13 16:04 UTC | ⚠️ main `ed5a47a`
+
+**Commit**: feat(agents): meeting scheduler + deal hygiene + self-evolution engine
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: post-promotion health check failed
+
+---
+
+## 2026-05-12 14:58 UTC | ⚠️ main `c96fbbf`
+
+**Commit**: feat(crm): AI lead classifier + contact merge (dublikat birlashtirish)
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: Creating temporary archive of 558 file(s) totalling 9.8 MiB before compression. Uploading tarball of [.] to [gs://jonbranding-85662071-ea38e_cloudbuild/source/1778597894.38165-f3c82d5b7afd433ea709d0d064375fd5.tgz] ERROR: (gcloud.builds.submit) 403 Could not upload file [/tmp/tmpblxr640z/file.tgz] to [jonbranding-85662071-ea38e_cloudbuild/source/1778597894.38165-f3c82d5b7afd433ea709d0d064375fd5.tgz]: The billing account for the owning project is disabled in state absent. This command is authentic
+
+---
+
+## 2026-05-10 08:05 UTC | ⚠️ main `240800d`
+
+**Commit**: feat(infra): add Oracle Cloud Free Tier deploy (24/7)
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: Creating temporary archive of 557 file(s) totalling 9.7 MiB before compression. Uploading tarball of [.] to [gs://jonbranding-85662071-ea38e_cloudbuild/source/1778400338.734347-be4faa5377c74c1f980f2288454f0735.tgz] ERROR: (gcloud.builds.submit) 403 Could not upload file [/tmp/tmp_gtq05fn/file.tgz] to [jonbranding-85662071-ea38e_cloudbuild/source/1778400338.734347-be4faa5377c74c1f980f2288454f0735.tgz]: The billing account for the owning project is disabled in state absent. This command is authent
+
+---
+
+## 2026-05-10 07:56 UTC | ⚠️ main `ed6e9f7`
+
+**Commit**: fix(security): resolve remaining bandit findings (B301, B324, B602)
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: Creating temporary archive of 555 file(s) totalling 9.7 MiB before compression. Uploading tarball of [.] to [gs://jonbranding-85662071-ea38e_cloudbuild/source/1778399793.724262-9d8f7a2e50194e788d4aa15da748c57b.tgz] ERROR: (gcloud.builds.submit) 403 Could not upload file [/tmp/tmp0iidqc8q/file.tgz] to [jonbranding-85662071-ea38e_cloudbuild/source/1778399793.724262-9d8f7a2e50194e788d4aa15da748c57b.tgz]: The billing account for the owning project is disabled in state absent. This command is authent
+
+---
+
+## 2026-05-10 07:20 UTC | 🔴 main `d4da053`
+
+**Commit**: fix(security): resolve all bandit findings to unblock CI (#37)
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-05-10 05:09 UTC | 🔴 main `8fa9d86`
+
+**Commit**: chore: optimize cloud run resources and billing mode
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-05-09 12:07 UTC | ✅ main `adf051b`
+
+**Commit**: feat: enhance chat UI and update dependencies
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00283-xav
+
+---
+
+## 2026-05-09 11:58 UTC | ✅ main `5cf6290`
+
+**Commit**: fix(ci): restore installable dependency ranges
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00280-kis
+
+---
+
+## 2026-05-09 11:47 UTC | 🔴 main `5afd8e8`
+
+**Commit**: fix(security): resolve dependency alerts
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-05-08 18:45 UTC | 🔴 main `cdafa00`
+
+**Commit**: Merge branch 'main' of https://github.com/baxtiyorjongaziyev/oisha-os
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-05-08 15:59 UTC | 🔴 main `c2fcdce`
+
+**Commit**: feat: Integrate Telegram Bot API 10.0 AI features (Guest Mode, Business, Streaming)
+**Actor**: @baxtiyorjongaziyev
+**Status**: Test bosqichi muvaffaqiyatsiz
+
+---
+
+## 2026-05-08 15:47 UTC | ⚠️ main `9e4b53b`
+
+**Commit**: Merge PR #22: Bump google-github-actions/setup-gcloud from 2 to 3
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: health check failed
+
+---
+
+## 2026-05-08 15:10 UTC | ✅ main `4f459bc`
+
+**Commit**: feat(telegram): add Bot API 10 AI feature layer
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00249-jem
+
+---
+
+## 2026-05-08 14:42 UTC | ✅ main `2117c41`
+
+**Commit**: fix(ci): make ecosystem health check production-aware
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00246-puh
+
+---
+
+## 2026-05-08 14:31 UTC | ✅ main `474a009`
+
+**Commit**: fix(ci): stabilize Cloud Run health gate
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatli | Revision: oisha-master-bot-00243-tad
+
+---
+
+## 2026-05-08 14:20 UTC | ⚠️ main `2a416e9`
+
+**Commit**: fix(ci): recover tagged Cloud Run candidate rollout
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-05-08 14:12 UTC | ⚠️ main `90276bf`
+
+**Commit**: fix(runtime): expose API runtime context for Cloud Run
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-05-08 14:01 UTC | ⚠️ main `f41e781`
+
+**Commit**: fix(ci): guard CodeQL on private repos without GHAS
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-05-07 14:53 UTC | ⚠️ main `21f2bf5`
+
+**Commit**: ci: pin appleboy/ssh-action to commit SHA for reproducibility
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-05-07 06:20 UTC | ⚠️ main `828118a`
+
+**Commit**: chore: standardize GitHub Action versions and complete AmoCRM integration setup
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: deploy command failed
+
+---
+
+## 2026-05-07 06:07 UTC | ⚠️ main `7b303b9`
+
+**Commit**: Merge branch 'main' of https://github.com/baxtiyorjongaziyev/oisha-os
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: container image not ready after build wait
+
+---
+
+## 2026-05-07 05:54 UTC | ⚠️ main `907d12c`
+
+**Commit**: fix: resolve deployment failure, exposed secrets, and startup timeout
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: userbot secret binding cleanup failed: Deploying... Creating Revision.........................failed Deployment failed ERROR: (gcloud.run.services.update) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision m
+
+---
+
+## 2026-05-07 05:44 UTC | ⚠️ main `6002729`
+
+**Commit**: feat: add logging to sales agent and update GitHub Actions versions
+**Actor**: @baxtiyorjongaziyev
+**Status**: Deploy muvaffaqiyatsiz | Sabab: traffic tag cleanup failed: Updating traffic... Routing traffic...........failed Updating traffic failed URL: https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app Traffic:   100% (currently -)    oisha-master-bot-00167-6jn   -    (currently 100%) oisha-master-bot-00214-duy                           sha-1764103 (Deleting): https://sha-1764103---oisha-master-bot-4h4lsnzlsq-ey.a.run.app ERROR: (gcloud.run.services.update-traffic) Revision 'oisha-master-bot-00167-6jn' is not ready and cannot serve traffic. The user-provided contai
+
+---
+
 ## 2026-05-06 05:33 UTC | ⚠️ main `7ad2303`
 
 **Commit**: Merge branch 'main' of https://github.com/baxtiyorjongaziyev/oisha-os

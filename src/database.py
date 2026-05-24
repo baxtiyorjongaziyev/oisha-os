@@ -102,6 +102,10 @@ class Database:
         turso_token = _setting_text(settings.TURSO_AUTH_TOKEN)
 
         if turso_url and turso_token and HAS_LIBSQL:
+            if hasattr(self, "_conn") and isinstance(self._conn, TursoAdapter):
+                self._state_backend = "turso"
+                return self._conn
+
             try:
                 db_pool.url = turso_url
                 db_pool.auth_token = turso_token
@@ -120,7 +124,7 @@ class Database:
                     return conn
 
                 probe_conn = await asyncio.wait_for(
-                    asyncio.to_thread(_probe_turso), timeout=5.0
+                    asyncio.to_thread(_probe_turso), timeout=15.0
                 )
 
                 try:
@@ -172,7 +176,7 @@ class Database:
     async def init_db(self):
         """Ma'lumotlar bazasini va jadvallarni yaratish (Asenkron)."""
         conn = await self.get_connection()
-        async with conn.cursor() as cursor:
+        async with conn.cursor():
             # Users
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -607,14 +611,14 @@ class Database:
                 update_fields.append(f"{key}=COALESCE(excluded.{key}, users.{key})")
 
         query = f"""
-            INSERT INTO users (user_id, first_name, username, phone, 
-                             business_type, region, brand_name, service_type, deadline, 
+            INSERT INTO users (user_id, first_name, username, phone,
+                             business_type, region, brand_name, service_type, deadline,
                              last_name, contact_name, bio, avatar_analysis, social_analysis,
                              role, position, intent, detailed_role,
                              last_seen, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET {", ".join(update_fields)}
-        """
+        """  # nosec
         params = (
             user_id,
             first_name,
@@ -808,7 +812,7 @@ class Database:
     async def update_chat_checkpoint(self, chat_id: int, msg_id: int) -> None:
         if not chat_id or not msg_id:
             return
-        now = datetime.datetime.utcnow().isoformat()
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         conn = await self.get_connection()
         await conn.execute(
             """
@@ -825,14 +829,15 @@ class Database:
     async def get_recent_chat_checkpoints(
         self, since_days: int = 7
     ) -> List[Dict[str, Any]]:
-        cutoff = (
-            datetime.datetime.utcnow() - datetime.timedelta(days=since_days)
+        since_dt = (
+            datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(days=since_days)
         ).isoformat()
         conn = await self.get_connection()
         async with conn.execute(
             "SELECT chat_id, last_processed_msg_id, last_processed_at FROM chat_checkpoints "
             "WHERE last_processed_at >= ? ORDER BY last_processed_at DESC",
-            (cutoff,),
+            (since_dt,),
         ) as cursor:
             rows = await cursor.fetchall()
             return [
@@ -927,6 +932,8 @@ class Database:
             "SELECT (SELECT COUNT(*) FROM users), (SELECT COUNT(*) FROM message_logs)"
         ) as cursor:
             row = await cursor.fetchone()
+            if not row:
+                return {"total_users": 0, "total_messages": 0}
             return {"total_users": row[0], "total_messages": row[1]}
 
     async def get_today_stats(self):
@@ -941,6 +948,8 @@ class Database:
             (today, today),
         ) as cursor:
             row = await cursor.fetchone()
+            if not row:
+                return {"leads_found": 0, "messages_synced": 0}
             return {
                 "leads_found": row[0] or 0,
                 "messages_synced": row[1] or 0,
@@ -1029,7 +1038,7 @@ class Database:
         async with conn.execute(
             "SELECT t.id, t.title, t.description, t.assigned_to, t.deadline, t.priority, t.status, u.first_name, u.username FROM tasks t LEFT JOIN users u ON u.user_id = t.assigned_to WHERE t.deadline IS NOT NULL AND COALESCE(t.status, 'Pending') NOT IN ('Done', 'Completed', 'Closed', 'Cancelled')"
         ) as cursor:
-            rows = await conn.fetchall()
+            rows = await cursor.fetchall()
         now = get_local_now()
         overdue = []
         for row in rows:
@@ -1139,27 +1148,53 @@ class Database:
         return True
 
     async def get_latest_call_analysis(self, lead_id: int) -> Optional[Dict[str, Any]]:
-        """Lid uchun oxirgi qo'ng'iroq tahlilini olish."""
+        """
+        Lid uchun oxirgi qo'ng'iroq tahlilini olish.
+        
+        Args:
+            lead_id: amoCRM lead IDsi
+            
+        Returns:
+            Dict formatidagi tahlil ma'lumotlari yoki None
+        """
+        if not lead_id:
+            return None
+
         conn = await self.get_connection()
+        if not conn:
+            logger.error("[DB] Connection failed while fetching call analysis")
+            return None
+
         query = """
             SELECT * FROM call_analyses 
             WHERE lead_id = ? 
             ORDER BY created_at DESC 
             LIMIT 1
         """
-        async with conn.execute(query, (lead_id,)) as cursor:
-            row = await cursor.fetchone()
-            if row:
-                cols = [description[0] for description in cursor.description]
-                data = dict(zip(cols, row))
-                # JSON maydonlarni parse qilish
-                for json_col in ["scores", "strengths", "weaknesses", "objections", "next_steps", "recommended_tasks"]:
-                    if data.get(json_col):
-                        try:
-                            data[json_col] = json.loads(data[json_col])
-                        except Exception:
-                            pass
-                return data
+        try:
+            async with conn.execute(query, (lead_id,)) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    cols = [description[0] for description in cursor.description]
+                    data = dict(zip(cols, row))
+                    
+                    # JSON maydonlarni xavfsiz parse qilish
+                    json_fields = [
+                        "scores", "strengths", "weaknesses", 
+                        "objections", "next_steps", "recommended_tasks"
+                    ]
+                    for json_col in json_fields:
+                        val = data.get(json_col)
+                        if val and isinstance(val, str):
+                            try:
+                                data[json_col] = json.loads(val)
+                            except (json.JSONDecodeError, TypeError) as e:
+                                logger.warning(f"[DB] JSON parse error for {json_col} in lead {lead_id}: {e}")
+                                # Keep as string or set to empty dict/list if needed
+                    return data
+        except Exception as e:
+            logger.error(f"[DB] Error fetching call analysis for lead {lead_id}: {e}")
+            
         return None
 
     def __iter__(self):
