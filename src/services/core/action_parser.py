@@ -319,7 +319,6 @@ class ActionParser:
 
                 if title:
                     # Resolve assigned_to (could be username or mention)
-                    assigned_id = 0
                     if assigned_to:
                         # Simple username to ID resolution pattern
                         # We might need a database method for this

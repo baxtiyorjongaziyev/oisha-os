@@ -32,10 +32,32 @@ class BaseAgent(ABC):
         }
 
         # Clients initialization
-        if "gemini" in api_keys:
+        gemini_key = (api_keys.get("gemini") or "").strip()
+        if gemini_key:
             self.model_configs["gemini"]["client"] = genai.Client(
-                api_key=api_keys["gemini"]
+                api_key=gemini_key
             )
+
+        # Bedrock (Claude) initialization
+        aws_key = (api_keys.get("aws_access_key") or "").strip()
+        aws_secret = (api_keys.get("aws_secret_key") or "").strip()
+        aws_region = (api_keys.get("aws_region") or "us-east-1").strip()
+        
+        if aws_key and aws_secret and aws_key != "your_aws_access_key":
+            try:
+                import boto3
+                self.model_configs["bedrock"] = {
+                    "model": api_keys.get("bedrock_model_id", "anthropic.claude-3-5-sonnet-20240620-v1:0"),
+                    "client": boto3.client(
+                        service_name="bedrock-runtime",
+                        aws_access_key_id=aws_key,
+                        aws_secret_access_key=aws_secret,
+                        region_name=aws_region,
+                    )
+                }
+                logger.info(f"[{self.agent_id}] AWS Bedrock (Claude) initialized.")
+            except Exception as e:
+                logger.warning(f"[{self.agent_id}] Failed to initialize Bedrock: {e}")
 
     @abstractmethod
     async def process_task(
@@ -114,7 +136,55 @@ class BaseAgent(ABC):
             except Exception as e:
                 logger.error(f"[{self.agent_id}] Gemini Agentic Error: {e}")
 
+        # 2. Fallback to Bedrock (Claude) if Gemini fails or is missing
+        if self.model_configs.get("bedrock") and self.model_configs["bedrock"]["client"]:
+            try:
+                logger.info(f"[{self.agent_id}] Falling back to AWS Bedrock (Claude)...")
+                reply = await self.call_bedrock(contents)
+                if reply:
+                    return reply
+            except Exception as e:
+                logger.error(f"[{self.agent_id}] Bedrock Fallback Error: {e}")
+
         return "Kechirasiz, texnik tanaffus."
+
+    async def call_bedrock(self, contents: List[Dict[str, Any]]) -> Optional[str]:
+        """AWS Bedrock (Claude) orqali AI chaqiruvi."""
+        client = self.model_configs["bedrock"]["client"]
+        model_id = self.model_configs["bedrock"]["model"]
+        
+        # Convert Gemini contents to Bedrock messages
+        messages = []
+        for item in contents:
+            role = "user" if item["role"] == "user" else "assistant"
+            # Extract text from parts
+            text_parts = []
+            for part in item.get("parts", []):
+                if hasattr(part, 'text'):
+                    text_parts.append(part.text)
+                elif isinstance(part, dict) and "text" in part:
+                    text_parts.append(part["text"])
+            
+            if text_parts:
+                messages.append({
+                    "role": role,
+                    "content": [{"text": " ".join(text_parts)}]
+                })
+
+        try:
+            # Modern Converse API
+            response = await asyncio.to_thread(
+                client.converse,
+                modelId=model_id,
+                messages=messages,
+                system=[{"text": self.system_prompt}]
+            )
+            
+            output_text = response['output']['message']['content'][0]['text']
+            return output_text
+        except Exception as e:
+            logger.error(f"[{self.agent_id}] Bedrock API Error: {e}")
+            return None
 
     async def safe_ai_call(
         self,
