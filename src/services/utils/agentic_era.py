@@ -36,7 +36,8 @@ class AgenticEra:
         return {
             "status": "pending_negotiation",
             "protocol_id": hashlib.md5(
-                json.dumps(protocol_message).encode()
+                json.dumps(protocol_message).encode(),
+                usedforsecurity=False,
             ).hexdigest(),
         }
 

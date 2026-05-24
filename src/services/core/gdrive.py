@@ -75,3 +75,21 @@ class GoogleDriveSync:
         except Exception as e:
             logger.error(f"[GDRIVE] Error creating folder: {e}")
             return None
+    
+    def search_files(self, query: str) -> list:
+        """
+        Searches for files in Google Drive by name.
+        """
+        try:
+            results = (
+                self.service.files()
+                .list(
+                    q=f"name contains '{query}'",
+                    fields="files(id, name, webViewLink, mimeType)",
+                )
+                .execute()
+            )
+            return results.get("files", [])
+        except Exception as e:
+            logger.error(f"[GDRIVE] Search error: {e}")
+            return []

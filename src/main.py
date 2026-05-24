@@ -7,7 +7,7 @@ import base64
 import json
 import re
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 # [STABILITY] Windows and UTF-8 setup
 try:
@@ -15,7 +15,7 @@ try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except:
+except Exception:
     pass
 
 if os.name == "nt":
@@ -24,7 +24,7 @@ if os.name == "nt":
 sys.path.append(os.getcwd())
 sys.path.append(os.path.join(os.getcwd(), "src"))
 
-from telethon import TelegramClient
+from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from src import config
 from src.settings import settings
@@ -50,6 +50,7 @@ from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
 from src.services.core.session_manager import SessionManager
+from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
 
 # Global Managers
@@ -80,6 +81,8 @@ session_manager = None
 chat_bridge = None
 BOT_TOKEN_STR = None
 surgical_integration = None
+evolution_scheduler = None
+meeting_scheduler = None
 
 # TN5 Group Config (env-configurable; fallback keeps legacy behavior)
 TN5_GROUP_ID = (
@@ -197,11 +200,6 @@ def _restore_cloud_artifacts() -> None:
         except Exception as exc:
             logger.error(f"[CLOUD] Failed to restore Google credentials file: {exc}")
 
-    logger.error(
-        "[AUTH] Userbot session missing or unauthorized. Interactive auth is disabled in cloud runtime."
-    )
-    return False
-
 
 async def _connect_user_client(telegram_client: TelegramClient) -> bool:
     if os.environ.get("CLOUD_RUN_CONTROL_PLANE_ONLY") == "1":
@@ -249,9 +247,16 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
     if await telegram_client.is_user_authorized():
         return True
 
-    # [GOD MODE] If not on Cloud Run, allow interactive login to regenerate session
+    # Only an explicit local terminal may prompt for Telegram login.
+    # Production VMs run under systemd, so prompting there causes EOFError
+    # and makes health checks pass briefly before the process dies.
     cloud_control_plane = bool(os.getenv("K_SERVICE"))
-    if not cloud_control_plane:
+    interactive_auth_allowed = (
+        os.getenv("ALLOW_LOCAL_RUN") == "1"
+        and sys.stdin is not None
+        and sys.stdin.isatty()
+    )
+    if not cloud_control_plane and interactive_auth_allowed:
         logger.info(
             "[AUTH] Interactive auth allowed for local runtime. Please follow the prompts in your terminal."
         )
@@ -268,6 +273,7 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
     logger.error(
         "[AUTH] Userbot session missing or unauthorized. Interactive auth is disabled in cloud runtime."
     )
+    return False
 
 
 def _income_state_key(message_id: int) -> str:
@@ -690,7 +696,7 @@ async def global_phone_lookup(phone: str) -> Optional[Dict[str, Any]]:
             # 4. Kontaktni darhol o'chirib tashlaymiz
             try:
                 await client(functions.contacts.DeleteContactsRequest(id=[user.id]))
-            except:
+            except Exception:
                 pass
             return user_data
 
@@ -1669,7 +1675,7 @@ async def run_health_check_api() -> None:
 
     config_uvicorn = uvicorn.Config(
         api_app,
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec
         port=int(os.environ.get("PORT", 8080)),
         log_level="info",
     )
@@ -1738,6 +1744,16 @@ async def run_autonomous_advice(chat_id, sender_name, message_text):
                     context={"chat_id": "me"},
                     is_business=False,
                 )
+
+        # [SELF-LEARNING] Extract lessons from this conversation
+        if evolution_scheduler and history_context:
+            await evolution_scheduler.on_conversation_end(
+                conversation=history_context,
+                client_type="lead",
+                outcome="advice_given" if advice else "no_action",
+                manager_name=sender_name,
+                chat_id=chat_id,
+            )
     except Exception as e:
         logger.error(f"[ADVISOR] Background advice error: {e}")
 
@@ -1817,9 +1833,31 @@ async def self_command_handler(event):
                     )
             except Exception as e:
                 logger.error(f"[COMMAND] /stagnant error: {e}", exc_info=True)
-                await event.respond(f"❌ **Xato:** {str(e)}")
+            await event.respond(f"❌ **Xato:** {str(e)}")
         else:
             await event.respond("❌ **Xato:** EnterpriseReporter topilmadi.")
+    elif cmd.startswith("/calendar_scan"):
+        if not meeting_scheduler:
+            await event.respond("❌ Calendar scanner hali ishga tushmagan.")
+            return
+        await event.respond("📅 Telegram chatlardan uchrashuvlarni qidiryapman...")
+        try:
+            result = await meeting_scheduler.scan_recent_dialogs(
+                client,
+                dialog_limit=_negotiation_int("CALENDAR_SCAN_DIALOG_LIMIT", 80),
+                message_limit=_negotiation_int("CALENDAR_SCAN_MESSAGE_LIMIT", 12),
+                max_age_hours=_negotiation_int("CALENDAR_SCAN_MAX_AGE_HOURS", 72),
+            )
+            await event.respond(
+                "📅 Calendar scan yakunlandi:\n"
+                f"Tekshirildi: {result.get('scanned', 0)} chat\n"
+                f"Yaratildi: {result.get('created', 0)} uchrashuv\n"
+                f"Eski/noaniq o'tkazildi: {result.get('skipped_old', 0)}\n"
+                f"Xato: {result.get('errors', 0)}"
+            )
+        except Exception as exc:
+            logger.error(f"[COMMAND] /calendar_scan error: {exc}", exc_info=True)
+            await event.respond(f"❌ Calendar scan xatosi: {type(exc).__name__}")
 
 
 async def activity_monitor_handler(event):
@@ -1828,6 +1866,16 @@ async def activity_monitor_handler(event):
         return
     if activity_monitor:
         await activity_monitor.log_event(event)
+
+
+async def meeting_scheduler_handler(event):
+    """Create Google Calendar events from clear Telegram meeting agreements."""
+    if not meeting_scheduler:
+        return
+    try:
+        await meeting_scheduler.process_event(event, client)
+    except Exception as exc:
+        logger.warning(f"[MEETING] Scheduler skipped: {type(exc).__name__}: {exc}")
 
 
 def _negotiation_int(name: str, default: int) -> int:
@@ -2072,13 +2120,19 @@ async def main():
     global msg_controller, client, bot_client, lead_scraper, action_parser
     global advisor_agent, auto_lead_agent, safe_responder, activity_monitor, audit_agent
     global workflow_manager, access_manager, admin_bot, session_manager, chat_bridge, BOT_TOKEN_STR, juma_notifier
-    global surgical_integration
+    global surgical_integration, evolution_scheduler
+    global meeting_scheduler
 
     # [ENTERPRISE] Anti-Local Execution Lock
     # To protect the owner's Telegram session from being revoked by simultaneous
     # logins (Local vs Cloud), we strictly prevent local execution unless
     # explicitly requested via ALLOW_LOCAL_RUN=1.
-    is_cloud = os.getenv("K_SERVICE") or os.getenv("RUNNING_IN_CLOUD") == "1"
+    runtime_name = os.getenv("OISHA_RUNTIME", "").strip().lower()
+    is_cloud = (
+        os.getenv("K_SERVICE")
+        or os.getenv("RUNNING_IN_CLOUD") == "1"
+        or runtime_name in {"vm_service", "oracle_vm", "production"}
+    )
     allow_local = os.getenv("ALLOW_LOCAL_RUN") == "1"
 
     if not is_cloud and not allow_local:
@@ -2092,7 +2146,46 @@ async def main():
     print("🚀 Oisha-OS Tizimi tayyorlanmoqda (Dual-Head Architecture)...")
 
     # [STABILITY] Start health-check early so Cloud Run readiness probes pass during heavy initialization.
+    async def command_processor():
+        """Processes commands from the API Server (e.g. sending messages)."""
+        logger.info("👷 [COMMANDS] API Command Processor started.")
+        import src.api_server as api_module
+        while True:
+            try:
+                # Use wait_for to check for shutdown periodically
+                item = await api_module.command_queue.get()
+                cmd = item.get("cmd")
+                logger.info(f"👷 [COMMANDS] Received: {cmd}")
+
+                if cmd == "send_message":
+                    u_id = item.get("user_id")
+                    txt = item.get("text")
+                    item.get("model", "gemini-3-flash")
+                    
+                    if client:
+                        try:
+                            # We can also use advisor_agent to get an AI reply if desired,
+                            # but here we just send the raw text from the widget.
+                            await client.send_message(u_id, txt)
+                            logger.info(f"✅ [COMMANDS] Message sent to {u_id}")
+                            # Also log it to DB so it shows in history
+                            await msg_controller.db.log_message(u_id, txt, is_ai=True)
+                        except Exception as e:
+                            logger.error(f"❌ [COMMANDS] Failed to send msg to {u_id}: {e}")
+                
+                elif cmd == "audit":
+                    if audit_agent:
+                        # Start background audit
+                        asyncio.create_task(audit_agent.run_full_audit())
+                        logger.info("🕵️ [COMMANDS] Full audit triggered.")
+
+                api_module.command_queue.task_done()
+            except Exception as e:
+                logger.error(f"❌ [COMMANDS] Processor error: {e}")
+                await asyncio.sleep(1)
+
     asyncio.create_task(run_health_check_api(), name="health_check_api")
+    asyncio.create_task(command_processor(), name="command_processor")
 
     _restore_cloud_artifacts()
 
@@ -2104,6 +2197,18 @@ async def main():
             if settings.DEEPSEEK_API_KEY
             else None
         ),
+        "aws_access_key": (
+            settings.AWS_ACCESS_KEY_ID.get_secret_value()
+            if settings.AWS_ACCESS_KEY_ID
+            else None
+        ),
+        "aws_secret_key": (
+            settings.AWS_SECRET_ACCESS_KEY.get_secret_value()
+            if settings.AWS_SECRET_ACCESS_KEY
+            else None
+        ),
+        "aws_region": settings.AWS_REGION,
+        "bedrock_model_id": settings.BEDROCK_MODEL_ID,
     }
 
     # [AUDIT: RESTORATION] Centralized DB instance for global consistency
@@ -2216,12 +2321,20 @@ async def main():
         config=config,
         lead_scraper=lead_scraper,
     )
+    meeting_scheduler = TelegramMeetingScheduler(
+        db=msg_controller.db,
+        gcalendar=msg_controller.google.calendar,
+        admin_notifier=admin_bot,
+        amocrm=msg_controller.crm.amocrm,
+    )
 
     advisor_agent = AdvisorAgent(
         api_key=api_keys["gemini"], db=msg_controller.db, action_parser=action_parser
     )
     auto_lead_agent = AutoLeadAgent(api_key=api_keys["gemini"])
-    sales_coach = SalesCoach(ai_provider=auto_lead_agent)  # Use shared AI provider
+    if meeting_scheduler:
+        meeting_scheduler.lead_detector = auto_lead_agent
+    SalesCoach(ai_provider=auto_lead_agent)  # Use shared AI provider
     crm_guard = CRMGuard(
         amo=msg_controller.crm.amocrm, db=msg_controller.db, bot=None
     )  # TODO: Connect admin bot
@@ -2274,6 +2387,11 @@ async def main():
     activity_monitor = ActivityMonitor(db=msg_controller.db)
     audit_agent = AuditAgent(api_key=api_keys["gemini"], db=msg_controller.db)
 
+    # [SELF-EVOLUTION] Learning + Evolution scheduler
+    from src.services.core.evolution_scheduler import EvolutionScheduler
+    evolution_scheduler = EvolutionScheduler(db=msg_controller.db, gemini_api_key=api_keys["gemini"])
+    asyncio.create_task(evolution_scheduler.start(), name="evolution_scheduler")
+
     workflow_manager = WorkflowManager(
         crm=msg_controller.crm.amocrm, db=msg_controller.db, client=client
     )
@@ -2293,15 +2411,17 @@ async def main():
         access_manager=access_manager,
         team_group_id=settings.TEAM_GROUP_ID,
     )
+    if meeting_scheduler:
+        meeting_scheduler.admin_notifier = admin_bot
     from src.services.utils.welcome_manager import WelcomeManager
 
-    welcome_manager = WelcomeManager(client=client)
+    WelcomeManager(client=client)
 
     lead_scraper.notify_callback = admin_bot.notify_lead
 
     from src.services.core.workflow_orchestrator import WorkflowOrchestrator
 
-    orchestrator = WorkflowOrchestrator(
+    WorkflowOrchestrator(
         amocrm=msg_controller.crm.amocrm,
         airtable=msg_controller.crm.airtable,
         notify_callback=admin_bot.notify_lead,
@@ -2317,6 +2437,7 @@ async def main():
     api_module.user_client = client
     api_module.db_instance = msg_controller.db
     api_module.msg_controller = msg_controller
+    api_module.action_parser = action_parser
 
     api_module.set_runtime_context(
         service_name=os.getenv("K_SERVICE") or "oisha-main",
@@ -2399,6 +2520,20 @@ async def main():
     if BOT_TOKEN_STR and bot_client:
         try:
             await bot_client.start(bot_token=BOT_TOKEN_STR)
+            
+            # [PHASE 1.5] Telegram Bot API 10.0 Features (Guest Mode, Business, etc.)
+            from src.services.core.telegram_ai_features import TelegramBotAPI10Client, BOT_API_10_ALLOWED_UPDATES
+            
+            tg_ai_client = TelegramBotAPI10Client(BOT_TOKEN_STR)
+            webhook_url = os.getenv("WEBHOOK_URL")
+            if webhook_url:
+                webhook_path = f"{webhook_url.rstrip('/')}/webhook/telegram"
+                logger.info(f"🤖 [BOT API 10] Setting webhook to: {webhook_path}")
+                # Set webhook in background to not block startup
+                asyncio.create_task(tg_ai_client.set_webhook(webhook_path, allowed_updates=BOT_API_10_ALLOWED_UPDATES))
+            else:
+                logger.warning("⚠️ [BOT API 10] WEBHOOK_URL not set. Guest Mode and Business features require a webhook.")
+
             if admin_bot:
                 admin_bot.user_client = client
                 await admin_bot.start()
@@ -2431,10 +2566,40 @@ async def main():
         events.NewMessage(outgoing=True),
     )
     client.add_event_handler(
+        meeting_scheduler_handler,
+        events.NewMessage(incoming=True),
+    )
+    client.add_event_handler(
+        meeting_scheduler_handler,
+        events.NewMessage(outgoing=True),
+    )
+    client.add_event_handler(
         self_command_handler,
         events.NewMessage(chats="me"),
     )
     logger.info("[EVENTS] Safe userbot handlers registered.")
+
+    async def calendar_autoscan_loop():
+        await asyncio.sleep(_negotiation_int("CALENDAR_SCAN_BOOT_DELAY_SECS", 60))
+        while True:
+            try:
+                if meeting_scheduler and os.getenv(
+                    "ENABLE_CALENDAR_AUTOSCAN", "1"
+                ).strip().lower() not in {"0", "false", "no", "off"}:
+                    result = await meeting_scheduler.scan_recent_dialogs(
+                        client,
+                        dialog_limit=_negotiation_int("CALENDAR_SCAN_DIALOG_LIMIT", 80),
+                        message_limit=_negotiation_int("CALENDAR_SCAN_MESSAGE_LIMIT", 12),
+                        max_age_hours=_negotiation_int("CALENDAR_SCAN_MAX_AGE_HOURS", 72),
+                    )
+                    logger.info(f"[MEETING SCAN] {result}")
+            except Exception as exc:
+                logger.warning(
+                    f"[MEETING SCAN] Autoscan failed: {type(exc).__name__}: {exc}"
+                )
+            await asyncio.sleep(_negotiation_int("CALENDAR_SCAN_INTERVAL_SECS", 900))
+
+    asyncio.create_task(calendar_autoscan_loop(), name="calendar_autoscan_loop")
 
     # [PHASE 1.4] Graceful SIGTERM drain for Cloud Run revision rollover.
     # Cloud Run sends SIGTERM with a 30s grace period; we drain in-flight
