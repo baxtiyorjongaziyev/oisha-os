@@ -18,6 +18,10 @@
 **Learning:** Generic wrappers like `<div>` or `<section>` for lists of items obscure content structure for screen readers. Using standard interactive components like buttons without tactile feedback (`active:` states) makes interfaces feel unresponsive.
 **Action:** Always use semantic `<ul>` or `<ol>` tags with descriptive `aria-label`s for lists of items to ensure they are properly parsed and announced by screen readers. For interactive elements like buttons, include a subtle tactile feedback (e.g., `active:scale-[0.98]`) to improve perceived responsiveness and the overall interactive feel.
 
-## $(date +%Y-%m-%d) - [UX Improvement] Add accessible loading state to Button
+## 2026-05-24 - [UX Improvement] Add accessible loading state to Button
 **Learning:** Found that the primary UI Button lacked a standardized, built-in loading state. Without this, developers might omit visual feedback during async operations, leading to poor UX and potential double-submissions.
 **Action:** Always provide an \`isLoading\` prop on core button components that not only renders a spinner but automatically sets \`disabled\` and \`aria-disabled\` attributes to gracefully handle the pending state.
+
+## 2026-05-24 - [UX Improvement] Additional accessibility for Button loading state
+**Learning:** While the primary UI Button handled `disabled` and `aria-disabled` correctly during its loading state, it lacked `aria-busy` on the button itself and `aria-hidden="true"` on the loading SVG. This could cause screen readers to announce the SVG elements or fail to indicate that the component is actively processing a request.
+**Action:** Always include `aria-busy={isLoading}` on components representing asynchronous states and ensure any decorative or visually repetitive loading indicators (like spinners) have `aria-hidden="true"` to prevent screen reader noise.
