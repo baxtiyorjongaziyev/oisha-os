@@ -62,7 +62,7 @@ class CRMGuard:
         url = f"{self.amo.base_url}/api/v4/leads"
         params = {"filter[pipeline_id]": pipeline_id, "limit": 50}
         try:
-            resp = requests.get(url, headers=self.amo._get_headers(), params=params)
+            resp = requests.get(url, headers=self.amo._get_headers(), params=params, timeout=30)
             if resp.status_code == 200:
                 return resp.json().get("_embedded", {}).get("leads", [])
             return []
@@ -77,7 +77,7 @@ class CRMGuard:
         url = f"{self.amo.base_url}/api/v4/tasks"
         params = {"filter[is_completed]": 0, "limit": 250}
         try:
-            resp = requests.get(url, headers=self.amo._get_headers(), params=params)
+            resp = requests.get(url, headers=self.amo._get_headers(), params=params, timeout=30)
             if resp.status_code == 200:
                 return resp.json().get("_embedded", {}).get("tasks", [])
             return []

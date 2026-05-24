@@ -1,1 +1,1 @@
-from src.services.core.amocrm_sync import *
+from src.services.core.amocrm_sync import AmoCRMSync

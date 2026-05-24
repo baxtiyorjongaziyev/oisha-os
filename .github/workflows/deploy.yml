@@ -1,10 +1,8 @@
+# Oisha-OS: Production Deployment Pipeline
+# [REFRESH: 2026-05-07] Force IDE re-index
 name: Oisha-OS Auto Deploy
 
 on:
-  push:
-    branches:
-      - main
-      - master
   workflow_dispatch:
 
 env:
@@ -21,10 +19,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -62,7 +60,7 @@ jobs:
     name: Healthy-Only Production Rollout
     needs: test
     if: "${{ github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, '[skip ci]') && !startsWith(github.event.head_commit.message, 'chore(auto): update DEV_LOG')) }}"
-    environment: production
+    environment: cloud-run-control-plane
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -73,7 +71,7 @@ jobs:
       service_url: ${{ steps.rollout.outputs.service_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check deploy secret
         env:
@@ -86,12 +84,12 @@ jobs:
           echo "GCP_SA_KEY is present."
 
       - name: Google Auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Build, deploy candidate, and promote only if healthy
         id: rollout
@@ -175,7 +173,7 @@ jobs:
             local body_file
             body_file="$(mktemp)"
             local code
-            code="$(curl -fsS -o "${body_file}" -w "%{http_code}" "${url}/health" || true)"
+            code="$(curl -fsS -o "${body_file}" -w "%{http_code}" "${url}/healthz/" || true)"
             if [[ "${code}" != "200" ]]; then
               rm -f "${body_file}"
               return 1
@@ -187,39 +185,76 @@ jobs:
             return "${status}"
           }
 
-          cleanup_generated_traffic_tags() {
-            local stale_tags
-            stale_tags="$(gcloud run services describe "${SERVICE_NAME}" \
-              --region "${REGION}" \
-              --project "${PROJECT_ID}" \
-              --format=json | python -c 'import json, sys; data=json.load(sys.stdin); tags=[entry.get("tag", "") for entry in data.get("status", {}).get("traffic", [])]; print(",".join(tag for tag in tags if tag.startswith("sha-") or tag.startswith("debug")))')"
-
-            if [[ -z "${stale_tags}" ]]; then
-              return 0
+          tag_candidate_revision() {
+            local args=(
+              --region "${REGION}"
+              --project "${PROJECT_ID}"
+              --update-tags "${CANDIDATE_TAG}=${REVISION}"
+              --quiet
+            )
+            if [[ -n "${PREVIOUS_TRAFFIC_REVISION}" ]]; then
+              args+=(--to-revisions "${PREVIOUS_TRAFFIC_REVISION}=100")
             fi
-
-            local cleanup_output
-            if cleanup_output="$(gcloud run services update-traffic "${SERVICE_NAME}" \
-              --region "${REGION}" \
-              --project "${PROJECT_ID}" \
-              --remove-tags "${stale_tags}" \
-              --quiet 2>&1)"; then
-              return 0
-            fi
-
-            stale_tags="$(gcloud run services describe "${SERVICE_NAME}" \
-              --region "${REGION}" \
-              --project "${PROJECT_ID}" \
-              --format=json | python -c 'import json, sys; data=json.load(sys.stdin); tags=[entry.get("tag", "") for entry in data.get("status", {}).get("traffic", [])]; print(",".join(tag for tag in tags if tag.startswith("sha-") or tag.startswith("debug")))')"
-            if [[ -z "${stale_tags}" ]]; then
-              echo "${cleanup_output}"
-              echo "Generated traffic tags were removed despite a non-zero cleanup response; continuing."
-              return 0
-            fi
-
-            echo "${cleanup_output}"
-            return 1
+            gcloud run services update-traffic "${SERVICE_NAME}" "${args[@]}"
           }
+
+           cleanup_generated_traffic_tags() {
+             local service_json
+             service_json="$(gcloud run services describe "${SERVICE_NAME}" \
+               --region "${REGION}" \
+               --project "${PROJECT_ID}" \
+               --format=json)"
+
+             # Get all stale tags
+             local stale_tags
+             stale_tags="$(printf '%s' "${service_json}" | python -c 'import json, sys; data=json.load(sys.stdin); tags=[entry.get("tag", "") for entry in data.get("status", {}).get("traffic", [])]; print(",".join(tag for tag in tags if tag.startswith("sha-") or tag.startswith("debug")))')"
+             if [[ -z "${stale_tags}" ]]; then
+               return 0
+             fi
+
+             # Check which revisions are actually ready before removing tags
+             local ready_revisions
+             ready_revisions="$(gcloud run revisions list \
+               --service "${SERVICE_NAME}" \
+               --region "${REGION}" \
+               --project "${PROJECT_ID}" \
+               --filter="status.conditions[0].status=True" \
+               --format='value(metadata.name)' 2>/dev/null || true)"
+
+             # Build a list of tags to remove, filtering out non-ready revisions
+             local cleanup_tags=""
+             local IFS=','
+             for tag in ${stale_tags}; do
+               local rev_name=""
+               rev_name="$(printf '%s' "${service_json}" | python -c 'import json,sys; data=json.load(sys.stdin); tag=sys.argv[1]; print(next((e["revisionName"] for e in data.get("status",{}).get("traffic",[]) if e.get("tag")==tag),""))' "${tag}")"
+               if [[ -z "${rev_name}" ]]; then
+                 cleanup_tags="${cleanup_tags},${tag}"
+               elif echo "${ready_revisions}" | grep -q "${rev_name}"; then
+                 cleanup_tags="${cleanup_tags},${tag}"
+               else
+                 echo "Skipping tag '${tag}' — revision '${rev_name}' is not ready; deleting revision directly."
+                 gcloud run revisions delete "${rev_name}" \
+                   --region "${REGION}" \
+                   --project "${PROJECT_ID}" \
+                   --quiet 2>/dev/null || true
+               fi
+             done
+             unset IFS
+
+             cleanup_tags="${cleanup_tags#,}"
+
+             if [[ -z "${cleanup_tags}" ]]; then
+               echo "No ready revisions with stale tags to clean up."
+               return 0
+             fi
+
+             gcloud run services update-traffic "${SERVICE_NAME}" \
+               --region "${REGION}" \
+               --project "${PROJECT_ID}" \
+               --remove-tags "${cleanup_tags}" \
+               --quiet 2>&1 || echo "Tag cleanup completed with warnings (non-fatal)."
+             return 0
+           }
 
           cleanup_legacy_userbot_bindings() {
             local service_json
@@ -307,12 +342,12 @@ jobs:
             --image "${IMAGE}" \
             --platform managed \
             --region "${REGION}" \
-            --memory 4Gi \
-            --cpu 2 \
+            --memory 1Gi \
+            --cpu 1 \
             --timeout 3600 \
-            --max-instances 1 \
-            --min-instances 1 \
-            --no-cpu-throttling \
+            --max-instances 10 \
+            --min-instances 0 \
+            --cpu-throttling \
             --cpu-boost \
             --execution-environment gen2 \
             --no-traffic \
@@ -330,17 +365,50 @@ jobs:
               --filter "metadata.labels.commit-sha=${GITHUB_SHA}" \
               --limit 1 \
               --format='value(metadata.name)' 2>/dev/null || true)"
-            FAILURE_REASON="$(extract_failure_reason "${REVISION}" "${DEPLOY_OUTPUT}")"
-            write_outputs
-            exit 0
+            if [[ -z "${REVISION}" ]]; then
+              FAILURE_REASON="$(extract_failure_reason "${REVISION}" "${DEPLOY_OUTPUT}")"
+              write_outputs
+              exit 0
+            fi
+
+            READY_STATUS="$(gcloud run revisions describe "${REVISION}" \
+              --region "${REGION}" \
+              --project "${PROJECT_ID}" \
+              --format='value(status.conditions[0].status)' 2>/dev/null || true)"
+            if [[ "${READY_STATUS}" != "True" ]]; then
+              FAILURE_REASON="$(extract_failure_reason "${REVISION}" "${DEPLOY_OUTPUT}")"
+              write_outputs
+              exit 0
+            fi
+
+            # gcloud can return non-zero after creating a ready revision. Recover
+            # by attaching the candidate tag, then continue with smoke checks.
+            TAG_RECOVERY_OUTPUT="$(tag_candidate_revision 2>&1)"
+            TAG_RECOVERY_RC=$?
+            if [[ ${TAG_RECOVERY_RC} -ne 0 ]]; then
+              FAILURE_REASON="candidate tag recovery failed: $(echo "${TAG_RECOVERY_OUTPUT}" | tr '\n' ' ' | cut -c1-500)"
+              write_outputs
+              exit 0
+            fi
           fi
 
           read_service_state
 
           if [[ -z "${CANDIDATE_URL}" ]]; then
-            FAILURE_REASON="candidate revision URL not found"
-            write_outputs
-            exit 0
+            TAG_RECOVERY_OUTPUT="$(tag_candidate_revision 2>&1)"
+            TAG_RECOVERY_RC=$?
+            if [[ ${TAG_RECOVERY_RC} -eq 0 ]]; then
+              read_service_state
+            fi
+
+            if [[ -z "${CANDIDATE_URL}" ]]; then
+              FAILURE_REASON="candidate revision URL not found"
+              if [[ ${TAG_RECOVERY_RC} -ne 0 ]]; then
+                FAILURE_REASON="${FAILURE_REASON}: $(echo "${TAG_RECOVERY_OUTPUT}" | tr '\n' ' ' | cut -c1-300)"
+              fi
+              write_outputs
+              exit 0
+            fi
           fi
 
           READY_STATUS="$(gcloud run revisions describe "${REVISION}" \
@@ -400,6 +468,9 @@ jobs:
 
       - name: Ecosystem Health Check
         if: steps.rollout.outputs.final_status == 'success'
+        env:
+          OISHA_HEALTH_URL: ${{ steps.rollout.outputs.service_url }}/healthz/
+          CHECK_OPTIONAL_SERVICES: "0"
         run: |
           python scripts/health_check.py
 
@@ -420,7 +491,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0

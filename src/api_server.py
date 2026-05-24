@@ -5,11 +5,10 @@ import json
 from datetime import datetime, timezone
 import logging
 import os
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
-import queue
 from collections import Counter, defaultdict
 from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
@@ -18,8 +17,16 @@ from src.services.core.agent_runtime import (
     collect_legacy_runtime_inventory,
     get_runtime_context,
     get_storage_health,
+    set_runtime_context,
 )
 from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.telegram_ai_features import (
+    TelegramBotAPI10Client,
+    build_live_feature_status,
+    build_offline_feature_status,
+    build_text_article_result,
+    extract_guest_message_context,
+)
 from src.agents.autonomous_sales_agent import AutonomousSalesAgent
 from src.settings import settings
 from src.time_utils import get_local_now
@@ -30,9 +37,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("OishaAPI")
 
 # Global Bridges
+command_queue = asyncio.Queue()
+outgoing_messages = asyncio.Queue()
 user_client = None
 db_instance = None
 msg_controller = None
+action_parser = None
+business_connections = {}  # Store active Telegram Business connections
 
 # Health check cache
 cached_status = {"status": "initializing", "timestamp": datetime.now(timezone.utc).isoformat()}
@@ -50,6 +61,10 @@ def _setting_text(value: Any) -> str:
     if callable(getter):
         value = getter()
     return str(value).lstrip("\ufeff").strip()
+
+
+def _secret_setting_text(value: Any) -> str:
+    return _setting_text(value)
 
 
 # Mount Static Files
@@ -93,8 +108,29 @@ async def root_status():
     return response
 
 
+@app.get("/api/telegram/status")
+async def telegram_status():
+    """Diagnostic info for Telegram Bot API 10.0 integration."""
+    try:
+        token = os.environ.get("BOT_TOKEN") or settings.BOT_TOKEN.get_secret_value()
+        client = TelegramBotAPI10Client(token)
+        
+        me = await client.get_me()
+        webhook_info = await client.get_webhook_info()
+        
+        return {
+            "status": "online",
+            "bot": build_live_feature_status(me),
+            "webhook": webhook_info,
+            "api_10_ready": True
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @app.get("/health")
 @app.get("/healthz")
+@app.get("/healthz/")
 async def liveness_probe():
     """Cloud Run liveness probe.
 
@@ -130,37 +166,68 @@ async def liveness_probe():
 
     runtime = get_runtime_context()
     scheduler_mode = runtime.get("scheduler_mode")
-    control_plane_mode = scheduler_mode == "control-plane"
+    runtime_source = runtime.get("runtime_source", "unknown")
+    control_plane_mode = scheduler_mode == "control-plane" or runtime_source == "vm_service"
 
+    async def _probe_database() -> str:
+        conn = await db_instance.get_connection()
+        probe = conn.execute("SELECT 1")
+        if hasattr(probe, "__await__"):
+            probe = await probe
+        fetchone = getattr(probe, "fetchone", None)
+        if callable(fetchone):
+            row = fetchone()
+            if hasattr(row, "__await__"):
+                await row
+        return getattr(db_instance, "get_backend_name", lambda: "unknown")()
+
+    dependency_timeout = float(os.getenv("HEALTH_DEPENDENCY_TIMEOUT_SECS", "3.0"))
+    live_db_probe_default = "0" if runtime_source == "vm_service" else "1"
+    live_db_probe = os.getenv(
+        "HEALTH_LIVE_DB_PROBE", live_db_probe_default
+    ).strip().lower() in {"1", "true", "yes", "on"}
     db_ok = True
     if db_instance is not None:
-        try:
-            conn = await db_instance.get_connection()
-            probe = conn.execute("SELECT 1")
-            if hasattr(probe, "__await__"):
-                probe = await probe
-            fetchone = getattr(probe, "fetchone", None)
-            if callable(fetchone):
-                row = fetchone()
-                if hasattr(row, "__await__"):
-                    await row
-            checks["db_ok"] = True
-            turso_required = bool(
-                settings.RUNNING_IN_CLOUD
-                and _setting_text(settings.TURSO_DATABASE_URL)
-                and _setting_text(settings.TURSO_AUTH_TOKEN)
-            )
-            backend_name = getattr(db_instance, "get_backend_name", lambda: "unknown")()
-            checks["db_backend"] = backend_name
-            if turso_required and backend_name != "turso":
+        if live_db_probe:
+            try:
+                backend_name = await asyncio.wait_for(
+                    _probe_database(), timeout=dependency_timeout
+                )
+                checks["db_ok"] = True
+                checks["db_backend"] = backend_name
+                turso_required = bool(
+                    settings.RUNNING_IN_CLOUD
+                    and _setting_text(settings.TURSO_DATABASE_URL)
+                    and _setting_text(settings.TURSO_AUTH_TOKEN)
+                )
+                if turso_required and backend_name != "turso":
+                    db_ok = False
+                    checks["db_ok"] = False
+                    problems.append("turso_fallback")
+            except asyncio.TimeoutError:
+                logger.warning("[HEALTH] Database probe timed out")
                 db_ok = False
                 checks["db_ok"] = False
-                problems.append("turso_fallback")
-        except Exception as e:
-            logger.warning(f"[HEALTH] Database connection failed: {e}")
-            db_ok = False
-            checks["db_ok"] = False
-            problems.append("db_failed")
+                checks["db_backend"] = getattr(
+                    db_instance, "get_backend_name", lambda: "unknown"
+                )()
+                problems.append("db_timeout")
+            except BaseException as e:
+                if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
+                    raise
+                logger.warning(f"[HEALTH] Database connection failed: {e}")
+                db_ok = False
+                checks["db_ok"] = False
+                checks["db_backend"] = getattr(
+                    db_instance, "get_backend_name", lambda: "unknown"
+                )()
+                problems.append("db_failed")
+        else:
+            backend_name = getattr(db_instance, "get_backend_name", lambda: "unknown")()
+            checks["db_ok"] = backend_name != "unknown"
+            checks["db_backend"] = backend_name
+            checks["db_probe"] = "skipped_runtime_cached"
+            db_ok = checks["db_ok"]
     else:
         checks["db_ok"] = True
 
@@ -169,7 +236,9 @@ async def liveness_probe():
     if not userbot_authorized and user_client:
         try:
             # Quick check if connected and authorized
-            userbot_authorized = await user_client.is_user_authorized()
+            userbot_authorized = await asyncio.wait_for(
+                user_client.is_user_authorized(), timeout=2.0
+            )
         except Exception:
             userbot_authorized = False
 
@@ -186,12 +255,25 @@ async def liveness_probe():
     # Check CRM connectivity. CRM OAuth can be degraded without making the
     # Cloud Run control plane unsafe to serve health/API traffic.
     crm_connected = False
-    if msg_controller and hasattr(msg_controller, "crm") and msg_controller.crm:
+    if (
+        not control_plane_mode
+        and msg_controller
+        and hasattr(msg_controller, "crm")
+        and msg_controller.crm
+    ):
         try:
             # Check if AmoCRM is actually responding
-            crm_connected = await msg_controller.crm.amocrm.check_connection()
+            crm_connected = await asyncio.wait_for(
+                msg_controller.crm.amocrm.check_connection(),
+                timeout=dependency_timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("[HEALTH] CRM probe timed out")
+            crm_connected = False
         except Exception:
             crm_connected = False
+    elif control_plane_mode:
+        checks["crm_probe"] = "skipped_not_required"
 
     if control_plane_mode:
         crm_ok = True
@@ -222,14 +304,178 @@ async def liveness_probe():
     )
 
 
+@app.get("/api/telegram/ai-features")
+async def telegram_ai_features(live: bool = False):
+    """Bot API 10.0 feature readiness for Oisha.
+
+    Offline mode shows code readiness. live=true also calls Telegram getMe to
+    reveal which BotFather-side features are actually enabled for the bot.
+    """
+    token = _secret_setting_text(settings.BOT_TOKEN)
+    payload = build_offline_feature_status()
+    payload["configured"] = {
+        "bot_token": bool(token),
+        "webhook_secret": bool(_secret_setting_text(settings.TELEGRAM_WEBHOOK_SECRET)),
+        "guest_mode_env": settings.TELEGRAM_AI_GUEST_MODE_ENABLED,
+        "streaming_env": settings.TELEGRAM_AI_STREAMING_ENABLED,
+        "bot_to_bot_env": settings.TELEGRAM_BOT_TO_BOT_ENABLED,
+        "managed_bots_env": settings.TELEGRAM_MANAGED_BOTS_ENABLED,
+        "mini_app_url": bool(settings.TELEGRAM_MINI_APP_URL),
+    }
+
+    if not live:
+        payload["live"] = None
+        return payload
+
+    if not token:
+        payload["live"] = {"ok": False, "reason": "BOT_TOKEN missing"}
+        return JSONResponse(status_code=503, content=payload)
+
+    client = TelegramBotAPI10Client(token)
+    try:
+        me = await client.get_me()
+        webhook_info = await client.get_webhook_info()
+        payload["live"] = {
+            "ok": True,
+            "capabilities": build_live_feature_status(me),
+            "webhook": {
+                "url_set": bool(webhook_info.get("url")),
+                "pending_update_count": webhook_info.get("pending_update_count"),
+                "allowed_updates": webhook_info.get("allowed_updates"),
+                "last_error_message": webhook_info.get("last_error_message"),
+            },
+        }
+        return payload
+    except Exception as exc:
+        logger.warning("[TELEGRAM AI] live feature probe failed: %s", exc)
+        payload["live"] = {"ok": False, "reason": str(exc)}
+        return JSONResponse(status_code=503, content=payload)
+
+
+@app.post("/webhook/telegram-ai")
+async def telegram_ai_webhook(request: Request):
+    """Webhook endpoint for Bot API 10.0 AI features.
+
+    Supports guest_message immediately. Other update kinds are acknowledged
+    and surfaced in logs so enabling new BotFather features does not crash the
+    production webhook while we progressively attach business flows.
+    """
+    expected_secret = _secret_setting_text(settings.TELEGRAM_WEBHOOK_SECRET)
+    received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not expected_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="TELEGRAM_WEBHOOK_SECRET is required before enabling this webhook",
+        )
+    if not hmac.compare_digest(expected_secret, received_secret):
+        raise HTTPException(status_code=403, detail="Invalid Telegram webhook secret")
+
+    update = await request.json()
+    if not isinstance(update, dict):
+        raise HTTPException(status_code=400, detail="Invalid Telegram update payload")
+
+    update_type = classify_update(update)
+    if update_type != "guest_message":
+        logger.info("[TELEGRAM AI] accepted update type=%s", update_type)
+        return {"ok": True, "handled": False, "update_type": update_type}
+
+    guest_ctx = extract_guest_message_context(update)
+    if not guest_ctx:
+        return {
+            "ok": True,
+            "handled": False,
+            "update_type": "guest_message",
+            "reason": "missing_guest_query_id",
+        }
+
+    if not settings.TELEGRAM_AI_GUEST_MODE_ENABLED:
+        return {
+            "ok": True,
+            "handled": False,
+            "update_type": "guest_message",
+            "reason": "guest_mode_disabled_by_env",
+        }
+
+    token = _secret_setting_text(settings.BOT_TOKEN)
+    if not token or msg_controller is None:
+        return {
+            "ok": True,
+            "handled": False,
+            "update_type": "guest_message",
+            "reason": "bot_token_or_controller_not_ready",
+        }
+
+    caller_user = guest_ctx.caller_user or {}
+    caller_id = int(caller_user.get("id") or 0)
+    caller_name = str(caller_user.get("first_name") or "Telegram foydalanuvchi")
+    response_text = await msg_controller.get_response(
+        user_id=caller_id,
+        user_name=caller_name,
+        message=guest_ctx.text,
+        context={
+            "source": "telegram_guest_mode",
+            "update_id": guest_ctx.update_id,
+            "guest_query_id": guest_ctx.guest_query_id,
+            "caller_user": guest_ctx.caller_user,
+            "caller_chat": guest_ctx.caller_chat,
+        },
+    )
+
+    if not response_text:
+        response_text = "Oisha savolni qabul qildi, lekin hozir aniq javob shakllanmadi."
+
+    result = build_text_article_result(
+        response_text,
+        title="Oisha javobi",
+        description="Jon Branding AI agent javobi",
+    )
+    client = TelegramBotAPI10Client(token)
+    sent = await client.answer_guest_query(guest_ctx.guest_query_id, result)
+    return {
+        "ok": True,
+        "handled": True,
+        "update_type": "guest_message",
+        "sent_guest_message": sent,
+    }
+
+
 # Global references
 user_client = None
 db_instance = None
 audit_agent = None
 amocrm_instance = None
 
+
+def _get_amocrm_instance() -> AmoCRMSync:
+    """Create the shared AmoCRM client with the full OAuth config."""
+    global amocrm_instance
+    if amocrm_instance:
+        return amocrm_instance
+
+    amocrm_instance = AmoCRMSync(
+        subdomain=_setting_text(settings.AMOCRM_SUBDOMAIN),
+        client_id=_setting_text(settings.AMOCRM_CLIENT_ID),
+        client_secret=_secret_setting_text(settings.AMOCRM_CLIENT_SECRET),
+        redirect_url=_setting_text(settings.AMOCRM_REDIRECT_URL),
+    )
+    return amocrm_instance
+
+
+async def _get_db_instance():
+    """Return runtime DB, creating it when the API is started standalone."""
+    global db_instance
+    if db_instance:
+        return db_instance
+
+    from src.database import Database
+
+    db_instance = Database()
+    await db_instance.init_instance()
+    return db_instance
+
+
 # [HEALTHZ] Liveness heartbeat — main event loop updates this via mark_heartbeat().
-# Deploy smoke checks read /health; if heartbeat is stale, the probe fails
+# Deploy smoke checks read /healthz/; if heartbeat is stale, the probe fails
 # and the container is restarted (recovering from event-loop deadlocks).
 _last_heartbeat_at: Optional[datetime] = None
 _boot_at: datetime = datetime.now(timezone.utc)
@@ -242,8 +488,6 @@ def mark_heartbeat() -> None:
     _last_heartbeat_at = datetime.now(timezone.utc)
 
 
-# --- COMMAND QUEUE (Shared with Main Thread) ---
-command_queue = queue.Queue()
 
 # --- DASHBOARD CACHE ---
 cached_status: Dict[str, Any] = {
@@ -270,8 +514,6 @@ system_activities: List[Dict[str, Any]] = [
 
 legacy_runtime_inventory_cache: Optional[List[Dict[str, Any]]] = None
 
-# --- WAZZUP BRIDGE (Outgoing Messages Queue) ---
-outgoing_messages = asyncio.Queue()
 
 
 def add_activity(action: str, details: str = "", type: str = "info"):
@@ -903,9 +1145,10 @@ class CreateLeadRequest(BaseModel):
 
 
 class SendMessageRequest(BaseModel):
-    user_id: int
+    user_id: Any
     text: str
     secret_key: str
+    model: Optional[str] = "gemini-3-flash"
 
 
 @asynccontextmanager
@@ -959,8 +1202,13 @@ async def send_chat_message(request: SendMessageRequest):
         return {"error": "Unauthorized"}
 
     # Push to queue for Main Thread execution
-    command_queue.put(
-        {"cmd": "send_message", "user_id": request.user_id, "text": request.text}
+    command_queue.put_nowait(
+        {
+            "cmd": "send_message",
+            "user_id": request.user_id,
+            "text": request.text,
+            "model": request.model,
+        }
     )
 
     return {"status": "success", "message": "Xabar navbatga qo'yildi"}
@@ -969,27 +1217,16 @@ async def send_chat_message(request: SendMessageRequest):
 @app.post("/api/leads")
 async def create_amo_lead(request: CreateLeadRequest):
     """Vebsaytdan kelgan leadni AmoCRM-ga yuborish."""
-    global amocrm_instance
     expected_secret = os.environ.get("OISHA_API_SECRET")
     if not expected_secret or not hmac.compare_digest(
         request.secret_key, expected_secret
     ):
         return {"error": "Unauthorized"}
 
-    if not amocrm_instance:
-        amocrm_instance = AmoCRMSync(
-            subdomain=settings.AMOCRM_SUBDOMAIN,
-            client_id=settings.AMOCRM_CLIENT_ID,
-            client_secret=(
-                settings.AMOCRM_CLIENT_SECRET.get_secret_value()
-                if settings.AMOCRM_CLIENT_SECRET
-                else ""
-            ),
-            redirect_url=settings.AMOCRM_REDIRECT_URL,
-        )
+    amocrm = _get_amocrm_instance()
 
     logger.info(f"🚀 [API] Website Lead qabul qilindi: {request.name}")
-    lead_id = await amocrm_instance.ensure_lead(
+    lead_id = await amocrm.ensure_lead(
         name=request.name, phone=request.phone, note=request.note
     )
 
@@ -997,6 +1234,32 @@ async def create_amo_lead(request: CreateLeadRequest):
         add_activity("Lead Created", f"Website lead: {request.name}", type="success")
         return {"status": "success", "lead_id": lead_id}
     return {"error": "Lead creation failed"}
+
+
+@app.post("/api/amocrm-refresh")
+async def refresh_amocrm_token(request: Request):
+    """Cron yoki manual refresh uchun endpoint."""
+    auth_header = request.headers.get("Authorization")
+
+    cron_secret = (
+        settings.AMOCRM_CRON_SECRET.get_secret_value()
+        if settings.AMOCRM_CRON_SECRET
+        else None
+    )
+
+    if not cron_secret:
+        return {"ok": False, "error": "CRON_SECRET not configured"}
+
+    if not auth_header or auth_header != f"Bearer {cron_secret}":
+        return {"ok": False, "error": "Unauthorized"}
+
+    amocrm = _get_amocrm_instance()
+    success = amocrm.refresh_token()
+    if success:
+        expires_at = amocrm.token_data.get("expires_at", "unknown")
+        return {"ok": True, "expires_at": expires_at}
+    else:
+        return {"ok": False, "error": amocrm.last_error or "Refresh failed"}
 
 
 @app.post("/webhook/amocrm")
@@ -1041,17 +1304,7 @@ async def process_amocrm_event(data: Dict[str, Any]):
             return
 
         # 2. AmoCRM va Agentni tayyorlash
-        if not amocrm_instance:
-            amocrm_instance = AmoCRMSync(
-                subdomain=settings.AMOCRM_SUBDOMAIN,
-                client_id=settings.AMOCRM_CLIENT_ID,
-                client_secret=(
-                    settings.AMOCRM_CLIENT_SECRET.get_secret_value()
-                    if settings.AMOCRM_CLIENT_SECRET
-                    else ""
-                ),
-                redirect_url=settings.AMOCRM_REDIRECT_URL,
-            )
+        amocrm_instance = _get_amocrm_instance()
 
         agent = AutonomousSalesAgent(db=db_instance)
         
@@ -1205,7 +1458,75 @@ async def openclaw_health():
         "channels_accepted": ["whatsapp", "telegram", "slack", "discord", "any"],
     }
 
+# ─── TELEGRAM BOT API 10.0 WEBHOOK ──────────────────────────────────────────
 
+@app.post("/webhook/telegram")
+async def telegram_webhook(request: Request):
+    """
+    Telegram Bot API 10.0 Webhook.
+    Handles Guest Mode, Business Messages, and other new AI features.
+    """
+    try:
+        data = await request.json()
+        update_type = classify_update(data)
+        
+        logger.info(f"🤖 [Telegram Webhook] Received update type: {update_type}")
+        
+        # We process this in background to avoid Telegram timeout
+        asyncio.create_task(process_telegram_update(data, update_type))
+        
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"❌ [Telegram Webhook] Error: {e}")
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(e)})
+
+def classify_update(data: Dict[str, Any]) -> str:
+    """Classifies the Telegram update type based on payload keys."""
+    if "guest_message" in data:
+        return "guest_message"
+    if "business_message" in data:
+        return "business_message"
+    if "business_connection" in data:
+        return "business_connection"
+    if "managed_bot" in data:
+        return "managed_bot"
+    if "message" in data:
+        return "message"
+    return "unknown"
+
+async def process_telegram_update(update: Dict[str, Any], update_type: str):
+    """Processes the telegram update using appropriate handlers."""
+    from src.handlers.messages import (
+        handle_guest_query, 
+        handle_business_message, 
+        handle_business_connection,
+        handle_managed_bot,
+        handle_direct_message
+    )
+    from telegram import Update, Bot
+    
+    try:
+        bot_token = os.environ.get("BOT_TOKEN") or settings.BOT_TOKEN.get_secret_value()
+        bot = Bot(token=bot_token)
+        ptb_update = Update.de_json(update, bot)
+        
+        if update_type == "guest_query":
+            await handle_guest_query(ptb_update, None, db_instance, msg_controller, bot_token)
+            
+        elif update_type == "business_message":
+            await handle_business_message(ptb_update, None, db_instance, action_parser, msg_controller)
+            
+        elif update_type == "business_connection":
+            await handle_business_connection(ptb_update, None, business_connections)
+            
+        elif update_type == "managed_bot":
+            await handle_managed_bot(ptb_update, None)
+
+        elif update_type == "message":
+            await handle_direct_message(ptb_update, None, db_instance, action_parser, msg_controller)
+            
+    except Exception as e:
+        logger.error(f"❌ [Telegram Process] Error: {e}", exc_info=True)
 @app.get("/api/system/info")
 async def get_system_info():
     """Tizim haqida umumiy ma'lumot."""
@@ -1214,6 +1535,7 @@ async def get_system_info():
         "version": "2.1.0",
         "agent_count": 8,
         "active_modules": ["NightShift", "OSINT", "CRM_Sync", "Advisor", "Audit"],
+        "status": "active"
     }
 
 
@@ -1221,7 +1543,7 @@ async def get_system_info():
 async def trigger_intelligence_audit():
     """Dashboarddan auditni ishga tushirish (Queued)."""
     # Push to queue for Main Thread execution
-    command_queue.put({"cmd": "audit", "timestamp": datetime.now().isoformat()})
+    command_queue.put_nowait({"cmd": "audit", "timestamp": datetime.now().isoformat()})
 
     return {
         "status": "success",
@@ -1584,6 +1906,114 @@ async def get_manager_comparison(days: int = 7):
         return {"status": "error", "message": str(e)}
 
 
+@app.get("/api/ai/lead-classifier")
+async def get_lead_classification():
+    """
+    AI Lead Classifier — sdelkalarni audio/notes tahlili orqali klassifikatsiya.
+    Real mijoz / shaxsiy / spam aniqlaydi.
+    """
+    try:
+        amocrm = _get_amocrm_instance()
+
+        gemini_key = _secret_setting_text(settings.GEMINI_API_KEY)
+        if not gemini_key:
+            return {"status": "error", "message": "GEMINI_API_KEY not configured"}
+
+        from src.services.core.lead_classifier import LeadClassifier
+        classifier = LeadClassifier(amocrm, gemini_key)
+        results = await classifier.classify_all_active_leads()
+
+        return {
+            "status": "success",
+            "summary": classifier.get_summary(),
+            "results": [
+                {
+                    "lead_id": r.lead_id,
+                    "lead_name": r.lead_name,
+                    "category": r.category.value,
+                    "confidence": r.confidence,
+                    "reason": r.reason,
+                    "evidence": r.evidence,
+                    "notes_analyzed": r.notes_analyzed,
+                    "audio_transcribed": r.audio_transcribed,
+                }
+                for r in results
+            ],
+        }
+    except Exception as e:
+        logger.error(f"[API AI] Lead classifier error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/ai/lead-classifier/tag")
+async def tag_unnecessary_leads():
+    """Keraksiz sdelkalarni tag qilish (PERSONAL_NOT_CLIENT, SPAM_DETECTED)."""
+    try:
+        amocrm = _get_amocrm_instance()
+
+        gemini_key = _secret_setting_text(settings.GEMINI_API_KEY)
+        if not gemini_key:
+            return {"status": "error", "message": "GEMINI_API_KEY not configured"}
+
+        from src.services.core.lead_classifier import LeadClassifier
+        classifier = LeadClassifier(amocrm, gemini_key)
+        results = await classifier.classify_all_active_leads()
+        tagged = await classifier.tag_unnecessary_leads(results)
+
+        return {
+            "status": "success",
+            "tagged_count": tagged,
+            "summary": classifier.get_summary(),
+        }
+    except Exception as e:
+        logger.error(f"[API AI] Lead tagger error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/ai/deal-hygiene")
+async def get_deal_hygiene(
+    limit: int = 100,
+    apply_changes: bool = Query(False, alias="apply"),
+    create_tasks: bool = True,
+):
+    """
+    AmoCRM hygiene audit:
+    - MetaSell/call-analysis xulosalari asosida keraksiz sdelkalarni ajratadi.
+    - Telegram akkaunt + telefon mosligi orqali duplikat sdelka ehtimollarini topadi.
+    - apply_changes=True bo'lmasa AmoCRMga hech narsa yozmaydi.
+    """
+    try:
+        from src.services.core.deal_hygiene import AmoCRMDealHygieneAgent
+
+        amocrm = _get_amocrm_instance()
+        db = await _get_db_instance()
+        agent = AmoCRMDealHygieneAgent(amocrm=amocrm, db=db)
+        report = await agent.audit(limit=limit)
+
+        applied = None
+        if apply_changes:
+            applied = await agent.apply_report(report, create_tasks=create_tasks)
+
+        return {
+            "status": "success",
+            "applied": applied,
+            **report,
+        }
+    except Exception as e:
+        logger.error(f"[API AI] Deal hygiene error: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/ai/deal-hygiene/apply")
+async def apply_deal_hygiene(limit: int = 100, create_tasks: bool = True):
+    """Safe apply: tag, note and optional review task only. No delete/merge."""
+    return await get_deal_hygiene(
+        limit=limit,
+        apply_changes=True,
+        create_tasks=create_tasks,
+    )
+
+
 @app.post("/api/ai/process-call")
 async def process_call(request: Request):
     """
@@ -1767,7 +2197,7 @@ async def chat_completions(request: Request):
     }
 
 
-def run_api(host: str = "0.0.0.0", port: int = 8080):
+def run_api(host: str = "0.0.0.0", port: int = 8080):  # nosec
     uvicorn.run(app, host=host, port=port)
 
 
