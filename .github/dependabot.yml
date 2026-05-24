@@ -1,0 +1,35 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tashkent"
+    labels:
+      - "Type: Maintenance"
+      - "Proj: DevOps"
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "Asia/Tashkent"
+    labels:
+      - "Type: Maintenance"
+      - "Proj: DevOps"
+    open-pull-requests-limit: 5
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+      timezone: "Asia/Tashkent"
+    labels:
+      - "Type: Maintenance"
+      - "Proj: DevOps"
+    open-pull-requests-limit: 5
+

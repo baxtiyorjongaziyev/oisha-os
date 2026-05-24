@@ -101,6 +101,28 @@ class TestDatabasePool:
 
     @pytest.mark.asyncio
     @patch("database_pool.libsql.connect")
+    async def test_execute_retries_stale_hrana_stream(self, mock_connect):
+        stale_conn = MagicMock()
+        fresh_conn = MagicMock()
+        mock_res = MagicMock()
+        mock_res.columns = ["ok"]
+        mock_res.fetchall.return_value = [(1,)]
+
+        stale_conn.execute.side_effect = RuntimeError(
+            'Hrana: `api error: `status=404 Not Found, body={"error":"stream not found"}``'
+        )
+        fresh_conn.execute.return_value = mock_res
+        mock_connect.side_effect = [stale_conn, fresh_conn]
+
+        pool = DatabasePool()
+        rows = await pool.execute("SELECT 1")
+
+        assert rows[0]["ok"] == 1
+        stale_conn.close.assert_called_once()
+        assert mock_connect.call_count == 2
+
+    @pytest.mark.asyncio
+    @patch("database_pool.libsql.connect")
     async def test_get_db_connection_context(self, mock_connect):
         mock_conn = MagicMock()
         mock_connect.return_value = mock_conn

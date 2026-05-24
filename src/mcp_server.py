@@ -105,7 +105,7 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             import requests
 
             url = f"{amocrm.base_url}/api/v4/leads?filter[statuses][0][status_id]=143&limit=250"
-            resp = requests.get(url, headers=amocrm._get_headers())
+            resp = requests.get(url, headers=amocrm._get_headers(), timeout=30)
             if resp.status_code == 200:
                 leads = resp.json().get("_embedded", {}).get("leads", [])
                 return [
