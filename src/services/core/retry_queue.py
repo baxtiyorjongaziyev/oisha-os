@@ -23,7 +23,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import math
 from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -152,7 +151,6 @@ class RetryQueue:
                 await self._escalate(action_name, payload, error, new_attempt)
             else:
                 delay_sec = BASE_BACKOFF_SEC * (2 ** (new_attempt - 1))
-                next_retry = f"datetime('now', '+{delay_sec} seconds')"
                 await self._update_retrying(row_id, new_attempt, error, delay_sec)
                 logger.warning(
                     f"[RetryQueue] #{row_id} {action_name} attempt {new_attempt} failed, "
@@ -216,7 +214,7 @@ class RetryQueue:
                         next_retry_at = datetime('now', '+{delay_sec} seconds'),
                         updated_at = datetime('now')
                     WHERE id = ?
-                    """,
+                    """,  # nosec — delay_sec is an int, not user input
                     (attempt, error, row_id),
                 )
                 await conn.commit()

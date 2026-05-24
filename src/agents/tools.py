@@ -415,12 +415,13 @@ TOOL_DECLARATIONS = [
 class AgentToolExecutor:
     """Gemini chaqirgan tool larni bajaruvchi sinf."""
 
-    def __init__(self, db, gcontacts, gcalendar, gsheet, amocrm, bot_app, config):
+    def __init__(self, db, gcontacts, gcalendar, gsheet, amocrm, bot_app, config, gdrive=None):
         self.db = db
         self.gcontacts = gcontacts
         self.gcalendar = gcalendar
         self.gsheet = gsheet
         self.amocrm = amocrm
+        self.gdrive = gdrive
         self.bot_app = bot_app  # Telegram Application (bot.send_message uchun)
         self.config = config
         self._scouter = None
@@ -472,7 +473,7 @@ class AgentToolExecutor:
                 return {"success": False, "error": f"Unknown tool: {function_name}"}
         except Exception as e:
             logger.error(f"[AGENT TOOL ERROR] {function_name}: {e}")
-            self._log_action(
+            await self._log_action(
                 context_user_id,
                 function_name,
                 function_args,
@@ -602,7 +603,7 @@ class AgentToolExecutor:
             logger.error(f"[TOOL] save_lead_info AmoCRM xato: {e}")
 
         # Agent action log
-        self._log_action(
+        await self._log_action(
             user_id,
             "save_lead_info",
             {
@@ -652,7 +653,7 @@ class AgentToolExecutor:
                 end_time=end_time,
                 description=description or "",
             )
-            self._log_action(
+            await self._log_action(
                 None,
                 "create_calendar_event",
                 {"summary": summary, "start_time": start_time},
@@ -679,7 +680,7 @@ class AgentToolExecutor:
                 phone=phone,
                 note=note or "Telegram orqali — AI Agent tomonidan saqlandi",
             )
-            self._log_action(
+            await self._log_action(
                 None,
                 "save_google_contact",
                 {"name": name, "phone": phone},
@@ -713,7 +714,7 @@ class AgentToolExecutor:
         except Exception as e:
             logger.warning(f"[TOOL] Stars purchase log xato: {e}")
 
-        self._log_action(
+        await self._log_action(
             user_id,
             "send_stars_invoice",
             {"product_id": product_id, "price": p_info.get("price")},
@@ -782,7 +783,7 @@ class AgentToolExecutor:
             # Mark as forwarded
             if hasattr(self.db, "mark_lead_forwarded"):
                 await self._db_call("mark_lead_forwarded", user_id)
-            self._log_action(
+            await self._log_action(
                 user_id, "forward_to_crm_group", {"quality": quality}, success=True
             )
             return {"success": True, "message": f"CRM guruhiga yuborildi ({quality})"}
@@ -872,7 +873,7 @@ class AgentToolExecutor:
                     await self.amocrm.add_lead_note(
                         lead_id, f"AI statusni o'zgartirdi: {status_name}"
                     )
-                    self._log_action(
+                    await self._log_action(
                         user_id,
                         "update_lead_status",
                         {"status": status_name},
@@ -907,7 +908,7 @@ class AgentToolExecutor:
                 "error": "Lead topilmadi - follow-up task yaratilmadi.",
             }
 
-        deadline_hours = max(1, int(due_in_hours or 24))
+        deadline_hours = max(1, due_in_hours or 24)
         if due_at:
             try:
                 due_dt = datetime.datetime.fromisoformat(due_at)
@@ -930,7 +931,7 @@ class AgentToolExecutor:
             if not created:
                 return {"success": False, "error": "AmoCRM follow-up task yaratilmadi."}
 
-            self._log_action(
+            await self._log_action(
                 user_id,
                 "create_followup_task",
                 {
@@ -972,7 +973,7 @@ class AgentToolExecutor:
             if not added:
                 return {"success": False, "error": "AmoCRM lead note yozilmadi."}
 
-            self._log_action(
+            await self._log_action(
                 user_id,
                 "add_lead_note",
                 {
@@ -993,12 +994,12 @@ class AgentToolExecutor:
     async def _qualify_lead(
         self,
         user_id: int,
-        source: str = None,
-        service: str = None,
-        temperature: str = None,
-        need: str = None,
-        budget_range: str = None,
-        tag: str = None,
+        source: Optional[str] = None,
+        service: Optional[str] = None,
+        temperature: Optional[str] = None,
+        need: Optional[str] = None,
+        budget_range: Optional[str] = None,
+        tag: Optional[str] = None,
     ) -> Dict[str, Any]:
         """AmoCRM maydonlarini va teglarini yangilash."""
         import asyncio
@@ -1161,7 +1162,7 @@ class AgentToolExecutor:
                 chat_id=assigned_to, text=notification, parse_mode="HTML"
             )
 
-            self._log_action(
+            await self._log_action(
                 assigned_to, "assign_task_to_human", {"title": title}, success=True
             )
             return {
@@ -1186,7 +1187,7 @@ class AgentToolExecutor:
         try:
             dosye = await self._scouter.get_user_dosye(user_id)
             if dosye:
-                self._log_action(
+                await self._log_action(
                     user_id, "sherlock_user_profile", {"found": True}, success=True
                 )
                 return {"success": True, "dosye": dosye}
@@ -1201,7 +1202,7 @@ class AgentToolExecutor:
 
     # ---- Helper ----
 
-    def _log_action(
+    async def _log_action(
         self,
         user_id: Optional[int],
         action_type: str,
@@ -1214,9 +1215,8 @@ class AgentToolExecutor:
             payload = (
                 action_data if not error else {"data": action_data, "error": error}
             )
-            result = self.db.log_agent_action(user_id, action_type, payload, success)
-            if inspect.isawaitable(result):
-                asyncio.create_task(result)
+            # Database logging can be async
+            await self.db.log_agent_action(user_id, action_type, payload, success)
         except Exception as e:
             logger.warning(f"[AGENT LOG] Xato: {e}")
 
@@ -1252,23 +1252,36 @@ class AgentToolExecutor:
 
     async def _google_drive_search(self, query: str) -> Dict[str, Any]:
         """Google Drive API orqali qidirish."""
-        # google_service orqali integration
+        if not self.gdrive:
+            return {"success": False, "error": "Google Drive xizmati ulanmagan."}
         try:
             files = await asyncio.to_thread(
-                self.google_service.search_drive_files, query
+                self.gdrive.search_files, query
             )
             return {"success": True, "files": files}
         except Exception as e:
             return {"success": False, "error": f"Google Drive xatosi: {e}"}
 
     async def _execute_shell_safe(self, command: str) -> Dict[str, Any]:
-        """Faqat ma'lum (whitelist) buyruqlarni bajarish."""
+        """Faqat ma'lum (whitelist) buyruqlarni bajarish — shell=False bilan RCE dan himoya."""
+        import shlex
         import subprocess
 
-        allowed_commands = ["uptime", "df -h", "free -m", "ls -la", "date", "dir"]
+        safe_map = {
+            "uptime": ["uptime"],
+            "df": ["df", "-h"],
+            "free": ["free", "-m"],
+            "ls": ["ls", "-la"],
+            "date": ["date"],
+            "dir": ["cmd", "/c", "dir"],
+        }
 
-        base_cmd = command.split()[0]
-        if base_cmd not in [c.split()[0] for c in allowed_commands]:
+        parts = shlex.split(command)
+        if not parts:
+            return {"success": False, "error": "Bo'sh buyruq."}
+
+        base_cmd = parts[0]
+        if base_cmd not in safe_map:
             return {
                 "success": False,
                 "error": "Xavfsizlik! Bu buyruqni bajarishga ruxsat yo'q.",
@@ -1276,8 +1289,8 @@ class AgentToolExecutor:
 
         try:
             result = subprocess.check_output(
-                command, shell=True, stderr=subprocess.STDOUT
-            ).decode()
+                safe_map[base_cmd], shell=False, stderr=subprocess.STDOUT
+            ).decode(errors="replace")
             return {"success": True, "output": result}
         except Exception as e:
             return {"success": False, "error": str(e)}

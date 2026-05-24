@@ -10,6 +10,20 @@ from src.settings import settings
 logger = logging.getLogger(__name__)
 
 
+def _is_resettable_connection_error(exc: BaseException) -> bool:
+    message = str(exc).lower()
+    markers = (
+        "10054",
+        "forcibly closed",
+        "connection error",
+        "connection reset",
+        "broken pipe",
+        "stream not found",
+        "hrana",
+    )
+    return any(marker in message for marker in markers)
+
+
 def _setting_text(value: Any) -> str:
     if value is None:
         return ""
@@ -99,8 +113,31 @@ class DatabasePool:
                 rows = []
             return [SmartRow(row, columns) for row in rows]
 
-        # Use wait_for to prevent silent query hangs
-        return await asyncio.wait_for(asyncio.to_thread(_run), timeout=15.0)
+        # Use wait_for with retries to handle intermittent Turso connection drops
+        for attempt in range(3):
+            try:
+                return await asyncio.wait_for(asyncio.to_thread(_run), timeout=45.0)
+            except Exception as e:
+                if attempt < 2 and _is_resettable_connection_error(e):
+                    logger.warning(f"[DB POOL] Connection dropped. Retrying ({attempt+1}/3)...")
+                    self.close()  # Reset connection
+                    conn = self.get_connection()  # Get new one
+                    continue
+                raise
+            except BaseException as e:
+                if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
+                    raise
+                # libsql can surface Rust panics as BaseException subclasses
+                # (pyo3_runtime.PanicException). Reset the connection so a
+                # transient bad handle does not turn /healthz into ASGI 500.
+                self.close()
+                if attempt < 2:
+                    logger.warning(
+                        f"[DB POOL] Non-standard database error. Retrying ({attempt+1}/3): {type(e).__name__}"
+                    )
+                    conn = self.get_connection()
+                    continue
+                raise RuntimeError(f"database_pool_failed:{type(e).__name__}") from e
 
     def get_backend_name(self) -> str:
         return "turso"
