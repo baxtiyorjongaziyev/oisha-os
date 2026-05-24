@@ -1,4 +1,5 @@
 import requests
+import pytest
 
 from src.services.core.airtable_sync import AirtableSync
 
@@ -12,6 +13,17 @@ class _FakeResponse:
 
     def json(self):
         return self._payload
+
+
+@pytest.fixture(autouse=True)
+def clear_airtable_caches():
+    AirtableSync._records_cache.clear()
+    AirtableSync._base_tables_cache.clear()
+    AirtableSync._record_url_cache.clear()
+    yield
+    AirtableSync._records_cache.clear()
+    AirtableSync._base_tables_cache.clear()
+    AirtableSync._record_url_cache.clear()
 
 
 def test_get_projects_paginates_and_uses_timeouts(monkeypatch):
@@ -65,3 +77,58 @@ def test_table_url_encodes_table_names():
     sync = AirtableSync(api_key="key", base_id="appBase", table_name="Logo Brief")
 
     assert sync.endpoint == "https://api.airtable.com/v0/appBase/Logo%20Brief"
+
+
+def test_get_projects_uses_ttl_cache_and_deepcopy(monkeypatch):
+    calls = {"count": 0}
+
+    def fake_request(method, url, **kwargs):
+        calls["count"] += 1
+        return _FakeResponse(
+            payload={"records": [{"id": "rec1", "fields": {"Name": "Original"}}]}
+        )
+
+    monkeypatch.setattr(requests, "request", fake_request)
+
+    sync = AirtableSync(api_key="key", base_id="appBase", table_name="Loyihalar")
+    first = sync.get_projects()
+    first[0]["fields"]["Name"] = "Mutated"
+    second = sync.get_projects()
+
+    assert calls["count"] == 1
+    assert second[0]["fields"]["Name"] == "Original"
+
+
+def test_get_projects_force_refresh_bypasses_cache(monkeypatch):
+    calls = {"count": 0}
+
+    def fake_request(method, url, **kwargs):
+        calls["count"] += 1
+        return _FakeResponse(payload={"records": [{"id": f"rec{calls['count']}"}]})
+
+    monkeypatch.setattr(requests, "request", fake_request)
+
+    sync = AirtableSync(api_key="key", base_id="appBase", table_name="Loyihalar")
+
+    assert sync.get_projects()[0]["id"] == "rec1"
+    assert sync.get_projects(force_refresh=True)[0]["id"] == "rec2"
+    assert calls["count"] == 2
+
+
+def test_write_operations_invalidate_records_cache(monkeypatch):
+    calls = {"count": 0}
+
+    def fake_request(method, url, **kwargs):
+        calls["count"] += 1
+        if method == "PATCH":
+            return _FakeResponse(payload={"id": "rec1"})
+        return _FakeResponse(payload={"records": [{"id": f"rec{calls['count']}"}]})
+
+    monkeypatch.setattr(requests, "request", fake_request)
+
+    sync = AirtableSync(api_key="key", base_id="appBase", table_name="Loyihalar")
+
+    assert sync.get_projects()[0]["id"] == "rec1"
+    assert sync.update_project_fields("rec1", {"Loyiha bosqichi": "Next"}) is True
+    assert sync.get_projects()[0]["id"] == "rec3"
+    assert calls["count"] == 3

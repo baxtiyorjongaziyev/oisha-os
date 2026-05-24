@@ -72,7 +72,7 @@ class ChecklistManager:
             deadline = (now + timedelta(days=task["days"])).strftime("%Y-%m-%d")
 
             # 2. DB-ga vazifa qo'shish
-            task_id = await self.db.add_task(
+            await self.db.add_task(
                 assigned_to=target_id,
                 description=f"[{project_name}] {task['title']}",
                 deadline=deadline,
