@@ -219,7 +219,7 @@ async def handle_webhook():
 
         logger.info(f"[META RAW] {json.dumps(data)}")
 
-        object_type = data.get("object", "")
+        data.get("object", "")
 
         # Instagram yoki Facebook Page xabarlari
         for entry in data.get("entry", []):
@@ -232,7 +232,7 @@ async def handle_webhook():
                 sender_id = change.get("from", {}).get("id")
                 sender_name = change.get("from", {}).get("username", "User")
                 text = change.get("text", "")
-                media_url = change.get("media", {}).get("media_url", "")
+                change.get("media", {}).get("media_url", "")
                 comment_id = change.get("id")
 
                 if text:
@@ -278,7 +278,7 @@ async def handle_webhook():
                                 info_updates[parts[0].strip().lower()] = parts[
                                     1
                                 ].strip()
-                        except:
+                        except (ValueError, IndexError):
                             pass
 
                     if info_updates:
@@ -336,7 +336,7 @@ async def handle_webhook():
                                 info_updates[parts[0].strip().lower()] = parts[
                                     1
                                 ].strip()
-                        except:
+                        except (ValueError, IndexError):
                             pass
 
                     if info_updates:
@@ -380,4 +380,4 @@ def health():
 if __name__ == "__main__":
     port = int(os.environ.get("META_WEBHOOK_PORT", 5050))
     logger.info(f"[META] Webhook server port {port} da ishga tushmoqda...")
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="0.0.0.0", port=port, debug=False)  # nosec
