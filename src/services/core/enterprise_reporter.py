@@ -1021,4 +1021,16 @@ class EnterpriseReporter:
 
         report.append("\n📊 *Davom ettirish uchun @baxtiyorjong_gaziyev nazoratida* 👑")
 
+    async def build_reportagram_report(self) -> str:
+        """Reportagram.com uslubida kunlik AmoCRM hisoboti.
+
+        Qaytaradi:
+            AmoCRM Kunlik Hisobot | 📅 May 21, 2026
+            ━━━━━━━━━━━━
+            Tushgan Leadlar: 127  ▲ +12
+            ...
+        """
+        from src.services.core.crm_daily_report import build_reportagram_report
+        return await build_reportagram_report(self)
+
         return "\n".join(report)
