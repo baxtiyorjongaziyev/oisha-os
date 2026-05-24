@@ -45,7 +45,21 @@ class AgentOrchestrator:
             if intent in ["sales", "support", "strategist", "researcher"]:
                 return intent
         except Exception as e:
-            logger.error(f"[ORCHESTRATOR] LLM routing error: {e}")
+            logger.error(f"[ORCHESTRATOR] Gemini routing error: {e}")
+            
+            # Fallback to Bedrock (Claude)
+            if sales_agent.model_configs.get("bedrock") and sales_agent.model_configs["bedrock"]["client"]:
+                try:
+                    logger.info("[ORCHESTRATOR] Trying Bedrock for routing...")
+                    reply = await sales_agent.call_bedrock([{"role": "user", "parts": [{"text": prompt}]}])
+                    if reply:
+                        intent = reply.strip().lower()
+                        # Extract intent if Claude adds fluff
+                        for possible in ["sales", "support", "strategist", "researcher"]:
+                            if possible in intent:
+                                return possible
+                except Exception as b_err:
+                    logger.error(f"[ORCHESTRATOR] Bedrock routing error: {b_err}")
 
         return self._route_intent_fallback(user_message)
 

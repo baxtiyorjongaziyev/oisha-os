@@ -1,0 +1,41 @@
+name: Yangi funksiya
+description: Oisha yoki SalesCoach AI uchun yangi imkoniyat
+title: "feat: "
+labels: ["Type: Feature", "Status: Triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qaysi real muammoni hal qiladi?
+      placeholder: "Bu funksiya Baxtiyorning yoki jamoaning qaysi vaqtini tejaydi?"
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Ideal yechim
+      placeholder: "Oisha ideal holatda nima qilishi kerak?"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Qabul qilish shartlari
+      description: Tekshiriladigan natijalarni checkbox qilib yozing.
+      placeholder: "- [ ] ...\n- [ ] ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Yo'nalish
+      options:
+        - "Proj: Telegram"
+        - "Proj: CRM"
+        - "Proj: Airtable"
+        - "Proj: SalesCoach"
+        - "Proj: DevOps"
+        - "Proj: Security"
+    validations:
+      required: true
+
