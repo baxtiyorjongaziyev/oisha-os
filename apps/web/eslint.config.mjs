@@ -4,7 +4,8 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 const compat = new FlatCompat({
-  baseDirectory: import.meta.dirname
+  baseDirectory: import.meta.dirname,
+  resolvePluginsRelativeTo: import.meta.dirname
 });
 
 const config = [
@@ -13,7 +14,10 @@ const config = [
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...compat.extends("next/core-web-vitals", "next/typescript").map(c => {
+    delete c.name;
+    return c;
+  }),
   {
     languageOptions: {
       ecmaVersion: "latest",

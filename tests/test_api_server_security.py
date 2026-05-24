@@ -93,6 +93,18 @@ class TestAPISecurity:
         assert "Control-plane mode; skipping USERBOT_SESSION_STRING parsing." in content
         assert "if not cloud_control_plane_only and session_string:" in content
 
+    def test_oracle_deploy_runs_for_every_main_push(self):
+        """Oracle production deploy must not be limited to selected paths."""
+        workflow_file = os.path.join(
+            os.path.dirname(__file__), '..', '.github', 'workflows', 'oracle-deploy.yml'
+        )
+        with open(workflow_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        push_block = content.split("workflow_dispatch:", 1)[0]
+        assert "branches: [main]" in push_block
+        assert "paths:" not in push_block
+
 
 class TestAPIEndpoints:
     """Test API endpoint functionality."""

@@ -523,7 +523,7 @@ class AdminBot:
 
             from src.services.utils.team_hub import TeamHub
 
-            res = TeamHub.set_position(target_user.id, position)
+            TeamHub.set_position(target_user.id, position)
 
             # Username-ni ham DB-da yangilab qo'yamiz (Accountability uchun kerak)
             await self.db.upsert_user(
@@ -1700,7 +1700,7 @@ class AdminBot:
 
         # 2. PHONE LOOKUP (If missing)
         phone = getattr(sender_obj, "phone", None) or lead_details.get("phone")
-        lookup_status = (
+        (
             "✅ Profilida bor"
             if getattr(sender_obj, "phone", None)
             else "🔍 Qidirilmoqda..."
@@ -1799,7 +1799,6 @@ class AdminBot:
             analysis_text = "AI tahlil tayyorlanmoqda..."
             try:
                 # We can reuse the auto_lead_agent's client to generate content
-                response = self.msg_controller.db  # Accessing DB or something else
                 # Actually let's use the advisor_agent directly
                 analysis_text = await self.msg_controller.db.analyze_text_with_ai(
                     analysis_prompt

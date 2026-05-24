@@ -32,14 +32,25 @@ class AppSettings(BaseSettings):
     APP_TIMEZONE: str = "Asia/Tashkent"
     BOT_TOKEN: SecretStr = SecretStr("")
     ADMIN_BOT_TOKEN: Optional[SecretStr] = None
+    TELEGRAM_WEBHOOK_SECRET: Optional[SecretStr] = None
+    TELEGRAM_AI_GUEST_MODE_ENABLED: bool = True
+    TELEGRAM_AI_STREAMING_ENABLED: bool = True
+    TELEGRAM_BOT_TO_BOT_ENABLED: bool = True
+    TELEGRAM_MANAGED_BOTS_ENABLED: bool = False
+    TELEGRAM_MINI_APP_URL: Optional[str] = None
     API_ID: int = 0
     API_HASH: str = ""
     GEMINI_API_KEY: SecretStr = SecretStr("")
     DEEPSEEK_API_KEY: Optional[SecretStr] = None
+    AWS_ACCESS_KEY_ID: Optional[SecretStr] = None
+    AWS_SECRET_ACCESS_KEY: Optional[SecretStr] = None
+    AWS_REGION: str = "us-east-1"
+    BEDROCK_MODEL_ID: str = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     AMOCRM_SUBDOMAIN: str = ""
     AMOCRM_CLIENT_ID: str = ""
     AMOCRM_CLIENT_SECRET: Optional[SecretStr] = None
     AMOCRM_REDIRECT_URL: str = "https://localhost"
+    AMOCRM_CRON_SECRET: Optional[SecretStr] = None
     AIRTABLE_API_KEY: Optional[SecretStr] = None
     AIRTABLE_BASE_ID: Optional[str] = None
     DATABASE_URL: str = Field(default="bot_database.db")
@@ -141,6 +152,8 @@ class AppSettings(BaseSettings):
 
         optional_keys = {
             "ADMIN_BOT_TOKEN",
+            "TELEGRAM_WEBHOOK_SECRET",
+            "TELEGRAM_MINI_APP_URL",
             "DEEPSEEK_API_KEY",
             "AMOCRM_CLIENT_SECRET",
             "AIRTABLE_API_KEY",
@@ -159,6 +172,9 @@ class AppSettings(BaseSettings):
             "TOPIC_KIRIM_ID",
             "GSHEET_ID",
             "GDRIVE_OFFLOAD_FOLDER_ID",
+            "AMOCRM_CRON_SECRET",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
         }
         for key in optional_keys:
             if data.get(key) == "":
