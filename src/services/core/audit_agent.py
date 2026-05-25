@@ -43,25 +43,24 @@ class AuditAgent:
     async def generate_audit_report(self, limit=100) -> str:
         """Oxirgi harakatlar asosida audit xulosasini tayyorlash."""
         try:
-            # 1. Loglarni olish
-            logs = self.db.get_recent_user_activity(limit=limit)
-            if not logs:
+            from src.utils.ai_utils import safe_ai_call
+
+            # 1. Loglarni olish (message_logs jadvalidan)
+            rows = await self.db.get_recent_all_messages(limit=limit)
+            if not rows:
                 return "👸 Oisha-OS Audit: Hozircha tahlil qilish uchun yetarli ma'lumot yig'ilmadi. Biroz ko'proq muloqot qiling."
 
             # 2. Loglarni matn ko'rinishiga keltirish
             log_entries = []
-            for log in logs:
-                entry = f"[{log['time']}] {log['type'].upper()} in '{log['chat']}'"
-                if log['source']:
-                    entry += f" (From: {log['source']})"
-                entry += f": {log['content'][:200]}"
-                log_entries.append(entry)
-            
+            for user_id, message_text, is_ai_reply, created_at in rows:
+                role = "AI" if is_ai_reply else f"User({user_id})"
+                log_entries.append(f"[{created_at}] {role}: {str(message_text)[:200]}")
+
             logs_text = "\n".join(log_entries)
 
             # 3. Prompt tayyorlash
             prompt = f"""
-            Siz Jon.Branding agentligining Productivity Analyst (Oisha-OS) xizmatisiz. 
+            Siz Jon.Branding agentligining Productivity Analyst (Oisha-OS) xizmatisiz.
             Quyida agentlik asoschisining oxirgi Telegram harakatlari logi keltirilgan:
 
             --- LOGLAR BOSHLANDI ---
@@ -73,19 +72,18 @@ class AuditAgent:
             1. VAQT SARFI: Qaysi chatlarda yoki qaysi turdagi xabarlarda foydalanuvchi eng ko'p aktivlik ko'rsatmoqda?
             2. TAKRORLANISH: Qaysi javoblar yoki ma'lumotlar tez-tez forward qilinmoqda? (Ularni avtomatlashtirish mumkinmi?)
             3. AVTOMATLASHTIRISH TAVSIYALARI: AI (men - Oisha) ushbu harakatlarning qaysi birini o'z zimmasiga olishi orqali foydalanuvchining ishini yengillashtira oladi?
-            
+
             HISOBOT FORMATI:
-            Jarrohlik darajasida aniq, tizimli va qat'iy tonda yozing. Hech qanday maqtov yoki 'paxta' bo'lmasin. 
-            Foydalanuvchiga faqat lavozimi (Asoschi) bo'yicha murojaat qiling. 
+            Jarrohlik darajasida aniq, tizimli va qat'iy tonda yozing. Hech qanday maqtov yoki 'paxta' bo'lmasin.
+            Foydalanuvchiga faqat lavozimi (Asoschi) bo'yicha murojaat qiling.
             Aynan 'Qanday qilib AI operatsion xavflarni kamaytiradi?' qismiga urg'u bering.
             """
 
-            # 4. Gemini tahlili (ASYNCHRONOUS & SAFE)
-            from src.main import safe_ai_call
+            # 4. Gemini tahlili
             response = await safe_ai_call(
                 client=self.gemini_client,
                 prompt=prompt,
-                model=self.model_name
+                model=self.model_name,
             )
             return response.text if response and response.text else "Javob bo'sh qaytdi."
         except Exception as e:
@@ -124,11 +122,11 @@ class AuditAgent:
             Hisobot formatini 'Eagle Mode'da (qat'iy, aniq, 'paxtasiz') tayyorlang.
             """
             
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
             response = await safe_ai_call(
                 client=self.gemini_client,
                 prompt=prompt,
-                model=self.model_name
+                model=self.model_name,
             )
             return response.text if response and response.text else "Gemini javob qaytarmadi."
         except Exception as e:
