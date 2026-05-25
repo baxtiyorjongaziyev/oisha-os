@@ -9,6 +9,8 @@ import asyncio
 from typing import Any, Dict, Optional
 from datetime import datetime, timedelta
 
+import logging
+
 from src.agents.autonomous_sales_agent import get_autonomous_agent
 from src.agents.deal_lifecycle_manager import (
     DealStage,
@@ -17,6 +19,8 @@ from src.agents.deal_lifecycle_manager import (
 )
 from src.agents.contract_generator import ContractGenerator, RiskAssessor
 from src.services.core.gcontacts import GoogleContactsSync
+
+logger = logging.getLogger(__name__)
 
 
 class SurgicalNegotiator:
@@ -39,6 +43,9 @@ class SurgicalNegotiator:
 
         self.sales_agent = get_autonomous_agent(db=db)
         self.lifecycle = get_lifecycle_manager()
+        # Wire send_fn so re-engagement messages are actually dispatched
+        if self.send_fn is not None and self.lifecycle.send_fn is None:
+            self.lifecycle.send_fn = self.send_fn
         self.contract_gen = ContractGenerator()
         self.risk_assessor = RiskAssessor()
         self.gcontacts = GoogleContactsSync()
@@ -329,7 +336,8 @@ class SurgicalNegotiator:
                 "status": self.amocrm.get_lead_status_text(latest) if latest else "",
                 "pipeline_id": latest.get("pipeline_id"),
             }
-        except Exception:
+        except Exception as exc:
+            logger.warning(f"[SURGICAL] _get_crm_data failed for {user_id}: {exc}")
             return {}
 
     async def _save_to_crm(self, user_id: str, result: Dict, deal: Any):
@@ -365,16 +373,16 @@ class SurgicalNegotiator:
                 phone = crm_data.get("phone", "")
                 if phone:
                     await asyncio.to_thread(self.amocrm.ensure_lead, name, phone, note)
-        except Exception:
-            pass  # CRM xatoligi asosiy oqimni to'xtatmasligi kerak
+        except Exception as exc:
+            logger.error(f"[SURGICAL] _save_to_crm failed for {user_id}: {exc}")
 
     async def _send_proactive(self, user_id: int, text: str):
         """Foydalanuvchiga proaktiv xabar yuborish (follow-up, shartnoma va h.k.)"""
         if self.send_fn:
             try:
                 await self.send_fn(user_id, text)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(f"[SURGICAL] _send_proactive failed for {user_id}: {exc}")
 
     async def run_daily_cycle(self) -> Dict[str, Any]:
         """Kunlik avtomatlashtirish tsikli"""
