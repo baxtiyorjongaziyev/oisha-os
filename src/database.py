@@ -4,6 +4,7 @@ import datetime
 import asyncio
 import logging
 import json
+from contextlib import asynccontextmanager
 
 try:
     import libsql
@@ -166,6 +167,13 @@ class Database:
 
     def get_backend_name(self) -> str:
         return self._state_backend
+
+    @asynccontextmanager
+    async def get_conn(self):
+        """Async context manager wrapper around get_connection() for code that
+        uses `async with db.get_conn() as conn:` style (RetryQueue, FeedbackMemory)."""
+        conn = await self.get_connection()
+        yield conn
 
     async def close(self):
         """Ulanishni yopish."""
