@@ -25,8 +25,11 @@ class BaseAgent(ABC):
         }
         
         # Clients initialization
-        if "gemini" in api_keys:
-            self.model_configs["gemini"]["client"] = genai.Client(api_key=api_keys["gemini"])
+        if api_keys.get("gemini"):
+            try:
+                self.model_configs["gemini"]["client"] = genai.Client(api_key=api_keys["gemini"])
+            except Exception:
+                pass
 
     @abstractmethod
     async def process_task(self, user_id: int, task_description: str, context: Optional[Dict[str, Any]] = None) -> str:

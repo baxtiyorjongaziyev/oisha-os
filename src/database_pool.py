@@ -5,7 +5,14 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import aiosqlite
-import libsql
+try:
+    import libsql
+    _LIBSQL_AVAILABLE = True
+except Exception:
+    from types import ModuleType as _ModuleType
+    libsql = _ModuleType("libsql")  # stub keeps patch("database_pool.libsql.connect") working
+    libsql.connect = None  # type: ignore[attr-defined]
+    _LIBSQL_AVAILABLE = False
 
 from src.settings import settings
 
@@ -67,6 +74,8 @@ class DatabasePool:
 
     def get_connection(self):
         if self._connection is None:
+            if not callable(getattr(libsql, "connect", None)):
+                raise RuntimeError("libsql is not available in this environment; Turso connections are disabled")
             try:
                 if self.auth_token:
                     self._connection = libsql.connect(self.url, auth_token=self.auth_token)
