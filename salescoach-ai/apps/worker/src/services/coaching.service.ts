@@ -37,12 +37,11 @@ export class CoachingService {
 
     const card = this._buildCard(callId, call, scorecard);
 
-    // telegramId not in User model yet — log coaching card, send when field is available
-    const telegramId: string | undefined = (call.manager as any).telegramId;
+    const telegramId: string | undefined = call.manager.telegramId ?? undefined;
     if (this.botToken && telegramId) {
       await this._sendTelegram(telegramId, card.telegramMessage);
     } else {
-      console.log(`[coaching] Card for call ${callId} (no telegramId):`, card.headline);
+      console.log(`[coaching] Card for call ${callId} (no telegramId configured):`, card.headline);
     }
 
     return card;
