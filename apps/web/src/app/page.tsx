@@ -9,7 +9,11 @@ const capabilities = [
 
 export default function HomePage() {
   return (
-    <main id="main-content" className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16 focus:outline-none" tabIndex={-1}>
+    <main
+      id="main-content"
+      className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16 focus:outline-none"
+      tabIndex={-1}
+    >
       <section className="rounded-[2rem] border border-sage/15 bg-white/80 p-8 shadow-2xl shadow-sage/10 backdrop-blur md:p-12">
         <p className="mb-4 text-sm font-semibold uppercase tracking-[0.35em] text-amberline">
           Oisha OS platform layer
@@ -29,7 +33,21 @@ export default function HomePage() {
 
       <ul aria-label="Platformaning imkoniyatlari" className="mt-8 grid gap-4 md:grid-cols-2">
         {capabilities.map((item) => (
-          <li key={item} className="rounded-3xl border border-sage/10 bg-white/70 p-5 text-ink/75">
+          <li
+            key={item}
+            className="flex items-center gap-3 rounded-3xl border border-sage/10 bg-white/70 p-5 text-ink/75"
+          >
+            <svg
+              className="h-5 w-5 shrink-0 text-amberline"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
             {item}
           </li>
         ))}
