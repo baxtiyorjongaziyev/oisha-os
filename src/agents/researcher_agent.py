@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from .core import BaseAgent
+from .persona_router import PersonaRouter
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +29,18 @@ class ResearcherAgent(BaseAgent):
         search_results = await self._gather_search_data(task_description, user_id)
 
         # --- Step 2: build enriched prompt ---
+        persona_ctx = PersonaRouter.route(task_description, "", "researcher")
         researcher_instruction = (
             "\n\n[MISSION: RESEARCHER]\n"
             "Siz Deep Research va OSINT mutaxassisisiz. "
             "Quyidagi qidiruv natijalarini tahlil qiling va har tomonlama xulosa tayyorlang.\n\n"
-            "[SEARCH RESULTS]\n" + search_results
+            "[SEARCH RESULTS]\n" + search_results + persona_ctx
             if search_results
             else (
                 "\n\n[MISSION: RESEARCHER]\n"
                 "Siz Deep Research va OSINT mutaxassisisiz. "
                 "Chuqur tahlil qiling, eng so'nggi ma'lumotlarga asoslaning."
+                + persona_ctx
             )
         )
 
