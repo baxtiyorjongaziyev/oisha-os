@@ -83,6 +83,9 @@ BOT_TOKEN_STR = None
 surgical_integration = None
 evolution_scheduler = None
 meeting_scheduler = None
+oisha_brain = None
+bot_messenger = None
+agent_orchestrator = None
 
 # TN5 Group Config (env-configurable; fallback keeps legacy behavior)
 TN5_GROUP_ID = (
@@ -2115,6 +2118,22 @@ async def kirim_topic_handler(event):
         logger.error(f"[KIRIM] Celebration send failed: {exc}", exc_info=True)
 
 
+async def _brain_evolution_loop():
+    """Runs OishaBrain.evolve() every 6 hours to self-diagnose agent failures."""
+    await asyncio.sleep(300)  # 5-minute boot delay
+    while True:
+        try:
+            if oisha_brain:
+                result = await oisha_brain.evolve(task="routine_health_check")
+                logger.info(
+                    f"[BRAIN] Evolution cycle done: priority={result.get('priority')} "
+                    f"component={result.get('affected_component')}"
+                )
+        except Exception as exc:
+            logger.error(f"[BRAIN] Evolution loop error: {exc}")
+        await asyncio.sleep(21600)  # 6 hours
+
+
 async def main():
     """Botlarni ishga tushirish (Userbot + Admin Bot)."""
     global msg_controller, client, bot_client, lead_scraper, action_parser
@@ -2122,6 +2141,7 @@ async def main():
     global workflow_manager, access_manager, admin_bot, session_manager, chat_bridge, BOT_TOKEN_STR, juma_notifier
     global surgical_integration, evolution_scheduler
     global meeting_scheduler
+    global oisha_brain, bot_messenger, agent_orchestrator
 
     # [ENTERPRISE] Anti-Local Execution Lock
     # To protect the owner's Telegram session from being revoked by simultaneous
@@ -2538,6 +2558,47 @@ async def main():
                 admin_bot.user_client = client
                 await admin_bot.start()
             logger.info("[BOT] Bot-token head and AdminBot handlers started.")
+
+            # ── New services wired after bot clients are ready ──────────────
+
+            # [BRAIN] OishaBrain — LLM-powered failure diagnostics
+            from src.services.core.agent_brain import OishaBrain
+            oisha_brain = OishaBrain(
+                db=msg_controller.db,
+                gemini_api_key=api_keys["gemini"],
+                bot_token=BOT_TOKEN_STR,
+                owner_id=getattr(config, "OWNER_ID", None),
+            )
+            asyncio.create_task(_brain_evolution_loop(), name="oisha_brain_evolution")
+            logger.info("[BRAIN] OishaBrain initialized and evolution loop started.")
+
+            # [BOT2BOT] BotMessenger — inter-bot communication
+            from src.services.core.bot_to_bot import BotMessenger
+            bot_messenger = BotMessenger(bot_client=bot_client, userbot_client=client)
+            logger.info("[BOT2BOT] BotMessenger initialized.")
+
+            # [ORCHESTRATOR] AgentOrchestrator — autonomous multi-agent pipelines
+            from src.services.core.agent_orchestrator import get_orchestrator
+            agent_orchestrator = get_orchestrator(
+                agent_registry={
+                    "advisor": advisor_agent,
+                    "audit": audit_agent,
+                },
+                bot_messenger=bot_messenger,
+                db=msg_controller.db,
+            )
+            logger.info("[ORCHESTRATOR] AgentOrchestrator initialized.")
+
+            # [GUEST_BOT] Guest query handler — @mention without joining
+            from src.services.core.guest_bot import GuestBotHandler, enable_guest_queries
+            _guest_handler = GuestBotHandler(
+                bot_client=bot_client,
+                message_controller=msg_controller,
+            )
+            _guest_handler.register()
+            asyncio.create_task(enable_guest_queries(bot_client), name="guest_bot_enable")
+            logger.info("[GUEST_BOT] GuestBotHandler registered.")
+
         except Exception as bot_exc:
             logger.error(f"[BOT] Bot-token head startup failed: {bot_exc}", exc_info=True)
 
