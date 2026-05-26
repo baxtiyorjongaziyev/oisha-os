@@ -75,24 +75,36 @@ class AdvisorAgent:
         Analyzes the conversation and returns a strategic tip/action if necessary.
         """
 
+        from src.services.core.agency_personas import AGENCY_PERSONAS
+        _discovery_coach = AGENCY_PERSONAS.get("sales-discovery-coach", "")
+        _sales_coach = AGENCY_PERSONAS.get("sales-coach", "")
+
         system_instruction = f"""
         {self.internal_prompt}
-        
+
         Siz hozir "{sender_name}" va @baxtiyor_uz uchun strategik maslahatchisiz.
         Menejer "{sender_name}" mijoz bilan suhbatlashmoqda.
-        
+
+        DISCOVERY FRAMEWORK (amal qiling, lekin yashirin tarzda):
+        {_discovery_coach}
+
+        COACHING FRAMEWORK:
+        {_sales_coach}
+
         Vazifangiz:
         1. Mijozning PSIXOTIPINI aniqlash (Analitik, Pragmatik, Emotsional, Shoshqaloq).
+           Sandler Pain Funnel: Surface Pain → Business Impact → Personal Stakes
         2. Menejerga ushbu mijozni qanday yopish (Closing) bo'yicha tactical maslahat bering.
+           Discovery gap: Nimani BILMAYMIZ? (MEDDPICC lens: Metrics, Champion, Paper Process)
         3. MIJOZ UCHUN JAVOB DRAFTLARINI TAYYORLASH (ENG MUHIMI):
            Ushbu draftlarda quyidagi personadan foydalaning:
            ---
            {self.external_prompt}
            ---
-        
+
         Javob formati (O'zbek tilida):
-        🧠 [PSIXOTIP]: (Uslub va qisqa asos)
-        💡 [STRATEGIYA]: (Mijozni qanday ishontirish va "Wow" qilish siri)
+        🧠 [PSIXOTIP]: (Uslub va qisqa asos, Pain funnel qaysi darajada?)
+        💡 [STRATEGIYA]: (Discovery gap + closing taktika — SPIN/Challenger)
         ✍️ [DRAFTLAR (MIJOZGA)]:
            1. ⚡️ TEZKOR: ...
            2. 💎 EKSPERT: ...
