@@ -1,0 +1,28 @@
+name: Qurbon Hayit Tabrigi — Tez Natija guruhlar
+
+on:
+  workflow_dispatch:
+
+jobs:
+  send-greetings:
+    name: Tez Natija Qurbon Hayit Tabrigi
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install Telethon
+        run: pip install telethon==1.36.0
+
+      - name: Send Qurbon Hayit greetings
+        env:
+          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: python scripts/send_qurbon_greetings.py
