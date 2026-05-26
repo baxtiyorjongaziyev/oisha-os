@@ -227,10 +227,14 @@ Agentlik: _______   Mijoz: _______   Sana: {{SIGN_DATE}}
 
         contract_id = f"CNT-{datetime.now().strftime('%Y%m%d')}-{client_data.get('user_id', 'XXX')[:4]}"
 
+        # Proposal Strategist 3-Act executive summary (placed first)
+        executive_summary = self._build_executive_summary(service_type, client_data, deal_data)
+        full_text = executive_summary + "\n\n---\n\n" + contract_text
+
         return {
             "contract_id": contract_id,
             "service_type": service_type,
-            "text": contract_text,
+            "text": full_text,
             "variables": variables,
             "clauses": template.clauses,
             "created_at": datetime.now().isoformat(),
@@ -238,6 +242,48 @@ Agentlik: _______   Mijoz: _______   Sana: {{SIGN_DATE}}
             "requires_approval": deal_data.get("value", 0)
             > 10000,  # 10k dan yuqori bo'lsa tasdiqlash kerak
         }
+
+    def _build_executive_summary(
+        self, service_type: str, client_data: Dict[str, Any], deal_data: Dict[str, Any]
+    ) -> str:
+        """Proposal Strategist 3-Act narrative — executive summary placed first.
+
+        Act I: Mirror buyer's situation | Act II: Solution journey | Act III: Transformed state
+        """
+        client_name = client_data.get("name", "Mijoz")
+        value = deal_data.get("value", 0)
+        scope_items = deal_data.get("scope", [])
+        guarantees = deal_data.get("guarantees", ["30 kunlik bepul tuzatish", "Sifat kafolati"])
+        timeline_days = deal_data.get("timeline_days", 14)
+
+        scope_text = ", ".join(scope_items) if scope_items else f"{service_type} xizmatlari"
+        guarantees_text = " | ".join(guarantees)
+
+        service_labels = {
+            "branding": "brend identifikatsiya",
+            "web": "veb-sayt ishlab chiqish",
+            "marketing": "marketing xizmatlari",
+        }
+        service_label = service_labels.get(service_type, service_type)
+
+        summary = f"""# TIJORAT TAKLIFI — EXECUTIVE SUMMARY
+**Mijoz:** {client_name}  **Xizmat:** {service_label.title()}  **Qiymat:** {value:,.0f} so'm
+
+## Act I — Vaziyatni tushunish
+{client_name} {service_label} sohasida aniq biznes maqsadlariga ega. Ushbu taklif shu ehtiyojni to'liq qamrab oladi: {scope_text}.
+
+## Act II — Yechim yo'li
+Jon.Branding {timeline_days} ish kunida quyidagi bosqichlar bo'yicha natija yetkazib beradi:
+- **Bosqich 1:** Konsultatsiya va strategiya (1-3 kun)
+- **Bosqich 2:** Ijro va ishlab chiqish (4-{timeline_days - 2} kun)
+- **Bosqich 3:** Qabul qilish va topshirish (oxirgi 2 kun)
+Har bir bosqich mijoz bilan muvofiqlashtiriladi. Surprizlar yo'q.
+
+## Act III — O'zgartirilgan holat
+Loyiha yakunida {client_name} quyidagilarga ega bo'ladi: professional {service_label}, {guarantees_text}.
+Investitsiya: {value:,.0f} so'm. To'lov: 50% boshlashda, 50% qabul qilishda.
+"""
+        return summary.strip()
 
     def _format_scope(self, scope_items: List[str]) -> str:
         """Xizmat doirasini formatlash"""
