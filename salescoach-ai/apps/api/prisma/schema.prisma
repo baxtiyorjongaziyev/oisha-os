@@ -58,6 +58,7 @@ model User {
   email        String    @unique
   passwordHash String?
   googleId     String?   @unique
+  telegramId   String?   @unique
   role         UserRole  @default(MANAGER)
   locale       String    @default("uz")
   createdAt    DateTime  @default(now())
