@@ -42,12 +42,25 @@ class EnterpriseReporter:
                     asyncio.get_event_loop(),
                 ).result()
                 won_today = [lead for lead in leads if lead.get("status_id") == self.WON_STATUS]
+                lost_today = [lead for lead in leads if lead.get("status_id") == self.LOST_STATUS]
+                active_leads = [
+                    lead for lead in leads
+                    if lead.get("status_id") not in (self.WON_STATUS, self.LOST_STATUS)
+                ]
                 total_sum = sum(lead.get("price", 0) for lead in won_today)
+                pipeline_value = sum(lead.get("price", 0) for lead in active_leads)
+                win_rate = (
+                    round(len(won_today) / (len(won_today) + len(lost_today)) * 100)
+                    if (won_today or lost_today)
+                    else 0
+                )
 
                 report.append(f"- Yangi lidlar: <b>{len(leads)} ta</b>")
                 report.append(
                     f"- Yopilgan bitimlar: <b>{len(won_today)} ta</b> ({total_sum:,.0f} so'm)"
                 )
+                report.append(f"- Win rate: <b>{win_rate}%</b>")
+                report.append(f"- Aktiv pipeline: <b>{pipeline_value:,.0f} so'm</b> ({len(active_leads)} lid)")
             except Exception as e:
                 logger.warning(f"Error getting lead statistics: {e}")
                 report.append("- Ma'lumotlar olinmoqda... ⏳")
@@ -96,6 +109,48 @@ class EnterpriseReporter:
                         ",", " "
                     )
                 )
+
+        # Pipeline Analyst metrics (agency-agents Pipeline Analyst framework)
+        if self.crm:
+            try:
+                leads = asyncio.run_coroutine_threadsafe(
+                    self.crm.amocrm.get_leads_detailed(limit=200),
+                    asyncio.get_event_loop(),
+                ).result()
+                if leads:
+                    active = [
+                        l for l in leads
+                        if l.get("status_id") not in (self.WON_STATUS, self.LOST_STATUS)
+                    ]
+                    won = [l for l in leads if l.get("status_id") == self.WON_STATUS]
+                    lost = [l for l in leads if l.get("status_id") == self.LOST_STATUS]
+                    avg_deal = (
+                        sum(l.get("price", 0) for l in won) / len(won) if won else 0
+                    )
+                    win_rate_all = (
+                        len(won) / (len(won) + len(lost)) if (won or lost) else 0
+                    )
+                    # Pipeline Velocity = (Qualified Opps × Avg Deal Size × Win Rate) / Avg Cycle Days
+                    avg_cycle_days = 14  # baseline; refine with historical data
+                    velocity = (
+                        len(active) * avg_deal * win_rate_all / avg_cycle_days
+                        if avg_cycle_days > 0
+                        else 0
+                    )
+                    # Forecast tiers (simplified: Commit=Won, Best Case=active high-value, Upside=rest)
+                    commit_value = sum(l.get("price", 0) for l in won)
+                    best_case = sum(
+                        l.get("price", 0) for l in active if l.get("price", 0) > avg_deal
+                    )
+                    report.append("\n📈 <b>Pipeline Velocity (Pipeline Analyst):</b>")
+                    report.append(
+                        f"- Velocity: <b>{velocity:,.0f} so'm/kun</b>"
+                        f" ({len(active)} aktiv lid × {avg_deal:,.0f} avg × {win_rate_all:.0%} win rate)"
+                    )
+                    report.append(f"- Commit (Won): <b>{commit_value:,.0f} so'm</b>")
+                    report.append(f"- Best Case (>avg deal): <b>{best_case:,.0f} so'm</b>")
+            except Exception as exc:
+                logger.debug(f"[REPORTER] Pipeline velocity calc skipped: {exc}")
 
         report.append(
             "\n🌙 <i>Bugungi kun uchun rahmat! Ertaga yanada yaxshiroq bo'lamiz.</i>"
