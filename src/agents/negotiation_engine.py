@@ -10,9 +10,13 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
+import logging
+
 from google import genai
 
 from src.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -101,8 +105,8 @@ SUHBAT TARIXI (oxirgi 5 xabar):
 {_MEDDPICC_INJECT}
 JORIY XABAR: "{message}"
 CRM HOLATI: "{crm_status}"
-IS_GUEST: {context.get("is_guest", False)}
-IS_BOT: {context.get("is_bot", False)} (Bot-to-Bot negotiation awareness)
+IS_GUEST: {(context or {}).get("is_guest", False)}
+IS_BOT: {(context or {}).get("is_bot", False)} (Bot-to-Bot negotiation awareness)
 
 Sening maqsading - agentga ushbu mijoz bilan AVTONOM (mustaqil) gaplashish uchun yo'riqnoma berish.
 
@@ -147,7 +151,7 @@ Qoidalar:
                 objection=data.get("objection", "none"),
                 urgency=data.get("urgency", "normal"),
                 sentiment=data.get("sentiment", "neutral"),
-                close_probability=float(data.get("close_probability", 0.3)),
+                close_probability=max(0.0, min(1.0, float(data.get("close_probability", 0.3)))),
                 autonomy_mode=autonomy_mode,
                 recommended_status=data.get("recommended_status", "Initial Contact"),
                 next_action=data.get("next_action", "qualify_need"),
@@ -159,8 +163,8 @@ Qoidalar:
                 autonomous_mission=data.get("autonomous_mission", ""),
             )
 
-        except Exception:
-            # Graceful fallback to keyword-based
+        except Exception as _exc:
+            logger.warning("[NegotiationEngine] assess_async failed: %r — keyword fallback", _exc)
             return NegotiationEngine.assess(
                 message,
                 crm_status,

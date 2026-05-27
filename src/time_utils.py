@@ -19,7 +19,12 @@ def get_local_now() -> datetime:
 
 
 def is_quiet_hours(
-    now: datetime | None = None, start_hour: int = 0, end_hour: int = 6
+    now: datetime | None = None, start_hour: int = 23, end_hour: int = 7
 ) -> bool:
+    """23:00–07:00 Tashkent vaqti bo'yicha quiet hours."""
     current = now or get_local_now()
-    return start_hour <= current.hour < end_hour
+    h = current.hour
+    if start_hour > end_hour:
+        # Yarim tun oshib ketadigan oraliq: 23:00–07:00
+        return h >= start_hour or h < end_hour
+    return start_hour <= h < end_hour

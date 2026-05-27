@@ -17,11 +17,11 @@ from telethon.errors import (
     UsernameNotOccupiedError,
 )
 
-API_ID = 30643078
-API_HASH = "***REDACTED***"
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
 SESSION_STRING = os.environ["USERBOT_SESSION_STRING"]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-OWNER_ID = 150074828
+OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
 
 TARGET_GROUPS = ["Tez natija 2", "Tez natija 3", "Tez natija 4", "Tez natija 5"]
 
@@ -68,7 +68,9 @@ async def collect_members(client: TelegramClient) -> list[dict]:
 
     missing = [g for g in TARGET_GROUPS if not any(f.lower() == g.lower() for f in found_groups)]
     if missing:
-        print(f"Topilmagan guruhlar: {missing}")
+        msg = f"OGOHLANTIRISH: {len(missing)} guruh topilmadi: {missing}"
+        print(msg)
+        send_tg_notification(msg)
 
     return members
 
@@ -100,45 +102,46 @@ async def main() -> None:
     sent = 0
     failed = 0
 
-    for i, member in enumerate(members):
-        label = f"[{i+1}/{total}] id={member['id']}"
-        try:
-            await send_to_member(client, member)
-            sent += 1
-            print(f"OK {label}")
-        except FloodWaitError as e:
-            wait_sec = e.seconds + 5
-            print(f"FloodWait {wait_sec}s — {label}")
-            await asyncio.sleep(wait_sec)
+    try:
+        for i, member in enumerate(members):
+            label = f"[{i+1}/{total}] id={member['id']}"
             try:
                 await send_to_member(client, member)
                 sent += 1
-                print(f"OK (retry) {label}")
-            except Exception as retry_err:
+                print(f"OK {label}")
+            except FloodWaitError as e:
+                wait_sec = e.seconds + 5
+                print(f"FloodWait {wait_sec}s — {label}")
+                await asyncio.sleep(wait_sec)
+                try:
+                    await send_to_member(client, member)
+                    sent += 1
+                    print(f"OK (retry) {label}")
+                except Exception as retry_err:
+                    failed += 1
+                    print(f"FAIL (retry) {label}: {retry_err}")
+                continue
+            except (
+                UserNotMutualContactError,
+                InputUserDeactivatedError,
+                PeerIdInvalidError,
+                UsernameNotOccupiedError,
+                UsernameInvalidError,
+            ) as e:
                 failed += 1
-                print(f"FAIL (retry) {label}: {retry_err}")
-            continue
-        except (
-            UserNotMutualContactError,
-            InputUserDeactivatedError,
-            PeerIdInvalidError,
-            UsernameNotOccupiedError,
-            UsernameInvalidError,
-        ) as e:
-            failed += 1
-            print(f"SKIP {label}: {type(e).__name__}")
-        except Exception as e:
-            failed += 1
-            print(f"FAIL {label}: {e}")
+                print(f"SKIP {label}: {type(e).__name__}")
+            except Exception as e:
+                failed += 1
+                print(f"FAIL {label}: {e}")
 
-        if (i + 1) % 50 == 0:
-            send_tg_notification(
-                f"Jarayon: {i+1}/{total}\n{sent} yuborildi, {failed} xato"
-            )
+            if (i + 1) % 50 == 0:
+                send_tg_notification(
+                    f"Jarayon: {i+1}/{total}\n{sent} yuborildi, {failed} xato"
+                )
 
-        await asyncio.sleep(random.uniform(8, 12))
-
-    await client.disconnect()
+            await asyncio.sleep(random.uniform(8, 12))
+    finally:
+        await client.disconnect()
 
     summary = (
         f"Qurbon Hayit tabrigi yakunlandi!\n"
