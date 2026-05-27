@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from .core import BaseAgent
+from .persona_router import PersonaRouter
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +29,15 @@ class PMAgent(BaseAgent):
         db: Optional[Any] = None,
     ):
         super().__init__(agent_id, system_prompt, api_keys, executor, db)
+        from src.services.core.agency_personas import AGENCY_PERSONAS
+        pm_persona = AGENCY_PERSONAS.get("product-manager", "")
+        sprint_persona = AGENCY_PERSONAS.get("product-sprint-prioritizer", "")
         self.team_system_prompt = (
             "Siz JonBranding agentligining Project Manager assistentisiz.\n"
             "Vazifalar: topshiriqlar nazorati, muddatlar kuzatuvi, jamoa muloqoti.\n"
-            "Uslub: professional, qat'iy, 'siz/aka/opa' bilan murojaat."
+            "Uslub: professional, qat'iy, 'siz/aka/opa' bilan murojaat.\n"
+            + (f"\n[AGENCY PERSONA: product-manager]\n{pm_persona}" if pm_persona else "")
+            + (f"\n[AGENCY PERSONA: product-sprint-prioritizer]\n{sprint_persona}" if sprint_persona else "")
         )
 
     async def process_task(
