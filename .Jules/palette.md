@@ -47,3 +47,8 @@
 
 **Learning:** When adding a visual loading spinner to a button component, screen readers don't automatically know the button is in a processing state just from a new SVG appearing.
 **Action:** Always add `aria-busy={isLoading}` to the container element to explicitly announce the pending state, and add `aria-hidden="true"` to the decorative SVG spinner so screen readers don't read out irrelevant vector paths.
+
+## 2026-05-27 - [A11y Insight] Dynamically match focus rings on generic wrappers
+
+**Learning:** When adding focus-visible rings to generic UI component wrappers (e.g., tooltip spans around disabled buttons), hardcoding a specific shape (like `rounded-full`) can cause mismatched focus ring visuals if the underlying component is a different shape (like a square button).
+**Action:** The focus ring styling for focusable wrapper elements should dynamically match or inherit the underlying component's border-radius, or use `[&_button]:focus-visible:ring-2` to pass focus styling down if possible, to prevent hardcoding generic shapes that cause visual flaws.
