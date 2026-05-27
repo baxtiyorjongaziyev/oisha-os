@@ -2,6 +2,9 @@ name: Qurbon Hayit Tabrigi — Tez Natija guruhlar
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'deploy/qurbon-trigger'
 
 jobs:
   send-greetings:
