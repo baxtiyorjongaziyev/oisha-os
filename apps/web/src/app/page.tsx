@@ -26,7 +26,9 @@ export default function HomePage() {
           coaching keyingi bosqichlarda shu monorepo ichida ulanadi.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Button>Dashboard poydevori tayyor</Button>
+          <Button disabled disabledReason="Dashboard hozircha tayyorlanmoqda (WIP)">
+            Dashboard poydevori tayyor
+          </Button>
           <Button variant="secondary">API: /healthz</Button>
         </div>
       </section>
