@@ -25,15 +25,11 @@ OWNER_ID = 150074828
 
 TARGET_GROUPS = ["Tez natija 2", "Tez natija 3", "Tez natija 4", "Tez natija 5"]
 
-
-def build_message(first_name: str) -> str:
-    return (
-        f"Assalomu alaykum, {first_name}!\n\n"
-        "Qurbon hayit muborak bo'lsin \U0001f319\n"
-        "Alloh taolo qurboningizni qabul qilsin,\n"
-        "oilangizga baraka va sog'lik bersin!\n\n"
-        "Hayit tantanali o'tsin \U0001f932"
-    )
+MESSAGE = (
+    "Qurbon hayit muborak bo'lsin! \U0001f319\n"
+    "Bu muborak kunda barcha tilaklaringiz ijobat bo'lsin,\n"
+    "xonadoningizga tinchlik va baraka yog'ilsin. \U0001f932"
+)
 
 
 def send_tg_notification(text: str) -> None:
@@ -64,11 +60,7 @@ async def collect_members(client: TelegramClient) -> list[dict]:
                 if user.bot or user.deleted or user.id in seen_ids:
                     continue
                 seen_ids.add(user.id)
-                members.append({
-                    "id": user.id,
-                    "first_name": (user.first_name or "").strip() or "Do'st",
-                    "username": user.username or "",
-                })
+                members.append({"id": user.id})
         except ChatAdminRequiredError:
             print(f"  SKIP {title}: admin huquqi kerak")
         except Exception as e:
@@ -82,8 +74,7 @@ async def collect_members(client: TelegramClient) -> list[dict]:
 
 
 async def send_to_member(client: TelegramClient, member: dict) -> None:
-    msg = build_message(member["first_name"])
-    await client.send_message(member["id"], msg)
+    await client.send_message(member["id"], MESSAGE)
 
 
 async def main() -> None:
@@ -108,10 +99,9 @@ async def main() -> None:
 
     sent = 0
     failed = 0
-    failed_names: list[str] = []
 
     for i, member in enumerate(members):
-        label = f"[{i+1}/{total}] {member['first_name']} (id={member['id']})"
+        label = f"[{i+1}/{total}] id={member['id']}"
         try:
             await send_to_member(client, member)
             sent += 1
@@ -126,7 +116,6 @@ async def main() -> None:
                 print(f"OK (retry) {label}")
             except Exception as retry_err:
                 failed += 1
-                failed_names.append(member["first_name"])
                 print(f"FAIL (retry) {label}: {retry_err}")
             continue
         except (
@@ -140,7 +129,6 @@ async def main() -> None:
             print(f"SKIP {label}: {type(e).__name__}")
         except Exception as e:
             failed += 1
-            failed_names.append(member["first_name"])
             print(f"FAIL {label}: {e}")
 
         if (i + 1) % 50 == 0:
@@ -158,12 +146,6 @@ async def main() -> None:
         f"Xato: {failed}\n"
         f"Jami: {total}"
     )
-    if failed_names:
-        top_failed = "\n".join(failed_names[:10])
-        summary += f"\n\nXato bo'lganlar:\n{top_failed}"
-        if len(failed_names) > 10:
-            summary += f"\n... va {len(failed_names) - 10} ta boshqa"
-
     send_tg_notification(summary)
     print(summary)
 
