@@ -9,4 +9,4 @@ bandit>=1.7.0
 types-requests
 types-setuptools
 types-pytz
-freezegun>=1.5.0
+freezegun>=1.5.5
