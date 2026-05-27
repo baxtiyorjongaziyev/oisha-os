@@ -27,6 +27,7 @@ export function Button({
       type={type}
       disabled={disabled || isLoading}
       aria-disabled={disabled || isLoading}
+      aria-busy={isLoading}
       className={[
         "inline-flex items-center justify-center gap-2",
         "rounded-full px-5 py-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 active:scale-[0.98]",
@@ -42,6 +43,7 @@ export function Button({
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <circle
             className="opacity-25"
