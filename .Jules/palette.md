@@ -23,10 +23,20 @@
 **Learning:** Generic wrappers like `<div>` or `<section>` for lists of items obscure content structure for screen readers. Using standard interactive components like buttons without tactile feedback (`active:` states) makes interfaces feel unresponsive.
 **Action:** Always use semantic `<ul>` or `<ol>` tags with descriptive `aria-label`s for lists of items to ensure they are properly parsed and announced by screen readers. For interactive elements like buttons, include a subtle tactile feedback (e.g., `active:scale-[0.98]`) to improve perceived responsiveness and the overall interactive feel.
 
-## $(date +%Y-%m-%d) - [UX Improvement] Add accessible loading state to Button
+## 2026-05-24 - [UX Improvement] Add accessible loading state to Button
 
 **Learning:** Found that the primary UI Button lacked a standardized, built-in loading state. Without this, developers might omit visual feedback during async operations, leading to poor UX and potential double-submissions.
-**Action:** Always provide an \`isLoading\` prop on core button components that not only renders a spinner but automatically sets \`disabled\` and \`aria-disabled\` attributes to gracefully handle the pending state.
+**Action:** Always provide an `isLoading` prop on core button components that not only renders a spinner but automatically sets `disabled` and `aria-disabled` attributes to gracefully handle the pending state.
+
+## 2026-05-24 - [UX Improvement] Additional accessibility for Button loading state
+
+**Learning:** While the primary UI Button handled `disabled` and `aria-disabled` correctly during its loading state, it lacked `aria-busy` on the button itself and `aria-hidden="true"` on the loading SVG. This could cause screen readers to announce the SVG elements or fail to indicate that the component is actively processing a request.
+**Action:** Always include `aria-busy={isLoading}` on components representing asynchronous states and ensure any decorative or visually repetitive loading indicators (like spinners) have `aria-hidden="true"` to prevent screen reader noise.
+
+## 2026-05-16 - [UX Improvement] Add accessible tooltip for disabled buttons
+
+**Learning:** Disabled buttons do not trigger hover tooltips (titles) or receive keyboard focus by default because they don't fire pointer/focus events. Furthermore, loading states lack semantic meaning without `aria-busy`.
+**Action:** When providing a reason for a disabled button (`disabledReason`), wrap it in a focusable `<span>` (`tabIndex={0}`) with `cursor-not-allowed`, and set `pointer-events-none` on the button itself so the wrapper can show the title. Always add `aria-busy={isLoading}` for screen readers.
 
 ## 2026-05-25 - [UX Improvement] Add visual anchors to plain text lists
 
