@@ -32,3 +32,8 @@
 
 **Learning:** Presenting a list of features as plain text without visual anchors makes the content dense and hard to scan.
 **Action:** Enhance plain text list items with subtle visual anchors, such as an inline SVG checkmark with `flex items-center gap-3`, to improve scannability and create a more pleasant reading experience.
+
+## 2026-05-26 - [A11y Insight] Explicitly declaring state for screen readers during loading
+
+**Learning:** When adding a visual loading spinner to a button component, screen readers don't automatically know the button is in a processing state just from a new SVG appearing.
+**Action:** Always add `aria-busy={isLoading}` to the container element to explicitly announce the pending state, and add `aria-hidden="true"` to the decorative SVG spinner so screen readers don't read out irrelevant vector paths.
