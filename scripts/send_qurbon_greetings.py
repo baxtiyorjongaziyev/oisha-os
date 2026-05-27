@@ -83,7 +83,11 @@ async def main() -> None:
     send_tg_notification("⚙️ Workflow ishga tushdi — Telethon ulanmoqda...")
     client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
     try:
-        await client.start()
+        await client.connect()
+        if not await client.is_user_authorized():
+            send_tg_notification("❌ Session muddati tugagan yoki noto'g'ri. Yangi USERBOT_SESSION_STRING kerak.")
+            await client.disconnect()
+            return
     except Exception as e:
         send_tg_notification(f"❌ Telethon ulana olmadi: {e}")
         raise
