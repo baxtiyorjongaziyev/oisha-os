@@ -14,12 +14,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Install Telethon
         run: pip install telethon==1.36.0
@@ -28,4 +28,6 @@ jobs:
         env:
           USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
         run: python scripts/send_qurbon_greetings.py
