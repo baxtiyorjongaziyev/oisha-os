@@ -72,7 +72,11 @@ export function Button({
 
   if (showTooltip) {
     return (
-      <span title={disabledReason} tabIndex={0} className="inline-block cursor-not-allowed">
+      <span
+        title={disabledReason}
+        tabIndex={0}
+        className="inline-block cursor-not-allowed rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2"
+      >
         {buttonElement}
       </span>
     );
