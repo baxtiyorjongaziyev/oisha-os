@@ -495,7 +495,7 @@ class SalesAgent(BaseAgent):
         history = self.get_session_history(user_id)
         crm_status = str(context.get("crm_status") or "Yangi mijoz")
         autonomy_mode = await self._get_negotiation_mode()
-        assessment = NegotiationEngine.assess(
+        assessment = await NegotiationEngine.assess_async(
             task_description,
             crm_status,
             autonomy_mode=autonomy_mode,
@@ -564,7 +564,7 @@ class SalesAgent(BaseAgent):
         history = self.get_session_history(user_id)
         crm_status = str(context.get("crm_status") or "Yangi mijoz")
         autonomy_mode = await self._get_negotiation_mode()
-        assessment = NegotiationEngine.assess(
+        assessment = await NegotiationEngine.assess_async(
             task_description,
             crm_status,
             autonomy_mode=autonomy_mode,
