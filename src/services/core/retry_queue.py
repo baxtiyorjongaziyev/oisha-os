@@ -20,6 +20,7 @@ Schema (SQLite):
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any, Callable, Dict, Optional
@@ -213,7 +214,7 @@ class RetryQueue:
                         next_retry_at = datetime('now', '+{delay_sec} seconds'),
                         updated_at = datetime('now')
                     WHERE id = ?
-                    """,  # nosec
+                    """,  # nosec — delay_sec is an int, not user input
                     (attempt, error, row_id),
                 )
                 await conn.commit()
