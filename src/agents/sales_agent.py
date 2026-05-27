@@ -10,6 +10,7 @@ from .core import BaseAgent
 from .negotiation_engine import NegotiationEngine
 from .negotiation_reengagement import NegotiationReengagementPlanner
 from .negotiation_verifier import NegotiationOutcomeVerifier
+from .persona_router import PersonaRouter
 from src.time_utils import get_local_now
 
 # Escalation safety-net — auto_reply_gate'dagi trigger list bilan bir xil.
@@ -666,6 +667,7 @@ Products knowledge:
 
 Context:
 {context_json}
+{PersonaRouter.route(task_description, assessment.intent, "sales")}
 
 Bot-to-Bot & Guest Rules:
 - Agar is_bot: True bo'lsa, suhbatdosh - boshqa bir AI agenti. Juda aniq, texnik, strukturaviy va professional gaplashing. Ortiqcha emotsiyaga berilmang, lekin hamkorlikka ochiqlikni ko'rsating.
