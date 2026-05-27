@@ -80,9 +80,15 @@ async def send_to_member(client: TelegramClient, member: dict) -> None:
 
 
 async def main() -> None:
+    send_tg_notification("⚙️ Workflow ishga tushdi — Telethon ulanmoqda...")
     client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
-    await client.start()
+    try:
+        await client.start()
+    except Exception as e:
+        send_tg_notification(f"❌ Telethon ulana olmadi: {e}")
+        raise
     print("Telethon ulandi — guruhlar skanerlanmoqda...")
+    send_tg_notification("✅ Telethon ulandi — guruhlar skanerlanmoqda...")
 
     members = await collect_members(client)
     total = len(members)
