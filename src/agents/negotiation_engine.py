@@ -79,13 +79,26 @@ OXIRGI QO'NG'IROQ TAHLILI (Sifat bahosi: {analysis.get('overall_score')}/100):
 - Keyingi qadamlar: {analysis.get('next_steps')}
 """
 
+            _MEDDPICC_INJECT = """
+QUALIFICATION FRAMEWORK (apply silently during analysis):
+MEDDPICC: Metrics | Economic Buyer | Decision Criteria | Decision Process | Paper Process | Pain | Champion | Competition
+- Metrics: Can buyer quantify the cost of inaction? No number = no urgency.
+- Economic Buyer: Has the buyer confirmed budget authority, or are we stuck with an influencer?
+- Pain: Is stated pain specific and quantified, or generic? Generic = low urgency.
+- Champion: Is our internal advocate willing to take difficult actions on our behalf?
+Discovery lens: Is buyer talking 60%+? Have we surfaced implication questions (cost of inaction)?
+Challenger signal: Can we reframe their problem before presenting solution?
+SPIN check: Have we asked Situation (2-3 max) → Problem → Implication → Need-Payoff?
+"""
+
             prompt = f"""
-Sen "Oisha-OS" savdo tahlilchisisan. Quyidagi mijoz xabarini, suhbat tarixini va 
+Sen "Oisha-OS" savdo tahlilchisisan. Quyidagi mijoz xabarini, suhbat tarixini va
 real qo'ng'iroqlar tahlilini CHUQUR o'rganib, JSON formatida qaytarishing kerak.
 
 SUHBAT TARIXI (oxirgi 5 xabar):
 {history_text or "Yangi suhbat"}
 {analysis_context}
+{_MEDDPICC_INJECT}
 JORIY XABAR: "{message}"
 CRM HOLATI: "{crm_status}"
 IS_GUEST: {context.get("is_guest", False)}
