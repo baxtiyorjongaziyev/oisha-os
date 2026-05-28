@@ -71,8 +71,16 @@ export function Button({
   );
 
   if (showTooltip) {
+    // Extract border-radius class if provided, otherwise default to full rounding
+    const borderRadiusMatch = (className || "").match(/(?:^|\s)(rounded(?:-[^\s]+)?)/);
+    const borderRadiusClass = borderRadiusMatch ? borderRadiusMatch[1] : "rounded-full";
+
     return (
-      <span title={disabledReason} tabIndex={0} className="inline-block cursor-not-allowed">
+      <span
+        title={disabledReason}
+        tabIndex={0}
+        className={`inline-block cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 ${borderRadiusClass}`}
+      >
         {buttonElement}
       </span>
     );
