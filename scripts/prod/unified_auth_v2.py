@@ -3,12 +3,13 @@ from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 import sys
 import asyncio
+from dotenv import load_dotenv
 
-# Load credentials from .env context
-API_ID = 30643078
-API_HASH = 'e5850001c1d86ac0fb439fbd8319cb7f'
-PHONE = '+998336450097'
-PASSWORD = 'Telegram0097'
+load_dotenv()
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
+PHONE = os.environ["TELEGRAM_PHONE"]
+PASSWORD = os.environ.get("TELEGRAM_PASSWORD", "")
 
 async def main():
     session_path = os.path.join("data", "userbot_session")

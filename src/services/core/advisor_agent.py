@@ -1,10 +1,31 @@
 import logging
 import datetime
 import time
+from contextlib import asynccontextmanager
 from typing import Optional, Any
 from google import genai
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def _db_connection(db: Any):
+    get_conn = getattr(db, "get_conn", None)
+    if callable(get_conn):
+        conn_or_cm = get_conn()
+        if hasattr(conn_or_cm, "__aenter__"):
+            async with conn_or_cm as conn:
+                yield conn
+            return
+        yield conn_or_cm
+        return
+
+    get_connection = getattr(db, "get_connection", None)
+    if not callable(get_connection):
+        raise AttributeError("db must expose get_conn() or get_connection()")
+
+    conn = await get_connection()
+    yield conn
 
 
 class AdvisorAgent:
@@ -178,7 +199,7 @@ class AdvisorAgent:
             await self.db.set_state(msg_key, "sent")
             await self.db.set_state(cooldown_key, str(now))
 
-            async with await self.db.get_connection() as conn:
+            async with _db_connection(self.db) as conn:
                 await conn.execute(
                     "INSERT INTO advisor_logs (chat_id, message_id, advice_type, content, created_at) VALUES (?, ?, ?, ?, ?)",
                     (
