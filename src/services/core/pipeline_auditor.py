@@ -34,9 +34,16 @@ class PipelineAuditor:
         from google import genai
         from src.settings import settings
 
-        self.genai_client = genai.Client(
-            api_key=settings.GEMINI_API_KEY.get_secret_value()
-        )
+        try:
+            api_key = settings.GEMINI_API_KEY.get_secret_value()
+        except Exception:
+            api_key = str(getattr(settings, "GEMINI_API_KEY", ""))
+
+        if api_key:
+            self.genai_client = genai.Client(api_key=api_key)
+        else:
+            self.genai_client = None
+
         self.model_name = "gemini-2.0-flash"
 
         self.call_analyzer = CallAnalyzer(
@@ -165,6 +172,9 @@ class PipelineAuditor:
         )
 
         try:
+            if not self.genai_client:
+                raise ValueError("GenAI client is not configured (missing API key).")
+
             from google.genai import types
 
             response = await asyncio.to_thread(
