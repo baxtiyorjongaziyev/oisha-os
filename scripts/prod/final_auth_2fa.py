@@ -2,11 +2,12 @@ import os
 from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 import sys
+from dotenv import load_dotenv
 
-# Load credentials from .env context
-API_ID = 30643078
-API_HASH = '***REDACTED***'
-PHONE = '+998336450097'
+load_dotenv()
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
+PHONE = os.environ["TELEGRAM_PHONE"]
 
 async def main():
     if len(sys.argv) < 3:
