@@ -38,6 +38,7 @@ async def test_generate_intelligence_profile_success():
     db_mock = MagicMock()
 
     auditor = PipelineAuditor(amocrm=amocrm_mock, airtable=airtable_mock, db=db_mock)
+    auditor.genai_client = MagicMock()
 
     mock_response = MagicMock()
     mock_response.text = (

@@ -32,6 +32,7 @@ async def test_is_portfolio_case_classification_failure():
 async def test_extract_case_details_success():
     client_mock = MagicMock()
     publisher = CasePublisher(client=client_mock)
+    publisher.genai_client = MagicMock()
 
     mock_response = MagicMock()
     mock_response.text = (
