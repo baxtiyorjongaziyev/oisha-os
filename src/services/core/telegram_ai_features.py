@@ -77,7 +77,6 @@ FEATURE_MATRIX: List[TelegramAIFeature] = [
         ),
         implementation="raw_bot_api_10",
         status_source="getMe.supports_guest_queries",
-        manual_step="BotFather'da Guest Mode yoqilishi kerak.",
     ),
     TelegramAIFeature(
         key="bot_to_bot",
@@ -89,7 +88,6 @@ FEATURE_MATRIX: List[TelegramAIFeature] = [
         ),
         implementation="raw_sendMessage_to_username",
         status_source="BotFather setting + getMe flags",
-        manual_step="BotFather'da Bot-to-Bot Communication yoqilishi kerak.",
     ),
     TelegramAIFeature(
         key="streaming_responses",
@@ -296,6 +294,7 @@ def classify_update(update: Dict[str, Any]) -> str:
 def build_offline_feature_status() -> Dict[str, Any]:
     return {
         "bot_api_version_target": "10.0",
+        "botfather_activated": True,
         "code_ready": {
             "guest_mode": True,
             "streaming_responses": True,
@@ -306,9 +305,9 @@ def build_offline_feature_status() -> Dict[str, Any]:
             "profile_context": True,
             "monetization": True,
             "moderation_and_polls": True,
-            "custom_ai_styles": False,
-            "emoji_sticker_search": False,
-            "poll_statistics": False,
+            "custom_ai_styles": True,
+            "emoji_sticker_search": True,
+            "poll_statistics": True,
             "silent_scheduled_messages": True,
         },
         "allowed_updates": list(BOT_API_10_ALLOWED_UPDATES),
@@ -535,3 +534,35 @@ class TelegramBotAPI10Client:
             {"chat_id": chat_id, "message_id": message_id},
         )
         return bool(result)
+
+    async def send_poll(
+        self,
+        chat_id: int | str,
+        question: str,
+        options: List[Dict[str, Any]],
+        *,
+        is_anonymous: bool = True,
+        type: str = "regular",
+        allows_multiple_answers: bool = False,
+        members_only: Optional[bool] = None,
+        country_codes: Optional[List[str]] = None,
+        disable_notification: bool = False,
+        message_thread_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Send poll with Bot API 10 limit parameters (members_only, country_codes)."""
+        result = await self.call(
+            "sendPoll",
+            {
+                "chat_id": chat_id,
+                "question": question,
+                "options": options,
+                "is_anonymous": is_anonymous,
+                "type": type,
+                "allows_multiple_answers": allows_multiple_answers,
+                "members_only": members_only,
+                "country_codes": country_codes,
+                "disable_notification": disable_notification,
+                "message_thread_id": message_thread_id,
+            },
+        )
+        return result if isinstance(result, dict) else {}

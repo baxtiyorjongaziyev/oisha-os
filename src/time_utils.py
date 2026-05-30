@@ -24,6 +24,8 @@ def is_quiet_hours(
     """23:00–07:00 Tashkent vaqti bo'yicha quiet hours."""
     current = now or get_local_now()
     h = current.hour
+    if start_hour == end_hour:
+        return True
     if start_hour > end_hour:
         # Yarim tun oshib ketadigan oraliq: 23:00–07:00
         return h >= start_hour or h < end_hour
