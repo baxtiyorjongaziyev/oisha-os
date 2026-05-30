@@ -41,6 +41,10 @@ class AppSettings(BaseSettings):
     API_ID: int = 0
     API_HASH: str = ""
     GEMINI_API_KEY: SecretStr = SecretStr("")
+    GEMINI_CALL_MODEL: str = "gemini-2.5-flash"
+    OPENAI_API_KEY: Optional[SecretStr] = None
+    OPENAI_TRANSCRIBE_MODEL: str = "whisper-1"
+    OPENAI_TEXT_MODEL: str = "gpt-4o-mini"
     DEEPSEEK_API_KEY: Optional[SecretStr] = None
     AWS_ACCESS_KEY_ID: Optional[SecretStr] = None
     AWS_SECRET_ACCESS_KEY: Optional[SecretStr] = None
@@ -51,6 +55,19 @@ class AppSettings(BaseSettings):
     AMOCRM_CLIENT_SECRET: Optional[SecretStr] = None
     AMOCRM_REDIRECT_URL: str = "https://localhost"
     AMOCRM_CRON_SECRET: Optional[SecretStr] = None
+    ENABLE_AMOCRM_LEAD_ENRICHMENT: bool = True
+    AMOCRM_ENRICHMENT_MESSAGE_LIMIT: int = 20
+    AMOCRM_ENRICHMENT_REFRESH_HOURS: int = 24
+    ENABLE_AMOCRM_CALL_ANALYSIS: bool = True
+    AMOCRM_CALL_ANALYSIS_ON_WEBHOOK: bool = True
+    ENABLE_AMOCRM_CALL_TASKS: bool = True
+    AMOCRM_CALL_TASK_DUE_HOURS: int = 24
+    AMOCRM_CALL_ANALYSIS_LIMIT: int = 20
+    AMOCRM_CALL_BACKFILL_ON_WEBHOOK: bool = True
+    AMOCRM_CALL_BACKFILL_INTERVAL_MINUTES: int = 60
+    AMOCRM_CALL_BACKFILL_LIMIT: int = 50
+    AMOCRM_CALL_MAX_AUDIO_MB: int = 19
+    AMOCRM_CALL_TRANSCRIPT_NOTE_CHARS: int = 6000
     AIRTABLE_API_KEY: Optional[SecretStr] = None
     AIRTABLE_BASE_ID: Optional[str] = None
     DATABASE_URL: str = Field(default="bot_database.db")
@@ -64,6 +81,11 @@ class AppSettings(BaseSettings):
     CRM_GROUP_ID: Optional[int] = None
     PROJECTS_GROUP_ID: Optional[int] = None
     TEAM_GROUP_ID: Optional[int] = None
+
+    # Case Publisher & CMS Settings
+    JONBRANDING_CHANNEL: str = "jonbranding"
+    CMS_WEBHOOK_URL: Optional[str] = None
+    ENABLE_CASE_PUBLISHER: bool = True
 
     # Topic IDs (Forum Groups)
     CRM_TOPIC_ID: Optional[int] = 1
@@ -154,6 +176,7 @@ class AppSettings(BaseSettings):
             "ADMIN_BOT_TOKEN",
             "TELEGRAM_WEBHOOK_SECRET",
             "TELEGRAM_MINI_APP_URL",
+            "OPENAI_API_KEY",
             "DEEPSEEK_API_KEY",
             "AMOCRM_CLIENT_SECRET",
             "AIRTABLE_API_KEY",
@@ -175,6 +198,7 @@ class AppSettings(BaseSettings):
             "AMOCRM_CRON_SECRET",
             "AWS_ACCESS_KEY_ID",
             "AWS_SECRET_ACCESS_KEY",
+            "CMS_WEBHOOK_URL",
         }
         for key in optional_keys:
             if data.get(key) == "":
