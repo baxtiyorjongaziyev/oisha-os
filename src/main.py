@@ -950,80 +950,7 @@ async def background_monitor_task() -> None:
             await asyncio.sleep(60)
 
 
-async def self_command_handler(event):
-    """'Saved Messages' dagi buyruqlarni (self-chat) va Baxtiyor akani o'z xabarlarini tahlil qilish."""
-    if not event.message.text:
-        return
-    cmd = event.message.text.lower().strip()
-    if cmd.startswith("/dashboard"):
-        stats = await msg_controller.db.get_today_stats()
-        msg = f"📊 **OISHA ROI DASHBOARD**\n📅 Bugun: {datetime.now().strftime('%d-%m-%Y')}\n\n👤 Yangi lidlar: {stats['leads_found']}\n💬 Sinxron: {stats['messages_synced']}\n"
-        await event.respond(msg)
-    elif cmd.startswith("/lead_cockpit") or cmd.startswith("/pipeline"):
-        from src.services.core.lead_operating_system import LeadOperatingSystem
-
-        lead_os = LeadOperatingSystem(msg_controller, msg_controller.db)
-        report = await lead_os.render_cockpit_report(limit=12, lookback_hours=72)
-        await event.respond(report, parse_mode="HTML")
-    elif cmd.startswith("/status"):
-        await event.respond("🟢 **TIZIM HOLATI:** Active (GCP Master)")
-    elif cmd.startswith("/report"):
-        await event.respond("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
-        try:
-            from src.services.core.crm_daily_report import CRMDailyReporter
-            amocrm_client = None
-            if msg_controller and getattr(msg_controller, "crm", None):
-                amocrm_client = getattr(msg_controller.crm, "amocrm", None)
-            if not amocrm_client:
-                amocrm_client = get_surgical_integration().amocrm
-            
-            reporter = CRMDailyReporter(amocrm=amocrm_client)
-            stats = await reporter.fetch_stats()
-            prev = reporter._load_prev_stats()
-            report_text = reporter.format_report(stats, prev)
-            await event.respond(report_text)
-        except Exception as e:
-            await event.respond(f"❌ Xatolik yuz berdi: {e}")
-    elif cmd.startswith("/stats"):
-        await event.respond("⏳ Joriy statistika olinmoqda...")
-        try:
-            from src.services.core.crm_daily_report import CRMDailyReporter
-            amocrm_client = None
-            if msg_controller and getattr(msg_controller, "crm", None):
-                amocrm_client = getattr(msg_controller.crm, "amocrm", None)
-            if not amocrm_client:
-                amocrm_client = get_surgical_integration().amocrm
-            
-            reporter = CRMDailyReporter(amocrm=amocrm_client)
-            stats = await reporter.fetch_stats()
-            text = (
-                f"📊 **Bugungi holat ({stats.date_label})**\n"
-                f"Tushgan: {stats.total_leads} lead\n"
-                f"Gaplashilgan: {stats.contacted} lead\n"
-                f"Sifatli: {stats.qualified} lead\n"
-                f"Muvaffaqiyatli (Won): {stats.won}\n"
-                f"Daromad: ${stats.revenue:,.0f}\n"
-                f"Pipeline qiymati: ${stats.pipeline_value:,.0f}"
-            )
-            await event.respond(text)
-        except Exception as e:
-            await event.respond(f"❌ Xatolik: {e}")
-    elif cmd.startswith("/history"):
-        try:
-            from src.services.core.crm_daily_report import CRMDailyReporter
-            reporter = CRMDailyReporter(amocrm=None)
-            history = reporter.get_history(7)
-            if not history:
-                await event.respond("📅 Tarix topilmadi. Hisobotlar hali keshga yozilmagan.")
-                return
-            lines = ["📅 **So'nggi 7 kunlik hisobotlar tarixi:**"]
-            for s in history:
-                lines.append(
-                    f"• {s.date_label}: {s.total_leads} lead | {s.won} won | ${s.revenue:,.0f}"
-                )
-            await event.respond("\n".join(lines))
-        except Exception as e:
-            await event.respond(f"❌ Xatolik: {e}")
+# First definition of self_command_handler was merged into the main one below to avoid collision.
 
 
 async def handle_new_message(event):
@@ -1965,8 +1892,70 @@ async def self_command_handler(event):
             "✅ *Oisha hozirda fonda muvaffaqiyatli ishlamoqda.*"
         )
         await event.respond(msg)
+    elif cmd.startswith("/lead_cockpit") or cmd.startswith("/pipeline"):
+        from src.services.core.lead_operating_system import LeadOperatingSystem
+        lead_os = LeadOperatingSystem(msg_controller, msg_controller.db)
+        report = await lead_os.render_cockpit_report(limit=12, lookback_hours=72)
+        await event.respond(report, parse_mode="HTML")
     elif cmd.startswith("/status"):
         await event.respond("🟢 **Oisha Engine:** Active\n🛰 **Server:** GCP Cloud Run")
+    elif cmd.startswith("/report"):
+        await event.respond("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
+        try:
+            from src.services.core.crm_daily_report import CRMDailyReporter
+            amocrm_client = None
+            if msg_controller and getattr(msg_controller, "crm", None):
+                amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+            if not amocrm_client:
+                amocrm_client = get_surgical_integration().amocrm
+            
+            reporter = CRMDailyReporter(amocrm=amocrm_client)
+            stats = await reporter.fetch_stats()
+            prev = reporter._load_prev_stats()
+            report_text = reporter.format_report(stats, prev)
+            await event.respond(report_text)
+        except Exception as e:
+            await event.respond(f"❌ Xatolik yuz berdi: {e}")
+    elif cmd.startswith("/stats"):
+        await event.respond("⏳ Joriy statistika olinmoqda...")
+        try:
+            from src.services.core.crm_daily_report import CRMDailyReporter
+            amocrm_client = None
+            if msg_controller and getattr(msg_controller, "crm", None):
+                amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+            if not amocrm_client:
+                amocrm_client = get_surgical_integration().amocrm
+            
+            reporter = CRMDailyReporter(amocrm=amocrm_client)
+            stats = await reporter.fetch_stats()
+            text = (
+                f"📊 **Bugungi holat ({stats.date_label})**\n"
+                f"Tushgan: {stats.total_leads} lead\n"
+                f"Gaplashilgan: {stats.contacted} lead\n"
+                f"Sifatli: {stats.qualified} lead\n"
+                f"Muvaffaqiyatli (Won): {stats.won}\n"
+                f"Daromad: ${stats.revenue:,.0f}\n"
+                f"Pipeline qiymati: ${stats.pipeline_value:,.0f}"
+            )
+            await event.respond(text)
+        except Exception as e:
+            await event.respond(f"❌ Xatolik: {e}")
+    elif cmd.startswith("/history"):
+        try:
+            from src.services.core.crm_daily_report import CRMDailyReporter
+            reporter = CRMDailyReporter(amocrm=None)
+            history = reporter.get_history(7)
+            if not history:
+                await event.respond("📅 Tarix topilmadi. Hisobotlar hali keshga yozilmagan.")
+                return
+            lines = ["📅 **So'nggi 7 kunlik hisobotlar tarixi:**"]
+            for s in history:
+                lines.append(
+                    f"• {s.date_label}: {s.total_leads} lead | {s.won} won | ${s.revenue:,.0f}"
+                )
+            await event.respond("\n".join(lines))
+        except Exception as e:
+            await event.respond(f"❌ Xatolik: {e}")
     elif cmd.startswith("/junk_audit"):
         if msg_controller and msg_controller.enterprise_reporter:
             await event.respond(
@@ -2004,7 +1993,7 @@ async def self_command_handler(event):
                     )
             except Exception as e:
                 logger.error(f"[COMMAND] /stagnant error: {e}", exc_info=True)
-            await event.respond(f"❌ **Xato:** {str(e)}")
+                await event.respond(f"❌ **Xato:** {str(e)}")
         else:
             await event.respond("❌ **Xato:** EnterpriseReporter topilmadi.")
     elif cmd.startswith("/calendar_scan"):
@@ -2029,6 +2018,55 @@ async def self_command_handler(event):
         except Exception as exc:
             logger.error(f"[COMMAND] /calendar_scan error: {exc}", exc_info=True)
             await event.respond(f"❌ Calendar scan xatosi: {type(exc).__name__}")
+    elif cmd.startswith("/sync_cases") or cmd.startswith("/sync_portfolio"):
+        parts = cmd.split()
+        limit_val = 30
+        if len(parts) > 1 and parts[1].isdigit():
+            limit_val = int(parts[1])
+            
+        await event.respond(
+            f"🚀 **Backlog portfolio sinxronizatsiyasi boshlandi...**\n"
+            f"`@{settings.JONBRANDING_CHANNEL}` kanalidan so'nggi {limit_val} ta xabarni tekshirib, portfolio keyslarini aniqlayman va CMS'ga yuklayman. Iltimos, kuting... ⏳"
+        )
+        try:
+            from src.services.core.case_publisher import CasePublisher
+            publisher = CasePublisher(client=event.client)
+            
+            target = settings.JONBRANDING_CHANNEL.strip().lower()
+            
+            scanned = 0
+            published = 0
+            skipped = 0
+            
+            async for msg in event.client.iter_messages(target, limit=limit_val):
+                scanned += 1
+                if not msg.text:
+                    skipped += 1
+                    continue
+
+                try:
+                    success = await publisher.process_message(msg)
+                    if success:
+                        published += 1
+                    else:
+                        skipped += 1
+                except Exception as pe:
+                    logger.error(f"[CRAWL COMMAND] Error processing message {msg.id}: {pe}")
+                    skipped += 1
+
+                # Safe delay
+                await asyncio.sleep(2.5)
+                
+            await event.respond(
+                f"🏁 **Portfolio keys sinxronizatsiyasi muvaffaqiyatli yakunlandi!**\n\n"
+                f"📊 **Statistika:**\n"
+                f"• Skanner qilindi: {scanned} ta xabar\n"
+                f"• Yuklandi (CMS): {published} ta keys\n"
+                f"• O'tkazib yuborildi: {skipped} ta xabar"
+            )
+        except Exception as e:
+            logger.error(f"[COMMAND] /sync_cases error: {e}", exc_info=True)
+            await event.respond(f"❌ **Sinxronizatsiyada xatolik:** {str(e)}")
 
 
 async def activity_monitor_handler(event):
