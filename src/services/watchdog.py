@@ -16,6 +16,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("Watchdog")
 
+import tempfile
+
 HEALTH_URL = os.environ.get(
     "OISHA_HEALTH_URL",
     f"http://127.0.0.1:{os.environ.get('PORT', '8080')}/healthz/",
@@ -23,7 +25,7 @@ HEALTH_URL = os.environ.get(
 SERVICE_NAME = os.environ.get("OISHA_SYSTEMD_SERVICE", "oisha-os")
 CHECK_INTERVAL = 30  # seconds
 FAILURE_THRESHOLD = 3  # number of consecutive failures before restart
-RESTART_COUNT_FILE = "/tmp/oisha-watchdog-restarts"
+RESTART_COUNT_FILE = os.path.join(tempfile.gettempdir(), "oisha-watchdog-restarts")
 
 def restart_service():
     logger.warning(f"Triggering systemctl restart {SERVICE_NAME}...")
