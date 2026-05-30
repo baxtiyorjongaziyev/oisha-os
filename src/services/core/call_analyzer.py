@@ -887,7 +887,7 @@ class CallAnalyzer:
                 return str(value)
         if note.get("id"):
             return str(note["id"])
-        digest = hashlib.sha1(f"{lead_id}:{audio_url}".encode("utf-8")).hexdigest()[:16]
+        digest = hashlib.sha256(f"{lead_id}:{audio_url}".encode("utf-8")).hexdigest()[:16]
         return f"lead-{lead_id}-{digest}"
 
     @staticmethod
