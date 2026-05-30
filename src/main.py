@@ -49,6 +49,7 @@ from src.services.core.folder_manager import FolderManager
 from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
+from src.services.core.case_publisher import CasePublisher
 from src.services.core.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
@@ -1112,13 +1113,27 @@ async def handle_new_message(event):
             )
             return
 
-            if event.message.text == "/sync_history":
-                await event.respond(
-                    "👸 Oisha-OS: O'tgan 1 yillik shaxsiy yozishmalarni (DM) bazaga kiritishni boshladim... 👸🛡️\nBu biroz vaqt olishi mumkin, orqa fonda xavfsiz ishlayman."
+        if event.message.text == "/hunt":
+            await event.respond(
+                "👸 Oisha-OS: 2026-yildagi BARCHA shaxsiy yozishmalarni skanerlash boshlandi!\n"
+                "🎯 Sifatli leadlar Team CRM topicga yuboriladi.\n"
+                "⏳ Bu jarayon 10-30 daqiqa olishi mumkin..."
+            )
+            asyncio.create_task(
+                lead_scraper.hunt_2026_leads(
+                    client=client,
+                    bot_client=bot_client,
                 )
-                sync_service = HistoricalSyncService(msg_controller.db, client)
-                asyncio.create_task(sync_service.start_backlog_sync(days=365))
-                return
+            )
+            return
+
+        if event.message.text == "/sync_history":
+            await event.respond(
+                "👸 Oisha-OS: O'tgan 1 yillik shaxsiy yozishmalarni (DM) bazaga kiritishni boshladim... 👸🛡️\nBu biroz vaqt olishi mumkin, orqa fonda xavfsiz ishlayman."
+            )
+            sync_service = HistoricalSyncService(msg_controller.db, client)
+            asyncio.create_task(sync_service.start_backlog_sync(days=365))
+            return
 
     # 2. Xabar matnini olish
     message_text = event.message.message
@@ -1888,6 +1903,40 @@ def _negotiation_int(name: str, default: int) -> int:
         return default
 
 
+async def case_publisher_handler(event):
+    """Listen to @jonbranding channel messages and process/publish design cases."""
+    if not settings.ENABLE_CASE_PUBLISHER:
+        return
+
+    try:
+        chat = await event.get_chat()
+        chat_username = getattr(chat, "username", None)
+        chat_id = event.chat_id
+
+        target = settings.JONBRANDING_CHANNEL.strip().lower()
+
+        is_match = False
+        if chat_username and chat_username.lower() == target:
+            is_match = True
+        elif target.startswith("-100") and str(chat_id) == target:
+            is_match = True
+        elif str(chat_id) == target:
+            is_match = True
+
+        if not is_match:
+            return
+
+        logger.info(
+            f"[CASE_HANDLER] New message in target channel '{target}': msg_id={event.id}"
+        )
+
+        publisher = CasePublisher(client=event.client)
+        asyncio.create_task(publisher.process_message(event.message))
+
+    except Exception as e:
+        logger.error(f"[CASE_HANDLER] Error in handler: {e}")
+
+
 async def negotiation_agent_handler(event):
     """Safe autonomous negotiation for real private inbound messages."""
     if not _env_enabled("ENABLE_AI_NEGOTIATION"):
@@ -2374,6 +2423,100 @@ async def main():
 
     asyncio.create_task(crm_discipline_loop())
 
+    # Background Task: Universal Autonomous AI Autopilot Loop (Every 15 minutes)
+    async def ai_autopilot_loop():
+        # Let components/clients stabilize
+        await asyncio.sleep(15)
+        
+        from src.services.core.telegram_task_creator import TelegramTaskCreator
+        from src.services.core.call_analyzer import CallAnalyzer
+        from src.services.core.ambassador_journey import AmbassadorJourneyManager
+        from src.services.utils.voice_processor import VoiceProcessor
+        
+        gemini_key = api_keys.get("gemini")
+        if not gemini_key:
+            logger.warning("[AUTOPILOT] Gemini key missing — AI Autopilot loop disabled.")
+            return
+
+        voice_proc = VoiceProcessor(api_key=gemini_key)
+        task_creator = TelegramTaskCreator(
+            amocrm=msg_controller.crm.amocrm,
+            db=msg_controller.db,
+            user_client=client,
+            voice_processor=voice_proc,
+            gemini_api_key=gemini_key,
+        )
+        call_analyzer = CallAnalyzer(
+            amocrm=msg_controller.crm.amocrm,
+            db=msg_controller.db,
+        )
+        ambassador_manager = AmbassadorJourneyManager(
+            amocrm=msg_controller.crm.amocrm,
+            db=msg_controller.db,
+            user_client=client,
+            gemini_api_key=gemini_key,
+        )
+        
+        logger.info("🤖 [AUTOPILOT] AI Autopilot loop started.")
+        
+        while True:
+            try:
+                logger.info("🤖 [AUTOPILOT] Running periodic AI Autopilot cycle...")
+                
+                # STAGE 1: Telegram Tasks & Voice Analysis
+                try:
+                    leads = await msg_controller.crm.amocrm.get_leads_detailed(limit=30)
+                    if leads and isinstance(leads, list):
+                        for lead in leads:
+                            lead_id = lead.get("id")
+                            if not lead_id:
+                                continue
+                            
+                            # Resolve primary phone number
+                            phone = None
+                            contacts = lead.get("_embedded", {}).get("contacts", []) or lead.get("contacts", [])
+                            for contact in contacts:
+                                fields = contact.get("custom_fields_values") or []
+                                for field in fields:
+                                    if str(field.get("field_code", "")).upper() == "PHONE":
+                                        vals = field.get("values") or []
+                                        if vals:
+                                            phone = str(vals[0].get("value", ""))
+                                            break
+                                if phone:
+                                    break
+                            
+                            if phone:
+                                await task_creator.create_amocrm_tasks_from_chat(
+                                    phone_or_username=phone,
+                                    lead_id=int(lead_id),
+                                    limit=15,
+                                )
+                except Exception as tg_err:
+                    logger.error(f"[AUTOPILOT] Telegram Task Creator error: {tg_err}")
+                
+                # STAGE 2: Phone Call Recordings Analysis
+                try:
+                    await call_analyzer.analyze_recent_calls(limit=30)
+                except Exception as call_err:
+                    logger.error(f"[AUTOPILOT] Call Analyzer error: {call_err}")
+                
+                # STAGE 3: Ambassador Journey Automation
+                try:
+                    await ambassador_manager.sync_won_leads_to_ambassadors(limit=30)
+                    await ambassador_manager.process_scheduled_touchpoints()
+                except Exception as amb_err:
+                    logger.error(f"[AUTOPILOT] Ambassador Journey error: {amb_err}")
+                
+                logger.info("🤖 [AUTOPILOT] AI Autopilot cycle completed successfully.")
+            except Exception as exc:
+                logger.error(f"[AUTOPILOT] Critical error in autopilot loop: {exc}")
+            
+            # Execute every 15 minutes (900 seconds)
+            await asyncio.sleep(900)
+
+    asyncio.create_task(ai_autopilot_loop())
+
     # Surgical Negotiator — autonomous negotiations agent
     async def _surgical_send(user_id: int, text: str):
         """Proactive Telegram send callback for SurgicalNegotiator."""
@@ -2614,6 +2757,10 @@ async def main():
     else:
         logger.warning("[KIRIM] Celebration listener disabled: TEAM_GROUP_ID or TOPIC_KIRIM_ID is missing.")
 
+    client.add_event_handler(
+        case_publisher_handler,
+        events.NewMessage(incoming=True),
+    )
     client.add_event_handler(
         negotiation_agent_handler,
         events.NewMessage(incoming=True),

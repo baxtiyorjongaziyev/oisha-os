@@ -2,6 +2,7 @@ import asyncio
 import hmac
 import uvicorn
 import json
+import inspect
 from datetime import datetime, timezone
 import logging
 import os
@@ -20,6 +21,9 @@ from src.services.core.agent_runtime import (
     set_runtime_context,
 )
 from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.amocrm_lead_enrichment import AmoCRMLeadEnricher
+from src.services.core.call_analyzer import CallAnalyzer
+from src.services.core.oisha_product_suite import build_oisha_sales_os_suite
 from src.services.core.telegram_ai_features import (
     TelegramBotAPI10Client,
     build_live_feature_status,
@@ -47,6 +51,12 @@ business_connections = {}  # Store active Telegram Business connections
 
 # Health check cache
 cached_status = {"status": "initializing", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+async def _maybe_await(value: Any) -> Any:
+    if inspect.isawaitable(value):
+        return await value
+    return value
 
 app = FastAPI(title="Oisha-OS Enterprise API")
 
@@ -106,6 +116,12 @@ async def root_status():
     }
     response.update(cached_status)
     return response
+
+
+@app.get("/api/oisha/product-suite")
+async def oisha_product_suite():
+    """Unified DeepSales + Metasell + Reportagram capability contract."""
+    return build_oisha_sales_os_suite()
 
 
 @app.get("/api/telegram/status")
@@ -375,9 +391,22 @@ async def telegram_ai_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Invalid Telegram update payload")
 
     update_type = classify_update(update)
-    if update_type != "guest_message":
-        logger.info("[TELEGRAM AI] accepted update type=%s", update_type)
+
+    # Route non-guest updates through the unified processor
+    if update_type not in ("guest_message", "unknown"):
+        if update_type in ("business_message", "business_connection", "managed_bot", "message"):
+            try:
+                await process_telegram_update(update, update_type)
+                logger.info("[TELEGRAM AI] processed update type=%s", update_type)
+                return {"ok": True, "handled": True, "update_type": update_type}
+            except Exception as exc:
+                logger.error("[TELEGRAM AI] failed update type=%s: %s", update_type, exc)
+                return {"ok": True, "handled": False, "update_type": update_type, "error": str(exc)}
+        logger.info("[TELEGRAM AI] accepted update type=%s (no handler)", update_type)
         return {"ok": True, "handled": False, "update_type": update_type}
+
+    if update_type == "unknown":
+        return {"ok": True, "handled": False, "update_type": "unknown"}
 
     guest_ctx = extract_guest_message_context(update)
     if not guest_ctx:
@@ -444,6 +473,13 @@ user_client = None
 db_instance = None
 audit_agent = None
 amocrm_instance = None
+_call_backfill_task: Optional[asyncio.Task] = None
+_call_backfill_last_status: Dict[str, Any] = {}
+
+_CALL_BACKFILL_LAST_STARTED_KEY = "amocrm_call_backfill:last_started_ts"
+_CALL_BACKFILL_LAST_FINISHED_KEY = "amocrm_call_backfill:last_finished_ts"
+_CALL_BACKFILL_LAST_RESULT_KEY = "amocrm_call_backfill:last_result"
+_CALL_BACKFILL_LAST_ERROR_KEY = "amocrm_call_backfill:last_error"
 
 
 def _get_amocrm_instance() -> AmoCRMSync:
@@ -472,6 +508,310 @@ async def _get_db_instance():
     db_instance = Database()
     await db_instance.init_instance()
     return db_instance
+
+
+def _get_call_backfill_limit(limit: Optional[int] = None) -> int:
+    raw_limit = (
+        limit
+        or getattr(settings, "AMOCRM_CALL_BACKFILL_LIMIT", None)
+        or getattr(settings, "AMOCRM_CALL_ANALYSIS_LIMIT", 20)
+        or 20
+    )
+    try:
+        parsed = int(raw_limit)
+    except (TypeError, ValueError):
+        parsed = 20
+    return max(1, min(parsed, 250))
+
+
+def _get_call_backfill_interval_seconds() -> int:
+    raw_minutes = getattr(settings, "AMOCRM_CALL_BACKFILL_INTERVAL_MINUTES", 60) or 60
+    try:
+        minutes = int(raw_minutes)
+    except (TypeError, ValueError):
+        minutes = 60
+    return max(1, minutes) * 60
+
+
+def _get_cron_secret_value() -> str:
+    cron_secret = _secret_setting_text(getattr(settings, "AMOCRM_CRON_SECRET", None))
+    if cron_secret:
+        return cron_secret
+    return (os.environ.get("OISHA_API_SECRET") or "").strip()
+
+
+def _is_authorized_cron_request(request: Request) -> bool:
+    secret = _get_cron_secret_value()
+    if not secret:
+        return False
+    auth_header = request.headers.get("Authorization", "")
+    return hmac.compare_digest(auth_header, f"Bearer {secret}")
+
+
+def _timestamp_to_iso(raw: Any) -> Optional[str]:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if value <= 0:
+        return None
+    return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
+
+
+def _parse_state_json(raw: Any) -> Dict[str, Any]:
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    try:
+        parsed = json.loads(str(raw))
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+async def _fetch_amocrm_call_analysis_totals(runtime_db: Any) -> Dict[str, Any]:
+    if not runtime_db:
+        return {
+            "total_analyses": 0,
+            "amocrm_analyses": 0,
+            "tasks_created": 0,
+            "latest_analyzed_at": None,
+        }
+
+    try:
+        conn = await runtime_db.get_connection()
+        result = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total_analyses,
+                SUM(CASE WHEN source = 'amocrm' THEN 1 ELSE 0 END) AS amocrm_analyses,
+                SUM(CASE WHEN task_id IS NOT NULL AND task_id != '' THEN 1 ELSE 0 END) AS tasks_created,
+                MAX(COALESCE(analyzed_at, created_at)) AS latest_analyzed_at
+            FROM call_analyses
+            """
+        )
+        result = await _maybe_await(result)
+        row = await _maybe_await(result.fetchone())
+        data = _row_to_dict(
+            row,
+            [
+                "total_analyses",
+                "amocrm_analyses",
+                "tasks_created",
+                "latest_analyzed_at",
+            ],
+        )
+        return {
+            "total_analyses": int(data.get("total_analyses") or 0),
+            "amocrm_analyses": int(data.get("amocrm_analyses") or 0),
+            "tasks_created": int(data.get("tasks_created") or 0),
+            "latest_analyzed_at": data.get("latest_analyzed_at"),
+        }
+    except Exception as exc:
+        logger.warning("[CALL STATUS] Could not fetch call analysis totals: %s", exc)
+        return {
+            "total_analyses": 0,
+            "amocrm_analyses": 0,
+            "tasks_created": 0,
+            "latest_analyzed_at": None,
+            "error": str(exc),
+        }
+
+
+async def _build_amocrm_call_analysis_status(runtime_db: Any) -> Dict[str, Any]:
+    last_started_raw = None
+    last_finished_raw = None
+    last_error = ""
+    last_result_raw = ""
+    if runtime_db:
+        last_started_raw = await _maybe_await(
+            runtime_db.get_state(_CALL_BACKFILL_LAST_STARTED_KEY, "")
+        )
+        last_finished_raw = await _maybe_await(
+            runtime_db.get_state(_CALL_BACKFILL_LAST_FINISHED_KEY, "")
+        )
+        last_result_raw = await _maybe_await(
+            runtime_db.get_state(_CALL_BACKFILL_LAST_RESULT_KEY, "")
+        )
+        last_error = await _maybe_await(
+            runtime_db.get_state(_CALL_BACKFILL_LAST_ERROR_KEY, "")
+        )
+
+    last_result = _parse_state_json(last_result_raw)
+    memory_status = dict(_call_backfill_last_status)
+
+    started_at = (
+        _timestamp_to_iso(last_started_raw)
+        or last_result.get("started_at")
+        or memory_status.get("started_at")
+    )
+    finished_at = (
+        _timestamp_to_iso(last_finished_raw)
+        or last_result.get("finished_at")
+        or memory_status.get("finished_at")
+    )
+    if not last_result:
+        last_result = dict(memory_status.get("result") or {})
+    status_error = last_error or memory_status.get("error", "")
+
+    return {
+        "ok": True,
+        "running": bool(_call_backfill_task and not _call_backfill_task.done()),
+        "config": {
+            "enabled": bool(getattr(settings, "ENABLE_AMOCRM_CALL_ANALYSIS", True)),
+            "webhook_enabled": bool(getattr(settings, "AMOCRM_CALL_ANALYSIS_ON_WEBHOOK", True)),
+            "backfill_on_webhook": bool(getattr(settings, "AMOCRM_CALL_BACKFILL_ON_WEBHOOK", True)),
+            "backfill_interval_minutes": int(
+                getattr(settings, "AMOCRM_CALL_BACKFILL_INTERVAL_MINUTES", 60) or 60
+            ),
+            "backfill_limit": _get_call_backfill_limit(),
+            "tasks_enabled": bool(getattr(settings, "ENABLE_AMOCRM_CALL_TASKS", True)),
+            "task_due_hours": int(getattr(settings, "AMOCRM_CALL_TASK_DUE_HOURS", 24) or 24),
+            "model": getattr(settings, "GEMINI_CALL_MODEL", ""),
+        },
+        "last_run": {
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "result": last_result,
+            "error": status_error,
+        },
+        "totals": await _fetch_amocrm_call_analysis_totals(runtime_db),
+    }
+
+
+async def _run_amocrm_call_backfill(
+    runtime_db: Any,
+    *,
+    reason: str,
+    limit: Optional[int] = None,
+) -> Dict[str, Any]:
+    global _call_backfill_last_status
+
+    run_limit = _get_call_backfill_limit(limit)
+    started_at = datetime.now(timezone.utc)
+    stats: Dict[str, Any] = {
+        "leads_scanned": 0,
+        "calls_processed": 0,
+        "limit": run_limit,
+        "reason": reason,
+    }
+    _call_backfill_last_status = {
+        "started_at": started_at.isoformat(),
+        "finished_at": None,
+        "result": {},
+        "error": "",
+    }
+
+    try:
+        logger.info(
+            "[CALL BACKFILL] Starting scan: reason=%s limit=%s",
+            reason,
+            run_limit,
+        )
+        analyzer = CallAnalyzer(
+            amocrm=_get_amocrm_instance(),
+            db=runtime_db,
+        )
+        result = await analyzer.analyze_recent_calls(limit=run_limit)
+        stats.update(result or {})
+        stats["ok"] = True
+        stats["started_at"] = started_at.isoformat()
+        stats["finished_at"] = datetime.now(timezone.utc).isoformat()
+        _call_backfill_last_status = {
+            "started_at": stats["started_at"],
+            "finished_at": stats["finished_at"],
+            "result": dict(stats),
+            "error": "",
+        }
+        if runtime_db:
+            await _maybe_await(
+                runtime_db.set_state(
+                    _CALL_BACKFILL_LAST_FINISHED_KEY,
+                    str(datetime.now(timezone.utc).timestamp()),
+                )
+            )
+            await _maybe_await(
+                runtime_db.set_state(
+                    _CALL_BACKFILL_LAST_RESULT_KEY,
+                    json.dumps(stats, ensure_ascii=False),
+                )
+            )
+        add_activity(
+            "AmoCRM call backfill",
+            f"scanned={stats.get('leads_scanned', 0)} processed={stats.get('calls_processed', 0)}",
+            type="success",
+        )
+        logger.info("[CALL BACKFILL] Finished: %s", stats)
+        return stats
+    except Exception as exc:
+        stats["ok"] = False
+        stats["error"] = str(exc)
+        _call_backfill_last_status = {
+            "started_at": started_at.isoformat(),
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "result": dict(stats),
+            "error": str(exc),
+        }
+        logger.error("[CALL BACKFILL] Failed: %s", exc, exc_info=True)
+        if runtime_db:
+            await _maybe_await(runtime_db.set_state(_CALL_BACKFILL_LAST_ERROR_KEY, str(exc)))
+        add_activity("AmoCRM call backfill", str(exc)[:120], type="error")
+        return stats
+
+
+async def _schedule_amocrm_call_backfill(
+    runtime_db: Any,
+    *,
+    reason: str,
+    limit: Optional[int] = None,
+    force: bool = False,
+) -> Dict[str, Any]:
+    global _call_backfill_task
+
+    if not getattr(settings, "ENABLE_AMOCRM_CALL_ANALYSIS", True):
+        return {"queued": False, "reason": "call_analysis_disabled"}
+
+    if not force and not getattr(settings, "AMOCRM_CALL_BACKFILL_ON_WEBHOOK", True):
+        return {"queued": False, "reason": "backfill_disabled"}
+
+    if _call_backfill_task and not _call_backfill_task.done():
+        return {"queued": False, "reason": "already_running"}
+
+    now_ts = datetime.now(timezone.utc).timestamp()
+    if not force and runtime_db:
+        try:
+            last_started_raw = await _maybe_await(
+                runtime_db.get_state(_CALL_BACKFILL_LAST_STARTED_KEY, "0")
+            )
+            last_started = float(last_started_raw or 0)
+        except (TypeError, ValueError):
+            last_started = 0.0
+        except Exception as exc:
+            logger.warning("[CALL BACKFILL] Could not read throttle state: %s", exc)
+            last_started = 0.0
+
+        interval_seconds = _get_call_backfill_interval_seconds()
+        if now_ts - last_started < interval_seconds:
+            return {
+                "queued": False,
+                "reason": "throttled",
+                "retry_after_seconds": int(interval_seconds - (now_ts - last_started)),
+            }
+
+    if runtime_db:
+        try:
+            await _maybe_await(
+                runtime_db.set_state(_CALL_BACKFILL_LAST_STARTED_KEY, str(now_ts))
+            )
+        except Exception as exc:
+            logger.warning("[CALL BACKFILL] Could not write throttle state: %s", exc)
+
+    run_limit = _get_call_backfill_limit(limit)
+    _call_backfill_task = asyncio.create_task(
+        _run_amocrm_call_backfill(runtime_db, reason=reason, limit=run_limit)
+    )
+    return {"queued": True, "reason": reason, "limit": run_limit}
 
 
 # [HEALTHZ] Liveness heartbeat — main event loop updates this via mark_heartbeat().
@@ -735,7 +1075,8 @@ async def _fetch_call_analysis_rows(limit: int = 500) -> List[Dict[str, Any]]:
             duration_seconds, overall_score, category, scores, summary,
             strengths, weaknesses, client_mood, client_interest_level,
             objections, outcome, next_steps, recommended_tasks,
-            transcript, audio_url, source, analyzed_at, created_at
+            transcript, audio_url, caller_phone, task_id, task_created_at,
+            source, analyzed_at, created_at
         FROM call_analyses
         ORDER BY COALESCE(analyzed_at, created_at) DESC
         LIMIT ?
@@ -774,6 +1115,9 @@ async def _fetch_call_analysis_rows(limit: int = 500) -> List[Dict[str, Any]]:
             "recommended_tasks",
             "transcript",
             "audio_url",
+            "caller_phone",
+            "task_id",
+            "task_created_at",
             "source",
             "analyzed_at",
             "created_at",
@@ -1262,6 +1606,56 @@ async def refresh_amocrm_token(request: Request):
         return {"ok": False, "error": amocrm.last_error or "Refresh failed"}
 
 
+@app.post("/api/amocrm-call-analysis/run")
+async def run_amocrm_call_analysis_job(
+    request: Request,
+    limit: Optional[int] = Query(None, ge=1, le=250),
+    wait: bool = Query(False),
+    force: bool = Query(False),
+):
+    """Authenticated trigger for AmoCRM call recording backfill."""
+    if not _is_authorized_cron_request(request):
+        return JSONResponse(
+            status_code=401,
+            content={"ok": False, "error": "Unauthorized"},
+        )
+
+    runtime_db = db_instance or await _get_db_instance()
+    if wait:
+        if _call_backfill_task and not _call_backfill_task.done():
+            return JSONResponse(
+                status_code=409,
+                content={"ok": False, "error": "call_backfill_already_running"},
+            )
+        stats = await _run_amocrm_call_backfill(
+            runtime_db,
+            reason="manual_api_wait",
+            limit=limit,
+        )
+        return {"ok": bool(stats.get("ok")), "mode": "wait", "stats": stats}
+
+    queued = await _schedule_amocrm_call_backfill(
+        runtime_db,
+        reason="manual_api",
+        limit=limit,
+        force=force,
+    )
+    return {"ok": bool(queued.get("queued")), **queued}
+
+
+@app.get("/api/amocrm-call-analysis/status")
+async def get_amocrm_call_analysis_status(request: Request):
+    """Authenticated status for the AmoCRM call analysis/backfill pipeline."""
+    if not _is_authorized_cron_request(request):
+        return JSONResponse(
+            status_code=401,
+            content={"ok": False, "error": "Unauthorized"},
+        )
+
+    runtime_db = db_instance or await _get_db_instance()
+    return await _build_amocrm_call_analysis_status(runtime_db)
+
+
 @app.post("/webhook/amocrm")
 async def amocrm_webhook(request: Request):
     """Handle incoming webhooks from AmoCRM."""
@@ -1305,8 +1699,9 @@ async def process_amocrm_event(data: Dict[str, Any]):
 
         # 2. AmoCRM va Agentni tayyorlash
         amocrm_instance = _get_amocrm_instance()
+        runtime_db = db_instance or await _get_db_instance()
 
-        agent = AutonomousSalesAgent(db=db_instance)
+        agent = AutonomousSalesAgent(db=runtime_db)
         
         # 3. Lead va Kontekst ma'lumotlarini olish
         lead_data = await amocrm_instance.get_lead(int(lead_id))
@@ -1314,6 +1709,63 @@ async def process_amocrm_event(data: Dict[str, Any]):
             return
             
         phone = amocrm_instance.get_lead_phone(int(lead_id))
+
+        if getattr(settings, "ENABLE_AMOCRM_LEAD_ENRICHMENT", True):
+            try:
+                enricher = AmoCRMLeadEnricher(
+                    amocrm=amocrm_instance,
+                    db=runtime_db,
+                    user_client=user_client,
+                )
+                enrichment_result = await enricher.enrich_lead(
+                    lead_id=int(lead_id),
+                    lead_data=lead_data,
+                    phone=phone,
+                )
+                logger.info(
+                    "[Webhook] AmoCRM enrichment result: %s",
+                    enrichment_result.to_dict(),
+                )
+            except Exception as enrich_exc:
+                logger.error(
+                    "[Webhook] AmoCRM enrichment failed for lead %s: %s",
+                    lead_id,
+                    enrich_exc,
+                    exc_info=True,
+                )
+
+        if getattr(settings, "ENABLE_AMOCRM_CALL_ANALYSIS", True) and getattr(
+            settings, "AMOCRM_CALL_ANALYSIS_ON_WEBHOOK", True
+        ):
+            try:
+                call_analyzer = CallAnalyzer(
+                    amocrm=amocrm_instance,
+                    db=runtime_db,
+                )
+                calls_processed = await call_analyzer.process_call_recordings_for_lead(
+                    lead_id=int(lead_id),
+                    caller_phone=phone or "",
+                    responsible_user_id=lead_data.get("responsible_user_id"),
+                )
+                logger.info(
+                    "[Webhook] AmoCRM call analysis result: lead_id=%s processed=%s",
+                    lead_id,
+                    calls_processed,
+                )
+            except Exception as call_exc:
+                logger.error(
+                    "[Webhook] AmoCRM call analysis failed for lead %s: %s",
+                    lead_id,
+                    call_exc,
+                    exc_info=True,
+                )
+
+        backfill_status = await _schedule_amocrm_call_backfill(
+            runtime_db,
+            reason=f"amocrm_webhook:{lead_id}",
+        )
+        if backfill_status.get("queued"):
+            logger.info("[Webhook] AmoCRM call backfill queued: %s", backfill_status)
         
         # 4. Agentni ishga tushirish
         # Webhookdan kelgan trigger uchun maxsus xabar yuboramiz
@@ -1337,10 +1789,10 @@ async def process_amocrm_event(data: Dict[str, Any]):
             response_text = result["response"]
             
             # AmoCRM ga note sifatida qo'shish (Audit trail uchun)
-            await amocrm_instance.add_lead_note(
+            await _maybe_await(amocrm_instance.add_lead_note(
                 int(lead_id), 
                 f"🤖 [Oisha Autonomous]: {response_text}"
-            )
+            ))
             
             # Agar Telegram client bo'lsa va phone bo'lsa, to'g'ridan-to'g'ri yuborish mumkin
             # (Bu qism loyiha talabiga ko'ra integratsiya qilinadi)
@@ -1348,10 +1800,10 @@ async def process_amocrm_event(data: Dict[str, Any]):
             
         elif result.get("decision") == "escalate":
             logger.warning(f"⚠️ [Agent] Escalation triggered for lead {lead_id}: {result.get('reason')}")
-            await amocrm_instance.add_lead_note(
+            await _maybe_await(amocrm_instance.add_lead_note(
                 int(lead_id),
                 f"🚨 [Oisha Escalation]: {result.get('reason')}. Human intervention needed."
-            )
+            ))
 
     except Exception as e:
         logger.error(f"❌ [Webhook Process] Error: {e}", exc_info=True)
@@ -1494,37 +1946,70 @@ def classify_update(data: Dict[str, Any]) -> str:
         return "message"
     return "unknown"
 
+_bot2bot_tracker: Dict[str, list] = {}
+BOT2BOT_MAX_ROUNDS = 5
+BOT2BOT_COOLDOWN_SEC = 60
+
+
+def _bot2bot_allowed(from_id: int, chat_id: int) -> bool:
+    """Rate-limit bot-to-bot exchanges to prevent infinite loops."""
+    import time
+
+    key = f"{from_id}:{chat_id}"
+    now = time.time()
+    history = _bot2bot_tracker.get(key, [])
+    history = [ts for ts in history if now - ts < BOT2BOT_COOLDOWN_SEC]
+    if len(history) >= BOT2BOT_MAX_ROUNDS:
+        return False
+    history.append(now)
+    _bot2bot_tracker[key] = history
+    return True
+
+
 async def process_telegram_update(update: Dict[str, Any], update_type: str):
     """Processes the telegram update using appropriate handlers."""
     from src.handlers.messages import (
-        handle_guest_query, 
-        handle_business_message, 
+        handle_guest_query,
+        handle_business_message,
         handle_business_connection,
         handle_managed_bot,
-        handle_direct_message
+        handle_direct_message,
     )
     from telegram import Update, Bot
-    
+
     try:
         bot_token = os.environ.get("BOT_TOKEN") or settings.BOT_TOKEN.get_secret_value()
         bot = Bot(token=bot_token)
         ptb_update = Update.de_json(update, bot)
-        
+
+        # Bot-to-bot loop safeguard
+        msg = update.get("message") or update.get("business_message") or {}
+        from_user = msg.get("from", {})
+        if from_user.get("is_bot"):
+            chat_id = msg.get("chat", {}).get("id", 0)
+            if not _bot2bot_allowed(from_user.get("id", 0), chat_id):
+                logger.warning(
+                    "[BOT2BOT] Loop safeguard triggered for bot %s in chat %s",
+                    from_user.get("id"),
+                    chat_id,
+                )
+                return
+
         if update_type == "guest_query":
             await handle_guest_query(ptb_update, None, db_instance, msg_controller, bot_token)
-            
+
         elif update_type == "business_message":
             await handle_business_message(ptb_update, None, db_instance, action_parser, msg_controller)
-            
+
         elif update_type == "business_connection":
             await handle_business_connection(ptb_update, None, business_connections)
-            
+
         elif update_type == "managed_bot":
             await handle_managed_bot(ptb_update, None)
 
         elif update_type == "message":
             await handle_direct_message(ptb_update, None, db_instance, action_parser, msg_controller)
-            
+
     except Exception as e:
         logger.error(f"❌ [Telegram Process] Error: {e}", exc_info=True)
 @app.get("/api/system/info")
