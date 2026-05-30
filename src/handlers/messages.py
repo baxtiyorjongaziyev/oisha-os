@@ -78,14 +78,18 @@ async def process_message_logic(
         if not should_respond:
             return
 
-        # [NEW] API 10: Show draft status while AI is thinking
-        if is_business:
-            api_client = TelegramBotAPI10Client(context.bot.token if context and context.bot else config.BOT_TOKEN)
-            await api_client.send_message_draft(
-                chat_id=chat.id,
-                draft_id=message.message_id,
-                text="Oisha javob tayyorlamoqda...",
-            )
+        # [API 10] Show draft status while AI is thinking (all chats)
+        streaming_enabled = getattr(config, "TELEGRAM_AI_STREAMING_ENABLED", True)
+        if streaming_enabled and chat_type == "private":
+            try:
+                api_client = TelegramBotAPI10Client(context.bot.token if context and context.bot else config.BOT_TOKEN)
+                await api_client.send_message_draft(
+                    chat_id=chat.id,
+                    draft_id=message.message_id,
+                    text="Oisha javob tayyorlamoqda...",
+                )
+            except Exception:
+                pass  # streaming is best-effort, don't block response
 
         # Use MessageController for agentic flow
         ai_response = await msg_controller.get_response(
