@@ -8,6 +8,7 @@ import urllib.request
 
 from telethon import TelegramClient
 from telethon.sessions import StringSession
+from dotenv import load_dotenv
 from telethon.errors import (
     FloodWaitError,
     UserNotMutualContactError,
@@ -17,11 +18,12 @@ from telethon.errors import (
     UsernameInvalidError,
 )
 
-API_ID = 30643078
-API_HASH = "e5850001c1d86ac0fb439fbd8319cb7f"
+load_dotenv()
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
 SESSION_STRING = os.environ["USERBOT_SESSION_STRING"]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-OWNER_ID = 150074828
+OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
 
 MESSAGE = (
     "Assalomu alaykum\n"

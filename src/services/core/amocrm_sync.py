@@ -797,7 +797,7 @@ class AmoCRMSync:
             response = requests.post(url, headers=self._get_headers(), json=data, timeout=30)
             if response.status_code == 401 and self.refresh_token():
                 response = requests.post(url, headers=self._get_headers(), json=data, timeout=30)
-            if response.status_code == 201:
+            if response.status_code in [200, 201]:
                 self.last_error = None
                 logger.info(f"[AMOCRM OK] Vazifa yaratildi: {element_id}")
                 return response.json()
