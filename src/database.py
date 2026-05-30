@@ -323,6 +323,24 @@ class Database:
                 "CREATE TABLE IF NOT EXISTS kv_settings (key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME)"
             )
             await conn.execute(
+                "CREATE TABLE IF NOT EXISTS juma_sent_logs (user_id INTEGER, run_date TEXT, PRIMARY KEY (user_id, run_date))"
+            )
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS ambassador_journey_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    lead_id INTEGER,
+                    touchpoint_type TEXT,
+                    sent_message TEXT,
+                    response_text TEXT,
+                    nps_score INTEGER,
+                    status TEXT DEFAULT 'pending',
+                    scheduled_at TEXT,
+                    sent_at TEXT,
+                    created_at TEXT
+                )
+            """)
+            await conn.execute(
                 "CREATE TABLE IF NOT EXISTS agent_actions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action_type TEXT, action_data TEXT, success BOOLEAN DEFAULT 1, created_at DATETIME)"
             )
             await conn.execute(
@@ -351,6 +369,9 @@ class Database:
                     recommended_tasks TEXT,
                     transcript TEXT,
                     audio_url TEXT,
+                    caller_phone TEXT DEFAULT '',
+                    task_id TEXT,
+                    task_created_at TEXT,
                     source TEXT DEFAULT 'external',
                     analyzed_at TEXT,
                     created_at TEXT
@@ -363,6 +384,9 @@ class Database:
                 ("audio_url", "TEXT"),
                 ("source", "TEXT DEFAULT 'external'"),
                 ("created_at", "TEXT"),
+                ("caller_phone", "TEXT DEFAULT ''"),
+                ("task_id", "TEXT"),
+                ("task_created_at", "TEXT"),
             ]
             existing_call_analysis_columns = await self._get_table_columns(
                 conn, "call_analyses"
@@ -535,6 +559,8 @@ class Database:
             "chat_summaries",
             "user_intelligence",
             "kv_settings",
+            "juma_sent_logs",
+            "ambassador_journey_logs",
         }
     )
 
