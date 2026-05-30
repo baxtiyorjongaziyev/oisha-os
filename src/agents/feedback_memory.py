@@ -17,12 +17,33 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 # Max turns retained per user to bound DB growth
 MAX_HISTORY_PER_USER = 50
+
+
+@asynccontextmanager
+async def _db_connection(db: Any):
+    get_conn = getattr(db, "get_conn", None)
+    if callable(get_conn):
+        conn_or_cm = get_conn()
+        if hasattr(conn_or_cm, "__aenter__"):
+            async with conn_or_cm as conn:
+                yield conn
+            return
+        yield conn_or_cm
+        return
+
+    get_connection = getattr(db, "get_connection", None)
+    if not callable(get_connection):
+        raise AttributeError("db must expose get_conn() or get_connection()")
+
+    conn = await get_connection()
+    yield conn
 
 
 class FeedbackMemory:
@@ -36,7 +57,7 @@ class FeedbackMemory:
         if self._ensured:
             return
         try:
-            async with self._db.get_conn() as conn:
+            async with _db_connection(self._db) as conn:
                 await conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS conversation_memory (
@@ -79,7 +100,7 @@ class FeedbackMemory:
             except Exception:
                 pass
         try:
-            async with self._db.get_conn() as conn:
+            async with _db_connection(self._db) as conn:
                 await conn.execute(
                     """
                     INSERT INTO conversation_memory (user_id, role, text, assessment)
@@ -113,7 +134,7 @@ class FeedbackMemory:
         """Return the last `limit` turns for the user, oldest first."""
         await self._ensure_table()
         try:
-            async with self._db.get_conn() as conn:
+            async with _db_connection(self._db) as conn:
                 cursor = await conn.execute(
                     """
                     SELECT role, text, assessment, created_at
@@ -158,7 +179,7 @@ class FeedbackMemory:
         """Delete all history for a user (e.g. after CLOSED_WON)."""
         await self._ensure_table()
         try:
-            async with self._db.get_conn() as conn:
+            async with _db_connection(self._db) as conn:
                 await conn.execute(
                     "DELETE FROM conversation_memory WHERE user_id = ?", (user_id,)
                 )
@@ -170,7 +191,7 @@ class FeedbackMemory:
         """Return the most recent assessment dict for the user, or None."""
         await self._ensure_table()
         try:
-            async with self._db.get_conn() as conn:
+            async with _db_connection(self._db) as conn:
                 cursor = await conn.execute(
                     """
                     SELECT assessment FROM conversation_memory
