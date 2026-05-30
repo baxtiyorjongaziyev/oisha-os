@@ -2,11 +2,12 @@ import asyncio
 import os
 import sys
 from telethon import TelegramClient
+from dotenv import load_dotenv
 
-# HARDCODED for one-off test
-API_ID = 30643078
-API_HASH = '***REDACTED***'
-OWNER_ID = 150074828
+load_dotenv()
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
+OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
 
 async def final_proof():
     session_path = 'data/bot_session'
