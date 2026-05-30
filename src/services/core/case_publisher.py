@@ -23,9 +23,16 @@ class CasePublisher:
         # AI Config
         from google import genai
 
-        self.genai_client = genai.Client(
-            api_key=settings.GEMINI_API_KEY.get_secret_value()
-        )
+        try:
+            api_key = settings.GEMINI_API_KEY.get_secret_value()
+        except Exception:
+            api_key = str(getattr(settings, "GEMINI_API_KEY", ""))
+
+        if api_key:
+            self.genai_client = genai.Client(api_key=api_key)
+        else:
+            self.genai_client = None
+
         self.model_name = "gemini-2.0-flash"
 
     async def is_portfolio_case(self, text: str) -> bool:
@@ -41,6 +48,10 @@ class CasePublisher:
             "Respond with only 'YES' or 'NO'.\n\n"
             f"Post text:\n{text}"
         )
+
+        if not getattr(self, "genai_client", None):
+            keywords = ["keys", "case", "brending", "dizayn", "mijoz", "logo", "qadoq"]
+            return any(k in text.lower() for k in keywords)
 
         try:
             from src.utils.ai_utils import safe_ai_call
@@ -73,8 +84,23 @@ class CasePublisher:
             f"Case text:\n{text}"
         )
 
+        if not getattr(self, "genai_client", None):
+            return {
+                "title": "Jon Branding Portfolio Keys",
+                "client": "N/A",
+                "short_description": text[:150] + "...",
+                "challenge": "N/A",
+                "solution": text,
+                "results": "N/A",
+                "tags": ["branding"],
+            }
+
         try:
             from google.genai import types
+
+            # Default safe mock/fallback if client is not configured
+            if not self.genai_client:
+                raise ValueError("GenAI client is not configured (missing API key).")
 
             response = await asyncio.to_thread(
                 self.genai_client.models.generate_content,
