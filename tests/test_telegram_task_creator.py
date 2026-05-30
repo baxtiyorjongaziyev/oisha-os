@@ -1,0 +1,129 @@
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from src.services.core.telegram_task_creator import TelegramTaskCreator
+
+
+@pytest.mark.asyncio
+async def test_transcribe_voice_message_success():
+    amocrm_mock = MagicMock()
+    db_mock = MagicMock()
+    userbot_mock = MagicMock()
+    voice_proc_mock = MagicMock()
+
+    # Mock telethon message downloading
+    mock_msg = MagicMock()
+    mock_msg.id = 123
+    mock_msg.download_media = AsyncMock()
+
+    # Mock voice processor STT result
+    voice_proc_mock.transcribe = AsyncMock(return_value="Matn: Menga logotip va patent kerak | Maqsad: Patent so'rovi")
+
+    creator = TelegramTaskCreator(
+        amocrm=amocrm_mock,
+        db=db_mock,
+        user_client=userbot_mock,
+        voice_processor=voice_proc_mock,
+        gemini_api_key="mock_key",
+    )
+
+    with patch("os.path.exists", return_value=True), \
+         patch("os.remove", MagicMock()):
+        
+        text = await creator.download_and_transcribe_voice(mock_msg)
+        assert text == "Menga logotip va patent kerak"
+        mock_msg.download_media.assert_called_once()
+        voice_proc_mock.transcribe.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_analyze_text_for_tasks_gemini_success():
+    amocrm_mock = MagicMock()
+    db_mock = MagicMock()
+
+    creator = TelegramTaskCreator(
+        amocrm=amocrm_mock,
+        db=db_mock,
+        gemini_api_key="mock_key",
+    )
+
+    # Mock Gemini AI JSON response
+    mock_response = MagicMock()
+    mock_response.text = (
+        '[\n'
+        '  {\n'
+        '    "text": "Jasurga logotip tekshiruvi narxini yuborish",\n'
+        '    "due_in_hours": 24\n'
+        '  }\n'
+        ']'
+    )
+    
+    creator.genai_client = MagicMock()
+    creator.genai_client.aio = MagicMock()
+    creator.genai_client.aio.models = MagicMock()
+    creator.genai_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+
+    tasks = await creator.analyze_text_for_tasks("Manager: Assalomu alaykum Jasur. Client: Oysha shop uchun logotip qilmoqchimiz.")
+    
+    assert len(tasks) == 1
+    assert tasks[0]["text"] == "Jasurga logotip tekshiruvi narxini yuborish"
+    assert tasks[0]["due_in_hours"] == 24
+    creator.genai_client.aio.models.generate_content.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_amocrm_tasks_from_chat_success():
+    amocrm_mock = MagicMock()
+    db_mock = MagicMock()
+    userbot_mock = MagicMock()
+    voice_proc_mock = MagicMock()
+
+    # 1 text message, 1 voice note message
+    msg_text = MagicMock()
+    msg_text.id = 1
+    msg_text.out = False
+    msg_text.voice = None
+    msg_text.audio = None
+    msg_text.message = "Assalomu alaykum Baxtiyor. Oysha shopga patent kerak."
+
+    msg_voice = MagicMock()
+    msg_voice.id = 2
+    msg_voice.out = True
+    msg_voice.voice = MagicMock()
+    msg_voice.audio = None
+    msg_voice.message = None
+
+    userbot_mock.get_input_entity = AsyncMock(return_value="peer_id")
+    userbot_mock.get_messages = AsyncMock(return_value=[msg_text, msg_voice])
+
+    creator = TelegramTaskCreator(
+        amocrm=amocrm_mock,
+        db=db_mock,
+        user_client=userbot_mock,
+        voice_processor=voice_proc_mock,
+        gemini_api_key="mock_key",
+    )
+
+    # Mock tasks list from Gemini
+    gemini_tasks = [
+        {"text": "Jasurga ekspert tekshiruvi narxini jo'natish", "due_in_hours": 6}
+    ]
+
+    amocrm_mock.create_task = AsyncMock(return_value=True)
+
+    with patch.object(creator, "download_and_transcribe_voice", return_value="Tekshirish pullikmi bepulmi?") as mock_transcribe, \
+         patch.object(creator, "analyze_text_for_tasks", return_value=gemini_tasks) as mock_analyze:
+
+        results = await creator.create_amocrm_tasks_from_chat(
+            phone_or_username="+998903881047",
+            lead_id=45118637,
+            limit=10,
+        )
+
+        assert len(results) == 1
+        assert results[0]["text"] == "Jasurga ekspert tekshiruvi narxini jo'natish"
+        assert results[0]["due_in_hours"] == 6
+
+        # Check AmoCRM create_task called
+        amocrm_mock.create_task.assert_called_once()
+        mock_transcribe.assert_called_once_with(msg_voice)
+        mock_analyze.assert_called_once()
