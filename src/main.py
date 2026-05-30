@@ -880,6 +880,39 @@ async def background_monitor_task() -> None:
                     background_monitor_task._sent_jobs.add(job_key)
 
             # ─────────────────────────────────────────────────────────
+            # 8b. [CRMDailyReport] Har kuni 19:30 — AmoCRM Kunlik Hisobot (Reportagram)
+            # ─────────────────────────────────────────────────────────
+            if now.hour == 19 and now.minute == 30:
+                today_str = now.strftime("%Y-%m-%d")
+                job_key = f"crm_daily_report_{today_str}"
+                if not hasattr(background_monitor_task, "_sent_jobs"):
+                    background_monitor_task._sent_jobs = set()
+                if job_key not in background_monitor_task._sent_jobs:
+                    try:
+                        from src.services.core.crm_daily_report import CRMDailyReporter
+                        amocrm_client = None
+                        if msg_controller and getattr(msg_controller, "crm", None):
+                            amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+                        if not amocrm_client:
+                            amocrm_client = get_surgical_integration().amocrm
+                        
+                        if amocrm_client:
+                            reporter = CRMDailyReporter(amocrm=amocrm_client)
+                            stats = await reporter.fetch_stats()
+                            prev = reporter._load_prev_stats()
+                            report_text = reporter.format_report(stats, prev)
+                            
+                            # Send to TN5_GROUP_ID (or configured CRM_GROUP_ID)
+                            if TN5_GROUP_ID:
+                                await client.send_message(TN5_GROUP_ID, report_text)
+                                logger.info(f"[SCHEDULE] CRM Daily reportagram sent to group {TN5_GROUP_ID}.")
+                            else:
+                                await notify_admin(report_text, client)
+                    except Exception as rep_exc:
+                        logger.error(f"[SCHEDULE][CRM_REPORT] Error: {rep_exc}")
+                    background_monitor_task._sent_jobs.add(job_key)
+
+            # ─────────────────────────────────────────────────────────
             # 9. [STAGNATION] Har kuni 10:00 va 22:00 — Stagnation Alert
             # ─────────────────────────────────────────────────────────
             if now.hour in [10, 22] and now.minute == 0:
@@ -934,6 +967,63 @@ async def self_command_handler(event):
         await event.respond(report, parse_mode="HTML")
     elif cmd.startswith("/status"):
         await event.respond("🟢 **TIZIM HOLATI:** Active (GCP Master)")
+    elif cmd.startswith("/report"):
+        await event.respond("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
+        try:
+            from src.services.core.crm_daily_report import CRMDailyReporter
+            amocrm_client = None
+            if msg_controller and getattr(msg_controller, "crm", None):
+                amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+            if not amocrm_client:
+                amocrm_client = get_surgical_integration().amocrm
+            
+            reporter = CRMDailyReporter(amocrm=amocrm_client)
+            stats = await reporter.fetch_stats()
+            prev = reporter._load_prev_stats()
+            report_text = reporter.format_report(stats, prev)
+            await event.respond(report_text)
+        except Exception as e:
+            await event.respond(f"❌ Xatolik yuz berdi: {e}")
+    elif cmd.startswith("/stats"):
+        await event.respond("⏳ Joriy statistika olinmoqda...")
+        try:
+            from src.services.core.crm_daily_report import CRMDailyReporter
+            amocrm_client = None
+            if msg_controller and getattr(msg_controller, "crm", None):
+                amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+            if not amocrm_client:
+                amocrm_client = get_surgical_integration().amocrm
+            
+            reporter = CRMDailyReporter(amocrm=amocrm_client)
+            stats = await reporter.fetch_stats()
+            text = (
+                f"📊 **Bugungi holat ({stats.date_label})**\n"
+                f"Tushgan: {stats.total_leads} lead\n"
+                f"Gaplashilgan: {stats.contacted} lead\n"
+                f"Sifatli: {stats.qualified} lead\n"
+                f"Muvaffaqiyatli (Won): {stats.won}\n"
+                f"Daromad: ${stats.revenue:,.0f}\n"
+                f"Pipeline qiymati: ${stats.pipeline_value:,.0f}"
+            )
+            await event.respond(text)
+        except Exception as e:
+            await event.respond(f"❌ Xatolik: {e}")
+    elif cmd.startswith("/history"):
+        try:
+            from src.services.core.crm_daily_report import CRMDailyReporter
+            reporter = CRMDailyReporter(amocrm=None)
+            history = reporter.get_history(7)
+            if not history:
+                await event.respond("📅 Tarix topilmadi. Hisobotlar hali keshga yozilmagan.")
+                return
+            lines = ["📅 **So'nggi 7 kunlik hisobotlar tarixi:**"]
+            for s in history:
+                lines.append(
+                    f"• {s.date_label}: {s.total_leads} lead | {s.won} won | ${s.revenue:,.0f}"
+                )
+            await event.respond("\n".join(lines))
+        except Exception as e:
+            await event.respond(f"❌ Xatolik: {e}")
 
 
 async def handle_new_message(event):
@@ -1002,7 +1092,7 @@ async def handle_new_message(event):
             )
             return
 
-        if event.message.text == "/efficiency" or event.message.text == "/report":
+        if event.message.text == "/efficiency":
             from src.services.core.airtable_sync import AirtableSync
 
             at_sync = AirtableSync()
@@ -1012,6 +1102,69 @@ async def handle_new_message(event):
                 await msg_controller.enterprise_reporter.get_team_efficiency_report()
             )
             await event.respond(report, parse_mode="markdown")
+            return
+
+        if event.message.text == "/report":
+            await event.respond("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
+            try:
+                from src.services.core.crm_daily_report import CRMDailyReporter
+                amocrm_client = None
+                if msg_controller and getattr(msg_controller, "crm", None):
+                    amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+                if not amocrm_client:
+                    amocrm_client = get_surgical_integration().amocrm
+                
+                reporter = CRMDailyReporter(amocrm=amocrm_client)
+                stats = await reporter.fetch_stats()
+                prev = reporter._load_prev_stats()
+                report_text = reporter.format_report(stats, prev)
+                await event.respond(report_text)
+            except Exception as e:
+                await event.respond(f"❌ Xatolik yuz berdi: {e}")
+            return
+
+        if event.message.text == "/stats":
+            await event.respond("⏳ Joriy statistika olinmoqda...")
+            try:
+                from src.services.core.crm_daily_report import CRMDailyReporter
+                amocrm_client = None
+                if msg_controller and getattr(msg_controller, "crm", None):
+                    amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+                if not amocrm_client:
+                    amocrm_client = get_surgical_integration().amocrm
+                
+                reporter = CRMDailyReporter(amocrm=amocrm_client)
+                stats = await reporter.fetch_stats()
+                text = (
+                    f"📊 **Bugungi holat ({stats.date_label})**\n"
+                    f"Tushgan: {stats.total_leads} lead\n"
+                    f"Gaplashilgan: {stats.contacted} lead\n"
+                    f"Sifatli: {stats.qualified} lead\n"
+                    f"Muvaffaqiyatli (Won): {stats.won}\n"
+                    f"Daromad: ${stats.revenue:,.0f}\n"
+                    f"Pipeline qiymati: ${stats.pipeline_value:,.0f}"
+                )
+                await event.respond(text)
+            except Exception as e:
+                await event.respond(f"❌ Xatolik: {e}")
+            return
+
+        if event.message.text == "/history":
+            try:
+                from src.services.core.crm_daily_report import CRMDailyReporter
+                reporter = CRMDailyReporter(amocrm=None)
+                history = reporter.get_history(7)
+                if not history:
+                    await event.respond("📅 Tarix topilmadi. Hisobotlar hali keshga yozilmagan.")
+                    return
+                lines = ["📅 **So'nggi 7 kunlik hisobotlar tarixi:**"]
+                for s in history:
+                    lines.append(
+                        f"• {s.date_label}: {s.total_leads} lead | {s.won} won | ${s.revenue:,.0f}"
+                    )
+                await event.respond("\n".join(lines))
+            except Exception as e:
+                await event.respond(f"❌ Xatolik: {e}")
             return
 
             from src.services.core.airtable_sync import AirtableSync
