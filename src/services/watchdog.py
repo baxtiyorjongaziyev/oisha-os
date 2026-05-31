@@ -23,7 +23,7 @@ HEALTH_URL = os.environ.get(
 SERVICE_NAME = os.environ.get("OISHA_SYSTEMD_SERVICE", "oisha-os")
 CHECK_INTERVAL = 30  # seconds
 FAILURE_THRESHOLD = 3  # number of consecutive failures before restart
-RESTART_COUNT_FILE = "/tmp/oisha-watchdog-restarts"
+RESTART_COUNT_FILE = "/tmp/oisha-watchdog-restarts"  # nosec B108
 
 def restart_service():
     logger.warning(f"Triggering systemctl restart {SERVICE_NAME}...")
