@@ -1,3 +1,4 @@
+import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.services.core.pipeline_auditor import PipelineAuditor
@@ -32,6 +33,7 @@ class MockCursor:
 
 
 @pytest.mark.asyncio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "test_api_key"})
 async def test_generate_intelligence_profile_success():
     amocrm_mock = MagicMock()
     airtable_mock = MagicMock()
@@ -62,6 +64,7 @@ async def test_generate_intelligence_profile_success():
 
 
 @pytest.mark.asyncio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "test_api_key"})
 async def test_audit_all_deals_blocked_by_auth():
     amocrm_mock = MagicMock()
     airtable_mock = MagicMock()
@@ -78,6 +81,7 @@ async def test_audit_all_deals_blocked_by_auth():
 
 
 @pytest.mark.asyncio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "test_api_key"})
 async def test_audit_all_deals_success():
     amocrm_mock = MagicMock()
     airtable_mock = MagicMock()
