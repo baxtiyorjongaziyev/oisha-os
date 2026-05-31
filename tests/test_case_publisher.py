@@ -1,9 +1,11 @@
+import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.services.core.case_publisher import CasePublisher
 
 
 @pytest.mark.asyncio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "test_api_key"})
 async def test_is_portfolio_case_classification_success():
     client_mock = MagicMock()
     publisher = CasePublisher(client=client_mock)
@@ -17,6 +19,7 @@ async def test_is_portfolio_case_classification_success():
 
 
 @pytest.mark.asyncio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "test_api_key"})
 async def test_is_portfolio_case_classification_failure():
     client_mock = MagicMock()
     publisher = CasePublisher(client=client_mock)
@@ -29,6 +32,7 @@ async def test_is_portfolio_case_classification_failure():
 
 
 @pytest.mark.asyncio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "test_api_key"})
 async def test_extract_case_details_success():
     client_mock = MagicMock()
     publisher = CasePublisher(client=client_mock)
@@ -50,6 +54,7 @@ async def test_extract_case_details_success():
 
 
 @pytest.mark.asyncio
+@patch.dict(os.environ, {"GEMINI_API_KEY": "test_api_key"})
 async def test_publish_case_dispatch_webhook_success():
     client_mock = MagicMock()
     publisher = CasePublisher(client=client_mock)
