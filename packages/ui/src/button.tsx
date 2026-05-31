@@ -37,7 +37,7 @@ export function Button({
         "inline-flex items-center justify-center gap-2",
         "rounded-full px-5 py-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 active:scale-[0.98]",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        showTooltip ? "pointer-events-none" : "",
+        showTooltip ? "pointer-events-none group-focus-visible:ring-2 group-focus-visible:ring-amberline group-focus-visible:ring-offset-2" : "",
         variants[variant],
         className
       ].join(" ")}
@@ -72,7 +72,7 @@ export function Button({
 
   if (showTooltip) {
     return (
-      <span title={disabledReason} tabIndex={0} className="inline-block cursor-not-allowed">
+      <span title={disabledReason} tabIndex={0} className="group inline-block cursor-not-allowed focus:outline-none">
         {buttonElement}
       </span>
     );
