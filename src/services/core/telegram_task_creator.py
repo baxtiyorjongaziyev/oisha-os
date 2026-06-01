@@ -110,8 +110,8 @@ class TelegramTaskCreator:
         return self.cooldown_seconds_remaining() > 0
 
     def blocks_dialogue_analysis(self) -> bool:
-        """Only Telegram flood-waits block chat reads; Gemini has a local fallback."""
-        return self._telegram_cooldown_remaining() > 0
+        """Per-lead resolution handles flood-waits without blocking the whole scan."""
+        return False
 
     def _pause_gemini(self) -> None:
         type(self)._gemini_blocked_until = (
@@ -344,6 +344,10 @@ class TelegramTaskCreator:
 
     async def _resolve_dialog_entity(self, phone_or_username: str) -> tuple[Any, Optional[int]]:
         """Resolve cached peers first, then temporarily import a phone contact."""
+        clean_phone = self._normalise_phone(phone_or_username)
+        is_phone_lookup = bool(clean_phone) and len(clean_phone) >= 9
+        if is_phone_lookup and self._telegram_cooldown_remaining():
+            return None, None
         try:
             return await self.user_client.get_input_entity(phone_or_username), None
         except Exception as first_error:
@@ -354,7 +358,6 @@ class TelegramTaskCreator:
                 or "wait of" in error_text
             ):
                 raise first_error
-            clean_phone = self._normalise_phone(phone_or_username)
             if not clean_phone:
                 raise first_error
 
@@ -399,14 +402,6 @@ class TelegramTaskCreator:
         if not self.user_client:
             logger.warning("[TELEGRAM_TASK] Telegram client not set. Cannot pull chat history.")
             return []
-        cooldown_seconds = self._telegram_cooldown_remaining()
-        if cooldown_seconds:
-            logger.info(
-                "[TELEGRAM_TASK] Telegram lookup cooldown active; skipping dialogue analysis for %ss.",
-                cooldown_seconds,
-            )
-            return []
-
         temporary_contact_id = None
         try:
             entity, temporary_contact_id = await self._resolve_dialog_entity(
