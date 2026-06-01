@@ -469,17 +469,24 @@ class SalesAnalytics:
         """Telegram'ga xabar yuborish (HTML, fallback plain)."""
         if not self.bot or not text:
             return
+        from src.services.core.tool_adapters import send_group_message_with_fallback
+
         try:
-            kwargs = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
-            if thread_id:
-                kwargs["message_thread_id"] = thread_id
-            await self.bot.send_message(**kwargs)
+            await send_group_message_with_fallback(
+                self.bot,
+                chat_id=chat_id,
+                text=text,
+                parse_mode="HTML",
+                thread_id=thread_id,
+            )
         except Exception as e:
             logger.warning(f"[ANALYTICS] HTML xato, plain text-ga o'tildi: {e}")
             import re
 
             clean = re.sub(r"<[^>]+>", "", text)
-            kwargs = {"chat_id": chat_id, "text": clean}
-            if thread_id:
-                kwargs["message_thread_id"] = thread_id
-            await self.bot.send_message(**kwargs)
+            await send_group_message_with_fallback(
+                self.bot,
+                chat_id=chat_id,
+                text=clean,
+                thread_id=thread_id,
+            )
