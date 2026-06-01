@@ -12,10 +12,15 @@ import json
 import logging
 import re
 import inspect
+import random
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from src.settings import settings
+from src.services.utils.gemini_fallback import (
+    generate_content_with_fallback,
+    is_quota_error,
+)
 
 try:
     from google import genai
@@ -103,6 +108,10 @@ class TelegramTaskCreator:
 
     def is_cooling_down(self) -> bool:
         return self.cooldown_seconds_remaining() > 0
+
+    def blocks_dialogue_analysis(self) -> bool:
+        """Only Telegram flood-waits block chat reads; Gemini has a local fallback."""
+        return self._telegram_cooldown_remaining() > 0
 
     def _pause_gemini(self) -> None:
         type(self)._gemini_blocked_until = (
@@ -234,21 +243,24 @@ class TelegramTaskCreator:
 
         await self._load_persisted_cooldowns()
         if not self.genai_client:
-            logger.warning("[TELEGRAM_TASK] Gemini client not initialized. Cannot extract tasks.")
-            return []
+            logger.warning("[TELEGRAM_TASK] Gemini client missing; using local extraction.")
+            return self._fallback_extract_tasks(full_chat_text)
         if self._gemini_cooldown_remaining():
-            logger.info("[TELEGRAM_TASK] Gemini quota cooldown active; skipping extraction.")
-            return []
+            logger.info("[TELEGRAM_TASK] Gemini cooldown active; using local extraction.")
+            return self._fallback_extract_tasks(full_chat_text)
 
         try:
             config = genai_types.GenerateContentConfig(
                 temperature=0.1,
                 response_mime_type="application/json",
             )
-            response = await self.genai_client.aio.models.generate_content(
-                model=self.gemini_model,
+            response, _ = await generate_content_with_fallback(
+                self.genai_client,
+                primary_model=self.gemini_model,
                 contents=prompt,
                 config=config,
+                env_name="GEMINI_TELEGRAM_TASK_FALLBACK_MODELS",
+                log_prefix="[TELEGRAM_TASK]",
             )
             raw_json = (response.text or "").strip()
             if raw_json:
@@ -256,18 +268,124 @@ class TelegramTaskCreator:
                 if isinstance(data, list):
                     return data
         except Exception as e:
-            error_text = str(e)
-            if "429" in error_text or "RESOURCE_EXHAUSTED" in error_text:
+            if is_quota_error(e):
                 self._pause_gemini()
                 await self._persist_cooldowns()
                 logger.warning(
-                    "[TELEGRAM_TASK] Gemini quota exhausted; pausing extraction for %ss.",
+                    "[TELEGRAM_TASK] Gemini quota exhausted; local extraction active for %ss.",
                     self.gemini_cooldown_seconds,
                 )
             else:
-                logger.error(f"[TELEGRAM_TASK] Gemini task extraction failed: {e}")
+                logger.warning(
+                    "[TELEGRAM_TASK] Gemini task extraction unavailable; using local extraction: %s",
+                    type(e).__name__,
+                )
 
-        return []
+        return self._fallback_extract_tasks(full_chat_text)
+
+    @staticmethod
+    def _fallback_extract_tasks(full_chat_text: str) -> List[Dict[str, Any]]:
+        """Conservative Uzbek/Russian promise parser used during AI outages."""
+        action_markers = (
+            "yubor",
+            "jo'nat",
+            "jonat",
+            "tashla",
+            "qo'ng'iroq",
+            "qong'iroq",
+            "bog'lan",
+            "tekshir",
+            "aytaman",
+            "beraman",
+            "tayyorla",
+            "ko'rsat",
+            "uchrash",
+            "yozaman",
+            "otprav",
+            "скин",
+            "позвон",
+            "провер",
+        )
+        manager_prefixes = ("menejer:", "manager:", "oisha:")
+        tasks: List[Dict[str, Any]] = []
+        seen = set()
+        for raw_line in full_chat_text.splitlines():
+            line = raw_line.strip()
+            lowered = line.lower()
+            if not lowered.startswith(manager_prefixes):
+                continue
+            if not any(marker in lowered for marker in action_markers):
+                continue
+            task_text = line.split(":", 1)[-1].strip()
+            if not task_text or task_text.lower() in seen:
+                continue
+            due_hours = 24
+            if "bugun" in lowered or "сегодня" in lowered:
+                due_hours = 6
+            elif "ertaga" in lowered or "завтра" in lowered:
+                due_hours = 24
+            elif "dushanba" in lowered or "понедельник" in lowered:
+                due_hours = 72
+            seen.add(task_text.lower())
+            tasks.append(
+                {
+                    "text": f"Telegram suhbatidan: {task_text}"[:500],
+                    "due_in_hours": due_hours,
+                }
+            )
+        return tasks[:5]
+
+    @staticmethod
+    def _normalise_phone(value: str) -> str:
+        digits = re.sub(r"\D", "", str(value or ""))
+        if len(digits) == 9:
+            digits = "998" + digits
+        return digits
+
+    async def _resolve_dialog_entity(self, phone_or_username: str) -> tuple[Any, Optional[int]]:
+        """Resolve cached peers first, then temporarily import a phone contact."""
+        try:
+            return await self.user_client.get_input_entity(phone_or_username), None
+        except Exception as first_error:
+            error_text = str(first_error).lower()
+            if (
+                "flood" in error_text
+                or "getcontactsrequest" in error_text
+                or "wait of" in error_text
+            ):
+                raise first_error
+            clean_phone = self._normalise_phone(phone_or_username)
+            if not clean_phone:
+                raise first_error
+
+        from telethon.tl import functions, types
+
+        contact = types.InputPhoneContact(
+            client_id=random.randrange(-(2**63), 2**63),
+            phone=clean_phone,
+            first_name="Oisha Lookup",
+            last_name="",
+        )
+        imported = await self.user_client(
+            functions.contacts.ImportContactsRequest(contacts=[contact])
+        )
+        users = list(getattr(imported, "users", None) or [])
+        if not users:
+            return None, None
+        user = users[0]
+        return await self.user_client.get_input_entity(user), int(user.id)
+
+    async def _delete_temporary_contact(self, user_id: Optional[int]) -> None:
+        if not user_id:
+            return
+        try:
+            from telethon.tl import functions
+
+            await self.user_client(
+                functions.contacts.DeleteContactsRequest(id=[int(user_id)])
+            )
+        except Exception as exc:
+            logger.debug("[TELEGRAM_TASK] Temporary contact cleanup skipped: %s", exc)
 
     async def create_amocrm_tasks_from_chat(
         self, phone_or_username: str, lead_id: int, limit: int = 20
@@ -281,16 +399,25 @@ class TelegramTaskCreator:
         if not self.user_client:
             logger.warning("[TELEGRAM_TASK] Telegram client not set. Cannot pull chat history.")
             return []
-        cooldown_seconds = self.cooldown_seconds_remaining()
+        cooldown_seconds = self._telegram_cooldown_remaining()
         if cooldown_seconds:
             logger.info(
-                "[TELEGRAM_TASK] Dependency cooldown active; skipping dialogue analysis for %ss.",
+                "[TELEGRAM_TASK] Telegram lookup cooldown active; skipping dialogue analysis for %ss.",
                 cooldown_seconds,
             )
             return []
 
+        temporary_contact_id = None
         try:
-            entity = await self.user_client.get_input_entity(phone_or_username)
+            entity, temporary_contact_id = await self._resolve_dialog_entity(
+                phone_or_username
+            )
+            if entity is None:
+                logger.info(
+                    "[TELEGRAM_TASK] Telegram account not resolved for lead %s.",
+                    lead_id,
+                )
+                return []
             messages = await self.user_client.get_messages(entity, limit=limit)
         except Exception as e:
             error_text = str(e)
@@ -302,10 +429,14 @@ class TelegramTaskCreator:
                     cooldown_seconds,
                 )
             else:
-                logger.error(
-                    f"[TELEGRAM_TASK] Failed to fetch messages for {phone_or_username}: {e}"
+                logger.info(
+                    "[TELEGRAM_TASK] Telegram dialogue unavailable for lead %s: %s",
+                    lead_id,
+                    type(e).__name__,
                 )
             return []
+        finally:
+            await self._delete_temporary_contact(temporary_contact_id)
 
         if not messages:
             logger.warning("[TELEGRAM_TASK] No messages retrieved.")
