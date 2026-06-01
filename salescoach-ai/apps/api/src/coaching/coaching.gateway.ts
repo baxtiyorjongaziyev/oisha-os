@@ -7,7 +7,7 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { NegotiationsService, RealtimeSuggestion } from '../negotiations/negotiations.service';
 import { RealtimeSuggestionDto } from '../negotiations/dto/negotiate.dto';

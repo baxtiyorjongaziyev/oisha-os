@@ -139,6 +139,30 @@ class DatabasePool:
                     continue
                 raise RuntimeError(f"database_pool_failed:{type(e).__name__}") from e
 
+    async def _run_connection_control(self, action: str) -> None:
+        for attempt in range(3):
+            conn = self.get_connection()
+            method = getattr(conn, action, None)
+            if not callable(method):
+                return
+            try:
+                await asyncio.wait_for(asyncio.to_thread(method), timeout=45.0)
+                return
+            except Exception as exc:
+                if attempt < 2 and _is_resettable_connection_error(exc):
+                    logger.warning(
+                        f"[DB POOL] {action} connection dropped. Retrying ({attempt+1}/3)..."
+                    )
+                    self.close()
+                    continue
+                raise
+
+    async def commit(self) -> None:
+        await self._run_connection_control("commit")
+
+    async def rollback(self) -> None:
+        await self._run_connection_control("rollback")
+
     def get_backend_name(self) -> str:
         return "turso"
 

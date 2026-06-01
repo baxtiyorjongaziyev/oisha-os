@@ -143,7 +143,7 @@ class AgentOrchestrator:
             await self.db.log_agent_action(
                 user_id=0,
                 action_type="orchestrator_pipeline",
-                action_data={
+                data={
                     "id": pipeline.id,
                     "goal": pipeline.goal,
                     "status": pipeline.status,
