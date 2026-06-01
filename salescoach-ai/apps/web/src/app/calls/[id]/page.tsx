@@ -167,11 +167,6 @@ export default function CallDetailPage({ params }: { params: Promise<{ id: strin
   );
 
   const sc = call.scorecard;
-  const scoreColor = sc
-    ? sc.overallScore >= 80 ? 'var(--accent-green)'
-      : sc.overallScore >= 60 ? 'var(--accent-amber)'
-      : 'var(--accent-red)'
-    : 'var(--text-muted)';
 
   return (
     <div className="flex h-screen overflow-hidden">
