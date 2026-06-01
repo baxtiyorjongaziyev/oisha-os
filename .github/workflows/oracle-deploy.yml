@@ -102,6 +102,7 @@ jobs:
             AMOCRM_REFRESH_TOKEN=${AMOCRM_REFRESH_TOKEN}
             OISHA_API_SECRET=${OISHA_API_SECRET}
             OPENCLAW_SECRET=${OPENCLAW_SECRET}
+            USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}
             TURSO_DATABASE_URL=${TURSO_DATABASE_URL}
             TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
             OWNER_ID=150074828
@@ -114,7 +115,7 @@ jobs:
             ALLOW_LOCAL_RUN=0
             AIRTABLE_BASE_ID=app8xoyx1XCumYFXV
             CRM_GROUP_ID=-1002566480563
-            TEAM_GROUP_ID=-4860594772
+            TEAM_GROUP_ID=-1002566480563
             PROJECTS_GROUP_ID=${PROJECTS_GROUP_ID}
             TOPIC_CRM_ID=${TOPIC_CRM_ID}
             TOPIC_GENERAL_ID=${TOPIC_GENERAL_ID}
@@ -124,6 +125,7 @@ jobs:
             AIRTABLE_API_KEY=${AIRTABLE_API_KEY}
             GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k
             GSHEET_CREDS_FILE=service_account.json
+            GOOGLE_APPLICATION_CREDENTIALS=/home/ubuntu/oisha-os/service_account.json
             ENVFILE
             sed -i 's/^            //' .env
 

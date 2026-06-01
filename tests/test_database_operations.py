@@ -4,6 +4,7 @@ Tests: Connection pooling, CRUD operations, index optimization.
 """
 import pytest # type: ignore
 import asyncio
+import datetime
 import os
 import tempfile
 import sys
@@ -91,6 +92,22 @@ class TestDatabaseConnection:
         assert user_id == 99988
 
     @pytest.mark.asyncio
+    async def test_get_user_by_role_supports_operational_aliases(self, temp_db):
+        await temp_db.upsert_user(
+            user_id=77788,
+            first_name="Project Owner",
+            username="pm_owner",
+            position="Project Manager",
+        )
+
+        user = await temp_db.get_user_by_role("pm")
+
+        assert user is not None
+        assert user["user_id"] == 77788
+        assert user["username"] == "pm_owner"
+        assert await temp_db.get_user_by_role("finance") is None
+
+    @pytest.mark.asyncio
     async def test_message_logging(self, temp_db):
         """Test message logging functionality."""
         await temp_db.log_message(
@@ -101,6 +118,58 @@ class TestDatabaseConnection:
         
         messages = await temp_db.get_recent_messages(12345, limit=10)
         assert len(messages) >= 1
+
+    @pytest.mark.asyncio
+    async def test_recent_job_runs_and_agent_actions(self, temp_db):
+        await temp_db.mark_job_run("daily_report", "2026-06-01")
+        await temp_db.log_agent_action(
+            user_id=12345,
+            action_type="test_action",
+            data={"source": "unit-test"},
+            success=True,
+        )
+
+        runs = await temp_db.get_recent_job_runs(limit=5)
+        actions = await temp_db.get_recent_agent_actions(limit=5)
+
+        assert runs[0]["job_name"] == "daily_report"
+        assert actions[0]["action_type"] == "test_action"
+        assert actions[0]["action_data"] == {"source": "unit-test"}
+
+        counts = await temp_db.get_storage_counts()
+        assert counts["scheduled_jobs"] >= 1
+        assert counts["agent_actions"] >= 1
+        assert counts["users"] >= 0
+        assert counts["call_analyses"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_recent_active_leads_returns_latest_client_message(self, temp_db):
+        await temp_db.upsert_user(
+            user_id=55667,
+            first_name="ActiveLead",
+            phone="+998901112233",
+        )
+        await temp_db.log_message(55667, "Birinchi savol", is_ai=False)
+        await temp_db.log_message(55667, "AI javobi", is_ai=True)
+        await temp_db.log_message(55667, "Oxirgi mijoz xabari", is_ai=False)
+
+        leads = await temp_db.get_recent_active_leads(hours=72, limit=5)
+
+        assert len(leads) == 1
+        assert leads[0]["user_id"] == 55667
+        assert leads[0]["last_client_message"] == "Oxirgi mijoz xabari"
+
+        conn = await temp_db.get_connection()
+        stale_at = (
+            datetime.datetime.now() - datetime.timedelta(hours=100)
+        ).isoformat()
+        await conn.execute(
+            "UPDATE users SET last_client_message_at = ? WHERE user_id = ?",
+            (stale_at, 55667),
+        )
+        await conn.commit()
+
+        assert await temp_db.get_recent_active_leads(hours=72, limit=5) == []
 
 
 class TestDatabaseIndexes:
@@ -131,6 +200,7 @@ class TestDatabaseIndexes:
                 'idx_users_intent',
                 'idx_users_crm_synced',
                 'idx_messages_user_id',
+                'idx_message_logs_user_ai_created',
                 'idx_tasks_status',
                 'idx_agent_actions_user_id',
                 'idx_daily_plans_manager'

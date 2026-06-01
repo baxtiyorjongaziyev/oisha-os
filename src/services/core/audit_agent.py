@@ -35,7 +35,7 @@ class AuditAgent:
             from google import genai
 
             self.gemini_client = genai.Client(api_key=api_key)
-            self.model_name = "gemini-2.0-flash"
+            self.model_name = os.getenv("GEMINI_AUDIT_MODEL", settings.GEMINI_CALL_MODEL)
         except Exception as e:
             logger.error(f"[AUDIT] Gemini init failed: {e}")
             self.gemini_client = None

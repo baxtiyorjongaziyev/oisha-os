@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from contextlib import asynccontextmanager
 from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,26 @@ Status = str  # "pending" | "retrying" | "succeeded" | "dead"
 
 BASE_BACKOFF_SEC = 30   # 30s, 60s, 120s for attempts 1-3
 MAX_ATTEMPTS = 3
+
+
+@asynccontextmanager
+async def _db_connection(db: Any):
+    get_conn = getattr(db, "get_conn", None)
+    if callable(get_conn):
+        conn_or_cm = get_conn()
+        if hasattr(conn_or_cm, "__aenter__"):
+            async with conn_or_cm as conn:
+                yield conn
+            return
+        yield conn_or_cm
+        return
+
+    get_connection = getattr(db, "get_connection", None)
+    if not callable(get_connection):
+        raise AttributeError("db must expose get_conn() or get_connection()")
+
+    conn = await get_connection()
+    yield conn
 
 
 class RetryQueue:
@@ -53,12 +74,13 @@ class RetryQueue:
         self._executor = executor_fn
         self._alert = alert_fn
         self._ensured = False
+        self._drain_lock = asyncio.Lock()
 
     async def _ensure_table(self) -> None:
         if self._ensured:
             return
         try:
-            async with self._db.get_conn() as conn:
+            async with _db_connection(self._db) as conn:
                 await conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS retry_queue (
@@ -93,7 +115,7 @@ class RetryQueue:
         """Insert a new action into the queue. Returns row id or None on error."""
         await self._ensure_table()
         try:
-            async with self._db.get_conn() as conn:
+            async with _db_connection(self._db) as conn:
                 cursor = await conn.execute(
                     """
                     INSERT INTO retry_queue
@@ -112,9 +134,14 @@ class RetryQueue:
 
     async def drain_once(self) -> int:
         """Process all due pending/retrying actions. Returns count attempted."""
+        async with self._drain_lock:
+            return await self._drain_once_locked()
+
+    async def _drain_once_locked(self) -> int:
+        """Process due actions while holding the in-process drain lock."""
         await self._ensure_table()
         try:
-            async with self._db.get_conn() as conn:
+            async with _db_connection(self._db) as conn:
                 cursor = await conn.execute(
                     """
                     SELECT id, action_name, payload_json, attempt, max_attempts
@@ -182,7 +209,7 @@ class RetryQueue:
         error: Optional[str],
     ) -> None:
         try:
-            async with self._db.get_conn() as conn:
+            async with _db_connection(self._db) as conn:
                 await conn.execute(
                     """
                     UPDATE retry_queue
@@ -204,7 +231,7 @@ class RetryQueue:
         delay_sec: int,
     ) -> None:
         try:
-            async with self._db.get_conn() as conn:
+            async with _db_connection(self._db) as conn:
                 await conn.execute(
                     f"""
                     UPDATE retry_queue
@@ -246,7 +273,7 @@ class RetryQueue:
         """Return counts by status for monitoring."""
         await self._ensure_table()
         try:
-            async with self._db.get_conn() as conn:
+            async with _db_connection(self._db) as conn:
                 cursor = await conn.execute(
                     "SELECT status, COUNT(*) FROM retry_queue GROUP BY status"
                 )
