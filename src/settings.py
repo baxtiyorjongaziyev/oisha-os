@@ -17,6 +17,20 @@ structlog.configure(
 )
 
 
+def normalize_telegram_chat_id(value):
+    """Convert raw supergroup/channel IDs to Telegram's canonical -100... form."""
+    if value in (None, ""):
+        return value
+    try:
+        chat_id = int(value)
+    except (TypeError, ValueError):
+        return value
+    digits = str(abs(chat_id))
+    if chat_id >= 0 or digits.startswith("100") or len(digits) < 10:
+        return chat_id
+    return -int(f"100{digits}")
+
+
 class AppSettings(BaseSettings):
     OWNER_ID: int = 0
     WHITELIST_IDS: list[int] = Field(default_factory=list)
@@ -81,6 +95,7 @@ class AppSettings(BaseSettings):
     CRM_GROUP_ID: Optional[int] = None
     PROJECTS_GROUP_ID: Optional[int] = None
     TEAM_GROUP_ID: Optional[int] = None
+    TASKS_GROUP_ID: Optional[int] = None
 
     # Case Publisher & CMS Settings
     JONBRANDING_CHANNEL: str = "jonbranding"
@@ -187,6 +202,7 @@ class AppSettings(BaseSettings):
             "CRM_GROUP_ID",
             "PROJECTS_GROUP_ID",
             "TEAM_GROUP_ID",
+            "TASKS_GROUP_ID",
             "CRM_TOPIC_ID",
             "TOPIC_CRM_ID",
             "TOPIC_REPORTS_ID",
@@ -203,6 +219,13 @@ class AppSettings(BaseSettings):
         for key in optional_keys:
             if data.get(key) == "":
                 data[key] = None
+        for key in (
+            "CRM_GROUP_ID",
+            "PROJECTS_GROUP_ID",
+            "TEAM_GROUP_ID",
+            "TASKS_GROUP_ID",
+        ):
+            data[key] = normalize_telegram_chat_id(data.get(key))
         return data
 
     model_config = SettingsConfigDict(

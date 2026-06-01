@@ -137,7 +137,7 @@ Qoidalar:
 """
 
             response = await client.aio.models.generate_content(
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_CALL_MODEL,
                 contents=prompt,
             )
             text = (response.text or "").strip()
@@ -418,7 +418,7 @@ Format (qisqa, actionable):
 Faqat 3 qatorni qaytarish."""
 
             response = await client.aio.models.generate_content(
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_CALL_MODEL,
                 contents=prompt,
             )
             return (response.text or "").strip()
@@ -473,7 +473,7 @@ So'ngra FAQAT quyidagi JSON formatda qaytarish:
 }
 """
         response = await client.aio.models.generate_content(
-            model="gemini-2.0-flash",
+            model=settings.GEMINI_CALL_MODEL,
             contents=[
                 {
                     "inline_data": {

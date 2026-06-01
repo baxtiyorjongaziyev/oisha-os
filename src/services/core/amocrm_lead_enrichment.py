@@ -1,6 +1,7 @@
 import inspect
 import json
 import logging
+import os
 import random
 import re
 from dataclasses import dataclass, field
@@ -122,7 +123,7 @@ class AmoCRMLeadEnricher:
         gemini_api_key: Optional[str] = None,
         message_limit: Optional[int] = None,
         refresh_hours: Optional[int] = None,
-        model_name: str = "gemini-2.0-flash",
+        model_name: Optional[str] = None,
     ):
         self.amocrm = amocrm
         self.db = db
@@ -137,7 +138,11 @@ class AmoCRMLeadEnricher:
             if refresh_hours is not None
             else getattr(settings, "AMOCRM_ENRICHMENT_REFRESH_HOURS", 24)
         )
-        self.model_name = model_name
+        self.model_name = (
+            model_name
+            or os.getenv("GEMINI_AMOCRM_ENRICHMENT_MODEL")
+            or settings.GEMINI_CALL_MODEL
+        )
 
         api_key = (gemini_api_key or _secret_to_text(settings.GEMINI_API_KEY)).strip()
         self.genai_client = None

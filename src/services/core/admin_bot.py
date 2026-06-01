@@ -1663,21 +1663,41 @@ class AdminBot:
         parse_mode: str = None,
     ):
         """Faqat jamoa guruhiga bildirishnoma yuborish. Topic_id (thread_id) berilsa o'sha bo'limga yuboradi."""
+        if not self.team_group_id:
+            return
+
         try:
-            if self.team_group_id:
-                # Telethon-da reply_to parametri orqali topic (forum thread) ni ko'rsatish mumkin
-                await self.bot_client.send_message(
+            # Telethon-da reply_to parametri orqali topic (forum thread) ni ko'rsatish mumkin
+            await self.bot_client.send_message(
+                self.team_group_id,
+                text,
+                buttons=buttons,
+                reply_to=topic_id,
+                parse_mode=parse_mode,
+            )
+            logger.info(
+                f"[ADMIN_BOT] Team notification sent to {self.team_group_id} (Topic: {topic_id})"
+            )
+        except Exception as bot_exc:
+            try:
+                # User accounts cannot create bot callback buttons, but the alert text
+                # must still reach the team while the bot lacks group membership.
+                await self.user_client.send_message(
                     self.team_group_id,
                     text,
-                    buttons=buttons,
                     reply_to=topic_id,
                     parse_mode=parse_mode,
                 )
-                logger.info(
-                    f"[ADMIN_BOT] Team notification sent to {self.team_group_id} (Topic: {topic_id})"
+                logger.warning(
+                    "[ADMIN_BOT] Bot team notification failed; sent via userbot fallback: %s",
+                    bot_exc,
                 )
-        except Exception as e:
-            logger.error(f"[ADMIN_BOT] notify_team error: {e}")
+            except Exception as userbot_exc:
+                logger.error(
+                    "[ADMIN_BOT] notify_team failed via bot (%s) and userbot (%s)",
+                    bot_exc,
+                    userbot_exc,
+                )
 
     async def enrich_lead_profile(self, user_id, sender_obj, lead_details: dict):
         """Mijoz profilini tahlil qilish, bio-ni olish va raqam qidirish."""
