@@ -14,18 +14,25 @@ logger = logging.getLogger(__name__)
 class CasePublisher:
     """Service to automatically process portfolio cases from @jonbranding Telegram channel and upload them to CMS/n8n."""
 
-    def __init__(self, client: TelegramClient, db=None):
+    def __init__(self, client: TelegramClient, db=None, genai_client=None):
         self.client = client
         self.db = db
         self.temp_media_dir = os.path.join("data", "tmp", "cases")
         os.makedirs(self.temp_media_dir, exist_ok=True)
 
         # AI Config
-        from google import genai
+        self.genai_client = genai_client
+        if self.genai_client is None:
+            api_key = (settings.GEMINI_API_KEY.get_secret_value() or "").strip()
+            if api_key:
+                try:
+                    from google import genai
 
-        self.genai_client = genai.Client(
-            api_key=settings.GEMINI_API_KEY.get_secret_value()
-        )
+                    self.genai_client = genai.Client(api_key=api_key)
+                except Exception as exc:
+                    logger.warning("[CASE_PUBLISHER] Gemini client init skipped: %s", exc)
+            else:
+                logger.warning("[CASE_PUBLISHER] GEMINI_API_KEY missing; local fallbacks enabled.")
         self.model_name = os.getenv("GEMINI_CASE_PUBLISHER_MODEL", settings.GEMINI_CALL_MODEL)
 
     async def is_portfolio_case(self, text: str) -> bool:
@@ -43,10 +50,14 @@ class CasePublisher:
         )
 
         try:
-            from src.utils.ai_utils import safe_ai_call
+            from src.services.utils.gemini_fallback import generate_content_with_fallback
 
-            response = await safe_ai_call(
-                client=self.genai_client, prompt=prompt, model=self.model_name
+            response, _ = await generate_content_with_fallback(
+                self.genai_client,
+                primary_model=self.model_name,
+                contents=prompt,
+                env_name="GEMINI_CASE_PUBLISHER_FALLBACK_MODELS",
+                log_prefix="[CASE_PUBLISHER]",
             )
             ans = (response.text or "").strip().upper()
             return "YES" in ans
@@ -75,15 +86,18 @@ class CasePublisher:
 
         try:
             from google.genai import types
+            from src.services.utils.gemini_fallback import generate_content_with_fallback
 
-            response = await asyncio.to_thread(
-                self.genai_client.models.generate_content,
-                model=self.model_name,
+            response, _ = await generate_content_with_fallback(
+                self.genai_client,
+                primary_model=self.model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     temperature=0.2,
                 ),
+                env_name="GEMINI_CASE_PUBLISHER_FALLBACK_MODELS",
+                log_prefix="[CASE_PUBLISHER]",
             )
             raw_text = (response.text or "").strip()
             import json
