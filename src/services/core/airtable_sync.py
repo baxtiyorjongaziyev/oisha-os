@@ -1,4 +1,5 @@
 import logging
+import json
 import os
 import time
 from copy import deepcopy
@@ -13,10 +14,15 @@ logger = logging.getLogger(__name__)
 class AirtableSync:
     READ_RETRIES = 3
     REQUEST_TIMEOUT_SECONDS = 20
+    BILLING_COOLDOWN_SECONDS = int(
+        os.getenv("AIRTABLE_BILLING_COOLDOWN_SECONDS", "21600")
+    )
 
     _base_tables_cache = {}
     _record_url_cache = {}
     _records_cache = {}
+    _billing_blocked_until = 0.0
+    _billing_block_reason = None
 
     # Field name mapping: code key -> actual Airtable field names (priority order)
     FIELD_MAP = {
@@ -152,7 +158,35 @@ class AirtableSync:
     def _invalidate_records_cache(self):
         self._records_cache.pop(self._records_cache_key(), None)
 
+    @classmethod
+    def _billing_limit_response(cls):
+        response = requests.Response()
+        response.status_code = 429
+        response.headers["X-Oisha-Airtable-Cooldown"] = "active"
+        response._content = json.dumps(
+            {
+                "errors": [
+                    {
+                        "error": cls._billing_block_reason
+                        or "PUBLIC_API_BILLING_LIMIT_EXCEEDED",
+                        "message": "Airtable API billing limit cooldown is active.",
+                    }
+                ]
+            }
+        ).encode("utf-8")
+        return response
+
+    @staticmethod
+    def _is_billing_limit_response(response) -> bool:
+        if response.status_code != 429:
+            return False
+        return "PUBLIC_API_BILLING_LIMIT_EXCEEDED" in (response.text or "")
+
     def _request(self, method: str, url: str, *, retry: bool = True, **kwargs):
+        cls = type(self)
+        if time.time() < cls._billing_blocked_until:
+            return cls._billing_limit_response()
+
         attempts = self.READ_RETRIES if retry and method.upper() == "GET" else 1
         last_exc = None
 
@@ -162,6 +196,18 @@ class AirtableSync:
                 request_kwargs.setdefault("headers", self.headers)
                 request_kwargs.setdefault("timeout", self.REQUEST_TIMEOUT_SECONDS)
                 response = requests.request(method, url, **request_kwargs)
+
+                if self._is_billing_limit_response(response):
+                    cls._billing_block_reason = "PUBLIC_API_BILLING_LIMIT_EXCEEDED"
+                    cls._billing_blocked_until = (
+                        time.time() + cls.BILLING_COOLDOWN_SECONDS
+                    )
+                    logger.error(
+                        "[AIRTABLE] Monthly API billing limit exceeded. "
+                        "Pausing Airtable requests for %s seconds.",
+                        cls.BILLING_COOLDOWN_SECONDS,
+                    )
+                    return response
 
                 if (
                     response.status_code in {429, 500, 502, 503, 504}

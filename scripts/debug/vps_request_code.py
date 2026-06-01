@@ -2,11 +2,12 @@ import os
 from telethon import TelegramClient
 import asyncio
 import sys
+from dotenv import load_dotenv
 
-# Credentials
-API_ID = 30643078
-API_HASH = '***REDACTED***'
-PHONE = '+998336450097'
+load_dotenv()
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
+PHONE = os.environ["TELEGRAM_PHONE"]
 
 async def main():
     print(f"Requesting code for {PHONE} on VPS...")

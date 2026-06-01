@@ -6,7 +6,7 @@
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "node dist/main",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:cov": "jest --coverage",
     "lint": "eslint src --ext .ts",
     "type-check": "tsc --noEmit",
