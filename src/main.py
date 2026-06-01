@@ -2878,7 +2878,7 @@ async def main():
                     leads = await msg_controller.crm.amocrm.get_leads_detailed(limit=30)
                     if leads and isinstance(leads, list):
                         for lead in leads:
-                            if task_creator.is_cooling_down():
+                            if task_creator.blocks_dialogue_analysis():
                                 cooldown_reason = task_creator.cooldown_reason()
                                 cooldown_seconds = (
                                     task_creator.cooldown_seconds_remaining()
@@ -3127,17 +3127,54 @@ async def main():
             await bot_client.start(bot_token=BOT_TOKEN_STR)
             
             # [PHASE 1.5] Telegram Bot API 10.0 Features (Guest Mode, Business, etc.)
-            from src.services.core.telegram_ai_features import TelegramBotAPI10Client, BOT_API_10_ALLOWED_UPDATES
+            from src.services.core.telegram_ai_features import (
+                BOT_API_10_ALLOWED_UPDATES,
+                TelegramBotAPI10Client,
+                TelegramBotAPILongPoller,
+            )
             
             tg_ai_client = TelegramBotAPI10Client(BOT_TOKEN_STR)
             webhook_url = os.getenv("WEBHOOK_URL")
-            if webhook_url:
-                webhook_path = f"{webhook_url.rstrip('/')}/webhook/telegram"
-                logger.info(f"🤖 [BOT API 10] Setting webhook to: {webhook_path}")
+            webhook_secret = (
+                settings.TELEGRAM_WEBHOOK_SECRET.get_secret_value()
+                if settings.TELEGRAM_WEBHOOK_SECRET
+                else None
+            )
+            if webhook_url and webhook_secret:
+                webhook_path = f"{webhook_url.rstrip('/')}/webhook/telegram-ai"
+                logger.info("[BOT API 10] Setting authenticated webhook.")
                 # Set webhook in background to not block startup
-                asyncio.create_task(tg_ai_client.set_webhook(webhook_path, allowed_updates=BOT_API_10_ALLOWED_UPDATES))
+                asyncio.create_task(
+                    tg_ai_client.set_webhook(
+                        webhook_path,
+                        secret_token=webhook_secret,
+                        allowed_updates=BOT_API_10_ALLOWED_UPDATES,
+                    ),
+                    name="telegram_bot_api_webhook_setup",
+                )
+                api_module.set_telegram_ai_ingress_status(
+                    mode="webhook",
+                    active=True,
+                )
             else:
-                logger.warning("⚠️ [BOT API 10] WEBHOOK_URL not set. Guest Mode and Business features require a webhook.")
+                async def _dispatch_bot_api_update(update):
+                    return await api_module.process_telegram_ai_update(update)
+
+                poller = TelegramBotAPILongPoller(
+                    BOT_TOKEN_STR,
+                    _dispatch_bot_api_update,
+                )
+                asyncio.create_task(
+                    poller.run(),
+                    name="telegram_bot_api_long_poll",
+                )
+                api_module.set_telegram_ai_ingress_status(
+                    mode="long_poll",
+                    active=True,
+                )
+                logger.info(
+                    "[BOT API 10] Public webhook unavailable; long-poll receiver started."
+                )
 
             if admin_bot:
                 admin_bot.user_client = client

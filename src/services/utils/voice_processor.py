@@ -5,6 +5,11 @@ from google import genai
 from typing import Optional
 
 from src.settings import settings
+from src.services.utils.gemini_fallback import (
+    generate_content_with_fallback,
+    is_quota_error,
+    is_transient_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +32,34 @@ class VoiceProcessor:
         self.quota_cooldown_seconds = int(
             os.getenv("GEMINI_VOICE_COOLDOWN_SECONDS", "21600")
         )
+        self.transient_cooldown_seconds = int(
+            os.getenv("GEMINI_TRANSIENT_COOLDOWN_SECONDS", "120")
+        )
 
     @classmethod
     def _quota_cooling_down(cls) -> bool:
         return cls._quota_blocked_until > asyncio.get_running_loop().time()
 
-    def _pause_for_quota(self) -> None:
+    def _pause_for(self, seconds: int) -> None:
         type(self)._quota_blocked_until = (
-            asyncio.get_running_loop().time() + self.quota_cooldown_seconds
+            asyncio.get_running_loop().time() + seconds
         )
+
+    async def _upload_with_retry(self, file_path: str):
+        last_error = None
+        for attempt in range(2):
+            try:
+                return await self.client.aio.files.upload(file=file_path)
+            except Exception as exc:
+                last_error = exc
+                if is_quota_error(exc) or not is_transient_error(exc) or attempt:
+                    raise
+                logger.warning(
+                    "[VOICE] Gemini upload unavailable (%s); retrying.",
+                    type(exc).__name__,
+                )
+                await asyncio.sleep(0.5)
+        raise last_error or RuntimeError("Gemini upload failed")
 
     async def transcribe(self, file_path: str, mode: str = "voice") -> Optional[str]:
         """
@@ -60,15 +84,19 @@ class VoiceProcessor:
 
         try:
             logger.info(f"[VOICE] Uploading {file_path} ({file_size} bytes) to Gemini...")
-            audio_file = await self.client.aio.files.upload(file=file_path)
+            audio_file = await self._upload_with_retry(file_path)
 
             if mode == "call":
                 prompt = self._call_recording_prompt()
             else:
                 prompt = self._voice_message_prompt()
 
-            response = await self.client.aio.models.generate_content(
-                model=self.model_name, contents=[audio_file, prompt]
+            response, _ = await generate_content_with_fallback(
+                self.client,
+                primary_model=self.model_name,
+                contents=[audio_file, prompt],
+                env_name="GEMINI_VOICE_FALLBACK_MODELS",
+                log_prefix="[VOICE]",
             )
 
             if response.text:
@@ -77,12 +105,17 @@ class VoiceProcessor:
                 return text
 
         except Exception as e:
-            error_text = str(e)
-            if "429" in error_text or "RESOURCE_EXHAUSTED" in error_text:
-                self._pause_for_quota()
+            if is_quota_error(e):
+                self._pause_for(self.quota_cooldown_seconds)
                 logger.warning(
                     "[VOICE] Gemini quota exhausted; pausing transcription for %ss.",
                     self.quota_cooldown_seconds,
+                )
+            elif is_transient_error(e):
+                self._pause_for(self.transient_cooldown_seconds)
+                logger.warning(
+                    "[VOICE] Gemini temporarily unavailable; retrying after %ss.",
+                    self.transient_cooldown_seconds,
                 )
             else:
                 logger.error(f"[VOICE] Processing error: {e}")
