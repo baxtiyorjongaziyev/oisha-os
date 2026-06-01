@@ -17,11 +17,11 @@ from telethon.errors import (
     UsernameInvalidError,
 )
 
-API_ID = 30643078
-API_HASH = "***REDACTED***"
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
 SESSION_STRING = os.environ["USERBOT_SESSION_STRING"]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-OWNER_ID = 150074828
+OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
 
 MESSAGE = (
     "Assalomu alaykum\n"
@@ -80,55 +80,66 @@ async def main() -> None:
         f"~{total * 10 // 60} daqiqa ketadi"
     )
 
+    send_tg_notification("⚙️ Juma tabrigi ishga tushdi — Telethon ulanmoqda...")
     client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
-    await client.start()
+    try:
+        await client.connect()
+        if not await client.is_user_authorized():
+            send_tg_notification("❌ Session muddati tugagan yoki noto'g'ri. Yangi USERBOT_SESSION_STRING kerak.")
+            await client.disconnect()
+            return
+    except Exception as e:
+        send_tg_notification(f"❌ Telethon ulana olmadi: {e}")
+        raise
     print("Telethon ulandi")
+    send_tg_notification("✅ Telethon ulandi — xabarlar yuborilmoqda...")
 
     sent = 0
     failed = 0
     failed_names: list = []
 
-    for i, contact in enumerate(contacts):
-        label = f"[{i+1}/{total}] {contact['name']}"
-        try:
-            await send_to_contact(client, contact)
-            sent += 1
-            print(f"OK {label}")
-        except FloodWaitError as e:
-            wait_sec = e.seconds + 5
-            print(f"FloodWait {wait_sec}s - {label}")
-            await asyncio.sleep(wait_sec)
+    try:
+        for i, contact in enumerate(contacts):
+            label = f"[{i+1}/{total}] {contact['name']}"
             try:
                 await send_to_contact(client, contact)
                 sent += 1
-                print(f"OK (retry) {label}")
-            except Exception as retry_err:
+                print(f"OK {label}")
+            except FloodWaitError as e:
+                wait_sec = e.seconds + 5
+                print(f"FloodWait {wait_sec}s - {label}")
+                await asyncio.sleep(wait_sec)
+                try:
+                    await send_to_contact(client, contact)
+                    sent += 1
+                    print(f"OK (retry) {label}")
+                except Exception as retry_err:
+                    failed += 1
+                    failed_names.append(contact["name"])
+                    print(f"FAIL (retry) {label}: {retry_err}")
+                continue
+            except (
+                UserNotMutualContactError,
+                InputUserDeactivatedError,
+                PeerIdInvalidError,
+                UsernameNotOccupiedError,
+                UsernameInvalidError,
+            ) as e:
+                failed += 1
+                print(f"SKIP {label}: {type(e).__name__}")
+            except Exception as e:
                 failed += 1
                 failed_names.append(contact["name"])
-                print(f"FAIL (retry) {label}: {retry_err}")
-            continue
-        except (
-            UserNotMutualContactError,
-            InputUserDeactivatedError,
-            PeerIdInvalidError,
-            UsernameNotOccupiedError,
-            UsernameInvalidError,
-        ) as e:
-            failed += 1
-            print(f"SKIP {label}: {type(e).__name__}")
-        except Exception as e:
-            failed += 1
-            failed_names.append(contact["name"])
-            print(f"FAIL {label}: {e}")
+                print(f"FAIL {label}: {e}")
 
-        if (i + 1) % 50 == 0:
-            send_tg_notification(
-                f"Jarayon: {i+1}/{total}\n{sent} yuborildi, {failed} xato"
-            )
+            if (i + 1) % 50 == 0:
+                send_tg_notification(
+                    f"Jarayon: {i+1}/{total}\n{sent} yuborildi, {failed} xato"
+                )
 
-        await asyncio.sleep(random.uniform(8, 12))
-
-    await client.disconnect()
+            await asyncio.sleep(random.uniform(8, 12))
+    finally:
+        await client.disconnect()
 
     summary = (
         f"Juma tabrigi yakunlandi!\n"
