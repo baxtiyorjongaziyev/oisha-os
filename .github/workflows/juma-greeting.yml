@@ -29,7 +29,7 @@ jobs:
         env:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
-          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
+          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING || vars.USERBOT_SESSION_STRING }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           OWNER_ID: ${{ secrets.OWNER_ID }}
         run: python scripts/send_juma_greetings.py
