@@ -4,6 +4,8 @@ import logging
 from google import genai
 from typing import Optional
 
+from src.settings import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -13,9 +15,27 @@ class VoiceProcessor:
     Uzbek transcription and summarization.
     """
 
-    def __init__(self, api_key: str):
+    _quota_blocked_until = 0.0
+
+    def __init__(self, api_key: str, model_name: Optional[str] = None):
         self.client = genai.Client(api_key=api_key)
-        self.model_name = "gemini-2.0-flash"
+        self.model_name = (
+            model_name
+            or os.getenv("GEMINI_VOICE_MODEL")
+            or settings.GEMINI_CALL_MODEL
+        )
+        self.quota_cooldown_seconds = int(
+            os.getenv("GEMINI_VOICE_COOLDOWN_SECONDS", "21600")
+        )
+
+    @classmethod
+    def _quota_cooling_down(cls) -> bool:
+        return cls._quota_blocked_until > asyncio.get_running_loop().time()
+
+    def _pause_for_quota(self) -> None:
+        type(self)._quota_blocked_until = (
+            asyncio.get_running_loop().time() + self.quota_cooldown_seconds
+        )
 
     async def transcribe(self, file_path: str, mode: str = "voice") -> Optional[str]:
         """
@@ -34,9 +54,13 @@ class VoiceProcessor:
             logger.error(f"[VOICE] Empty file: {file_path}")
             return None
 
+        if self._quota_cooling_down():
+            logger.info("[VOICE] Gemini quota cooldown active; skipping transcription.")
+            return None
+
         try:
             logger.info(f"[VOICE] Uploading {file_path} ({file_size} bytes) to Gemini...")
-            audio_file = await self.client.aio.files.upload(path=file_path)
+            audio_file = await self.client.aio.files.upload(file=file_path)
 
             if mode == "call":
                 prompt = self._call_recording_prompt()
@@ -53,7 +77,15 @@ class VoiceProcessor:
                 return text
 
         except Exception as e:
-            logger.error(f"[VOICE] Processing error: {e}")
+            error_text = str(e)
+            if "429" in error_text or "RESOURCE_EXHAUSTED" in error_text:
+                self._pause_for_quota()
+                logger.warning(
+                    "[VOICE] Gemini quota exhausted; pausing transcription for %ss.",
+                    self.quota_cooldown_seconds,
+                )
+            else:
+                logger.error(f"[VOICE] Processing error: {e}")
 
         return None
 

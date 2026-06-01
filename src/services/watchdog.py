@@ -23,7 +23,28 @@ HEALTH_URL = os.environ.get(
 SERVICE_NAME = os.environ.get("OISHA_SYSTEMD_SERVICE", "oisha-os")
 CHECK_INTERVAL = 30  # seconds
 FAILURE_THRESHOLD = 3  # number of consecutive failures before restart
-RESTART_COUNT_FILE = "/tmp/oisha-watchdog-restarts"
+STARTUP_GRACE_SECONDS = int(os.environ.get("OISHA_STARTUP_GRACE_SECONDS", "180"))
+RESTART_COUNT_FILE = os.environ.get(
+    "OISHA_WATCHDOG_RESTART_COUNT_FILE", "/run/oisha-watchdog-restarts"
+)
+
+def service_uptime_seconds():
+    """Return the systemd service process age so boot-time failures are tolerated."""
+    if os.name == "nt":
+        return None
+    try:
+        raw_pid = subprocess.check_output(
+            ["systemctl", "show", SERVICE_NAME, "--property=MainPID", "--value"],
+            text=True,
+            timeout=5,
+        ).strip()
+        pid = int(raw_pid or "0")
+        if pid <= 0:
+            return None
+        return max(0.0, time.time() - os.stat(f"/proc/{pid}").st_ctime)
+    except Exception as e:
+        logger.debug(f"Could not determine {SERVICE_NAME} uptime: {e}")
+        return None
 
 def restart_service():
     logger.warning(f"Triggering systemctl restart {SERVICE_NAME}...")
@@ -69,6 +90,15 @@ def main():
             if check_health():
                 consecutive_failures = 0
             else:
+                uptime = service_uptime_seconds()
+                if uptime is not None and uptime < STARTUP_GRACE_SECONDS:
+                    logger.info(
+                        "Health check failed during startup grace: "
+                        f"{uptime:.0f}s/{STARTUP_GRACE_SECONDS}s"
+                    )
+                    consecutive_failures = 0
+                    time.sleep(CHECK_INTERVAL)
+                    continue
                 consecutive_failures += 1
                 logger.warning(f"Consecutive health failures: {consecutive_failures}/{FAILURE_THRESHOLD}")
                 if consecutive_failures >= FAILURE_THRESHOLD:

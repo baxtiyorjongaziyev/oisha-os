@@ -6,6 +6,8 @@ import random
 from typing import Optional
 from telegram import LabeledPrice
 
+from src.services.core.tool_adapters import send_group_message_with_fallback
+
 logger = logging.getLogger(__name__)
 
 
@@ -151,10 +153,13 @@ class ActionParser:
                             f"📝 <b>Mavzu:</b> {cal_data.get('summary', '...')} \n"
                         )
                         asyncio.create_task(
-                            context.bot.send_message(
+                            send_group_message_with_fallback(
+                                context.bot,
                                 chat_id=self.config.CRM_GROUP_ID,
                                 text=crm_msg,
                                 parse_mode="HTML",
+                                thread_id=getattr(self.config, "TOPIC_CRM_ID", None)
+                                or getattr(self.config, "CRM_TOPIC_ID", None),
                             )
                         )
             except Exception as e:
@@ -262,10 +267,13 @@ class ActionParser:
                                 f"📝 <b>Izoh:</b> {lead_note}\n"
                                 f"🔗 <a href='https://{self.config.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{l_id}'>Bitimni ko'rish</a>"
                             )
-                            await context.bot.send_message(
+                            await send_group_message_with_fallback(
+                                context.bot,
                                 chat_id=self.config.CRM_GROUP_ID,
                                 text=crm_msg,
                                 parse_mode="HTML",
+                                thread_id=getattr(self.config, "TOPIC_CRM_ID", None)
+                                or getattr(self.config, "CRM_TOPIC_ID", None),
                             )
 
                     asyncio.create_task(run_amo_sync())
