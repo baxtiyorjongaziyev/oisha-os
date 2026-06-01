@@ -90,7 +90,7 @@ class SurgicalSettings(BaseSettings):
 
     # AI settings
     NEGOTIATION_AI_MODEL: str = Field(
-        default="gemini-1.5-flash", description="Negotsiatsiya uchun AI model"
+        default="gemini-2.5-flash", description="Negotsiatsiya uchun AI model"
     )
 
     AI_TEMPERATURE: float = Field(
@@ -146,7 +146,7 @@ HIGH_VALUE_THRESHOLD=15000
 NOTIFY_ON_HUMAN_TAKEOVER=true
 
 # AI
-NEGOTIATION_AI_MODEL=gemini-1.5-flash
+NEGOTIATION_AI_MODEL=gemini-2.5-flash
 AI_TEMPERATURE=0.7
 AI_MAX_TOKENS=300
 

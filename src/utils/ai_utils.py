@@ -2,6 +2,8 @@ import asyncio
 import logging
 import random
 
+from src.settings import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -9,13 +11,14 @@ async def safe_ai_call(
     client,
     prompt,
     system_instruction=None,
-    model="gemini-2.0-flash",
+    model=None,
     mime_type=None,
     retries=3,
 ):
     """Global utility to handle 429 RESOURCE_EXHAUSTED with exponential backoff."""
     from google.genai import types
 
+    model = model or settings.GEMINI_CALL_MODEL
     config = types.GenerateContentConfig(
         system_instruction=system_instruction, response_mime_type=mime_type
     )
