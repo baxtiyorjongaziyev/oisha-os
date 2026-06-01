@@ -20,9 +20,19 @@ from telethon.errors import (
 
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
-SESSION_STRING = os.environ["USERBOT_SESSION_STRING"]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
+
+# Fresh session file has priority over (possibly expired) secret
+SESSION_STRING = os.environ.get("USERBOT_SESSION_STRING", "")
+_session_file = "data/session_output.txt"
+try:
+    if os.path.exists(_session_file):
+        _file_session = open(_session_file).read().strip()
+        if _file_session:
+            SESSION_STRING = _file_session
+except Exception:
+    pass
 
 MESSAGE = (
     "Assalomu alaykum\n"
