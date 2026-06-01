@@ -47,3 +47,8 @@
 
 **Learning:** When adding a visual loading spinner to a button component, screen readers don't automatically know the button is in a processing state just from a new SVG appearing.
 **Action:** Always add `aria-busy={isLoading}` to the container element to explicitly announce the pending state, and add `aria-hidden="true"` to the decorative SVG spinner so screen readers don't read out irrelevant vector paths.
+
+## 2026-05-28 - [UX Improvement] Dynamically apply focus rings to disabled tooltips
+
+**Learning:** When wrapping a disabled component (like a button) in a generic `<span>` to enable tooltips, applying focus styles directly to the `<span>` results in an ugly rectangular focus ring that doesn't match the inner component's border radius (e.g., `rounded-full`).
+**Action:** Use Tailwind's `group` utility on the wrapper along with `focus:outline-none`, and apply `group-focus-visible:ring-*` utilities to the child element so the focus ring seamlessly inherits the child's exact shape and border-radius.
