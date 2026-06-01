@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 from google import genai
+from src.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,7 @@ class OishaBrain:
         self.db = db
         self.bot_token = bot_token
         self.owner_id = owner_id
+        self.gemini_model = os.getenv("GEMINI_BRAIN_MODEL", settings.GEMINI_CALL_MODEL)
         self._client: Optional[genai.Client] = None
         if gemini_api_key:
             self._client = genai.Client(api_key=gemini_api_key)
@@ -119,7 +122,7 @@ class OishaBrain:
 
         try:
             response = self._client.models.generate_content(
-                model="gemini-2.0-flash",
+                model=self.gemini_model,
                 contents=prompt,
             )
             raw = response.text or "{}"
@@ -176,7 +179,7 @@ class OishaBrain:
             await self.db.log_agent_action(
                 user_id=0,
                 action_type="agent_brain_evolve",
-                action_data=result,
+                data=result,
                 success=True,
             )
         except Exception as e:

@@ -1,9 +1,12 @@
 import logging
 import datetime
+import os
 import time
 from contextlib import asynccontextmanager
 from typing import Optional, Any
 from google import genai
+
+from src.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +42,7 @@ class AdvisorAgent:
         self.client = genai.Client(api_key=api_key)
         self.db = db
         self.action_parser = action_parser
-        self.model_name = "gemini-2.0-flash"
+        self.model_name = os.getenv("GEMINI_ADVISOR_MODEL", settings.GEMINI_CALL_MODEL)
         from src.services.core.persona_hub import (
             INTERNAL_COO_PROMPT,
             EXTERNAL_CONCIERGE_PROMPT,

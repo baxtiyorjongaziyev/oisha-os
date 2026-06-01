@@ -16,6 +16,8 @@ import asyncio
 import logging
 from typing import AsyncIterator, Optional
 
+from src.settings import settings
+
 logger = logging.getLogger(__name__)
 
 _CURSOR = " ▌"
@@ -29,7 +31,7 @@ async def stream_gemini_response(
     chat_id: int,
     gemini_client,
     prompt: str,
-    model: str = "gemini-2.0-flash",
+    model: Optional[str] = None,
     placeholder: str = "⌛",
     reply_to: Optional[int] = None,
 ) -> str:
@@ -39,6 +41,7 @@ async def stream_gemini_response(
 
     Returns the final full text.
     """
+    model = model or settings.GEMINI_CALL_MODEL
     msg = await client.send_message(
         chat_id,
         placeholder,

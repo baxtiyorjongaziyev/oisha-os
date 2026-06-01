@@ -48,15 +48,160 @@ db_instance = None
 msg_controller = None
 action_parser = None
 business_connections = {}  # Store active Telegram Business connections
+_userbot_group_access_snapshot: Dict[str, Any] = {
+    "status": "pending",
+    "checked_at": None,
+    "groups": {},
+    "topics": {},
+}
 
 # Health check cache
 cached_status = {"status": "initializing", "timestamp": datetime.now(timezone.utc).isoformat()}
+_HEALTH_DB_TIMEOUT_SECONDS = 5.0
+_health_db_snapshot_cache: Dict[str, Any] = {
+    "recent_job_runs": [],
+    "storage_counts": {},
+    "updated_at": None,
+}
 
 
 async def _maybe_await(value: Any) -> Any:
     if inspect.isawaitable(value):
         return await value
     return value
+
+
+async def refresh_userbot_group_access_snapshot(client=None) -> Dict[str, Any]:
+    """Read group/topic access through the already-connected production userbot."""
+    global _userbot_group_access_snapshot
+    active_client = client or user_client
+    checked_at = get_local_now().isoformat()
+    if active_client is None:
+        _userbot_group_access_snapshot = {
+            "status": "unavailable",
+            "checked_at": checked_at,
+            "groups": {},
+            "topics": {},
+        }
+        return dict(_userbot_group_access_snapshot)
+
+    groups: Dict[str, Dict[str, Any]] = {}
+    resolved_entities: Dict[str, Any] = {}
+    unresolved_groups: List[str] = []
+    group_specs = {
+        "crm_group": settings.CRM_GROUP_ID,
+        "team_group": settings.TEAM_GROUP_ID,
+        "projects_group": settings.PROJECTS_GROUP_ID,
+    }
+    tasks_group_label = "crm_group"
+    if settings.TASKS_GROUP_ID:
+        group_specs["tasks_group"] = settings.TASKS_GROUP_ID
+        tasks_group_label = "tasks_group"
+    for label, chat_id in group_specs.items():
+        entry: Dict[str, Any] = {"configured": bool(chat_id), "chat_id": chat_id}
+        if chat_id:
+            try:
+                entity = await asyncio.wait_for(
+                    active_client.get_entity(chat_id), timeout=8.0
+                )
+                resolved_entities[label] = entity
+                entry["readable"] = True
+                entry["source"] = "entity_cache"
+            except Exception as exc:
+                entry["readable"] = False
+                entry["error"] = type(exc).__name__
+                unresolved_groups.append(label)
+        groups[label] = entry
+
+    dialogs_loaded = False
+    if unresolved_groups:
+        try:
+            dialogs = await asyncio.wait_for(
+                active_client.get_dialogs(limit=500), timeout=20.0
+            )
+            dialogs_loaded = True
+            dialog_entities = {
+                int(dialog.id): dialog.entity
+                for dialog in dialogs
+                if getattr(dialog, "id", None) is not None
+            }
+            for label in unresolved_groups:
+                entity = dialog_entities.get(int(groups[label]["chat_id"]))
+                if entity is None:
+                    continue
+                resolved_entities[label] = entity
+                groups[label].update({"readable": True, "source": "dialogs"})
+                groups[label].pop("error", None)
+        except Exception as exc:
+            for label in unresolved_groups:
+                groups[label]["dialogs_error"] = type(exc).__name__
+
+    for label in unresolved_groups:
+        if not groups[label].get("readable") and dialogs_loaded:
+            groups[label]["reason"] = "not_in_userbot_dialogs"
+
+    for label, entity in resolved_entities.items():
+        forum = getattr(entity, "forum", None)
+        if isinstance(forum, bool):
+            groups[label]["forum"] = forum
+
+    topics: Dict[str, Dict[str, Any]] = {}
+    topic_specs = {
+        "crm": ("crm_group", settings.TOPIC_CRM_ID or settings.CRM_TOPIC_ID),
+        "reports": ("crm_group", settings.TOPIC_REPORTS_ID),
+        "tasks": (tasks_group_label, settings.TOPIC_TASKS_ID),
+        "general": ("team_group", settings.TOPIC_GENERAL_ID),
+        "kirim": ("team_group", settings.TOPIC_KIRIM_ID),
+    }
+    for label, (group_label, topic_id) in topic_specs.items():
+        group_entry = groups[group_label]
+        entry = {
+            "configured": bool(topic_id),
+            "topic_id": topic_id,
+            "group": group_label,
+        }
+        if topic_id and group_entry.get("readable"):
+            try:
+                messages = await asyncio.wait_for(
+                    active_client.get_messages(
+                        resolved_entities.get(group_label, group_entry["chat_id"]),
+                        limit=1,
+                        reply_to=topic_id,
+                    ),
+                    timeout=8.0,
+                )
+                entry["readable"] = True
+                entry["sample_messages"] = len(messages or [])
+            except Exception as exc:
+                entry["readable"] = False
+                entry["error"] = type(exc).__name__
+                entry["reason"] = (
+                    "invalid_or_deleted_topic"
+                    if type(exc).__name__ == "BadRequestError"
+                    else "topic_unreadable"
+                )
+        elif topic_id and not group_entry.get("readable"):
+            entry["reason"] = "group_unreadable"
+        topics[label] = entry
+
+    required_groups = [
+        entry for entry in groups.values() if entry.get("configured")
+    ]
+    required_topics = [
+        entry for entry in topics.values() if entry.get("configured")
+    ]
+    _userbot_group_access_snapshot = {
+        "status": (
+            "ok"
+            if all(entry.get("readable") for entry in required_groups + required_topics)
+            else "degraded"
+        ),
+        "checked_at": checked_at,
+        "groups": groups,
+        "topics": topics,
+    }
+    return dict(_userbot_group_access_snapshot)
+
 
 app = FastAPI(title="Oisha-OS Enterprise API")
 
@@ -882,34 +1027,70 @@ def get_legacy_runtime_inventory() -> List[Dict[str, Any]]:
 async def build_health_snapshot(
     include_inventory: bool = False, include_traces: bool = False
 ) -> Dict[str, Any]:
+    global _health_db_snapshot_cache
     runtime = get_runtime_context()
     db_path = runtime.get("state_db_path") or getattr(db_instance, "db_path", None)
     recent_job_runs: List[Dict[str, Any]] = []
     recent_agent_actions: List[Dict[str, Any]] = []
+    storage_counts: Dict[str, int] = {}
+    storage_cache_used = False
 
     if db_instance:
         try:
-            recent_job_runs = await db_instance.get_recent_job_runs(limit=10)
+            async def load_storage_snapshot() -> Dict[str, Any]:
+                return {
+                    "recent_job_runs": await db_instance.get_recent_job_runs(limit=10),
+                    "storage_counts": await db_instance.get_storage_counts(),
+                    "updated_at": get_local_now().isoformat(),
+                }
+
+            _health_db_snapshot_cache = await asyncio.wait_for(
+                load_storage_snapshot(),
+                timeout=_HEALTH_DB_TIMEOUT_SECONDS,
+            )
+            recent_job_runs = list(_health_db_snapshot_cache["recent_job_runs"])
+            storage_counts = dict(_health_db_snapshot_cache["storage_counts"])
+        except asyncio.TimeoutError:
+            storage_cache_used = True
+            logger.warning("[API] Storage health query timed out; using cached snapshot.")
         except Exception as exc:
-            logger.warning(f"[API] Could not fetch recent job runs: {exc}")
+            storage_cache_used = True
+            logger.warning(f"[API] Could not fetch storage health: {exc}")
+
+        if storage_cache_used:
+            recent_job_runs = list(
+                _health_db_snapshot_cache.get("recent_job_runs", [])
+            )
+            storage_counts = dict(
+                _health_db_snapshot_cache.get("storage_counts", {})
+            )
 
         if include_traces:
             try:
-                recent_agent_actions = await db_instance.get_recent_agent_actions(
-                    limit=25
+                recent_agent_actions = await asyncio.wait_for(
+                    db_instance.get_recent_agent_actions(limit=25),
+                    timeout=_HEALTH_DB_TIMEOUT_SECONDS,
                 )
+            except asyncio.TimeoutError:
+                logger.warning("[API] Agent action query timed out.")
             except Exception as exc:
                 logger.warning(f"[API] Could not fetch agent actions: {exc}")
+
+    storage_health = get_storage_health(
+        db_path,
+        recent_job_runs=recent_job_runs,
+        backend=runtime.get("state_backend", "sqlite"),
+        storage_counts=storage_counts,
+    )
+    storage_health["cached"] = storage_cache_used
+    storage_health["cache_updated_at"] = _health_db_snapshot_cache.get("updated_at")
 
     snapshot = {
         "timestamp": get_local_now().isoformat(),
         "status": cached_status.copy(),
         "runtime": runtime,
-        "storage": get_storage_health(
-            db_path,
-            recent_job_runs=recent_job_runs,
-            backend=runtime.get("state_backend", "sqlite"),
-        ),
+        "storage": storage_health,
+        "telegram_userbot_access": dict(_userbot_group_access_snapshot),
     }
     if include_inventory:
         snapshot["legacy_runtime_inventory"] = get_legacy_runtime_inventory()
@@ -1492,7 +1673,7 @@ class SendMessageRequest(BaseModel):
     user_id: Any
     text: str
     secret_key: str
-    model: Optional[str] = "gemini-3-flash"
+    model: Optional[str] = settings.GEMINI_CALL_MODEL
 
 
 @asynccontextmanager

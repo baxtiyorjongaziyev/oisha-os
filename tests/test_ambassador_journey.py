@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from src.database_pool import SmartRow
 from src.services.core.ambassador_journey import AmbassadorJourneyManager
 
 
@@ -75,6 +76,7 @@ async def test_sync_won_leads_to_ambassadors_success():
     # DB Mock where _has_nps_scheduled returns None (False)
     db_mock, mock_conn, mock_cursor = _mock_db_conn(fetch_val=None)
     db_mock.update_lead_journey = AsyncMock(return_value=True)
+    db_mock.get_user_id_by_phone = AsyncMock(return_value=111)
 
     manager = AmbassadorJourneyManager(amocrm=amocrm_mock, db=db_mock, gemini_api_key="mock_key")
 
@@ -115,6 +117,10 @@ async def test_generate_nps_survey_text_gemini_success():
     
     assert "Custom warm Uzbek NPS text" in survey_text
     manager.genai_client.aio.models.generate_content.assert_called_once()
+    assert (
+        manager.genai_client.aio.models.generate_content.call_args.kwargs["model"]
+        == "gemini-2.5-flash"
+    )
 
 
 @pytest.mark.asyncio
@@ -123,8 +129,15 @@ async def test_process_scheduled_touchpoints_via_userbot():
     userbot_mock = MagicMock()
 
     # DB Mock for pending logs
-    pending_row = (42, 111222, 5555, "nps_survey", "Assalomu alaykum Toshmat aka!")
-    db_mock, mock_conn, mock_cursor = _mock_db_conn(fetch_val=("toshmat_username", "+998901234567"), fetchall_val=[pending_row])
+    pending_row = SmartRow(
+        [42, 111222, 5555, "nps_survey", "Assalomu alaykum Toshmat aka!"],
+        ["id", "user_id", "lead_id", "touchpoint_type", "sent_message"],
+    )
+    resolved_user = SmartRow(
+        ["toshmat_username", "+998901234567"],
+        ["username", "phone"],
+    )
+    db_mock, mock_conn, mock_cursor = _mock_db_conn(fetch_val=resolved_user, fetchall_val=[pending_row])
 
     manager = AmbassadorJourneyManager(
         amocrm=amocrm_mock, db=db_mock, user_client=userbot_mock, gemini_api_key="mock_key"

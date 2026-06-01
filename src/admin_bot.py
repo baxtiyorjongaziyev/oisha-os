@@ -3,6 +3,7 @@ from datetime import datetime
 from telethon import events, Button
 from src.database import Database
 from src.controllers.message_controller import MessageController
+from src.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,7 @@ class AdminBot:
             "🟢 **Dastur:** Active (Running)\n"
             "🟢 **Ma'lumotlar bazasi:** Sinxronlangan\n"
             "🟢 **AmoCRM:** Bog'langan (Ready)\n"
-            "🟢 **Gemini AI:** 2.0 Flash (Hushyor)\n"
+            f"🟢 **Gemini AI:** {settings.GEMINI_CALL_MODEL} (Hushyor)\n"
             f"🖥 **Server:** Master Node (GCP Europe)\n"
             "──────────────────────\n"
             f"🕒 **Update:** {datetime.now().strftime('%H:%M:%S')}"
