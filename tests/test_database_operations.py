@@ -92,6 +92,22 @@ class TestDatabaseConnection:
         assert user_id == 99988
 
     @pytest.mark.asyncio
+    async def test_get_user_by_role_supports_operational_aliases(self, temp_db):
+        await temp_db.upsert_user(
+            user_id=77788,
+            first_name="Project Owner",
+            username="pm_owner",
+            position="Project Manager",
+        )
+
+        user = await temp_db.get_user_by_role("pm")
+
+        assert user is not None
+        assert user["user_id"] == 77788
+        assert user["username"] == "pm_owner"
+        assert await temp_db.get_user_by_role("finance") is None
+
+    @pytest.mark.asyncio
     async def test_message_logging(self, temp_db):
         """Test message logging functionality."""
         await temp_db.log_message(
