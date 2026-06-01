@@ -34,7 +34,7 @@ class LeadScraper:
         self.genai_client = genai.Client(
             api_key=settings.GEMINI_API_KEY.get_secret_value()
         )
-        self.model_name = "gemini-2.0-flash"
+        self.model_name = os.getenv("GEMINI_LEAD_SCRAPER_MODEL", settings.GEMINI_CALL_MODEL)
 
     async def _is_processed(self, message_id):
         """Xabar oldin qayta ishlanganini tekshirish."""
@@ -523,6 +523,163 @@ class LeadScraper:
 
         logger.info(f"[DM SYNC] Yakunlandi. Jami: {sync_count}")
         return sync_count
+
+    async def hunt_2026_leads(
+        self,
+        client: TelegramClient,
+        bot_client: TelegramClient = None,
+        team_group_id: int = None,
+        topic_id: int = None,
+        limit: int = 500,
+    ):
+        """2026-yildagi barcha shaxsiy yozishmalarni skanerlash va sifatli leadlarni Team CRM topicga yuborish."""
+        from datetime import datetime, timezone
+        from src.services.core.auto_lead_agent import AutoLeadAgent
+
+        logger.info("[HUNT 2026] Shaxsiy chatlarni skanerlash boshlandi...")
+
+        auto_lead_agent = AutoLeadAgent(
+            api_key=settings.GEMINI_API_KEY.get_secret_value()
+        )
+
+        target_group = team_group_id or settings.TEAM_GROUP_ID or settings.CRM_GROUP_ID
+        target_topic = topic_id or settings.TOPIC_CRM_ID or settings.CRM_TOPIC_ID
+        send_client = bot_client or client
+
+        if not target_group:
+            logger.error("[HUNT 2026] TEAM_GROUP_ID yoki CRM_GROUP_ID sozlanmagan!")
+            return 0
+
+        since_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        found_leads = []
+        scanned = 0
+
+        async for dialog in client.iter_dialogs(limit=limit):
+            if not dialog.is_user:
+                continue
+            if getattr(dialog.entity, "bot", False):
+                continue
+
+            scanned += 1
+
+            messages = await client.get_messages(
+                dialog.entity, limit=30, offset_date=None
+            )
+
+            relevant_msgs = [
+                m for m in messages
+                if m.text and m.date and m.date >= since_date
+            ]
+
+            if not relevant_msgs:
+                continue
+
+            chat_text = "\n".join(
+                [
+                    f"{'Me' if m.out else 'User'}: {m.text}"
+                    for m in relevant_msgs[:25]
+                ]
+            )
+
+            try:
+                is_lead, lead_details = await auto_lead_agent.qualify_chat(chat_text)
+            except Exception as e:
+                logger.warning(f"[HUNT 2026] AI error for {dialog.name}: {e}")
+                await asyncio.sleep(2)
+                continue
+
+            intent = lead_details.get("intent_category", "SPAM")
+            confidence = lead_details.get("confidence_score", 0)
+
+            QUALITY_INTENTS = ["HOT_LEAD", "POTENTIAL", "VIP_CLIENT", "PARTNER"]
+            if not (is_lead or intent in QUALITY_INTENTS):
+                continue
+            if confidence < 0.5 and not is_lead:
+                continue
+
+            phone = lead_details.get("phone") or getattr(dialog.entity, "phone", None)
+            username = getattr(dialog.entity, "username", None)
+
+            lead_info = {
+                "name": dialog.name,
+                "username": username,
+                "phone": phone,
+                "intent": intent,
+                "confidence": confidence,
+                "summary": lead_details.get("summary", ""),
+                "needs": lead_details.get("needs", ""),
+                "business": lead_details.get("business", ""),
+                "coaching_tip": lead_details.get("coaching_tip", ""),
+            }
+            found_leads.append(lead_info)
+
+            await asyncio.sleep(1.5)
+
+        logger.info(
+            f"[HUNT 2026] Skanerlash tugadi. {scanned} dialog tekshirildi, {len(found_leads)} sifatli lead topildi."
+        )
+
+        if not found_leads:
+            summary_msg = "👸 **HUNT 2026 natijasi:**\n\n❌ Sifatli lead topilmadi."
+            try:
+                await send_client.send_message(
+                    target_group, summary_msg, reply_to=target_topic
+                )
+            except Exception as e:
+                logger.error(f"[HUNT 2026] Send error: {e}")
+            return 0
+
+        intent_emojis = {
+            "HOT_LEAD": "🔥",
+            "POTENTIAL": "🌱",
+            "VIP_CLIENT": "👑",
+            "PARTNER": "🤝",
+        }
+
+        header = (
+            f"👸 **HUNT 2026 — {len(found_leads)} ta sifatli lead topildi!**\n"
+            f"📊 Jami {scanned} ta dialog skanerlanadi\n"
+            f"{'━' * 30}\n\n"
+        )
+
+        batch_size = 5
+        for i in range(0, len(found_leads), batch_size):
+            batch = found_leads[i : i + batch_size]
+            msg_parts = []
+
+            if i == 0:
+                msg_parts.append(header)
+
+            for idx, lead in enumerate(batch, start=i + 1):
+                emoji = intent_emojis.get(lead["intent"], "📢")
+                contact = f"@{lead['username']}" if lead["username"] else (lead["phone"] or "N/A")
+
+                entry = (
+                    f"**{idx}. {emoji} {lead['name']}**\n"
+                    f"   📞 {contact}\n"
+                    f"   🏷 {lead['intent']} (confidence: {lead['confidence']:.0%})\n"
+                    f"   📝 {lead['summary']}\n"
+                )
+                if lead["needs"]:
+                    entry += f"   🎯 Ehtiyoj: {lead['needs']}\n"
+                if lead["coaching_tip"]:
+                    entry += f"   💡 Maslahat: {lead['coaching_tip']}\n"
+                entry += "\n"
+                msg_parts.append(entry)
+
+            full_msg = "".join(msg_parts)
+
+            try:
+                await send_client.send_message(
+                    target_group, full_msg, reply_to=target_topic
+                )
+            except Exception as e:
+                logger.error(f"[HUNT 2026] Batch send error: {e}")
+
+            await asyncio.sleep(1)
+
+        logger.info(f"[HUNT 2026] Team CRM topicga {len(found_leads)} lead yuborildi.")
+        return len(found_leads)
 
     def format_contact_name(
         self,
