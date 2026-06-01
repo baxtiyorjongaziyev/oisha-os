@@ -34,7 +34,7 @@ class LeadScraper:
         self.genai_client = genai.Client(
             api_key=settings.GEMINI_API_KEY.get_secret_value()
         )
-        self.model_name = "gemini-2.0-flash"
+        self.model_name = os.getenv("GEMINI_LEAD_SCRAPER_MODEL", settings.GEMINI_CALL_MODEL)
 
     async def _is_processed(self, message_id):
         """Xabar oldin qayta ishlanganini tekshirish."""

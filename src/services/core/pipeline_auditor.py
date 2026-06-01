@@ -37,7 +37,9 @@ class PipelineAuditor:
         self.genai_client = genai.Client(
             api_key=settings.GEMINI_API_KEY.get_secret_value()
         )
-        self.model_name = "gemini-2.0-flash"
+        self.model_name = os.getenv(
+            "GEMINI_PIPELINE_AUDITOR_MODEL", settings.GEMINI_CALL_MODEL
+        )
 
         self.call_analyzer = CallAnalyzer(
             amocrm=self.amocrm,
@@ -99,7 +101,7 @@ class PipelineAuditor:
         call_history: List[Dict[str, Any]],
         airtable_project: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """Use Gemini 2.0 Flash to synthesize CRM deal context, project delivery data, DM history, and call transcripts into strategic intelligence."""
+        """Use the configured Gemini model to synthesize CRM and delivery intelligence."""
         # Format DM history snippet
         history_snippet = "No chat history logged."
         if dm_history:

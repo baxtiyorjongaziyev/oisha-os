@@ -78,7 +78,9 @@ def get_storage_health(
     db_path: Optional[str],
     recent_job_runs: Optional[List[Dict[str, Any]]] = None,
     backend: str = "sqlite",
+    storage_counts: Optional[Dict[str, int]] = None,
 ) -> Dict[str, Any]:
+    counts = storage_counts or {}
     if backend != "sqlite":
         return {
             "backend": backend,
@@ -86,9 +88,11 @@ def get_storage_health(
             "exists": True,
             "writable": True,
             "size_bytes": 0,
-            "scheduler_rows": 0,
-            "kv_rows": 0,
-            "agent_action_rows": 0,
+            "scheduler_rows": int(counts.get("scheduled_jobs", 0)),
+            "kv_rows": int(counts.get("kv_settings", 0)),
+            "agent_action_rows": int(counts.get("agent_actions", 0)),
+            "user_rows": int(counts.get("users", 0)),
+            "call_analysis_rows": int(counts.get("call_analyses", 0)),
             "recent_job_runs": recent_job_runs or [],
             "error": None,
         }
@@ -139,6 +143,8 @@ def get_storage_health(
         "scheduler_rows": scheduler_rows,
         "kv_rows": kv_rows,
         "agent_action_rows": agent_action_rows,
+        "user_rows": int(counts.get("users", 0)),
+        "call_analysis_rows": int(counts.get("call_analyses", 0)),
         "recent_job_runs": recent_job_runs or [],
         "error": error,
     }
