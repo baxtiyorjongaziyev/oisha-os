@@ -971,7 +971,7 @@ class Database:
             "call_analyses",
         ):
             async with conn.execute(
-                f"SELECT COUNT(*) FROM {table_name}"
+                f"SELECT COUNT(*) FROM {table_name}"  # nosec B608
             ) as cursor:
                 row = await cursor.fetchone()
             counts[table_name] = int(row[0]) if row else 0
