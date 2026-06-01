@@ -26,7 +26,7 @@ class JumaNotifier:
         self.genai_client = genai.Client(
             api_key=settings.GEMINI_API_KEY.get_secret_value()
         )
-        self.model_name = "gemini-2.0-flash"
+        self.model_name = os.getenv("GEMINI_JUMA_MODEL", settings.GEMINI_CALL_MODEL)
 
     async def is_juma_greeting(self, text: str) -> bool:
         """Use Gemini to detect if the text is a Juma greeting."""

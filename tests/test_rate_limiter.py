@@ -164,7 +164,7 @@ class TestRateLimiterIntegration:
         from src.utils.rate_limiter import TokenBucketRateLimiter, RateLimitConfig
         
         limiter = TokenBucketRateLimiter(
-            RateLimitConfig(requests_per_second=100, burst_size=10)
+            RateLimitConfig(requests_per_second=0.01, burst_size=10)
         )
         
         # Many concurrent acquire attempts
