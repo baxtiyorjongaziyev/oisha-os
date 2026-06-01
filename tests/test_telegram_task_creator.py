@@ -195,6 +195,23 @@ async def test_persisted_telegram_cooldown_skips_lookup_after_restart():
 
 
 @pytest.mark.asyncio
+async def test_phone_cooldown_does_not_block_username_dialogue_lookup():
+    userbot_mock = MagicMock()
+    userbot_mock.get_input_entity = AsyncMock(return_value="peer")
+    userbot_mock.get_messages = AsyncMock(return_value=[])
+    creator = TelegramTaskCreator(
+        amocrm=MagicMock(),
+        db=MagicMock(),
+        user_client=userbot_mock,
+    )
+    TelegramTaskCreator._telegram_blocked_until = time.time() + 600
+
+    assert await creator.create_amocrm_tasks_from_chat("@client", 1) == []
+
+    userbot_mock.get_input_entity.assert_awaited_once_with("@client")
+
+
+@pytest.mark.asyncio
 async def test_create_amocrm_tasks_from_chat_success():
     amocrm_mock = MagicMock()
     db_mock = MagicMock()
