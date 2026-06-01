@@ -1,0 +1,120 @@
+name: Telegram Session Generator
+
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: 'Qadam: "1" = SMS so`rov | "2" = Login'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - '1'
+          - '2'
+      phone_code_hash:
+        description: '[Faqat 2-qadam] 1-qadamdan olingan hash'
+        required: false
+        default: ''
+      sms_code:
+        description: '[Faqat 2-qadam] SMS kodi'
+        required: false
+        default: ''
+
+jobs:
+  generate:
+    name: Session String Generator
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Telethon
+        run: pip install telethon==1.36.0
+
+      - name: Step 1 — SMS yuborish
+        if: github.event.inputs.step == '1'
+        env:
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          TELEGRAM_PHONE: ${{ secrets.TELEGRAM_PHONE }}
+        run: |
+          python3 - <<'PYEOF'
+          import asyncio, os
+          from telethon import TelegramClient
+          from telethon.sessions import StringSession
+
+          async def main():
+              phone = os.environ["TELEGRAM_PHONE"]
+              client = TelegramClient(StringSession(), int(os.environ["API_ID"]), os.environ["API_HASH"])
+              await client.connect()
+              result = await client.send_code_request(phone)
+              print("=" * 60)
+              print(f"✅ SMS yuborildi: {phone}")
+              print(f"PHONE_CODE_HASH: {result.phone_code_hash}")
+              print("=" * 60)
+              print("Keyingi qadam:")
+              print("  Actions → 'Telegram Session Generator' → Run workflow")
+              print("  step=2, phone_code_hash=<hash yuqorida>, sms_code=<kod telefoningizda>")
+              await client.disconnect()
+
+          asyncio.run(main())
+          PYEOF
+
+      - name: Step 2 — Login va Session String
+        if: github.event.inputs.step == '2'
+        env:
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          TELEGRAM_PHONE: ${{ secrets.TELEGRAM_PHONE }}
+          TG_PASSWORD: ${{ secrets.TELEGRAM_PASSWORD }}
+          PHONE_CODE_HASH: ${{ github.event.inputs.phone_code_hash }}
+          SMS_CODE: ${{ github.event.inputs.sms_code }}
+        run: |
+          python3 - <<'PYEOF'
+          import asyncio, os, sys
+          from telethon import TelegramClient
+          from telethon.errors import SessionPasswordNeededError
+          from telethon.sessions import StringSession
+
+          async def main():
+              phone = os.environ["TELEGRAM_PHONE"]
+              code = os.environ["SMS_CODE"].strip()
+              phone_code_hash = os.environ["PHONE_CODE_HASH"].strip()
+              password = os.environ.get("TG_PASSWORD", "").strip()
+
+              client = TelegramClient(StringSession(), int(os.environ["API_ID"]), os.environ["API_HASH"])
+              await client.connect()
+
+              try:
+                  await client.sign_in(
+                      phone=phone,
+                      code=code,
+                      phone_code_hash=phone_code_hash,
+                  )
+              except SessionPasswordNeededError:
+                  if not password:
+                      print("❌ 2FA kerak! TELEGRAM_PASSWORD secret ga parol qo'shing.")
+                      sys.exit(1)
+                  await client.sign_in(password=password)
+
+              if not await client.is_user_authorized():
+                  print("❌ Authorization muvaffaqiyatsiz")
+                  sys.exit(1)
+
+              me = await client.get_me()
+              session_string = client.session.save()
+
+              print("=" * 60)
+              print(f"✅ LOGIN: {me.first_name} (@{me.username})")
+              print("=" * 60)
+              print("\nQuyidagi qiymatni GitHub Secrets → USERBOT_SESSION_STRING ga kiriting:\n")
+              print(session_string)
+              print("\n" + "=" * 60)
+              await client.disconnect()
+
+          asyncio.run(main())
+          PYEOF
