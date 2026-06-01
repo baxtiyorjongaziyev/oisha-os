@@ -17,6 +17,9 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Install Telethon
         run: pip install telethon==1.36.0
 
@@ -27,7 +30,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - <<'PYEOF'
-          import asyncio, os, time, json, base64
+          import asyncio, os, time, json, base64, subprocess
           import urllib.request, urllib.error
           from telethon import TelegramClient
           from telethon.errors import SessionPasswordNeededError
@@ -38,109 +41,116 @@ jobs:
           GH_TOKEN = os.environ["GH_TOKEN"]
           REPO = "baxtiyorjongaziyev/oisha-os"
           CODE_FILE = "data/sms_code_input.txt"
+          SESSION_FILE = "data/session_output.txt"
 
-          def gh_get(path):
+          def gh_request(method, path, data=None):
               url = f"https://api.github.com{path}"
-              req = urllib.request.Request(url, headers={
-                  "Authorization": f"Bearer {GH_TOKEN}",
-                  "Accept": "application/vnd.github+json",
-              })
-              try:
-                  with urllib.request.urlopen(req, timeout=10) as r:
-                      return json.loads(r.read()), r.status
-              except urllib.error.HTTPError as e:
-                  return {}, e.code
-
-          def gh_put(path, data):
-              url = f"https://api.github.com{path}"
-              body = json.dumps(data).encode()
-              req = urllib.request.Request(url, data=body, method="PUT", headers={
+              body = json.dumps(data).encode() if data else None
+              req = urllib.request.Request(url, data=body, method=method, headers={
                   "Authorization": f"Bearer {GH_TOKEN}",
                   "Accept": "application/vnd.github+json",
                   "Content-Type": "application/json",
               })
               try:
                   with urllib.request.urlopen(req, timeout=10) as r:
-                      return r.status
+                      content = r.read()
+                      return (json.loads(content) if content else {}), r.status
               except urllib.error.HTTPError as e:
-                  return e.code
+                  return {}, e.code
 
           def get_repo_file(path):
-              data, status = gh_get(f"/repos/{REPO}/contents/{path}")
+              data, status = gh_request("GET", f"/repos/{REPO}/contents/{path}")
               if status == 200 and "content" in data:
                   return base64.b64decode(data["content"]).decode().strip(), data.get("sha", "")
               return None, None
 
+          def push_file_to_repo(path, content_str, message):
+              existing, sha = get_repo_file(path)
+              payload = {
+                  "message": message,
+                  "content": base64.b64encode(content_str.encode()).decode(),
+                  "committer": {"name": "GitHub Actions", "email": "actions@github.com"},
+              }
+              if sha:
+                  payload["sha"] = sha
+              _, status = gh_request("PUT", f"/repos/{REPO}/contents/{path}", payload)
+              return status
+
           def set_actions_variable(name, value):
-              status = gh_put(f"/repos/{REPO}/actions/variables/{name}", {"name": name, "value": value})
-              if status not in (201, 204):
-                  # Try PATCH if PUT not supported
-                  url = f"https://api.github.com/repos/{REPO}/actions/variables/{name}"
-                  req = urllib.request.Request(url, data=json.dumps({"name": name, "value": value}).encode(),
-                      method="PATCH", headers={
-                          "Authorization": f"Bearer {GH_TOKEN}",
-                          "Accept": "application/vnd.github+json",
-                          "Content-Type": "application/json",
-                      })
-                  try:
-                      with urllib.request.urlopen(req, timeout=10) as r:
-                          status = r.status
-                  except urllib.error.HTTPError as e:
-                      status = e.code
+              # Try PATCH (update existing)
+              _, status = gh_request("PATCH", f"/repos/{REPO}/actions/variables/{name}",
+                                     {"name": name, "value": value})
+              if status == 204:
+                  return 204
+              # Try POST (create new)
+              _, status = gh_request("POST", f"/repos/{REPO}/actions/variables",
+                                     {"name": name, "value": value})
               return status
 
           async def main():
               client = TelegramClient(StringSession(), int(os.environ["API_ID"]), os.environ["API_HASH"])
               await client.connect()
 
-              # Step 1: send SMS
               result = await client.send_code_request(PHONE)
               code_hash = result.phone_code_hash
-              print(f"✅ SMS yuborildi: {PHONE}")
-              print(f"PHONE_CODE_HASH: {code_hash}")
-              print("data/sms_code_input.txt ni kutmoqda... (10 daqiqa)")
+              print(f"SMS yuborildi: {PHONE}  hash={code_hash[:8]}...")
+              print(f"data/{CODE_FILE} ni kutmoqda (10 daqiqa)...")
 
-              # Step 2: poll for SMS code file
               code = None
               deadline = time.time() + 600
               while time.time() < deadline:
                   content, _ = get_repo_file(CODE_FILE)
                   if content and content.strip().isdigit():
                       code = content.strip()
-                      print(f"\n✅ Kod topildi: {code}")
+                      print(f"\nKod topildi: {code}")
                       break
                   print(".", end="", flush=True)
                   await asyncio.sleep(5)
 
               if not code:
-                  print("\n❌ Timeout — 10 daqiqa ichida kod kelmadi")
+                  print("\nTimeout!")
                   await client.disconnect()
                   return
 
-              # Step 3: sign in
               try:
                   await client.sign_in(phone=PHONE, code=code, phone_code_hash=code_hash)
               except SessionPasswordNeededError:
-                  print("2FA kerak — parol kiritilmoqda...")
+                  print("2FA kiritilmoqda...")
                   await client.sign_in(password=TG_PASSWORD)
 
               if not await client.is_user_authorized():
-                  print("❌ Authorization muvaffaqiyatsiz!")
+                  print("Auth muvaffaqiyatsiz!")
                   await client.disconnect()
                   return
 
               me = await client.get_me()
               session = client.session.save()
-              print(f"\n✅ LOGIN: {me.first_name} (@{me.username})")
-              print(f"Session uzunligi: {len(session)}")
+              print(f"\nLOGIN OK: {me.first_name} (@{me.username})")
 
-              # Step 4: save to Actions Variable
+              # 1. Save to Actions Variable (PATCH or POST)
               status = set_actions_variable("USERBOT_SESSION_STRING", session)
-              print(f"Variable update status: {status}")
-              print("✅ USERBOT_SESSION_STRING GitHub Variable ga saqlandi!")
+              print(f"Actions Variable status: {status}")
+
+              # 2. Save to private repo file (backup — repo is private)
+              file_status = push_file_to_repo(
+                  SESSION_FILE,
+                  session,
+                  "auth: save new userbot session string [auto]"
+              )
+              print(f"File commit status: {file_status}")
+
+              # 3. Clean up code file
+              _, sha = get_repo_file(CODE_FILE)
+              if sha:
+                  gh_request("DELETE", f"/repos/{REPO}/contents/{CODE_FILE}", {
+                      "message": "auth: remove sms code file [auto]",
+                      "sha": sha,
+                      "committer": {"name": "GitHub Actions", "email": "actions@github.com"},
+                  })
+                  print("SMS kod fayli o'chirildi")
 
               await client.disconnect()
-              print("\n🎉 Auth muvaffaqiyatli yakunlandi! Qurbon workflow tayyor.")
+              print("YAKUNLANDI — session saqlandi!")
 
           asyncio.run(main())
           PYEOF
