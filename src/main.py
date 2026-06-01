@@ -3269,6 +3269,9 @@ async def main():
     async def telegram_group_access_probe_loop():
         await asyncio.sleep(5)
         while True:
+            delay_seconds = _negotiation_int(
+                "TELEGRAM_GROUP_PROBE_INTERVAL_SECS", 3600
+            )
             try:
                 snapshot = await api_module.refresh_userbot_group_access_snapshot(
                     client
@@ -3289,14 +3292,21 @@ async def main():
                     readable_groups,
                     readable_topics,
                 )
+                if snapshot.get("status") != "ok":
+                    delay_seconds = min(
+                        delay_seconds,
+                        _negotiation_int("TELEGRAM_GROUP_PROBE_RETRY_SECS", 60),
+                    )
             except Exception as exc:
                 logger.warning(
                     "[TELEGRAM PROBE] Read-only group/topic probe failed: %s",
                     type(exc).__name__,
                 )
-            await asyncio.sleep(
-                _negotiation_int("TELEGRAM_GROUP_PROBE_INTERVAL_SECS", 3600)
-            )
+                delay_seconds = min(
+                    delay_seconds,
+                    _negotiation_int("TELEGRAM_GROUP_PROBE_RETRY_SECS", 60),
+                )
+            await asyncio.sleep(delay_seconds)
 
     asyncio.create_task(
         telegram_group_access_probe_loop(),
