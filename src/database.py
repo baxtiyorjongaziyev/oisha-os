@@ -833,6 +833,50 @@ class Database:
             rows = await cursor.fetchall()
             return [row[0] for row in rows]
 
+    async def get_user_by_role(self, role: str) -> Optional[Dict[str, Any]]:
+        """Return one team member matching a normalized operational role."""
+        normalized = str(role or "").strip().lower()
+        if not normalized:
+            return None
+        aliases = {
+            "pm": ("pm", "project manager", "farmer"),
+            "project manager": ("pm", "project manager", "farmer"),
+            "farmer": ("pm", "project manager", "farmer"),
+            "finance": ("finance", "moliya", "accountant", "buxgalter"),
+            "moliya": ("finance", "moliya", "accountant", "buxgalter"),
+            "accountant": ("finance", "moliya", "accountant", "buxgalter"),
+            "buxgalter": ("finance", "moliya", "accountant", "buxgalter"),
+        }.get(normalized, (normalized,))
+        placeholders = ", ".join("?" for _ in aliases)
+        params = tuple(aliases) * 3
+        conn = await self.get_connection()
+        async with conn.execute(
+            f"""
+            SELECT user_id, first_name, username, role, detailed_role, position
+            FROM users
+            WHERE LOWER(TRIM(COALESCE(role, ''))) IN ({placeholders})
+               OR LOWER(TRIM(COALESCE(detailed_role, ''))) IN ({placeholders})
+               OR LOWER(TRIM(COALESCE(position, ''))) IN ({placeholders})
+            ORDER BY
+                CASE WHEN LOWER(TRIM(COALESCE(role, ''))) = ? THEN 0 ELSE 1 END,
+                user_id
+            LIMIT 1
+            """,  # nosec
+            params + (normalized,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "user_id": row[0],
+            "name": row[1] or row[2] or f"User_{row[0]}",
+            "first_name": row[1],
+            "username": row[2],
+            "role": row[3] or row[5] or row[4],
+            "detailed_role": row[4],
+            "position": row[5],
+        }
+
     async def get_team_roles(self):
         conn = await self.get_connection()
         async with conn.execute("""
