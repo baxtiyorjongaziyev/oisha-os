@@ -3,14 +3,24 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from src.services.core.case_publisher import CasePublisher
 
 
+def _mock_genai_client():
+    client = MagicMock()
+    client.aio = None
+    return client
+
+
 @pytest.mark.asyncio
 async def test_is_portfolio_case_classification_success():
     client_mock = MagicMock()
     publisher = CasePublisher(client=client_mock)
 
-    # Mock safe_ai_call to return "YES"
-    with patch("src.utils.ai_utils.safe_ai_call", new_callable=AsyncMock) as mock_call:
-        mock_call.return_value.text = "YES"
+    with patch(
+        "src.services.utils.gemini_fallback.generate_content_with_fallback",
+        new_callable=AsyncMock,
+    ) as mock_call:
+        mock_response = MagicMock()
+        mock_response.text = "YES"
+        mock_call.return_value = (mock_response, "gemini-test")
         
         is_case = await publisher.is_portfolio_case("Quyidagi yangi brending keysimiz va dizayn konsepsiyamiz juda ajoyib va chiroyli chiqdi.")
         assert is_case is True
@@ -21,8 +31,13 @@ async def test_is_portfolio_case_classification_failure():
     client_mock = MagicMock()
     publisher = CasePublisher(client=client_mock)
 
-    with patch("src.utils.ai_utils.safe_ai_call", new_callable=AsyncMock) as mock_call:
-        mock_call.return_value.text = "NO"
+    with patch(
+        "src.services.utils.gemini_fallback.generate_content_with_fallback",
+        new_callable=AsyncMock,
+    ) as mock_call:
+        mock_response = MagicMock()
+        mock_response.text = "NO"
+        mock_call.return_value = (mock_response, "gemini-test")
         
         is_case = await publisher.is_portfolio_case("Bugun havo juda ham ajoyib va quyoshli bo'lib, hammaga xayrli kun tilab qolaman do'stlar.")
         assert is_case is False
@@ -31,7 +46,7 @@ async def test_is_portfolio_case_classification_failure():
 @pytest.mark.asyncio
 async def test_extract_case_details_success():
     client_mock = MagicMock()
-    publisher = CasePublisher(client=client_mock)
+    publisher = CasePublisher(client=client_mock, genai_client=_mock_genai_client())
 
     mock_response = MagicMock()
     mock_response.text = (
