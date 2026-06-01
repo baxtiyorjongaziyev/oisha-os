@@ -1,6 +1,9 @@
 import logging
 import json
+import os
 from google import genai
+
+from src.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +12,7 @@ class LearningEngine:
     def __init__(self, api_keys, db):
         self.api_keys = api_keys
         self.db = db
-        self.model_id = "gemini-2.0-flash"
+        self.model_id = os.getenv("GEMINI_LEARNING_MODEL", settings.GEMINI_CALL_MODEL)
         # Gemini key bo'lsa clientni ochish
         self.client = None
         if isinstance(api_keys, dict) and "gemini" in api_keys:

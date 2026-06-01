@@ -87,6 +87,7 @@ meeting_scheduler = None
 oisha_brain = None
 bot_messenger = None
 agent_orchestrator = None
+_health_api_server = None
 
 # TN5 Group Config (env-configurable; fallback keeps legacy behavior)
 TN5_GROUP_ID = (
@@ -95,6 +96,81 @@ TN5_GROUP_ID = (
 TN5_TOPIC_ID = (
     settings.CRM_TOPIC_ID if settings.CRM_TOPIC_ID is not None else 7
 )  # Ishtirokchilar ma'lumotlari
+
+
+_SHUTDOWN_DAEMON_TASK_NAMES = {
+    "api_heartbeat",
+    "background_monitor_task",
+    "calendar_autoscan_loop",
+    "command_processor",
+    "crm_capacity_archiver_loop",
+    "evolution_scheduler",
+    "guest_bot_enable",
+    "health_check_api",
+    "oisha_brain_evolution",
+    "shutdown_watcher",
+    "telegram_group_access_probe_loop",
+    "userbot_disconnect_watcher",
+}
+
+_SHUTDOWN_DAEMON_CORO_NAMES = {
+    "_heartbeat_task",
+    "_brain_evolution_loop",
+    "_keepalive_loop",
+    "_recv_loop",
+    "_send_loop",
+    "_update_loop",
+    "ai_autopilot_loop",
+    "background_crm_audit_task",
+    "background_loop",
+    "background_monitor_task",
+    "background_scheduler",
+    "calendar_autoscan_loop",
+    "command_processor",
+    "crm_capacity_archiver_loop",
+    "crm_discipline_loop",
+    "dm_lead_sync_task",
+    "monitor_sessions",
+    "run_health_check_api",
+    "start_backlog_sync",
+    "telegram_group_access_probe_loop",
+}
+
+_SHUTDOWN_DAEMON_CORO_SUFFIXES = {
+    "AdminBot.start.<locals>.heartbeat",
+    "EvolutionScheduler._run_loop",
+    "LifespanOn.main",
+    "MTProtoSender._keepalive_loop",
+    "MTProtoSender._recv_loop",
+    "MTProtoSender._send_loop",
+    "UpdateMethods._update_loop",
+}
+
+
+def _is_shutdown_daemon_task(task: Any) -> bool:
+    """Return whether a pending task is an infrastructure loop, not a handler."""
+    task_name = getattr(task, "get_name", lambda: "")() or ""
+    if task_name in _SHUTDOWN_DAEMON_TASK_NAMES:
+        return True
+
+    coro = getattr(task, "get_coro", lambda: None)()
+    coro_name = getattr(coro, "__name__", "") or ""
+    if coro_name in _SHUTDOWN_DAEMON_CORO_NAMES:
+        return True
+
+    coro_qualname = getattr(coro, "__qualname__", "") or ""
+    return any(
+        coro_qualname.endswith(suffix) for suffix in _SHUTDOWN_DAEMON_CORO_SUFFIXES
+    )
+
+
+def _shutdown_task_label(task: Any) -> str:
+    """Build a secret-free task label for shutdown diagnostics."""
+    task_name = getattr(task, "get_name", lambda: "")() or ""
+    coro = getattr(task, "get_coro", lambda: None)()
+    coro_qualname = getattr(coro, "__qualname__", "") or ""
+    coro_name = getattr(coro, "__name__", "") or ""
+    return f"{task_name}:{coro_qualname or coro_name or type(coro).__name__}"
 
 
 def _env_enabled(name: str) -> bool:
@@ -904,7 +980,14 @@ async def background_monitor_task() -> None:
                             
                             # Send to TN5_GROUP_ID (or configured CRM_GROUP_ID)
                             if TN5_GROUP_ID:
-                                await client.send_message(TN5_GROUP_ID, report_text)
+                                send_kwargs = {}
+                                if settings.TOPIC_REPORTS_ID:
+                                    send_kwargs["reply_to"] = settings.TOPIC_REPORTS_ID
+                                await client.send_message(
+                                    TN5_GROUP_ID,
+                                    report_text,
+                                    **send_kwargs,
+                                )
                                 logger.info(f"[SCHEDULE] CRM Daily reportagram sent to group {TN5_GROUP_ID}.")
                             else:
                                 await notify_admin(report_text, client)
@@ -1584,7 +1667,7 @@ async def handle_new_message(event):
             except Exception as surg_ex:
                 logger.warning(f"[SURGICAL] Fallback to legacy: {surg_ex}")
 
-        # 4b. Legacy AI (Gemini 2.0 Flash) — fallback yoki savdo bo'lmagan so'rovlar
+        # 4b. Legacy AI fallback yoki savdo bo'lmagan so'rovlar
         if not ai_raw_response:
             ai_raw_response = await msg_controller.get_response(
                 user_id=sender.id,
@@ -1777,7 +1860,9 @@ async def run_health_check_api() -> None:
         port=int(os.environ.get("PORT", 8080)),
         log_level="info",
     )
+    global _health_api_server
     server = uvicorn.Server(config_uvicorn)
+    _health_api_server = server
     try:
         await server.serve()
     except SystemExit:
@@ -1786,13 +1871,39 @@ async def run_health_check_api() -> None:
         )
     except OSError as e:
         logger.warning(f"[API] API server ishga tushmadi: {e}. Bot davom etadi.")
+    finally:
+        if _health_api_server is server:
+            _health_api_server = None
+
+
+async def stop_health_check_api(
+    api_task: Optional[asyncio.Task], timeout_seconds: float = 5.0
+) -> None:
+    """Ask Uvicorn to finish its lifespan before the event loop is closed."""
+    global _health_api_server
+    server = _health_api_server
+    if server is not None:
+        server.should_exit = True
+
+    if api_task is not None and not api_task.done():
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(api_task),
+                timeout=timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("[SHUTDOWN] API server exceeded shutdown deadline; forcing.")
+            api_task.cancel()
+            await asyncio.gather(api_task, return_exceptions=True)
+
+    _health_api_server = None
 
 
 async def safe_ai_call(
     client,
     prompt,
     system_instruction=None,
-    model="gemini-2.0-flash",
+    model=None,
     mime_type=None,
     retries=3,
 ):
@@ -2067,6 +2178,61 @@ async def self_command_handler(event):
         except Exception as e:
             logger.error(f"[COMMAND] /sync_cases error: {e}", exc_info=True)
             await event.respond(f"❌ **Sinxronizatsiyada xatolik:** {str(e)}")
+    elif cmd.startswith("/sync_archive"):
+        parts = cmd.split()
+        limit = 30
+        if len(parts) > 1:
+            try:
+                limit = int(parts[1])
+            except ValueError:
+                pass
+
+        await event.respond(f"🧹 **AmoCRM limitsizlantirish va arxivlash boshlandi...**\nBatch limiti: {limit} ta bitim. Iltimos, kuting... ⏳")
+        try:
+            from src.services.core.crm_archiver import CRMArchiver
+            archiver = CRMArchiver()
+            await archiver.init_tables()
+
+            # 1. Fetch all stagnant leads
+            stagnant = await archiver.get_stagnant_leads(max_stagnant_days=21)
+            if not stagnant:
+                await event.respond("✅ **Hammasi joyida:** Hozircha arxivlash uchun stagnant bitimlar mavjud emas.")
+                return
+
+            targets = stagnant[:limit]
+            await event.respond(f"🎯 **Arxivlash uchun {len(targets)} ta bitim tanlandi.** Arxivlash va outreach xabarlar generatsiya qilinmoqda...")
+
+            processed_count = 0
+            failed_count = 0
+
+            for lead in targets:
+                try:
+                    res = await archiver.archive_lead(lead, dry_run=False)
+                    if res.get("success"):
+                        processed_count += 1
+                    else:
+                        failed_count += 1
+                except Exception as ex:
+                    failed_count += 1
+                    logger.error(f"[SYNC ARCHIVE] Lead {lead.get('id')} error: {ex}")
+
+            # Send rich Uzbek KPI report of reclaimed capacity
+            active_leads = await archiver.fetch_all_active_leads()
+            active_count = len(active_leads)
+
+            report = (
+                f"🏁 **ARXIVLASH VA OUTREACH HISOBOTI**\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"✅ **Muvaffaqiyatli arxivlandi:** {processed_count} ta bitim\n"
+                f"❌ **Xatoliklar:** {failed_count} ta\n"
+                f"📦 **Qolgan faol bitimlar:** {active_count} / 500 limit\n"
+                f"📊 **Yangi bandlik darajasi:** {(active_count / 500) * 100:.1f}%\n"
+                f"💡 *Barcha arxivlangan bitimlar Turso Cloud bazasiga 100% xavfsiz saqlandi va 3 bosqichli Uzbek outreach kampaniyalari generatsiya qilindi!*"
+            )
+            await event.respond(report)
+        except Exception as e:
+            logger.error(f"[COMMAND] /sync_archive error: {e}", exc_info=True)
+            await event.respond(f"❌ **Arxivlashda xatolik yuz berdi:** {str(e)}")
 
 
 async def activity_monitor_handler(event):
@@ -2342,20 +2508,31 @@ async def kirim_topic_handler(event):
         celebration = f"{seller_name}, {celebration}"
 
     try:
-        if bot_client:
+        await _send_kirim_celebration(event, celebration)
+        await db.set_state(state_key, "done")
+        logger.info(f"[KIRIM] Celebration sent chat={event.chat_id} msg={event.id} seller={seller_name}")
+    except Exception as exc:
+        await db.set_state(state_key, f"failed:{type(exc).__name__}")
+        logger.error(f"[KIRIM] Celebration send failed: {exc}", exc_info=True)
+
+
+async def _send_kirim_celebration(event, celebration: str) -> None:
+    """Prefer the bot head, then use the listening userbot when group access is absent."""
+    if bot_client:
+        try:
             await bot_client.send_message(
                 settings.TEAM_GROUP_ID,
                 celebration,
                 reply_to=event.id,
                 link_preview=False,
             )
-        else:
-            await event.reply(celebration, link_preview=False)
-        await db.set_state(state_key, "done")
-        logger.info(f"[KIRIM] Celebration sent chat={event.chat_id} msg={event.id} seller={seller_name}")
-    except Exception as exc:
-        await db.set_state(state_key, f"failed:{type(exc).__name__}")
-        logger.error(f"[KIRIM] Celebration send failed: {exc}", exc_info=True)
+            return
+        except Exception as exc:
+            logger.warning(
+                "[KIRIM] Bot-token send failed (%s); using userbot reply fallback.",
+                type(exc).__name__,
+            )
+    await event.reply(celebration, link_preview=False)
 
 
 async def _brain_evolution_loop():
@@ -2420,7 +2597,6 @@ async def main():
                 if cmd == "send_message":
                     u_id = item.get("user_id")
                     txt = item.get("text")
-                    item.get("model", "gemini-3-flash")
                     
                     if client:
                         try:
@@ -2444,7 +2620,9 @@ async def main():
                 logger.error(f"❌ [COMMANDS] Processor error: {e}")
                 await asyncio.sleep(1)
 
-    asyncio.create_task(run_health_check_api(), name="health_check_api")
+    health_api_task = asyncio.create_task(
+        run_health_check_api(), name="health_check_api"
+    )
     asyncio.create_task(command_processor(), name="command_processor")
 
     _restore_cloud_artifacts()
@@ -2614,6 +2792,47 @@ async def main():
 
     asyncio.create_task(crm_discipline_loop())
 
+    # Background Task: Nightly CRM Capacity Archiver (Every 6 hours)
+    async def crm_capacity_archiver_loop():
+        await asyncio.sleep(60) # Let components stabilize
+        while True:
+            try:
+                logger.info("[ARCHIVER_LOOP] Active AmoCRM capacity check starting...")
+                from src.services.core.crm_archiver import CRMArchiver
+                archiver = CRMArchiver(amocrm=msg_controller.crm.amocrm, db=msg_controller.db)
+                await archiver.init_tables()
+
+                active_leads = await archiver.fetch_all_active_leads()
+                active_count = len(active_leads)
+                logger.info(f"[ARCHIVER_LOOP] Active sdelkas: {active_count} / 500 limit")
+
+                if active_count >= 480:
+                    logger.warning(f"[ARCHIVER_LOOP] Active sdelkas count {active_count} exceeds threshold of 480! Autocleaning 30 stagnant leads...")
+                    stagnant = await archiver.get_stagnant_leads(max_stagnant_days=21)
+                    if stagnant:
+                        targets = stagnant[:30]
+                        logger.info(f"[ARCHIVER_LOOP] Found {len(stagnant)} stagnant candidates. Archiving {len(targets)} leads...")
+
+                        processed = 0
+                        for lead in targets:
+                            try:
+                                res = await archiver.archive_lead(lead, dry_run=False)
+                                if res.get("success"):
+                                    processed += 1
+                            except Exception as ex:
+                                logger.error(f"[ARCHIVER_LOOP] Error archiving lead {lead.get('id')}: {ex}")
+
+                        logger.info(f"[ARCHIVER_LOOP] Autocleanup complete. Archived {processed} leads.")
+                    else:
+                        logger.info("[ARCHIVER_LOOP] No stagnant leads found to clean up.")
+            except Exception as e:
+                logger.error(f"[ARCHIVER_LOOP] Error in capacity archiver loop: {e}")
+            await asyncio.sleep(21600)  # Check every 6 hours (4 times a day)
+
+    asyncio.create_task(
+        crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop"
+    )
+
     # Background Task: Universal Autonomous AI Autopilot Loop (Every 15 minutes)
     async def ai_autopilot_loop():
         # Let components/clients stabilize
@@ -2659,6 +2878,18 @@ async def main():
                     leads = await msg_controller.crm.amocrm.get_leads_detailed(limit=30)
                     if leads and isinstance(leads, list):
                         for lead in leads:
+                            if task_creator.is_cooling_down():
+                                cooldown_reason = task_creator.cooldown_reason()
+                                cooldown_seconds = (
+                                    task_creator.cooldown_seconds_remaining()
+                                )
+                                logger.warning(
+                                    "[AUTOPILOT] Telegram task %s cooldown active for %ss; "
+                                    "skipping remaining task-extraction leads.",
+                                    cooldown_reason or "dependency",
+                                    cooldown_seconds,
+                                )
+                                break
                             lead_id = lead.get("id")
                             if not lead_id:
                                 continue
@@ -2676,6 +2907,13 @@ async def main():
                                             break
                                 if phone:
                                     break
+                            phone_getter = getattr(
+                                msg_controller.crm.amocrm,
+                                "get_primary_contact_phone",
+                                None,
+                            )
+                            if not phone and callable(phone_getter):
+                                phone = await phone_getter(lead)
                             
                             if phone:
                                 await task_creator.create_amocrm_tasks_from_chat(
@@ -2867,7 +3105,20 @@ async def main():
             "[AUTH] Userbot features are disabled, but bot-token commands "
             "and scheduled CRM/Airtable jobs are active."
         )
+        asyncio.create_task(
+            background_monitor_task(),
+            name="background_monitor_task",
+        )
         await asyncio.Event().wait()
+
+    from src.services.core.tool_adapters import configure_userbot_group_fallback
+
+    configure_userbot_group_fallback(client)
+    asyncio.create_task(
+        background_monitor_task(),
+        name="background_monitor_task",
+    )
+    logger.info("[MONITOR] Persistent CRM/Airtable scheduler registered.")
 
     # Start the bot-token head in the healthy userbot path too. AdminBot registers
     # bot commands here; Kirim celebrations still listen via the userbot account.
@@ -2978,6 +3229,43 @@ async def main():
     )
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
+    async def telegram_group_access_probe_loop():
+        await asyncio.sleep(5)
+        while True:
+            try:
+                snapshot = await api_module.refresh_userbot_group_access_snapshot(
+                    client
+                )
+                readable_groups = sum(
+                    1
+                    for entry in snapshot.get("groups", {}).values()
+                    if entry.get("readable")
+                )
+                readable_topics = sum(
+                    1
+                    for entry in snapshot.get("topics", {}).values()
+                    if entry.get("readable")
+                )
+                logger.info(
+                    "[TELEGRAM PROBE] status=%s readable_groups=%s readable_topics=%s",
+                    snapshot.get("status"),
+                    readable_groups,
+                    readable_topics,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[TELEGRAM PROBE] Read-only group/topic probe failed: %s",
+                    type(exc).__name__,
+                )
+            await asyncio.sleep(
+                _negotiation_int("TELEGRAM_GROUP_PROBE_INTERVAL_SECS", 3600)
+            )
+
+    asyncio.create_task(
+        telegram_group_access_probe_loop(),
+        name="telegram_group_access_probe_loop",
+    )
+
     async def calendar_autoscan_loop():
         await asyncio.sleep(_negotiation_int("CALENDAR_SCAN_BOOT_DELAY_SECS", 60))
         while True:
@@ -3038,25 +3326,14 @@ async def main():
         # Filter out the long-lived background loops (heartbeat, scheduler, etc.)
         # — we only want to wait for message-handler tasks. Heuristic: tasks
         # whose coroutine is not one of our known daemon coroutines.
-        daemon_names = {
-            "_heartbeat_task",
-            "background_scheduler",
-            "dm_lead_sync_task",
-            "background_monitor_task",
-            "background_loop",
-            "monitor_sessions",
-            "background_crm_audit_task",
-        }
-        drainable = []
-        for t in pending:
-            coro = getattr(t, "get_coro", lambda: None)()
-            name = getattr(coro, "__name__", "") or ""
-            if name in daemon_names:
-                continue
-            drainable.append(t)
+        drainable = [t for t in pending if not _is_shutdown_daemon_task(t)]
         if drainable:
             logger.info(
                 f"[SHUTDOWN] Waiting on {len(drainable)} in-flight handler task(s)."
+            )
+            logger.info(
+                "[SHUTDOWN] Drain candidates: %s",
+                ", ".join(sorted(_shutdown_task_label(t) for t in drainable)),
             )
             done, still_pending = await asyncio.wait(drainable, timeout=drain_deadline)
             if still_pending:
@@ -3082,7 +3359,12 @@ async def main():
             logger.info("[SHUTDOWN] DB closed.")
         except Exception as e:
             logger.warning(f"[SHUTDOWN] DB close error: {e}")
+        await stop_health_check_api(health_api_task)
+        logger.info("[SHUTDOWN] API server stopped.")
 
+    api_module.update_api_status(
+        "online", "Userbot, Telegram bot, and persistent scheduler are active"
+    )
     logger.info("Oisha-OS userbot runtime is online and ready.")
 
     # Main client loop — race run_until_disconnected against SIGTERM.
