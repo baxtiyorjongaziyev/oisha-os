@@ -26,7 +26,7 @@ class CasePublisher:
         self.genai_client = genai.Client(
             api_key=settings.GEMINI_API_KEY.get_secret_value()
         )
-        self.model_name = "gemini-2.0-flash"
+        self.model_name = os.getenv("GEMINI_CASE_PUBLISHER_MODEL", settings.GEMINI_CALL_MODEL)
 
     async def is_portfolio_case(self, text: str) -> bool:
         """Use Gemini to detect if the Telegram post represents a design/branding portfolio case."""

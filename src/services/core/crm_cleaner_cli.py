@@ -50,7 +50,9 @@ async def _gemini_call(prompt: str) -> str:
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY environment variable yo'q")
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel(
+        os.getenv("GEMINI_CALL_MODEL", "gemini-2.5-flash")
+    )
     loop = asyncio.get_event_loop()
     response = await loop.run_in_executor(None, lambda: model.generate_content(prompt))
     return getattr(response, "text", "") or ""
