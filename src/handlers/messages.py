@@ -119,10 +119,12 @@ async def process_message_logic(
         # 6. Send Reply
         if final_text:
             if is_business:
-                await message.reply_text(
-                    final_text,
+                await message.get_bot().send_message(
+                    chat_id=chat.id,
+                    text=final_text,
                     parse_mode="HTML",
                     business_connection_id=msg_business_connection_id,
+                    reply_to_message_id=message.message_id,
                 )
             else:
                 # Bot-to-Bot check: if sender is a bot, add loop safeguard
