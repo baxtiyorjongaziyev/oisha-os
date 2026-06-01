@@ -6,6 +6,9 @@ on:
     paths:
       - 'deploy/verify-session-trigger'
 
+permissions:
+  contents: write
+
 jobs:
   verify:
     name: Session Tekshiruv
@@ -19,15 +22,16 @@ jobs:
       - name: Install Telethon
         run: pip install telethon==1.36.0
 
-      - name: Verify session
+      - name: Verify session and write result
         env:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           OWNER_ID: ${{ secrets.OWNER_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - <<'PYEOF'
-          import asyncio, os, urllib.parse, urllib.request
+          import asyncio, os, json, base64, urllib.parse, urllib.request, urllib.error
           from telethon import TelegramClient
           from telethon.sessions import StringSession
 
@@ -35,6 +39,9 @@ jobs:
           API_HASH = os.environ["API_HASH"]
           BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
           OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
+          GH_TOKEN = os.environ["GH_TOKEN"]
+          REPO = "baxtiyorjongaziyev/oisha-os"
+          RESULT_FILE = "data/verify_result.txt"
 
           SESSION_STRING = os.environ.get("USERBOT_SESSION_STRING", "")
           session_file = "data/session_output.txt"
@@ -57,22 +64,54 @@ jobs:
               except Exception as e:
                   print(f"Notification failed: {e}")
 
+          def gh_request(method, path, data=None):
+              url = f"https://api.github.com{path}"
+              body = json.dumps(data).encode() if data else None
+              req = urllib.request.Request(url, data=body, method=method, headers={
+                  "Authorization": f"Bearer {GH_TOKEN}",
+                  "Accept": "application/vnd.github+json",
+                  "Content-Type": "application/json",
+              })
+              try:
+                  with urllib.request.urlopen(req, timeout=10) as r:
+                      content = r.read()
+                      return (json.loads(content) if content else {}), r.status
+              except urllib.error.HTTPError as e:
+                  return {}, e.code
+
+          def write_result(text):
+              existing, status = gh_request("GET", f"/repos/{REPO}/contents/{RESULT_FILE}")
+              sha = existing.get("sha") if status == 200 else None
+              payload = {
+                  "message": "verify: session check result [auto]",
+                  "content": base64.b64encode(text.encode()).decode(),
+                  "committer": {"name": "GitHub Actions", "email": "actions@github.com"},
+              }
+              if sha:
+                  payload["sha"] = sha
+              gh_request("PUT", f"/repos/{REPO}/contents/{RESULT_FILE}", payload)
+
           async def main():
               if not SESSION_STRING:
-                  notify("❌ SESSION_STRING topilmadi!")
-                  print("SESSION_STRING yo'q")
+                  result = "FAIL: SESSION_STRING topilmadi"
+                  notify(f"❌ {result}")
+                  write_result(result)
+                  print(result)
                   return
               client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
               try:
                   await client.connect()
                   if not await client.is_user_authorized():
-                      notify("❌ Session muddati tugagan yoki noto'g'ri!")
-                      print("FAIL: not authorized")
+                      result = "FAIL: Session muddati tugagan yoki noto'g'ri"
+                      notify(f"❌ {result}")
+                      write_result(result)
+                      print(result)
                       return
                   me = await client.get_me()
-                  msg = f"✅ Userbot session ISHLAYAPTI!\nAkkaunt: {me.first_name} (@{me.username})\nBarcha workflow'lar ishga tayyor."
-                  notify(msg)
-                  print(f"OK: {me.first_name} @{me.username}")
+                  result = f"OK: {me.first_name} (@{me.username}) — session ISHLAYAPTI"
+                  notify(f"✅ Userbot session tekshiruvi muvaffaqiyatli!\nAkkaunt: {me.first_name} (@{me.username})\nBarcha workflow'lar ishga tayyor.")
+                  write_result(result)
+                  print(result)
               finally:
                   await client.disconnect()
 
