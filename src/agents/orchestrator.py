@@ -1,6 +1,7 @@
 import logging
 from typing import Optional, Dict, Any
 from src.agents.core import AgentManager
+from src.services.utils.gemini_fallback import generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,12 @@ class AgentOrchestrator:
         try:
             client = sales_agent.model_configs["gemini"]["client"]
             model = sales_agent.model_configs["gemini"]["model"]
-            response = await client.aio.models.generate_content(
-                model=model, contents=prompt
+            response, _ = await generate_content_with_fallback(
+                client,
+                primary_model=model,
+                contents=prompt,
+                env_name="GEMINI_ROUTER_FALLBACK_MODELS",
+                log_prefix="[ORCHESTRATOR]",
             )
             intent = response.text.strip().lower()
             if intent in ["sales", "support", "strategist", "researcher"]:
