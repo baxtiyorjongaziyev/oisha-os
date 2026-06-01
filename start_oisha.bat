@@ -6,15 +6,18 @@ echo Setting Power Scheme to High Performance (Server Mode)...
 powercfg /requestsoverride process python.exe display system awaymode
 powercfg /x -standby-timeout-ac 0
 
-if exist .venv_oi\Scripts\activate.bat (
-    call .venv_oi\Scripts\activate.bat
+if exist .venv\Scripts\activate.bat (
+    call .venv\Scripts\activate.bat
 )
 
+set PYTHONPATH=.
+set PYTHONIOENCODING=utf-8
+
 echo Starting Oisha-OS Main Service...
-start "" /b pythonw src/main.py
+start "" /b python -u src/main.py > bot_startup.log 2>&1
 
 echo Starting Self-Healing Watchdog (Self-Healing)...
-start "" /b pythonw src/services/watchdog.py
+start "" /b python -u src/services/watchdog.py > watchdog_startup.log 2>&1
 
 echo.
 echo ===============================================
