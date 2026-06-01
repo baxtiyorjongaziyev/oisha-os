@@ -53,6 +53,21 @@ def retry_with_backoff(
 
 
 class AmoCRMSync:
+    FIRESTORE_COOLDOWN_SECONDS = int(
+        os.getenv("AMOCRM_FIRESTORE_COOLDOWN_SECONDS", "21600")
+    )
+    _firestore_blocked_until = 0.0
+    _firestore_block_reason: Optional[str] = None
+
+    @classmethod
+    def _firestore_cooling_down(cls) -> bool:
+        return time.time() < cls._firestore_blocked_until
+
+    @classmethod
+    def _pause_firestore(cls, error: Exception) -> None:
+        cls._firestore_block_reason = type(error).__name__
+        cls._firestore_blocked_until = time.time() + cls.FIRESTORE_COOLDOWN_SECONDS
+
     def __init__(
         self,
         subdomain,
@@ -75,12 +90,17 @@ class AmoCRMSync:
         self._contact_details_cache: Dict[int, tuple[float, Dict[str, Any]]] = {}
         
         self.db = None
-        if HAS_FIRESTORE:
+        if HAS_FIRESTORE and not type(self)._firestore_cooling_down():
             try:
                 self.db = firestore.Client()
                 logger.info("[AMOCRM] Firestore client initialized.")
             except Exception as e:
-                logger.warning(f"[AMOCRM] Firestore init failed: {e}")
+                type(self)._pause_firestore(e)
+                logger.warning(
+                    "[AMOCRM] Firestore unavailable (%s); using file-token fallback for %ss.",
+                    type(e).__name__,
+                    type(self).FIRESTORE_COOLDOWN_SECONDS,
+                )
 
         # Security: Masked log for safety
         logger.info(f"[AMOCRM INIT] Subdomain: {subdomain}")
@@ -101,7 +121,13 @@ class AmoCRMSync:
                         logger.info("[AMOCRM] Token loaded from Firestore.")
                         return
             except Exception as e:
-                logger.warning(f"[AMOCRM] Firestore load error: {e}")
+                type(self)._pause_firestore(e)
+                self.db = None
+                logger.warning(
+                    "[AMOCRM] Firestore read unavailable (%s); using file-token fallback for %ss.",
+                    type(e).__name__,
+                    type(self).FIRESTORE_COOLDOWN_SECONDS,
+                )
 
         # 2. Environment variable'dan o'qish
         env_token_json = os.environ.get("AMOCRM_TOKEN_JSON")
@@ -158,7 +184,12 @@ class AmoCRMSync:
                 doc_ref.set(token_data)
                 logger.info("[AMOCRM] Token saved to Firestore.")
             except Exception as e:
-                logger.error(f"[AMOCRM] Firestore save error: {e}")
+                type(self)._pause_firestore(e)
+                self.db = None
+                logger.warning(
+                    "[AMOCRM] Firestore save unavailable (%s); file-token backup remains active.",
+                    type(e).__name__,
+                )
 
         # 2. Faylga saqlash (backup)
         try:

@@ -194,42 +194,36 @@ class BaseAgent(ABC):
         tools: Optional[List[Dict[str, Any]]] = None,
         retries: int = 5,
     ):
-        """Exponential backoff bilan xavfsiz AI chaqiruvi (Synchronized with global standard)."""
-        import asyncio
-        import random
+        """Call Gemini with model failover for temporary provider outages."""
+        from src.services.utils.gemini_fallback import (
+            generate_content_with_fallback,
+            is_transient_error,
+        )
 
         client = self.model_configs["gemini"]["client"]
         model = self.model_configs["gemini"]["model"]
 
-        for i in range(retries):
-            try:
-                # Use aio generate_content with tools if provided
-                return await client.aio.models.generate_content(
-                    model=model,
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=self.system_prompt, tools=tools
-                    ),
-                )
-            except Exception as e:
-                err_str = str(e)
-                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    wait_time = (2**i) + random.random()
-                    logger.warning(
-                        f"[{self.agent_id}] Rate limit hit (429). Retrying in {wait_time:.2f}s... (Attempt {i+1}/{retries})"
-                    )
-                    await asyncio.sleep(wait_time)
-                elif (
-                    "500" in err_str or "503" in err_str
-                ):  # Handling temporary server errors
-                    wait_time = (2**i) + random.random()
-                    logger.warning(
-                        f"[{self.agent_id}] Gemini Server Error. Retrying in {wait_time:.2f}s..."
-                    )
-                    await asyncio.sleep(wait_time)
-                else:
-                    raise e
-        return None
+        try:
+            response, _ = await generate_content_with_fallback(
+                client,
+                primary_model=model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=self.system_prompt,
+                    tools=tools,
+                ),
+                env_name="GEMINI_AGENT_FALLBACK_MODELS",
+                log_prefix=f"[{self.agent_id}]",
+            )
+            return response
+        except Exception as exc:
+            if not is_transient_error(exc):
+                raise
+            logger.warning(
+                "[%s] Gemini models temporarily unavailable; provider fallback will continue.",
+                self.agent_id,
+            )
+            return None
 
     async def load_session_history(
         self, user_id: int, limit: int = 20
