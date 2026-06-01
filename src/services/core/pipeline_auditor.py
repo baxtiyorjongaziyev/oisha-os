@@ -23,7 +23,13 @@ async def _maybe_await(value: Any) -> Any:
 class PipelineAuditor:
     """Service to reconcile data across AmoCRM, Airtable, and Telegram Userbot history and build strategic Customer Intelligence."""
 
-    def __init__(self, amocrm: AmoCRMSync, airtable: AirtableSync, db: Database):
+    def __init__(
+        self,
+        amocrm: AmoCRMSync,
+        airtable: AirtableSync,
+        db: Database,
+        genai_client=None,
+    ):
         self.amocrm = amocrm
         self.airtable = airtable
         self.db = db
@@ -34,9 +40,16 @@ class PipelineAuditor:
         from google import genai
         from src.settings import settings
 
-        self.genai_client = genai.Client(
-            api_key=settings.GEMINI_API_KEY.get_secret_value()
-        )
+        self.genai_client = genai_client
+        if self.genai_client is None:
+            api_key = (settings.GEMINI_API_KEY.get_secret_value() or "").strip()
+            if api_key:
+                try:
+                    self.genai_client = genai.Client(api_key=api_key)
+                except Exception as exc:
+                    logger.warning("[AUDITOR] Gemini client init skipped: %s", exc)
+            else:
+                logger.warning("[AUDITOR] GEMINI_API_KEY missing; local fallbacks enabled.")
         self.model_name = os.getenv(
             "GEMINI_PIPELINE_AUDITOR_MODEL", settings.GEMINI_CALL_MODEL
         )
@@ -168,15 +181,18 @@ class PipelineAuditor:
 
         try:
             from google.genai import types
+            from src.services.utils.gemini_fallback import generate_content_with_fallback
 
-            response = await asyncio.to_thread(
-                self.genai_client.models.generate_content,
-                model=self.model_name,
+            response, _ = await generate_content_with_fallback(
+                self.genai_client,
+                primary_model=self.model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     temperature=0.2,
                 ),
+                env_name="GEMINI_PIPELINE_AUDITOR_FALLBACK_MODELS",
+                log_prefix="[AUDITOR]",
             )
             raw_text = (response.text or "").strip()
             return json.loads(raw_text)
