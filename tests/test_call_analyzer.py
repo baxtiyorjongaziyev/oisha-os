@@ -5,6 +5,7 @@ import time
 import pytest
 
 from src.services.core.call_analyzer import CallAnalyzer, GeminiQuotaCooldownError
+from src.services.utils.gemini_fallback import model_candidates
 
 
 @pytest.fixture(autouse=True)
@@ -100,7 +101,9 @@ async def test_gemini_generate_content_pauses_after_quota_error():
     with pytest.raises(GeminiQuotaCooldownError):
         await analyzer._gemini_generate_content(contents="second")
 
-    models.generate_content.assert_awaited_once()
+    assert models.generate_content.await_count == len(
+        model_candidates(analyzer.model_name)
+    )
     assert analyzer._gemini_cooling_down()
 
 
