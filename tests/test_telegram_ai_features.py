@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from src.services.core.telegram_ai_features import (
@@ -181,3 +183,36 @@ async def test_long_poller_dispatches_raw_feature_updates_and_advances_offset():
     assert stats == {"received": 3, "dispatched": 2}
     assert poller.offset == 13
     assert [item["update_id"] for item in dispatched] == [11, 12]
+
+
+@pytest.mark.asyncio
+async def test_running_long_poller_acknowledges_updates_before_slow_handler_finishes():
+    release = asyncio.Event()
+    started = asyncio.Event()
+    offsets = []
+
+    async def handler(update):
+        started.set()
+        await release.wait()
+
+    class FakeClient:
+        async def get_updates(self, **kwargs):
+            offsets.append(kwargs["offset"])
+            if len(offsets) == 1:
+                return [{"update_id": 10, "business_message": {"text": "slow"}}]
+            return []
+
+    poller = TelegramBotAPILongPoller("token", handler, client=FakeClient())
+    poller._start_workers()
+    try:
+        stats = await poller.poll_once()
+        await started.wait()
+        await poller.poll_once()
+
+        assert stats == {"received": 1, "dispatched": 1}
+        assert offsets == [None, 11]
+    finally:
+        release.set()
+        assert poller._queue is not None
+        await poller._queue.join()
+        await poller._stop_workers()

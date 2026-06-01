@@ -1,4 +1,6 @@
 import logging
+import os
+import time
 from typing import Optional, Dict, Any
 from src.agents.core import AgentManager
 from src.services.utils.gemini_fallback import generate_content_with_fallback
@@ -11,6 +13,10 @@ class AgentOrchestrator:
 
     def __init__(self, agent_manager: AgentManager):
         self.manager = agent_manager
+        self._gemini_blocked_until = 0.0
+        self._gemini_quota_cooldown_seconds = int(
+            os.getenv("GEMINI_ROUTER_QUOTA_COOLDOWN_SECONDS", "300")
+        )
 
     async def determine_intent(
         self, user_message: str, history: Optional[str] = None
@@ -19,6 +25,8 @@ class AgentOrchestrator:
         # Agar PRIMARY model (Gemini) mavjud bo'lsa, undan intentni so'rash
         sales_agent = self.manager.get_agent("sales")
         if not sales_agent or not sales_agent.model_configs["gemini"]["client"]:
+            return self._route_intent_fallback(user_message)
+        if self._gemini_blocked_until > time.time():
             return self._route_intent_fallback(user_message)
 
         prompt = f"""
@@ -50,7 +58,16 @@ class AgentOrchestrator:
             if intent in ["sales", "support", "strategist", "researcher"]:
                 return intent
         except Exception as e:
-            logger.error(f"[ORCHESTRATOR] Gemini routing error: {e}")
+            from src.services.utils.gemini_fallback import is_quota_error
+
+            if is_quota_error(e):
+                self._gemini_blocked_until = (
+                    time.time() + self._gemini_quota_cooldown_seconds
+                )
+            logger.warning(
+                "[ORCHESTRATOR] Gemini routing unavailable (%s); using fallback.",
+                type(e).__name__,
+            )
             
             # Fallback to Bedrock (Claude)
             if sales_agent.model_configs.get("bedrock") and sales_agent.model_configs["bedrock"]["client"]:
