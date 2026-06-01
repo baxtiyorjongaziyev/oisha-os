@@ -8,7 +8,6 @@ import urllib.request
 
 from telethon import TelegramClient
 from telethon.sessions import StringSession
-from dotenv import load_dotenv
 from telethon.errors import (
     FloodWaitError,
     UserNotMutualContactError,
