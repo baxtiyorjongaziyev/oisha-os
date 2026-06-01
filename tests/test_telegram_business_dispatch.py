@@ -47,3 +47,17 @@ def test_business_loop_filter_allows_incoming_client_messages(monkeypatch):
     )
 
     assert reason == ""
+
+
+def test_business_loop_filter_skips_stale_backlog(monkeypatch):
+    monkeypatch.setattr(api_server.settings, "OWNER_ID", 42)
+
+    reason = api_server._business_message_skip_reason(
+        {
+            "business_connection_id": "biz-stale",
+            "from": {"id": 77},
+            "date": 1,
+        }
+    )
+
+    assert reason == "stale_backlog"
