@@ -1849,6 +1849,9 @@ async def check_amocrm_stagnation():
                 await db.mark_job_run(job_key, today)
         return
 
+    now_ts = int(now.timestamp())
+    total_value = sum(int(lead.get("price") or 0) for lead in stagnated)
+
     from src.services.core.enterprise_reporter import EnterpriseReporter
     from src.services.core.crm_service import CRMService
 
