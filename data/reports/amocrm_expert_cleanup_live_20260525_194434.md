@@ -1,0 +1,77 @@
+# amoCRM Expert Cleanup - live - 2026-05-25 19:44
+
+Backup: `C:\Users\baxti\playground\oisha-os\data\amocrm_cleanup_backup_20260525_194434.json`
+
+## Summary
+- leads_total: **488**
+- active_total: **475**
+- open_tasks_total: **206**
+- overdue_tasks_total: **40**
+- actions_total: **805**
+- errors_total: **0**
+- bucket:closer_next_step: **17**
+- bucket:farmer_next_step: **21**
+- bucket:generic_next_step: **1**
+- bucket:lost_candidate_needs_contact: **42**
+- bucket:meeting_review: **24**
+- bucket:quality_next_step: **12**
+- bucket:reactivation: **210**
+- bucket:revive_24h: **144**
+- note_add: **103**
+- status_move: **70**
+- tag_add: **320**
+- tag_skipped_exists: **14**
+- task_create: **273**
+- task_skipped_open_exists: **25**
+
+## First Actions
+- tag_add lead 44884165  OISHA_REACTIVATE
+- task_create lead 44884165 reactivation 
+- note_add lead 44884165 reactivation 
+- status_move lead 44884165 reactivation 
+- tag_add lead 44895801  OISHA_REACTIVATE
+- task_create lead 44895801 reactivation 
+- note_add lead 44895801 reactivation 
+- status_move lead 44895801 reactivation 
+- tag_add lead 44897207  OISHA_REACTIVATE
+- task_create lead 44897207 reactivation 
+- note_add lead 44897207 reactivation 
+- status_move lead 44897207 reactivation 
+- tag_add lead 44903867  OISHA_REACTIVATE
+- task_create lead 44903867 reactivation 
+- note_add lead 44903867 reactivation 
+- status_move lead 44903867 reactivation 
+- tag_add lead 44903765  OISHA_REACTIVATE
+- task_create lead 44903765 reactivation 
+- note_add lead 44903765 reactivation 
+- status_move lead 44903765 reactivation 
+- tag_add lead 44906273  OISHA_REACTIVATE
+- task_create lead 44906273 reactivation 
+- note_add lead 44906273 reactivation 
+- status_move lead 44906273 reactivation 
+- tag_add lead 44904209  OISHA_REACTIVATE
+- task_create lead 44904209 reactivation 
+- note_add lead 44904209 reactivation 
+- status_move lead 44904209 reactivation 
+- tag_add lead 38246565  OISHA_TASK_CREATED
+- task_create lead 38246565 closer_next_step 
+- tag_add lead 44928351  OISHA_REACTIVATE
+- task_create lead 44928351 reactivation 
+- note_add lead 44928351 reactivation 
+- status_move lead 44928351 reactivation 
+- tag_add lead 44583169  OISHA_MEETING_REVIEW
+- task_create lead 44583169 meeting_review 
+- note_add lead 44583169 meeting_review 
+- tag_add lead 44890995  OISHA_REACTIVATE
+- task_create lead 44890995 reactivation 
+- note_add lead 44890995 reactivation 
+- status_move lead 44890995 reactivation 
+- tag_add lead 44905627  OISHA_REACTIVATE
+- task_create lead 44905627 reactivation 
+- note_add lead 44905627 reactivation 
+- status_move lead 44905627 reactivation 
+- tag_add lead 44934021  OISHA_REACTIVATE
+- task_create lead 44934021 reactivation 
+- note_add lead 44934021 reactivation 
+- status_move lead 44934021 reactivation 
+- tag_add lead 44897573  OISHA_REACTIVATE

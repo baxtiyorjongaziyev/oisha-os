@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Queue, Worker } from 'bullmq';
+import { Queue } from 'bullmq';
 
 export const TRANSCRIPTION_QUEUE = 'transcription';
 export const SCORING_QUEUE = 'scoring';

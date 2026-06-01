@@ -690,11 +690,11 @@ class EnterpriseReporter:
 
             updated_at = lead.get("updated_at", 0)
             if (now - updated_at) > day_seconds:
-                name = l.get("name", "Nomsiz")
-                l_id = l.get("id")
+                name = lead.get("name", "Nomsiz")
+                l_id = lead.get("id")
                 # Extract phone from custom fields if possible (simplified here)
                 phone = "Raqam yo'q"
-                for cf in l.get("custom_fields_values") or []:
+                for cf in lead.get("custom_fields_values") or []:
                     if cf.get("field_code") == "PHONE":
                         phone = cf.get("values", [{}])[0].get("value", "Raqam yo'q")
                         break
@@ -1082,5 +1082,3 @@ class EnterpriseReporter:
         """
         from src.services.core.crm_daily_report import build_reportagram_report
         return await build_reportagram_report(self)
-
-        return "\n".join(report)

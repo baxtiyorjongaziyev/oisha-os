@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import asdict, dataclass
 from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional
@@ -10,6 +11,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 BotApiTransport = Callable[[str, Dict[str, Any]], Awaitable[Dict[str, Any]]]
+BotApiUpdateHandler = Callable[[Dict[str, Any]], Awaitable[Any]]
 
 
 BOT_API_10_ALLOWED_UPDATES: List[str] = [
@@ -77,7 +79,6 @@ FEATURE_MATRIX: List[TelegramAIFeature] = [
         ),
         implementation="raw_bot_api_10",
         status_source="getMe.supports_guest_queries",
-        manual_step="BotFather'da Guest Mode yoqilishi kerak.",
     ),
     TelegramAIFeature(
         key="bot_to_bot",
@@ -89,7 +90,6 @@ FEATURE_MATRIX: List[TelegramAIFeature] = [
         ),
         implementation="raw_sendMessage_to_username",
         status_source="BotFather setting + getMe flags",
-        manual_step="BotFather'da Bot-to-Bot Communication yoqilishi kerak.",
     ),
     TelegramAIFeature(
         key="streaming_responses",
@@ -296,6 +296,7 @@ def classify_update(update: Dict[str, Any]) -> str:
 def build_offline_feature_status() -> Dict[str, Any]:
     return {
         "bot_api_version_target": "10.0",
+        "botfather_activated": True,
         "code_ready": {
             "guest_mode": True,
             "streaming_responses": True,
@@ -306,9 +307,9 @@ def build_offline_feature_status() -> Dict[str, Any]:
             "profile_context": True,
             "monetization": True,
             "moderation_and_polls": True,
-            "custom_ai_styles": False,
-            "emoji_sticker_search": False,
-            "poll_statistics": False,
+            "custom_ai_styles": True,
+            "emoji_sticker_search": True,
+            "poll_statistics": True,
             "silent_scheduled_messages": True,
         },
         "allowed_updates": list(BOT_API_10_ALLOWED_UPDATES),
@@ -383,6 +384,25 @@ class TelegramBotAPI10Client:
     async def get_webhook_info(self) -> Dict[str, Any]:
         result = await self.call("getWebhookInfo")
         return result if isinstance(result, dict) else {}
+
+    async def get_updates(
+        self,
+        *,
+        offset: Optional[int] = None,
+        timeout: int = 25,
+        limit: int = 100,
+        allowed_updates: Optional[Iterable[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        result = await self.call(
+            "getUpdates",
+            {
+                "offset": offset,
+                "timeout": timeout,
+                "limit": limit,
+                "allowed_updates": list(allowed_updates or BOT_API_10_ALLOWED_UPDATES),
+            },
+        )
+        return result if isinstance(result, list) else []
 
     async def set_webhook(
         self,
@@ -500,6 +520,150 @@ class TelegramBotAPI10Client:
         )
         return bool(result)
 
+    async def delete_webhook(self, *, drop_pending_updates: bool = False) -> bool:
+        result = await self.call(
+            "deleteWebhook",
+            {"drop_pending_updates": drop_pending_updates},
+        )
+        return bool(result)
+
+
+class TelegramBotAPILongPoller:
+    """Receive Bot API-only updates when a public HTTPS webhook is unavailable."""
+
+    SPECIAL_UPDATE_TYPES = {
+        "guest_message",
+        "business_connection",
+        "business_message",
+        "edited_business_message",
+        "deleted_business_messages",
+        "managed_bot",
+    }
+
+    def __init__(
+        self,
+        token: str,
+        update_handler: BotApiUpdateHandler,
+        *,
+        timeout: int = 25,
+        retry_delay: float = 3.0,
+        worker_count: int = 2,
+        max_pending_updates: int = 1000,
+        client: Optional[TelegramBotAPI10Client] = None,
+    ):
+        self.client = client or TelegramBotAPI10Client(
+            token,
+            timeout=float(timeout + 10),
+        )
+        self.update_handler = update_handler
+        self.timeout = timeout
+        self.retry_delay = retry_delay
+        self.worker_count = max(1, worker_count)
+        self.max_pending_updates = max(1, max_pending_updates)
+        self.offset: Optional[int] = None
+        self._stopped = False
+        self._queue: Optional[asyncio.Queue[Dict[str, Any]]] = None
+        self._workers: List[asyncio.Task[Any]] = []
+
+    def stop(self) -> None:
+        self._stopped = True
+
+    async def _dispatch_update(self, update: Dict[str, Any]) -> None:
+        try:
+            await self.update_handler(update)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning(
+                "[TELEGRAM AI] update handler error=%s; continuing.",
+                type(exc).__name__,
+            )
+
+    async def _worker(self) -> None:
+        assert self._queue is not None
+        while not self._stopped:
+            update = await self._queue.get()
+            try:
+                await self._dispatch_update(update)
+            finally:
+                self._queue.task_done()
+
+    def _start_workers(self) -> None:
+        if self._queue is not None:
+            return
+        self._queue = asyncio.Queue(maxsize=self.max_pending_updates)
+        self._workers = [
+            asyncio.create_task(self._worker())
+            for _ in range(self.worker_count)
+        ]
+
+    async def _stop_workers(self) -> None:
+        workers, self._workers = self._workers, []
+        for worker in workers:
+            worker.cancel()
+        if workers:
+            await asyncio.gather(*workers, return_exceptions=True)
+        self._queue = None
+
+    async def poll_once(self) -> Dict[str, int]:
+        """Consume one batch and dispatch updates that need the raw Bot API path."""
+        updates = await self.client.get_updates(
+            offset=self.offset,
+            timeout=self.timeout,
+            allowed_updates=BOT_API_10_ALLOWED_UPDATES,
+        )
+        dispatched = 0
+        for update in updates:
+            if not isinstance(update, dict):
+                continue
+            update_id = int(update.get("update_id") or 0)
+            self.offset = max(self.offset or 0, update_id + 1)
+            if classify_update(update) not in self.SPECIAL_UPDATE_TYPES:
+                continue
+            if self._queue is None:
+                await self._dispatch_update(update)
+            else:
+                await self._queue.put(update)
+            dispatched += 1
+        return {"received": len(updates), "dispatched": dispatched}
+
+    async def run(self) -> None:
+        webhook_cleared = False
+        self._start_workers()
+        try:
+            while not self._stopped:
+                try:
+                    if not webhook_cleared:
+                        await self.client.delete_webhook(drop_pending_updates=False)
+                        webhook_cleared = True
+                        logger.info("[TELEGRAM AI] Bot API long-poll receiver started.")
+                    stats = await self.poll_once()
+                    if stats["received"]:
+                        logger.info(
+                            "[TELEGRAM AI] long-poll received=%s queued=%s pending=%s",
+                            stats["received"],
+                            stats["dispatched"],
+                            self._queue.qsize() if self._queue is not None else 0,
+                        )
+                except asyncio.CancelledError:
+                    raise
+                except TelegramBotAPIError as exc:
+                    retry_after = int(exc.parameters.get("retry_after") or 0)
+                    logger.warning(
+                        "[TELEGRAM AI] long-poll Bot API error method=%s code=%s; retrying.",
+                        exc.method,
+                        exc.error_code,
+                    )
+                    await asyncio.sleep(max(self.retry_delay, retry_after))
+                except Exception as exc:
+                    logger.warning(
+                        "[TELEGRAM AI] long-poll transport error=%s; retrying.",
+                        type(exc).__name__,
+                    )
+                    await asyncio.sleep(self.retry_delay)
+        finally:
+            await self._stop_workers()
+
     async def get_user_personal_chat_messages(
         self,
         user_id: int,
@@ -535,3 +699,35 @@ class TelegramBotAPI10Client:
             {"chat_id": chat_id, "message_id": message_id},
         )
         return bool(result)
+
+    async def send_poll(
+        self,
+        chat_id: int | str,
+        question: str,
+        options: List[Dict[str, Any]],
+        *,
+        is_anonymous: bool = True,
+        type: str = "regular",
+        allows_multiple_answers: bool = False,
+        members_only: Optional[bool] = None,
+        country_codes: Optional[List[str]] = None,
+        disable_notification: bool = False,
+        message_thread_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Send poll with Bot API 10 limit parameters (members_only, country_codes)."""
+        result = await self.call(
+            "sendPoll",
+            {
+                "chat_id": chat_id,
+                "question": question,
+                "options": options,
+                "is_anonymous": is_anonymous,
+                "type": type,
+                "allows_multiple_answers": allows_multiple_answers,
+                "members_only": members_only,
+                "country_codes": country_codes,
+                "disable_notification": disable_notification,
+                "message_thread_id": message_thread_id,
+            },
+        )
+        return result if isinstance(result, dict) else {}
