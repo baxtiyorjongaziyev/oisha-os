@@ -12,8 +12,8 @@ on:
           - '1'
           - '2'
       phone:
-        description: 'Telefon: +998336450097'
-        required: true
+        description: 'Telefon raqami'
+        required: false
         default: '+998336450097'
       phone_code_hash:
         description: '[Faqat 2-qadam] 1-qadamdan olingan hash'
@@ -24,9 +24,12 @@ on:
         required: false
         default: ''
       tg_password:
-        description: '[Faqat 2-qadam] 2FA paroli (Tg0097)'
+        description: '[Faqat 2-qadam] 2FA paroli'
         required: false
         default: ''
+  push:
+    paths:
+      - 'deploy/session-step1-trigger'
 
 jobs:
   generate:
@@ -44,11 +47,11 @@ jobs:
         run: pip install telethon==1.36.0
 
       - name: Step 1 — SMS yuborish
-        if: github.event.inputs.step == '1'
+        if: github.event.inputs.step == '1' || github.event_name == 'push'
         env:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
-          PHONE: ${{ github.event.inputs.phone }}
+          PHONE: ${{ github.event.inputs.phone || '+998336450097' }}
         run: |
           python3 - <<'PYEOF'
           import asyncio, os
@@ -61,14 +64,15 @@ jobs:
               await client.connect()
               result = await client.send_code_request(phone)
               print("=" * 60)
-              print(f"✅ SMS yuborildi: {phone}")
-              print(f"\nPHONE_CODE_HASH: {result.phone_code_hash}\n")
+              print(f"SMS YUBORILDI: {phone}")
+              print(f"PHONE_CODE_HASH: {result.phone_code_hash}")
               print("=" * 60)
-              print("Keyingi qadam: Run workflow → step=2")
+              print("KEYINGI QADAM — Actions -> Telegram Session Generator -> Run workflow:")
+              print(f"  step: 2")
               print(f"  phone: {phone}")
               print(f"  phone_code_hash: {result.phone_code_hash}")
-              print("  sms_code: <telefoningizga kelgan kod>")
-              print("  tg_password: Tg0097")
+              print(f"  sms_code: <telefoningizga kelgan kod>")
+              print(f"  tg_password: <2FA parol>")
               await client.disconnect()
 
           asyncio.run(main())
@@ -107,23 +111,24 @@ jobs:
                   )
               except SessionPasswordNeededError:
                   if not password:
-                      print("❌ 2FA kerak! tg_password maydonini to'ldiring.")
+                      print("2FA KERAK: tg_password maydonini to'ldiring va qayta ishga tushiring.")
                       sys.exit(1)
                   await client.sign_in(password=password)
 
               if not await client.is_user_authorized():
-                  print("❌ Authorization muvaffaqiyatsiz")
+                  print("Authorization muvaffaqiyatsiz")
                   sys.exit(1)
 
               me = await client.get_me()
               session_string = client.session.save()
 
               print("=" * 60)
-              print(f"✅ LOGIN: {me.first_name} (@{me.username})")
+              print(f"LOGIN OK: {me.first_name} (@{me.username})")
               print("=" * 60)
-              print("\nUSERBOT_SESSION_STRING:\n")
+              print("USERBOT_SESSION_STRING:")
               print(session_string)
-              print("\n" + "=" * 60)
+              print("=" * 60)
+              print("GitHub -> Settings -> Secrets -> USERBOT_SESSION_STRING ga joylashtiring!")
               await client.disconnect()
 
           asyncio.run(main())
