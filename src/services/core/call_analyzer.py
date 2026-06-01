@@ -222,8 +222,9 @@ class CallAnalyzer:
 
     @staticmethod
     def _is_gemini_quota_error(error: Exception) -> bool:
-        error_text = str(error)
-        return "429" in error_text or "RESOURCE_EXHAUSTED" in error_text
+        from src.services.utils.gemini_fallback import is_quota_error
+
+        return is_quota_error(error)
 
     def _defer_calls_without_fallback(self) -> bool:
         return self._gemini_cooling_down() and not self.openai_client
@@ -394,17 +395,18 @@ class CallAnalyzer:
         if self._gemini_cooling_down():
             raise GeminiQuotaCooldownError("Gemini quota cooldown is active")
 
-        aio_models = getattr(getattr(self.genai_client, "aio", None), "models", None)
-        sync_models = getattr(self.genai_client, "models", None)
-        models = aio_models or sync_models
-        if not models:
-            raise RuntimeError("Gemini models API is not available")
-
-        kwargs = {"model": self.model_name, "contents": contents}
-        if config is not None:
-            kwargs["config"] = config
         try:
-            return await _maybe_await(models.generate_content(**kwargs))
+            from src.services.utils.gemini_fallback import generate_content_with_fallback
+
+            response, _ = await generate_content_with_fallback(
+                self.genai_client,
+                primary_model=self.model_name,
+                contents=contents,
+                config=config,
+                env_name="GEMINI_CALL_FALLBACK_MODELS",
+                log_prefix="[CALL]",
+            )
+            return response
         except Exception as exc:
             if self._is_gemini_quota_error(exc):
                 self._pause_gemini_for_quota()

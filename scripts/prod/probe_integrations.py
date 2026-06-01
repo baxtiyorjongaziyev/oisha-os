@@ -25,6 +25,9 @@ def _telegram_probe() -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "configured": bool(token),
         "bot_ok": False,
+        "supports_guest_queries": False,
+        "webhook_url_set": False,
+        "pending_update_count": None,
         "groups": {},
         "topic_kirim_configured": bool(settings.TOPIC_KIRIM_ID),
     }
@@ -34,9 +37,15 @@ def _telegram_probe() -> Dict[str, Any]:
     base_url = f"https://api.telegram.org/bot{token}"
     try:
         response = requests.get(f"{base_url}/getMe", timeout=15)
-        result["bot_ok"] = response.status_code == 200 and bool(
-            response.json().get("ok")
+        payload = response.json()
+        result["bot_ok"] = response.status_code == 200 and bool(payload.get("ok"))
+        result["supports_guest_queries"] = bool(
+            (payload.get("result") or {}).get("supports_guest_queries")
         )
+        webhook_response = requests.get(f"{base_url}/getWebhookInfo", timeout=15)
+        webhook = webhook_response.json().get("result") or {}
+        result["webhook_url_set"] = bool(webhook.get("url"))
+        result["pending_update_count"] = webhook.get("pending_update_count")
     except Exception as exc:
         result["error"] = type(exc).__name__
         return result

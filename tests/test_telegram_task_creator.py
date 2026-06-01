@@ -1,7 +1,9 @@
 import pytest
 import time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.services.core.telegram_task_creator import TelegramTaskCreator
+from src.services.utils.gemini_fallback import model_candidates
 
 
 @pytest.fixture(autouse=True)
@@ -98,9 +100,35 @@ async def test_analyze_text_for_tasks_pauses_after_gemini_quota_error():
 
     assert await creator.analyze_text_for_tasks("Suhbat") == []
     assert await creator.analyze_text_for_tasks("Takror suhbat") == []
-    creator.genai_client.aio.models.generate_content.assert_awaited_once()
+    assert creator.genai_client.aio.models.generate_content.await_count == len(
+        model_candidates(creator.gemini_model)
+    )
     assert creator.is_cooling_down()
     assert creator.cooldown_reason() == "gemini_quota"
+
+
+@pytest.mark.asyncio
+async def test_analyze_text_for_tasks_uses_local_parser_during_gemini_cooldown():
+    creator = TelegramTaskCreator(
+        amocrm=MagicMock(),
+        db=MagicMock(),
+        gemini_api_key="mock_key",
+    )
+    creator.genai_client = MagicMock()
+    creator.genai_client.aio.models.generate_content = AsyncMock()
+    TelegramTaskCreator._gemini_blocked_until = time.time() + 600
+
+    tasks = await creator.analyze_text_for_tasks(
+        "Mijoz: Narxini ayting.\nMenejer: Bugun tijorat taklifini yuboraman."
+    )
+
+    assert tasks == [
+        {
+            "text": "Telegram suhbatidan: Bugun tijorat taklifini yuboraman.",
+            "due_in_hours": 6,
+        }
+    ]
+    creator.genai_client.aio.models.generate_content.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -122,6 +150,29 @@ async def test_create_tasks_pauses_after_telegram_flood_wait():
     userbot_mock.get_input_entity.assert_awaited_once()
     assert creator.cooldown_seconds_remaining() >= 9923
     assert creator.cooldown_reason() == "telegram_entity_lookup"
+
+
+@pytest.mark.asyncio
+async def test_resolve_dialog_entity_imports_and_cleans_up_temporary_contact():
+    userbot_mock = AsyncMock()
+    userbot_mock.get_input_entity = AsyncMock(
+        side_effect=[ValueError("Could not find the input entity"), "peer"]
+    )
+    userbot_mock.return_value = SimpleNamespace(users=[SimpleNamespace(id=77)])
+    creator = TelegramTaskCreator(
+        amocrm=MagicMock(),
+        db=MagicMock(),
+        user_client=userbot_mock,
+    )
+
+    entity, temporary_contact_id = await creator._resolve_dialog_entity(
+        "+998 90 123 45 67"
+    )
+    await creator._delete_temporary_contact(temporary_contact_id)
+
+    assert entity == "peer"
+    assert temporary_contact_id == 77
+    assert userbot_mock.await_count == 2
 
 
 @pytest.mark.asyncio
