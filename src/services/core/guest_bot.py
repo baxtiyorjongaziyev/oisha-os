@@ -5,7 +5,7 @@ Allows the bot to be @mentioned in chats it hasn't joined.
 The bot receives only the tagged message + reply thread via answerGuestQuery.
 
 Bot API 9.0+:
-  - supports_guest_queries=True  (set on bot via setMyDefaultAdminRights)
+  - supports_guest_queries=True  (enabled through BotFather Guest Mode)
   - Update.guest_message         (new update type)
   - answerGuestQuery(guest_query_id, text)
 
@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 async def enable_guest_queries(bot_client) -> bool:
     """
-    Registers the bot to accept guest (mention-only) queries.
-    Calls Bot API setMyDefaultAdminRights to set supports_guest_queries.
+    Verifies Guest Mode without mutating bot permissions.
+    Telegram advertises Guest Mode through getMe.supports_guest_queries.
     Uses raw HTTP since Telethon doesn't expose this method directly yet.
     """
     import aiohttp
@@ -36,23 +36,22 @@ async def enable_guest_queries(bot_client) -> bool:
         logger.warning("[guest_bot] BOT_TOKEN not set — cannot enable guest queries")
         return False
 
-    url = f"https://api.telegram.org/bot{token}/setMyDefaultAdminRights"
     try:
         async with aiohttp.ClientSession() as session:
-            resp = await session.post(url, json={
-                "rights": {},
-                "for_channels": False,
-            })
-            data = await resp.json()
-            logger.info(f"[guest_bot] setMyDefaultAdminRights: {data}")
+            me_resp = await session.post(
+                f"https://api.telegram.org/bot{token}/getMe"
+            )
+            me_data = await me_resp.json()
+            supports_guest_queries = bool(
+                (me_data.get("result") or {}).get("supports_guest_queries")
+            )
 
-        # Set supports_guest_queries = true
-        url2 = f"https://api.telegram.org/bot{token}/setMyDescription"
-        # Telegram doesn't have a direct API yet for supports_guest_queries
-        # — it's set automatically when the bot is approved for Guest mode.
-        # Log intent and return True to signal setup completed.
-        logger.info("[guest_bot] Guest queries enabled (bot advertises supports_guest_queries=true)")
-        return True
+        # BotFather enables the capability separately; this call verifies it.
+        logger.info(
+            "[guest_bot] Guest Mode probe supports_guest_queries=%s",
+            supports_guest_queries,
+        )
+        return supports_guest_queries
     except Exception as e:
         logger.error(f"[guest_bot] Failed to enable guest queries: {e}")
         return False

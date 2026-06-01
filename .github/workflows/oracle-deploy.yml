@@ -125,6 +125,7 @@ jobs:
             AIRTABLE_API_KEY=${AIRTABLE_API_KEY}
             GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k
             GSHEET_CREDS_FILE=service_account.json
+            GOOGLE_APPLICATION_CREDENTIALS=/home/ubuntu/oisha-os/service_account.json
             ENVFILE
             sed -i 's/^            //' .env
 
