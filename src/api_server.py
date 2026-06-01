@@ -2119,6 +2119,30 @@ BOT2BOT_MAX_ROUNDS = 5
 BOT2BOT_COOLDOWN_SEC = 60
 
 
+def _business_message_skip_reason(message: Dict[str, Any]) -> str:
+    """Ignore outgoing Telegram Business messages before they re-enter the AI loop."""
+    if not isinstance(message, dict):
+        return ""
+    if message.get("sender_business_bot"):
+        return "sender_business_bot"
+
+    try:
+        sender_id = int((message.get("from") or {}).get("id") or 0)
+    except (TypeError, ValueError):
+        sender_id = 0
+    if not sender_id:
+        return ""
+
+    owner_ids = {int(getattr(settings, "OWNER_ID", 0) or 0)}
+    connection_id = str(message.get("business_connection_id") or "")
+    connection = business_connections.get(connection_id) or {}
+    try:
+        owner_ids.add(int(connection.get("user_id") or 0))
+    except (TypeError, ValueError):
+        pass
+    return "business_owner" if sender_id in owner_ids else ""
+
+
 def _bot2bot_allowed(from_id: int, chat_id: int) -> bool:
     """Rate-limit bot-to-bot exchanges to prevent infinite loops."""
     import time
@@ -2148,10 +2172,19 @@ async def process_telegram_update(update: Dict[str, Any], update_type: str):
     try:
         bot_token = os.environ.get("BOT_TOKEN") or settings.BOT_TOKEN.get_secret_value()
         bot = Bot(token=bot_token)
-        ptb_update = Update.de_json(update, bot)
 
         # Bot-to-bot loop safeguard
         msg = update.get("message") or update.get("business_message") or {}
+        if update_type == "business_message":
+            skip_reason = _business_message_skip_reason(msg)
+            if skip_reason:
+                logger.info(
+                    "[BUSINESS] Ignoring outgoing business_message reason=%s",
+                    skip_reason,
+                )
+                return
+
+        ptb_update = Update.de_json(update, bot)
         from_user = msg.get("from", {})
         if from_user.get("is_bot"):
             chat_id = msg.get("chat", {}).get("id", 0)
