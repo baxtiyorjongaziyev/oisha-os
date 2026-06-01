@@ -29,6 +29,7 @@ from src.services.core.telegram_ai_features import (
     build_live_feature_status,
     build_offline_feature_status,
     build_text_article_result,
+    classify_update as classify_bot_api_update,
     extract_guest_message_context,
 )
 from src.agents.autonomous_sales_agent import AutonomousSalesAgent
@@ -54,6 +55,10 @@ _userbot_group_access_snapshot: Dict[str, Any] = {
     "groups": {},
     "topics": {},
 }
+_telegram_ai_ingress_status: Dict[str, Any] = {
+    "mode": "unconfigured",
+    "active": False,
+}
 
 # Health check cache
 cached_status = {"status": "initializing", "timestamp": datetime.now(timezone.utc).isoformat()}
@@ -69,6 +74,17 @@ async def _maybe_await(value: Any) -> Any:
     if inspect.isawaitable(value):
         return await value
     return value
+
+
+def set_telegram_ai_ingress_status(*, mode: str, active: bool) -> None:
+    """Expose secret-safe Bot API ingress readiness for production audits."""
+    _telegram_ai_ingress_status.update(
+        {
+            "mode": mode,
+            "active": active,
+            "updated_at": get_local_now().isoformat(),
+        }
+    )
 
 
 async def refresh_userbot_group_access_snapshot(client=None) -> Dict[str, Any]:
@@ -482,6 +498,7 @@ async def telegram_ai_features(live: bool = False):
         "bot_to_bot_env": settings.TELEGRAM_BOT_TO_BOT_ENABLED,
         "managed_bots_env": settings.TELEGRAM_MANAGED_BOTS_ENABLED,
         "mini_app_url": bool(settings.TELEGRAM_MINI_APP_URL),
+        "ingress": dict(_telegram_ai_ingress_status),
     }
 
     if not live:
@@ -513,29 +530,9 @@ async def telegram_ai_features(live: bool = False):
         return JSONResponse(status_code=503, content=payload)
 
 
-@app.post("/webhook/telegram-ai")
-async def telegram_ai_webhook(request: Request):
-    """Webhook endpoint for Bot API 10.0 AI features.
-
-    Supports guest_message immediately. Other update kinds are acknowledged
-    and surfaced in logs so enabling new BotFather features does not crash the
-    production webhook while we progressively attach business flows.
-    """
-    expected_secret = _secret_setting_text(settings.TELEGRAM_WEBHOOK_SECRET)
-    received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if not expected_secret:
-        raise HTTPException(
-            status_code=503,
-            detail="TELEGRAM_WEBHOOK_SECRET is required before enabling this webhook",
-        )
-    if not hmac.compare_digest(expected_secret, received_secret):
-        raise HTTPException(status_code=403, detail="Invalid Telegram webhook secret")
-
-    update = await request.json()
-    if not isinstance(update, dict):
-        raise HTTPException(status_code=400, detail="Invalid Telegram update payload")
-
-    update_type = classify_update(update)
+async def process_telegram_ai_update(update: Dict[str, Any]) -> Dict[str, Any]:
+    """Process raw Bot API updates from either webhook or long polling."""
+    update_type = classify_bot_api_update(update)
 
     # Route non-guest updates through the unified processor
     if update_type not in ("guest_message", "unknown"):
@@ -611,6 +608,25 @@ async def telegram_ai_webhook(request: Request):
         "update_type": "guest_message",
         "sent_guest_message": sent,
     }
+
+
+@app.post("/webhook/telegram-ai")
+async def telegram_ai_webhook(request: Request):
+    """HTTPS ingress for Bot API 10.0 AI updates."""
+    expected_secret = _secret_setting_text(settings.TELEGRAM_WEBHOOK_SECRET)
+    received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not expected_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="TELEGRAM_WEBHOOK_SECRET is required before enabling this webhook",
+        )
+    if not hmac.compare_digest(expected_secret, received_secret):
+        raise HTTPException(status_code=403, detail="Invalid Telegram webhook secret")
+
+    update = await request.json()
+    if not isinstance(update, dict):
+        raise HTTPException(status_code=400, detail="Invalid Telegram update payload")
+    return await process_telegram_ai_update(update)
 
 
 # Global references
@@ -2095,37 +2111,8 @@ async def openclaw_health():
 
 @app.post("/webhook/telegram")
 async def telegram_webhook(request: Request):
-    """
-    Telegram Bot API 10.0 Webhook.
-    Handles Guest Mode, Business Messages, and other new AI features.
-    """
-    try:
-        data = await request.json()
-        update_type = classify_update(data)
-        
-        logger.info(f"🤖 [Telegram Webhook] Received update type: {update_type}")
-        
-        # We process this in background to avoid Telegram timeout
-        asyncio.create_task(process_telegram_update(data, update_type))
-        
-        return {"ok": True}
-    except Exception as e:
-        logger.error(f"❌ [Telegram Webhook] Error: {e}")
-        return JSONResponse(status_code=400, content={"ok": False, "error": str(e)})
-
-def classify_update(data: Dict[str, Any]) -> str:
-    """Classifies the Telegram update type based on payload keys."""
-    if "guest_message" in data:
-        return "guest_message"
-    if "business_message" in data:
-        return "business_message"
-    if "business_connection" in data:
-        return "business_connection"
-    if "managed_bot" in data:
-        return "managed_bot"
-    if "message" in data:
-        return "message"
-    return "unknown"
+    """Legacy webhook alias routed through the authenticated raw dispatcher."""
+    return await telegram_ai_webhook(request)
 
 _bot2bot_tracker: Dict[str, list] = {}
 BOT2BOT_MAX_ROUNDS = 5
@@ -2176,7 +2163,7 @@ async def process_telegram_update(update: Dict[str, Any], update_type: str):
                 )
                 return
 
-        if update_type == "guest_query":
+        if update_type == "guest_message":
             await handle_guest_query(ptb_update, None, db_instance, msg_controller, bot_token)
 
         elif update_type == "business_message":
