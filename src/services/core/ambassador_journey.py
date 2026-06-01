@@ -8,6 +8,7 @@ and handles Telegram userbot dispatching.
 
 import asyncio
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -40,6 +41,9 @@ class AmbassadorJourneyManager:
         self.db = db
         self.user_client = user_client
         self.gemini_api_key = gemini_api_key
+        self.gemini_model = os.getenv(
+            "GEMINI_AMBASSADOR_MODEL", settings.GEMINI_CALL_MODEL
+        )
 
         self.genai_client = None
         if gemini_api_key and genai is not None:
@@ -77,11 +81,23 @@ class AmbassadorJourneyManager:
 
             # Check if this contact has a valid phone
             phone = self._extract_phone(lead)
+            phone_getter = getattr(self.amocrm, "get_primary_contact_phone", None)
+            if not phone and callable(phone_getter):
+                phone = await phone_getter(lead)
             contact_name = self._extract_contact_name(lead)
             brand_name = lead.get("name", "N/A")
 
-            # Try to resolve user_id by phone or lead_id
-            user_id = lead_id  # fallback: use lead_id as unique user_id
+            # Ambassador messages are Telegram actions, so schedule only when
+            # the amoCRM contact can be mapped to a real local Telegram user.
+            user_id = None
+            if phone and hasattr(self.db, "get_user_id_by_phone"):
+                user_id = await self.db.get_user_id_by_phone(phone)
+            if not user_id:
+                logger.info(
+                    "[AMBASSADOR] Lead %s skipped: Telegram user not resolved from phone.",
+                    lead_id,
+                )
+                continue
             
             # Upsert into local database
             try:
@@ -144,7 +160,7 @@ class AmbassadorJourneyManager:
                 max_output_tokens=800,
             )
             response = await self.genai_client.aio.models.generate_content(
-                model="gemini-1.5-flash",
+                model=self.gemini_model,
                 contents=prompt,
                 config=config,
             )
@@ -182,7 +198,13 @@ class AmbassadorJourneyManager:
         failed = 0
 
         for row in pending_jobs:
-            log_id, user_id, lead_id, touchpoint_type, message_text = row
+            log_id, user_id, lead_id, touchpoint_type, message_text = (
+                row[0],
+                row[1],
+                row[2],
+                row[3],
+                row[4],
+            )
 
             logger.info(f"[AMBASSADOR] Dispatching {touchpoint_type} to user {user_id}...")
             
@@ -259,7 +281,7 @@ class AmbassadorJourneyManager:
         ) as cursor:
             row = await cursor.fetchone()
             if row:
-                username, phone = row
+                username, phone = row[0], row[1]
                 if username:
                     try:
                         return await self.user_client.get_input_entity(username)

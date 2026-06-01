@@ -1,4 +1,7 @@
 import logging
+import os
+
+from src.settings import settings
 import json
 import re
 import time
@@ -60,7 +63,7 @@ class AutoLeadAgent:
 
     def __init__(self, api_key: str):
         self.client = genai.Client(api_key=api_key)
-        self.model_name = "gemini-2.0-flash"
+        self.model_name = os.getenv("GEMINI_AUTO_LEAD_MODEL", settings.GEMINI_CALL_MODEL)
         self._cooldown_until = 0.0
         self._last_quota_warning = 0.0
 

@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional
 from google import genai
 
 from src.database import Database
+from src.settings import settings
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ class SelfEvolutionEngine:
     def __init__(self, db: Database, gemini_api_key: str):
         self.db = db
         self.client = genai.Client(api_key=gemini_api_key)
-        self.model = "gemini-2.0-flash"
+        self.model = os.getenv("GEMINI_SELF_EVOLUTION_MODEL", settings.GEMINI_CALL_MODEL)
         self.repo_dir = os.environ.get("OISHA_REPO_DIR", "/home/ubuntu/oisha-os")
         self.github_token = os.environ.get("GITHUB_TOKEN", "")
 

@@ -14,6 +14,7 @@ from enum import Enum
 
 from google import genai
 
+from src.settings import settings
 from src.services.core.amocrm_sync import AmoCRMSync
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ class LeadClassifier:
     def __init__(self, amocrm: AmoCRMSync, gemini_api_key: str):
         self.amocrm = amocrm
         self.client = genai.Client(api_key=gemini_api_key)
-        self.model = "gemini-2.0-flash"
+        self.model = os.getenv("GEMINI_LEAD_CLASSIFIER_MODEL", settings.GEMINI_CALL_MODEL)
         self.results: List[ClassificationResult] = []
 
     async def classify_all_active_leads(self) -> List[ClassificationResult]:
@@ -218,7 +219,7 @@ class LeadClassifier:
                 temp_path = f.name
 
             try:
-                audio_file = await self.client.aio.files.upload(path=temp_path)
+                audio_file = await self.client.aio.files.upload(file=temp_path)
                 response = await self.client.aio.models.generate_content(
                     model=self.model,
                     contents=[
