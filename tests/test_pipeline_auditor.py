@@ -3,6 +3,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from src.services.core.pipeline_auditor import PipelineAuditor
 
 
+def _mock_genai_client():
+    client = MagicMock()
+    client.aio = None
+    return client
+
+
 class MockCursor:
     """
     A unified mock helper that behaves exactly like an aiosqlite Cursor:
@@ -37,7 +43,12 @@ async def test_generate_intelligence_profile_success():
     airtable_mock = MagicMock()
     db_mock = MagicMock()
 
-    auditor = PipelineAuditor(amocrm=amocrm_mock, airtable=airtable_mock, db=db_mock)
+    auditor = PipelineAuditor(
+        amocrm=amocrm_mock,
+        airtable=airtable_mock,
+        db=db_mock,
+        genai_client=_mock_genai_client(),
+    )
 
     mock_response = MagicMock()
     mock_response.text = (
