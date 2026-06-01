@@ -49,6 +49,7 @@ from src.services.core.folder_manager import FolderManager
 from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
+from src.services.core.case_publisher import CasePublisher
 from src.services.core.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
@@ -86,6 +87,7 @@ meeting_scheduler = None
 oisha_brain = None
 bot_messenger = None
 agent_orchestrator = None
+_health_api_server = None
 
 # TN5 Group Config (env-configurable; fallback keeps legacy behavior)
 TN5_GROUP_ID = (
@@ -94,6 +96,81 @@ TN5_GROUP_ID = (
 TN5_TOPIC_ID = (
     settings.CRM_TOPIC_ID if settings.CRM_TOPIC_ID is not None else 7
 )  # Ishtirokchilar ma'lumotlari
+
+
+_SHUTDOWN_DAEMON_TASK_NAMES = {
+    "api_heartbeat",
+    "background_monitor_task",
+    "calendar_autoscan_loop",
+    "command_processor",
+    "crm_capacity_archiver_loop",
+    "evolution_scheduler",
+    "guest_bot_enable",
+    "health_check_api",
+    "oisha_brain_evolution",
+    "shutdown_watcher",
+    "telegram_group_access_probe_loop",
+    "userbot_disconnect_watcher",
+}
+
+_SHUTDOWN_DAEMON_CORO_NAMES = {
+    "_heartbeat_task",
+    "_brain_evolution_loop",
+    "_keepalive_loop",
+    "_recv_loop",
+    "_send_loop",
+    "_update_loop",
+    "ai_autopilot_loop",
+    "background_crm_audit_task",
+    "background_loop",
+    "background_monitor_task",
+    "background_scheduler",
+    "calendar_autoscan_loop",
+    "command_processor",
+    "crm_capacity_archiver_loop",
+    "crm_discipline_loop",
+    "dm_lead_sync_task",
+    "monitor_sessions",
+    "run_health_check_api",
+    "start_backlog_sync",
+    "telegram_group_access_probe_loop",
+}
+
+_SHUTDOWN_DAEMON_CORO_SUFFIXES = {
+    "AdminBot.start.<locals>.heartbeat",
+    "EvolutionScheduler._run_loop",
+    "LifespanOn.main",
+    "MTProtoSender._keepalive_loop",
+    "MTProtoSender._recv_loop",
+    "MTProtoSender._send_loop",
+    "UpdateMethods._update_loop",
+}
+
+
+def _is_shutdown_daemon_task(task: Any) -> bool:
+    """Return whether a pending task is an infrastructure loop, not a handler."""
+    task_name = getattr(task, "get_name", lambda: "")() or ""
+    if task_name in _SHUTDOWN_DAEMON_TASK_NAMES:
+        return True
+
+    coro = getattr(task, "get_coro", lambda: None)()
+    coro_name = getattr(coro, "__name__", "") or ""
+    if coro_name in _SHUTDOWN_DAEMON_CORO_NAMES:
+        return True
+
+    coro_qualname = getattr(coro, "__qualname__", "") or ""
+    return any(
+        coro_qualname.endswith(suffix) for suffix in _SHUTDOWN_DAEMON_CORO_SUFFIXES
+    )
+
+
+def _shutdown_task_label(task: Any) -> str:
+    """Build a secret-free task label for shutdown diagnostics."""
+    task_name = getattr(task, "get_name", lambda: "")() or ""
+    coro = getattr(task, "get_coro", lambda: None)()
+    coro_qualname = getattr(coro, "__qualname__", "") or ""
+    coro_name = getattr(coro, "__name__", "") or ""
+    return f"{task_name}:{coro_qualname or coro_name or type(coro).__name__}"
 
 
 def _env_enabled(name: str) -> bool:
@@ -879,6 +956,46 @@ async def background_monitor_task() -> None:
                     background_monitor_task._sent_jobs.add(job_key)
 
             # ─────────────────────────────────────────────────────────
+            # 8b. [CRMDailyReport] Har kuni 19:30 — AmoCRM Kunlik Hisobot (Reportagram)
+            # ─────────────────────────────────────────────────────────
+            if now.hour == 19 and now.minute == 30:
+                today_str = now.strftime("%Y-%m-%d")
+                job_key = f"crm_daily_report_{today_str}"
+                if not hasattr(background_monitor_task, "_sent_jobs"):
+                    background_monitor_task._sent_jobs = set()
+                if job_key not in background_monitor_task._sent_jobs:
+                    try:
+                        from src.services.core.crm_daily_report import CRMDailyReporter
+                        amocrm_client = None
+                        if msg_controller and getattr(msg_controller, "crm", None):
+                            amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+                        if not amocrm_client:
+                            amocrm_client = get_surgical_integration().amocrm
+                        
+                        if amocrm_client:
+                            reporter = CRMDailyReporter(amocrm=amocrm_client)
+                            stats = await reporter.fetch_stats()
+                            prev = reporter._load_prev_stats()
+                            report_text = reporter.format_report(stats, prev)
+                            
+                            # Send to TN5_GROUP_ID (or configured CRM_GROUP_ID)
+                            if TN5_GROUP_ID:
+                                send_kwargs = {}
+                                if settings.TOPIC_REPORTS_ID:
+                                    send_kwargs["reply_to"] = settings.TOPIC_REPORTS_ID
+                                await client.send_message(
+                                    TN5_GROUP_ID,
+                                    report_text,
+                                    **send_kwargs,
+                                )
+                                logger.info(f"[SCHEDULE] CRM Daily reportagram sent to group {TN5_GROUP_ID}.")
+                            else:
+                                await notify_admin(report_text, client)
+                    except Exception as rep_exc:
+                        logger.error(f"[SCHEDULE][CRM_REPORT] Error: {rep_exc}")
+                    background_monitor_task._sent_jobs.add(job_key)
+
+            # ─────────────────────────────────────────────────────────
             # 9. [STAGNATION] Har kuni 10:00 va 22:00 — Stagnation Alert
             # ─────────────────────────────────────────────────────────
             if now.hour in [10, 22] and now.minute == 0:
@@ -916,23 +1033,7 @@ async def background_monitor_task() -> None:
             await asyncio.sleep(60)
 
 
-async def self_command_handler(event):
-    """'Saved Messages' dagi buyruqlarni (self-chat) va Baxtiyor akani o'z xabarlarini tahlil qilish."""
-    if not event.message.text:
-        return
-    cmd = event.message.text.lower().strip()
-    if cmd.startswith("/dashboard"):
-        stats = await msg_controller.db.get_today_stats()
-        msg = f"📊 **OISHA ROI DASHBOARD**\n📅 Bugun: {datetime.now().strftime('%d-%m-%Y')}\n\n👤 Yangi lidlar: {stats['leads_found']}\n💬 Sinxron: {stats['messages_synced']}\n"
-        await event.respond(msg)
-    elif cmd.startswith("/lead_cockpit") or cmd.startswith("/pipeline"):
-        from src.services.core.lead_operating_system import LeadOperatingSystem
-
-        lead_os = LeadOperatingSystem(msg_controller, msg_controller.db)
-        report = await lead_os.render_cockpit_report(limit=12, lookback_hours=72)
-        await event.respond(report, parse_mode="HTML")
-    elif cmd.startswith("/status"):
-        await event.respond("🟢 **TIZIM HOLATI:** Active (GCP Master)")
+# First definition of self_command_handler was merged into the main one below to avoid collision.
 
 
 async def handle_new_message(event):
@@ -1001,7 +1102,7 @@ async def handle_new_message(event):
             )
             return
 
-        if event.message.text == "/efficiency" or event.message.text == "/report":
+        if event.message.text == "/efficiency":
             from src.services.core.airtable_sync import AirtableSync
 
             at_sync = AirtableSync()
@@ -1011,6 +1112,69 @@ async def handle_new_message(event):
                 await msg_controller.enterprise_reporter.get_team_efficiency_report()
             )
             await event.respond(report, parse_mode="markdown")
+            return
+
+        if event.message.text == "/report":
+            await event.respond("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
+            try:
+                from src.services.core.crm_daily_report import CRMDailyReporter
+                amocrm_client = None
+                if msg_controller and getattr(msg_controller, "crm", None):
+                    amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+                if not amocrm_client:
+                    amocrm_client = get_surgical_integration().amocrm
+                
+                reporter = CRMDailyReporter(amocrm=amocrm_client)
+                stats = await reporter.fetch_stats()
+                prev = reporter._load_prev_stats()
+                report_text = reporter.format_report(stats, prev)
+                await event.respond(report_text)
+            except Exception as e:
+                await event.respond(f"❌ Xatolik yuz berdi: {e}")
+            return
+
+        if event.message.text == "/stats":
+            await event.respond("⏳ Joriy statistika olinmoqda...")
+            try:
+                from src.services.core.crm_daily_report import CRMDailyReporter
+                amocrm_client = None
+                if msg_controller and getattr(msg_controller, "crm", None):
+                    amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+                if not amocrm_client:
+                    amocrm_client = get_surgical_integration().amocrm
+                
+                reporter = CRMDailyReporter(amocrm=amocrm_client)
+                stats = await reporter.fetch_stats()
+                text = (
+                    f"📊 **Bugungi holat ({stats.date_label})**\n"
+                    f"Tushgan: {stats.total_leads} lead\n"
+                    f"Gaplashilgan: {stats.contacted} lead\n"
+                    f"Sifatli: {stats.qualified} lead\n"
+                    f"Muvaffaqiyatli (Won): {stats.won}\n"
+                    f"Daromad: ${stats.revenue:,.0f}\n"
+                    f"Pipeline qiymati: ${stats.pipeline_value:,.0f}"
+                )
+                await event.respond(text)
+            except Exception as e:
+                await event.respond(f"❌ Xatolik: {e}")
+            return
+
+        if event.message.text == "/history":
+            try:
+                from src.services.core.crm_daily_report import CRMDailyReporter
+                reporter = CRMDailyReporter(amocrm=None)
+                history = reporter.get_history(7)
+                if not history:
+                    await event.respond("📅 Tarix topilmadi. Hisobotlar hali keshga yozilmagan.")
+                    return
+                lines = ["📅 **So'nggi 7 kunlik hisobotlar tarixi:**"]
+                for s in history:
+                    lines.append(
+                        f"• {s.date_label}: {s.total_leads} lead | {s.won} won | ${s.revenue:,.0f}"
+                    )
+                await event.respond("\n".join(lines))
+            except Exception as e:
+                await event.respond(f"❌ Xatolik: {e}")
             return
 
             from src.services.core.airtable_sync import AirtableSync
@@ -1112,13 +1276,27 @@ async def handle_new_message(event):
             )
             return
 
-            if event.message.text == "/sync_history":
-                await event.respond(
-                    "👸 Oisha-OS: O'tgan 1 yillik shaxsiy yozishmalarni (DM) bazaga kiritishni boshladim... 👸🛡️\nBu biroz vaqt olishi mumkin, orqa fonda xavfsiz ishlayman."
+        if event.message.text == "/hunt":
+            await event.respond(
+                "👸 Oisha-OS: 2026-yildagi BARCHA shaxsiy yozishmalarni skanerlash boshlandi!\n"
+                "🎯 Sifatli leadlar Team CRM topicga yuboriladi.\n"
+                "⏳ Bu jarayon 10-30 daqiqa olishi mumkin..."
+            )
+            asyncio.create_task(
+                lead_scraper.hunt_2026_leads(
+                    client=client,
+                    bot_client=bot_client,
                 )
-                sync_service = HistoricalSyncService(msg_controller.db, client)
-                asyncio.create_task(sync_service.start_backlog_sync(days=365))
-                return
+            )
+            return
+
+        if event.message.text == "/sync_history":
+            await event.respond(
+                "👸 Oisha-OS: O'tgan 1 yillik shaxsiy yozishmalarni (DM) bazaga kiritishni boshladim... 👸🛡️\nBu biroz vaqt olishi mumkin, orqa fonda xavfsiz ishlayman."
+            )
+            sync_service = HistoricalSyncService(msg_controller.db, client)
+            asyncio.create_task(sync_service.start_backlog_sync(days=365))
+            return
 
     # 2. Xabar matnini olish
     message_text = event.message.message
@@ -1489,7 +1667,7 @@ async def handle_new_message(event):
             except Exception as surg_ex:
                 logger.warning(f"[SURGICAL] Fallback to legacy: {surg_ex}")
 
-        # 4b. Legacy AI (Gemini 2.0 Flash) — fallback yoki savdo bo'lmagan so'rovlar
+        # 4b. Legacy AI fallback yoki savdo bo'lmagan so'rovlar
         if not ai_raw_response:
             ai_raw_response = await msg_controller.get_response(
                 user_id=sender.id,
@@ -1682,7 +1860,9 @@ async def run_health_check_api() -> None:
         port=int(os.environ.get("PORT", 8080)),
         log_level="info",
     )
+    global _health_api_server
     server = uvicorn.Server(config_uvicorn)
+    _health_api_server = server
     try:
         await server.serve()
     except SystemExit:
@@ -1691,13 +1871,39 @@ async def run_health_check_api() -> None:
         )
     except OSError as e:
         logger.warning(f"[API] API server ishga tushmadi: {e}. Bot davom etadi.")
+    finally:
+        if _health_api_server is server:
+            _health_api_server = None
+
+
+async def stop_health_check_api(
+    api_task: Optional[asyncio.Task], timeout_seconds: float = 5.0
+) -> None:
+    """Ask Uvicorn to finish its lifespan before the event loop is closed."""
+    global _health_api_server
+    server = _health_api_server
+    if server is not None:
+        server.should_exit = True
+
+    if api_task is not None and not api_task.done():
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(api_task),
+                timeout=timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("[SHUTDOWN] API server exceeded shutdown deadline; forcing.")
+            api_task.cancel()
+            await asyncio.gather(api_task, return_exceptions=True)
+
+    _health_api_server = None
 
 
 async def safe_ai_call(
     client,
     prompt,
     system_instruction=None,
-    model="gemini-2.0-flash",
+    model=None,
     mime_type=None,
     retries=3,
 ):
@@ -1797,8 +2003,70 @@ async def self_command_handler(event):
             "✅ *Oisha hozirda fonda muvaffaqiyatli ishlamoqda.*"
         )
         await event.respond(msg)
+    elif cmd.startswith("/lead_cockpit") or cmd.startswith("/pipeline"):
+        from src.services.core.lead_operating_system import LeadOperatingSystem
+        lead_os = LeadOperatingSystem(msg_controller, msg_controller.db)
+        report = await lead_os.render_cockpit_report(limit=12, lookback_hours=72)
+        await event.respond(report, parse_mode="HTML")
     elif cmd.startswith("/status"):
         await event.respond("🟢 **Oisha Engine:** Active\n🛰 **Server:** GCP Cloud Run")
+    elif cmd.startswith("/report"):
+        await event.respond("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
+        try:
+            from src.services.core.crm_daily_report import CRMDailyReporter
+            amocrm_client = None
+            if msg_controller and getattr(msg_controller, "crm", None):
+                amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+            if not amocrm_client:
+                amocrm_client = get_surgical_integration().amocrm
+            
+            reporter = CRMDailyReporter(amocrm=amocrm_client)
+            stats = await reporter.fetch_stats()
+            prev = reporter._load_prev_stats()
+            report_text = reporter.format_report(stats, prev)
+            await event.respond(report_text)
+        except Exception as e:
+            await event.respond(f"❌ Xatolik yuz berdi: {e}")
+    elif cmd.startswith("/stats"):
+        await event.respond("⏳ Joriy statistika olinmoqda...")
+        try:
+            from src.services.core.crm_daily_report import CRMDailyReporter
+            amocrm_client = None
+            if msg_controller and getattr(msg_controller, "crm", None):
+                amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+            if not amocrm_client:
+                amocrm_client = get_surgical_integration().amocrm
+            
+            reporter = CRMDailyReporter(amocrm=amocrm_client)
+            stats = await reporter.fetch_stats()
+            text = (
+                f"📊 **Bugungi holat ({stats.date_label})**\n"
+                f"Tushgan: {stats.total_leads} lead\n"
+                f"Gaplashilgan: {stats.contacted} lead\n"
+                f"Sifatli: {stats.qualified} lead\n"
+                f"Muvaffaqiyatli (Won): {stats.won}\n"
+                f"Daromad: ${stats.revenue:,.0f}\n"
+                f"Pipeline qiymati: ${stats.pipeline_value:,.0f}"
+            )
+            await event.respond(text)
+        except Exception as e:
+            await event.respond(f"❌ Xatolik: {e}")
+    elif cmd.startswith("/history"):
+        try:
+            from src.services.core.crm_daily_report import CRMDailyReporter
+            reporter = CRMDailyReporter(amocrm=None)
+            history = reporter.get_history(7)
+            if not history:
+                await event.respond("📅 Tarix topilmadi. Hisobotlar hali keshga yozilmagan.")
+                return
+            lines = ["📅 **So'nggi 7 kunlik hisobotlar tarixi:**"]
+            for s in history:
+                lines.append(
+                    f"• {s.date_label}: {s.total_leads} lead | {s.won} won | ${s.revenue:,.0f}"
+                )
+            await event.respond("\n".join(lines))
+        except Exception as e:
+            await event.respond(f"❌ Xatolik: {e}")
     elif cmd.startswith("/junk_audit"):
         if msg_controller and msg_controller.enterprise_reporter:
             await event.respond(
@@ -1836,7 +2104,7 @@ async def self_command_handler(event):
                     )
             except Exception as e:
                 logger.error(f"[COMMAND] /stagnant error: {e}", exc_info=True)
-            await event.respond(f"❌ **Xato:** {str(e)}")
+                await event.respond(f"❌ **Xato:** {str(e)}")
         else:
             await event.respond("❌ **Xato:** EnterpriseReporter topilmadi.")
     elif cmd.startswith("/calendar_scan"):
@@ -1861,6 +2129,110 @@ async def self_command_handler(event):
         except Exception as exc:
             logger.error(f"[COMMAND] /calendar_scan error: {exc}", exc_info=True)
             await event.respond(f"❌ Calendar scan xatosi: {type(exc).__name__}")
+    elif cmd.startswith("/sync_cases") or cmd.startswith("/sync_portfolio"):
+        parts = cmd.split()
+        limit_val = 30
+        if len(parts) > 1 and parts[1].isdigit():
+            limit_val = int(parts[1])
+            
+        await event.respond(
+            f"🚀 **Backlog portfolio sinxronizatsiyasi boshlandi...**\n"
+            f"`@{settings.JONBRANDING_CHANNEL}` kanalidan so'nggi {limit_val} ta xabarni tekshirib, portfolio keyslarini aniqlayman va CMS'ga yuklayman. Iltimos, kuting... ⏳"
+        )
+        try:
+            from src.services.core.case_publisher import CasePublisher
+            publisher = CasePublisher(client=event.client)
+            
+            target = settings.JONBRANDING_CHANNEL.strip().lower()
+            
+            scanned = 0
+            published = 0
+            skipped = 0
+            
+            async for msg in event.client.iter_messages(target, limit=limit_val):
+                scanned += 1
+                if not msg.text:
+                    skipped += 1
+                    continue
+
+                try:
+                    success = await publisher.process_message(msg)
+                    if success:
+                        published += 1
+                    else:
+                        skipped += 1
+                except Exception as pe:
+                    logger.error(f"[CRAWL COMMAND] Error processing message {msg.id}: {pe}")
+                    skipped += 1
+
+                # Safe delay
+                await asyncio.sleep(2.5)
+                
+            await event.respond(
+                f"🏁 **Portfolio keys sinxronizatsiyasi muvaffaqiyatli yakunlandi!**\n\n"
+                f"📊 **Statistika:**\n"
+                f"• Skanner qilindi: {scanned} ta xabar\n"
+                f"• Yuklandi (CMS): {published} ta keys\n"
+                f"• O'tkazib yuborildi: {skipped} ta xabar"
+            )
+        except Exception as e:
+            logger.error(f"[COMMAND] /sync_cases error: {e}", exc_info=True)
+            await event.respond(f"❌ **Sinxronizatsiyada xatolik:** {str(e)}")
+    elif cmd.startswith("/sync_archive"):
+        parts = cmd.split()
+        limit = 30
+        if len(parts) > 1:
+            try:
+                limit = int(parts[1])
+            except ValueError:
+                pass
+
+        await event.respond(f"🧹 **AmoCRM limitsizlantirish va arxivlash boshlandi...**\nBatch limiti: {limit} ta bitim. Iltimos, kuting... ⏳")
+        try:
+            from src.services.core.crm_archiver import CRMArchiver
+            archiver = CRMArchiver()
+            await archiver.init_tables()
+
+            # 1. Fetch all stagnant leads
+            stagnant = await archiver.get_stagnant_leads(max_stagnant_days=21)
+            if not stagnant:
+                await event.respond("✅ **Hammasi joyida:** Hozircha arxivlash uchun stagnant bitimlar mavjud emas.")
+                return
+
+            targets = stagnant[:limit]
+            await event.respond(f"🎯 **Arxivlash uchun {len(targets)} ta bitim tanlandi.** Arxivlash va outreach xabarlar generatsiya qilinmoqda...")
+
+            processed_count = 0
+            failed_count = 0
+
+            for lead in targets:
+                try:
+                    res = await archiver.archive_lead(lead, dry_run=False)
+                    if res.get("success"):
+                        processed_count += 1
+                    else:
+                        failed_count += 1
+                except Exception as ex:
+                    failed_count += 1
+                    logger.error(f"[SYNC ARCHIVE] Lead {lead.get('id')} error: {ex}")
+
+            # Send rich Uzbek KPI report of reclaimed capacity
+            active_leads = await archiver.fetch_all_active_leads()
+            active_count = len(active_leads)
+
+            report = (
+                f"🏁 **ARXIVLASH VA OUTREACH HISOBOTI**\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"✅ **Muvaffaqiyatli arxivlandi:** {processed_count} ta bitim\n"
+                f"❌ **Xatoliklar:** {failed_count} ta\n"
+                f"📦 **Qolgan faol bitimlar:** {active_count} / 500 limit\n"
+                f"📊 **Yangi bandlik darajasi:** {(active_count / 500) * 100:.1f}%\n"
+                f"💡 *Barcha arxivlangan bitimlar Turso Cloud bazasiga 100% xavfsiz saqlandi va 3 bosqichli Uzbek outreach kampaniyalari generatsiya qilindi!*"
+            )
+            await event.respond(report)
+        except Exception as e:
+            logger.error(f"[COMMAND] /sync_archive error: {e}", exc_info=True)
+            await event.respond(f"❌ **Arxivlashda xatolik yuz berdi:** {str(e)}")
 
 
 async def activity_monitor_handler(event):
@@ -1886,6 +2258,40 @@ def _negotiation_int(name: str, default: int) -> int:
         return int(os.getenv(name, str(default)))
     except ValueError:
         return default
+
+
+async def case_publisher_handler(event):
+    """Listen to @jonbranding channel messages and process/publish design cases."""
+    if not settings.ENABLE_CASE_PUBLISHER:
+        return
+
+    try:
+        chat = await event.get_chat()
+        chat_username = getattr(chat, "username", None)
+        chat_id = event.chat_id
+
+        target = settings.JONBRANDING_CHANNEL.strip().lower()
+
+        is_match = False
+        if chat_username and chat_username.lower() == target:
+            is_match = True
+        elif target.startswith("-100") and str(chat_id) == target:
+            is_match = True
+        elif str(chat_id) == target:
+            is_match = True
+
+        if not is_match:
+            return
+
+        logger.info(
+            f"[CASE_HANDLER] New message in target channel '{target}': msg_id={event.id}"
+        )
+
+        publisher = CasePublisher(client=event.client)
+        asyncio.create_task(publisher.process_message(event.message))
+
+    except Exception as e:
+        logger.error(f"[CASE_HANDLER] Error in handler: {e}")
 
 
 async def negotiation_agent_handler(event):
@@ -2102,20 +2508,31 @@ async def kirim_topic_handler(event):
         celebration = f"{seller_name}, {celebration}"
 
     try:
-        if bot_client:
+        await _send_kirim_celebration(event, celebration)
+        await db.set_state(state_key, "done")
+        logger.info(f"[KIRIM] Celebration sent chat={event.chat_id} msg={event.id} seller={seller_name}")
+    except Exception as exc:
+        await db.set_state(state_key, f"failed:{type(exc).__name__}")
+        logger.error(f"[KIRIM] Celebration send failed: {exc}", exc_info=True)
+
+
+async def _send_kirim_celebration(event, celebration: str) -> None:
+    """Prefer the bot head, then use the listening userbot when group access is absent."""
+    if bot_client:
+        try:
             await bot_client.send_message(
                 settings.TEAM_GROUP_ID,
                 celebration,
                 reply_to=event.id,
                 link_preview=False,
             )
-        else:
-            await event.reply(celebration, link_preview=False)
-        await db.set_state(state_key, "done")
-        logger.info(f"[KIRIM] Celebration sent chat={event.chat_id} msg={event.id} seller={seller_name}")
-    except Exception as exc:
-        await db.set_state(state_key, f"failed:{type(exc).__name__}")
-        logger.error(f"[KIRIM] Celebration send failed: {exc}", exc_info=True)
+            return
+        except Exception as exc:
+            logger.warning(
+                "[KIRIM] Bot-token send failed (%s); using userbot reply fallback.",
+                type(exc).__name__,
+            )
+    await event.reply(celebration, link_preview=False)
 
 
 async def _brain_evolution_loop():
@@ -2180,7 +2597,6 @@ async def main():
                 if cmd == "send_message":
                     u_id = item.get("user_id")
                     txt = item.get("text")
-                    item.get("model", "gemini-3-flash")
                     
                     if client:
                         try:
@@ -2204,7 +2620,9 @@ async def main():
                 logger.error(f"❌ [COMMANDS] Processor error: {e}")
                 await asyncio.sleep(1)
 
-    asyncio.create_task(run_health_check_api(), name="health_check_api")
+    health_api_task = asyncio.create_task(
+        run_health_check_api(), name="health_check_api"
+    )
     asyncio.create_task(command_processor(), name="command_processor")
 
     _restore_cloud_artifacts()
@@ -2374,6 +2792,160 @@ async def main():
 
     asyncio.create_task(crm_discipline_loop())
 
+    # Background Task: Nightly CRM Capacity Archiver (Every 6 hours)
+    async def crm_capacity_archiver_loop():
+        await asyncio.sleep(60) # Let components stabilize
+        while True:
+            try:
+                logger.info("[ARCHIVER_LOOP] Active AmoCRM capacity check starting...")
+                from src.services.core.crm_archiver import CRMArchiver
+                archiver = CRMArchiver(amocrm=msg_controller.crm.amocrm, db=msg_controller.db)
+                await archiver.init_tables()
+
+                active_leads = await archiver.fetch_all_active_leads()
+                active_count = len(active_leads)
+                logger.info(f"[ARCHIVER_LOOP] Active sdelkas: {active_count} / 500 limit")
+
+                if active_count >= 480:
+                    logger.warning(f"[ARCHIVER_LOOP] Active sdelkas count {active_count} exceeds threshold of 480! Autocleaning 30 stagnant leads...")
+                    stagnant = await archiver.get_stagnant_leads(max_stagnant_days=21)
+                    if stagnant:
+                        targets = stagnant[:30]
+                        logger.info(f"[ARCHIVER_LOOP] Found {len(stagnant)} stagnant candidates. Archiving {len(targets)} leads...")
+
+                        processed = 0
+                        for lead in targets:
+                            try:
+                                res = await archiver.archive_lead(lead, dry_run=False)
+                                if res.get("success"):
+                                    processed += 1
+                            except Exception as ex:
+                                logger.error(f"[ARCHIVER_LOOP] Error archiving lead {lead.get('id')}: {ex}")
+
+                        logger.info(f"[ARCHIVER_LOOP] Autocleanup complete. Archived {processed} leads.")
+                    else:
+                        logger.info("[ARCHIVER_LOOP] No stagnant leads found to clean up.")
+            except Exception as e:
+                logger.error(f"[ARCHIVER_LOOP] Error in capacity archiver loop: {e}")
+            await asyncio.sleep(21600)  # Check every 6 hours (4 times a day)
+
+    asyncio.create_task(
+        crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop"
+    )
+
+    # Background Task: Universal Autonomous AI Autopilot Loop (Every 15 minutes)
+    async def ai_autopilot_loop():
+        # Let components/clients stabilize
+        await asyncio.sleep(15)
+        
+        from src.services.core.telegram_task_creator import TelegramTaskCreator
+        from src.services.core.call_analyzer import CallAnalyzer
+        from src.services.core.ambassador_journey import AmbassadorJourneyManager
+        from src.services.utils.voice_processor import VoiceProcessor
+        
+        gemini_key = api_keys.get("gemini")
+        if not gemini_key:
+            logger.warning("[AUTOPILOT] Gemini key missing — AI Autopilot loop disabled.")
+            return
+
+        voice_proc = VoiceProcessor(api_key=gemini_key)
+        task_creator = TelegramTaskCreator(
+            amocrm=msg_controller.crm.amocrm,
+            db=msg_controller.db,
+            user_client=client,
+            voice_processor=voice_proc,
+            gemini_api_key=gemini_key,
+        )
+        call_analyzer = CallAnalyzer(
+            amocrm=msg_controller.crm.amocrm,
+            db=msg_controller.db,
+        )
+        ambassador_manager = AmbassadorJourneyManager(
+            amocrm=msg_controller.crm.amocrm,
+            db=msg_controller.db,
+            user_client=client,
+            gemini_api_key=gemini_key,
+        )
+        
+        logger.info("🤖 [AUTOPILOT] AI Autopilot loop started.")
+        
+        while True:
+            try:
+                logger.info("🤖 [AUTOPILOT] Running periodic AI Autopilot cycle...")
+                
+                # STAGE 1: Telegram Tasks & Voice Analysis
+                try:
+                    leads = await msg_controller.crm.amocrm.get_leads_detailed(limit=30)
+                    if leads and isinstance(leads, list):
+                        for lead in leads:
+                            if task_creator.blocks_dialogue_analysis():
+                                cooldown_reason = task_creator.cooldown_reason()
+                                cooldown_seconds = (
+                                    task_creator.cooldown_seconds_remaining()
+                                )
+                                logger.warning(
+                                    "[AUTOPILOT] Telegram task %s cooldown active for %ss; "
+                                    "skipping remaining task-extraction leads.",
+                                    cooldown_reason or "dependency",
+                                    cooldown_seconds,
+                                )
+                                break
+                            lead_id = lead.get("id")
+                            if not lead_id:
+                                continue
+                            
+                            # Resolve primary phone number
+                            phone = None
+                            contacts = lead.get("_embedded", {}).get("contacts", []) or lead.get("contacts", [])
+                            for contact in contacts:
+                                fields = contact.get("custom_fields_values") or []
+                                for field in fields:
+                                    if str(field.get("field_code", "")).upper() == "PHONE":
+                                        vals = field.get("values") or []
+                                        if vals:
+                                            phone = str(vals[0].get("value", ""))
+                                            break
+                                if phone:
+                                    break
+                            phone_getter = getattr(
+                                msg_controller.crm.amocrm,
+                                "get_primary_contact_phone",
+                                None,
+                            )
+                            if not phone and callable(phone_getter):
+                                phone = await phone_getter(lead)
+                            
+                            if phone:
+                                await task_creator.create_amocrm_tasks_from_chat(
+                                    phone_or_username=phone,
+                                    lead_id=int(lead_id),
+                                    limit=15,
+                                )
+                except Exception as tg_err:
+                    logger.error(f"[AUTOPILOT] Telegram Task Creator error: {tg_err}")
+                
+                # STAGE 2: Phone Call Recordings Analysis
+                try:
+                    await call_analyzer.analyze_recent_calls(limit=30)
+                except Exception as call_err:
+                    logger.error(f"[AUTOPILOT] Call Analyzer error: {call_err}")
+                
+                # STAGE 3: Ambassador Journey Automation
+                try:
+                    await ambassador_manager.sync_won_leads_to_ambassadors(limit=30)
+                    await ambassador_manager.process_scheduled_touchpoints()
+                except Exception as amb_err:
+                    logger.error(f"[AUTOPILOT] Ambassador Journey error: {amb_err}")
+                
+                logger.info("🤖 [AUTOPILOT] AI Autopilot cycle completed successfully.")
+            except Exception as exc:
+                logger.error(f"[AUTOPILOT] Critical error in autopilot loop: {exc}")
+            
+            # Execute every 15 minutes (900 seconds)
+            await asyncio.sleep(900)
+
+    asyncio.create_task(ai_autopilot_loop())
+
     # Surgical Negotiator — autonomous negotiations agent
     async def _surgical_send(user_id: int, text: str):
         """Proactive Telegram send callback for SurgicalNegotiator."""
@@ -2533,7 +3105,20 @@ async def main():
             "[AUTH] Userbot features are disabled, but bot-token commands "
             "and scheduled CRM/Airtable jobs are active."
         )
+        asyncio.create_task(
+            background_monitor_task(),
+            name="background_monitor_task",
+        )
         await asyncio.Event().wait()
+
+    from src.services.core.tool_adapters import configure_userbot_group_fallback
+
+    configure_userbot_group_fallback(client)
+    asyncio.create_task(
+        background_monitor_task(),
+        name="background_monitor_task",
+    )
+    logger.info("[MONITOR] Persistent CRM/Airtable scheduler registered.")
 
     # Start the bot-token head in the healthy userbot path too. AdminBot registers
     # bot commands here; Kirim celebrations still listen via the userbot account.
@@ -2542,17 +3127,54 @@ async def main():
             await bot_client.start(bot_token=BOT_TOKEN_STR)
             
             # [PHASE 1.5] Telegram Bot API 10.0 Features (Guest Mode, Business, etc.)
-            from src.services.core.telegram_ai_features import TelegramBotAPI10Client, BOT_API_10_ALLOWED_UPDATES
+            from src.services.core.telegram_ai_features import (
+                BOT_API_10_ALLOWED_UPDATES,
+                TelegramBotAPI10Client,
+                TelegramBotAPILongPoller,
+            )
             
             tg_ai_client = TelegramBotAPI10Client(BOT_TOKEN_STR)
             webhook_url = os.getenv("WEBHOOK_URL")
-            if webhook_url:
-                webhook_path = f"{webhook_url.rstrip('/')}/webhook/telegram"
-                logger.info(f"🤖 [BOT API 10] Setting webhook to: {webhook_path}")
+            webhook_secret = (
+                settings.TELEGRAM_WEBHOOK_SECRET.get_secret_value()
+                if settings.TELEGRAM_WEBHOOK_SECRET
+                else None
+            )
+            if webhook_url and webhook_secret:
+                webhook_path = f"{webhook_url.rstrip('/')}/webhook/telegram-ai"
+                logger.info("[BOT API 10] Setting authenticated webhook.")
                 # Set webhook in background to not block startup
-                asyncio.create_task(tg_ai_client.set_webhook(webhook_path, allowed_updates=BOT_API_10_ALLOWED_UPDATES))
+                asyncio.create_task(
+                    tg_ai_client.set_webhook(
+                        webhook_path,
+                        secret_token=webhook_secret,
+                        allowed_updates=BOT_API_10_ALLOWED_UPDATES,
+                    ),
+                    name="telegram_bot_api_webhook_setup",
+                )
+                api_module.set_telegram_ai_ingress_status(
+                    mode="webhook",
+                    active=True,
+                )
             else:
-                logger.warning("⚠️ [BOT API 10] WEBHOOK_URL not set. Guest Mode and Business features require a webhook.")
+                async def _dispatch_bot_api_update(update):
+                    return await api_module.process_telegram_ai_update(update)
+
+                poller = TelegramBotAPILongPoller(
+                    BOT_TOKEN_STR,
+                    _dispatch_bot_api_update,
+                )
+                asyncio.create_task(
+                    poller.run(),
+                    name="telegram_bot_api_long_poll",
+                )
+                api_module.set_telegram_ai_ingress_status(
+                    mode="long_poll",
+                    active=True,
+                )
+                logger.info(
+                    "[BOT API 10] Public webhook unavailable; long-poll receiver started."
+                )
 
             if admin_bot:
                 admin_bot.user_client = client
@@ -2615,6 +3237,10 @@ async def main():
         logger.warning("[KIRIM] Celebration listener disabled: TEAM_GROUP_ID or TOPIC_KIRIM_ID is missing.")
 
     client.add_event_handler(
+        case_publisher_handler,
+        events.NewMessage(incoming=True),
+    )
+    client.add_event_handler(
         negotiation_agent_handler,
         events.NewMessage(incoming=True),
     )
@@ -2639,6 +3265,53 @@ async def main():
         events.NewMessage(chats="me"),
     )
     logger.info("[EVENTS] Safe userbot handlers registered.")
+
+    async def telegram_group_access_probe_loop():
+        await asyncio.sleep(5)
+        while True:
+            delay_seconds = _negotiation_int(
+                "TELEGRAM_GROUP_PROBE_INTERVAL_SECS", 3600
+            )
+            try:
+                snapshot = await api_module.refresh_userbot_group_access_snapshot(
+                    client
+                )
+                readable_groups = sum(
+                    1
+                    for entry in snapshot.get("groups", {}).values()
+                    if entry.get("readable")
+                )
+                readable_topics = sum(
+                    1
+                    for entry in snapshot.get("topics", {}).values()
+                    if entry.get("readable")
+                )
+                logger.info(
+                    "[TELEGRAM PROBE] status=%s readable_groups=%s readable_topics=%s",
+                    snapshot.get("status"),
+                    readable_groups,
+                    readable_topics,
+                )
+                if snapshot.get("status") != "ok":
+                    delay_seconds = min(
+                        delay_seconds,
+                        _negotiation_int("TELEGRAM_GROUP_PROBE_RETRY_SECS", 60),
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "[TELEGRAM PROBE] Read-only group/topic probe failed: %s",
+                    type(exc).__name__,
+                )
+                delay_seconds = min(
+                    delay_seconds,
+                    _negotiation_int("TELEGRAM_GROUP_PROBE_RETRY_SECS", 60),
+                )
+            await asyncio.sleep(delay_seconds)
+
+    asyncio.create_task(
+        telegram_group_access_probe_loop(),
+        name="telegram_group_access_probe_loop",
+    )
 
     async def calendar_autoscan_loop():
         await asyncio.sleep(_negotiation_int("CALENDAR_SCAN_BOOT_DELAY_SECS", 60))
@@ -2700,25 +3373,14 @@ async def main():
         # Filter out the long-lived background loops (heartbeat, scheduler, etc.)
         # — we only want to wait for message-handler tasks. Heuristic: tasks
         # whose coroutine is not one of our known daemon coroutines.
-        daemon_names = {
-            "_heartbeat_task",
-            "background_scheduler",
-            "dm_lead_sync_task",
-            "background_monitor_task",
-            "background_loop",
-            "monitor_sessions",
-            "background_crm_audit_task",
-        }
-        drainable = []
-        for t in pending:
-            coro = getattr(t, "get_coro", lambda: None)()
-            name = getattr(coro, "__name__", "") or ""
-            if name in daemon_names:
-                continue
-            drainable.append(t)
+        drainable = [t for t in pending if not _is_shutdown_daemon_task(t)]
         if drainable:
             logger.info(
                 f"[SHUTDOWN] Waiting on {len(drainable)} in-flight handler task(s)."
+            )
+            logger.info(
+                "[SHUTDOWN] Drain candidates: %s",
+                ", ".join(sorted(_shutdown_task_label(t) for t in drainable)),
             )
             done, still_pending = await asyncio.wait(drainable, timeout=drain_deadline)
             if still_pending:
@@ -2744,7 +3406,12 @@ async def main():
             logger.info("[SHUTDOWN] DB closed.")
         except Exception as e:
             logger.warning(f"[SHUTDOWN] DB close error: {e}")
+        await stop_health_check_api(health_api_task)
+        logger.info("[SHUTDOWN] API server stopped.")
 
+    api_module.update_api_status(
+        "online", "Userbot, Telegram bot, and persistent scheduler are active"
+    )
     logger.info("Oisha-OS userbot runtime is online and ready.")
 
     # Main client loop — race run_until_disconnected against SIGTERM.

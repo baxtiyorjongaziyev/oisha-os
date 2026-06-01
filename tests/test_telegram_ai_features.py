@@ -1,9 +1,12 @@
+import asyncio
+
 import pytest
 
 from src.services.core.telegram_ai_features import (
     BOT_API_10_ALLOWED_UPDATES,
     TelegramBotAPI10Client,
     TelegramBotAPIError,
+    TelegramBotAPILongPoller,
     build_live_feature_status,
     build_offline_feature_status,
     build_text_article_result,
@@ -156,3 +159,60 @@ def test_feature_status_helpers():
     assert live["business_chat_automation"] is True
     assert live["private_topics"] is False
     assert live["managed_bots"] is True
+
+
+@pytest.mark.asyncio
+async def test_long_poller_dispatches_raw_feature_updates_and_advances_offset():
+    dispatched = []
+
+    async def handler(update):
+        dispatched.append(update)
+
+    class FakeClient:
+        async def get_updates(self, **kwargs):
+            assert kwargs["offset"] is None
+            return [
+                {"update_id": 10, "message": {"text": "ordinary"}},
+                {"update_id": 11, "guest_message": {"guest_query_id": "g1"}},
+                {"update_id": 12, "business_connection": {"id": "biz1"}},
+            ]
+
+    poller = TelegramBotAPILongPoller("token", handler, client=FakeClient())
+    stats = await poller.poll_once()
+
+    assert stats == {"received": 3, "dispatched": 2}
+    assert poller.offset == 13
+    assert [item["update_id"] for item in dispatched] == [11, 12]
+
+
+@pytest.mark.asyncio
+async def test_running_long_poller_acknowledges_updates_before_slow_handler_finishes():
+    release = asyncio.Event()
+    started = asyncio.Event()
+    offsets = []
+
+    async def handler(update):
+        started.set()
+        await release.wait()
+
+    class FakeClient:
+        async def get_updates(self, **kwargs):
+            offsets.append(kwargs["offset"])
+            if len(offsets) == 1:
+                return [{"update_id": 10, "business_message": {"text": "slow"}}]
+            return []
+
+    poller = TelegramBotAPILongPoller("token", handler, client=FakeClient())
+    poller._start_workers()
+    try:
+        stats = await poller.poll_once()
+        await started.wait()
+        await poller.poll_once()
+
+        assert stats == {"received": 1, "dispatched": 1}
+        assert offsets == [None, 11]
+    finally:
+        release.set()
+        assert poller._queue is not None
+        await poller._queue.join()
+        await poller._stop_workers()
