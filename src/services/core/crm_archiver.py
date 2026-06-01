@@ -312,25 +312,31 @@ class CRMArchiver:
             }
 
         try:
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel(
-                os.getenv("GEMINI_CALL_MODEL", "gemini-2.5-flash")
-            )
-            loop = asyncio.get_event_loop()
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(api_key=api_key)
+            model_name = os.getenv("GEMINI_CALL_MODEL", "gemini-2.0-flash")
+            if model_name.startswith("models/"):
+                model_name = model_name.replace("models/", "", 1)
 
             prompt = f"Mijoz va bitim konteksti:\n{context_prompt}\n\nIltimos, outreach xabarlarini yuqoridagi system instruction talablariga mos ravishda JSON ko'rinishida generatsiya qiling."
+            loop = asyncio.get_event_loop()
 
             # Execute in thread executor to avoid blocking async loop
             response = await loop.run_in_executor(
                 None,
-                lambda: model.generate_content(
-                    prompt,
-                    generation_config=genai.GenerationConfig(response_mime_type="application/json"),
-                    system_instruction=system_instruction
+                lambda: client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json"
+                    )
                 )
             )
 
-            text = getattr(response, "text", "") or ""
+            text = response.text or ""
             data = json.loads(text.strip())
             return {
                 "step1": data.get("step1", "").strip(),
