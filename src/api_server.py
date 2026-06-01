@@ -305,6 +305,14 @@ async def telegram_status():
         return {"status": "error", "message": str(e)}
 
 
+@app.get("/api/telegram/group-access")
+async def telegram_group_access(refresh: bool = Query(False)):
+    """Return the cached userbot group/topic snapshot or refresh it read-only."""
+    if refresh:
+        return await refresh_userbot_group_access_snapshot()
+    return dict(_userbot_group_access_snapshot)
+
+
 @app.get("/health")
 @app.get("/healthz")
 @app.get("/healthz/")

@@ -7,6 +7,17 @@ from src import api_server
 
 
 @pytest.mark.asyncio
+async def test_group_access_endpoint_refreshes_snapshot_read_only(monkeypatch):
+    refresh = AsyncMock(return_value={"status": "ok", "groups": {}, "topics": {}})
+    monkeypatch.setattr(api_server, "refresh_userbot_group_access_snapshot", refresh)
+
+    snapshot = await api_server.telegram_group_access(refresh=True)
+
+    assert snapshot["status"] == "ok"
+    refresh.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
 async def test_userbot_group_probe_reads_configured_groups_and_topics(monkeypatch):
     monkeypatch.setattr(api_server.settings, "CRM_GROUP_ID", -100111, raising=False)
     monkeypatch.setattr(api_server.settings, "TEAM_GROUP_ID", -100222, raising=False)
