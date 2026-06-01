@@ -15,7 +15,10 @@ from src.services.core.client_journey_playbook import (
     build_department_direct_messages,
     render_excellence_report,
 )
-from src.services.core.tool_adapters import build_default_tool_registry
+from src.services.core.tool_adapters import (
+    build_default_tool_registry,
+    send_group_message_with_fallback,
+)
 from src.services.core.persona_hub import get_persona
 from src.services.core.gdrive import GoogleDriveSync
 from src.services.core.crm_file_offloader import CRMFileOffloader
@@ -556,7 +559,8 @@ async def send_proactive_followups():
                                 f"```\n{message}\n```\n"
                                 f"👆 Ushbu xabarni ko'chirib, mijozga yuborishingiz mumkin."
                             )
-                            await app.bot.send_message(
+                            await send_group_message_with_fallback(
+                                app.bot,
                                 chat_id=config.CRM_GROUP_ID,
                                 text=draft_msg,
                                 parse_mode="Markdown",
@@ -627,12 +631,13 @@ async def distribute_team_tasks(force: bool = False):
     if bot_token and group_id:
         bot = Bot(token=bot_token)
         try:
-            await bot.send_message(
+            await send_group_message_with_fallback(
+                bot,
                 chat_id=group_id,
                 text=msg,
                 parse_mode="HTML",
                 disable_web_page_preview=True,
-                message_thread_id=thread_id,
+                thread_id=thread_id,
             )
             await db.mark_job_run(job_key, today)
             logger.info(f"[DISTRIBUTION] Cycle {now.hour}:00 completed.")
@@ -759,7 +764,12 @@ async def check_airtable_deadlines():
             msg += f"- {p_name} (Bosqich: {stage}, Muddat: {deadline})\n"
 
         try:
-            await bot.send_message(chat_id=group_id, text=msg, parse_mode="Markdown")
+            await send_group_message_with_fallback(
+                bot,
+                chat_id=group_id,
+                text=msg,
+                parse_mode="Markdown",
+            )
             logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
         except Exception as e:
             logger.error(f"[XATO] Airtable deadline alert: {e}")
@@ -792,7 +802,7 @@ async def _legacy_check_airtable_stagnation():
 
     if overdue:
         bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-        group_id = getattr(config, "PROJECTS_GROUP_ID", None)
+        group_id = getattr(config, "TASKS_GROUP_ID", None)
         # Target topic for tasks/projects
         thread_id = getattr(config, "TOPIC_TASKS_ID", None)
 
@@ -1079,7 +1089,7 @@ async def _deprecated_check_airtable_stagnation_direct():
         return
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-    group_id = getattr(config, "PROJECTS_GROUP_ID", None)
+    group_id = getattr(config, "TASKS_GROUP_ID", None)
     thread_id = getattr(config, "TOPIC_TASKS_ID", None)
     if not (bot_token and group_id):
         return
@@ -1205,7 +1215,7 @@ async def _legacy_check_airtable_stagnation_mixed():
         return
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-    group_id = getattr(config, "PROJECTS_GROUP_ID", None)
+    group_id = getattr(config, "TASKS_GROUP_ID", None)
     thread_id = getattr(config, "TOPIC_TASKS_ID", None)
     if not (bot_token and group_id):
         return
@@ -1351,11 +1361,12 @@ async def send_daily_report():
 
         # 1. Jamoa guruhiga yuborish
         try:
-            await bot.send_message(
+            await send_group_message_with_fallback(
+                bot,
                 chat_id=group_id,
                 text=report_msg,
                 parse_mode="HTML",
-                message_thread_id=thread_id,
+                thread_id=thread_id,
             )
             logger.info(f"[DAILY REPORT] Jamoa guruhiga ({group_id}) yuborildi.")
         except Exception as html_err:
@@ -1365,11 +1376,12 @@ async def send_daily_report():
             import re
 
             clean_text = re.sub(r"<[^>]+>", "", report_msg)
-            await bot.send_message(
+            await send_group_message_with_fallback(
+                bot,
                 chat_id=group_id,
                 text=clean_text,
                 parse_mode=None,
-                message_thread_id=thread_id,
+                thread_id=thread_id,
             )
 
         # 2. Owner-ga (Baxtiyor aka) yuborish
@@ -1461,11 +1473,12 @@ async def send_morning_briefing():
         clean_briefing = clean_briefing.replace("<li>", "• ").replace("</li>", "\n")
 
         try:
-            await bot.send_message(
+            await send_group_message_with_fallback(
+                bot,
                 chat_id=group_id,
                 text=clean_briefing,
                 parse_mode="HTML",
-                message_thread_id=thread_id,
+                thread_id=thread_id,
             )
             logger.info(f"[MORNING BRIEFING] Jamoa guruhiga ({group_id}) yuborildi.")
         except Exception as html_err:
@@ -1474,8 +1487,11 @@ async def send_morning_briefing():
             )
             try:
                 # Fallback: Plain text and no thread_id
-                await bot.send_message(
-                    chat_id=group_id, text=full_briefing, parse_mode=None
+                await send_group_message_with_fallback(
+                    bot,
+                    chat_id=group_id,
+                    text=full_briefing,
+                    parse_mode=None,
                 )
                 logger.info("[MORNING BRIEFING] Fallback muvaffaqiyatli.")
             except Exception as final_err:
@@ -1501,7 +1517,7 @@ async def send_overdue_nudges():
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
     # Using specific Group ID for projects/tasks
-    group_id = getattr(config, "PROJECTS_GROUP_ID", None)
+    group_id = getattr(config, "TASKS_GROUP_ID", None)
     # Target topic for tasks/nudges
     thread_id = getattr(config, "TOPIC_TASKS_ID", None)
     if not (bot_token and group_id):
@@ -1543,8 +1559,12 @@ async def send_overdue_nudges():
             "<i>Iltimos, ish kunini yakunlashdan oldin ushbu vazifalarni bajaring!</i>"
         )
 
-        await bot.send_message(
-            chat_id=group_id, text=msg, parse_mode="HTML", message_thread_id=thread_id
+        await send_group_message_with_fallback(
+            bot,
+            chat_id=group_id,
+            text=msg,
+            parse_mode="HTML",
+            thread_id=thread_id,
         )
         await db.mark_job_run("overdue_nudges", today)
         logger.info(f"[PROACTIVE] Public nudges sent for {len(by_user)} users.")
@@ -1621,8 +1641,12 @@ async def send_lunch_reminder():
         from telegram import Bot
 
         bot = Bot(token=bot_token)
-        await bot.send_message(
-            chat_id=group_id, text=msg, parse_mode="HTML", message_thread_id=thread_id
+        await send_group_message_with_fallback(
+            bot,
+            chat_id=group_id,
+            text=msg,
+            parse_mode="HTML",
+            thread_id=thread_id,
         )
         await db.mark_job_run("lunch_reminder", today)
         logger.info("[LUNCH] Eslatma yuborildi.")
@@ -1659,11 +1683,12 @@ async def send_evening_fact_report():
         from telegram import Bot
 
         bot = Bot(token=bot_token)
-        await bot.send_message(
+        await send_group_message_with_fallback(
+            bot,
             chat_id=group_id,
             text=report_msg,
             parse_mode="HTML",
-            message_thread_id=thread_id,
+            thread_id=thread_id,
         )
         await db.mark_job_run("evening_fact", today)
         logger.info("[EVENING FACT] Sent successfully.")
@@ -1701,11 +1726,12 @@ async def send_junk_leads_report():
         from telegram import Bot
 
         bot = Bot(token=bot_token)
-        await bot.send_message(
+        await send_group_message_with_fallback(
+            bot,
             chat_id=group_id,
             text=report_msg,
             parse_mode="HTML",
-            message_thread_id=thread_id,
+            thread_id=thread_id,
         )
         await db.mark_job_run("junk_audit", today)
         logger.info("[JUNK AUDIT] Sent successfully.")
@@ -1822,6 +1848,9 @@ async def check_amocrm_stagnation():
             if result.success:
                 await db.mark_job_run(job_key, today)
         return
+
+    now_ts = int(now.timestamp())
+    total_value = sum(int(lead.get("price") or 0) for lead in stagnated)
 
     from src.services.core.enterprise_reporter import EnterpriseReporter
     from src.services.core.crm_service import CRMService
@@ -1947,7 +1976,7 @@ async def check_airtable_stagnation():
         return
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-    group_id = getattr(config, "PROJECTS_GROUP_ID", None)
+    group_id = getattr(config, "TASKS_GROUP_ID", None)
     thread_id = getattr(config, "TOPIC_TASKS_ID", None)
     if not (bot_token and group_id):
         return

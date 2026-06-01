@@ -1,12 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-interface AmoContact {
-  id: number;
-  name: string;
-  custom_fields_values: Array<{ field_code: string; values: Array<{ value: string }> }>;
-}
-
 @Injectable()
 export class AmoCrmService {
   private readonly logger = new Logger(AmoCrmService.name);

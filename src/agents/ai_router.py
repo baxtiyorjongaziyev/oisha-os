@@ -7,10 +7,8 @@ jadvaliga log qiladi va oylik AI xarajatni minimalga tushiradi.
 
 Hozirgi model xaritasi (12 oylik plan bo'yicha — Claude kaliti kelganda L3/L4 almashtiriladi):
 
-  L1 → gemini-2.0-flash       (draft, summarize, classify, briefing)
-  L2 → gemini-2.0-flash-lite  (fallback tezkor fallback L1 529/429'da)
-  L3 → gemini-1.5-pro         (reason, negotiate — chuqur reasoning)
-  L4 → gemini-1.5-pro         (escalate — hozircha Pro, Claude Opus kelganda almashtiriladi)
+  L1-L4 → settings.GEMINI_CALL_MODEL
+  Har bir tier uchun AI_ROUTER_L*_MODEL environment override berish mumkin.
 
 API:
 
@@ -45,6 +43,8 @@ import random
 import time
 from typing import Any, Dict, Literal, Optional
 
+from src.settings import settings
+
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -64,28 +64,29 @@ TASK_TO_TIER: Dict[str, str] = {
 }
 
 # Daraja → (model nomi, haqiqiy tier, input $/1M tok, output $/1M tok)
-# Gemini 1.5 Pro va 2.0 Flash — bepul tier'da xarajat hisobi 0, lekin audit uchun real narxlar
+# Shared model is stable by default; per-tier environment overrides remain available.
+_SHARED_GEMINI_MODEL = settings.GEMINI_CALL_MODEL
 MODEL_CATALOG: Dict[str, Dict[str, Any]] = {
     "L1": {
-        "model": "gemini-2.0-flash",
+        "model": os.environ.get("AI_ROUTER_L1_MODEL", _SHARED_GEMINI_MODEL),
         "cost_in_per_1m": 0.0,  # bepul tier
         "cost_out_per_1m": 0.0,
         "max_tokens_default": 2048,
     },
     "L2": {
-        "model": "gemini-2.0-flash-lite",
+        "model": os.environ.get("AI_ROUTER_L2_MODEL", _SHARED_GEMINI_MODEL),
         "cost_in_per_1m": 0.0,
         "cost_out_per_1m": 0.0,
         "max_tokens_default": 1024,
     },
     "L3": {
-        "model": "gemini-1.5-pro",
+        "model": os.environ.get("AI_ROUTER_L3_MODEL", _SHARED_GEMINI_MODEL),
         "cost_in_per_1m": 0.0,  # bepul tier 50 RPM
         "cost_out_per_1m": 0.0,
         "max_tokens_default": 4096,
     },
     "L4": {
-        "model": "gemini-1.5-pro",
+        "model": os.environ.get("AI_ROUTER_L4_MODEL", _SHARED_GEMINI_MODEL),
         "cost_in_per_1m": 0.0,
         "cost_out_per_1m": 0.0,
         "max_tokens_default": 8192,

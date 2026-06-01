@@ -123,6 +123,19 @@ class TestDatabasePool:
 
     @pytest.mark.asyncio
     @patch("database_pool.libsql.connect")
+    async def test_commit_and_rollback_delegate_to_connection(self, mock_connect):
+        mock_conn = MagicMock()
+        mock_connect.return_value = mock_conn
+        pool = DatabasePool()
+
+        await pool.commit()
+        await pool.rollback()
+
+        mock_conn.commit.assert_called_once()
+        mock_conn.rollback.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("database_pool.libsql.connect")
     async def test_get_db_connection_context(self, mock_connect):
         mock_conn = MagicMock()
         mock_connect.return_value = mock_conn

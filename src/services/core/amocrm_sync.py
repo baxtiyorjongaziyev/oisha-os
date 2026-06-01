@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 import json
@@ -52,6 +53,21 @@ def retry_with_backoff(
 
 
 class AmoCRMSync:
+    FIRESTORE_COOLDOWN_SECONDS = int(
+        os.getenv("AMOCRM_FIRESTORE_COOLDOWN_SECONDS", "21600")
+    )
+    _firestore_blocked_until = 0.0
+    _firestore_block_reason: Optional[str] = None
+
+    @classmethod
+    def _firestore_cooling_down(cls) -> bool:
+        return time.time() < cls._firestore_blocked_until
+
+    @classmethod
+    def _pause_firestore(cls, error: Exception) -> None:
+        cls._firestore_block_reason = type(error).__name__
+        cls._firestore_blocked_until = time.time() + cls.FIRESTORE_COOLDOWN_SECONDS
+
     def __init__(
         self,
         subdomain,
@@ -71,14 +87,20 @@ class AmoCRMSync:
         self.last_error: Optional[str] = None
         self.auth_blocked_until: float = 0.0
         self.auth_block_reason: Optional[str] = None
+        self._contact_details_cache: Dict[int, tuple[float, Dict[str, Any]]] = {}
         
         self.db = None
-        if HAS_FIRESTORE:
+        if HAS_FIRESTORE and not type(self)._firestore_cooling_down():
             try:
                 self.db = firestore.Client()
                 logger.info("[AMOCRM] Firestore client initialized.")
             except Exception as e:
-                logger.warning(f"[AMOCRM] Firestore init failed: {e}")
+                type(self)._pause_firestore(e)
+                logger.warning(
+                    "[AMOCRM] Firestore unavailable (%s); using file-token fallback for %ss.",
+                    type(e).__name__,
+                    type(self).FIRESTORE_COOLDOWN_SECONDS,
+                )
 
         # Security: Masked log for safety
         logger.info(f"[AMOCRM INIT] Subdomain: {subdomain}")
@@ -99,7 +121,13 @@ class AmoCRMSync:
                         logger.info("[AMOCRM] Token loaded from Firestore.")
                         return
             except Exception as e:
-                logger.warning(f"[AMOCRM] Firestore load error: {e}")
+                type(self)._pause_firestore(e)
+                self.db = None
+                logger.warning(
+                    "[AMOCRM] Firestore read unavailable (%s); using file-token fallback for %ss.",
+                    type(e).__name__,
+                    type(self).FIRESTORE_COOLDOWN_SECONDS,
+                )
 
         # 2. Environment variable'dan o'qish
         env_token_json = os.environ.get("AMOCRM_TOKEN_JSON")
@@ -156,7 +184,12 @@ class AmoCRMSync:
                 doc_ref.set(token_data)
                 logger.info("[AMOCRM] Token saved to Firestore.")
             except Exception as e:
-                logger.error(f"[AMOCRM] Firestore save error: {e}")
+                type(self)._pause_firestore(e)
+                self.db = None
+                logger.warning(
+                    "[AMOCRM] Firestore save unavailable (%s); file-token backup remains active.",
+                    type(e).__name__,
+                )
 
         # 2. Faylga saqlash (backup)
         try:
@@ -351,6 +384,13 @@ class AmoCRMSync:
             logger.warning("[AMOCRM] Access token is missing, requests will likely fail.")
             
         return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    async def _request_with_auth(self, request_fn, url: str, **kwargs):
+        """Run blocking requests calls outside the shared Telegram/API event loop."""
+        def _send():
+            return request_fn(url, headers=self._get_headers(), **kwargs)
+
+        return await asyncio.to_thread(_send)
 
     @retry_with_backoff(max_retries=3, initial_delay=1)
     def create_lead_for_contact(
@@ -794,10 +834,10 @@ class AmoCRMSync:
         data = [task_payload]
 
         try:
-            response = requests.post(url, headers=self._get_headers(), json=data, timeout=30)
-            if response.status_code == 401 and self.refresh_token():
-                response = requests.post(url, headers=self._get_headers(), json=data, timeout=30)
-            if response.status_code == 201:
+            response = await self._request_with_auth(requests.post, url, json=data, timeout=30)
+            if response.status_code == 401 and await asyncio.to_thread(self.refresh_token):
+                response = await self._request_with_auth(requests.post, url, json=data, timeout=30)
+            if response.status_code in [200, 201]:
                 self.last_error = None
                 logger.info(f"[AMOCRM OK] Vazifa yaratildi: {element_id}")
                 return response.json()
@@ -836,12 +876,12 @@ class AmoCRMSync:
         params = {"limit": min(limit, 50), "with": "contacts"}
 
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
+            response = await self._request_with_auth(requests.get, url, params=params, timeout=30)
             if response.status_code == 401:
-                if self.refresh_token():
-                    response = requests.get(
-                        url, headers=self._get_headers(), params=params,
-                        timeout=30)
+                if await asyncio.to_thread(self.refresh_token):
+                    response = await self._request_with_auth(
+                        requests.get, url, params=params, timeout=30
+                    )
                 else:
                     self.last_error = "amocrm_unauthorized"
                     return []
@@ -894,9 +934,9 @@ class AmoCRMSync:
             data["pipeline_id"] = pipeline_id
 
         try:
-            response = requests.patch(url, headers=self._get_headers(), json=data, timeout=30)
-            if response.status_code == 401 and self.refresh_token():
-                response = requests.patch(url, headers=self._get_headers(), json=data, timeout=30)
+            response = await self._request_with_auth(requests.patch, url, json=data, timeout=30)
+            if response.status_code == 401 and await asyncio.to_thread(self.refresh_token):
+                response = await self._request_with_auth(requests.patch, url, json=data, timeout=30)
             if response.status_code == 200:
                 self.last_error = None
                 logger.info(
@@ -927,7 +967,7 @@ class AmoCRMSync:
 
         data = {"custom_fields_values": custom_fields}
         try:
-            response = requests.patch(url, headers=self._get_headers(), json=data, timeout=30)
+            response = await self._request_with_auth(requests.patch, url, json=data, timeout=30)
             if response.status_code == 200:
                 logger.info(f"[AMOCRM OK] Custom fields yangilandi: {lead_id}")
                 return True
@@ -1011,7 +1051,7 @@ class AmoCRMSync:
         data = {"_embedded": {"tags": [{"name": tag_name}]}}
 
         try:
-            response = requests.patch(url, headers=self._get_headers(), json=data, timeout=30)
+            response = await self._request_with_auth(requests.patch, url, json=data, timeout=30)
             if response.status_code == 200:
                 logger.info(f"[AMOCRM OK] Teg qo'shildi: {lead_id} -> {tag_name}")
                 return True
@@ -1172,19 +1212,43 @@ class AmoCRMSync:
 
     async def get_lead_notes(self, lead_id: int) -> List[Dict[str, Any]]:
         """Bitim (Lead) ga tegishli barcha izohlarni (notes) olish."""
+        return await self.get_notes("leads", entity_id=lead_id)
+
+    async def get_notes(
+        self,
+        entity_type: str,
+        *,
+        entity_id: Optional[int] = None,
+        note_types: Optional[List[str]] = None,
+        limit: int = 250,
+    ) -> List[Dict[str, Any]]:
+        """Read entity notes without blocking the shared Telegram/API event loop."""
         self._load_token()
-        url = f"{self.base_url}/api/v4/leads/{lead_id}/notes"
+        entity_path = f"/{int(entity_id)}" if entity_id is not None else ""
+        url = f"{self.base_url}/api/v4/{entity_type}{entity_path}/notes"
+        params: List[tuple[str, Any]] = [
+            ("limit", min(max(int(limit), 1), 250)),
+            ("order[updated_at]", "desc"),
+        ]
+        for note_type in note_types or []:
+            params.append(("filter[note_type][]", note_type))
         try:
-            response = requests.get(url, headers=self._get_headers(), timeout=30)
+            response = await self._request_with_auth(
+                requests.get, url, params=params, timeout=30
+            )
             if response.status_code == 401:
-                if self.refresh_token():
-                    response = requests.get(url, headers=self._get_headers(), timeout=30)
+                if await asyncio.to_thread(self.refresh_token):
+                    response = await self._request_with_auth(
+                        requests.get, url, params=params, timeout=30
+                    )
                 else:
                     self.last_error = "amocrm_unauthorized"
                     return []
             if response.status_code == 200:
                 self.last_error = None
                 return response.json().get("_embedded", {}).get("notes", [])
+            if response.status_code == 204:
+                return []
             if response.status_code == 401:
                 self.last_error = "amocrm_unauthorized"
             return []
@@ -1192,6 +1256,73 @@ class AmoCRMSync:
             self.last_error = "get_notes_exception"
             logger.error(f"[AMOCRM GET NOTES ERROR] {e}")
             return []
+
+    async def get_recent_contact_call_notes(
+        self, limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """Return recent contact-level calls, where telephony integrations often attach audio."""
+        return await self.get_notes(
+            "contacts",
+            note_types=["call_in", "call_out"],
+            limit=limit,
+        )
+
+    async def get_contact_details_async(
+        self, contact_id: int, *, cache_ttl_seconds: int = 300
+    ) -> Optional[Dict[str, Any]]:
+        """Fetch contact details with linked leads and a short-lived per-process cache."""
+        contact_id = int(contact_id)
+        cached = self._contact_details_cache.get(contact_id)
+        if cached and time.time() - cached[0] < cache_ttl_seconds:
+            return cached[1]
+        response = await self._request_with_auth(
+            requests.get,
+            f"{self.base_url}/api/v4/contacts/{contact_id}",
+            params={"with": "leads"},
+            timeout=30,
+        )
+        if response.status_code != 200:
+            return None
+        details = response.json()
+        self._contact_details_cache[contact_id] = (time.time(), details)
+        return details
+
+    @staticmethod
+    def _phone_from_contact(contact: Dict[str, Any]) -> str:
+        for field in contact.get("custom_fields_values") or []:
+            if str(field.get("field_code") or "").upper() != "PHONE":
+                continue
+            values = field.get("values") or []
+            if values and values[0].get("value"):
+                return str(values[0]["value"])
+        return ""
+
+    async def get_primary_contact_phone(self, lead: Dict[str, Any]) -> str:
+        """Resolve a lead phone even when `with=contacts` embeds only contact IDs."""
+        contacts = (
+            lead.get("_embedded", {}).get("contacts", [])
+            or lead.get("contacts", [])
+        )
+        for contact in contacts:
+            phone = self._phone_from_contact(contact)
+            if phone:
+                return phone
+            contact_id = contact.get("id")
+            if not contact_id:
+                continue
+            details = await self.get_contact_details_async(int(contact_id))
+            if details:
+                phone = self._phone_from_contact(details)
+                if phone:
+                    return phone
+        return ""
+
+    async def get_contact_linked_leads(self, contact_id: int) -> List[Dict[str, Any]]:
+        """Return leads linked to a contact for safe single-lead call routing."""
+        details = await self.get_contact_details_async(contact_id)
+        if not details:
+            return []
+        return details.get("_embedded", {}).get("leads", []) or []
 
     async def delete_note(self, entity_type: str, entity_id: int, note_id: int):
         """Izohni o'chirish."""

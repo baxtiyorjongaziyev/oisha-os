@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from google import genai
 
 from src.database import Database
+from src.settings import settings
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
@@ -68,7 +70,7 @@ class SelfLearningEngine:
     def __init__(self, db: Database, gemini_api_key: str):
         self.db = db
         self.client = genai.Client(api_key=gemini_api_key)
-        self.model = "gemini-2.0-flash"
+        self.model = os.getenv("GEMINI_SELF_LEARNING_MODEL", settings.GEMINI_CALL_MODEL)
 
     async def ensure_tables(self):
         async with await self.db.get_connection() as conn:

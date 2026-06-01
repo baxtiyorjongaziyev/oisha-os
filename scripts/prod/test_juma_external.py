@@ -2,10 +2,11 @@ import asyncio
 import os
 import sys
 from telethon import TelegramClient
+from dotenv import load_dotenv
 
-# HARDCODED for the authorized session
-API_ID = 30643078
-API_HASH = '***REDACTED***'
+load_dotenv()
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
 
 async def test_external(target):
     session_path = 'data/bot_session'

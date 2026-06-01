@@ -10,6 +10,17 @@ Cloud Run service that works with Telegram, Turso, AmoCRM, and Airtable.
 - Google Cloud Run healthy-only rollout through GitHub Actions.
 - Telegram deploy notifications with one final status per commit.
 
+## Oisha Sales OS suite
+
+Oisha now combines three product layers in one amoCRM + Telegram operating system:
+
+- DeepSales-style lead intelligence: phone-based enrichment, buyer context, scoring, source tags.
+- Metasell-style conversation intelligence: call transcription, Uzbek summaries, coaching, and next-step tasks.
+- Reportagram-style revenue reporting: daily, weekly, and monthly funnel reports with SLA alerts.
+
+The product contract is exposed at `GET /api/oisha/product-suite` and documented in
+`docs/oisha-sales-os-suite.md`.
+
 ## SalesCoach AI workspace
 
 The repository now also contains a TypeScript monorepo foundation for the SalesCoach AI product:

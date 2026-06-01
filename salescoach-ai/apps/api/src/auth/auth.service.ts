@@ -99,7 +99,9 @@ export class AuthService {
         where: { tokenHash },
         data: { revokedAt: new Date() },
       });
-    } catch {}
+    } catch {
+      // Logout is idempotent even when the refresh token is already absent.
+    }
   }
 
   private async issueTokens(user: { id: string; orgId: string; email: string; role: string }) {
