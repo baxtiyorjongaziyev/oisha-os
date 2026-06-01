@@ -10,8 +10,12 @@ import os
 import time
 import json
 import logging
+import re
+import inspect
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+from src.settings import settings
 
 try:
     from google import genai
@@ -23,12 +27,23 @@ except Exception:
 logger = logging.getLogger(__name__)
 
 
+async def _maybe_await(value: Any) -> Any:
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
 class TelegramTaskCreator:
     """
     Scans Telegram dialogues (text + voice), transcribes audios inline,
     analyzes the overall conversation logic for promises, commitments, and deadlines,
     and registers them automatically in AmoCRM as active Tasks.
     """
+
+    _gemini_blocked_until = 0.0
+    _telegram_blocked_until = 0.0
+    _GEMINI_COOLDOWN_KEY = "telegram_task:gemini_blocked_until"
+    _TELEGRAM_COOLDOWN_KEY = "telegram_task:telegram_blocked_until"
 
     def __init__(
         self,
@@ -43,6 +58,16 @@ class TelegramTaskCreator:
         self.user_client = user_client
         self.voice_processor = voice_processor
         self.gemini_api_key = gemini_api_key
+        self.gemini_model = (
+            os.getenv("GEMINI_TELEGRAM_TASK_MODEL") or settings.GEMINI_CALL_MODEL
+        )
+        self.gemini_cooldown_seconds = int(
+            os.getenv("GEMINI_TASK_COOLDOWN_SECONDS", "21600")
+        )
+        self.telegram_flood_cooldown_seconds = int(
+            os.getenv("TELEGRAM_ENTITY_COOLDOWN_SECONDS", "10800")
+        )
+        self._cooldowns_loaded = False
 
         self.genai_client = None
         if gemini_api_key and genai is not None:
@@ -50,6 +75,94 @@ class TelegramTaskCreator:
                 self.genai_client = genai.Client(api_key=gemini_api_key)
             except Exception as e:
                 logger.error(f"[TELEGRAM_TASK] Gemini Client failed to init: {e}")
+
+    @classmethod
+    def _gemini_cooldown_remaining(cls) -> int:
+        return max(0, int(cls._gemini_blocked_until - time.time()))
+
+    @classmethod
+    def _telegram_cooldown_remaining(cls) -> int:
+        return max(0, int(cls._telegram_blocked_until - time.time()))
+
+    def cooldown_seconds_remaining(self) -> int:
+        """Return the longest active dependency cooldown for the task pipeline."""
+        return max(
+            self._gemini_cooldown_remaining(),
+            self._telegram_cooldown_remaining(),
+        )
+
+    def cooldown_reason(self) -> Optional[str]:
+        """Return the dependency currently imposing the longest cooldown."""
+        gemini_remaining = self._gemini_cooldown_remaining()
+        telegram_remaining = self._telegram_cooldown_remaining()
+        if gemini_remaining >= telegram_remaining and gemini_remaining:
+            return "gemini_quota"
+        if telegram_remaining:
+            return "telegram_entity_lookup"
+        return None
+
+    def is_cooling_down(self) -> bool:
+        return self.cooldown_seconds_remaining() > 0
+
+    def _pause_gemini(self) -> None:
+        type(self)._gemini_blocked_until = (
+            time.time() + self.gemini_cooldown_seconds
+        )
+
+    def _pause_telegram_resolution(self, error: Exception) -> int:
+        match = re.search(r"wait of (\d+) seconds", str(error), flags=re.IGNORECASE)
+        requested_seconds = int(match.group(1)) if match else 0
+        cooldown_seconds = max(
+            requested_seconds,
+            self.telegram_flood_cooldown_seconds,
+        )
+        type(self)._telegram_blocked_until = time.time() + cooldown_seconds
+        return cooldown_seconds
+
+    async def _load_persisted_cooldowns(self) -> None:
+        if self._cooldowns_loaded:
+            return
+        self._cooldowns_loaded = True
+        get_state = getattr(self.db, "get_state", None)
+        if not callable(get_state):
+            return
+        try:
+            gemini_until = float(
+                await _maybe_await(get_state(self._GEMINI_COOLDOWN_KEY, "0")) or 0
+            )
+            telegram_until = float(
+                await _maybe_await(get_state(self._TELEGRAM_COOLDOWN_KEY, "0")) or 0
+            )
+            type(self)._gemini_blocked_until = max(
+                type(self)._gemini_blocked_until,
+                gemini_until,
+            )
+            type(self)._telegram_blocked_until = max(
+                type(self)._telegram_blocked_until,
+                telegram_until,
+            )
+        except Exception as exc:
+            logger.debug("[TELEGRAM_TASK] Cooldown state load skipped: %s", exc)
+
+    async def _persist_cooldowns(self) -> None:
+        set_state = getattr(self.db, "set_state", None)
+        if not callable(set_state):
+            return
+        try:
+            await _maybe_await(
+                set_state(
+                    self._GEMINI_COOLDOWN_KEY,
+                    str(type(self)._gemini_blocked_until),
+                )
+            )
+            await _maybe_await(
+                set_state(
+                    self._TELEGRAM_COOLDOWN_KEY,
+                    str(type(self)._telegram_blocked_until),
+                )
+            )
+        except Exception as exc:
+            logger.debug("[TELEGRAM_TASK] Cooldown state write skipped: %s", exc)
 
     async def download_and_transcribe_voice(self, message: Any) -> str:
         """Downloads a Telegram voice note and transcribes it using VoiceProcessor."""
@@ -119,8 +232,12 @@ class TelegramTaskCreator:
             f"]"
         )
 
+        await self._load_persisted_cooldowns()
         if not self.genai_client:
             logger.warning("[TELEGRAM_TASK] Gemini client not initialized. Cannot extract tasks.")
+            return []
+        if self._gemini_cooldown_remaining():
+            logger.info("[TELEGRAM_TASK] Gemini quota cooldown active; skipping extraction.")
             return []
 
         try:
@@ -129,7 +246,7 @@ class TelegramTaskCreator:
                 response_mime_type="application/json",
             )
             response = await self.genai_client.aio.models.generate_content(
-                model="gemini-2.0-flash",
+                model=self.gemini_model,
                 contents=prompt,
                 config=config,
             )
@@ -139,7 +256,16 @@ class TelegramTaskCreator:
                 if isinstance(data, list):
                     return data
         except Exception as e:
-            logger.error(f"[TELEGRAM_TASK] Gemini task extraction failed: {e}")
+            error_text = str(e)
+            if "429" in error_text or "RESOURCE_EXHAUSTED" in error_text:
+                self._pause_gemini()
+                await self._persist_cooldowns()
+                logger.warning(
+                    "[TELEGRAM_TASK] Gemini quota exhausted; pausing extraction for %ss.",
+                    self.gemini_cooldown_seconds,
+                )
+            else:
+                logger.error(f"[TELEGRAM_TASK] Gemini task extraction failed: {e}")
 
         return []
 
@@ -151,15 +277,34 @@ class TelegramTaskCreator:
         runs Gemini task tahlili, and inserts the tasks into AmoCRM deal.
         """
         logger.info(f"[TELEGRAM_TASK] Starting dialogue analysis for {phone_or_username} (lead {lead_id})...")
+        await self._load_persisted_cooldowns()
         if not self.user_client:
             logger.warning("[TELEGRAM_TASK] Telegram client not set. Cannot pull chat history.")
+            return []
+        cooldown_seconds = self.cooldown_seconds_remaining()
+        if cooldown_seconds:
+            logger.info(
+                "[TELEGRAM_TASK] Dependency cooldown active; skipping dialogue analysis for %ss.",
+                cooldown_seconds,
+            )
             return []
 
         try:
             entity = await self.user_client.get_input_entity(phone_or_username)
             messages = await self.user_client.get_messages(entity, limit=limit)
         except Exception as e:
-            logger.error(f"[TELEGRAM_TASK] Failed to fetch messages for {phone_or_username}: {e}")
+            error_text = str(e)
+            if "flood" in error_text.lower() or "GetContactsRequest" in error_text:
+                cooldown_seconds = self._pause_telegram_resolution(e)
+                await self._persist_cooldowns()
+                logger.error(
+                    "[TELEGRAM_TASK] Telegram entity lookup flood wait; pausing lookup for %ss.",
+                    cooldown_seconds,
+                )
+            else:
+                logger.error(
+                    f"[TELEGRAM_TASK] Failed to fetch messages for {phone_or_username}: {e}"
+                )
             return []
 
         if not messages:

@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import AsyncMock
 
 from src.database import Database, TursoAdapter, _normalize_turso_url
 from src.database_pool import db_pool
@@ -60,6 +61,20 @@ async def test_turso_adapter_handles_select_create_and_alter(monkeypatch):
     pragma_cursor = await adapter.execute("SELECT name FROM pragma_table_info('users')")
     column_names = {row[0] for row in await pragma_cursor.fetchall()}
     assert "first_name" in column_names
+
+
+async def test_turso_adapter_commit_and_rollback_delegate_to_pool(monkeypatch):
+    commit = AsyncMock()
+    rollback = AsyncMock()
+    monkeypatch.setattr(db_pool, "commit", commit)
+    monkeypatch.setattr(db_pool, "rollback", rollback)
+    adapter = TursoAdapter()
+
+    await adapter.commit()
+    await adapter.rollback()
+
+    commit.assert_awaited_once()
+    rollback.assert_awaited_once()
 
 
 async def test_database_init_instance_succeeds_with_turso_adapter(monkeypatch):

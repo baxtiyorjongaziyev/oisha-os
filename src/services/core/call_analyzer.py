@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -46,6 +47,10 @@ _AUDIO_URL_RE = re.compile(
     r"https?://[^\s\"'<>]+(?:mp3|mp4|m4a|ogg|wav|flac|aac|opus|webm|amr)(?:\?[^\s\"'<>]+)?",
     re.IGNORECASE,
 )
+
+
+class GeminiQuotaCooldownError(RuntimeError):
+    """Raised when Gemini calls are intentionally paused after a quota error."""
 
 _URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
 
@@ -146,6 +151,9 @@ class CallAnalyzer:
     AmoCRM note -> audio URL -> Gemini STT -> Uzbek transcript -> summary/tag/note.
     """
 
+    _gemini_blocked_until = 0.0
+    _GEMINI_COOLDOWN_KEY = "call_analyzer:gemini_blocked_until"
+
     def __init__(
         self,
         amocrm: AmoCRMSync,
@@ -172,6 +180,10 @@ class CallAnalyzer:
         )
         self.create_tasks = bool(getattr(settings, "ENABLE_AMOCRM_CALL_TASKS", True))
         self.task_due_hours = int(getattr(settings, "AMOCRM_CALL_TASK_DUE_HOURS", 24) or 24)
+        self.gemini_cooldown_seconds = int(
+            os.getenv("GEMINI_CALL_COOLDOWN_SECONDS", "900")
+        )
+        self._cooldown_loaded = False
 
         self.genai_client = gemini_client
         if self.genai_client is None:
@@ -194,6 +206,59 @@ class CallAnalyzer:
                 self.openai_client = OpenAI(api_key=openai_key)
             except Exception as exc:
                 logger.warning("[CALL] OpenAI fallback client init failed: %s", exc)
+
+    @classmethod
+    def _gemini_cooldown_remaining(cls) -> int:
+        return max(0, int(cls._gemini_blocked_until - time.time()))
+
+    @classmethod
+    def _gemini_cooling_down(cls) -> bool:
+        return cls._gemini_cooldown_remaining() > 0
+
+    def _pause_gemini_for_quota(self) -> None:
+        type(self)._gemini_blocked_until = (
+            time.time() + self.gemini_cooldown_seconds
+        )
+
+    @staticmethod
+    def _is_gemini_quota_error(error: Exception) -> bool:
+        error_text = str(error)
+        return "429" in error_text or "RESOURCE_EXHAUSTED" in error_text
+
+    def _defer_calls_without_fallback(self) -> bool:
+        return self._gemini_cooling_down() and not self.openai_client
+
+    async def _load_persisted_cooldown(self) -> None:
+        if self._cooldown_loaded:
+            return
+        self._cooldown_loaded = True
+        get_state = getattr(self.db, "get_state", None)
+        if not callable(get_state):
+            return
+        try:
+            blocked_until = float(
+                await _maybe_await(get_state(self._GEMINI_COOLDOWN_KEY, "0")) or 0
+            )
+            type(self)._gemini_blocked_until = max(
+                type(self)._gemini_blocked_until,
+                blocked_until,
+            )
+        except Exception as exc:
+            logger.debug("[CALL] Gemini cooldown state load skipped: %s", exc)
+
+    async def _persist_gemini_cooldown(self) -> None:
+        set_state = getattr(self.db, "set_state", None)
+        if not callable(set_state):
+            return
+        try:
+            await _maybe_await(
+                set_state(
+                    self._GEMINI_COOLDOWN_KEY,
+                    str(type(self)._gemini_blocked_until),
+                )
+            )
+        except Exception as exc:
+            logger.debug("[CALL] Gemini cooldown state write skipped: %s", exc)
 
     def _get_openai_api_key(self) -> str:
         value = os.getenv("OPENAI_API_KEY", "").strip()
@@ -325,6 +390,9 @@ class CallAnalyzer:
     async def _gemini_generate_content(self, *, contents: Any, config: Any = None) -> Any:
         if not self.genai_client:
             raise RuntimeError("Gemini client is not configured")
+        await self._load_persisted_cooldown()
+        if self._gemini_cooling_down():
+            raise GeminiQuotaCooldownError("Gemini quota cooldown is active")
 
         aio_models = getattr(getattr(self.genai_client, "aio", None), "models", None)
         sync_models = getattr(self.genai_client, "models", None)
@@ -335,7 +403,20 @@ class CallAnalyzer:
         kwargs = {"model": self.model_name, "contents": contents}
         if config is not None:
             kwargs["config"] = config
-        return await _maybe_await(models.generate_content(**kwargs))
+        try:
+            return await _maybe_await(models.generate_content(**kwargs))
+        except Exception as exc:
+            if self._is_gemini_quota_error(exc):
+                self._pause_gemini_for_quota()
+                await self._persist_gemini_cooldown()
+                logger.warning(
+                    "[CALL] Gemini quota exhausted; pausing calls for %ss.",
+                    self.gemini_cooldown_seconds,
+                )
+                raise GeminiQuotaCooldownError(
+                    "Gemini quota cooldown started"
+                ) from exc
+            raise
 
     async def _transcribe_inline(self, audio_bytes: bytes, mime_type: str) -> Optional[str]:
         """Transcribe and translate the call recording into Uzbek Latin text."""
@@ -366,6 +447,9 @@ class CallAnalyzer:
                 logger.info("[CALL] STT done: %s chars", len(text))
                 return text
             logger.warning("[CALL] STT returned an empty response")
+            return await self._transcribe_openai(audio_bytes, mime_type)
+        except GeminiQuotaCooldownError:
+            logger.info("[CALL] Gemini STT skipped during quota cooldown.")
             return await self._transcribe_openai(audio_bytes, mime_type)
         except Exception as exc:
             logger.error("[CALL] STT failed: %s", exc)
@@ -450,6 +534,12 @@ class CallAnalyzer:
             )
             data = _extract_json_object(getattr(response, "text", "") or "")
             return self._normalise_analysis(data, transcript)
+        except GeminiQuotaCooldownError:
+            logger.info("[CALL] Gemini transcript analysis skipped during quota cooldown.")
+            openai_analysis = await self._analyze_transcript_openai(transcript)
+            if openai_analysis:
+                return openai_analysis
+            return self._fallback_analysis(transcript)
         except Exception as exc:
             logger.error("[CALL] Transcript analysis failed: %s", exc)
             openai_analysis = await self._analyze_transcript_openai(transcript)
@@ -684,11 +774,20 @@ class CallAnalyzer:
         one_analysis_per_lead: bool = False,
         max_calls_per_lead: int = 0,
         min_call_duration_seconds: int = 0,
+        call_notes_override: Optional[List[Dict[str, Any]]] = None,
     ) -> int:
         """
         Process all unprocessed call recordings attached to one AmoCRM lead.
         Returns the number of successfully analyzed recordings.
         """
+        await self._load_persisted_cooldown()
+        if self._defer_calls_without_fallback():
+            logger.info(
+                "[CALL] Gemini quota cooldown active; deferring lead %s.",
+                lead_id,
+            )
+            return 0
+
         try:
             notes = await _maybe_await(self.amocrm.get_lead_notes(lead_id))
         except Exception as exc:
@@ -699,7 +798,11 @@ class CallAnalyzer:
             logger.info("[CALL] Lead already has %s note: lead_id=%s", ANALYSIS_MARKER, lead_id)
             return 0
 
-        call_notes = [note for note in (notes or []) if self._looks_like_call_note(note)]
+        call_notes = (
+            call_notes_override
+            if call_notes_override is not None
+            else [note for note in (notes or []) if self._looks_like_call_note(note)]
+        )
         if not call_notes:
             logger.info("[CALL] No call recording notes found for lead %s", lead_id)
             return 0
@@ -773,7 +876,7 @@ class CallAnalyzer:
 
             if write:
                 try:
-                    await _maybe_await(self.amocrm.add_lead_note(lead_id, note_text))
+                    await asyncio.to_thread(self.amocrm.add_lead_note, lead_id, note_text)
                 except Exception as exc:
                     logger.error("[CALL] Failed to add note to lead %s: %s", lead_id, exc)
 
@@ -819,6 +922,74 @@ class CallAnalyzer:
 
         return processed
 
+    async def analyze_recent_contact_calls(
+        self,
+        limit: int = 50,
+        write: bool = True,
+        include_transcript: bool = True,
+        min_call_duration_seconds: int = 0,
+    ) -> Dict[str, Any]:
+        """Analyze contact-level recordings only when they map to one linked lead."""
+        await self._load_persisted_cooldown()
+        getter = getattr(self.amocrm, "get_recent_contact_call_notes", None)
+        linked_leads_getter = getattr(self.amocrm, "get_contact_linked_leads", None)
+        if not callable(getter) or not callable(linked_leads_getter):
+            return {
+                "contact_calls_discovered": 0,
+                "contact_calls_resolved": 0,
+                "contact_calls_unlinked": 0,
+                "contact_calls_ambiguous": 0,
+                "contact_calls_processed": 0,
+            }
+
+        notes = await _maybe_await(getter(limit=limit))
+        stats = {
+            "contact_calls_discovered": len(notes or []),
+            "contact_calls_resolved": 0,
+            "contact_calls_unlinked": 0,
+            "contact_calls_ambiguous": 0,
+            "contact_calls_processed": 0,
+        }
+        for note in notes or []:
+            if self._defer_calls_without_fallback():
+                logger.info(
+                    "[CALL] Gemini quota cooldown active; deferring remaining contact recordings."
+                )
+                break
+            if not self._find_audio_url(note.get("params") or {}):
+                continue
+            contact_id = note.get("entity_id")
+            if not contact_id:
+                stats["contact_calls_unlinked"] += 1
+                continue
+            linked_leads = await _maybe_await(linked_leads_getter(int(contact_id)))
+            if len(linked_leads) != 1:
+                key = (
+                    "contact_calls_unlinked"
+                    if not linked_leads
+                    else "contact_calls_ambiguous"
+                )
+                stats[key] += 1
+                continue
+            lead = linked_leads[0]
+            lead_id = lead.get("id")
+            if not lead_id:
+                stats["contact_calls_unlinked"] += 1
+                continue
+            stats["contact_calls_resolved"] += 1
+            stats["contact_calls_processed"] += await self.process_call_recordings_for_lead(
+                int(lead_id),
+                caller_phone=self._extract_phone_from_note(note),
+                responsible_user_id=lead.get("responsible_user_id")
+                or note.get("responsible_user_id"),
+                write=write,
+                include_transcript=include_transcript,
+                max_calls_per_lead=1,
+                min_call_duration_seconds=min_call_duration_seconds,
+                call_notes_override=[note],
+            )
+        return stats
+
     async def analyze_recent_calls(
         self,
         limit: int = 20,
@@ -829,6 +1000,22 @@ class CallAnalyzer:
         min_call_duration_seconds: int = 0,
     ) -> Dict[str, Any]:
         """Scan recent AmoCRM leads and analyze their attached call recordings."""
+        await self._load_persisted_cooldown()
+        if self._defer_calls_without_fallback():
+            logger.info(
+                "[CALL] Gemini quota cooldown active; deferring recording scan for %ss.",
+                self._gemini_cooldown_remaining(),
+            )
+            return {
+                "leads_scanned": 0,
+                "calls_processed": 0,
+                "contact_calls_discovered": 0,
+                "contact_calls_resolved": 0,
+                "contact_calls_unlinked": 0,
+                "contact_calls_ambiguous": 0,
+                "contact_calls_processed": 0,
+            }
+
         try:
             leads = await _maybe_await(self.amocrm.get_leads_detailed(limit=limit))
         except Exception as exc:
@@ -838,11 +1025,19 @@ class CallAnalyzer:
         scanned = 0
         processed = 0
         for lead in leads or []:
+            if self._defer_calls_without_fallback():
+                logger.info(
+                    "[CALL] Gemini quota cooldown active; deferring remaining lead recordings."
+                )
+                break
             lead_id = lead.get("id")
             if not lead_id:
                 continue
             scanned += 1
             phone = self._extract_lead_phone(lead)
+            phone_getter = getattr(self.amocrm, "get_primary_contact_phone", None)
+            if not phone and callable(phone_getter):
+                phone = await _maybe_await(phone_getter(lead))
             try:
                 processed += await self.process_call_recordings_for_lead(
                     int(lead_id),
@@ -857,7 +1052,18 @@ class CallAnalyzer:
             except Exception as exc:
                 logger.error("[CALL] Lead processing failed: lead_id=%s error=%s", lead_id, exc)
 
-        return {"leads_scanned": scanned, "calls_processed": processed}
+        contact_stats = await self.analyze_recent_contact_calls(
+            limit=min(max(int(limit), 1), 250),
+            write=write,
+            include_transcript=include_transcript,
+            min_call_duration_seconds=min_call_duration_seconds,
+        )
+        processed += contact_stats["contact_calls_processed"]
+        return {
+            "leads_scanned": scanned,
+            "calls_processed": processed,
+            **contact_stats,
+        }
 
     @staticmethod
     def _lead_has_analysis(notes: List[Dict[str, Any]]) -> bool:
