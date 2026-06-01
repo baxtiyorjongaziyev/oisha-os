@@ -1,9 +1,17 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
+import time
 
 import pytest
 
-from src.services.core.call_analyzer import CallAnalyzer
+from src.services.core.call_analyzer import CallAnalyzer, GeminiQuotaCooldownError
+
+
+@pytest.fixture(autouse=True)
+def reset_call_analyzer_cooldown():
+    CallAnalyzer._gemini_blocked_until = 0.0
+    yield
+    CallAnalyzer._gemini_blocked_until = 0.0
 
 
 def _mock_db_with_processed_row(row):
@@ -73,6 +81,66 @@ async def test_analyze_transcript_success():
     assert result["category"] == "Mijoz"
     assert result["summary"] == "Mijoz brending narxlari bilan qiziqdi."
     assert result["client_mood"] == "Ijobiy"
+
+
+@pytest.mark.asyncio
+async def test_gemini_generate_content_pauses_after_quota_error():
+    models = MagicMock()
+    models.generate_content = AsyncMock(
+        side_effect=RuntimeError("429 RESOURCE_EXHAUSTED")
+    )
+    analyzer = CallAnalyzer(
+        amocrm=MagicMock(),
+        db=MagicMock(),
+        gemini_client=SimpleNamespace(aio=SimpleNamespace(models=models)),
+    )
+
+    with pytest.raises(GeminiQuotaCooldownError):
+        await analyzer._gemini_generate_content(contents="first")
+    with pytest.raises(GeminiQuotaCooldownError):
+        await analyzer._gemini_generate_content(contents="second")
+
+    models.generate_content.assert_awaited_once()
+    assert analyzer._gemini_cooling_down()
+
+
+@pytest.mark.asyncio
+async def test_recent_calls_deferred_during_quota_cooldown_without_openai():
+    amocrm_mock = MagicMock()
+    amocrm_mock.get_leads_detailed = AsyncMock(return_value=[])
+    analyzer = CallAnalyzer(
+        amocrm=amocrm_mock,
+        db=MagicMock(),
+        gemini_client=MagicMock(),
+    )
+    analyzer.openai_client = None
+    analyzer._pause_gemini_for_quota()
+
+    result = await analyzer.analyze_recent_calls()
+
+    assert result["calls_processed"] == 0
+    assert result["contact_calls_processed"] == 0
+    amocrm_mock.get_leads_detailed.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_persisted_call_cooldown_defers_scan_after_restart():
+    amocrm_mock = MagicMock()
+    amocrm_mock.get_leads_detailed = AsyncMock(return_value=[])
+    db_mock = MagicMock()
+    db_mock.get_state = AsyncMock(return_value=str(time.time() + 600))
+    analyzer = CallAnalyzer(
+        amocrm=amocrm_mock,
+        db=db_mock,
+        gemini_client=MagicMock(),
+    )
+    analyzer.openai_client = None
+
+    result = await analyzer.analyze_recent_calls()
+
+    assert result["calls_processed"] == 0
+    assert analyzer._gemini_cooldown_remaining() >= 598
+    amocrm_mock.get_leads_detailed.assert_not_awaited()
 
 
 def test_find_audio_url_from_nested_params():
@@ -250,3 +318,37 @@ async def test_process_call_recordings_dry_run_does_not_write():
     amocrm_mock.add_lead_note.assert_not_called()
     amocrm_mock.add_lead_tag.assert_not_called()
     amocrm_mock.create_task.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_contact_level_calls_route_only_to_single_linked_lead():
+    notes = [
+        {"entity_id": 10, "params": {"link": "https://cdn.example.com/one.mp3"}},
+        {"entity_id": 20, "params": {"link": "https://cdn.example.com/none.mp3"}},
+        {"entity_id": 30, "params": {"link": "https://cdn.example.com/many.mp3"}},
+    ]
+    amocrm_mock = MagicMock()
+    amocrm_mock.get_recent_contact_call_notes = AsyncMock(return_value=notes)
+    amocrm_mock.get_contact_linked_leads = AsyncMock(
+        side_effect=[
+            [{"id": 999, "responsible_user_id": 777}],
+            [],
+            [{"id": 111}, {"id": 222}],
+        ]
+    )
+    analyzer = CallAnalyzer(amocrm=amocrm_mock, db=MagicMock())
+    analyzer.process_call_recordings_for_lead = AsyncMock(return_value=1)
+
+    stats = await analyzer.analyze_recent_contact_calls(limit=3)
+
+    assert stats == {
+        "contact_calls_discovered": 3,
+        "contact_calls_resolved": 1,
+        "contact_calls_unlinked": 1,
+        "contact_calls_ambiguous": 1,
+        "contact_calls_processed": 1,
+    }
+    analyzer.process_call_recordings_for_lead.assert_awaited_once()
+    kwargs = analyzer.process_call_recordings_for_lead.await_args.kwargs
+    assert kwargs["responsible_user_id"] == 777
+    assert kwargs["call_notes_override"] == [notes[0]]

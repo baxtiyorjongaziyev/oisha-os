@@ -498,6 +498,9 @@ class Database:
                 "CREATE INDEX IF NOT EXISTS idx_message_logs_created_at ON message_logs(created_at)"
             )
             await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_message_logs_user_ai_created ON message_logs(user_id, is_ai_reply, created_at)"
+            )
+            await conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to)"
             )
             await conn.execute(
@@ -749,6 +752,58 @@ class Database:
         await conn.commit()
         return True
 
+    async def get_recent_active_leads(
+        self, hours: int = 72, limit: int = 12
+    ) -> List[Dict[str, Any]]:
+        """Return recently active leads with their latest client message."""
+        cutoff = (
+            datetime.datetime.now()
+            - datetime.timedelta(hours=max(1, int(hours)))
+        ).isoformat()
+        conn = await self.get_connection()
+        async with conn.execute(
+            """
+            SELECT
+                u.user_id,
+                u.first_name,
+                u.username,
+                u.phone,
+                u.business_type,
+                u.region,
+                u.brand_name,
+                u.service_type,
+                u.intent,
+                u.meeting_time,
+                u.meeting_status,
+                u.journey_stage,
+                u.journey_status,
+                u.journey_next_action,
+                u.close_probability,
+                u.last_client_message_at,
+                u.last_ai_message_at,
+                u.lifecycle_updated_at,
+                (
+                    SELECT ml.message_text
+                    FROM message_logs ml
+                    WHERE ml.user_id = u.user_id
+                      AND COALESCE(ml.is_ai_reply, 0) = 0
+                      AND ml.message_text IS NOT NULL
+                      AND ml.message_text != ''
+                    ORDER BY ml.created_at DESC, ml.id DESC
+                    LIMIT 1
+                ) AS last_client_message
+            FROM users u
+            WHERE u.last_client_message_at IS NOT NULL
+              AND u.last_client_message_at >= ?
+            ORDER BY u.last_client_message_at DESC
+            LIMIT ?
+            """,
+            (cutoff, max(1, int(limit))),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            columns = [description[0] for description in cursor.description]
+        return [dict(zip(columns, row)) for row in rows]
+
     async def get_recent_messages(self, user_id, limit=1000):
         conn = await self.get_connection()
         async with conn.execute(
@@ -842,6 +897,70 @@ class Database:
             (job_name, date_str, now),
         )
         await conn.commit()
+
+    async def get_recent_job_runs(self, limit: int = 10) -> List[Dict[str, Any]]:
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT job_name, run_date, created_at FROM scheduled_jobs "
+            "ORDER BY created_at DESC LIMIT ?",
+            (max(1, int(limit)),),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        return [
+            {
+                "job_name": row[0],
+                "run_date": row[1],
+                "created_at": row[2],
+            }
+            for row in rows
+        ]
+
+    async def get_storage_counts(self) -> Dict[str, int]:
+        """Return dashboard-safe row counts from the active state backend."""
+        conn = await self.get_connection()
+        counts: Dict[str, int] = {}
+        for table_name in (
+            "scheduled_jobs",
+            "kv_settings",
+            "agent_actions",
+            "users",
+            "call_analyses",
+        ):
+            async with conn.execute(
+                f"SELECT COUNT(*) FROM {table_name}"
+            ) as cursor:
+                row = await cursor.fetchone()
+            counts[table_name] = int(row[0]) if row else 0
+        return counts
+
+    async def get_recent_agent_actions(
+        self, limit: int = 25
+    ) -> List[Dict[str, Any]]:
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT id, user_id, action_type, action_data, success, created_at "
+            "FROM agent_actions ORDER BY created_at DESC LIMIT ?",
+            (max(1, int(limit)),),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        actions = []
+        for row in rows:
+            try:
+                action_data = json.loads(row[3]) if row[3] else {}
+            except (TypeError, ValueError):
+                action_data = row[3]
+            actions.append(
+                {
+                    "id": row[0],
+                    "user_id": row[1],
+                    "action_type": row[2],
+                    "action_data": action_data,
+                    "success": bool(row[4]),
+                    "created_at": row[5],
+                }
+            )
+        return actions
 
     async def update_chat_checkpoint(self, chat_id: int, msg_id: int) -> None:
         if not chat_id or not msg_id:
@@ -1368,10 +1487,10 @@ class TursoAdapter:
         return _TursoCursor(_EmptyResultSet())
 
     async def commit(self):
-        pass
+        await db_pool.commit()
 
     async def rollback(self):
-        pass
+        await db_pool.rollback()
 
     async def close(self):
         try:

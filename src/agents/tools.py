@@ -773,12 +773,16 @@ class AgentToolExecutor:
             # Topic ID mantiqi: Agar lead uchun maxsus topic bo'lsa, o'shanga yuborish
             # Hozircha default topic_id config dan olinadi
             topic_id = crm_topic_id
+            from src.services.core.tool_adapters import (
+                send_group_message_with_fallback,
+            )
 
-            await self.bot_app.bot.send_message(
+            await send_group_message_with_fallback(
+                self.bot_app.bot,
                 chat_id=crm_group_id,
                 text=crm_msg,
                 parse_mode="HTML",
-                message_thread_id=topic_id,
+                thread_id=topic_id,
             )
             # Mark as forwarded
             if hasattr(self.db, "mark_lead_forwarded"):

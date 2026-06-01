@@ -1,6 +1,16 @@
 import pytest
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.services.core.telegram_task_creator import TelegramTaskCreator
+
+
+@pytest.fixture(autouse=True)
+def reset_task_creator_cooldowns():
+    TelegramTaskCreator._gemini_blocked_until = 0.0
+    TelegramTaskCreator._telegram_blocked_until = 0.0
+    yield
+    TelegramTaskCreator._gemini_blocked_until = 0.0
+    TelegramTaskCreator._telegram_blocked_until = 0.0
 
 
 @pytest.mark.asyncio
@@ -67,7 +77,70 @@ async def test_analyze_text_for_tasks_gemini_success():
     assert len(tasks) == 1
     assert tasks[0]["text"] == "Jasurga logotip tekshiruvi narxini yuborish"
     assert tasks[0]["due_in_hours"] == 24
-    creator.genai_client.aio.models.generate_content.assert_called_once()
+    creator.genai_client.aio.models.generate_content.assert_awaited_once()
+    assert (
+        creator.genai_client.aio.models.generate_content.await_args.kwargs["model"]
+        == creator.gemini_model
+    )
+
+
+@pytest.mark.asyncio
+async def test_analyze_text_for_tasks_pauses_after_gemini_quota_error():
+    creator = TelegramTaskCreator(
+        amocrm=MagicMock(),
+        db=MagicMock(),
+        gemini_api_key="mock_key",
+    )
+    creator.genai_client = MagicMock()
+    creator.genai_client.aio.models.generate_content = AsyncMock(
+        side_effect=RuntimeError("429 RESOURCE_EXHAUSTED")
+    )
+
+    assert await creator.analyze_text_for_tasks("Suhbat") == []
+    assert await creator.analyze_text_for_tasks("Takror suhbat") == []
+    creator.genai_client.aio.models.generate_content.assert_awaited_once()
+    assert creator.is_cooling_down()
+    assert creator.cooldown_reason() == "gemini_quota"
+
+
+@pytest.mark.asyncio
+async def test_create_tasks_pauses_after_telegram_flood_wait():
+    userbot_mock = MagicMock()
+    userbot_mock.get_input_entity = AsyncMock(
+        side_effect=RuntimeError(
+            "A wait of 9924 seconds is required (caused by GetContactsRequest)"
+        )
+    )
+    creator = TelegramTaskCreator(
+        amocrm=MagicMock(),
+        db=MagicMock(),
+        user_client=userbot_mock,
+    )
+
+    assert await creator.create_amocrm_tasks_from_chat("+998000000000", 1) == []
+    assert await creator.create_amocrm_tasks_from_chat("+998000000001", 2) == []
+    userbot_mock.get_input_entity.assert_awaited_once()
+    assert creator.cooldown_seconds_remaining() >= 9923
+    assert creator.cooldown_reason() == "telegram_entity_lookup"
+
+
+@pytest.mark.asyncio
+async def test_persisted_telegram_cooldown_skips_lookup_after_restart():
+    db_mock = MagicMock()
+    db_mock.get_state = AsyncMock(
+        side_effect=["0", str(time.time() + 600)]
+    )
+    userbot_mock = MagicMock()
+    userbot_mock.get_input_entity = AsyncMock(return_value="peer")
+    creator = TelegramTaskCreator(
+        amocrm=MagicMock(),
+        db=db_mock,
+        user_client=userbot_mock,
+    )
+
+    assert await creator.create_amocrm_tasks_from_chat("+998000000000", 1) == []
+    userbot_mock.get_input_entity.assert_not_awaited()
+    assert creator.cooldown_seconds_remaining() >= 598
 
 
 @pytest.mark.asyncio

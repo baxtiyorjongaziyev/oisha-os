@@ -4,6 +4,8 @@ from typing import Dict, Any, List, Optional
 from google import genai
 from google.genai import types
 
+from src.settings import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +29,7 @@ class BaseAgent(ABC):
 
         # Default model settings
         self.model_configs = {
-            "gemini": {"model": "gemini-2.0-flash", "client": None},
+            "gemini": {"model": settings.GEMINI_CALL_MODEL, "client": None},
             "groq": {"model": "llama-3.1-70b-versatile", "client": None},
         }
 

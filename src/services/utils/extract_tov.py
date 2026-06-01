@@ -17,7 +17,7 @@ SESSION_NAME = "userbot_session"
 
 # Configure Gemini with modern SDK
 client_ai = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
-model_name = "gemini-2.0-flash"
+model_name = getattr(settings, "GEMINI_CALL_MODEL", "gemini-2.5-flash")
 
 # Business Folders/Folders to Study Tone of Voice
 TARGET_FOLDERS = [
@@ -157,7 +157,7 @@ async def main():
     {big_text}
     """
 
-    logger.info("AI tahlili boshlandi (Gemini 2.0 Flash)... 👸")
+    logger.info("AI tahlili boshlandi (%s)... 👸", model_name)
 
     try:
         response = client_ai.models.generate_content(model=model_name, contents=prompt)
