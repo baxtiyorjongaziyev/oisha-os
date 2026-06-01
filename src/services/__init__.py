@@ -47,7 +47,6 @@ _ALIASES = {
     "team_hub": "src.services.utils.team_hub",
     "userbot_legacy": "src.services.debug.userbot_legacy",
     "voice_processor": "src.services.utils.voice_processor",
-    "watchdog": "src.services.debug.watchdog",
     "welcome_manager": "src.services.utils.welcome_manager",
     "workflow_manager": "src.services.core.workflow_manager",
     "workflow_orchestrator": "src.services.core.workflow_orchestrator",

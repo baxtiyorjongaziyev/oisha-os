@@ -54,7 +54,7 @@ async def test_process_task_flow():
     executor.execute.return_value = {"success": True, "details": "Action executed"}
     agent = SalesAgent("test_agent", "System Prompt", api_keys, executor=executor, db=db)
     
-    # Mock NegotiationEngine.assess
+    # Mock semantic assessment path
     assessment = MagicMock()
     assessment.to_payload.return_value = {"stage": "discovery"}
     assessment.approval_needed = False
@@ -68,11 +68,12 @@ async def test_process_task_flow():
     assessment.next_action = "continue"
     assessment.risk_flags = []
     
-    with patch("src.agents.sales_agent.NegotiationEngine.assess", return_value=assessment), \
+    with patch("src.agents.sales_agent.NegotiationEngine.assess_async", new_callable=AsyncMock) as mock_assess, \
          patch("src.agents.sales_agent.SalesAgent.call_ai_with_fallback", new_callable=AsyncMock) as mock_ai, \
          patch("src.agents.sales_agent.SalesAgent.load_session_history", new_callable=AsyncMock), \
          patch("src.agents.sales_agent.SalesAgent.get_session_history", return_value=[]):
         
+        mock_assess.return_value = assessment
         mock_ai.return_value = "Assalomu alaykum! Qanday yordam bera olaman?"
         
         reply = await agent.process_task(12345, "Salom, menga logo kerak")

@@ -319,7 +319,7 @@ class AutonomousSalesAgent(BaseAgent):
 
             response = await asyncio.to_thread(
                 client.models.generate_content,
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_CALL_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.7, max_output_tokens=300

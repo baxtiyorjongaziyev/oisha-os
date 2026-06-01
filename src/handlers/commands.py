@@ -166,7 +166,7 @@ async def task_command(
         try:
             query = f'Quyidagi matndan vazifa tafsilotlarini ajratib ol:\nMatn: {raw_text}\nJSON: {{"who":"...","task":"...","deadline":"..."}}'
             response = ai_client.models.generate_content(
-                model="gemini-2.0-flash",
+                model=getattr(config, "GEMINI_CALL_MODEL", "gemini-2.5-flash"),
                 contents=query,
                 config={"response_mime_type": "application/json"},
             )
