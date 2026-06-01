@@ -4,19 +4,27 @@ on:
   workflow_dispatch:
     inputs:
       step:
-        description: 'Qadam: "1" = SMS so`rov | "2" = Login'
+        description: 'Qadam: "1" = SMS yuborish | "2" = Login'
         required: true
         default: '1'
         type: choice
         options:
           - '1'
           - '2'
+      phone:
+        description: 'Telefon: +998336450097'
+        required: true
+        default: '+998336450097'
       phone_code_hash:
         description: '[Faqat 2-qadam] 1-qadamdan olingan hash'
         required: false
         default: ''
       sms_code:
         description: '[Faqat 2-qadam] SMS kodi'
+        required: false
+        default: ''
+      tg_password:
+        description: '[Faqat 2-qadam] 2FA paroli (Tg0097)'
         required: false
         default: ''
 
@@ -40,7 +48,7 @@ jobs:
         env:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
-          TELEGRAM_PHONE: ${{ secrets.TELEGRAM_PHONE }}
+          PHONE: ${{ github.event.inputs.phone }}
         run: |
           python3 - <<'PYEOF'
           import asyncio, os
@@ -48,17 +56,19 @@ jobs:
           from telethon.sessions import StringSession
 
           async def main():
-              phone = os.environ["TELEGRAM_PHONE"]
+              phone = os.environ["PHONE"]
               client = TelegramClient(StringSession(), int(os.environ["API_ID"]), os.environ["API_HASH"])
               await client.connect()
               result = await client.send_code_request(phone)
               print("=" * 60)
               print(f"✅ SMS yuborildi: {phone}")
-              print(f"PHONE_CODE_HASH: {result.phone_code_hash}")
+              print(f"\nPHONE_CODE_HASH: {result.phone_code_hash}\n")
               print("=" * 60)
-              print("Keyingi qadam:")
-              print("  Actions → 'Telegram Session Generator' → Run workflow")
-              print("  step=2, phone_code_hash=<hash yuqorida>, sms_code=<kod telefoningizda>")
+              print("Keyingi qadam: Run workflow → step=2")
+              print(f"  phone: {phone}")
+              print(f"  phone_code_hash: {result.phone_code_hash}")
+              print("  sms_code: <telefoningizga kelgan kod>")
+              print("  tg_password: Tg0097")
               await client.disconnect()
 
           asyncio.run(main())
@@ -69,10 +79,10 @@ jobs:
         env:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
-          TELEGRAM_PHONE: ${{ secrets.TELEGRAM_PHONE }}
-          TG_PASSWORD: ${{ secrets.TELEGRAM_PASSWORD }}
+          PHONE: ${{ github.event.inputs.phone }}
           PHONE_CODE_HASH: ${{ github.event.inputs.phone_code_hash }}
           SMS_CODE: ${{ github.event.inputs.sms_code }}
+          TG_PASSWORD: ${{ github.event.inputs.tg_password }}
         run: |
           python3 - <<'PYEOF'
           import asyncio, os, sys
@@ -81,7 +91,7 @@ jobs:
           from telethon.sessions import StringSession
 
           async def main():
-              phone = os.environ["TELEGRAM_PHONE"]
+              phone = os.environ["PHONE"]
               code = os.environ["SMS_CODE"].strip()
               phone_code_hash = os.environ["PHONE_CODE_HASH"].strip()
               password = os.environ.get("TG_PASSWORD", "").strip()
@@ -97,7 +107,7 @@ jobs:
                   )
               except SessionPasswordNeededError:
                   if not password:
-                      print("❌ 2FA kerak! TELEGRAM_PASSWORD secret ga parol qo'shing.")
+                      print("❌ 2FA kerak! tg_password maydonini to'ldiring.")
                       sys.exit(1)
                   await client.sign_in(password=password)
 
@@ -111,7 +121,7 @@ jobs:
               print("=" * 60)
               print(f"✅ LOGIN: {me.first_name} (@{me.username})")
               print("=" * 60)
-              print("\nQuyidagi qiymatni GitHub Secrets → USERBOT_SESSION_STRING ga kiriting:\n")
+              print("\nUSERBOT_SESSION_STRING:\n")
               print(session_string)
               print("\n" + "=" * 60)
               await client.disconnect()
