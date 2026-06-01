@@ -2140,7 +2140,20 @@ def _business_message_skip_reason(message: Dict[str, Any]) -> str:
         owner_ids.add(int(connection.get("user_id") or 0))
     except (TypeError, ValueError):
         pass
-    return "business_owner" if sender_id in owner_ids else ""
+    if sender_id in owner_ids:
+        return "business_owner"
+
+    message_date = message.get("date")
+    if not message_date:
+        return ""
+    try:
+        message_age = datetime.now(timezone.utc).timestamp() - int(message_date)
+        max_backlog_age = int(
+            os.getenv("TELEGRAM_BUSINESS_MAX_BACKLOG_SECONDS", "300")
+        )
+    except (TypeError, ValueError):
+        return ""
+    return "stale_backlog" if message_age > max_backlog_age else ""
 
 
 def _bot2bot_allowed(from_id: int, chat_id: int) -> bool:
