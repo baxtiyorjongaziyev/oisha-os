@@ -6,6 +6,7 @@ Replaces pure keyword matching with Gemini semantic understanding.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
@@ -61,6 +62,7 @@ class NegotiationEngine:
         context: Optional[Dict[str, Any]] = None,
     ) -> NegotiationAssessment:
         """Gemini-powered semantic assessment — full NLP understanding."""
+        context = context or {}
         try:
             client = genai.Client(api_key=settings.GEMINI_API_KEY.get_secret_value())
 
@@ -73,7 +75,7 @@ class NegotiationEngine:
 
             # Qo'ng'iroq tahlili kontekstini qo'shish
             analysis_context = ""
-            if context and "latest_call_analysis" in context:
+            if "latest_call_analysis" in context:
                 analysis = context["latest_call_analysis"]
                 analysis_context = f"""
 OXIRGI QO'NG'IROQ TAHLILI (Sifat bahosi: {analysis.get('overall_score')}/100):
@@ -135,7 +137,7 @@ Qoidalar:
 """
 
             response = await client.aio.models.generate_content(
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_CALL_MODEL,
                 contents=prompt,
             )
             text = (response.text or "").strip()
@@ -163,8 +165,8 @@ Qoidalar:
                 autonomous_mission=data.get("autonomous_mission", ""),
             )
 
-        except Exception as _exc:
-            logger.warning("[NegotiationEngine] assess_async failed: %r — keyword fallback", _exc)
+        except Exception as exc:
+            logger.warning("[NegotiationEngine] assess_async failed: %r — keyword fallback", exc)
             return NegotiationEngine.assess(
                 message,
                 crm_status,
@@ -416,12 +418,16 @@ Format (qisqa, actionable):
 Faqat 3 qatorni qaytarish."""
 
             response = await client.aio.models.generate_content(
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_CALL_MODEL,
                 contents=prompt,
             )
             return (response.text or "").strip()
 
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "[NEGOTIATION] Mission generation failed; using legacy mission: %s",
+                exc,
+            )
             return NegotiationEngine._generate_legacy_mission(assessment, role)
 
     @staticmethod
@@ -467,7 +473,7 @@ So'ngra FAQAT quyidagi JSON formatda qaytarish:
 }
 """
         response = await client.aio.models.generate_content(
-            model="gemini-2.0-flash",
+            model=settings.GEMINI_CALL_MODEL,
             contents=[
                 {
                     "inline_data": {
@@ -501,6 +507,7 @@ So'ngra FAQAT quyidagi JSON formatda qaytarish:
         }
 
     except Exception as e:
+        logger.warning("[NEGOTIATION] Audio transcription/assessment failed: %s", e)
         return {
             "transcript": "",
             "language": "uz",

@@ -323,6 +323,24 @@ class Database:
                 "CREATE TABLE IF NOT EXISTS kv_settings (key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME)"
             )
             await conn.execute(
+                "CREATE TABLE IF NOT EXISTS juma_sent_logs (user_id INTEGER, run_date TEXT, PRIMARY KEY (user_id, run_date))"
+            )
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS ambassador_journey_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    lead_id INTEGER,
+                    touchpoint_type TEXT,
+                    sent_message TEXT,
+                    response_text TEXT,
+                    nps_score INTEGER,
+                    status TEXT DEFAULT 'pending',
+                    scheduled_at TEXT,
+                    sent_at TEXT,
+                    created_at TEXT
+                )
+            """)
+            await conn.execute(
                 "CREATE TABLE IF NOT EXISTS agent_actions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action_type TEXT, action_data TEXT, success BOOLEAN DEFAULT 1, created_at DATETIME)"
             )
             await conn.execute(
@@ -351,6 +369,9 @@ class Database:
                     recommended_tasks TEXT,
                     transcript TEXT,
                     audio_url TEXT,
+                    caller_phone TEXT DEFAULT '',
+                    task_id TEXT,
+                    task_created_at TEXT,
                     source TEXT DEFAULT 'external',
                     analyzed_at TEXT,
                     created_at TEXT
@@ -363,6 +384,9 @@ class Database:
                 ("audio_url", "TEXT"),
                 ("source", "TEXT DEFAULT 'external'"),
                 ("created_at", "TEXT"),
+                ("caller_phone", "TEXT DEFAULT ''"),
+                ("task_id", "TEXT"),
+                ("task_created_at", "TEXT"),
             ]
             existing_call_analysis_columns = await self._get_table_columns(
                 conn, "call_analyses"
@@ -474,6 +498,9 @@ class Database:
                 "CREATE INDEX IF NOT EXISTS idx_message_logs_created_at ON message_logs(created_at)"
             )
             await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_message_logs_user_ai_created ON message_logs(user_id, is_ai_reply, created_at)"
+            )
+            await conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to)"
             )
             await conn.execute(
@@ -535,6 +562,8 @@ class Database:
             "chat_summaries",
             "user_intelligence",
             "kv_settings",
+            "juma_sent_logs",
+            "ambassador_journey_logs",
         }
     )
 
@@ -723,6 +752,58 @@ class Database:
         await conn.commit()
         return True
 
+    async def get_recent_active_leads(
+        self, hours: int = 72, limit: int = 12
+    ) -> List[Dict[str, Any]]:
+        """Return recently active leads with their latest client message."""
+        cutoff = (
+            datetime.datetime.now()
+            - datetime.timedelta(hours=max(1, int(hours)))
+        ).isoformat()
+        conn = await self.get_connection()
+        async with conn.execute(
+            """
+            SELECT
+                u.user_id,
+                u.first_name,
+                u.username,
+                u.phone,
+                u.business_type,
+                u.region,
+                u.brand_name,
+                u.service_type,
+                u.intent,
+                u.meeting_time,
+                u.meeting_status,
+                u.journey_stage,
+                u.journey_status,
+                u.journey_next_action,
+                u.close_probability,
+                u.last_client_message_at,
+                u.last_ai_message_at,
+                u.lifecycle_updated_at,
+                (
+                    SELECT ml.message_text
+                    FROM message_logs ml
+                    WHERE ml.user_id = u.user_id
+                      AND COALESCE(ml.is_ai_reply, 0) = 0
+                      AND ml.message_text IS NOT NULL
+                      AND ml.message_text != ''
+                    ORDER BY ml.created_at DESC, ml.id DESC
+                    LIMIT 1
+                ) AS last_client_message
+            FROM users u
+            WHERE u.last_client_message_at IS NOT NULL
+              AND u.last_client_message_at >= ?
+            ORDER BY u.last_client_message_at DESC
+            LIMIT ?
+            """,
+            (cutoff, max(1, int(limit))),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            columns = [description[0] for description in cursor.description]
+        return [dict(zip(columns, row)) for row in rows]
+
     async def get_recent_messages(self, user_id, limit=1000):
         conn = await self.get_connection()
         async with conn.execute(
@@ -751,6 +832,50 @@ class Database:
         async with conn.execute("SELECT user_id FROM users") as cursor:
             rows = await cursor.fetchall()
             return [row[0] for row in rows]
+
+    async def get_user_by_role(self, role: str) -> Optional[Dict[str, Any]]:
+        """Return one team member matching a normalized operational role."""
+        normalized = str(role or "").strip().lower()
+        if not normalized:
+            return None
+        aliases = {
+            "pm": ("pm", "project manager", "farmer"),
+            "project manager": ("pm", "project manager", "farmer"),
+            "farmer": ("pm", "project manager", "farmer"),
+            "finance": ("finance", "moliya", "accountant", "buxgalter"),
+            "moliya": ("finance", "moliya", "accountant", "buxgalter"),
+            "accountant": ("finance", "moliya", "accountant", "buxgalter"),
+            "buxgalter": ("finance", "moliya", "accountant", "buxgalter"),
+        }.get(normalized, (normalized,))
+        placeholders = ", ".join("?" for _ in aliases)
+        params = tuple(aliases) * 3
+        conn = await self.get_connection()
+        async with conn.execute(
+            f"""
+            SELECT user_id, first_name, username, role, detailed_role, position
+            FROM users
+            WHERE LOWER(TRIM(COALESCE(role, ''))) IN ({placeholders})
+               OR LOWER(TRIM(COALESCE(detailed_role, ''))) IN ({placeholders})
+               OR LOWER(TRIM(COALESCE(position, ''))) IN ({placeholders})
+            ORDER BY
+                CASE WHEN LOWER(TRIM(COALESCE(role, ''))) = ? THEN 0 ELSE 1 END,
+                user_id
+            LIMIT 1
+            """,  # nosec
+            params + (normalized,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "user_id": row[0],
+            "name": row[1] or row[2] or f"User_{row[0]}",
+            "first_name": row[1],
+            "username": row[2],
+            "role": row[3] or row[5] or row[4],
+            "detailed_role": row[4],
+            "position": row[5],
+        }
 
     async def get_team_roles(self):
         conn = await self.get_connection()
@@ -816,6 +941,70 @@ class Database:
             (job_name, date_str, now),
         )
         await conn.commit()
+
+    async def get_recent_job_runs(self, limit: int = 10) -> List[Dict[str, Any]]:
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT job_name, run_date, created_at FROM scheduled_jobs "
+            "ORDER BY created_at DESC LIMIT ?",
+            (max(1, int(limit)),),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        return [
+            {
+                "job_name": row[0],
+                "run_date": row[1],
+                "created_at": row[2],
+            }
+            for row in rows
+        ]
+
+    async def get_storage_counts(self) -> Dict[str, int]:
+        """Return dashboard-safe row counts from the active state backend."""
+        conn = await self.get_connection()
+        counts: Dict[str, int] = {}
+        for table_name in (
+            "scheduled_jobs",
+            "kv_settings",
+            "agent_actions",
+            "users",
+            "call_analyses",
+        ):
+            async with conn.execute(
+                f"SELECT COUNT(*) FROM {table_name}"  # nosec B608
+            ) as cursor:
+                row = await cursor.fetchone()
+            counts[table_name] = int(row[0]) if row else 0
+        return counts
+
+    async def get_recent_agent_actions(
+        self, limit: int = 25
+    ) -> List[Dict[str, Any]]:
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT id, user_id, action_type, action_data, success, created_at "
+            "FROM agent_actions ORDER BY created_at DESC LIMIT ?",
+            (max(1, int(limit)),),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        actions = []
+        for row in rows:
+            try:
+                action_data = json.loads(row[3]) if row[3] else {}
+            except (TypeError, ValueError):
+                action_data = row[3]
+            actions.append(
+                {
+                    "id": row[0],
+                    "user_id": row[1],
+                    "action_type": row[2],
+                    "action_data": action_data,
+                    "success": bool(row[4]),
+                    "created_at": row[5],
+                }
+            )
+        return actions
 
     async def update_chat_checkpoint(self, chat_id: int, msg_id: int) -> None:
         if not chat_id or not msg_id:
@@ -1342,10 +1531,10 @@ class TursoAdapter:
         return _TursoCursor(_EmptyResultSet())
 
     async def commit(self):
-        pass
+        await db_pool.commit()
 
     async def rollback(self):
-        pass
+        await db_pool.rollback()
 
     async def close(self):
         try:
