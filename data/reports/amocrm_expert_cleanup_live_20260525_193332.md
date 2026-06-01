@@ -1,0 +1,76 @@
+# amoCRM Expert Cleanup - live - 2026-05-25 19:33
+
+Backup: `C:\Users\baxti\playground\oisha-os\data\amocrm_cleanup_backup_20260525_193332.json`
+
+## Summary
+- leads_total: **488**
+- active_total: **475**
+- open_tasks_total: **54**
+- overdue_tasks_total: **40**
+- actions_total: **1289**
+- errors_total: **0**
+- bucket:closer_next_step: **21**
+- bucket:farmer_next_step: **47**
+- bucket:generic_next_step: **1**
+- bucket:lost_candidate_needs_contact: **42**
+- bucket:meeting_review: **136**
+- bucket:quality_next_step: **12**
+- bucket:reactivation: **402**
+- bucket:revive_24h: **144**
+- note_add: **223**
+- status_move: **134**
+- tag_add: **484**
+- task_create: **425**
+- task_skipped_open_exists: **23**
+
+## First Actions
+- tag_add lead 39856795  OISHA_MEETING_REVIEW
+- task_create lead 39856795 meeting_review 
+- note_add lead 39856795 meeting_review 
+- tag_add lead 40034041  OISHA_MEETING_REVIEW
+- task_create lead 40034041 meeting_review 
+- note_add lead 40034041 meeting_review 
+- tag_add lead 40110969  OISHA_MEETING_REVIEW
+- task_create lead 40110969 meeting_review 
+- note_add lead 40110969 meeting_review 
+- tag_add lead 40267797  OISHA_MEETING_REVIEW
+- task_create lead 40267797 meeting_review 
+- note_add lead 40267797 meeting_review 
+- tag_add lead 40087359  OISHA_MEETING_REVIEW
+- task_create lead 40087359 meeting_review 
+- note_add lead 40087359 meeting_review 
+- tag_add lead 40270343  OISHA_MEETING_REVIEW
+- task_create lead 40270343 meeting_review 
+- note_add lead 40270343 meeting_review 
+- tag_add lead 40270399  OISHA_MEETING_REVIEW
+- task_create lead 40270399 meeting_review 
+- note_add lead 40270399 meeting_review 
+- tag_add lead 38592015  OISHA_REACTIVATE
+- task_create lead 38592015 reactivation 
+- note_add lead 38592015 reactivation 
+- status_move lead 38592015 reactivation 
+- tag_add lead 40270751  OISHA_MEETING_REVIEW
+- task_create lead 40270751 meeting_review 
+- note_add lead 40270751 meeting_review 
+- tag_add lead 40270833  OISHA_MEETING_REVIEW
+- task_create lead 40270833 meeting_review 
+- note_add lead 40270833 meeting_review 
+- tag_add lead 40318473  OISHA_MEETING_REVIEW
+- task_create lead 40318473 meeting_review 
+- note_add lead 40318473 meeting_review 
+- tag_add lead 36660307  OISHA_REACTIVATE
+- task_create lead 36660307 reactivation 
+- note_add lead 36660307 reactivation 
+- status_move lead 36660307 reactivation 
+- tag_add lead 38453939  OISHA_REACTIVATE
+- task_create lead 38453939 reactivation 
+- note_add lead 38453939 reactivation 
+- status_move lead 38453939 reactivation 
+- tag_add lead 39051653  OISHA_MEETING_REVIEW
+- task_skipped_open_exists lead 39051653 meeting_review 
+- note_add lead 39051653 meeting_review 
+- tag_add lead 40493419  OISHA_MEETING_REVIEW
+- task_skipped_open_exists lead 40493419 meeting_review 
+- note_add lead 40493419 meeting_review 
+- tag_add lead 40267787  OISHA_MEETING_REVIEW
+- task_skipped_open_exists lead 40267787 meeting_review 
