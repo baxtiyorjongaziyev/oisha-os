@@ -2,10 +2,11 @@ import asyncio
 import os
 import sys
 from telethon import TelegramClient
+from dotenv import load_dotenv
 
-# HARDCODED for discovery
-API_ID = 30643078
-API_HASH = '***REDACTED***'
+load_dotenv()
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
 
 async def find_active_session():
     # List of common session files to check

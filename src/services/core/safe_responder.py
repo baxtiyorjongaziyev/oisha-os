@@ -68,6 +68,10 @@ class SafeResponder:
 
         # 0. Botning o'z xabarlariga javob bermaslik (Sikl oldini olish)
         if event.out:
+            # Slesh (/) bilan boshlanadigan admin buyruqlariga o'z-o'zidan javob berishga ruxsat beramiz
+            msg_text = getattr(event, "raw_text", "") or getattr(getattr(event, "message", None), "text", "") or ""
+            if msg_text.startswith("/"):
+                return True
             return False
 
         # 1. Botning o'zi yoki Sender ma'lumotlarini olish

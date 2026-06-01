@@ -20,10 +20,14 @@ def clear_airtable_caches():
     AirtableSync._records_cache.clear()
     AirtableSync._base_tables_cache.clear()
     AirtableSync._record_url_cache.clear()
+    AirtableSync._billing_blocked_until = 0.0
+    AirtableSync._billing_block_reason = None
     yield
     AirtableSync._records_cache.clear()
     AirtableSync._base_tables_cache.clear()
     AirtableSync._record_url_cache.clear()
+    AirtableSync._billing_blocked_until = 0.0
+    AirtableSync._billing_block_reason = None
 
 
 def test_get_projects_paginates_and_uses_timeouts(monkeypatch):
@@ -132,3 +136,23 @@ def test_write_operations_invalidate_records_cache(monkeypatch):
     assert sync.update_project_fields("rec1", {"Loyiha bosqichi": "Next"}) is True
     assert sync.get_projects()[0]["id"] == "rec3"
     assert calls["count"] == 3
+
+
+def test_billing_limit_starts_shared_cooldown_without_retries(monkeypatch):
+    calls = {"count": 0}
+
+    def fake_request(method, url, **kwargs):
+        calls["count"] += 1
+        return _FakeResponse(
+            status_code=429,
+            text='{"errors":[{"error":"PUBLIC_API_BILLING_LIMIT_EXCEEDED"}]}',
+        )
+
+    monkeypatch.setattr(requests, "request", fake_request)
+
+    first = AirtableSync(api_key="key", base_id="appBase", table_name="Loyihalar")
+    second = AirtableSync(api_key="key", base_id="appBase", table_name="Kirim")
+
+    assert first.get_projects(force_refresh=True) == []
+    assert second.get_projects(force_refresh=True) == []
+    assert calls["count"] == 1

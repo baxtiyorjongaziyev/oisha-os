@@ -272,7 +272,7 @@ class ProactiveWorker:
             response = await safe_ai_call(
                 client=client,
                 prompt=query,
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_CALL_MODEL,
                 mime_type="application/json",
             )
 
@@ -380,7 +380,7 @@ class ProactiveWorker:
             response = await safe_ai_call(
                 client=client,
                 prompt=query,
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_CALL_MODEL,
                 mime_type="application/json",
             )
 
@@ -478,7 +478,7 @@ class ProactiveWorker:
             client = genai.Client(api_key=config.GEMINI_API_KEY)
 
             response = await safe_ai_call(
-                client=client, prompt=query, model="gemini-2.0-flash"
+                client=client, prompt=query, model=settings.GEMINI_CALL_MODEL
             )
 
             if not response:
@@ -587,7 +587,7 @@ class ProactiveWorker:
 
                 client = genai.Client(api_key=config.GEMINI_API_KEY)
                 response = await client.aio.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model=settings.GEMINI_CALL_MODEL,
                     contents=query,
                     config={"response_mime_type": "application/json"},
                 )

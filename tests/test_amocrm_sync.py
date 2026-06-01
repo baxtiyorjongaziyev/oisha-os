@@ -1,4 +1,6 @@
 import json
+import asyncio
+import threading
 
 import pytest
 
@@ -92,3 +94,62 @@ async def test_invalid_oauth_refresh_blocks_repeated_crm_calls(monkeypatch):
     assert await amocrm.check_connection() is False
     assert calls["post"] == 2
     assert calls["get"] == 0
+
+
+@pytest.mark.asyncio
+async def test_get_leads_detailed_does_not_block_event_loop(monkeypatch):
+    monkeypatch.setenv(
+        "AMOCRM_TOKEN_JSON",
+        json.dumps({"access_token": "valid-access-token", "refresh_token": "refresh-token"}),
+    )
+    release = threading.Event()
+    observed = {"released_while_request_waited": False}
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        observed["released_while_request_waited"] = release.wait(0.5)
+        return _Response(200, {"_embedded": {"leads": []}})
+
+    async def release_request():
+        await asyncio.sleep(0.01)
+        release.set()
+
+    monkeypatch.setattr("requests.get", fake_get)
+    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+
+    release_task = asyncio.create_task(release_request())
+    assert await amocrm.get_leads_detailed(limit=30) == []
+    await release_task
+    assert observed["released_while_request_waited"] is True
+
+
+@pytest.mark.asyncio
+async def test_primary_contact_phone_hydrates_shallow_embedded_contact(monkeypatch):
+    monkeypatch.setenv(
+        "AMOCRM_TOKEN_JSON",
+        json.dumps({"access_token": "valid-access-token", "refresh_token": "refresh-token"}),
+    )
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        assert url.endswith("/api/v4/contacts/321")
+        assert params == {"with": "leads"}
+        return _Response(
+            200,
+            {
+                "id": 321,
+                "custom_fields_values": [
+                    {
+                        "field_code": "PHONE",
+                        "values": [{"value": "+998901234567"}],
+                    }
+                ],
+            },
+        )
+
+    monkeypatch.setattr("requests.get", fake_get)
+    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+
+    phone = await amocrm.get_primary_contact_phone(
+        {"_embedded": {"contacts": [{"id": 321}]}}
+    )
+
+    assert phone == "+998901234567"
