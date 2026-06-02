@@ -1,6 +1,31 @@
 from src import api_server
 
 
+def test_bot_to_bot_is_disabled_in_production_by_default(monkeypatch):
+    monkeypatch.setattr(api_server.settings, "TELEGRAM_BOT_TO_BOT_ENABLED", False)
+
+    reason = api_server._bot2bot_skip_reason(
+        {"id": 99, "is_bot": True},
+        chat_id=77,
+    )
+
+    assert reason == "disabled"
+
+
+def test_bot_to_bot_round_limit_is_conservative():
+    assert api_server.BOT2BOT_MAX_ROUNDS == 1
+    assert api_server.BOT2BOT_COOLDOWN_SEC == 300
+
+
+def test_bot_to_bot_allows_one_round_then_rate_limits(monkeypatch):
+    monkeypatch.setattr(api_server.settings, "TELEGRAM_BOT_TO_BOT_ENABLED", True)
+    api_server._bot2bot_tracker.clear()
+    from_user = {"id": 99, "is_bot": True}
+
+    assert api_server._bot2bot_skip_reason(from_user, chat_id=77) == ""
+    assert api_server._bot2bot_skip_reason(from_user, chat_id=77) == "rate_limit"
+
+
 def test_business_loop_filter_skips_messages_sent_by_business_bot():
     reason = api_server._business_message_skip_reason(
         {
