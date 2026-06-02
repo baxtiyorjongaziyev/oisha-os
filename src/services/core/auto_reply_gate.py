@@ -130,7 +130,16 @@ async def evaluate(
     mode = await _load_mode(db)
     kill_on = not await _load_kill_switch(db)
 
-    # Mention always short-circuits to send (Owner directly called us).
+    # "off" mode — no replies at all, including @mentions.
+    if mode == "off":
+        return Decision(
+            action="skip",
+            reason="mode_off",
+            effective_mode="off",
+            kill_switch_on=kill_on,
+        )
+
+    # Mention short-circuits to send (Owner directly called us).
     if is_mentioned:
         return Decision(
             action="send",
