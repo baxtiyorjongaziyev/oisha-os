@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from src.settings import settings
+from src.services.utils.gemini_fallback import generate_content_with_fallback
 
 try:
     from google import genai
@@ -159,10 +160,13 @@ class AmbassadorJourneyManager:
                 temperature=0.7,
                 max_output_tokens=800,
             )
-            response = await self.genai_client.aio.models.generate_content(
-                model=self.gemini_model,
+            response, _ = await generate_content_with_fallback(
+                self.genai_client,
+                primary_model=self.gemini_model,
                 contents=prompt,
                 config=config,
+                env_name="GEMINI_AMBASSADOR_FALLBACK_MODELS",
+                log_prefix="[AMBASSADOR]",
             )
             text = (response.text or "").strip()
             if text:
