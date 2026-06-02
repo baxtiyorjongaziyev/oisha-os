@@ -1,0 +1,60 @@
+name: Delete Cloud Run Service (one-time cleanup)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'deploy/delete-cloud-run-trigger'
+
+jobs:
+  delete:
+    name: Cloud Run o'chirish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Google Auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Delete Cloud Run service
+        run: |
+          echo "oisha-master-bot servisini o'chirilmoqda..."
+          gcloud run services delete oisha-master-bot \
+            --region=europe-west3 \
+            --project=jonbranding-85662071-ea38e \
+            --quiet && echo "✅ Servis muvaffaqiyatli o'chirildi!" || echo "⚠️ Servis allaqachon o'chirilgan yoki topilmadi"
+
+      - name: Delete old container images
+        run: |
+          echo "Eski Docker imagelarni tozalamoqda (storage xarajatini kamaytiradi)..."
+          IMAGES=$(gcloud container images list \
+            --repository=gcr.io/jonbranding-85662071-ea38e \
+            --project=jonbranding-85662071-ea38e \
+            --format="value(name)" 2>/dev/null || echo "")
+          if [ -z "$IMAGES" ]; then
+            echo "Imagelar topilmadi yoki allaqachon o'chirilgan."
+          else
+            echo "$IMAGES" | while read IMAGE; do
+              echo "O'chirilmoqda: $IMAGE"
+              gcloud container images delete "$IMAGE" \
+                --force-delete-tags \
+                --project=jonbranding-85662071-ea38e \
+                --quiet 2>/dev/null && echo "  ✅ $IMAGE o'chirildi" || echo "  ⚠️ $IMAGE o'chirib bo'lmadi"
+            done
+          fi
+
+      - name: Summary
+        run: |
+          echo "================================"
+          echo "YAKUNIY HOLAT:"
+          gcloud run services describe oisha-master-bot \
+            --region=europe-west3 \
+            --project=jonbranding-85662071-ea38e 2>/dev/null \
+            && echo "⚠️ Servis hali mavjud!" \
+            || echo "✅ Servis muvaffaqiyatli o'chirildi — pul to'xtaydi."
+          echo "================================"
