@@ -71,18 +71,22 @@ class TestAPISecurity:
         assert "settings.TURSO_AUTH_TOKEN" in content
         assert "eyJhbGci" not in content
 
-    def test_deploy_workflow_userbot_config_consistent(self):
-        """Cloud Run deploy must stay control-plane only."""
-        workflow_file = os.path.join(os.path.dirname(__file__), '..', '.github', 'workflows', 'deploy.yml')
-        with open(workflow_file, 'r', encoding='utf-8') as f:
+    def test_oracle_is_the_only_oisha_production_deploy_workflow(self):
+        """Oisha must deploy to Oracle without reviving the redundant Cloud Run stack."""
+        workflow_dir = os.path.join(os.path.dirname(__file__), '..', '.github', 'workflows')
+        cloud_run_workflow = os.path.join(workflow_dir, 'deploy.yml')
+        oracle_workflow = os.path.join(workflow_dir, 'oracle-deploy.yml')
+
+        assert not os.path.exists(cloud_run_workflow)
+
+        with open(oracle_workflow, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        assert "CLOUD_RUN_CONTROL_PLANE_ONLY=True" in content
-        assert "ENABLE_CLOUD_USERBOT=False" in content
-        assert "ENABLE_CLOUD_USERBOT=True" not in content
-        assert "Sync USERBOT_SESSION_STRING" not in content
-        assert "USERBOT_SESSION_STRING=USERBOT_SESSION_STRING" not in content
-        assert "python -m pytest -q" in content
+        assert "CLOUD_RUN_CONTROL_PLANE_ONLY=false" in content
+        assert "ENABLE_CLOUD_USERBOT=true" in content
+        assert "USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}" in content
+        assert "sudo systemctl restart oisha-os" in content
+        assert "http://127.0.0.1:8080/healthz/" in content
 
     def test_cloud_run_control_plane_skips_userbot_session_parsing(self):
         """Cloud Run control-plane must not parse the personal userbot session."""

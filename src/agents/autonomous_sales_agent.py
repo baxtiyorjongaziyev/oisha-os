@@ -14,6 +14,7 @@ import logging
 
 from src.agents.core import BaseAgent
 from src.agents.negotiation_engine import NegotiationEngine, NegotiationAssessment
+from src.services.utils.gemini_fallback import generate_content_with_fallback
 from src.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -317,13 +318,15 @@ class AutonomousSalesAgent(BaseAgent):
             Javob:
             """
 
-            response = await asyncio.to_thread(
-                client.models.generate_content,
-                model=settings.GEMINI_CALL_MODEL,
+            response, _ = await generate_content_with_fallback(
+                client,
+                primary_model=settings.GEMINI_CALL_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.7, max_output_tokens=300
                 ),
+                env_name="GEMINI_NEGOTIATION_FALLBACK_MODELS",
+                log_prefix="[AUTONOMOUS SALES]",
             )
 
             if not response or not response.text:
