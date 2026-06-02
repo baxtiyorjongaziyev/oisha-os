@@ -16,6 +16,7 @@ from google import genai
 
 from src.settings import settings
 from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.utils.gemini_fallback import generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -129,8 +130,12 @@ class LeadClassifier:
                 audio_text=audio_text if audio_text else "(Audio yo'q)",
             )
 
-            response = await self.client.aio.models.generate_content(
-                model=self.model, contents=[prompt]
+            response, _ = await generate_content_with_fallback(
+                self.client,
+                primary_model=self.model,
+                contents=[prompt],
+                env_name="GEMINI_LEAD_CLASSIFIER_FALLBACK_MODELS",
+                log_prefix="[CLASSIFIER]",
             )
 
             if not response.text:
@@ -220,12 +225,15 @@ class LeadClassifier:
 
             try:
                 audio_file = await self.client.aio.files.upload(file=temp_path)
-                response = await self.client.aio.models.generate_content(
-                    model=self.model,
+                response, _ = await generate_content_with_fallback(
+                    self.client,
+                    primary_model=self.model,
                     contents=[
                         audio_file,
                         "Bu audio yozuvni matnga o'gir. Faqat matnni qaytar, boshqa izoh yo'q.",
                     ],
+                    env_name="GEMINI_LEAD_CLASSIFIER_FALLBACK_MODELS",
+                    log_prefix="[CLASSIFIER AUDIO]",
                 )
                 return response.text if response.text else None
             finally:
