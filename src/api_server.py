@@ -39,6 +39,8 @@ from src.api import dashboard
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger("OishaAPI")
 
 # Global Bridges
@@ -2123,8 +2125,8 @@ async def telegram_webhook(request: Request):
     return await telegram_ai_webhook(request)
 
 _bot2bot_tracker: Dict[str, list] = {}
-BOT2BOT_MAX_ROUNDS = 5
-BOT2BOT_COOLDOWN_SEC = 60
+BOT2BOT_MAX_ROUNDS = int(os.getenv("TELEGRAM_BOT_TO_BOT_MAX_ROUNDS", "1"))
+BOT2BOT_COOLDOWN_SEC = int(os.getenv("TELEGRAM_BOT_TO_BOT_COOLDOWN_SECONDS", "300"))
 
 
 def _business_message_skip_reason(message: Dict[str, Any]) -> str:
@@ -2179,6 +2181,17 @@ def _bot2bot_allowed(from_id: int, chat_id: int) -> bool:
     return True
 
 
+def _bot2bot_skip_reason(from_user: Dict[str, Any], chat_id: int) -> str:
+    """Return why a bot-authored update must not enter the AI reply loop."""
+    if not from_user.get("is_bot"):
+        return ""
+    if not settings.TELEGRAM_BOT_TO_BOT_ENABLED:
+        return "disabled"
+    if not _bot2bot_allowed(from_user.get("id", 0), chat_id):
+        return "rate_limit"
+    return ""
+
+
 async def process_telegram_update(update: Dict[str, Any], update_type: str):
     """Processes the telegram update using appropriate handlers."""
     from src.handlers.messages import (
@@ -2209,7 +2222,13 @@ async def process_telegram_update(update: Dict[str, Any], update_type: str):
         from_user = msg.get("from", {})
         if from_user.get("is_bot"):
             chat_id = msg.get("chat", {}).get("id", 0)
-            if not _bot2bot_allowed(from_user.get("id", 0), chat_id):
+            skip_reason = _bot2bot_skip_reason(from_user, chat_id)
+            if skip_reason == "disabled":
+                logger.info(
+                    "[BOT2BOT] Ignoring bot-authored update because feature is disabled."
+                )
+                return
+            if skip_reason:
                 logger.warning(
                     "[BOT2BOT] Loop safeguard triggered for bot %s in chat %s",
                     from_user.get("id"),
