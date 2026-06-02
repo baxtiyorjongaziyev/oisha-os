@@ -28,3 +28,13 @@ def _force_local_sqlite(monkeypatch):
     except Exception:
         pass
     yield
+
+
+@pytest.fixture(autouse=True)
+def _reset_gemini_model_quota_cooldowns():
+    """Keep process-level Gemini cooldown state isolated between tests."""
+    from src.services.utils.gemini_fallback import reset_model_quota_cooldowns
+
+    reset_model_quota_cooldowns()
+    yield
+    reset_model_quota_cooldowns()
