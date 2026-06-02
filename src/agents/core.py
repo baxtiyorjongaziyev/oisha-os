@@ -93,7 +93,7 @@ class BaseAgent(ABC):
                     )
 
                     if not response:
-                        return "Kechirasiz, AI resurslari vaqtincha band. Iltimos, birozdan so'ng urinib ko'ring. (429)"
+                        break
 
                     # Tool call bormi?
                     tool_calls = []
