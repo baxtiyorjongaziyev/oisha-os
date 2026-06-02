@@ -9,6 +9,8 @@ from typing import Optional, Dict, Any
 from google import genai
 from google.genai import types
 
+from src.services.utils.gemini_fallback import generate_content_with_fallback
+
 logger = logging.getLogger(__name__)
 
 _PHONE_RE = re.compile(r"(?:(?:\+|00)?998[\s\-()]*)?(?:\d[\s\-()]*){9,12}")
@@ -146,9 +148,12 @@ class AutoLeadAgent:
 
     async def generate_content(self, prompt: str) -> str:
         """Shared lightweight AI provider interface used by SalesCoach."""
-        response = await self.client.aio.models.generate_content(
-            model=self.model_name,
+        response, _ = await generate_content_with_fallback(
+            self.client,
+            primary_model=self.model_name,
             contents=[prompt],
+            env_name="GEMINI_AUTO_LEAD_FALLBACK_MODELS",
+            log_prefix="[AUTO_LEAD]",
         )
         return response.text or ""
 
@@ -250,13 +255,16 @@ class AutoLeadAgent:
         """
 
         try:
-            response = await self.client.aio.models.generate_content(
-                model=self.model_name,
+            response, _ = await generate_content_with_fallback(
+                self.client,
+                primary_model=self.model_name,
                 contents=[prompt],
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     response_mime_type="application/json",
                 ),
+                env_name="GEMINI_AUTO_LEAD_FALLBACK_MODELS",
+                log_prefix="[AUTO_LEAD]",
             )
 
             if response.text:
