@@ -62,6 +62,16 @@ class TestAPISecurity:
         assert "healthy = not problems and db_ok and telegram_bot_ok and crm_ok" in content
         assert '"crm_required": not control_plane_mode' in content
 
+    def test_http_transport_logs_do_not_expose_bot_api_tokens(self):
+        """HTTP client INFO logs must stay disabled because Bot API URLs contain secrets."""
+        for relative_path in ('main.py', 'api_server.py'):
+            source_file = os.path.join(os.path.dirname(__file__), '..', 'src', relative_path)
+            with open(source_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            assert 'logging.getLogger("httpx").setLevel(logging.WARNING)' in content
+            assert 'logging.getLogger("httpcore").setLevel(logging.WARNING)' in content
+
     def test_database_pool_has_no_hardcoded_turso_token(self):
         """Turso token must come from environment/Secret Manager, never source code."""
         pool_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'database_pool.py')
@@ -84,6 +94,7 @@ class TestAPISecurity:
 
         assert "CLOUD_RUN_CONTROL_PLANE_ONLY=false" in content
         assert "ENABLE_CLOUD_USERBOT=true" in content
+        assert "TELEGRAM_BOT_TO_BOT_ENABLED=false" in content
         assert "USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}" in content
         assert "sudo systemctl restart oisha-os" in content
         assert "http://127.0.0.1:8080/healthz/" in content
