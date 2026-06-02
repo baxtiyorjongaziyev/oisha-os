@@ -62,6 +62,8 @@ voice_processor: Optional[VoiceProcessor] = None
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 # Global service placeholders (initialized in main)
 msg_controller = None
