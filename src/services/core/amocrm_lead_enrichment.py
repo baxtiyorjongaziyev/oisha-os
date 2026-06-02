@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from src.settings import settings
+from src.services.utils.gemini_fallback import generate_content_with_fallback
 
 try:
     from google import genai
@@ -414,7 +415,14 @@ class AmoCRMLeadEnricher:
                     kwargs["config"] = genai_types.GenerateContentConfig(
                         max_output_tokens=900
                     )
-                response = await self.genai_client.aio.models.generate_content(**kwargs)
+                response, _ = await generate_content_with_fallback(
+                    self.genai_client,
+                    primary_model=self.model_name,
+                    contents=kwargs["contents"],
+                    config=kwargs.get("config"),
+                    env_name="GEMINI_ENRICHMENT_FALLBACK_MODELS",
+                    log_prefix="[AMO_ENRICH]",
+                )
                 text = str(getattr(response, "text", "") or "").strip()
                 if text:
                     return _clip(text, 3500)
