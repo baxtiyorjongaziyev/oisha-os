@@ -112,7 +112,7 @@ jobs:
             HEALTH_LIVE_DB_PROBE=0
             ENABLE_CLOUD_USERBOT=true
             ENABLE_AUTO_REPLY=false
-            AUTO_REPLY_MODE=off
+            AUTO_REPLY_MODE=shadow
             TELEGRAM_BOT_TO_BOT_ENABLED=false
             ALLOW_LOCAL_RUN=0
             AIRTABLE_BASE_ID=app8xoyx1XCumYFXV
