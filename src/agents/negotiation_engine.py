@@ -16,6 +16,7 @@ import logging
 from google import genai
 
 from src.settings import settings
+from src.services.utils.gemini_fallback import generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -136,9 +137,12 @@ Qoidalar:
 - Faqat JSON qaytarish.
 """
 
-            response = await client.aio.models.generate_content(
-                model=settings.GEMINI_CALL_MODEL,
+            response, _ = await generate_content_with_fallback(
+                client,
+                primary_model=settings.GEMINI_CALL_MODEL,
                 contents=prompt,
+                env_name="GEMINI_NEGOTIATION_FALLBACK_MODELS",
+                log_prefix="[NEGOTIATION]",
             )
             text = (response.text or "").strip()
             # Clean markdown code blocks if present
@@ -417,9 +421,12 @@ Format (qisqa, actionable):
 
 Faqat 3 qatorni qaytarish."""
 
-            response = await client.aio.models.generate_content(
-                model=settings.GEMINI_CALL_MODEL,
+            response, _ = await generate_content_with_fallback(
+                client,
+                primary_model=settings.GEMINI_CALL_MODEL,
                 contents=prompt,
+                env_name="GEMINI_NEGOTIATION_FALLBACK_MODELS",
+                log_prefix="[NEGOTIATION MISSION]",
             )
             return (response.text or "").strip()
 
@@ -472,8 +479,9 @@ So'ngra FAQAT quyidagi JSON formatda qaytarish:
   "key_phrases": []
 }
 """
-        response = await client.aio.models.generate_content(
-            model=settings.GEMINI_CALL_MODEL,
+        response, _ = await generate_content_with_fallback(
+            client,
+            primary_model=settings.GEMINI_CALL_MODEL,
             contents=[
                 {
                     "inline_data": {
@@ -483,6 +491,8 @@ So'ngra FAQAT quyidagi JSON formatda qaytarish:
                 },
                 prompt,
             ],
+            env_name="GEMINI_NEGOTIATION_FALLBACK_MODELS",
+            log_prefix="[NEGOTIATION AUDIO]",
         )
 
         text = (response.text or "").strip()
