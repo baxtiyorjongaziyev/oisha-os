@@ -1,5 +1,10 @@
 @echo off
 chcp 65001 >nul
+if /I not "%OISHA_ALLOW_GCP%"=="1" (
+    echo BLOCKED: Oisha production Oracle VMda ishlaydi. Google Cloud deploy o'chirilgan.
+    echo Agar juda zarur bo'lsa: set OISHA_ALLOW_GCP=1
+    exit /b 1
+)
 echo ==========================================
 echo  Oisha-OS Deploy Script
 echo ==========================================
