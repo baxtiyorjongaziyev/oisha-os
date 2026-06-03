@@ -113,6 +113,7 @@ jobs:
             ENABLE_CLOUD_USERBOT=true
             ENABLE_AUTO_REPLY=false
             AUTO_REPLY_MODE=shadow
+            USERBOT_DISABLE_PRIVATE_REPLIES=true
             TELEGRAM_BOT_TO_BOT_ENABLED=false
             ALLOW_LOCAL_RUN=0
             AIRTABLE_BASE_ID=app8xoyx1XCumYFXV

@@ -182,6 +182,20 @@ def _env_enabled(name: str) -> bool:
 _EXCLUDED_FOLDER_USER_CACHE: Dict[str, Any] = {"expires_at": 0.0, "user_ids": set()}
 
 
+def _userbot_private_replies_disabled() -> bool:
+    return True
+
+
+def _is_private_userbot_event(event: Any) -> bool:
+    return bool(getattr(event, "is_private", False)) and not bool(
+        getattr(event, "out", False)
+    )
+
+
+def _should_block_private_userbot_reply(event: Any) -> bool:
+    return _userbot_private_replies_disabled() and _is_private_userbot_event(event)
+
+
 def _folder_exclusion_enabled() -> bool:
     return os.getenv("ENABLE_PERSONAL_FOLDER_EXCLUSION", "1").strip().lower() not in {
         "0",
@@ -1058,6 +1072,10 @@ async def handle_new_message(event):
             await msg_controller.db.update_chat_checkpoint(_cp_chat, _cp_msg)
     except Exception as _cp_exc:
         logger.debug(f"[CHECKPOINT] update skipped: {_cp_exc}")
+
+    if _should_block_private_userbot_reply(event):
+        logger.info("[USERBOT] Personal DM ignored by policy chat=%s", event.chat_id)
+        return
 
     # 1. Spamdan himoya va Guruh filtrini tekshirish
     if not await safe_responder.should_respond(event):
@@ -1973,6 +1991,9 @@ async def shadow_advisor_handler(event):
     """Event-driven shadow advisor for real-time monitoring."""
     if not _env_enabled("ENABLE_SHADOW_ADVISOR"):
         return
+    if _should_block_private_userbot_reply(event):
+        logger.info("[ADVISOR] Personal DM ignored by policy chat=%s", event.chat_id)
+        return
     if event.out or not event.is_private or not event.message.text:
         return
 
@@ -2297,8 +2318,13 @@ async def case_publisher_handler(event):
 
 
 async def negotiation_agent_handler(event):
-    """Safe autonomous negotiation for real private inbound messages."""
+    """Safe autonomous negotiation for allowed Telegram messages."""
     if not _env_enabled("ENABLE_AI_NEGOTIATION"):
+        return
+    if _should_block_private_userbot_reply(event):
+        logger.info(
+            "[NEGOTIATION] Personal DM ignored by policy chat=%s", event.chat_id
+        )
         return
     if event.out or not event.is_private or not getattr(event.message, "text", None):
         return
@@ -2951,6 +2977,9 @@ async def main():
     # Surgical Negotiator — autonomous negotiations agent
     async def _surgical_send(user_id: int, text: str):
         """Proactive Telegram send callback for SurgicalNegotiator."""
+        if _userbot_private_replies_disabled():
+            logger.info("[SURGICAL] Proactive private send blocked by policy.")
+            return
         try:
             if client:
                 await client.send_message(user_id, text)
