@@ -94,6 +94,7 @@ class TestAPISecurity:
 
         assert "CLOUD_RUN_CONTROL_PLANE_ONLY=false" in content
         assert "ENABLE_CLOUD_USERBOT=true" in content
+        assert "USERBOT_DISABLE_PRIVATE_REPLIES=true" in content
         assert "TELEGRAM_BOT_TO_BOT_ENABLED=false" in content
         assert "USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}" in content
         assert "sudo systemctl restart oisha-os" in content
