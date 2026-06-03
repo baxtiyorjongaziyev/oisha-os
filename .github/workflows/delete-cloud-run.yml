@@ -2,15 +2,18 @@ name: Delete Cloud Run Service (one-time cleanup)
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'deploy/delete-cloud-run-trigger'
+    inputs:
+      confirm_cleanup:
+        description: "Type DELETE_OISHA_CLOUD_RUN to touch Google Cloud."
+        required: true
+        default: ""
 
 jobs:
   delete:
     name: Cloud Run o'chirish
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    if: ${{ github.event.inputs.confirm_cleanup == 'DELETE_OISHA_CLOUD_RUN' }}
 
     steps:
       - name: Google Auth

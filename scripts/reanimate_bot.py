@@ -6,11 +6,15 @@ from dotenv import load_dotenv
 
 def reanimate():
     load_dotenv()
+    if os.environ.get("OISHA_ALLOW_GCP") != "1":
+        print("BLOCKED: Oisha production Oracle VMda ishlaydi. Cloud Run reanimate o'chirilgan.")
+        print("Agar juda zarur bo'lsa: OISHA_ALLOW_GCP=1 qo'ying.")
+        sys.exit(1)
     
     token = os.environ.get("BOT_TOKEN")
     if not token or "placeholder" in token:
-        # Try to find it in the current session or settings
-        token = "8343217526:AAEOA8Jg8YMEwQREFF2MaK1oZVhFA3b1SQo"
+        print("BOT_TOKEN topilmadi; webhookni o'zgartirmayman.")
+        sys.exit(1)
     
     cloud_run_url = "https://oisha-master-bot-982617914297.europe-west3.run.app"
     
