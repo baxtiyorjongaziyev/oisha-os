@@ -33,6 +33,17 @@ def test_health_check_defaults_to_oracle_local_service():
     assert "oisha-master-bot-4h4lsnzlsq-ey.a.run.app" not in text
 
 
+def test_oracle_deploy_does_not_materialize_google_credentials():
+    text = (ROOT / ".github" / "workflows" / "oracle-deploy.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "GOOGLE_SERVICE_ACCOUNT_JSON" not in text
+    assert "GOOGLE_APPLICATION_CREDENTIALS" not in text
+    assert "GSHEET_CREDS_FILE" not in text
+    assert "rm -f service_account.json data/service_account.json" in text
+
+
 def test_no_hardcoded_telegram_bot_token_in_reanimate_script():
     text = (ROOT / "scripts" / "reanimate_bot.py").read_text(encoding="utf-8")
 
