@@ -1739,21 +1739,27 @@ async def handle_new_message(event):
                     logger.info(f"[USERBOT] Shadow preview queued for chat {chat_id}")
                 else:
                     # Live send (decision.action == 'send') — oldin rate-limit tekshirish
-                    limited, rl_reason = safe_responder.is_rate_limited(chat_id)
-                    if limited:
-                        logger.warning(
-                            f"[USERBOT] Rate-limit skip chat={chat_id} reason={rl_reason}"
+                    # Shaxsiy yozishmalar (DM) da hech qachon avtomatik javob yuborilmaydi
+                    if event.is_private:
+                        logger.info(
+                            f"[USERBOT] Private DM autoreply blocked for chat {chat_id} ({sender_name})"
                         )
-                        if admin_bot:
-                            try:
-                                await admin_bot.notify_lead(
-                                    f"⏱ **RATE-LIMIT skip** chat=`{chat_id}` reason=`{rl_reason}`\n"
-                                    f"Matn tayyor edi, yuborilmadi (flood oldini olish)."
-                                )
-                            except Exception:
-                                pass
                     else:
-                        await event.respond(final_text)
+                        limited, rl_reason = safe_responder.is_rate_limited(chat_id)
+                        if limited:
+                            logger.warning(
+                                f"[USERBOT] Rate-limit skip chat={chat_id} reason={rl_reason}"
+                            )
+                            if admin_bot:
+                                try:
+                                    await admin_bot.notify_lead(
+                                        f"⏱ **RATE-LIMIT skip** chat=`{chat_id}` reason=`{rl_reason}`\n"
+                                        f"Matn tayyor edi, yuborilmadi (flood oldini olish)."
+                                    )
+                                except Exception:
+                                    pass
+                        else:
+                            await event.respond(final_text)
                         try:
                             await msg_controller.db.log_message(
                                 sender.id, final_text, is_ai=True
