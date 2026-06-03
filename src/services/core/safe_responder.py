@@ -93,9 +93,11 @@ class SafeResponder:
             )
             return False
 
-        # 3. Agar jamoa a'zosi bo'lsa, qayerda yozganiga qarab tekshiramiz
+        # 3. Personal DM is never auto-replied from the userbot account.
+        # Admin commands should go through the bot-token head or Saved Messages.
         if event.is_private:
-            return True
+            logger.info("[SAFE] Blocking personal DM auto-reply chat=%s", event.chat_id)
+            return False
 
         # 4. Guruh bo'lsa - faqat whitelist qilingan guruhlar ichida
         if event.is_group:
