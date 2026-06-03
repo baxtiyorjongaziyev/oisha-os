@@ -1014,6 +1014,88 @@ async def background_monitor_task() -> None:
             # ─────────────────────────────────────────────────────────
             # 9. [STAGNATION] Har kuni 10:00 va 22:00 — Stagnation Alert
             # ─────────────────────────────────────────────────────────
+            # 8c. [CRMWeeklyReport] Har dushanba 09:00 - AmoCRM haftalik hisobot
+            weekly_enabled = os.getenv("CRM_WEEKLY_REPORT_ENABLED", "true").lower() not in {
+                "0",
+                "false",
+                "no",
+                "off",
+            }
+            weekly_weekday = int(os.getenv("CRM_WEEKLY_REPORT_WEEKDAY", "0"))
+            weekly_hour = int(os.getenv("CRM_WEEKLY_REPORT_HOUR", "9"))
+            weekly_minute = int(os.getenv("CRM_WEEKLY_REPORT_MINUTE", "0"))
+            if (
+                weekly_enabled
+                and now.weekday() == weekly_weekday
+                and now.hour == weekly_hour
+                and now.minute == weekly_minute
+            ):
+                try:
+                    from src.services.core.crm_daily_report import (
+                        CRMDailyReporter,
+                        previous_week_range,
+                    )
+
+                    period_start, period_end = previous_week_range(now.date())
+                    run_key = f"{period_start.isoformat()}_{period_end.isoformat()}"
+                    job_key = f"crm_weekly_report_{run_key}"
+
+                    if not hasattr(background_monitor_task, "_sent_jobs"):
+                        background_monitor_task._sent_jobs = set()
+
+                    already_sent = job_key in background_monitor_task._sent_jobs
+                    if not already_sent and msg_controller and getattr(
+                        msg_controller, "db", None
+                    ):
+                        already_sent = await msg_controller.db.is_job_run(
+                            "crm_weekly_report", run_key
+                        )
+
+                    if not already_sent:
+                        amocrm_client = None
+                        if msg_controller and getattr(msg_controller, "crm", None):
+                            amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+                        if not amocrm_client:
+                            amocrm_client = get_surgical_integration().amocrm
+
+                        if amocrm_client:
+                            reporter = CRMDailyReporter(amocrm=amocrm_client)
+                            stats = await reporter.fetch_weekly_stats(
+                                period_start, period_end
+                            )
+                            report_text = reporter.format_weekly_report_uz(stats)
+
+                            send_kwargs = {}
+                            if settings.TOPIC_REPORTS_ID:
+                                send_kwargs["reply_to"] = settings.TOPIC_REPORTS_ID
+
+                            if TN5_GROUP_ID:
+                                await client.send_message(
+                                    TN5_GROUP_ID,
+                                    report_text,
+                                    **send_kwargs,
+                                )
+                            else:
+                                await notify_admin(report_text, client)
+
+                            if msg_controller and getattr(msg_controller, "db", None):
+                                await msg_controller.db.mark_job_run(
+                                    "crm_weekly_report", run_key
+                                )
+                            background_monitor_task._sent_jobs.add(job_key)
+                            logger.info(
+                                "[SCHEDULE] CRM weekly Uzbek report sent for %s.",
+                                run_key,
+                            )
+                        else:
+                            logger.warning(
+                                "[SCHEDULE][CRM_WEEKLY_REPORT] AmoCRM client not ready."
+                            )
+                except Exception as weekly_exc:
+                    logger.error(
+                        f"[SCHEDULE][CRM_WEEKLY_REPORT] Error: {weekly_exc}"
+                    )
+
             if now.hour in [10, 22] and now.minute == 0:
                 today_str = now.strftime("%Y-%m-%d")
                 job_key = f"stagnation_alert_{now.hour}_{today_str}"
