@@ -1,14 +1,16 @@
 # Oisha OS
 
-Oisha OS is Jon Branding Agency's internal agentic COO. The production bot remains a Python
-Cloud Run service that works with Telegram, Turso, AmoCRM, and Airtable.
+Oisha OS is Jon Branding Agency's internal agentic COO. The production bot runs on the
+Oracle VM service and works with Telegram, Turso, AmoCRM, and Airtable.
 
 ## Core platform
 
 - Python control plane for Telegram bot, reporting, CRM/Airtable sync, and agent workflows.
 - Turso/libSQL database layer for production persistence.
-- Google Cloud Run healthy-only rollout through GitHub Actions.
+- Oracle VM healthy-only rollout through GitHub Actions.
 - Telegram deploy notifications with one final status per commit.
+- Google Cloud is not used for the Oisha runtime. Any legacy GCP cleanup or setup script is
+  blocked unless `OISHA_ALLOW_GCP=1` is set explicitly.
 
 ## Oisha Sales OS suite
 
@@ -66,6 +68,5 @@ python -m pytest -q
 
 ## Existing Python bot
 
-The existing Oisha bot is still started and deployed through the current Python/Docker/Cloud Run
-flow. The SalesCoach AI workspace is added side-by-side so the live bot is not broken while the
-new product is built.
+The existing Oisha bot is started and deployed through the Oracle VM workflow. The SalesCoach AI
+workspace is added side-by-side so the live bot is not broken while the new product is built.
