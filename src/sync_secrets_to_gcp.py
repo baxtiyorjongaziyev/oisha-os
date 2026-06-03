@@ -4,6 +4,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+if os.getenv("OISHA_ALLOW_GCP") != "1":
+    raise SystemExit(
+        "BLOCKED: Oisha production Oracle VMda ishlaydi. "
+        "Google Cloud secret sync o'chirilgan. Zarur bo'lsa OISHA_ALLOW_GCP=1 qo'ying."
+    )
+
 PROJECT_ID = "jonbranding-85662071-ea38e"
 
 SECRETS_TO_SYNC = {
