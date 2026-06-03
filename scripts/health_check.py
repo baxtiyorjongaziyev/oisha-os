@@ -22,7 +22,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
 def _build_checks() -> list[ServiceCheck]:
     oisha_url = os.getenv(
         "OISHA_HEALTH_URL",
-        "https://oisha-master-bot-4h4lsnzlsq-ey.a.run.app/healthz/",
+        "http://127.0.0.1:8080/healthz/",
     )
     checks = [ServiceCheck("Oisha-OS (Production)", oisha_url, required=True)]
 
