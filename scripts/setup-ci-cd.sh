@@ -5,6 +5,12 @@
 
 set -e
 
+if [ "${OISHA_ALLOW_GCP:-0}" != "1" ]; then
+    echo "BLOCKED: Oisha production Oracle VMda ishlaydi. Google Cloud CI/CD sozlash o'chirilgan."
+    echo "Agar juda zarur bo'lsa: OISHA_ALLOW_GCP=1 ./scripts/setup-ci-cd.sh"
+    exit 1
+fi
+
 echo "🚀 Oisha-OS CI/CD Setup"
 echo "========================"
 echo ""
