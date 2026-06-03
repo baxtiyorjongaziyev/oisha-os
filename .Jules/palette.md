@@ -47,3 +47,8 @@
 
 **Learning:** When adding a visual loading spinner to a button component, screen readers don't automatically know the button is in a processing state just from a new SVG appearing.
 **Action:** Always add `aria-busy={isLoading}` to the container element to explicitly announce the pending state, and add `aria-hidden="true"` to the decorative SVG spinner so screen readers don't read out irrelevant vector paths.
+
+## 2026-06-03 - [A11y Insight] Dynamic Focus Rings on Generic Wrappers
+
+**Learning:** When generic wrappers (like `<span>` used for disabled button tooltips) receive keyboard focus, the default rectangular browser outline often mismatches the inner component's shape (e.g., `rounded-full`). Attempting to hardcode the border-radius on the wrapper makes it rigid and prone to bugs if the inner component changes.
+**Action:** Use Tailwind's `group` utility on the generic focusable wrapper (`group focus:outline-none`) and apply `group-focus-visible` ring utilities to the *child* element (e.g., `group-focus-visible:ring-2 group-focus-visible:ring-amberline`). This seamlessly passes the visual focus state down, inheriting the exact shape and border-radius of the underlying component.
