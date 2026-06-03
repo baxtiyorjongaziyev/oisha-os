@@ -43,7 +43,6 @@ jobs:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || secrets.GCP_SA_KEY }}
           PROJECTS_GROUP_ID: ${{ secrets.PROJECTS_GROUP_ID }}
           TOPIC_CRM_ID: ${{ secrets.TOPIC_CRM_ID }}
           TOPIC_GENERAL_ID: ${{ secrets.TOPIC_GENERAL_ID }}
@@ -57,7 +56,7 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 7m
-          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,AMOCRM_REDIRECT_URL,AMOCRM_TOKEN_JSON,AMOCRM_REFRESH_TOKEN,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,AIRTABLE_API_KEY,GOOGLE_SERVICE_ACCOUNT_JSON,PROJECTS_GROUP_ID,TOPIC_CRM_ID,TOPIC_GENERAL_ID,TOPIC_KIRIM_ID,TOPIC_REPORTS_ID,TOPIC_TASKS_ID
+          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,AMOCRM_REDIRECT_URL,AMOCRM_TOKEN_JSON,AMOCRM_REFRESH_TOKEN,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,AIRTABLE_API_KEY,PROJECTS_GROUP_ID,TOPIC_CRM_ID,TOPIC_GENERAL_ID,TOPIC_KIRIM_ID,TOPIC_REPORTS_ID,TOPIC_TASKS_ID
           script: |
             set -euo pipefail
             OISHA_DIR="/home/ubuntu/oisha-os"
@@ -66,8 +65,6 @@ jobs:
             mkdir -p data
             cp -a data/*.session /tmp/ 2>/dev/null || true
             cp -a data/amocrm_token.json /tmp/amocrm_token.json 2>/dev/null || true
-            cp -a service_account.json /tmp/service_account.json 2>/dev/null || true
-            cp -a token.pickle /tmp/token.pickle 2>/dev/null || true
 
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main
@@ -76,18 +73,13 @@ jobs:
             mkdir -p data
             cp -a /tmp/*.session data/ 2>/dev/null || true
             cp -a /tmp/amocrm_token.json data/amocrm_token.json 2>/dev/null || true
-            cp -a /tmp/service_account.json service_account.json 2>/dev/null || true
-            cp -a /tmp/token.pickle token.pickle 2>/dev/null || true
+            rm -f service_account.json data/service_account.json token.pickle data/token.pickle
 
             ./venv/bin/pip install -q -r requirements.txt
 
             : "${AMOCRM_REDIRECT_URL:=https://localhost}"
             if [ -n "${AMOCRM_TOKEN_JSON:-}" ]; then
               printf '%s' "$AMOCRM_TOKEN_JSON" > data/amocrm_token.json
-            fi
-            if [ -n "${GOOGLE_SERVICE_ACCOUNT_JSON:-}" ]; then
-              printf '%s' "$GOOGLE_SERVICE_ACCOUNT_JSON" > service_account.json
-              cp service_account.json data/service_account.json
             fi
 
             cat > .env <<ENVFILE
@@ -126,9 +118,6 @@ jobs:
             TOPIC_REPORTS_ID=${TOPIC_REPORTS_ID}
             TOPIC_TASKS_ID=${TOPIC_TASKS_ID}
             AIRTABLE_API_KEY=${AIRTABLE_API_KEY}
-            GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k
-            GSHEET_CREDS_FILE=service_account.json
-            GOOGLE_APPLICATION_CREDENTIALS=/home/ubuntu/oisha-os/service_account.json
             ENVFILE
             sed -i 's/^            //' .env
 
