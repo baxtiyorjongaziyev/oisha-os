@@ -6,7 +6,21 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from enum import Enum
 
+from src.services.core.sales_rubric import (
+    get_rubric,
+    compute_rubric_score,
+    format_rubric_report,
+    build_ai_scoring_prompt,
+)
+
 logger = logging.getLogger(__name__)
+
+
+class SalesRole(str, Enum):
+    """Sotuv rolini belgilash — rubrika tanlash uchun."""
+    GENERAL = "general"   # Har qanday sotuv qo'ng'irog'i
+    HUNTER  = "hunter"    # Birinchi kontakt va BANT kvalifikatsiya
+    CLOSER  = "closer"    # Taklif, muzokara va shartnoma yopish
 
 
 class QualityMetric(Enum):
@@ -518,4 +532,77 @@ class QualityAnalyzer:
             "rank": rank,
             "best_score": max(scores),
             "worst_score": min(scores),
+        }
+
+    # ─────────────────────────────────────────────────────────
+    # Role-based rubric scoring (Hunter / Closer / General)
+    # ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def score_by_rubric(
+        criterion_scores: Dict[str, int],
+        role: str = "general",
+    ) -> Dict[str, Any]:
+        """Rubrika asosida ball hisoblash.
+
+        Args:
+            criterion_scores: {"A1": 3, "H_B2": 2, ...} mezon kodi → 0-3 ball
+            role: "general" | "hunter" | "closer"
+
+        Returns:
+            compute_rubric_score natijalari + formatted report text
+        """
+        result = compute_rubric_score(criterion_scores, role)
+        result["report"] = format_rubric_report(criterion_scores, role)
+        return result
+
+    @staticmethod
+    def get_rubric_prompt(transcript: str, role: str = "general") -> str:
+        """AI uchun rubrika-asosli scoring prompt qaytarish."""
+        return build_ai_scoring_prompt(transcript, role)
+
+    @staticmethod
+    def get_rubric_definition(role: str = "general") -> Dict[str, Any]:
+        """Rubrika ta'rifini qaytarish (mezonlar, og'irliklar)."""
+        return get_rubric(role)
+
+    def analyze_by_role(
+        self,
+        conversation_text: str,
+        role: str = "general",
+        conversation_id: str = "",
+        lead_id: Optional[int] = None,
+        manager_id: Optional[int] = None,
+        manager_name: str = "",
+        duration_seconds: int = 0,
+    ) -> Dict[str, Any]:
+        """Suhbatni rol-spetsifik rubrika bilan tahlil qilish.
+
+        Returns quyidagi kalitlarni o'z ichiga olgan dict:
+          - rubric_result:   compute_rubric_score() natijasi
+          - report_text:     format_rubric_report() natijasi
+          - talk_ratio:      {client_pct, agent_pct}
+          - conversation_analysis: ConversationAnalysis.to_dict() (umumiy sifat)
+        """
+        client_pct, agent_pct = self._compute_talk_ratio(conversation_text)
+
+        rubric_result = compute_rubric_score({}, role)  # LLM scores not available yet
+        report_text = format_rubric_report({}, role)
+
+        base_analysis = self.analyze_conversation(
+            conversation_text=conversation_text,
+            conversation_id=conversation_id or "role_analysis",
+            lead_id=lead_id,
+            manager_id=manager_id,
+            manager_name=manager_name,
+            duration_seconds=duration_seconds,
+        )
+
+        return {
+            "rubric_result": rubric_result,
+            "report_text": report_text,
+            "talk_ratio": {"client_pct": client_pct, "agent_pct": agent_pct},
+            "conversation_analysis": base_analysis.to_dict(),
+            "role": role,
+            "ai_prompt": build_ai_scoring_prompt(conversation_text, role),
         }
