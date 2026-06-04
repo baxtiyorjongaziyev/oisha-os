@@ -32,10 +32,17 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.amocrm_pipeline_config import (
+    FARMER_PIPELINE_ID,
+    FINAL_PAYMENT_TASK_TEXT,
+    LEGACY_CLOSER_PIPELINE_ID,
+    SALES_PIPELINE_ID,
+)
 from src.settings import settings
 
 
-HUNTER_PIPELINE_ID = 10117998
+HUNTER_PIPELINE_ID = SALES_PIPELINE_ID
+CLOSER_PIPELINE_ID = LEGACY_CLOSER_PIPELINE_ID
 REACTIVATION_PIPELINE_ID = 10947042
 
 STATUS_WON = 142
@@ -231,7 +238,7 @@ class AmoCRMExpertCleanup:
         if has_open_task:
             return None
 
-        if pipeline_id == 10123314:
+        if pipeline_id == CLOSER_PIPELINE_ID:
             return CleanupDecision(
                 bucket="closer_next_step",
                 tag=TAG_TASK_CREATED,
@@ -242,13 +249,11 @@ class AmoCRMExpertCleanup:
                 due_hours=24,
             )
 
-        if pipeline_id == 10123318:
+        if pipeline_id == FARMER_PIPELINE_ID:
             return CleanupDecision(
-                bucket="farmer_next_step",
+                bucket="farmer_final_payment_next_step",
                 tag=TAG_TASK_CREATED,
-                task_text=(
-                    "Oisha audit: Farmer loyihasida keyingi delivery/payment qadamini yozing."
-                ),
+                task_text=FINAL_PAYMENT_TASK_TEXT,
                 due_hours=48,
             )
 
