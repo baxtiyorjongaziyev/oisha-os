@@ -74,6 +74,43 @@ def _detect_mime(url: str, content_type: Optional[str] = None) -> str:
     return "audio/mpeg"
 
 
+_CLIENT_LABELS = re.compile(r"^(mijoz|xaridor|client)\s*:", re.IGNORECASE)
+_AGENT_LABELS = re.compile(r"^(sotuvchi|menejer|manager|agent|xodim|oisha)\s*:", re.IGNORECASE)
+
+
+def _compute_talk_ratio(transcript: str) -> tuple[int, int]:
+    """Return (client_pct, agent_pct) based on character counts per speaker."""
+    client_chars = 0
+    agent_chars = 0
+    for line in (transcript or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        colon_pos = line.find(":")
+        if colon_pos < 1:
+            continue
+        label = line[:colon_pos].strip()
+        text = line[colon_pos + 1:].strip()
+        if _CLIENT_LABELS.match(label + ":"):
+            client_chars += len(text)
+        elif _AGENT_LABELS.match(label + ":"):
+            agent_chars += len(text)
+
+    total = client_chars + agent_chars
+    if total == 0:
+        return 0, 0
+    return round(client_chars * 100 / total), round(agent_chars * 100 / total)
+
+
+def _talk_ratio_verdict(client_pct: int) -> str:
+    """Human-readable verdict for the talk ratio."""
+    if client_pct >= 55:
+        return f"✅ Yaxshi — mijoz {client_pct}% gapirdi (ideal: ≥55%)"
+    if client_pct >= 40:
+        return f"⚠️ O'rtacha — mijoz {client_pct}% gapirdi (ideal: ≥55%)"
+    return f"🔴 Zaif — sotuvchi haddan ko'p gapirdi, mijoz faqat {client_pct}% gapirdi"
+
+
 def _clip(text: str, limit: int) -> str:
     text = (text or "").strip()
     if len(text) <= limit:
@@ -510,6 +547,7 @@ class CallAnalyzer:
         try:
             from google.genai import types
 
+            client_pct, agent_pct = _compute_talk_ratio(transcript)
             prompt = (
                 "Quyidagi telefon suhbati transkripsiyasini tahlil qiling.\n\n"
                 "TOIFALAR (faqat bittasini tanlang):\n"
@@ -518,12 +556,17 @@ class CallAnalyzer:
                 "- Jamoa: xodimlar, ichki ishlar, vazifa, deadline, operatsion muhokama.\n"
                 "- Mijoz: brending, dizayn, SMM, sayt, loyiha, narx, savdo yoki mijoz muzokarasi.\n"
                 "- Boshqa: aralash, spam yoki yuqoridagilarga aniq kirmaydigan qo'ng'iroq.\n\n"
+                "GAPIRISH NISBATI (hisoblangan):\n"
+                f"  Mijoz: {client_pct}%  |  Sotuvchi: {agent_pct}%\n"
+                "  Ideal: mijoz ≥55%, sotuvchi ≤45%.\n\n"
                 "Javobni faqat JSON formatida qaytaring:\n"
                 "{\n"
                 '  "summary": "2-4 gapda O\'zbekcha xulosa",\n'
                 '  "category": "Shaxsiy|Oila|Jamoa|Mijoz|Boshqa",\n'
                 '  "client_mood": "Ijobiy|Neytral|Salbiy|Noaniq",\n'
-                '  "next_steps": "Keyingi aniq qadamlar yoki N/A"\n'
+                '  "next_steps": "Keyingi aniq qadamlar yoki N/A",\n'
+                f'  "client_talk_pct": {client_pct},\n'
+                f'  "agent_talk_pct": {agent_pct}\n'
                 "}\n\n"
                 f"Transkripsiya:\n{transcript}"
             )
@@ -592,11 +635,18 @@ class CallAnalyzer:
     ) -> Dict[str, Any]:
         summary = str(data.get("summary") or "").strip()
         next_steps = str(data.get("next_steps") or "N/A").strip() or "N/A"
+        # Prefer pre-computed values; fall back to re-computing from transcript
+        computed_client, computed_agent = _compute_talk_ratio(transcript)
+        client_pct = int(data.get("client_talk_pct") or computed_client)
+        agent_pct = int(data.get("agent_talk_pct") or computed_agent)
         return {
             "summary": summary or _clip(transcript, 350),
             "category": _normalise_category(data.get("category")),
             "client_mood": _normalise_mood(data.get("client_mood")),
             "next_steps": next_steps,
+            "client_talk_pct": client_pct,
+            "agent_talk_pct": agent_pct,
+            "talk_ratio_verdict": _talk_ratio_verdict(client_pct),
         }
 
     def _fallback_analysis(self, transcript: str) -> Dict[str, Any]:
@@ -651,11 +701,15 @@ class CallAnalyzer:
         else:
             category = "Boshqa"
 
+        client_pct, agent_pct = _compute_talk_ratio(transcript)
         return {
             "summary": _clip(transcript or "Tahlil uchun transkripsiya topilmadi.", 350),
             "category": category,
             "client_mood": "Noaniq",
             "next_steps": "N/A",
+            "client_talk_pct": client_pct,
+            "agent_talk_pct": agent_pct,
+            "talk_ratio_verdict": _talk_ratio_verdict(client_pct),
         }
 
     def _build_amocrm_note(
@@ -668,10 +722,19 @@ class CallAnalyzer:
         caller_phone: str = "",
         call_id: str = "",
         duration_seconds: int = 0,
+        client_talk_pct: int = 0,
+        agent_talk_pct: int = 0,
+        talk_ratio_verdict: str = "",
     ) -> str:
         phone_line = f"\nQo'ng'iroq raqami: {caller_phone}" if caller_phone else ""
         call_line = f"\nCall ID: {call_id}" if call_id else ""
         duration_line = f"\nDavomiylik: {duration_seconds}s" if duration_seconds else ""
+        ratio_line = ""
+        if client_talk_pct or agent_talk_pct:
+            ratio_line = (
+                f"\nGapirish nisbati: Mijoz {client_talk_pct}% | Sotuvchi {agent_talk_pct}%"
+                f"\n{talk_ratio_verdict}"
+            )
         transcript = _clip(transcript_snippet, self.max_transcript_note_chars)
         return (
             f"[{ANALYSIS_MARKER}] Oisha-OS: Qo'ng'iroq tahlili\n"
@@ -679,7 +742,8 @@ class CallAnalyzer:
             f"Kayfiyat: {client_mood}"
             f"{phone_line}"
             f"{call_line}"
-            f"{duration_line}\n\n"
+            f"{duration_line}"
+            f"{ratio_line}\n\n"
             f"Xulosa:\n{summary}\n\n"
             f"Keyingi qadam:\n{next_steps}\n\n"
             f"Transkripsiya (O'zbek):\n{transcript}"
@@ -874,6 +938,9 @@ class CallAnalyzer:
                 caller_phone=phone,
                 call_id=call_id,
                 duration_seconds=duration,
+                client_talk_pct=analysis.get("client_talk_pct", 0),
+                agent_talk_pct=analysis.get("agent_talk_pct", 0),
+                talk_ratio_verdict=analysis.get("talk_ratio_verdict", ""),
             )
 
             if write:
