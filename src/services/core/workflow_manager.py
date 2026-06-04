@@ -5,6 +5,11 @@ from src.database import Database
 from src.services.core.amocrm_sync import AmoCRMSync
 from src.settings import settings
 from src.services.core.enterprise_reporter import EnterpriseReporter
+from src.services.core.amocrm_pipeline_config import (
+    FARMER_PIPELINE_ID,
+    LEGACY_CLOSER_PIPELINE_ID,
+    SALES_PIPELINE_ID,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +25,9 @@ class WorkflowManager:
 
         # Pipeline to Role Mapping
         self.PIPELINE_ROLE_MAP = {
-            10117998: "hunter",  # Hunter bosqichlari
-            10123314: "closer",  # Closer bosqichlari
-            10123318: "pm",  # Farmer bosqichlari (Inomjon PM)
+            SALES_PIPELINE_ID: "sales",
+            LEGACY_CLOSER_PIPELINE_ID: "sales",  # Legacy only; active leads migrate out.
+            FARMER_PIPELINE_ID: "pm",  # Farmer delivery + final payment flow.
             10427390: "qa",  # Sifat Nazorati (Butun jamoa)
         }
 

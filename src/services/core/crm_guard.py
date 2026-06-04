@@ -6,6 +6,10 @@ Vazifasi: Zadachasi yo'q lidlarni topish va jazolash/ogohlantirish.
 import logging
 from typing import List, Dict
 from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.amocrm_pipeline_config import (
+    LEGACY_CLOSER_PIPELINE_ID,
+    SALES_PIPELINE_ID,
+)
 
 logger = logging.getLogger("CRMGuard")
 
@@ -16,8 +20,8 @@ class CRMGuard:
         self.db = db
         self.bot = bot
         self.nagger = nagger
-        self.HUNTER_PIPELINE = 10117998
-        self.CLOSER_PIPELINE = 10123314
+        self.HUNTER_PIPELINE = SALES_PIPELINE_ID
+        self.CLOSER_PIPELINE = LEGACY_CLOSER_PIPELINE_ID
 
     async def check_discipline(self, pipeline_id: int):
         """
