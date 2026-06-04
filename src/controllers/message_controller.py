@@ -12,6 +12,9 @@ from src.agents.sales_agent import SalesAgent
 from src.agents.pm_agent import PMAgent
 from src.agents.researcher_agent import ResearcherAgent
 from src.agents.support_agent import SupportAgent
+from src.agents.copywriter_agent import CopywriterAgent
+from src.agents.finance_agent import FinanceAgent
+from src.agents.ops_agent import OpsAgent
 from src.agents.orchestrator import AgentOrchestrator
 from src.agents.negotiation_engine import NegotiationEngine
 from src.agents.feedback_memory import FeedbackMemory
@@ -86,6 +89,29 @@ class MessageController:
         )
         self.agent_manager.register_agent(
             SupportAgent("support", support_prompt, api_keys, self.executor, self.db)
+        )
+
+        from src.agents.copywriter_agent import COPYWRITER_SUFFIX
+        from src.agents.finance_agent import FINANCE_SUFFIX
+        from src.agents.ops_agent import OPS_SUFFIX
+
+        self.agent_manager.register_agent(
+            CopywriterAgent(
+                "copywriter", system_instruction + COPYWRITER_SUFFIX,
+                api_keys, self.executor, self.db,
+            )
+        )
+        self.agent_manager.register_agent(
+            FinanceAgent(
+                "finance", system_instruction + FINANCE_SUFFIX,
+                api_keys, self.executor, self.db,
+            )
+        )
+        self.agent_manager.register_agent(
+            OpsAgent(
+                "ops", system_instruction + OPS_SUFFIX,
+                api_keys, self.executor, self.db,
+            )
         )
 
     def set_bot_app(self, bot_app):
