@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Iterable, List
 
+from src.services.core.amocrm_pipeline_config import LEGACY_CLOSER_PIPELINE_ID
+
 DEFAULT_MIN_IDLE_HOURS = 48
 CLOSED_STATUS_IDS = {142, 143}
 
@@ -61,10 +63,10 @@ class NegotiationReengagementPlanner:
             priority = "medium"
             if idle_hours >= 120 or price >= 15_000_000:
                 priority = "critical"
-            elif idle_hours >= 72 or pipeline_id == 10123314:
+            elif idle_hours >= 72 or pipeline_id == LEGACY_CLOSER_PIPELINE_ID:
                 priority = "high"
 
-            if pipeline_id == 10123314:
+            if pipeline_id == LEGACY_CLOSER_PIPELINE_ID:
                 reason = "closer_no_response"
             elif idle_hours >= 96:
                 reason = "stalled_negotiation"
