@@ -9,6 +9,8 @@ import requests
 from datetime import datetime, timedelta
 from typing import Dict, List
 
+from src.services.core.amocrm_pipeline_config import SALES_PIPELINE_ID
+
 logger = logging.getLogger("SalesAnalytics")
 
 
@@ -16,8 +18,9 @@ class SalesAnalytics:
     """AmoCRM sotuvlar tahlili — KPI, Stagnatsiya, Pipeline Funnel."""
 
     # Pipeline IDs
-    HUNTER_PIPELINE = 10117998
-    CLOSER_PIPELINE = 10123314
+    SALES_PIPELINE = SALES_PIPELINE_ID
+    HUNTER_PIPELINE = SALES_PIPELINE_ID
+    CLOSER_PIPELINE = SALES_PIPELINE_ID
 
     # Status IDs
     STATUS_WON = 142
@@ -105,9 +108,7 @@ class SalesAnalytics:
         )
 
         # Barcha lidlarni olamiz
-        hunter_leads = self._get_all_leads(self.HUNTER_PIPELINE)
-        closer_leads = self._get_all_leads(self.CLOSER_PIPELINE)
-        all_leads = hunter_leads + closer_leads
+        all_leads = self._get_all_leads(self.SALES_PIPELINE)
 
         # Menejerlar bo'yicha guruhlash
         manager_stats: Dict[int, Dict] = {}
@@ -120,8 +121,7 @@ class SalesAnalytics:
             if responsible not in manager_stats:
                 manager_stats[responsible] = {
                     "name": None,
-                    "hunter_active": 0,
-                    "closer_active": 0,
+                    "sales_active": 0,
                     "today_touched": 0,
                     "today_won": 0,
                     "month_won": 0,
@@ -140,10 +140,8 @@ class SalesAnalytics:
             # Aktiv lidlar (Won/Lost emas)
             if status_id not in [self.STATUS_WON, self.STATUS_LOST]:
                 stats["total_active"] += 1
-                if pipeline_id == self.HUNTER_PIPELINE:
-                    stats["hunter_active"] += 1
-                elif pipeline_id == self.CLOSER_PIPELINE:
-                    stats["closer_active"] += 1
+                if pipeline_id == self.SALES_PIPELINE:
+                    stats["sales_active"] += 1
 
                 # Stagnatsiya (24 soat o'zgarmagan)
                 if (now - updated_at) > 86400:
@@ -247,8 +245,7 @@ class SalesAnalytics:
         result: Dict[int, List[Dict]] = {}
 
         for pipeline_name, pipeline_id in [
-            ("HUNTER", self.HUNTER_PIPELINE),
-            ("CLOSER", self.CLOSER_PIPELINE),
+            ("SALES", self.SALES_PIPELINE),
         ]:
             leads = self._get_all_leads(pipeline_id)
             for lead in leads:
@@ -326,129 +323,66 @@ class SalesAnalytics:
     # ═══════════════════════════════════════════════════════════════
 
     def generate_pipeline_funnel(self, days: int = 7) -> str:
-        """
-        Pipeline bo'yicha haftalik conversiya tahlili:
-        - HUNTER pipeline: Nechta lid kirdi → nechtasi CLOSER'ga o'tdi
-        - CLOSER pipeline: Nechta → nechtasi Won
-        - Yo'qotilgan lidlar
-        - O'rtacha bitim hajmi
-        """
+        """Bitta Sales pipeline bo'yicha haftalik konversiya tahlili."""
         now = time.time()
         period_start = int((datetime.now() - timedelta(days=days)).timestamp())
+        sales_leads = self._get_all_leads(self.SALES_PIPELINE)
 
-        hunter_leads = self._get_all_leads(self.HUNTER_PIPELINE)
-        closer_leads = self._get_all_leads(self.CLOSER_PIPELINE)
+        total = len(sales_leads)
+        active = lost = won = won_week = stagnated = 0
+        revenue = revenue_week = 0
 
-        # HUNTER pipeline tahlili
-        hunter_total = len(hunter_leads)
-        hunter_active = 0
-        hunter_lost = 0
-        hunter_stagnated = 0
-
-        for lead in hunter_leads:
+        for lead in sales_leads:
             status = lead.get("status_id", 0)
             updated = lead.get("updated_at", 0)
-            if status == self.STATUS_LOST:
-                hunter_lost += 1
-            elif status == self.STATUS_WON:
-                pass  # Won in Hunter = moved to Closer
-            else:
-                hunter_active += 1
-                if (now - updated) > 86400 * 3:  # 3+ kun harakatsiz
-                    hunter_stagnated += 1
-
-        # CLOSER pipeline tahlili
-        closer_total = len(closer_leads)
-        closer_active = 0
-        closer_won = 0
-        closer_lost = 0
-        closer_revenue = 0
-        closer_won_week = 0
-        closer_revenue_week = 0
-
-        for lead in closer_leads:
-            status = lead.get("status_id", 0)
             closed_at = lead.get("closed_at", 0)
             price = lead.get("price", 0) or 0
-
             if status == self.STATUS_WON:
-                closer_won += 1
-                closer_revenue += price
+                won += 1
+                revenue += price
                 if closed_at and closed_at >= period_start:
-                    closer_won_week += 1
-                    closer_revenue_week += price
+                    won_week += 1
+                    revenue_week += price
             elif status == self.STATUS_LOST:
-                closer_lost += 1
+                lost += 1
             else:
-                closer_active += 1
+                active += 1
+                if (now - updated) > 86400 * 3:
+                    stagnated += 1
 
-        # Conversiya hisoblash
-        total_leads = hunter_total + closer_total
-        conversion_to_closer = (
-            (closer_total / hunter_total * 100) if hunter_total > 0 else 0
-        )
-        win_rate = (closer_won / closer_total * 100) if closer_total > 0 else 0
-        overall_conversion = (closer_won / total_leads * 100) if total_leads > 0 else 0
-        avg_deal = (closer_revenue / closer_won) if closer_won > 0 else 0
+        win_rate = (won / total * 100) if total else 0
+        avg_deal = (revenue / won) if won else 0
 
-        report = "📊 <b>PIPELINE FUNNEL</b>\n"
-        report += f"📅 Oxirgi {days} kun ({datetime.now().strftime('%d.%m.%Y')})\n"
-        report += "━" * 30 + "\n"
-
-        # HUNTER Funnel
-        report += "\n🎯 <b>HUNTER Pipeline</b>\n"
-        report += f"   Jami: {hunter_total} ta lid\n"
-        report += f"   ✅ Aktiv: {hunter_active}\n"
-        report += f"   ❌ Lost: {hunter_lost}\n"
-        if hunter_stagnated > 0:
-            report += f"   ⚠️ Stagnatsiya (3+ kun): {hunter_stagnated}\n"
-
-        # Arrow visualization
-        report += (
-            f"\n   ⬇️ Conversiya HUNTER → CLOSER: <b>{conversion_to_closer:.0f}%</b>\n"
-        )
-
-        # CLOSER Funnel
-        report += "\n💰 <b>CLOSER Pipeline</b>\n"
-        report += f"   Jami: {closer_total} ta lid\n"
-        report += f"   ✅ Aktiv: {closer_active}\n"
-        report += f"   🏆 Won: {closer_won} ({closer_revenue:,.0f} so'm)\n".replace(
-            ",", " "
-        )
-        report += f"   ❌ Lost: {closer_lost}\n"
-
-        report += f"\n   ⬇️ Win Rate (CLOSER): <b>{win_rate:.0f}%</b>\n"
-
-        # Haftalik natijalari
-        report += "\n" + "━" * 30
-        report += f"\n📈 <b>HAFTALIK NATIJALAR ({days} kun):</b>\n"
-        report += f"   🏆 Yopilgan: {closer_won_week} ta bitim\n"
-        report += f"   💰 Tushum: {closer_revenue_week:,.0f} so'm\n".replace(",", " ")
-        report += f"   📊 O'rtacha bitim: {avg_deal:,.0f} so'm\n".replace(",", " ")
-
-        # Overall
-        report += f"\n🔄 <b>UMUMIY CONVERSIYA:</b> {overall_conversion:.1f}%"
-        report += f"\n   ({total_leads} lid → {closer_won} won)"
-
-        # Insights
-        report += "\n\n💡 <b>TAVSIYALAR:</b>\n"
-        if hunter_stagnated > 0:
-            report += f"   ⚠️ HUNTER'da {hunter_stagnated} ta lid 3+ kun harakatsiz — qayta ishlang\n"
+        report = "SALES PIPELINE FUNNEL\n"
+        report += f"Oxirgi {days} kun ({datetime.now().strftime('%d.%m.%Y')})\n"
+        report += "-" * 30 + "\n"
+        report += "\nSALES Pipeline\n"
+        report += f"   Jami: {total} ta lid\n"
+        report += f"   Aktiv: {active}\n"
+        report += f"   Won: {won} ({revenue:,.0f} so'm)\n".replace(",", " ")
+        report += f"   Lost: {lost}\n"
+        if stagnated > 0:
+            report += f"   Stagnatsiya (3+ kun): {stagnated}\n"
+        report += f"\n   Win Rate (SALES): {win_rate:.0f}%\n"
+        report += "\n" + "-" * 30
+        report += f"\nHAFTALIK NATIJALAR ({days} kun):\n"
+        report += f"   Yopilgan: {won_week} ta bitim\n"
+        report += f"   Tushum: {revenue_week:,.0f} so'm\n".replace(",", " ")
+        report += f"   O'rtacha bitim: {avg_deal:,.0f} so'm\n".replace(",", " ")
+        report += f"\nUMUMIY CONVERSIYA: {win_rate:.1f}%"
+        report += f"\n   ({total} lid -> {won} won)"
+        report += "\n\nTAVSIYALAR:\n"
+        if stagnated > 0:
+            report += f"   SALES'da {stagnated} ta lid 3+ kun harakatsiz - qayta ishlang\n"
         if win_rate < 30:
-            report += f"   📉 Win Rate past ({win_rate:.0f}%) — CLOSER bosqichida tayyorgarlik yaxshilang\n"
-        if hunter_lost > hunter_active:
-            report += "   🚫 HUNTER'da ko'p lid yo'qolmoqda — kvalifikatsiya sifatini oshiring\n"
-        if closer_won_week == 0:
-            report += "   🔴 Bu hafta 0 ta bitim yopilgan — URGENT harakatlar kerak!\n"
+            report += f"   Win Rate past ({win_rate:.0f}%) - Sales bosqichlarini tekshiring\n"
+        if lost > active:
+            report += "   SALES'da ko'p lid yo'qolmoqda - kvalifikatsiya sifatini oshiring\n"
+        if won_week == 0:
+            report += "   Bu hafta 0 ta bitim yopilgan - urgent harakatlar kerak!\n"
         if win_rate >= 50:
-            report += f"   🌟 Win Rate yuqori ({win_rate:.0f}%) — ajoyib natija!\n"
-
+            report += f"   Win Rate yuqori ({win_rate:.0f}%) - ajoyib natija!\n"
         return report
-
-    # ═══════════════════════════════════════════════════════════════
-    # 4. HELPER — Telegram'ga yuborish
-    # ═══════════════════════════════════════════════════════════════
-
     async def send_scorecard(self, chat_id: int, thread_id: int = None):
         """Menejer Scorecard'ni Telegram'ga yuborish."""
         report = self.generate_manager_scorecard()
@@ -490,3 +424,4 @@ class SalesAnalytics:
                 text=clean,
                 thread_id=thread_id,
             )
+

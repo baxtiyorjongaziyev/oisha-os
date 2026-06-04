@@ -53,6 +53,7 @@ from src.services.core.case_publisher import CasePublisher
 from src.services.core.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
+from src.services.core.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
 
 # Global Managers
 folder_manager: Optional[FolderManager] = None
@@ -2898,10 +2899,8 @@ async def main():
     async def crm_discipline_loop():
         while True:
             try:
-                # 10117998 - Hunter Pipeline ID
-                await crm_guard.check_discipline(pipeline_id=10117998)
-                # 10123314 - Closer Pipeline ID
-                await crm_guard.check_discipline(pipeline_id=10123314)
+                await crm_guard.check_discipline(pipeline_id=SALES_PIPELINE_ID)
+                await crm_guard.check_discipline(pipeline_id=FARMER_PIPELINE_ID)
             except Exception as e:
                 logger.error(f"[CRM_GUARD_LOOP] Error: {e}")
             await asyncio.sleep(7200)  # 2 hours
