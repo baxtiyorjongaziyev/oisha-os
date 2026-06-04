@@ -180,6 +180,11 @@ class MessageController:
             crm_status = "🤖 Agent (Bot-to-Bot)"
             logger.info(f"👸 [BOT-TO-BOT] Autonomous negotiation detected with uid: {user_id}")
 
+        # Team group mode — inject internal context into all agents
+        if context.get("is_team_group"):
+            crm_status = f"[JAMOA GURUH] {context.get('chat_title', 'Internal')} | {user_name}"
+            logger.info(f"[TEAM GROUP] Request from team member {user_name} in {context.get('chat_title')}")
+
         context["crm_status"] = crm_status
         context["user_name"] = user_name
         context["phone"] = phone
@@ -220,6 +225,28 @@ class MessageController:
         agent_id = await self.orchestrator.determine_intent(
             message, history=history_str
         )
+
+        # Team group: inject internal-mode note and smart silence logic
+        if context.get("is_team_group"):
+            agent = self.agent_manager.get_agent(agent_id)
+            if agent:
+                _team_note = (
+                    "\n\n[ICHKI REJIM — JAMOA GURUHI]"
+                    "\nSen hozir Jon Branding jamoasi guruhida har bir xabarni kuzatyapsan."
+                    "\nFAQAT quyidagi hollarda javob ber:"
+                    "\n  • Senga savol berilgan yoki ma'lumot so'ralgan"
+                    "\n  • Raqam, sana, miqdor, holat haqida so'rov bor"
+                    "\n  • Amaliy yordam kerak (topshiriq, deadline, nima qilish kerak)"
+                    "\nQuyidagi hollarda HECH NARSA YOZMA (bo'sh satr qaytariladi):"
+                    "\n  • Oddiy salomlashish yoki gap ('ha', 'ok', 'yaxshi', emoji)"
+                    "\n  • Jamoa ichki munozarasi (Oishadan savoal yo'q)"
+                    "\n  • Xabar faqat boshqa birovga qaratilgan"
+                    "\nJavob berayotganda — real ma'lumotlar: search_crm_leads, "
+                    "get_airtable_projects, get_today_stats toollarini ishlatib faktlarga asoslan."
+                    "\nJavob qisqa va aniq bo'lsin."
+                )
+                agent.system_prompt += _team_note
+                context["_team_prompt_injected"] = True
 
         # 5. Agent orqali javob olish (kontekst + assessment bilan birga)
         response = await self.orchestrator.get_agent_response(
