@@ -27,27 +27,27 @@ class DesiredStatus:
 
 SALES_STATUSES: tuple[DesiredStatus, ...] = (
     DesiredStatus("Yangi so'rov", 20, "#fffeb2", 80178230),
-    DesiredStatus("Birinchi kontakt qilindi", 30, "#deff81", 86076798),
-    DesiredStatus("Bog'lanib bo'lmadi", 40, "#f99ea3", 80178226),
-    DesiredStatus("Muloqot boshlandi", 50, "#ffeab2", 80178222),
-    DesiredStatus("Sifatli lead", 60, "#87f2c0", 86076802),
-    DesiredStatus("Uchrashuv belgilandi", 70, "#ccff66", 80178218),
-    DesiredStatus("Konsultatsiya o'tdi", 80, "#ebffb1"),
-    DesiredStatus("Brief / Ehtiyoj aniqlandi", 90, "#f2f3f4"),
-    DesiredStatus("Prezentatsiya & KP", 100, "#ffca86"),
-    DesiredStatus("Follow-up / Qaror kutilyapti", 110, "#fffd7f"),
-    DesiredStatus("Muzokara / Shartnoma", 120, "#fbc8d3"),
-    DesiredStatus(SALES_ADVANCE_STATUS_NAME, 130, "#a1eec1"),
+    DesiredStatus("Birinchi kontakt qilindi", 30, "#fffeb2", 86076798),
+    DesiredStatus("Bog'lanib bo'lmadi", 40, "#fffeb2", 80178226),
+    DesiredStatus("Muloqot boshlandi", 50, "#fffeb2", 80178222),
+    DesiredStatus("Sifatli lead", 60, "#fffeb2", 86076802),
+    DesiredStatus("Uchrashuv belgilandi", 70, "#fffeb2", 80178218),
+    DesiredStatus("Konsultatsiya o'tdi", 80, "#99ccff"),
+    DesiredStatus("Brief / Ehtiyoj aniqlandi", 90, "#fffeb2"),
+    DesiredStatus("Prezentatsiya & KP", 100, "#ffff99"),
+    DesiredStatus("Follow-up / Qaror kutilyapti", 110, "#fffeb2"),
+    DesiredStatus("Muzokara / Shartnoma", 120, "#99ccff"),
+    DesiredStatus(SALES_ADVANCE_STATUS_NAME, 130, "#99ccff"),
 )
 
 FARMER_STATUSES: tuple[DesiredStatus, ...] = (
-    DesiredStatus(FARMER_START_STATUS_NAME, 20, "#fffeb2", 80215334),
-    DesiredStatus("Ish jarayonida", 30, "#deff81", 80215338),
-    DesiredStatus("Taqdimot & Pravkalar", 40, "#ffca86", 80215342),
-    DesiredStatus("Topshirishga tayyor", 50, "#ebffb1", 80215438),
-    DesiredStatus(FARMER_FINAL_PAYMENT_PENDING_STATUS_NAME, 60, "#fffd7f"),
-    DesiredStatus(FARMER_FINAL_PAYMENT_RECEIVED_STATUS_NAME, 70, "#a1eec1"),
-    DesiredStatus(FARMER_REVIEW_STATUS_NAME, 80, "#87f2c0", 86076834),
+    DesiredStatus(FARMER_START_STATUS_NAME, 20, "#99ccff", 80215334),
+    DesiredStatus("Ish jarayonida", 30, "#ffff99", 80215338),
+    DesiredStatus("Taqdimot & Pravkalar", 40, "#ffcc66", 80215342),
+    DesiredStatus("Topshirishga tayyor", 50, "#99ccff", 80215438),
+    DesiredStatus(FARMER_FINAL_PAYMENT_PENDING_STATUS_NAME, 60, "#fffeb2"),
+    DesiredStatus(FARMER_FINAL_PAYMENT_RECEIVED_STATUS_NAME, 70, "#99ccff"),
+    DesiredStatus(FARMER_REVIEW_STATUS_NAME, 80, "#fffeb2", 86076834),
 )
 
 CLOSER_TO_SALES_STATUS_NAME = {

@@ -190,7 +190,7 @@ class AmoCRMSalesFarmerMigration:
 
         for status in desired:
             existing = by_id.get(status.existing_id or -1) or by_name.get(_norm(status.name))
-            payload = {"name": status.name, "sort": status.sort, "color": status.color}
+            payload = {"name": status.name, "sort": status.sort}
             if existing:
                 status_ids[status.name] = int(existing["id"])
                 if (
@@ -215,13 +215,20 @@ class AmoCRMSalesFarmerMigration:
                 statuses=updates,
             )
             if self.live:
-                response = self.request(
-                    "PATCH",
-                    f"/api/v4/leads/pipelines/{int(pipeline['id'])}/statuses",
-                    json_payload=updates,
-                )
-                if response.status_code not in {200, 202}:
-                    self.record_error("statuses_update", response, pipeline_id=pipeline.get("id"))
+                for update in updates:
+                    status_id = int(update["id"])
+                    response = self.request(
+                        "PATCH",
+                        f"/api/v4/leads/pipelines/{int(pipeline['id'])}/statuses/{status_id}",
+                        json_payload={key: value for key, value in update.items() if key != "id"},
+                    )
+                    if response.status_code not in {200, 202}:
+                        self.record_error(
+                            "status_update",
+                            response,
+                            pipeline_id=pipeline.get("id"),
+                            status_id=status_id,
+                        )
 
         if creates:
             self.record(
@@ -447,6 +454,10 @@ class AmoCRMSalesFarmerMigration:
 
 
 def main() -> None:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
     parser = argparse.ArgumentParser(description="Merge Hunter/Closer into Sales and configure Farmer final-payment flow.")
     parser.add_argument("--live", action="store_true", help="Apply changes to amoCRM.")
     parser.add_argument("--confirm", default="", help=f"Required for --live: {CONFIRM_TEXT}")
