@@ -22,6 +22,7 @@ from src.services.core.tool_adapters import (
 from src.services.core.persona_hub import get_persona
 from src.services.core.gdrive import GoogleDriveSync
 from src.services.core.crm_file_offloader import CRMFileOffloader
+from src.services.core.amocrm_pipeline_config import LEGACY_CLOSER_PIPELINE_ID
 from src.settings import settings
 from telegram import Bot
 
@@ -152,7 +153,7 @@ def _sales_action_for_lead(lead: Dict[str, Any]) -> str:
 
     if idle_hours >= 72:
         return "bugun qo'ng'iroq qiling, e'tirozni yozing va keyingi qaror sanasini CRMga kiriting"
-    if pipeline_id == 10123314:
+    if pipeline_id == LEGACY_CLOSER_PIPELINE_ID:
         if price >= 10_000_000:
             return "qaror beruvchi va narx e'tirozini yopadigan taklif yuboring"
         return "yakunlovchi follow-up yuborib, meeting yoki to'lov sanasini aniq mahkamlang"

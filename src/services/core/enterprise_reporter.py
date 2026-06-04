@@ -6,6 +6,10 @@ import requests
 from typing import Dict, Any, List, Set
 from src.database import Database
 from src.services.core.crm_service import CRMService
+from src.services.core.amocrm_pipeline_config import (
+    LEGACY_CLOSER_PIPELINE_ID,
+    SALES_PIPELINE_ID,
+)
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
@@ -21,8 +25,8 @@ class EnterpriseReporter:
         # Standart statuslar (AmoCRM defaults)
         self.WON_STATUS = 142
         self.LOST_STATUS = 143
-        self.HUNTER_PIPELINE_ID = 10117998
-        self.CLOSER_PIPELINE_ID = 10123314
+        self.HUNTER_PIPELINE_ID = SALES_PIPELINE_ID
+        self.CLOSER_PIPELINE_ID = LEGACY_CLOSER_PIPELINE_ID
 
     async def get_daily_efficiency_report(self):
         """Kunlik hisobot: faqat bugungi o'zgarishlar va umumiy holat."""
