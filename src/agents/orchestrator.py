@@ -55,10 +55,13 @@ class AgentOrchestrator:
         13. 'anniversary' - 1 oy/3 oy/6 oy/1 yil tabrik xabarlari
         14. 'upsell' - Keyingi xizmat taklifi, cross-sell
 
+        NAZORAT:
+        15. 'checklist' - Mijoz cheklisti ko'rish/belgilash, kechikkanlar, menejer ball/reyting
+
         BOSHQALAR:
-        15. 'support' - FAQ, texnik yordam
-        16. 'strategist' - Loyiha reja, uzoq muddatli strategiya
-        17. 'researcher' - Chuqur bozor tadqiqoti, OSINT
+        16. 'support' - FAQ, texnik yordam
+        17. 'strategist' - Loyiha reja, uzoq muddatli strategiya
+        18. 'researcher' - Chuqur bozor tadqiqoti, OSINT
 
         FOYDALANUVCHI XABARI: "{user_message}"
         SUHBAT TARIXI: {history or "Yo'q"}
@@ -82,7 +85,7 @@ class AgentOrchestrator:
                 "copywriter", "finance", "ops",
                 "brief", "welcome", "project_update", "presentation",
                 "feedback", "referral", "anniversary", "upsell",
-                "branding_advisor", "competitor_watch",
+                "branding_advisor", "competitor_watch", "checklist",
             }
             if intent in _all_agents:
                 return intent
@@ -111,7 +114,7 @@ class AgentOrchestrator:
                             "copywriter", "finance", "ops", "brief", "welcome",
                             "project_update", "presentation", "feedback",
                             "referral", "anniversary", "upsell",
-                            "branding_advisor", "competitor_watch",
+                            "branding_advisor", "competitor_watch", "checklist",
                         ]:
                             if possible in intent:
                                 return possible
@@ -123,6 +126,8 @@ class AgentOrchestrator:
     def _route_intent_fallback(self, user_message: str) -> str:
         """Zaxira (fallback) keyword-based routing."""
         msg = user_message.lower()
+        if any(w in msg for w in ["cheklisti", "checklist", "bajarildi", "overdue", "kechikkan", "menejer ball", "reyting"]):
+            return "checklist"
         if any(w in msg for w in ["brief", "loyiha ma'lumot", "nima yarattirasiz", "yangi loyiha"]):
             return "brief"
         if any(w in msg for w in ["xush kelibsiz", "yangi mijoz", "onboarding", "birinchi marta"]):
