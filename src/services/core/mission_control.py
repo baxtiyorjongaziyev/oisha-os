@@ -8,6 +8,11 @@ from src.database import Database
 from .amocrm_sync import AmoCRMSync
 from src.settings import settings
 from src.agents.negotiation_engine import NegotiationEngine
+from src.services.core.amocrm_pipeline_config import (
+    FARMER_PIPELINE_ID as CONFIG_FARMER_PIPELINE_ID,
+    LEGACY_CLOSER_PIPELINE_ID,
+    SALES_PIPELINE_ID,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +23,9 @@ class MissionControlFetchError(RuntimeError):
 
 class MissionControl:
     # Pipeline Constants
-    HUNTER_PIPELINE_ID = 10117998
-    CLOSER_PIPELINE_ID = 10123314
-    FARMER_PIPELINE_ID = 10123318
+    HUNTER_PIPELINE_ID = SALES_PIPELINE_ID
+    CLOSER_PIPELINE_ID = LEGACY_CLOSER_PIPELINE_ID
+    FARMER_PIPELINE_ID = CONFIG_FARMER_PIPELINE_ID
 
     def __init__(self, db=None):
         self.amo = AmoCRMSync(
@@ -40,12 +45,12 @@ class MissionControl:
     def get_pipeline_role(self, pipeline_id: int) -> str:
         """Pipeline ID ga qarab rolni aniqlash."""
         if pipeline_id == self.HUNTER_PIPELINE_ID:
-            return "HUNTER"
+            return "SALES"
         if pipeline_id == self.CLOSER_PIPELINE_ID:
-            return "SETTER"  # Oisha-OS terminologiyasida Setter/Closer ekvivalent
+            return "SALES_LEGACY"
         if pipeline_id == self.FARMER_PIPELINE_ID:
             return "FARMER"
-        return "HUNTER"  # Default
+        return "SALES"  # Default
 
     def _fetch_pipeline_leads_sync(self, pipeline_name, pipeline_id):
         """Bitta pipeline uchun leadlarni olib kelish, kerak bo'lsa tokenni yangilash."""
