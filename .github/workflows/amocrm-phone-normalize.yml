@@ -1,0 +1,103 @@
+name: AmoCRM Phone Normalize
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run or live"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - live
+
+concurrency:
+  group: amocrm-phone-normalize
+  cancel-in-progress: false
+
+jobs:
+  normalize:
+    name: Normalize deal contact phones on Oracle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run phone normalization
+        uses: appleboy/ssh-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AMOCRM_CLIENT_ID: ${{ secrets.AMOCRM_CLIENT_ID }}
+          AMOCRM_CLIENT_SECRET: ${{ secrets.AMOCRM_CLIENT_SECRET }}
+          AMOCRM_REDIRECT_URL: ${{ secrets.AMOCRM_REDIRECT_URL }}
+          AMOCRM_TOKEN_JSON: ${{ secrets.AMOCRM_TOKEN_JSON }}
+          AMOCRM_REFRESH_TOKEN: ${{ secrets.AMOCRM_REFRESH_TOKEN }}
+          MODE: ${{ inputs.mode }}
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 12m
+          envs: GITHUB_TOKEN,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,AMOCRM_REDIRECT_URL,AMOCRM_TOKEN_JSON,AMOCRM_REFRESH_TOKEN,MODE
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/oisha-os
+
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+            git fetch origin main
+            git reset --hard origin/main
+
+            mkdir -p data
+            if [ -n "${AMOCRM_TOKEN_JSON:-}" ]; then
+              printf '%s' "$AMOCRM_TOKEN_JSON" > data/amocrm_token.json
+            fi
+
+            cat > .env <<ENVFILE
+            AMOCRM_SUBDOMAIN=jonbrandingagency
+            AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID}
+            AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET}
+            AMOCRM_REDIRECT_URL=${AMOCRM_REDIRECT_URL}
+            AMOCRM_REFRESH_TOKEN=${AMOCRM_REFRESH_TOKEN}
+            ENVFILE
+            sed -i 's/^            //' .env
+
+            if [ "${MODE}" = "live" ]; then
+              ./venv/bin/python - <<'PY'
+            from collections import Counter
+            from scripts.amocrm_normalize_deal_phones import AmoCRMDealPhoneNormalizer, CONFIRM_TEXT
+
+            normalizer = AmoCRMDealPhoneNormalizer(live=True, confirm=CONFIRM_TEXT)
+            result = normalizer.run()
+            counts = Counter(action["action"] for action in result["actions"])
+            print({
+                "success": result["success"],
+                "live": result["live"],
+                "checked_leads": result["checked_leads"],
+                "checked_contacts": result["checked_contacts"],
+                "errors_count": result["errors_count"],
+                "action_counts": dict(counts),
+                "backup_path": result["backup_path"],
+                "error_kinds": Counter(error.get("status_code") for error in result["errors"]),
+            })
+            raise SystemExit(0 if result["success"] else 1)
+            PY
+            else
+              ./venv/bin/python - <<'PY'
+            from collections import Counter
+            from scripts.amocrm_normalize_deal_phones import AmoCRMDealPhoneNormalizer
+
+            normalizer = AmoCRMDealPhoneNormalizer(live=False)
+            result = normalizer.run()
+            counts = Counter(action["action"] for action in result["actions"])
+            print({
+                "success": result["success"],
+                "live": result["live"],
+                "checked_leads": result["checked_leads"],
+                "checked_contacts": result["checked_contacts"],
+                "errors_count": result["errors_count"],
+                "action_counts": dict(counts),
+            })
+            raise SystemExit(0 if result["success"] else 1)
+            PY
+            fi
