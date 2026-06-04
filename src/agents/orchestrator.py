@@ -31,20 +31,39 @@ class AgentOrchestrator:
 
         prompt = f"""
         Siz "JonBranding" agentligining "Dispatcher" (Router) botisiz.
-        Vazifangiz - foydalanuvchi xabarini tahlil qilib, uni quyidagi 7 ta agentdan biriga yo'naltirish:
+        Vazifangiz - foydalanuvchi xabarini tahlil qilib, quyidagi agentlardan biriga yo'naltirish:
 
-        1. 'sales' - Narxlar, xizmatlar, buyurtma berish, shartnoma, mijoz muloqoti. Standart holda ishlatiladi.
-        2. 'support' - FAQ, texnik muammolar, umumiy yordam.
-        3. 'strategist' - Loyiha holati, reja, strategiya (mavjud mijozlar uchun).
-        4. 'researcher' - Faqat chuqur bozor tahlili, OSINT yoki raqobatchilarni o'rganish so'ralganda.
-        5. 'copywriter' - Instagram post, caption, reels hook, reklama matni, kontent-reja, SMM, email matn yozish so'ralganda.
-        6. 'finance' - Hisob-faktura, to'lov holati, kim qarzli, byudjet, daromad-xarajat, moliyaviy hisobot so'ralganda.
-        7. 'ops' - Topshiriq berish, deadline, SOP, ish tartibi, jarayonni tushuntirish, jamoa boshqaruvi so'ralganda.
+        SAVDO VA MIJOZ:
+        1. 'sales' - Narx, xizmat, buyurtma, shartnoma, umumiy mijoz muloqoti
+        2. 'brief' - Yangi loyiha uchun brief to'ldirish, loyiha ma'lumotlarini yig'ish
+        3. 'welcome' - Yangi mijozni kutib olish, agentlik jarayonini tushuntirish
+
+        LOYIHA JARAYONI:
+        4. 'project_update' - Loyiha holati, progress, nima bajarildi, keyingi bosqich
+        5. 'presentation' - Dizayn/brend taqdimot matni, konsepsiya tushuntirish
+        6. 'ops' - Topshiriq, deadline, SOP, jamoa boshqaruvi
+
+        KONTENT VA STRATEGIYA:
+        7. 'copywriter' - Post, caption, reklama matni, SMM kontent-reja, email matn
+        8. 'branding_advisor' - Brend strategiyasi, pozitsionlash, brand identity maslahat
+        9. 'competitor_watch' - Raqobatchi tahlili, bozor o'rganish
+
+        MOLIYA VA RETENTION:
+        10. 'finance' - Invoice, to'lov, byudjet, moliyaviy hisobot
+        11. 'feedback' - NPS, mijoz fikri, testimonial so'rash
+        12. 'referral' - Referral dasturi, do'st tavsiya, chegirma taklif
+        13. 'anniversary' - 1 oy/3 oy/6 oy/1 yil tabrik xabarlari
+        14. 'upsell' - Keyingi xizmat taklifi, cross-sell
+
+        BOSHQALAR:
+        15. 'support' - FAQ, texnik yordam
+        16. 'strategist' - Loyiha reja, uzoq muddatli strategiya
+        17. 'researcher' - Chuqur bozor tadqiqoti, OSINT
 
         FOYDALANUVCHI XABARI: "{user_message}"
-        SUHBAT TARIXI (AGAR BO'LSA): {history or "Yo'q"}
+        SUHBAT TARIXI: {history or "Yo'q"}
 
-        FAQAT agent_id ni qaytaring (sales/support/strategist/researcher/copywriter/finance/ops). Hech qanday qo'shimcha so'z yozmang.
+        FAQAT agent_id ni qaytaring. Hech qanday qo'shimcha so'z yozmang.
         """
 
         try:
@@ -58,7 +77,14 @@ class AgentOrchestrator:
                 log_prefix="[ORCHESTRATOR]",
             )
             intent = response.text.strip().lower()
-            if intent in ["sales", "support", "strategist", "researcher", "copywriter", "finance", "ops"]:
+            _all_agents = {
+                "sales", "support", "strategist", "researcher",
+                "copywriter", "finance", "ops",
+                "brief", "welcome", "project_update", "presentation",
+                "feedback", "referral", "anniversary", "upsell",
+                "branding_advisor", "competitor_watch",
+            }
+            if intent in _all_agents:
                 return intent
         except Exception as e:
             from src.services.utils.gemini_fallback import is_quota_error
@@ -80,7 +106,13 @@ class AgentOrchestrator:
                     if reply:
                         intent = reply.strip().lower()
                         # Extract intent if Claude adds fluff
-                        for possible in ["sales", "support", "strategist", "researcher", "copywriter", "finance", "ops"]:
+                        for possible in [
+                            "sales", "support", "strategist", "researcher",
+                            "copywriter", "finance", "ops", "brief", "welcome",
+                            "project_update", "presentation", "feedback",
+                            "referral", "anniversary", "upsell",
+                            "branding_advisor", "competitor_watch",
+                        ]:
                             if possible in intent:
                                 return possible
                 except Exception as b_err:
@@ -91,17 +123,37 @@ class AgentOrchestrator:
     def _route_intent_fallback(self, user_message: str) -> str:
         """Zaxira (fallback) keyword-based routing."""
         msg = user_message.lower()
-        if any(w in msg for w in ["post yoz", "caption", "reklama matn", "hook", "smm", "kontent", "instagram", "reels", "kopirayt"]):
+        if any(w in msg for w in ["brief", "loyiha ma'lumot", "nima yarattirasiz", "yangi loyiha"]):
+            return "brief"
+        if any(w in msg for w in ["xush kelibsiz", "yangi mijoz", "onboarding", "birinchi marta"]):
+            return "welcome"
+        if any(w in msg for w in ["loyiha holat", "progress", "nima bajarildi", "qayerda"]):
+            return "project_update"
+        if any(w in msg for w in ["taqdimot", "presentation", "tushuntir", "konsepsiya"]):
+            return "presentation"
+        if any(w in msg for w in ["fikr", "baho", "nps", "testimonial", "mamnun", "rizo"]):
+            return "feedback"
+        if any(w in msg for w in ["referral", "do'st", "tavsiya", "yo'naltir"]):
+            return "referral"
+        if any(w in msg for w in ["1 oy", "6 oy", "1 yil", "bayram", "yillik", "sana"]):
+            return "anniversary"
+        if any(w in msg for w in ["keyingi xizmat", "yana nima", "qo'shimcha", "upsell", "brendbuk"]):
+            return "upsell"
+        if any(w in msg for w in ["brend strategiya", "pozitsion", "brand identity", "brend maslahat"]):
+            return "branding_advisor"
+        if any(w in msg for w in ["raqobatchi", "competitor", "bozor o'rgan", "raqobat tahlil"]):
+            return "competitor_watch"
+        if any(w in msg for w in ["post yoz", "caption", "reklama matn", "hook", "smm", "kontent", "instagram", "reels"]):
             return "copywriter"
-        if any(w in msg for w in ["invoice", "hisob-faktura", "to'lov", "qarz", "byudjet", "daromad", "xarajat", "moliya"]):
+        if any(w in msg for w in ["invoice", "hisob-faktura", "to'lov", "qarz", "byudjet", "daromad", "xarajat"]):
             return "finance"
-        if any(w in msg for w in ["topshiriq", "deadline", "sop", "jarayon", "mas'ul", "vazifa", "ish tartibi"]):
+        if any(w in msg for w in ["topshiriq", "deadline", "sop", "mas'ul", "vazifa", "ish tartibi"]):
             return "ops"
         if any(w in msg for w in ["narx", "qancha", "buyurtma", "xizmat"]):
             return "sales"
         if any(w in msg for w in ["reja", "strategiya", "loyiha", "holat"]):
             return "strategist"
-        if any(w in msg for w in ["tadqiqot", "tahlil", "bozor", "raqobatchi"]):
+        if any(w in msg for w in ["tadqiqot", "tahlil", "bozor", "osint"]):
             return "researcher"
         return "sales"
 
