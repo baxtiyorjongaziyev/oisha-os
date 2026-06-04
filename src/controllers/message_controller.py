@@ -25,6 +25,7 @@ from src.agents.anniversary_agent import AnniversaryAgent
 from src.agents.upsell_agent import UpsellAgent
 from src.agents.branding_advisor_agent import BrandingAdvisorAgent
 from src.agents.competitor_watch_agent import CompetitorWatchAgent
+from src.agents.checklist_agent import ChecklistAgent
 from src.agents.orchestrator import AgentOrchestrator
 from src.agents.negotiation_engine import NegotiationEngine
 from src.agents.feedback_memory import FeedbackMemory
@@ -114,6 +115,7 @@ class MessageController:
         from src.agents.upsell_agent import UPSELL_SUFFIX
         from src.agents.branding_advisor_agent import BRANDING_ADVISOR_SUFFIX
         from src.agents.competitor_watch_agent import COMPETITOR_WATCH_SUFFIX
+        from src.agents.checklist_agent import CHECKLIST_SUFFIX
 
         _new_agents = [
             ("copywriter",       CopywriterAgent,       COPYWRITER_SUFFIX),
@@ -129,6 +131,7 @@ class MessageController:
             ("upsell",           UpsellAgent,            UPSELL_SUFFIX),
             ("branding_advisor", BrandingAdvisorAgent,   BRANDING_ADVISOR_SUFFIX),
             ("competitor_watch", CompetitorWatchAgent,   COMPETITOR_WATCH_SUFFIX),
+            ("checklist",        ChecklistAgent,          CHECKLIST_SUFFIX),
         ]
         for agent_id, AgentClass, suffix in _new_agents:
             self.agent_manager.register_agent(
