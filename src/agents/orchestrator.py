@@ -30,18 +30,21 @@ class AgentOrchestrator:
             return self._route_intent_fallback(user_message)
 
         prompt = f"""
-        Siz "JonBranding" agentligining "Dispatcher" (Router) botisiz. 
-        Vazifangiz - foydalanuvchi xabarini tahlil qilib, uni quyidagi 4 ta agentdan biriga yo'naltirish:
-        
-        1. 'sales' - Narxlar, xizmatlar, buyurtma berish, to'lov, shartnoma haqidagi savollar. Umuman, asosiy muloqot uchun foydalaniladi.
+        Siz "JonBranding" agentligining "Dispatcher" (Router) botisiz.
+        Vazifangiz - foydalanuvchi xabarini tahlil qilib, uni quyidagi 7 ta agentdan biriga yo'naltirish:
+
+        1. 'sales' - Narxlar, xizmatlar, buyurtma berish, shartnoma, mijoz muloqoti. Standart holda ishlatiladi.
         2. 'support' - FAQ, texnik muammolar, umumiy yordam.
         3. 'strategist' - Loyiha holati, reja, strategiya (mavjud mijozlar uchun).
-        4. 'researcher' - Faqat chuqur bozor tahlili, OSINT yoki raqobatchilarni o'rganish so'ralganda. (Oddiy savollarga ishlatmang).
+        4. 'researcher' - Faqat chuqur bozor tahlili, OSINT yoki raqobatchilarni o'rganish so'ralganda.
+        5. 'copywriter' - Instagram post, caption, reels hook, reklama matni, kontent-reja, SMM, email matn yozish so'ralganda.
+        6. 'finance' - Hisob-faktura, to'lov holati, kim qarzli, byudjet, daromad-xarajat, moliyaviy hisobot so'ralganda.
+        7. 'ops' - Topshiriq berish, deadline, SOP, ish tartibi, jarayonni tushuntirish, jamoa boshqaruvi so'ralganda.
 
         FOYDALANUVCHI XABARI: "{user_message}"
         SUHBAT TARIXI (AGAR BO'LSA): {history or "Yo'q"}
 
-        FAQAT agent_id ni qaytaring (sales/support/strategist/researcher). Hech qanday qo'shimcha so'z yozmang.
+        FAQAT agent_id ni qaytaring (sales/support/strategist/researcher/copywriter/finance/ops). Hech qanday qo'shimcha so'z yozmang.
         """
 
         try:
@@ -55,7 +58,7 @@ class AgentOrchestrator:
                 log_prefix="[ORCHESTRATOR]",
             )
             intent = response.text.strip().lower()
-            if intent in ["sales", "support", "strategist", "researcher"]:
+            if intent in ["sales", "support", "strategist", "researcher", "copywriter", "finance", "ops"]:
                 return intent
         except Exception as e:
             from src.services.utils.gemini_fallback import is_quota_error
@@ -77,7 +80,7 @@ class AgentOrchestrator:
                     if reply:
                         intent = reply.strip().lower()
                         # Extract intent if Claude adds fluff
-                        for possible in ["sales", "support", "strategist", "researcher"]:
+                        for possible in ["sales", "support", "strategist", "researcher", "copywriter", "finance", "ops"]:
                             if possible in intent:
                                 return possible
                 except Exception as b_err:
@@ -88,11 +91,17 @@ class AgentOrchestrator:
     def _route_intent_fallback(self, user_message: str) -> str:
         """Zaxira (fallback) keyword-based routing."""
         msg = user_message.lower()
-        if any(word in msg for word in ["narx", "qancha", "buyurtma", "xizmat"]):
+        if any(w in msg for w in ["post yoz", "caption", "reklama matn", "hook", "smm", "kontent", "instagram", "reels", "kopirayt"]):
+            return "copywriter"
+        if any(w in msg for w in ["invoice", "hisob-faktura", "to'lov", "qarz", "byudjet", "daromad", "xarajat", "moliya"]):
+            return "finance"
+        if any(w in msg for w in ["topshiriq", "deadline", "sop", "jarayon", "mas'ul", "vazifa", "ish tartibi"]):
+            return "ops"
+        if any(w in msg for w in ["narx", "qancha", "buyurtma", "xizmat"]):
             return "sales"
-        if any(word in msg for word in ["reja", "strategiya", "loyiha", "holat"]):
+        if any(w in msg for w in ["reja", "strategiya", "loyiha", "holat"]):
             return "strategist"
-        if any(word in msg for word in ["tadqiqot", "tahlil", "bozor", "raqobatchi"]):
+        if any(w in msg for w in ["tadqiqot", "tahlil", "bozor", "raqobatchi"]):
             return "researcher"
         return "sales"
 
