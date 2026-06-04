@@ -21,6 +21,7 @@ class QualityMetric(Enum):
     TONE = "tone"  # Ohang
     ACTIVE_LISTENING = "active_listening"  # Faql eshitish
     QUESTION_QUALITY = "question_quality"  # Savollar sifati
+    TALK_RATIO = "talk_ratio"  # Mijoz/sotuvchi gapirish nisbati
 
 
 @dataclass
@@ -54,6 +55,10 @@ class ConversationAnalysis:
     summary: str = ""
     strengths: List[str] = field(default_factory=list)
     weaknesses: List[str] = field(default_factory=list)
+
+    # Gapirish nisbati
+    talk_ratio_client: int = 0  # Mijoz gapirish ulushi (%)
+    talk_ratio_agent: int = 0   # Sotuvchi gapirish ulushi (%)
 
     # Mijoz bilan bog'liq
     client_mood: str = ""  # "positive", "neutral", "negative"
@@ -94,6 +99,8 @@ class ConversationAnalysis:
             "summary": self.summary,
             "strengths": self.strengths,
             "weaknesses": self.weaknesses,
+            "talk_ratio_client": self.talk_ratio_client,
+            "talk_ratio_agent": self.talk_ratio_agent,
             "client_mood": self.client_mood,
             "client_interest_level": self.client_interest_level,
             "objections_raised": self.objections_raised,
@@ -123,10 +130,11 @@ class QualityAnalyzer:
         QualityMetric.VALUE_PROPOSITION: 0.15,
         QualityMetric.OBJECTION_HANDLING: 0.15,
         QualityMetric.CLOSING: 0.15,
-        QualityMetric.FOLLOW_UP: 0.10,
-        QualityMetric.TONE: 0.10,
+        QualityMetric.FOLLOW_UP: 0.05,
+        QualityMetric.TONE: 0.05,
         QualityMetric.ACTIVE_LISTENING: 0.05,
         QualityMetric.QUESTION_QUALITY: 0.05,
+        QualityMetric.TALK_RATIO: 0.10,
     }
 
     def __init__(self, openai_api_key: Optional[str] = None):
@@ -140,6 +148,28 @@ class QualityAnalyzer:
         total = sum(self.weights.values())
         if total > 0:
             self.weights = {k: v / total for k, v in self.weights.items()}
+
+    @staticmethod
+    def _compute_talk_ratio(text: str) -> tuple[int, int]:
+        """Return (client_pct, agent_pct) from a labelled transcript."""
+        import re
+        _client = re.compile(r"^(mijoz|xaridor|client)\s*:", re.IGNORECASE)
+        _agent = re.compile(r"^(sotuvchi|menejer|manager|agent|xodim|oisha)\s*:", re.IGNORECASE)
+        client_chars = agent_chars = 0
+        for line in (text or "").splitlines():
+            line = line.strip()
+            colon = line.find(":")
+            if colon < 1:
+                continue
+            label, content = line[:colon].strip(), line[colon + 1:].strip()
+            if _client.match(label + ":"):
+                client_chars += len(content)
+            elif _agent.match(label + ":"):
+                agent_chars += len(content)
+        total = client_chars + agent_chars
+        if total == 0:
+            return 0, 0
+        return round(client_chars * 100 / total), round(agent_chars * 100 / total)
 
     def analyze_conversation(
         self,
@@ -165,8 +195,20 @@ class QualityAnalyzer:
             ConversationAnalysis: Tahlil natijalari
         """
         try:
+            # Gapirish nisbatini hisoblash (transcript dan)
+            client_pct, agent_pct = self._compute_talk_ratio(conversation_text)
+
             # AI tahlil (simulyatsiya - haqiqiy LLM integration bilan almashtirish mumkin)
             analysis = self._ai_analyze(conversation_text)
+
+            # talk_ratio ballini hisoblash: mijoz ≥55% → 100, 40-55% → 65, <40% → 30
+            if client_pct >= 55:
+                talk_ratio_score = 100
+            elif client_pct >= 40:
+                talk_ratio_score = 65
+            else:
+                talk_ratio_score = 30
+            analysis.setdefault("metric_scores", {})["talk_ratio"] = talk_ratio_score
 
             # Ballar hisoblash
             scores = self._calculate_scores(analysis)
@@ -192,6 +234,8 @@ class QualityAnalyzer:
                 summary=analysis.get("summary", ""),
                 strengths=analysis.get("strengths", []),
                 weaknesses=analysis.get("weaknesses", []),
+                talk_ratio_client=client_pct,
+                talk_ratio_agent=agent_pct,
                 client_mood=analysis.get("client_mood", "neutral"),
                 client_interest_level=analysis.get("client_interest_level", 50),
                 objections_raised=analysis.get("objections", []),
@@ -363,6 +407,12 @@ class QualityAnalyzer:
             },
         }
 
+        feedbacks[QualityMetric.TALK_RATIO] = {
+            (80, 100): "Mijoz ko'p gapirdi — a'lo tinglash",
+            (60, 79): "Gapirish nisbati yaxshi, lekin takomillashtirish mumkin",
+            (0, 59): "Sotuvchi haddan ko'p gapirdi — mijozni ko'proq tinglang",
+        }
+
         default_feedbacks = {(80, 100): "A'lo", (60, 79): "O'rtacha", (0, 59): "Zaif"}
 
         metric_feedbacks = feedbacks.get(metric, default_feedbacks)
@@ -414,6 +464,11 @@ class QualityAnalyzer:
             QualityMetric.QUESTION_QUALITY: [
                 "Ochiq va aniq savollar berib, suhbatni chuqurlashtiring",
                 "Ha/yo'q savollari o'rniga ochiq savollar bering",
+            ],
+            QualityMetric.TALK_RATIO: [
+                "Mijozni ko'proq gapirishga undang — savol berib, jim qoling",
+                "Ideal nisbat: mijoz ≥55%, siz ≤45%. Hozir siz ko'p gapiryapsiz",
+                "'Nima deb o'ylaysiz?', 'Sizga qaysi variant qulay?' kabi ochiq savollar ishlating",
             ],
         }
 
