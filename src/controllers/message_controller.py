@@ -12,6 +12,20 @@ from src.agents.sales_agent import SalesAgent
 from src.agents.pm_agent import PMAgent
 from src.agents.researcher_agent import ResearcherAgent
 from src.agents.support_agent import SupportAgent
+from src.agents.copywriter_agent import CopywriterAgent
+from src.agents.finance_agent import FinanceAgent
+from src.agents.ops_agent import OpsAgent
+from src.agents.brief_agent import BriefAgent
+from src.agents.welcome_agent import WelcomeAgent
+from src.agents.project_update_agent import ProjectUpdateAgent
+from src.agents.presentation_agent import PresentationAgent
+from src.agents.feedback_agent import FeedbackAgent
+from src.agents.referral_agent import ReferralAgent
+from src.agents.anniversary_agent import AnniversaryAgent
+from src.agents.upsell_agent import UpsellAgent
+from src.agents.branding_advisor_agent import BrandingAdvisorAgent
+from src.agents.competitor_watch_agent import CompetitorWatchAgent
+from src.agents.checklist_agent import ChecklistAgent
 from src.agents.orchestrator import AgentOrchestrator
 from src.agents.negotiation_engine import NegotiationEngine
 from src.agents.feedback_memory import FeedbackMemory
@@ -88,6 +102,42 @@ class MessageController:
             SupportAgent("support", support_prompt, api_keys, self.executor, self.db)
         )
 
+        from src.agents.copywriter_agent import COPYWRITER_SUFFIX
+        from src.agents.finance_agent import FINANCE_SUFFIX
+        from src.agents.ops_agent import OPS_SUFFIX
+        from src.agents.brief_agent import BRIEF_SUFFIX
+        from src.agents.welcome_agent import WELCOME_SUFFIX
+        from src.agents.project_update_agent import PROJECT_UPDATE_SUFFIX
+        from src.agents.presentation_agent import PRESENTATION_SUFFIX
+        from src.agents.feedback_agent import FEEDBACK_SUFFIX
+        from src.agents.referral_agent import REFERRAL_SUFFIX
+        from src.agents.anniversary_agent import ANNIVERSARY_SUFFIX
+        from src.agents.upsell_agent import UPSELL_SUFFIX
+        from src.agents.branding_advisor_agent import BRANDING_ADVISOR_SUFFIX
+        from src.agents.competitor_watch_agent import COMPETITOR_WATCH_SUFFIX
+        from src.agents.checklist_agent import CHECKLIST_SUFFIX
+
+        _new_agents = [
+            ("copywriter",       CopywriterAgent,       COPYWRITER_SUFFIX),
+            ("finance",          FinanceAgent,           FINANCE_SUFFIX),
+            ("ops",              OpsAgent,               OPS_SUFFIX),
+            ("brief",            BriefAgent,             BRIEF_SUFFIX),
+            ("welcome",          WelcomeAgent,           WELCOME_SUFFIX),
+            ("project_update",   ProjectUpdateAgent,     PROJECT_UPDATE_SUFFIX),
+            ("presentation",     PresentationAgent,      PRESENTATION_SUFFIX),
+            ("feedback",         FeedbackAgent,          FEEDBACK_SUFFIX),
+            ("referral",         ReferralAgent,          REFERRAL_SUFFIX),
+            ("anniversary",      AnniversaryAgent,       ANNIVERSARY_SUFFIX),
+            ("upsell",           UpsellAgent,            UPSELL_SUFFIX),
+            ("branding_advisor", BrandingAdvisorAgent,   BRANDING_ADVISOR_SUFFIX),
+            ("competitor_watch", CompetitorWatchAgent,   COMPETITOR_WATCH_SUFFIX),
+            ("checklist",        ChecklistAgent,          CHECKLIST_SUFFIX),
+        ]
+        for agent_id, AgentClass, suffix in _new_agents:
+            self.agent_manager.register_agent(
+                AgentClass(agent_id, system_instruction + suffix, api_keys, self.executor, self.db)
+            )
+
     def set_bot_app(self, bot_app):
         """Telegram application built bo'lgandan so'ng executorga uzatish."""
         self.executor.bot_app = bot_app
@@ -133,6 +183,11 @@ class MessageController:
             crm_status = "🤖 Agent (Bot-to-Bot)"
             logger.info(f"👸 [BOT-TO-BOT] Autonomous negotiation detected with uid: {user_id}")
 
+        # Team group mode — inject internal context into all agents
+        if context.get("is_team_group"):
+            crm_status = f"[JAMOA GURUH] {context.get('chat_title', 'Internal')} | {user_name}"
+            logger.info(f"[TEAM GROUP] Request from team member {user_name} in {context.get('chat_title')}")
+
         context["crm_status"] = crm_status
         context["user_name"] = user_name
         context["phone"] = phone
@@ -173,6 +228,28 @@ class MessageController:
         agent_id = await self.orchestrator.determine_intent(
             message, history=history_str
         )
+
+        # Team group: inject internal-mode note and smart silence logic
+        if context.get("is_team_group"):
+            agent = self.agent_manager.get_agent(agent_id)
+            if agent:
+                _team_note = (
+                    "\n\n[ICHKI REJIM — JAMOA GURUHI]"
+                    "\nSen hozir Jon Branding jamoasi guruhida har bir xabarni kuzatyapsan."
+                    "\nFAQAT quyidagi hollarda javob ber:"
+                    "\n  • Senga savol berilgan yoki ma'lumot so'ralgan"
+                    "\n  • Raqam, sana, miqdor, holat haqida so'rov bor"
+                    "\n  • Amaliy yordam kerak (topshiriq, deadline, nima qilish kerak)"
+                    "\nQuyidagi hollarda HECH NARSA YOZMA (bo'sh satr qaytariladi):"
+                    "\n  • Oddiy salomlashish yoki gap ('ha', 'ok', 'yaxshi', emoji)"
+                    "\n  • Jamoa ichki munozarasi (Oishadan savoal yo'q)"
+                    "\n  • Xabar faqat boshqa birovga qaratilgan"
+                    "\nJavob berayotganda — real ma'lumotlar: search_crm_leads, "
+                    "get_airtable_projects, get_today_stats toollarini ishlatib faktlarga asoslan."
+                    "\nJavob qisqa va aniq bo'lsin."
+                )
+                agent.system_prompt += _team_note
+                context["_team_prompt_injected"] = True
 
         # 5. Agent orqali javob olish (kontekst + assessment bilan birga)
         response = await self.orchestrator.get_agent_response(
