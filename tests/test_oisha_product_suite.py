@@ -45,6 +45,20 @@ def test_suite_contract_has_crm_outputs():
     assert "daily" in outputs
 
 
+def test_suite_includes_rnp_mission_and_signals():
+    suite = build_oisha_sales_os_suite()
+
+    assert suite["rnp_mission"]["name"] == "RNP - Ruka Na Pulse"
+    assert "Fake metrics are forbidden" in suite["rnp_mission"]["principles"]
+
+    signal_keys = {signal["key"] for signal in suite["rnp_signals"]}
+
+    assert "new_lead" in signal_keys
+    assert "unanswered_customer" in signal_keys
+    assert "meeting_agreed" in signal_keys
+    assert "source_unhealthy" in signal_keys
+
+
 @pytest.mark.asyncio
 async def test_api_endpoint_returns_suite_contract():
     from src.api_server import oisha_product_suite
@@ -57,3 +71,4 @@ async def test_api_endpoint_returns_suite_contract():
         workflow["key"] == "autonomous_follow_up"
         for workflow in suite["unified_workflows"]
     )
+    assert suite["rnp_mission"]["name"] == "RNP - Ruka Na Pulse"
