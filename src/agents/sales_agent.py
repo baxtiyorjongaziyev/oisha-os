@@ -703,6 +703,7 @@ Bot-to-Bot & Guest Rules:
             "Javob bo'sh qaytdi.",
             "Kechirasiz, texnik tanaffus.",
         }:
+            # _fallback_reply returns a deterministic Uzbek response when AI is down
             reply = self._fallback_reply(assessment, task_description)
 
         action_plan = await self._build_action_plan(
