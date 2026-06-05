@@ -2446,6 +2446,29 @@ async def self_command_handler(event):
             db_instance = msg_controller.db
             conn = await db_instance.get_connection()
             
+            # Ensure table exists
+            await _local_maybe_await(
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS crm_contacts_audit (
+                        lead_id INTEGER PRIMARY KEY,
+                        lead_name TEXT,
+                        contact_id INTEGER,
+                        contact_name TEXT,
+                        phone TEXT,
+                        username TEXT,
+                        telegram_user_id INTEGER,
+                        call_summary TEXT,
+                        telegram_history TEXT,
+                        category TEXT,
+                        explanation TEXT,
+                        audited_at TEXT
+                    )
+                    """
+                )
+            )
+            await _local_maybe_await(conn.commit())
+            
             cursor = await _local_maybe_await(conn.execute("SELECT COUNT(*), category FROM crm_contacts_audit GROUP BY category"))
             rows = await _local_maybe_await(cursor.fetchall())
             
@@ -2506,6 +2529,30 @@ async def self_command_handler(event):
 
             db_instance = msg_controller.db
             conn = await db_instance.get_connection()
+            
+            # Ensure table exists
+            await _local_maybe_await(
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS crm_contacts_audit (
+                        lead_id INTEGER PRIMARY KEY,
+                        lead_name TEXT,
+                        contact_id INTEGER,
+                        contact_name TEXT,
+                        phone TEXT,
+                        username TEXT,
+                        telegram_user_id INTEGER,
+                        call_summary TEXT,
+                        telegram_history TEXT,
+                        category TEXT,
+                        explanation TEXT,
+                        audited_at TEXT
+                    )
+                    """
+                )
+            )
+            await _local_maybe_await(conn.commit())
+            
             await _local_maybe_await(conn.execute("DELETE FROM crm_contacts_audit"))
             await _local_maybe_await(conn.commit())
             await event.respond("✅ **Audit ma'lumotlari muvaffaqiyatli tozalandi!**\nEndi `/contacts_audit` orqali yangi audit boshlashingiz mumkin.")
@@ -3218,6 +3265,47 @@ async def main():
                     await ambassador_manager.process_scheduled_touchpoints()
                 except Exception as amb_err:
                     logger.error(f"[AUTOPILOT] Ambassador Journey error: {amb_err}")
+                
+                # STAGE 4: Lead Enrichment & Classification (for Basic plan polling)
+                try:
+                    from src.services.core.amocrm_lead_enrichment import AmoCRMLeadEnricher
+                    enricher = AmoCRMLeadEnricher(
+                        amocrm=msg_controller.crm.amocrm,
+                        db=msg_controller.db,
+                        user_client=client,
+                        gemini_api_key=gemini_key,
+                    )
+                    polled_leads = await msg_controller.crm.amocrm.get_leads_detailed(limit=20)
+                    if polled_leads and isinstance(polled_leads, list):
+                        for lead in polled_leads[:10]:
+                            lead_id = lead.get("id")
+                            if not lead_id:
+                                continue
+                            phone = None
+                            contacts = lead.get("_embedded", {}).get("contacts", []) or lead.get("contacts", [])
+                            for contact in contacts:
+                                fields = contact.get("custom_fields_values") or []
+                                for field in fields:
+                                    if str(field.get("field_code", "")).upper() == "PHONE":
+                                        vals = field.get("values") or []
+                                        if vals:
+                                            phone = str(vals[0].get("value", ""))
+                                            break
+                                if phone:
+                                    break
+                            if not phone:
+                                phone_getter = getattr(msg_controller.crm.amocrm, "get_primary_contact_phone", None)
+                                if callable(phone_getter):
+                                    phone = await phone_getter(lead)
+                            if phone:
+                                await enricher.enrich_lead(
+                                    lead_id=int(lead_id),
+                                    lead_data=lead,
+                                    phone=phone,
+                                    force=False,
+                                )
+                except Exception as enrich_err:
+                    logger.error(f"[AUTOPILOT] Lead Enrichment error: {enrich_err}")
                 
                 logger.info("🤖 [AUTOPILOT] AI Autopilot cycle completed successfully.")
             except Exception as exc:
