@@ -468,6 +468,30 @@ class Database:
                     last_processed_at DATETIME
                 )
             """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS client_checklists (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    lead_id INTEGER NOT NULL,
+                    lead_name TEXT,
+                    manager_id INTEGER,
+                    item_key TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    completed_by INTEGER,
+                    completed_at DATETIME,
+                    due_hours INTEGER DEFAULT 24,
+                    notes TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(lead_id, item_key)
+                )
+            """)
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_checklists_lead ON client_checklists(lead_id)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_checklists_status ON client_checklists(status)"
+            )
 
             # [PERFORMANCE] Create indexes
             await conn.execute(
