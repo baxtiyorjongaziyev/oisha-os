@@ -406,6 +406,61 @@ TOOL_DECLARATIONS = [
             "required": ["command"],
         },
     },
+    {
+        "name": "search_crm_leads",
+        "description": (
+            "AmoCRM da lidlarni qidirish. "
+            "Jamoa guruhida 'Abdulladan to'lov keldimi', 'Nike loyihasi qayerda', "
+            "'bugun nechta yangi lid bor' kabi savollarda BU TOOLNI CHAQIRING."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Qidiruv matni: mijoz ismi, kompaniya yoki telefon",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Nechta natija qaytarilsin (default: 5)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_airtable_projects",
+        "description": (
+            "Airtable dan loyihalar ro'yxatini olish. "
+            "Loyiha holati, deadline, mas'ul xodim haqida so'ralganda BU TOOLNI CHAQIRING."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "stage_filter": {
+                    "type": "string",
+                    "description": "Bosqich bo'yicha filtrlash (masalan: 'Aktiv', 'Tugallangan')",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Nechta loyiha qaytarilsin (default: 10)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_today_stats",
+        "description": (
+            "Bugungi statistikani olish: yangi lidlar soni, aktiv bitimlar, "
+            "muddati o'tgan loyihalar. Kunlik holat so'ralganda BU TOOLNI CHAQIRING."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
 ]
 
 
@@ -469,6 +524,12 @@ class AgentToolExecutor:
                 return await self._google_drive_search(**function_args)
             elif function_name == "execute_shell_safe":
                 return await self._execute_shell_safe(**function_args)
+            elif function_name == "search_crm_leads":
+                return await self._search_crm_leads(**function_args)
+            elif function_name == "get_airtable_projects":
+                return await self._get_airtable_projects(**function_args)
+            elif function_name == "get_today_stats":
+                return await self._get_today_stats()
             else:
                 return {"success": False, "error": f"Unknown tool: {function_name}"}
         except Exception as e:
@@ -1298,3 +1359,104 @@ class AgentToolExecutor:
             return {"success": True, "output": result}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    async def _search_crm_leads(
+        self,
+        query: str = "",
+        limit: int = 5,
+    ) -> Dict[str, Any]:
+        """AmoCRM da lidlarni qidirish va qaytarish."""
+        try:
+            fetch_fn = (
+                self.amocrm.get_leads_detailed
+                if hasattr(self.amocrm, "get_leads_detailed")
+                else self.amocrm.get_leads
+            )
+            leads = await asyncio.to_thread(fetch_fn, limit=min(limit * 4, 50))
+            if query:
+                q = query.lower()
+                leads = [
+                    l for l in leads
+                    if q in str(l.get("name", "")).lower()
+                    or q in str(l.get("price", ""))
+                ]
+            leads = leads[:limit]
+            results = [
+                {
+                    "id": l.get("id"),
+                    "name": l.get("name"),
+                    "price": l.get("price", 0),
+                    "status_id": l.get("status_id"),
+                    "pipeline_id": l.get("pipeline_id"),
+                    "created_at": l.get("created_at"),
+                }
+                for l in leads
+            ]
+            return {"success": True, "leads": results, "count": len(results)}
+        except Exception as e:
+            logger.error(f"[TOOL] search_crm_leads error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _get_airtable_projects(
+        self,
+        stage_filter: str = "",
+        limit: int = 10,
+    ) -> Dict[str, Any]:
+        """Airtable dan loyihalar ro'yxatini olish."""
+        try:
+            from src.services.core.airtable_sync import AirtableSync
+            sync = AirtableSync()
+            records = await asyncio.to_thread(sync.get_projects)
+            projects = []
+            for r in records:
+                fields = r.get("fields", {})
+                stage = str(
+                    fields.get("Bosqich")
+                    or fields.get("Stage")
+                    or fields.get("Status")
+                    or ""
+                )
+                if stage_filter and stage_filter.lower() not in stage.lower():
+                    continue
+                projects.append({
+                    "name": fields.get("Loyiha nomi") or fields.get("Name") or r.get("id"),
+                    "stage": stage,
+                    "deadline": fields.get("Deadline") or fields.get("Muddat") or "",
+                    "manager": fields.get("PM") or fields.get("Mas'ul") or "",
+                    "client": fields.get("Mijoz") or fields.get("Client") or "",
+                })
+            return {"success": True, "projects": projects[:limit], "count": len(projects[:limit])}
+        except Exception as e:
+            logger.error(f"[TOOL] get_airtable_projects error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _get_today_stats(self) -> Dict[str, Any]:
+        """Bugungi statistika: yangi lidlar, muddati o'tgan loyihalar."""
+        import datetime
+        stats: Dict[str, Any] = {}
+        today = datetime.date.today().isoformat()
+        try:
+            fetch_fn = (
+                self.amocrm.get_leads_detailed
+                if hasattr(self.amocrm, "get_leads_detailed")
+                else self.amocrm.get_leads
+            )
+            leads = await asyncio.to_thread(fetch_fn, limit=50)
+            today_start = int(
+                datetime.datetime.combine(datetime.date.today(), datetime.time.min).timestamp()
+            )
+            stats["new_leads_today"] = sum(
+                1 for l in leads if (l.get("created_at") or 0) >= today_start
+            )
+            stats["total_active_leads"] = len(leads)
+        except Exception as e:
+            stats["crm_error"] = str(e)
+        try:
+            from src.services.core.airtable_sync import AirtableSync
+            sync = AirtableSync()
+            overdue = await asyncio.to_thread(sync.get_overdue_projects)
+            stats["overdue_projects"] = len(overdue)
+        except Exception as e:
+            stats["airtable_error"] = str(e)
+        stats["date"] = today
+        return {"success": True, **stats}

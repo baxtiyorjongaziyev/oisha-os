@@ -1843,14 +1843,14 @@ async def handle_new_message(event):
                                     pass
                         else:
                             await event.respond(final_text)
-                        try:
-                            await msg_controller.db.log_message(
-                                sender.id, final_text, is_ai=True
-                            )
-                        except Exception as log_ex:
-                            logger.error(f"[USERBOT] Failed to log AI reply: {log_ex}")
-                        safe_responder.update_rate_limit(chat_id)
-                        logger.info(f"[USERBOT] Replied successfully to {chat_id}")
+                            try:
+                                await msg_controller.db.log_message(
+                                    sender.id, final_text, is_ai=True
+                                )
+                            except Exception as log_ex:
+                                logger.error(f"[USERBOT] Failed to log AI reply: {log_ex}")
+                            safe_responder.update_rate_limit(chat_id)
+                            logger.info(f"[USERBOT] Replied successfully to {chat_id}")
 
     except Exception as e:
         logger.error(f"[USERBOT] Error while handling message: {e}")
