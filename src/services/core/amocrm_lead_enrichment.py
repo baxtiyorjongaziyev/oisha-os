@@ -208,6 +208,20 @@ class AmoCRMLeadEnricher:
                 message_count=len(messages),
             )
 
+            # Auto-classify and tag lead automatically inside AmoCRM
+            try:
+                from src.services.core.crm_contacts_auditor import CRMContactsAuditor
+                auditor = CRMContactsAuditor(
+                    amocrm=self.amocrm,
+                    db=self.db,
+                    tg_client=self.user_client,
+                )
+                category = await auditor.audit_lead_by_data(lead_data, force=force)
+                if category and category != "skipped":
+                    tags_added.append(category)
+            except Exception as audit_exc:
+                logger.error("[AMO_ENRICH] Auto-classification failed for lead %s: %s", lead_id, audit_exc)
+
         return LeadEnrichmentResult(
             status="enriched" if note_added else "failed",
             lead_id=int(lead_id),
