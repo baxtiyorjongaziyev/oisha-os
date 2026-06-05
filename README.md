@@ -27,15 +27,17 @@ The product contract is exposed at `GET /api/oisha/product-suite` and documented
 
 The repository now also contains a TypeScript monorepo foundation for the SalesCoach AI product:
 
-- `apps/web`: Next.js 15 dashboard shell.
-- `apps/api`: NestJS API shell with `/healthz`.
-- `apps/worker`: BullMQ worker shell with `/healthz`.
+- `apps/web`: Next.js 15 dashboard, upload, call detail, negotiation, and share pages.
+- `apps/api`: NestJS API with health, auth, organizations, calls, scorecards, shares, integrations, and negotiations.
+- `apps/worker`: BullMQ worker for transcription/scoring pipelines.
+- `apps/bot`: Telegram bot for audio intake and coaching notifications.
 - `packages/shared-types`: shared Zod schemas and TypeScript types.
 - `packages/ui`: shared React UI primitives.
 - `packages/config`: shared tool presets.
 
-This is Prompt 1 from the SalesCoach AI plan: tooling, health checks, and dev infrastructure only.
-Business logic starts in the next prompts.
+SalesCoach must follow the real-data-only contract in `docs/salescoach-prd.md`: this module
+uses only AmoCRM and Telegram through the userbot. If those sources, call records, or transcripts
+are unavailable, Oisha must show the source-health problem instead of inventing business metrics.
 
 ## Local development
 
