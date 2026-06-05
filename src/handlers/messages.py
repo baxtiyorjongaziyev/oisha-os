@@ -60,20 +60,41 @@ async def process_message_logic(
         bot_username = "@jonairobot"
         should_respond = False
 
+        # Detect team groups from settings
+        try:
+            from src.settings import settings as _s
+            _team_chat_ids = {
+                _s.TEAM_GROUP_ID, _s.CRM_GROUP_ID,
+                _s.PROJECTS_GROUP_ID, _s.TASKS_GROUP_ID,
+            } - {None, 0}
+        except Exception:
+            _team_chat_ids = set()
+
+        is_team_group = chat.id in _team_chat_ids
+
         if chat_type == "private":
             should_respond = True
         elif chat_type in ["group", "supergroup"]:
-            # Check if mentioned
-            if bot_username in text_content:
-                should_respond = True
-            # Check if it's a reply to the bot
-            reply_to = message.reply_to_message
-            if (
-                reply_to
-                and reply_to.from_user
-                and reply_to.from_user.username == bot_username.replace("@", "")
-            ):
-                should_respond = True
+            if is_team_group:
+                # Team guruhida har bir xabarni AI tahlil qiladi.
+                # Faqat bot xabarlarini va juda qisqa (emoji/salomlashish) xabarlarni o'tkazib yuboradi.
+                if user.is_bot:
+                    should_respond = False
+                elif len(text_content.strip()) < 3:
+                    should_respond = False
+                else:
+                    should_respond = True
+            else:
+                # Oddiy guruhda faqat @mention yoki reply
+                if bot_username in text_content:
+                    should_respond = True
+                reply_to = message.reply_to_message
+                if (
+                    reply_to
+                    and reply_to.from_user
+                    and reply_to.from_user.username == bot_username.replace("@", "")
+                ):
+                    should_respond = True
 
         if not should_respond:
             return
@@ -92,15 +113,20 @@ async def process_message_logic(
                 pass  # streaming is best-effort, don't block response
 
         # Use MessageController for agentic flow
+        # Strip bot mention from message so agents don't see "@jonairobot" prefix
+        clean_message = text_content.replace(bot_username, "").strip()
+
         ai_response = await msg_controller.get_response(
             user_id=user_id,
             user_name=first_name,
-            message=text_content,
+            message=clean_message or text_content,
             context={
                 "username": username,
                 "is_business": is_business,
                 "chat_title": chat.title,
                 "is_bot": user.is_bot,
+                "is_team_group": is_team_group,
+                "chat_id": chat.id,
             },
         )
 
