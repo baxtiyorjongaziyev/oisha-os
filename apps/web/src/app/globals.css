@@ -3,14 +3,178 @@
 
 :root {
   color-scheme: light;
-  --background: #f8f3ea;
-  --foreground: #111827;
+  
+  /* Layout Colors */
+  --bg-app: #f8f3ea;
+  --bg-card: #ffffff;
+  --bg-popover: #ffffff;
+  
+  /* Text & Border Colors */
+  --text-main: #111827;
+  --text-muted: #4b5563;
+  --border-color: rgba(17, 24, 39, 0.08);
+  
+  /* Default Palette (Sage) */
+  --brand: #275344;
+  --brand-hover: #1b3c31;
+  --brand-light: #eef4ef;
+}
+
+.dark {
+  color-scheme: dark;
+  
+  /* Layout Colors */
+  --bg-app: #0b0f17;
+  --bg-card: #131924;
+  --bg-popover: #1a2233;
+  
+  /* Text & Border Colors */
+  --text-main: #f9fafb;
+  --text-muted: #9ca3af;
+  --border-color: rgba(249, 250, 251, 0.08);
+  
+  /* Default Palette (Sage Dark) */
+  --brand: #3d7a64;
+  --brand-hover: #4e947b;
+  --brand-light: rgba(61, 122, 100, 0.15);
+}
+
+/* 7 Dynamic Color Palettes */
+.palette-sage {
+  --brand: #275344;
+  --brand-hover: #1b3c31;
+  --brand-light: #eef4ef;
+}
+.dark .palette-sage {
+  --brand: #3d7a64;
+  --brand-hover: #4e947b;
+  --brand-light: rgba(61, 122, 100, 0.15);
+}
+
+.palette-indigo {
+  --brand: #4f46e5;
+  --brand-hover: #4338ca;
+  --brand-light: #eef2ff;
+}
+.dark .palette-indigo {
+  --brand: #6366f1;
+  --brand-hover: #818cf8;
+  --brand-light: rgba(99, 102, 241, 0.15);
+}
+
+.palette-rose {
+  --brand: #e11d48;
+  --brand-hover: #be123c;
+  --brand-light: #fff1f2;
+}
+.dark .palette-rose {
+  --brand: #f43f5e;
+  --brand-hover: #fb7185;
+  --brand-light: rgba(244, 63, 94, 0.15);
+}
+
+.palette-amber {
+  --brand: #d97706;
+  --brand-hover: #b45309;
+  --brand-light: #fef3c7;
+}
+.dark .palette-amber {
+  --brand: #f59e0b;
+  --brand-hover: #fbbf24;
+  --brand-light: rgba(245, 158, 11, 0.15);
+}
+
+.palette-teal {
+  --brand: #0d9488;
+  --brand-hover: #0f766e;
+  --brand-light: #f0fdfa;
+}
+.dark .palette-teal {
+  --brand: #14b8a6;
+  --brand-hover: #2dd4bf;
+  --brand-light: rgba(20, 184, 166, 0.15);
+}
+
+.palette-violet {
+  --brand: #7c3aed;
+  --brand-hover: #6d28d9;
+  --brand-light: #f5f3ff;
+}
+.dark .palette-violet {
+  --brand: #8b5cf6;
+  --brand-hover: #a78bfa;
+  --brand-light: rgba(139, 92, 246, 0.15);
+}
+
+.palette-emerald {
+  --brand: #059669;
+  --brand-hover: #047857;
+  --brand-light: #ecfdf5;
+}
+.dark .palette-emerald {
+  --brand: #10b981;
+  --brand-hover: #34d399;
+  --brand-light: rgba(16, 185, 129, 0.15);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 body {
-  background:
-    radial-gradient(circle at top left, rgba(217, 146, 46, 0.25), transparent 30rem),
-    linear-gradient(135deg, #f8f3ea 0%, #eef4ef 100%);
-  color: var(--foreground);
+  background-color: var(--bg-app);
+  color: var(--text-main);
   min-height: 100vh;
+  font-family: var(--font-body);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Background Gradients */
+.bg-gradient-mesh {
+  background:
+    radial-gradient(circle at top left, rgba(217, 146, 46, 0.08), transparent 40rem),
+    radial-gradient(circle at 80% 20%, rgba(39, 83, 68, 0.05), transparent 45rem),
+    var(--bg-app);
+}
+
+.dark .bg-gradient-mesh {
+  background:
+    radial-gradient(circle at top left, rgba(217, 146, 46, 0.04), transparent 40rem),
+    radial-gradient(circle at 80% 20%, rgba(61, 122, 100, 0.03), transparent 45rem),
+    var(--bg-app);
+}
+
+/* Glassmorphism */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(17, 24, 39, 0.05);
+}
+
+.dark .glass-panel {
+  background: rgba(19, 25, 36, 0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(249, 250, 251, 0.04);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
