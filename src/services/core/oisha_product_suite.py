@@ -47,6 +47,15 @@ class TaskDecisionRule:
     owner: str
 
 
+@dataclass(frozen=True)
+class RnpSignal:
+    key: str
+    name: str
+    source: str
+    oisha_action: str
+    evidence_required: list[str]
+
+
 def get_product_pillars() -> list[ProductPillar]:
     return [
         ProductPillar(
@@ -313,14 +322,95 @@ def get_task_decision_rules() -> list[TaskDecisionRule]:
     ]
 
 
+def get_rnp_signals() -> list[RnpSignal]:
+    return [
+        RnpSignal(
+            key="new_lead",
+            name="Yangi lead tushdi",
+            source="amoCRM",
+            oisha_action=(
+                "Leadni tekshiradi, duplicate ehtimolini ko'radi, javob/follow-up "
+                "vazifasini nazorat qiladi."
+            ),
+            evidence_required=["amoCRM lead id", "contact phone or source"],
+        ),
+        RnpSignal(
+            key="stale_lead",
+            name="Lead qotib qoldi",
+            source="amoCRM",
+            oisha_action="Mas'ul menejerga aniq keyingi qadam taskini yozadi.",
+            evidence_required=["amoCRM lead id", "updated_at", "responsible_user_id"],
+        ),
+        RnpSignal(
+            key="unanswered_customer",
+            name="Mijoz Telegramda javobsiz qoldi",
+            source="Telegram userbot",
+            oisha_action=(
+                "Chat kontekstini tekshiradi, shaxsiy/oila bo'lmasa signal beradi "
+                "yoki follow-up draft tayyorlaydi."
+            ),
+            evidence_required=["telegram chat id", "last incoming message", "private-policy classification"],
+        ),
+        RnpSignal(
+            key="meeting_agreed",
+            name="Uchrashuv kelishildi",
+            source="Telegram userbot + amoCRM",
+            oisha_action=(
+                "Lead mavjud bo'lsa amoCRM task qo'yadi, mavjud bo'lmasa review "
+                "signal beradi."
+            ),
+            evidence_required=["telegram message reference", "date/time", "matched lead id or review reason"],
+        ),
+        RnpSignal(
+            key="call_recording_ready",
+            name="Qo'ng'iroq yozuvi bor",
+            source="amoCRM",
+            oisha_action="Transkripsiya, xulosa, objection va keyingi qadam chiqaradi.",
+            evidence_required=["amoCRM call id", "lead id", "audio url"],
+        ),
+        RnpSignal(
+            key="manager_quality_drop",
+            name="Menejer sifati pasaydi",
+            source="amoCRM call analysis",
+            oisha_action="Coaching signal beradi va ko'rib chiqiladigan callni ko'rsatadi.",
+            evidence_required=["scorecard id", "weak rubric criteria", "call link"],
+        ),
+        RnpSignal(
+            key="source_unhealthy",
+            name="Manba ishlamayapti",
+            source="runtime health",
+            oisha_action=(
+                "Raqam o'ylab topmaydi, qaysi manba ishlamayotganini aniq aytadi."
+            ),
+            evidence_required=["source name", "health status", "last successful sync"],
+        ),
+    ]
+
+
 def build_oisha_sales_os_suite() -> dict[str, Any]:
     pillars = get_product_pillars()
     workflows = get_unified_workflows()
     tag_policy = get_call_tag_policy()
     task_rules = get_task_decision_rules()
+    rnp_signals = get_rnp_signals()
 
     return {
         "name": "Oisha Sales OS",
+        "rnp_mission": {
+            "name": "RNP - Ruka Na Pulse",
+            "description": (
+                "Oisha-OS rahbarning qo'lini biznes pulsida ushlab turadi: "
+                "vaziyatni doim nazorat qiladi, muhim o'zgarishlarni vaqtida "
+                "sezadi va fake raqamsiz, dalilga tayangan signal beradi."
+            ),
+            "principles": [
+                "Doimiy nazorat",
+                "Muhim jarayonlardan xabardorlik",
+                "Vaqtida signal",
+                "Evidence-first reporting",
+                "Fake metrics are forbidden",
+            ],
+        },
         "positioning": (
             "Oisha combines DeepSales-style lead intelligence, Metasell-style "
             "conversation intelligence, and Reportagram-style revenue reporting "
@@ -332,6 +422,7 @@ def build_oisha_sales_os_suite() -> dict[str, Any]:
         ],
         "pillars": [asdict(pillar) for pillar in pillars],
         "unified_workflows": [asdict(workflow) for workflow in workflows],
+        "rnp_signals": [asdict(signal) for signal in rnp_signals],
         "call_tag_policy": [asdict(policy) for policy in tag_policy],
         "task_decision_rules": [asdict(rule) for rule in task_rules],
         "amo_crm_outputs": [
