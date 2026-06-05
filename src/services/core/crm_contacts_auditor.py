@@ -549,6 +549,15 @@ class CRMContactsAuditor:
             explanation=explanation,
         )
 
+        # Tag lead in AmoCRM automatically
+        try:
+            add_tag = getattr(self.amocrm, "add_lead_tag", None)
+            if callable(add_tag):
+                await _maybe_await(add_tag(int(lead_id), category))
+                logger.info("[AUDITOR] Auto-tagged lead %s as '%s' in AmoCRM.", lead_id, category)
+        except Exception as tag_err:
+            logger.warning("[AUDITOR] Failed to tag lead %s as '%s' in AmoCRM: %s", lead_id, category, tag_err)
+
         return category
 
     async def run_audit(
