@@ -148,7 +148,9 @@ class BaseAgent(ABC):
             except Exception as e:
                 logger.error(f"[{self.agent_id}] Bedrock Fallback Error: {e}")
 
-        return "Kechirasiz, texnik tanaffus."
+        # All AI backends failed — return empty string so callers skip sending to client
+        logger.warning(f"[{self.agent_id}] All AI backends unavailable; suppressing reply.")
+        return ""
 
     async def call_bedrock(self, contents: List[Dict[str, Any]]) -> Optional[str]:
         """AWS Bedrock (Claude) orqali AI chaqiruvi."""
