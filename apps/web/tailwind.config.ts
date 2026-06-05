@@ -5,6 +5,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        brand: "var(--brand)",
+        "brand-hover": "var(--brand-hover)",
+        "brand-light": "var(--brand-light)",
+        bg: "var(--bg-app)",
+        "bg-card": "var(--bg-card)",
+        "bg-popover": "var(--bg-popover)",
+        text: "var(--text-main)",
+        "text-muted": "var(--text-muted)",
+        border: "var(--border-color)",
         amberline: "#d9922e",
         ink: "#111827",
         sage: "#275344",
