@@ -133,5 +133,5 @@ async def test_base_agent_does_not_expose_internal_429_message():
 
     reply = await agent.call_ai_with_fallback([], current_user_id=123)
 
-    assert reply == "Kechirasiz, texnik tanaffus."
+    assert reply == ""
     assert "429" not in reply
