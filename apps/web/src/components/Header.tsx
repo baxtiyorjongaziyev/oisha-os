@@ -114,7 +114,9 @@ export default function Header() {
           <div className="relative">
             <button
               onClick={() => setBusinessDropdownOpen(!businessDropdownOpen)}
-              className="flex items-center gap-1.5 rounded-2xl bg-brand-light px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand-light/80 transition-colors focus:outline-none"
+              aria-expanded={businessDropdownOpen}
+              aria-label="Biznesni o'zgartirish menyusi"
+              className="flex items-center gap-1.5 rounded-2xl bg-brand-light px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand-light/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -127,41 +129,52 @@ export default function Header() {
 
             {businessDropdownOpen && (
               <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-border bg-bg-popover p-2 shadow-xl animate-fade-in z-50">
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                <div id="businesses-heading" className="px-3 py-1.5 text-[10px] font-semibold text-text-muted uppercase tracking-wider">
                   Mavjud Bizneslar
                 </div>
-                {businesses.map((b) => (
-                  <button
-                    key={b.name}
-                    onClick={() => {
-                      setCurrentBusiness(b.name);
-                      setBusinessDropdownOpen(false);
-                    }}
-                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-colors hover:bg-bg ${
-                      currentBusiness === b.name ? "bg-brand-light font-semibold text-brand" : "text-text"
-                    }`}
-                  >
-                    <span>{b.name}</span>
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
-                        b.status === "Muzlatilgan"
-                          ? "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
-                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                      }`}
-                    >
-                      {b.status}
-                    </span>
-                  </button>
-                ))}
+                <ul aria-labelledby="businesses-heading" className="space-y-0.5">
+                  {businesses.map((b) => (
+                    <li key={b.name}>
+                      <button
+                        onClick={() => {
+                          setCurrentBusiness(b.name);
+                          setBusinessDropdownOpen(false);
+                        }}
+                        aria-current={currentBusiness === b.name ? "true" : undefined}
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-colors hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1 ${
+                          currentBusiness === b.name ? "bg-brand-light font-semibold text-brand" : "text-text"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          {currentBusiness === b.name && (
+                            <svg className="h-3.5 w-3.5 text-brand shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                          <span className={currentBusiness !== b.name ? "pl-5.5" : ""}>{b.name}</span>
+                        </span>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
+                            b.status === "Muzlatilgan"
+                              ? "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                          }`}
+                        >
+                          {b.status}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
                 <div className="border-t border-border my-1"></div>
                 <button
                   onClick={() => {
                     setNewBusinessModalOpen(true);
                     setBusinessDropdownOpen(false);
                   }}
-                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-brand font-medium hover:bg-brand-light transition-colors"
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-brand font-medium hover:bg-brand-light transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
                 >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
                   Yangi biznes qo&apos;shish
@@ -262,7 +275,9 @@ export default function Header() {
           <div className="relative">
             <button
               onClick={() => setAvatarDropdownOpen(!avatarDropdownOpen)}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-xs font-bold text-white ring-2 ring-brand/10 hover:scale-105 transition-transform focus:outline-none"
+              aria-expanded={avatarDropdownOpen}
+              aria-label="Foydalanuvchi profili menyusi"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-xs font-bold text-white ring-2 ring-brand/10 hover:scale-105 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
             >
               B
               <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-bg-card"></span>
