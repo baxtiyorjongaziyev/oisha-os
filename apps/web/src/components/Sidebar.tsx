@@ -114,49 +114,54 @@ export default function Sidebar() {
       </div>
 
       {/* Nav Items List */}
-      <nav className="flex-1 space-y-1.5 px-3 py-4">
-        {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center gap-4 rounded-2xl px-4 py-3.5 text-sm font-medium transition-all duration-200 group relative ${
-                isActive
-                  ? "bg-brand text-white shadow-md shadow-brand/10"
-                  : "text-text-muted hover:bg-brand-light hover:text-brand"
-              }`}
-            >
-              <div className="shrink-0">{item.icon}</div>
-              {sidebarOpen && <span className="animate-fade-in">{item.name}</span>}
-
-              {/* Badge count for alerts */}
-              {item.badgeKey && alertsCount > 0 && (
-                <span
-                  className={`absolute right-4 flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold ${
-                    isActive ? "bg-white text-brand" : "bg-rose-500 text-white"
-                  } ${!sidebarOpen && "top-1 right-2"}`}
+      <nav className="flex-1 px-3 py-4" aria-label="Asosiy navigatsiya">
+        <ul className="space-y-1.5">
+          {navItems.map((item) => {
+            const isActive = pathname.startsWith(item.href);
+            return (
+              <li key={item.name}>
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-4 rounded-2xl px-4 py-3.5 text-sm font-medium transition-all duration-200 group relative focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${
+                    isActive
+                      ? "bg-brand text-white shadow-md shadow-brand/10"
+                      : "text-text-muted hover:bg-brand-light hover:text-brand"
+                  }`}
                 >
-                  {alertsCount}
-                </span>
-              )}
+                  <div className="shrink-0">{item.icon}</div>
+                  {sidebarOpen && <span className="animate-fade-in">{item.name}</span>}
 
-              {/* Collapsed Tooltip */}
-              {!sidebarOpen && (
-                <div className="pointer-events-none absolute left-20 rounded-xl bg-text px-3 py-1.5 text-xs text-bg opacity-0 shadow-lg transition-opacity group-hover:opacity-100 whitespace-nowrap z-50">
-                  {item.name}
-                </div>
-              )}
-            </Link>
-          );
-        })}
+                  {/* Badge count for alerts */}
+                  {item.badgeKey && alertsCount > 0 && (
+                    <span
+                      className={`absolute right-4 flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold ${
+                        isActive ? "bg-white text-brand" : "bg-rose-500 text-white"
+                      } ${!sidebarOpen && "top-1 right-2"}`}
+                    >
+                      {alertsCount}
+                    </span>
+                  )}
+
+                  {/* Collapsed Tooltip */}
+                  {!sidebarOpen && (
+                    <div className="pointer-events-none absolute left-20 rounded-xl bg-text px-3 py-1.5 text-xs text-bg opacity-0 shadow-lg transition-opacity group-hover:opacity-100 whitespace-nowrap z-50">
+                      {item.name}
+                    </div>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </nav>
 
       {/* Sidebar Collapse Toggle Button */}
       <div className="p-3 border-t border-border">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="flex w-full items-center justify-center gap-3 rounded-2xl p-3 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none"
+          aria-label={sidebarOpen ? "Yon panelni yig'ish" : "Yon panelni yozish"}
+          aria-expanded={sidebarOpen}
+          className="flex w-full items-center justify-center gap-3 rounded-2xl p-3 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
         >
           {sidebarOpen ? (
             <>
