@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Post comments via Cloud Support API on Oracle VM
         uses: appleboy/ssh-action@v1
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
@@ -21,12 +23,16 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 4m
+          envs: GCP_SA_KEY
           script: |
             set -euo pipefail
             cd /home/ubuntu/oisha-os
             git fetch origin main
             git checkout origin/main -- scripts/post_billing_reply.py
-            /home/ubuntu/oisha-os/venv/bin/python scripts/post_billing_reply.py
+            SA_TMP="/tmp/billing_sa_$$.json"
+            printf '%s' "$GCP_SA_KEY" > "$SA_TMP"
+            SA_FILE="$SA_TMP" /home/ubuntu/oisha-os/venv/bin/python scripts/post_billing_reply.py
+            rm -f "$SA_TMP"
 
       - name: Notify result via Telegram
         if: always()
