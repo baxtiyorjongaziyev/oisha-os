@@ -33,7 +33,12 @@ jobs:
             printf '%s' "$GCP_SA_KEY" > "$SA_TMP"
             PROJECT=$(python3 -c "import json; print(json.load(open('$SA_TMP'))['project_id'])")
             if command -v gcloud &>/dev/null; then
-              gcloud services enable cloudsupport.googleapis.com --project="$PROJECT" 2>/dev/null || true
+              echo "=== gcloud accounts on Oracle VM ==="
+              gcloud auth list --format="value(account,status)" 2>&1 || true
+              echo "=== attempting enable ==="
+              gcloud services enable cloudsupport.googleapis.com --project="$PROJECT" 2>&1 && echo "ENABLED OK" && sleep 10 || echo "gcloud enable failed"
+            else
+              echo "gcloud not found on Oracle VM"
             fi
             SA_FILE="$SA_TMP" /home/ubuntu/oisha-os/venv/bin/python scripts/post_billing_reply.py
             rm -f "$SA_TMP"
