@@ -6,12 +6,6 @@ import requests  # type: ignore
 from typing import Optional, Dict, Any, List
 from functools import wraps
 
-try:
-    from google.cloud import firestore
-    HAS_FIRESTORE = True
-except ImportError:
-    HAS_FIRESTORE = False
-
 logger = logging.getLogger(__name__)
 
 
@@ -72,36 +66,13 @@ class AmoCRMSync:
         self.auth_blocked_until: float = 0.0
         self.auth_block_reason: Optional[str] = None
         
-        self.db = None
-        if HAS_FIRESTORE:
-            try:
-                self.db = firestore.Client()
-                logger.info("[AMOCRM] Firestore client initialized.")
-            except Exception as e:
-                logger.warning(f"[AMOCRM] Firestore init failed: {e}")
-
         # Security: Masked log for safety
         logger.info(f"[AMOCRM INIT] Subdomain: {subdomain}")
         self._load_token()
 
     def _load_token(self):
-        """Tokenni Firestore'dan yoki fayldan o'qish."""
-        # 1. Firestore'dan o'qish (ustuvor)
-        if self.db:
-            try:
-                doc_ref = self.db.collection("amocrm").document("tokens")
-                doc = doc_ref.get()
-                if doc.exists:
-                    data = doc.to_dict()
-                    if data and data.get("access_token"):
-                        self.token_data = data
-                        self.access_token = str(data.get("access_token"))
-                        logger.info("[AMOCRM] Token loaded from Firestore.")
-                        return
-            except Exception as e:
-                logger.warning(f"[AMOCRM] Firestore load error: {e}")
-
-        # 2. Environment variable'dan o'qish
+        """Tokenni environment yoki fayldan o'qish."""
+        # 1. Environment variable'dan o'qish
         env_token_json = os.environ.get("AMOCRM_TOKEN_JSON")
         if env_token_json:
             try:
@@ -118,7 +89,7 @@ class AmoCRMSync:
                 self.last_error = "token_env_parse_failed"
                 logger.error(f"[AMOCRM] Env token parse xatosi: {type(e).__name__}")
 
-        # 3. File token backup. Prefer the full token JSON over raw refresh
+        # 2. File token backup. Prefer the full token JSON over raw refresh
         # because AmoCRM rotates refresh tokens and needs the matching payload.
         if os.path.exists(self.token_file) and not self.token_data:
             for encoding in ("utf-8-sig", "utf-16"):
@@ -140,7 +111,7 @@ class AmoCRMSync:
                     logger.error(f"[AMOCRM] Token yuklashda xato: {type(e).__name__}")
                     return
 
-        # 4. Raw Refresh Token fallback (for first deploy)
+        # 3. Raw Refresh Token fallback (for first deploy)
         raw_refresh = os.environ.get("AMOCRM_REFRESH_TOKEN")
         if raw_refresh and not self.token_data:
             logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
@@ -148,17 +119,7 @@ class AmoCRMSync:
             # Note: access_token is still None, so it will trigger refresh on first use
 
     def _save_token(self, token_data):
-        """Tokenni Firestore va faylga saqlash."""
-        # 1. Firestore'ga saqlash
-        if self.db:
-            try:
-                doc_ref = self.db.collection("amocrm").document("tokens")
-                doc_ref.set(token_data)
-                logger.info("[AMOCRM] Token saved to Firestore.")
-            except Exception as e:
-                logger.error(f"[AMOCRM] Firestore save error: {e}")
-
-        # 2. Faylga saqlash (backup)
+        """Tokenni faylga saqlash."""
         try:
             with open(self.token_file, "w") as f:
                 json.dump(token_data, f)
