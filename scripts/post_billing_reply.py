@@ -15,7 +15,8 @@ except ImportError:
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
 
-SA_FILE = os.environ.get("SA_FILE", "/home/ubuntu/oisha-os/service_account.json")
+SA_FILE = os.environ.get("SA_FILE", None)
+ADC_FILE = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", None)
 
 CASES = [
     {
@@ -77,25 +78,48 @@ SCOPES = [
     "https://www.googleapis.com/auth/cloudsupport",
 ]
 
-try:
-    creds = service_account.Credentials.from_service_account_file(SA_FILE, scopes=SCOPES)
-    print(f"Service account: {creds.service_account_email}")
-except Exception as e:
-    print(f"FAIL: Cannot load service account: {e}")
+sa_project = ""
+creds = None
+
+if SA_FILE and os.path.exists(SA_FILE):
+    try:
+        creds = service_account.Credentials.from_service_account_file(SA_FILE, scopes=SCOPES)
+        with open(SA_FILE) as f:
+            sa_info = json.load(f)
+        sa_project = sa_info.get("project_id", "")
+        print(f"Service account: {creds.service_account_email}")
+    except Exception as e:
+        print(f"FAIL: Cannot load service account: {e}")
+        sys.exit(1)
+elif ADC_FILE and os.path.exists(ADC_FILE):
+    try:
+        import google.auth
+        import google.auth.transport.requests
+        creds, project = google.auth.default(scopes=SCOPES)
+        sa_project = project or ""
+        print(f"Using ADC credentials, project={sa_project}")
+        # Try to enable Cloud Support API with user credentials
+        try:
+            if sa_project:
+                su = build("serviceusage", "v1", credentials=creds)
+                result = su.services().enable(
+                    name=f"projects/{sa_project}/services/cloudsupport.googleapis.com"
+                ).execute()
+                print(f"Cloud Support API enable: {result.get('name', result.get('done', 'ok'))}")
+                time.sleep(10)
+        except Exception as e2:
+            print(f"Note: ADC enable attempt: {e2}")
+    except Exception as e:
+        print(f"FAIL: Cannot load ADC credentials: {e}")
+        sys.exit(1)
+else:
+    print("FAIL: No credentials available (SA_FILE and GOOGLE_APPLICATION_CREDENTIALS both missing)")
     sys.exit(1)
 
-with open(SA_FILE) as f:
-    sa_info = json.load(f)
-sa_project = sa_info.get("project_id", "")
-
 # Discover projects linked to the billing accounts that may have Cloud Support API enabled.
-# If the SA's own project has the API disabled, try using another linked project as quota project.
-candidate_quota_projects = [sa_project]
+candidate_quota_projects = [sa_project] if sa_project else []
 try:
-    billing_creds = service_account.Credentials.from_service_account_file(
-        SA_FILE, scopes=["https://www.googleapis.com/auth/cloud-platform"]
-    )
-    billing_svc = build("cloudbilling", "v1", credentials=billing_creds)
+    billing_svc = build("cloudbilling", "v1", credentials=creds)
     for case in CASES:
         ba = f"billingAccounts/{case['billing_account']}"
         resp = billing_svc.billingAccounts().projects().list(name=ba).execute()
