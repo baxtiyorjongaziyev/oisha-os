@@ -31,19 +31,17 @@ jobs:
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main
             git checkout origin/main -- scripts/post_billing_reply.py
-            SA_TMP="/tmp/billing_sa_$$.json"
-            printf '%s' "$GCP_SA_KEY" > "$SA_TMP"
-            PROJECT=$(python3 -c "import json; print(json.load(open('$SA_TMP'))['project_id'])")
-            if command -v gcloud &>/dev/null; then
-              echo "=== gcloud accounts on Oracle VM ==="
-              gcloud auth list --format="value(account,status)" 2>&1 || true
-              echo "=== attempting enable ==="
-              gcloud services enable cloudsupport.googleapis.com --project="$PROJECT" 2>&1 && echo "ENABLED OK" && sleep 10 || echo "gcloud enable failed"
+            ADC="$HOME/.config/gcloud/application_default_credentials.json"
+            if [ -f "$ADC" ]; then
+              echo "Found ADC credentials at $ADC, trying with user credentials..."
+              GOOGLE_APPLICATION_CREDENTIALS="$ADC" /home/ubuntu/oisha-os/venv/bin/python scripts/post_billing_reply.py
             else
-              echo "gcloud not found on Oracle VM"
+              echo "No ADC found, using GCP_SA_KEY..."
+              SA_TMP="/tmp/billing_sa_$$.json"
+              printf '%s' "$GCP_SA_KEY" > "$SA_TMP"
+              SA_FILE="$SA_TMP" /home/ubuntu/oisha-os/venv/bin/python scripts/post_billing_reply.py
+              rm -f "$SA_TMP"
             fi
-            SA_FILE="$SA_TMP" /home/ubuntu/oisha-os/venv/bin/python scripts/post_billing_reply.py
-            rm -f "$SA_TMP"
 
       - name: Notify result via Telegram
         if: always()
