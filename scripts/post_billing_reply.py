@@ -2,6 +2,7 @@
 import json
 import sys
 import os
+import time
 
 try:
     from google.oauth2 import service_account
@@ -80,6 +81,25 @@ try:
 except Exception as e:
     print(f"FAIL: Cannot load service account: {e}")
     sys.exit(1)
+
+# Enable Cloud Support API in the SA's project if not already enabled
+try:
+    with open(SA_FILE) as f:
+        sa_info = json.load(f)
+    project_id = sa_info.get("project_id", "")
+    if project_id:
+        su_creds = service_account.Credentials.from_service_account_file(
+            SA_FILE,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        su = build("serviceusage", "v1", credentials=su_creds)
+        result = su.services().enable(
+            name=f"projects/{project_id}/services/cloudsupport.googleapis.com"
+        ).execute()
+        print(f"Cloud Support API enable: {result.get('name', result.get('done', 'started'))}")
+        time.sleep(8)
+except Exception as e:
+    print(f"Note: API enable attempt returned: {e}")
 
 service = build("cloudsupport", "v2", credentials=creds)
 
