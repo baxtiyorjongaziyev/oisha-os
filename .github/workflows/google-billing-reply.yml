@@ -1,0 +1,134 @@
+name: Google Billing Support Reply
+
+on:
+  push:
+    paths:
+      - 'deploy/billing-reply-trigger'
+  workflow_dispatch:
+
+jobs:
+  reply:
+    name: Post waiver request to Google Support cases
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post comments via Cloud Support API on Oracle VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 4m
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/oisha-os
+
+            cat > /tmp/billing_reply.py << 'PYEOF'
+import json, sys, os
+
+try:
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+except ImportError:
+    print("Installing google-api-python-client...")
+    os.system("/home/ubuntu/oisha-os/venv/bin/pip install -q google-api-python-client google-auth")
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+
+SA_FILE = "/home/ubuntu/oisha-os/service_account.json"
+
+CASES = [
+    {
+        "billing_account": "01ED9C-CD8E9F-7C1964",
+        "case_id": "71989960",
+        "amount": "$79.16",
+        "body": (
+            "Hello,\n\n"
+            "Thank you for the $294.00 credit already applied — I truly appreciate it.\n\n"
+            "I am writing to respectfully request that the remaining $79.16 balance also be waived. "
+            "Here is the key technical context:\n\n"
+            "1. The Cloud Run service (oisha-master-bot, europe-west3) was deployed with "
+            "CLOUD_RUN_CONTROL_PLANE_ONLY=True, an application-level flag that caused all "
+            "initialization code to be skipped. No Telegram client started, no database "
+            "connections opened, no requests processed. The container was allocated but "
+            "completely idle at the application level.\n\n"
+            "2. ENABLE_CLOUD_USERBOT=False was simultaneously set, explicitly disabling the "
+            "only feature Cloud Run was intended to run.\n\n"
+            "3. All actual production work ran on Oracle Cloud Free Tier. Cloud Run was a "
+            "legacy deployment never decommissioned — a configuration oversight.\n\n"
+            "4. The service has been permanently deleted. The deployment workflow and all "
+            "GCP dependencies have been removed from our codebase. This cannot recur.\n\n"
+            "5. Both payment attempts were declined — no funds were collected.\n\n"
+            "Given that the service produced zero output (dual kill-switches were active), "
+            "no funds were collected, and the service is permanently deleted, I respectfully "
+            "ask for a full waiver of the remaining $79.16 as a one-time good faith adjustment.\n\n"
+            "Thank you for your time.\n"
+            "Baxtiyorjon Gaziyev\n"
+            "baxtiyorjongaziyev@gmail.com"
+        )
+    },
+    {
+        "billing_account": "010703-F34248-01FE50",
+        "case_id": "71874253",
+        "amount": "$58.61",
+        "body": (
+            "Hello,\n\n"
+            "Following up on this billing adjustment request for $58.61.\n\n"
+            "Additional technical evidence:\n\n"
+            "1. The Cloud Run service was configured with CLOUD_RUN_CONTROL_PLANE_ONLY=True. "
+            "This application flag caused all initialization to be skipped — the container "
+            "ran but executed zero business logic. No requests were processed.\n\n"
+            "2. ENABLE_CLOUD_USERBOT=False was also set, disabling the only intended feature.\n\n"
+            "3. All production workload ran on Oracle Cloud Free Tier. Cloud Run was a "
+            "legacy deployment never decommissioned — a configuration oversight.\n\n"
+            "4. The Cloud Run service has been permanently deleted. The deployment pipeline "
+            "has been removed. This cannot recur.\n\n"
+            "5. No funds were collected — the charges were declined.\n\n"
+            "I respectfully request a full waiver of the $58.61 balance.\n\n"
+            "Thank you.\n"
+            "Baxtiyorjon Gaziyev\n"
+            "baxtiyorjongaziyev@gmail.com"
+        )
+    }
+]
+
+SCOPES = [
+    "https://www.googleapis.com/auth/cloud-platform",
+    "https://www.googleapis.com/auth/cloudsupport",
+]
+
+try:
+    creds = service_account.Credentials.from_service_account_file(SA_FILE, scopes=SCOPES)
+    print(f"Service account loaded: {creds.service_account_email}")
+except Exception as e:
+    print(f"FAIL: Cannot load service account: {e}")
+    sys.exit(1)
+
+service = build("cloudsupport", "v2", credentials=creds)
+
+for case in CASES:
+    name = f"billingAccounts/{case['billing_account']}/cases/{case['case_id']}"
+    print(f"\nPosting to case {case['case_id']} ({case['amount']})...")
+    try:
+        result = service.cases().comments().create(
+            parent=name,
+            body={"body": case["body"]}
+        ).execute()
+        print(f"SUCCESS: {result.get('name', 'posted')}")
+    except Exception as e:
+        print(f"FAIL: {e}")
+
+print("\nDone.")
+PYEOF
+
+            /home/ubuntu/oisha-os/venv/bin/python /tmp/billing_reply.py
+
+      - name: Notify result
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=150074828" \
+            -d "text=Google Billing Reply: ${STATUS}%0ACases: 71989960 (%2479.16) + 71874253 (%2458.61)" || true
