@@ -31,6 +31,10 @@ jobs:
             git checkout origin/main -- scripts/post_billing_reply.py
             SA_TMP="/tmp/billing_sa_$$.json"
             printf '%s' "$GCP_SA_KEY" > "$SA_TMP"
+            PROJECT=$(python3 -c "import json; print(json.load(open('$SA_TMP'))['project_id'])")
+            if command -v gcloud &>/dev/null; then
+              gcloud services enable cloudsupport.googleapis.com --project="$PROJECT" 2>/dev/null || true
+            fi
             SA_FILE="$SA_TMP" /home/ubuntu/oisha-os/venv/bin/python scripts/post_billing_reply.py
             rm -f "$SA_TMP"
 
