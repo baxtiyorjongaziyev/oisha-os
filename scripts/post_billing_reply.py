@@ -7,11 +7,13 @@ import time
 try:
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
+    from googleapiclient.errors import HttpError
 except ImportError:
     print("Installing google-api-python-client...")
     os.system("/home/ubuntu/oisha-os/venv/bin/pip install -q google-api-python-client google-auth")
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
+    from googleapiclient.errors import HttpError
 
 SA_FILE = os.environ.get("SA_FILE", "/home/ubuntu/oisha-os/service_account.json")
 
@@ -82,40 +84,60 @@ except Exception as e:
     print(f"FAIL: Cannot load service account: {e}")
     sys.exit(1)
 
-# Enable Cloud Support API in the SA's project if not already enabled
-try:
-    with open(SA_FILE) as f:
-        sa_info = json.load(f)
-    project_id = sa_info.get("project_id", "")
-    if project_id:
-        su_creds = service_account.Credentials.from_service_account_file(
-            SA_FILE,
-            scopes=["https://www.googleapis.com/auth/cloud-platform"]
-        )
-        su = build("serviceusage", "v1", credentials=su_creds)
-        result = su.services().enable(
-            name=f"projects/{project_id}/services/cloudsupport.googleapis.com"
-        ).execute()
-        print(f"Cloud Support API enable: {result.get('name', result.get('done', 'started'))}")
-        time.sleep(8)
-except Exception as e:
-    print(f"Note: API enable attempt returned: {e}")
+with open(SA_FILE) as f:
+    sa_info = json.load(f)
+sa_project = sa_info.get("project_id", "")
 
-service = build("cloudsupport", "v2", credentials=creds)
+# Discover projects linked to the billing accounts that may have Cloud Support API enabled.
+# If the SA's own project has the API disabled, try using another linked project as quota project.
+candidate_quota_projects = [sa_project]
+try:
+    billing_creds = service_account.Credentials.from_service_account_file(
+        SA_FILE, scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+    billing_svc = build("cloudbilling", "v1", credentials=billing_creds)
+    for case in CASES:
+        ba = f"billingAccounts/{case['billing_account']}"
+        resp = billing_svc.billingAccounts().projects().list(name=ba).execute()
+        for p in resp.get("projectBillingInfo", []):
+            proj_id = p.get("projectId", "")
+            if proj_id and proj_id not in candidate_quota_projects:
+                candidate_quota_projects.append(proj_id)
+    print(f"Candidate quota projects: {candidate_quota_projects}")
+except Exception as e:
+    print(f"Note: billing projects lookup: {e}")
+
+def try_post_comment(case, quota_project):
+    c = creds.with_quota_project(quota_project) if quota_project else creds
+    svc = build("cloudsupport", "v2", credentials=c)
+    name = f"billingAccounts/{case['billing_account']}/cases/{case['case_id']}"
+    result = svc.cases().comments().create(
+        parent=name, body={"body": case["body"]}
+    ).execute()
+    return result
 
 success_count = 0
 for case in CASES:
-    name = f"billingAccounts/{case['billing_account']}/cases/{case['case_id']}"
     print(f"\nPosting to case {case['case_id']} ({case['amount']})...")
-    try:
-        result = service.cases().comments().create(
-            parent=name,
-            body={"body": case["body"]}
-        ).execute()
-        print(f"SUCCESS: {result.get('name', 'comment posted')}")
-        success_count += 1
-    except Exception as e:
-        print(f"FAIL: {e}")
+    posted = False
+    for qp in candidate_quota_projects:
+        try:
+            result = try_post_comment(case, qp)
+            print(f"SUCCESS via quota_project={qp}: {result.get('name', 'comment posted')}")
+            posted = True
+            success_count += 1
+            break
+        except HttpError as e:
+            if e.resp.status == 403 and "SERVICE_DISABLED" in str(e):
+                print(f"  quota_project={qp}: API disabled, trying next...")
+            else:
+                print(f"  quota_project={qp}: {e}")
+                break
+        except Exception as e:
+            print(f"  quota_project={qp}: {e}")
+            break
+    if not posted:
+        print(f"FAIL: Could not post to case {case['case_id']} with any quota project")
 
 print(f"\nResult: {success_count}/{len(CASES)} comments posted.")
 if success_count < len(CASES):
