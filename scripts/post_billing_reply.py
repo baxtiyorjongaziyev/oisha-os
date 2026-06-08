@@ -12,7 +12,7 @@ except ImportError:
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
 
-SA_FILE = "/home/ubuntu/oisha-os/service_account.json"
+SA_FILE = os.environ.get("SA_FILE", "/home/ubuntu/oisha-os/service_account.json")
 
 CASES = [
     {
