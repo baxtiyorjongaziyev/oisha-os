@@ -16,6 +16,7 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
@@ -23,10 +24,11 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 4m
-          envs: GCP_SA_KEY
+          envs: GCP_SA_KEY,GITHUB_TOKEN
           script: |
             set -euo pipefail
             cd /home/ubuntu/oisha-os
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main
             git checkout origin/main -- scripts/post_billing_reply.py
             SA_TMP="/tmp/billing_sa_$$.json"
