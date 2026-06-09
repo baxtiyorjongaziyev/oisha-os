@@ -52,3 +52,12 @@
 
 **Learning:** When using standard `focus-visible` styles on wrappers for disabled components (e.g., `<span tabIndex={0}>` acting as a tooltip wrapper for a disabled button), the focus ring forms a generic box around the wrapper, ignoring the child component's specific shape (like `rounded-full`).
 **Action:** Always apply `group` and `focus:outline-none` to the wrapper, and use `group-focus-visible:ring-*` on the child element so the focus ring seamlessly inherits the child's exact shape and border-radius.
+## 2024-06-10 - Sidebar Toggle ARIA Pattern
+**Learning:** When building responsive or collapsible sidebars where text labels disappear visually to leave only icons, completely conditionally rendering out the text (e.g. ) causes screen readers to read empty links or just announce 'link'.
+**Action:** Always render the text label but use CSS utility classes like `sr-only` to hide it visually when collapsed (e.g. `<span className={isOpen ? '' : 'sr-only'}>Label</span>`). This ensures the element remains semantically complete for screen reader users while maintaining the desired visual icon-only state.
+## 2024-06-10 - Sidebar Toggle ARIA Pattern
+**Learning:** When building responsive or collapsible sidebars where text labels disappear visually to leave only icons, completely conditionally rendering out the text (e.g. `{isOpen && <span>Label</span>}`) causes screen readers to read empty links or just announce 'link'.
+**Action:** Always render the text label but use CSS utility classes like `sr-only` to hide it visually when collapsed (e.g. `<span className={isOpen ? '' : 'sr-only'}>Label</span>`). This ensures the element remains semantically complete for screen reader users while maintaining the desired visual icon-only state.
+## 2024-06-10 - Sidebar Toggle ARIA Pattern
+**Learning:** When building responsive or collapsible sidebars where text labels disappear visually to leave only icons, completely conditionally rendering out the text (e.g. `{isOpen && <span>Label</span>}`) causes screen readers to read empty links or just announce 'link'.
+**Action:** Always render the text label but use CSS utility classes like `sr-only` to hide it visually when collapsed (e.g. `<span className={isOpen ? '' : 'sr-only'}>Label</span>`). This ensures the element remains semantically complete for screen reader users while maintaining the desired visual icon-only state.
