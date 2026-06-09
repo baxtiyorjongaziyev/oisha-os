@@ -101,13 +101,15 @@ export default function Sidebar() {
     >
       {/* Brand Header Logo */}
       <div className="flex h-16 items-center px-6">
-        <Link href="/dashboards/home" className="flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 focus-visible:ring-offset-bg-card rounded-xl">
-          <div aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand font-display text-lg font-bold text-white shadow-lg shadow-brand/20">
+        <Link href="/dashboards/home" className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand font-display text-lg font-bold text-white shadow-lg shadow-brand/20">
             M
           </div>
-          <span className={sidebarOpen ? "font-display text-lg font-bold text-text tracking-wide animate-fade-in" : "sr-only"}>
-            Metasell
-          </span>
+          {sidebarOpen && (
+            <span className="font-display text-lg font-bold text-text tracking-wide animate-fade-in">
+              Metasell
+            </span>
+          )}
         </Link>
       </div>
 
@@ -119,15 +121,14 @@ export default function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
-              aria-current={isActive ? "page" : undefined}
-              className={`flex items-center gap-4 rounded-2xl px-4 py-3.5 text-sm font-medium transition-all duration-200 group relative focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 focus-visible:ring-offset-bg-card ${
+              className={`flex items-center gap-4 rounded-2xl px-4 py-3.5 text-sm font-medium transition-all duration-200 group relative ${
                 isActive
                   ? "bg-brand text-white shadow-md shadow-brand/10"
                   : "text-text-muted hover:bg-brand-light hover:text-brand"
               }`}
             >
               <div className="shrink-0">{item.icon}</div>
-              <span className={sidebarOpen ? "animate-fade-in" : "sr-only"}>{item.name}</span>
+              {sidebarOpen && <span className="animate-fade-in">{item.name}</span>}
 
               {/* Badge count for alerts */}
               {item.badgeKey && alertsCount > 0 && (
@@ -155,9 +156,7 @@ export default function Sidebar() {
       <div className="p-3 border-t border-border">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          aria-expanded={sidebarOpen}
-          aria-label={sidebarOpen ? "Collapse sidebar menu" : "Expand sidebar menu"}
-          className="flex w-full items-center justify-center gap-3 rounded-2xl p-3 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 focus-visible:ring-offset-bg-card"
+          className="flex w-full items-center justify-center gap-3 rounded-2xl p-3 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none"
         >
           {sidebarOpen ? (
             <>
