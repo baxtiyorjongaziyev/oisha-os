@@ -1,0 +1,30 @@
+name: Send Billing Support Emails
+
+on:
+  workflow_dispatch:
+
+jobs:
+  send:
+    name: Send waiver requests to Google Cloud Support
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Send emails via Gmail SMTP
+        env:
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python scripts/send_billing_emails.py
+
+      - name: Notify result via Telegram
+        if: always()
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ "$JOB_STATUS" = "success" ]; then
+            MSG="Billing%20Emails%3A%20SUCCESS%0ASent%20to%20cases%2071989960%20(%2479.16)%20%2B%2071874253%20(%2458.61)"
+          else
+            MSG="Billing%20Emails%3A%20FAILED%0ACheck%20Actions%20logs"
+          fi
+          curl -s "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=150074828&text=${MSG}" > /dev/null || true
