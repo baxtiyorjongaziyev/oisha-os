@@ -75,34 +75,56 @@ SCOPES = [
 creds = service_account.Credentials.from_service_account_file(SA_FILE, scopes=SCOPES)
 with open(SA_FILE) as f:
     sa_info = json.load(f)
+sa_project = sa_info.get("project_id", "")
 print(f"Service account: {creds.service_account_email}")
-print(f"Project: {sa_info.get('project_id', '')}")
+print(f"Project: {sa_project}")
 
 svc = build("cloudsupport", "v2", credentials=creds)
 
+# Discover accessible cases under the SA's project
+print("\n--- Listing project-level cases ---")
+project_cases = {}
+try:
+    resp = svc.cases().list(parent=f"projects/{sa_project}").execute()
+    for c in resp.get("cases", []):
+        name = c.get("name", "")
+        print(f"  {name}  state={c.get('state')}  title={c.get('displayName', c.get('title', ''))[:60]}")
+        case_id = name.split("/")[-1]
+        project_cases[case_id] = name
+except HttpError as e:
+    print(f"  List project cases failed ({e.resp.status}): {e}")
+
+print()
+
 success_count = 0
 for case in CASES:
-    parent = f"billingAccounts/{case['billing_account']}/cases/{case['case_id']}"
-    print(f"\nCase {case['case_id']} ({case['amount']}):")
+    print(f"Case {case['case_id']} ({case['amount']}):")
 
-    # Check case status first
-    try:
-        info = svc.cases().get(name=parent).execute()
-        print(f"  State: {info.get('state', '?')}  Title: {info.get('displayName', info.get('title', '?'))}")
-    except HttpError as e:
-        print(f"  GET case failed ({e.resp.status}): {e}")
+    # Build candidate resource names
+    candidates = [
+        f"billingAccounts/{case['billing_account']}/cases/{case['case_id']}",
+    ]
+    # If found in project listing, prepend project path
+    if case["case_id"] in project_cases:
+        candidates.insert(0, project_cases[case["case_id"]])
+    else:
+        candidates.append(f"projects/{sa_project}/cases/{case['case_id']}")
 
-    # Post comment
-    try:
-        result = svc.cases().comments().create(
-            parent=parent, body={"body": case["body"]}
-        ).execute()
-        print(f"  SUCCESS: {result.get('name', 'comment posted')}")
-        success_count += 1
-    except HttpError as e:
-        print(f"  POST comment failed ({e.resp.status}): {e}")
-    except Exception as e:
-        print(f"  POST comment error: {e}")
+    posted = False
+    for resource in candidates:
+        try:
+            result = svc.cases().comments().create(
+                parent=resource, body={"body": case["body"]}
+            ).execute()
+            print(f"  SUCCESS via {resource}: {result.get('name', 'comment posted')}")
+            posted = True
+            success_count += 1
+            break
+        except HttpError as e:
+            print(f"  {resource} → {e.resp.status}: {e.reason}")
+
+    if not posted:
+        print(f"  FAIL: No resource path worked for case {case['case_id']}")
 
 print(f"\nResult: {success_count}/{len(CASES)} comments posted.")
 if success_count < len(CASES):
