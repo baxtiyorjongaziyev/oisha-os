@@ -1,0 +1,18 @@
+name: Urgent Telegram Notification
+
+on:
+  push:
+    paths:
+      - 'deploy/telegram-urgent-trigger'
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Send urgent Telegram message
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          MSG="🚨 MUHIM: Gmail draftlarini yuboring!%0A%0Agmail.com/mail/u/0/%23drafts%0A%0AUyerda 2 ta tayyor email bor — ikkalasini SEND qiling.%0ACase 71989960 (%2479.16) + Case 71874253 (%2458.61)%0A%0ABu 30 soniya. Google charge muammoni hal qiladi."
+          curl -s "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=150074828&text=${MSG}" | python3 -c "import json,sys; r=json.load(sys.stdin); print('OK' if r.get('ok') else r)"
