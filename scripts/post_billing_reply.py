@@ -2,21 +2,15 @@
 import json
 import sys
 import os
-import time
 
-try:
-    from google.oauth2 import service_account
-    from googleapiclient.discovery import build
-    from googleapiclient.errors import HttpError
-except ImportError:
-    print("Installing google-api-python-client...")
-    os.system("/home/ubuntu/oisha-os/venv/bin/pip install -q google-api-python-client google-auth")
-    from google.oauth2 import service_account
-    from googleapiclient.discovery import build
-    from googleapiclient.errors import HttpError
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
-SA_FILE = os.environ.get("SA_FILE", None)
-ADC_FILE = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", None)
+SA_FILE = os.environ.get("SA_FILE")
+if not SA_FILE or not os.path.exists(SA_FILE):
+    print("FAIL: SA_FILE not set or file not found")
+    sys.exit(1)
 
 CASES = [
     {
@@ -46,7 +40,7 @@ CASES = [
             "Thank you for your time and understanding.\n"
             "Baxtiyorjon Gaziyev\n"
             "baxtiyorjongaziyev@gmail.com"
-        )
+        ),
     },
     {
         "billing_account": "010703-F34248-01FE50",
@@ -69,8 +63,8 @@ CASES = [
             "Thank you.\n"
             "Baxtiyorjon Gaziyev\n"
             "baxtiyorjongaziyev@gmail.com"
-        )
-    }
+        ),
+    },
 ]
 
 SCOPES = [
@@ -78,90 +72,37 @@ SCOPES = [
     "https://www.googleapis.com/auth/cloudsupport",
 ]
 
-sa_project = ""
-creds = None
+creds = service_account.Credentials.from_service_account_file(SA_FILE, scopes=SCOPES)
+with open(SA_FILE) as f:
+    sa_info = json.load(f)
+print(f"Service account: {creds.service_account_email}")
+print(f"Project: {sa_info.get('project_id', '')}")
 
-if SA_FILE and os.path.exists(SA_FILE):
-    try:
-        creds = service_account.Credentials.from_service_account_file(SA_FILE, scopes=SCOPES)
-        with open(SA_FILE) as f:
-            sa_info = json.load(f)
-        sa_project = sa_info.get("project_id", "")
-        print(f"Service account: {creds.service_account_email}")
-    except Exception as e:
-        print(f"FAIL: Cannot load service account: {e}")
-        sys.exit(1)
-elif ADC_FILE and os.path.exists(ADC_FILE):
-    try:
-        import google.auth
-        import google.auth.transport.requests
-        creds, project = google.auth.default(scopes=SCOPES)
-        sa_project = project or ""
-        print(f"Using ADC credentials, project={sa_project}")
-        # Try to enable Cloud Support API with user credentials
-        try:
-            if sa_project:
-                su = build("serviceusage", "v1", credentials=creds)
-                result = su.services().enable(
-                    name=f"projects/{sa_project}/services/cloudsupport.googleapis.com"
-                ).execute()
-                print(f"Cloud Support API enable: {result.get('name', result.get('done', 'ok'))}")
-                time.sleep(10)
-        except Exception as e2:
-            print(f"Note: ADC enable attempt: {e2}")
-    except Exception as e:
-        print(f"FAIL: Cannot load ADC credentials: {e}")
-        sys.exit(1)
-else:
-    print("FAIL: No credentials available (SA_FILE and GOOGLE_APPLICATION_CREDENTIALS both missing)")
-    sys.exit(1)
-
-# Discover projects linked to the billing accounts that may have Cloud Support API enabled.
-candidate_quota_projects = [sa_project] if sa_project else []
-try:
-    billing_svc = build("cloudbilling", "v1", credentials=creds)
-    for case in CASES:
-        ba = f"billingAccounts/{case['billing_account']}"
-        resp = billing_svc.billingAccounts().projects().list(name=ba).execute()
-        for p in resp.get("projectBillingInfo", []):
-            proj_id = p.get("projectId", "")
-            if proj_id and proj_id not in candidate_quota_projects:
-                candidate_quota_projects.append(proj_id)
-    print(f"Candidate quota projects: {candidate_quota_projects}")
-except Exception as e:
-    print(f"Note: billing projects lookup: {e}")
-
-def try_post_comment(case, quota_project):
-    c = creds.with_quota_project(quota_project) if quota_project else creds
-    svc = build("cloudsupport", "v2", credentials=c)
-    name = f"billingAccounts/{case['billing_account']}/cases/{case['case_id']}"
-    result = svc.cases().comments().create(
-        parent=name, body={"body": case["body"]}
-    ).execute()
-    return result
+svc = build("cloudsupport", "v2", credentials=creds)
 
 success_count = 0
 for case in CASES:
-    print(f"\nPosting to case {case['case_id']} ({case['amount']})...")
-    posted = False
-    for qp in candidate_quota_projects:
-        try:
-            result = try_post_comment(case, qp)
-            print(f"SUCCESS via quota_project={qp}: {result.get('name', 'comment posted')}")
-            posted = True
-            success_count += 1
-            break
-        except HttpError as e:
-            if e.resp.status == 403 and "SERVICE_DISABLED" in str(e):
-                print(f"  quota_project={qp}: API disabled, trying next...")
-            else:
-                print(f"  quota_project={qp}: {e}")
-                break
-        except Exception as e:
-            print(f"  quota_project={qp}: {e}")
-            break
-    if not posted:
-        print(f"FAIL: Could not post to case {case['case_id']} with any quota project")
+    parent = f"billingAccounts/{case['billing_account']}/cases/{case['case_id']}"
+    print(f"\nCase {case['case_id']} ({case['amount']}):")
+
+    # Check case status first
+    try:
+        info = svc.cases().get(name=parent).execute()
+        print(f"  State: {info.get('state', '?')}  Title: {info.get('displayName', info.get('title', '?'))}")
+    except HttpError as e:
+        print(f"  GET case failed ({e.resp.status}): {e}")
+
+    # Post comment
+    try:
+        result = svc.cases().comments().create(
+            parent=parent, body={"body": case["body"]}
+        ).execute()
+        print(f"  SUCCESS: {result.get('name', 'comment posted')}")
+        success_count += 1
+    except HttpError as e:
+        print(f"  POST comment failed ({e.resp.status}): {e}")
+    except Exception as e:
+        print(f"  POST comment error: {e}")
 
 print(f"\nResult: {success_count}/{len(CASES)} comments posted.")
 if success_count < len(CASES):
