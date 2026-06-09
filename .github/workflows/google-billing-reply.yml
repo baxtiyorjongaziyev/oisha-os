@@ -12,44 +12,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Post comments via Cloud Support API on Oracle VM
-        uses: appleboy/ssh-action@v1
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -q google-api-python-client google-auth
+
+      - name: Post billing waiver comments
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ubuntu
-          key: ${{ secrets.ORACLE_SSH_KEY }}
-          port: 22
-          timeout: 30s
-          command_timeout: 4m
-          envs: GCP_SA_KEY,GITHUB_TOKEN
-          script: |
-            set -euo pipefail
-            cd /home/ubuntu/oisha-os
-            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
-            git fetch origin main
-            git checkout origin/main -- scripts/post_billing_reply.py
-            ADC="$HOME/.config/gcloud/application_default_credentials.json"
-            if [ -f "$ADC" ]; then
-              echo "Found ADC credentials at $ADC, trying with user credentials..."
-              GOOGLE_APPLICATION_CREDENTIALS="$ADC" /home/ubuntu/oisha-os/venv/bin/python scripts/post_billing_reply.py
-            else
-              echo "No ADC found, using GCP_SA_KEY..."
-              SA_TMP="/tmp/billing_sa_$$.json"
-              printf '%s' "$GCP_SA_KEY" > "$SA_TMP"
-              SA_FILE="$SA_TMP" /home/ubuntu/oisha-os/venv/bin/python scripts/post_billing_reply.py
-              rm -f "$SA_TMP"
-            fi
+        run: |
+          printf '%s' "$GCP_SA_KEY" > /tmp/sa.json
+          SA_FILE=/tmp/sa.json python scripts/post_billing_reply.py
+          rm -f /tmp/sa.json
 
       - name: Notify result via Telegram
         if: always()
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
         run: |
-          STATUS="${{ job.status }}"
-          if [ "$STATUS" = "success" ]; then
+          if [ "$JOB_STATUS" = "success" ]; then
             MSG="Google%20Billing%20Reply%3A%20SUCCESS%0AComments%20posted%20to%20cases%2071989960%20(%2479.16)%20%2B%2071874253%20(%2458.61)"
           else
             MSG="Google%20Billing%20Reply%3A%20FAILED%0ACheck%20Actions%20logs"
           fi
-          curl -s "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage?chat_id=150074828&text=${MSG}" > /dev/null || true
+          curl -s "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=150074828&text=${MSG}" > /dev/null || true
