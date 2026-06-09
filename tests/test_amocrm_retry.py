@@ -152,7 +152,6 @@ class TestAmoCRMErrorHandling:
         firestore_db = MagicMock()
         firestore_db.collection.return_value.document.return_value = doc
         client = MagicMock(return_value=firestore_db)
-        monkeypatch.setattr(amocrm_sync, "HAS_FIRESTORE", True)
         monkeypatch.setattr(amocrm_sync.firestore, "Client", client)
         AmoCRMSync._firestore_blocked_until = 0.0
         AmoCRMSync._firestore_block_reason = None
