@@ -1,6 +1,9 @@
 name: Send Billing Support Emails
 
 on:
+  push:
+    paths:
+      - 'deploy/billing-email-trigger'
   workflow_dispatch:
 
 jobs:
