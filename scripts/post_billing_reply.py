@@ -77,54 +77,58 @@ with open(SA_FILE) as f:
     sa_info = json.load(f)
 sa_project = sa_info.get("project_id", "")
 print(f"Service account: {creds.service_account_email}")
-print(f"Project: {sa_project}")
 
-svc = build("cloudsupport", "v2", credentials=creds)
-
-# Discover accessible cases under the SA's project
-print("\n--- Listing project-level cases ---")
-project_cases = {}
-try:
-    resp = svc.cases().list(parent=f"projects/{sa_project}").execute()
-    for c in resp.get("cases", []):
-        name = c.get("name", "")
-        print(f"  {name}  state={c.get('state')}  title={c.get('displayName', c.get('title', ''))[:60]}")
-        case_id = name.split("/")[-1]
-        project_cases[case_id] = name
-except HttpError as e:
-    print(f"  List project cases failed ({e.resp.status}): {e}")
-
-print()
+svc    = build("cloudsupport", "v2",     credentials=creds)
+svc_b  = build("cloudsupport", "v2beta", credentials=creds)
 
 success_count = 0
 for case in CASES:
-    print(f"Case {case['case_id']} ({case['amount']}):")
+    ba_parent   = f"billingAccounts/{case['billing_account']}"
+    ba_case     = f"{ba_parent}/cases/{case['case_id']}"
+    proj_case   = f"projects/{sa_project}/cases/{case['case_id']}"
 
-    # Build candidate resource names
-    candidates = [
-        f"billingAccounts/{case['billing_account']}/cases/{case['case_id']}",
+    print(f"\n=== Case {case['case_id']} ({case['amount']}) ===")
+
+    # Discover real case resource name via billing account listing
+    real_name = None
+    for api_name, api in [("v2", svc), ("v2beta", svc_b)]:
+        try:
+            resp = api.cases().list(parent=ba_parent).execute()
+            cases_found = resp.get("cases", [])
+            print(f"  [{api_name}] Billing account case list: {len(cases_found)} cases")
+            for c in cases_found:
+                print(f"    {c.get('name')}  state={c.get('state')}  id={c.get('name','').split('/')[-1]}")
+                if c.get("name", "").endswith(f"/{case['case_id']}"):
+                    real_name = c["name"]
+            break
+        except HttpError as e:
+            print(f"  [{api_name}] List billing cases → {e.resp.status}: {e.reason}")
+
+    # Try all candidate paths to post comment
+    candidates = []
+    if real_name:
+        candidates.append(("real", svc, real_name))
+    candidates += [
+        ("v2/ba",   svc,   ba_case),
+        ("v2b/ba",  svc_b, ba_case),
+        ("v2/proj", svc,   proj_case),
     ]
-    # If found in project listing, prepend project path
-    if case["case_id"] in project_cases:
-        candidates.insert(0, project_cases[case["case_id"]])
-    else:
-        candidates.append(f"projects/{sa_project}/cases/{case['case_id']}")
 
     posted = False
-    for resource in candidates:
+    for label, api, resource in candidates:
         try:
-            result = svc.cases().comments().create(
+            result = api.cases().comments().create(
                 parent=resource, body={"body": case["body"]}
             ).execute()
-            print(f"  SUCCESS via {resource}: {result.get('name', 'comment posted')}")
+            print(f"  SUCCESS [{label}] {resource}: {result.get('name', 'comment posted')}")
             posted = True
             success_count += 1
             break
         except HttpError as e:
-            print(f"  {resource} → {e.resp.status}: {e.reason}")
+            print(f"  FAIL [{label}] {resource} → {e.resp.status}: {e.reason}")
 
     if not posted:
-        print(f"  FAIL: No resource path worked for case {case['case_id']}")
+        print(f"  *** FAIL: case {case['case_id']} not posted ***")
 
 print(f"\nResult: {success_count}/{len(CASES)} comments posted.")
 if success_count < len(CASES):
