@@ -355,6 +355,47 @@ class CRMContactsAuditor:
             logger.debug("[AUDITOR] Failed to fetch Telegram chat history for %s: %s", telegram_user_id, e)
             return ""
 
+    async def get_telegram_history_and_unanswered(
+        self, telegram_user_id: int, limit: int = 20
+    ) -> Tuple[str, bool, str]:
+        """Fetch chat history and check if the latest message is unanswered."""
+        if not self.tg_client or not telegram_user_id:
+            return "", False, ""
+
+        try:
+            msgs = []
+            async for msg in self.tg_client.iter_messages(
+                int(telegram_user_id), limit=limit
+            ):
+                msgs.append(msg)
+                
+            is_unanswered = False
+            duration_str = ""
+            if msgs:
+                latest_msg = msgs[0]
+                if not getattr(latest_msg, "out", False):
+                    is_unanswered = True
+                    delta = datetime.now(timezone.utc) - latest_msg.date
+                    hours = delta.total_seconds() / 3600
+                    if hours < 1:
+                        duration_str = f"{int(delta.total_seconds() / 60)} daqiqa avval"
+                    else:
+                        duration_str = f"{int(hours)} soat avval"
+
+            formatted_msgs = []
+            for msg in reversed(msgs):
+                text = str(getattr(msg, "text", "") or "").strip()
+                if not text:
+                    continue
+                role = "Men (Userbot)" if getattr(msg, "out", False) else "Mijoz"
+                date_str = msg.date.strftime("%Y-%m-%d %H:%M") if msg.date else ""
+                formatted_msgs.append(f"[{date_str}] {role}: {text}")
+                
+            return "\n".join(formatted_msgs), is_unanswered, duration_str
+        except Exception as e:
+            logger.debug("[AUDITOR] Failed to fetch Telegram chat history with metadata for %s: %s", telegram_user_id, e)
+            return "", False, ""
+
     async def get_cached_group_dialogs(self) -> List[Any]:
         """Fetch and cache recent group/channel dialogs to avoid Telegram rate limits."""
         now = datetime.now()
@@ -483,6 +524,53 @@ class CRMContactsAuditor:
             logger.debug("[AUDITOR] Failed to fetch group history: %s", e)
             return ""
 
+    async def get_group_chat_history_and_unanswered(
+        self, group_entity: Any, limit: int = 15
+    ) -> Tuple[str, bool, str]:
+        """Fetch group history and check if the latest message is from the customer."""
+        if not self.tg_client or not group_entity:
+            return "", False, ""
+
+        try:
+            msgs = []
+            async for msg in self.tg_client.iter_messages(group_entity, limit=limit):
+                msgs.append(msg)
+
+            is_unanswered = False
+            duration_str = ""
+            if msgs:
+                latest_msg = msgs[0]
+                if not getattr(latest_msg, "out", False):
+                    is_unanswered = True
+                    delta = datetime.now(timezone.utc) - latest_msg.date
+                    hours = delta.total_seconds() / 3600
+                    if hours < 1:
+                        duration_str = f"{int(delta.total_seconds() / 60)} daqiqa avval"
+                    else:
+                        duration_str = f"{int(hours)} soat avval"
+
+            formatted_msgs = []
+            for msg in reversed(msgs):
+                text = str(getattr(msg, "text", "") or "").strip()
+                if not text:
+                    continue
+                sender = await msg.get_sender()
+                sender_name = "Noma'lum"
+                if sender:
+                    first = getattr(sender, "first_name", "") or ""
+                    last = getattr(sender, "last_name", "") or ""
+                    username = getattr(sender, "username", "")
+                    sender_name = f"{first} {last}".strip()
+                    if username:
+                        sender_name += f" (@{username})"
+                date_str = msg.date.strftime("%Y-%m-%d %H:%M") if msg.date else ""
+                formatted_msgs.append(f"[{date_str}] {sender_name}: {text}")
+                
+            return "\n".join(formatted_msgs), is_unanswered, duration_str
+        except Exception as e:
+            logger.debug("[AUDITOR] Failed to fetch group history with metadata: %s", e)
+            return "", False, ""
+
     def serialize_lead_details(self, lead: Dict[str, Any]) -> str:
         """Serialize AmoCRM lead/deal parameters to pass to Gemini."""
         details = []
@@ -498,8 +586,21 @@ class CRMContactsAuditor:
             except Exception:
                 pass
 
+        closed_at = lead.get("closed_at")
+        if closed_at:
+            try:
+                date_str = datetime.fromtimestamp(int(closed_at), tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+                details.append(f"Yopilgan sana: {date_str}")
+            except Exception:
+                pass
+
         details.append(f"Mas'ul xodim ID (Responsible User): {lead.get('responsible_user_id')}")
         details.append(f"Status (Pipeline Stage) ID: {lead.get('status_id')}")
+        details.append(f"Voronka (Pipeline) ID: {lead.get('pipeline_id')}")
+        
+        loss_reason = lead.get("loss_reason_id")
+        if loss_reason:
+            details.append(f"Muvaffaqiyatsizlik sababi ID (Loss Reason): {loss_reason}")
 
         # Tags
         tags = lead.get("_embedded", {}).get("tags", []) or lead.get("tags", [])
@@ -519,6 +620,91 @@ class CRMContactsAuditor:
             details.append("Qo'shimcha maydonlar:\n" + "\n".join(cf_details))
 
         return "\n".join(details)
+
+    async def get_lead_tasks(self, lead_id: int) -> List[Dict[str, Any]]:
+        """Fetch tasks (both active and completed) for a specific lead."""
+        tasks = []
+        for is_completed in [0, 1]:
+            url = f"{self.amocrm.base_url}/api/v4/tasks"
+            params = {
+                "filter[entity_id]": lead_id,
+                "filter[entity_type]": "leads",
+                "filter[is_completed]": is_completed
+            }
+            try:
+                response = await self.amocrm._request_with_auth(
+                    requests.get, url, params=params, timeout=30
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    page_tasks = data.get("_embedded", {}).get("tasks", [])
+                    tasks.extend(page_tasks)
+            except Exception as e:
+                logger.error("[AUDITOR] Failed to fetch tasks for lead %s (is_completed=%s): %s", lead_id, is_completed, e)
+        return tasks
+
+    def serialize_tasks(self, tasks: List[Dict[str, Any]]) -> str:
+        """Convert lead tasks history and comments into structured string."""
+        if not tasks:
+            return "Bitimda vazifalar tarixi mavjud emas."
+        lines = []
+        for t in tasks:
+            status = "Bajarilgan" if t.get("is_completed") else "Faol"
+            created = ""
+            if t.get("created_at"):
+                try:
+                    created = datetime.fromtimestamp(int(t.get("created_at")), tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    pass
+            text = t.get("text") or "Tavsifsiz vazifa"
+            result_info = ""
+            if t.get("is_completed") and t.get("result"):
+                res_text = t.get("result", {}).get("text") or "Izohsiz"
+                result_info = f" | Bajarilish izohi (javobi): {res_text}"
+            
+            lines.append(f"- [{status}] Yaratilgan: {created} | Vazifa: {text}{result_info}")
+        return "\n".join(lines)
+
+    def is_duplicate_task(self, new_task_text: str, existing_tasks: List[Dict[str, Any]]) -> bool:
+        """Check if new_task_text is similar to any existing active or completed task."""
+        if not new_task_text:
+            return False
+            
+        def clean_text(t: str) -> str:
+            # Lowercase, keep letters/numbers, strip
+            t_clean = re.sub(r"[^\w\s]", "", t.lower())
+            t_clean = t_clean.replace("oisha-os keyingi qadam", "").strip()
+            t_clean = t_clean.replace("oishaos", "").strip()
+            return t_clean
+            
+        new_cleaned = clean_text(new_task_text)
+        if not new_cleaned:
+            return False
+            
+        new_words = set(new_cleaned.split())
+        if not new_words:
+            return False
+            
+        for t in existing_tasks:
+            ext_text = t.get("text") or ""
+            ext_cleaned = clean_text(ext_text)
+            if not ext_cleaned:
+                continue
+                
+            # Exact match check
+            if new_cleaned == ext_cleaned or new_cleaned in ext_cleaned or ext_cleaned in new_cleaned:
+                return True
+                
+            # Word overlap check (e.g. if 70% of words overlap)
+            ext_words = set(ext_cleaned.split())
+            if not ext_words:
+                continue
+            intersection = new_words.intersection(ext_words)
+            smaller_len = min(len(new_words), len(ext_words))
+            if smaller_len > 0 and len(intersection) / smaller_len > 0.7:
+                return True
+                
+        return False
 
     async def get_call_notes_and_transcripts(
         self, lead_id: int, phone: str
@@ -596,6 +782,8 @@ class CRMContactsAuditor:
         telegram_history: str,
         lead_details: str = "",
         group_history: str = "",
+        tasks_history: str = "",
+        telegram_unanswered_info: str = "",
     ) -> Tuple[str, str, str, str]:  # Return (category, explanation, detailed_summary, task_text)
         """Use Gemini to classify the contact and generate conclusion and follow-up task."""
         if not self.genai_client:
@@ -610,13 +798,16 @@ class CRMContactsAuditor:
             "telegram_history": telegram_history[:3000],
             "lead_details": lead_details[:2000],
             "group_history": group_history[:3000],
+            "tasks_history": tasks_history[:2000],
+            "telegram_unanswered_info": telegram_unanswered_info,
         }
 
         prompt = (
             "Siz Oisha-OS Surgical Agent tizimining aloqalarni tahlil qilish va saralash xizmatining bir bo'lagisiz. "
-            "Sizga amoCRM dagi bitim nomi, bitimning to'liq tafsilotlari, kontakt ma'lumotlari, qo'ng'iroq yozuvlari tahlili/tarixi, "
-            "Telegram shaxsiy yozishmalar tarixi hamda mijoz bilan birga bo'lgan guruh yozishmalari tarixi taqdim etiladi.\n\n"
-            "Sizning vazifangiz taqdim etilgan barcha ma'lumotlarni tahlil qilib, quyidagi natijalarni ishlab chiqish:\n\n"
+            "Sizga amoCRM dagi bitim nomi, bitimning to'liq har bir maydoni (field), kontakt ma'lumotlari, qo'ng'iroq yozuvlari tahlili/tarixi, "
+            "Telegram shaxsiy va guruh yozishmalari tarixi, amoCRM bitimidagi vazifalar (zadachalar) tarixi hamda ularga berilgan javoblar/izohlar, "
+            "va Telegram chatlaridagi javobsiz qolib ketgan suhbatlar holati taqdim etiladi.\n\n"
+            "Sizning vazifangiz taqdim etilgan barcha ma'lumotlarni, jumladan sdelkaning har bir fieldini, vazifalar va ularning bajarilish javoblarini chuqur tahlil qilib, quyidagi natijalarni ishlab chiqish:\n\n"
             "1. **Tasniflash (category)**: Kontaktni quyidagi 5 ta toifadan faqat bittasiga tasniflash:\n"
             "   - Mijoz: Brending, SMM, sayt yaratish, dizayn kabi xizmatlarimizni so'ragan, sotib olgan, narxi yoki tijorat taklifi bilan qiziqqan har qanday shaxs.\n"
             "   - Shaxsiy: Shaxsiy oila a'zolari, do'stlar yoki biznesga mutlaqo aloqasi bo'lmagan shaxsiy masaladagi suhbatdoshlar.\n"
@@ -624,8 +815,13 @@ class CRMContactsAuditor:
             "   - Hamkor/Jamoa: Jamoamiz a'zolari (xodimlar), hamkorlar yoki birgalikda ish olib borayotgan tashqi hamkorlar.\n"
             "   - Boshqa: Spam qo'ng'iroqlar, xato tushganlar, yoki suhbat tarixi bo'sh bo'lgan va aniq toifaga kirmaydigan kontaktlar.\n\n"
             "2. **Tasniflash sababi (explanation)**: Qisqa va londa o'zbek tilida (lotin alifbosida) tasniflash sababi.\n\n"
-            "3. **Mukammal Tahlil Xulosasi (detailed_summary)**: Har bir mijozning ma'lumotlarini (Telefon qo'ng'iroqlari, Telegram shaxsiy yozishmalari, birgalikdagi guruh yozishmalari va amoCRM bitimi ichidagi barcha ma'lumotlar) to'liq tahlil qilib, o'zbek tilida (lotin alifbosida) professional biznes-konsalting ohangida yozilgan mukammal xulosa. Ushbu xulosada mijozning ehtiyoji, asosiy kelishuvlar, yuzaga kelgan muammolar va bitimning joriy holati aks etishi lozim. Bu matn amoCRM bitimiga izoh (note) sifatida yoziladi.\n\n"
-            "4. **Keyingi Qadam Vazifasi (next_step_task)**: Mas'ul menejer uchun keyingi qadam bo'yicha aniq, amaliy va ketma-ketlikka ega bo'lgan vazifa (task) matni (o'zbek tilida, lotin alifbosida). Masalan: 'Mijoz bilan bog'lanib, SMM narxlari bo'yicha taklif yuborish va 15-iyunga uchrashuv belgilash'.\n\n"
+            "3. **Mukammal Tahlil Xulosasi (detailed_summary)**: Har bir mijozning ma'lumotlarini (Telefon qo'ng'iroqlari, Telegram shaxsiy va guruh yozishmalari, sdelka maydonlari, vazifalar tarixi va ularning bajarilish izohlari) to'liq tahlil qilib, o'zbek tilida (lotin alifbosida) professional biznes-konsalting ohangida yozilgan mukammal xulosa. \n"
+            "Xulosaning oxiriga har doim menejerlar uchun quyidagi maslahatni (aynan yoki o'z so'zlaringiz bilan) qo'shing:\n"
+            "   '💡 Menejerga maslahat: Vazifa bajarilgach, uni amoCRMda \"Bajarildi\" deb belgilang va bajarilish izohini yozing. Oisha boti bajarilgan vazifalar tarixi va izohlarini to'liq tahlil qiladi va qayta takroriy vazifa yaratilishining oldini oladi.'\n\n"
+            "4. **Keyingi Qadam Vazifasi (next_step_task)**: Mas'ul menejer uchun keyingi qadam bo'yicha aniq vazifa matni. \n"
+            "   - **MUHIM QOIDA (Takroriy vazifalarni oldini olish)**: Agar keyingi qadam vazifasi taqdim etilgan vazifalar tarixida (tasks_history) allaqachon bajarilgan bo'lsa yoki hozirda faol bo'lsa, xuddi shu vazifani qaytadan yaratishni tavsiya qilmang. Buning o'rniga yangi mantiqiy vazifa yozing.\n"
+            "   - **Telegram javobsiz xabarlar**: Agar 'telegram_unanswered_info' maydoni mijozning xabari javobsiz qolganini ko'rsatsa, birinchi navbatda Telegramda mijozga javob yozish vazifasini qo'ying.\n"
+            "   - Agar mutlaqo yangi vazifa qo'yish shart bo'lmasa yoki barcha ishlar yakunlangan bo'lsa, 'next_step_task' maydonini bo'sh satr ('') qoldiring.\n\n"
             "Javobni quyidagi JSON formatida qaytaring, boshqa hech qanday qo'shimcha tushuntirish va markdown belgilari (masalan, ```json) yozmang:\n"
             "{\n"
             '  "category": "Mijoz|Shaxsiy|Kandidat|Hamkor/Jamoa|Boshqa",\n'
@@ -719,23 +915,43 @@ class CRMContactsAuditor:
         # Lookup Telegram Account & chat history
         telegram_user_id = None
         telegram_history = ""
+        is_unanswered_tg = False
+        tg_unanswered_duration = ""
         if phone or username:
             telegram_user_id, username = await self.get_or_lookup_telegram_user(phone, username)
             if telegram_user_id:
-                telegram_history = await self.get_telegram_chat_history(telegram_user_id, limit=20)
+                telegram_history, is_unanswered_tg, tg_unanswered_duration = await self.get_telegram_history_and_unanswered(telegram_user_id, limit=20)
 
         # Lookup Shared Group Chats & histories
         group_history_parts = []
+        is_unanswered_group = False
+        group_unanswered_duration = ""
         try:
             shared_groups = await self.find_shared_group_chats(lead_name, contact_name, telegram_user_id)
             for group_entity, group_title in shared_groups:
-                g_hist = await self.get_group_chat_history(group_entity, limit=15)
+                g_hist, g_unanswered, g_duration = await self.get_group_chat_history_and_unanswered(group_entity, limit=15)
                 if g_hist:
                     group_history_parts.append(f"--- Guruh: {group_title} ---\n{g_hist}")
+                    if g_unanswered:
+                        is_unanswered_group = True
+                        group_unanswered_duration = g_duration
         except Exception as group_err:
             logger.warning("[AUDITOR] Error fetching shared group chats for lead %s: %s", lead_id, group_err)
 
         group_history = "\n\n".join(group_history_parts)
+
+        # Determine Telegram unanswered status info
+        telegram_unanswered_info = ""
+        if is_unanswered_tg:
+            telegram_unanswered_info += f"Mijoz shaxsiy telegramda oxirgi xabarni yozgan ({tg_unanswered_duration}) va javob berilmagan. "
+        if is_unanswered_group:
+            telegram_unanswered_info += f"Mijoz loyiha guruhida oxirgi xabarni yozgan ({group_unanswered_duration}) va javob berilmagan."
+        if not telegram_unanswered_info:
+            telegram_unanswered_info = "Barcha Telegram xabarlariga javob berilgan."
+
+        # Fetch and serialize Lead Tasks
+        existing_tasks = await self.get_lead_tasks(int(lead_id))
+        tasks_history = self.serialize_tasks(existing_tasks)
 
         # Serialize Lead details
         lead_details = self.serialize_lead_details(lead)
@@ -753,6 +969,8 @@ class CRMContactsAuditor:
             telegram_history=telegram_history,
             lead_details=lead_details,
             group_history=group_history,
+            tasks_history=tasks_history,
+            telegram_unanswered_info=telegram_unanswered_info,
         )
 
         # Save to DB
@@ -781,27 +999,38 @@ class CRMContactsAuditor:
             except Exception as note_err:
                 logger.error("[AUDITOR] Failed to add audit note to AmoCRM for lead %s: %s", lead_id, note_err)
 
-        # Create task in AmoCRM
+        # Create task in AmoCRM (with duplication prevention)
         if next_step_task:
-            try:
-                responsible_user_id = lead.get("responsible_user_id")
-                # Calculate tomorrow at 18:00 local time (GMT+5 offset)
-                tz_offset = timezone(timedelta(hours=5))
-                now_gmt5 = datetime.now(tz_offset)
-                tomorrow_gmt5 = now_gmt5 + timedelta(days=1)
-                tomorrow_18_gmt5 = tomorrow_gmt5.replace(hour=18, minute=0, second=0, microsecond=0)
-                complete_till = int(tomorrow_18_gmt5.timestamp())
+            next_step_task_clean = next_step_task.strip()
+            # Double check duplication logic
+            is_dup = self.is_duplicate_task(next_step_task_clean, existing_tasks)
+            if is_dup:
+                logger.info("[AUDITOR] Skipped creating duplicate task for lead %s: %s", lead_id, next_step_task_clean)
+                try:
+                    dup_note = f"🤖 **Oisha-OS Eslatma:**\nKeyingi qadam vazifasi ('{next_step_task_clean}') bitimda allaqachon faol yoki bajarilganligi sababli takroran yaratilmadi."
+                    await asyncio.to_thread(self.amocrm.add_lead_note, int(lead_id), dup_note)
+                except Exception:
+                    pass
+            else:
+                try:
+                    responsible_user_id = lead.get("responsible_user_id")
+                    # Calculate tomorrow at 18:00 local time (GMT+5 offset)
+                    tz_offset = timezone(timedelta(hours=5))
+                    now_gmt5 = datetime.now(tz_offset)
+                    tomorrow_gmt5 = now_gmt5 + timedelta(days=1)
+                    tomorrow_18_gmt5 = tomorrow_gmt5.replace(hour=18, minute=0, second=0, microsecond=0)
+                    complete_till = int(tomorrow_18_gmt5.timestamp())
 
-                task_text = f"🤖 Oisha-OS Keyingi Qadam:\n{next_step_task}"
-                await self.amocrm.create_task(
-                    element_id=int(lead_id),
-                    text=task_text,
-                    complete_till=complete_till,
-                    responsible_user_id=responsible_user_id,
-                )
-                logger.info("[AUDITOR] Created follow-up task in AmoCRM for lead %s (responsible: %s).", lead_id, responsible_user_id)
-            except Exception as task_err:
-                logger.error("[AUDITOR] Failed to create follow-up task in AmoCRM for lead %s: %s", lead_id, task_err)
+                    task_text = f"🤖 Oisha-OS Keyingi Qadam:\n{next_step_task_clean}"
+                    await self.amocrm.create_task(
+                        element_id=int(lead_id),
+                        text=task_text,
+                        complete_till=complete_till,
+                        responsible_user_id=responsible_user_id,
+                    )
+                    logger.info("[AUDITOR] Created follow-up task in AmoCRM for lead %s (responsible: %s).", lead_id, responsible_user_id)
+                except Exception as task_err:
+                    logger.error("[AUDITOR] Failed to create follow-up task in AmoCRM for lead %s: %s", lead_id, task_err)
 
         # Tag lead in AmoCRM automatically
         try:
@@ -872,4 +1101,5 @@ class CRMContactsAuditor:
                 pass
 
         return stats
+
 
