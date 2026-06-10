@@ -784,10 +784,10 @@ class CRMContactsAuditor:
         group_history: str = "",
         tasks_history: str = "",
         telegram_unanswered_info: str = "",
-    ) -> Tuple[str, str, str, str]:  # Return (category, explanation, detailed_summary, task_text)
-        """Use Gemini to classify the contact and generate conclusion and follow-up task."""
+    ) -> Tuple[str, str, str, str, str]:  # Return (category, explanation, detailed_summary, task_text, telegram_draft_reply)
+        """Use Gemini to classify the contact and generate conclusion, follow-up task, and draft reply."""
         if not self.genai_client:
-            return "Boshqa", "Gemini API sozlanmagan. Standart toifa 'Boshqa' deb tanlandi.", "", ""
+            return "Boshqa", "Gemini API sozlanmagan. Standart toifa 'Boshqa' deb tanlandi.", "", "", ""
 
         context = {
             "lead_name": lead_name,
@@ -822,12 +822,14 @@ class CRMContactsAuditor:
             "   - **MUHIM QOIDA (Takroriy vazifalarni oldini olish)**: Agar keyingi qadam vazifasi taqdim etilgan vazifalar tarixida (tasks_history) allaqachon bajarilgan bo'lsa yoki hozirda faol bo'lsa, xuddi shu vazifani qaytadan yaratishni tavsiya qilmang. Buning o'rniga yangi mantiqiy vazifa yozing.\n"
             "   - **Telegram javobsiz xabarlar**: Agar 'telegram_unanswered_info' maydoni mijozning xabari javobsiz qolganini ko'rsatsa, birinchi navbatda Telegramda mijozga javob yozish vazifasini qo'ying.\n"
             "   - Agar mutlaqo yangi vazifa qo'yish shart bo'lmasa yoki barcha ishlar yakunlangan bo'lsa, 'next_step_task' maydonini bo'sh satr ('') qoldiring.\n\n"
+            "5. **Telegram Draft Reply (telegram_draft_reply)**: Mijozning shaxsiy Telegramdagi oxirgi javobsiz xabariga taklif qilinayotgan javob matni (o'zbek tilida, lotin alifbosida, samimiy va professional ohangda). Agar shaxsiy Telegram chatida mijozning xabari javobsiz qolgan bo'lsa, ushbu maydonga tahminiy javob matnini yozing. Userbot buni shaxsiy chatda avtomatik ravishda qoralama (draft) qilib qo'yadi. Agar javobsiz xabar bo'lmasa, bo'sh satr ('') qaytaring.\n\n"
             "Javobni quyidagi JSON formatida qaytaring, boshqa hech qanday qo'shimcha tushuntirish va markdown belgilari (masalan, ```json) yozmang:\n"
             "{\n"
             '  "category": "Mijoz|Shaxsiy|Kandidat|Hamkor/Jamoa|Boshqa",\n'
             '  "explanation": "Tasniflash sababi...",\n'
             '  "detailed_summary": "Tahlil xulosasi...",\n'
-            '  "next_step_task": "Menejer uchun vazifa..."\n'
+            '  "next_step_task": "Menejer uchun vazifa...",\n'
+            '  "telegram_draft_reply": "Taklif etiladigan javob matni..."\n'
             "}\n\n"
             f"Kontekst JSON:\n{json.dumps(context, ensure_ascii=False, default=str)}"
         )
@@ -866,12 +868,13 @@ class CRMContactsAuditor:
             explanation = data.get("explanation", "Sabab taqdim etilmadi.")
             detailed_summary = data.get("detailed_summary", f"Tizim tomonidan avtomatik tahlil: {explanation}")
             next_step_task = data.get("next_step_task", "Mijoz bilan bog'lanib, holatni aniqlashtiring.")
+            telegram_draft_reply = data.get("telegram_draft_reply", "")
 
             valid_categories = {"Mijoz", "Shaxsiy", "Kandidat", "Hamkor/Jamoa", "Boshqa"}
             if category not in valid_categories:
                 category = "Boshqa"
 
-            return category, explanation, detailed_summary, next_step_task
+            return category, explanation, detailed_summary, next_step_task, telegram_draft_reply
         except Exception as e:
             logger.error("[AUDITOR] Gemini classification/analysis failed: %s", e)
 
@@ -887,7 +890,7 @@ class CRMContactsAuditor:
             detailed_summary = f"Mijoz va uning yozishmalari tahlili xatolik tufayli yakunlanmadi. Aloqa toifasi: {category}."
             next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
 
-            return category, explanation, detailed_summary, next_step_task
+            return category, explanation, detailed_summary, next_step_task, ""
 
     async def audit_lead_by_data(self, lead: Dict[str, Any], force: bool = False) -> Optional[str]:
         """Audit and classify a single AmoCRM lead data dictionary."""
@@ -960,7 +963,7 @@ class CRMContactsAuditor:
         _, call_summary = await self.get_call_notes_and_transcripts(int(lead_id), phone)
 
         # Classify and analyze via Gemini
-        category, explanation, detailed_summary, next_step_task = await self.classify_contact(
+        category, explanation, detailed_summary, next_step_task, telegram_draft_reply = await self.classify_contact(
             lead_name=lead_name,
             contact_name=contact_name,
             phone=phone,
@@ -998,6 +1001,22 @@ class CRMContactsAuditor:
                 logger.info("[AUDITOR] Added audit note to AmoCRM for lead %s.", lead_id)
             except Exception as note_err:
                 logger.error("[AUDITOR] Failed to add audit note to AmoCRM for lead %s: %s", lead_id, note_err)
+
+        # Save draft in Telegram if unanswered
+        if telegram_user_id and is_unanswered_tg and telegram_draft_reply:
+            try:
+                draft_text = telegram_draft_reply.strip()
+                await self.tg_client.edit_draft(int(telegram_user_id), draft_text)
+                logger.info("[AUDITOR] Saved draft reply in Telegram for user %s: %s", telegram_user_id, draft_text[:50])
+                
+                # Add note to AmoCRM that a draft reply has been saved
+                try:
+                    draft_note = f"🤖 **Oisha-OS Telegram Draft:**\nMijozning shaxsiy Telegramdagi oxirgi javobsiz xabariga userbot orqali taklif etilgan javob qoralama (draft) sifatida saqlandi:\n\n\"{draft_text}\"\n\n*(Menejer ushbu javobni tahrirlashi yoki o'zgartirmasdan shaxsiy Telegram orqali yuborishi mumkin)*"
+                    await asyncio.to_thread(self.amocrm.add_lead_note, int(lead_id), draft_note)
+                except Exception:
+                    pass
+            except Exception as draft_err:
+                logger.error("[AUDITOR] Failed to save draft in Telegram for user %s: %s", telegram_user_id, draft_err)
 
         # Create task in AmoCRM (with duplication prevention)
         if next_step_task:
