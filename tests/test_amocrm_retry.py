@@ -141,39 +141,14 @@ class TestAmoCRMErrorHandling:
                 # Token refresh should be called
                 amocrm.refresh_token.assert_called_once()
 
-    def test_firestore_failure_starts_shared_file_fallback_cooldown(
-        self, monkeypatch, tmp_path
-    ):
-        from src.services.core import amocrm_sync
-        from src.services.core.amocrm_sync import AmoCRMSync
+    def test_firestore_removed_from_amocrm_sync(self):
+        """Firestore was removed to eliminate GCP billing. amocrm_sync must not import it."""
+        import src.services.core.amocrm_sync as amocrm_sync
 
-        doc = MagicMock()
-        doc.get.side_effect = RuntimeError("403 SERVICE_DISABLED")
-        firestore_db = MagicMock()
-        firestore_db.collection.return_value.document.return_value = doc
-        client = MagicMock(return_value=firestore_db)
-        monkeypatch.setattr(amocrm_sync, "HAS_FIRESTORE", True)
-        monkeypatch.setattr(amocrm_sync.firestore, "Client", client)
-        AmoCRMSync._firestore_blocked_until = 0.0
-        AmoCRMSync._firestore_block_reason = None
-
-        kwargs = {
-            "subdomain": "test",
-            "client_id": "test_id",
-            "client_secret": "test_secret",
-            "redirect_url": "http://test/callback",
-            "token_file": str(tmp_path / "missing-token.json"),
-        }
-        first = AmoCRMSync(**kwargs)
-        second = AmoCRMSync(**kwargs)
-
-        assert first.db is None
-        assert second.db is None
-        client.assert_called_once()
-        assert AmoCRMSync._firestore_blocked_until > time.time()
-
-        AmoCRMSync._firestore_blocked_until = 0.0
-        AmoCRMSync._firestore_block_reason = None
+        assert not hasattr(amocrm_sync, "HAS_FIRESTORE"), (
+            "Firestore was removed from the project to eliminate GCP billing costs. "
+            "Do not re-add google-cloud-firestore imports."
+        )
 
 
 if __name__ == "__main__":
