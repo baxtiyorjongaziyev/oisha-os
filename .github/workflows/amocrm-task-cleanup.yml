@@ -1,0 +1,59 @@
+name: AmoCRM Task Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run (preview) or live (actually close tasks)"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - live
+  schedule:
+    - cron: "0 6 * * 1"  # Every Monday 06:00 UTC (11:00 Tashkent) — dry-run only
+
+concurrency:
+  group: amocrm-task-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Clean stale & duplicate AmoCRM tasks on Oracle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run task cleanup on Oracle VM
+        uses: appleboy/ssh-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODE: ${{ inputs.mode || 'dry-run' }}
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 12m
+          envs: GITHUB_TOKEN,MODE
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/oisha-os
+
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+            git fetch origin main
+            git stash --include-untracked 2>/dev/null || true
+            git checkout origin/main -- scripts/amocrm_task_cleanup.py
+
+            if [ "${MODE}" = "live" ]; then
+              ./venv/bin/python - <<'PY'
+            import sys
+            from scripts.amocrm_task_cleanup import AmoCRMTaskCleaner, CONFIRM_TEXT
+            result = AmoCRMTaskCleaner(live=True, confirm=CONFIRM_TEXT).run()
+            print(result)
+            sys.exit(0 if result["success"] else 1)
+            PY
+            else
+              ./venv/bin/python scripts/amocrm_task_cleanup.py
+            fi
