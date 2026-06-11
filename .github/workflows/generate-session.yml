@@ -14,7 +14,7 @@ on:
       phone:
         description: 'Telefon raqami'
         required: false
-        default: '+998336450097'
+        default: ''
       phone_code_hash:
         description: '[Faqat 2-qadam] 1-qadamdan olingan hash'
         required: false
@@ -51,7 +51,7 @@ jobs:
         env:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
-          PHONE: ${{ github.event.inputs.phone || '+998336450097' }}
+          PHONE: ${{ github.event.inputs.phone || secrets.TG_PHONE }}
         run: |
           python3 - <<'PYEOF'
           import asyncio, os
