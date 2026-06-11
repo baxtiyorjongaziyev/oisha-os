@@ -2929,23 +2929,24 @@ def run_api(host: str = "0.0.0.0", port: int = 8080):  # nosec
 
 async def background_crm_audit_task():
     """Background task to refresh CRM audit data every 15 minutes."""
-    from src.services.debug.crm_audit import AmoCRMAudit
-
     global cached_crm_audit
-    audit = AmoCRMAudit()
     while True:
         try:
-            logger.info("🕵️ [API] Starting background CRM audit...")
+            try:
+                from src.services.debug.crm_audit import AmoCRMAudit
+                audit = AmoCRMAudit()
+            except ImportError:
+                logger.debug("[API] CRM audit module not available; skipping background audit.")
+                await asyncio.sleep(900)
+                continue
             results = await audit.run_full_audit()
             if results and "error" not in results:
                 cached_crm_audit = results
-                logger.info(
-                    f"✅ [API] CRM Audit complete. Health: {results.get('health_score')}%"
-                )
+                logger.info("[API] CRM Audit complete. Health: %s%%", results.get("health_score"))
             else:
-                logger.warning(f"⚠️ [API] CRM Audit failed: {results.get('error')}")
+                logger.warning("[API] CRM Audit failed: %s", results.get("error") if results else "no result")
         except Exception as e:
-            logger.error(f"❌ [API] CRM Audit CRASH: {e}")
+            logger.error("[API] CRM Audit CRASH: %s", e)
 
         await asyncio.sleep(900)  # 15 minutes
 
