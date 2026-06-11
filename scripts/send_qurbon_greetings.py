@@ -33,13 +33,28 @@ try:
 except Exception:
     pass
 
+import re
+
 TARGET_GROUPS = ["Tez natija 2", "Tez natija 3", "Tez natija 4", "Tez natija 5"]
 
-MESSAGE = (
-    "Qurbon hayit muborak bo'lsin! \U0001f319\n"
-    "Bu muborak kunda barcha tilaklaringiz ijobat bo'lsin,\n"
-    "xonadoningizga tinchlik va baraka yog'ilsin. \U0001f932"
-)
+
+def extract_first_name(raw_name: str) -> str:
+    cleaned = re.sub(r'\bTN[0-9]*\s*Gr\b', '', raw_name, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\bTN[0-9]+\b', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\|.*', '', cleaned)  # "Xurshidbek | PCG TN4" -> "Xurshidbek"
+    cleaned = cleaned.strip()
+    parts = cleaned.split()
+    return parts[0].capitalize() if parts else "Do'st"
+
+
+def build_message(first_name: str) -> str:
+    return (
+        f"Assalomu alaykum, {first_name}!\n\n"
+        "Qurbon hayit muborak bo'lsin 🌙\n"
+        "Alloh taolo qurboningizni qabul qilsin,\n"
+        "oilangizga baraka va sog'lik bersin!\n\n"
+        "Hayit tantanali o'tsin 🤲"
+    )
 
 
 def send_tg_notification(text: str) -> None:
@@ -70,7 +85,11 @@ async def collect_members(client: TelegramClient) -> list[dict]:
                 if user.bot or user.deleted or user.id in seen_ids:
                     continue
                 seen_ids.add(user.id)
-                members.append({"id": user.id})
+                members.append({
+                    "id": user.id,
+                    "first_name": (user.first_name or "").strip() or "Do'st",
+                    "username": user.username or "",
+                })
         except ChatAdminRequiredError:
             print(f"  SKIP {title}: admin huquqi kerak")
         except Exception as e:
@@ -86,7 +105,9 @@ async def collect_members(client: TelegramClient) -> list[dict]:
 
 
 async def send_to_member(client: TelegramClient, member: dict) -> None:
-    await client.send_message(member["id"], MESSAGE)
+    first_name = extract_first_name(member["first_name"])
+    message = build_message(first_name)
+    await client.send_message(member["id"], message)
 
 
 async def main() -> None:
