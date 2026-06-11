@@ -153,6 +153,97 @@ class GoogleContactsSync:
             logger.error(f"[GCONTACTS ERROR] Kontakt yaratishda xato: {e}")
             return False
 
+    def list_all_contacts(self) -> list[dict]:
+        """Fetch all contacts from Google Contacts using People API."""
+        if not self.service:
+            logger.error("[GCONTACTS] Service ulanmagan.")
+            return []
+
+        contacts_list = []
+        try:
+            next_page_token = None
+            while True:
+                results = (
+                    self.service.people()
+                    .connections()
+                    .list(
+                        resourceName="people/me",
+                        pageSize=1000,
+                        pageToken=next_page_token,
+                        personFields="names,phoneNumbers,biographies",
+                    )
+                    .execute()
+                )
+                connections = results.get("connections", [])
+                for person in connections:
+                    # Extract name
+                    names = person.get("names", [])
+                    display_name = names[0].get("displayName", "") if names else ""
+                    given_name = names[0].get("givenName", "") if names else ""
+                    family_name = names[0].get("familyName", "") if names else ""
+
+                    # Extract phones
+                    phones = []
+                    for phone in person.get("phoneNumbers", []):
+                        val = phone.get("value")
+                        if val:
+                            phones.append(val)
+
+                    # Extract notes/biography
+                    biographies = person.get("biographies", [])
+                    note = biographies[0].get("value", "") if biographies else ""
+
+                    resource_name = person.get("resourceName", "")
+
+                    contacts_list.append({
+                        "resource_name": resource_name,
+                        "display_name": display_name,
+                        "given_name": given_name,
+                        "family_name": family_name,
+                        "phones": phones,
+                        "note": note,
+                    })
+
+                next_page_token = results.get("nextPageToken")
+                if not next_page_token:
+                    break
+
+            logger.info(f"[GCONTACTS] Loaded {len(contacts_list)} contacts.")
+            return contacts_list
+        except Exception as e:
+            logger.error(f"[GCONTACTS ERROR] list_all_contacts failed: {e}")
+            return []
+
+    def update_contact_note(self, resource_name: str, new_note: str) -> bool:
+        """Update/Append note to an existing Google Contact."""
+        if not self.service:
+            logger.error("[GCONTACTS] Service ulanmagan.")
+            return False
+
+        try:
+            # 1. Fetch current contact to get their etag (required for update)
+            contact = (
+                self.service.people()
+                .get(resourceName=resource_name, personFields="names,phoneNumbers,biographies")
+                .execute()
+            )
+            etag = contact.get("etag")
+
+            # Update/replace the biography field
+            contact["biographies"] = [{"value": new_note, "contentType": "TEXT_PLAIN"}]
+
+            # 2. Update contact
+            self.service.people().updateContact(
+                resourceName=resource_name,
+                updatePersonFields="biographies",
+                body={"etag": etag, "biographies": contact["biographies"]},
+            ).execute()
+            logger.info(f"[GCONTACTS] Updated note for contact {resource_name}")
+            return True
+        except Exception as e:
+            logger.error(f"[GCONTACTS ERROR] Update note failed for {resource_name}: {e}")
+            return False
+
 
 if __name__ == "__main__":
     # Test qilish

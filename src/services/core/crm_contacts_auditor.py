@@ -772,6 +772,41 @@ class CRMContactsAuditor:
 
         return transcript, summary
 
+    async def get_lead_notes_history(self, lead_id: int) -> str:
+        """Fetch and serialize recent text comments/notes for the lead to help classification."""
+        try:
+            notes = await _maybe_await(self.amocrm.get_lead_notes(lead_id))
+            if not notes:
+                return "Izohlar tarixi bo'sh."
+            
+            lines = []
+            for note in notes[:15]:  # Limit to last 15 notes
+                note_type = str(note.get("note_type") or "").lower()
+                text = str((note.get("params") or {}).get("text") or "").strip()
+                if not text:
+                    continue
+                
+                # Skip Oisha's own long audit and duplicate warnings to avoid context pollution
+                if "Oisha-OS: Bitim va Suhbatlar Mukammal Tahlili" in text or "Oisha-OS: Qo'ng'iroq tahlili" in text or "Oisha-OS Eslatma:" in text or "Oisha-OS Telegram Draft:" in text:
+                    continue
+                
+                created_at = note.get("created_at")
+                date_str = ""
+                if created_at:
+                    try:
+                        date_str = datetime.fromtimestamp(int(created_at)).strftime("%Y-%m-%d %H:%M")
+                    except Exception:
+                        pass
+                
+                lines.append(f"[{date_str}] ({note_type}): {text}")
+            
+            if not lines:
+                return "Izohlar tarixi bo'sh."
+            return "\n".join(lines)
+        except Exception as e:
+            logger.error("[AUDITOR] Failed to get notes history for lead %s: %s", lead_id, e)
+            return "Izohlar tarixi olinmadi (xatolik)."
+
     async def classify_contact(
         self,
         lead_name: str,
@@ -783,6 +818,7 @@ class CRMContactsAuditor:
         lead_details: str = "",
         group_history: str = "",
         tasks_history: str = "",
+        notes_history: str = "",
         telegram_unanswered_info: str = "",
     ) -> Tuple[str, str, str, str, str]:  # Return (category, explanation, detailed_summary, task_text, telegram_draft_reply)
         """Use Gemini to classify the contact and generate conclusion, follow-up task, and draft reply."""
@@ -799,29 +835,33 @@ class CRMContactsAuditor:
             "lead_details": lead_details[:2000],
             "group_history": group_history[:3000],
             "tasks_history": tasks_history[:2000],
+            "notes_history": notes_history[:3000],
             "telegram_unanswered_info": telegram_unanswered_info,
         }
 
         prompt = (
             "Siz Oisha-OS Surgical Agent tizimining aloqalarni tahlil qilish va saralash xizmatining bir bo'lagisiz. "
-            "Sizga amoCRM dagi bitim nomi, bitimning to'liq har bir maydoni (field), kontakt ma'lumotlari, qo'ng'iroq yozuvlari tahlili/tarixi, "
+            "Sizga amoCRM dagi bitim nomi, bitimning to'liq har bir maydoni (field), bitimdagi izohlar va eslatmalar tarixi (notes_history), kontakt ma'lumotlari, qo'ng'iroq yozuvlari tahlili/tarixi, "
             "Telegram shaxsiy va guruh yozishmalari tarixi, amoCRM bitimidagi vazifalar (zadachalar) tarixi hamda ularga berilgan javoblar/izohlar, "
             "va Telegram chatlaridagi javobsiz qolib ketgan suhbatlar holati taqdim etiladi.\n\n"
-            "Sizning vazifangiz taqdim etilgan barcha ma'lumotlarni, jumladan sdelkaning har bir fieldini, vazifalar va ularning bajarilish javoblarini chuqur tahlil qilib, quyidagi natijalarni ishlab chiqish:\n\n"
+            "Sizning vazifangiz taqdim etilgan barcha ma'lumotlarni, jumladan sdelkaning har bir fieldini, vazifalar va ularning bajarilish javoblarini, ayniqsa notes_history dagi izohlarni chuqur tahlil qilib, quyidagi natijalarni ishlab chiqish:\n\n"
             "1. **Tasniflash (category)**: Kontaktni quyidagi 5 ta toifadan faqat bittasiga tasniflash:\n"
             "   - Mijoz: Brending, SMM, sayt yaratish, dizayn kabi xizmatlarimizni so'ragan, sotib olgan, narxi yoki tijorat taklifi bilan qiziqqan har qanday shaxs.\n"
             "   - Shaxsiy: Shaxsiy oila a'zolari, do'stlar yoki biznesga mutlaqo aloqasi bo'lmagan shaxsiy masaladagi suhbatdoshlar.\n"
             "   - Kandidat: Ish so'rab kelganlar, rezyume (CV) tashlaganlar, vakansiya yoki amaliyot haqida so'raganlar.\n"
             "   - Hamkor/Jamoa: Jamoamiz a'zolari (xodimlar), hamkorlar yoki birgalikda ish olib borayotgan tashqi hamkorlar.\n"
-            "   - Boshqa: Spam qo'ng'iroqlar, xato tushganlar, yoki suhbat tarixi bo'sh bo'lgan va aniq toifaga kirmaydigan kontaktlar.\n\n"
+            "   - Boshqa: Spam qo'ng'iroqlar, xato tushganlar, yoki suhbat tarixi bo'sh bo'lgan va aniq toifaga kirmaydigan kontaktlar. SHUNINGDEK, agar notes_history da mijoz bo'lmaganligi, puli qaytarilganligi yoki bitim bekor qilinganligi (masalan, 'mijozimiz emas', 'ishlab bo'lmaydi', 'pulini qaytarganmiz', 'junk', 'reject') aniq yozilgan bo'lsa, uni Boshqa toifasiga kiriting.\n\n"
             "2. **Tasniflash sababi (explanation)**: Qisqa va londa o'zbek tilida (lotin alifbosida) tasniflash sababi.\n\n"
             "3. **Mukammal Tahlil Xulosasi (detailed_summary)**: Har bir mijozning ma'lumotlarini (Telefon qo'ng'iroqlari, Telegram shaxsiy va guruh yozishmalari, sdelka maydonlari, vazifalar tarixi va ularning bajarilish izohlari) to'liq tahlil qilib, o'zbek tilida (lotin alifbosida) professional biznes-konsalting ohangida yozilgan mukammal xulosa. \n"
-            "Xulosaning oxiriga har doim menejerlar uchun quyidagi maslahatni (aynan yoki o'z so'zlaringiz bilan) qo'shing:\n"
+            "Xulosaning oxiriga har doim va faqat haqiqiy faol mijozlar uchun quyidagi maslahatni qo'shing:\n"
             "   '💡 Menejerga maslahat: Vazifa bajarilgach, uni amoCRMda \"Bajarildi\" deb belgilang va bajarilish izohini yozing. Oisha boti bajarilgan vazifalar tarixi va izohlarini to'liq tahlil qiladi va qayta takroriy vazifa yaratilishining oldini oladi.'\n\n"
             "4. **Keyingi Qadam Vazifasi (next_step_task)**: Mas'ul menejer uchun keyingi qadam bo'yicha aniq vazifa matni. \n"
-            "   - **MUHIM QOIDA (Takroriy vazifalarni oldini olish)**: Agar keyingi qadam vazifasi taqdim etilgan vazifalar tarixida (tasks_history) allaqachon bajarilgan bo'lsa yoki hozirda faol bo'lsa, xuddi shu vazifani qaytadan yaratishni tavsiya qilmang. Buning o'rniga yangi mantiqiy vazifa yozing.\n"
-            "   - **Telegram javobsiz xabarlar**: Agar 'telegram_unanswered_info' maydoni mijozning xabari javobsiz qolganini ko'rsatsa, birinchi navbatda Telegramda mijozga javob yozish vazifasini qo'ying.\n"
-            "   - Agar mutlaqo yangi vazifa qo'yish shart bo'lmasa yoki barcha ishlar yakunlangan bo'lsa, 'next_step_task' maydonini bo'sh satr ('') qoldiring.\n\n"
+            "   - **MUHIM QOIDA (Takroriy vazifalarni oldini olish va bekorchi bitimlar)**:\n"
+            "     - Agar bitimdagi izohlar yoki eslatmalar (notes_history) ichida 'mijozimiz emas', 'ishlamaymiz', 'pulini qaytarganmiz', 'ishlab bo'lmaydi', 'junk' yoki shunga o'xshash mijoz bo'lmaganligi yoki bitim tugatilganligi haqidagi ma'lumotlar mavjud bo'lsa, keyingi qadam vazifasini mutlaqo yozmang (bo'sh satr '' qoldiring).\n"
+            "     - Agar keyingi qadam vazifasi taqdim etilgan vazifalar tarixida (tasks_history) allaqachon bajarilgan bo'lsa yoki hozirda faol bo'lsa, xuddi shu vazifani qaytadan yaratishni tavsiya qilmang. Buning o'rniga yangi mantiqiy vazifa yozing.\n"
+            "     - Agar bitim toifasi 'Boshqa' (Other) deb saralansa va faol biznes vazifasi talab etilmasa, keyingi qadam vazifasini bo'sh satr ('') qoldiring.\n"
+            "     - Telegram javobsiz xabarlar: Agar 'telegram_unanswered_info' maydoni mijozning xabari javobsiz qolganini ko'rsatsa, birinchi navbatda Telegramda mijozga javob yozish vazifasini qo'ying.\n"
+            "     - Agar mutlaqo yangi vazifa qo'yish shart bo'lmasa yoki barcha ishlar yakunlangan bo'lsa, 'next_step_task' maydonini bo'sh satr ('') qoldiring.\n\n"
             "5. **Telegram Draft Reply (telegram_draft_reply)**: Mijozning shaxsiy Telegramdagi oxirgi javobsiz xabariga taklif qilinayotgan javob matni (o'zbek tilida, lotin alifbosida, samimiy va professional ohangda). Agar shaxsiy Telegram chatida mijozning xabari javobsiz qolgan bo'lsa, ushbu maydonga tahminiy javob matnini yozing. Userbot buni shaxsiy chatda avtomatik ravishda qoralama (draft) qilib qo'yadi. Agar javobsiz xabar bo'lmasa, bo'sh satr ('') qaytaring.\n\n"
             "Javobni quyidagi JSON formatida qaytaring, boshqa hech qanday qo'shimcha tushuntirish va markdown belgilari (masalan, ```json) yozmang:\n"
             "{\n"
@@ -879,16 +919,22 @@ class CRMContactsAuditor:
             logger.error("[AUDITOR] Gemini classification/analysis failed: %s", e)
 
             # Rules-based fallback if Gemini fails
-            lowered_history = (telegram_history + " " + call_summary + " " + group_history).lower()
+            lowered_history = (telegram_history + " " + call_summary + " " + group_history + " " + notes_history).lower()
             category = "Boshqa"
-            if any(w in lowered_history for w in ("rezyume", "resume", "cv", "ishga", "vakansiya", "amaliyot")):
+            if any(w in lowered_history for w in ("mijozimiz emas", "ishlab bo'lmaydi", "pulini qaytar", "not a client", "junk")):
+                category = "Boshqa"
+                next_step_task = ""
+            elif any(w in lowered_history for w in ("rezyume", "resume", "cv", "ishga", "vakansiya", "amaliyot")):
                 category = "Kandidat"
+                next_step_task = ""
             elif any(w in lowered_history for w in ("branding", "brending", "narxi", "narx", "site", "sayt", "logo", "smm", "dizayn")):
                 category = "Mijoz"
+                next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
+            else:
+                next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
 
             explanation = f"Xatolik tufayli qoida bo'yicha saralandi (Fallback): {str(e)}"
             detailed_summary = f"Mijoz va uning yozishmalari tahlili xatolik tufayli yakunlanmadi. Aloqa toifasi: {category}."
-            next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
 
             return category, explanation, detailed_summary, next_step_task, ""
 
@@ -962,6 +1008,9 @@ class CRMContactsAuditor:
         # Lookup call notes/transcripts
         _, call_summary = await self.get_call_notes_and_transcripts(int(lead_id), phone)
 
+        # Fetch notes history (comments) from AmoCRM
+        notes_history = await self.get_lead_notes_history(int(lead_id))
+
         # Classify and analyze via Gemini
         category, explanation, detailed_summary, next_step_task, telegram_draft_reply = await self.classify_contact(
             lead_name=lead_name,
@@ -973,6 +1022,7 @@ class CRMContactsAuditor:
             lead_details=lead_details,
             group_history=group_history,
             tasks_history=tasks_history,
+            notes_history=notes_history,
             telegram_unanswered_info=telegram_unanswered_info,
         )
 

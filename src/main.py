@@ -1109,10 +1109,22 @@ async def background_monitor_task() -> None:
                                 await msg_controller.enterprise_reporter.get_stagnant_leads_alert()
                             )
                             if alert:
-                                await notify_admin(alert, client)
-                                logger.info(
-                                    f"[SCHEDULE] Stagnation alert sent at {now.hour}:00"
-                                )
+                                target_group = settings.STAGNATION_GROUP_ID
+                                target_topic = settings.STAGNATION_TOPIC_ID
+                                if target_group:
+                                    await client.send_message(
+                                        target_group,
+                                        alert,
+                                        reply_to=target_topic,
+                                    )
+                                    logger.info(
+                                        f"[SCHEDULE] Stagnation alert sent to group {target_group}, topic {target_topic} at {now.hour}:00"
+                                    )
+                                else:
+                                    await notify_admin(alert, client)
+                                    logger.info(
+                                        f"[SCHEDULE] Stagnation alert sent to admin at {now.hour}:00"
+                                    )
                     except Exception as stag_exc:
                         logger.error(f"[SCHEDULE][STAGNATION] Error: {stag_exc}")
                     background_monitor_task._sent_jobs.add(job_key)
