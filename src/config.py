@@ -34,6 +34,14 @@ def __getattr__(name: str):
         return settings.PROJECTS_GROUP_ID or settings.CRM_GROUP_ID
     if name == "TASKS_GROUP_ID":
         return settings.TASKS_GROUP_ID or settings.CRM_GROUP_ID or settings.PROJECTS_GROUP_ID
+    if name == "STAGNATION_GROUP_ID":
+        return settings.STAGNATION_GROUP_ID or settings.CRM_GROUP_ID
+    if name == "STAGNATION_TOPIC_ID":
+        return settings.STAGNATION_TOPIC_ID if settings.STAGNATION_TOPIC_ID is not None else settings.TOPIC_CRM_ID
+    if name == "WOW_SERVICE_GROUP_ID":
+        return settings.WOW_SERVICE_GROUP_ID or settings.TEAM_GROUP_ID or settings.CRM_GROUP_ID or settings.PROJECTS_GROUP_ID
+    if name == "WOW_SERVICE_TOPIC_ID":
+        return settings.WOW_SERVICE_TOPIC_ID
     if name == "CRM_TOPIC_ID":
         return settings.CRM_TOPIC_ID
     if name == "TOPIC_CRM_ID":
@@ -76,6 +84,10 @@ __all__ = [
     "CRM_GROUP_ID",
     "PROJECTS_GROUP_ID",
     "TASKS_GROUP_ID",
+    "STAGNATION_GROUP_ID",
+    "STAGNATION_TOPIC_ID",
+    "WOW_SERVICE_GROUP_ID",
+    "WOW_SERVICE_TOPIC_ID",
     "CRM_TOPIC_ID",
     "TOPIC_CRM_ID",
     "TOPIC_REPORTS_ID",

@@ -238,10 +238,15 @@ class WorkflowManager:
                 # Check for stagnant leads
                 stagnant_alert = await self.reporter.get_stagnant_leads_alert()
                 if stagnant_alert:
-                    group_id = settings.CRM_GROUP_ID
+                    group_id = settings.STAGNATION_GROUP_ID or settings.CRM_GROUP_ID
+                    thread_id = settings.STAGNATION_TOPIC_ID
+                    if thread_id is None:
+                        thread_id = settings.TOPIC_CRM_ID
                     if group_id:
-                        await self.client.send_message(group_id, stagnant_alert)
-                        logger.info("[WORKFLOW] Stagnation alert sent to group.")
+                        await self.client.send_message(
+                            group_id, stagnant_alert, reply_to=thread_id
+                        )
+                        logger.info(f"[WORKFLOW] Stagnation alert sent to group {group_id}, thread {thread_id}.")
 
             except Exception as e:
                 logger.error(f"[WORKFLOW LOOP ERROR] {e}")
