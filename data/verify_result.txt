@@ -1,1 +1,1 @@
-OK: Baxtiyorjon (@Baxtiyorjon_Gaziyev) — session ISHLAYAPTI
+FAIL: Session muddati tugagan yoki noto'g'ri
