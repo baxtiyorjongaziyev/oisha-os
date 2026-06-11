@@ -677,7 +677,7 @@ async def _legacy_check_amocrm_stagnation_direct():
 
     if stagnated:
         bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-        group_id = getattr(config, "CRM_GROUP_ID", None)
+        group_id = getattr(config, "STAGNATION_GROUP_ID", None) or getattr(config, "CRM_GROUP_ID", None)
         owner_id = getattr(config, "OWNER_ID", None)
         if not (bot_token and (group_id or owner_id)):
             return
@@ -707,7 +707,7 @@ async def _legacy_check_amocrm_stagnation_direct():
         msg += "\n@Oydin_JonBranding, @Inomjon_JonBranding va @jonbranding_pm, iltimos statusni tekshiring."
 
         # Target topic for CRM alerts
-        thread_id = getattr(config, "TOPIC_CRM_ID", None)
+        thread_id = getattr(config, "STAGNATION_TOPIC_ID", None)
 
         try:
             await bot.send_message(
@@ -1788,10 +1788,12 @@ async def check_amocrm_stagnation():
         return
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-    group_id = getattr(config, "CRM_GROUP_ID", None)
-    thread_id = getattr(config, "TOPIC_CRM_ID", None) or getattr(
-        config, "TOPIC_REPORTS_ID", None
-    )
+    group_id = getattr(config, "STAGNATION_GROUP_ID", None) or getattr(config, "CRM_GROUP_ID", None)
+    thread_id = getattr(config, "STAGNATION_TOPIC_ID", None)
+    if thread_id is None:
+        thread_id = getattr(config, "TOPIC_CRM_ID", None) or getattr(
+            config, "TOPIC_REPORTS_ID", None
+        )
     if not (bot_token and group_id):
         return
 
@@ -2133,16 +2135,20 @@ async def check_client_journey_excellence():
         return False
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-    group_id = (
-        getattr(config, "TEAM_GROUP_ID", None)
-        or getattr(config, "CRM_GROUP_ID", None)
-        or getattr(config, "PROJECTS_GROUP_ID", None)
-    )
-    thread_id = (
-        getattr(config, "TOPIC_GENERAL_ID", None)
-        or getattr(config, "TOPIC_REPORTS_ID", None)
-        or getattr(config, "TOPIC_TASKS_ID", None)
-    )
+    group_id = getattr(config, "WOW_SERVICE_GROUP_ID", None)
+    if not group_id:
+        group_id = (
+            getattr(config, "TEAM_GROUP_ID", None)
+            or getattr(config, "CRM_GROUP_ID", None)
+            or getattr(config, "PROJECTS_GROUP_ID", None)
+        )
+    thread_id = getattr(config, "WOW_SERVICE_TOPIC_ID", None)
+    if thread_id is None:
+        thread_id = (
+            getattr(config, "TOPIC_GENERAL_ID", None)
+            or getattr(config, "TOPIC_REPORTS_ID", None)
+            or getattr(config, "TOPIC_TASKS_ID", None)
+        )
     if not (bot_token and group_id):
         return False
 
