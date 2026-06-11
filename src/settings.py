@@ -96,6 +96,8 @@ class AppSettings(BaseSettings):
     PROJECTS_GROUP_ID: Optional[int] = None
     TEAM_GROUP_ID: Optional[int] = None
     TASKS_GROUP_ID: Optional[int] = None
+    STAGNATION_GROUP_ID: Optional[int] = None
+    WOW_SERVICE_GROUP_ID: Optional[int] = None
 
     # Case Publisher & CMS Settings
     JONBRANDING_CHANNEL: str = "jonbranding"
@@ -109,6 +111,8 @@ class AppSettings(BaseSettings):
     TOPIC_TASKS_ID: Optional[int] = None
     TOPIC_GENERAL_ID: Optional[int] = None
     TOPIC_KIRIM_ID: Optional[int] = None
+    STAGNATION_TOPIC_ID: Optional[int] = None
+    WOW_SERVICE_TOPIC_ID: Optional[int] = None
     GDRIVE_OFFLOAD_FOLDER_ID: Optional[str] = None
 
     GSHEET_ID: Optional[str] = None
@@ -203,12 +207,16 @@ class AppSettings(BaseSettings):
             "PROJECTS_GROUP_ID",
             "TEAM_GROUP_ID",
             "TASKS_GROUP_ID",
+            "STAGNATION_GROUP_ID",
+            "WOW_SERVICE_GROUP_ID",
             "CRM_TOPIC_ID",
             "TOPIC_CRM_ID",
             "TOPIC_REPORTS_ID",
             "TOPIC_TASKS_ID",
             "TOPIC_GENERAL_ID",
             "TOPIC_KIRIM_ID",
+            "STAGNATION_TOPIC_ID",
+            "WOW_SERVICE_TOPIC_ID",
             "GSHEET_ID",
             "GDRIVE_OFFLOAD_FOLDER_ID",
             "AMOCRM_CRON_SECRET",
@@ -224,6 +232,8 @@ class AppSettings(BaseSettings):
             "PROJECTS_GROUP_ID",
             "TEAM_GROUP_ID",
             "TASKS_GROUP_ID",
+            "STAGNATION_GROUP_ID",
+            "WOW_SERVICE_GROUP_ID",
         ):
             data[key] = normalize_telegram_chat_id(data.get(key))
         return data
