@@ -1,0 +1,20 @@
+name: Urgent Telegram Notification
+
+on:
+  push:
+    paths:
+      - 'deploy/telegram-urgent-trigger'
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Send urgent Telegram message
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          MSG="MUHIM%3A%20Gmail%20Draftlarini%20HOZIR%20yuboring%21%0A%0Ahttps%3A%2F%2Fmail.google.com%2Fmail%2Fu%2F0%2F%23drafts%0A%0A2%20ta%20tayyor%20email%20bor%3A%0A-%20Case%2071874253%20(58.61%20USD)%0A-%20Case%2071989960%20(79.16%20USD)%0A%0AHar%20ikkalasini%20Send%20qiling%20%E2%80%94%2030%20soniya."
+          RESP=$(curl -s "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=150074828&text=${MSG}")
+          echo "Response: $RESP"
+          echo "$RESP" | python3 -c "import json,sys; r=json.load(sys.stdin); exit(0 if r.get('ok') else 1)"
