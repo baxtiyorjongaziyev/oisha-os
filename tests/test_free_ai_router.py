@@ -91,3 +91,56 @@ async def test_groq_whisper_is_primary():
     assert result is not None
     assert result.provider == "groq"
     assert result.text == "audio matni"
+
+
+@pytest.mark.asyncio
+async def test_text_falls_back_from_groq_to_cloudflare_then_ollama():
+    client = SimpleNamespace(
+        request=AsyncMock(
+            side_effect=[
+                _response(429, {"error": "quota"}),
+                _response(429, {"error": "quota"}),
+                _response(200, {"response": "lokal javob"}),
+            ]
+        )
+    )
+    router = FreeAIProviderRouter(
+        _settings(
+            GROQ_API_KEY="key",
+            CLOUDFLARE_ACCOUNT_ID="account",
+            CLOUDFLARE_AI_API_TOKEN="token",
+            OLLAMA_BASE_URL="http://localhost:11434/api",
+        ),
+        client,
+    )
+
+    result = await router.generate_text("salom")
+
+    assert result.provider == "ollama"
+    assert result.text == "lokal javob"
+
+
+@pytest.mark.asyncio
+async def test_audio_falls_back_from_groq_to_cloudflare():
+    client = SimpleNamespace(
+        request=AsyncMock(
+            side_effect=[
+                _response(429, {"error": "quota"}),
+                _response(200, {"result": {"text": "cloudflare audio"}}),
+            ]
+        )
+    )
+    router = FreeAIProviderRouter(
+        _settings(
+            GROQ_API_KEY="key",
+            CLOUDFLARE_ACCOUNT_ID="account",
+            CLOUDFLARE_AI_API_TOKEN="token",
+        ),
+        client,
+    )
+
+    result = await router.transcribe_audio(b"audio", "audio/mpeg")
+
+    assert result is not None
+    assert result.provider == "cloudflare"
+    assert result.text == "cloudflare audio"
