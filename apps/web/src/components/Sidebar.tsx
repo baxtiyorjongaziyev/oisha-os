@@ -101,72 +101,78 @@ export default function Sidebar() {
     >
       {/* Brand Header Logo */}
       <div className="flex h-16 items-center px-6">
-        <Link href="/dashboards/home" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand font-display text-lg font-bold text-white shadow-lg shadow-brand/20">
+        <Link href="/dashboards/home" className="flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 rounded-xl">
+          <div aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand font-display text-lg font-bold text-white shadow-lg shadow-brand/20">
             M
           </div>
-          {sidebarOpen && (
-            <span className="font-display text-lg font-bold text-text tracking-wide animate-fade-in">
-              Metasell
-            </span>
-          )}
+          <span className={`font-display text-lg font-bold text-text tracking-wide ${sidebarOpen ? "animate-fade-in" : "sr-only"}`}>
+            Metasell
+          </span>
         </Link>
       </div>
 
       {/* Nav Items List */}
-      <nav className="flex-1 space-y-1.5 px-3 py-4">
-        {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center gap-4 rounded-2xl px-4 py-3.5 text-sm font-medium transition-all duration-200 group relative ${
-                isActive
-                  ? "bg-brand text-white shadow-md shadow-brand/10"
-                  : "text-text-muted hover:bg-brand-light hover:text-brand"
-              }`}
-            >
-              <div className="shrink-0">{item.icon}</div>
-              {sidebarOpen && <span className="animate-fade-in">{item.name}</span>}
-
-              {/* Badge count for alerts */}
-              {item.badgeKey && alertsCount > 0 && (
-                <span
-                  className={`absolute right-4 flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold ${
-                    isActive ? "bg-white text-brand" : "bg-rose-500 text-white"
-                  } ${!sidebarOpen && "top-1 right-2"}`}
+      <nav aria-label="Asosiy menyu" className="flex-1 px-3 py-4">
+        <ul className="space-y-1.5">
+          {navItems.map((item) => {
+            const isActive = pathname.startsWith(item.href);
+            return (
+              <li key={item.name}>
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-4 rounded-2xl px-4 py-3.5 text-sm font-medium transition-all duration-200 group relative focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 active:scale-[0.98] ${
+                    isActive
+                      ? "bg-brand text-white shadow-md shadow-brand/10"
+                      : "text-text-muted hover:bg-brand-light hover:text-brand"
+                  }`}
                 >
-                  {alertsCount}
-                </span>
-              )}
+                  <div className="shrink-0" aria-hidden="true">{item.icon}</div>
+                  <span className={sidebarOpen ? "animate-fade-in" : "sr-only"}>
+                    {item.name}
+                  </span>
 
-              {/* Collapsed Tooltip */}
-              {!sidebarOpen && (
-                <div className="pointer-events-none absolute left-20 rounded-xl bg-text px-3 py-1.5 text-xs text-bg opacity-0 shadow-lg transition-opacity group-hover:opacity-100 whitespace-nowrap z-50">
-                  {item.name}
-                </div>
-              )}
-            </Link>
-          );
-        })}
+                  {/* Badge count for alerts */}
+                  {item.badgeKey && alertsCount > 0 && (
+                    <span
+                      aria-label={`${alertsCount} ta yangi ogohlantirish`}
+                      className={`absolute right-4 flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold ${
+                        isActive ? "bg-white text-brand" : "bg-rose-500 text-white"
+                      } ${!sidebarOpen && "top-1 right-2"}`}
+                    >
+                      {alertsCount}
+                    </span>
+                  )}
+
+                  {/* Collapsed Tooltip */}
+                  {!sidebarOpen && (
+                    <div aria-hidden="true" className="pointer-events-none absolute left-20 rounded-xl bg-text px-3 py-1.5 text-xs text-bg opacity-0 shadow-lg transition-opacity group-hover:opacity-100 whitespace-nowrap z-50">
+                      {item.name}
+                    </div>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </nav>
 
       {/* Sidebar Collapse Toggle Button */}
       <div className="p-3 border-t border-border">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="flex w-full items-center justify-center gap-3 rounded-2xl p-3 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none"
+          aria-expanded={sidebarOpen}
+          aria-label={sidebarOpen ? "Menyuni yig'ish" : "Menyuni yoyish"}
+          className="flex w-full items-center justify-center gap-3 rounded-2xl p-3 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 active:scale-[0.98]"
         >
           {sidebarOpen ? (
             <>
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
               </svg>
               <span className="text-xs font-semibold uppercase tracking-wider">Yig&apos;ish</span>
             </>
           ) : (
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
             </svg>
           )}
