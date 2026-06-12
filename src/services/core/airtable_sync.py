@@ -138,6 +138,30 @@ class AirtableSync:
     def _records_cache_key(self):
         return (self.base_id, self.table_name)
 
+    def _disk_cache_path(self):
+        safe_table = "".join(
+            char if char.isalnum() or char in "-_" else "_"
+            for char in str(self.table_name)
+        )
+        return os.path.join("data", "cache", f"airtable_{self.base_id}_{safe_table}.json")
+
+    def _get_disk_cached_records(self):
+        path = self._disk_cache_path()
+        try:
+            with open(path, "r", encoding="utf-8") as cache_file:
+                payload = json.load(cache_file)
+            records = payload.get("records")
+            if isinstance(records, list):
+                logger.warning(
+                    "[AIRTABLE CACHE] Using persistent stale snapshot for %s: %s records",
+                    self.table_name,
+                    len(records),
+                )
+                return records
+        except (OSError, ValueError, TypeError):
+            pass
+        return None
+
     def _get_cached_records(self):
         if self.read_cache_ttl_seconds <= 0:
             return None
@@ -154,6 +178,17 @@ class AirtableSync:
         if self.read_cache_ttl_seconds <= 0:
             return
         self._records_cache[self._records_cache_key()] = (time.time(), deepcopy(records))
+        path = self._disk_cache_path()
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as cache_file:
+                json.dump(
+                    {"cached_at": datetime.now().isoformat(), "records": records},
+                    cache_file,
+                    ensure_ascii=False,
+                )
+        except OSError as exc:
+            logger.warning("[AIRTABLE CACHE] Persistent cache write failed: %s", exc)
 
     def _invalidate_records_cache(self):
         self._records_cache.pop(self._records_cache_key(), None)
@@ -409,10 +444,10 @@ class AirtableSync:
                 logger.error(
                     f"[AIRTABLE ERROR] {response.status_code}: {response.text}"
                 )
-                return records
+                return records or self._get_disk_cached_records() or []
         except Exception as exc:
             logger.error(f"[AIRTABLE EXCEPTION] {exc}")
-            return []
+            return self._get_disk_cached_records() or []
 
     def get_overdue_projects(self):
         """Muddati o'tgan loyihalarni topish."""
