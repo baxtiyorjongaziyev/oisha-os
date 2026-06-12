@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import mimetypes
 from google import genai
 from typing import Optional
 
@@ -16,8 +17,7 @@ logger = logging.getLogger(__name__)
 
 class VoiceProcessor:
     """
-    Processes audio files (call recordings, voice messages) using Gemini for
-    Uzbek transcription and summarization.
+    Processes audio files through free-first STT, with Gemini as a fallback.
     """
 
     _quota_blocked_until = 0.0
@@ -35,6 +35,9 @@ class VoiceProcessor:
         self.transient_cooldown_seconds = int(
             os.getenv("GEMINI_TRANSIENT_COOLDOWN_SECONDS", "120")
         )
+        from src.services.utils.free_ai_router import get_free_ai_router
+
+        self.free_ai_router = get_free_ai_router()
 
     @classmethod
     def _quota_cooling_down(cls) -> bool:
@@ -77,6 +80,24 @@ class VoiceProcessor:
         if file_size == 0:
             logger.error(f"[VOICE] Empty file: {file_path}")
             return None
+
+        try:
+            with open(file_path, "rb") as audio_file:
+                audio_bytes = audio_file.read()
+            mime_type = mimetypes.guess_type(file_path)[0] or "audio/ogg"
+            routed = await self.free_ai_router.transcribe_audio(audio_bytes, mime_type)
+            if routed and routed.text:
+                logger.info(
+                    "[VOICE] Free-first transcription provider=%s model=%s",
+                    routed.provider,
+                    routed.model,
+                )
+                return routed.text
+        except Exception as exc:
+            logger.warning(
+                "[VOICE] Free-first transcription unavailable: %s",
+                type(exc).__name__,
+            )
 
         if self._quota_cooling_down():
             logger.info("[VOICE] Gemini quota cooldown active; skipping transcription.")
