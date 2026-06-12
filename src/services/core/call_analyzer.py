@@ -221,6 +221,9 @@ class CallAnalyzer:
             os.getenv("GEMINI_CALL_COOLDOWN_SECONDS", "900")
         )
         self._cooldown_loaded = False
+        from src.services.utils.free_ai_router import get_free_ai_router
+
+        self.free_ai_router = get_free_ai_router()
 
         self.genai_client = gemini_client
         if self.genai_client is None:
@@ -473,6 +476,19 @@ class CallAnalyzer:
         )
 
         try:
+            routed = await self.free_ai_router.transcribe_audio(audio_bytes, mime_type)
+            if routed and routed.text:
+                logger.info(
+                    "[CALL] STT done provider=%s model=%s chars=%s",
+                    routed.provider,
+                    routed.model,
+                    len(routed.text),
+                )
+                return routed.text
+        except Exception as exc:
+            logger.warning("[CALL] Free-first STT failed: %s", type(exc).__name__)
+
+        try:
             audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
             response = await self._gemini_generate_content(
                 contents=[prompt, audio_part],
@@ -498,6 +514,8 @@ class CallAnalyzer:
         self, audio_bytes: bytes, mime_type: str
     ) -> Optional[str]:
         """Fallback STT via OpenAI when Gemini audio quota is unavailable."""
+        if not bool(getattr(self._settings, "ENABLE_PAID_AI_FALLBACK", False)):
+            return None
         if not self.openai_client:
             return None
 
