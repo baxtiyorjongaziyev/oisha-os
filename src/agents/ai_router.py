@@ -80,13 +80,13 @@ MODEL_CATALOG: Dict[str, Dict[str, Any]] = {
         "max_tokens_default": 1024,
     },
     "L3": {
-        "model": os.environ.get("AI_ROUTER_L3_MODEL", _SHARED_GEMINI_MODEL),
+        "model": os.environ.get("AI_ROUTER_L3_MODEL", settings.FREE_AI_GEMINI_MODEL),
         "cost_in_per_1m": 0.0,  # bepul tier 50 RPM
         "cost_out_per_1m": 0.0,
         "max_tokens_default": 4096,
     },
     "L4": {
-        "model": os.environ.get("AI_ROUTER_L4_MODEL", _SHARED_GEMINI_MODEL),
+        "model": os.environ.get("AI_ROUTER_L4_MODEL", settings.FREE_AI_GEMINI_MODEL),
         "cost_in_per_1m": 0.0,
         "cost_out_per_1m": 0.0,
         "max_tokens_default": 8192,
@@ -260,9 +260,67 @@ async def route(
             cached_copy["latency_ms"] = int((time.time() - start) * 1000)
             return cached_copy
 
+    if task_type in {"draft", "classify", "summarize"}:
+        try:
+            from src.services.utils.free_ai_router import get_free_ai_router
+
+            routed = await get_free_ai_router().generate_text(
+                prompt,
+                system=system,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                providers=("groq",),
+            )
+            final = {
+                "text": routed.text,
+                "model": routed.model,
+                "provider": routed.provider,
+                "tier": tier,
+                "tokens_in": routed.tokens_in,
+                "tokens_out": routed.tokens_out,
+                "cost_usd": 0.0,
+                "latency_ms": int((time.time() - start) * 1000),
+                "success": True,
+                "error": None,
+                "cached": False,
+                "prompt_hash": prompt_hash,
+            }
+            _cache_put(prompt_hash, final)
+            return final
+        except Exception:
+            pass
+
     # 4. Client tekshirish
     client = _get_gemini_client()
     if client is None:
+        try:
+            from src.services.utils.free_ai_router import get_free_ai_router
+
+            routed = await get_free_ai_router().generate_text(
+                prompt,
+                system=system,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                providers=("cloudflare", "ollama"),
+            )
+            final = {
+                "text": routed.text,
+                "model": routed.model,
+                "provider": routed.provider,
+                "tier": tier,
+                "tokens_in": routed.tokens_in,
+                "tokens_out": routed.tokens_out,
+                "cost_usd": 0.0,
+                "latency_ms": int((time.time() - start) * 1000),
+                "success": True,
+                "error": None,
+                "cached": False,
+                "prompt_hash": prompt_hash,
+            }
+            _cache_put(prompt_hash, final)
+            return final
+        except Exception:
+            pass
         return _error_result(
             "Gemini client unavailable",
             task_type=task_type,
@@ -335,6 +393,35 @@ async def route(
             )
             await asyncio.sleep(0.5 + random.random())
             continue
+
+    try:
+        from src.services.utils.free_ai_router import get_free_ai_router
+
+        routed = await get_free_ai_router().generate_text(
+            prompt,
+            system=system,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            providers=("cloudflare", "ollama"),
+        )
+        final = {
+            "text": routed.text,
+            "model": routed.model,
+            "provider": routed.provider,
+            "tier": tier,
+            "tokens_in": routed.tokens_in,
+            "tokens_out": routed.tokens_out,
+            "cost_usd": 0.0,
+            "latency_ms": int((time.time() - start) * 1000),
+            "success": True,
+            "error": None,
+            "cached": False,
+            "prompt_hash": prompt_hash,
+        }
+        _cache_put(prompt_hash, final)
+        return final
+    except Exception as fallback_exc:
+        last_error = last_error or str(fallback_exc)
 
     # Barcha fallback'lar muvaffaqiyatsiz
     return _error_result(
