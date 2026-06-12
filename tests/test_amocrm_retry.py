@@ -147,6 +147,9 @@ class TestAmoCRMErrorHandling:
         from src.services.core import amocrm_sync
         from src.services.core.amocrm_sync import AmoCRMSync
 
+        if not hasattr(amocrm_sync, "HAS_FIRESTORE"):
+            pytest.skip("Legacy Firestore token fallback was removed from Oracle runtime")
+
         doc = MagicMock()
         doc.get.side_effect = RuntimeError("403 SERVICE_DISABLED")
         firestore_db = MagicMock()
