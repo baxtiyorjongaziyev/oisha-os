@@ -252,44 +252,61 @@ class QualityAnalyzer:
             )
 
     def _ai_analyze(self, text: str) -> Dict[str, Any]:
-        """
-        AI orqali suhbatni tahlil qilish.
-        Bu yerda haqiqiy LLM (OpenAI, Claude, etc) ishlatiladi.
-        Hozircha mock implementation.
-        """
-        # TODO: Integrate with actual LLM API
-        # Bu yerda suhbatni tahlil qilib, quyidagi ma'lumotlarni qaytaradi:
-        # - Har bir metric bo'yicha baxo
-        # - Kuchli tomonlar
-        # - Zaif tomonlar
-        # - Mijoz kayfiyati
-        # - E'tirozlar
-        # - Natija
+        """Evidence-based fallback scoring when an async LLM is unavailable."""
+        lowered = (text or "").lower()
 
-        # Mock tahlil (real implementatsiyada bu AI dan keladi)
+        def score(signals: tuple[str, ...], base: int = 35, step: int = 20) -> int:
+            return min(100, base + step * sum(signal in lowered for signal in signals))
+
+        metrics = {
+            "introduction": score(("salom", "assalomu", "ismim", "jon branding")),
+            "need_identification": score(("nima kerak", "maqsad", "ehtiyoj", "kim uchun", "auditoriya")),
+            "value_proposition": score(("foyda", "natija", "qiymat", "yechim", "yordam beradi")),
+            "objection_handling": score(("lekin", "tushunaman", "variant", "yechim", "narx")),
+            "closing": score(("kelishdik", "shartnoma", "to'lov", "boshlaymiz", "tasdiqlang")),
+            "follow_up": score(("qayta qo'ng'iroq", "yuboraman", "uchrashuv", "ertaga", "muddat")),
+            "tone": score(("rahmat", "iltimos", "marhamat"), base=55, step=15),
+            "active_listening": score(("tushundim", "demak", "to'g'rimi", "aniqlashtir")),
+            "question_quality": min(100, 35 + min(lowered.count("?"), 4) * 15),
+        }
+        objections = [
+            label
+            for signal, label in (
+                ("qimmat", "Narx qimmat"),
+                ("o'ylab", "O'ylab ko'rish kerak"),
+                ("vaqt", "Muddat bo'yicha e'tiroz"),
+                ("kerak emas", "Hozir kerak emas"),
+            )
+            if signal in lowered
+        ]
+        outcome = "unknown"
+        if any(signal in lowered for signal in ("to'lov qildim", "kelishdik", "boshlaymiz")):
+            outcome = "sale"
+        elif any(signal in lowered for signal in ("qayta qo'ng'iroq", "ertaga", "yuboraman")):
+            outcome = "follow_up"
+        elif any(signal in lowered for signal in ("kerak emas", "rad", "qiziq emas")):
+            outcome = "lost"
+
+        strengths = [
+            metric.replace("_", " ")
+            for metric, value in metrics.items()
+            if value >= 70
+        ]
+        weaknesses = [
+            metric.replace("_", " ")
+            for metric, value in metrics.items()
+            if value < 55
+        ]
         return {
-            "summary": "Suhbat umuman yaxshi o'tdi, lekin ba'zi kamchiliklar bor.",
-            "strengths": ["Mijoz bilan samimiy muloqot", "Mahsulot tavsiyasi aniq"],
-            "weaknesses": [
-                "E'tirozlarni to'liq yengilmagan",
-                "Keyingi qadam aniqlanmagan",
-            ],
-            "client_mood": "positive",
-            "client_interest_level": 75,
-            "objections": ["Narx juda baland"],
-            "outcome": "follow_up",
-            "next_steps": ["Narx chegirma imkoniyatini tekshirish", "Qayta qo'ng'iroq"],
-            "metric_scores": {
-                "introduction": 85,
-                "need_identification": 70,
-                "value_proposition": 80,
-                "objection_handling": 60,
-                "closing": 65,
-                "follow_up": 50,
-                "tone": 90,
-                "active_listening": 75,
-                "question_quality": 70,
-            },
+            "summary": (text or "").strip()[:350],
+            "strengths": strengths,
+            "weaknesses": weaknesses,
+            "client_mood": "negative" if objections else "neutral",
+            "client_interest_level": min(100, 35 + metrics["closing"] // 2),
+            "objections": objections,
+            "outcome": outcome,
+            "next_steps": ["Aniq keyingi qadam va muddatni kelishish"] if outcome == "unknown" else [],
+            "metric_scores": metrics,
         }
 
     def _calculate_scores(self, analysis: Dict[str, Any]) -> List[ScoreBreakdown]:
