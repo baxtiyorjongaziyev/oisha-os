@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 
 interface CallData {
@@ -15,18 +15,9 @@ interface CallData {
   service: string;
 }
 
-const mockCalls: CallData[] = [
-  { id: "1", date: "2026-06-03 14:22", manager: "Baxtiyorjon Gaziyev", direction: "Kiruvchi", duration: "2:40", status: "Bog'langan", score: "78%", family: "Lidni aniqlash", service: "Naming (Nomlash)" },
-  { id: "2", date: "2026-06-02 11:05", manager: "Baxtiyorjon Gaziyev", direction: "Chiquvchi", duration: "1:15", status: "Bog'langan", score: "45%", family: "Mijoz bilan koordinatsiya", service: "Logotip ishlab chiqish" },
-  { id: "3", date: "2026-06-01 17:50", manager: "Baxtiyorjon Gaziyev", direction: "Chiquvchi", duration: "0:30", status: "Xatolik", score: "—", family: "Moliya/admin", service: "Patentlash" },
-  { id: "4", date: "2026-05-28 10:15", manager: "Baxtiyorjon Gaziyev", direction: "Kiruvchi", duration: "5:12", status: "Bog'langan", score: "89%", family: "Yopish/muzokara", service: "Brendbuk" },
-  { id: "5", date: "2026-05-25 16:30", manager: "Baxtiyorjon Gaziyev", direction: "Chiquvchi", duration: "1:45", status: "Bog'langan", score: "62%", family: "Yechim taqdimoti", service: "Qadoq dizayni" },
-  { id: "6", date: "2026-05-24 14:02", manager: "Baxtiyorjon Gaziyev", direction: "Kiruvchi", duration: "0:12", status: "Javobsiz", score: "—", family: "Biznesga oid emas", service: "Noma'lum" },
-  { id: "7", date: "2026-05-22 09:15", manager: "Baxtiyorjon Gaziyev", direction: "Chiquvchi", duration: "3:22", status: "Bog'langan", score: "71%", family: "Lidni aniqlash", service: "Logotip ishlab chiqish" }
-];
-
 export default function CallsPage() {
-  const [calls, setCalls] = useState<CallData[]>(mockCalls);
+  const [calls, setCalls] = useState<CallData[]>([]);
+  const [loadError, setLoadError] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("Barchasi");
   const [directionFilter, setDirectionFilter] = useState<string>("Barchasi");
   const [serviceFilter, setServiceFilter] = useState<string>("Barchasi");
@@ -38,6 +29,30 @@ export default function CallsPage() {
 
   // Active dropdown index for actions menu
   const [activeActionsMenu, setActiveActionsMenu] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/oisha/sales-quality")
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((payload) => {
+        const rows = Array.isArray(payload.calls) ? payload.calls : [];
+        setCalls(rows.map((call: Record<string, unknown>) => ({
+          id: String(call.id ?? ""),
+          date: String(call.analyzed_at ?? ""),
+          manager: String(call.manager ?? "Noma'lum manager"),
+          direction: "Kiruvchi" as const,
+          duration: String(call.duration ?? "00:00"),
+          status: String(call.result ?? "Tahlil qilindi"),
+          score: call.score === undefined ? "-" : `${call.score}%`,
+          family: String(call.category ?? "Noma'lum"),
+          service: String(call.client ?? "Noma'lum mijoz")
+        })));
+        setLoadError(payload.real_data === false ? String(payload.message ?? "Real tahlillar topilmadi") : "");
+      })
+      .catch((error: Error) => setLoadError(`Real API ulanmagan: ${error.message}`));
+  }, []);
 
   // Filter application
   const filteredCalls = calls.filter((call) => {
@@ -88,6 +103,7 @@ export default function CallsPage() {
         <p className="text-xs text-text-muted mt-1">
           Barcha yozib olingan va AI tomonidan tahlil qilingan qo&apos;ng&apos;iroqlar ro&apos;yxati.
         </p>
+        {loadError ? <p className="mt-2 text-xs text-amber-600">{loadError}</p> : null}
       </div>
 
       {/* Filter panel */}
