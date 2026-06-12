@@ -52,3 +52,8 @@
 
 **Learning:** When using standard `focus-visible` styles on wrappers for disabled components (e.g., `<span tabIndex={0}>` acting as a tooltip wrapper for a disabled button), the focus ring forms a generic box around the wrapper, ignoring the child component's specific shape (like `rounded-full`).
 **Action:** Always apply `group` and `focus:outline-none` to the wrapper, and use `group-focus-visible:ring-*` on the child element so the focus ring seamlessly inherits the child's exact shape and border-radius.
+
+## 2026-06-12 - [A11y Insight] Preserving Screen Reader Context on Collapsible Sidebars
+
+**Learning:** When collapsing sidebars, removing text labels from the DOM visually is common, but it breaks accessibility since screen readers can only announce what's present. Using conditional rendering (e.g., `{sidebarOpen && <span>Text</span>}`) makes the navigation structure incomprehensible to non-sighted users.
+**Action:** Instead of conditionally rendering labels, always keep them in the DOM and use `sr-only` class when visually hidden. E.g. `className={sidebarOpen ? "animate-fade-in" : "sr-only"}`. This keeps the semantic value while respecting the visual design constraints.
