@@ -472,22 +472,22 @@ def _looks_like_income_announcement(text: str) -> bool:
     if _is_group_open_confirmation(lowered):
         return False
 
-    amount = _extract_income_amount(text)
-    if amount.get("value") is not None:
-        return True
-    if _is_finance_approval(lowered) or _is_finance_rejection(lowered):
+    # Questions and negations are status checks, not announcements
+    if lowered.endswith("?"):
+        return False
+    negation_terms = (
+        "bo'lmadi", "bolmadi", "kelmadi", "tushmadi",
+        "yo'q", "yoq", "emas", "qilmadi", "bo'lmagan",
+    )
+    if any(term in lowered for term in negation_terms):
+        return False
+    if _is_finance_rejection(lowered):
         return False
 
-    income_terms = (
-        "kirim",
-        "to'lov",
-        "tolov",
-        "avans",
-        "predoplata",
-        "payment",
-        "paid",
-    )
-    return any(term in lowered for term in income_terms)
+    # Only congratulate when there is a confirmed numeric amount — bare keyword
+    # mentions ("kirim bo'ldimi?", "to'lov haqida") are too ambiguous.
+    amount = _extract_income_amount(text)
+    return amount.get("value") is not None
 
 
 def _format_person_mention(person: Optional[Dict[str, Any]], fallback: str) -> str:
