@@ -1,6 +1,5 @@
 # Oisha-OS: Juma Greeting Automation
-# [REFRESH: 2026-05-07]
-name: Juma Tabrigi — TN5 Kursdoshlar
+name: Juma Tabrigi — Tez Natija guruhlar
 
 on:
   workflow_dispatch:
@@ -10,9 +9,9 @@ on:
 
 jobs:
   send-greetings:
-    name: TN5 Juma Tabrigi
+    name: Tez Natija Juma Tabrigi
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v6
