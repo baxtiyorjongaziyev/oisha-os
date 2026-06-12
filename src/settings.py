@@ -34,7 +34,7 @@ def normalize_telegram_chat_id(value):
 class AppSettings(BaseSettings):
     OWNER_ID: int = 0
     WHITELIST_IDS: list[int] = Field(default_factory=list)
-    ENABLE_AUTO_REPLY: bool = True  # Autonomous Telegram replies enabled by default
+    ENABLE_AUTO_REPLY: bool = False  # Explicit opt-in; private replies stay blocked by default
     AUTORUN_MASS_SYNC: bool = True
     ENABLE_CLOUD_USERBOT: bool = False  # Set to True to enable userbot session
     USERBOT_SESSION_STRING: Optional[SecretStr] = None
@@ -56,6 +56,18 @@ class AppSettings(BaseSettings):
     API_HASH: str = ""
     GEMINI_API_KEY: SecretStr = SecretStr("")
     GEMINI_CALL_MODEL: str = "gemini-2.5-flash"
+    FREE_AI_GEMINI_MODEL: str = "gemini-2.5-flash-lite"
+    GROQ_API_KEY: Optional[SecretStr] = None
+    GROQ_TEXT_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_WHISPER_MODEL: str = "whisper-large-v3-turbo"
+    CLOUDFLARE_ACCOUNT_ID: Optional[str] = None
+    CLOUDFLARE_AI_API_TOKEN: Optional[SecretStr] = None
+    CLOUDFLARE_TEXT_MODEL: str = "@cf/meta/llama-3.1-8b-instruct"
+    CLOUDFLARE_WHISPER_MODEL: str = "@cf/openai/whisper-large-v3-turbo"
+    OLLAMA_BASE_URL: str = "http://127.0.0.1:11434/api"
+    OLLAMA_TEXT_MODEL: str = "qwen2.5:3b"
+    FREE_AI_PROVIDER_TIMEOUT_SECONDS: int = 45
+    ENABLE_PAID_AI_FALLBACK: bool = False
     OPENAI_API_KEY: Optional[SecretStr] = None
     OPENAI_TRANSCRIBE_MODEL: str = "whisper-1"
     OPENAI_TEXT_MODEL: str = "gpt-4o-mini"
@@ -196,6 +208,9 @@ class AppSettings(BaseSettings):
             "TELEGRAM_WEBHOOK_SECRET",
             "TELEGRAM_MINI_APP_URL",
             "OPENAI_API_KEY",
+            "GROQ_API_KEY",
+            "CLOUDFLARE_ACCOUNT_ID",
+            "CLOUDFLARE_AI_API_TOKEN",
             "DEEPSEEK_API_KEY",
             "AMOCRM_CLIENT_SECRET",
             "AIRTABLE_API_KEY",
