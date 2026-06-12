@@ -1,4 +1,6 @@
 # Oisha-OS: Juma Greeting Automation
+# Runs directly on Oracle VM using the live Telethon session —
+# no StringSession expiry, no manual token renewal needed.
 name: Juma Tabrigi — Tez Natija guruhlar
 
 on:
@@ -9,26 +11,37 @@ on:
 
 jobs:
   send-greetings:
-    name: Tez Natija Juma Tabrigi
+    name: Tez Natija Juma Tabrigi (Oracle VM)
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Install Telethon
-        run: pip install telethon==1.36.0
-
-      - name: Send Juma greetings
+      - name: Send Juma greetings on Oracle VM
+        uses: appleboy/ssh-action@v1
         env:
-          API_ID: ${{ secrets.API_ID }}
-          API_HASH: ${{ secrets.API_HASH }}
-          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING || vars.USERBOT_SESSION_STRING }}
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          OWNER_ID: ${{ secrets.OWNER_ID }}
-        run: python scripts/send_juma_greetings.py
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 115m
+          envs: GITHUB_TOKEN
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/oisha-os
+
+            # Pull latest script from main
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+            git fetch origin main
+            git stash --include-untracked 2>/dev/null || true
+            git checkout origin/main -- scripts/send_juma_greetings.py
+
+            # Load credentials from VM's .env (same session the main service uses)
+            if [ -f .env ]; then
+              set -o allexport
+              source .env
+              set +o allexport
+            fi
+
+            ./venv/bin/python scripts/send_juma_greetings.py
