@@ -441,7 +441,10 @@ class CRMContactsAuditor:
             "mijoz", "shaxsiy", "kandidat", "hamkor", "jamoa", "boshqa", "tg",
             "telegram", "tel", "phone", "username", "id", "lead", "contact",
             "company", "kompaniya", "firm", "firma", "web", "website", "tahlil",
-            "audit", "saved", "messages"
+            "audit", "saved", "messages",
+            # Honorifics are shared by many unrelated project groups and must
+            # never be used as customer identity evidence.
+            "aka", "opa", "ustoz", "janob", "xon", "jon", "bro",
         }
 
         for w in all_words:
@@ -462,6 +465,18 @@ class CRMContactsAuditor:
         if not self.tg_client:
             return []
 
+        # Group history is sensitive customer data. A title keyword alone is
+        # not identity proof, so never attach group context without a resolved
+        # Telegram account that can be verified as a participant.
+        if not telegram_user_id:
+            logger.info(
+                "[AUDITOR] Skipping group lookup: Telegram identity is unresolved "
+                "for lead=%s contact=%s.",
+                lead_name,
+                contact_name,
+            )
+            return []
+
         keywords = self.extract_keywords(lead_name, contact_name)
         if not keywords:
             return []
@@ -472,26 +487,27 @@ class CRMContactsAuditor:
         for d in group_dialogs:
             title = getattr(d, "name", "") or ""
             title_lower = title.lower()
+            title_tokens = set(re.findall(r"[\w-]+", title_lower))
 
-            # Check if any keyword matches
-            is_match = False
-            for kw in keywords:
-                if kw in title_lower:
-                    is_match = True
-                    break
+            # Whole-token matching prevents short/common fragments from
+            # associating one client's project group with another deal.
+            is_match = any(kw in title_tokens for kw in keywords)
 
             if is_match:
-                is_member = True
-                if telegram_user_id:
-                    try:
-                        # Check participant permissions as a proxy for membership check
-                        await self.tg_client.get_permissions(d.entity, telegram_user_id)
-                        is_member = True
-                    except Exception as e:
-                        err_str = str(e).lower()
-                        # If exception specifies user is not in the chat, filter out
-                        if "participant" in err_str or "not in" in err_str or "left" in err_str:
-                            is_member = False
+                is_member = False
+                try:
+                    # Successful permission lookup is the minimum identity
+                    # evidence required before reading a project's history.
+                    await self.tg_client.get_permissions(d.entity, telegram_user_id)
+                    is_member = True
+                except Exception as e:
+                    logger.info(
+                        "[AUDITOR] Group candidate rejected because membership "
+                        "could not be verified: group=%s user_id=%s error=%s",
+                        title,
+                        telegram_user_id,
+                        str(e)[:200],
+                    )
                 if is_member:
                     matched.append((d.entity, title))
 
