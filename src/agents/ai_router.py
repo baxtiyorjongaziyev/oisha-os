@@ -269,7 +269,7 @@ async def route(
                 system=system,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                providers=("groq",),
+                providers=("groq", "cloudflare", "ollama"),
             )
             final = {
                 "text": routed.text,
@@ -287,8 +287,17 @@ async def route(
             }
             _cache_put(prompt_hash, final)
             return final
-        except Exception:
-            pass
+        except Exception as exc:
+            return _error_result(
+                str(exc),
+                task_type=task_type,
+                tier=tier,
+                model=model_name,
+                prompt_hash=prompt_hash,
+                start=start,
+                user_id=user_id,
+                context=context,
+            )
 
     # 4. Client tekshirish
     client = _get_gemini_client()
@@ -332,11 +341,6 @@ async def route(
 
     # 5. Fallback zanjiri: tanlangan tier → L2 → L1
     fallback_chain = [tier]
-    if tier != "L1":
-        fallback_chain.append("L1")
-    # L3/L4 ham muvaffaqiyatsiz bo'lsa L2 Flash-lite
-    if tier in ("L3", "L4") and "L2" not in fallback_chain:
-        fallback_chain.insert(1, "L2")
 
     last_error: Optional[str] = None
     for attempt_tier in fallback_chain:
