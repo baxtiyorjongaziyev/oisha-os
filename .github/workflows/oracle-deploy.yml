@@ -32,6 +32,9 @@ jobs:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CLOUDFLARE_AI_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           AMOCRM_CLIENT_ID: ${{ secrets.AMOCRM_CLIENT_ID }}
           AMOCRM_CLIENT_SECRET: ${{ secrets.AMOCRM_CLIENT_SECRET }}
           AMOCRM_REDIRECT_URL: ${{ secrets.AMOCRM_REDIRECT_URL }}
@@ -56,7 +59,7 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 7m
-          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,AMOCRM_REDIRECT_URL,AMOCRM_TOKEN_JSON,AMOCRM_REFRESH_TOKEN,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,AIRTABLE_API_KEY,PROJECTS_GROUP_ID,TOPIC_CRM_ID,TOPIC_GENERAL_ID,TOPIC_KIRIM_ID,TOPIC_REPORTS_ID,TOPIC_TASKS_ID
+          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,GROQ_API_KEY,CLOUDFLARE_AI_API_TOKEN,CLOUDFLARE_ACCOUNT_ID,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,AMOCRM_REDIRECT_URL,AMOCRM_TOKEN_JSON,AMOCRM_REFRESH_TOKEN,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,AIRTABLE_API_KEY,PROJECTS_GROUP_ID,TOPIC_CRM_ID,TOPIC_GENERAL_ID,TOPIC_KIRIM_ID,TOPIC_REPORTS_ID,TOPIC_TASKS_ID
           script: |
             set -euo pipefail
             OISHA_DIR="/home/ubuntu/oisha-os"
@@ -87,6 +90,12 @@ jobs:
             API_ID=${API_ID}
             API_HASH=${API_HASH}
             GEMINI_API_KEY=${GEMINI_API_KEY}
+            GROQ_API_KEY=${GROQ_API_KEY}
+            CLOUDFLARE_AI_API_TOKEN=${CLOUDFLARE_AI_API_TOKEN}
+            CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}
+            OLLAMA_BASE_URL=http://127.0.0.1:11434/api
+            OLLAMA_TEXT_MODEL=qwen2.5:3b
+            ENABLE_PAID_AI_FALLBACK=false
             AMOCRM_SUBDOMAIN=jonbrandingagency
             AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID}
             AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET}
@@ -128,7 +137,7 @@ jobs:
 
             HEALTH_OK=0
             for _ in $(seq 1 24); do
-              HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/healthz/ || echo 000)"
+              HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/readyz/ || echo 000)"
               if [ "$HTTP_CODE" = "200" ] && systemctl is-active --quiet oisha-os; then
                 HEALTH_OK=1
                 break
@@ -137,7 +146,7 @@ jobs:
             done
 
             if [ "$HEALTH_OK" != "1" ]; then
-              echo "XATO: Oisha /healthz sog'lom emas"
+              echo "XATO: Oisha /readyz production dependencies tayyor emas"
               cat /tmp/oisha-health.json 2>/dev/null || true
               sudo journalctl -u oisha-os --no-pager -n 80
               exit 1
@@ -149,7 +158,7 @@ jobs:
             sleep 25
             STABLE_OK=0
             for _ in $(seq 1 12); do
-              HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/healthz/ || echo 000)"
+              HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/readyz/ || echo 000)"
               if [ "$HTTP_CODE" = "200" ] && systemctl is-active --quiet oisha-os; then
                 STABLE_OK=1
                 break

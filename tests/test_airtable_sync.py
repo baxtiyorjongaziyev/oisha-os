@@ -1,5 +1,6 @@
 import requests
 import pytest
+from pathlib import Path
 
 from src.services.core.airtable_sync import AirtableSync
 
@@ -17,11 +18,15 @@ class _FakeResponse:
 
 @pytest.fixture(autouse=True)
 def clear_airtable_caches():
+    for path in Path("data/cache").glob("airtable_appBase_*.json"):
+        path.unlink(missing_ok=True)
     AirtableSync._records_cache.clear()
     AirtableSync._base_tables_cache.clear()
     AirtableSync._record_url_cache.clear()
     AirtableSync._billing_blocked_until = 0.0
     AirtableSync._billing_block_reason = None
+    for path in Path("data/cache").glob("airtable_appBase_*.json"):
+        path.unlink(missing_ok=True)
     yield
     AirtableSync._records_cache.clear()
     AirtableSync._base_tables_cache.clear()
@@ -156,3 +161,22 @@ def test_billing_limit_starts_shared_cooldown_without_retries(monkeypatch):
     assert first.get_projects(force_refresh=True) == []
     assert second.get_projects(force_refresh=True) == []
     assert calls["count"] == 1
+
+
+def test_billing_limit_uses_persistent_stale_cache(monkeypatch, tmp_path):
+    cached = [{"id": "rec-stale", "fields": {"Name": "Last known project"}}]
+    sync = AirtableSync(api_key="key", base_id="appBase", table_name="Loyihalar")
+    monkeypatch.setattr(sync, "_disk_cache_path", lambda: str(tmp_path / "airtable.json"))
+    sync._set_cached_records(cached)
+    AirtableSync._records_cache.clear()
+
+    monkeypatch.setattr(
+        requests,
+        "request",
+        lambda *args, **kwargs: _FakeResponse(
+            status_code=429,
+            text='{"errors":[{"error":"PUBLIC_API_BILLING_LIMIT_EXCEEDED"}]}',
+        ),
+    )
+
+    assert sync.get_projects(force_refresh=True) == cached
