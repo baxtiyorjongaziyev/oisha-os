@@ -6,6 +6,7 @@ import inspect
 from datetime import datetime, timezone
 import logging
 import os
+import time
 from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
@@ -486,6 +487,100 @@ async def liveness_probe():
                 "scheduler_mode": scheduler_mode,
                 "problems": problems,
             },
+            "timestamp": get_local_now().isoformat(),
+        },
+    )
+
+
+@app.get("/readyz")
+@app.get("/readyz/")
+async def production_readiness_probe():
+    """Strict Oracle readiness gate for the dependencies that run automation."""
+    runtime = get_runtime_context()
+    checks: Dict[str, Any] = {
+        "database": False,
+        "userbot": False,
+        "amocrm": False,
+        "telegram_groups": _userbot_group_access_snapshot.get("status"),
+        "airtable": "unknown",
+        "ai": {},
+    }
+    problems: List[str] = []
+    timeout = float(os.getenv("HEALTH_DEPENDENCY_TIMEOUT_SECS", "3.0"))
+
+    if db_instance is not None:
+        try:
+            conn = await asyncio.wait_for(db_instance.get_connection(), timeout=timeout)
+            cursor = conn.execute("SELECT 1")
+            if inspect.isawaitable(cursor):
+                cursor = await cursor
+            fetchone = getattr(cursor, "fetchone", None)
+            if callable(fetchone):
+                await _maybe_await(fetchone())
+            checks["database"] = True
+            checks["database_backend"] = getattr(
+                db_instance, "get_backend_name", lambda: "unknown"
+            )()
+        except Exception as exc:
+            checks["database_error"] = type(exc).__name__
+            problems.append("database_unavailable")
+    else:
+        problems.append("database_unavailable")
+
+    if user_client is not None:
+        try:
+            checks["userbot"] = bool(
+                await asyncio.wait_for(user_client.is_user_authorized(), timeout=timeout)
+            )
+        except Exception as exc:
+            checks["userbot_error"] = type(exc).__name__
+    if not checks["userbot"]:
+        problems.append("userbot_unauthorized")
+
+    try:
+        amo = _get_amocrm_instance()
+        checks["amocrm"] = bool(
+            await asyncio.wait_for(amo.check_connection(), timeout=timeout)
+        )
+        if not checks["amocrm"]:
+            checks["amocrm_error"] = amo.last_error
+    except Exception as exc:
+        checks["amocrm_error"] = type(exc).__name__
+    if not checks["amocrm"]:
+        problems.append("amocrm_unavailable")
+
+    try:
+        from src.services.core.airtable_sync import AirtableSync
+
+        if time.time() < AirtableSync._billing_blocked_until:
+            checks["airtable"] = "billing_limit_cooldown"
+        elif _secret_setting_text(settings.AIRTABLE_API_KEY):
+            checks["airtable"] = "configured_unprobed"
+        else:
+            checks["airtable"] = "not_configured"
+    except Exception as exc:
+        checks["airtable"] = f"error:{type(exc).__name__}"
+
+    checks["ai"] = {
+        "gemini": bool(_secret_setting_text(settings.GEMINI_API_KEY)),
+        "groq": bool(_secret_setting_text(getattr(settings, "GROQ_API_KEY", None))),
+        "cloudflare": bool(
+            _secret_setting_text(getattr(settings, "CLOUDFLARE_AI_API_TOKEN", None))
+            and _setting_text(getattr(settings, "CLOUDFLARE_ACCOUNT_ID", None))
+        ),
+        "ollama": bool(_setting_text(getattr(settings, "OLLAMA_BASE_URL", None))),
+    }
+    if not any(checks["ai"].values()):
+        problems.append("ai_provider_unavailable")
+
+    ready = not problems
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={
+            "status": "ready" if ready else "not_ready",
+            "runtime": runtime.get("runtime_source"),
+            "checks": checks,
+            "problems": problems,
             "timestamp": get_local_now().isoformat(),
         },
     )
@@ -1528,6 +1623,7 @@ def _build_sales_quality_payload(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         )
         calls.append(
             {
+                "id": str(row.get("call_id") or row.get("lead_id") or ""),
                 "client": client,
                 "manager": row.get("manager_name") or "Noma'lum manager",
                 "score": score,
@@ -1539,6 +1635,9 @@ def _build_sales_quality_payload(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
                 "summary": row.get("summary")
                 or "Real tahlil yozuvi bor, lekin summary bo'sh.",
                 "risk": _score_to_risk(score),
+                "category": row.get("category") or "Noma'lum",
+                "analyzed_at": row.get("analyzed_at") or row.get("created_at"),
+                "audio_url": row.get("audio_url"),
             }
         )
 

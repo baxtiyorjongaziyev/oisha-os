@@ -168,10 +168,30 @@ class ConversationEngine:
             return None
 
     async def _transcribe_audio(self, audio_url: str) -> str:
-        """Audio faylni matnga o'tkazish (STT)."""
-        # TODO: Integrate with speech-to-text API (Google, Whisper, etc.)
-        # Hozircha mock
-        logger.info(f"[ENGINE] Transcribing audio: {audio_url}")
+        """Download audio and transcribe through Oisha's free-first STT router."""
+        import httpx
+
+        from src.services.utils.free_ai_router import get_free_ai_router
+
+        try:
+            async with httpx.AsyncClient(timeout=45, follow_redirects=True) as client:
+                response = await client.get(audio_url)
+                response.raise_for_status()
+            mime_type = (response.headers.get("content-type") or "audio/mpeg").split(
+                ";", 1
+            )[0]
+            result = await get_free_ai_router().transcribe_audio(
+                response.content, mime_type
+            )
+            if result and result.text:
+                logger.info(
+                    "[ENGINE] Audio transcribed provider=%s model=%s",
+                    result.provider,
+                    result.model,
+                )
+                return result.text
+        except Exception as exc:
+            logger.error("[ENGINE] Audio transcription failed: %s", type(exc).__name__)
         return ""
 
     async def _save_analysis_to_db(
