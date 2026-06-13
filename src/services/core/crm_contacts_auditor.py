@@ -18,6 +18,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests  # type: ignore
 from src.settings import settings
+from src.services.erp.context_guard import evaluate_context_access
+from src.services.erp.identity_resolver import HONORIFICS, IdentityProfile
 from src.services.utils.gemini_fallback import generate_content_with_fallback
 
 try:
@@ -444,7 +446,7 @@ class CRMContactsAuditor:
             "audit", "saved", "messages",
             # Honorifics are shared by many unrelated project groups and must
             # never be used as customer identity evidence.
-            "aka", "opa", "ustoz", "janob", "xon", "jon", "bro",
+            *HONORIFICS,
         }
 
         for w in all_words:
@@ -508,8 +510,29 @@ class CRMContactsAuditor:
                         telegram_user_id,
                         str(e)[:200],
                     )
-                if is_member:
+                decision = evaluate_context_access(
+                    reference_identity=IdentityProfile(
+                        telegram_user_id=int(telegram_user_id),
+                        name=contact_name or lead_name,
+                    ),
+                    context_identity=IdentityProfile(
+                        telegram_user_id=int(telegram_user_id),
+                        name=contact_name or lead_name,
+                    ),
+                    context_kind="group",
+                    membership_verified=is_member,
+                    classification="client",
+                )
+                if decision.allowed:
                     matched.append((d.entity, title))
+                elif is_member:
+                    logger.info(
+                        "[AUDITOR] Group context rejected by ERP guard: "
+                        "group=%s user_id=%s reason=%s",
+                        title,
+                        telegram_user_id,
+                        decision.reason,
+                    )
 
         return matched
 
