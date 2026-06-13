@@ -241,6 +241,249 @@ def _secret_setting_text(value: Any) -> str:
     return _setting_text(value)
 
 
+ERP_REQUIRED_DEPENDENCIES = (
+    "turso",
+    "amocrm",
+    "telegram_bot",
+    "telegram_userbot",
+    "airtable",
+    "calendar",
+    "action_queue",
+)
+
+
+def _erp_dependency_result(
+    name: str,
+    ok: bool,
+    reason: str,
+    **metadata: Any,
+) -> Dict[str, Any]:
+    result: Dict[str, Any] = {
+        "name": name,
+        "ok": bool(ok),
+        "reason": reason,
+        "checked_at": get_local_now().isoformat(),
+    }
+    if metadata:
+        result["metadata"] = metadata
+    return result
+
+
+async def _execute_database_probe(query: str) -> Any:
+    if db_instance is None:
+        raise RuntimeError("database_not_initialized")
+    conn = await db_instance.get_connection()
+    cursor = conn.execute(query)
+    cursor = await _maybe_await(cursor)
+    fetchone = getattr(cursor, "fetchone", None)
+    if callable(fetchone):
+        return await _maybe_await(fetchone())
+    return None
+
+
+async def _probe_erp_turso() -> Dict[str, Any]:
+    if db_instance is None:
+        return _erp_dependency_result("turso", False, "database_not_initialized")
+    try:
+        await _execute_database_probe("SELECT 1")
+        backend = getattr(db_instance, "get_backend_name", lambda: "unknown")()
+        return _erp_dependency_result(
+            "turso",
+            backend == "turso",
+            "verified" if backend == "turso" else "canonical_state_not_turso",
+            backend=backend,
+        )
+    except Exception as exc:
+        return _erp_dependency_result(
+            "turso",
+            False,
+            f"probe_failed:{type(exc).__name__}",
+        )
+
+
+async def _probe_erp_amocrm() -> Dict[str, Any]:
+    try:
+        amocrm = _get_amocrm_instance()
+        if callable(getattr(amocrm, "is_auth_blocked", None)) and amocrm.is_auth_blocked():
+            return _erp_dependency_result("amocrm", False, "oauth_reauthorization_required")
+        connected = bool(await _maybe_await(amocrm.check_connection()))
+        return _erp_dependency_result(
+            "amocrm",
+            connected,
+            "verified" if connected else (amocrm.last_error or "connection_failed"),
+        )
+    except Exception as exc:
+        return _erp_dependency_result(
+            "amocrm",
+            False,
+            f"probe_failed:{type(exc).__name__}",
+        )
+
+
+async def _probe_erp_telegram_bot() -> Dict[str, Any]:
+    bot_token = _secret_setting_text(settings.BOT_TOKEN)
+    if not bot_token:
+        return _erp_dependency_result("telegram_bot", False, "token_missing")
+    try:
+        from telegram import Bot
+
+        bot = Bot(token=bot_token)
+        me = await bot.get_me()
+        return _erp_dependency_result(
+            "telegram_bot",
+            bool(getattr(me, "id", None)),
+            "verified" if getattr(me, "id", None) else "identity_missing",
+            bot_id=getattr(me, "id", None),
+            username=getattr(me, "username", None),
+        )
+    except Exception as exc:
+        return _erp_dependency_result(
+            "telegram_bot",
+            False,
+            f"probe_failed:{type(exc).__name__}",
+        )
+
+
+async def _probe_erp_userbot() -> Dict[str, Any]:
+    if user_client is None:
+        return _erp_dependency_result("telegram_userbot", False, "client_unavailable")
+    try:
+        authorized = bool(await _maybe_await(user_client.is_user_authorized()))
+        return _erp_dependency_result(
+            "telegram_userbot",
+            authorized,
+            "verified" if authorized else "unauthorized",
+        )
+    except Exception as exc:
+        return _erp_dependency_result(
+            "telegram_userbot",
+            False,
+            f"probe_failed:{type(exc).__name__}",
+        )
+
+
+async def _probe_erp_airtable() -> Dict[str, Any]:
+    if not _secret_setting_text(settings.AIRTABLE_API_KEY) or not _setting_text(
+        settings.AIRTABLE_BASE_ID
+    ):
+        return _erp_dependency_result("airtable", False, "credentials_missing")
+    try:
+        from src.services.core.airtable_sync import AirtableSync
+
+        if time.time() < AirtableSync._billing_blocked_until:
+            return _erp_dependency_result("airtable", False, "billing_limit_cooldown")
+        sync = AirtableSync()
+        tables = await asyncio.to_thread(sync._get_base_tables)
+        return _erp_dependency_result(
+            "airtable",
+            bool(tables),
+            "verified" if tables else "base_metadata_unavailable",
+            table_count=len(tables or []),
+        )
+    except Exception as exc:
+        return _erp_dependency_result(
+            "airtable",
+            False,
+            f"probe_failed:{type(exc).__name__}",
+        )
+
+
+def _calendar_live_probe() -> Dict[str, Any]:
+    from src.services.core.gcalendar import GoogleCalendarSync
+
+    calendar = GoogleCalendarSync()
+    if not calendar.service:
+        return _erp_dependency_result("calendar", False, "credentials_missing")
+    response = (
+        calendar.service.events()
+        .list(calendarId="primary", maxResults=1, singleEvents=True)
+        .execute()
+    )
+    return _erp_dependency_result(
+        "calendar",
+        isinstance(response, dict),
+        "verified" if isinstance(response, dict) else "unexpected_response",
+    )
+
+
+async def _probe_erp_calendar() -> Dict[str, Any]:
+    try:
+        return await asyncio.to_thread(_calendar_live_probe)
+    except Exception as exc:
+        return _erp_dependency_result(
+            "calendar",
+            False,
+            f"probe_failed:{type(exc).__name__}",
+        )
+
+
+async def _probe_erp_action_queue() -> Dict[str, Any]:
+    try:
+        await _execute_database_probe("SELECT 1 FROM agent_actions LIMIT 1")
+        return _erp_dependency_result(
+            "action_queue",
+            True,
+            "legacy_agent_action_store_verified",
+            mode="legacy_agent_actions",
+        )
+    except Exception as exc:
+        return _erp_dependency_result(
+            "action_queue",
+            False,
+            f"probe_failed:{type(exc).__name__}",
+        )
+
+
+async def _run_erp_probe(name: str, probe: Any, timeout: float) -> Dict[str, Any]:
+    try:
+        result = await asyncio.wait_for(probe(), timeout=timeout)
+        if isinstance(result, dict):
+            return result
+        return _erp_dependency_result(name, False, "invalid_probe_response")
+    except asyncio.TimeoutError:
+        return _erp_dependency_result(name, False, "timeout")
+    except Exception as exc:
+        return _erp_dependency_result(
+            name,
+            False,
+            f"probe_failed:{type(exc).__name__}",
+        )
+
+
+async def _collect_erp_dependencies() -> Dict[str, Dict[str, Any]]:
+    timeout = float(os.getenv("ERP_READINESS_TIMEOUT_SECS", "8.0"))
+    probes = {
+        "turso": _probe_erp_turso,
+        "amocrm": _probe_erp_amocrm,
+        "telegram_bot": _probe_erp_telegram_bot,
+        "telegram_userbot": _probe_erp_userbot,
+        "airtable": _probe_erp_airtable,
+        "calendar": _probe_erp_calendar,
+        "action_queue": _probe_erp_action_queue,
+    }
+    results = await asyncio.gather(
+        *(_run_erp_probe(name, probes[name], timeout) for name in ERP_REQUIRED_DEPENDENCIES)
+    )
+    return dict(zip(ERP_REQUIRED_DEPENDENCIES, results))
+
+
+async def build_erp_readiness() -> Dict[str, Any]:
+    dependencies = await _collect_erp_dependencies()
+    blockers = [
+        f"{name}:{dependencies[name].get('reason') or 'unavailable'}"
+        for name in ERP_REQUIRED_DEPENDENCIES
+        if not dependencies[name].get("ok")
+    ]
+    ready = not blockers
+    return {
+        "ready": ready,
+        "autonomy_level": "A2" if ready else "A0",
+        "dependencies": dependencies,
+        "blockers": blockers,
+        "checked_at": get_local_now().isoformat(),
+    }
+
+
 # Mount Static Files
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
@@ -1258,6 +1501,12 @@ async def get_system_health():
     snapshot = await build_health_snapshot()
     snapshot["crm_audit"] = cached_crm_audit
     return snapshot
+
+
+@app.get("/api/system/erp-readiness")
+async def erp_readiness_probe():
+    readiness = await build_erp_readiness()
+    return JSONResponse(status_code=200 if readiness["ready"] else 503, content=readiness)
 
 
 @app.get("/api/system/traces")
