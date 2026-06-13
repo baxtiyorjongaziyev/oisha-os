@@ -902,6 +902,93 @@ class AdminBot:
                 f"🕌 [ADMIN_BOT] Juma outreach triggered manually by {event.sender_id}"
             )
 
+        # [GOD MODE] Inline Search Handler — works in any group without bot membership
+        @self.bot_client.on(events.InlineQuery())
+        async def inline_search_handler(event):
+            import re, uuid
+            from telethon.tl.types import (
+                InputBotInlineResult,
+                InputBotInlineMessageMediaContact,
+            )
+
+            query = event.text.strip()
+            if not query:
+                return
+
+            # Telefon raqam bo'lsa — kontakt kartochkasi qaytaramiz
+            phone_match = re.fullmatch(
+                r"(\+?998|8)?[\s\-\(\)]*(\d{2})[\s\-]*(\d{3})[\s\-]*(\d{2})[\s\-]*(\d{2})",
+                query,
+            )
+            if phone_match:
+                digits = re.sub(r"\D", "", query)
+                if not digits.startswith("998"):
+                    digits = "998" + digits[-9:]
+                normalized = "+" + digits
+
+                first_name = digits[-4:]
+                last_name = ""
+                try:
+                    user_data = await self._perform_global_lookup(normalized)
+                    if user_data:
+                        first_name = user_data.get("first_name") or first_name
+                        last_name = user_data.get("last_name") or ""
+                except Exception:
+                    pass
+
+                contact_result = InputBotInlineResult(
+                    id=str(uuid.uuid4()),
+                    type="contact",
+                    title=f"{first_name} {last_name}".strip(),
+                    description=normalized,
+                    send_message=InputBotInlineMessageMediaContact(
+                        phone_number=normalized,
+                        first_name=first_name,
+                        last_name=last_name,
+                        vcard="",
+                    ),
+                )
+                await event.answer([contact_result])
+                return
+
+            # DB dan qidirish
+            results = []
+            async with await self.db.get_connection() as conn:
+                async with conn.execute(
+                    """
+                    SELECT user_id, first_name, username, phone, intent
+                    FROM users
+                    WHERE first_name LIKE ? OR username LIKE ? OR phone LIKE ?
+                    LIMIT 10
+                    """,
+                    (f"%{query}%", f"%{query}%", f"%{query}%"),
+                ) as cursor:
+                    rows = await cursor.fetchall()
+
+            for row in rows:
+                uid, name, uname, phone, intent = row
+                intent_icon = "🔥" if intent == "HOT_LEAD" else "📋"
+                text = (
+                    f"👸 **Oisha-OS Lead Profile**\n"
+                    f"──────────────────────\n"
+                    f"👤 **Ism:** {name}\n"
+                    f"📱 **Username:** @{uname or 'yoq'}\n"
+                    f"📞 **Tel:** `{phone or 'Nomaʼlum'}`\n"
+                    f"🎯 **Intent:** {intent_icon} {intent or 'Aniqlanyapti'}\n"
+                    f"──────────────────────\n"
+                    f"🔗 [ID: {uid} Profiliga o'tish](tg://user?id={uid})"
+                )
+                results.append(
+                    event.builder.article(
+                        title=f"{name} (@{uname or '?'})",
+                        description=f"Status: {intent or 'Lead'} | Tel: {phone or '?'}",
+                        text=text,
+                        buttons=[Button.url("💬 Chatni ochish", f"tg://user?id={uid}")],
+                    )
+                )
+
+            await event.answer(results)
+
     async def trigger_daily_missions(self):
         """Asosiy missiya taqsimlash logikasi."""
         try:
@@ -1708,149 +1795,6 @@ class AdminBot:
         """Global qidiruvni amalga oshirish."""
         return await self._perform_global_lookup_userbot(phone)
 
-        # [ENTERPRISE: SEARCH] Phone number listener for Deep Search
-        @self.bot_client.on(events.NewMessage())
-        async def phone_handler(event):
-            sender_id = event.sender_id
-            if sender_id not in self.active_searches:
-                return
-
-            # Agar 5 daqiqadan ko'p o'tgan bo'lsa, rejimdan chiqaramiz
-            if (datetime.now() - self.active_searches[sender_id]).total_seconds() > 300:
-                del self.active_searches[sender_id]
-                return
-
-            text = event.message.text
-            import re
-
-
-            # Telefon raqami regexi
-            phone_match = re.search(
-                r"(\+?998|8)?\s?\(?\d{2}\)?\s?\d{3}\s?\d{2}\s?\d{2}", text
-            )
-
-            if phone_match:
-                phone = phone_match.group(0)
-                del self.active_searches[sender_id]  # Bir marta ishlatilgach o'chiramiz
-
-                wait_msg = await event.respond(
-                    f"🔍 **{phone}** raqami bo'yicha qidiruv boshlandi...\nIltimos, kuting. 👸🛡️"
-                )
-
-                try:
-
-                    # USERBOT orqali qidiruv (Bridge)
-                    user_data = await self._perform_global_lookup(phone)
-
-                    if user_data:
-                        res_msg = (
-                            f"✅ **Xaridor topildi!**\n\n"
-                            f"👤 **Ism:** {user_data['first_name']} {user_data.get('last_name', '')}\n"
-                            f"🆔 **ID:** [{user_data['user_id']}](tg://user?id={user_data['user_id']})\n"
-                            f"🔗 **Profil:** [Link](tg://user?id={user_data['user_id']})\n"
-                        )
-                        if user_data.get("username"):
-                            res_msg += f"📱 **Username:** @{user_data['username']}\n"
-
-                        await wait_msg.edit(res_msg)
-                    else:
-                        await wait_msg.edit(
-                            f"❌ **{phone}** raqami bo'yicha hech kim topilmadi.\nMijoz Telegramdan ro'yxatdan o'tmagan yoki maxfiylik sozlamalari yoqilgan."
-                        )
-
-                except Exception as e:
-                    logger.error(f"❌ [SEARCH ERROR] {e}")
-                    await wait_msg.edit(f"⚠️ Qidiruvda xatolik yuz berdi: `{str(e)}`")
-
-        # [GOD MODE] Inline Search Handler
-        @self.bot_client.on(events.InlineQuery())
-        async def inline_search_handler(event):
-            import re, uuid
-            from telethon.tl.types import (
-                InputBotInlineResult,
-                InputBotInlineMessageMediaContact,
-            )
-
-            query = event.text.strip()
-            if not query:
-                return
-
-            # Telefon raqam bo'lsa — kontakt kartochkasi qaytaramiz
-            phone_match = re.fullmatch(
-                r"(\+?998|8)?[\s\-\(\)]*(\d{2})[\s\-]*(\d{3})[\s\-]*(\d{2})[\s\-]*(\d{2})",
-                query,
-            )
-            if phone_match:
-                digits = re.sub(r"\D", "", query)
-                if not digits.startswith("998"):
-                    digits = "998" + digits[-9:]
-                normalized = "+" + digits
-
-                first_name = digits[-4:]
-                last_name = ""
-                try:
-                    user_data = await self._perform_global_lookup(normalized)
-                    if user_data:
-                        first_name = user_data.get("first_name") or first_name
-                        last_name = user_data.get("last_name") or ""
-                except Exception:
-                    pass
-
-                contact_result = InputBotInlineResult(
-                    id=str(uuid.uuid4()),
-                    type="contact",
-                    title=f"{first_name} {last_name}".strip(),
-                    description=normalized,
-                    send_message=InputBotInlineMessageMediaContact(
-                        phone_number=normalized,
-                        first_name=first_name,
-                        last_name=last_name,
-                        vcard="",
-                    ),
-                )
-                await event.answer([contact_result])
-                return
-
-            # 1. Search in DB
-            results = []
-            async with await self.db.get_connection() as conn:
-                async with conn.execute(
-                    """
-                    SELECT user_id, first_name, username, phone, intent 
-                    FROM users 
-                    WHERE first_name LIKE ? OR username LIKE ? OR phone LIKE ?
-                    LIMIT 10
-                """,
-                    (f"%{query}%", f"%{query}%", f"%{query}%"),
-                ) as cursor:
-                    rows = await cursor.fetchall()
-
-            for row in rows:
-                uid, name, uname, phone, intent = row
-                intent_icon = "🔥" if intent == "HOT_LEAD" else "📋"
-
-                text = (
-                    f"👸 **Oisha-OS Lead Profile**\n"
-                    f"──────────────────────\n"
-                    f"👤 **Ism:** {name}\n"
-                    f"📱 **Username:** @{uname or 'yoq'}\n"
-                    f"📞 **Tel:** `{phone or 'Nomaum'}`\n"
-                    f"🎯 **Intent:** {intent_icon} {intent or 'Aniqlanyapti'}\n"
-                    f"──────────────────────\n"
-                    f"🔗 [ID: {uid} Profiliga o'tish](tg://user?id={uid})"
-                )
-
-                results.append(
-                    event.builder.article(
-                        title=f"{name} (@{uname or '?'})",
-                        description=f"Status: {intent or 'Lead'} | Tel: {phone or '?'}",
-                        text=text,
-                        buttons=[Button.url("💬 Chatni ochish", f"tg://user?id={uid}")],
-                    )
-                )
-
-            await event.answer(results)
-
     async def _perform_global_lookup_userbot(self, phone: str):
         """Userbot orqali Telegramdan qidirish."""
         from telethon import functions
@@ -1893,10 +1837,12 @@ class AdminBot:
                     "last_name": user.last_name,
                 }
 
-                # Kontaktni darhol o'chirib tashlaymiz (Xavfsizlik)
-                await self.user_client(
-                    functions.contacts.DeleteContactsRequest(id=[user.id])
-                )
+                # Faqat BIZ qo'shgan kontaktni o'chiramiz — avvaldan mavjud bo'lsa, saqlanadi
+                newly_added_ids = {imp.user_id for imp in (result.imported or [])}
+                if user.id in newly_added_ids:
+                    await self.user_client(
+                        functions.contacts.DeleteContactsRequest(id=[user.id])
+                    )
                 return user_data
 
             return None
