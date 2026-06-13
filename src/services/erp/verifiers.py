@@ -91,6 +91,65 @@ class AmoCRMTaskLiveVerifier:
         )
 
 
+class AmoCRMNoteLiveVerifier:
+    def __init__(self, amocrm: Any):
+        self.amocrm = amocrm
+
+    async def verify(
+        self,
+        action: dict[str, Any],
+        execution: dict[str, Any],
+    ) -> VerificationResult:
+        payload = dict(action.get("payload") or {})
+        expected = dict(action.get("expected_result") or {})
+        lead_id = int(payload.get("lead_id") or expected.get("lead_id") or 0)
+        expected_text = str(payload.get("text") or expected.get("text") or "").strip()
+        note_id = (
+            execution.get("note_id")
+            or execution.get("metadata", {}).get("note_id")
+            or expected.get("note_id")
+        )
+        try:
+            notes = await _call(self.amocrm, "get_lead_notes", lead_id)
+        except Exception as exc:
+            return VerificationResult(
+                False,
+                "amocrm",
+                expected,
+                {"note_exists": False, "error": str(exc)},
+                "amocrm_note_readback_failed",
+            )
+        note = next(
+            (
+                item
+                for item in (notes or [])
+                if (note_id and str(item.get("id")) == str(note_id))
+                or (
+                    not note_id
+                    and str(
+                        item.get("text")
+                        or (item.get("params") or {}).get("text")
+                        or ""
+                    ).strip()
+                    == expected_text
+                )
+            ),
+            None,
+        )
+        success = note is not None
+        return VerificationResult(
+            success,
+            "amocrm",
+            expected,
+            {
+                "lead_id": lead_id,
+                "note_id": (note or {}).get("id") or note_id,
+                "note_exists": success,
+            },
+            "amocrm_note_confirmed" if success else "amocrm_note_missing_after_write",
+        )
+
+
 class AirtableRecordLiveVerifier:
     def __init__(self, airtable: Any):
         self.airtable = airtable
@@ -152,6 +211,66 @@ class AirtableRecordLiveVerifier:
                 if record is None
                 else "airtable_fields_mismatch"
             ),
+        )
+
+
+class AirtableIncomeLiveVerifier:
+    def __init__(self, airtable: Any):
+        self.airtable = airtable
+
+    async def verify(
+        self,
+        action: dict[str, Any],
+        execution: dict[str, Any],
+    ) -> VerificationResult:
+        payload = dict(action.get("payload") or {})
+        expected = dict(action.get("expected_result") or {})
+        source_event_id = str(
+            payload.get("source_event_id") or expected.get("source_event_id") or ""
+        )
+        record_id = (
+            execution.get("record_id")
+            or execution.get("metadata", {}).get("record_id")
+            or expected.get("record_id")
+        )
+        try:
+            records = await _call(self.airtable, "get_finance_records")
+        except Exception as exc:
+            return VerificationResult(
+                False,
+                "airtable",
+                expected,
+                {"record_exists": False, "error": str(exc)},
+                "airtable_income_readback_failed",
+            )
+        record = next(
+            (
+                item
+                for item in (records or [])
+                if (
+                    str(item.get("_record_type") or "income") == "income"
+                    and (
+                        (record_id and str(item.get("id")) == str(record_id))
+                        or str((item.get("fields") or {}).get("Oisha Source Event") or "")
+                        == source_event_id
+                    )
+                )
+            ),
+            None,
+        )
+        success = record is not None
+        return VerificationResult(
+            success,
+            "airtable",
+            expected,
+            {
+                "record_exists": success,
+                "record_id": (record or {}).get("id") or record_id,
+                "source_event_id": source_event_id,
+            },
+            "airtable_income_confirmed"
+            if success
+            else "airtable_income_missing_after_write",
         )
 
 
@@ -318,10 +437,12 @@ def build_live_verifier_registry(
         task_verifier = AmoCRMTaskLiveVerifier(amocrm)
         registry.register("amocrm.create_task", task_verifier)
         registry.register("amocrm.create_meeting_task", task_verifier)
+        registry.register("amocrm.add_note", AmoCRMNoteLiveVerifier(amocrm))
     if airtable is not None:
         record_verifier = AirtableRecordLiveVerifier(airtable)
         registry.register("airtable.update_fields", record_verifier)
         registry.register("airtable.update_stage", record_verifier)
+        registry.register("airtable.create_income", AirtableIncomeLiveVerifier(airtable))
     if telegram_reader is not None:
         registry.register(
             "telegram.send_message",
