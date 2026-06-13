@@ -421,6 +421,46 @@ class AdminBot:
                 logger.error(f"❌ [ADMIN_BOT] CALLBACK ERROR: {str(e)}")
                 await event.answer("⚠️ Xatolik yuz berdi.", alert=True)
 
+        # Telefon raqam yuborilsa — kontakt kartochkasi qaytaradi (НАПИСАТЬ + ДОБАВИТЬ)
+        @self.bot_client.on(events.NewMessage())
+        async def contact_card_handler(event):
+            import re
+            text = (event.text or "").strip()
+            if not text or text.startswith("/"):
+                return
+            phone_match = re.fullmatch(
+                r"(\+?998|8)?[\s\-\(\)]*(\d{2})[\s\-]*(\d{3})[\s\-]*(\d{2})[\s\-]*(\d{2})",
+                text,
+            )
+            if not phone_match:
+                return
+            digits = re.sub(r"\D", "", text)
+            if not digits.startswith("998"):
+                digits = "998" + digits[-9:]
+            normalized = "+" + digits
+
+            first_name = digits[-4:]
+            last_name = ""
+            try:
+                user_data = await self._perform_global_lookup(normalized)
+                if user_data:
+                    first_name = user_data.get("first_name") or first_name
+                    last_name = user_data.get("last_name") or ""
+            except Exception:
+                pass
+
+            try:
+                await event.respond(
+                    file=types.InputMediaContact(
+                        phone_number=normalized,
+                        first_name=first_name,
+                        last_name=last_name,
+                        vcard="",
+                    )
+                )
+            except Exception as exc:
+                logger.warning("[CONTACT_CARD] send failed: %s", exc)
+
         # [ENTERPRISE: SEARCH] Phone number listener for Deep Search and Direct Admin lookup
         @self.bot_client.on(events.NewMessage())
         async def phone_handler(event):
@@ -1683,6 +1723,7 @@ class AdminBot:
             text = event.message.text
             import re
 
+
             # Telefon raqami regexi
             phone_match = re.search(
                 r"(\+?998|8)?\s?\(?\d{2}\)?\s?\d{3}\s?\d{2}\s?\d{2}", text
@@ -1724,8 +1765,50 @@ class AdminBot:
         # [GOD MODE] Inline Search Handler
         @self.bot_client.on(events.InlineQuery())
         async def inline_search_handler(event):
+            import re, uuid
+            from telethon.tl.types import (
+                InputBotInlineResult,
+                InputBotInlineMessageMediaContact,
+            )
+
             query = event.text.strip()
             if not query:
+                return
+
+            # Telefon raqam bo'lsa — kontakt kartochkasi qaytaramiz
+            phone_match = re.fullmatch(
+                r"(\+?998|8)?[\s\-\(\)]*(\d{2})[\s\-]*(\d{3})[\s\-]*(\d{2})[\s\-]*(\d{2})",
+                query,
+            )
+            if phone_match:
+                digits = re.sub(r"\D", "", query)
+                if not digits.startswith("998"):
+                    digits = "998" + digits[-9:]
+                normalized = "+" + digits
+
+                first_name = digits[-4:]
+                last_name = ""
+                try:
+                    user_data = await self._perform_global_lookup(normalized)
+                    if user_data:
+                        first_name = user_data.get("first_name") or first_name
+                        last_name = user_data.get("last_name") or ""
+                except Exception:
+                    pass
+
+                contact_result = InputBotInlineResult(
+                    id=str(uuid.uuid4()),
+                    type="contact",
+                    title=f"{first_name} {last_name}".strip(),
+                    description=normalized,
+                    send_message=InputBotInlineMessageMediaContact(
+                        phone_number=normalized,
+                        first_name=first_name,
+                        last_name=last_name,
+                        vcard="",
+                    ),
+                )
+                await event.answer([contact_result])
                 return
 
             # 1. Search in DB
