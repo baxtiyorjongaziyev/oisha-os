@@ -36,12 +36,13 @@ class SurgicalNegotiator:
     6. CRM bilan sinxronlash
     """
 
-    def __init__(self, db=None, amocrm=None, send_fn=None):
+    def __init__(self, db=None, amocrm=None, send_fn=None, sales_workflow=None):
         self.db = db
         self.amocrm = amocrm  # AmoCRM client (injected from main.py)
         self.send_fn = send_fn  # async fn(user_id: int, text: str) for proactive sends
 
-        self.sales_agent = get_autonomous_agent(db=db)
+        self.sales_workflow = sales_workflow
+        self.sales_agent = get_autonomous_agent(db=db, sales_workflow=sales_workflow)
         self.lifecycle = get_lifecycle_manager()
         # Wire send_fn so re-engagement messages are actually dispatched
         if self.send_fn is not None and self.lifecycle.send_fn is None:
@@ -55,6 +56,22 @@ class SurgicalNegotiator:
 
         # Active negotiations
         self.active_sessions: Dict[str, Dict] = {}
+
+    async def handle_verified_lead(
+        self,
+        *,
+        workflow_id: str,
+        message: str,
+        autonomy_level: str = "autonomous",
+    ) -> Dict[str, Any]:
+        """Canonical entrypoint for real autonomous client negotiation."""
+        if self.sales_workflow is None:
+            raise RuntimeError("sales_workflow_required")
+        return await self.sales_agent.handle_verified_incoming(
+            workflow_id=workflow_id,
+            message=message,
+            autonomy_level=autonomy_level,
+        )
 
     def _register_handlers(self):
         """Lifecycle handler'larni ro'yxatdan o'tkazish"""
@@ -446,11 +463,18 @@ class SurgicalNegotiator:
 _surgical_negotiator: Optional[SurgicalNegotiator] = None
 
 
-def get_surgical_negotiator(db=None, amocrm=None, send_fn=None) -> SurgicalNegotiator:
+def get_surgical_negotiator(
+    db=None, amocrm=None, send_fn=None, sales_workflow=None
+) -> SurgicalNegotiator:
     """Global negotiator instance. Pass deps on first call to inject them."""
     global _surgical_negotiator
     if _surgical_negotiator is None:
-        _surgical_negotiator = SurgicalNegotiator(db=db, amocrm=amocrm, send_fn=send_fn)
+        _surgical_negotiator = SurgicalNegotiator(
+            db=db,
+            amocrm=amocrm,
+            send_fn=send_fn,
+            sales_workflow=sales_workflow,
+        )
     else:
         # Late injection — allows main.py to wire deps after startup
         if db is not None and _surgical_negotiator.db is None:
@@ -460,6 +484,9 @@ def get_surgical_negotiator(db=None, amocrm=None, send_fn=None) -> SurgicalNegot
             _surgical_negotiator.amocrm = amocrm
         if send_fn is not None and _surgical_negotiator.send_fn is None:
             _surgical_negotiator.send_fn = send_fn
+        if sales_workflow is not None:
+            _surgical_negotiator.sales_workflow = sales_workflow
+            _surgical_negotiator.sales_agent.sales_workflow = sales_workflow
     return _surgical_negotiator
 
 

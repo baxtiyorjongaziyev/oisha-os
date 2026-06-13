@@ -54,6 +54,57 @@ class NegotiationEngine:
     # ─────────────────────────── ASYNC SEMANTIC ───────────────────────────
 
     @staticmethod
+    async def assess_verified(
+        message: str,
+        verified_context: Dict[str, Any],
+        *,
+        autonomy_mode: str = "autonomous",
+    ) -> NegotiationAssessment:
+        """Assess only a context produced by NegotiationContextBuilder."""
+        context = dict(verified_context or {})
+        if float(context.get("identity_confidence") or 0) < 0.90:
+            raise ValueError("verified_negotiation_context_required")
+        safe_context = {
+            key: context[key]
+            for key in (
+                "client_id",
+                "lead_id",
+                "chat_id",
+                "verified_identity",
+                "identity_confidence",
+                "crm_history",
+                "approved_services",
+                "approved_prices",
+                "commitments",
+                "sales_stage",
+            )
+            if key in context
+        }
+        client_id = str(context.get("client_id") or "")
+        lead_id = str(context.get("lead_id") or "")
+        safe_context["crm_history"] = [
+            dict(item)
+            for item in context.get("crm_history") or []
+            if str(item.get("client_id") or "") == client_id
+            and str(item.get("lead_id") or "") == lead_id
+        ]
+        history = [
+            {"role": "user", "content": str(item.get("text") or "")}
+            for item in context.get("telegram_messages") or []
+            if str(item.get("client_id") or "") == client_id
+            and str(item.get("text") or "").strip()
+        ]
+        crm_history = safe_context.get("crm_history") or []
+        crm_status = str((crm_history[-1] if crm_history else {}).get("status") or "")
+        return await NegotiationEngine.assess_async(
+            message=message,
+            crm_status=crm_status,
+            autonomy_mode=autonomy_mode,
+            history=history,
+            context=safe_context,
+        )
+
+    @staticmethod
     async def assess_async(
         message: str,
         crm_status: str = "",
