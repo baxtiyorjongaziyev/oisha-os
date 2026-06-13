@@ -4,13 +4,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_cloud_run_cleanup_requires_explicit_confirmation():
+def test_cloud_run_cleanup_workflow_removed():
+    """Cloud Run service was deleted — the cleanup workflow should no longer exist."""
     workflow = ROOT / ".github" / "workflows" / "delete-cloud-run.yml"
-    text = workflow.read_text(encoding="utf-8")
-
-    assert "push:" not in text
-    assert "DELETE_OISHA_CLOUD_RUN" in text
-    assert "confirm_cleanup" in text
+    assert not workflow.exists(), (
+        "delete-cloud-run.yml still exists but Cloud Run service was deleted. "
+        "Remove this workflow file."
+    )
 
 
 def test_legacy_gcp_scripts_require_explicit_opt_in():
