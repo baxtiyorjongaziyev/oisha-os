@@ -47,6 +47,8 @@ def retry_with_backoff(
 
 
 class AmoCRMSync:
+    CLOSED_LEAD_STATUS_IDS = frozenset({142, 143})
+
     def __init__(
         self,
         subdomain,
@@ -750,6 +752,35 @@ class AmoCRMSync:
         if not self.access_token:
             self._load_token()
 
+        lead = await self.get_lead(int(element_id))
+        if not lead:
+            self.last_error = "lead_state_unavailable_for_tasks"
+            logger.warning(
+                "[AMOCRM TASK BLOCKED] Lead %s holatini tekshirib bo'lmadi.",
+                element_id,
+            )
+            return False
+
+        try:
+            status_id = int(lead.get("status_id") or 0)
+        except (TypeError, ValueError):
+            status_id = 0
+        if status_id <= 0:
+            self.last_error = "lead_state_unavailable_for_tasks"
+            logger.warning(
+                "[AMOCRM TASK BLOCKED] Lead %s statusi aniqlanmadi.",
+                element_id,
+            )
+            return False
+        if status_id in self.CLOSED_LEAD_STATUS_IDS:
+            self.last_error = "lead_closed_for_tasks"
+            logger.info(
+                "[AMOCRM TASK BLOCKED] Yopilgan lead %s uchun vazifa yaratilmadi (status_id=%s).",
+                element_id,
+                status_id,
+            )
+            return False
+
         url = f"{self.base_url}/api/v4/tasks"
         task_payload = {
             "task_type_id": 1,  # Call or generic task
@@ -861,9 +892,9 @@ class AmoCRMSync:
             self._load_token()
         url = f"{self.base_url}/api/v4/leads/{lead_id}"
         try:
-            response = requests.get(url, headers=self._get_headers(), timeout=30)
-            if response.status_code == 401 and self.refresh_token():
-                response = requests.get(url, headers=self._get_headers(), timeout=30)
+            response = await self._request_with_auth(requests.get, url, timeout=30)
+            if response.status_code == 401 and await asyncio.to_thread(self.refresh_token):
+                response = await self._request_with_auth(requests.get, url, timeout=30)
             if response.status_code == 200:
                 return response.json()
             logger.warning(

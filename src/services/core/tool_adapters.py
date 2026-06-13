@@ -319,11 +319,16 @@ class AmoCRMLeadAdapter:
         )
         task_id = self._extract_embedded_id(result, "tasks")
         success = bool(result and task_id)
+        reason = None if success else (self.get_last_error() or "task_create_failed")
+        blocked = reason in {
+            "lead_closed_for_tasks",
+            "lead_state_unavailable_for_tasks",
+        }
         return ToolResult(
             tool_name="amocrm.followup_task",
             success=success,
-            status="ok" if success else "failed",
-            reason=None if success else (self.get_last_error() or "task_create_failed"),
+            status="ok" if success else ("blocked" if blocked else "failed"),
+            reason=reason,
             metadata={
                 "lead_id": int(lead_id),
                 "task_id": task_id,
