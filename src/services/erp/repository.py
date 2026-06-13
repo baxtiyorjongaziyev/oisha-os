@@ -123,6 +123,21 @@ class ERPRepository:
         await conn.commit()
         return True
 
+    async def update_workflow_data(
+        self,
+        workflow_id: str,
+        data: Dict[str, Any],
+    ) -> bool:
+        if not await self._exists("erp_workflows", "workflow_id", workflow_id):
+            raise ValueError(f"workflow_not_found:{workflow_id}")
+        conn = await self.db.get_connection()
+        await conn.execute(
+            "UPDATE erp_workflows SET data_json = ?, updated_at = ? WHERE workflow_id = ?",
+            (_json(data), get_local_now().isoformat(), workflow_id),
+        )
+        await conn.commit()
+        return True
+
     async def create_action(self, action: ERPAction) -> bool:
         if await self._exists("erp_actions", "idempotency_key", action.idempotency_key):
             return False
