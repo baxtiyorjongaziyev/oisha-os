@@ -465,7 +465,7 @@ class AdminBot:
         @self.bot_client.on(events.NewMessage())
         async def phone_handler(event):
             sender_id = event.sender_id
-            
+
             # Check if user is in active searches mode
             is_active = sender_id in self.active_searches
             if is_active:
@@ -482,14 +482,22 @@ class AdminBot:
 
             import re
 
+            text = (event.text or "").strip()
+            # Bare phone number — contact_card_handler handles it, skip here
+            if re.fullmatch(
+                r"(\+?998|8)?[\s\-\(\)]*(\d{2})[\s\-]*(\d{3})[\s\-]*(\d{2})[\s\-]*(\d{2})",
+                text,
+            ):
+                return
+
             phone_match = re.search(
-                r"(\+?998|8)?\s?\(?\d{2}\)?\s?\d{3}\s?\d{2}\s?\d{2}", event.text
+                r"(\+?998|8)?\s?\(?\d{2}\)?\s?\d{3}\s?\d{2}\s?\d{2}", text
             )
             if phone_match:
                 phone = phone_match.group(0)
                 if sender_id in self.active_searches:
                     del self.active_searches[sender_id]
-                
+
                 wait_msg = await event.respond(f"🔍 **{phone}** qidirilmoqda...")
                 try:
                     data = await self._perform_global_lookup(phone)
