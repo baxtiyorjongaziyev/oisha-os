@@ -172,3 +172,37 @@ async def test_high_risk_action_waits_for_owner_approval_before_executor(runtime
     assert stored["status"] == "waiting_approval"
     assert executor_called is False
     assert await repo.count_rows("erp_approvals") == 1
+
+
+@pytest.mark.asyncio
+async def test_partial_meeting_failure_queues_compensation_instead_of_full_retry(runtime):
+    repo, queue = runtime
+    await queue.enqueue(action("act-meeting", "calendar.create_meeting"))
+
+    async def executor(_action):
+        return {"success": True, "event_id": "event-1"}
+
+    async def verifier(stored_action, _execution):
+        return VerificationResult(
+            success=False,
+            source="calendar+amocrm",
+            expected=stored_action["expected_result"],
+            actual={
+                "calendar_event_exists": True,
+                "amocrm_task_exists": False,
+            },
+            reason="calendar_created_amocrm_task_missing",
+        )
+
+    runner = ActionRunner(
+        queue,
+        executors={"calendar.create_meeting": executor},
+        verifiers={"calendar.create_meeting": verifier},
+    )
+
+    result = await runner.run_once("worker-a")
+    stored = await repo.get_action("act-meeting")
+
+    assert result.status == "compensating"
+    assert stored["status"] == "waiting_compensation"
+    assert await repo.count_rows("erp_actions") == 2

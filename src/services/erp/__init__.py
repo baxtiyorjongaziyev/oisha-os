@@ -3,6 +3,7 @@
 from src.services.erp.action_queue import ActionQueue, QueueItem
 from src.services.erp.action_runner import ActionRunResult, ActionRunner
 from src.services.erp.approval_service import Approval, ApprovalService
+from src.services.erp.compensation import CompensationService
 from src.services.erp.context_guard import ContextAccessDecision, evaluate_context_access
 from src.services.erp.identity_resolver import (
     CLIENT_ACTION_THRESHOLD,
@@ -14,6 +15,14 @@ from src.services.erp.models import ERPAction, ERPEvent, ERPWorkflow, Verificati
 from src.services.erp.repository import ERPRepository
 from src.services.erp.retry_policy import RetryPolicy
 from src.services.erp.risk_policy import ERPRiskPolicy, RiskDecision
+from src.services.erp.verifiers import (
+    AirtableRecordLiveVerifier,
+    AmoCRMTaskLiveVerifier,
+    LiveVerifierRegistry,
+    MeetingLiveVerifier,
+    TelegramMessageLiveVerifier,
+    build_live_verifier_registry,
+)
 
 __all__ = [
     "ActionQueue",
@@ -21,6 +30,7 @@ __all__ = [
     "ActionRunner",
     "Approval",
     "ApprovalService",
+    "CompensationService",
     "CLIENT_ACTION_THRESHOLD",
     "ContextAccessDecision",
     "ERPAction",
@@ -32,6 +42,12 @@ __all__ = [
     "QueueItem",
     "ERPRiskPolicy",
     "RiskDecision",
+    "AirtableRecordLiveVerifier",
+    "AmoCRMTaskLiveVerifier",
+    "LiveVerifierRegistry",
+    "MeetingLiveVerifier",
+    "TelegramMessageLiveVerifier",
+    "build_live_verifier_registry",
     "RetryPolicy",
     "VerificationResult",
     "evaluate_context_access",

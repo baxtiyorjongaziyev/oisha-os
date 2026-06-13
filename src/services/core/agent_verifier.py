@@ -35,6 +35,20 @@ class CRMStateVerifier:
                 "verified_at": get_local_now().isoformat(),
             }
 
+        if amocrm is None or not (
+            callable(getattr(amocrm, "get_lead", None))
+            or callable(getattr(amocrm, "fetch_lead", None))
+        ):
+            return {
+                "success": False,
+                "verification_mode": "crm_state",
+                "lead_id": lead_id,
+                "expected_status_id": expected_status_id,
+                "actual_status_id": None,
+                "reason": "crm_live_readback_unavailable",
+                "verified_at": get_local_now().isoformat(),
+            }
+
         actual_status_id: Optional[str] = None
         error: Optional[str] = None
 
@@ -45,6 +59,9 @@ class CRMStateVerifier:
             except Exception as exc:
                 error = str(exc)
                 logger.warning(f"[CRMStateVerifier] fetch failed for lead {lead_id}: {exc}")
+
+        if not actual_status_id and not error:
+            error = "crm_state_missing_from_live_readback"
 
         matched = actual_status_id == str(expected_status_id) if actual_status_id else None
 
@@ -153,6 +170,35 @@ class ActionOutcomeVerifier:
             "checked_actions": len(tool_results),
             "failed_actions": failed_actions,
             "reason": reason,
+            "verified_at": get_local_now().isoformat(),
+        }
+
+
+class LiveActionOutcomeVerifier:
+    """Bridge legacy agent tasks to canonical ERP live read-back verifiers."""
+
+    def __init__(self, registry: Any):
+        self.registry = registry
+
+    async def verify(self, task: Any, execution: Dict[str, Any]) -> Dict[str, Any]:
+        action = dict(execution.get("erp_action") or {})
+        if not action:
+            return {
+                "task_id": getattr(task, "task_id", "unknown"),
+                "success": False,
+                "verification_mode": "live_readback",
+                "reason": "erp_action_missing",
+                "verified_at": get_local_now().isoformat(),
+            }
+        result = await self.registry.verify(action, execution)
+        return {
+            "task_id": getattr(task, "task_id", "unknown"),
+            "success": result.success,
+            "verification_mode": "live_readback",
+            "source": result.source,
+            "expected": result.expected,
+            "actual": result.actual,
+            "reason": result.reason,
             "verified_at": get_local_now().isoformat(),
         }
 
