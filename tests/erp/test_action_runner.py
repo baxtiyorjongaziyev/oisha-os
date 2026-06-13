@@ -3,9 +3,11 @@ import pytest
 from src.database import Database
 from src.services.erp.action_queue import ActionQueue
 from src.services.erp.action_runner import ActionRunner
+from src.services.erp.approval_service import ApprovalService
 from src.services.erp.models import ERPAction, ERPWorkflow, VerificationResult
 from src.services.erp.repository import ERPRepository
 from src.services.erp.retry_policy import RetryPolicy
+from src.services.erp.risk_policy import ERPRiskPolicy
 
 
 class PermanentAPIError(RuntimeError):
@@ -142,3 +144,31 @@ async def test_verified_action_is_completed(runtime):
     assert result.status == "completed"
     assert stored["status"] == "completed"
     assert await repo.count_rows("erp_verifications") == 1
+
+
+@pytest.mark.asyncio
+async def test_high_risk_action_waits_for_owner_approval_before_executor(runtime):
+    repo, queue = runtime
+    await queue.enqueue(action("act-discount", "negotiation.offer_discount"))
+    executor_called = False
+
+    async def executor(_action):
+        nonlocal executor_called
+        executor_called = True
+        return {"success": True}
+
+    runner = ActionRunner(
+        queue,
+        executors={"negotiation.offer_discount": executor},
+        verifiers={},
+        risk_policy=ERPRiskPolicy(repo.db),
+        approval_service=ApprovalService(repo),
+    )
+
+    result = await runner.run_once("worker-a")
+    stored = await repo.get_action("act-discount")
+
+    assert result.status == "waiting_approval"
+    assert stored["status"] == "waiting_approval"
+    assert executor_called is False
+    assert await repo.count_rows("erp_approvals") == 1

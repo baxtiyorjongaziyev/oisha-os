@@ -201,6 +201,24 @@ class ActionQueue:
         await self._finish_attempt(item, "failed", result or {}, reason)
         await conn.commit()
 
+    async def wait_for_approval(self, item: QueueItem, reason: str) -> None:
+        now = get_local_now().isoformat()
+        conn = await self.repo.db.get_connection()
+        await conn.execute(
+            """
+            UPDATE erp_actions
+            SET status = 'waiting_approval',
+                lease_owner = NULL,
+                lease_expires_at = NULL,
+                last_error = ?,
+                updated_at = ?
+            WHERE action_id = ?
+            """,
+            (reason[:1000], now, item.action["action_id"]),
+        )
+        await self._finish_attempt(item, "waiting_approval", {}, reason)
+        await conn.commit()
+
     async def complete(
         self,
         item: QueueItem,
