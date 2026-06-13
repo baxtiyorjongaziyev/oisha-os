@@ -9,7 +9,11 @@ logger = logging.getLogger(__name__)
 from src.database import Database  # type: ignore
 from src.services.core.airtable_sync import AirtableSync
 from src.services.core.gcontacts import GoogleContactsSync
-from src.services.debug.global_super_hub import GiantResourceHub, GlobalSuperAI  # type: ignore
+try:
+    from src.services.debug.global_super_hub import GiantResourceHub, GlobalSuperAI  # type: ignore
+except ImportError:
+    GiantResourceHub = None  # type: ignore
+    GlobalSuperAI = None  # type: ignore
 from src.services.core.escalation_agent import EscalationAgent
 from src.services.core.wow_service_engine import WowServiceEngine
 from src.services.core.gdrive import GoogleDriveSync
