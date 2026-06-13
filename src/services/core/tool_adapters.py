@@ -413,6 +413,31 @@ class AirtableProjectAdapter:
     async def get_projects(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
         return await self.fetch_projects(force_refresh=force_refresh)
 
+    async def get_finance_records(self) -> List[Dict[str, Any]]:
+        return await asyncio.to_thread(self.airtable.get_finance_records)
+
+    async def create_income(self, payload: Dict[str, Any]) -> ToolResult:
+        fields = dict(payload.get("fields") or {})
+        fields.setdefault("Oisha Source Event", payload.get("source_event_id"))
+        fields.setdefault("To'lov miqdori", payload.get("amount"))
+        fields.setdefault("Valyuta", payload.get("currency"))
+        if payload.get("project_id"):
+            fields.setdefault("Loyiha nomi", [payload["project_id"]])
+        result = await asyncio.to_thread(self.airtable.create_income_record, fields)
+        record_id = result.get("id") if isinstance(result, dict) else None
+        success = bool(record_id)
+        return ToolResult(
+            tool_name="airtable.create_income",
+            success=success,
+            status="ok" if success else "failed",
+            reason=None if success else "airtable_income_create_failed",
+            metadata={
+                "record_id": record_id,
+                "source_event_id": payload.get("source_event_id"),
+            },
+            raw=result if isinstance(result, dict) else {},
+        )
+
     async def update_stage(self, record_id: str, next_stage: str) -> ToolResult:
         result = await asyncio.to_thread(
             self.airtable.update_project_stage, record_id, next_stage

@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from src.services.core.tool_adapters import (
+    AirtableProjectAdapter,
     TelegramNotificationAdapter,
     configure_userbot_group_fallback,
     send_group_message_with_fallback,
@@ -57,3 +58,25 @@ async def test_notification_adapter_reports_userbot_fallback_message_id():
 
     assert result.success is True
     assert result.group_message_id == 99
+
+
+@pytest.mark.asyncio
+async def test_airtable_adapter_creates_income_with_source_event():
+    airtable = MagicMock()
+    airtable.create_income_record.return_value = {"id": "recIncome1"}
+    adapter = AirtableProjectAdapter(airtable)
+
+    result = await adapter.create_income(
+        {
+            "source_event_id": "telegram:-100:88",
+            "amount": 1_500_000,
+            "currency": "UZS",
+            "project_id": "recProject1",
+        }
+    )
+
+    assert result.success is True
+    assert result.metadata["record_id"] == "recIncome1"
+    assert airtable.create_income_record.call_args.args[0]["Oisha Source Event"] == (
+        "telegram:-100:88"
+    )

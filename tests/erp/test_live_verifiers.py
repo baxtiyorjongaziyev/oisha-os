@@ -4,7 +4,9 @@ import pytest
 
 from src.services.core.agent_verifier import CRMStateVerifier
 from src.services.erp.verifiers import (
+    AirtableIncomeLiveVerifier,
     AirtableRecordLiveVerifier,
+    AmoCRMNoteLiveVerifier,
     AmoCRMTaskLiveVerifier,
     MeetingLiveVerifier,
     TelegramMessageLiveVerifier,
@@ -69,6 +71,49 @@ async def test_airtable_api_success_is_failure_when_field_did_not_change():
     assert result.success is False
     assert result.reason == "airtable_fields_mismatch"
     assert result.actual["fields"]["Loyiha bosqichi"] == "Brief"
+
+
+@pytest.mark.asyncio
+async def test_airtable_income_is_confirmed_by_source_event_readback():
+    airtable = MagicMock()
+    airtable.get_finance_records.return_value = [
+        {
+            "id": "recIncome1",
+            "_record_type": "income",
+            "fields": {"Oisha Source Event": "telegram:-100:88"},
+        }
+    ]
+    verifier = AirtableIncomeLiveVerifier(airtable)
+    action = {
+        "action_type": "airtable.create_income",
+        "payload": {"source_event_id": "telegram:-100:88"},
+        "expected_result": {
+            "record_exists": True,
+            "source_event_id": "telegram:-100:88",
+        },
+    }
+
+    result = await verifier.verify(action, {"success": True, "record_id": "recIncome1"})
+
+    assert result.success is True
+    assert result.actual["record_id"] == "recIncome1"
+
+
+@pytest.mark.asyncio
+async def test_amocrm_note_success_is_failure_when_note_missing_from_lead():
+    amocrm = MagicMock()
+    amocrm.get_lead_notes = AsyncMock(return_value=[])
+    verifier = AmoCRMNoteLiveVerifier(amocrm)
+    action = {
+        "action_type": "amocrm.add_note",
+        "payload": {"lead_id": 101, "text": "Tasdiqlangan kirim"},
+        "expected_result": {"lead_id": 101, "note_exists": True},
+    }
+
+    result = await verifier.verify(action, {"success": True, "note_id": 55})
+
+    assert result.success is False
+    assert result.reason == "amocrm_note_missing_after_write"
 
 
 @pytest.mark.asyncio
