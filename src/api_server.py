@@ -419,12 +419,12 @@ async def _probe_erp_calendar() -> Dict[str, Any]:
 
 async def _probe_erp_action_queue() -> Dict[str, Any]:
     try:
-        await _execute_database_probe("SELECT 1 FROM agent_actions LIMIT 1")
+        await _execute_database_probe("SELECT 1 FROM erp_actions LIMIT 1")
         return _erp_dependency_result(
             "action_queue",
             True,
-            "legacy_agent_action_store_verified",
-            mode="legacy_agent_actions",
+            "canonical_erp_action_store_verified",
+            mode="erp_actions",
         )
     except Exception as exc:
         return _erp_dependency_result(

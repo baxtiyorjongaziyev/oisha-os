@@ -567,6 +567,9 @@ class Database:
                 "CREATE INDEX IF NOT EXISTS idx_call_analyses_outcome ON call_analyses(outcome)"
             )
 
+            from src.services.erp.schema import initialize_erp_schema
+
+            await initialize_erp_schema(conn)
             await conn.commit()
             logger.info("[DB] Async Base Ready.")
             if hasattr(config, "OWNER_ID"):
