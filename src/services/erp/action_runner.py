@@ -5,6 +5,7 @@ from typing import Any, Awaitable, Callable, Mapping, Optional
 
 from src.services.erp.action_queue import ActionQueue, QueueItem
 from src.services.erp.approval_service import Approval, ApprovalService
+from src.services.erp.compensation import CompensationService
 from src.services.erp.models import VerificationResult
 from src.services.erp.retry_policy import RetryPolicy
 from src.services.erp.risk_policy import ERPRiskPolicy, RiskDecision
@@ -41,6 +42,7 @@ class ActionRunner:
         approval_service: Optional[ApprovalService] = None,
         approval_requested_from: str = "owner",
         approval_notifier: Optional[ApprovalNotifier] = None,
+        compensation_service: Optional[CompensationService] = None,
     ):
         self.queue = queue
         self.executors = dict(executors)
@@ -50,6 +52,7 @@ class ActionRunner:
         self.approval_service = approval_service or ApprovalService(queue.repo)
         self.approval_requested_from = approval_requested_from
         self.approval_notifier = approval_notifier
+        self.compensation_service = compensation_service or CompensationService(queue)
 
     async def run_once(self, worker_id: str) -> ActionRunResult:
         item = await self.queue.claim_next(worker_id)
@@ -122,6 +125,17 @@ class ActionRunner:
 
         await self.queue.repo.record_verification(item.action["action_id"], verification)
         if not verification.success:
+            compensation = await self.compensation_service.enqueue_for_partial_failure(
+                item.action,
+                verification,
+            )
+            if compensation is not None:
+                await self.queue.wait_for_compensation(item, verification.reason)
+                return ActionRunResult(
+                    item.action["action_id"],
+                    "compensating",
+                    verification.reason,
+                )
             return await self._retry_or_dead_letter(
                 item,
                 reason=verification.reason or "verification_failed",

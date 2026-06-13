@@ -106,6 +106,12 @@ class TelegramNotificationAdapter:
                 metadata={"chat_id": chat_id, "thread_id": thread_id},
             )
 
+    async def get_messages(self, chat_id: int, ids: int) -> Any:
+        """Read back a sent Telegram message through the connected userbot."""
+        if _userbot_group_fallback is None:
+            return None
+        return await _userbot_group_fallback.get_messages(chat_id, ids=ids)
+
     async def send_direct_messages(
         self,
         messages: List[Dict[str, Any]],
@@ -287,6 +293,16 @@ class AmoCRMLeadAdapter:
     def get_last_error(self) -> Optional[str]:
         return getattr(self.amocrm, "last_error", None)
 
+    async def get_lead_open_tasks(self, lead_id: int) -> List[Dict[str, Any]]:
+        return await self.amocrm.get_lead_open_tasks(int(lead_id))
+
+    async def get_lead(self, lead_id: int) -> Dict[str, Any]:
+        result = await self.amocrm.get_lead(int(lead_id))
+        return dict(result or {})
+
+    async def get_lead_notes(self, lead_id: int) -> List[Dict[str, Any]]:
+        return await self.amocrm.get_lead_notes(int(lead_id))
+
     async def create_followup_task(
         self,
         lead_id: int,
@@ -385,8 +401,17 @@ class AirtableProjectAdapter:
     def __init__(self, airtable: AirtableSync):
         self.airtable = airtable
 
-    async def fetch_projects(self) -> List[Dict[str, Any]]:
-        return await asyncio.to_thread(self.airtable.get_projects)
+    async def fetch_projects(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        try:
+            return await asyncio.to_thread(
+                self.airtable.get_projects,
+                force_refresh=force_refresh,
+            )
+        except TypeError:
+            return await asyncio.to_thread(self.airtable.get_projects)
+
+    async def get_projects(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        return await self.fetch_projects(force_refresh=force_refresh)
 
     async def update_stage(self, record_id: str, next_stage: str) -> ToolResult:
         result = await asyncio.to_thread(
@@ -420,11 +445,30 @@ class AirtableProjectAdapter:
         return await asyncio.to_thread(self.airtable.get_record_url, record_id)
 
 
+class GoogleCalendarAdapter:
+    tool_name = "google_calendar"
+
+    def __init__(self, calendar: Any):
+        self.calendar = calendar
+
+    async def get_upcoming_events(
+        self,
+        date_str: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        return await asyncio.to_thread(
+            self.calendar.get_upcoming_events,
+            date_str,
+            limit,
+        )
+
+
 def build_default_tool_registry(
     *,
     bot_token: Optional[str] = None,
     amocrm: Optional[AmoCRMSync] = None,
     airtable: Optional[AirtableSync] = None,
+    gcalendar: Optional[Any] = None,
 ) -> ToolRegistry:
     registry = ToolRegistry()
     if bot_token:
@@ -433,4 +477,6 @@ def build_default_tool_registry(
         registry.register("amocrm_leads", AmoCRMLeadAdapter(amocrm))
     if airtable is not None:
         registry.register("airtable_projects", AirtableProjectAdapter(airtable))
+    if gcalendar is not None:
+        registry.register("google_calendar", GoogleCalendarAdapter(gcalendar))
     return registry
