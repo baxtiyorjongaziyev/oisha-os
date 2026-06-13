@@ -28,6 +28,8 @@ jobs:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TG_PHONE: ${{ secrets.TG_PHONE }}
+          TG_PASSWORD: ${{ secrets.TG_PASSWORD }}
         run: |
           python3 - <<'PYEOF'
           import asyncio, os, time, json, base64, subprocess
@@ -36,8 +38,8 @@ jobs:
           from telethon.errors import SessionPasswordNeededError
           from telethon.sessions import StringSession
 
-          PHONE = "+998336450097"
-          TG_PASSWORD = "Tg0097"
+          PHONE = os.environ.get("TG_PHONE", "+998336450097")
+          TG_PASSWORD = os.environ.get("TG_PASSWORD", "")
           GH_TOKEN = os.environ["GH_TOKEN"]
           REPO = "baxtiyorjongaziyev/oisha-os"
           CODE_FILE = "data/sms_code_input.txt"
