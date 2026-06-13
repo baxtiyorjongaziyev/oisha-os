@@ -91,6 +91,9 @@ oisha_brain = None
 bot_messenger = None
 agent_orchestrator = None
 _health_api_server = None
+erp_action_queue = None
+sales_workflow = None
+finance_workflow = None
 
 # TN5 Group Config (env-configurable; fallback keeps legacy behavior)
 TN5_GROUP_ID = (
@@ -2803,7 +2806,7 @@ async def negotiation_agent_handler(event):
 
 
 async def kirim_topic_handler(event):
-    """Team guruhidagi Kirim topicda sotuvchi kirim e'lon qilsa tabriklaydi."""
+    """Create a finance-gated income workflow from the Kirim topic."""
     if not settings.TEAM_GROUP_ID or not settings.TOPIC_KIRIM_ID:
         return
     if event.chat_id != settings.TEAM_GROUP_ID:
@@ -2812,16 +2815,55 @@ async def kirim_topic_handler(event):
         return
 
     text = (getattr(event.message, "message", None) or getattr(event.message, "text", None) or "").strip()
-    if not _looks_like_income_announcement(text):
-        return
-
     sender = await event.get_sender()
     if getattr(sender, "bot", False):
         return
 
     db = msg_controller.db if msg_controller else None
     if not db:
-        logger.warning("[KIRIM] DB unavailable; celebration skipped.")
+        logger.warning("[KIRIM] DB unavailable; finance workflow skipped.")
+        return
+    if finance_workflow is None:
+        logger.error("[KIRIM] Finance workflow unavailable; announcement blocked.")
+        return
+
+    reply_message_id = getattr(event.message, "reply_to_msg_id", None)
+    if (
+        reply_message_id
+        and not _looks_like_income_announcement(text)
+        and (_is_finance_approval(text) or _is_finance_rejection(text))
+    ):
+        saved = await _load_income_workflow_state(db, reply_message_id)
+        if not saved or not saved.get("workflow_id"):
+            return
+        approver = await _resolve_finance_approver(db)
+        if not approver or int(approver.get("user_id") or 0) != int(getattr(sender, "id", 0)):
+            logger.warning("[KIRIM] Unauthorized finance decision sender=%s", getattr(sender, "id", None))
+            return
+        if _is_finance_rejection(text):
+            await finance_workflow.reject_income(
+                saved["workflow_id"],
+                rejected_by=str(sender.id),
+                reason=text,
+                rejecter_role="finance",
+            )
+            saved["status"] = "rejected"
+            await event.reply("Kirim rad etildi. Airtable va CRMga yozilmadi.", link_preview=False)
+        else:
+            await finance_workflow.confirm_income(
+                saved["workflow_id"],
+                confirmed_by=str(sender.id),
+                confirmer_role="finance",
+            )
+            saved["status"] = "confirmed_waiting_airtable_verification"
+            await event.reply(
+                "Finance tasdig'i qabul qilindi. Airtable yozuvi tekshirilgach CRM va tabrik bosqichi davom etadi.",
+                link_preview=False,
+            )
+        await _save_income_workflow_state(db, saved)
+        return
+
+    if not _looks_like_income_announcement(text):
         return
 
     state_key = _kirim_celebration_key(int(event.chat_id), int(event.id))
@@ -2850,13 +2892,62 @@ async def kirim_topic_handler(event):
     elif seller_name not in celebration:
         celebration = f"{seller_name}, {celebration}"
 
+    amount = _extract_income_amount(text)
+    project = await _find_project_for_income(text)
+    project_fields = (project or {}).get("project_fields") or {}
+    client_ids = (project or {}).get("client_ids") or []
+    lead_id = (
+        project_fields.get("AmoCRM_ID")
+        or project_fields.get("Loyiha ID")
+        or project_fields.get("Lead ID")
+    )
+    if isinstance(lead_id, list):
+        lead_id = lead_id[0] if lead_id else None
     try:
-        await _send_kirim_celebration(event, celebration)
-        await db.set_state(state_key, "done")
-        logger.info(f"[KIRIM] Celebration sent chat={event.chat_id} msg={event.id} seller={seller_name}")
-    except Exception as exc:
-        await db.set_state(state_key, f"failed:{type(exc).__name__}")
-        logger.error(f"[KIRIM] Celebration send failed: {exc}", exc_info=True)
+        lead_id = int(lead_id or 0)
+    except (TypeError, ValueError):
+        lead_id = 0
+    if not project or not lead_id or not client_ids or amount.get("value") is None:
+        await db.set_state(state_key, "blocked:missing_project_lead_or_amount")
+        await event.reply(
+            "Kirim finance tekshiruviga olinmadi: loyiha, AmoCRM bitimi yoki summa aniq topilmadi.",
+            link_preview=False,
+        )
+        return
+
+    workflow = await finance_workflow.announce_income(
+        source_event_id=f"telegram:{event.chat_id}:{event.id}",
+        amount=float(amount["value"]),
+        currency=str(amount.get("currency") or "UZS"),
+        client_id=str(client_ids[0]),
+        seller_id=str(getattr(sender, "id", None) or seller_name),
+        lead_id=lead_id,
+        deal_link=f"https://{settings.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead_id}",
+        airtable_project_id=str(project["record_id"]),
+        celebration_chat_id=int(event.chat_id),
+        celebration_text=celebration,
+    )
+    saved = {
+        "workflow_id": workflow["workflow_id"],
+        "original_message_id": int(event.id),
+        "status": "waiting_finance_confirmation",
+    }
+    await _save_income_workflow_state(db, saved)
+    await db.set_state(state_key, "waiting_finance_confirmation")
+    approver = await _resolve_finance_approver(db)
+    mention = _format_person_mention(approver, "Finance")
+    gate = await event.reply(
+        f"{mention}, kirimni real tushganini tekshirib, shu xabarga 'tasdiq' yoki 'rad' deb javob bering.",
+        link_preview=False,
+        parse_mode="html",
+    )
+    saved["gate_message_id"] = getattr(gate, "id", None)
+    await _save_income_workflow_state(db, saved)
+    logger.info(
+        "[KIRIM] Finance review created workflow=%s lead=%s",
+        workflow["workflow_id"],
+        lead_id,
+    )
 
 
 async def _send_kirim_celebration(event, celebration: str) -> None:
@@ -2902,6 +2993,7 @@ async def main():
     global surgical_integration, evolution_scheduler
     global meeting_scheduler
     global oisha_brain, bot_messenger, agent_orchestrator
+    global erp_action_queue, sales_workflow, finance_workflow
 
     # [ENTERPRISE] Anti-Local Execution Lock
     # To protect the owner's Telegram session from being revoked by simultaneous
@@ -2996,6 +3088,16 @@ async def main():
     db = Database()
     await db.init_instance()
     msg_controller = MessageController(api_keys=api_keys, db=db)
+    from src.services.erp.action_queue import ActionQueue
+    from src.services.erp.repository import ERPRepository
+    from src.services.erp.workflows.finance import FinanceWorkflowService
+    from src.services.erp.workflows.sales import SalesWorkflowService
+
+    erp_repo = ERPRepository(db)
+    await erp_repo.initialize()
+    erp_action_queue = ActionQueue(erp_repo)
+    sales_workflow = SalesWorkflowService(erp_repo, erp_action_queue)
+    finance_workflow = FinanceWorkflowService(erp_repo, erp_action_queue)
 
     def _parse_bool(val: str) -> bool:
         if not val:
@@ -3107,6 +3209,7 @@ async def main():
         gcalendar=msg_controller.google.calendar,
         admin_notifier=admin_bot,
         amocrm=msg_controller.crm.amocrm,
+        sales_workflow=sales_workflow,
     )
 
     advisor_agent = AdvisorAgent(
@@ -3348,6 +3451,7 @@ async def main():
             db=msg_controller.db,
             amocrm=msg_controller.crm.amocrm,
             send_fn=_surgical_send,
+            sales_workflow=sales_workflow,
         )
         surgical_integration.enabled = getattr(settings, "SURGICAL_MODE", False)
     except Exception as surg_init_exc:

@@ -495,6 +495,28 @@ class AirtableSync:
                 self._refresh_endpoint()
         return records
 
+    def get_income_records(self, force_refresh: bool = False):
+        """Read only confirmed income records from the Kirim table."""
+        original_table = self.table_name
+        self.table_name = "Kirim"
+        self._refresh_endpoint()
+        try:
+            return self.get_projects(force_refresh=force_refresh)
+        finally:
+            self.table_name = original_table
+            self._refresh_endpoint()
+
+    def create_income_record(self, fields: dict):
+        """Create an income record without mutating the caller's active table."""
+        original_table = self.table_name
+        self.table_name = "Kirim"
+        self._refresh_endpoint()
+        try:
+            return self.create_record(fields)
+        finally:
+            self.table_name = original_table
+            self._refresh_endpoint()
+
     def update_project_fields(self, record_id: str, fields: dict):
         """Loyihaning bir nechta maydonlarini yangilash."""
         fields = self._normalize_fields_for_table(fields)
