@@ -16,6 +16,9 @@ from datetime import datetime, timedelta
 from typing import Any, Iterable, List, Optional
 from zoneinfo import ZoneInfo
 
+from src.services.erp.context_guard import evaluate_context_access
+from src.services.erp.identity_resolver import IdentityProfile, normalize_phone
+
 logger = logging.getLogger(__name__)
 
 TZ = ZoneInfo("Asia/Tashkent")
@@ -512,15 +515,46 @@ class TelegramMeetingScheduler:
         if not lead_data.get("is_lead"):
             return None
 
-        crm_key = f"calendar:crm_synced:{user_id or participant_name}:{candidate.start_time.isoformat()}"
-        if self.db and str(await self.db.get_state(crm_key, "")):
-            return None
-
         phone = (
             lead_data.get("phone")
             or getattr(peer, "phone", None)
             or ""
         )
+        normalized_phone = normalize_phone(str(phone))
+        peer_phone = normalize_phone(str(getattr(peer, "phone", None) or ""))
+        classification = str(
+            lead_data.get("classification")
+            or lead_data.get("intent_category")
+            or "client"
+        )
+        identity_decision = evaluate_context_access(
+            reference_identity=IdentityProfile(
+                phone=normalized_phone,
+                telegram_user_id=getattr(peer, "id", None) if not normalized_phone else None,
+                username=getattr(peer, "username", None) if not normalized_phone else "",
+                name=participant_name,
+            ),
+            context_identity=IdentityProfile(
+                phone=peer_phone or normalized_phone,
+                telegram_user_id=getattr(peer, "id", None) if not normalized_phone else None,
+                username=getattr(peer, "username", None) if not normalized_phone else "",
+                name=participant_name,
+            ),
+            context_kind="private",
+            classification=classification,
+        )
+        if not normalized_phone or not identity_decision.allowed:
+            logger.warning(
+                "[MEETING] AmoCRM sync blocked: identity=%s confidence=%.2f",
+                identity_decision.reason,
+                identity_decision.resolution.confidence,
+            )
+            return None
+
+        crm_key = f"calendar:crm_synced:{user_id or participant_name}:{candidate.start_time.isoformat()}"
+        if self.db and str(await self.db.get_state(crm_key, "")):
+            return None
+
         note = self._build_crm_note(
             participant_name=participant_name,
             username=username,

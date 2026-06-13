@@ -17,6 +17,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from src.settings import settings
+from src.services.erp.context_guard import evaluate_context_access
+from src.services.erp.identity_resolver import IdentityProfile
 from src.services.utils.gemini_fallback import (
     generate_content_with_fallback,
     is_quota_error,
@@ -410,7 +412,18 @@ class TelegramTaskCreator:
                     getattr(getattr(m, "from_id", None), "user_id", None) == client_user_id
                     for m in recent
                 )
-                if client_present:
+                decision = evaluate_context_access(
+                    reference_identity=IdentityProfile(
+                        telegram_user_id=int(client_user_id)
+                    ),
+                    context_identity=IdentityProfile(
+                        telegram_user_id=int(client_user_id)
+                    ),
+                    context_kind="group",
+                    membership_verified=client_present,
+                    classification="client",
+                )
+                if decision.allowed:
                     title = getattr(dialog.entity, "title", str(dialog.entity))
                     logger.info(
                         "[TELEGRAM_TASK] Found shared group '%s' with client %d",
@@ -422,8 +435,45 @@ class TelegramTaskCreator:
             logger.debug("[TELEGRAM_TASK] Group scan error: %s", exc)
         return collected
 
+    def _dialogue_context_decision(
+        self,
+        phone_or_username: str,
+        entity: Any,
+        client_user_id: Optional[int],
+        classification: str,
+    ):
+        raw_identity = str(phone_or_username or "").strip()
+        phone = raw_identity if self._normalise_phone(raw_identity) else ""
+        username = raw_identity if raw_identity and not phone else ""
+        entity_id = getattr(entity, "user_id", None) or getattr(entity, "id", None)
+        if not isinstance(entity_id, int):
+            entity_id = client_user_id if isinstance(client_user_id, int) else None
+
+        # A successful Telegram phone/username resolution is exact evidence for
+        # that lookup route. Names alone are deliberately not accepted.
+        reference = IdentityProfile(
+            phone=phone,
+            username=username,
+            telegram_user_id=entity_id if not (phone or username) else None,
+        )
+        candidate = IdentityProfile(
+            phone=phone,
+            username=username,
+            telegram_user_id=entity_id if not (phone or username) else None,
+        )
+        return evaluate_context_access(
+            reference_identity=reference,
+            context_identity=candidate,
+            context_kind="private",
+            classification=classification,
+        )
+
     async def create_amocrm_tasks_from_chat(
-        self, phone_or_username: str, lead_id: int, limit: int = 20
+        self,
+        phone_or_username: str,
+        lead_id: int,
+        limit: int = 20,
+        classification: str = "client",
     ) -> List[Dict[str, Any]]:
         """
         Main pipeline: Fetches recent Telegram dialogue, handles voice transcriptions,
@@ -475,9 +525,23 @@ class TelegramTaskCreator:
             if not m.out:
                 fid = getattr(m, "from_id", None)
                 uid = getattr(fid, "user_id", None)
-                if uid:
+                if isinstance(uid, int):
                     client_user_id = uid
                     break
+
+        context_decision = self._dialogue_context_decision(
+            phone_or_username,
+            entity,
+            client_user_id,
+            classification,
+        )
+        if not context_decision.allowed:
+            logger.warning(
+                "[TELEGRAM_TASK] Client action blocked for lead %s: %s",
+                lead_id,
+                context_decision.reason,
+            )
+            return []
 
         # Also collect messages from shared group chats
         if client_user_id:
