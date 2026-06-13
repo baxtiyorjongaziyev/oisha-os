@@ -32,6 +32,11 @@ OVERLAP_THRESHOLD = 0.8  # word-overlap ratio for duplicates
 MAX_PAGES = 20
 NOW = int(time.time())
 DAY = 86400
+CLOSED_LEAD_STATUS_IDS = frozenset({142, 143})
+OISHA_TASK_MARKERS = (
+    "oisha-os keyingi qadam",
+    "oisha-os telegram bot",
+)
 
 
 class AmoCRMTaskCleaner:
@@ -97,6 +102,15 @@ class AmoCRMTaskCleaner:
             page += 1
         return items
 
+    def _get_lead_status(self, lead_id: int) -> int | None:
+        """Return the current live lead status, or None when it cannot be proven."""
+        try:
+            lead = self._get(f"/api/v4/leads/{lead_id}")
+            status_id = int(lead.get("status_id") or 0)
+            return status_id if status_id > 0 else None
+        except Exception:
+            return None
+
     # ── Closing helper ───────────────────────────────────────────────────────
 
     def _close_task(self, task_id: int, reason: str) -> None:
@@ -137,6 +151,44 @@ class AmoCRMTaskCleaner:
             lead_id = t.get("entity_id")
             print(f"  [{t['id']}] lead={lead_id}  {days_over}kun kechikkan: {text_preview}")
             self._close_task(t["id"], f"stale bot task ({days_over}d overdue)")
+
+    # ── Oisha tasks on closed leads ──────────────────────────────────────────
+
+    @staticmethod
+    def _is_oisha_task(task: dict) -> bool:
+        text = (task.get("text") or "").casefold()
+        return any(marker in text for marker in OISHA_TASK_MARKERS)
+
+    def find_oisha_tasks_on_closed_leads(self, tasks: list[dict]) -> list[dict]:
+        """Select only open, clearly Oisha-created tasks on currently closed leads."""
+        selected: list[dict] = []
+        lead_statuses: dict[int, int | None] = {}
+        for task in tasks:
+            if task.get("is_completed"):
+                continue
+            if task.get("entity_type") != "leads" or not task.get("entity_id"):
+                continue
+            if not self._is_oisha_task(task):
+                continue
+
+            lead_id = int(task["entity_id"])
+            if lead_id not in lead_statuses:
+                lead_statuses[lead_id] = self._get_lead_status(lead_id)
+            if lead_statuses[lead_id] in CLOSED_LEAD_STATUS_IDS:
+                selected.append(task)
+        return selected
+
+    def close_oisha_tasks_on_closed_leads(self, tasks: list[dict]) -> None:
+        selected = self.find_oisha_tasks_on_closed_leads(tasks)
+        print(f"\n{'='*70}")
+        print("YOPILGAN BITIMLARDAGI OISHA VAZIFALARI")
+        print(f"{'='*70}")
+        print(f"  Topildi: {len(selected)} ta")
+        for task in selected:
+            lead_id = task.get("entity_id")
+            text_preview = (task.get("text") or "").replace("\n", " ")[:80]
+            print(f"  [{task['id']}] lead={lead_id}: {text_preview}")
+            self._close_task(task["id"], "Oisha task on closed lead")
 
     # ── Duplicate tasks ──────────────────────────────────────────────────────
 
@@ -194,7 +246,7 @@ class AmoCRMTaskCleaner:
 
     # ── Main ─────────────────────────────────────────────────────────────────
 
-    def run(self) -> dict:
+    def run(self, closed_oisha_only: bool = False) -> dict:
         mode_label = "LIVE" if self.live else "DRY-RUN"
         print(f"\nAmoCRM TASK CLEANUP — {datetime.now().isoformat(timespec='seconds')} [{mode_label}]")
         if not self.live:
@@ -204,8 +256,11 @@ class AmoCRMTaskCleaner:
         all_tasks = self._get_all_tasks()
         print(f"  Jami ochiq vazifalar: {len(all_tasks)}")
 
-        self.close_stale_bot_tasks(all_tasks)
-        self.close_duplicate_tasks(all_tasks)
+        if closed_oisha_only:
+            self.close_oisha_tasks_on_closed_leads(all_tasks)
+        else:
+            self.close_stale_bot_tasks(all_tasks)
+            self.close_duplicate_tasks(all_tasks)
 
         print(f"\n{'='*70}")
         print(f"YAKUNLANDI [{mode_label}]")
@@ -227,8 +282,15 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="AmoCRM task cleanup")
     parser.add_argument("--live", action="store_true", help="Actually close tasks")
+    parser.add_argument(
+        "--closed-oisha-only",
+        action="store_true",
+        help="Only close Oisha-created open tasks attached to closed leads",
+    )
     args = parser.parse_args()
 
     confirm = CONFIRM_TEXT if args.live else ""
-    result = AmoCRMTaskCleaner(live=args.live, confirm=confirm).run()
+    result = AmoCRMTaskCleaner(live=args.live, confirm=confirm).run(
+        closed_oisha_only=args.closed_oisha_only
+    )
     sys.exit(0 if result["success"] else 1)
