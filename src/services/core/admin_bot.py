@@ -425,6 +425,36 @@ class AdminBot:
                 logger.error(f"❌ [ADMIN_BOT] CALLBACK ERROR: {str(e)}")
                 await event.answer("⚠️ Xatolik yuz berdi.", alert=True)
 
+        # Telefon raqam yuborilsa — kontakt kartochkasi qaytaradi (НАПИСАТЬ + ДОБАВИТЬ)
+        @self.bot_client.on(events.NewMessage())
+        async def contact_card_handler(event):
+            import re
+            text = (event.text or "").strip()
+            if not text or text.startswith("/"):
+                return
+            phone_match = re.fullmatch(
+                r"(\+?998|8)?[\s\-\(\)]*(\d{2})[\s\-]*(\d{3})[\s\-]*(\d{2})[\s\-]*(\d{2})",
+                text,
+            )
+            if not phone_match:
+                return
+            digits = re.sub(r"\D", "", text)
+            if not digits.startswith("998"):
+                digits = "998" + digits[-9:]
+            normalized = "+" + digits
+            last_4 = digits[-4:]
+            try:
+                await event.respond(
+                    file=types.InputMediaContact(
+                        phone_number=normalized,
+                        first_name=last_4,
+                        last_name="",
+                        vcard="",
+                    )
+                )
+            except Exception as exc:
+                logger.warning("[CONTACT_CARD] send failed: %s", exc)
+
         # [ENTERPRISE: SEARCH] Phone number listener for Deep Search
         @self.bot_client.on(events.NewMessage())
         async def phone_handler(event):
@@ -1352,6 +1382,7 @@ class AdminBot:
 
             text = event.message.text
             import re
+
 
             # Telefon raqami regexi
             phone_match = re.search(
