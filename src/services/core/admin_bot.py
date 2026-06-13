@@ -442,13 +442,24 @@ class AdminBot:
             if not digits.startswith("998"):
                 digits = "998" + digits[-9:]
             normalized = "+" + digits
-            last_4 = digits[-4:]
+
+            # Telegramdan haqiqiy ismni olishga harakat qilamiz
+            first_name = digits[-4:]
+            last_name = ""
+            try:
+                user_data = await self._perform_global_lookup(normalized)
+                if user_data:
+                    first_name = user_data.get("first_name") or first_name
+                    last_name = user_data.get("last_name") or ""
+            except Exception:
+                pass
+
             try:
                 await event.respond(
                     file=types.InputMediaContact(
                         phone_number=normalized,
-                        first_name=last_4,
-                        last_name="",
+                        first_name=first_name,
+                        last_name=last_name,
                         vcard="",
                     )
                 )
