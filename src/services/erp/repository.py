@@ -231,7 +231,8 @@ class ERPRepository:
             """
             SELECT action_id, workflow_id, action_type, target, payload_json,
                    risk_level, idempotency_key, expected_result_json,
-                   status, created_at, updated_at
+                   status, available_at, lease_owner, lease_expires_at,
+                   attempt_count, last_error, created_at, updated_at
             FROM erp_actions WHERE action_id = ?
             """,
             (action_id,),
@@ -249,8 +250,13 @@ class ERPRepository:
             "idempotency_key": row[6],
             "expected_result": json.loads(row[7] or "{}"),
             "status": row[8],
-            "created_at": row[9],
-            "updated_at": row[10],
+            "available_at": row[9],
+            "lease_owner": row[10],
+            "lease_expires_at": row[11],
+            "attempt_count": int(row[12] or 0),
+            "last_error": row[13],
+            "created_at": row[14],
+            "updated_at": row[15],
         }
 
     async def count_rows(self, table: str) -> int:

@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from src.database import Database
+from src.services.erp.action_queue import ActionQueue
+from src.services.erp.models import ERPAction
 from src.time_utils import get_local_now
 
 ExecutorFn = Callable[["AgentTask"], Awaitable[Dict[str, Any]]]
@@ -33,8 +35,28 @@ class AgentTaskResult:
 class MinimalAgentLoop:
     """Roadmapdagi Planner -> Executor -> Verifier minimal sikli."""
 
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, action_queue: Optional[ActionQueue] = None):
         self.db = db
+        self.action_queue = action_queue
+
+    async def enqueue_action(self, action: ERPAction) -> bool:
+        """Persist a side effect before any worker is allowed to execute it."""
+        if self.action_queue is None:
+            raise RuntimeError("durable_action_queue_not_configured")
+        created = await self.action_queue.enqueue(action)
+        await self.db.log_agent_action(
+            user_id=int(action.payload.get("user_id") or 0),
+            action_type="erp_action_enqueued",
+            data={
+                "action_id": action.action_id,
+                "workflow_id": action.workflow_id,
+                "action_type": action.action_type,
+                "idempotency_key": action.idempotency_key,
+                "created": created,
+            },
+            success=created,
+        )
+        return created
 
     def plan_task(self, task: AgentTask) -> Dict[str, Any]:
         steps = task.planner_notes or [
