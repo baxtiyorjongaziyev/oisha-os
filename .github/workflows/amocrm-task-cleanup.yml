@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   cleanup:
-    name: Clean stale & duplicate AmoCRM tasks on Oracle
+    name: Clean Oisha tasks from closed AmoCRM deals
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -50,10 +50,12 @@ jobs:
               ./venv/bin/python - <<'PY'
             import sys
             from scripts.amocrm_task_cleanup import AmoCRMTaskCleaner, CONFIRM_TEXT
-            result = AmoCRMTaskCleaner(live=True, confirm=CONFIRM_TEXT).run()
+            result = AmoCRMTaskCleaner(live=True, confirm=CONFIRM_TEXT).run(
+                closed_oisha_only=True
+            )
             print(result)
             sys.exit(0 if result["success"] else 1)
             PY
             else
-              ./venv/bin/python scripts/amocrm_task_cleanup.py
+              ./venv/bin/python scripts/amocrm_task_cleanup.py --closed-oisha-only
             fi
