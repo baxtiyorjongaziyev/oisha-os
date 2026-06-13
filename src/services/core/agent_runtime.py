@@ -91,6 +91,8 @@ def get_storage_health(
             "scheduler_rows": int(counts.get("scheduled_jobs", 0)),
             "kv_rows": int(counts.get("kv_settings", 0)),
             "agent_action_rows": int(counts.get("agent_actions", 0)),
+            "erp_action_rows": int(counts.get("erp_actions", 0)),
+            "erp_dead_letter_rows": int(counts.get("erp_dead_letters", 0)),
             "user_rows": int(counts.get("users", 0)),
             "call_analysis_rows": int(counts.get("call_analyses", 0)),
             "recent_job_runs": recent_job_runs or [],
@@ -104,6 +106,8 @@ def get_storage_health(
     scheduler_rows = 0
     kv_rows = 0
     agent_action_rows = 0
+    erp_action_rows = 0
+    erp_dead_letter_rows = 0
     error = None
 
     if resolved_path:
@@ -129,6 +133,10 @@ def get_storage_health(
                     kv_rows = int(cursor.fetchone()[0])
                     cursor.execute("SELECT COUNT(*) FROM agent_actions")
                     agent_action_rows = int(cursor.fetchone()[0])
+                    cursor.execute("SELECT COUNT(*) FROM erp_actions")
+                    erp_action_rows = int(cursor.fetchone()[0])
+                    cursor.execute("SELECT COUNT(*) FROM erp_dead_letters")
+                    erp_dead_letter_rows = int(cursor.fetchone()[0])
                 finally:
                     conn.close()
         except Exception as exc:
@@ -143,6 +151,8 @@ def get_storage_health(
         "scheduler_rows": scheduler_rows,
         "kv_rows": kv_rows,
         "agent_action_rows": agent_action_rows,
+        "erp_action_rows": erp_action_rows,
+        "erp_dead_letter_rows": erp_dead_letter_rows,
         "user_rows": int(counts.get("users", 0)),
         "call_analysis_rows": int(counts.get("call_analyses", 0)),
         "recent_job_runs": recent_job_runs or [],

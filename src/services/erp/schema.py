@@ -78,6 +78,11 @@ ERP_SCHEMA_STATEMENTS = (
         idempotency_key TEXT NOT NULL UNIQUE,
         expected_result_json TEXT NOT NULL DEFAULT '{}',
         status TEXT NOT NULL DEFAULT 'pending',
+        available_at TEXT,
+        lease_owner TEXT,
+        lease_expires_at TEXT,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )
@@ -148,7 +153,22 @@ ERP_SCHEMA_STATEMENTS = (
     "CREATE INDEX IF NOT EXISTS idx_erp_verifications_action ON erp_verifications(action_id)",
 )
 
+ERP_SCHEMA_MIGRATIONS = (
+    "ALTER TABLE erp_actions ADD COLUMN available_at TEXT",
+    "ALTER TABLE erp_actions ADD COLUMN lease_owner TEXT",
+    "ALTER TABLE erp_actions ADD COLUMN lease_expires_at TEXT",
+    "ALTER TABLE erp_actions ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE erp_actions ADD COLUMN last_error TEXT",
+)
+
 
 async def initialize_erp_schema(conn: Any) -> None:
     for statement in ERP_SCHEMA_STATEMENTS:
         await conn.execute(statement)
+    for statement in ERP_SCHEMA_MIGRATIONS:
+        try:
+            await conn.execute(statement)
+        except Exception:
+            # Existing installations already have the column after the first
+            # successful migration. SQLite/libSQL both report duplicates.
+            pass
