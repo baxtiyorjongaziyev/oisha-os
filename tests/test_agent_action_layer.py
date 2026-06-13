@@ -1,4 +1,5 @@
 import asyncio
+from unittest.mock import AsyncMock
 
 from src.services.core.agent_loop import AgentTask
 from src.services.core.agent_policy import AgentPolicyEngine
@@ -103,3 +104,22 @@ def test_amocrm_adapter_extracts_embedded_ids():
     result = {"_embedded": {"tasks": [{"id": 777}]}}
 
     assert AmoCRMLeadAdapter._extract_embedded_id(result, "tasks") == 777
+
+
+def test_amocrm_adapter_marks_closed_lead_task_as_blocked():
+    amocrm = type("Amo", (), {})()
+    amocrm.last_error = "lead_closed_for_tasks"
+    amocrm.create_task = AsyncMock(return_value=False)
+    adapter = AmoCRMLeadAdapter(amocrm)
+
+    result = asyncio.run(
+        adapter.create_followup_task(
+            lead_id=46088992,
+            text="Oisha-OS Keyingi Qadam",
+            complete_till=1781370000,
+        )
+    )
+
+    assert result.success is False
+    assert result.status == "blocked"
+    assert result.reason == "lead_closed_for_tasks"
