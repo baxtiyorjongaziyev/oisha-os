@@ -6,7 +6,7 @@ Oisha-OS Surgical Closer
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 import json
@@ -84,7 +84,7 @@ class AutonomousSalesAgent(BaseAgent):
     suhbatlashib, kelishuvlarga erishadi
     """
 
-    def __init__(self, db=None):
+    def __init__(self, db=None, sales_workflow=None):
         api_keys: Dict[str, str] = {}
         try:
             api_keys["gemini"] = settings.GEMINI_API_KEY.get_secret_value()
@@ -115,6 +115,7 @@ class AutonomousSalesAgent(BaseAgent):
         self.conversations: Dict[str, ConversationState] = {}
         self.pricing_engine = PricingEngine()
         self.negotiation = NegotiationEngine()
+        self.sales_workflow = sales_workflow
 
     async def process_task(
         self,
@@ -197,20 +198,104 @@ class AutonomousSalesAgent(BaseAgent):
             "actions": decision.get("actions", []),
         }
 
+    async def handle_verified_incoming(
+        self,
+        *,
+        workflow_id: str,
+        message: str,
+        autonomy_level: str = "autonomous",
+    ) -> Dict[str, Any]:
+        """Generate and queue a reply from canonical verified client context."""
+        if self.sales_workflow is None:
+            raise RuntimeError("sales_workflow_required")
+        workflow = await self.sales_workflow.repo.get_workflow(workflow_id)
+        if not workflow or workflow.get("workflow_type") != "sales":
+            raise ValueError(f"sales_workflow_not_found:{workflow_id}")
+        context = dict((workflow.get("data") or {}).get("context") or {})
+        if float(context.get("identity_confidence") or 0) < 0.90:
+            raise ValueError("verified_negotiation_context_required")
+        context["sales_stage"] = str((workflow.get("data") or {}).get("sales_stage") or "")
+
+        user_id = str(context["chat_id"])
+        state = await self._get_or_create_state(user_id, context)
+        state.context = context
+        state.add_message("user", message)
+        state.autonomy_level = autonomy_level
+        assessment = await NegotiationEngine.assess_verified(
+            message,
+            context,
+            autonomy_mode=autonomy_level,
+        )
+        state.stage = assessment.stage
+        if assessment.objection != "none":
+            state.objections.append(assessment.objection)
+        decision = await self._make_autonomous_decision(state, assessment, message)
+        response = await self._generate_response(state, assessment, decision, message)
+
+        queued_actions = []
+        sales_stage = str((workflow.get("data") or {}).get("sales_stage") or "")
+        if sales_stage == "NEW":
+            queued_actions.append(
+                asdict(await self.sales_workflow.queue_first_reply(workflow_id, response))
+            )
+        for planned in decision.get("actions") or []:
+            if planned.get("type") != "generate_proposal":
+                continue
+            payload = dict(planned.get("payload") or {})
+            queued_actions.append(
+                asdict(
+                    await self.sales_workflow.queue_proposal(
+                        workflow_id,
+                        service=str(payload.get("service") or ""),
+                        amount=float(payload.get("price") or 0),
+                        message=response,
+                    )
+                )
+            )
+
+        state.add_message(
+            "assistant",
+            response,
+            {"assessment": assessment.to_payload(), "decision": decision},
+        )
+        await self._save_state_to_db(state)
+        return {
+            "response": response,
+            "assessment": assessment.to_payload(),
+            "queued_actions": queued_actions,
+            "workflow_id": workflow_id,
+        }
+
     async def _make_autonomous_decision(
         self, state: ConversationState, assessment: NegotiationAssessment, message: str
     ) -> Dict[str, Any]:
         """Avtonom qaror qabul qilish mexanizmi"""
 
         actions = []
+        verified_sales_stage = str(state.context.get("sales_stage") or "").upper()
+        proposal_allowed = bool(state.context.get("qualified", False)) or (
+            verified_sales_stage
+            in {"QUALIFIED", "EXPERT_MEETING", "PROPOSAL", "FOLLOW_UP", "NEGOTIATION"}
+        )
 
         # Scenario 1: Mijoz tayyor (Closing)
-        if assessment.intent == "closing" and assessment.close_probability > 0.7:
+        if (
+            assessment.intent == "closing"
+            and assessment.close_probability > 0.7
+            and proposal_allowed
+        ):
             proposal = await self.pricing_engine.generate_proposal(
                 context=state.context, urgency=assessment.urgency
             )
             actions.append({"type": "generate_proposal", "payload": proposal.to_dict()})
             state.deal_value = proposal.total_value()
+        elif assessment.intent == "closing" and not proposal_allowed:
+            actions.append(
+                {
+                    "type": "qualify_before_proposal",
+                    "message": "Taklifdan oldin ehtiyoj va scope tasdiqlanishi kerak",
+                }
+            )
 
         # Scenario 2: E'tiroz (Objection)
         elif assessment.objection != "none":
@@ -224,7 +309,7 @@ class AutonomousSalesAgent(BaseAgent):
 
         # Scenario 3: Narx so'rovi (Pricing)
         elif assessment.intent == "pricing":
-            if state.context.get("qualified", False):
+            if proposal_allowed:
                 # Range bering, aniq narx emas
                 actions.append(
                     {
@@ -552,11 +637,13 @@ class PricingEngine:
 _autonomous_agent: Optional[AutonomousSalesAgent] = None
 
 
-def get_autonomous_agent(db=None) -> AutonomousSalesAgent:
+def get_autonomous_agent(db=None, sales_workflow=None) -> AutonomousSalesAgent:
     """Global agent instance. Pass db on first call to enable persistence."""
     global _autonomous_agent
     if _autonomous_agent is None:
-        _autonomous_agent = AutonomousSalesAgent(db=db)
+        _autonomous_agent = AutonomousSalesAgent(db=db, sales_workflow=sales_workflow)
     elif db is not None and _autonomous_agent.db is None:
         _autonomous_agent.db = db
+    if sales_workflow is not None:
+        _autonomous_agent.sales_workflow = sales_workflow
     return _autonomous_agent

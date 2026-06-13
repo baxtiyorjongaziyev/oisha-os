@@ -251,12 +251,33 @@ class TelegramMeetingScheduler:
         admin_notifier: Any = None,
         amocrm: Any = None,
         lead_detector: Any = None,
+        sales_workflow: Any = None,
     ):
         self.db = db
         self.gcalendar = gcalendar
         self.admin_notifier = admin_notifier
         self.amocrm = amocrm
         self.lead_detector = lead_detector
+        self.sales_workflow = sales_workflow
+
+    async def queue_verified_meeting(
+        self,
+        workflow_id: str,
+        candidate: MeetingCandidate,
+    ) -> Any:
+        """Queue a meeting that must exist in Calendar and AmoCRM."""
+        if self.sales_workflow is None:
+            raise RuntimeError("sales_workflow_required")
+        duration_minutes = max(
+            1,
+            int((candidate.end_time - candidate.start_time).total_seconds() // 60),
+        )
+        return await self.sales_workflow.queue_meeting(
+            workflow_id,
+            summary=candidate.summary,
+            start_time=candidate.start_time.isoformat(),
+            duration_minutes=duration_minutes,
+        )
 
     async def process_event(self, event: Any, client: Any) -> Optional[MeetingCandidate]:
         if os.getenv("ENABLE_CALENDAR_AUTOSCHEDULE", "1").strip().lower() in {
