@@ -8,6 +8,8 @@ from telethon import events, Button, functions, types
 from src.services.core.mission_control import MissionControl, MissionControlFetchError
 from src.database import Database
 from src.controllers.message_controller import MessageController
+from src.services.erp.approval_service import ApprovalService
+from src.services.erp.repository import ERPRepository
 from src.time_utils import get_local_now, is_quiet_hours
 
 from src.services.core.crm_night_shift import CRMNightShift
@@ -30,6 +32,7 @@ class AdminBot:
         night_shift: CRMNightShift = None,
         team_group_id: int = None,
         juma_notifier=None,
+        erp_approval_service: ApprovalService = None,
     ):
         self.bot_client = bot_client
         self.user_client = user_client
@@ -39,6 +42,9 @@ class AdminBot:
         self.night_shift = night_shift
         self.team_group_id = team_group_id
         self.juma_notifier = juma_notifier
+        self.erp_approval_service = erp_approval_service or ApprovalService(
+            ERPRepository(db)
+        )
         self.active_searches = {}  # user_id -> timestamp
         self.pending_drafts = {}  # draft_id -> draft_text
 
@@ -386,6 +392,35 @@ class AdminBot:
                         await event.answer(
                             "ℹ️ Draft allaqachon qayta ishlangan.", alert=True
                         )
+                elif data.startswith("erp_approve:"):
+                    approval_id = data.split(":", 1)[1]
+                    try:
+                        approval = await self.erp_approval_service.approve(
+                            approval_id,
+                            decided_by=str(event.sender_id),
+                        )
+                        await event.answer("ERP amal tasdiqlandi.", alert=True)
+                        await event.edit(
+                            event.message.message
+                            + f"\n\nTasdiqlandi: {approval.decided_by}"
+                        )
+                    except Exception as exc:
+                        await event.answer(f"Tasdiqlash rad etildi: {exc}", alert=True)
+                elif data.startswith("erp_reject:"):
+                    approval_id = data.split(":", 1)[1]
+                    try:
+                        approval = await self.erp_approval_service.reject(
+                            approval_id,
+                            decided_by=str(event.sender_id),
+                            reason="Owner Telegram orqali rad etdi",
+                        )
+                        await event.answer("ERP amal rad etildi.", alert=True)
+                        await event.edit(
+                            event.message.message
+                            + f"\n\nRad etildi: {approval.decided_by}"
+                        )
+                    except Exception as exc:
+                        await event.answer(f"Rad etish bajarilmadi: {exc}", alert=True)
                 elif data.startswith("accept_lead:") or data.startswith("claim_lead:"):
                     # accept_lead:lead_id:user_id:manager_id or claim_lead:lead_id:user_id
                     parts = data.split(":")
@@ -777,6 +812,28 @@ class AdminBot:
                 )
             except Exception as e:
                 await event.respond(f"❌ Xato: {e}")
+
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/erp_stop"))
+        async def erp_stop_handler(event):
+            """Barcha ERP avtomatik actionlarini darhol to'xtatadi."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            await self.db.set_state("erp:kill_switch:global", "true")
+            await event.respond(
+                "ERP global kill-switch yoqildi. Avtomatik actionlar to'xtatildi."
+            )
+            logger.warning("[ERP] Global kill-switch enabled by %s", event.sender_id)
+
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/erp_resume"))
+        async def erp_resume_handler(event):
+            """Global ERP kill-switchni o'chiradi."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            await self.db.set_state("erp:kill_switch:global", "false")
+            await event.respond(
+                "ERP global kill-switch o'chirildi. Policy ruxsat bergan actionlar davom etadi."
+            )
+            logger.warning("[ERP] Global kill-switch disabled by %s", event.sender_id)
 
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/auto_status"))
         async def auto_status_handler(event):
@@ -2196,3 +2253,32 @@ class AdminBot:
                     ]
                 ],
             )
+
+    async def send_erp_approval_request(
+        self,
+        approval_id: str,
+        action_type: str,
+        reason: str,
+        summary: str = "",
+    ) -> None:
+        """Ownerga xavfli ERP amali uchun approve/reject tugmalarini yuboradi."""
+        if not self.access_manager.owner_id:
+            return
+        detail = summary or "ko'rsatilmagan"
+        text = (
+            "ERP tasdig'i kerak\n"
+            f"Amal: {action_type}\n"
+            f"Sabab: {reason}\n"
+            f"Tafsilot: {detail}\n\n"
+            "Tasdiqlanmaguncha amal bajarilmaydi."
+        )
+        await self.bot_client.send_message(
+            self.access_manager.owner_id,
+            text,
+            buttons=[
+                [
+                    Button.inline("Tasdiqlash", f"erp_approve:{approval_id}"),
+                    Button.inline("Rad etish", f"erp_reject:{approval_id}"),
+                ]
+            ],
+        )

@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict
 
 from src.database import Database
+from src.services.erp.approval_service import ApprovalService
+from src.services.erp.risk_policy import ERPRiskPolicy
 from src.time_utils import get_local_now, is_quiet_hours
 
 CLIENT_FACING_KINDS = {
@@ -50,8 +52,15 @@ class PolicyDecision:
 
 
 class AgentPolicyEngine:
-    def __init__(self, db: Database):
+    def __init__(
+        self,
+        db: Database,
+        risk_policy: ERPRiskPolicy | None = None,
+        approval_service: ApprovalService | None = None,
+    ):
         self.db = db
+        self.risk_policy = risk_policy or ERPRiskPolicy(db)
+        self.approval_service = approval_service
 
     async def evaluate_action(self, task: Any) -> PolicyDecision:
         now = get_local_now()
@@ -59,9 +68,15 @@ class AgentPolicyEngine:
         task_kind = str(getattr(task, "kind", "unknown") or "unknown")
         payload = dict(getattr(task, "payload", {}) or {})
         manual_override = bool(payload.get("manual_override"))
-        owner_approved = bool(
-            payload.get("owner_approved") or payload.get("approved_by_owner")
-        )
+        # Approval flags inside an action payload are not trusted. Only a
+        # persisted ApprovalService decision or a direct owner/manual request
+        # can authorize a sensitive action.
+        owner_approved = False
+        action_id = str(payload.get("action_id") or payload.get("erp_action_id") or "")
+        if action_id and self.approval_service is not None:
+            owner_approved = owner_approved or await self.approval_service.is_approved(
+                action_id
+            )
         target = str(payload.get("target") or payload.get("channel") or "").lower()
         message_text = str(payload.get("text") or payload.get("message") or "").lower()
         confidence = self._safe_float(payload.get("confidence"), 1.0)
@@ -110,6 +125,27 @@ class AgentPolicyEngine:
             "sensitive_terms": sensitive_terms,
             "evaluated_at": now.isoformat(),
         }
+
+        risk_decision = await self.risk_policy.evaluate(
+            action_type=str(payload.get("action_type") or task_kind),
+            payload=payload,
+            module=str(payload.get("module") or target or task_kind),
+            client_id=str(payload.get("client_id") or payload.get("lead_id") or ""),
+            approved=owner_approved or requested_by in {"manual", "owner"},
+        )
+        checks["erp_risk"] = {
+            "risk_level": risk_decision.risk_level,
+            "max_autonomy": risk_decision.max_autonomy,
+            "requires_approval": risk_decision.requires_approval,
+            "escalate": risk_decision.escalate,
+        }
+        if not risk_decision.allowed:
+            return PolicyDecision(
+                False,
+                risk_decision.reason,
+                checks=checks,
+                metadata={"escalate": risk_decision.escalate},
+            )
 
         if (
             not auto_actions_enabled
