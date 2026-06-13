@@ -4,14 +4,20 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Mapping, Optional
 
 from src.services.erp.action_queue import ActionQueue, QueueItem
+from src.services.erp.approval_service import Approval, ApprovalService
 from src.services.erp.models import VerificationResult
 from src.services.erp.retry_policy import RetryPolicy
+from src.services.erp.risk_policy import ERPRiskPolicy, RiskDecision
 
 
 Executor = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 Verifier = Callable[
     [dict[str, Any], dict[str, Any]],
     Awaitable[VerificationResult | dict[str, Any]],
+]
+ApprovalNotifier = Callable[
+    [Approval, dict[str, Any], RiskDecision],
+    Awaitable[None],
 ]
 
 
@@ -31,11 +37,19 @@ class ActionRunner:
         executors: Mapping[str, Executor],
         verifiers: Mapping[str, Verifier],
         retry_policy: Optional[RetryPolicy] = None,
+        risk_policy: Optional[ERPRiskPolicy] = None,
+        approval_service: Optional[ApprovalService] = None,
+        approval_requested_from: str = "owner",
+        approval_notifier: Optional[ApprovalNotifier] = None,
     ):
         self.queue = queue
         self.executors = dict(executors)
         self.verifiers = dict(verifiers)
         self.retry_policy = retry_policy or RetryPolicy()
+        self.risk_policy = risk_policy or ERPRiskPolicy(queue.repo.db)
+        self.approval_service = approval_service or ApprovalService(queue.repo)
+        self.approval_requested_from = approval_requested_from
+        self.approval_notifier = approval_notifier
 
     async def run_once(self, worker_id: str) -> ActionRunResult:
         item = await self.queue.claim_next(worker_id)
@@ -43,6 +57,42 @@ class ActionRunner:
             return ActionRunResult(None, "idle", "queue_empty")
 
         action_type = str(item.action["action_type"])
+        if self.risk_policy is not None:
+            approved = bool(
+                self.approval_service
+                and await self.approval_service.is_approved(item.action["action_id"])
+            )
+            decision = await self.risk_policy.evaluate(
+                action_type=action_type,
+                payload=dict(item.action.get("payload") or {}),
+                module=str(item.action.get("target") or ""),
+                client_id=str(
+                    item.action.get("payload", {}).get("client_id")
+                    or item.action.get("payload", {}).get("lead_id")
+                    or ""
+                ),
+                approved=approved,
+            )
+            if not decision.allowed:
+                if decision.requires_approval and self.approval_service is not None:
+                    approval = await self.approval_service.request(
+                        action_id=item.action["action_id"],
+                        requested_from=self.approval_requested_from,
+                        reason=decision.reason,
+                    )
+                    if self.approval_notifier is not None:
+                        await self.approval_notifier(approval, item.action, decision)
+                    await self.queue.wait_for_approval(item, decision.reason)
+                    return ActionRunResult(
+                        item.action["action_id"],
+                        "waiting_approval",
+                        decision.reason,
+                    )
+                return await self._retry_or_dead_letter(
+                    item,
+                    reason=decision.reason,
+                )
+
         executor = self.executors.get(action_type)
         if executor is None:
             return await self._fail(

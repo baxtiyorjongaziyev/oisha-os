@@ -87,6 +87,28 @@ async def _load_kill_switch(db: Any) -> bool:
         return True
 
 
+async def _load_scoped_kill_switch(
+    db: Any,
+    module: str = "",
+    client_id: str = "",
+) -> bool:
+    if db is None:
+        return False
+    keys = ["erp:kill_switch:global"]
+    if module:
+        keys.append(f"erp:kill_switch:module:{module}")
+    if client_id:
+        keys.append(f"erp:kill_switch:client:{client_id}")
+    for key in keys:
+        try:
+            value = await db.get_state(key, "false")
+        except TypeError:
+            value = await db.get_state(key)
+        if str(value or "").strip().lower() in {"1", "true", "yes", "on"}:
+            return True
+    return False
+
+
 def _has_escalation_trigger(text: str) -> Optional[str]:
     if not text:
         return None
@@ -111,6 +133,8 @@ async def evaluate(
     lead_score: int = 0,
     message_text: str = "",
     confidence: Optional[float] = None,
+    module: str = "telegram",
+    client_id: str = "",
 ) -> Decision:
     """Decide what to do with an inbound message.
 
@@ -128,7 +152,9 @@ async def evaluate(
         Decision(action, reason, effective_mode, kill_switch_on).
     """
     mode = await _load_mode(db)
-    kill_on = not await _load_kill_switch(db)
+    kill_on = (not await _load_kill_switch(db)) or await _load_scoped_kill_switch(
+        db, module=module, client_id=client_id
+    )
 
     # "off" mode — no replies at all, including @mentions.
     if mode == "off":
@@ -136,15 +162,6 @@ async def evaluate(
             action="skip",
             reason="mode_off",
             effective_mode="off",
-            kill_switch_on=kill_on,
-        )
-
-    # Mention short-circuits to send (Owner directly called us).
-    if is_mentioned:
-        return Decision(
-            action="send",
-            reason="mention_override",
-            effective_mode=mode,
             kill_switch_on=kill_on,
         )
 
@@ -165,6 +182,15 @@ async def evaluate(
             reason="kill_switch_active",
             effective_mode="off",
             kill_switch_on=True,
+        )
+
+    # Mention short-circuits to send only while every kill-switch is clear.
+    if is_mentioned:
+        return Decision(
+            action="send",
+            reason="mention_override",
+            effective_mode=mode,
+            kill_switch_on=kill_on,
         )
 
     # Low-confidence always shadows, regardless of mode (except off).
