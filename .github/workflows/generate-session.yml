@@ -57,12 +57,19 @@ jobs:
           import asyncio, os
           from telethon import TelegramClient
           from telethon.sessions import StringSession
+          from telethon.errors import FloodWaitError
 
           async def main():
               phone = os.environ["PHONE"]
               client = TelegramClient(StringSession(), int(os.environ["API_ID"]), os.environ["API_HASH"])
               await client.connect()
-              result = await client.send_code_request(phone)
+              try:
+                  result = await client.send_code_request(phone)
+              except FloodWaitError as e:
+                  print(f"FloodWaitError: {e}")
+                  print("Too many requests. Please wait before running this again.")
+                  import sys; sys.exit(0)
+
               print("=" * 60)
               print(f"SMS YUBORILDI: {phone}")
               print(f"PHONE_CODE_HASH: {result.phone_code_hash}")
@@ -91,6 +98,7 @@ jobs:
           python3 - <<'PYEOF'
           import asyncio, os, sys
           from telethon import TelegramClient
+
           from telethon.errors import SessionPasswordNeededError
           from telethon.sessions import StringSession
 
