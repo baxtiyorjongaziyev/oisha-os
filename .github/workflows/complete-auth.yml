@@ -87,11 +87,22 @@ jobs:
                                      {"name": name, "value": value})
               return status
 
+          from telethon.errors import FloodWaitError
+          import sys
+
           async def main():
               client = TelegramClient(StringSession(), int(os.environ["API_ID"]), os.environ["API_HASH"])
               await client.connect()
 
-              result = await client.send_code_request(PHONE)
+              try:
+                  result = await client.send_code_request(PHONE)
+              except FloodWaitError as e:
+                  print("=" * 60)
+                  print(f"FLOOD WAIT ERROR: A wait of {e.seconds} seconds is required.")
+                  print("Please try again later.")
+                  print("=" * 60)
+                  sys.exit(1)
+
               code_hash = result.phone_code_hash
               print(f"SMS yuborildi: {PHONE}  hash={code_hash[:8]}...")
               print(f"data/{CODE_FILE} ni kutmoqda (10 daqiqa)...")

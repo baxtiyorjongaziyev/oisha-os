@@ -38,6 +38,8 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      - uses: actions/checkout@v6
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -58,22 +60,33 @@ jobs:
           from telethon import TelegramClient
           from telethon.sessions import StringSession
 
+          from telethon.errors import FloodWaitError
+          import sys
+
           async def main():
               phone = os.environ["PHONE"]
               client = TelegramClient(StringSession(), int(os.environ["API_ID"]), os.environ["API_HASH"])
               await client.connect()
-              result = await client.send_code_request(phone)
-              print("=" * 60)
-              print(f"SMS YUBORILDI: {phone}")
-              print(f"PHONE_CODE_HASH: {result.phone_code_hash}")
-              print("=" * 60)
-              print("KEYINGI QADAM — Actions -> Telegram Session Generator -> Run workflow:")
-              print(f"  step: 2")
-              print(f"  phone: {phone}")
-              print(f"  phone_code_hash: {result.phone_code_hash}")
-              print(f"  sms_code: <telefoningizga kelgan kod>")
-              print(f"  tg_password: <2FA parol>")
-              await client.disconnect()
+              try:
+                  result = await client.send_code_request(phone)
+                  print("=" * 60)
+                  print(f"SMS YUBORILDI: {phone}")
+                  print(f"PHONE_CODE_HASH: {result.phone_code_hash}")
+                  print("=" * 60)
+                  print("KEYINGI QADAM — Actions -> Telegram Session Generator -> Run workflow:")
+                  print(f"  step: 2")
+                  print(f"  phone: {phone}")
+                  print(f"  phone_code_hash: {result.phone_code_hash}")
+                  print(f"  sms_code: <telefoningizga kelgan kod>")
+                  print(f"  tg_password: <2FA parol>")
+              except FloodWaitError as e:
+                  print("=" * 60)
+                  print(f"FLOOD WAIT ERROR: A wait of {e.seconds} seconds is required.")
+                  print("Please try again later.")
+                  print("=" * 60)
+                  sys.exit(1)
+              finally:
+                  await client.disconnect()
 
           asyncio.run(main())
           PYEOF
