@@ -76,6 +76,10 @@ service_account.json
 token.json
 *.key
 *.pem
+*.db
+amocrm_token_secret.json
+github-actions-key.json
+billing_accounts.json
 
 # Claude/AI specific
 .claude/
