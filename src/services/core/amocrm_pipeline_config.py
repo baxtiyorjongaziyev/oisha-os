@@ -6,6 +6,14 @@ from dataclasses import dataclass
 SALES_PIPELINE_ID = 10117998
 LEGACY_CLOSER_PIPELINE_ID = 10123314
 FARMER_PIPELINE_ID = 10123318
+REACTIVATION_PIPELINE_ID = 10947042
+QC_PIPELINE_ID = 10427390
+HR_PIPELINE_ID = 10963570
+PARTNERSHIP_PIPELINE_ID = 10947046
+
+ACTIVE_PIPELINE_IDS = [SALES_PIPELINE_ID, FARMER_PIPELINE_ID, REACTIVATION_PIPELINE_ID]
+
+REACTIVATION_DAILY_LIMIT = 10
 
 STATUS_WON = 142
 STATUS_LOST = 143
@@ -32,12 +40,12 @@ SALES_STATUSES: tuple[DesiredStatus, ...] = (
     DesiredStatus("Muloqot boshlandi", 50, "#fffeb2", 80178222),
     DesiredStatus("Sifatli lead", 60, "#fffeb2", 86076802),
     DesiredStatus("Uchrashuv belgilandi", 70, "#fffeb2", 80178218),
-    DesiredStatus("Konsultatsiya o'tdi", 80, "#99ccff"),
-    DesiredStatus("Brief / Ehtiyoj aniqlandi", 90, "#fffeb2"),
-    DesiredStatus("Prezentatsiya & KP", 100, "#ffff99"),
-    DesiredStatus("Follow-up / Qaror kutilyapti", 110, "#fffeb2"),
-    DesiredStatus("Muzokara / Shartnoma", 120, "#99ccff"),
-    DesiredStatus(SALES_ADVANCE_STATUS_NAME, 130, "#99ccff"),
+    DesiredStatus("Konsultatsiya o'tdi", 80, "#99ccff", 86306474),
+    DesiredStatus("Brief / Ehtiyoj aniqlandi", 90, "#fffeb2", 86306482),
+    DesiredStatus("Prezentatsiya & KP", 100, "#ffff99", 86306486),
+    DesiredStatus("Follow-up / Qaror kutilyapti", 110, "#fffeb2", 86306490),
+    DesiredStatus("Muzokara / Shartnoma", 120, "#99ccff", 86306492),
+    DesiredStatus(SALES_ADVANCE_STATUS_NAME, 130, "#99ccff", 86306494),
 )
 
 FARMER_STATUSES: tuple[DesiredStatus, ...] = (
@@ -45,7 +53,7 @@ FARMER_STATUSES: tuple[DesiredStatus, ...] = (
     DesiredStatus("Ish jarayonida", 30, "#ffff99", 80215338),
     DesiredStatus("Taqdimot & Pravkalar", 40, "#ffcc66", 80215342),
     DesiredStatus("Topshirishga tayyor", 50, "#99ccff", 80215438),
-    DesiredStatus(FARMER_FINAL_PAYMENT_PENDING_STATUS_NAME, 60, "#fffeb2"),
+    DesiredStatus(FARMER_FINAL_PAYMENT_PENDING_STATUS_NAME, 60, "#fffeb2", 86306514),
     DesiredStatus(FARMER_FINAL_PAYMENT_RECEIVED_STATUS_NAME, 70, "#99ccff"),
     DesiredStatus(FARMER_REVIEW_STATUS_NAME, 80, "#fffeb2", 86076834),
 )

@@ -9,8 +9,11 @@ from .amocrm_sync import AmoCRMSync
 from src.settings import settings
 from src.agents.negotiation_engine import NegotiationEngine
 from src.services.core.amocrm_pipeline_config import (
+    ACTIVE_PIPELINE_IDS,
     FARMER_PIPELINE_ID as CONFIG_FARMER_PIPELINE_ID,
     LEGACY_CLOSER_PIPELINE_ID,
+    REACTIVATION_DAILY_LIMIT,
+    REACTIVATION_PIPELINE_ID,
     SALES_PIPELINE_ID,
 )
 
@@ -82,44 +85,33 @@ class MissionControl:
         return leads, None
 
     async def get_active_missions(self):
-        """AmoCRM-dagi BARCHA voronkalardan barcha faol lidlarni yig'ish."""
+        """Faol voronkalardan (ACTIVE_PIPELINE_IDS) barcha faol lidlarni yig'ish."""
         missions = []
         self.last_fetch_errors = []
 
-        # 1. Barcha voronkalarni olish
-        p_url = f"{self.amo.base_url}/api/v4/leads/pipelines"
         try:
-            p_res = requests.get(p_url, headers=self.amo._get_headers(), timeout=30)
-            if p_res.status_code == 401 and self.amo.refresh_token():
-                p_res = requests.get(p_url, headers=self.amo._get_headers(), timeout=30)
+            for p_id in ACTIVE_PIPELINE_IDS:
+                pipeline_label = f"pipeline_{p_id}"
 
-            if p_res.status_code != 200:
-                logger.error(
-                    f"[MISSION CONTROL] Pipelines fetch failed: {p_res.status_code}"
-                )
-                return []
-
-            pipelines = p_res.json().get("_embedded", {}).get("pipelines", [])
-            for p in pipelines:
-                p_id = p.get("id")
-                p_name = p.get("name")
-
-                # 2. Har bir voronka uchun lidlarni olish
                 leads, error = await asyncio.to_thread(
                     self._fetch_pipeline_leads_sync,
-                    p_name,
+                    pipeline_label,
                     p_id,
                 )
                 if error:
                     self.last_fetch_errors.append(error)
                     continue
 
+                # Reactivation pipeline — kunlik limitni qo'llash
+                if p_id == REACTIVATION_PIPELINE_ID:
+                    leads = sorted(leads, key=lambda l: l.get("updated_at", 0))[:REACTIVATION_DAILY_LIMIT]
+
                 for lead in leads:
-                    # Won (142) va Lost (143) bo'lmagan barcha lidlar aktiv
                     if lead.get("status_id") in [142, 143]:
                         continue
 
                     lead_id = lead["id"]
+                    p_name = pipeline_label
 
                     # --- SURGICAL MISSION LOGIC ---
                     surgical_mission = None
@@ -133,7 +125,6 @@ class MissionControl:
                         if t_res.status_code == 200:
                             tasks = t_res.json().get("_embedded", {}).get("tasks", [])
                             if tasks:
-                                # Oxirgi vazifani mission sifatida ishlatish (agar u AI tomonidan yaratilgan bo'lsa juda yaxshi)
                                 surgical_mission = tasks[0].get("text")
                     except Exception as te:
                         logger.warning(
@@ -143,10 +134,8 @@ class MissionControl:
                     # 2. Agar vazifa bo'lmasa, Chat Summary va AI orqali generatsiya qilish
                     if not surgical_mission:
                         try:
-                            # 1. Pipeline role aniqlash
                             role = self.get_pipeline_role(p_id)
 
-                            # 2. Telefon raqami orqali DB dan xulosani topish
                             phone = self.amo.get_lead_phone(lead_id)
                             user_id = None
                             summary = None
@@ -157,7 +146,6 @@ class MissionControl:
                                     user_id = user_info.get("user_id")
                                     summary = await self.db.get_chat_summary(user_id)
 
-                            # NegotiationEngine orqali mission generatsiya qilish
                             assessment = NegotiationEngine.assess(
                                 message=summary or "Yangi lead", crm_status=p_name
                             )
@@ -183,6 +171,7 @@ class MissionControl:
                             "lead_name": lead["name"],
                             "mission": surgical_mission,
                             "pipeline": p_name,
+                            "pipeline_id": p_id,
                             "role": self.get_pipeline_role(p_id),
                             "link": f"https://{settings.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead_id}",
                         }
@@ -196,8 +185,6 @@ class MissionControl:
                 "AmoCRM pipeline fetch failed; pipeline holati noaniq. "
                 + " | ".join(self.last_fetch_errors)
             )
-
-        return missions
 
         return missions
 
