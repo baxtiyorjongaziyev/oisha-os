@@ -129,3 +129,6 @@ ai_response_last.txt
 __pycache__/
 *.pyc
 *.pyo
+
+# Claude Code agent worktrees (local only)
+.claude/
