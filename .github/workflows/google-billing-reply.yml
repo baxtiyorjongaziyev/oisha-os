@@ -13,13 +13,17 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
       - uses: actions/setup-python@v5
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
         with:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install -q google-api-python-client google-auth
+        run: python -m pip install -q google-api-python-client google-auth
 
       - name: Post billing waiver comments
         env:
