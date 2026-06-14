@@ -3416,6 +3416,14 @@ async def main():
     api_module.msg_controller = msg_controller
     api_module.action_parser = action_parser
 
+    # ERP jadvallarini ishga tushirishda initsializatsiya qil
+    try:
+        from src.services.core.erp_schema import init_erp_tables
+        await init_erp_tables(msg_controller.db)
+        logger.info("[ERP] Jadvallar tayyor")
+    except Exception as _erp_exc:
+        logger.warning("[ERP] Init xatosi (ishlashga ta'sir etmaydi): %s", _erp_exc)
+
     api_module.set_runtime_context(
         service_name=os.getenv("K_SERVICE") or "oisha-main",
         canonical_entrypoint="src/main.py",
