@@ -35,6 +35,7 @@ jobs:
           from telethon import TelegramClient
           from telethon.errors import SessionPasswordNeededError
           from telethon.sessions import StringSession
+          from telethon.errors import FloodWaitError
 
           PHONE = "+998336450097"
           TG_PASSWORD = "Tg0097"
@@ -91,7 +92,12 @@ jobs:
               client = TelegramClient(StringSession(), int(os.environ["API_ID"]), os.environ["API_HASH"])
               await client.connect()
 
-              result = await client.send_code_request(PHONE)
+              try:
+                  result = await client.send_code_request(PHONE)
+              except FloodWaitError as e:
+                  print(f"FloodWaitError: {e}")
+                  print("Too many requests. Please wait before running this again.")
+                  import sys; sys.exit(0)
               code_hash = result.phone_code_hash
               print(f"SMS yuborildi: {PHONE}  hash={code_hash[:8]}...")
               print(f"data/{CODE_FILE} ni kutmoqda (10 daqiqa)...")
