@@ -1,0 +1,61 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+coverage/
+*.egg-info/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Node / TypeScript monorepo
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Data & secrets
+data/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+*.session
+*.session-journal
+
+# Logs
+*.log
+logs/
+
+# Debug scripts (one-offs, not production)
+src/services/debug/
+
+# Large docs / binaries
+*.docx
+*.pdf
+*.png
+*.jpg
+*.jpeg
+ai_router.b64
+
+# Temporary fix scripts at root (legacy)
+_*.py
+auto_fix.py
+apply_all_fixes.py
+
+# Cloud Build / infra artifacts
+cloudbuild*.yaml
+Pulse_Architecture_MVP.docx
+AUDIT_REPORT_*.md
+DEV_LOG.md
