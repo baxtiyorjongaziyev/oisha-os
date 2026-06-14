@@ -30,3 +30,13 @@ def is_quiet_hours(
         # Yarim tun oshib ketadigan oraliq: 23:00–07:00
         return h >= start_hour or h < end_hour
     return start_hour <= h < end_hour
+
+
+def is_sunday(now: datetime | None = None) -> bool:
+    """Toshkent vaqti bo'yicha Yakshanba kuni (weekday==6)."""
+    return (now or get_local_now()).weekday() == 6
+
+
+def is_friday_tashkent(now: datetime | None = None) -> bool:
+    """Toshkent vaqti bo'yicha Juma kuni (weekday==4)."""
+    return (now or get_local_now()).weekday() == 4
