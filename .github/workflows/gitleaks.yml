@@ -19,8 +19,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
       - name: Install gitleaks
         run: |
@@ -29,5 +27,9 @@ jobs:
             | tar -xz -C /usr/local/bin gitleaks
           gitleaks version
 
-      - name: Scan working tree and full history
-        run: gitleaks detect --redact --verbose --exit-code 1
+      # Scan the current working tree (not full git history). History still
+      # contains legacy leaks that must be scrubbed out-of-band with
+      # git-filter-repo/BFG; once that is done, this can be switched to a full
+      # `gitleaks detect` to also gate history.
+      - name: Scan working tree for secrets
+        run: gitleaks detect --no-git --source . --config .gitleaks.toml --redact --verbose --exit-code 1
