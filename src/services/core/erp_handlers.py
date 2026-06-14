@@ -5,10 +5,19 @@ Each handler is a plain async function that accepts a message object
 (aiogram Message or Telethon event) and a db connection, then replies
 in Uzbek.  No Router / Dispatcher coupling — wire these up wherever
 the project registers its command handlers.
+
+Usage example (aiogram):
+    from src.services.core.erp_handlers import COMMAND_REGISTRY, cmd_erp_holat
+    # register manually or call directly:
+    await cmd_erp_holat(message, db)
+
+Usage example (Telethon):
+    await cmd_erp_holat(event, db)
 """
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Optional
 
 from src.services.core.erp_dashboard import ERPDashboard
@@ -17,32 +26,30 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Thin compatibility shim — supports both aiogram Message and Telethon events
+# Internal helpers
 # ---------------------------------------------------------------------------
 
 async def _reply(message, text: str) -> None:
-    """Send *text* back to the user regardless of framework in use."""
-    # aiogram messages expose .answer(); Telethon events expose .reply()
-    answer = getattr(message, "answer", None)
-    if callable(answer):
-        await answer(text)
-        return
-    reply = getattr(message, "reply", None)
-    if callable(reply):
-        await reply(text)
-        return
-    # Last resort — try respond() (Telethon ConversationMessage)
-    respond = getattr(message, "respond", None)
-    if callable(respond):
-        await respond(text)
+    """Send *text* back to the user regardless of framework in use.
 
+    Tries in order:
+      1. message.answer(text)  — aiogram Message
+      2. message.reply(text)   — Telethon / generic
+      3. message.respond(text) — Telethon ConversationMessage
+    """
+    fn = (
+        getattr(message, "answer", None)
+        or getattr(message, "reply", None)
+        or getattr(message, "respond", None)
+    )
+    if callable(fn):
+        await fn(text)
+    else:
+        logger.warning("_reply: cannot find a send method on %r", type(message))
 
-# ---------------------------------------------------------------------------
-# Permission check
-# ---------------------------------------------------------------------------
 
 def _sender_id(message) -> Optional[int]:
-    """Extract sender Telegram user-id from either framework."""
+    """Extract the sender's Telegram user-id from either framework."""
     # aiogram
     from_user = getattr(message, "from_user", None)
     if from_user is not None:
@@ -50,20 +57,16 @@ def _sender_id(message) -> Optional[int]:
     # Telethon
     sender_id = getattr(message, "sender_id", None)
     if sender_id is not None:
-        return sender_id
-    chat = getattr(message, "chat", None)
-    if chat is not None:
-        return getattr(chat, "id", None)
+        return int(sender_id)
     return None
 
 
 async def _check_permission(message) -> bool:
-    """
-    Returns True if the sender is allowed to use ERP commands.
+    """Return True if the sender is allowed to use ERP commands.
 
-    Reads WHITELIST_IDS from settings when available; falls back to
-    permitting all senders so the system still works in dev/test
-    environments that have not configured access control.
+    Reads WHITELIST_IDS from project settings when available.
+    Falls back to permitting all senders so the module works in
+    dev/test environments without access-control configuration.
     """
     try:
         from src.settings import settings  # type: ignore[import]
@@ -73,20 +76,23 @@ async def _check_permission(message) -> bool:
         sender = _sender_id(message)
         return sender in whitelist
     except Exception:
-        # settings not available (test context, etc.) — allow
+        # settings not importable (test context, etc.) — allow
         return True
 
 
+def _current_period() -> str:
+    return date.today().strftime("%Y-%m")
+
+
 # ---------------------------------------------------------------------------
-# Handlers
+# Command handlers
 # ---------------------------------------------------------------------------
 
 async def cmd_erp_holat(message, db) -> None:
-    """
-    /erp_holat — Umumiy ERP holati (quick status + full report).
+    """Umumiy ERP holati — /erp_holat
 
-    Shows a one-liner health summary followed by the full ERP report
-    for the current month.
+    Sends a one-line health summary followed by the complete monthly
+    ERP report (Finance + HR + Projects).
     """
     if not await _check_permission(message):
         await _reply(message, "⛔ Sizda bu buyruq uchun ruxsat yo'q.")
@@ -105,25 +111,18 @@ async def cmd_erp_holat(message, db) -> None:
         )
 
 
-async def cmd_moliya(
-    message,
-    db,
-    period: Optional[str] = None,
-) -> None:
-    """
-    /moliya [2025-06] — Moliya hisoboti.
+async def cmd_moliya(message, db, period: Optional[str] = None) -> None:
+    """Moliya hisoboti — /moliya [2025-06]
 
-    Sends a detailed cash-flow report for *period* (current month if
-    omitted).
+    Sends a detailed cash-flow and expense report.
+    *period* defaults to the current calendar month (YYYY-MM).
     """
     if not await _check_permission(message):
         await _reply(message, "⛔ Sizda bu buyruq uchun ruxsat yo'q.")
         return
 
     try:
-        from datetime import date
-
-        eff_period = period or date.today().strftime("%Y-%m")
+        eff_period = period or _current_period()
         dashboard = ERPDashboard(db)
         report = await dashboard.finance.format_cash_flow_report(eff_period)
         await _reply(message, report)
@@ -135,25 +134,18 @@ async def cmd_moliya(
         )
 
 
-async def cmd_jamoa(
-    message,
-    db,
-    period: Optional[str] = None,
-) -> None:
-    """
-    /jamoa [2025-06] — Jamoa KPI hisoboti.
+async def cmd_jamoa(message, db, period: Optional[str] = None) -> None:
+    """Jamoa KPI hisoboti — /jamoa [2025-06]
 
-    Sends the HR / KPI team report for *period* (current month if
-    omitted).
+    Sends the full team and KPI report.
+    *period* defaults to the current calendar month (YYYY-MM).
     """
     if not await _check_permission(message):
         await _reply(message, "⛔ Sizda bu buyruq uchun ruxsat yo'q.")
         return
 
     try:
-        from datetime import date
-
-        eff_period = period or date.today().strftime("%Y-%m")
+        eff_period = period or _current_period()
         dashboard = ERPDashboard(db)
         report = await dashboard.hr.format_team_report(eff_period)
         await _reply(message, report)
@@ -166,11 +158,10 @@ async def cmd_jamoa(
 
 
 async def cmd_loyihalar(message, db) -> None:
-    """
-    /loyihalar — Faol loyihalar ro'yxati.
+    """Faol loyihalar — /loyihalar
 
-    Sends a full report on all non-done projects with deadline
-    status and payment progress.
+    Sends the full project report with deadline status and payment
+    progress for every non-completed project.
     """
     if not await _check_permission(message):
         await _reply(message, "⛔ Sizda bu buyruq uchun ruxsat yo'q.")
@@ -189,11 +180,10 @@ async def cmd_loyihalar(message, db) -> None:
 
 
 async def cmd_erp_salomatlik(message, db) -> None:
-    """
-    /erp_salomatlik — ERP sog'liqlik balli.
+    """ERP sog'liqlik balli — /erp_salomatlik
 
-    Sends a scored health summary (0–100) with identified issues and
-    recommendations.
+    Computes a 0–100 health score across all ERP dimensions and
+    reports identified issues with actionable recommendations.
     """
     if not await _check_permission(message):
         await _reply(message, "⛔ Sizda bu buyruq uchun ruxsat yo'q.")
@@ -208,36 +198,30 @@ async def cmd_erp_salomatlik(message, db) -> None:
         issues: list[str] = result["issues"]
         recommendations: list[str] = result["recommendations"]
 
-        status_labels = {
-            "excellent": "✅ Ajoyib",
-            "good":      "✅ Yaxshi",
-            "fair":      "⚠️ O'rtacha",
-            "poor":      "🚨 Yomon",
-        }
-        status_label = status_labels.get(status, status)
+        # Score bar (10 blocks, each = 10 pts)
+        filled = score // 10
+        bar = "█" * filled + "░" * (10 - filled)
 
-        lines = [
+        lines: list[str] = [
             "🏥 *ERP SOG'LIQLIK BAHOSI*",
             "",
             f"📊 Ball: *{score} / 100*",
-            f"🎯 Holat: {status_label}",
+            f"[{bar}]",
+            f"🎯 Holat: {status}",
         ]
 
         if issues:
-            lines.append("")
-            lines.append("⚠️ *Muammolar:*")
+            lines += ["", "⚠️ *Muammolar:*"]
             for issue in issues:
                 lines.append(f"  • {issue}")
 
         if recommendations:
-            lines.append("")
-            lines.append("💡 *Tavsiyalar:*")
+            lines += ["", "💡 *Tavsiyalar:*"]
             for rec in recommendations:
                 lines.append(f"  • {rec}")
 
         if not issues:
-            lines.append("")
-            lines.append("✅ Hozirda hech qanday muammo aniqlanmadi.")
+            lines += ["", "✅ Hech qanday muammo aniqlanmadi. Davom eting!"]
 
         await _reply(message, "\n".join(lines))
     except Exception as exc:
@@ -256,20 +240,21 @@ async def cmd_qo_shish_loyiha(
     budget: int,
     deadline: str,
 ) -> None:
-    """
-    /loyiha_qosh [sarlavha] | [mijoz] | [byudjet] | [muddat]
+    """Yangi loyiha qo'shish — /loyiha_qosh [sarlavha] | [mijoz] | [byudjet] | [muddat]
 
-    Creates a new project.  All four parameters are required.
-    *budget* should be an integer (UZS), *deadline* ISO date (YYYY-MM-DD).
+    Creates a new project and confirms creation with the assigned ID.
 
-    Typical usage from a dispatcher:
-        parts = text.split("|")
-        await cmd_qo_shish_loyiha(msg, db,
-            title=parts[0].strip(),
-            client=parts[1].strip(),
-            budget=int(parts[2].strip()),
-            deadline=parts[3].strip(),
-        )
+    Callers are responsible for parsing the command arguments before
+    calling this function.  Typical dispatcher wiring:
+
+        text = message.text.removeprefix("/loyiha_qosh").strip()
+        parts = [p.strip() for p in text.split("|")]
+        if len(parts) == 4:
+            await cmd_qo_shish_loyiha(
+                message, db,
+                title=parts[0], client=parts[1],
+                budget=int(parts[2]), deadline=parts[3],
+            )
     """
     if not await _check_permission(message):
         await _reply(message, "⛔ Sizda bu buyruq uchun ruxsat yo'q.")
@@ -301,7 +286,7 @@ async def cmd_qo_shish_loyiha(
         await _reply(
             message,
             f"✅ Yangi loyiha yaratildi!\n"
-            f"🆔 ID: {project_id}\n"
+            f"🆔 ID: *{project_id}*\n"
             f"📌 Sarlavha: {title}\n"
             f"👤 Mijoz: {client}\n"
             f"💰 Byudjet: {budget:,} UZS\n"
@@ -325,18 +310,21 @@ async def cmd_xarajat_qosh(
     description: str,
     amount: int,
 ) -> None:
-    """
-    /xarajat [kategoriya] | [tavsif] | [miqdor]
+    """Xarajat qo'shish — /xarajat [kategoriya] | [tavsif] | [miqdor]
 
-    Records a new expense entry.
+    Records a new expense and confirms with the assigned ID.
 
-    Typical usage from a dispatcher:
-        parts = text.split("|")
-        await cmd_xarajat_qosh(msg, db,
-            category=parts[0].strip(),
-            description=parts[1].strip(),
-            amount=int(parts[2].strip()),
-        )
+    Callers are responsible for parsing the command arguments before
+    calling this function.  Typical dispatcher wiring:
+
+        text = message.text.removeprefix("/xarajat").strip()
+        parts = [p.strip() for p in text.split("|")]
+        if len(parts) == 3:
+            await cmd_xarajat_qosh(
+                message, db,
+                category=parts[0], description=parts[1],
+                amount=int(parts[2]),
+            )
     """
     if not await _check_permission(message):
         await _reply(message, "⛔ Sizda bu buyruq uchun ruxsat yo'q.")
@@ -361,14 +349,14 @@ async def cmd_xarajat_qosh(
             category=category,
             description=description or None,
             amount=amount,
-            expense_date=None,        # defaults to today inside FinanceEngine
+            expense_date=None,   # defaults to today inside FinanceEngine
             recorded_by=sender,
         )
 
         await _reply(
             message,
             f"✅ Xarajat qo'shildi!\n"
-            f"🆔 ID: {expense_id}\n"
+            f"🆔 ID: *{expense_id}*\n"
             f"📂 Kategoriya: {category.capitalize()}\n"
             f"📝 Tavsif: {description or '—'}\n"
             f"💸 Miqdor: {amount:,} UZS",
@@ -389,13 +377,13 @@ async def cmd_xarajat_qosh(
 # ---------------------------------------------------------------------------
 
 COMMAND_REGISTRY: dict[str, object] = {
-    "/erp_holat":       cmd_erp_holat,
-    "/moliya":          cmd_moliya,
-    "/jamoa":           cmd_jamoa,
-    "/loyihalar":       cmd_loyihalar,
-    "/erp_salomatlik":  cmd_erp_salomatlik,
-    "/loyiha_qosh":     cmd_qo_shish_loyiha,
-    "/xarajat":         cmd_xarajat_qosh,
+    "/erp_holat":      cmd_erp_holat,
+    "/moliya":         cmd_moliya,
+    "/jamoa":          cmd_jamoa,
+    "/loyihalar":      cmd_loyihalar,
+    "/erp_salomatlik": cmd_erp_salomatlik,
+    "/loyiha_qosh":    cmd_qo_shish_loyiha,
+    "/xarajat":        cmd_xarajat_qosh,
 }
 
 # ---------------------------------------------------------------------------
@@ -406,23 +394,23 @@ ERP_HELP_TEXT = """
 🏢 *OISHA ERP — BUYRUQLAR RO'YXATI*
 
 📊 *Holat va hisobotlar:*
-  /erp_holat          — Umumiy ERP holati (moliya + jamoa + loyihalar)
-  /erp_salomatlik     — ERP sog'liqlik balli (0–100) va tavsiyalar
+  /erp_holat           — Umumiy ERP holati (moliya + jamoa + loyihalar)
+  /erp_salomatlik      — ERP sog'liqlik balli (0–100) va tavsiyalar
 
 💰 *Moliya:*
-  /moliya             — Joriy oy moliyaviy hisoboti
-  /moliya 2025-06     — Muayyan oy uchun moliyaviy hisobot
+  /moliya              — Joriy oy moliyaviy hisoboti
+  /moliya 2025-06      — Muayyan oy uchun moliyaviy hisobot
   /xarajat [kategoriya] | [tavsif] | [miqdor]
-                      — Yangi xarajat qo'shish
+                       — Yangi xarajat qo'shish
 
 👥 *Jamoa:*
-  /jamoa              — Joriy oy jamoa va KPI hisoboti
-  /jamoa 2025-06      — Muayyan oy uchun jamoa hisoboti
+  /jamoa               — Joriy oy jamoa va KPI hisoboti
+  /jamoa 2025-06       — Muayyan oy uchun jamoa hisoboti
 
 📁 *Loyihalar:*
-  /loyihalar          — Barcha faol loyihalar ro'yxati
+  /loyihalar           — Barcha faol loyihalar ro'yxati
   /loyiha_qosh [sarlavha] | [mijoz] | [byudjet] | [muddat]
-                      — Yangi loyiha yaratish
+                       — Yangi loyiha yaratish
 
 ℹ️ *Misollar:*
   /xarajat ofis | Printer qog'oz | 150000
