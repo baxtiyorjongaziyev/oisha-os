@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="uz" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JON BRANDING | Xavfsiz Avans Kalkulyatori</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { jakarta: ['Plus Jakarta Sans', 'sans-serif'] },
+          colors: {
+            amber:  { DEFAULT: '#F5A623', light: '#FFD580', dark: '#C47D0A' },
+            mint:   { DEFAULT: '#34D399', light: '#A7F3D0', dark: '#059669' },
+            danger: { DEFAULT: '#EF4444', light: '#FCA5A5', dark: '#991B1B' },
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; transition: background .25s, color .25s; }
+
+    /* ── DARK ── */
+    html.dark body                { background: #0B0F17; color: #E2E8F0; }
+    html.dark .c-card             { background: #131A26; border-color: #1E2A3E; }
+    html.dark .c-input            { background: #0B0F17; border-color: #1E2A3E; color: #fff; }
+    html.dark .c-text-muted       { color: #6B7A99; }
+    html.dark .c-text-subtle      { color: #8A9AB8; }
+    html.dark .c-bar-track        { background: #1E2A3E; }
+    html.dark .c-amber-card       { border-color: rgba(245,166,35,.3); }
+    html.dark .c-amber-divider    { border-color: rgba(245,166,35,.2); }
+    html.dark .toggle-btn         { background: #1E2A3E; border-color: #2D3F5E; color: #8A9AB8; }
+    html.dark .toggle-btn:hover   { background: #253148; }
+    html.dark .badge              { background: rgba(245,166,35,.1); border-color: rgba(245,166,35,.2); color: #F5A623; }
+
+    /* ── LIGHT ── */
+    html.light body               { background: #F0F4F8; color: #1E293B; }
+    html.light .c-card            { background: #FFFFFF; border-color: #E2E8F0; }
+    html.light .c-input           { background: #F8FAFC; border-color: #CBD5E1; color: #1E293B; }
+    html.light .c-text-muted      { color: #64748B; }
+    html.light .c-text-subtle     { color: #475569; }
+    html.light .c-bar-track       { background: #E2E8F0; }
+    html.light .c-amber-card      { border-color: rgba(245,166,35,.4); }
+    html.light .c-amber-divider   { border-color: rgba(245,166,35,.25); }
+    html.light .toggle-btn        { background: #FFFFFF; border-color: #CBD5E1; color: #475569; }
+    html.light .toggle-btn:hover  { background: #F1F5F9; }
+    html.light .badge             { background: rgba(245,166,35,.12); border-color: rgba(245,166,35,.3); color: #C47D0A; }
+
+    /* number input — hide arrows */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+
+    /* Range slider */
+    input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+      border-radius: 9999px; outline: none; cursor: pointer; }
+    html.dark  input[type=range] { background: #1E2A3E; }
+    html.light input[type=range] { background: #CBD5E1; }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: #F5A623; cursor: pointer; transition: transform .15s; }
+    html.dark  input[type=range]::-webkit-slider-thumb { border: 3px solid #0B0F17; box-shadow: 0 0 0 2px #F5A623; }
+    html.light input[type=range]::-webkit-slider-thumb { border: 3px solid #fff;    box-shadow: 0 0 0 2px #F5A623; }
+    input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    input[type=range]::-moz-range-thumb {
+      width: 20px; height: 20px; border-radius: 50%; background: #F5A623; cursor: pointer; }
+    html.dark  input[type=range]::-moz-range-thumb { border: 3px solid #0B0F17; }
+    html.light input[type=range]::-moz-range-thumb { border: 3px solid #fff; }
+
+    /* Glows */
+    .amber-glow  { box-shadow: 0 0 32px -4px rgba(245,166,35,.20); }
+    .mint-glow   { box-shadow: 0 0 24px -4px rgba(52,211,153,.15); }
+    .danger-glow { box-shadow: 0 0 24px -4px rgba(239,68,68,.20); }
+
+    @keyframes fadeInDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+    .fade-in { animation: fadeInDown .28s ease; }
+
+    .field-input:focus { outline: none; border-color: #F5A623 !important; box-shadow: 0 0 0 3px rgba(245,166,35,.15); }
+  </style>
+</head>
+
+<body class="min-h-screen py-10 px-4">
+
+  <!-- ── HEADER ── -->
+  <header class="max-w-2xl mx-auto mb-10 flex items-center justify-between">
+    <div>
+      <div class="flex items-center gap-3 mb-1">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="28" height="28" rx="7" fill="#F5A623"/>
+          <path d="M7 20V10h4a3 3 0 0 1 0 6H7m10 4V10" stroke="#0B0F17" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="font-extrabold tracking-widest text-sm uppercase" style="color:#F5A623">Jon Branding</span>
+      </div>
+      <h1 class="text-2xl md:text-3xl font-extrabold leading-tight" id="headingColor">
+        Xavfsiz Avans <span style="color:#F5A623">Kalkulyatori</span>
+      </h1>
+      <p class="c-text-muted text-sm mt-1">Xodimga avans berishdan oldin kassa xavfsizligini tekshiring</p>
+    </div>
+
+    <div class="flex flex-col items-end gap-2">
+      <!-- Theme toggle -->
+      <button id="themeToggle" onclick="toggleTheme()"
+        class="toggle-btn flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all duration-200">
+        <span id="themeIcon">☀️</span>
+        <span id="themeLabel">Kunduzgi</span>
+      </button>
+      <!-- Badge -->
+      <span class="badge hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap">
+        <span class="w-2 h-2 rounded-full bg-amber-DEFAULT animate-pulse" style="background:#F5A623"></span>
+        Moliya Tizimi
+      </span>
+    </div>
+  </header>
+
+  <!-- ── MAIN ── -->
+  <main class="max-w-2xl mx-auto space-y-4">
+
+    <!-- Inputs -->
+    <section class="c-card border rounded-2xl p-6 space-y-5">
+      <h2 class="text-xs font-bold uppercase tracking-widest c-text-muted mb-1">Kirish ma'lumotlari</h2>
+
+      <div class="space-y-1.5">
+        <label class="block text-sm font-semibold c-text-subtle" for="salary">
+          Oylik sof maosh <span class="c-text-muted font-normal">(UZS)</span>
+        </label>
+        <div class="relative">
+          <input id="salary" type="number" value="6000000" step="500000" min="0"
+            class="field-input c-input w-full border rounded-xl px-4 py-3 pr-16 font-semibold text-base transition-all duration-200" />
+          <span class="absolute right-4 top-1/2 -translate-y-1/2 c-text-muted text-xs font-medium">UZS</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div class="space-y-1.5">
+          <label class="block text-sm font-semibold c-text-subtle" for="totalDays">Jami ish kunlari</label>
+          <input id="totalDays" type="number" value="22" min="1" max="31"
+            class="field-input c-input w-full border rounded-xl px-4 py-3 font-semibold text-base transition-all duration-200" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="block text-sm font-semibold c-text-subtle" for="workedDays">Ishlab berilgan kunlar</label>
+          <input id="workedDays" type="number" value="10" min="0"
+            class="field-input c-input w-full border rounded-xl px-4 py-3 font-semibold text-base transition-all duration-200" />
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <label class="text-sm font-semibold c-text-subtle" for="safety">Kassa xavfsizlik koeffitsiyenti</label>
+          <span id="safetyLabel"
+            class="px-2.5 py-0.5 rounded-lg text-sm font-bold border"
+            style="background:rgba(245,166,35,.15);color:#F5A623;border-color:rgba(245,166,35,.25)">75%</span>
+        </div>
+        <input id="safety" type="range" min="50" max="80" value="75" />
+        <p class="text-xs c-text-muted">
+          Kassa uzilishining oldini olish uchun <span class="c-text-subtle font-medium">70–75%</span> tavsiya etiladi.
+        </p>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="block text-sm font-semibold c-text-subtle" for="requested">
+          Xodim so'rayotgan avans miqdori <span class="c-text-muted font-normal">(UZS)</span>
+        </label>
+        <div class="relative">
+          <input id="requested" type="number" value="2000000" step="100000" min="0"
+            class="field-input c-input w-full border rounded-xl px-4 py-3 pr-16 font-semibold text-base transition-all duration-200" />
+          <span class="absolute right-4 top-1/2 -translate-y-1/2 c-text-muted text-xs font-medium">UZS</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="c-card border rounded-2xl p-5 mint-glow">
+        <p class="text-xs font-bold uppercase tracking-widest c-text-muted mb-3">Ishlab topilgan haq</p>
+        <span id="accrued" class="text-2xl font-extrabold" style="color:#34D399">—</span>
+        <p class="text-xs c-text-muted mt-2">Kunlik ish haqi × ishlab berilgan kunlar</p>
+        <div class="mt-3 pt-3 border-t c-bar-track flex justify-between text-xs c-text-muted" style="border-top-width:1px">
+          <span>Kunlik haq</span>
+          <span id="dailyWage" class="c-text-subtle font-semibold">—</span>
+        </div>
+      </div>
+
+      <div class="c-card c-amber-card border rounded-2xl p-5 amber-glow">
+        <p class="text-xs font-bold uppercase tracking-widest mb-3" style="color:rgba(245,166,35,.8)">Xavfsiz maksimal avans</p>
+        <span id="maxSafe" class="text-2xl font-extrabold" style="color:#F5A623">—</span>
+        <p class="text-xs c-text-muted mt-2">Ishlab topilgan haq × xavfsizlik koeffitsiyenti</p>
+        <div class="c-amber-divider mt-3 pt-3 flex justify-between text-xs c-text-muted" style="border-top-width:1px;border-top-style:solid">
+          <span>Koeffitsiyent</span>
+          <span id="safetyDisplay" class="font-semibold" style="color:#F5A623">75%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Status bar -->
+    <div id="statusBar" class="hidden c-card border rounded-2xl p-5"></div>
+
+    <!-- Warning -->
+    <div id="warning" class="hidden fade-in rounded-2xl p-5 danger-glow border"
+         style="background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.35)">
+      <div class="flex items-start gap-3">
+        <div class="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center mt-0.5"
+             style="background:rgba(239,68,68,.18)">
+          <svg class="w-5 h-5" style="color:#EF4444" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="font-bold text-sm mb-1" style="color:#EF4444">Diqqat: Kassa Xavfi!</p>
+          <p class="text-sm leading-relaxed" style="color:rgba(239,68,68,.8)">
+            Xodim so'rayotgan miqdor xavfsizlik limitidan yuqori.
+            Bu kassa uzilishiga <strong>cash crunch</strong> sabab bo'lishi mumkin.
+          </p>
+          <p id="warningDelta" class="mt-2 text-xs font-medium" style="color:rgba(239,68,68,.6)"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Safe -->
+    <div id="safeMsg" class="hidden fade-in rounded-2xl p-4 border"
+         style="background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.28)">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+             style="background:rgba(52,211,153,.18)">
+          <svg class="w-4 h-4" style="color:#34D399" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+        </div>
+        <div>
+          <p class="font-semibold text-sm" style="color:#34D399">So'ralgan avans xavfsizlik limitida</p>
+          <p id="safeDelta" class="text-xs mt-0.5" style="color:rgba(52,211,153,.65)"></p>
+        </div>
+      </div>
+    </div>
+
+    <p class="text-center text-xs c-text-muted py-2">
+      Jon Branding Agency · Moliya tizimi · <span id="currentDate"></span>
+    </p>
+  </main>
+
+  <script>
+    // ── Theme ──
+    function applyTheme(t) {
+      document.documentElement.classList.remove('dark','light');
+      document.documentElement.classList.add(t);
+      document.getElementById('themeIcon').textContent  = t==='dark' ? '☀️' : '🌙';
+      document.getElementById('themeLabel').textContent = t==='dark' ? 'Kunduzgi' : 'Tungi';
+      localStorage.setItem('jb-theme', t);
+    }
+    function toggleTheme() {
+      applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark');
+    }
+    applyTheme(localStorage.getItem('jb-theme') || 'dark');
+
+    // ── Calc ──
+    function fmt(n) {
+      if (isNaN(n)||!isFinite(n)) return '—';
+      return Math.round(n).toLocaleString('ru-RU').replace(/,/g,' ') + ' UZS';
+    }
+    const $ = id => document.getElementById(id);
+
+    function calculate() {
+      const salary    = parseFloat($('salary').value)    || 0;
+      const total     = parseInt($('totalDays').value)   || 1;
+      const worked    = Math.min(parseInt($('workedDays').value) || 0, total);
+      const safety    = parseInt($('safety').value)      || 75;
+      const requested = parseFloat($('requested').value) || 0;
+
+      if (parseInt($('workedDays').value) > total) $('workedDays').value = total;
+
+      const dailyWage = salary / total;
+      const accrued   = dailyWage * worked;
+      const maxSafe   = accrued * (safety / 100);
+
+      $('dailyWage').textContent   = fmt(dailyWage);
+      $('accrued').textContent     = fmt(accrued);
+      $('maxSafe').textContent     = fmt(maxSafe);
+      $('safetyDisplay').textContent = safety + '%';
+      $('safetyLabel').textContent   = safety + '%';
+
+      if (requested > 0 && maxSafe > 0) {
+        const diff = requested - maxSafe;
+        const pct  = Math.min((requested / maxSafe) * 100, 150);
+        const color = pct > 100 ? '#EF4444' : pct > 85 ? '#F5A623' : '#34D399';
+        const label = pct > 100 ? 'Xavfli zona' : pct > 85 ? 'Ehtiyot zona' : 'Xavfsiz zona';
+
+        if (diff > 0) {
+          $('warning').classList.remove('hidden');
+          $('safeMsg').classList.add('hidden');
+          $('warningDelta').textContent = 'Limitdan ' + fmt(diff) + ' ortiq so\'raldi.';
+        } else {
+          $('safeMsg').classList.remove('hidden');
+          $('warning').classList.add('hidden');
+          $('safeDelta').textContent = 'Limitdan ' + fmt(Math.abs(diff)) + ' kam — kassa xavfsiz.';
+        }
+
+        const isDark = document.documentElement.classList.contains('dark');
+        const trackBg = isDark ? '#1E2A3E' : '#E2E8F0';
+        const limitColor = isDark ? 'rgba(245,166,35,.7)' : '#C47D0A';
+
+        $('statusBar').classList.remove('hidden');
+        $('statusBar').innerHTML = `
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-xs font-semibold c-text-muted uppercase tracking-widest">So'rov darajasi</span>
+            <span class="text-xs font-bold" style="color:${color}">${label} · ${Math.round(pct)}%</span>
+          </div>
+          <div class="w-full h-2.5 rounded-full overflow-hidden" style="background:${trackBg}">
+            <div class="h-full rounded-full transition-all duration-500"
+                 style="width:${Math.min(pct,100)}%;background:${color};"></div>
+          </div>
+          <div class="flex justify-between mt-2 text-xs c-text-muted">
+            <span>0</span>
+            <span class="font-medium" style="color:${limitColor}">${fmt(maxSafe)} (limit)</span>
+          </div>`;
+      } else {
+        $('warning').classList.add('hidden');
+        $('safeMsg').classList.add('hidden');
+        $('statusBar').classList.add('hidden');
+      }
+    }
+
+    ['salary','totalDays','workedDays','safety','requested'].forEach(id => {
+      $(id).addEventListener('input', calculate);
+    });
+
+    $('currentDate').textContent = new Date().toLocaleDateString('uz-UZ', {
+      year:'numeric', month:'long', day:'numeric'
+    });
+
+    calculate();
+  </script>
+</body>
+</html>
