@@ -28,6 +28,15 @@ def _fmt_money(amount: int) -> str:
     return f"{amount:,}".replace(",", " ")
 
 
+def _compact(amount: int) -> str:
+    """Compact millions/thousands notation (e.g. 45M, 450K)."""
+    if abs(amount) >= 1_000_000:
+        return f"{amount // 1_000_000}M"
+    if abs(amount) >= 1_000:
+        return f"{amount // 1_000}K"
+    return str(amount)
+
+
 class ERPDashboard:
     """Aggregated view over all three ERP engines."""
 
@@ -45,6 +54,13 @@ class ERPDashboard:
         """
         Build an ERPSnapshot for *period* (YYYY-MM).  Uses the current
         calendar month when *period* is None.
+
+        Extra dashboard-specific metrics are stored as dynamic attributes
+        on the returned object:
+          .payroll_cost      — total monthly payroll
+          .overdue_projects  — number of projects past their deadline
+          .pipeline_value    — sum of active project budgets
+          .cash_flow_status  — 'healthy' | 'warning' | 'critical'
         """
         period = period or _current_period()
 
@@ -85,6 +101,10 @@ class ERPDashboard:
         ]
 
         # --- Cash-flow health status ---
+        # Ratio: net_profit / payroll_cost
+        # >= 1.0  → healthy   (covering payroll with profit to spare)
+        # >= 0.0  → warning   (profitable but margin < full payroll)
+        # <  0.0  → critical  (loss-making)
         if payroll_cost > 0:
             ratio = net_profit / payroll_cost
         else:
@@ -97,14 +117,6 @@ class ERPDashboard:
         else:
             cash_flow_status = "critical"
 
-        # ERPSnapshot fields (from erp_schema.py):
-        # period, total_revenue, total_expenses, net_profit,
-        # outstanding_invoices, outstanding_amount,
-        # pending_advances, pending_advance_total,
-        # active_projects, active_employees, top_expenses
-        #
-        # We store extra dashboard metrics as plain attributes on the object
-        # after construction so callers can access them without schema changes.
         snapshot = ERPSnapshot(
             period=period,
             total_revenue=monthly_revenue,
@@ -119,7 +131,7 @@ class ERPDashboard:
             top_expenses=top_expenses,
         )
 
-        # Extra attributes consumed by dashboard methods
+        # Extra attributes consumed by other dashboard methods
         snapshot.overdue_projects = overdue_projects          # type: ignore[attr-defined]
         snapshot.pipeline_value = pipeline_value              # type: ignore[attr-defined]
         snapshot.payroll_cost = payroll_cost                  # type: ignore[attr-defined]
@@ -133,31 +145,28 @@ class ERPDashboard:
 
     async def format_full_report(self, period: Optional[str] = None) -> str:
         """
-        Complete Uzbek ERP status report with Finance / HR / Projects
-        sections.
+        Complete Uzbek ERP status report combining Finance, HR, and Projects
+        sections, styled for Telegram MarkdownV1.
         """
         period = period or _current_period()
         snap = await self.get_snapshot(period)
 
-        # Health status emoji
-        status_map = {
-            "healthy": "✅",
-            "warning": "⚠️",
-            "critical": "🚨",
-        }
-        status_emoji = status_map.get(snap.cash_flow_status, "❓")  # type: ignore[attr-defined]
-
+        # Emoji helpers
+        status_emoji_map = {"healthy": "✅", "warning": "⚠️", "critical": "🚨"}
+        status_emoji = status_emoji_map.get(
+            snap.cash_flow_status, "❓"  # type: ignore[attr-defined]
+        )
         net_emoji = "📈" if snap.net_profit >= 0 else "📉"
-        overdue_emoji = "✅" if snap.overdue_projects == 0 else "⚠️"  # type: ignore[attr-defined]
+        overdue_proj_emoji = "✅" if snap.overdue_projects == 0 else "⚠️"  # type: ignore[attr-defined]
 
         # ── Finance section ──────────────────────────────────────────
-        finance_lines = [
+        finance_lines: list[str] = [
             f"━━━ 💰 MOLIYA ({period}) ━━━",
-            f"💵 Daromad:           {_fmt_money(snap.total_revenue)} UZS",
-            f"💸 Xarajatlar:        {_fmt_money(snap.total_expenses)} UZS",
-            f"👥 Ish haqi fondi:    {_fmt_money(snap.payroll_cost)} UZS",  # type: ignore[attr-defined]
-            f"{net_emoji} Sof foyda:       {_fmt_money(snap.net_profit)} UZS",
-            f"{status_emoji} Naqd pul holati:  {snap.cash_flow_status.upper()}",  # type: ignore[attr-defined]
+            f"💵 Daromad:              {_fmt_money(snap.total_revenue)} UZS",
+            f"💸 Xarajatlar:           {_fmt_money(snap.total_expenses)} UZS",
+            f"👥 Ish haqi fondi:       {_fmt_money(snap.payroll_cost)} UZS",  # type: ignore[attr-defined]
+            f"{net_emoji} Sof foyda:          {_fmt_money(snap.net_profit)} UZS",
+            f"{status_emoji} Naqd pul holati:   {snap.cash_flow_status.upper()}",  # type: ignore[attr-defined]
             f"🧾 Kutilayotgan to'lovlar: {snap.outstanding_invoices} ta "
             f"({_fmt_money(snap.outstanding_amount)} UZS)",
             f"💼 Kutilayotgan avanslar: {snap.pending_advances} ta "
@@ -167,7 +176,8 @@ class ERPDashboard:
             finance_lines.append("📊 Top xarajatlar:")
             for item in snap.top_expenses:
                 finance_lines.append(
-                    f"   • {item['category'].capitalize()}: {_fmt_money(item['total'])} UZS"
+                    f"   • {item['category'].capitalize()}: "
+                    f"{_fmt_money(item['total'])} UZS"
                 )
 
         # ── HR section ───────────────────────────────────────────────
@@ -177,7 +187,7 @@ class ERPDashboard:
         )
         kpi_emoji = "✅" if avg_kpi >= 7 else ("⚠️" if avg_kpi >= 4 else "🚨")
 
-        hr_lines = [
+        hr_lines: list[str] = [
             f"━━━ 👥 JAMOA ({period}) ━━━",
             f"👤 Faol xodimlar:    {snap.active_employees} kishi",
             f"💰 Oylik ish haqi:   {_fmt_money(snap.payroll_cost)} UZS",  # type: ignore[attr-defined]
@@ -197,13 +207,12 @@ class ERPDashboard:
             hr_lines.append(f"ℹ️ {period} uchun KPI ma'lumotlari yo'q.")
 
         # ── Projects section ─────────────────────────────────────────
-        proj_lines = [
-            f"━━━ 📁 LOYIHALAR ━━━",
+        proj_lines: list[str] = [
+            "━━━ 📁 LOYIHALAR ━━━",
             f"📂 Faol loyihalar:   {snap.active_projects} ta",
             f"💰 Pipeline qiymati: {_fmt_money(snap.pipeline_value)} UZS",  # type: ignore[attr-defined]
-            f"{overdue_emoji} Muddati o'tgan:   {snap.overdue_projects} ta",  # type: ignore[attr-defined]
+            f"{overdue_proj_emoji} Muddati o'tgan:   {snap.overdue_projects} ta",  # type: ignore[attr-defined]
         ]
-
         overdue_list = await self.projects.get_overdue_projects()
         if overdue_list:
             proj_lines.append("⚠️ Kechikkan loyihalar:")
@@ -213,25 +222,15 @@ class ERPDashboard:
                     f"   • {p['title']} ({p['client_name']}) — {days} kun kechikdi"
                 )
 
-        # ── Assemble ─────────────────────────────────────────────────
-        header = [
-            f"🏢 *OISHA ERP HISOBOT — {period}*",
-            "",
-        ]
-        footer = [
-            "",
-            f"━━━━━━━━━━━━━━━━",
-            f"📅 Sanasi: {date.today().isoformat()}",
-        ]
-
-        sections = (
-            header
+        # ── Assemble full report ─────────────────────────────────────
+        sections: list[str] = (
+            [f"🏢 *OISHA ERP HISOBOT — {period}*", ""]
             + finance_lines
             + [""]
             + hr_lines
             + [""]
             + proj_lines
-            + footer
+            + ["", "━━━━━━━━━━━━━━━━", f"📅 Sanasi: {date.today().isoformat()}"]
         )
         return "\n".join(sections)
 
@@ -241,11 +240,18 @@ class ERPDashboard:
 
     async def get_health_score(self, period: Optional[str] = None) -> dict:
         """
-        Return a dict:
-            score          — int 0–100
-            status         — 'excellent' | 'good' | 'fair' | 'poor'
-            issues         — list[str]
-            recommendations — list[str]
+        Return a dict with keys:
+            score           — int 0–100
+            status          — str label (Uzbek)
+            issues          — list[str] of identified problems
+            recommendations — list[str] of suggested actions
+
+        Scoring:
+            +30  net_profit > 0
+            +20  no overdue projects
+            +20  no overdue invoices
+            +20  team KPI average > 7
+            +10  pending advance requests < 3
         """
         period = period or _current_period()
         snap = await self.get_snapshot(period)
@@ -260,9 +266,7 @@ class ERPDashboard:
             score += 30
         else:
             issues.append("Sof foyda manfiy yoki nolga teng")
-            recommendations.append(
-                "Xarajatlarni kamaytiring yoki daromadni oshiring"
-            )
+            recommendations.append("Xarajatlarni kamaytiring yoki daromadni oshiring")
 
         # +20 — no overdue projects
         overdue_proj: int = snap.overdue_projects  # type: ignore[attr-defined]
@@ -270,9 +274,7 @@ class ERPDashboard:
             score += 20
         else:
             issues.append(f"{overdue_proj} ta loyiha muddati o'tgan")
-            recommendations.append(
-                "Kechikkan loyihalar uchun tezkor reja tuzing"
-            )
+            recommendations.append("Kechikkan loyihalar uchun tezkor reja tuzing")
 
         # +20 — no overdue invoices
         outstanding = await self.finance.get_outstanding_invoices()
@@ -281,12 +283,10 @@ class ERPDashboard:
             score += 20
         else:
             issues.append(f"{overdue_inv} ta invoice muddati o'tgan")
-            recommendations.append(
-                "Mijozlarga to'lov eslatmasi yuboring"
-            )
+            recommendations.append("Mijozlarga to'lov eslatmasi yuboring")
 
         # +20 — team KPI average > 7
-        avg_kpi = (
+        avg_kpi: float = (
             sum(k["score"] for k in kpi_list) / len(kpi_list) if kpi_list else 0.0
         )
         if avg_kpi > 7:
@@ -308,19 +308,17 @@ class ERPDashboard:
             issues.append(
                 f"{snap.pending_advances} ta avans so'rovi ko'rib chiqilmagan"
             )
-            recommendations.append(
-                "Avans so'rovlarini tezroq ko'rib chiqing"
-            )
+            recommendations.append("Avans so'rovlarini tezroq ko'rib chiqing")
 
-        # Determine status label
+        # Determine Uzbek status label
         if score >= 85:
-            status = "excellent"
+            status = "A'lo — Biznes sog'lom ✅"
         elif score >= 65:
-            status = "good"
+            status = "Yaxshi — Kichik muammolar bor ⚠️"
         elif score >= 40:
-            status = "fair"
+            status = "O'rtacha — E'tibor talab etadi ⚠️"
         else:
-            status = "poor"
+            status = "Xavfli — Zudlik bilan chora ko'ring 🚨"
 
         return {
             "score": score,
@@ -335,7 +333,7 @@ class ERPDashboard:
 
     async def format_quick_status(self, period: Optional[str] = None) -> str:
         """
-        Single-line Uzbek status string, e.g.
+        Single-line Uzbek status string, e.g.:
         "✅ Biznes sog'lom | Daromad: 45M | Loyihalar: 8 | Jamoa: 12"
         """
         period = period or _current_period()
@@ -346,19 +344,21 @@ class ERPDashboard:
             "warning":  "⚠️ Diqqat talab",
             "critical": "🚨 Kritik holat",
         }
-        status_label = status_map.get(snap.cash_flow_status, "❓ Noma'lum")  # type: ignore[attr-defined]
-
-        def _m(v: int) -> str:
-            """Compact millions/thousands notation."""
-            if v >= 1_000_000:
-                return f"{v // 1_000_000}M"
-            if v >= 1_000:
-                return f"{v // 1_000}K"
-            return str(v)
-
-        return (
-            f"{status_label} | "
-            f"Daromad: {_m(snap.total_revenue)} | "
-            f"Loyihalar: {snap.active_projects} | "
-            f"Jamoa: {snap.active_employees}"
+        status_label = status_map.get(
+            snap.cash_flow_status, "❓ Noma'lum"  # type: ignore[attr-defined]
         )
+
+        parts: list[str] = [
+            status_label,
+            f"Daromad: {_compact(snap.total_revenue)}",
+            f"Loyihalar: {snap.active_projects}",
+            f"Jamoa: {snap.active_employees}",
+        ]
+        # Surface warning details inline if problems exist
+        overdue_p: int = snap.overdue_projects  # type: ignore[attr-defined]
+        if overdue_p:
+            parts.append(f"⚠️ Kechikkan: {overdue_p}")
+        if snap.outstanding_invoices:
+            parts.append(f"🧾 Invoice: {snap.outstanding_invoices}")
+
+        return " | ".join(parts)
