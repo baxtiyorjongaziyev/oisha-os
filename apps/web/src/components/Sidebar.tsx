@@ -125,7 +125,7 @@ export default function Sidebar() {
                 isActive
                   ? "bg-brand text-white shadow-md shadow-brand/10"
                   : "text-text-muted hover:bg-brand-light hover:text-brand"
-              }`}
+              } focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 active:scale-[0.98]`}
             >
               <div className="shrink-0">{item.icon}</div>
               {sidebarOpen && <span className="animate-fade-in">{item.name}</span>}
@@ -156,7 +156,7 @@ export default function Sidebar() {
       <div className="p-3 border-t border-border">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="flex w-full items-center justify-center gap-3 rounded-2xl p-3 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none"
+          className="flex w-full items-center justify-center gap-3 rounded-2xl p-3 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2 active:scale-[0.98]"
         >
           {sidebarOpen ? (
             <>
