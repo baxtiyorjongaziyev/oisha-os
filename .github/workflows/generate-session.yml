@@ -39,12 +39,14 @@ jobs:
 
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
         with:
           python-version: "3.12"
 
       - name: Install Telethon
-        run: pip install telethon==1.36.0
+        run: python -m pip install telethon==1.36.0
 
       - name: Step 1 — SMS yuborish
         if: github.event.inputs.step == '1' || github.event_name == 'push'
