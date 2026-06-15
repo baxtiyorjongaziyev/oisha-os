@@ -52,3 +52,7 @@
 
 **Learning:** When using standard `focus-visible` styles on wrappers for disabled components (e.g., `<span tabIndex={0}>` acting as a tooltip wrapper for a disabled button), the focus ring forms a generic box around the wrapper, ignoring the child component's specific shape (like `rounded-full`).
 **Action:** Always apply `group` and `focus:outline-none` to the wrapper, and use `group-focus-visible:ring-*` on the child element so the focus ring seamlessly inherits the child's exact shape and border-radius.
+
+## 2024-10-25 - Custom Dropdown Accessibility Pattern
+**Learning:** Custom UI dropdowns frequently lack native semantic structure. Wrapping loosely grouped `<button>` items in `<ul>`/`<li>` tags combined with `aria-labelledby` pointing to the trigger button's ID instantly transforms them into screen-reader-friendly menus. Furthermore, adding visual anchors (like an inline checkmark) for the `aria-current` item drastically improves scannability.
+**Action:** Always wrap custom dropdown list items in `<ul>` and `<li>`, link them to their trigger via `aria-labelledby`, and ensure each option has robust `focus-visible:ring` styles rather than relying exclusively on hover states.
