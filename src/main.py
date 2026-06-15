@@ -2618,6 +2618,39 @@ async def self_command_handler(event):
             logger.error(f"[ERP COMMAND] {cmd} error: {e}", exc_info=True)
             await event.respond(f"❌ ERP xatolik: {e}")
 
+    # ── TAHLIL KOMANDA ─────────────────────────────────────────────────────
+    elif cmd.startswith("/tahlil"):
+        await event.respond("⏳ So'nggi qo'ng'iroqlar tahlil qilinmoqda...")
+        try:
+            from src.services.core.call_analyzer import CallAnalyzer
+            from src.services.core.crm_note_approval import CRMNoteApprovalService
+            parts = cmd.split()
+            limit = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 3
+            analyzer = CallAnalyzer(
+                amocrm=msg_controller.crm.amocrm,
+                db=msg_controller.db,
+            )
+            owner_id = getattr(settings, "OWNER_ID", None)
+            if owner_id:
+                analyzer.approval_service = CRMNoteApprovalService(
+                    amocrm_client=msg_controller.crm.amocrm,
+                    owner_telegram_id=int(owner_id),
+                    bot_client=client,
+                )
+            result = await analyzer.analyze_recent_calls(limit=limit, write=True)
+            if isinstance(result, dict):
+                analyzed = result.get("analyzed", 0)
+                total = result.get("total", 0)
+                await event.respond(
+                    f"✅ {analyzed}/{total} qo'ng'iroq tahlil qilindi.\n"
+                    f"Tasdiqlash so'rovlari yuborildi — ✅ yoki ✏️ bosing."
+                )
+            else:
+                await event.respond(f"✅ Tahlil tugadi: {result}")
+        except Exception as e:
+            logger.error(f"[COMMAND] /tahlil error: {e}", exc_info=True)
+            await event.respond(f"❌ Tahlil xatoligi: {e}")
+
 
 async def activity_monitor_handler(event):
     """Log outgoing activities for auditing."""
@@ -2625,6 +2658,18 @@ async def activity_monitor_handler(event):
         return
     if activity_monitor:
         await activity_monitor.log_event(event)
+
+
+async def crm_note_callback_handler(event):
+    """CRM note tasdiqlash/tahrirlash inline tugmalari uchun callback handler."""
+    try:
+        data = event.data.decode("utf-8") if isinstance(event.data, bytes) else event.data
+        if not (data.startswith("crm_approve:") or data.startswith("crm_edit:")):
+            return
+        from src.services.core.crm_note_approval import handle_callback
+        await handle_callback(data, event)
+    except Exception as e:
+        logger.error(f"[CRM_CALLBACK] Xatolik: {e}", exc_info=True)
 
 
 async def meeting_scheduler_handler(event):
@@ -3716,6 +3761,10 @@ async def main():
     client.add_event_handler(
         self_command_handler,
         events.NewMessage(chats="me"),
+    )
+    client.add_event_handler(
+        crm_note_callback_handler,
+        events.CallbackQuery(pattern=b"crm_"),
     )
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
