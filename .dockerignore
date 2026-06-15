@@ -92,5 +92,6 @@ npm-debug.log
 yarn-error.log
 
 # Deployment artifacts
+*.tar
 *.tar.gz
 *.zip
