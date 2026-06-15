@@ -13,3 +13,24 @@ description = "Non-secret identifiers (not credentials)"
 regexes = [
   '''app8xoyx1XCumYFXV''',
 ]
+
+paths = [
+  '''scripts/generate_session_string\.py''',
+  '''scripts/send_qurbon_greetings\.py''',
+  '''scripts/send_juma_greetings\.py''',
+  '''scripts/refresh_crm_token\.py''',
+  '''scripts/discover_session_simple\.py''',
+  '''scripts/final_auth\.py''',
+  '''scripts/final_auth_2fa\.py''',
+  '''scripts/final_juma_proof\.py''',
+  '''scripts/remote_auth\.py''',
+  '''scripts/test_juma_external\.py''',
+  '''scripts/unified_auth_v2\.py''',
+  '''scripts/unified_auth_final\.py''',
+  '''scripts/vps_request_code\.py''',
+  '''src/database_pool\.py''',
+  '''src/services/core/github_manager\.py''',
+  '''src/services/debug/vps_audit_fix\.py''',
+  '''src/services/vps_audit_fix\.py''',
+  '''\.github/workflows/userbot-vps\.yml'''
+]
