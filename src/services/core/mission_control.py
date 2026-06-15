@@ -9,8 +9,11 @@ from .amocrm_sync import AmoCRMSync
 from src.settings import settings
 from src.agents.negotiation_engine import NegotiationEngine
 from src.services.core.amocrm_pipeline_config import (
+    ACTIVE_PIPELINE_IDS,
     FARMER_PIPELINE_ID as CONFIG_FARMER_PIPELINE_ID,
     LEGACY_CLOSER_PIPELINE_ID,
+    REACTIVATION_DAILY_LIMIT,
+    REACTIVATION_PIPELINE_ID,
     SALES_PIPELINE_ID,
 )
 
@@ -22,7 +25,6 @@ class MissionControlFetchError(RuntimeError):
 
 
 class MissionControl:
-    # Pipeline Constants
     HUNTER_PIPELINE_ID = SALES_PIPELINE_ID
     CLOSER_PIPELINE_ID = LEGACY_CLOSER_PIPELINE_ID
     FARMER_PIPELINE_ID = CONFIG_FARMER_PIPELINE_ID
@@ -43,152 +45,98 @@ class MissionControl:
         self.last_fetch_errors = []
 
     def get_pipeline_role(self, pipeline_id: int) -> str:
-        """Pipeline ID ga qarab rolni aniqlash."""
         if pipeline_id == self.HUNTER_PIPELINE_ID:
             return "SALES"
         if pipeline_id == self.CLOSER_PIPELINE_ID:
             return "SALES_LEGACY"
         if pipeline_id == self.FARMER_PIPELINE_ID:
             return "FARMER"
-        return "SALES"  # Default
+        return "SALES"
 
     def _fetch_pipeline_leads_sync(self, pipeline_name, pipeline_id):
-        """Bitta pipeline uchun leadlarni olib kelish, kerak bo'lsa tokenni yangilash."""
         url = f"{self.amo.base_url}/api/v4/leads?filter[pipeline_id]={pipeline_id}&limit=250"
         response = requests.get(url, headers=self.amo._get_headers(), timeout=30)
-
         if response.status_code == 401:
-            logger.warning(
-                f"[MISSION CONTROL] {pipeline_name} returned 401, attempting token refresh."
-            )
+            logger.warning("[MISSION CONTROL] %s returned 401, refreshing token.", pipeline_name)
             if self.amo.refresh_token():
-                response = requests.get(
-                    url, headers=self.amo._get_headers(), timeout=30
-                )
-
+                response = requests.get(url, headers=self.amo._get_headers(), timeout=30)
         if response.status_code != 200:
-            details = response.text.strip()
-            if len(details) > 200:
-                details = details[:200]
-            error = f"{pipeline_name}: HTTP {response.status_code}" + (
-                f" - {details}" if details else ""
-            )
-            logger.error(
-                f"[MISSION CONTROL] Error fetching leads for {pipeline_name}: {error}"
-            )
+            details = response.text.strip()[:200]
+            error = f"{pipeline_name}: HTTP {response.status_code}" + (f" - {details}" if details else "")
+            logger.error("[MISSION CONTROL] Error fetching %s: %s", pipeline_name, error)
             return [], error
-
         leads = response.json().get("_embedded", {}).get("leads", [])
         return leads, None
 
     async def get_active_missions(self):
-        """AmoCRM-dagi BARCHA voronkalardan barcha faol lidlarni yig'ish."""
+        """Faqat ACTIVE_PIPELINE_IDS dan faol lidlarni yig'ish."""
         missions = []
         self.last_fetch_errors = []
-
-        # 1. Barcha voronkalarni olish
-        p_url = f"{self.amo.base_url}/api/v4/leads/pipelines"
         try:
-            p_res = requests.get(p_url, headers=self.amo._get_headers(), timeout=30)
-            if p_res.status_code == 401 and self.amo.refresh_token():
-                p_res = requests.get(p_url, headers=self.amo._get_headers(), timeout=30)
-
-            if p_res.status_code != 200:
-                logger.error(
-                    f"[MISSION CONTROL] Pipelines fetch failed: {p_res.status_code}"
-                )
-                return []
-
-            pipelines = p_res.json().get("_embedded", {}).get("pipelines", [])
-            for p in pipelines:
-                p_id = p.get("id")
-                p_name = p.get("name")
-
-                # 2. Har bir voronka uchun lidlarni olish
+            for p_id in ACTIVE_PIPELINE_IDS:
                 leads, error = await asyncio.to_thread(
-                    self._fetch_pipeline_leads_sync,
-                    p_name,
-                    p_id,
+                    self._fetch_pipeline_leads_sync, f"pipeline_{p_id}", p_id
                 )
                 if error:
                     self.last_fetch_errors.append(error)
                     continue
 
+                if p_id == REACTIVATION_PIPELINE_ID:
+                    leads = sorted(leads, key=lambda l: l.get("updated_at", 0))[:REACTIVATION_DAILY_LIMIT]
+
                 for lead in leads:
-                    # Won (142) va Lost (143) bo'lmagan barcha lidlar aktiv
                     if lead.get("status_id") in [142, 143]:
                         continue
-
                     lead_id = lead["id"]
-
-                    # --- SURGICAL MISSION LOGIC ---
+                    p_name = f"pipeline_{p_id}"
                     surgical_mission = None
 
-                    # 1. AmoCRM-dan mavjud vazifalarni tekshirish
                     try:
-                        tasks_url = f"{self.amo.base_url}/api/v4/tasks?filter[entity_id]={lead_id}&filter[entity_type]=leads&filter[is_completed]=0"
-                        t_res = requests.get(
-                            tasks_url, headers=self.amo._get_headers(), timeout=10
+                        tasks_url = (
+                            f"{self.amo.base_url}/api/v4/tasks"
+                            f"?filter[entity_id]={lead_id}&filter[entity_type]=leads&filter[is_completed]=0"
                         )
+                        t_res = requests.get(tasks_url, headers=self.amo._get_headers(), timeout=10)
                         if t_res.status_code == 200:
                             tasks = t_res.json().get("_embedded", {}).get("tasks", [])
                             if tasks:
-                                # Oxirgi vazifani mission sifatida ishlatish (agar u AI tomonidan yaratilgan bo'lsa juda yaxshi)
                                 surgical_mission = tasks[0].get("text")
                     except Exception as te:
-                        logger.warning(
-                            f"[MISSION CONTROL] Task fetch error for {lead_id}: {te}"
-                        )
+                        logger.warning("[MISSION CONTROL] Task fetch error for %s: %s", lead_id, te)
 
-                    # 2. Agar vazifa bo'lmasa, Chat Summary va AI orqali generatsiya qilish
                     if not surgical_mission:
                         try:
-                            # 1. Pipeline role aniqlash
                             role = self.get_pipeline_role(p_id)
-
-                            # 2. Telefon raqami orqali DB dan xulosani topish
                             phone = self.amo.get_lead_phone(lead_id)
-                            user_id = None
                             summary = None
-
                             if phone:
                                 user_info = await self.db.get_user_by_phone(phone)
                                 if user_info:
-                                    user_id = user_info.get("user_id")
-                                    summary = await self.db.get_chat_summary(user_id)
-
-                            # NegotiationEngine orqali mission generatsiya qilish
+                                    summary = await self.db.get_chat_summary(user_info.get("user_id"))
                             assessment = NegotiationEngine.assess(
                                 message=summary or "Yangi lead", crm_status=p_name
                             )
-                            surgical_mission = (
-                                await NegotiationEngine.generate_surgical_mission(
-                                    assessment=assessment,
-                                    summary=summary,
-                                    pipeline_name=p_name,
-                                    role=role,
-                                )
+                            surgical_mission = await NegotiationEngine.generate_surgical_mission(
+                                assessment=assessment,
+                                summary=summary,
+                                pipeline_name=p_name,
+                                role=role,
                             )
                         except Exception as ae:
-                            logger.warning(
-                                f"[MISSION CONTROL] AI mission generation failed for {lead_id}: {ae}"
-                            )
-                            surgical_mission = (
-                                f"Bitimni keyingi bosqichga o'tkazing ({p_name})"
-                            )
+                            logger.warning("[MISSION CONTROL] AI mission failed for %s: %s", lead_id, ae)
+                            surgical_mission = f"Bitimni keyingi bosqichga o'tkazing ({p_name})"
 
-                    missions.append(
-                        {
-                            "lead_id": lead_id,
-                            "lead_name": lead["name"],
-                            "mission": surgical_mission,
-                            "pipeline": p_name,
-                            "role": self.get_pipeline_role(p_id),
-                            "link": f"https://{settings.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead_id}",
-                        }
-                    )
+                    missions.append({
+                        "lead_id": lead_id,
+                        "lead_name": lead["name"],
+                        "mission": surgical_mission,
+                        "pipeline": p_name,
+                        "pipeline_id": p_id,
+                        "role": self.get_pipeline_role(p_id),
+                        "link": f"https://{settings.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead_id}",
+                    })
         except Exception as e:
-            logger.error(f"[MISSION CONTROL] Universal fetch error: {e}")
+            logger.error("[MISSION CONTROL] Universal fetch error: %s", e)
             self.last_fetch_errors.append(str(e))
 
         if not missions and self.last_fetch_errors:
@@ -196,27 +144,19 @@ class MissionControl:
                 "AmoCRM pipeline fetch failed; pipeline holati noaniq. "
                 + " | ".join(self.last_fetch_errors)
             )
-
-        return missions
-
         return missions
 
     async def distribute_missions(self, managers):
-        """Vazifalarni menejerlar o'rtasida bo'lib berish va bazada saqlash."""
         missions = await self.get_active_missions()
         if not missions:
             return {}
-
         distribution = {m["id"]: [] for m in managers}
         manager_ids = [m["id"] for m in managers]
-
         if not manager_ids:
             return {}
-
         for index, mission in enumerate(missions):
             manager_id = manager_ids[index % len(manager_ids)]
             distribution[manager_id].append(mission)
-
             await self.db.save_daily_plan(
                 manager_id=manager_id,
                 lead_id=mission["lead_id"],
@@ -224,37 +164,23 @@ class MissionControl:
                 mission=mission["mission"],
                 source_pipeline=mission.get("role", "HUNTER"),
             )
-
         return distribution
 
     async def get_manager_list(self):
-        """Settings va DB dan faol menejerlarni olish."""
-        manager_ids = (
-            list(settings.SALES_MANAGER_IDS)
-            if hasattr(settings, "SALES_MANAGER_IDS")
-            else []
-        )
-
+        manager_ids = list(settings.SALES_MANAGER_IDS) if hasattr(settings, "SALES_MANAGER_IDS") else []
         managers_data = self.db.get_state("sales_managers", "")
         if managers_data:
-            db_ids = [int(i) for i in managers_data.split(",") if i]
-            for db_id in db_ids:
+            for db_id in [int(i) for i in managers_data.split(",") if i]:
                 if db_id not in manager_ids:
                     manager_ids.append(db_id)
-
-        if manager_ids:
-            return [{"id": mid, "name": f"Manager_{mid}"} for mid in manager_ids]
-
-        return []
+        return [{"id": mid, "name": f"Manager_{mid}"} for mid in manager_ids]
 
 
 if __name__ == "__main__":
-
     async def test():
-        mission_control = MissionControl()
-        missions = await mission_control.get_active_missions()
-        print(f"Total missions found: {len(missions)}")
+        mc = MissionControl()
+        missions = await mc.get_active_missions()
+        print(f"Total missions: {len(missions)}")
         if missions:
             print(json.dumps(missions[:2], indent=2))
-
     asyncio.run(test())
