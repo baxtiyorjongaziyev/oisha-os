@@ -2572,6 +2572,52 @@ async def self_command_handler(event):
             logger.error(f"[COMMAND] /contacts_reset error: {e}", exc_info=True)
             await event.respond(f"❌ **Tozalashda xatolik yuz berdi:** {str(e)}")
 
+    # ── ERP KOMANDALAR ─────────────────────────────────────────────────────
+    elif cmd.startswith("/erp") or cmd.startswith("/moliya") or cmd.startswith("/jamoa") \
+            or cmd.startswith("/loyihalar") or cmd.startswith("/loyiha_qosh") \
+            or cmd.startswith("/xarajat"):
+        try:
+            from src.services.core.erp_handlers import (
+                cmd_erp_holat, cmd_moliya, cmd_jamoa, cmd_loyihalar,
+                cmd_erp_salomatlik, cmd_qo_shish_loyiha, cmd_xarajat_qosh,
+            )
+            db = msg_controller.db
+
+            if cmd.startswith("/erp_holat"):
+                await cmd_erp_holat(event, db)
+            elif cmd.startswith("/erp_salomatlik"):
+                await cmd_erp_salomatlik(event, db)
+            elif cmd.startswith("/moliya"):
+                parts = cmd.split()
+                period = parts[1] if len(parts) > 1 else None
+                await cmd_moliya(event, db, period)
+            elif cmd.startswith("/jamoa"):
+                parts = cmd.split()
+                period = parts[1] if len(parts) > 1 else None
+                await cmd_jamoa(event, db, period)
+            elif cmd.startswith("/loyiha_qosh"):
+                # /loyiha_qosh Sarlavha | Mijoz | 5000000 | 2025-07-01
+                args = cmd[len("/loyiha_qosh"):].strip().split("|")
+                if len(args) >= 4:
+                    await cmd_qo_shish_loyiha(event, db, args[0].strip(), args[1].strip(),
+                                              int(args[2].strip()), args[3].strip())
+                else:
+                    await event.respond("❌ Format: /loyiha_qosh Sarlavha | Mijoz | Byudjet | Muddat")
+            elif cmd.startswith("/xarajat"):
+                # /xarajat kategoriya | tavsif | miqdor
+                args = cmd[len("/xarajat"):].strip().split("|")
+                if len(args) >= 3:
+                    await cmd_xarajat_qosh(event, db, args[0].strip(), args[1].strip(), int(args[2].strip()))
+                else:
+                    await event.respond("❌ Format: /xarajat kategoriya | tavsif | miqdor")
+            elif cmd.startswith("/loyihalar"):
+                await cmd_loyihalar(event, db)
+            elif cmd.startswith("/erp"):
+                await cmd_erp_holat(event, db)
+        except Exception as e:
+            logger.error(f"[ERP COMMAND] {cmd} error: {e}", exc_info=True)
+            await event.respond(f"❌ ERP xatolik: {e}")
+
 
 async def activity_monitor_handler(event):
     """Log outgoing activities for auditing."""
