@@ -1,0 +1,15 @@
+# gitleaks configuration for oisha-os
+# Extends the default ruleset and allowlists known non-secret identifiers.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Non-secret identifiers (not credentials)"
+# Airtable BASE IDs are public identifiers that appear in Airtable URLs.
+# They are not credentials on their own; the actual AIRTABLE_API_KEY is
+# always injected from GitHub secrets. Without this, the default
+# "airtable-api-key" rule flags the base id (app...) as a secret.
+regexes = [
+  '''app8xoyx1XCumYFXV''',
+]
