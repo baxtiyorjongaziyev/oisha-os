@@ -3247,6 +3247,20 @@ async def main():
             amocrm=msg_controller.crm.amocrm,
             db=msg_controller.db,
         )
+
+        # Qo'ng'iroq tahlili → Telegram tasdiqlash flow ulash
+        try:
+            from src.services.core.crm_note_approval import CRMNoteApprovalService
+            _owner_tg_id = getattr(config, "OWNER_ID", None)
+            if _owner_tg_id:
+                call_analyzer.approval_service = CRMNoteApprovalService(
+                    amocrm_client=msg_controller.crm.amocrm,
+                    owner_telegram_id=int(_owner_tg_id),
+                    bot_client=client,
+                )
+                logger.info("[CALL] CRM note approval service ulandi (owner: %s)", _owner_tg_id)
+        except Exception as _ap_exc:
+            logger.warning("[CALL] Approval service ulanmadi: %s", _ap_exc)
         ambassador_manager = AmbassadorJourneyManager(
             amocrm=msg_controller.crm.amocrm,
             db=msg_controller.db,
