@@ -962,10 +962,30 @@ class CallAnalyzer:
             )
 
             if write:
-                try:
-                    await asyncio.to_thread(self.amocrm.add_lead_note, lead_id, note_text)
-                except Exception as exc:
-                    logger.error("[CALL] Failed to add note to lead %s: %s", lead_id, exc)
+                # Telegram approval flow — agar approval_service ulangan bo'lsa
+                approval_service = getattr(self, "approval_service", None)
+                if approval_service:
+                    lead_name = str(lead_id)
+                    try:
+                        lead_info = await _maybe_await(self.amocrm.get_lead(lead_id))
+                        if lead_info:
+                            lead_name = lead_info.get("name") or str(lead_id)
+                    except Exception:
+                        pass
+                    await approval_service.send_for_approval(
+                        lead_id=lead_id,
+                        lead_name=lead_name,
+                        phone=phone,
+                        call_id=call_id,
+                        analysis=analysis,
+                        note_text=note_text,
+                        call_duration=duration,
+                    )
+                else:
+                    try:
+                        await asyncio.to_thread(self.amocrm.add_lead_note, lead_id, note_text)
+                    except Exception as exc:
+                        logger.error("[CALL] Failed to add note to lead %s: %s", lead_id, exc)
 
                 try:
                     await _maybe_await(self.amocrm.add_lead_tag(lead_id, category))
