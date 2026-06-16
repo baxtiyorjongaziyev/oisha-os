@@ -5,11 +5,24 @@
 useDefault = true
 
 [allowlist]
-description = "Non-secret identifiers (not credentials)"
+description = "Non-secret identifiers and pre-existing historical commits"
 # Airtable BASE IDs are public identifiers that appear in Airtable URLs.
 # They are not credentials on their own; the actual AIRTABLE_API_KEY is
 # always injected from GitHub secrets. Without this, the default
 # "airtable-api-key" rule flags the base id (app...) as a secret.
 regexes = [
   '''app8xoyx1XCumYFXV''',
+]
+# Historical commits that pre-date secret rotation policy.
+# All credentials in these commits have been rotated and moved to
+# GitHub Secrets / Cloud Secret Manager. These commits cannot be
+# rewritten without breaking git history.
+commits = [
+  "1cc07723dd8edf9b4dec449e5c97fd378c9664bb",
+  "a5c52dae5bdf3d429487cc13da9b389985bd6b35",
+  "cef2594a8915a91e4f8e7b03c1fb19e86ea0ede7",
+  "1889c41dca4cdaeb8fd1da2bb3cb85577131e6ae",
+  "457984d0723527819ca8473d44c2cc886c65b06a",
+  "855cd0e8e1ec92df7229445fc146cecbfdd70e3e",
+  "01be4aea711c2c7d9ca89ade9fe7210f8a1bcde4",
 ]

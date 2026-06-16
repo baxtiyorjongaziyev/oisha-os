@@ -89,6 +89,11 @@ recent_logs.txt
 sync_output.txt
 airtable_scan.txt
 
+# Data exports & PII (never commit — leads/contacts live in the DB/CRM)
+data/csv/
+data/*.csv
+data/*.tar
+
 # Temp & Artifacts
 tmp/
 scratch/

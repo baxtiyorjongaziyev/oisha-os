@@ -27,12 +27,20 @@ CATEGORY_EMOJI = {
 _pending: Dict[str, Dict[str, Any]] = {}
 
 
+def _safe_call_id(call_id: str, prefix: str, lead_id: int) -> str:
+    """Telegram callback_data is limited to 64 bytes."""
+    max_id_len = 64 - len(prefix) - len(str(lead_id)) - 2
+    return call_id[:max_id_len]
+
+
 def _approval_key(lead_id: int, call_id: str) -> str:
-    return f"crm_approve:{lead_id}:{call_id}"
+    prefix = "crm_approve"
+    return f"{prefix}:{lead_id}:{_safe_call_id(call_id, prefix, lead_id)}"
 
 
 def _edit_key(lead_id: int, call_id: str) -> str:
-    return f"crm_edit:{lead_id}:{call_id}"
+    prefix = "crm_edit"
+    return f"{prefix}:{lead_id}:{_safe_call_id(call_id, prefix, lead_id)}"
 
 
 def format_approval_message(

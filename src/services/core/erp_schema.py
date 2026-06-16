@@ -96,6 +96,10 @@ class ERPSnapshot:
     active_projects: int
     active_employees: int
     top_expenses: list[dict] = field(default_factory=list)
+    overdue_projects: int = 0
+    pipeline_value: int = 0
+    payroll_cost: int = 0
+    cash_flow_status: str = "noaniq"
 
 
 _CREATE_EMPLOYEES = """
