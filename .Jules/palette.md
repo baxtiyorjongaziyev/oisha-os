@@ -56,3 +56,6 @@
 ## 2024-10-25 - Custom Dropdown Accessibility Pattern
 **Learning:** Custom UI dropdowns frequently lack native semantic structure. Wrapping loosely grouped `<button>` items in `<ul>`/`<li>` tags combined with `aria-labelledby` pointing to the trigger button's ID instantly transforms them into screen-reader-friendly menus. Furthermore, adding visual anchors (like an inline checkmark) for the `aria-current` item drastically improves scannability.
 **Action:** Always wrap custom dropdown list items in `<ul>` and `<li>`, link them to their trigger via `aria-labelledby`, and ensure each option has robust `focus-visible:ring` styles rather than relying exclusively on hover states.
+## 2026-06-16 - Screen Reader Support for Collapsed Sidebars
+**Learning:** When collapsing UI elements (like sidebars) to leave only icons visible, conditionally removing the text nodes entirely from the DOM prevents screen readers from providing context for the icons.
+**Action:** Use utility classes like `sr-only` to visually hide the text while keeping it in the DOM, ensuring screen readers still announce the labels.

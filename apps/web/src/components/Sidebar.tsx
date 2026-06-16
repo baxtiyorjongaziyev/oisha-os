@@ -105,11 +105,9 @@ export default function Sidebar() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand font-display text-lg font-bold text-white shadow-lg shadow-brand/20">
             M
           </div>
-          {sidebarOpen && (
-            <span className="font-display text-lg font-bold text-text tracking-wide animate-fade-in">
-              Metasell
-            </span>
-          )}
+          <span className={sidebarOpen ? "font-display text-lg font-bold text-text tracking-wide animate-fade-in" : "sr-only"}>
+            Metasell
+          </span>
         </Link>
       </div>
 
@@ -129,7 +127,7 @@ export default function Sidebar() {
                   }`}
                 >
                   <div className="shrink-0">{item.icon}</div>
-                  {sidebarOpen && <span className="animate-fade-in">{item.name}</span>}
+                  <span className={sidebarOpen ? "animate-fade-in" : "sr-only"}>{item.name}</span>
 
                   {/* Badge count for alerts */}
                   {item.badgeKey && alertsCount > 0 && (
