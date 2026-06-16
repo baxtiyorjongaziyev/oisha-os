@@ -3063,11 +3063,11 @@ async def erp_dashboard(period: Optional[str] = Query(None, description="YYYY-MM
         return JSONResponse({
             "period": period or get_local_now().strftime("%Y-%m"),
             "snapshot": {
-                "monthly_revenue": snapshot.monthly_revenue,
+                "monthly_revenue": snapshot.total_revenue,
                 "outstanding_invoices": snapshot.outstanding_invoices,
-                "monthly_expenses": snapshot.monthly_expenses,
+                "monthly_expenses": snapshot.total_expenses,
                 "net_profit": snapshot.net_profit,
-                "total_employees": snapshot.total_employees,
+                "total_employees": snapshot.active_employees,
                 "active_projects": snapshot.active_projects,
                 "overdue_projects": snapshot.overdue_projects,
                 "pipeline_value": snapshot.pipeline_value,
