@@ -60,6 +60,7 @@ FARMER_STATUSES: tuple[DesiredStatus, ...] = (
 
 CLOSER_TO_SALES_STATUS_NAME = {
     "Konsultatsiya o'tdi": "Konsultatsiya o'tdi",
+    "Konsultatsiya o‘tdi": "Konsultatsiya o'tdi",
     "Brief / Ehtiyoj aniqlandi": "Brief / Ehtiyoj aniqlandi",
     "Prezentatsiya & KP": "Prezentatsiya & KP",
     "Follow-up / Qaror kutilyapti": "Follow-up / Qaror kutilyapti",

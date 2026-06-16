@@ -3050,5 +3050,111 @@ async def background_crm_audit_task():
         await asyncio.sleep(900)  # 15 minutes
 
 
+# ── ERP API ENDPOINTS ──────────────────────────────────────────────────────
+
+@app.get("/api/erp/dashboard")
+async def erp_dashboard(period: Optional[str] = Query(None, description="YYYY-MM format")):
+    """ERP umumiy dashboard — barcha ko'rsatkichlar."""
+    try:
+        from src.services.core.erp_dashboard import ERPDashboard
+        dashboard_engine = ERPDashboard(db_instance)
+        snapshot = await dashboard_engine.get_snapshot(period)
+        health = await dashboard_engine.get_health_score()
+        return JSONResponse({
+            "period": period or get_local_now().strftime("%Y-%m"),
+            "snapshot": {
+                "monthly_revenue": snapshot.monthly_revenue,
+                "outstanding_invoices": snapshot.outstanding_invoices,
+                "monthly_expenses": snapshot.monthly_expenses,
+                "net_profit": snapshot.net_profit,
+                "total_employees": snapshot.total_employees,
+                "active_projects": snapshot.active_projects,
+                "overdue_projects": snapshot.overdue_projects,
+                "pipeline_value": snapshot.pipeline_value,
+                "payroll_cost": snapshot.payroll_cost,
+                "cash_flow_status": snapshot.cash_flow_status,
+            },
+            "health": health,
+            "generated_at": get_local_now().isoformat(),
+        })
+    except Exception as e:
+        logger.error("[ERP] Dashboard error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/erp/finance")
+async def erp_finance(period: Optional[str] = Query(None)):
+    """Moliya hisoboti — daromad, xarajat, avanslar."""
+    try:
+        from src.services.core.finance_engine import FinanceEngine
+        engine = FinanceEngine(db_instance)
+        p = period or get_local_now().strftime("%Y-%m")
+        cash_flow = await engine.get_cash_flow_summary(p)
+        breakdown = await engine.get_expense_breakdown(p)
+        outstanding = await engine.get_outstanding_invoices()
+        advances = await engine.get_advance_summary()
+        return JSONResponse({
+            "period": p,
+            "cash_flow": cash_flow,
+            "expense_breakdown": breakdown,
+            "outstanding_invoices": outstanding,
+            "advances": advances,
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/erp/hr")
+async def erp_hr(period: Optional[str] = Query(None)):
+    """HR — jamoa, KPI, maoshlar."""
+    try:
+        from src.services.core.hr_engine import HREngine
+        engine = HREngine(db_instance)
+        p = period or get_local_now().strftime("%Y-%m")
+        summary = await engine.get_team_summary()
+        kpi = await engine.get_kpi_report(p)
+        employees = await engine.get_all_employees()
+        return JSONResponse({
+            "period": p,
+            "summary": summary,
+            "kpi_leaderboard": kpi,
+            "employees": employees,
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/erp/projects")
+async def erp_projects():
+    """Faol loyihalar va statistika."""
+    try:
+        from src.services.core.project_engine import ProjectEngine
+        engine = ProjectEngine(db_instance)
+        stats = await engine.get_project_stats()
+        active = await engine.get_active_projects()
+        overdue = await engine.get_overdue_projects()
+        return JSONResponse({
+            "stats": stats,
+            "active_projects": active,
+            "overdue_projects": overdue,
+            "generated_at": get_local_now().isoformat(),
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/erp/health")
+async def erp_health():
+    """ERP sog'liqlik balli va tavsiyalar."""
+    try:
+        from src.services.core.erp_dashboard import ERPDashboard
+        dashboard_engine = ERPDashboard(db_instance)
+        health = await dashboard_engine.get_health_score()
+        quick = await dashboard_engine.format_quick_status()
+        return JSONResponse({"health": health, "quick_status": quick})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     run_api()

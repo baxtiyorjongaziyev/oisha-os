@@ -2572,6 +2572,85 @@ async def self_command_handler(event):
             logger.error(f"[COMMAND] /contacts_reset error: {e}", exc_info=True)
             await event.respond(f"❌ **Tozalashda xatolik yuz berdi:** {str(e)}")
 
+    # ── ERP KOMANDALAR ─────────────────────────────────────────────────────
+    elif cmd.startswith("/erp") or cmd.startswith("/moliya") or cmd.startswith("/jamoa") \
+            or cmd.startswith("/loyihalar") or cmd.startswith("/loyiha_qosh") \
+            or cmd.startswith("/xarajat"):
+        try:
+            from src.services.core.erp_handlers import (
+                cmd_erp_holat, cmd_moliya, cmd_jamoa, cmd_loyihalar,
+                cmd_erp_salomatlik, cmd_qo_shish_loyiha, cmd_xarajat_qosh,
+            )
+            db = msg_controller.db
+
+            if cmd.startswith("/erp_holat"):
+                await cmd_erp_holat(event, db)
+            elif cmd.startswith("/erp_salomatlik"):
+                await cmd_erp_salomatlik(event, db)
+            elif cmd.startswith("/moliya"):
+                parts = cmd.split()
+                period = parts[1] if len(parts) > 1 else None
+                await cmd_moliya(event, db, period)
+            elif cmd.startswith("/jamoa"):
+                parts = cmd.split()
+                period = parts[1] if len(parts) > 1 else None
+                await cmd_jamoa(event, db, period)
+            elif cmd.startswith("/loyiha_qosh"):
+                # /loyiha_qosh Sarlavha | Mijoz | 5000000 | 2025-07-01
+                args = cmd[len("/loyiha_qosh"):].strip().split("|")
+                if len(args) >= 4:
+                    await cmd_qo_shish_loyiha(event, db, args[0].strip(), args[1].strip(),
+                                              int(args[2].strip()), args[3].strip())
+                else:
+                    await event.respond("❌ Format: /loyiha_qosh Sarlavha | Mijoz | Byudjet | Muddat")
+            elif cmd.startswith("/xarajat"):
+                # /xarajat kategoriya | tavsif | miqdor
+                args = cmd[len("/xarajat"):].strip().split("|")
+                if len(args) >= 3:
+                    await cmd_xarajat_qosh(event, db, args[0].strip(), args[1].strip(), int(args[2].strip()))
+                else:
+                    await event.respond("❌ Format: /xarajat kategoriya | tavsif | miqdor")
+            elif cmd.startswith("/loyihalar"):
+                await cmd_loyihalar(event, db)
+            elif cmd.startswith("/erp"):
+                await cmd_erp_holat(event, db)
+        except Exception as e:
+            logger.error(f"[ERP COMMAND] {cmd} error: {e}", exc_info=True)
+            await event.respond(f"❌ ERP xatolik: {e}")
+
+    # ── TAHLIL KOMANDA ─────────────────────────────────────────────────────
+    elif cmd.startswith("/tahlil"):
+        await event.respond("⏳ So'nggi qo'ng'iroqlar tahlil qilinmoqda...")
+        try:
+            from src.services.core.call_analyzer import CallAnalyzer
+            from src.services.core.crm_note_approval import CRMNoteApprovalService
+            parts = cmd.split()
+            limit = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 3
+            analyzer = CallAnalyzer(
+                amocrm=msg_controller.crm.amocrm,
+                db=msg_controller.db,
+            )
+            owner_id = getattr(settings, "OWNER_ID", None)
+            if owner_id:
+                analyzer.approval_service = CRMNoteApprovalService(
+                    amocrm_client=msg_controller.crm.amocrm,
+                    owner_telegram_id=int(owner_id),
+                    bot_client=client,
+                )
+            result = await analyzer.analyze_recent_calls(limit=limit, write=True)
+            if isinstance(result, dict):
+                analyzed = result.get("analyzed", 0)
+                total = result.get("total", 0)
+                await event.respond(
+                    f"✅ {analyzed}/{total} qo'ng'iroq tahlil qilindi.\n"
+                    f"Tasdiqlash so'rovlari yuborildi — ✅ yoki ✏️ bosing."
+                )
+            else:
+                await event.respond(f"✅ Tahlil tugadi: {result}")
+        except Exception as e:
+            logger.error(f"[COMMAND] /tahlil error: {e}", exc_info=True)
+            await event.respond(f"❌ Tahlil xatoligi: {e}")
+
 
 async def activity_monitor_handler(event):
     """Log outgoing activities for auditing."""
@@ -2579,6 +2658,18 @@ async def activity_monitor_handler(event):
         return
     if activity_monitor:
         await activity_monitor.log_event(event)
+
+
+async def crm_note_callback_handler(event):
+    """CRM note tasdiqlash/tahrirlash inline tugmalari uchun callback handler."""
+    try:
+        data = event.data.decode("utf-8") if isinstance(event.data, bytes) else event.data
+        if not (data.startswith("crm_approve:") or data.startswith("crm_edit:")):
+            return
+        from src.services.core.crm_note_approval import handle_callback
+        await handle_callback(data, event)
+    except Exception as e:
+        logger.error(f"[CRM_CALLBACK] Xatolik: {e}", exc_info=True)
 
 
 async def meeting_scheduler_handler(event):
@@ -3201,6 +3292,20 @@ async def main():
             amocrm=msg_controller.crm.amocrm,
             db=msg_controller.db,
         )
+
+        # Qo'ng'iroq tahlili → Telegram tasdiqlash flow ulash
+        try:
+            from src.services.core.crm_note_approval import CRMNoteApprovalService
+            _owner_tg_id = getattr(config, "OWNER_ID", None)
+            if _owner_tg_id:
+                call_analyzer.approval_service = CRMNoteApprovalService(
+                    amocrm_client=msg_controller.crm.amocrm,
+                    owner_telegram_id=int(_owner_tg_id),
+                    bot_client=client,
+                )
+                logger.info("[CALL] CRM note approval service ulandi (owner: %s)", _owner_tg_id)
+        except Exception as _ap_exc:
+            logger.warning("[CALL] Approval service ulanmadi: %s", _ap_exc)
         ambassador_manager = AmbassadorJourneyManager(
             amocrm=msg_controller.crm.amocrm,
             db=msg_controller.db,
@@ -3415,6 +3520,14 @@ async def main():
     api_module.db_instance = msg_controller.db
     api_module.msg_controller = msg_controller
     api_module.action_parser = action_parser
+
+    # ERP jadvallarini ishga tushirishda initsializatsiya qil
+    try:
+        from src.services.core.erp_schema import init_erp_tables
+        await init_erp_tables(msg_controller.db)
+        logger.info("[ERP] Jadvallar tayyor")
+    except Exception as _erp_exc:
+        logger.warning("[ERP] Init xatosi (ishlashga ta'sir etmaydi): %s", _erp_exc)
 
     api_module.set_runtime_context(
         service_name=os.getenv("K_SERVICE") or "oisha-main",
@@ -3648,6 +3761,10 @@ async def main():
     client.add_event_handler(
         self_command_handler,
         events.NewMessage(chats="me"),
+    )
+    client.add_event_handler(
+        crm_note_callback_handler,
+        events.CallbackQuery(pattern=b"crm_"),
     )
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
