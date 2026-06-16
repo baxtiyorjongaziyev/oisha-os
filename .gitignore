@@ -135,3 +135,4 @@ ai_response_last.txt
 __pycache__/
 *.pyc
 *.pyo
+apps/web/.next
