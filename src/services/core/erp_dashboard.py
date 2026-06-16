@@ -131,11 +131,10 @@ class ERPDashboard:
             top_expenses=top_expenses,
         )
 
-        # Extra attributes consumed by other dashboard methods
-        snapshot.overdue_projects = overdue_projects          # type: ignore[attr-defined]
-        snapshot.pipeline_value = pipeline_value              # type: ignore[attr-defined]
-        snapshot.payroll_cost = payroll_cost                  # type: ignore[attr-defined]
-        snapshot.cash_flow_status = cash_flow_status          # type: ignore[attr-defined]
+        snapshot.overdue_projects = overdue_projects
+        snapshot.pipeline_value = pipeline_value
+        snapshot.payroll_cost = payroll_cost
+        snapshot.cash_flow_status = cash_flow_status
 
         return snapshot
 
