@@ -12,4 +12,9 @@ description = "Non-secret identifiers (not credentials)"
 # "airtable-api-key" rule flags the base id (app...) as a secret.
 regexes = [
   '''app8xoyx1XCumYFXV''',
+  '''API_HASH = os\.environ\["API_HASH"\]''',
+]
+paths = [
+  '''apps/web/\.next/.*''',
+  '''scripts/generate_session_string\.py''',
 ]
