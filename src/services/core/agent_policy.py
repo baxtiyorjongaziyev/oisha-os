@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict
 
 from src.database import Database
-from src.time_utils import get_local_now, is_quiet_hours
+from src.time_utils import get_local_now, is_quiet_hours, is_sunday
 
 CLIENT_FACING_KINDS = {
     "autonomous_negotiation",
@@ -110,6 +110,10 @@ class AgentPolicyEngine:
             "sensitive_terms": sensitive_terms,
             "evaluated_at": now.isoformat(),
         }
+
+        # Yakshanba kuni hech qanday avtomat harakat yo'q
+        if is_sunday(now) and requested_by not in {"manual", "owner"} and not manual_override:
+            return PolicyDecision(False, "sunday_block", checks=checks)
 
         if (
             not auto_actions_enabled

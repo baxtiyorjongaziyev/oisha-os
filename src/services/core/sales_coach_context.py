@@ -1,13 +1,17 @@
 """Jon Branding — SalesCoach markaziy kontekst."""
 from __future__ import annotations
 
+# --- Biznes profili ---
 COMPANY_NAME = "Jon Branding Agency"
 SERVICE_DIRECTIONS = [
     "naming", "logo", "brandbook", "packaging", "website",
     "social_media", "trademark_patent", "corporate_identity",
 ]
+
+# --- Ideal Customer Profile ---
 ICP_SEGMENTS = ["ishlab_chiqaruvchi", "retail", "KOB", "startup"]
 
+# --- Rollar ---
 SALES_ROLES = {
     "hunter": {
         "name": "Hunter",
@@ -35,6 +39,7 @@ SALES_ROLES = {
     },
 }
 
+# --- Qualification maydonlari (5 ta) ---
 QUALIFICATION_FIELDS = [
     {"key": "budget", "question": "Byudjet qancha?", "required": True},
     {"key": "timeline", "question": "Qachon kerak?", "required": True},
@@ -43,6 +48,7 @@ QUALIFICATION_FIELDS = [
     {"key": "competitors", "question": "Raqobatchilar bilan ko'rib chiqyapsizmi?", "required": False},
 ]
 
+# --- Asosiy e'tirozlar (4 ta) ---
 MAIN_OBJECTIONS = [
     {
         "trigger": ["qimmat", "narx baland", "qo'lda yo'q", "budget yo'q"],
@@ -66,6 +72,7 @@ MAIN_OBJECTIONS = [
     },
 ]
 
+# --- Qizil chiziqlar ---
 RED_LINES = [
     "Chegirma so'rash (30%+ dan ko'p)",
     "Boshlang'ich to'lovsiz ishni boshlash",
@@ -74,6 +81,7 @@ RED_LINES = [
     "Potentsial mijozni 2+ hafta javobi yo'q holda kuzatish",
 ]
 
+# --- SalesCoach prompt template ---
 SALES_COACH_SYSTEM_PROMPT = """
 Sen {company} uchun professional SalesCoach AI-san.
 Qo'ng'iroq yoki suhbat transkriptini tahlil qilib, quyidagi formatda JSON qaytarasan:
@@ -89,10 +97,14 @@ Qo'ng'iroq yoki suhbat transkriptini tahlil qilib, quyidagi formatda JSON qaytar
 }}
 
 Faqat JSON qaytargin — boshqa matn yo'q.
-""".format(company=COMPANY_NAME, services=", ".join(SERVICE_DIRECTIONS))
+""".format(
+    company=COMPANY_NAME,
+    services=", ".join(SERVICE_DIRECTIONS),
+)
 
 
 def get_role_for_stage(stage_name: str) -> str:
+    """Amo bosqich nomiga qarab sotuvchi rolini aniqlash."""
     for role_key, role_data in SALES_ROLES.items():
         if stage_name in role_data["amo_stages"]:
             return role_key
@@ -100,8 +112,10 @@ def get_role_for_stage(stage_name: str) -> str:
 
 
 def detect_objections(text: str) -> list[str]:
+    """Matndagi e'tirozlarni aniqlash."""
     text_lower = text.lower()
-    return [
-        obj["type"] for obj in MAIN_OBJECTIONS
-        if any(trigger in text_lower for trigger in obj["trigger"])
-    ]
+    found = []
+    for obj in MAIN_OBJECTIONS:
+        if any(trigger in text_lower for trigger in obj["trigger"]):
+            found.append(obj["type"])
+    return found
