@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-async def _reply(message, text: str) -> None:
+async def _reply(message, text: str, parse_mode: str = "markdown") -> None:
     """Send *text* back to the user regardless of framework in use.
 
     Tries in order:
@@ -43,7 +43,10 @@ async def _reply(message, text: str) -> None:
         or getattr(message, "respond", None)
     )
     if callable(fn):
-        await fn(text)
+        try:
+            await fn(text, parse_mode=parse_mode)
+        except TypeError:
+            await fn(text)
     else:
         logger.warning("_reply: cannot find a send method on %r", type(message))
 
