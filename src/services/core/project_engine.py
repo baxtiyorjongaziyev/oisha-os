@@ -55,7 +55,7 @@ class ProjectEngine:
     """Manages project lifecycle, payments and reporting."""
 
     def __init__(self, db: Optional[DatabasePool] = None) -> None:
-        self._db = db or db_pool
+        self._db = db if isinstance(db, DatabasePool) else db_pool
 
     # ------------------------------------------------------------------
     # Project CRUD
