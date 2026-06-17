@@ -577,6 +577,32 @@ class CallAnalyzer:
                 "GAPIRISH NISBATI (hisoblangan):\n"
                 f"  Mijoz: {client_pct}%  |  Sotuvchi: {agent_pct}%\n"
                 "  Ideal: mijoz ≥55%, sotuvchi ≤45%.\n\n"
+                "JON BRANDING SOTUV RUBRIKASI (faqat Mijoz toifasida):\n"
+                "1. Salomlashish (ball: 0-100):\n"
+                "   - Menejer o'z ismini va 'Jon Branding' agentligini aniq aytdimi?\n"
+                "   - Mijoz bizni qayerdan topganini so'radimi?\n"
+                "   - Qo'ng'iroq maqsadini belgiladimi?\n\n"
+                "2. Ehtiyojlar (ball: 0-100):\n"
+                "   - Mijoz vaziyatini yetarli savollar bilan ochdimi?\n"
+                "   - Qaysi xizmat kerakligini aniqladimi?\n"
+                "   - Qaror beruvchi va resurs holatini aniqlastirdimi?\n\n"
+                "3. Qiymat (ball: 0-100):\n"
+                "   - Taklif mijoz ehtiyojiga bog'landimi?\n"
+                "   - Aniq biznes foyda ko'rsatildimi?\n"
+                "   - Mijozga mos format tavsiya qilindimi?\n\n"
+                "4. E'tirozlar (ball: 0-100, vaznli x2):\n"
+                "   - 'Qimmat' e'tiroziga narx tarkibi tushuntirildimi?\n"
+                "   - Muddat bo'yicha e'tirozni sifat bilan asosladimi?\n"
+                "   - Xizmat tarkibi bo'yicha to'liq tizim afzalliklari aytildimi?\n\n"
+                "5. Yakunlash (ball: 0-100, vaznli x2):\n"
+                "   - Brif yuborish yoki to'ldirish kelishildi mi?\n"
+                "   - Keyingi uchrashuv/qo'ng'iroq vaqti belgilandimi?\n"
+                "   - To'lov usuli va shartnoma tartibi kelishildimi?\n\n"
+                "6. Muloqot sifati (ball: 0-100):\n"
+                "   - Professional nutq va ohang saqlandi mi?\n"
+                "   - Mijozni bo'lmasdan tingladi mi?\n"
+                "   - Ma'lumotlar aniq va sodda yetkazildimi?\n\n"
+                "Agar toifa Mijoz emas (Shaxsiy, Oila, Jamoa, Boshqa) bo'lsa — rubrik_baholar uchun umumiy muloqot sifatiga qarab baholang.\n\n"
                 "Javobni faqat JSON formatida qaytaring:\n"
                 "{\n"
                 '  "summary": "2-4 gapda O\'zbekcha xulosa",\n'
@@ -585,7 +611,6 @@ class CallAnalyzer:
                 '  "next_steps": "Keyingi aniq qadamlar yoki N/A",\n'
                 f'  "client_talk_pct": {client_pct},\n'
                 f'  "agent_talk_pct": {agent_pct},\n'
-                '  "sifat_bahosi": <0-100: suhbat sifati — tinglash, savollar, etirazlar>,\n'
                 '  "lead_bahosi": <0-100: lead potensiali — qiziqish, byudjet, qaror qabul qilish>,\n'
                 '  "suhbat_oilasi": "Ehtiyoj aniqlash|Yechim taqdimoti|Narx muhokamasi|Follow-up|Shartnoma|Boshqa",\n'
                 '  "suhbat_domeni": "Savdo|Mijoz xizmati|Loyiha muhokamasi|Texnik|Boshqa",\n'
@@ -596,7 +621,15 @@ class CallAnalyzer:
                 '  "mijoz_kompaniya": "kompaniya nomi yoki N/A",\n'
                 '  "qaror_qabul_qiluvchi": "Ha|Yoq|Noaniq",\n'
                 '  "joylashuv": "shahar/viloyat yoki N/A",\n'
-                '  "mijoz_malumotlari": ["mijoz haqida muhim ma\'lumot 1", "muhim ma\'lumot 2"]\n'
+                '  "mijoz_malumotlari": ["mijoz haqida muhim ma\'lumot 1", "muhim ma\'lumot 2"],\n'
+                '  "rubrik_baholar": {\n'
+                '    "salomlashish": {"ball": <0-100>},\n'
+                '    "ehtiyojlar": {"ball": <0-100>},\n'
+                '    "qiymat": {"ball": <0-100>},\n'
+                '    "etirozlar": {"ball": <0-100>},\n'
+                '    "yakunlash": {"ball": <0-100>},\n'
+                '    "muloqot_sifati": {"ball": <0-100>}\n'
+                '  }\n'
                 "}\n\n"
                 f"Transkripsiya:\n{transcript}"
             )
@@ -679,6 +712,35 @@ class CallAnalyzer:
         if isinstance(mijoz_info, str):
             mijoz_info = [mijoz_info]
 
+        # --- Rubrik baholar ---
+        rubrik_raw = data.get("rubrik_baholar") or {}
+        if rubrik_raw and isinstance(rubrik_raw, dict):
+            def _stage(key: str) -> int:
+                s = rubrik_raw.get(key, {})
+                return _clamp_score(s.get("ball", 0) if isinstance(s, dict) else s)
+            s1 = _stage("salomlashish")
+            s2 = _stage("ehtiyojlar")
+            s3 = _stage("qiymat")
+            s4 = _stage("etirozlar")
+            s5 = _stage("yakunlash")
+            s6 = _stage("muloqot_sifati")
+            sifat_raw = (s1 * 1.0 + s2 * 1.5 + s3 * 1.5 + s4 * 2.0 + s5 * 2.0 + s6 * 1.0) / 9.0
+            sifat_bahosi = _clamp_score(round(sifat_raw))
+            rubrik_baholar = {
+                "salomlashish": s1,
+                "ehtiyojlar": s2,
+                "qiymat": s3,
+                "etirozlar": s4,
+                "yakunlash": s5,
+                "muloqot_sifati": s6,
+            }
+        else:
+            sifat_bahosi = _clamp_score(data.get("sifat_bahosi", 0))
+            rubrik_baholar = {
+                "salomlashish": 0, "ehtiyojlar": 0, "qiymat": 0,
+                "etirozlar": 0, "yakunlash": 0, "muloqot_sifati": 0,
+            }
+
         return {
             "summary": summary or _clip(transcript, 350),
             "category": _normalise_category(data.get("category")),
@@ -688,7 +750,7 @@ class CallAnalyzer:
             "agent_talk_pct": agent_pct,
             "talk_ratio_verdict": _talk_ratio_verdict(client_pct),
             # MetaSell-like extended fields
-            "sifat_bahosi": _clamp_score(data.get("sifat_bahosi", 0)),
+            "sifat_bahosi": sifat_bahosi,
             "lead_bahosi": _clamp_score(data.get("lead_bahosi", 0)),
             "suhbat_oilasi": str(data.get("suhbat_oilasi") or "Boshqa"),
             "suhbat_domeni": str(data.get("suhbat_domeni") or "Boshqa"),
@@ -700,6 +762,7 @@ class CallAnalyzer:
             "qaror_qabul_qiluvchi": str(data.get("qaror_qabul_qiluvchi") or "Noaniq"),
             "joylashuv": str(data.get("joylashuv") or "N/A"),
             "mijoz_malumotlari": list(mijoz_info),
+            "rubrik_baholar": rubrik_baholar,
         }
 
     def _fallback_analysis(self, transcript: str) -> Dict[str, Any]:
@@ -775,44 +838,134 @@ class CallAnalyzer:
             "qaror_qabul_qiluvchi": "Noaniq",
             "joylashuv": "N/A",
             "mijoz_malumotlari": [],
+            "rubrik_baholar": {
+                "salomlashish": 0, "ehtiyojlar": 0, "qiymat": 0,
+                "etirozlar": 0, "yakunlash": 0, "muloqot_sifati": 0,
+            },
         }
+
+    @staticmethod
+    def _score_bar(score: int) -> str:
+        """10-block score bar: filled=█, empty=░. E.g. 85/100 → ████████░░ 85/100"""
+        filled = round(max(0, min(100, score)) / 10)
+        return "█" * filled + "░" * (10 - filled) + f" {score}/100"
 
     def _build_amocrm_note(
         self,
-        category: str,
-        summary: str,
-        client_mood: str,
-        next_steps: str,
-        transcript_snippet: str,
+        analysis: Dict[str, Any],
+        transcript_snippet: str = "",
         caller_phone: str = "",
         call_id: str = "",
         duration_seconds: int = 0,
+        # legacy keyword args kept for back-compat (ignored, taken from analysis)
+        category: str = "",
+        summary: str = "",
+        client_mood: str = "",
+        next_steps: str = "",
         client_talk_pct: int = 0,
         agent_talk_pct: int = 0,
         talk_ratio_verdict: str = "",
     ) -> str:
-        phone_line = f"\nQo'ng'iroq raqami: {caller_phone}" if caller_phone else ""
-        call_line = f"\nCall ID: {call_id}" if call_id else ""
-        duration_line = f"\nDavomiylik: {duration_seconds}s" if duration_seconds else ""
-        ratio_line = ""
-        if client_talk_pct or agent_talk_pct:
-            ratio_line = (
-                f"\nGapirish nisbati: Mijoz {client_talk_pct}% | Sotuvchi {agent_talk_pct}%"
-                f"\n{talk_ratio_verdict}"
-            )
-        transcript = _clip(transcript_snippet, self.max_transcript_note_chars)
-        return (
-            f"[{ANALYSIS_MARKER}] Oisha-OS: Qo'ng'iroq tahlili\n"
-            f"Toifa: {category}\n"
-            f"Kayfiyat: {client_mood}"
-            f"{phone_line}"
-            f"{call_line}"
-            f"{duration_line}"
-            f"{ratio_line}\n\n"
-            f"Xulosa:\n{summary}\n\n"
-            f"Keyingi qadam:\n{next_steps}\n\n"
-            f"Transkripsiya (O'zbek):\n{transcript}"
-        ).strip()
+        """MetaSell Note 1 — Oisha AI tahlil natijasi."""
+        _summary = str(analysis.get("summary") or summary or "").strip()
+        _category = str(analysis.get("category") or category or "Boshqa")
+        _mood = str(analysis.get("client_mood") or client_mood or "Noaniq")
+        _next = str(analysis.get("next_steps") or next_steps or "N/A").strip() or "N/A"
+        _client_pct = int(analysis.get("client_talk_pct") or client_talk_pct or 0)
+        _agent_pct = int(analysis.get("agent_talk_pct") or agent_talk_pct or 0)
+        _talk_verdict = str(analysis.get("talk_ratio_verdict") or talk_ratio_verdict or "")
+        sifat = int(analysis.get("sifat_bahosi") or 0)
+        lead_b = int(analysis.get("lead_bahosi") or 0)
+        suhbat_oilasi = str(analysis.get("suhbat_oilasi") or "Boshqa")
+        suhbat_domeni = str(analysis.get("suhbat_domeni") or "Boshqa")
+        baholash = str(analysis.get("baholash_rejimi") or "Savdo playbook boyicha baholanadi")
+        mosligi = str(analysis.get("biznes_mosligi") or "Noaniq")
+        servis = str(analysis.get("servis_yonalishi") or "Boshqa")
+
+        rubrik = analysis.get("rubrik_baholar") or {}
+        r_salom = int(rubrik.get("salomlashish") or 0)
+        r_ehti = int(rubrik.get("ehtiyojlar") or 0)
+        r_qiy = int(rubrik.get("qiymat") or 0)
+        r_etir = int(rubrik.get("etirozlar") or 0)
+        r_yak = int(rubrik.get("yakunlash") or 0)
+        r_mul = int(rubrik.get("muloqot_sifati") or 0)
+
+        lines = [
+            f"[{ANALYSIS_MARKER}] Oisha AI tahlil natijasi",
+            "",
+            _summary,
+            "",
+            f"Sifat bahosi: {sifat}/100  {self._score_bar(sifat)}",
+            f"Lead bahosi: {lead_b}/100  {self._score_bar(lead_b)}",
+            f"Suhbat oilasi: {suhbat_oilasi}",
+            f"Suhbat domeni: {suhbat_domeni}",
+            f"Baholash rejimi: {baholash}",
+            f"Biznes mosligi: {mosligi}",
+            f"Servis yo'nalishi: {servis}",
+            f"Kayfiyat: {_mood}",
+            "",
+            "──── RUBRIK BAHOLAR ────",
+            f"1. Salomlashish:      {r_salom}/100",
+            f"2. Ehtiyojlar:       {r_ehti}/100",
+            f"3. Qiymat:           {r_qiy}/100",
+            f"4. E'tirozlar:       {r_etir}/100",
+            f"5. Yakunlash:        {r_yak}/100",
+            f"6. Muloqot sifati:   {r_mul}/100",
+            "",
+            f"Keyingi qadam: {_next}",
+            f"Gapirish nisbati: Mijoz {_client_pct}% | Sotuvchi {_agent_pct}%",
+        ]
+        if _talk_verdict:
+            lines.append(_talk_verdict)
+
+        if transcript_snippet:
+            snippet = _clip(transcript_snippet, self.max_transcript_note_chars)
+            lines += ["", "Transkripsiya (O'zbek):", snippet]
+
+        return "\n".join(lines).strip()
+
+    def _build_client_profile_note(
+        self,
+        analysis: Dict[str, Any],
+        phone: str = "",
+        call_id: str = "",
+        duration_seconds: int = 0,
+    ) -> str:
+        """MetaSell Note 2 — Oisha AI: Mijoz profili."""
+        lavozim = str(analysis.get("mijoz_lavozimi") or "N/A")
+        kompaniya = str(analysis.get("mijoz_kompaniya") or "N/A")
+        qaror = str(analysis.get("qaror_qabul_qiluvchi") or "Noaniq")
+        joylashuv = str(analysis.get("joylashuv") or "N/A")
+        malumotlar = analysis.get("mijoz_malumotlari") or []
+        if isinstance(malumotlar, str):
+            malumotlar = [malumotlar]
+
+        lines = [
+            f"[{ANALYSIS_MARKER}] Oisha AI: Mijoz profili",
+            "",
+            f"Lavozimi: {lavozim}",
+            f"Kompaniya: {kompaniya}",
+            f"Qaror qabul qiluvchi: {qaror}",
+            f"Joylashuv: {joylashuv}",
+        ]
+        if malumotlar:
+            lines.append("")
+            lines.append("Ma'lumotlar:")
+            for item in malumotlar[:10]:
+                lines.append(f"• {item}")
+
+        meta_parts = []
+        if phone:
+            meta_parts.append(f"Qo'ng'iroq: {phone}")
+        if duration_seconds:
+            meta_parts.append(f"Davomiylik: {duration_seconds}s")
+        if call_id:
+            meta_parts.append(f"ID: {call_id}")
+        if meta_parts:
+            lines.append("")
+            lines.append(" | ".join(meta_parts))
+
+        return "\n".join(lines).strip()
 
     def _should_create_task(self, next_steps: str) -> bool:
         if not self.create_tasks:
@@ -994,19 +1147,20 @@ class CallAnalyzer:
             summary = str(analysis.get("summary") or "").strip() or _clip(transcript, 350)
             next_steps = str(analysis.get("next_steps") or "N/A").strip() or "N/A"
 
-            note_text = self._build_amocrm_note(
-                category=category,
-                summary=summary,
-                client_mood=client_mood,
-                next_steps=next_steps,
+            note1 = self._build_amocrm_note(
+                analysis=analysis,
                 transcript_snippet=transcript if include_transcript else "",
                 caller_phone=phone,
                 call_id=call_id,
                 duration_seconds=duration,
-                client_talk_pct=analysis.get("client_talk_pct", 0),
-                agent_talk_pct=analysis.get("agent_talk_pct", 0),
-                talk_ratio_verdict=analysis.get("talk_ratio_verdict", ""),
             )
+            note2 = self._build_client_profile_note(
+                analysis=analysis,
+                phone=phone,
+                call_id=call_id,
+                duration_seconds=duration,
+            )
+            note_texts = [note1, note2]
 
             if write:
                 # Telegram approval flow — agar approval_service ulangan bo'lsa
@@ -1056,16 +1210,17 @@ class CallAnalyzer:
                             phone=phone,
                             call_id=call_id,
                             analysis=analysis,
-                            note_text=note_text,
+                            note_texts=note_texts,
                             call_duration=duration,
                         )
                     except Exception as exc:
                         logger.error("[CALL] Failed to send approval for lead %s: %s", lead_id, exc)
                 else:
-                    try:
-                        await asyncio.to_thread(self.amocrm.add_lead_note, lead_id, note_text)
-                    except Exception as exc:
-                        logger.error("[CALL] Failed to add note to lead %s: %s", lead_id, exc)
+                    for nt in note_texts:
+                        try:
+                            await asyncio.to_thread(self.amocrm.add_lead_note, lead_id, nt)
+                        except Exception as exc:
+                            logger.error("[CALL] Failed to add note to lead %s: %s", lead_id, exc)
 
                     try:
                         await _maybe_await(self.amocrm.add_lead_tag(lead_id, category))
