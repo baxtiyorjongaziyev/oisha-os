@@ -211,6 +211,12 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
     if callback_data.startswith("crm_approve:"):
         pending = _pending.get(callback_data)
         if not pending:
+            try:
+                answer_fn = getattr(bot_or_event, "answer", None)
+                if answer_fn:
+                    await answer_fn("⚠️ So'rov topilmadi (bot qayta ishga tushgandirmi?).")
+            except Exception:
+                pass
             return False
         ok = await post_note_to_amocrm(
             pending["amocrm"], pending["lead_id"], pending["note_text"]
@@ -229,6 +235,12 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
         approve_key = callback_data.replace("crm_edit:", "crm_approve:", 1)
         pending = _pending.get(approve_key)
         if not pending:
+            try:
+                answer_fn = getattr(bot_or_event, "answer", None)
+                if answer_fn:
+                    await answer_fn("⚠️ So'rov topilmadi (bot qayta ishga tushgandirmi?).")
+            except Exception:
+                pass
             return False
         if new_text:
             pending["note_text"] = new_text
