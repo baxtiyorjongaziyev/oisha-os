@@ -25,6 +25,8 @@ CATEGORY_EMOJI = {
 
 # Pending approvals: callback_data -> {lead_id, note_text, analysis, amocrm}
 _pending: Dict[str, Dict[str, Any]] = {}
+# Tracks users waiting to send edited note text: user_id -> approve_key
+_pending_edit: Dict[int, str] = {}
 
 
 def _safe_call_id(call_id: str, lead_id: int) -> str:
@@ -232,6 +234,9 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
             return ok
         else:
             try:
+                user_id = getattr(bot_or_event, "sender_id", None)
+                if user_id:
+                    _pending_edit[user_id] = approve_key
                 reply_fn = getattr(bot_or_event, "answer", None) or getattr(bot_or_event, "respond", None)
                 if reply_fn:
                     await reply_fn(
@@ -243,6 +248,11 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
             return True
 
     return False
+
+
+def pop_pending_edit(user_id: int) -> Optional[str]:
+    """Return and remove the approve_key awaiting edited text from user_id, or None."""
+    return _pending_edit.pop(user_id, None)
 
 
 class CRMNoteApprovalService:
