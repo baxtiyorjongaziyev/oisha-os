@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -161,10 +161,10 @@ def build_inline_keyboard_telethon(lead_id: int, call_id: str):
 
 def _prune_pending(max_age_seconds: int = 86400) -> None:
     """Remove _pending entries older than max_age_seconds (default 24 h)."""
-    cutoff = datetime.utcnow()
+    cutoff = datetime.now(timezone.utc)
     stale = [
         k for k, v in _pending.items()
-        if (cutoff - datetime.fromisoformat(v["created_at"])).total_seconds() > max_age_seconds
+        if (cutoff - datetime.fromisoformat(v["created_at"]).replace(tzinfo=timezone.utc)).total_seconds() > max_age_seconds
     ]
     for k in stale:
         _pending.pop(k, None)
@@ -185,7 +185,7 @@ def register_pending(
         "note_text": note_text,
         "analysis": analysis,
         "amocrm": amocrm_client,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
