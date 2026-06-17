@@ -2649,8 +2649,8 @@ async def self_command_handler(event):
                 )
             result = await analyzer.analyze_recent_calls(limit=limit, write=True)
             if isinstance(result, dict):
-                analyzed = result.get("analyzed", 0)
-                total = result.get("total", 0)
+                analyzed = result.get("calls_processed", 0)
+                total = result.get("leads_scanned", 0)
                 await event.respond(
                     f"✅ {analyzed}/{total} qo'ng'iroq tahlil qilindi.\n"
                     f"Tasdiqlash so'rovlari yuborildi — ✅ yoki ✏️ bosing."
@@ -2691,6 +2691,9 @@ async def crm_edit_text_handler(event):
             return
         edit_key = approve_key.replace("crm_approve:", "crm_edit:", 1)
         await handle_callback(edit_key, event, new_text=event.raw_text)
+        raise events.StopPropagation
+    except events.StopPropagation:
+        raise
     except Exception as e:
         logger.error(f"[CRM_EDIT] Xatolik: {e}", exc_info=True)
 
