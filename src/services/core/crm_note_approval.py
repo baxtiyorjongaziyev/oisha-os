@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +177,7 @@ async def _prune_pending(max_age_seconds: int = 86400) -> None:
     ]
     for k, v in stale:
         try:
-            await post_note_to_amocrm(v["amocrm"], v["lead_id"], v["note_text"])
+            await post_notes_to_amocrm(v["amocrm"], v["lead_id"], v["note_texts"])
             logger.info("[CRM_NOTE] 24h timeout: lead %s uchun izoh avtomatik qo'shildi", v["lead_id"])
         except Exception as e:
             logger.error("[CRM_NOTE] 24h timeout auto-post xatolik lead %s: %s", v["lead_id"], e)
@@ -191,7 +191,7 @@ async def _prune_pending(max_age_seconds: int = 86400) -> None:
 async def register_pending(
     lead_id: int,
     call_id: str,
-    note_text: str,
+    note_texts: List[str],
     analysis: Dict[str, Any],
     amocrm_client: Any,
 ) -> None:
@@ -200,7 +200,7 @@ async def register_pending(
     _pending[key] = {
         "lead_id": lead_id,
         "call_id": call_id,
-        "note_text": note_text,
+        "note_texts": note_texts,
         "analysis": analysis,
         "amocrm": amocrm_client,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -220,6 +220,15 @@ async def post_note_to_amocrm(amocrm_client: Any, lead_id: int, note_text: str) 
         return False
 
 
+async def post_notes_to_amocrm(amocrm_client: Any, lead_id: int, note_texts: List[str]) -> bool:
+    """Bir nechta noteni ketma-ket yuboradi."""
+    ok = True
+    for nt in note_texts:
+        if nt and nt.strip():
+            ok = await post_note_to_amocrm(amocrm_client, lead_id, nt) and ok
+    return ok
+
+
 async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str = "") -> bool:
     """
     Callback handler — aiogram yoki Telethon callback event'dan chaqiriladi.
@@ -236,8 +245,8 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
             except Exception:
                 pass
             return False
-        ok = await post_note_to_amocrm(
-            pending["amocrm"], pending["lead_id"], pending["note_text"]
+        ok = await post_notes_to_amocrm(
+            pending["amocrm"], pending["lead_id"], pending["note_texts"]
         )
         if ok:
             _pending.pop(callback_data, None)
@@ -262,9 +271,12 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                 pass
             return False
         if new_text:
-            pending["note_text"] = new_text
-            ok = await post_note_to_amocrm(
-                pending["amocrm"], pending["lead_id"], new_text
+            # Faqat birinchi noteni almashtiradi; mijoz profili o'zgarmaydi
+            pending["note_texts"] = [new_text] + (
+                pending["note_texts"][1:] if len(pending["note_texts"]) > 1 else []
+            )
+            ok = await post_notes_to_amocrm(
+                pending["amocrm"], pending["lead_id"], pending["note_texts"]
             )
             if ok:
                 _pending.pop(approve_key, None)
@@ -291,9 +303,10 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                 # Send full prompt as a regular message (no size limit)
                 respond_fn = getattr(bot_or_event, "respond", None)
                 if respond_fn:
+                    first_note = (pending["note_texts"] or [""])[0]
                     await respond_fn(
                         "✏️ Yangi izoh matnini yuboring.\n"
-                        f"(Joriy matn):\n`{pending['note_text'][:300]}`"
+                        f"(Joriy tahlil matni):\n`{first_note[:300]}`"
                     )
             except Exception:
                 pass
