@@ -763,6 +763,18 @@ class CallAnalyzer:
             "client_talk_pct": client_pct,
             "agent_talk_pct": agent_pct,
             "talk_ratio_verdict": _talk_ratio_verdict(client_pct),
+            "sifat_bahosi": 0,
+            "lead_bahosi": 0,
+            "suhbat_oilasi": "Boshqa",
+            "suhbat_domeni": "Boshqa",
+            "baholash_rejimi": "Savdo playbook boyicha baholanadi",
+            "biznes_mosligi": "Noaniq",
+            "servis_yonalishi": "Boshqa",
+            "mijoz_lavozimi": "N/A",
+            "mijoz_kompaniya": "N/A",
+            "qaror_qabul_qiluvchi": "Noaniq",
+            "joylashuv": "N/A",
+            "mijoz_malumotlari": [],
         }
 
     def _build_amocrm_note(
