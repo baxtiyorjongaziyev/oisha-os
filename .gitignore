@@ -99,6 +99,7 @@ tmp/
 scratch/
 backups/
 *.zip
+*.tar
 *.tar.gz
 *.exe
 data/synced_contacts.txt

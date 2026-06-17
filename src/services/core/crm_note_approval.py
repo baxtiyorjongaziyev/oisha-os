@@ -27,20 +27,22 @@ CATEGORY_EMOJI = {
 _pending: Dict[str, Dict[str, Any]] = {}
 
 
-def _safe_call_id(call_id: str, prefix: str, lead_id: int) -> str:
-    """Telegram callback_data is limited to 64 bytes."""
-    max_id_len = 64 - len(prefix) - len(str(lead_id)) - 2
+def _safe_call_id(call_id: str, lead_id: int) -> str:
+    """Telegram callback_data ≤64 bytes. Always truncate using the LONGEST
+    prefix ('crm_approve') so both approval and edit keys share the same
+    call_id slice — enabling the edit→approve key reconstruction in handle_callback.
+    """
+    longest_prefix = "crm_approve"
+    max_id_len = 64 - len(longest_prefix) - len(str(lead_id)) - 2
     return call_id[:max_id_len]
 
 
 def _approval_key(lead_id: int, call_id: str) -> str:
-    prefix = "crm_approve"
-    return f"{prefix}:{lead_id}:{_safe_call_id(call_id, prefix, lead_id)}"
+    return f"crm_approve:{lead_id}:{_safe_call_id(call_id, lead_id)}"
 
 
 def _edit_key(lead_id: int, call_id: str) -> str:
-    prefix = "crm_edit"
-    return f"{prefix}:{lead_id}:{_safe_call_id(call_id, prefix, lead_id)}"
+    return f"crm_edit:{lead_id}:{_safe_call_id(call_id, lead_id)}"
 
 
 def format_approval_message(
@@ -57,28 +59,76 @@ def format_approval_message(
     client_pct = analysis.get("client_talk_pct", 0)
     agent_pct = analysis.get("agent_talk_pct", 0)
 
+    # MetaSell-like extended fields
+    sifat = analysis.get("sifat_bahosi", 0)
+    lead_b = analysis.get("lead_bahosi", 0)
+    suhbat_oilasi = analysis.get("suhbat_oilasi", "")
+    suhbat_domeni = analysis.get("suhbat_domeni", "")
+    baholash = analysis.get("baholash_rejimi", "")
+    mosligi = analysis.get("biznes_mosligi", "")
+    servis = analysis.get("servis_yonalishi", "")
+    lavozim = analysis.get("mijoz_lavozimi", "N/A")
+    kompaniya = analysis.get("mijoz_kompaniya", "N/A")
+    qaror = analysis.get("qaror_qabul_qiluvchi", "Noaniq")
+    joylashuv = analysis.get("joylashuv", "N/A")
+    malumotlar = analysis.get("mijoz_malumotlari", [])
+
     cat_icon = CATEGORY_EMOJI.get(category, "📌")
     mood_icon = MOOD_EMOJI.get(mood, "🤔")
     dur = f"{call_duration // 60}:{call_duration % 60:02d}" if call_duration else "—"
 
+    def _score_bar(score: int) -> str:
+        filled = round(score / 10)
+        return "█" * filled + "░" * (10 - filled) + f" {score}/100"
+
     lines = [
-        f"📞 *Qo'ng'iroq tahlili tayyor*",
-        f"",
+        "📞 *Qo'ng'iroq tahlili tayyor*",
+        "",
         f"👤 *Mijoz:* {lead_name}",
         f"📱 *Raqam:* `{phone}`",
         f"⏱ *Davomiylik:* {dur}",
-        f"",
-        f"{cat_icon} *Toifa:* {category}",
-        f"{mood_icon} *Kayfiyat:* {mood}",
+        "",
+        "━━━━━━ *SUHBAT TAHLILI* ━━━━━━",
+        f"🎯 *Sifat bahosi:* {_score_bar(sifat)}",
+        f"💎 *Lead bahosi:* {_score_bar(lead_b)}",
         f"🗣 *Nisbat:* Mijoz {client_pct}% | Sotuvchi {agent_pct}%",
-        f"",
-        f"📝 *Xulosa:*",
-        f"{summary}",
-        f"",
-        f"➡️ *Keyingi qadam:*",
-        f"{next_steps}",
-        f"",
-        f"✅ Tasdiqlang yoki ✏️ tahrirlang",
+        f"{cat_icon} *Toifa:* {category}   {mood_icon} *Kayfiyat:* {mood}",
+    ]
+
+    if suhbat_oilasi:
+        lines.append(f"💬 *Suhbat oilasi:* {suhbat_oilasi}")
+    if suhbat_domeni:
+        lines.append(f"🏢 *Suhbat domeni:* {suhbat_domeni}")
+    if baholash:
+        lines.append(f"📊 *Baholash rejimi:* {baholash}")
+    if mosligi:
+        lines.append(f"✅ *Biznes mosligi:* {mosligi}")
+    if servis:
+        lines.append(f"🎨 *Servis yo'nalishi:* {servis}")
+
+    lines += [
+        "",
+        "━━━━━━ *MIJOZ MA'LUMOTI* ━━━━━━",
+        f"👔 *Lavozimi:* {lavozim}",
+        f"🏭 *Kompaniya:* {kompaniya}",
+        f"🤝 *Qaror qabul qiluvchi:* {qaror}",
+        f"📍 *Joylashuv:* {joylashuv}",
+    ]
+
+    if malumotlar:
+        lines.append("")
+        lines.append("📋 *Ma'lumotlar:*")
+        for m in malumotlar[:5]:
+            lines.append(f"• {m}")
+
+    lines += [
+        "",
+        "━━━━━━ *XULOSA* ━━━━━━",
+        f"📝 {summary}",
+        "",
+        f"➡️ *Keyingi qadam:* {next_steps}",
+        "",
+        "✅ Tasdiqlang yoki ✏️ tahrirlang",
     ]
     return "\n".join(lines)
 

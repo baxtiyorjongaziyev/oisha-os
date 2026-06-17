@@ -567,7 +567,7 @@ class CallAnalyzer:
 
             client_pct, agent_pct = _compute_talk_ratio(transcript)
             prompt = (
-                "Quyidagi telefon suhbati transkripsiyasini tahlil qiling.\n\n"
+                "Quyidagi telefon suhbati transkripsiyasini professional savdo tahlilchisi sifatida tahlil qiling.\n\n"
                 "TOIFALAR (faqat bittasini tanlang):\n"
                 "- Shaxsiy: shaxsiy, biznesga aloqasi yo'q suhbat.\n"
                 "- Oila: oila a'zolari, uy ishlari, bolalar yoki qarindoshlar haqida.\n"
@@ -584,7 +584,19 @@ class CallAnalyzer:
                 '  "client_mood": "Ijobiy|Neytral|Salbiy|Noaniq",\n'
                 '  "next_steps": "Keyingi aniq qadamlar yoki N/A",\n'
                 f'  "client_talk_pct": {client_pct},\n'
-                f'  "agent_talk_pct": {agent_pct}\n'
+                f'  "agent_talk_pct": {agent_pct},\n'
+                '  "sifat_bahosi": <0-100: suhbat sifati — tinglash, savollar, etirazlar>,\n'
+                '  "lead_bahosi": <0-100: lead potensiali — qiziqish, byudjet, qaror qabul qilish>,\n'
+                '  "suhbat_oilasi": "Ehtiyoj aniqlash|Yechim taqdimoti|Narx muhokamasi|Follow-up|Shartnoma|Boshqa",\n'
+                '  "suhbat_domeni": "Savdo|Mijoz xizmati|Loyiha muhokamasi|Texnik|Boshqa",\n'
+                '  "baholash_rejimi": "Savdo playbook boyicha baholanadi|Xizmat standarti|Loyiha boshqaruvi|Boshqa",\n'
+                '  "biznes_mosligi": "Biznesga mos|Qisman mos|Mos emas",\n'
+                '  "servis_yonalishi": "Brending|Dizayn|SMM|Sayt|Biznes transformatsiya|Reklama|Boshqa",\n'
+                '  "mijoz_lavozimi": "lavozim yoki N/A",\n'
+                '  "mijoz_kompaniya": "kompaniya nomi yoki N/A",\n'
+                '  "qaror_qabul_qiluvchi": "Ha|Yoq|Noaniq",\n'
+                '  "joylashuv": "shahar/viloyat yoki N/A",\n'
+                '  "mijoz_malumotlari": ["mijoz haqida muhim ma\'lumot 1", "muhim ma\'lumot 2"]\n'
                 "}\n\n"
                 f"Transkripsiya:\n{transcript}"
             )
@@ -653,10 +665,20 @@ class CallAnalyzer:
     ) -> Dict[str, Any]:
         summary = str(data.get("summary") or "").strip()
         next_steps = str(data.get("next_steps") or "N/A").strip() or "N/A"
-        # Prefer pre-computed values; fall back to re-computing from transcript
         computed_client, computed_agent = _compute_talk_ratio(transcript)
         client_pct = int(data.get("client_talk_pct") or computed_client)
         agent_pct = int(data.get("agent_talk_pct") or computed_agent)
+
+        def _clamp_score(val: Any) -> int:
+            try:
+                return max(0, min(100, int(val)))
+            except (TypeError, ValueError):
+                return 0
+
+        mijoz_info = data.get("mijoz_malumotlari") or []
+        if isinstance(mijoz_info, str):
+            mijoz_info = [mijoz_info]
+
         return {
             "summary": summary or _clip(transcript, 350),
             "category": _normalise_category(data.get("category")),
@@ -665,6 +687,19 @@ class CallAnalyzer:
             "client_talk_pct": client_pct,
             "agent_talk_pct": agent_pct,
             "talk_ratio_verdict": _talk_ratio_verdict(client_pct),
+            # MetaSell-like extended fields
+            "sifat_bahosi": _clamp_score(data.get("sifat_bahosi", 0)),
+            "lead_bahosi": _clamp_score(data.get("lead_bahosi", 0)),
+            "suhbat_oilasi": str(data.get("suhbat_oilasi") or "Boshqa"),
+            "suhbat_domeni": str(data.get("suhbat_domeni") or "Boshqa"),
+            "baholash_rejimi": str(data.get("baholash_rejimi") or "Savdo playbook boyicha baholanadi"),
+            "biznes_mosligi": str(data.get("biznes_mosligi") or "Noaniq"),
+            "servis_yonalishi": str(data.get("servis_yonalishi") or "Boshqa"),
+            "mijoz_lavozimi": str(data.get("mijoz_lavozimi") or "N/A"),
+            "mijoz_kompaniya": str(data.get("mijoz_kompaniya") or "N/A"),
+            "qaror_qabul_qiluvchi": str(data.get("qaror_qabul_qiluvchi") or "Noaniq"),
+            "joylashuv": str(data.get("joylashuv") or "N/A"),
+            "mijoz_malumotlari": list(mijoz_info),
         }
 
     def _fallback_analysis(self, transcript: str) -> Dict[str, Any]:
