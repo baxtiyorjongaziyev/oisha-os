@@ -307,6 +307,14 @@ def pop_pending_edit(user_id: int) -> Optional[str]:
     return _pending_edit.pop(user_id, None)
 
 
+def is_call_pending_approval(call_id: str) -> bool:
+    """True agar bu call_id hali Telegram approval kutayotgan bo'lsa.
+
+    _is_call_processed tomonidan tekshiriladi — shu orqali autopilot loop
+    approval kutilayotgan call'ni qayta tahlil qilmaydi.
+    """
+    return any(v.get("call_id") == call_id for v in _pending.values())
+
 class CRMNoteApprovalService:
     """Call analyzer bilan integratsiya — tahlildan so'ng Telegram approval yuboradi."""
 
