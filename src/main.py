@@ -2689,6 +2689,11 @@ async def crm_edit_text_handler(event):
         approve_key = pop_pending_edit(event.sender_id)
         if not approve_key:
             return
+        # Don't consume bot commands as note text — restore edit state and pass through
+        if event.raw_text and event.raw_text.startswith("/"):
+            from src.services.core.crm_note_approval import _pending_edit
+            _pending_edit[event.sender_id] = approve_key
+            return
         edit_key = approve_key.replace("crm_approve:", "crm_edit:", 1)
         ok = await handle_callback(edit_key, event, new_text=event.raw_text)
         if ok:
