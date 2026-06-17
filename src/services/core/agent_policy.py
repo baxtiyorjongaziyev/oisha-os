@@ -103,6 +103,7 @@ class AgentPolicyEngine:
             "approval_granted": approval_granted,
             "allow_in_quiet_hours": allow_in_quiet_hours,
             "in_quiet_hours": in_quiet_hours,
+            "is_sunday": is_sunday(now),
             "client_facing": client_facing,
             "target": target,
             "confidence": confidence,
