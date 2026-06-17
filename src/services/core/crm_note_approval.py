@@ -168,6 +168,10 @@ def _prune_pending(max_age_seconds: int = 86400) -> None:
     ]
     for k in stale:
         _pending.pop(k, None)
+    # Also evict _pending_edit entries whose approval target is no longer in _pending
+    stale_edits = [uid for uid, akey in _pending_edit.items() if akey not in _pending]
+    for uid in stale_edits:
+        _pending_edit.pop(uid, None)
 
 
 def register_pending(
