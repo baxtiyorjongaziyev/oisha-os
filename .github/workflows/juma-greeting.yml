@@ -5,6 +5,9 @@ name: Juma Tabrigi — Tez Natija guruhlar
 
 on:
   workflow_dispatch:
+  schedule:
+    # Har Juma kuni 09:00 Toshkent vaqti = 04:00 UTC
+    - cron: '0 4 * * 5'
   push:
     paths:
       - 'deploy/juma-trigger'

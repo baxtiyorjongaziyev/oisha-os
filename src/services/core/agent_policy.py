@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict
 
 from src.database import Database
-from src.time_utils import get_local_now, is_quiet_hours
+from src.time_utils import get_local_now, is_quiet_hours, is_sunday
 
 CLIENT_FACING_KINDS = {
     "autonomous_negotiation",
@@ -91,6 +91,7 @@ class AgentPolicyEngine:
             False,
         )
         allow_in_quiet_hours = bool(payload.get("allow_in_quiet_hours"))
+        allow_on_sunday = bool(payload.get("allow_on_sunday"))
         in_quiet_hours = quiet_hours_enabled and is_quiet_hours(now)
 
         checks = {
@@ -102,7 +103,9 @@ class AgentPolicyEngine:
             "approval_required": approval_required,
             "approval_granted": approval_granted,
             "allow_in_quiet_hours": allow_in_quiet_hours,
+            "allow_on_sunday": allow_on_sunday,
             "in_quiet_hours": in_quiet_hours,
+            "is_sunday": is_sunday(now),
             "client_facing": client_facing,
             "target": target,
             "confidence": confidence,
@@ -110,6 +113,10 @@ class AgentPolicyEngine:
             "sensitive_terms": sensitive_terms,
             "evaluated_at": now.isoformat(),
         }
+
+        # Yakshanba kuni mijozga yo'naltirilgan va avtomat harakatlar bloklanadi
+        if is_sunday(now) and requested_by not in {"manual", "owner"} and not manual_override and not allow_on_sunday:
+            return PolicyDecision(False, "sunday_block", checks=checks)
 
         if (
             not auto_actions_enabled
