@@ -2,8 +2,11 @@
 import asyncio
 import os
 import random
+import sys
 import urllib.parse
 import urllib.request
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from telethon import TelegramClient
 from telethon.sessions import StringSession
@@ -16,6 +19,15 @@ from telethon.errors import (
     UsernameInvalidError,
     UsernameNotOccupiedError,
 )
+
+TASHKENT_TZ = ZoneInfo("Asia/Tashkent")
+_now_tashkent = datetime.now(TASHKENT_TZ)
+if _now_tashkent.weekday() != 4:  # 4 = Juma (Friday)
+    day_name = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"][_now_tashkent.weekday()]
+    print(f"Bugun {day_name} — Juma kuni emas. Yuborilmadi.")
+    sys.exit(0)
+
+print(f"Juma tasdiqlandi: {_now_tashkent.strftime('%Y-%m-%d %H:%M')} Toshkent vaqti")
 
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
