@@ -2672,6 +2672,19 @@ async def crm_note_callback_handler(event):
         logger.error(f"[CRM_CALLBACK] Xatolik: {e}", exc_info=True)
 
 
+async def crm_edit_text_handler(event):
+    """Captures follow-up text message after user clicked ✏️ Tahrirlash."""
+    try:
+        from src.services.core.crm_note_approval import pop_pending_edit, handle_callback
+        approve_key = pop_pending_edit(event.sender_id)
+        if not approve_key:
+            return
+        edit_key = approve_key.replace("crm_approve:", "crm_edit:", 1)
+        await handle_callback(edit_key, event, new_text=event.raw_text)
+    except Exception as e:
+        logger.error(f"[CRM_EDIT] Xatolik: {e}", exc_info=True)
+
+
 async def meeting_scheduler_handler(event):
     """Create Google Calendar events from clear Telegram meeting agreements."""
     if not meeting_scheduler:
@@ -3766,6 +3779,10 @@ async def main():
         bot_client.add_event_handler(
             crm_note_callback_handler,
             events.CallbackQuery(pattern=b"crm_"),
+        )
+        bot_client.add_event_handler(
+            crm_edit_text_handler,
+            events.NewMessage(incoming=True),
         )
     logger.info("[EVENTS] Safe userbot handlers registered.")
 

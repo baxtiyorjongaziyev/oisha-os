@@ -222,7 +222,7 @@ class MissionControl:
             else []
         )
 
-        managers_data = self.db.get_state("sales_managers", "")
+        managers_data = await self.db.get_state("sales_managers", "")
         if managers_data:
             db_ids = [int(i) for i in managers_data.split(",") if i]
             for db_id in db_ids:
