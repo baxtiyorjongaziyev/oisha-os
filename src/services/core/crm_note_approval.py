@@ -164,14 +164,23 @@ def build_inline_keyboard_telethon(lead_id: int, call_id: str):
         return None
 
 
-def _prune_pending(max_age_seconds: int = 86400) -> None:
-    """Remove _pending entries older than max_age_seconds (default 24 h)."""
+async def _prune_pending(max_age_seconds: int = 86400) -> None:
+    """Remove _pending entries older than max_age_seconds (default 24 h).
+
+    Stale entries are auto-posted to CRM before eviction — prevents permanent
+    data loss when the owner never responds within 24 hours.
+    """
     cutoff = datetime.now(timezone.utc)
     stale = [
-        k for k, v in _pending.items()
+        (k, v) for k, v in list(_pending.items())
         if (cutoff - datetime.fromisoformat(v["created_at"]).replace(tzinfo=timezone.utc)).total_seconds() > max_age_seconds
     ]
-    for k in stale:
+    for k, v in stale:
+        try:
+            await post_note_to_amocrm(v["amocrm"], v["lead_id"], v["note_text"])
+            logger.info("[CRM_NOTE] 24h timeout: lead %s uchun izoh avtomatik qo'shildi", v["lead_id"])
+        except Exception as e:
+            logger.error("[CRM_NOTE] 24h timeout auto-post xatolik lead %s: %s", v["lead_id"], e)
         _pending.pop(k, None)
     # Also evict _pending_edit entries whose approval target is no longer in _pending
     stale_edits = [uid for uid, akey in _pending_edit.items() if akey not in _pending]
@@ -179,14 +188,14 @@ def _prune_pending(max_age_seconds: int = 86400) -> None:
         _pending_edit.pop(uid, None)
 
 
-def register_pending(
+async def register_pending(
     lead_id: int,
     call_id: str,
     note_text: str,
     analysis: Dict[str, Any],
     amocrm_client: Any,
 ) -> None:
-    _prune_pending()
+    await _prune_pending()
     key = _approval_key(lead_id, call_id)
     _pending[key] = {
         "lead_id": lead_id,
@@ -327,7 +336,7 @@ class CRMNoteApprovalService:
             return await post_note_to_amocrm(self.amocrm, lead_id, note_text)
 
         msg_text = format_approval_message(analysis, lead_name, phone, call_duration, note_text)
-        register_pending(lead_id, call_id, note_text, analysis, self.amocrm)
+        await register_pending(lead_id, call_id, note_text, analysis, self.amocrm)
 
         try:
             buttons = build_inline_keyboard_telethon(lead_id, call_id)
