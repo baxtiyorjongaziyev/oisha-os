@@ -185,7 +185,6 @@ def register_pending(
     note_text: str,
     analysis: Dict[str, Any],
     amocrm_client: Any,
-    log_callback: Optional[Any] = None,
 ) -> None:
     _prune_pending()
     key = _approval_key(lead_id, call_id)
@@ -195,7 +194,6 @@ def register_pending(
         "note_text": note_text,
         "analysis": analysis,
         "amocrm": amocrm_client,
-        "log_callback": log_callback,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -233,12 +231,6 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
             pending["amocrm"], pending["lead_id"], pending["note_text"]
         )
         if ok:
-            log_cb = pending.get("log_callback")
-            if log_cb:
-                try:
-                    await log_cb()
-                except Exception as e:
-                    logger.warning("[CRM_NOTE] log_callback xatolik: %s", e)
             _pending.pop(callback_data, None)
         try:
             reply_fn = getattr(bot_or_event, "answer", None) or getattr(bot_or_event, "respond", None)
@@ -266,12 +258,6 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                 pending["amocrm"], pending["lead_id"], new_text
             )
             if ok:
-                log_cb = pending.get("log_callback")
-                if log_cb:
-                    try:
-                        await log_cb()
-                    except Exception as e:
-                        logger.warning("[CRM_NOTE] log_callback xatolik: %s", e)
                 _pending.pop(approve_key, None)
             try:
                 reply_fn = getattr(bot_or_event, "answer", None) or getattr(bot_or_event, "respond", None)
@@ -317,14 +303,6 @@ def push_pending_edit(user_id: int, approve_key: str) -> None:
     _pending_edit[user_id] = approve_key
 
 
-def is_call_pending_approval(call_id: str) -> bool:
-    """True agar bu call_id hali Telegram approval kutayotgan bo'lsa.
-
-    _is_call_processed tomonidan tekshiriladi — shu orqali autopilot loop
-    approval kutilayotgan call'ni qayta tahlil qilmaydi.
-    """
-    return any(v.get("call_id") == call_id for v in _pending.values())
-
 class CRMNoteApprovalService:
     """Call analyzer bilan integratsiya — tahlildan so'ng Telegram approval yuboradi."""
 
@@ -342,21 +320,14 @@ class CRMNoteApprovalService:
         analysis: Dict[str, Any],
         note_text: str,
         call_duration: int = 0,
-        log_callback: Optional[Any] = None,
     ) -> bool:
         """Tahlil natijasini Telegram'ga yuboradi — tasdiqlash kutiladi."""
         if not self.bot:
             logger.warning("[CRM_NOTE] Bot client yo'q — avtomatik post qilinmoqda")
-            ok = await post_note_to_amocrm(self.amocrm, lead_id, note_text)
-            if ok and log_callback:
-                try:
-                    await log_callback()
-                except Exception as e:
-                    logger.warning("[CRM_NOTE] log_callback xatolik: %s", e)
-            return ok
+            return await post_note_to_amocrm(self.amocrm, lead_id, note_text)
 
         msg_text = format_approval_message(analysis, lead_name, phone, call_duration, note_text)
-        register_pending(lead_id, call_id, note_text, analysis, self.amocrm, log_callback=log_callback)
+        register_pending(lead_id, call_id, note_text, analysis, self.amocrm)
 
         try:
             buttons = build_inline_keyboard_telethon(lead_id, call_id)
@@ -375,13 +346,7 @@ class CRMNoteApprovalService:
         except Exception as e:
             logger.error("[CRM_NOTE] Telegram yuborishda xatolik: %s", e)
             _pending.pop(_approval_key(lead_id, call_id), None)
-            ok = await post_note_to_amocrm(self.amocrm, lead_id, note_text)
-            if ok and log_callback:
-                try:
-                    await log_callback()
-                except Exception as cb_e:
-                    logger.warning("[CRM_NOTE] log_callback xatolik: %s", cb_e)
-            return ok
+            return await post_note_to_amocrm(self.amocrm, lead_id, note_text)
 
     async def auto_post_without_approval(
         self, lead_id: int, note_text: str

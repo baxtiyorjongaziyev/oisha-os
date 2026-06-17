@@ -1,5 +1,4 @@
 import asyncio
-import functools
 import hashlib
 import io
 import inspect
@@ -320,17 +319,8 @@ class CallAnalyzer:
         return value
 
     async def _is_call_processed(self, call_id: str) -> bool:
-        """Return True when this AmoCRM call was already analyzed or is awaiting approval."""
-        if not call_id:
-            return False
-        # In-memory check — approval kutayotgan call'larni qayta tahlil qilmaslik
-        try:
-            from src.services.core.crm_note_approval import is_call_pending_approval
-            if is_call_pending_approval(call_id):
-                return True
-        except Exception:
-            pass
-        if not self.db:
+        """Return True when this AmoCRM call was already analyzed."""
+        if not call_id or not self.db:
             return False
         try:
             conn = await self.db.get_connection()
@@ -1030,24 +1020,9 @@ class CallAnalyzer:
                     except Exception:
                         pass
 
-                    try:
-                        await _maybe_await(self.amocrm.add_lead_tag(lead_id, category))
-                    except Exception as exc:
-                        logger.error("[CALL] Failed to add tag to lead %s: %s", lead_id, exc)
-
-                    task_id = await self._create_follow_up_task(
-                        lead_id=lead_id,
-                        category=category,
-                        summary=summary,
-                        client_mood=client_mood,
-                        next_steps=next_steps,
-                        responsible_user_id=responsible_user_id,
-                    )
-
-                    # _log_call_analysis approval'dan keyin chaqiriladi — DB'ga "processed"
-                    # yozilishi faqat CRM note muvaffaqiyatli qo'shilgandan keyin bo'lishi kerak.
-                    log_cb = functools.partial(
-                        self._log_call_analysis,
+                    # DB'ga darhol yozish — restart'dan keyin ham deduplication ishlaydi.
+                    # task_id yo'q bo'lganda None, qayta yozilishi mumkin emas.
+                    await self._log_call_analysis(
                         call_id=call_id,
                         lead_id=lead_id,
                         category=category,
@@ -1057,8 +1032,23 @@ class CallAnalyzer:
                         transcript=transcript,
                         audio_url=audio_url,
                         caller_phone=phone,
-                        task_id=task_id,
+                        task_id=None,
                     )
+
+                    try:
+                        await _maybe_await(self.amocrm.add_lead_tag(lead_id, category))
+                    except Exception as exc:
+                        logger.error("[CALL] Failed to add tag to lead %s: %s", lead_id, exc)
+
+                    await self._create_follow_up_task(
+                        lead_id=lead_id,
+                        category=category,
+                        summary=summary,
+                        client_mood=client_mood,
+                        next_steps=next_steps,
+                        responsible_user_id=responsible_user_id,
+                    )
+
                     try:
                         await approval_service.send_for_approval(
                             lead_id=lead_id,
@@ -1068,7 +1058,6 @@ class CallAnalyzer:
                             analysis=analysis,
                             note_text=note_text,
                             call_duration=duration,
-                            log_callback=log_cb,
                         )
                     except Exception as exc:
                         logger.error("[CALL] Failed to send approval for lead %s: %s", lead_id, exc)
