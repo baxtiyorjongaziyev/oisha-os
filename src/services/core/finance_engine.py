@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -166,7 +166,7 @@ class FinanceEngine:
         return int(rows2[0]["id"])
 
     async def approve_advance(self, advance_id: int, approved_by: int) -> None:
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         await self._db.execute(
             "UPDATE advances SET status = 'approved', approved_by = ?, processed_at = ? WHERE id = ?",
             [approved_by, now, advance_id],
