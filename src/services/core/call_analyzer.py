@@ -567,7 +567,7 @@ class CallAnalyzer:
 
             client_pct, agent_pct = _compute_talk_ratio(transcript)
             prompt = (
-                "Quyidagi telefon suhbati transkripsiyasini tahlil qiling.\n\n"
+                "Quyidagi telefon suhbati transkripsiyasini professional savdo tahlilchisi sifatida tahlil qiling.\n\n"
                 "TOIFALAR (faqat bittasini tanlang):\n"
                 "- Shaxsiy: shaxsiy, biznesga aloqasi yo'q suhbat.\n"
                 "- Oila: oila a'zolari, uy ishlari, bolalar yoki qarindoshlar haqida.\n"
@@ -584,7 +584,19 @@ class CallAnalyzer:
                 '  "client_mood": "Ijobiy|Neytral|Salbiy|Noaniq",\n'
                 '  "next_steps": "Keyingi aniq qadamlar yoki N/A",\n'
                 f'  "client_talk_pct": {client_pct},\n'
-                f'  "agent_talk_pct": {agent_pct}\n'
+                f'  "agent_talk_pct": {agent_pct},\n'
+                '  "sifat_bahosi": <0-100: suhbat sifati — tinglash, savollar, etirazlar>,\n'
+                '  "lead_bahosi": <0-100: lead potensiali — qiziqish, byudjet, qaror qabul qilish>,\n'
+                '  "suhbat_oilasi": "Ehtiyoj aniqlash|Yechim taqdimoti|Narx muhokamasi|Follow-up|Shartnoma|Boshqa",\n'
+                '  "suhbat_domeni": "Savdo|Mijoz xizmati|Loyiha muhokamasi|Texnik|Boshqa",\n'
+                '  "baholash_rejimi": "Savdo playbook boyicha baholanadi|Xizmat standarti|Loyiha boshqaruvi|Boshqa",\n'
+                '  "biznes_mosligi": "Biznesga mos|Qisman mos|Mos emas",\n'
+                '  "servis_yonalishi": "Brending|Dizayn|SMM|Sayt|Biznes transformatsiya|Reklama|Boshqa",\n'
+                '  "mijoz_lavozimi": "lavozim yoki N/A",\n'
+                '  "mijoz_kompaniya": "kompaniya nomi yoki N/A",\n'
+                '  "qaror_qabul_qiluvchi": "Ha|Yoq|Noaniq",\n'
+                '  "joylashuv": "shahar/viloyat yoki N/A",\n'
+                '  "mijoz_malumotlari": ["mijoz haqida muhim ma\'lumot 1", "muhim ma\'lumot 2"]\n'
                 "}\n\n"
                 f"Transkripsiya:\n{transcript}"
             )
@@ -653,10 +665,20 @@ class CallAnalyzer:
     ) -> Dict[str, Any]:
         summary = str(data.get("summary") or "").strip()
         next_steps = str(data.get("next_steps") or "N/A").strip() or "N/A"
-        # Prefer pre-computed values; fall back to re-computing from transcript
         computed_client, computed_agent = _compute_talk_ratio(transcript)
         client_pct = int(data.get("client_talk_pct") or computed_client)
         agent_pct = int(data.get("agent_talk_pct") or computed_agent)
+
+        def _clamp_score(val: Any) -> int:
+            try:
+                return max(0, min(100, int(val)))
+            except (TypeError, ValueError):
+                return 0
+
+        mijoz_info = data.get("mijoz_malumotlari") or []
+        if isinstance(mijoz_info, str):
+            mijoz_info = [mijoz_info]
+
         return {
             "summary": summary or _clip(transcript, 350),
             "category": _normalise_category(data.get("category")),
@@ -665,6 +687,19 @@ class CallAnalyzer:
             "client_talk_pct": client_pct,
             "agent_talk_pct": agent_pct,
             "talk_ratio_verdict": _talk_ratio_verdict(client_pct),
+            # MetaSell-like extended fields
+            "sifat_bahosi": _clamp_score(data.get("sifat_bahosi", 0)),
+            "lead_bahosi": _clamp_score(data.get("lead_bahosi", 0)),
+            "suhbat_oilasi": str(data.get("suhbat_oilasi") or "Boshqa"),
+            "suhbat_domeni": str(data.get("suhbat_domeni") or "Boshqa"),
+            "baholash_rejimi": str(data.get("baholash_rejimi") or "Savdo playbook boyicha baholanadi"),
+            "biznes_mosligi": str(data.get("biznes_mosligi") or "Noaniq"),
+            "servis_yonalishi": str(data.get("servis_yonalishi") or "Boshqa"),
+            "mijoz_lavozimi": str(data.get("mijoz_lavozimi") or "N/A"),
+            "mijoz_kompaniya": str(data.get("mijoz_kompaniya") or "N/A"),
+            "qaror_qabul_qiluvchi": str(data.get("qaror_qabul_qiluvchi") or "Noaniq"),
+            "joylashuv": str(data.get("joylashuv") or "N/A"),
+            "mijoz_malumotlari": list(mijoz_info),
         }
 
     def _fallback_analysis(self, transcript: str) -> Dict[str, Any]:
@@ -728,6 +763,18 @@ class CallAnalyzer:
             "client_talk_pct": client_pct,
             "agent_talk_pct": agent_pct,
             "talk_ratio_verdict": _talk_ratio_verdict(client_pct),
+            "sifat_bahosi": 0,
+            "lead_bahosi": 0,
+            "suhbat_oilasi": "Boshqa",
+            "suhbat_domeni": "Boshqa",
+            "baholash_rejimi": "Savdo playbook boyicha baholanadi",
+            "biznes_mosligi": "Noaniq",
+            "servis_yonalishi": "Boshqa",
+            "mijoz_lavozimi": "N/A",
+            "mijoz_kompaniya": "N/A",
+            "qaror_qabul_qiluvchi": "Noaniq",
+            "joylashuv": "N/A",
+            "mijoz_malumotlari": [],
         }
 
     def _build_amocrm_note(
@@ -962,37 +1009,90 @@ class CallAnalyzer:
             )
 
             if write:
-                try:
-                    await asyncio.to_thread(self.amocrm.add_lead_note, lead_id, note_text)
-                except Exception as exc:
-                    logger.error("[CALL] Failed to add note to lead %s: %s", lead_id, exc)
+                # Telegram approval flow — agar approval_service ulangan bo'lsa
+                approval_service = getattr(self, "approval_service", None)
+                if approval_service:
+                    lead_name = str(lead_id)
+                    try:
+                        lead_info = await _maybe_await(self.amocrm.get_lead(lead_id))
+                        if lead_info:
+                            lead_name = lead_info.get("name") or str(lead_id)
+                    except Exception:
+                        pass
 
-                try:
-                    await _maybe_await(self.amocrm.add_lead_tag(lead_id, category))
-                except Exception as exc:
-                    logger.error("[CALL] Failed to add tag to lead %s: %s", lead_id, exc)
+                    # DB'ga darhol yozish — restart'dan keyin ham deduplication ishlaydi.
+                    # task_id yo'q bo'lganda None, qayta yozilishi mumkin emas.
+                    await self._log_call_analysis(
+                        call_id=call_id,
+                        lead_id=lead_id,
+                        category=category,
+                        summary=summary,
+                        client_mood=client_mood,
+                        next_steps=next_steps,
+                        transcript=transcript,
+                        audio_url=audio_url,
+                        caller_phone=phone,
+                        task_id=None,
+                    )
 
-                task_id = await self._create_follow_up_task(
-                    lead_id=lead_id,
-                    category=category,
-                    summary=summary,
-                    client_mood=client_mood,
-                    next_steps=next_steps,
-                    responsible_user_id=responsible_user_id,
-                )
+                    try:
+                        await _maybe_await(self.amocrm.add_lead_tag(lead_id, category))
+                    except Exception as exc:
+                        logger.error("[CALL] Failed to add tag to lead %s: %s", lead_id, exc)
 
-                await self._log_call_analysis(
-                    call_id=call_id,
-                    lead_id=lead_id,
-                    category=category,
-                    summary=summary,
-                    client_mood=client_mood,
-                    next_steps=next_steps,
-                    transcript=transcript,
-                    audio_url=audio_url,
-                    caller_phone=phone,
-                    task_id=task_id,
-                )
+                    await self._create_follow_up_task(
+                        lead_id=lead_id,
+                        category=category,
+                        summary=summary,
+                        client_mood=client_mood,
+                        next_steps=next_steps,
+                        responsible_user_id=responsible_user_id,
+                    )
+
+                    try:
+                        await approval_service.send_for_approval(
+                            lead_id=lead_id,
+                            lead_name=lead_name,
+                            phone=phone,
+                            call_id=call_id,
+                            analysis=analysis,
+                            note_text=note_text,
+                            call_duration=duration,
+                        )
+                    except Exception as exc:
+                        logger.error("[CALL] Failed to send approval for lead %s: %s", lead_id, exc)
+                else:
+                    try:
+                        await asyncio.to_thread(self.amocrm.add_lead_note, lead_id, note_text)
+                    except Exception as exc:
+                        logger.error("[CALL] Failed to add note to lead %s: %s", lead_id, exc)
+
+                    try:
+                        await _maybe_await(self.amocrm.add_lead_tag(lead_id, category))
+                    except Exception as exc:
+                        logger.error("[CALL] Failed to add tag to lead %s: %s", lead_id, exc)
+
+                    task_id = await self._create_follow_up_task(
+                        lead_id=lead_id,
+                        category=category,
+                        summary=summary,
+                        client_mood=client_mood,
+                        next_steps=next_steps,
+                        responsible_user_id=responsible_user_id,
+                    )
+
+                    await self._log_call_analysis(
+                        call_id=call_id,
+                        lead_id=lead_id,
+                        category=category,
+                        summary=summary,
+                        client_mood=client_mood,
+                        next_steps=next_steps,
+                        transcript=transcript,
+                        audio_url=audio_url,
+                        caller_phone=phone,
+                        task_id=task_id,
+                    )
             else:
                 logger.info(
                     "[CALL] Dry-run analyzed: lead_id=%s call_id=%s category=%s summary=%s",
