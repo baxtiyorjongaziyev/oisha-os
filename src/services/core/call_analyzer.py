@@ -1019,15 +1019,18 @@ class CallAnalyzer:
                             lead_name = lead_info.get("name") or str(lead_id)
                     except Exception:
                         pass
-                    await approval_service.send_for_approval(
-                        lead_id=lead_id,
-                        lead_name=lead_name,
-                        phone=phone,
-                        call_id=call_id,
-                        analysis=analysis,
-                        note_text=note_text,
-                        call_duration=duration,
-                    )
+                    try:
+                        await approval_service.send_for_approval(
+                            lead_id=lead_id,
+                            lead_name=lead_name,
+                            phone=phone,
+                            call_id=call_id,
+                            analysis=analysis,
+                            note_text=note_text,
+                            call_duration=duration,
+                        )
+                    except Exception as exc:
+                        logger.error("[CALL] Failed to send approval for lead %s: %s", lead_id, exc)
                 else:
                     try:
                         await asyncio.to_thread(self.amocrm.add_lead_note, lead_id, note_text)

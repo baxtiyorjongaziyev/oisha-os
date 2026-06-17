@@ -40,11 +40,10 @@ def _compact(amount: int) -> str:
 class ERPDashboard:
     """Aggregated view over all three ERP engines."""
 
-    def __init__(self, db) -> None:
+    def __init__(self, db=None) -> None:
         self.finance = FinanceEngine(db)
         self.hr = HREngine(db)
         self.projects = ProjectEngine(db)
-        self.db = db
 
     # ------------------------------------------------------------------
     # Core snapshot

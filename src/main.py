@@ -2690,8 +2690,9 @@ async def crm_edit_text_handler(event):
         if not approve_key:
             return
         edit_key = approve_key.replace("crm_approve:", "crm_edit:", 1)
-        await handle_callback(edit_key, event, new_text=event.raw_text)
-        raise events.StopPropagation
+        ok = await handle_callback(edit_key, event, new_text=event.raw_text)
+        if ok:
+            raise events.StopPropagation
     except events.StopPropagation:
         raise
     except Exception as e:
