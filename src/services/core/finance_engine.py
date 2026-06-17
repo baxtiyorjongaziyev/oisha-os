@@ -4,12 +4,14 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Any, Optional
 
+from src.database_pool import DatabasePool, db_pool
+
 logger = logging.getLogger(__name__)
 
 
 class FinanceEngine:
-    def __init__(self, db) -> None:
-        self._db = db
+    def __init__(self, db=None) -> None:
+        self._db = db if isinstance(db, DatabasePool) else db_pool
 
     async def get_monthly_revenue(self, period: str) -> int:
         rows = await self._db.execute(

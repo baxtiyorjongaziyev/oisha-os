@@ -196,7 +196,9 @@ _MIGRATIONS = [
 ]
 
 
-async def init_erp_tables(db) -> None:
+async def init_erp_tables(db=None) -> None:
+    from src.database_pool import DatabasePool, db_pool
+    _db = db if isinstance(db, DatabasePool) else db_pool
     for ddl in _MIGRATIONS:
-        await db.execute(ddl)
-    await db.commit()
+        await _db.execute(ddl)
+    await _db.commit()
