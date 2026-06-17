@@ -320,8 +320,17 @@ class CallAnalyzer:
         return value
 
     async def _is_call_processed(self, call_id: str) -> bool:
-        """Return True when this AmoCRM call was already analyzed."""
-        if not call_id or not self.db:
+        """Return True when this AmoCRM call was already analyzed or is awaiting approval."""
+        if not call_id:
+            return False
+        # In-memory check — approval kutayotgan call'larni qayta tahlil qilmaslik
+        try:
+            from src.services.core.crm_note_approval import is_call_pending_approval
+            if is_call_pending_approval(call_id):
+                return True
+        except Exception:
+            pass
+        if not self.db:
             return False
         try:
             conn = await self.db.get_connection()
