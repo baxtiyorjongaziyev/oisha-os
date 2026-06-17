@@ -225,7 +225,8 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
         ok = await post_note_to_amocrm(
             pending["amocrm"], pending["lead_id"], pending["note_text"]
         )
-        _pending.pop(callback_data, None)
+        if ok:
+            _pending.pop(callback_data, None)
         try:
             reply_fn = getattr(bot_or_event, "answer", None) or getattr(bot_or_event, "respond", None)
             if reply_fn:
@@ -251,7 +252,8 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
             ok = await post_note_to_amocrm(
                 pending["amocrm"], pending["lead_id"], new_text
             )
-            _pending.pop(approve_key, None)
+            if ok:
+                _pending.pop(approve_key, None)
             try:
                 reply_fn = getattr(bot_or_event, "answer", None) or getattr(bot_or_event, "respond", None)
                 if reply_fn:
@@ -333,6 +335,7 @@ class CRMNoteApprovalService:
             return True
         except Exception as e:
             logger.error("[CRM_NOTE] Telegram yuborishda xatolik: %s", e)
+            _pending.pop(_approval_key(lead_id, call_id), None)
             return await post_note_to_amocrm(self.amocrm, lead_id, note_text)
 
     async def auto_post_without_approval(
