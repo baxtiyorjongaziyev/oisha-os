@@ -5,18 +5,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-PLAYBOOK_TEXT = """\U0001f4cb *Jon Branding Sales Playbook*
+PLAYBOOK_TEXT = """📋 *Jon Branding Sales Playbook*
 
 *Sales bosqichlari:*
-\U0001f535 Yangi so'rov → 24s ichida qo'ng'iroq
-\U0001f535 Birinchi kontakt → Ehtiyojni aniqla
-\U0001f535 Muloqot → Qualification (5 savol)
-\U0001f7e1 Sifatli lead → Uchrashuv belgila
-\U0001f7e1 Uchrashuv → Brief to'ldir
-\U0001f7e0 Konsultatsiya → KP tayyorla
-\U0001f7e0 Prezentatsiya → Follow-up 48s
-\U0001f534 Muzokara → E'tirozlarni hal qil
-\U0001f7e2 50% Avans → Farmer ga o'tkaz
+🔵 Yangi so'rov → 24s ichida qo'ng'iroq
+🔵 Birinchi kontakt → Ehtiyojni aniqla
+🔵 Muloqot → Qualification (5 savol)
+🟡 Sifatli lead → Uchrashuv belgila
+🟡 Uchrashuv → Brief to'ldir
+🟠 Konsultatsiya → KP tayyorla
+🟠 Prezentatsiya → Follow-up 48s
+🔴 Muzokara → E'tirozlarni hal qil
+🟢 50% Avans → Farmer ga o'tkaz
 
 *Har qo'ng'iroqdan keyin:*
 1. Amo ga izoh yoz
@@ -31,9 +31,9 @@ PLAYBOOK_TEXT = """\U0001f4cb *Jon Branding Sales Playbook*
 AMO_YORDAM_TEXT = """⚙️ *AmoCRM ichida qulaylik*
 
 *Kerakli filtrlar:*
-• \"Mening ochiq lidlarim\" — faqat sizniki
-• \"Bugun task bor\" — bugungi vazifalar
-• \"Kechikkan\" — muddat o'tganlar
+• "Mening ochiq lidlarim" — faqat sizniki
+• "Bugun task bor" — bugungi vazifalar
+• "Kechikkan" — muddat o'tganlar
 
 *Task yozish shabloni:*
 `Qo'ng'iroq | [sabab] | [muddat]`
@@ -47,6 +47,7 @@ Task bajarilmasa — bosqich o'tmasin
 
 
 async def cmd_bugungi5(event, service, manager_amo_id: int):
+    """Eng muhim 5 ta lid."""
     try:
         leads = service.get_manager_leads(manager_amo_id)
         top5 = service.get_todays_top5(leads)
@@ -54,7 +55,7 @@ async def cmd_bugungi5(event, service, manager_amo_id: int):
             await event.respond("✅ Bugun faol lidingiz yo'q!")
             return
         lines = [service.format_lead_line(l, i + 1) for i, l in enumerate(top5)]
-        text = "\U0001f3af *Bugungi TOP-5 lidingiz:*\n\n" + "\n\n".join(lines)
+        text = "🎯 *Bugungi TOP-5 lidingiz:*\n\n" + "\n\n".join(lines)
         await event.respond(text, parse_mode="markdown", link_preview=False)
     except Exception as e:
         logger.error("[cmd_bugungi5] %s", e)
@@ -62,13 +63,16 @@ async def cmd_bugungi5(event, service, manager_amo_id: int):
 
 
 async def cmd_mening_lidlarim(event, service, manager_amo_id: int):
+    """Barcha ochiq lidlar ro'yxati."""
     try:
         leads = service.get_manager_leads(manager_amo_id)
         if not leads:
             await event.respond("✅ Sizda ochiq lid yo'q.")
             return
-        lines = [service.format_lead_line(lead, i + 1) for i, lead in enumerate(leads[:20], 0)]
-        text = f"\U0001f4cb *Sizning ochiq lidlaringiz* ({len(leads)} ta):\n\n" + "\n\n".join(lines)
+        lines = []
+        for i, lead in enumerate(leads[:20], 1):
+            lines.append(service.format_lead_line(lead, i))
+        text = f"📋 *Sizning ochiq lidlaringiz* ({len(leads)} ta):\n\n" + "\n\n".join(lines)
         if len(leads) > 20:
             text += f"\n\n...va yana {len(leads) - 20} ta"
         await event.respond(text, parse_mode="markdown", link_preview=False)
@@ -78,13 +82,15 @@ async def cmd_mening_lidlarim(event, service, manager_amo_id: int):
 
 
 async def cmd_keyingi_vazifa(event, service, manager_amo_id: int):
+    """Eng muhim 1 ta vazifa."""
     try:
         leads = service.get_manager_leads(manager_amo_id)
         top5 = service.get_todays_top5(leads)
         if not top5:
             await event.respond("✅ Bugun vazifangiz yo'q!")
             return
-        text = "⚡️ *Hozirgi eng muhim vazifangiz:*\n\n" + service.format_lead_line(top5[0], 1)
+        first = top5[0]
+        text = "⚡️ *Hozirgi eng muhim vazifangiz:*\n\n" + service.format_lead_line(first, 1)
         await event.respond(text, parse_mode="markdown", link_preview=False)
     except Exception as e:
         logger.error("[cmd_keyingi_vazifa] %s", e)
@@ -92,8 +98,10 @@ async def cmd_keyingi_vazifa(event, service, manager_amo_id: int):
 
 
 async def cmd_playbook(event):
+    """Sales playbook."""
     await event.respond(PLAYBOOK_TEXT, parse_mode="markdown")
 
 
 async def cmd_amo_yordam(event):
+    """AmoCRM sozlash yo'riqnomasi."""
     await event.respond(AMO_YORDAM_TEXT, parse_mode="markdown")
