@@ -47,6 +47,11 @@ def _edit_key(lead_id: int, call_id: str) -> str:
     return f"crm_edit:{lead_id}:{_safe_call_id(call_id, lead_id)}"
 
 
+def _h(text: Any) -> str:
+    """HTML special char'larni escape qilish — Telegram HTML parse mode uchun."""
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def format_approval_message(
     analysis: Dict[str, Any],
     lead_name: str,
@@ -84,51 +89,51 @@ def format_approval_message(
         return "█" * filled + "░" * (10 - filled) + f" {score}/100"
 
     lines = [
-        "📞 *Qo'ng'iroq tahlili tayyor*",
+        "📞 <b>Qo'ng'iroq tahlili tayyor</b>",
         "",
-        f"👤 *Mijoz:* {lead_name}",
-        f"📱 *Raqam:* `{phone}`",
-        f"⏱ *Davomiylik:* {dur}",
+        f"👤 <b>Mijoz:</b> {_h(lead_name)}",
+        f"📱 <b>Raqam:</b> <code>{_h(phone)}</code>",
+        f"⏱ <b>Davomiylik:</b> {dur}",
         "",
-        "━━━━━━ *SUHBAT TAHLILI* ━━━━━━",
-        f"🎯 *Sifat bahosi:* {_score_bar(sifat)}",
-        f"💎 *Lead bahosi:* {_score_bar(lead_b)}",
-        f"🗣 *Nisbat:* Mijoz {client_pct}% | Sotuvchi {agent_pct}%",
-        f"{cat_icon} *Toifa:* {category}   {mood_icon} *Kayfiyat:* {mood}",
+        "━━━━━━ <b>SUHBAT TAHLILI</b> ━━━━━━",
+        f"🎯 <b>Sifat bahosi:</b> {_score_bar(sifat)}",
+        f"💎 <b>Lead bahosi:</b> {_score_bar(lead_b)}",
+        f"🗣 <b>Nisbat:</b> Mijoz {client_pct}% | Sotuvchi {agent_pct}%",
+        f"{cat_icon} <b>Toifa:</b> {_h(category)}   {mood_icon} <b>Kayfiyat:</b> {_h(mood)}",
     ]
 
     if suhbat_oilasi:
-        lines.append(f"💬 *Suhbat oilasi:* {suhbat_oilasi}")
+        lines.append(f"💬 <b>Suhbat oilasi:</b> {_h(suhbat_oilasi)}")
     if suhbat_domeni:
-        lines.append(f"🏢 *Suhbat domeni:* {suhbat_domeni}")
+        lines.append(f"🏢 <b>Suhbat domeni:</b> {_h(suhbat_domeni)}")
     if baholash:
-        lines.append(f"📊 *Baholash rejimi:* {baholash}")
+        lines.append(f"📊 <b>Baholash rejimi:</b> {_h(baholash)}")
     if mosligi:
-        lines.append(f"✅ *Biznes mosligi:* {mosligi}")
+        lines.append(f"✅ <b>Biznes mosligi:</b> {_h(mosligi)}")
     if servis:
-        lines.append(f"🎨 *Servis yo'nalishi:* {servis}")
+        lines.append(f"🎨 <b>Servis yo'nalishi:</b> {_h(servis)}")
 
     lines += [
         "",
-        "━━━━━━ *MIJOZ MA'LUMOTI* ━━━━━━",
-        f"👔 *Lavozimi:* {lavozim}",
-        f"🏭 *Kompaniya:* {kompaniya}",
-        f"🤝 *Qaror qabul qiluvchi:* {qaror}",
-        f"📍 *Joylashuv:* {joylashuv}",
+        "━━━━━━ <b>MIJOZ MA'LUMOTI</b> ━━━━━━",
+        f"👔 <b>Lavozimi:</b> {_h(lavozim)}",
+        f"🏭 <b>Kompaniya:</b> {_h(kompaniya)}",
+        f"🤝 <b>Qaror qabul qiluvchi:</b> {_h(qaror)}",
+        f"📍 <b>Joylashuv:</b> {_h(joylashuv)}",
     ]
 
     if malumotlar:
         lines.append("")
-        lines.append("📋 *Ma'lumotlar:*")
+        lines.append("<b>📋 Ma'lumotlar:</b>")
         for m in malumotlar[:5]:
-            lines.append(f"• {m}")
+            lines.append(f"• {_h(m)}")
 
     lines += [
         "",
-        "━━━━━━ *XULOSA* ━━━━━━",
-        f"📝 {summary}",
+        "━━━━━━ <b>XULOSA</b> ━━━━━━",
+        f"📝 {_h(summary)}",
         "",
-        f"➡️ *Keyingi qadam:* {next_steps}",
+        f"➡️ <b>Keyingi qadam:</b> {_h(next_steps)}",
         "",
         "✅ Tasdiqlang yoki ✏️ tahrirlang",
     ]
@@ -307,6 +312,11 @@ def pop_pending_edit(user_id: int) -> Optional[str]:
     return _pending_edit.pop(user_id, None)
 
 
+def push_pending_edit(user_id: int, approve_key: str) -> None:
+    """Edit rejimini tiklash uchun — pop_pending_edit bilan simmetrik."""
+    _pending_edit[user_id] = approve_key
+
+
 def is_call_pending_approval(call_id: str) -> bool:
     """True agar bu call_id hali Telegram approval kutayotgan bo'lsa.
 
@@ -351,7 +361,7 @@ class CRMNoteApprovalService:
         try:
             buttons = build_inline_keyboard_telethon(lead_id, call_id)
             if hasattr(self.bot, "send_message"):
-                await self.bot.send_message(self.owner_id, msg_text, buttons=buttons, parse_mode="md")
+                await self.bot.send_message(self.owner_id, msg_text, buttons=buttons, parse_mode="html")
             elif hasattr(self.bot, "send"):
                 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
                 kb_rows = build_inline_keyboard_aiogram(lead_id, call_id)
@@ -359,7 +369,7 @@ class CRMNoteApprovalService:
                     [InlineKeyboardButton(text=b["text"], callback_data=b["callback_data"]) for b in row]
                     for row in kb_rows
                 ])
-                await self.bot.send_message(self.owner_id, msg_text, reply_markup=markup, parse_mode="Markdown")
+                await self.bot.send_message(self.owner_id, msg_text, reply_markup=markup, parse_mode="HTML")
             logger.info("[CRM_NOTE] Lead %s uchun approval yuborildi", lead_id)
             return True
         except Exception as e:
