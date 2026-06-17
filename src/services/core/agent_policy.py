@@ -91,6 +91,7 @@ class AgentPolicyEngine:
             False,
         )
         allow_in_quiet_hours = bool(payload.get("allow_in_quiet_hours"))
+        allow_on_sunday = bool(payload.get("allow_on_sunday"))
         in_quiet_hours = quiet_hours_enabled and is_quiet_hours(now)
 
         checks = {
@@ -102,6 +103,7 @@ class AgentPolicyEngine:
             "approval_required": approval_required,
             "approval_granted": approval_granted,
             "allow_in_quiet_hours": allow_in_quiet_hours,
+            "allow_on_sunday": allow_on_sunday,
             "in_quiet_hours": in_quiet_hours,
             "is_sunday": is_sunday(now),
             "client_facing": client_facing,
@@ -112,8 +114,8 @@ class AgentPolicyEngine:
             "evaluated_at": now.isoformat(),
         }
 
-        # Yakshanba kuni hech qanday avtomat harakat yo'q
-        if is_sunday(now) and requested_by not in {"manual", "owner"} and not manual_override:
+        # Yakshanba kuni mijozga yo'naltirilgan va avtomat harakatlar bloklanadi
+        if is_sunday(now) and requested_by not in {"manual", "owner"} and not manual_override and not allow_on_sunday:
             return PolicyDecision(False, "sunday_block", checks=checks)
 
         if (
