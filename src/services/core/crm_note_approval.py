@@ -177,17 +177,12 @@ def register_pending(
 
 async def post_note_to_amocrm(amocrm_client: Any, lead_id: int, note_text: str) -> bool:
     try:
-        payload = [{"lead_id": lead_id, "note_type": "common", "params": {"text": note_text}}]
-        result = await amocrm_client.create_notes(lead_id=lead_id, notes=payload)
+        import asyncio
+        result = await asyncio.to_thread(amocrm_client.add_lead_note, lead_id, note_text)
         if result:
             logger.info("[CRM_NOTE] Lead %s ga izoh qo'shildi", lead_id)
             return True
-        # Fallback: REST POST
-        resp = await amocrm_client._request(
-            "POST", "/api/v4/leads/notes",
-            json=[{"entity_id": lead_id, "note_type": "common", "params": {"text": note_text}}]
-        )
-        return bool(resp)
+        return False
     except Exception as e:
         logger.error("[CRM_NOTE] AMO POST xatolik: %s", e)
         return False

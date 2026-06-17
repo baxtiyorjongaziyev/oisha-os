@@ -2635,7 +2635,7 @@ async def self_command_handler(event):
                 analyzer.approval_service = CRMNoteApprovalService(
                     amocrm_client=msg_controller.crm.amocrm,
                     owner_telegram_id=int(owner_id),
-                    bot_client=client,
+                    bot_client=bot_client,
                 )
             result = await analyzer.analyze_recent_calls(limit=limit, write=True)
             if isinstance(result, dict):
@@ -3301,7 +3301,7 @@ async def main():
                 call_analyzer.approval_service = CRMNoteApprovalService(
                     amocrm_client=msg_controller.crm.amocrm,
                     owner_telegram_id=int(_owner_tg_id),
-                    bot_client=client,
+                    bot_client=bot_client,
                 )
                 logger.info("[CALL] CRM note approval service ulandi (owner: %s)", _owner_tg_id)
         except Exception as _ap_exc:
@@ -3762,10 +3762,11 @@ async def main():
         self_command_handler,
         events.NewMessage(chats="me"),
     )
-    client.add_event_handler(
-        crm_note_callback_handler,
-        events.CallbackQuery(pattern=b"crm_"),
-    )
+    if bot_client:
+        bot_client.add_event_handler(
+            crm_note_callback_handler,
+            events.CallbackQuery(pattern=b"crm_"),
+        )
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
     async def telegram_group_access_probe_loop():
