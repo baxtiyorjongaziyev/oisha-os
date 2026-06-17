@@ -340,16 +340,18 @@ class CRMNoteApprovalService:
         phone: str,
         call_id: str,
         analysis: Dict[str, Any],
-        note_text: str,
+        note_texts: List[str],
         call_duration: int = 0,
     ) -> bool:
         """Tahlil natijasini Telegram'ga yuboradi — tasdiqlash kutiladi."""
         if not self.bot:
             logger.warning("[CRM_NOTE] Bot client yo'q — avtomatik post qilinmoqda")
-            return await post_note_to_amocrm(self.amocrm, lead_id, note_text)
+            return await post_notes_to_amocrm(self.amocrm, lead_id, note_texts)
 
-        msg_text = format_approval_message(analysis, lead_name, phone, call_duration, note_text)
-        await register_pending(lead_id, call_id, note_text, analysis, self.amocrm)
+        # format_approval_message imzosi o'zgarmaydi — birinchi noteni preview uchun uzatamiz
+        first_note = (note_texts or [""])[0]
+        msg_text = format_approval_message(analysis, lead_name, phone, call_duration, first_note)
+        await register_pending(lead_id, call_id, note_texts, analysis, self.amocrm)
 
         try:
             buttons = build_inline_keyboard_telethon(lead_id, call_id)
@@ -368,10 +370,10 @@ class CRMNoteApprovalService:
         except Exception as e:
             logger.error("[CRM_NOTE] Telegram yuborishda xatolik: %s", e)
             _pending.pop(_approval_key(lead_id, call_id), None)
-            return await post_note_to_amocrm(self.amocrm, lead_id, note_text)
+            return await post_notes_to_amocrm(self.amocrm, lead_id, note_texts)
 
     async def auto_post_without_approval(
-        self, lead_id: int, note_text: str
+        self, lead_id: int, note_texts: List[str]
     ) -> bool:
         """ENABLE_AUTO_REPLY=true bo'lsa tasdiqlashsiz to'g'ridan AMO ga yozadi."""
-        return await post_note_to_amocrm(self.amocrm, lead_id, note_text)
+        return await post_notes_to_amocrm(self.amocrm, lead_id, note_texts)
