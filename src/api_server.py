@@ -3053,8 +3053,10 @@ async def background_crm_audit_task():
 # ── ERP API ENDPOINTS ──────────────────────────────────────────────────────
 
 @app.get("/api/erp/dashboard")
-async def erp_dashboard(period: Optional[str] = Query(None, description="YYYY-MM format")):
+async def erp_dashboard(request: Request, period: Optional[str] = Query(None, description="YYYY-MM format")):
     """ERP umumiy dashboard — barcha ko'rsatkichlar."""
+    if not _is_authorized_cron_request(request):
+        return JSONResponse(status_code=401, content={"ok": False, "error": "Unauthorized"})
     try:
         from src.services.core.erp_dashboard import ERPDashboard
         dashboard_engine = ERPDashboard(db_instance)
@@ -3083,8 +3085,10 @@ async def erp_dashboard(period: Optional[str] = Query(None, description="YYYY-MM
 
 
 @app.get("/api/erp/finance")
-async def erp_finance(period: Optional[str] = Query(None)):
+async def erp_finance(request: Request, period: Optional[str] = Query(None)):
     """Moliya hisoboti — daromad, xarajat, avanslar."""
+    if not _is_authorized_cron_request(request):
+        return JSONResponse(status_code=401, content={"ok": False, "error": "Unauthorized"})
     try:
         from src.services.core.finance_engine import FinanceEngine
         engine = FinanceEngine(db_instance)
@@ -3105,8 +3109,10 @@ async def erp_finance(period: Optional[str] = Query(None)):
 
 
 @app.get("/api/erp/hr")
-async def erp_hr(period: Optional[str] = Query(None)):
+async def erp_hr(request: Request, period: Optional[str] = Query(None)):
     """HR — jamoa, KPI, maoshlar."""
+    if not _is_authorized_cron_request(request):
+        return JSONResponse(status_code=401, content={"ok": False, "error": "Unauthorized"})
     try:
         from src.services.core.hr_engine import HREngine
         engine = HREngine(db_instance)
@@ -3125,8 +3131,10 @@ async def erp_hr(period: Optional[str] = Query(None)):
 
 
 @app.get("/api/erp/projects")
-async def erp_projects():
+async def erp_projects(request: Request):
     """Faol loyihalar va statistika."""
+    if not _is_authorized_cron_request(request):
+        return JSONResponse(status_code=401, content={"ok": False, "error": "Unauthorized"})
     try:
         from src.services.core.project_engine import ProjectEngine
         engine = ProjectEngine(db_instance)
@@ -3144,8 +3152,10 @@ async def erp_projects():
 
 
 @app.get("/api/erp/health")
-async def erp_health():
+async def erp_health(request: Request):
     """ERP sog'liqlik balli va tavsiyalar."""
+    if not _is_authorized_cron_request(request):
+        return JSONResponse(status_code=401, content={"ok": False, "error": "Unauthorized"})
     try:
         from src.services.core.erp_dashboard import ERPDashboard
         dashboard_engine = ERPDashboard(db_instance)
