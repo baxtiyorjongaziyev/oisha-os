@@ -159,6 +159,17 @@ def build_inline_keyboard_telethon(lead_id: int, call_id: str):
         return None
 
 
+def _prune_pending(max_age_seconds: int = 86400) -> None:
+    """Remove _pending entries older than max_age_seconds (default 24 h)."""
+    cutoff = datetime.utcnow()
+    stale = [
+        k for k, v in _pending.items()
+        if (cutoff - datetime.fromisoformat(v["created_at"])).total_seconds() > max_age_seconds
+    ]
+    for k in stale:
+        _pending.pop(k, None)
+
+
 def register_pending(
     lead_id: int,
     call_id: str,
@@ -166,6 +177,7 @@ def register_pending(
     analysis: Dict[str, Any],
     amocrm_client: Any,
 ) -> None:
+    _prune_pending()
     key = _approval_key(lead_id, call_id)
     _pending[key] = {
         "lead_id": lead_id,
@@ -237,9 +249,17 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                 user_id = getattr(bot_or_event, "sender_id", None)
                 if user_id:
                     _pending_edit[user_id] = approve_key
-                reply_fn = getattr(bot_or_event, "answer", None) or getattr(bot_or_event, "respond", None)
-                if reply_fn:
-                    await reply_fn(
+                # ACK the button click first (answerCallbackQuery ≤200 chars)
+                answer_fn = getattr(bot_or_event, "answer", None)
+                if answer_fn:
+                    try:
+                        await answer_fn("✏️ Tahrirlashni boshlang")
+                    except Exception:
+                        pass
+                # Send full prompt as a regular message (no size limit)
+                respond_fn = getattr(bot_or_event, "respond", None)
+                if respond_fn:
+                    await respond_fn(
                         "✏️ Yangi izoh matnini yuboring.\n"
                         f"(Joriy matn):\n`{pending['note_text'][:300]}`"
                     )
