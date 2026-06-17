@@ -2599,15 +2599,25 @@ async def self_command_handler(event):
                 # /loyiha_qosh Sarlavha | Mijoz | 5000000 | 2025-07-01
                 args = cmd[len("/loyiha_qosh"):].strip().split("|")
                 if len(args) >= 4:
+                    try:
+                        budget = int(args[2].strip())
+                    except ValueError:
+                        await event.respond("❌ Byudjet raqam bo'lishi kerak. Namuna: /loyiha_qosh Sarlavha | Mijoz | 5000000 | 2025-07-01")
+                        return
                     await cmd_qo_shish_loyiha(event, db, args[0].strip(), args[1].strip(),
-                                              int(args[2].strip()), args[3].strip())
+                                              budget, args[3].strip())
                 else:
                     await event.respond("❌ Format: /loyiha_qosh Sarlavha | Mijoz | Byudjet | Muddat")
             elif cmd.startswith("/xarajat"):
                 # /xarajat kategoriya | tavsif | miqdor
                 args = cmd[len("/xarajat"):].strip().split("|")
                 if len(args) >= 3:
-                    await cmd_xarajat_qosh(event, db, args[0].strip(), args[1].strip(), int(args[2].strip()))
+                    try:
+                        amount = int(args[2].strip())
+                    except ValueError:
+                        await event.respond("❌ Miqdor raqam bo'lishi kerak. Namuna: /xarajat ofis | Printer qog'oz | 150000")
+                        return
+                    await cmd_xarajat_qosh(event, db, args[0].strip(), args[1].strip(), amount)
                 else:
                     await event.respond("❌ Format: /xarajat kategoriya | tavsif | miqdor")
             elif cmd.startswith("/loyihalar"):
@@ -3309,7 +3319,7 @@ async def main():
         # Qo'ng'iroq tahlili → Telegram tasdiqlash flow ulash
         try:
             from src.services.core.crm_note_approval import CRMNoteApprovalService
-            _owner_tg_id = getattr(config, "OWNER_ID", None)
+            _owner_tg_id = getattr(settings, "OWNER_ID", None) or getattr(config, "OWNER_ID", None)
             if _owner_tg_id:
                 call_analyzer.approval_service = CRMNoteApprovalService(
                     amocrm_client=msg_controller.crm.amocrm,
@@ -3782,7 +3792,7 @@ async def main():
         )
         bot_client.add_event_handler(
             crm_edit_text_handler,
-            events.NewMessage(incoming=True),
+            events.NewMessage(incoming=True, func=lambda e: e.is_private),
         )
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
