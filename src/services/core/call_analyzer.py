@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import hashlib
 import io
 import inspect
@@ -1019,6 +1020,36 @@ class CallAnalyzer:
                             lead_name = lead_info.get("name") or str(lead_id)
                     except Exception:
                         pass
+
+                    try:
+                        await _maybe_await(self.amocrm.add_lead_tag(lead_id, category))
+                    except Exception as exc:
+                        logger.error("[CALL] Failed to add tag to lead %s: %s", lead_id, exc)
+
+                    task_id = await self._create_follow_up_task(
+                        lead_id=lead_id,
+                        category=category,
+                        summary=summary,
+                        client_mood=client_mood,
+                        next_steps=next_steps,
+                        responsible_user_id=responsible_user_id,
+                    )
+
+                    # _log_call_analysis approval'dan keyin chaqiriladi — DB'ga "processed"
+                    # yozilishi faqat CRM note muvaffaqiyatli qo'shilgandan keyin bo'lishi kerak.
+                    log_cb = functools.partial(
+                        self._log_call_analysis,
+                        call_id=call_id,
+                        lead_id=lead_id,
+                        category=category,
+                        summary=summary,
+                        client_mood=client_mood,
+                        next_steps=next_steps,
+                        transcript=transcript,
+                        audio_url=audio_url,
+                        caller_phone=phone,
+                        task_id=task_id,
+                    )
                     try:
                         await approval_service.send_for_approval(
                             lead_id=lead_id,
@@ -1028,6 +1059,7 @@ class CallAnalyzer:
                             analysis=analysis,
                             note_text=note_text,
                             call_duration=duration,
+                            log_callback=log_cb,
                         )
                     except Exception as exc:
                         logger.error("[CALL] Failed to send approval for lead %s: %s", lead_id, exc)
@@ -1037,32 +1069,32 @@ class CallAnalyzer:
                     except Exception as exc:
                         logger.error("[CALL] Failed to add note to lead %s: %s", lead_id, exc)
 
-                try:
-                    await _maybe_await(self.amocrm.add_lead_tag(lead_id, category))
-                except Exception as exc:
-                    logger.error("[CALL] Failed to add tag to lead %s: %s", lead_id, exc)
+                    try:
+                        await _maybe_await(self.amocrm.add_lead_tag(lead_id, category))
+                    except Exception as exc:
+                        logger.error("[CALL] Failed to add tag to lead %s: %s", lead_id, exc)
 
-                task_id = await self._create_follow_up_task(
-                    lead_id=lead_id,
-                    category=category,
-                    summary=summary,
-                    client_mood=client_mood,
-                    next_steps=next_steps,
-                    responsible_user_id=responsible_user_id,
-                )
+                    task_id = await self._create_follow_up_task(
+                        lead_id=lead_id,
+                        category=category,
+                        summary=summary,
+                        client_mood=client_mood,
+                        next_steps=next_steps,
+                        responsible_user_id=responsible_user_id,
+                    )
 
-                await self._log_call_analysis(
-                    call_id=call_id,
-                    lead_id=lead_id,
-                    category=category,
-                    summary=summary,
-                    client_mood=client_mood,
-                    next_steps=next_steps,
-                    transcript=transcript,
-                    audio_url=audio_url,
-                    caller_phone=phone,
-                    task_id=task_id,
-                )
+                    await self._log_call_analysis(
+                        call_id=call_id,
+                        lead_id=lead_id,
+                        category=category,
+                        summary=summary,
+                        client_mood=client_mood,
+                        next_steps=next_steps,
+                        transcript=transcript,
+                        audio_url=audio_url,
+                        caller_phone=phone,
+                        task_id=task_id,
+                    )
             else:
                 logger.info(
                     "[CALL] Dry-run analyzed: lead_id=%s call_id=%s category=%s summary=%s",
