@@ -80,12 +80,20 @@ def format_approval_message(
     joylashuv = analysis.get("joylashuv", "N/A")
     malumotlar = analysis.get("mijoz_malumotlari", [])
 
+    rubrik = analysis.get("rubrik_baholar") or {}
+    r_salom = int(rubrik.get("salomlashish") or 0)
+    r_ehti = int(rubrik.get("ehtiyojlar") or 0)
+    r_qiy = int(rubrik.get("qiymat") or 0)
+    r_etir = int(rubrik.get("etirozlar") or 0)
+    r_yak = int(rubrik.get("yakunlash") or 0)
+    r_mul = int(rubrik.get("muloqot_sifati") or 0)
+
     cat_icon = CATEGORY_EMOJI.get(category, "📌")
     mood_icon = MOOD_EMOJI.get(mood, "🤔")
     dur = f"{call_duration // 60}:{call_duration % 60:02d}" if call_duration else "—"
 
     def _score_bar(score: int) -> str:
-        filled = round(score / 10)
+        filled = round(max(0, min(100, score)) / 10)
         return "█" * filled + "░" * (10 - filled) + f" {score}/100"
 
     lines = [
@@ -100,6 +108,14 @@ def format_approval_message(
         f"💎 <b>Lead bahosi:</b> {_score_bar(lead_b)}",
         f"🗣 <b>Nisbat:</b> Mijoz {client_pct}% | Sotuvchi {agent_pct}%",
         f"{cat_icon} <b>Toifa:</b> {_h(category)}   {mood_icon} <b>Kayfiyat:</b> {_h(mood)}",
+        "",
+        "━━━━━━ <b>JON BRANDING RUBRIK</b> ━━━━━━",
+        f"1. Salomlashish:    {_score_bar(r_salom)}",
+        f"2. Ehtiyojlar:      {_score_bar(r_ehti)}",
+        f"3. Qiymat:          {_score_bar(r_qiy)}",
+        f"4. E'tirozlar (×2): {_score_bar(r_etir)}",
+        f"5. Yakunlash  (×2): {_score_bar(r_yak)}",
+        f"6. Muloqot sifati:  {_score_bar(r_mul)}",
     ]
 
     if suhbat_oilasi:
