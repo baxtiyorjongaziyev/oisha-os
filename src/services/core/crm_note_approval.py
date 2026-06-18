@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -80,12 +80,20 @@ def format_approval_message(
     joylashuv = analysis.get("joylashuv", "N/A")
     malumotlar = analysis.get("mijoz_malumotlari", [])
 
+    rubrik = analysis.get("rubrik_baholar") or {}
+    r_salom = int(rubrik.get("salomlashish") or 0)
+    r_ehti = int(rubrik.get("ehtiyojlar") or 0)
+    r_qiy = int(rubrik.get("qiymat") or 0)
+    r_etir = int(rubrik.get("etirozlar") or 0)
+    r_yak = int(rubrik.get("yakunlash") or 0)
+    r_mul = int(rubrik.get("muloqot_sifati") or 0)
+
     cat_icon = CATEGORY_EMOJI.get(category, "📌")
     mood_icon = MOOD_EMOJI.get(mood, "🤔")
     dur = f"{call_duration // 60}:{call_duration % 60:02d}" if call_duration else "—"
 
     def _score_bar(score: int) -> str:
-        filled = round(score / 10)
+        filled = round(max(0, min(100, score)) / 10)
         return "█" * filled + "░" * (10 - filled) + f" {score}/100"
 
     lines = [
@@ -100,6 +108,14 @@ def format_approval_message(
         f"💎 <b>Lead bahosi:</b> {_score_bar(lead_b)}",
         f"🗣 <b>Nisbat:</b> Mijoz {client_pct}% | Sotuvchi {agent_pct}%",
         f"{cat_icon} <b>Toifa:</b> {_h(category)}   {mood_icon} <b>Kayfiyat:</b> {_h(mood)}",
+        "",
+        "━━━━━━ <b>JON BRANDING RUBRIK</b> ━━━━━━",
+        f"1. Salomlashish:    {_score_bar(r_salom)}",
+        f"2. Ehtiyojlar:      {_score_bar(r_ehti)}",
+        f"3. Qiymat:          {_score_bar(r_qiy)}",
+        f"4. E'tirozlar (×2): {_score_bar(r_etir)}",
+        f"5. Yakunlash  (×2): {_score_bar(r_yak)}",
+        f"6. Muloqot sifati:  {_score_bar(r_mul)}",
     ]
 
     if suhbat_oilasi:
@@ -177,7 +193,7 @@ async def _prune_pending(max_age_seconds: int = 86400) -> None:
     ]
     for k, v in stale:
         try:
-            await post_note_to_amocrm(v["amocrm"], v["lead_id"], v["note_text"])
+            await post_notes_to_amocrm(v["amocrm"], v["lead_id"], v["note_texts"])
             logger.info("[CRM_NOTE] 24h timeout: lead %s uchun izoh avtomatik qo'shildi", v["lead_id"])
         except Exception as e:
             logger.error("[CRM_NOTE] 24h timeout auto-post xatolik lead %s: %s", v["lead_id"], e)
@@ -191,7 +207,7 @@ async def _prune_pending(max_age_seconds: int = 86400) -> None:
 async def register_pending(
     lead_id: int,
     call_id: str,
-    note_text: str,
+    note_texts: List[str],
     analysis: Dict[str, Any],
     amocrm_client: Any,
 ) -> None:
@@ -200,7 +216,7 @@ async def register_pending(
     _pending[key] = {
         "lead_id": lead_id,
         "call_id": call_id,
-        "note_text": note_text,
+        "note_texts": note_texts,
         "analysis": analysis,
         "amocrm": amocrm_client,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -220,6 +236,15 @@ async def post_note_to_amocrm(amocrm_client: Any, lead_id: int, note_text: str) 
         return False
 
 
+async def post_notes_to_amocrm(amocrm_client: Any, lead_id: int, note_texts: List[str]) -> bool:
+    """Bir nechta noteni ketma-ket yuboradi."""
+    ok = True
+    for nt in note_texts:
+        if nt and nt.strip():
+            ok = await post_note_to_amocrm(amocrm_client, lead_id, nt) and ok
+    return ok
+
+
 async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str = "") -> bool:
     """
     Callback handler — aiogram yoki Telethon callback event'dan chaqiriladi.
@@ -236,8 +261,8 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
             except Exception:
                 pass
             return False
-        ok = await post_note_to_amocrm(
-            pending["amocrm"], pending["lead_id"], pending["note_text"]
+        ok = await post_notes_to_amocrm(
+            pending["amocrm"], pending["lead_id"], pending["note_texts"]
         )
         if ok:
             _pending.pop(callback_data, None)
@@ -262,9 +287,12 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                 pass
             return False
         if new_text:
-            pending["note_text"] = new_text
-            ok = await post_note_to_amocrm(
-                pending["amocrm"], pending["lead_id"], new_text
+            # Faqat birinchi noteni almashtiradi; mijoz profili o'zgarmaydi
+            pending["note_texts"] = [new_text] + (
+                pending["note_texts"][1:] if len(pending["note_texts"]) > 1 else []
+            )
+            ok = await post_notes_to_amocrm(
+                pending["amocrm"], pending["lead_id"], pending["note_texts"]
             )
             if ok:
                 _pending.pop(approve_key, None)
@@ -291,9 +319,10 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                 # Send full prompt as a regular message (no size limit)
                 respond_fn = getattr(bot_or_event, "respond", None)
                 if respond_fn:
+                    first_note = (pending["note_texts"] or [""])[0]
                     await respond_fn(
                         "✏️ Yangi izoh matnini yuboring.\n"
-                        f"(Joriy matn):\n`{pending['note_text'][:300]}`"
+                        f"(Joriy tahlil matni):\n`{first_note[:300]}`"
                     )
             except Exception:
                 pass
@@ -327,16 +356,18 @@ class CRMNoteApprovalService:
         phone: str,
         call_id: str,
         analysis: Dict[str, Any],
-        note_text: str,
+        note_texts: List[str],
         call_duration: int = 0,
     ) -> bool:
         """Tahlil natijasini Telegram'ga yuboradi — tasdiqlash kutiladi."""
         if not self.bot:
             logger.warning("[CRM_NOTE] Bot client yo'q — avtomatik post qilinmoqda")
-            return await post_note_to_amocrm(self.amocrm, lead_id, note_text)
+            return await post_notes_to_amocrm(self.amocrm, lead_id, note_texts)
 
-        msg_text = format_approval_message(analysis, lead_name, phone, call_duration, note_text)
-        await register_pending(lead_id, call_id, note_text, analysis, self.amocrm)
+        # format_approval_message imzosi o'zgarmaydi — birinchi noteni preview uchun uzatamiz
+        first_note = (note_texts or [""])[0]
+        msg_text = format_approval_message(analysis, lead_name, phone, call_duration, first_note)
+        await register_pending(lead_id, call_id, note_texts, analysis, self.amocrm)
 
         try:
             buttons = build_inline_keyboard_telethon(lead_id, call_id)
@@ -355,10 +386,10 @@ class CRMNoteApprovalService:
         except Exception as e:
             logger.error("[CRM_NOTE] Telegram yuborishda xatolik: %s", e)
             _pending.pop(_approval_key(lead_id, call_id), None)
-            return await post_note_to_amocrm(self.amocrm, lead_id, note_text)
+            return await post_notes_to_amocrm(self.amocrm, lead_id, note_texts)
 
     async def auto_post_without_approval(
-        self, lead_id: int, note_text: str
+        self, lead_id: int, note_texts: List[str]
     ) -> bool:
         """ENABLE_AUTO_REPLY=true bo'lsa tasdiqlashsiz to'g'ridan AMO ga yozadi."""
-        return await post_note_to_amocrm(self.amocrm, lead_id, note_text)
+        return await post_notes_to_amocrm(self.amocrm, lead_id, note_texts)
