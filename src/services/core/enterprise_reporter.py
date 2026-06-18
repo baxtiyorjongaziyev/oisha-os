@@ -79,10 +79,33 @@ class EnterpriseReporter:
 
         # 2. PM (Airtable)
         if self.airtable:
-            # Bugun bitgan yoki o'zgargan loyihalar
-            report.append("\n🏗 <b>Production (Bugun):</b>")
-            projects = self.airtable.get_projects()
-            report.append(f"- Aktiv loyihalar: {len(projects)} ta")
+            report.append("\n🏗 <b>Production (Airtable):</b>")
+            try:
+                from src.services.core.airtable_sync import AirtableSync as _AT
+                projects = self.airtable.get_projects()
+                overdue = self.airtable.get_overdue_projects()
+                active_projects = [
+                    p for p in projects
+                    if _AT._get_field(p.get("fields", {}), "stage") not in _AT.DONE_STAGES
+                ]
+                report.append(f"- Aktiv loyihalar: <b>{len(active_projects)} ta</b>")
+                if overdue:
+                    report.append(f"- 🔴 Muddati o'tgan: <b>{len(overdue)} ta</b>")
+                    for p in overdue[:3]:
+                        fields = p.get("fields", {})
+                        name = _AT._get_field(fields, "project_name") or "Nomsiz"
+                        pm = _AT.resolve_pm_handle(_AT._get_field(fields, "manager"))
+                        report.append(f"  • {name} ({pm})")
+                pm_set = set()
+                for p in active_projects:
+                    pm_val = _AT._get_field(p.get("fields", {}), "manager")
+                    pm_set.add(_AT.resolve_pm_handle(pm_val))
+                if pm_set:
+                    report.append(f"- PM lar: {', '.join(sorted(pm_set))}")
+            except Exception as _pm_exc:
+                logger.warning("[REPORTER] PM section error: %s", _pm_exc)
+                projects = self.airtable.get_projects()
+                report.append(f"- Aktiv loyihalar: {len(projects)} ta")
 
         # 3. FINANCE (Airtable)
         if self.airtable:
@@ -770,6 +793,8 @@ class EnterpriseReporter:
                         report.append(
                             f"    {i}. {m['lead_name']} — {m['mission']} <a href='{m['link']}'>[CRM]</a>"
                         )
+
+        return "\n".join(report)
 
     async def generate_plan_fact_report(self) -> str:
         """Kechki 'Plan-Fakt' hisoboti."""
