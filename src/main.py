@@ -2580,6 +2580,7 @@ async def self_command_handler(event):
             from src.services.core.erp_handlers import (
                 cmd_erp_holat, cmd_moliya, cmd_jamoa, cmd_loyihalar,
                 cmd_erp_salomatlik, cmd_qo_shish_loyiha, cmd_xarajat_qosh,
+                ERP_HELP_TEXT,
             )
             db = msg_controller.db
 
@@ -2622,6 +2623,8 @@ async def self_command_handler(event):
                     await event.respond("❌ Format: /xarajat kategoriya | tavsif | miqdor")
             elif cmd.startswith("/loyihalar"):
                 await cmd_loyihalar(event, db)
+            elif cmd == "/erp_help":
+                await event.respond(ERP_HELP_TEXT, parse_mode="markdown")
             elif cmd.startswith("/erp"):
                 await cmd_erp_holat(event, db)
         except Exception as e:

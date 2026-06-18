@@ -253,11 +253,15 @@ async def test_process_call_recordings_for_lead_success():
     assert task_args[0] == 999
     assert "Qayta qo'ng'iroq" in task_args[1]
     assert task_kwargs["responsible_user_id"] == 777
-    note_text = amocrm_mock.add_lead_note.call_args.args[1]
-    assert "Transkripsiya (O'zbek)" in note_text
-    assert "AI_CALL_ANALYSIS" in note_text
-    assert "Call ID: call-uniq-777" in note_text
-    assert "Mijoz qiziqdi" in note_text
+    # Note 1 (tahlil): has transcription + analysis summary; no call ID here
+    note1_text = amocrm_mock.add_lead_note.call_args_list[0].args[1]
+    assert "Transkripsiya (O'zbek)" in note1_text
+    assert "AI_CALL_ANALYSIS" in note1_text
+    assert "Mijoz qiziqdi" in note1_text
+    # Note 2 (mijoz profili): has call ID in "ID: <call_id>" format
+    note2_text = amocrm_mock.add_lead_note.call_args_list[1].args[1]
+    assert "AI_CALL_ANALYSIS" in note2_text
+    assert "ID: call-uniq-777" in note2_text
     insert_args = db_conn.execute.call_args_list[-1].args
     assert "INSERT OR IGNORE INTO call_analyses" in insert_args[0]
     assert "555" in insert_args[1]
