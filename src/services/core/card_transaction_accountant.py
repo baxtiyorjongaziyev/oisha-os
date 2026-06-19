@@ -361,15 +361,46 @@ class CardTransactionAccountant:
             row = await cursor.fetchone()
         return int(row[0])
 
-    async def _update_transaction(self, tx_id: int, **fields: Any) -> None:
-        if not fields:
-            return
-        fields["updated_at"] = datetime.now(TASHKENT).isoformat()
-        assignments = ", ".join(f"{name} = ?" for name in fields)
+    async def _set_status(self, tx_id: int, status: str) -> None:
         conn = await self.db.get_connection()
         await conn.execute(
-            f"UPDATE card_transactions SET {assignments} WHERE id = ?",
-            tuple(fields.values()) + (tx_id,),
+            "UPDATE card_transactions SET status = ?, updated_at = ? WHERE id = ?",
+            (status, datetime.now(TASHKENT).isoformat(), tx_id),
+        )
+        await conn.commit()
+
+    async def _set_question(self, tx_id: int, chat_id: int, message_id: int) -> None:
+        conn = await self.db.get_connection()
+        await conn.execute(
+            """
+            UPDATE card_transactions
+            SET status = 'awaiting_reason', question_chat_id = ?,
+                question_message_id = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (chat_id, message_id, datetime.now(TASHKENT).isoformat(), tx_id),
+        )
+        await conn.commit()
+
+    async def _set_category(
+        self,
+        tx_id: int,
+        *,
+        status: str,
+        category: str,
+        reason: Optional[str],
+        categorized_by: Optional[int] = None,
+    ) -> None:
+        now = datetime.now(TASHKENT).isoformat()
+        conn = await self.db.get_connection()
+        await conn.execute(
+            """
+            UPDATE card_transactions
+            SET status = ?, category = ?, reason = ?, categorized_by = ?,
+                categorized_at = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (status, category, reason, categorized_by, now, now, tx_id),
         )
         await conn.commit()
 
@@ -398,12 +429,11 @@ class CardTransactionAccountant:
         rule = await self._find_rule(tx)
         destination_ready = await self._ensure_destination()
         if rule:
-            await self._update_transaction(
+            await self._set_category(
                 tx_id,
                 status="auto_categorized",
                 category=rule["category"],
                 reason=rule["reason"],
-                categorized_at=datetime.now(TASHKENT).isoformat(),
             )
             if destination_ready:
                 await self.user_client.send_message(
@@ -419,7 +449,7 @@ class CardTransactionAccountant:
             }
 
         if not destination_ready:
-            await self._update_transaction(tx_id, status="awaiting_destination")
+            await self._set_status(tx_id, "awaiting_destination")
             return {
                 "status": "awaiting_destination",
                 "fingerprint": tx.fingerprint,
@@ -431,11 +461,8 @@ class CardTransactionAccountant:
             self._question_message(tx, tx_id),
             **self._topic_kwargs(),
         )
-        await self._update_transaction(
-            tx_id,
-            status="awaiting_reason",
-            question_chat_id=self.finance_group_id,
-            question_message_id=int(question.id),
+        await self._set_question(
+            tx_id, int(self.finance_group_id), int(question.id)
         )
         return {
             "status": "awaiting_reason",
@@ -539,7 +566,6 @@ class CardTransactionAccountant:
         text = getattr(event, "raw_text", None) or getattr(event, "text", "") or ""
         category, reason = _extract_category_and_reason(text)
         tx_id, merchant_key, direction, card_last4, amount_uzs = row
-        now = datetime.now(TASHKENT).isoformat()
         await self._learn_rule(
             merchant_key=merchant_key,
             direction=direction,
@@ -548,13 +574,12 @@ class CardTransactionAccountant:
             category=category,
             reason=reason,
         )
-        await self._update_transaction(
+        await self._set_category(
             int(tx_id),
             status="categorized",
             category=category,
             reason=reason,
             categorized_by=getattr(event, "sender_id", None),
-            categorized_at=now,
         )
         await event.reply(
             f"✅ Saqlandi: {category}. Keyingi aynan o‘xshash tranzaksiyani Oisha avtomatik taniydi."
