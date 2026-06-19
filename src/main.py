@@ -90,6 +90,7 @@ meeting_scheduler = None
 oisha_brain = None
 bot_messenger = None
 agent_orchestrator = None
+card_transaction_accountant = None
 _health_api_server = None
 
 # TN5 Group Config (env-configurable; fallback keeps legacy behavior)
@@ -3004,6 +3005,15 @@ async def _send_kirim_celebration(event, celebration: str) -> None:
     await event.reply(celebration, link_preview=False)
 
 
+async def card_transaction_handler(event) -> None:
+    """Route bank-bot notifications and finance replies to one accountant."""
+    if not card_transaction_accountant:
+        return
+    result = await card_transaction_accountant.handle_bank_message(event)
+    if result.get("status") in {"ignored_sender", "ignored_message"}:
+        await card_transaction_accountant.handle_finance_reply(event)
+
+
 async def _brain_evolution_loop():
     """Runs OishaBrain.evolve() every 6 hours to self-diagnose agent failures."""
     await asyncio.sleep(300)  # 5-minute boot delay
@@ -3027,7 +3037,7 @@ async def main():
     global workflow_manager, access_manager, admin_bot, session_manager, chat_bridge, BOT_TOKEN_STR, juma_notifier
     global surgical_integration, evolution_scheduler
     global meeting_scheduler
-    global oisha_brain, bot_messenger, agent_orchestrator
+    global oisha_brain, bot_messenger, agent_orchestrator, card_transaction_accountant
 
     # [ENTERPRISE] Anti-Local Execution Lock
     # To protect the owner's Telegram session from being revoked by simultaneous
@@ -3647,6 +3657,46 @@ async def main():
     from src.services.core.tool_adapters import configure_userbot_group_fallback
 
     configure_userbot_group_fallback(client)
+    try:
+        from src.services.core.card_transaction_accountant import (
+            CardTransactionAccountant,
+        )
+
+        configured_bots = {
+            name.strip()
+            for name in settings.BANK_NOTIFICATION_BOTS.split(",")
+            if name.strip()
+        }
+        card_transaction_accountant = CardTransactionAccountant(
+            db=msg_controller.db,
+            user_client=client,
+            finance_group_id=settings.FINANCE_GROUP_ID,
+            finance_topic_id=settings.FINANCE_TOPIC_ID,
+            fallback_group_id=settings.TEAM_GROUP_ID,
+            fallback_topic_id=(
+                settings.TOPIC_GENERAL_ID or settings.TOPIC_REPORTS_ID
+            ),
+            allowed_bots=configured_bots,
+        )
+        await card_transaction_accountant.initialize()
+        asyncio.create_task(
+            card_transaction_accountant.backfill_recent(
+                limit_per_bot=50,
+                max_age_hours=48,
+            ),
+            name="card_transaction_backfill",
+        )
+        logger.info(
+            "[CARD FINANCE] Humo/Uzcard hisobchi ishga tushdi; botlar=%s",
+            ",".join(sorted(configured_bots)),
+        )
+    except Exception as finance_exc:
+        card_transaction_accountant = None
+        logger.error(
+            "[CARD FINANCE] Hisobchi ishga tushmadi: %s",
+            finance_exc,
+            exc_info=True,
+        )
     asyncio.create_task(
         background_monitor_task(),
         name="background_monitor_task",
@@ -3768,6 +3818,12 @@ async def main():
         )
     else:
         logger.warning("[KIRIM] Celebration listener disabled: TEAM_GROUP_ID or TOPIC_KIRIM_ID is missing.")
+
+    client.add_event_handler(
+        card_transaction_handler,
+        events.NewMessage(incoming=True),
+    )
+    logger.info("[CARD FINANCE] Bank notification listener registered.")
 
     client.add_event_handler(
         case_publisher_handler,
