@@ -107,6 +107,7 @@ class AppSettings(BaseSettings):
     CRM_GROUP_ID: Optional[int] = None
     PROJECTS_GROUP_ID: Optional[int] = None
     TEAM_GROUP_ID: Optional[int] = None
+    FINANCE_GROUP_ID: Optional[int] = None
     TASKS_GROUP_ID: Optional[int] = None
     STAGNATION_GROUP_ID: Optional[int] = None
     WOW_SERVICE_GROUP_ID: Optional[int] = None
@@ -123,8 +124,10 @@ class AppSettings(BaseSettings):
     TOPIC_TASKS_ID: Optional[int] = None
     TOPIC_GENERAL_ID: Optional[int] = None
     TOPIC_KIRIM_ID: Optional[int] = None
+    FINANCE_TOPIC_ID: Optional[int] = None
     STAGNATION_TOPIC_ID: Optional[int] = None
     WOW_SERVICE_TOPIC_ID: Optional[int] = None
+    BANK_NOTIFICATION_BOTS: str = "HUMOcardbot,CardXabarBot"
     GDRIVE_OFFLOAD_FOLDER_ID: Optional[str] = None
 
     GSHEET_ID: Optional[str] = None
@@ -221,6 +224,7 @@ class AppSettings(BaseSettings):
             "CRM_GROUP_ID",
             "PROJECTS_GROUP_ID",
             "TEAM_GROUP_ID",
+            "FINANCE_GROUP_ID",
             "TASKS_GROUP_ID",
             "STAGNATION_GROUP_ID",
             "WOW_SERVICE_GROUP_ID",
@@ -230,6 +234,7 @@ class AppSettings(BaseSettings):
             "TOPIC_TASKS_ID",
             "TOPIC_GENERAL_ID",
             "TOPIC_KIRIM_ID",
+            "FINANCE_TOPIC_ID",
             "STAGNATION_TOPIC_ID",
             "WOW_SERVICE_TOPIC_ID",
             "GSHEET_ID",
@@ -246,6 +251,7 @@ class AppSettings(BaseSettings):
             "CRM_GROUP_ID",
             "PROJECTS_GROUP_ID",
             "TEAM_GROUP_ID",
+            "FINANCE_GROUP_ID",
             "TASKS_GROUP_ID",
             "STAGNATION_GROUP_ID",
             "WOW_SERVICE_GROUP_ID",
