@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 _MAX_CATEGORY_LEN = 100
 
+# Cache: group_id → (kirim_topic_id, chiqim_topic_id)
+_topic_cache: dict[int, tuple[Optional[int], Optional[int]]] = {}
+
 
 def _get_finance_config() -> tuple[Optional[int], Optional[int], Optional[int]]:
     """Returns (group_id, kirim_topic_id, chiqim_topic_id)."""
@@ -38,6 +41,64 @@ def _get_finance_config() -> tuple[Optional[int], Optional[int], Optional[int]]:
         )
     except Exception:
         return None, None, None
+
+
+async def _discover_topics(
+    client, group_id: int
+) -> tuple[Optional[int], Optional[int]]:
+    """Auto-discover Kirim and Chiqim topic IDs via Telethon GetForumTopicsRequest.
+
+    Results are cached per group_id for the lifetime of the process.
+    """
+    if group_id in _topic_cache:
+        return _topic_cache[group_id]
+
+    kirim_id: Optional[int] = None
+    chiqim_id: Optional[int] = None
+    try:
+        from telethon.tl.functions.channels import GetForumTopicsRequest
+
+        result = await client(
+            GetForumTopicsRequest(
+                channel=group_id,
+                q="",
+                offset_date=0,
+                offset_id=0,
+                offset_topic=0,
+                limit=100,
+            )
+        )
+        for topic in getattr(result, "topics", []):
+            title = (getattr(topic, "title", "") or "").strip().lower()
+            tid = getattr(topic, "id", None)
+            if title == "kirim":
+                kirim_id = tid
+            elif title == "chiqim":
+                chiqim_id = tid
+
+        logger.info(
+            "[HISOBCHI] Auto-discovered topics — Kirim: %s, Chiqim: %s",
+            kirim_id,
+            chiqim_id,
+        )
+    except Exception as exc:
+        logger.warning("[HISOBCHI] Topic auto-discovery failed: %s", exc)
+
+    _topic_cache[group_id] = (kirim_id, chiqim_id)
+    return kirim_id, chiqim_id
+
+
+async def _resolve_topic_ids(
+    client, group_id: int, kirim_cfg: Optional[int], chiqim_cfg: Optional[int]
+) -> tuple[Optional[int], Optional[int]]:
+    """Return (kirim_id, chiqim_id): use .env values if set, else auto-discover."""
+    if kirim_cfg is not None and chiqim_cfg is not None:
+        return kirim_cfg, chiqim_cfg
+    discovered_kirim, discovered_chiqim = await _discover_topics(client, group_id)
+    return (
+        kirim_cfg if kirim_cfg is not None else discovered_kirim,
+        chiqim_cfg if chiqim_cfg is not None else discovered_chiqim,
+    )
 
 
 def _pick_topic(direction: str, kirim_topic: Optional[int], chiqim_topic: Optional[int]) -> Optional[int]:
@@ -59,7 +120,15 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> None
         logger.warning("[HISOBCHI] Could not parse card message from @%s", username)
         return
 
-    finance_group_id, kirim_topic_id, chiqim_topic_id = _get_finance_config()
+    finance_group_id, kirim_cfg, chiqim_cfg = _get_finance_config()
+
+    kirim_topic_id: Optional[int] = kirim_cfg
+    chiqim_topic_id: Optional[int] = chiqim_cfg
+    if finance_group_id and (kirim_cfg is None or chiqim_cfg is None):
+        kirim_topic_id, chiqim_topic_id = await _resolve_topic_ids(
+            client, finance_group_id, kirim_cfg, chiqim_cfg
+        )
+
     topic_id = _pick_topic(tx.direction, kirim_topic_id, chiqim_topic_id)
 
     known_cat = await engine.get_known_category(tx.merchant)
