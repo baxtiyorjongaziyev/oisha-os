@@ -1425,6 +1425,28 @@ async def handle_new_message(event):
         f"[USERBOT] Processing message from {sender_name} in {chat_id}: {message_text[:50]}..."
     )
 
+    # ── HISOBCHI AI: Card bot xabarlari ──────────────────────────────────
+    try:
+        global _hisobchi_engine, handle_card_bot_message, handle_finance_group_reply, is_card_bot_sender  # noqa: PLW0603
+        if "_hisobchi_engine" not in globals() or _hisobchi_engine is None:
+            from src.services.core.hisobchi_handlers import (
+                handle_card_bot_message, handle_finance_group_reply, is_card_bot_sender,
+            )
+            from src.services.core.hisobchi_engine import HisobchiEngine
+            _hisobchi_engine = HisobchiEngine(msg_controller.db)
+
+        if event.is_private and not event.out and is_card_bot_sender(sender):
+            await handle_card_bot_message(event, client, _hisobchi_engine)
+            return
+
+        if not event.is_private and not event.out and message_text:
+            _was_hisobchi = await handle_finance_group_reply(event, client, _hisobchi_engine)
+            if _was_hisobchi:
+                return
+    except Exception as _hisob_exc:
+        logger.error("[HISOBCHI] Handler error: %s", _hisob_exc, exc_info=True)
+    # ─────────────────────────────────────────────────────────────────────
+
     if event.is_private and not event.out and message_text:
         try:
             await msg_controller.db.log_message(sender.id, message_text, is_ai=False)
@@ -3563,6 +3585,14 @@ async def main():
         logger.info("[ERP] Jadvallar tayyor")
     except Exception as _erp_exc:
         logger.warning("[ERP] Init xatosi (ishlashga ta'sir etmaydi): %s", _erp_exc)
+
+    # Hisobchi AI jadvallarini initsializatsiya qil
+    try:
+        from src.services.core.hisobchi_schema import init_hisobchi_tables
+        await init_hisobchi_tables(msg_controller.db)
+        logger.info("[HISOBCHI] Jadvallar tayyor")
+    except Exception as _hisob_exc:
+        logger.warning("[HISOBCHI] Init xatosi: %s", _hisob_exc)
 
     api_module.set_runtime_context(
         service_name=os.getenv("K_SERVICE") or "oisha-main",
