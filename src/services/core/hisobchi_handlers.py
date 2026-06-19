@@ -4,7 +4,7 @@ Hisobchi AI — Telethon userbot handlers.
 Flow:
   1. Card bot message arrives (private from @HUMOcardbot / @CardXabarBot)
   2. Parse transaction
-  3. Auto-categorize if merchant known, else ask finance group
+  3. Auto-categorize if merchant known, else ask finance group (correct topic)
   4. Finance group member replies → learn + save category
 
 Entry points:
@@ -24,13 +24,26 @@ from src.services.core.hisobchi_engine import HisobchiEngine
 
 logger = logging.getLogger(__name__)
 
+_MAX_CATEGORY_LEN = 100
 
-def _get_finance_group_id() -> Optional[int]:
+
+def _get_finance_config() -> tuple[Optional[int], Optional[int], Optional[int]]:
+    """Returns (group_id, kirim_topic_id, chiqim_topic_id)."""
     try:
         from src.settings import settings
-        return getattr(settings, "HISOBCHI_FINANCE_GROUP_ID", None)
+        return (
+            getattr(settings, "HISOBCHI_FINANCE_GROUP_ID", None),
+            getattr(settings, "HISOBCHI_KIRIM_TOPIC_ID", None),
+            getattr(settings, "HISOBCHI_CHIQIM_TOPIC_ID", None),
+        )
     except Exception:
-        return None
+        return None, None, None
+
+
+def _pick_topic(direction: str, kirim_topic: Optional[int], chiqim_topic: Optional[int]) -> Optional[int]:
+    if direction == "in":
+        return kirim_topic
+    return chiqim_topic
 
 
 async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> None:
@@ -46,13 +59,12 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> None
         logger.warning("[HISOBCHI] Could not parse card message from @%s", username)
         return
 
-    finance_group_id = _get_finance_group_id()
+    finance_group_id, kirim_topic_id, chiqim_topic_id = _get_finance_config()
+    topic_id = _pick_topic(tx.direction, kirim_topic_id, chiqim_topic_id)
 
-    # Check merchant memory for auto-categorization
     known_cat = await engine.get_known_category(tx.merchant)
 
     if known_cat:
-        # Auto-categorize: save immediately, notify finance group
         tx_id = await engine.save_transaction(
             source_bot=tx.source_bot,
             direction=tx.direction,
@@ -73,11 +85,11 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> None
                     finance_group_id,
                     engine.build_auto_msg(tx, known_cat),
                     parse_mode="html",
+                    reply_to=topic_id,
                 )
             except Exception as exc:
                 logger.error("[HISOBCHI] Failed to notify finance group: %s", exc)
     else:
-        # Unknown merchant: save as pending, ask finance group
         tx_id = await engine.save_transaction(
             source_bot=tx.source_bot,
             direction=tx.direction,
@@ -97,8 +109,8 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> None
                     finance_group_id,
                     engine.build_finance_question(tx, tx_id),
                     parse_mode="html",
+                    reply_to=topic_id,
                 )
-                # Store message ID so we can match the reply
                 await engine.update_finance_msg(
                     tx_id,
                     finance_msg_id=sent.id,
@@ -117,12 +129,11 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
     Called for messages in the finance group.
     Returns True if this was a hisobchi reply (so caller can skip other processing).
     """
-    finance_group_id = _get_finance_group_id()
+    finance_group_id, _, _ = _get_finance_config()
     if not finance_group_id:
         return False
 
-    chat_id = event.chat_id
-    if chat_id != finance_group_id:
+    if event.chat_id != finance_group_id:
         return False
 
     msg = event.message
@@ -134,19 +145,7 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
     if not replied_msg_id:
         return False
 
-    text = (msg.message or "").strip()
-    if not text or text.startswith("/"):
-        # /skip command
-        if text.lower().startswith("/skip"):
-            parts = text.split()
-            tx_id_str = parts[1] if len(parts) > 1 else None
-            if tx_id_str and tx_id_str.isdigit():
-                await engine.skip(int(tx_id_str))
-                await event.reply("⏭ O'tkazib yuborildi.")
-                return True
-        return False
-
-    # Find the pending transaction linked to this message
+    # First find the linked transaction so /skip without ID also works
     tx = await engine.get_pending_by_finance_msg(
         finance_chat_id=finance_group_id,
         finance_msg_id=replied_msg_id,
@@ -154,11 +153,29 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
     if not tx:
         return False  # Not a hisobchi question reply
 
-    category = text.strip()
+    text = (msg.message or "").strip()
+
+    # /skip — with or without explicit tx ID
+    if text.lower().startswith("/skip"):
+        await engine.skip(tx["id"])
+        await event.reply("⏭ O'tkazib yuborildi.")
+        return True
+
+    if not text or text.startswith("/"):
+        return False
+
+    # Validate category length
+    if len(text) > _MAX_CATEGORY_LEN:
+        await event.reply(
+            f"⚠️ Kategoriya nomi juda uzun (maksimal {_MAX_CATEGORY_LEN} belgi). "
+            "Iltimos, qisqaroq nom yuboring."
+        )
+        return True
+
+    category = text
     tx_id = tx["id"]
     merchant = tx["merchant"]
 
-    # Save category + learn
     await engine.categorize(tx_id, category)
     await engine.learn_category(merchant, category)
 
@@ -176,6 +193,5 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
 
 
 def is_card_bot_sender(sender) -> bool:
-    """Quick check: is this sender one of the tracked card bots?"""
     username = (getattr(sender, "username", None) or "").lower()
     return username in CARD_BOT_USERNAMES

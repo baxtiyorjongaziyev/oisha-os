@@ -94,12 +94,14 @@ class EnterpriseReporter:
                     for p in overdue[:3]:
                         fields = p.get("fields", {})
                         name = _AT._get_field(fields, "project_name") or "Nomsiz"
-                        pm = _AT.resolve_pm_handle(_AT._get_field(fields, "manager"))
+                        pm = _AT.resolve_pm_handle(_AT._get_field(fields, "manager")) or "Noma'lum"
                         report.append(f"  • {name} ({pm})")
                 pm_set = set()
                 for p in active_projects:
                     pm_val = _AT._get_field(p.get("fields", {}), "manager")
-                    pm_set.add(_AT.resolve_pm_handle(pm_val))
+                    pm_handle = _AT.resolve_pm_handle(pm_val)
+                    if pm_handle:
+                        pm_set.add(pm_handle)
                 if pm_set:
                     report.append(f"- PM lar: {', '.join(sorted(pm_set))}")
             except Exception as _pm_exc:

@@ -17,6 +17,8 @@ def _normalize_merchant(merchant: str) -> str:
     """Normalizes merchant name for memory key (first 3 meaningful words)."""
     parts = re.sub(r"[^A-Za-z0-9 ]", " ", merchant.upper()).split()
     key_parts = [p for p in parts if len(p) > 2]
+    if not key_parts:
+        key_parts = parts  # short names like "UZ" or "M B" — use as-is
     return " ".join(key_parts[:3])
 
 

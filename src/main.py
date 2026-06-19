@@ -1427,11 +1427,13 @@ async def handle_new_message(event):
 
     # ── HISOBCHI AI: Card bot xabarlari ──────────────────────────────────
     try:
-        from src.services.core.hisobchi_handlers import (
-            handle_card_bot_message, handle_finance_group_reply, is_card_bot_sender,
-        )
-        from src.services.core.hisobchi_engine import HisobchiEngine
-        _hisobchi_engine = HisobchiEngine(msg_controller.db)
+        global _hisobchi_engine, handle_card_bot_message, handle_finance_group_reply, is_card_bot_sender  # noqa: PLW0603
+        if "_hisobchi_engine" not in globals() or _hisobchi_engine is None:
+            from src.services.core.hisobchi_handlers import (
+                handle_card_bot_message, handle_finance_group_reply, is_card_bot_sender,
+            )
+            from src.services.core.hisobchi_engine import HisobchiEngine
+            _hisobchi_engine = HisobchiEngine(msg_controller.db)
 
         if event.is_private and not event.out and is_card_bot_sender(sender):
             await handle_card_bot_message(event, client, _hisobchi_engine)
