@@ -110,6 +110,9 @@ class AppSettings(BaseSettings):
     TASKS_GROUP_ID: Optional[int] = None
     STAGNATION_GROUP_ID: Optional[int] = None
     WOW_SERVICE_GROUP_ID: Optional[int] = None
+    HISOBCHI_FINANCE_GROUP_ID: Optional[int] = None  # Moliya guruh ID (card to'lovlar uchun)
+    HISOBCHI_KIRIM_TOPIC_ID: Optional[int] = None    # Kirim topic ID
+    HISOBCHI_CHIQIM_TOPIC_ID: Optional[int] = None   # Chiqim topic ID
 
     # Case Publisher & CMS Settings
     JONBRANDING_CHANNEL: str = "jonbranding"
@@ -224,6 +227,9 @@ class AppSettings(BaseSettings):
             "TASKS_GROUP_ID",
             "STAGNATION_GROUP_ID",
             "WOW_SERVICE_GROUP_ID",
+            "HISOBCHI_FINANCE_GROUP_ID",
+            "HISOBCHI_KIRIM_TOPIC_ID",
+            "HISOBCHI_CHIQIM_TOPIC_ID",
             "CRM_TOPIC_ID",
             "TOPIC_CRM_ID",
             "TOPIC_REPORTS_ID",
@@ -249,6 +255,7 @@ class AppSettings(BaseSettings):
             "TASKS_GROUP_ID",
             "STAGNATION_GROUP_ID",
             "WOW_SERVICE_GROUP_ID",
+            "HISOBCHI_FINANCE_GROUP_ID",
         ):
             data[key] = normalize_telegram_chat_id(data.get(key))
         return data
