@@ -110,6 +110,7 @@ class AppSettings(BaseSettings):
     TASKS_GROUP_ID: Optional[int] = None
     STAGNATION_GROUP_ID: Optional[int] = None
     WOW_SERVICE_GROUP_ID: Optional[int] = None
+    HISOBCHI_FINANCE_GROUP_ID: Optional[int] = None  # Moliya guruh ID (card to'lovlar uchun)
 
     # Case Publisher & CMS Settings
     JONBRANDING_CHANNEL: str = "jonbranding"
