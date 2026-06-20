@@ -211,6 +211,24 @@ class AdminBot:
             )
             await event.respond(msg)
 
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/chatid"))
+        async def chatid_handler(event):
+            """Guruh yoki chat ID sini qaytaradi (Hisobchi sozlash uchun)."""
+            chat = await event.get_chat()
+            chat_id = event.chat_id
+            chat_title = getattr(chat, "title", None) or getattr(chat, "first_name", "shaxsiy")
+            reply_to = getattr(event.message, "reply_to", None)
+            topic_id = getattr(reply_to, "reply_to_top_id", None) or getattr(reply_to, "reply_to_msg_id", None)
+            lines = [
+                f"\U0001f194 <b>Chat ID:</b> <code>{chat_id}</code>",
+                f"\U0001f4db <b>Nom:</b> {chat_title}",
+            ]
+            if topic_id:
+                lines.append(f"\U0001f9f5 <b>Topic ID:</b> <code>{topic_id}</code>")
+            else:
+                lines.append("ℹ️ Topic ID olish uchun — topicning ichida /chatid yozing")
+            await event.respond("\n".join(lines), parse_mode="html")
+
         # [AUDIT: UI/UX] Case-insensitive and robust command matching
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/start"))
         async def start_handler(event):
