@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 import pytest
 
-from src.services.core.crm_daily_report import (
+from src.services.core.crm.crm_daily_report import (
     CRMDailyReporter,
     CRMWeeklyStats,
     previous_week_range,
