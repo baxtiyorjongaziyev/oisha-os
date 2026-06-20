@@ -867,9 +867,19 @@ async def background_monitor_task() -> None:
                                 await msg_controller.enterprise_reporter.get_daily_efficiency_report()
                             )
                             if report:
-                                await notify_admin(
-                                    f"📊 **KUNLIK HISOBOT**\n\n{report}", client
-                                )
+                                fin_group = settings.HISOBCHI_FINANCE_GROUP_ID
+                                pnl_topic = settings.HISOBCHI_PNL_TOPIC_ID
+                                if fin_group:
+                                    await client.send_message(
+                                        fin_group,
+                                        f"📊 <b>KUNLIK HISOBOT</b>\n\n{report}",
+                                        parse_mode="html",
+                                        reply_to=pnl_topic,
+                                    )
+                                else:
+                                    await notify_admin(
+                                        f"📊 **KUNLIK HISOBOT**\n\n{report}", client
+                                    )
                                 logger.info("[SCHEDULE] Daily EnterpriseReport sent.")
                     except Exception as rep_exc:
                         logger.error(f"[SCHEDULE][REPORT] Error: {rep_exc}")

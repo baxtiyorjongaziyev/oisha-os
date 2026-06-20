@@ -64,6 +64,20 @@ class AppSettings(BaseSettings):
     CRM_GROUP_ID: Optional[int] = None
     PROJECTS_GROUP_ID: Optional[int] = None
     TEAM_GROUP_ID: Optional[int] = None
+    TASKS_GROUP_ID: Optional[int] = None
+    STAGNATION_GROUP_ID: Optional[int] = None
+    WOW_SERVICE_GROUP_ID: Optional[int] = None
+    HISOBCHI_FINANCE_GROUP_ID: Optional[int] = None  # Moliya guruh ID (card to'lovlar uchun)
+    HISOBCHI_KIRIM_TOPIC_ID: Optional[int] = None    # Kirim topic ID
+    HISOBCHI_CHIQIM_TOPIC_ID: Optional[int] = None   # Chiqim topic ID
+    HISOBCHI_PNL_TOPIC_ID: Optional[int] = None        # P&L topic ID (oylik P&L hisoboti)
+    HISOBCHI_CASHFLOW_TOPIC_ID: Optional[int] = None   # Cashflow topic ID (pul oqimi hisoboti)
+    HISOBCHI_BALANCE_TOPIC_ID: Optional[int] = None    # Balance topic ID (balans hisoboti)
+
+    # Case Publisher & CMS Settings
+    JONBRANDING_CHANNEL: str = "jonbranding"
+    CMS_WEBHOOK_URL: Optional[str] = None
+    ENABLE_CASE_PUBLISHER: bool = True
 
     # Topic IDs (Forum Groups)
     CRM_TOPIC_ID: Optional[int] = 1
@@ -164,6 +178,15 @@ class AppSettings(BaseSettings):
             "CRM_GROUP_ID",
             "PROJECTS_GROUP_ID",
             "TEAM_GROUP_ID",
+            "TASKS_GROUP_ID",
+            "STAGNATION_GROUP_ID",
+            "WOW_SERVICE_GROUP_ID",
+            "HISOBCHI_FINANCE_GROUP_ID",
+            "HISOBCHI_KIRIM_TOPIC_ID",
+            "HISOBCHI_CHIQIM_TOPIC_ID",
+            "HISOBCHI_PNL_TOPIC_ID",
+            "HISOBCHI_CASHFLOW_TOPIC_ID",
+            "HISOBCHI_BALANCE_TOPIC_ID",
             "CRM_TOPIC_ID",
             "TOPIC_CRM_ID",
             "TOPIC_REPORTS_ID",
