@@ -211,6 +211,24 @@ class AdminBot:
             )
             await event.respond(msg)
 
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/chatid"))
+        async def chatid_handler(event):
+            """Guruh yoki chat ID sini qaytaradi (Hisobchi sozlash uchun)."""
+            chat = await event.get_chat()
+            chat_id = event.chat_id
+            chat_title = getattr(chat, "title", None) or getattr(chat, "first_name", "shaxsiy")
+            reply_to = getattr(event.message, "reply_to", None)
+            topic_id = getattr(reply_to, "reply_to_top_id", None) or getattr(reply_to, "reply_to_msg_id", None)
+            lines = [
+                f"\U0001f194 <b>Chat ID:</b> <code>{chat_id}</code>",
+                f"\U0001f4db <b>Nom:</b> {chat_title}",
+            ]
+            if topic_id:
+                lines.append(f"\U0001f9f5 <b>Topic ID:</b> <code>{topic_id}</code>")
+            else:
+                lines.append("ℹ️ Topic ID olish uchun — topicning ichida /chatid yozing")
+            await event.respond("\n".join(lines), parse_mode="html")
+
         # [AUDIT: UI/UX] Case-insensitive and robust command matching
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/start"))
         async def start_handler(event):
@@ -292,13 +310,9 @@ class AdminBot:
                 elif data == "weekly_report":
                     await self.send_weekly_report(event)
                 elif data == "kpi":
-                    await event.answer(
-                        "📊 KPI tahlili yaqin daqiqalarda tayyorlanadi!", alert=True
-                    )
-                    await self.send_dashboard(event)  # Fallback for now
+                    await self.send_kpi_report(event)
                 elif data == "deadlines":
-                    await event.answer("🚨 Muddatlar tekshirilmoqda...", alert=True)
-                    await self.send_vps_status(event)  # Placeholder
+                    await self.send_deadline_report(event)
                 elif data == "settings":
                     await self._show_settings_menu(event, edit=True)
                 elif data.startswith("set_dist_mode:"):
@@ -1921,21 +1935,72 @@ class AdminBot:
 
     async def send_weekly_report(self, event):
         """AmoCRM-dan olingan haftalik hisobotning visual ko'rinishi."""
-        msg = (
-            "📈 **HAFTALIK BIZNES TAHLILI (23.03 - 29.03)**\n"
-            "──────────────────────\n\n"
-            "💰 **Umumiy Savdo Holati:**\n"
-            "• Faol bitimlar: `310` ta\n"
-            "• Umumiy summa: `162,396,000 so'm` 💵\n\n"
-            "✨ **Yangi O'sish Ko'rsatkichlari:**\n"
-            "• Yangi bitimlar: `5` ta ✨\n"
-            "• Yangi kontaktlar: `7` ta 👥\n\n"
-            "⚠️ **Yo'qotilgan imkoniyatlar:**\n"
-            "• Yopilgan (Lost): `3` ta 📉\n\n"
-            "──────────────────────\n"
-            "💡 **AI XULOSA:** Haftalik o'sish barqaror. Asosiy e'tiborni 'Active Deals' sonini 'Won' holatiga o'tkazishga qaratish tavsiya etiladi. 👸🛡️"
-        )
-        await event.respond(msg)
+        await event.respond("📊 **Haftalik hisobot tayyorlanmoqda...**\nBu bir oz vaqt olishi mumkin (AmoCRM-ga so'rov yuborilmoqda).")
+        try:
+            from src.services.core.crm_service import CRMService
+            from src.services.core.crm_daily_report import CRMDailyReport
+            
+            crm = CRMService()
+            report_engine = CRMDailyReport(crm.amocrm)
+            
+            stats = await report_engine.fetch_weekly_stats()
+            msg = report_engine.format_weekly_report_uz(stats)
+            await event.respond(msg, parse_mode="markdown")
+        except Exception as e:
+            logger.error(f"❌ [WEEKLY REPORT ERROR] {e}")
+            await event.respond(f"❌ **Haftalik hisobotni yuklashda xatolik yuz berdi:**\n`{str(e)}`")
+
+    async def send_kpi_report(self, event):
+        """Jamoa kpi va samaradorlik hisobotini yuborish."""
+        await event.respond("📊 **Jamoa KPI va samaradorlik hisoboti shakllantirilmoqda...**")
+        try:
+            from src.services.core.enterprise_reporter import EnterpriseReporter
+            from src.services.core.crm_service import CRMService
+            from src.services.core.airtable_sync import AirtableSync
+            
+            crm_service = CRMService()
+            airtable = AirtableSync()
+            reporter = EnterpriseReporter(self.db, crm_service, airtable)
+            
+            report_msg = await reporter.get_team_efficiency_report()
+            await event.respond(report_msg, parse_mode="html", link_preview=False)
+        except Exception as e:
+            logger.error(f"❌ [KPI REPORT ERROR] {e}")
+            await event.respond(f"❌ **KPI hisobotini yuklashda xatolik yuz berdi:**\n`{str(e)}`")
+
+    async def send_deadline_report(self, event):
+        """Muddati o'tgan vazifalar va loyihalar bo'yicha hisobot."""
+        await event.respond("⏰ **Muddati o'tgan vazifalar va loyihalar tahlil qilinmoqda...**")
+        try:
+            from src.services.core.enterprise_reporter import EnterpriseReporter
+            from src.services.core.crm_service import CRMService
+            from src.services.core.airtable_sync import AirtableSync
+            
+            crm_service = CRMService()
+            airtable = AirtableSync()
+            reporter = EnterpriseReporter(self.db, crm_service, airtable)
+            
+            report_msg = await reporter.get_accountability_segment()
+            
+            overdue_projects = airtable.get_overdue_projects() if airtable else []
+            project_lines = []
+            if overdue_projects:
+                project_lines.append("\n🏗 <b>Muddati o'tgan Loyihalar (Airtable):</b>")
+                for p in overdue_projects[:5]:
+                    fields = p.get("fields", {})
+                    name = fields.get("project_name") or fields.get("Loyihani nomi?") or "Nomsiz"
+                    pm = fields.get("manager") or "Noma'lum"
+                    project_lines.append(f"  • {name} — <i>PM: {pm}</i>")
+                if len(overdue_projects) > 5:
+                    project_lines.append(f"  ... va yana {len(overdue_projects)-5} ta.")
+            else:
+                project_lines.append("\n🏗 Barcha loyihalar muddatida! ✅")
+                
+            full_msg = f"{report_msg}\n" + "\n".join(project_lines)
+            await event.respond(full_msg, parse_mode="html")
+        except Exception as e:
+            logger.error(f"❌ [DEADLINES REPORT ERROR] {e}")
+            await event.respond(f"❌ **Muddatlar hisobotini yuklashda xatolik yuz berdi:**\n`{str(e)}`")
 
     async def send_vps_status(self, event):
         """VPS server holatini (CPU, RAM, Disk) ko'rsatish."""

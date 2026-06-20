@@ -28,7 +28,7 @@ def _fmt_money(amount: int) -> str:
 
 class HisobchiEngine:
     def __init__(self, db=None) -> None:
-        self._db = db if isinstance(db, DatabasePool) else db_pool
+        self._db = db if db is not None else db_pool
 
     # ── MERCHANT MEMORY ───────────────────────────────────────────────────
 
@@ -71,6 +71,7 @@ class HisobchiEngine:
         balance: Optional[int],
         raw_text: str,
         category: Optional[str] = None,
+        ownership: str = "business",
         finance_msg_id: Optional[int] = None,
         finance_chat_id: Optional[int] = None,
         status: str = "pending",
@@ -79,14 +80,14 @@ class HisobchiEngine:
             """
             INSERT INTO hisobchi_transactions
                 (source_bot, direction, amount, merchant, card_suffix,
-                 tx_time, balance, raw_text, category, finance_msg_id,
+                 tx_time, balance, raw_text, category, ownership, finance_msg_id,
                  finance_chat_id, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
             """,
             [
                 source_bot, direction, amount, merchant, card_suffix,
-                tx_time, balance, raw_text, category, finance_msg_id,
+                tx_time, balance, raw_text, category, ownership, finance_msg_id,
                 finance_chat_id, status,
             ],
         )
@@ -107,11 +108,17 @@ class HisobchiEngine:
         )
         await self._db.commit()
 
-    async def categorize(self, tx_id: int, category: str) -> None:
-        await self._db.execute(
-            "UPDATE hisobchi_transactions SET category=?, status='categorized' WHERE id=?",
-            [category, tx_id],
-        )
+    async def categorize(self, tx_id: int, category: str, ownership: Optional[str] = None) -> None:
+        if ownership:
+            await self._db.execute(
+                "UPDATE hisobchi_transactions SET category=?, ownership=?, status='categorized' WHERE id=?",
+                [category, ownership, tx_id],
+            )
+        else:
+            await self._db.execute(
+                "UPDATE hisobchi_transactions SET category=?, status='categorized' WHERE id=?",
+                [category, tx_id],
+            )
         await self._db.commit()
 
     async def skip(self, tx_id: int) -> None:
@@ -137,32 +144,39 @@ class HisobchiEngine:
         """period = 'YYYY-MM'"""
         rows = await self._db.execute(
             """
-            SELECT direction, category, SUM(amount) AS total, COUNT(*) AS cnt
+            SELECT direction, category, ownership, SUM(amount) AS total, COUNT(*) AS cnt
             FROM hisobchi_transactions
             WHERE created_at LIKE ?
-            GROUP BY direction, category
+            GROUP BY direction, category, ownership
             ORDER BY total DESC
             """,
             [f"{period}%"],
         )
-        income = 0
-        expense = 0
-        categories: dict[str, int] = {}
-        for row in rows:
-            if row["direction"] == "in":
-                income += int(row["total"])
-            else:
-                expense += int(row["total"])
-                cat = row["category"] or "Noma'lum"
-                categories[cat] = categories.get(cat, 0) + int(row["total"])
-        return {
-            "income": income,
-            "expense": expense,
-            "net": income - expense,
-            "categories": dict(
-                sorted(categories.items(), key=lambda x: -x[1])
-            ),
+        summary = {
+            "business": {"income": 0, "expense": 0, "net": 0, "categories": {}},
+            "personal": {"income": 0, "expense": 0, "net": 0, "categories": {}}
         }
+        for row in rows:
+            own = row["ownership"] or "business"
+            if own not in summary:
+                own = "business"
+            
+            direc = row["direction"]
+            total = int(row["total"])
+            cat = row["category"] or "Noma'lum"
+            
+            if direc == "in":
+                summary[own]["income"] += total
+            else:
+                summary[own]["expense"] += total
+                summary[own]["categories"][cat] = summary[own]["categories"].get(cat, 0) + total
+                
+        for own in ["business", "personal"]:
+            summary[own]["net"] = summary[own]["income"] - summary[own]["expense"]
+            summary[own]["categories"] = dict(
+                sorted(summary[own]["categories"].items(), key=lambda x: -x[1])
+            )
+        return summary
 
     # ── MESSAGE BUILDERS ──────────────────────────────────────────────────
 
@@ -184,26 +198,56 @@ class HisobchiEngine:
             f"Javob bering yoki <code>/skip {tx_id}</code>"
         )
 
-    def build_auto_msg(self, tx, category: str) -> str:
+    def build_auto_msg(self, tx, category: str, ownership: str = "business") -> str:
         dir_icon = "➖" if tx.direction == "out" else "➕"
         card_label = "HUMO" if tx.source_bot == "humo" else "UZCARD"
+        own_label = "Biznes" if ownership == "business" else "Shaxsiy"
         return (
-            f"✅ <b>Avtomatik saqlandi</b>\n"
+            f"✅ <b>Avtomatik saqlandi ({own_label})</b>\n"
             f"{dir_icon} {_fmt_money(tx.amount)} UZS — {card_label} {tx.card_suffix}\n"
             f"📍 {tx.merchant}\n"
             f"🗂 <b>{category}</b>"
         )
 
     def build_monthly_report(self, period: str, summary: dict) -> str:
-        cat_lines = "\n".join(
-            f"  • {cat}: {_fmt_money(total)} UZS"
-            for cat, total in list(summary["categories"].items())[:10]
-        )
-        net_icon = "📈" if summary["net"] >= 0 else "📉"
-        return (
-            f"📊 <b>Hisobchi hisoboti — {period}</b>\n\n"
-            f"➕ Kirim:   <b>{_fmt_money(summary['income'])} UZS</b>\n"
-            f"➖ Chiqim:  <b>{_fmt_money(summary['expense'])} UZS</b>\n"
-            f"{net_icon} Balans:  <b>{_fmt_money(summary['net'])} UZS</b>\n\n"
-            f"🗂 <b>Kategoriyalar:</b>\n{cat_lines or '  —'}"
-        )
+        if "business" in summary:
+            b_sum = summary["business"]
+            p_sum = summary["personal"]
+            b_net_icon = "📈" if b_sum["net"] >= 0 else "📉"
+            p_net_icon = "📈" if p_sum["net"] >= 0 else "📉"
+            
+            b_cat_lines = "\n".join(
+                f"  • {cat}: {_fmt_money(total)} UZS"
+                for cat, total in list(b_sum["categories"].items())[:10]
+            )
+            p_cat_lines = "\n".join(
+                f"  • {cat}: {_fmt_money(total)} UZS"
+                for cat, total in list(p_sum["categories"].items())[:10]
+            )
+            return (
+                f"📊 <b>Hisobchi hisoboti — {period}</b>\n\n"
+                f"💼 <b>Biznes moliyasi:</b>\n"
+                f"  ➕ Kirim:   <b>{_fmt_money(b_sum['income'])} UZS</b>\n"
+                f"  ➖ Chiqim:  <b>{_fmt_money(b_sum['expense'])} UZS</b>\n"
+                f"  {b_net_icon} Balans:  <b>{_fmt_money(b_sum['net'])} UZS</b>\n"
+                f"  🗂 <b>Kategoriyalar:</b>\n{b_cat_lines or '  —'}\n\n"
+                f"👤 <b>Shaxsiy moliya:</b>\n"
+                f"  ➕ Kirim:   <b>{_fmt_money(p_sum['income'])} UZS</b>\n"
+                f"  ➖ Chiqim:  <b>{_fmt_money(p_sum['expense'])} UZS</b>\n"
+                f"  {p_net_icon} Balans:  <b>{_fmt_money(p_sum['net'])} UZS</b>\n"
+                f"  🗂 <b>Kategoriyalar:</b>\n{p_cat_lines or '  —'}"
+            )
+        else:
+            cat_lines = "\n".join(
+                f"  • {cat}: {_fmt_money(total)} UZS"
+                for cat, total in list(summary.get("categories", {}).items())[:10]
+            )
+            net_val = summary.get("net", 0)
+            net_icon = "📈" if net_val >= 0 else "📉"
+            return (
+                f"📊 <b>Hisobchi hisoboti — {period}</b>\n\n"
+                f"➕ Kirim:   <b>{_fmt_money(summary.get('income', 0))} UZS</b>\n"
+                f"➖ Chiqim:  <b>{_fmt_money(summary.get('expense', 0))} UZS</b>\n"
+                f"{net_icon} Balans:  <b>{_fmt_money(net_val)} UZS</b>\n\n"
+                f"🗂 <b>Kategoriyalar:</b>\n{cat_lines or '  —'}"
+            )

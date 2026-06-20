@@ -63,9 +63,7 @@ class AdminBot:
                     "Oisha butun Telegram tarmog'idan ushbu mijozni topib beradi. 👸🛡️"
                 )
             elif data == "recent_leads":
-                await event.respond(
-                    "📂 **Yaqin oradagi lidlar:**\n\n_Bu funksiya hozirda shakllantirilmoqda..._"
-                )
+                await self.send_recent_leads(event)
 
         @self.client.on(events.NewMessage())
         async def message_handler(event):
@@ -106,6 +104,64 @@ class AdminBot:
             f"🕒 **Update:** {datetime.now().strftime('%H:%M:%S')}"
         )
         await event.respond(status_msg)
+
+    async def send_recent_leads(self, event):
+        """Yaqin oradagi faol lidlarni bazadan olib foydalanuvchiga yuborish."""
+        leads = await self.db.get_recent_active_leads(hours=168, limit=10)
+        if not leads:
+            leads = await self.db.get_recent_active_leads(hours=720, limit=10)
+        if not leads:
+            leads = await self.db.get_recent_active_leads(hours=8760, limit=10)
+
+        if not leads:
+            msg = (
+                "📂 **YAQIN ORADAGI FAOL LIDLAR**\n"
+                "──────────────────────\n"
+                "Hozircha ma'lumotlar bazasida yaqin oradagi faol lidlar mavjud emas. 📭"
+            )
+            await event.respond(msg)
+            return
+
+        msg = (
+            "📂 **YAQIN ORADAGI FAOL LIDLAR**\n"
+            "──────────────────────\n"
+            f"Jami topilgan: `{len(leads)}` ta\n\n"
+        )
+        for idx, lead in enumerate(leads, 1):
+            name = lead.get("first_name") or "Noma'lum"
+            username = lead.get("username")
+            username_str = f" (@{username})" if username else ""
+            phone = lead.get("phone") or "Telefon yo'q"
+            intent = lead.get("intent") or "Noma'lum"
+            stage = lead.get("journey_stage") or "Boshlang'ich"
+            next_action = lead.get("journey_next_action")
+            next_action_str = f"\n   ↳ 🧭 **Keyingi amal:** {next_action}" if next_action else ""
+            
+            # AmoCRM link
+            amo_lead_id = lead.get("amo_lead_id")
+            amo_link = f"\n   🔗 [AmoCRM orqali ko'rish](https://jonbrandingagency.amocrm.ru/leads/detail/{amo_lead_id})" if amo_lead_id else ""
+            
+            last_msg = lead.get("last_client_message") or ""
+            if last_msg:
+                last_msg = last_msg.replace("\n", " ")
+                if len(last_msg) > 60:
+                    last_msg = last_msg[:57] + "..."
+                last_msg_str = f"\n   💬 **Oxirgi xabar:** \"_{last_msg}_\""
+            else:
+                last_msg_str = ""
+
+            msg += (
+                f"{idx}. 👤 **{name}**{username_str}\n"
+                f"   📱 Tel: `{phone}`\n"
+                f"   🎯 Intent: `{intent}`\n"
+                f"   🧭 Bosqich: `{stage}`{next_action_str}{last_msg_str}{amo_link}\n"
+                "──────────────────────\n"
+            )
+
+        if len(msg) > 4000:
+            msg = msg[:3990] + "\n... (qolgan ma'lumotlar qisqartirildi)"
+
+        await event.respond(msg)
 
     async def handle_deep_search(self, event, phone):
         await event.respond(
