@@ -4,7 +4,7 @@ Unit tests for Oisha WebDriver, OSDriver, and MobileProxy.
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from src.agents.web_driver import OishaWebDriver
-from src.agents.os_driver import OishaOSDriver
+from src.agents.os_driver import OishaOSDriver, _UnavailablePyAutoGUI
 from src.agents.mobile_proxy import OishaMobileProxy, OishaTelegramProxy
 
 
@@ -24,6 +24,13 @@ def test_os_driver_opens_application_without_shell(monkeypatch):
     OishaOSDriver().open_application("notepad.exe")
 
     popen.assert_called_once_with(["notepad.exe"], shell=False)
+
+
+def test_headless_gui_proxy_fails_only_when_desktop_action_is_used():
+    proxy = _UnavailablePyAutoGUI(RuntimeError("DISPLAY missing"))
+
+    with pytest.raises(RuntimeError, match="desktop muhiti mavjud emas"):
+        proxy.click(1, 2)
 
 
 def test_mobile_proxy_initialization():
