@@ -13,9 +13,13 @@ Entry points:
 """
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime, timedelta, timezone
+import html
 import logging
 import os
 import json
+import re
 from typing import Optional
 
 from src.services.core.hisobchi_card_parser import (
@@ -24,14 +28,20 @@ from src.services.core.hisobchi_card_parser import (
 )
 from src.services.core.hisobchi_engine import HisobchiEngine
 from src.services.utils.gemini_fallback import generate_content_with_fallback
+from src.settings import settings
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
 
 _MAX_CATEGORY_LEN = 100
+_MAX_REPLY_LEN = 500
 
 # Cache: group_id → (kirim_topic_id, chiqim_topic_id) discovered at runtime
 _topic_cache: dict[int, tuple[Optional[int], Optional[int]]] = {}
+_finance_group_cache: Optional[int] = None
+_FINANCE_GROUP_WORDS = frozenset(
+    {"moliya", "finance", "buxgalter", "accounting", "hisobchi"}
+)
 
 
 def _get_finance_config() -> tuple[Optional[int], Optional[int], Optional[int]]:
@@ -57,7 +67,7 @@ async def _discover_topics(
     kirim_id: Optional[int] = None
     chiqim_id: Optional[int] = None
     try:
-        from telethon.tl.functions.channels import GetForumTopicsRequest
+        from telethon.tl.functions.messages import GetForumTopicsRequest
 
         result = await client(
             GetForumTopicsRequest(
@@ -99,74 +109,128 @@ async def _resolve_topics(
     )
 
 
+async def _discover_finance_group(client) -> Optional[int]:
+    """Find the finance group without mistaking generic report groups for it."""
+    global _finance_group_cache
+    if _finance_group_cache is not None:
+        return _finance_group_cache
+
+    try:
+        dialogs = await client.get_dialogs(limit=500)
+        for dialog in dialogs:
+            title = (
+                getattr(dialog, "name", None)
+                or getattr(getattr(dialog, "entity", None), "title", None)
+                or ""
+            )
+            words = set(re.findall(r"[\w'’]+", title.casefold(), flags=re.UNICODE))
+            if words & _FINANCE_GROUP_WORDS:
+                group_id = getattr(dialog, "id", None)
+                if group_id is not None:
+                    _finance_group_cache = int(group_id)
+                    logger.info(
+                        "[HISOBCHI] Finance group discovered: %s (%s)",
+                        title,
+                        _finance_group_cache,
+                    )
+                    return _finance_group_cache
+    except Exception as exc:
+        logger.warning("[HISOBCHI] Finance group discovery failed: %s", exc)
+    return None
+
+
+async def resolve_finance_destination(
+    client,
+) -> tuple[Optional[int], Optional[int], Optional[int]]:
+    """Resolve group and Kirim/Chiqim topics from config, Telegram, or safe fallback."""
+    configured_group, kirim_cfg, chiqim_cfg = _get_finance_config()
+    group_id = configured_group or await _discover_finance_group(client)
+    if group_id is None:
+        team_group_id = getattr(settings, "TEAM_GROUP_ID", None)
+        if team_group_id:
+            team_kirim, team_chiqim = await _resolve_topics(
+                client, int(team_group_id), kirim_cfg, chiqim_cfg
+            )
+            if team_kirim is not None or team_chiqim is not None:
+                logger.info(
+                    "[HISOBCHI] Finance topics found in TEAM_GROUP_ID: %s",
+                    team_group_id,
+                )
+                return int(team_group_id), team_kirim, team_chiqim
+        logger.error(
+            "[HISOBCHI] Finance destination is not configured or discoverable; "
+            "card details will not be sent to a generic group."
+        )
+        return None, None, None
+
+    kirim_topic, chiqim_topic = await _resolve_topics(
+        client, int(group_id), kirim_cfg, chiqim_cfg
+    )
+    return int(group_id), kirim_topic, chiqim_topic
+
+
 def _pick_topic(direction: str, kirim_topic: Optional[int], chiqim_topic: Optional[int]) -> Optional[int]:
     if direction == "in":
         return kirim_topic
     return chiqim_topic
 
 
-async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> None:
+async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> bool:
     """Called when @HUMOcardbot or @CardXabarBot sends a message."""
     sender = await event.get_sender()
     username = (getattr(sender, "username", None) or "").lower()
     if username not in CARD_BOT_USERNAMES:
-        return
+        return False
 
     text = event.message.message or ""
     tx = parse_card_notification(username, text)
     if not tx:
         logger.warning("[HISOBCHI] Could not parse card message from @%s", username)
-        return
+        return False
 
-    finance_group_id, kirim_cfg, chiqim_cfg = _get_finance_config()
-
-    kirim_topic_id, chiqim_topic_id = kirim_cfg, chiqim_cfg
-    if finance_group_id and (kirim_cfg is None or chiqim_cfg is None):
-        kirim_topic_id, chiqim_topic_id = await _resolve_topics(
-            client, finance_group_id, kirim_cfg, chiqim_cfg
-        )
+    finance_group_id, kirim_topic_id, chiqim_topic_id = (
+        await resolve_finance_destination(client)
+    )
 
     topic_id = _pick_topic(tx.direction, kirim_topic_id, chiqim_topic_id)
 
-    known_cat = await engine.get_known_category(tx.merchant)
+    known_rule = await engine.get_known_rule(
+        tx.merchant, tx.card_suffix, tx.direction, tx.amount
+    )
+    category = known_rule["category"] if known_rule else None
+    ownership = known_rule["ownership"] if known_rule else "business"
+    tx_id, created = await engine.save_transaction_once(
+        source_bot=tx.source_bot,
+        direction=tx.direction,
+        amount=tx.amount,
+        merchant=tx.merchant,
+        card_suffix=tx.card_suffix,
+        tx_time=tx.tx_time,
+        balance=tx.balance,
+        raw_text=text,
+        category=category,
+        ownership=ownership,
+        status="categorized" if known_rule else "pending",
+        source_message_id=getattr(getattr(event, "message", None), "id", None),
+    )
+    if not created:
+        logger.info("[HISOBCHI] Duplicate transaction ignored: #%s", tx_id)
+        return True
 
-    if known_cat:
-        tx_id = await engine.save_transaction(
-            source_bot=tx.source_bot,
-            direction=tx.direction,
-            amount=tx.amount,
-            merchant=tx.merchant,
-            card_suffix=tx.card_suffix,
-            tx_time=tx.tx_time,
-            balance=tx.balance,
-            raw_text=text,
-            category=known_cat,
-            status="categorized",
-        )
-        logger.info("[HISOBCHI] Auto-categorized tx #%s → %s", tx_id, known_cat)
+    if known_rule:
+        logger.info("[HISOBCHI] Auto-categorized tx #%s → %s", tx_id, category)
 
         if finance_group_id:
             try:
                 await client.send_message(
                     finance_group_id,
-                    engine.build_auto_msg(tx, known_cat),
+                    engine.build_auto_msg(tx, category, ownership),
                     parse_mode="html",
                     reply_to=topic_id,
                 )
             except Exception as exc:
                 logger.error("[HISOBCHI] Failed to notify finance group: %s", exc)
     else:
-        tx_id = await engine.save_transaction(
-            source_bot=tx.source_bot,
-            direction=tx.direction,
-            amount=tx.amount,
-            merchant=tx.merchant,
-            card_suffix=tx.card_suffix,
-            tx_time=tx.tx_time,
-            balance=tx.balance,
-            raw_text=text,
-            status="pending",
-        )
         logger.info("[HISOBCHI] New tx #%s, asking finance group", tx_id)
 
         if finance_group_id:
@@ -186,8 +250,9 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> None
                 logger.error("[HISOBCHI] Failed to send question to finance group: %s", exc)
         else:
             logger.warning(
-                "[HISOBCHI] HISOBCHI_FINANCE_GROUP_ID not set — question not sent"
+                "[HISOBCHI] Finance group not found — question not sent"
             )
+    return True
 
 
 async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> bool:
@@ -195,7 +260,7 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
     Called for messages in the finance group.
     Returns True if this was a hisobchi reply (so caller can skip other processing).
     """
-    finance_group_id, _, _ = _get_finance_config()
+    finance_group_id, _, _ = await resolve_finance_destination(client)
     if not finance_group_id:
         return False
 
@@ -230,46 +295,144 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
     if not text or text.startswith("/"):
         return False
 
-    # Validate category length
-    if len(text) > _MAX_CATEGORY_LEN:
+    if len(text) > _MAX_REPLY_LEN:
         await event.reply(
-            f"⚠️ Kategoriya nomi juda uzun (maksimal {_MAX_CATEGORY_LEN} belgi). "
-            "Iltimos, qisqaroq nom yuboring."
+            f"⚠️ Izoh juda uzun (maksimal {_MAX_REPLY_LEN} belgi). "
+            "Iltimos, qisqaroq yozing."
         )
         return True
 
-    category = text
+    reason = text
     ownership = "business"
-    if "," in text:
-        parts = [p.strip() for p in text.split(",", 1)]
-        category = parts[0]
-        own_part = parts[1].lower()
-        if any(w in own_part for w in ["shaxsiy", "personal", "shaxsy"]):
-            ownership = "personal"
+    lower_text = text.casefold()
+    if any(w in lower_text for w in ["shaxsiy", "personal", "shaxsy"]):
+        ownership = "personal"
+
+    # "Kategoriya | batafsil sabab" is the explicit format. A plain answer
+    # remains useful too: it becomes both the category label and audit reason.
+    category = re.split(r"\s*\|\s*|\r?\n", text, maxsplit=1)[0].strip()
+    category = re.sub(
+        r"\s*,?\s*(shaxsiy|personal|shaxsy)\s*$",
+        "",
+        category,
+        flags=re.IGNORECASE,
+    ).strip()
+    if not category:
+        await event.reply("⚠️ Toifa yoki sabab matnini yozing.")
+        return True
+    if len(category) > _MAX_CATEGORY_LEN:
+        category = category[:_MAX_CATEGORY_LEN].rstrip()
 
     tx_id = tx["id"]
     merchant = tx["merchant"]
 
-    await engine.categorize(tx_id, category, ownership)
-    await engine.learn_category(merchant, category)
+    await engine.categorize(tx_id, category, ownership, reason=reason)
+    await engine.learn_rule(
+        merchant=merchant,
+        card_suffix=tx.get("card_suffix", ""),
+        direction=tx["direction"],
+        amount=int(tx["amount"]),
+        category=category,
+        ownership=ownership,
+    )
 
     amount_str = f"{tx['amount']:,}".replace(",", " ")
     direction_icon = "➖" if tx["direction"] == "out" else "➕"
     own_label = "Biznes" if ownership == "business" else "Shaxsiy"
     await event.reply(
         f"✅ Saqlandi!\n"
-        f"{direction_icon} {amount_str} UZS — <b>{category} ({own_label})</b>\n"
-        f"📍 {merchant}\n"
+        f"{direction_icon} {amount_str} UZS — <b>{html.escape(category)} ({own_label})</b>\n"
+        f"📍 {html.escape(merchant)}\n"
         f"🧠 Keyingi safar avtomatik qo'yiladi.",
         parse_mode="html",
     )
-    logger.info("[HISOBCHI] tx #%s categorized as '%s' (%s), merchant learned", tx_id, category, ownership)
+    logger.info("[HISOBCHI] tx #%s categorized as '%s' (%s), exact rule learned", tx_id, category, ownership)
     return True
 
 
 def is_card_bot_sender(sender) -> bool:
     username = (getattr(sender, "username", None) or "").lower()
     return username in CARD_BOT_USERNAMES
+
+
+class _CardBackfillEvent:
+    """Small event adapter used only for card-bot history replay."""
+
+    def __init__(self, message, sender) -> None:
+        self.message = message
+        self.id = getattr(message, "id", None)
+        self.is_private = True
+        self.out = False
+        self._sender = sender
+
+    async def get_sender(self):
+        return self._sender
+
+
+async def backfill_card_bot_messages(
+    client,
+    engine: HisobchiEngine,
+    *,
+    limit: int = 50,
+    max_age_hours: int = 72,
+    delay_seconds: float = 0.05,
+) -> dict[str, int]:
+    """Replay recent card notifications once after boot, with deduplication."""
+    stats = {"scanned": 0, "created": 0, "duplicates": 0, "errors": 0}
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+
+    for username in sorted(CARD_BOT_USERNAMES):
+        try:
+            entity = await client.get_entity(username)
+            messages = []
+            async for message in client.iter_messages(entity, limit=limit):
+                message_date = getattr(message, "date", None)
+                if message_date is not None:
+                    if message_date.tzinfo is None:
+                        message_date = message_date.replace(tzinfo=timezone.utc)
+                    if message_date < cutoff:
+                        break
+                messages.append(message)
+
+            for message in reversed(messages):
+                stats["scanned"] += 1
+                try:
+                    text = getattr(message, "message", None) or ""
+                    tx = parse_card_notification(username, text)
+                    if tx is None:
+                        continue
+                    existed = await engine.transaction_exists(
+                        source_bot=tx.source_bot,
+                        direction=tx.direction,
+                        amount=tx.amount,
+                        merchant=tx.merchant,
+                        card_suffix=tx.card_suffix,
+                        tx_time=tx.tx_time,
+                        source_message_id=getattr(message, "id", None),
+                    )
+                    if existed:
+                        stats["duplicates"] += 1
+                        continue
+                    await handle_card_bot_message(
+                        _CardBackfillEvent(message, entity), client, engine
+                    )
+                    stats["created"] += 1
+                except Exception as exc:
+                    stats["errors"] += 1
+                    logger.warning(
+                        "[HISOBCHI] Backfill message failed bot=%s id=%s: %s",
+                        username,
+                        getattr(message, "id", None),
+                        exc,
+                    )
+                if delay_seconds:
+                    await asyncio.sleep(delay_seconds)
+        except Exception as exc:
+            stats["errors"] += 1
+            logger.warning("[HISOBCHI] Backfill source @%s failed: %s", username, exc)
+
+    logger.info("[HISOBCHI] Backfill finished: %s", stats)
+    return stats
 
 
 # ── VOICE PROCESSING & TRANSACTION EXTRACTION ─────────────────────────────
@@ -373,7 +536,7 @@ async def process_finance_voice_message(
         replied_msg_id = getattr(reply_to, "reply_to_msg_id", None) if reply_to else None
 
         tx = None
-        finance_group_id, _, _ = _get_finance_config()
+        finance_group_id, _, _ = await resolve_finance_destination(client)
         if replied_msg_id and finance_group_id:
             tx = await engine.get_pending_by_finance_msg(
                 finance_chat_id=finance_group_id,
@@ -385,8 +548,15 @@ async def process_finance_voice_message(
             tx_id = tx["id"]
             merchant = tx["merchant"]  # use original merchant from card notification
 
-            await engine.categorize(tx_id, category, ownership)
-            await engine.learn_category(merchant, category)
+            await engine.categorize(tx_id, category, ownership, reason=reason)
+            await engine.learn_rule(
+                merchant=merchant,
+                card_suffix=tx.get("card_suffix", ""),
+                direction=tx["direction"],
+                amount=int(tx["amount"]),
+                category=category,
+                ownership=ownership,
+            )
 
             amount_str = f"{tx['amount']:,}".replace(",", " ")
             direction_icon = "➖" if tx["direction"] == "out" else "➕"
@@ -394,8 +564,8 @@ async def process_finance_voice_message(
 
             await event.reply(
                 f"🎙️ <b>Ovozli javob saqlandi!</b>\n"
-                f"{direction_icon} {amount_str} UZS — <b>{category} ({own_label})</b>\n"
-                f"📍 {merchant}\n"
+                f"{direction_icon} {amount_str} UZS — <b>{html.escape(category)} ({own_label})</b>\n"
+                f"📍 {html.escape(merchant)}\n"
                 f"🧠 Keyingi safar avtomatik toifalanadi.",
                 parse_mode="html",
             )
@@ -421,6 +591,7 @@ async def process_finance_voice_message(
                 category=category,
                 ownership=ownership,
                 status="categorized",
+                reason=reason,
             )
 
             amount_str = f"{amount:,}".replace(",", " ")
@@ -431,9 +602,9 @@ async def process_finance_voice_message(
             await event.reply(
                 f"🎙️ <b>Ovozli to'lov #{tx_id} saqlandi!</b>\n\n"
                 f"{direction_icon}: <b>{amount_str} UZS</b> ({own_label})\n"
-                f"📍 {merchant}\n"
-                f"🗂 Toifa: <b>{category}</b>"
-                f"{reason_line}",
+                f"📍 {html.escape(merchant)}\n"
+                f"🗂 Toifa: <b>{html.escape(category)}</b>"
+                f"{html.escape(reason_line)}",
                 parse_mode="html",
             )
             logger.info("[HISOBCHI-VOICE] Manual tx #%s saved as '%s' (%s) from standalone voice", tx_id, category, ownership)

@@ -146,7 +146,7 @@ class OishaOSDriver:
         Masalan: open_application('notepad.exe')
         """
         logger.info(f"[OSDriver] Opening application: {app_path}")
-        return subprocess.Popen(app_path, shell=True)
+        return subprocess.Popen([app_path], shell=False)
 
     def open_start_menu(self):
         """Windows Start menyusini ochish."""
