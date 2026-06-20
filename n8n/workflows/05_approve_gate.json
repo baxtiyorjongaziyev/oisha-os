@@ -1,0 +1,177 @@
+{
+  "name": "05 · Approve Gate (Oisha so'raydi → Telegram → Bajaradi)",
+  "nodes": [
+    {
+      "id": "wh-approve",
+      "name": "Oisha Tasdiqlash So'rovi",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "oisha-approve",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "respond-received",
+      "name": "Qabul Qilindi",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [200, 100],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\":\"pending\",\"message\":\"Tasdiqlash kutilmoqda\"}"
+      }
+    },
+    {
+      "id": "build-message",
+      "name": "Xabar Tayyorla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, -100],
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst action_id = data.action_id || `approve_${Date.now()}`;\nconst text = [\n  `⚠️ <b>Oisha tasdiqlash so'radi</b>`,\n  ``,\n  `📋 <b>Amal:</b> ${data.action_name || 'Noma\\'lum'}`,\n  `📝 <b>Tafsilot:</b> ${data.description || '-'}`,\n  ``,\n  `✅ Tasdiqlash: <code>/approve ${action_id}</code>`,\n  `❌ Bekor qilish: <code>/reject ${action_id}</code>`\n].join('\\n');\n\nreturn [{ json: { text, action_id, action_name: data.action_name, payload: data.payload, callback_url: data.callback_url } }];"
+      }
+    },
+    {
+      "id": "tg-ask",
+      "name": "Telegram — Egadan So'ra",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, -100],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $env.OWNER_TELEGRAM_ID }}" },
+            { "name": "text", "value": "={{ $json.text }}" },
+            { "name": "parse_mode", "value": "HTML" },
+            {
+              "name": "reply_markup",
+              "value": "={{ JSON.stringify({ inline_keyboard: [[{ text: '✅ Tasdiqlash', callback_data: 'approve_' + $json.action_id }, { text: '❌ Bekor', callback_data: 'reject_' + $json.action_id }]] }) }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "wh-callback",
+      "name": "Callback Webhook (Javob keldi)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "oisha-approve-callback",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "check-approved",
+      "name": "Tasdiqlandi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "approved",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "oisha-execute",
+      "name": "Oisha — Amalni Bajar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-Oisha-Key", "value": "={{ $env.OISHA_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"decision\": \"approved\", \"action_id\": \"{{ $json.action_id }}\", \"payload\": {{ JSON.stringify($json.payload) }} }"
+      }
+    },
+    {
+      "id": "oisha-reject",
+      "name": "Oisha — Bekor Qilindi",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-Oisha-Key", "value": "={{ $env.OISHA_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"decision\": \"rejected\", \"action_id\": \"{{ $json.action_id }}\" }"
+      }
+    },
+    {
+      "id": "respond-cb",
+      "name": "Callback Qabul",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [600, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\":\"ok\"}"
+      }
+    }
+  ],
+  "connections": {
+    "Oisha Tasdiqlash So'rovi": {
+      "main": [
+        [
+          { "node": "Qabul Qilindi", "type": "main", "index": 0 },
+          { "node": "Xabar Tayyorla", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Xabar Tayyorla": {
+      "main": [[{ "node": "Telegram — Egadan So'ra", "type": "main", "index": 0 }]]
+    },
+    "Callback Webhook (Javob keldi)": {
+      "main": [[{ "node": "Tasdiqlandi?", "type": "main", "index": 0 }]]
+    },
+    "Tasdiqlandi?": {
+      "main": [
+        [{ "node": "Oisha — Amalni Bajar", "type": "main", "index": 0 }],
+        [{ "node": "Oisha — Bekor Qilindi", "type": "main", "index": 0 }]
+      ]
+    },
+    "Oisha — Amalni Bajar": {
+      "main": [[{ "node": "Callback Qabul", "type": "main", "index": 0 }]]
+    },
+    "Oisha — Bekor Qilindi": {
+      "main": [[{ "node": "Callback Qabul", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": [{"name": "oisha"}, {"name": "approve-gate"}]
+}
