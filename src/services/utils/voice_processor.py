@@ -3,7 +3,7 @@ import asyncio
 import logging
 import mimetypes
 from google import genai
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from src.settings import settings
 from src.services.utils.gemini_fallback import (
@@ -171,6 +171,58 @@ class VoiceProcessor:
     async def transcribe_call(self, file_path: str) -> Optional[str]:
         """Shortcut for call recording transcription."""
         return await self.transcribe(file_path, mode="call")
+
+    async def convert_voice_to_task(self, file_path: str) -> Dict[str, Any]:
+        """
+        Transcribes a voice note and extracts a structured task from it.
+        Returns a dict: {"title": str, "description": str, "assigned_to": str, "deadline": str}
+        """
+        logger.info(f"[VOICE-TO-TASK] Converting voice note {file_path} to task...")
+        transcription = await self.transcribe(file_path, mode="voice")
+        if not transcription:
+            return {
+                "title": "Voice Task",
+                "description": "Voice note could not be transcribed.",
+                "assigned_to": "PM",
+                "deadline": None
+            }
+            
+        prompt = (
+            f"Quyidagi ovozli xabar transkripsiyasidan topshiriq (task) tafsilotlarini ajratib oling:\n"
+            f"\"{transcription}\"\n\n"
+            f"Topshiriq uchun sarlavha (title), batafsil tavsif (description), mas'ul xodim roli/ism (assigned_to) va "
+            f"deadline (agar aytilgan bo'lsa, YYYY-MM-DD formatda, aks holda null) ajrating.\n"
+            f"Faqat quyidagi JSON formatida javob bering:\n"
+            f'{{"title": "...", "description": "...", "assigned_to": "...", "deadline": "..."}}'
+        )
+        
+        try:
+            response, _ = await generate_content_with_fallback(
+                self.client,
+                primary_model=self.model_name,
+                contents=prompt,
+                env_name="GEMINI_VOICE_FALLBACK_MODELS",
+                log_prefix="[VOICE-TO-TASK]",
+            )
+            if response.text:
+                import json
+                cleaned_text = response.text.strip().replace("```json", "").replace("```", "").strip()
+                data = json.loads(cleaned_text)
+                return {
+                    "title": data.get("title", "Ovozli topshiriq"),
+                    "description": data.get("description", transcription),
+                    "assigned_to": data.get("assigned_to", "Jamoa"),
+                    "deadline": data.get("deadline"),
+                }
+        except Exception as e:
+            logger.error(f"[VOICE-TO-TASK ERROR] Failed parsing structured task: {e}")
+            
+        return {
+            "title": "Ovozli topshiriq",
+            "description": transcription,
+            "assigned_to": "PM",
+            "deadline": None
+        }
 
     async def cleanup(self, file_path: str):
         """Deletes the temporary audio file."""

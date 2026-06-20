@@ -37,8 +37,8 @@ class WowServiceEngine:
         lead_id = lead.get("id")
         status_id = int(lead.get("status_id") or 0)
 
-        # Checkpoint: First Contact Quality
-        if status_id == 142:  # Masalan: 'Yangi lid' statusi
+        # Checkpoint: First Contact Quality (1 hour)
+        if status_id in (142, 143):  # 'Yangi lid' statusi
             await self._trigger_checkpoint(
                 external_id=lead_id,
                 key="lead_welcome_audit",
@@ -46,6 +46,16 @@ class WowServiceEngine:
                 target_user_id=int(lead.get("responsible_user_id") or 0),
                 message=f"🚀 <b>Yangi lid: {lead.get('name')}</b>\nWelcome-pack va mini-audit yubordingizmi? Birinchi 1 soat ichidagi 'Wow' taassurot eng muhimi!",
                 wow_action="Mijozga 3 ta foydali ideya va discovery savollarini yuboring.",
+            )
+
+            # Checkpoint: First 1-Hour WOW (30 minutes nudge)
+            await self._trigger_checkpoint(
+                external_id=lead_id,
+                key="lead_first_hour_wow",
+                delay_hours=0.5,
+                target_user_id=int(lead.get("responsible_user_id") or 0),
+                message=f"🚀 <b>First 1-Hour WOW Nudge: {lead.get('name')}</b>\nYangi bitim yaratilganiga 30 daqiqa bo'ldi. Mijozga birinchi master-klass yoki bonus yuborildimi?",
+                wow_action="Mijozga Jon Branding agentligi master-klass va mini-loyihalar to'plamini yuboring.",
             )
 
     async def _audit_project_journey(self, project: Dict[str, Any]):
@@ -59,6 +69,32 @@ class WowServiceEngine:
         # PM Telegram ID sini topish
         pm_user = await self.db.get_user_by_username(pm_handle.replace("@", ""))
         pm_id = pm_user["user_id"] if pm_user else None
+
+        # Checkpoint: Status Concierge (Project Stage change notification)
+        stage_checkpoint_key = "project_stage_concierge"
+        last_stage_checkpoint = await self.db.get_checkpoint(project_id, stage_checkpoint_key)
+        if not last_stage_checkpoint or last_stage_checkpoint["status"] != stage:
+            # Stage changed! Send a notification to the customer's group chat or PM
+            client_group_id = int(fields.get("Telegram Group ID") or fields.get("client_group_id") or 0)
+            if not client_group_id:
+                # Use PM ID or CRM Group as fallback
+                import src.config as config
+                client_group_id = pm_id or getattr(config, "CRM_GROUP_ID", 0)
+
+            stage_update_msg = (
+                f"👸 <b>OISHA: STATUS CONCIERGE</b> 👸\n\n"
+                f"📂 Loyiha: <b>{fields.get('Loyihani nomi?')}</b>\n"
+                f"🔄 Yangi bosqich: <b>{stage.upper()}</b>\n\n"
+                f"Biz loyihangizni elita darajada topshirish uchun harakatdamiz! ✨"
+            )
+
+            if client_group_id and self.bot_client:
+                try:
+                    await self.bot_client.send_message(client_group_id, stage_update_msg, parse_mode="html")
+                    await self.db.mark_checkpoint_notified(project_id, stage_checkpoint_key, status=stage)
+                    logger.info(f"[STATUS-CONCIERGE] Notified client group for {project_id} stage change to {stage}")
+                except Exception as e:
+                    logger.error(f"[STATUS-CONCIERGE ERROR] Failed to notify for {project_id}: {e}")
 
         # Checkpoint: Kickoff Recap (Project Start)
         if any(token in stage for token in ("brief", "brif", "start")):

@@ -806,6 +806,7 @@ class Database:
                 u.last_client_message_at,
                 u.last_ai_message_at,
                 u.lifecycle_updated_at,
+                css.amo_lead_id,
                 (
                     SELECT ml.message_text
                     FROM message_logs ml
@@ -817,6 +818,7 @@ class Database:
                     LIMIT 1
                 ) AS last_client_message
             FROM users u
+            LEFT JOIN crm_sync_status css ON u.user_id = css.user_id
             WHERE u.last_client_message_at IS NOT NULL
               AND u.last_client_message_at >= ?
             ORDER BY u.last_client_message_at DESC
@@ -1070,6 +1072,39 @@ class Database:
                 for r in rows
             ]
 
+    async def get_checkpoint(self, external_id: Any, checkpoint_key: str) -> Optional[Dict[str, Any]]:
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT id, external_id, checkpoint_key, status, last_notified_at, created_at FROM service_checkpoints WHERE external_id = ? AND checkpoint_key = ?",
+            (str(external_id), str(checkpoint_key)),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return {
+                    "id": row[0],
+                    "external_id": row[1],
+                    "checkpoint_key": row[2],
+                    "status": row[3],
+                    "last_notified_at": row[4],
+                    "created_at": row[5],
+                }
+            return None
+
+    async def mark_checkpoint_notified(self, external_id: Any, checkpoint_key: str, status: str = "Pending") -> None:
+        now = datetime.datetime.now().isoformat()
+        conn = await self.get_connection()
+        await conn.execute(
+            """
+            INSERT INTO service_checkpoints (external_id, checkpoint_key, status, last_notified_at, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(external_id, checkpoint_key) DO UPDATE SET
+                status = excluded.status,
+                last_notified_at = excluded.last_notified_at
+            """,
+            (str(external_id), str(checkpoint_key), status, now, now),
+        )
+        await conn.commit()
+
     async def get_user_info(self, user_id):
         conn = await self.get_connection()
         async with conn.execute(
@@ -1175,6 +1210,15 @@ class Database:
                 "leads_found": row[0] or 0,
                 "messages_synced": row[1] or 0,
             }
+
+    async def is_crm_synced(self, user_id: int) -> bool:
+        """Foydalanuvchi CRM ga sinxronlanganmi yoki yo'qligini tekshirish."""
+        conn = await self.get_connection()
+        async with conn.execute(
+            "SELECT crm_synced FROM users WHERE user_id = ?", (user_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return bool(row and row[0])
 
     async def mark_crm_synced(self, user_id: int) -> bool:
         now = datetime.datetime.now().isoformat()
