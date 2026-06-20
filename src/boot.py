@@ -8,7 +8,7 @@ import asyncio
 import os
 import logging
 
-from telethon import TelegramClient
+from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
 from src import config as src_config
@@ -25,12 +25,7 @@ from src.services.core.audit_agent import AuditAgent
 from src.services.core.sales_coach import SalesCoach
 from src.services.core.crm_guard import CRMGuard
 from src.services.core.admin_bot import AdminBot
-from src.services.core import auto_reply_gate
-from src.services.core.folder_manager import FolderManager
-from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
-from src.services.core.juma_notifier import JumaNotifier
-from src.services.core.case_publisher import CasePublisher
 from src.services.core.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
@@ -299,6 +294,10 @@ async def boot_application():
     }
     db = Database()
     await db.init_instance()
+    from src.services.core.hisobchi_schema import init_hisobchi_tables
+
+    await init_hisobchi_tables(db)
+    logger.info("[HISOBCHI] Database schema is ready.")
     msg_controller = MessageController(api_keys=api_keys, db=db)
 
     cloud_control_plane = bool(os.getenv("K_SERVICE"))
@@ -568,6 +567,38 @@ async def boot_application():
     m.health_api_server = None
 
     # Register event handlers on client
+    from src.services.core.hisobchi_engine import HisobchiEngine
+    from src.services.core.hisobchi_handlers import (
+        backfill_card_bot_messages,
+        handle_card_bot_message,
+        handle_finance_group_reply,
+        is_card_bot_sender,
+    )
+
+    hisobchi_engine = HisobchiEngine(msg_controller.db)
+    m._hisobchi_engine = hisobchi_engine
+
+    async def _hisobchi_event_handler(event):
+        """Handle finance events before generic bot/spam filters can drop them."""
+        try:
+            sender = await event.get_sender()
+            if event.is_private and not event.out and is_card_bot_sender(sender):
+                await handle_card_bot_message(event, client, hisobchi_engine)
+                raise events.StopPropagation
+            if not event.is_private and not event.out:
+                if await handle_finance_group_reply(event, client, hisobchi_engine):
+                    raise events.StopPropagation
+        except events.StopPropagation:
+            raise
+        except Exception as exc:
+            logger.error("[HISOBCHI] Dedicated handler failed: %s", exc, exc_info=True)
+
+    client.add_event_handler(
+        _hisobchi_event_handler,
+        events.NewMessage(incoming=True),
+    )
+    client.add_event_handler(m.handle_new_message, events.NewMessage(incoming=True))
+
     if settings.TEAM_GROUP_ID and settings.TOPIC_KIRIM_ID:
         client.add_event_handler(
             m.kirim_topic_handler,
@@ -584,9 +615,12 @@ async def boot_application():
     client.add_event_handler(m.self_command_handler, events.NewMessage(chats="me"))
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
-    # Group access probe
-    from telethon import events
+    asyncio.create_task(
+        backfill_card_bot_messages(client, hisobchi_engine),
+        name="hisobchi_card_backfill",
+    )
 
+    # Group access probe
     async def telegram_group_access_probe_loop():
         await asyncio.sleep(5)
         while True:
