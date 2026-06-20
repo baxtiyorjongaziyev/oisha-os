@@ -1827,7 +1827,7 @@ async def lookup_user_by_phone(phone: str, secret_key: str):
 
 
 @app.get("/api/chat/history/{user_id}")
-async def get_chat_history(user_id: int, secret_key: str):
+async def get_chat_history(user_id: str, secret_key: str):
     """Mijoz bilan shaxsiy suhbat tarixini widget uchun qaytarish."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
     if not expected_secret or not hmac.compare_digest(secret_key, expected_secret):
@@ -1836,9 +1836,14 @@ async def get_chat_history(user_id: int, secret_key: str):
     if not db_instance:
         return {"error": "Database not connected"}
 
+    try:
+        parsed_id = int(user_id)
+    except (ValueError, TypeError):
+        parsed_id = user_id
+
     # Get history from DB (Enterprise v2.1+)
     # This includes both user messages and bot/admin replies
-    history = await db_instance.get_recent_messages(user_id, limit=30)
+    history = await db_instance.get_recent_messages(parsed_id, limit=30)
     return {"history": history}
 
 
@@ -1850,6 +1855,34 @@ async def send_chat_message(request: SendMessageRequest):
         request.secret_key, expected_secret
     ):
         return {"error": "Unauthorized"}
+
+    user_id_str = str(request.user_id)
+    if user_id_str.startswith("web_"):
+        # Process synchronously for web visitors using AutonomousSalesAgent
+        try:
+            db = db_instance or await _get_db_instance()
+            if not db:
+                return {"error": "Database not connected"}
+            
+            # Log user's incoming message
+            await db.log_message(user_id_str, request.text, is_ai=False)
+            
+            # Generate AI reply using AutonomousSalesAgent
+            agent = AutonomousSalesAgent(db=db)
+            agent_result = await agent.handle_incoming(
+                user_id=user_id_str,
+                message=request.text,
+                autonomy_level="full"
+            )
+            ai_reply = agent_result.get("response", "Kechirasiz, xatolik yuz berdi.")
+            
+            # Log AI's reply
+            await db.log_message(user_id_str, ai_reply, is_ai=True)
+            
+            return {"status": "success", "response": ai_reply}
+        except Exception as e:
+            logger.error(f"❌ [API] Web user AI response error for {user_id_str}: {e}")
+            return {"status": "error", "error": str(e)}
 
     # Push to queue for Main Thread execution
     command_queue.put_nowait(

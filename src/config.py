@@ -50,6 +50,12 @@ def __getattr__(name: str):
         return settings.TOPIC_REPORTS_ID
     if name == "TOPIC_TASKS_ID":
         return settings.TOPIC_TASKS_ID
+    if name == "TOPIC_MEETINGS_ID":
+        return settings.TOPIC_MEETINGS_ID
+    if name == "TOPIC_SELLER_1_LEADS_ID":
+        return settings.TOPIC_SELLER_1_LEADS_ID
+    if name == "TOPIC_SELLER_2_LEADS_ID":
+        return settings.TOPIC_SELLER_2_LEADS_ID
     if name == "TOPIC_GENERAL_ID":
         return settings.TOPIC_GENERAL_ID
     if name == "TOPIC_KIRIM_ID":
@@ -92,6 +98,9 @@ __all__ = [
     "TOPIC_CRM_ID",
     "TOPIC_REPORTS_ID",
     "TOPIC_TASKS_ID",
+    "TOPIC_MEETINGS_ID",
+    "TOPIC_SELLER_1_LEADS_ID",
+    "TOPIC_SELLER_2_LEADS_ID",
     "TOPIC_GENERAL_ID",
     "TOPIC_KIRIM_ID",
     "GSHEET_ID",
