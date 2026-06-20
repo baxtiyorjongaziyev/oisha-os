@@ -391,7 +391,7 @@ async def backfill_card_bot_messages(
                     if message_date.tzinfo is None:
                         message_date = message_date.replace(tzinfo=timezone.utc)
                     if message_date < cutoff:
-                        continue
+                        break
                 messages.append(message)
 
             for message in reversed(messages):
@@ -410,14 +410,13 @@ async def backfill_card_bot_messages(
                         tx_time=tx.tx_time,
                         source_message_id=getattr(message, "id", None),
                     )
-                    sender = await message.get_sender()
-                    await handle_card_bot_message(
-                        _CardBackfillEvent(message, sender), client, engine
-                    )
                     if existed:
                         stats["duplicates"] += 1
-                    else:
-                        stats["created"] += 1
+                        continue
+                    await handle_card_bot_message(
+                        _CardBackfillEvent(message, entity), client, engine
+                    )
+                    stats["created"] += 1
                 except Exception as exc:
                     stats["errors"] += 1
                     logger.warning(

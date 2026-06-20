@@ -299,10 +299,10 @@ class _BackfillClient:
         }
 
     async def get_entity(self, username):
-        return username.lower().lstrip("@")
+        return SimpleNamespace(username=username.lower().lstrip("@"))
 
     async def iter_messages(self, entity, limit=50):
-        for message in self.messages[entity]:
+        for message in self.messages[entity.username]:
             yield message
 
     async def send_message(self, chat_id, text, **kwargs):
