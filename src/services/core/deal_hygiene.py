@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 
 logger = logging.getLogger(__name__)
 

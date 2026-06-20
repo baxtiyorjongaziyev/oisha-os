@@ -5,7 +5,7 @@ Webhooklar, Triggerlar va Native Automation'ni sozlash.
 
 import logging
 import requests
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 
 logger = logging.getLogger("AmoOptimizer")
 

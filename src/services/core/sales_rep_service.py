@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 import requests
 
 from src.settings import settings
-from src.services.core.amocrm_sync import AmoCRMSync
-from src.services.core.amocrm_pipeline_config import (
+from src.services.core.crm.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_pipeline_config import (
     ACTIVE_PIPELINE_IDS,
     REACTIVATION_DAILY_LIMIT,
     REACTIVATION_PIPELINE_ID,

@@ -210,7 +210,7 @@ class AmoCRMLeadEnricher:
 
             # Auto-classify and tag lead automatically inside AmoCRM
             try:
-                from src.services.core.crm_contacts_auditor import CRMContactsAuditor
+                from src.services.core.crm.crm_contacts_auditor import CRMContactsAuditor
                 auditor = CRMContactsAuditor(
                     amocrm=self.amocrm,
                     db=self.db,

@@ -213,7 +213,7 @@ async def background_monitor_task() -> None:
                     background_monitor_task._sent_jobs = set()
                 if job_key not in background_monitor_task._sent_jobs:
                     try:
-                        from src.services.core.crm_daily_report import CRMDailyReporter
+                        from src.services.core.crm.crm_daily_report import CRMDailyReporter
                         amocrm_client = None
                         if m.msg_controller and getattr(m.msg_controller, "crm", None):
                             amocrm_client = getattr(m.msg_controller.crm, "amocrm", None)
@@ -263,7 +263,7 @@ async def background_monitor_task() -> None:
                 and now.minute == weekly_minute
             ):
                 try:
-                    from src.services.core.crm_daily_report import (
+                    from src.services.core.crm.crm_daily_report import (
                         CRMDailyReporter,
                         previous_week_range,
                     )
