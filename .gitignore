@@ -45,6 +45,7 @@ htmlcov/
 !manifest.json
 !src/widgets/**/*.json
 !deploy/openclaw/openclaw.json
+!n8n/workflows/*.json
 service_account.json
 credentials.json
 token.pickle
