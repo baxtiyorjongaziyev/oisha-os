@@ -1,6 +1,7 @@
 """Hisobchi AI — DB schema and dataclasses for card transaction tracking."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -106,7 +107,17 @@ class HisobchiDatabaseAdapter:
             description = getattr(cursor, "description", None) or []
             columns = [desc[0] for desc in description]
             rows = await cursor.fetchall()
-            return [SmartRow(row, columns) for row in (rows or [])]
+            if rows and not columns and isinstance(rows[0], Mapping):
+                columns = list(rows[0].keys())
+            return [
+                SmartRow(
+                    [row.get(column) for column in columns]
+                    if isinstance(row, Mapping)
+                    else row,
+                    columns,
+                )
+                for row in (rows or [])
+            ]
 
     async def commit(self) -> None:
         conn = await self.database.get_connection()
