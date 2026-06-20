@@ -964,18 +964,30 @@ async def background_monitor_task() -> None:
                                 await msg_controller.enterprise_reporter.get_daily_efficiency_report()
                             )
                             if report:
+                                # Report body is HTML-formatted (<b>…</b>), so all
+                                # delivery paths must use parse_mode="html".
                                 fin_group = settings.HISOBCHI_FINANCE_GROUP_ID
                                 pnl_topic = settings.HISOBCHI_PNL_TOPIC_ID
+                                report_html = f"📊 <b>KUNLIK HISOBOT</b>\n\n{report}"
+                                delivered = False
                                 if fin_group:
+                                    try:
+                                        await client.send_message(
+                                            fin_group,
+                                            report_html,
+                                            parse_mode="html",
+                                            reply_to=pnl_topic,
+                                        )
+                                        delivered = True
+                                    except Exception as send_exc:
+                                        logger.error(
+                                            "[SCHEDULE][REPORT] Finance group delivery failed: %s",
+                                            send_exc,
+                                        )
+                                if not delivered:
+                                    # Fallback to owner DM (HTML so tags render correctly)
                                     await client.send_message(
-                                        fin_group,
-                                        f"📊 <b>KUNLIK HISOBOT</b>\n\n{report}",
-                                        parse_mode="html",
-                                        reply_to=pnl_topic,
-                                    )
-                                else:
-                                    await notify_admin(
-                                        f"📊 **KUNLIK HISOBOT**\n\n{report}", client
+                                        "me", report_html, parse_mode="html"
                                     )
                                 logger.info("[SCHEDULE] Daily EnterpriseReport sent.")
                     except Exception as rep_exc:
