@@ -5,8 +5,8 @@ import time
 import requests
 from typing import Dict, Any, List, Set
 from src.database import Database
-from src.services.core.crm_service import CRMService
-from src.services.core.amocrm_pipeline_config import (
+from src.services.core.crm.crm_service import CRMService
+from src.services.core.crm.amocrm_pipeline_config import (
     LEGACY_CLOSER_PIPELINE_ID,
     SALES_PIPELINE_ID,
 )
@@ -1111,5 +1111,5 @@ class EnterpriseReporter:
             Tushgan Leadlar: 127  ▲ +12
             ...
         """
-        from src.services.core.crm_daily_report import build_reportagram_report
+        from src.services.core.crm.crm_daily_report import build_reportagram_report
         return await build_reportagram_report(self)
