@@ -4,18 +4,25 @@ Save → auto-categorize → learn from replies → report.
 """
 from __future__ import annotations
 
+import hashlib
+import html
 import logging
 import re
 from typing import Optional
 
-from src.database_pool import DatabasePool, db_pool
+from src.database_pool import db_pool
+from src.services.core.hisobchi_schema import ensure_hisobchi_db
 
 logger = logging.getLogger(__name__)
 
 
 def _normalize_merchant(merchant: str) -> str:
     """Normalizes merchant name for memory key (first 3 meaningful words)."""
-    parts = re.sub(r"[^A-Za-z0-9 ]", " ", merchant.upper()).split()
+    cleaned = "".join(
+        char if char.isalnum() or char in {" ", "'", "‘", "’"} else " "
+        for char in merchant.upper()
+    )
+    parts = cleaned.split()
     key_parts = [p for p in parts if len(p) > 2]
     if not key_parts:
         key_parts = parts  # short names like "UZ" or "M B" — use as-is
@@ -28,7 +35,7 @@ def _fmt_money(amount: int) -> str:
 
 class HisobchiEngine:
     def __init__(self, db=None) -> None:
-        self._db = db if db is not None else db_pool
+        self._db = ensure_hisobchi_db(db if db is not None else db_pool)
 
     # ── MERCHANT MEMORY ───────────────────────────────────────────────────
 
@@ -57,6 +64,140 @@ class HisobchiEngine:
         await self._db.commit()
         logger.info("[HISOBCHI] Learned: %s → %s", normalized, category)
 
+    async def get_known_rule(
+        self,
+        merchant: str,
+        card_suffix: str,
+        direction: str,
+        amount: int,
+    ) -> Optional[dict]:
+        """Return only a rule confirmed for the same card and payment context."""
+        rows = await self._db.execute(
+            """
+            SELECT category, ownership
+            FROM hisobchi_category_rules
+            WHERE merchant_pattern=? AND card_suffix=? AND direction=? AND amount=?
+              AND active=1 AND conflicts=0 AND confirmations>=1
+            """,
+            [
+                _normalize_merchant(merchant),
+                self._normalize_card_suffix(card_suffix),
+                direction,
+                amount,
+            ],
+        )
+        if not rows:
+            return None
+        return {
+            "category": rows[0]["category"],
+            "ownership": rows[0]["ownership"] or "business",
+        }
+
+    async def learn_rule(
+        self,
+        *,
+        merchant: str,
+        card_suffix: str,
+        direction: str,
+        amount: int,
+        category: str,
+        ownership: str,
+    ) -> None:
+        """Learn an exact rule; conflicting answers disable automation safely."""
+        key = [
+            _normalize_merchant(merchant),
+            self._normalize_card_suffix(card_suffix),
+            direction,
+            amount,
+        ]
+        rows = await self._db.execute(
+            """
+            SELECT category, ownership
+            FROM hisobchi_category_rules
+            WHERE merchant_pattern=? AND card_suffix=? AND direction=? AND amount=?
+            """,
+            key,
+        )
+        if rows and (
+            rows[0]["category"] != category
+            or (rows[0]["ownership"] or "business") != ownership
+        ):
+            await self._db.execute(
+                """
+                UPDATE hisobchi_category_rules
+                SET conflicts=conflicts+1, active=0, updated_at=CURRENT_TIMESTAMP
+                WHERE merchant_pattern=? AND card_suffix=? AND direction=? AND amount=?
+                """,
+                key,
+            )
+        else:
+            await self._db.execute(
+                """
+                INSERT INTO hisobchi_category_rules
+                    (merchant_pattern, card_suffix, direction, amount, category,
+                     ownership, confirmations, conflicts, active, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, CURRENT_TIMESTAMP)
+                ON CONFLICT(merchant_pattern, card_suffix, direction, amount)
+                DO UPDATE SET
+                    confirmations=confirmations+1,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                [*key, category, ownership],
+            )
+        await self._db.commit()
+
+    @staticmethod
+    def _normalize_card_suffix(card_suffix: str) -> str:
+        digits = re.sub(r"\D", "", card_suffix or "")
+        return digits[-4:]
+
+    @classmethod
+    def transaction_fingerprint(
+        cls,
+        *,
+        source_bot: str,
+        direction: str,
+        amount: int,
+        merchant: str,
+        card_suffix: str,
+        tx_time: str,
+    ) -> str:
+        canonical = "|".join(
+            (
+                source_bot.strip().lower(),
+                direction.strip().lower(),
+                str(int(amount)),
+                _normalize_merchant(merchant),
+                cls._normalize_card_suffix(card_suffix),
+                " ".join((tx_time or "").split()),
+            )
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    async def transaction_exists(
+        self,
+        *,
+        source_bot: str,
+        direction: str,
+        amount: int,
+        merchant: str,
+        card_suffix: str,
+        tx_time: str,
+    ) -> bool:
+        fingerprint = self.transaction_fingerprint(
+            source_bot=source_bot,
+            direction=direction,
+            amount=amount,
+            merchant=merchant,
+            card_suffix=card_suffix,
+            tx_time=tx_time,
+        )
+        rows = await self._db.execute(
+            "SELECT id FROM hisobchi_transactions WHERE fingerprint=?",
+            [fingerprint],
+        )
+        return bool(rows)
+
     # ── TRANSACTIONS ──────────────────────────────────────────────────────
 
     async def save_transaction(
@@ -75,27 +216,81 @@ class HisobchiEngine:
         finance_msg_id: Optional[int] = None,
         finance_chat_id: Optional[int] = None,
         status: str = "pending",
+        reason: Optional[str] = None,
+        source_message_id: Optional[int] = None,
     ) -> int:
+        tx_id, _ = await self.save_transaction_once(
+            source_bot=source_bot,
+            direction=direction,
+            amount=amount,
+            merchant=merchant,
+            card_suffix=card_suffix,
+            tx_time=tx_time,
+            balance=balance,
+            raw_text=raw_text,
+            category=category,
+            ownership=ownership,
+            finance_msg_id=finance_msg_id,
+            finance_chat_id=finance_chat_id,
+            status=status,
+            reason=reason,
+            source_message_id=source_message_id,
+        )
+        return tx_id
+
+    async def save_transaction_once(
+        self,
+        *,
+        source_bot: str,
+        direction: str,
+        amount: int,
+        merchant: str,
+        card_suffix: str,
+        tx_time: str,
+        balance: Optional[int],
+        raw_text: str,
+        category: Optional[str] = None,
+        ownership: str = "business",
+        finance_msg_id: Optional[int] = None,
+        finance_chat_id: Optional[int] = None,
+        status: str = "pending",
+        reason: Optional[str] = None,
+        source_message_id: Optional[int] = None,
+    ) -> tuple[int, bool]:
+        fingerprint = self.transaction_fingerprint(
+            source_bot=source_bot,
+            direction=direction,
+            amount=amount,
+            merchant=merchant,
+            card_suffix=card_suffix,
+            tx_time=tx_time,
+        )
         rows = await self._db.execute(
             """
             INSERT INTO hisobchi_transactions
                 (source_bot, direction, amount, merchant, card_suffix,
                  tx_time, balance, raw_text, category, ownership, finance_msg_id,
-                 finance_chat_id, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 finance_chat_id, status, fingerprint, reason, source_message_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(fingerprint) DO NOTHING
             RETURNING id
             """,
             [
                 source_bot, direction, amount, merchant, card_suffix,
                 tx_time, balance, raw_text, category, ownership, finance_msg_id,
-                finance_chat_id, status,
+                finance_chat_id, status, fingerprint, reason, source_message_id,
             ],
         )
         await self._db.commit()
         if rows:
-            return int(rows[0]["id"])
-        r2 = await self._db.execute("SELECT last_insert_rowid() AS id")
-        return int(r2[0]["id"])
+            return int(rows[0]["id"]), True
+        existing = await self._db.execute(
+            "SELECT id FROM hisobchi_transactions WHERE fingerprint=?",
+            [fingerprint],
+        )
+        if not existing:
+            raise RuntimeError("hisobchi_transaction_insert_failed")
+        return int(existing[0]["id"]), False
 
     async def update_finance_msg(
         self, tx_id: int, finance_msg_id: int, finance_chat_id: int
@@ -108,11 +303,27 @@ class HisobchiEngine:
         )
         await self._db.commit()
 
-    async def categorize(self, tx_id: int, category: str, ownership: Optional[str] = None) -> None:
-        if ownership:
+    async def categorize(
+        self,
+        tx_id: int,
+        category: str,
+        ownership: Optional[str] = None,
+        reason: Optional[str] = None,
+    ) -> None:
+        if ownership and reason:
+            await self._db.execute(
+                "UPDATE hisobchi_transactions SET category=?, ownership=?, reason=?, status='categorized' WHERE id=?",
+                [category, ownership, reason, tx_id],
+            )
+        elif ownership:
             await self._db.execute(
                 "UPDATE hisobchi_transactions SET category=?, ownership=?, status='categorized' WHERE id=?",
                 [category, ownership, tx_id],
+            )
+        elif reason:
+            await self._db.execute(
+                "UPDATE hisobchi_transactions SET category=?, reason=?, status='categorized' WHERE id=?",
+                [category, reason, tx_id],
             )
         else:
             await self._db.execute(
@@ -184,17 +395,22 @@ class HisobchiEngine:
         """tx = ParsedTransaction"""
         dir_icon = "➖ Chiqim" if tx.direction == "out" else "➕ Kirim"
         card_label = "HUMO" if tx.source_bot == "humo" else "UZCARD"
+        question = (
+            "Bu to'lov nima uchun ketdi?"
+            if tx.direction == "out"
+            else "Bu pul nima uchun keldi?"
+        )
         balance_line = (
             f"\n💰 Qoldiq: {_fmt_money(tx.balance)} UZS" if tx.balance else ""
         )
         return (
             f"💳 <b>Yangi to'lov #{tx_id}</b>\n\n"
             f"{dir_icon}: <b>{_fmt_money(tx.amount)} UZS</b>\n"
-            f"📍 {tx.merchant}\n"
-            f"🏦 {card_label} {tx.card_suffix}\n"
-            f"🕓 {tx.tx_time}"
+            f"📍 {html.escape(tx.merchant)}\n"
+            f"🏦 {card_label} {html.escape(tx.card_suffix)}\n"
+            f"🕓 {html.escape(tx.tx_time)}"
             f"{balance_line}\n\n"
-            f"❓ <b>Bu to'lov nima uchun?</b>\n"
+            f"❓ <b>{question}</b>\n"
             f"Javob bering yoki <code>/skip {tx_id}</code>"
         )
 
@@ -205,8 +421,8 @@ class HisobchiEngine:
         return (
             f"✅ <b>Avtomatik saqlandi ({own_label})</b>\n"
             f"{dir_icon} {_fmt_money(tx.amount)} UZS — {card_label} {tx.card_suffix}\n"
-            f"📍 {tx.merchant}\n"
-            f"🗂 <b>{category}</b>"
+            f"📍 {html.escape(tx.merchant)}\n"
+            f"🗂 <b>{html.escape(category)}</b>"
         )
 
     def build_monthly_report(self, period: str, summary: dict) -> str:
