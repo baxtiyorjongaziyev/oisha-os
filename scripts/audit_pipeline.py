@@ -3,7 +3,7 @@ import logging
 import sys
 from src.settings import settings
 from src.database import Database
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.airtable_sync import AirtableSync
 from src.services.core.pipeline_auditor import PipelineAuditor
 

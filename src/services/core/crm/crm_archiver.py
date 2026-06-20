@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional, Set
 import requests
 import src.config as config
 from src.database import Database
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 
 logger = logging.getLogger("crm_archiver")
 

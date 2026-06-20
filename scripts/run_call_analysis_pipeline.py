@@ -56,7 +56,7 @@ logger = logging.getLogger("call_pipeline")
 
 async def build_amocrm() -> "AmoCRMSync":
     from src.settings import settings
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
 
     return AmoCRMSync(
         subdomain=settings.AMOCRM_SUBDOMAIN,
@@ -193,7 +193,7 @@ async def run_enrichment(
     limit: int = 20,
 ):
     """Run Telegram-based lead enrichment for leads."""
-    from src.services.core.amocrm_lead_enrichment import AmoCRMLeadEnricher
+    from src.services.core.crm.amocrm_lead_enrichment import AmoCRMLeadEnricher
     from src.settings import settings
 
     enricher = AmoCRMLeadEnricher(

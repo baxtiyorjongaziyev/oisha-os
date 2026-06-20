@@ -3,7 +3,7 @@ import logging
 import os
 import tempfile
 from typing import Optional, List
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.gdrive import GoogleDriveSync
 from src.settings import settings
 

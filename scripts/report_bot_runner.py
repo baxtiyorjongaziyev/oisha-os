@@ -45,7 +45,7 @@ def _load_env():
 def _build_amocrm():
     """AmoCRM client yaratish."""
     try:
-        from src.services.core.amocrm_sync import AmoCRMSync
+        from src.services.core.crm.amocrm_sync import AmoCRMSync
         subdomain      = os.environ.get("AMOCRM_SUBDOMAIN", "")
         client_id      = os.environ.get("AMOCRM_CLIENT_ID", "")
         client_secret  = os.environ.get("AMOCRM_CLIENT_SECRET", "")
@@ -78,7 +78,7 @@ async def main():
     if not amocrm:
         logger.warning("AmoCRM ulanmadi — hisobot bo'sh statistika bilan ishlaydi.")
 
-    from src.services.core.crm_daily_report import ReportBot
+    from src.services.core.crm.crm_daily_report import ReportBot
     bot = ReportBot(
         token=token,
         group_id=group_id,
