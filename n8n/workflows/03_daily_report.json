@@ -1,0 +1,110 @@
+{
+  "name": "03 · Kunlik Hisobot (Cron → Oisha → Telegram)",
+  "nodes": [
+    {
+      "id": "cron-morning",
+      "name": "Har Kuni 08:00 (Toshkent)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 3 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "get-report",
+      "name": "Oisha — Kunlik Reja",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.OISHA_API_URL }}/api/report/morning",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Oisha-Key", "value": "={{ $env.OISHA_API_KEY }}" }
+          ]
+        },
+        "options": { "timeout": 60000 }
+      }
+    },
+    {
+      "id": "get-audit",
+      "name": "Oisha — Jamoa Auditi",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, 150],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.OISHA_API_URL }}/api/audit/daily",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Oisha-Key", "value": "={{ $env.OISHA_API_KEY }}" }
+          ]
+        },
+        "options": { "timeout": 60000 }
+      }
+    },
+    {
+      "id": "merge-reports",
+      "name": "Hisobotlarni Birlashtir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 75],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nconst morning = items.find(i => i.json.type === 'morning_plan') || items[0];\nconst audit = items.find(i => i.json.type === 'audit') || items[1];\n\nconst text = [\n  morning?.json?.report || morning?.json?.text || '📋 Reja tayyor emas',\n  '',\n  audit?.json?.report || audit?.json?.text || ''\n].filter(Boolean).join('\\n');\n\nreturn [{ json: { text, date: new Date().toISOString().slice(0, 10) } }];"
+      }
+    },
+    {
+      "id": "tg-owner",
+      "name": "Telegram — Egaga Yuborish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 75],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $env.OWNER_TELEGRAM_ID }}" },
+            { "name": "text", "value": "={{ $json.text }}" },
+            { "name": "parse_mode", "value": "HTML" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Har Kuni 08:00 (Toshkent)": {
+      "main": [
+        [
+          { "node": "Oisha — Kunlik Reja", "type": "main", "index": 0 },
+          { "node": "Oisha — Jamoa Auditi", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Oisha — Kunlik Reja": {
+      "main": [[{ "node": "Hisobotlarni Birlashtir", "type": "main", "index": 0 }]]
+    },
+    "Oisha — Jamoa Auditi": {
+      "main": [[{ "node": "Hisobotlarni Birlashtir", "type": "main", "index": 0 }]]
+    },
+    "Hisobotlarni Birlashtir": {
+      "main": [[{ "node": "Telegram — Egaga Yuborish", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": [{"name": "oisha"}, {"name": "report"}, {"name": "cron"}]
+}
