@@ -3,7 +3,7 @@ import datetime
 from typing import Dict, Any, Optional
 from src.database import Database
 from src.services.core.airtable_sync import AirtableSync
-from src.services.core.crm_service import CRMService
+from src.services.core.crm.crm_service import CRMService
 from src.services.core.persona_hub import EXTERNAL_CONCIERGE_PROMPT
 
 logger = logging.getLogger(__name__)
