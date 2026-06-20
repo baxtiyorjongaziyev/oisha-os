@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import logging
 import os
 import time
-from fastapi import FastAPI, Request, HTTPException, Query
+from fastapi import FastAPI, Request, HTTPException, Query, Header
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
@@ -427,7 +427,8 @@ async def liveness_probe():
             userbot_authorized = await asyncio.wait_for(
                 user_client.is_user_authorized(), timeout=2.0
             )
-        except Exception:
+        except Exception as exc:
+            logger.debug("[HEALTH] Userbot auth check failed: %s", exc)
             userbot_authorized = False
 
     # Cloud Run status check
@@ -458,7 +459,8 @@ async def liveness_probe():
         except asyncio.TimeoutError:
             logger.warning("[HEALTH] CRM probe timed out")
             crm_connected = False
-        except Exception:
+        except Exception as exc:
+            logger.debug("[HEALTH] CRM probe failed: %s", exc)
             crm_connected = False
     elif control_plane_mode:
         checks["crm_probe"] = "skipped_not_required"
@@ -1791,13 +1793,13 @@ class CreateLeadRequest(BaseModel):
     name: str
     phone: str
     note: Optional[str] = None
-    secret_key: str
+    secret_key: Optional[str] = None
 
 
 class SendMessageRequest(BaseModel):
     user_id: Any
     text: str
-    secret_key: str
+    secret_key: Optional[str] = None
     model: Optional[str] = settings.GEMINI_CALL_MODEL
 
 
@@ -1811,10 +1813,16 @@ async def lifespan(app: FastAPI):
 
 
 @app.get("/api/chat/lookup/{phone}")
-async def lookup_user_by_phone(phone: str, secret_key: str):
+async def lookup_user_by_phone(
+    phone: str,
+    secret_key: Optional[str] = None,
+    x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key")
+):
     """AmoCRM mijoz telefoni orqali Telegram ID sini topish."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
-    if not expected_secret or not hmac.compare_digest(secret_key, expected_secret):
+    actual_secret = x_secret_key if isinstance(x_secret_key, str) else None
+    actual_secret = actual_secret or secret_key
+    if not expected_secret or not actual_secret or not hmac.compare_digest(actual_secret, expected_secret):
         return {"error": "Unauthorized"}
 
     if not db_instance:
@@ -1827,10 +1835,16 @@ async def lookup_user_by_phone(phone: str, secret_key: str):
 
 
 @app.get("/api/chat/history/{user_id}")
-async def get_chat_history(user_id: str, secret_key: str):
+async def get_chat_history(
+    user_id: str,
+    secret_key: Optional[str] = None,
+    x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key")
+):
     """Mijoz bilan shaxsiy suhbat tarixini widget uchun qaytarish."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
-    if not expected_secret or not hmac.compare_digest(secret_key, expected_secret):
+    actual_secret = x_secret_key if isinstance(x_secret_key, str) else None
+    actual_secret = actual_secret or secret_key
+    if not expected_secret or not actual_secret or not hmac.compare_digest(actual_secret, expected_secret):
         return {"error": "Unauthorized"}
 
     if not db_instance:
@@ -1848,11 +1862,16 @@ async def get_chat_history(user_id: str, secret_key: str):
 
 
 @app.post("/api/chat/send")
-async def send_chat_message(request: SendMessageRequest):
+async def send_chat_message(
+    request: SendMessageRequest,
+    x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key")
+):
     """AmoCRM widgetidan kelgan xabarni Telegramga yuborish (Queued)."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
-    if not expected_secret or not hmac.compare_digest(
-        request.secret_key, expected_secret
+    secret_key = x_secret_key if isinstance(x_secret_key, str) else None
+    secret_key = secret_key or request.secret_key
+    if not expected_secret or not secret_key or not hmac.compare_digest(
+        secret_key, expected_secret
     ):
         return {"error": "Unauthorized"}
 
@@ -1898,11 +1917,16 @@ async def send_chat_message(request: SendMessageRequest):
 
 
 @app.post("/api/leads")
-async def create_amo_lead(request: CreateLeadRequest):
+async def create_amo_lead(
+    request: CreateLeadRequest,
+    x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key")
+):
     """Vebsaytdan kelgan leadni AmoCRM-ga yuborish."""
     expected_secret = os.environ.get("OISHA_API_SECRET")
-    if not expected_secret or not hmac.compare_digest(
-        request.secret_key, expected_secret
+    secret_key = x_secret_key if isinstance(x_secret_key, str) else None
+    secret_key = secret_key or request.secret_key
+    if not expected_secret or not secret_key or not hmac.compare_digest(
+        secret_key, expected_secret
     ):
         return {"error": "Unauthorized"}
 
