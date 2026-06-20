@@ -1120,10 +1120,10 @@ async def handle_new_message(event):
     try:
         global _hisobchi_engine, handle_card_bot_message, handle_finance_group_reply, is_card_bot_sender  # noqa: PLW0603
         if "_hisobchi_engine" not in globals() or _hisobchi_engine is None:
-            from src.services.core.hisobchi_handlers import (
+            from src.services.core.finance.hisobchi_handlers import (
                 handle_card_bot_message, handle_finance_group_reply, is_card_bot_sender,
             )
-            from src.services.core.hisobchi_engine import HisobchiEngine
+            from src.services.core.finance.hisobchi_engine import HisobchiEngine
             _hisobchi_engine = HisobchiEngine(msg_controller.db)
 
         if event.is_private and not event.out and is_card_bot_sender(sender):
@@ -1131,7 +1131,7 @@ async def handle_new_message(event):
             return
 
         if not event.out and event.message.voice and voice_processor:
-            from src.services.core.hisobchi_handlers import _get_finance_config
+            from src.services.core.finance.hisobchi_handlers import _get_finance_config
             finance_group_id, _, _ = _get_finance_config()
             is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
             is_auth_user = False
@@ -1141,7 +1141,7 @@ async def handle_new_message(event):
                 me = await client.get_me()
                 is_auth_user = (sender_id is not None and (sender_id in managers or sender_id == me.id))
             if is_finance_chat or is_auth_user:
-                from src.services.core.hisobchi_handlers import process_finance_voice_message
+                from src.services.core.finance.hisobchi_handlers import process_finance_voice_message
                 _was_voice_hisobchi = await process_finance_voice_message(
                     event, client, _hisobchi_engine, voice_processor
                 )
@@ -2308,7 +2308,7 @@ async def self_command_handler(event):
             or cmd.startswith("/loyihalar") or cmd.startswith("/loyiha_qosh") \
             or cmd.startswith("/xarajat"):
         try:
-            from src.services.core.erp_handlers import (
+            from src.services.core.finance.erp_handlers import (
                 cmd_erp_holat, cmd_moliya, cmd_jamoa, cmd_loyihalar,
                 cmd_erp_salomatlik, cmd_qo_shish_loyiha, cmd_xarajat_qosh,
                 ERP_HELP_TEXT,
