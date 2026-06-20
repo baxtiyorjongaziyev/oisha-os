@@ -21,8 +21,8 @@ from src.services.core.agent_runtime import (
     get_storage_health,
     set_runtime_context,
 )
-from src.services.core.amocrm_sync import AmoCRMSync
-from src.services.core.amocrm_lead_enrichment import AmoCRMLeadEnricher
+from src.services.core.crm.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_lead_enrichment import AmoCRMLeadEnricher
 from src.services.core.call_analyzer import CallAnalyzer
 from src.services.core.oisha_product_suite import build_oisha_sales_os_suite
 from src.services.core.telegram_ai_features import (

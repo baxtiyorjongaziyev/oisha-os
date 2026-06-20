@@ -17,8 +17,8 @@ except ImportError:
 from src.services.core.escalation_agent import EscalationAgent
 from src.services.core.wow_service_engine import WowServiceEngine
 from src.services.core.gdrive import GoogleDriveSync
-from src.services.core.crm_file_offloader import CRMFileOffloader
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.crm_file_offloader import CRMFileOffloader
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.settings import settings
 
 db = Database()
@@ -528,7 +528,7 @@ class ProactiveWorker:
             pms = [u for u in team if u["role"] == "PM"]
 
             # 2. AmoCRM -> Hunter & Closer
-            from src.services.core.crm_integration import CRMIntegration
+            from src.services.core.crm.crm_integration import CRMIntegration
 
             CRMIntegration()
             # Eslatma: Haqiqiy tokenni ishlatish kerak, hozircha mavjud API orqali

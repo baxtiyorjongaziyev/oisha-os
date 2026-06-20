@@ -5,8 +5,8 @@ Vazifasi: Zadachasi yo'q lidlarni topish va jazolash/ogohlantirish.
 
 import logging
 from typing import List, Dict
-from src.services.core.amocrm_sync import AmoCRMSync
-from src.services.core.amocrm_pipeline_config import (
+from src.services.core.crm.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_pipeline_config import (
     LEGACY_CLOSER_PIPELINE_ID,
     SALES_PIPELINE_ID,
 )

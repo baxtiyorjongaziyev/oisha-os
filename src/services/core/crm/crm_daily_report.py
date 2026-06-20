@@ -139,7 +139,7 @@ class CRMDailyReporter:
 
     Parameters
     ----------
-    amocrm : AmoCRM client (src.services.core.amocrm_sync.AmoCRMSync)
+    amocrm : AmoCRM client (src.services.core.crm.amocrm_sync.AmoCRMSync)
     db_path : history uchun local SQLite fayl yo'li
     """
 
@@ -835,7 +835,7 @@ async def build_reportagram_report(
     hisobot qaytaradi. enterprise_reporter.crm.amocrm dan client oladi.
 
     Ishlatish:
-        from src.services.core.crm_daily_report import build_reportagram_report
+        from src.services.core.crm.crm_daily_report import build_reportagram_report
         text = await build_reportagram_report(self)
     """
     crm_client = amocrm

@@ -43,7 +43,7 @@ logger = logging.getLogger("ambassador_pipeline")
 
 async def build_amocrm() -> "AmoCRMSync":
     from src.settings import settings
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
 
     return AmoCRMSync(
         subdomain=settings.AMOCRM_SUBDOMAIN,
