@@ -57,7 +57,7 @@ def _extract_amount_line(line: str) -> tuple[int, str]:
 
 
 def parse_humo_message(text: str) -> Optional[ParsedTransaction]:
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
     direction = "out"
     amount = 0
     merchant = ""
@@ -81,7 +81,7 @@ def parse_humo_message(text: str) -> Optional[ParsedTransaction]:
             merchant = line.replace("📍", "").strip()
 
         if "💳" in line:
-            card_suffix = line.replace("💳", "").strip()
+            card_suffix = re.sub(r"\D", "", line)[-4:]
 
         if "🕓" in line:
             tx_time = line.replace("🕓", "").strip()
@@ -106,7 +106,7 @@ def parse_humo_message(text: str) -> Optional[ParsedTransaction]:
 
 
 def parse_uzcard_message(text: str) -> Optional[ParsedTransaction]:
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
     direction = "out"
     amount = 0
     merchant = ""
@@ -130,7 +130,7 @@ def parse_uzcard_message(text: str) -> Optional[ParsedTransaction]:
             merchant = line.replace("📍", "").strip()
 
         if "💳" in line:
-            card_suffix = line.replace("💳", "").strip()
+            card_suffix = re.sub(r"\D", "", line)[-4:]
 
         if "🕓" in line:
             tx_time = line.replace("🕓", "").strip()
