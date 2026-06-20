@@ -113,6 +113,9 @@ class AppSettings(BaseSettings):
     HISOBCHI_FINANCE_GROUP_ID: Optional[int] = None  # Moliya guruh ID (card to'lovlar uchun)
     HISOBCHI_KIRIM_TOPIC_ID: Optional[int] = None    # Kirim topic ID
     HISOBCHI_CHIQIM_TOPIC_ID: Optional[int] = None   # Chiqim topic ID
+    HISOBCHI_PNL_TOPIC_ID: Optional[int] = None      # P&L topic ID (oylik P&L hisoboti)
+    HISOBCHI_CASHFLOW_TOPIC_ID: Optional[int] = None # Cashflow topic ID (pul oqimi hisoboti)
+    HISOBCHI_BALANCE_TOPIC_ID: Optional[int] = None  # Balance topic ID (balans hisoboti)
 
     # Case Publisher & CMS Settings
     JONBRANDING_CHANNEL: str = "jonbranding"
@@ -230,6 +233,9 @@ class AppSettings(BaseSettings):
             "HISOBCHI_FINANCE_GROUP_ID",
             "HISOBCHI_KIRIM_TOPIC_ID",
             "HISOBCHI_CHIQIM_TOPIC_ID",
+            "HISOBCHI_PNL_TOPIC_ID",
+            "HISOBCHI_CASHFLOW_TOPIC_ID",
+            "HISOBCHI_BALANCE_TOPIC_ID",
             "CRM_TOPIC_ID",
             "TOPIC_CRM_ID",
             "TOPIC_REPORTS_ID",
