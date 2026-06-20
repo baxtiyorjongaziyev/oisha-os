@@ -116,7 +116,10 @@ class AirtableSync:
     def __init__(self, api_key=None, base_id=None, table_name="Loyihalar"):
         from src.settings import settings
 
-        self.api_key = api_key or settings.AIRTABLE_API_KEY.get_secret_value()
+        configured_key = settings.AIRTABLE_API_KEY
+        self.api_key = api_key or (
+            configured_key.get_secret_value() if configured_key else ""
+        )
         self.base_id = base_id or settings.AIRTABLE_BASE_ID
         self.table_name = table_name
         self.endpoint = self._table_url()
