@@ -67,7 +67,8 @@ def _setting_text(value: Any) -> str:
     if callable(getter):
         try:
             value = getter()
-        except Exception:
+        except Exception as exc:
+            logger.debug("[DB] Secret getter failed, using str: %s", exc)
             value = str(value)
     return str(value).lstrip("\ufeff").strip()
 
@@ -133,8 +134,8 @@ class Database:
                 finally:
                     try:
                         probe_conn.close()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("[DB] Probe conn close failed: %s", exc)
 
                 self._conn = TursoAdapter()
                 self._state_backend = "turso"
@@ -143,8 +144,8 @@ class Database:
                 logger.warning(f"[DB] Turso probe failed, using SQLite fallback: {exc}")
                 try:
                     db_pool.close()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("[DB] Pool close failed: %s", exc)
                 self._conn = None
 
         if (
@@ -640,46 +641,33 @@ class Database:
     ):
         now = datetime.datetime.now().isoformat()
         conn = await self.get_connection()
-        update_fields = [
-            "first_name=excluded.first_name",
-            "username=excluded.username",
-            "last_seen=excluded.last_seen",
-        ]
-        if phone:
-            update_fields.append("phone=COALESCE(excluded.phone, users.phone)")
-
-        valid_keys = [
-            "business_type",
-            "region",
-            "brand_name",
-            "service_type",
-            "deadline",
-            "last_name",
-            "contact_name",
-            "bio",
-            "avatar_analysis",
-            "social_analysis",
-            "meeting_time",
-            "meeting_status",
-            "lead_score",
-            "position",
-            "role",
-            "intent",
-            "detailed_role",
-        ]
-        for key in kwargs:
-            if key in valid_keys:
-                update_fields.append(f"{key}=COALESCE(excluded.{key}, users.{key})")
-
-        query = f"""
+        query = """
             INSERT INTO users (user_id, first_name, username, phone,
                              business_type, region, brand_name, service_type, deadline,
                              last_name, contact_name, bio, avatar_analysis, social_analysis,
                              role, position, intent, detailed_role,
                              last_seen, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET {", ".join(update_fields)}
-        """  # nosec
+            ON CONFLICT(user_id) DO UPDATE SET
+                first_name = excluded.first_name,
+                username = excluded.username,
+                phone = COALESCE(excluded.phone, users.phone),
+                business_type = COALESCE(excluded.business_type, users.business_type),
+                region = COALESCE(excluded.region, users.region),
+                brand_name = COALESCE(excluded.brand_name, users.brand_name),
+                service_type = COALESCE(excluded.service_type, users.service_type),
+                deadline = COALESCE(excluded.deadline, users.deadline),
+                last_name = COALESCE(excluded.last_name, users.last_name),
+                contact_name = COALESCE(excluded.contact_name, users.contact_name),
+                bio = COALESCE(excluded.bio, users.bio),
+                avatar_analysis = COALESCE(excluded.avatar_analysis, users.avatar_analysis),
+                social_analysis = COALESCE(excluded.social_analysis, users.social_analysis),
+                role = COALESCE(excluded.role, users.role),
+                position = COALESCE(excluded.position, users.position),
+                intent = COALESCE(excluded.intent, users.intent),
+                detailed_role = COALESCE(excluded.detailed_role, users.detailed_role),
+                last_seen = excluded.last_seen
+        """
         params = (
             user_id,
             first_name,
@@ -988,20 +976,32 @@ class Database:
     async def get_storage_counts(self) -> Dict[str, int]:
         """Return dashboard-safe row counts from the active state backend."""
         conn = await self.get_connection()
-        counts: Dict[str, int] = {}
-        for table_name in (
-            "scheduled_jobs",
-            "kv_settings",
-            "agent_actions",
-            "users",
-            "call_analyses",
-        ):
-            async with conn.execute(
-                f"SELECT COUNT(*) FROM {table_name}"  # nosec B608
-            ) as cursor:
-                row = await cursor.fetchone()
-            counts[table_name] = int(row[0]) if row else 0
-        return counts
+        query = """
+            SELECT 
+                (SELECT COUNT(*) FROM scheduled_jobs) AS scheduled_jobs,
+                (SELECT COUNT(*) FROM kv_settings) AS kv_settings,
+                (SELECT COUNT(*) FROM agent_actions) AS agent_actions,
+                (SELECT COUNT(*) FROM users) AS users,
+                (SELECT COUNT(*) FROM call_analyses) AS call_analyses
+        """
+        async with conn.execute(query) as cursor:
+            row = await cursor.fetchone()
+        
+        if row:
+            return {
+                "scheduled_jobs": int(row[0]),
+                "kv_settings": int(row[1]),
+                "agent_actions": int(row[2]),
+                "users": int(row[3]),
+                "call_analyses": int(row[4]),
+            }
+        return {
+            "scheduled_jobs": 0,
+            "kv_settings": 0,
+            "agent_actions": 0,
+            "users": 0,
+            "call_analyses": 0,
+        }
 
     async def get_recent_agent_actions(
         self, limit: int = 25
