@@ -145,6 +145,37 @@ async def test_duplicate_notification_is_saved_once(temp_db) -> None:
 
 
 @pytest.mark.asyncio
+async def test_two_real_messages_with_same_payment_fields_are_kept(temp_db) -> None:
+    engine = HisobchiEngine(temp_db)
+    tx = parse_card_notification("humocardbot", HUMO_SAMPLE)
+    assert tx is not None
+    base = dict(
+        source_bot=tx.source_bot,
+        direction=tx.direction,
+        amount=tx.amount,
+        merchant=tx.merchant,
+        card_suffix=tx.card_suffix,
+        tx_time=tx.tx_time,
+        balance=tx.balance,
+        raw_text=HUMO_SAMPLE,
+    )
+
+    first_id, first_created = await engine.save_transaction_once(
+        **base, source_message_id=100
+    )
+    replay_id, replay_created = await engine.save_transaction_once(
+        **base, source_message_id=100
+    )
+    second_id, second_created = await engine.save_transaction_once(
+        **base, source_message_id=101
+    )
+
+    assert (first_created, replay_created, second_created) == (True, False, True)
+    assert first_id == replay_id
+    assert second_id != first_id
+
+
+@pytest.mark.asyncio
 async def test_learning_is_bound_to_exact_transaction_context(temp_db) -> None:
     engine = HisobchiEngine(temp_db)
     await engine.learn_rule(
