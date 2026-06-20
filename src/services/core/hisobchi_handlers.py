@@ -408,6 +408,7 @@ async def backfill_card_bot_messages(
                         merchant=tx.merchant,
                         card_suffix=tx.card_suffix,
                         tx_time=tx.tx_time,
+                        source_message_id=getattr(message, "id", None),
                     )
                     sender = await message.get_sender()
                     await handle_card_bot_message(

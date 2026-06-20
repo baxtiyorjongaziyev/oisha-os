@@ -161,17 +161,24 @@ class HisobchiEngine:
         merchant: str,
         card_suffix: str,
         tx_time: str,
+        source_message_id: Optional[int] = None,
     ) -> str:
-        canonical = "|".join(
-            (
-                source_bot.strip().lower(),
-                direction.strip().lower(),
-                str(int(amount)),
-                _normalize_merchant(merchant),
-                cls._normalize_card_suffix(card_suffix),
-                " ".join((tx_time or "").split()),
+        if source_message_id is not None:
+            canonical = (
+                f"telegram-message|{source_bot.strip().lower()}|"
+                f"{int(source_message_id)}"
             )
-        )
+        else:
+            canonical = "|".join(
+                (
+                    source_bot.strip().lower(),
+                    direction.strip().lower(),
+                    str(int(amount)),
+                    _normalize_merchant(merchant),
+                    cls._normalize_card_suffix(card_suffix),
+                    " ".join((tx_time or "").split()),
+                )
+            )
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     async def transaction_exists(
@@ -183,6 +190,7 @@ class HisobchiEngine:
         merchant: str,
         card_suffix: str,
         tx_time: str,
+        source_message_id: Optional[int] = None,
     ) -> bool:
         fingerprint = self.transaction_fingerprint(
             source_bot=source_bot,
@@ -191,6 +199,7 @@ class HisobchiEngine:
             merchant=merchant,
             card_suffix=card_suffix,
             tx_time=tx_time,
+            source_message_id=source_message_id,
         )
         rows = await self._db.execute(
             "SELECT id FROM hisobchi_transactions WHERE fingerprint=?",
@@ -264,6 +273,7 @@ class HisobchiEngine:
             merchant=merchant,
             card_suffix=card_suffix,
             tx_time=tx_time,
+            source_message_id=source_message_id,
         )
         rows = await self._db.execute(
             """
