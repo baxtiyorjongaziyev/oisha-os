@@ -1,0 +1,140 @@
+{
+  "name": "04 · Haftalik Jamoa Auditi (Airtable → Oisha → Telegram)",
+  "nodes": [
+    {
+      "id": "cron-weekly",
+      "name": "Dushanba 09:00 (Toshkent)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "airtable-projects",
+      "name": "Airtable — Loyihalar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, -100],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.airtable.com/v0/{{ $env.AIRTABLE_BASE_ID }}/Loyihalar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.AIRTABLE_API_KEY }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "filterByFormula", "value": "AND({Status}!='Done', {Status}!='Cancelled')" },
+            { "name": "fields[]", "value": "Name" },
+            { "name": "fields[]", "value": "Status" },
+            { "name": "fields[]", "value": "PM" },
+            { "name": "fields[]", "value": "Due Date" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "airtable-tasks",
+      "name": "Airtable — Muddati O'tgan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, 100],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.airtable.com/v0/{{ $env.AIRTABLE_BASE_ID }}/Loyihalar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.AIRTABLE_API_KEY }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filterByFormula",
+              "value": "=AND({Status}!='Done', {Due Date}<TODAY())"
+            },
+            { "name": "fields[]", "value": "Name" },
+            { "name": "fields[]", "value": "PM" },
+            { "name": "fields[]", "value": "Due Date" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "oisha-audit",
+      "name": "Oisha — Audit Tahlili",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.OISHA_API_URL }}/api/audit/team",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-Oisha-Key", "value": "={{ $env.OISHA_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"projects\": {{ $('Airtable — Loyihalar').item.json.records }}, \"overdue\": {{ $('Airtable — Muddati O\\'tgan').item.json.records }} }"
+      }
+    },
+    {
+      "id": "tg-audit",
+      "name": "Telegram — Audit Natijasi",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $env.OWNER_TELEGRAM_ID }}" },
+            { "name": "text", "value": "={{ $json.report }}" },
+            { "name": "parse_mode", "value": "HTML" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Dushanba 09:00 (Toshkent)": {
+      "main": [
+        [
+          { "node": "Airtable — Loyihalar", "type": "main", "index": 0 },
+          { "node": "Airtable — Muddati O'tgan", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Airtable — Loyihalar": {
+      "main": [[{ "node": "Oisha — Audit Tahlili", "type": "main", "index": 0 }]]
+    },
+    "Airtable — Muddati O'tgan": {
+      "main": [[{ "node": "Oisha — Audit Tahlili", "type": "main", "index": 0 }]]
+    },
+    "Oisha — Audit Tahlili": {
+      "main": [[{ "node": "Telegram — Audit Natijasi", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": [{"name": "oisha"}, {"name": "audit"}, {"name": "airtable"}]
+}
