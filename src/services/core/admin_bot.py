@@ -10,7 +10,7 @@ from src.database import Database
 from src.controllers.message_controller import MessageController
 from src.time_utils import get_local_now, is_quiet_hours
 
-from src.services.core.crm_night_shift import CRMNightShift
+from src.services.core.crm.crm_night_shift import CRMNightShift
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -144,7 +144,7 @@ class AdminBot:
 
             try:
                 from src.services.core.enterprise_reporter import EnterpriseReporter
-                from src.services.core.crm_service import CRMService
+                from src.services.core.crm.crm_service import CRMService
 
                 crm_service = CRMService()
                 reporter = EnterpriseReporter(self.db, crm_service)
@@ -346,7 +346,7 @@ class AdminBot:
                     await event.answer("🧹 CRM Audit boshlandi...", alert=True)
                     try:
                         from src.services.core.enterprise_reporter import EnterpriseReporter
-                        from src.services.core.crm_service import CRMService
+                        from src.services.core.crm.crm_service import CRMService
 
                         crm_service = CRMService()
                         reporter = EnterpriseReporter(self.db, crm_service)
@@ -1937,8 +1937,8 @@ class AdminBot:
         """AmoCRM-dan olingan haftalik hisobotning visual ko'rinishi."""
         await event.respond("📊 **Haftalik hisobot tayyorlanmoqda...**\nBu bir oz vaqt olishi mumkin (AmoCRM-ga so'rov yuborilmoqda).")
         try:
-            from src.services.core.crm_service import CRMService
-            from src.services.core.crm_daily_report import CRMDailyReport
+            from src.services.core.crm.crm_service import CRMService
+            from src.services.core.crm.crm_daily_report import CRMDailyReport
             
             crm = CRMService()
             report_engine = CRMDailyReport(crm.amocrm)
@@ -1955,7 +1955,7 @@ class AdminBot:
         await event.respond("📊 **Jamoa KPI va samaradorlik hisoboti shakllantirilmoqda...**")
         try:
             from src.services.core.enterprise_reporter import EnterpriseReporter
-            from src.services.core.crm_service import CRMService
+            from src.services.core.crm.crm_service import CRMService
             from src.services.core.airtable_sync import AirtableSync
             
             crm_service = CRMService()
@@ -1973,7 +1973,7 @@ class AdminBot:
         await event.respond("⏰ **Muddati o'tgan vazifalar va loyihalar tahlil qilinmoqda...**")
         try:
             from src.services.core.enterprise_reporter import EnterpriseReporter
-            from src.services.core.crm_service import CRMService
+            from src.services.core.crm.crm_service import CRMService
             from src.services.core.airtable_sync import AirtableSync
             
             crm_service = CRMService()

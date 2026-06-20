@@ -10,16 +10,16 @@ Bu skript ikkita yangi modulni xavfsiz tarzda ishga tushiradi:
 
 Foydalanish:
     # Faqat hisobot (dry-run, hech narsa yozilmaydi)
-    python -m src.services.core.crm_cleaner_cli --mode enrich --limit 100
+    python -m src.services.core.crm.crm_cleaner_cli --mode enrich --limit 100
 
     # AmoCRM ga yozib qo'yish
-    python -m src.services.core.crm_cleaner_cli --mode enrich --limit 100 --apply
+    python -m src.services.core.crm.crm_cleaner_cli --mode enrich --limit 100 --apply
 
     # Sdelkalarni AI bilan tahlil qilish va teg qo'yish
-    python -m src.services.core.crm_cleaner_cli --mode analyze --limit 50 --apply
+    python -m src.services.core.crm.crm_cleaner_cli --mode analyze --limit 50 --apply
 
     # Hammasini birga
-    python -m src.services.core.crm_cleaner_cli --mode all --limit 100 --apply
+    python -m src.services.core.crm.crm_cleaner_cli --mode all --limit 100 --apply
 
 Xavfsizlik:
 - `--apply` bo'lmasa hech narsa yozilmaydi (default = dry-run).
@@ -118,7 +118,7 @@ async def _connect_telegram():
 # -------- AmoCRM client ----------
 
 def _build_amocrm():
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
     subdomain = os.getenv("AMOCRM_SUBDOMAIN", "")
     client_id = os.getenv("AMOCRM_CLIENT_ID", "")
     client_secret = os.getenv("AMOCRM_CLIENT_SECRET", "")

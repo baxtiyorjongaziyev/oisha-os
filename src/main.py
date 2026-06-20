@@ -38,7 +38,7 @@ from src.services.core.auto_lead_agent import AutoLeadAgent, detect_non_customer
 from src.services.core.activity_monitor import ActivityMonitor
 from src.services.core.audit_agent import AuditAgent
 from src.services.core.sales_coach import SalesCoach
-from src.services.core.crm_guard import CRMGuard
+from src.services.core.crm.crm_guard import CRMGuard
 import uvicorn
 from telethon import functions, types
 import random
@@ -53,7 +53,7 @@ from src.services.core.case_publisher import CasePublisher
 from src.services.core.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
-from src.services.core.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
+from src.services.core.crm.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
 from src.context import app_ctx
 
 # Global Managers
@@ -923,7 +923,7 @@ async def handle_new_message(event):
         if event.message.text == "/report":
             await event.respond("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
             try:
-                from src.services.core.crm_daily_report import CRMDailyReporter
+                from src.services.core.crm.crm_daily_report import CRMDailyReporter
                 amocrm_client = None
                 if msg_controller and getattr(msg_controller, "crm", None):
                     amocrm_client = getattr(msg_controller.crm, "amocrm", None)
@@ -942,7 +942,7 @@ async def handle_new_message(event):
         if event.message.text == "/stats":
             await event.respond("⏳ Joriy statistika olinmoqda...")
             try:
-                from src.services.core.crm_daily_report import CRMDailyReporter
+                from src.services.core.crm.crm_daily_report import CRMDailyReporter
                 amocrm_client = None
                 if msg_controller and getattr(msg_controller, "crm", None):
                     amocrm_client = getattr(msg_controller.crm, "amocrm", None)
@@ -967,7 +967,7 @@ async def handle_new_message(event):
 
         if event.message.text == "/history":
             try:
-                from src.services.core.crm_daily_report import CRMDailyReporter
+                from src.services.core.crm.crm_daily_report import CRMDailyReporter
                 reporter = CRMDailyReporter(amocrm=None)
                 history = reporter.get_history(7)
                 if not history:
@@ -1871,7 +1871,7 @@ async def self_command_handler(event):
     elif cmd.startswith("/report"):
         await event.respond("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
         try:
-            from src.services.core.crm_daily_report import CRMDailyReporter
+            from src.services.core.crm.crm_daily_report import CRMDailyReporter
             amocrm_client = None
             if msg_controller and getattr(msg_controller, "crm", None):
                 amocrm_client = getattr(msg_controller.crm, "amocrm", None)
@@ -1888,7 +1888,7 @@ async def self_command_handler(event):
     elif cmd.startswith("/stats"):
         await event.respond("⏳ Joriy statistika olinmoqda...")
         try:
-            from src.services.core.crm_daily_report import CRMDailyReporter
+            from src.services.core.crm.crm_daily_report import CRMDailyReporter
             amocrm_client = None
             if msg_controller and getattr(msg_controller, "crm", None):
                 amocrm_client = getattr(msg_controller.crm, "amocrm", None)
@@ -1911,7 +1911,7 @@ async def self_command_handler(event):
             await event.respond(f"❌ Xatolik: {e}")
     elif cmd.startswith("/history"):
         try:
-            from src.services.core.crm_daily_report import CRMDailyReporter
+            from src.services.core.crm.crm_daily_report import CRMDailyReporter
             reporter = CRMDailyReporter(amocrm=None)
             history = reporter.get_history(7)
             if not history:
@@ -2047,7 +2047,7 @@ async def self_command_handler(event):
 
         await event.respond(f"🧹 **AmoCRM limitsizlantirish va arxivlash boshlandi...**\nBatch limiti: {limit} ta bitim. Iltimos, kuting... ⏳")
         try:
-            from src.services.core.crm_archiver import CRMArchiver
+            from src.services.core.crm.crm_archiver import CRMArchiver
             archiver = CRMArchiver()
             await archiver.init_tables()
 
@@ -2126,7 +2126,7 @@ async def self_command_handler(event):
                 db_instance = msg_controller.db
                 tg_client = client
 
-                from src.services.core.crm_contacts_auditor import CRMContactsAuditor
+                from src.services.core.crm.crm_contacts_auditor import CRMContactsAuditor
                 auditor = CRMContactsAuditor(
                     amocrm=amocrm_client,
                     db=db_instance,
@@ -2367,7 +2367,7 @@ async def self_command_handler(event):
         await event.respond("⏳ So'nggi qo'ng'iroqlar tahlil qilinmoqda...")
         try:
             from src.services.core.call_analyzer import CallAnalyzer
-            from src.services.core.crm_note_approval import CRMNoteApprovalService
+            from src.services.core.crm.crm_note_approval import CRMNoteApprovalService
             parts = cmd.split()
             limit = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 3
             analyzer = CallAnalyzer(
@@ -2410,7 +2410,7 @@ async def crm_note_callback_handler(event):
         data = event.data.decode("utf-8") if isinstance(event.data, bytes) else event.data
         if not (data.startswith("crm_approve:") or data.startswith("crm_edit:")):
             return
-        from src.services.core.crm_note_approval import handle_callback
+        from src.services.core.crm.crm_note_approval import handle_callback
         await handle_callback(data, event)
     except Exception as e:
         logger.error(f"[CRM_CALLBACK] Xatolik: {e}", exc_info=True)
@@ -2419,13 +2419,13 @@ async def crm_note_callback_handler(event):
 async def crm_edit_text_handler(event):
     """Captures follow-up text message after user clicked ✏️ Tahrirlash."""
     try:
-        from src.services.core.crm_note_approval import pop_pending_edit, handle_callback
+        from src.services.core.crm.crm_note_approval import pop_pending_edit, handle_callback
         approve_key = pop_pending_edit(event.sender_id)
         if not approve_key:
             return
         # Don't consume bot commands as note text — restore edit state and pass through
         if event.raw_text and event.raw_text.startswith("/"):
-            from src.services.core.crm_note_approval import push_pending_edit
+            from src.services.core.crm.crm_note_approval import push_pending_edit
             push_pending_edit(event.sender_id, approve_key)
             return
         edit_key = approve_key.replace("crm_approve:", "crm_edit:", 1)

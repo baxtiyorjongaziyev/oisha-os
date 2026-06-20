@@ -2,7 +2,7 @@ import logging
 import asyncio
 import time
 from src.database import Database
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.auto_lead_agent import AutoLeadAgent
 from telethon import Button
 
