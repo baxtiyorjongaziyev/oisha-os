@@ -7,7 +7,7 @@ in Uzbek.  No Router / Dispatcher coupling — wire these up wherever
 the project registers its command handlers.
 
 Usage example (aiogram):
-    from src.services.core.erp_handlers import COMMAND_REGISTRY, cmd_erp_holat
+    from src.services.core.finance.erp_handlers import COMMAND_REGISTRY, cmd_erp_holat
     # register manually or call directly:
     await cmd_erp_holat(message, db)
 
@@ -20,7 +20,7 @@ import logging
 from datetime import date
 from typing import Optional
 
-from src.services.core.erp_dashboard import ERPDashboard
+from src.services.core.finance.erp_dashboard import ERPDashboard
 
 logger = logging.getLogger(__name__)
 

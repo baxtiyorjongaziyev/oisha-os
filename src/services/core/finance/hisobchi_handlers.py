@@ -22,11 +22,11 @@ import json
 import re
 from typing import Optional
 
-from src.services.core.hisobchi_card_parser import (
+from src.services.core.finance.hisobchi_card_parser import (
     CARD_BOT_USERNAMES,
     parse_card_notification,
 )
-from src.services.core.hisobchi_engine import HisobchiEngine
+from src.services.core.finance.hisobchi_engine import HisobchiEngine
 from src.services.utils.gemini_fallback import generate_content_with_fallback
 from src.settings import settings
 from src.time_utils import get_local_now
