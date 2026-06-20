@@ -21,6 +21,7 @@ class CardTransaction:
     finance_chat_id: Optional[int]
     status: str          # 'pending' | 'categorized' | 'skipped'
     created_at: str
+    ownership: str
 
 
 @dataclass
@@ -43,6 +44,7 @@ CREATE TABLE IF NOT EXISTS hisobchi_transactions (
     tx_time TEXT,
     balance INTEGER,
     category TEXT,
+    ownership TEXT DEFAULT 'business',
     raw_text TEXT,
     finance_msg_id INTEGER,
     finance_chat_id INTEGER,
@@ -67,7 +69,15 @@ _MIGRATIONS = [_CREATE_TRANSACTIONS, _CREATE_MERCHANT_MEMORY]
 async def init_hisobchi_tables(db=None) -> None:
     from src.database_pool import DatabasePool, db_pool
 
-    _db = db if isinstance(db, DatabasePool) else db_pool
+    _db = db if db is not None else db_pool
     for ddl in _MIGRATIONS:
         await _db.execute(ddl)
+
+    try:
+        await _db.execute(
+            "ALTER TABLE hisobchi_transactions ADD COLUMN ownership TEXT DEFAULT 'business'"
+        )
+    except Exception:
+        pass
+
     await _db.commit()

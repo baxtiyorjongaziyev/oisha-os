@@ -6,8 +6,11 @@ Jon.Branding - Har kuni, har soat, har daqiqa nazorat!
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, time
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 from src.services.core.mandatory_workflow import (
     get_mandatory_workflow,
@@ -27,7 +30,8 @@ class DailyEnforcer:
     - Blokirovka qilish
     """
 
-    def __init__(self):
+    def __init__(self, bot=None):
+        self.bot = bot
         self.workflow = get_mandatory_workflow()
         self.team_members: Dict[str, Dict] = {}
         self.is_running = False
@@ -344,20 +348,35 @@ class DailyEnforcer:
     ):
         """Xabar yuborish (Telegram)"""
         if not user_id:
-            print("   ⚠️ No telegram_id for user")
+            logger.warning("No telegram_id for user to send daily enforcer message.")
             return
 
-        # Bu yerda Telegram bot orqali yuborish
-        # Hozircha print qilamiz
-        print(f"   📨 To {user_id}: {message[:50]}...")
-
-        # Real implementation:
-        # await telegram_bot.send_message(user_id, message)
+        logger.info(f"Sending daily enforcer msg to user {user_id}")
+        if self.bot and hasattr(self.bot, "send_message"):
+            try:
+                await self.bot.send_message(user_id, message, parse_mode="html")
+            except Exception as e:
+                logger.error(f"Failed to send enforcer notification to {user_id}: {e}")
+                # Fallback
+                try:
+                    await self.bot.send_message(user_id, message)
+                except Exception:
+                    pass
 
     async def _send_to_director(self, message: str):
         """Direktorga xabar yuborish"""
-        print(f"   👔 To Director: {message[:100]}...")
-        # await telegram_bot.send_message(DIRECTOR_TELEGRAM_ID, message)
+        import src.config as config
+        owner_id = getattr(config, "OWNER_ID", None)
+        logger.info(f"Sending daily enforcer report to director: {owner_id}")
+        if owner_id and self.bot and hasattr(self.bot, "send_message"):
+            try:
+                await self.bot.send_message(owner_id, message, parse_mode="html")
+            except Exception as e:
+                logger.error(f"Failed to send enforcer report to director {owner_id}: {e}")
+                try:
+                    await self.bot.send_message(owner_id, message)
+                except Exception:
+                    pass
 
     async def force_check_now(self) -> Dict[str, Any]:
         """Qo'lda tekshirish (admin uchun)"""
