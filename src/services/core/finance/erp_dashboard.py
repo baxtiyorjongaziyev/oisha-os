@@ -10,8 +10,8 @@ import logging
 from datetime import date
 from typing import Optional
 
-from src.services.core.erp_schema import ERPSnapshot
-from src.services.core.finance_engine import FinanceEngine
+from src.services.core.finance.erp_schema import ERPSnapshot
+from src.services.core.finance.finance_engine import FinanceEngine
 from src.services.core.hr_engine import HREngine
 from src.services.core.project_engine import ProjectEngine
 
