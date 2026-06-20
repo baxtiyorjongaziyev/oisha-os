@@ -13,6 +13,7 @@ from src.services.core.hisobchi_handlers import (
     resolve_finance_destination,
 )
 from src.services.core.hisobchi_schema import init_hisobchi_tables
+from src.services.core.hisobchi_schema import ensure_hisobchi_db
 
 
 HUMO_SAMPLE = """💸 To'lov
@@ -48,6 +49,39 @@ class DatabaseWrapper:
 
     async def get_connection(self):
         return await self.db.get_connection()
+
+
+class _MappingCursor:
+    description = [("id", None, None, None, None, None, None)]
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return None
+
+    async def fetchall(self):
+        return [SmartRow([7], ["id"])]
+
+
+class _MappingConnection:
+    def execute(self, query, params):
+        return _MappingCursor()
+
+    async def commit(self):
+        return None
+
+
+class _ProductionLikeDatabase:
+    async def get_connection(self):
+        return _MappingConnection()
+
+
+@pytest.mark.asyncio
+async def test_database_adapter_preserves_turso_mapping_values() -> None:
+    adapter = ensure_hisobchi_db(_ProductionLikeDatabase())
+    rows = await adapter.execute("SELECT 7 AS id")
+    assert rows[0]["id"] == 7
 
 
 @pytest.fixture
