@@ -1,0 +1,144 @@
+{
+  "name": "02 · Hisobchi — Karta To'lov Tracker",
+  "nodes": [
+    {
+      "id": "wh-card",
+      "name": "Card Bot Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hisobchi-card",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "respond-ok",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [200, 100],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\":\"ok\"}"
+      }
+    },
+    {
+      "id": "parse-tx",
+      "name": "Parse Transaction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, -100],
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{\n  json: {\n    source_bot: data.source_bot,\n    direction: data.direction,\n    amount: data.amount,\n    merchant: data.merchant,\n    card_suffix: data.card_suffix,\n    tx_time: data.tx_time,\n    balance: data.balance,\n    raw_text: data.raw_text\n  }\n}];"
+      }
+    },
+    {
+      "id": "oisha-hisobchi",
+      "name": "Oisha — Save & Categorize",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, -100],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.OISHA_API_URL }}/api/hisobchi/transaction",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-Oisha-Key", "value": "={{ $env.OISHA_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": { "timeout": 15000 }
+      }
+    },
+    {
+      "id": "known-cat",
+      "name": "Known Category?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, -100],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.category }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "isNotEmpty" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tg-auto",
+      "name": "Telegram — Auto Categorized",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, -200],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $env.HISOBCHI_FINANCE_GROUP_ID }}" },
+            { "name": "text", "value": "={{ $json.auto_message }}" },
+            { "name": "parse_mode", "value": "HTML" },
+            { "name": "message_thread_id", "value": "={{ $json.topic_id }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tg-question",
+      "name": "Telegram — Ask Finance Group",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $env.HISOBCHI_FINANCE_GROUP_ID }}" },
+            { "name": "text", "value": "={{ $json.question_message }}" },
+            { "name": "parse_mode", "value": "HTML" },
+            { "name": "message_thread_id", "value": "={{ $json.topic_id }}" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Card Bot Webhook": {
+      "main": [
+        [
+          { "node": "Respond 200", "type": "main", "index": 0 },
+          { "node": "Parse Transaction", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Transaction": {
+      "main": [[{ "node": "Oisha — Save & Categorize", "type": "main", "index": 0 }]]
+    },
+    "Oisha — Save & Categorize": {
+      "main": [[{ "node": "Known Category?", "type": "main", "index": 0 }]]
+    },
+    "Known Category?": {
+      "main": [
+        [{ "node": "Telegram — Auto Categorized", "type": "main", "index": 0 }],
+        [{ "node": "Telegram — Ask Finance Group", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": [{"name": "oisha"}, {"name": "hisobchi"}]
+}
