@@ -4,18 +4,41 @@ Oisha OS Driver — PyAutoGUI + MSS asosida desktop avtomatizatsiyasi.
 Oisha-OS tizimi uchun kompyuter ekranini ko'rish,
 sichqonchani boshqarish va klaviaturada yozish imkoniyatini beradi.
 """
-import pyautogui
-import mss
-import mss.tools
-import time
-import os
 import logging
 import subprocess
-from typing import Optional, Tuple, List
+import time
+from typing import Optional, Tuple
+
+import mss
+import mss.tools
+
+
+class _UnavailablePyAutoGUI:
+    """Keep headless servers importable while rejecting desktop actions."""
+
+    def __init__(self, import_error: BaseException) -> None:
+        self._import_error = import_error
+        self.FAILSAFE = True
+        self.PAUSE = 0.3
+
+    def __getattr__(self, name):
+        def _unavailable(*args, **kwargs):
+            raise RuntimeError(
+                "Bu serverda desktop muhiti mavjud emas; OS Driver faqat ekranli "
+                "kompyuterda ishlaydi."
+            ) from self._import_error
+
+        return _unavailable
+
+
+try:
+    import pyautogui  # noqa: E402
+except Exception as _pyautogui_error:
+    pyautogui = _UnavailablePyAutoGUI(_pyautogui_error)
 
 logger = logging.getLogger(__name__)
 
-# PyAutoGUI global sozlamalari
+# PyAutoGUI global sozlamalari (headless proxy ham shu atributlarni qo'llaydi).
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0.3
 
