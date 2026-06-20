@@ -17,6 +17,15 @@ def test_os_driver_initialization():
     assert pyautogui.FAILSAFE is True
 
 
+def test_os_driver_opens_application_without_shell(monkeypatch):
+    popen = MagicMock(return_value=MagicMock())
+    monkeypatch.setattr("src.agents.os_driver.subprocess.Popen", popen)
+
+    OishaOSDriver().open_application("notepad.exe")
+
+    popen.assert_called_once_with(["notepad.exe"], shell=False)
+
+
 def test_mobile_proxy_initialization():
     """Mobile Proxy to'g'ri yaratilishini tekshirish."""
     # instagrapi load bo'lishini tekshirish (username va password bo'lmasa xatolik berishi kerak login() da)
