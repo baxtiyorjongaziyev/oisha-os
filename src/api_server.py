@@ -3091,7 +3091,7 @@ async def erp_dashboard(request: Request, period: Optional[str] = Query(None, de
     if not _is_authorized_cron_request(request):
         return JSONResponse(status_code=401, content={"ok": False, "error": "Unauthorized"})
     try:
-        from src.services.core.erp_dashboard import ERPDashboard
+        from src.services.core.finance.erp_dashboard import ERPDashboard
         dashboard_engine = ERPDashboard(db_instance)
         snapshot = await dashboard_engine.get_snapshot(period)
         health = await dashboard_engine.get_health_score()
@@ -3123,7 +3123,7 @@ async def erp_finance(request: Request, period: Optional[str] = Query(None)):
     if not _is_authorized_cron_request(request):
         return JSONResponse(status_code=401, content={"ok": False, "error": "Unauthorized"})
     try:
-        from src.services.core.finance_engine import FinanceEngine
+        from src.services.core.finance.finance_engine import FinanceEngine
         engine = FinanceEngine(db_instance)
         p = period or get_local_now().strftime("%Y-%m")
         cash_flow = await engine.get_cash_flow_summary(p)
@@ -3190,7 +3190,7 @@ async def erp_health(request: Request):
     if not _is_authorized_cron_request(request):
         return JSONResponse(status_code=401, content={"ok": False, "error": "Unauthorized"})
     try:
-        from src.services.core.erp_dashboard import ERPDashboard
+        from src.services.core.finance.erp_dashboard import ERPDashboard
         dashboard_engine = ERPDashboard(db_instance)
         health = await dashboard_engine.get_health_score()
         quick = await dashboard_engine.format_quick_status()
