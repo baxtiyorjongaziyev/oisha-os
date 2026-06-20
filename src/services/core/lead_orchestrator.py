@@ -1,7 +1,7 @@
 import logging
 import asyncio
 from typing import Any
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.airtable_sync import AirtableSync
 from src.services.core.auto_lead_agent import AutoLeadAgent
 from src.services.core.admin_bot import AdminBot
