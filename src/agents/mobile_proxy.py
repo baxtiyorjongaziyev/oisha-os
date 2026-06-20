@@ -15,8 +15,7 @@ class OishaMobileProxy:
     """Instagram DM avtomatizatsiyasi (instagrapi asosida)."""
 
     def __init__(self, username: Optional[str] = None, password: Optional[str] = None):
-        from instagrapi import Client
-        self.client = Client()
+        self.client = None
         self.username = username or os.getenv("IG_USERNAME")
         self.password = password or os.getenv("IG_PASSWORD")
         self._logged_in = False
@@ -28,6 +27,14 @@ class OishaMobileProxy:
         if not self.username or not self.password:
             raise ValueError("Instagram username yoki password berilmagan. "
                              ".env faylda IG_USERNAME va IG_PASSWORD ni to'ldiring.")
+        try:
+            from instagrapi import Client
+        except ImportError as exc:
+            raise RuntimeError(
+                "Instagram funksiyasi uchun 'instagrapi' paketi o'rnatilmagan."
+            ) from exc
+        if self.client is None:
+            self.client = Client()
         logger.info(f"[MobileProxy] Logging in as {self.username}...")
         try:
             # Avval session fayldan yuklashga harakat qilamiz
