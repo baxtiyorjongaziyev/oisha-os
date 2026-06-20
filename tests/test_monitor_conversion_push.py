@@ -4,8 +4,8 @@ from types import SimpleNamespace
 import pytest
 
 import src.config as config
-import src.services.core.amocrm_sync as amocrm_sync
-import src.services.core.crm_service as crm_service
+import src.services.core.crm.amocrm_sync as amocrm_sync
+import src.services.core.crm.crm_service as crm_service
 import src.services.core.enterprise_reporter as enterprise_reporter
 import src.services.core.proactive_worker as proactive_worker
 from src.services.core.tool_registry import ToolResult

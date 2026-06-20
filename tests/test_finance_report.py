@@ -11,7 +11,7 @@ pytestmark = pytest.mark.skipif(
 
 async def test_finance_report_live():
     from src.database import Database
-    from src.services.core.crm_service import CRMService
+    from src.services.core.crm.crm_service import CRMService
     from src.services.core.enterprise_reporter import EnterpriseReporter
     from src.services.core.airtable_sync import AirtableSync
 

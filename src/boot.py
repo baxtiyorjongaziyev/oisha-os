@@ -23,13 +23,13 @@ from src.services.core.auto_lead_agent import AutoLeadAgent
 from src.services.core.activity_monitor import ActivityMonitor
 from src.services.core.audit_agent import AuditAgent
 from src.services.core.sales_coach import SalesCoach
-from src.services.core.crm_guard import CRMGuard
+from src.services.core.crm.crm_guard import CRMGuard
 from src.services.core.admin_bot import AdminBot
 from src.services.utils.access_manager import AccessManager
 from src.services.core.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
-from src.services.core.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
+from src.services.core.crm.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
 from src.services.core.workflow_manager import WorkflowManager
 from src.context import app_ctx
 
@@ -103,7 +103,7 @@ async def _crm_capacity_archiver_loop():
     while True:
         try:
             logger.info("[ARCHIVER_LOOP] Active AmoCRM capacity check starting...")
-            from src.services.core.crm_archiver import CRMArchiver
+            from src.services.core.crm.crm_archiver import CRMArchiver
 
             archiver = CRMArchiver(
                 amocrm=app_ctx.msg_controller.crm.amocrm,

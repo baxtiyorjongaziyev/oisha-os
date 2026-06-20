@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.services.core.crm_contacts_auditor import CRMContactsAuditor
+from src.services.core.crm.crm_contacts_auditor import CRMContactsAuditor
 
 
 def make_auditor(dialogs, get_permissions):

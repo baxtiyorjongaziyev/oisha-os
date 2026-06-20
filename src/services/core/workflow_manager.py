@@ -2,10 +2,10 @@ import asyncio
 import datetime
 import logging
 from src.database import Database
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.settings import settings
 from src.services.core.enterprise_reporter import EnterpriseReporter
-from src.services.core.amocrm_pipeline_config import (
+from src.services.core.crm.amocrm_pipeline_config import (
     FARMER_PIPELINE_ID,
     LEGACY_CLOSER_PIPELINE_ID,
     SALES_PIPELINE_ID,

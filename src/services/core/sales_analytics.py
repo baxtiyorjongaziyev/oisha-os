@@ -9,7 +9,7 @@ import requests
 from datetime import datetime, timedelta
 from typing import Dict, List
 
-from src.services.core.amocrm_pipeline_config import SALES_PIPELINE_ID
+from src.services.core.crm.amocrm_pipeline_config import SALES_PIPELINE_ID
 
 logger = logging.getLogger("SalesAnalytics")
 
@@ -34,7 +34,7 @@ class SalesAnalytics:
             bot: Telegram bot instance (xabar yuborish uchun)
         """
         if amocrm_sync is None:
-            from src.services.core.amocrm_sync import AmoCRMSync
+            from src.services.core.crm.amocrm_sync import AmoCRMSync
             from src.settings import settings
 
             self.amo = AmoCRMSync(

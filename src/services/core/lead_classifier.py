@@ -15,7 +15,7 @@ from enum import Enum
 from google import genai
 
 from src.settings import settings
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.utils.gemini_fallback import generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
