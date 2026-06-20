@@ -14,6 +14,8 @@ Entry points:
 from __future__ import annotations
 
 import logging
+import os
+import json
 from typing import Optional
 
 from src.services.core.hisobchi_card_parser import (
@@ -21,6 +23,8 @@ from src.services.core.hisobchi_card_parser import (
     parse_card_notification,
 )
 from src.services.core.hisobchi_engine import HisobchiEngine
+from src.services.utils.gemini_fallback import generate_content_with_fallback
+from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
 
@@ -235,25 +239,211 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
         return True
 
     category = text
+    ownership = "business"
+    if "," in text:
+        parts = [p.strip() for p in text.split(",", 1)]
+        category = parts[0]
+        own_part = parts[1].lower()
+        if any(w in own_part for w in ["shaxsiy", "personal", "shaxsy"]):
+            ownership = "personal"
+
     tx_id = tx["id"]
     merchant = tx["merchant"]
 
-    await engine.categorize(tx_id, category)
+    await engine.categorize(tx_id, category, ownership)
     await engine.learn_category(merchant, category)
 
     amount_str = f"{tx['amount']:,}".replace(",", " ")
     direction_icon = "➖" if tx["direction"] == "out" else "➕"
+    own_label = "Biznes" if ownership == "business" else "Shaxsiy"
     await event.reply(
         f"✅ Saqlandi!\n"
-        f"{direction_icon} {amount_str} UZS — <b>{category}</b>\n"
+        f"{direction_icon} {amount_str} UZS — <b>{category} ({own_label})</b>\n"
         f"📍 {merchant}\n"
         f"🧠 Keyingi safar avtomatik qo'yiladi.",
         parse_mode="html",
     )
-    logger.info("[HISOBCHI] tx #%s categorized as '%s', merchant learned", tx_id, category)
+    logger.info("[HISOBCHI] tx #%s categorized as '%s' (%s), merchant learned", tx_id, category, ownership)
     return True
 
 
 def is_card_bot_sender(sender) -> bool:
     username = (getattr(sender, "username", None) or "").lower()
     return username in CARD_BOT_USERNAMES
+
+
+# ── VOICE PROCESSING & TRANSACTION EXTRACTION ─────────────────────────────
+
+async def parse_transaction_text_with_llm(client, model_name: str, text: str) -> Optional[dict]:
+    """Uses Gemini to parse transaction parameters from Uzbek natural language text."""
+    system_prompt = """
+    Foydalanuvchining o'zbek tilidagi ovozli xabar matnini (transkript) tahlil qiling va undan quyidagi ma'lumotlarni JSON formatida ajratib oling:
+    - is_transaction (boolean): Matnda moliyaviy tranzaksiya (xarajat, kirim, to'lov, avans, ish haqi, tushum va hk) haqida gap ketganmi?
+    - amount (integer): Tranzaksiya summasi (so'mda, faqat butun son). Agar aniq aytilmagan bo'lsa 0. (Masalan: "ellik ming" -> 50000, "bir yarim million" -> 1500000)
+    - direction (string): 'out' (chiqim/xarajat/to'lov/avans bo'lsa) yoki 'in' (kirim/tushum/avans tushishi bo'lsa). Default: 'out'.
+    - merchant (string): To'lov qilingan joy, do'kon, shaxs yoki xizmat nomi (masalan: "Korzinka", "Yandex Taxi", "Paynet", "Mijoz", "Ofis"). Maksimal 50 ta belgi. Agar aniq aytilmagan bo'lsa, xarajat yo'nalishiga qarab o'zingiz nom bering.
+    - category (string): Xarajat/kirim toifasi (masalan: "Taksi", "Tushlik", "Ofis xarajati", "Marketing", "Dizayn xizmati", "Shaxsiy xarajat"). Maksimal 50 ta belgi.
+    - ownership (string): 'business' (biznes/agentlik moliyasi bo'lsa) yoki 'personal' (shaxsiy/ro'zg'or moliyasi bo'lsa). Agar matnda "shaxsiy", "o'zimniki", "uyga", "ro'zg'orga", "shaxsiy xarajat", "shaxsiy ehtiyoj" kabi so'zlar bo'lsa yoki shaxsiy moliya ekani aniq aytilgan bo'lsa, 'personal' deb belgilang. Aks holda default: 'business'.
+    - reason (string): Tranzaksiyaning batafsil sababi yoki izohi.
+
+    Faqat va faqat JSON formatida javob bering, hech qanday markdown formatlashsiz (```json kabi taglarsiz), faqat toza JSON satri bo'lsin.
+    Misol:
+    {
+      "is_transaction": true,
+      "amount": 50000,
+      "direction": "out",
+      "merchant": "Paynet",
+      "category": "Kantselyariya",
+      "ownership": "business",
+      "reason": "ofis uchun qog'oz"
+    }
+    """
+    try:
+        response, _ = await generate_content_with_fallback(
+            client=client,
+            primary_model=model_name,
+            contents=[system_prompt, f"Tahlil qilinadigan matn:\n\"{text}\""],
+            env_name="GEMINI_VOICE_FALLBACK_MODELS",
+            log_prefix="[HISOBCHI-LLM]",
+        )
+        if response and response.text:
+            cleaned_text = response.text.strip().replace("```json", "").replace("```", "").strip()
+            return json.loads(cleaned_text)
+    except Exception as exc:
+        logger.error("[HISOBCHI] LLM parse transaction failed: %s", exc)
+    return None
+
+
+async def process_finance_voice_message(
+    event, client, engine: HisobchiEngine, voice_processor
+) -> bool:
+    """
+    Downloads, transcribes, and processes a voice message for finance tracking.
+    Can be a reply to a transaction question, or a standalone transaction log.
+    Returns True if processed successfully, False otherwise.
+    """
+    msg = event.message
+    if not getattr(msg, "voice", None):
+        return False
+
+    temp_path = f"temp_hisobchi_voice_{event.id}.ogg"
+    try:
+        # 1. Download
+        await client.download_media(msg, file=temp_path)
+
+        # 2. Transcribe
+        transcript = await voice_processor.transcribe(temp_path, mode="voice")
+        if not transcript:
+            logger.warning("[HISOBCHI-VOICE] Transcription returned empty result")
+            return False
+
+        text_to_parse = transcript
+        if "Matn:" in transcript:
+            parts = transcript.split("|")
+            for part in parts:
+                if "Matn:" in part:
+                    text_to_parse = part.replace("Matn:", "").strip()
+                    break
+
+        logger.info("[HISOBCHI-VOICE] Transcribed: %s", text_to_parse)
+
+        # 3. Parse with LLM
+        parsed = await parse_transaction_text_with_llm(
+            client=voice_processor.client,
+            model_name=voice_processor.model_name,
+            text=text_to_parse,
+        )
+        if not parsed:
+            logger.warning("[HISOBCHI-VOICE] LLM failed to parse transcript: %s", text_to_parse)
+            return False
+
+        if not parsed.get("is_transaction"):
+            logger.info("[HISOBCHI-VOICE] Not a transaction voice message: %s", text_to_parse)
+            return False
+
+        amount = parsed.get("amount", 0)
+        direction = parsed.get("direction", "out")
+        merchant = parsed.get("merchant", "Noma'lum")
+        category = parsed.get("category", "Boshqa")
+        ownership = parsed.get("ownership", "business")
+        reason = parsed.get("reason", "")
+
+        # 4. Check if it is a reply to a question
+        reply_to = getattr(msg, "reply_to", None)
+        replied_msg_id = getattr(reply_to, "reply_to_msg_id", None) if reply_to else None
+
+        tx = None
+        finance_group_id, _, _ = _get_finance_config()
+        if replied_msg_id and finance_group_id:
+            tx = await engine.get_pending_by_finance_msg(
+                finance_chat_id=finance_group_id,
+                finance_msg_id=replied_msg_id,
+            )
+
+        if tx:
+            # Reply flow: update the pending transaction
+            tx_id = tx["id"]
+            merchant = tx["merchant"]  # use original merchant from card notification
+
+            await engine.categorize(tx_id, category, ownership)
+            await engine.learn_category(merchant, category)
+
+            amount_str = f"{tx['amount']:,}".replace(",", " ")
+            direction_icon = "➖" if tx["direction"] == "out" else "➕"
+            own_label = "Biznes" if ownership == "business" else "Shaxsiy"
+
+            await event.reply(
+                f"🎙️ <b>Ovozli javob saqlandi!</b>\n"
+                f"{direction_icon} {amount_str} UZS — <b>{category} ({own_label})</b>\n"
+                f"📍 {merchant}\n"
+                f"🧠 Keyingi safar avtomatik toifalanadi.",
+                parse_mode="html",
+            )
+            logger.info("[HISOBCHI-VOICE] tx #%s categorized as '%s' (%s) from voice reply", tx_id, category, ownership)
+            return True
+        else:
+            # Standalone flow: create a new manual transaction
+            if amount <= 0:
+                await event.reply("⚠️ Ovozli xabardan tranzaksiya summasini aniqlab bo'lmadi. Iltimos, summani aniqroq ayting.")
+                return True
+
+            tx_time_str = get_local_now().strftime("%H:%M %d.%m.%Y")
+
+            tx_id = await engine.save_transaction(
+                source_bot="voice",
+                direction=direction,
+                amount=amount,
+                merchant=merchant,
+                card_suffix="",
+                tx_time=tx_time_str,
+                balance=None,
+                raw_text=text_to_parse,
+                category=category,
+                ownership=ownership,
+                status="categorized",
+            )
+
+            amount_str = f"{amount:,}".replace(",", " ")
+            direction_icon = "➖ Chiqim" if direction == "out" else "➕ Kirim"
+            own_label = "Biznes" if ownership == "business" else "Shaxsiy"
+            reason_line = f"\n📝 Izoh: {reason}" if reason else ""
+
+            await event.reply(
+                f"🎙️ <b>Ovozli to'lov #{tx_id} saqlandi!</b>\n\n"
+                f"{direction_icon}: <b>{amount_str} UZS</b> ({own_label})\n"
+                f"📍 {merchant}\n"
+                f"🗂 Toifa: <b>{category}</b>"
+                f"{reason_line}",
+                parse_mode="html",
+            )
+            logger.info("[HISOBCHI-VOICE] Manual tx #%s saved as '%s' (%s) from standalone voice", tx_id, category, ownership)
+            return True
+
+    except Exception as exc:
+        logger.error("[HISOBCHI-VOICE] Error processing voice transaction: %s", exc, exc_info=True)
+    finally:
+        if os.path.exists(temp_path):
+            await voice_processor.cleanup(temp_path)
+
+    return False
+

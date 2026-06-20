@@ -43,6 +43,10 @@ from src.agents.contract_generator import (
     ContractTemplate,
 )
 
+from src.agents.web_driver import OishaWebDriver
+from src.agents.os_driver import OishaOSDriver
+from src.agents.mobile_proxy import OishaMobileProxy, OishaTelegramProxy
+
 __all__ = [
     # Main orchestrator
     "SurgicalNegotiator",
@@ -67,4 +71,9 @@ __all__ = [
     "ContractGenerator",
     "RiskAssessor",
     "ContractTemplate",
+    # Drivers / Proxies
+    "OishaWebDriver",
+    "OishaOSDriver",
+    "OishaMobileProxy",
+    "OishaTelegramProxy",
 ]

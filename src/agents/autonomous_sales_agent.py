@@ -334,8 +334,8 @@ class AutonomousSalesAgent(BaseAgent):
 
             return response.text.strip()
 
-        except Exception:
-            # Fallback: rule-based response
+        except Exception as exc:
+            logger.warning(f"[SURGICAL] AI response failed, using fallback: {type(exc).__name__}")
             return self._generate_fallback_response(assessment, decision)
 
     def _generate_fallback_response(
@@ -397,8 +397,8 @@ class AutonomousSalesAgent(BaseAgent):
                     )
                     self.conversations[user_id] = state
                     return state
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(f"[SURGICAL] Failed to load state for {user_id}: {type(exc).__name__}")
 
         state = ConversationState(user_id=user_id, context=crm_data or {})
         self.conversations[user_id] = state
@@ -422,8 +422,8 @@ class AutonomousSalesAgent(BaseAgent):
             await self.db.set_state(
                 f"surgical_conv_{state.user_id}", json.dumps(data, ensure_ascii=False)
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"[SURGICAL] Failed to save state for {state.user_id}: {type(exc).__name__}")
 
     def get_active_deals(self) -> List[Dict]:
         """Aktiv bitimlarni olish"""
