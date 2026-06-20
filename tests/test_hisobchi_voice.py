@@ -1,5 +1,3 @@
-import os
-import json
 import pytest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -110,7 +108,7 @@ async def test_engine_save_and_summary_with_ownership(temp_db):
     )
 
     # Save business income
-    tx3_id = await engine.save_transaction(
+    await engine.save_transaction(
         source_bot="voice",
         direction="in",
         amount=500000,
@@ -259,6 +257,6 @@ async def test_process_voice_message_reply_categorization(temp_db, mock_voice_pr
             row = await cursor.fetchone()
             assert row == ("categorized", "Kommunal", "personal")
 
-        # Verify category was learned for Paynet
-        known = await engine.get_known_category("Paynet")
-        assert known == "Kommunal"
+        # Rule is intentionally scoped to this exact card/payment context.
+        known = await engine.get_known_rule("Paynet", "9999", "out", 100000)
+        assert known == {"category": "Kommunal", "ownership": "personal"}
