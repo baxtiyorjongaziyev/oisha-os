@@ -110,9 +110,12 @@ class AppSettings(BaseSettings):
     TASKS_GROUP_ID: Optional[int] = None
     STAGNATION_GROUP_ID: Optional[int] = None
     WOW_SERVICE_GROUP_ID: Optional[int] = None
-    HISOBCHI_FINANCE_GROUP_ID: Optional[int] = None  # Moliya guruh ID (card to'lovlar uchun)
-    HISOBCHI_KIRIM_TOPIC_ID: Optional[int] = None    # Kirim topic ID
-    HISOBCHI_CHIQIM_TOPIC_ID: Optional[int] = None   # Chiqim topic ID
+    HISOBCHI_FINANCE_GROUP_ID: Optional[int] = None                      # Moliya guruh ID (card to'lovlar uchun)
+    HISOBCHI_KIRIM_TOPIC_ID: Optional[int] = None                        # Kirim topic ID
+    HISOBCHI_CHIQIM_TOPIC_ID: Optional[int] = None                       # Chiqim topic ID
+    HISOBCHI_PNL_TOPIC_ID: Optional[int] = None                          # P&L (foyda/zarar) topic ID
+    HISOBCHI_CASHFLOW_TOPIC_ID: Optional[int] = None                     # Cashflow topic ID
+    HISOBCHI_BALANCE_TOPIC_ID: Optional[int] = None                      # Balance topic ID
 
     # Case Publisher & CMS Settings
     JONBRANDING_CHANNEL: str = "jonbranding"
@@ -124,6 +127,9 @@ class AppSettings(BaseSettings):
     TOPIC_CRM_ID: Optional[int] = None
     TOPIC_REPORTS_ID: Optional[int] = None
     TOPIC_TASKS_ID: Optional[int] = None
+    TOPIC_MEETINGS_ID: Optional[int] = None
+    TOPIC_SELLER_1_LEADS_ID: Optional[int] = None
+    TOPIC_SELLER_2_LEADS_ID: Optional[int] = None
     TOPIC_GENERAL_ID: Optional[int] = None
     TOPIC_KIRIM_ID: Optional[int] = None
     STAGNATION_TOPIC_ID: Optional[int] = None
@@ -230,10 +236,16 @@ class AppSettings(BaseSettings):
             "HISOBCHI_FINANCE_GROUP_ID",
             "HISOBCHI_KIRIM_TOPIC_ID",
             "HISOBCHI_CHIQIM_TOPIC_ID",
+            "HISOBCHI_PNL_TOPIC_ID",
+            "HISOBCHI_CASHFLOW_TOPIC_ID",
+            "HISOBCHI_BALANCE_TOPIC_ID",
             "CRM_TOPIC_ID",
             "TOPIC_CRM_ID",
             "TOPIC_REPORTS_ID",
             "TOPIC_TASKS_ID",
+            "TOPIC_MEETINGS_ID",
+            "TOPIC_SELLER_1_LEADS_ID",
+            "TOPIC_SELLER_2_LEADS_ID",
             "TOPIC_GENERAL_ID",
             "TOPIC_KIRIM_ID",
             "STAGNATION_TOPIC_ID",

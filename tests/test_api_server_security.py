@@ -3,7 +3,7 @@ Unit tests for API Server security and endpoints.
 """
 import pytest
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 import sys
 
 # Add src to path
@@ -102,12 +102,13 @@ class TestAPISecurity:
 
     def test_cloud_run_control_plane_skips_userbot_session_parsing(self):
         """Cloud Run control-plane must not parse the personal userbot session."""
-        main_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'main.py')
-        with open(main_file, 'r', encoding='utf-8') as f:
+        boot_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'boot.py')
+        with open(boot_file, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        assert "Control-plane mode; skipping USERBOT_SESSION_STRING parsing." in content
-        assert "if not cloud_control_plane_only and session_string:" in content
+        assert "if cloud_control_plane_only:" in content
+        assert "[CLOUD] Control-plane mode active." in content
+        assert "StringSession()" in content.split("if cloud_control_plane_only:")[1].split("else:")[0]
 
     def test_oracle_deploy_runs_for_every_main_push(self):
         """Oracle production deploy must not be limited to selected paths."""
@@ -171,9 +172,65 @@ class TestAPIEndpoints:
                 from src.api_server import get_chat_history
                 import asyncio
                 
-                result = asyncio.run(get_chat_history(12345, "test_secret"))
+                result = asyncio.run(get_chat_history("12345", "test_secret"))
                 assert "history" in result
                 assert len(result["history"]) == 2
+
+    def test_chat_history_with_string_and_web_user_id(self, mock_db):
+        """Test that numeric strings and web strings are parsed correctly."""
+        recorded_ids = []
+        async def mock_get_recent(user_id, limit=30):
+            recorded_ids.append(user_id)
+            return []
+        mock_db.get_recent_messages = mock_get_recent
+
+        with patch.dict(os.environ, {"OISHA_API_SECRET": "test_secret"}):
+            with patch('src.api_server.db_instance', mock_db):
+                from src.api_server import get_chat_history
+                import asyncio
+
+                # 1. Numeric string should convert to int
+                asyncio.run(get_chat_history("98765", "test_secret"))
+                assert recorded_ids[-1] == 98765
+
+                # 2. Web string should remain str
+                asyncio.run(get_chat_history("web_user123", "test_secret"))
+                assert recorded_ids[-1] == "web_user123"
+
+    def test_send_chat_message_sync_for_web_user(self, mock_db):
+        """Test that web_ user messages generate a sync AI response and do not queue."""
+        from src.api_server import send_chat_message, SendMessageRequest
+        import asyncio
+
+        mock_db.log_message = AsyncMock()
+
+        mock_agent_instance = MagicMock()
+        async def mock_handle(user_id, message, autonomy_level="full"):
+            return {"response": "Mocked AI Response"}
+        mock_agent_instance.handle_incoming = mock_handle
+
+        with patch.dict(os.environ, {"OISHA_API_SECRET": "test_secret"}):
+            with patch('src.api_server.db_instance', mock_db):
+                with patch('src.api_server.AutonomousSalesAgent', return_value=mock_agent_instance):
+                    with patch('src.api_server.command_queue') as mock_queue:
+                        req = SendMessageRequest(
+                            user_id="web_session_999",
+                            text="Salom Oisha",
+                            secret_key="test_secret"
+                        )
+                        result = asyncio.run(send_chat_message(req))
+                        
+                        # 1. Verify synchronous response returned
+                        assert result["status"] == "success"
+                        assert result["response"] == "Mocked AI Response"
+
+                        # 2. Verify messages logged to DB
+                        assert mock_db.log_message.call_count == 2
+                        mock_db.log_message.assert_any_call("web_session_999", "Salom Oisha", is_ai=False)
+                        mock_db.log_message.assert_any_call("web_session_999", "Mocked AI Response", is_ai=True)
+
+                        # 3. Verify it was NOT queued to the Telegram userbot command queue
+                        mock_queue.put_nowait.assert_not_called()
 
 
 if __name__ == "__main__":
