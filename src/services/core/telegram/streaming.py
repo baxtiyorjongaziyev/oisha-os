@@ -5,7 +5,7 @@ Sends a placeholder message, then edits it progressively as the LLM
 generates text. Gives users a ChatGPT-style typing experience.
 
 Usage:
-    from src.services.core.streaming import stream_gemini_response
+    from src.services.core.telegram.streaming import stream_gemini_response
 
     async for _ in stream_gemini_response(client, chat_id, gemini_client, prompt):
         pass  # editing happens internally

@@ -25,7 +25,7 @@ from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.crm.amocrm_lead_enrichment import AmoCRMLeadEnricher
 from src.services.core.call_analyzer import CallAnalyzer
 from src.services.core.oisha_product_suite import build_oisha_sales_os_suite
-from src.services.core.telegram_ai_features import (
+from src.services.core.telegram.telegram_ai_features import (
     TelegramBotAPI10Client,
     build_live_feature_status,
     build_offline_feature_status,
@@ -2777,7 +2777,7 @@ async def get_lead_classification():
         if not gemini_key:
             return {"status": "error", "message": "GEMINI_API_KEY not configured"}
 
-        from src.services.core.lead_classifier import LeadClassifier
+        from src.services.core.leads.lead_classifier import LeadClassifier
         classifier = LeadClassifier(amocrm, gemini_key)
         results = await classifier.classify_all_active_leads()
 
@@ -2813,7 +2813,7 @@ async def tag_unnecessary_leads():
         if not gemini_key:
             return {"status": "error", "message": "GEMINI_API_KEY not configured"}
 
-        from src.services.core.lead_classifier import LeadClassifier
+        from src.services.core.leads.lead_classifier import LeadClassifier
         classifier = LeadClassifier(amocrm, gemini_key)
         results = await classifier.classify_all_active_leads()
         tagged = await classifier.tag_unnecessary_leads(results)
