@@ -192,6 +192,8 @@ export default function CallDetailsPage() {
         <div className="flex flex-col md:flex-row items-center gap-4">
           {/* Play/Pause Button */}
           <button
+            type="button"
+            aria-label={isPlaying ? "To'xtatish" : "O'ynatish"}
             onClick={() => {
               setIsPlaying(!isPlaying);
               if (!isPlaying) {
@@ -201,12 +203,12 @@ export default function CallDetailsPage() {
                 setCurrentTime("0:00");
               }
             }}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand text-white hover:bg-brand-hover shadow-lg shadow-brand/15 transition-transform active:scale-95 focus:outline-none"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand text-white hover:bg-brand-hover shadow-lg shadow-brand/15 transition-transform active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-2"
           >
             {isPlaying ? (
-              <span className="text-xs font-bold font-mono">||</span>
+              <span className="text-xs font-bold font-mono" aria-hidden="true">||</span>
             ) : (
-              <span className="text-xs pl-0.5">▶</span>
+              <span className="text-xs pl-0.5" aria-hidden="true">▶</span>
             )}
           </button>
 
@@ -225,12 +227,14 @@ export default function CallDetailsPage() {
           </div>
 
           {/* Playback speed selector */}
-          <div className="flex rounded-xl bg-bg border border-border p-1">
+          <div className="flex rounded-xl bg-bg border border-border p-1" role="group" aria-label="O'ynatish tezligi">
             {[1, 1.25, 1.5, 2].map((speed) => (
               <button
                 key={speed}
+                type="button"
+                aria-pressed={playbackSpeed === speed}
                 onClick={() => setPlaybackSpeed(speed)}
-                className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all ${
+                className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline ${
                   playbackSpeed === speed ? "bg-brand text-white" : "text-text-muted hover:text-brand"
                 }`}
               >
