@@ -97,7 +97,7 @@ async def main():
 
     from src.database import Database
     from src.services.utils.voice_processor import VoiceProcessor
-    from src.services.core.telegram_task_creator import TelegramTaskCreator
+    from src.services.core.telegram.telegram_task_creator import TelegramTaskCreator
     from src.settings import settings
 
     logger.info("🚀 [PIPELINE] Starting Telegram Task Creator Pipeline...")

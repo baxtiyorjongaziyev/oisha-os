@@ -8,7 +8,7 @@ from telegram import Bot
 
 from src.services.core.airtable_sync import AirtableSync
 from src.services.core.crm.amocrm_sync import AmoCRMSync
-from src.services.core.telegram_ai_features import (
+from src.services.core.telegram.telegram_ai_features import (
     TelegramBotAPI10Client,
     build_text_article_result,
 )

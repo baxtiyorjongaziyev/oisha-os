@@ -150,7 +150,7 @@ def _quiet_hours_blocked(force: bool) -> bool:
 # -------- Runners ----------
 
 async def _run_enrich(args, amocrm, tg_client) -> dict:
-    from src.services.core.telegram_phone_enricher import (
+    from src.services.core.telegram.telegram_phone_enricher import (
         TelegramPhoneEnricher,
         report_to_dict,
     )

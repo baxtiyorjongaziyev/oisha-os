@@ -31,7 +31,7 @@ from src.settings import settings
 from src.database import Database
 from src.services.core.safe_responder import SafeResponder
 from src.services.core.action_parser import ActionParser
-from src.services.core.lead_scraper import LeadScraper
+from src.services.core.leads.lead_scraper import LeadScraper
 from src.controllers.message_controller import MessageController
 from src.services.core.advisor_agent import AdvisorAgent
 from src.services.core.auto_lead_agent import AutoLeadAgent, detect_non_customer_context
@@ -50,7 +50,7 @@ from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
 from src.services.core.case_publisher import CasePublisher
-from src.services.core.session_manager import SessionManager
+from src.services.core.telegram.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
 from src.services.core.crm.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
@@ -1862,7 +1862,7 @@ async def self_command_handler(event):
         )
         await event.respond(msg)
     elif cmd.startswith("/lead_cockpit") or cmd.startswith("/pipeline"):
-        from src.services.core.lead_operating_system import LeadOperatingSystem
+        from src.services.core.leads.lead_operating_system import LeadOperatingSystem
         lead_os = LeadOperatingSystem(msg_controller, msg_controller.db)
         report = await lead_os.render_cockpit_report(limit=12, lookback_hours=72)
         await event.respond(report, parse_mode="HTML")
