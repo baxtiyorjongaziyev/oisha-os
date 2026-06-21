@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from src.services.core.telegram_ai_features import (
+from src.services.core.telegram.telegram_ai_features import (
     BOT_API_10_ALLOWED_UPDATES,
     TelegramBotAPI10Client,
     TelegramBotAPIError,
