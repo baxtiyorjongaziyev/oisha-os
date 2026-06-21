@@ -179,7 +179,7 @@ async def background_monitor_task() -> None:
                                 pnl_topic = settings.HISOBCHI_PNL_TOPIC_ID
                                 report_html = f"📊 <b>KUNLIK HISOBOT</b>\n\n{report}"
                                 delivered = False
-                                if fin_group:
+                                if fin_group and m.client:
                                     try:
                                         await m.client.send_message(
                                             fin_group,
@@ -193,7 +193,7 @@ async def background_monitor_task() -> None:
                                             "[SCHEDULE][REPORT] Finance group delivery failed: %s",
                                             send_exc,
                                         )
-                                if not delivered:
+                                if not delivered and m.client:
                                     # Fallback to owner DM (HTML so tags render correctly)
                                     await m.client.send_message(
                                         "me", report_html, parse_mode="html"
@@ -227,7 +227,7 @@ async def background_monitor_task() -> None:
                             report_text = reporter.format_report(stats, prev)
                             
                             # Send to m.TN5_GROUP_ID (or configured CRM_GROUP_ID)
-                            if m.TN5_GROUP_ID:
+                            if m.TN5_GROUP_ID and m.client:
                                 send_kwargs = {}
                                 if settings.TOPIC_REPORTS_ID:
                                     send_kwargs["reply_to"] = settings.TOPIC_REPORTS_ID
@@ -237,7 +237,7 @@ async def background_monitor_task() -> None:
                                     **send_kwargs,
                                 )
                                 logger.info(f"[SCHEDULE] CRM Daily reportagram sent to group {m.TN5_GROUP_ID}.")
-                            else:
+                            elif m.client:
                                 await m.notify_admin(report_text, m.client)
                     except Exception as rep_exc:
                         logger.error(f"[SCHEDULE][CRM_REPORT] Error: {rep_exc}")
@@ -301,13 +301,13 @@ async def background_monitor_task() -> None:
                             if settings.TOPIC_REPORTS_ID:
                                 send_kwargs["reply_to"] = settings.TOPIC_REPORTS_ID
 
-                            if m.TN5_GROUP_ID:
+                            if m.TN5_GROUP_ID and m.client:
                                 await m.client.send_message(
                                     m.TN5_GROUP_ID,
                                     report_text,
                                     **send_kwargs,
                                 )
-                            else:
+                            elif m.client:
                                 await m.notify_admin(report_text, m.client)
 
                             if m.msg_controller and getattr(m.msg_controller, "db", None):
@@ -342,7 +342,7 @@ async def background_monitor_task() -> None:
                             if alert:
                                 target_group = settings.STAGNATION_GROUP_ID
                                 target_topic = settings.STAGNATION_TOPIC_ID
-                                if target_group:
+                                if target_group and m.client:
                                     await m.client.send_message(
                                         target_group,
                                         alert,
