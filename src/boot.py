@@ -469,13 +469,15 @@ async def boot_application():
             except Exception as admin_exc:
                 logger.error(f"[BOT_ONLY] Admin bot startup failed: {admin_exc}", exc_info=True)
         api_module.update_api_status("degraded", "Bot-token mode active; userbot needs re-login")
-        asyncio.create_task(scheduler.background_monitor_task(), name="background_monitor_task")
+        from src import scheduler as _scheduler
+        asyncio.create_task(_scheduler.background_monitor_task(), name="background_monitor_task")
         await asyncio.Event().wait()
         return
 
     from src.services.core.tool_adapters import configure_userbot_group_fallback
     configure_userbot_group_fallback(client)
-    asyncio.create_task(scheduler.background_monitor_task(), name="background_monitor_task")
+    from src import scheduler as _scheduler
+    asyncio.create_task(_scheduler.background_monitor_task(), name="background_monitor_task")
     logger.info("[MONITOR] Persistent CRM/Airtable scheduler registered.")
 
     # Bot-token head startup
