@@ -17,7 +17,7 @@ from src.database import Database
 from src.controllers.message_controller import MessageController
 from src.services.core.safe_responder import SafeResponder
 from src.services.core.action_parser import ActionParser
-from src.services.core.lead_scraper import LeadScraper
+from src.services.core.leads.lead_scraper import LeadScraper
 from src.services.core.advisor_agent import AdvisorAgent
 from src.services.core.auto_lead_agent import AutoLeadAgent
 from src.services.core.activity_monitor import ActivityMonitor
@@ -26,7 +26,9 @@ from src.services.core.sales_coach import SalesCoach
 from src.services.core.crm.crm_guard import CRMGuard
 from src.services.core.admin_bot import AdminBot
 from src.services.utils.access_manager import AccessManager
-from src.services.core.session_manager import SessionManager
+from src.services.core.juma_notifier import JumaNotifier
+from src.services.core.case_publisher import CasePublisher
+from src.services.core.telegram.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
 from src.services.core.crm.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
@@ -139,7 +141,7 @@ async def _crm_capacity_archiver_loop():
 
 async def _ai_autopilot_loop():
     await asyncio.sleep(15)
-    from src.services.core.telegram_task_creator import TelegramTaskCreator
+    from src.services.core.telegram.telegram_task_creator import TelegramTaskCreator
     from src.services.core.call_analyzer import CallAnalyzer
     from src.services.core.ambassador_journey import AmbassadorJourneyManager
     from src.services.utils.voice_processor import VoiceProcessor
@@ -481,7 +483,7 @@ async def boot_application():
         try:
             await bot_client.start(bot_token=BOT_TOKEN_STR)
 
-            from src.services.core.telegram_ai_features import (
+            from src.services.core.telegram.telegram_ai_features import (
                 BOT_API_10_ALLOWED_UPDATES, TelegramBotAPI10Client, TelegramBotAPILongPoller,
             )
 

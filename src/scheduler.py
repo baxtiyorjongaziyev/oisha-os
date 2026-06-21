@@ -38,7 +38,7 @@ async def background_monitor_task() -> None:
         check_airtable_stagnation,
         check_client_journey_excellence,
     )
-    from src.services.core.lead_operating_system import LeadOperatingSystem
+    from src.services.core.leads.lead_operating_system import LeadOperatingSystem
     from src.time_utils import get_local_now, is_quiet_hours
 
     logger.info("[MONITOR] Boshlandi (Interval: 5 daqiqa)")
