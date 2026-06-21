@@ -56,3 +56,8 @@
 ## 2024-10-25 - Custom Dropdown Accessibility Pattern
 **Learning:** Custom UI dropdowns frequently lack native semantic structure. Wrapping loosely grouped `<button>` items in `<ul>`/`<li>` tags combined with `aria-labelledby` pointing to the trigger button's ID instantly transforms them into screen-reader-friendly menus. Furthermore, adding visual anchors (like an inline checkmark) for the `aria-current` item drastically improves scannability.
 **Action:** Always wrap custom dropdown list items in `<ul>` and `<li>`, link them to their trigger via `aria-labelledby`, and ensure each option has robust `focus-visible:ring` styles rather than relying exclusively on hover states.
+
+## 2026-06-21 - [A11y Insight] Radio Group Pattern for Selectable Buttons
+
+**Learning:** When using a row of buttons that act like a radio group (e.g., playback speed selectors: 1x, 1.25x, 1.5x), simply highlighting the active button visually is insufficient for screen readers. They won't know the buttons are related or which one is active.
+**Action:** Always wrap groups of related selectable buttons in a container with `role="group"` and an `aria-label` (e.g., "O'ynatish tezligi"). On the individual buttons, use `aria-pressed={isActive}` to explicitly announce the selected state to assistive technologies.
