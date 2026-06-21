@@ -2,7 +2,7 @@ import pytest
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
-from src.services.core.telegram_task_creator import TelegramTaskCreator
+from src.services.core.telegram.telegram_task_creator import TelegramTaskCreator
 from src.services.utils.gemini_fallback import model_candidates
 
 

@@ -6,7 +6,7 @@ from telethon import TelegramClient
 from src.controllers.message_controller import MessageController
 from src.services.core.safe_responder import SafeResponder
 from src.services.core.action_parser import ActionParser
-from src.services.core.lead_scraper import LeadScraper
+from src.services.core.leads.lead_scraper import LeadScraper
 from src.services.core.advisor_agent import AdvisorAgent
 from src.services.core.auto_lead_agent import AutoLeadAgent
 from src.services.core.activity_monitor import ActivityMonitor
@@ -16,7 +16,7 @@ from src.services.utils.voice_processor import VoiceProcessor
 from src.services.utils.access_manager import AccessManager
 from src.services.core.admin_bot import AdminBot
 from src.services.core.juma_notifier import JumaNotifier
-from src.services.core.session_manager import SessionManager
+from src.services.core.telegram.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.services.core.workflow_manager import WorkflowManager
 

@@ -3,7 +3,7 @@ import os
 import time
 from datetime import datetime
 from src.services.core.crm.amocrm_sync import AmoCRMSync
-from src.services.core.lead_classifier import LeadClassifier
+from src.services.core.leads.lead_classifier import LeadClassifier
 from src.database import Database
 from src.api_server import add_activity
 
