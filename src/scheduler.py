@@ -119,7 +119,7 @@ async def background_monitor_task() -> None:
                 job_key = f"status_notify_{now.hour}_{today_str}"
                 if not hasattr(background_monitor_task, "_sent_jobs"):
                     background_monitor_task._sent_jobs = set()
-                if job_key not in background_monitor_task._sent_jobs:
+                if job_key not in background_monitor_task._sent_jobs and m.client:
                     await m.notify_admin(
                         "👸 **Oisha OS: Tizim nazoratda**\nAmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda.",
                         m.client,
