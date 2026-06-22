@@ -573,6 +573,7 @@ async def boot_application():
     m.session_manager = session_manager
     m.surgical_integration = surgical_integration
     m.evolution_scheduler = evolution_scheduler
+    evolution_scheduler.set_userbot_client(client)
     m.meeting_scheduler = meeting_scheduler
     m.oisha_brain = oisha_brain
     m.bot_messenger = bot_messenger
