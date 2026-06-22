@@ -9,7 +9,7 @@ import asyncio
 from typing import Any, Dict, Optional
 from datetime import datetime, timedelta
 
-import logging
+import structlog
 
 from src.agents.autonomous_sales_agent import get_autonomous_agent
 from src.agents.deal_lifecycle_manager import (
@@ -20,7 +20,7 @@ from src.agents.deal_lifecycle_manager import (
 from src.agents.contract_generator import ContractGenerator, RiskAssessor
 from src.services.core.gcontacts import GoogleContactsSync
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class SurgicalNegotiator:
@@ -401,7 +401,10 @@ class SurgicalNegotiator:
                 uid = int(fu["user_id"])
                 await self._send_proactive(uid, fu["message"])
             except Exception:
-                pass
+                logger.warning(
+                    "[SurgicalNegotiator] failed to send follow-up proactive message",
+                    exc_info=True,
+                )
         results["follow_ups_sent"] = follow_ups
 
         # 2. Automation rules
