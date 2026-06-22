@@ -6,14 +6,14 @@ import pytest
 
 from src.database import Database
 from src.database_pool import SmartRow
-from src.services.core.hisobchi_card_parser import parse_card_notification
-from src.services.core.hisobchi_engine import HisobchiEngine, _normalize_merchant
-from src.services.core.hisobchi_handlers import (
+from src.services.core.finance.hisobchi_card_parser import parse_card_notification
+from src.services.core.finance.hisobchi_engine import HisobchiEngine, _normalize_merchant
+from src.services.core.finance.hisobchi_handlers import (
     backfill_card_bot_messages,
     resolve_finance_destination,
 )
-from src.services.core.hisobchi_schema import init_hisobchi_tables
-from src.services.core.hisobchi_schema import ensure_hisobchi_db
+from src.services.core.finance.hisobchi_schema import init_hisobchi_tables
+from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 
 
 HUMO_SAMPLE = """💸 To'lov
