@@ -476,9 +476,6 @@ async def boot_application():
 
     from src.services.core.tool_adapters import configure_userbot_group_fallback
     configure_userbot_group_fallback(client)
-    from src import scheduler as _scheduler
-    asyncio.create_task(_scheduler.background_monitor_task(), name="background_monitor_task")
-    logger.info("[MONITOR] Persistent CRM/Airtable scheduler registered.")
 
     # Bot-token head startup
     if BOT_TOKEN_STR and bot_client:
@@ -570,6 +567,12 @@ async def boot_application():
     m.agent_orchestrator = agent_orchestrator
     m.BOT_TOKEN_STR = BOT_TOKEN_STR
     m.health_api_server = None
+
+    # Scheduler — started AFTER runtime state is published so the first loop
+    # iteration sees valid m.client / m.msg_controller values.
+    from src import scheduler as _scheduler
+    asyncio.create_task(_scheduler.background_monitor_task(), name="background_monitor_task")
+    logger.info("[MONITOR] Persistent CRM/Airtable scheduler registered.")
 
     # Register event handlers on client
     from src.services.core.hisobchi_engine import HisobchiEngine
