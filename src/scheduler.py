@@ -274,6 +274,15 @@ async def background_monitor_task() -> None:
             weekly_weekday = _env_int("CRM_WEEKLY_REPORT_WEEKDAY", 0)
             weekly_hour = _env_int("CRM_WEEKLY_REPORT_HOUR", 9)
             weekly_minute = _env_int("CRM_WEEKLY_REPORT_MINUTE", 0)
+            if not 0 <= weekly_weekday <= 6:
+                logger.warning("[SCHEDULE] Invalid CRM_WEEKLY_REPORT_WEEKDAY=%s; using 0", weekly_weekday)
+                weekly_weekday = 0
+            if not 0 <= weekly_hour <= 23:
+                logger.warning("[SCHEDULE] Invalid CRM_WEEKLY_REPORT_HOUR=%s; using 9", weekly_hour)
+                weekly_hour = 9
+            if not 0 <= weekly_minute <= 59:
+                logger.warning("[SCHEDULE] Invalid CRM_WEEKLY_REPORT_MINUTE=%s; using 0", weekly_minute)
+                weekly_minute = 0
             if (
                 weekly_enabled
                 and now.weekday() == weekly_weekday
