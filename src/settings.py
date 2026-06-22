@@ -139,6 +139,11 @@ class AppSettings(BaseSettings):
     GSHEET_ID: Optional[str] = None
     GSHEET_CREDS_FILE: str = "service_account.json"
 
+    # Meta Graph API settings (Instagram)
+    META_VERIFY_TOKEN: Optional[SecretStr] = None
+    META_PAGE_ACCESS_TOKEN: Optional[SecretStr] = None
+    META_APP_SECRET: Optional[SecretStr] = None
+
     # Lead Distribution
     SALES_MANAGER_IDS: list[int] = Field(
         default_factory=list
@@ -256,6 +261,9 @@ class AppSettings(BaseSettings):
             "AWS_ACCESS_KEY_ID",
             "AWS_SECRET_ACCESS_KEY",
             "CMS_WEBHOOK_URL",
+            "META_VERIFY_TOKEN",
+            "META_PAGE_ACCESS_TOKEN",
+            "META_APP_SECRET",
         }
         for key in optional_keys:
             if data.get(key) == "":

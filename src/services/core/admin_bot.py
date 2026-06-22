@@ -1,5 +1,6 @@
 import os
 import logging
+import structlog
 import asyncio
 import psutil
 import platform
@@ -16,7 +17,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from src.services.utils.access_manager import AccessManager
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class AdminBot:
@@ -379,8 +380,8 @@ class AdminBot:
                                 await event.edit(
                                     event.message.message + "\n\n✅ Yuborildi"
                                 )
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                logger.debug("[ADMIN_BOT] send_draft: failed to edit message after send", exc_info=True)
                         except Exception as ex:
                             logger.error(f"[SEND_DRAFT] {ex}", exc_info=True)
                             await event.answer(f"⚠️ Yuborishda xato: {ex}", alert=True)
@@ -394,8 +395,8 @@ class AdminBot:
                             await event.edit(
                                 event.message.message + "\n\n❌ Rad etildi"
                             )
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("[ADMIN_BOT] reject_draft: failed to edit message after reject", exc_info=True)
                     else:
                         await event.answer(
                             "ℹ️ Draft allaqachon qayta ishlangan.", alert=True
@@ -429,8 +430,8 @@ class AdminBot:
                         await event.edit(
                             event.message.message + f"\n\n🤝 **Qabul qildi:** {name}"
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("[ADMIN_BOT] accept/claim_lead: failed to edit message with claimer name", exc_info=True)
             except Exception as e:
                 logger.error(f"❌ [ADMIN_BOT] CALLBACK ERROR: {str(e)}")
                 await event.answer("⚠️ Xatolik yuz berdi.", alert=True)
@@ -460,8 +461,8 @@ class AdminBot:
                 if user_data:
                     first_name = user_data.get("first_name") or first_name
                     last_name = user_data.get("last_name") or ""
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("[ADMIN_BOT] contact_card: global lookup failed for %s", normalized, exc_info=True)
 
             try:
                 await event.respond(
@@ -955,8 +956,8 @@ class AdminBot:
                     if user_data:
                         first_name = user_data.get("first_name") or first_name
                         last_name = user_data.get("last_name") or ""
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("[ADMIN_BOT] inline_search: global lookup failed for %s", normalized, exc_info=True)
 
                 contact_result = InputBotInlineResult(
                     id=str(uuid.uuid4()),

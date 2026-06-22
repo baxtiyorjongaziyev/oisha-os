@@ -222,8 +222,8 @@ class TestDatabaseErrorHandling:
         """Test that specific exceptions are caught, not bare except."""
         import aiosqlite # type: ignore
         
-        # The database.py should use specific exceptions
-        db_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'database.py')
+        # The database connection logic now lives in src/db/connection.py
+        db_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'db', 'connection.py')
         with open(db_file, 'r', encoding='utf-8') as f:
             content = f.read()
         
@@ -234,7 +234,7 @@ class TestDatabaseErrorHandling:
         lines = content.split('\n')
         for line in lines:
             if 'except:' in line and 'pass' in line:
-                pytest.fail(f"Bare except: pass found in database.py: {line}")
+                pytest.fail(f"Bare except: pass found in connection.py: {line}")
 
 
 if __name__ == "__main__":
