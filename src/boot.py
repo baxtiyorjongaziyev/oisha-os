@@ -52,6 +52,16 @@ def _negotiation_int(name: str, default: int) -> int:
         return default
 
 
+_background_tasks: set = set()
+
+
+def _spawn_task(coro, *, name: str) -> asyncio.Task:
+    task = asyncio.create_task(coro, name=name)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
 async def _command_processor():
     """Processes commands from the API Server (e.g. sending messages)."""
     import src.api_server as api_module
@@ -469,7 +479,7 @@ async def boot_application():
                 logger.error(f"[BOT_ONLY] Admin bot startup failed: {admin_exc}", exc_info=True)
         api_module.update_api_status("degraded", "Bot-token mode active; userbot needs re-login")
         from src import scheduler as _scheduler
-        asyncio.create_task(_scheduler.background_monitor_task(), name="background_monitor_task")
+        _spawn_task(_scheduler.background_monitor_task(), name="background_monitor_task")
         await asyncio.Event().wait()
         return
 
@@ -570,7 +580,7 @@ async def boot_application():
     # Scheduler — started AFTER runtime state is published so the first loop
     # iteration sees valid m.client / m.msg_controller values.
     from src import scheduler as _scheduler
-    asyncio.create_task(_scheduler.background_monitor_task(), name="background_monitor_task")
+    _spawn_task(_scheduler.background_monitor_task(), name="background_monitor_task")
     logger.info("[MONITOR] Persistent CRM/Airtable scheduler registered.")
 
     # Register event handlers on client
@@ -622,7 +632,7 @@ async def boot_application():
     client.add_event_handler(m.self_command_handler, events.NewMessage(chats="me"))
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
-    asyncio.create_task(
+    _spawn_task(
         backfill_card_bot_messages(client, hisobchi_engine),
         name="hisobchi_card_backfill",
     )
