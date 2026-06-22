@@ -261,7 +261,6 @@ async def boot_application():
     global oisha_brain, bot_messenger, agent_orchestrator
 
     import src.main as m
-    from src import scheduler
 
     # [ENTERPRISE] Anti-Local Execution Lock
     runtime_name = os.getenv("OISHA_RUNTIME", "").strip().lower()
@@ -297,7 +296,7 @@ async def boot_application():
     }
     db = Database()
     await db.init_instance()
-    from src.services.core.hisobchi_schema import init_hisobchi_tables
+    from src.services.core.finance.hisobchi_schema import init_hisobchi_tables
 
     await init_hisobchi_tables(db)
     logger.info("[HISOBCHI] Database schema is ready.")
@@ -575,8 +574,8 @@ async def boot_application():
     logger.info("[MONITOR] Persistent CRM/Airtable scheduler registered.")
 
     # Register event handlers on client
-    from src.services.core.hisobchi_engine import HisobchiEngine
-    from src.services.core.hisobchi_handlers import (
+    from src.services.core.finance.hisobchi_engine import HisobchiEngine
+    from src.services.core.finance.hisobchi_handlers import (
         backfill_card_bot_messages,
         handle_card_bot_message,
         handle_finance_group_reply,
