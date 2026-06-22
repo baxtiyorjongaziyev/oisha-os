@@ -16,11 +16,12 @@ API:
 from __future__ import annotations
 
 import json
-import logging
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger()
 
 # Max turns retained per user to bound DB growth
 MAX_HISTORY_PER_USER = 50
@@ -98,7 +99,10 @@ class FeedbackMemory:
                 )
                 assessment_json = json.dumps(payload, ensure_ascii=False)
             except Exception:
-                pass
+                logger.debug(
+                    "[FeedbackMemory] failed to serialize assessment",
+                    exc_info=True,
+                )
         try:
             async with _db_connection(self._db) as conn:
                 await conn.execute(
@@ -164,7 +168,10 @@ class FeedbackMemory:
                 try:
                     entry["assessment"] = json.loads(assessment_json)
                 except Exception:
-                    pass
+                    logger.debug(
+                        "[FeedbackMemory] failed to parse assessment JSON",
+                        exc_info=True,
+                    )
             result.append(entry)
         return result
 

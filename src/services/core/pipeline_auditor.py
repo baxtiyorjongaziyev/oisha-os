@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import structlog
 import json
 import csv
 import os
@@ -11,7 +11,7 @@ from src.services.core.airtable_sync import AirtableSync
 from src.database import Database
 from src.services.core.call_analyzer import CallAnalyzer
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -357,7 +357,7 @@ class PipelineAuditor:
                 try:
                     await self.amocrm.add_lead_tag(int(lead_id), "High_Win_Prob")
                 except Exception:
-                    pass
+                    logger.warning("[AUDITOR] Failed to add High_Win_Prob tag to lead %s", lead_id, exc_info=True)
 
             # 12. Create actual, actionable Task (Zadacha) in AmoCRM
             if next_task_text and next_task_text.upper() != "N/A":

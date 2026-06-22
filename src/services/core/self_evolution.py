@@ -17,7 +17,7 @@ Xavfsizlik:
 from __future__ import annotations
 
 import json
-import logging
+import structlog
 import os
 import subprocess
 from datetime import datetime
@@ -29,7 +29,7 @@ from src.database import Database
 from src.settings import settings
 from src.time_utils import get_local_now
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 EVOLUTION_PROMPT = """Siz AI agent'ning self-improvement moduli siz.
 
@@ -195,7 +195,7 @@ class SelfEvolutionEngine:
             try:
                 self._git_cmd(["checkout", "main"])
             except Exception:
-                pass
+                logger.debug("[EVOLVE] Failed to checkout main after PR creation error", exc_info=True)
             return None
 
     def _is_safe_file(self, file_path: str) -> bool:
