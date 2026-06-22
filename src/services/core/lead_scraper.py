@@ -737,7 +737,7 @@ class LeadScraper:
         system_instruction = "Siz tajribali ma'lumot tahlilchisisiz. Telegram xabarlaridan lidlar ma'lumotlarini ajratib olishga ixtisoslashgansiz."
 
         try:
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
 
             response = await safe_ai_call(
                 client=self.genai_client,
