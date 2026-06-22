@@ -139,7 +139,7 @@ class OishaMemory:
                 fact_key = str(fact.get("fact_key", ""))[:100]
 
                 existing = await (await conn.execute(
-                    "SELECT id, times_confirmed FROM oisha_memory WHERE entity_id=? AND fact_key=?",
+                    "SELECT id, times_confirmed FROM oisha_memory WHERE entity_id IS ? AND fact_key=?",
                     (entity_id, fact_key),
                 )).fetchone()
 
