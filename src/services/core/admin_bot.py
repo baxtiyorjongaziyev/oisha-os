@@ -1938,7 +1938,7 @@ class AdminBot:
         await event.respond("📊 **Haftalik hisobot tayyorlanmoqda...**\nBu bir oz vaqt olishi mumkin (AmoCRM-ga so'rov yuborilmoqda).")
         try:
             from src.services.core.crm.crm_service import CRMService
-            from src.services.core.crm.crm_daily_report import CRMDailyReport
+            from src.services.core.crm.crm_daily_report import CRMDailyReporter as CRMDailyReport
             
             crm = CRMService()
             report_engine = CRMDailyReport(crm.amocrm)
