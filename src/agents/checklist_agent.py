@@ -1,11 +1,13 @@
 """ChecklistAgent — Mijoz cheklisti monitoring va jamoa baholash agenti."""
 
-import logging
 import re
 from typing import Optional, Dict, Any, List
+
+import structlog
+
 from .core import BaseAgent
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 CHECKLIST_SUFFIX = """
 
@@ -188,7 +190,10 @@ class ChecklistAgent(BaseAgent):
                     self.update_history(user_id, "assistant", reply)
                     return reply
             except Exception:
-                pass
+                logger.warning(
+                    "[ChecklistAgent] failed to inject overdue context for AI fallback",
+                    exc_info=True,
+                )
 
         reply = await self.call_ai_with_fallback(contents, user_id, enable_tools=True)
         self.update_history(user_id, "assistant", reply)

@@ -9,7 +9,7 @@ them into AmoCRM deals as tasks.
 import os
 import time
 import json
-import logging
+import structlog
 import re
 import inspect
 import random
@@ -29,7 +29,7 @@ except Exception:
     genai = None
     genai_types = None
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -209,7 +209,7 @@ class TelegramTaskCreator:
                 try:
                     os.remove(temp_path)
                 except Exception:
-                    pass
+                    logger.debug("[TELEGRAM_TASK] Failed to remove temp voice file %s", temp_path, exc_info=True)
 
         return ""
 

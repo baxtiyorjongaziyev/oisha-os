@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import json
-import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger()
 
 MOOD_EMOJI = {
     "Ijobiy": "😊",
@@ -259,7 +260,10 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                 if answer_fn:
                     await answer_fn("⚠️ So'rov topilmadi (bot qayta ishga tushgandirmi?).")
             except Exception:
-                pass
+                logger.debug(
+                    "Failed to answer callback: pending approval not found",
+                    exc_info=True,
+                )
             return False
         ok = await post_notes_to_amocrm(
             pending["amocrm"], pending["lead_id"], pending["note_texts"]
@@ -272,7 +276,10 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                 msg = "✅ CRM ga izoh qo'shildi!" if ok else "❌ CRM ga yozishda xatolik"
                 await reply_fn(msg)
         except Exception:
-            pass
+            logger.debug(
+                "Failed to reply with CRM post result",
+                exc_info=True,
+            )
         return ok
 
     if callback_data.startswith("crm_edit:"):
@@ -284,7 +291,10 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                 if answer_fn:
                     await answer_fn("⚠️ So'rov topilmadi (bot qayta ishga tushgandirmi?).")
             except Exception:
-                pass
+                logger.debug(
+                    "Failed to answer callback: edit pending approval not found",
+                    exc_info=True,
+                )
             return False
         if new_text:
             # Faqat birinchi noteni almashtiradi; mijoz profili o'zgarmaydi
@@ -302,7 +312,10 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                     msg = "✅ Tahrirlangan izoh CRM ga qo'shildi!" if ok else "❌ Xatolik"
                     await reply_fn(msg)
             except Exception:
-                pass
+                logger.debug(
+                    "Failed to reply with edited note result",
+                    exc_info=True,
+                )
             return ok
         else:
             try:
@@ -315,7 +328,10 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                     try:
                         await answer_fn("✏️ Tahrirlashni boshlang")
                     except Exception:
-                        pass
+                        logger.debug(
+                            "Failed to answer callback: start edit acknowledgement",
+                            exc_info=True,
+                        )
                 # Send full prompt as a regular message (no size limit)
                 respond_fn = getattr(bot_or_event, "respond", None)
                 if respond_fn:
@@ -325,7 +341,10 @@ async def handle_callback(callback_data: str, bot_or_event: Any, new_text: str =
                         f"(Joriy tahlil matni):\n`{first_note[:300]}`"
                     )
             except Exception:
-                pass
+                logger.warning(
+                    "Failed to send edit prompt message to user",
+                    exc_info=True,
+                )
             return True
 
     return False
