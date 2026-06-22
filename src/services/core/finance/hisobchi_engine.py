@@ -411,7 +411,7 @@ class HisobchiEngine:
             else "Bu pul nima uchun keldi?"
         )
         balance_line = (
-            f"\n💰 Qoldiq: {_fmt_money(tx.balance)} UZS" if tx.balance else ""
+            f"\n💰 Qoldiq: {_fmt_money(tx.balance)} UZS" if tx.balance is not None else ""
         )
         return (
             f"💳 <b>Yangi to'lov #{tx_id}</b>\n\n"
