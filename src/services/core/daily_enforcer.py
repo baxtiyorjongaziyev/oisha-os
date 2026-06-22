@@ -6,11 +6,12 @@ Jon.Branding - Har kuni, har soat, har daqiqa nazorat!
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime, time
 from typing import Any, Dict, Optional
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger()
 
 from src.services.core.mandatory_workflow import (
     get_mandatory_workflow,
@@ -361,7 +362,11 @@ class DailyEnforcer:
                 try:
                     await self.bot.send_message(user_id, message)
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Failed to send enforcer notification (plain text fallback)",
+                        user_id=user_id,
+                        exc_info=True,
+                    )
 
     async def _send_to_director(self, message: str):
         """Direktorga xabar yuborish"""
@@ -376,7 +381,11 @@ class DailyEnforcer:
                 try:
                     await self.bot.send_message(owner_id, message)
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Failed to send enforcer report to director (plain text fallback)",
+                        owner_id=owner_id,
+                        exc_info=True,
+                    )
 
     async def force_check_now(self) -> Dict[str, Any]:
         """Qo'lda tekshirish (admin uchun)"""

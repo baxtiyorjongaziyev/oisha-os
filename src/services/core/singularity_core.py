@@ -269,7 +269,7 @@ class ProactiveWorker:
 
             # promptni yuboramiz (ASYNCHRONOUS & SAFE)
             from google import genai
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
 
             client = genai.Client(api_key=api_key)
 
@@ -377,7 +377,7 @@ class ProactiveWorker:
                 return
 
             from google import genai
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
 
             client = genai.Client(api_key=api_key)
 
@@ -477,7 +477,7 @@ class ProactiveWorker:
             )
 
             from google import genai
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
 
             client = genai.Client(api_key=config.GEMINI_API_KEY)
 

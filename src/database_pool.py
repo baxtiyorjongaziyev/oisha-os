@@ -34,7 +34,8 @@ def _setting_text(value: Any) -> str:
     if callable(getter):
         try:
             value = getter()
-        except Exception:
+        except Exception as exc:
+            logger.debug("[DB POOL] Secret getter failed, using str: %s", exc)
             value = str(value)
 
     # Remove BOM and all invisible/whitespace characters
