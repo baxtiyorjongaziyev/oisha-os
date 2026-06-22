@@ -33,7 +33,6 @@
   - salescoach-ai: `apps/api/src/mcp/server.ts`, `apps/api/src/integrations/call-intel/*`, `apps/api/src/common/guards/service-or-jwt-auth.guard.ts`, `apps/worker/src/services/telegram_notify.ts`, `apps/api/src/app.module.ts`, `apps/api/src/{calls,negotiations}/*.controller.ts`, `apps/api/package.json`
   - oisha-os: `src/services/core/{salescoach_sync,docusign_sync,apollo_enrich}.py` (YANGI fayllar, shared emas)
   - ⚠️ `settings.py` ga TEGILMAYDI (Coordinator owns) — Python kod `getattr` bilan himoyalangan; kerakli env varlar "For Coordinator" da
-- **Integration (Antigravity)** — branch `feat/instagram-webhook`. Fayllar: `src/api_server.py`, `src/services/core/instagram_agent.py`, `tests/test_instagram_integration.py`
 
 ### Done
 - boot.py yaratildi (685 lines, main() ini logikasi)
@@ -45,6 +44,9 @@
 - Test: 316 passed, 1 failed (instagrapi missing), 8 skipped
 
 ### Done (yangi)
+- Meta Graph API orqali Instagram DM va Comment webhooklari to'liq implement qilindi (`src/api_server.py` va `src/services/core/instagram_agent.py` yaratildi) hamda local va remote testlardan muvaffaqiyatli o'tdi (Antigravity).
+- Webhook so'rovlarini `x-hub-signature-256` orqali xavfsiz tasdiqlash va background tasks orqali Meta timeoutlarining oldini olish yo'lga qo'yildi (Antigravity).
+- Yangilangan kod remote Oracle VM ga deploy qilindi, uerdagi `oisha-os` systemd xizmati qayta ishga tushirilib, API server muvaffaqiyatli ishlayotganligi `/healthz/` orqali tasdiqlandi (Antigravity).
 - `handle_new_message` event handler sifatida ro'yxatdan o'tkazildi
 - Hisobchi AI: `init_hisobchi_tables()` boot.py da chaqiriladi
 - Hisobchi AI: `_hisobchi_engine` global placeholder qo'shildi
