@@ -38,10 +38,11 @@ class AdvisorAgent:
     Now equipped with Dual-Persona intelligence.
     """
 
-    def __init__(self, api_key: str, db, action_parser):
+    def __init__(self, api_key: str, db, action_parser, memory=None):
         self.client = genai.Client(api_key=api_key)
         self.db = db
         self.action_parser = action_parser
+        self.memory = memory
         self.model_name = os.getenv("GEMINI_ADVISOR_MODEL", settings.GEMINI_CALL_MODEL)
         from src.services.core.persona_hub import (
             INTERNAL_COO_PROMPT,
@@ -135,6 +136,16 @@ class AdvisorAgent:
            3. 🚀 PERSUASIVE (SOTUV): ...
         ⚙️ [ACTION]: (Agar kerak bo'lsa: [TASK:...] yoki [AMO_UPDATE:...])
         """
+
+        memory_ctx = ""
+        if self.memory:
+            try:
+                memory_ctx = await self.memory.get_global_context(limit=8)
+            except Exception:
+                pass
+
+        if memory_ctx:
+            system_instruction = system_instruction + f"\n\n{memory_ctx}"
 
         contents = [
             f'Suhbat tarixi (oxirgi xabarlar):\n{history_context}\n\nYangi xabar: "{message_text}"'
