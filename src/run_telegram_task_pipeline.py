@@ -12,6 +12,7 @@ Usage:
 import argparse
 import asyncio
 import logging
+import structlog
 import sys
 
 # Windows PowerShell unicode fix — force UTF-8 output
@@ -20,7 +21,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
-        pass
+        logger.debug("stdout_utf8_reconfigure_failed", exc_info=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,7 +34,7 @@ logging.basicConfig(
         )
     ],
 )
-logger = logging.getLogger("telegram_task_pipeline")
+logger = structlog.get_logger()
 
 
 async def build_amocrm() -> "AmoCRMSync":
@@ -141,7 +142,7 @@ async def main():
         try:
             await user_client.disconnect()
         except Exception:
-            pass
+            logger.debug("user_client_disconnect_failed", exc_info=True)
         await db.close()
 
 

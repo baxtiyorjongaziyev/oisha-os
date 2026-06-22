@@ -11,14 +11,14 @@ Scheduled tasks:
 from __future__ import annotations
 
 import asyncio
-import logging
+import structlog
 from datetime import datetime, timedelta
 from typing import Optional
 
 from src.database import Database
 from src.time_utils import get_local_now
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class EvolutionScheduler:
@@ -177,4 +177,4 @@ class EvolutionScheduler:
             async with aiohttp.ClientSession() as session:
                 await session.post(url, json={"chat_id": owner_id, "text": msg})
         except Exception:
-            pass
+            logger.warning("[EVOLUTION_SCHEDULER] Failed to send evolution notification to Telegram", exc_info=True)

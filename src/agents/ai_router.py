@@ -37,15 +37,16 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import logging
 import os
 import random
 import time
 from typing import Any, Dict, Literal, Optional
 
+import structlog
+
 from src.settings import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Konfiguratsiya
@@ -154,8 +155,8 @@ def _get_gemini_client():
             from src import config
 
             api_key = getattr(config, "GEMINI_API_KEY", "")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[AI_ROUTER] failed to read GEMINI_API_KEY from config", exc_info=True)
 
     if not api_key:
         logger.error("[AI_ROUTER] GEMINI_API_KEY not set")
@@ -329,7 +330,10 @@ async def route(
             _cache_put(prompt_hash, final)
             return final
         except Exception:
-            pass
+            logger.warning(
+                "[AI_ROUTER] fallback free AI router failed (gemini client unavailable)",
+                exc_info=True,
+            )
         return _error_result(
             "Gemini client unavailable",
             task_type=task_type,

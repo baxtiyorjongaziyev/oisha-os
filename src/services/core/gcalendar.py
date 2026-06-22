@@ -165,7 +165,7 @@ class GoogleCalendarSync:
 
         import datetime
 
-        now = datetime.datetime.utcnow().isoformat() + "Z"
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
         try:
             # Hozirdan keyingi 1 ta tadbirni olish
