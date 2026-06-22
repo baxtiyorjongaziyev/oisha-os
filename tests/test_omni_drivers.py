@@ -8,6 +8,13 @@ from src.agents.os_driver import OishaOSDriver
 from src.agents.mobile_proxy import OishaMobileProxy, OishaTelegramProxy
 
 
+try:
+    import instagrapi
+    HAS_INSTAGRAPI = True
+except ImportError:
+    HAS_INSTAGRAPI = False
+
+
 def test_os_driver_initialization():
     """OS Driver to'g'ri yaratilishini tekshirish."""
     driver = OishaOSDriver()
@@ -17,6 +24,7 @@ def test_os_driver_initialization():
     assert pyautogui.FAILSAFE is True
 
 
+@pytest.mark.skipif(not HAS_INSTAGRAPI, reason="instagrapi package is not installed")
 def test_mobile_proxy_initialization():
     """Mobile Proxy to'g'ri yaratilishini tekshirish."""
     # instagrapi load bo'lishini tekshirish (username va password bo'lmasa xatolik berishi kerak login() da)
