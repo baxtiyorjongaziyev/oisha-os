@@ -1,8 +1,11 @@
 """Hisobchi AI — DB schema and dataclasses for card transaction tracking."""
 from __future__ import annotations
 
+import structlog
 from dataclasses import dataclass
 from typing import Optional
+
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -78,6 +81,6 @@ async def init_hisobchi_tables(db=None) -> None:
             "ALTER TABLE hisobchi_transactions ADD COLUMN ownership TEXT DEFAULT 'business'"
         )
     except Exception:
-        pass
+        logger.debug("[HISOBCHI] ownership column already exists or migration skipped", exc_info=True)
 
     await _db.commit()
