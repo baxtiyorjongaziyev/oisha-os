@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import logging
 import os
 import time
-from fastapi import FastAPI, Request, HTTPException, Query, Header
+from fastapi import FastAPI, Request, HTTPException, Query, Header, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
@@ -3221,6 +3221,54 @@ async def erp_health(request: Request):
         return JSONResponse({"health": health, "quick_status": quick})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/instagram/webhook")
+async def verify_instagram_webhook(
+    hub_mode: Optional[str] = Query(None, alias="hub.mode"),
+    hub_verify_token: Optional[str] = Query(None, alias="hub.verify_token"),
+    hub_challenge: Optional[str] = Query(None, alias="hub.challenge"),
+):
+    """Meta webhook verification endpoint."""
+    expected_token = os.environ.get("META_VERIFY_TOKEN")
+    if not expected_token:
+        expected_token = settings.META_VERIFY_TOKEN.get_secret_value() if settings.META_VERIFY_TOKEN else None
+
+    if hub_mode == "subscribe" and expected_token and hub_verify_token == expected_token:
+        logger.info("[META] Webhook verification success")
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(content=hub_challenge)
+    
+    logger.warning(f"[META] Webhook verification failed: received_token={hub_verify_token}")
+    raise HTTPException(status_code=403, detail="Verification token mismatch")
+
+
+@app.post("/api/instagram/webhook")
+async def handle_instagram_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_hub_signature: Optional[str] = Header(None, alias="X-Hub-Signature-256")
+):
+    """Meta webhook event handler endpoint."""
+    payload = await request.body()
+    
+    app_secret = os.environ.get("META_APP_SECRET")
+    if not app_secret:
+        app_secret = settings.META_APP_SECRET.get_secret_value() if settings.META_APP_SECRET else ""
+
+    from src.services.core.instagram_agent import verify_signature, process_instagram_webhook
+    
+    if x_hub_signature and not verify_signature(payload, x_hub_signature, app_secret):
+        logger.warning("[META] Webhook signature verification failed")
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    try:
+        data = json.loads(payload)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    background_tasks.add_task(process_instagram_webhook, data, db_instance)
+    return {"status": "success", "message": "Event received"}
 
 
 if __name__ == "__main__":
