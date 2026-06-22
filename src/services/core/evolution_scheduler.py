@@ -33,6 +33,7 @@ class EvolutionScheduler:
         self._learning_engine = None
         self._evolution_engine = None
         self._learner = None
+        self._memory_engine = None
         self._userbot_client: Optional["TelegramClient"] = None
         self._running = False
         self._task: Optional[asyncio.Task] = None
@@ -55,12 +56,28 @@ class EvolutionScheduler:
     def learner(self):
         if self._learner is None:
             from src.services.core.userbot_learner import UserbotLearner
-            self._learner = UserbotLearner(self.db, self.learning)
+            self._learner = UserbotLearner(self.db, self.learning, memory=self.memory)
         return self._learner
+
+    @property
+    def memory(self):
+        if self._memory_engine is None:
+            from src.services.core.oisha_memory import OishaMemory
+            self._memory_engine = OishaMemory(self.db, self.gemini_api_key)
+        return self._memory_engine
 
     def set_userbot_client(self, client: "TelegramClient"):
         """Userbot client'ini o'rnatadi — scan uchun zarur."""
         self._userbot_client = client
+
+    async def get_memory_context(self, entity_id: Optional[str] = None) -> str:
+        """Joriy kontekst uchun xotira snippet'ini qaytaradi (prompt injection uchun)."""
+        try:
+            if entity_id:
+                return await self.memory.get_context_for_entity(entity_id)
+            return await self.memory.get_global_context(limit=10)
+        except Exception:
+            return ""
 
     async def start(self):
         """Start the evolution scheduler loop."""
@@ -69,6 +86,7 @@ class EvolutionScheduler:
         self._running = True
         await self.learning.ensure_tables()
         await self.learner.ensure_tables()
+        await self.memory.ensure_tables()
         self._task = asyncio.create_task(self._run_loop())
         logger.info("[SCHEDULER] Evolution scheduler started")
 
