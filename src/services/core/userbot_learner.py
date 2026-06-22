@@ -25,6 +25,7 @@ from src.time_utils import get_local_now
 if TYPE_CHECKING:
     from telethon import TelegramClient
     from src.services.core.self_learning import SelfLearningEngine
+    from src.services.core.oisha_memory import OishaMemory
     from src.database import Database
 
 logger = logging.getLogger(__name__)
@@ -40,9 +41,15 @@ _SCAN_INTERVAL_HOURS = 2
 class UserbotLearner:
     """Userbot'dagi barcha dialoglarni skanlab, SelfLearningEngine'ga o'rgatadi."""
 
-    def __init__(self, db: "Database", learning_engine: "SelfLearningEngine"):
+    def __init__(
+        self,
+        db: "Database",
+        learning_engine: "SelfLearningEngine",
+        memory: Optional["OishaMemory"] = None,
+    ):
         self.db = db
         self.learning = learning_engine
+        self.memory = memory
 
     async def ensure_tables(self):
         async with await self.db.get_connection() as conn:
@@ -125,14 +132,24 @@ class UserbotLearner:
             if len(text) < _MIN_CONV_LEN:
                 continue
 
+            client_type = _infer_client_type(dialog)
             lessons = await self.learning.extract_lessons(
                 conversation=text,
-                client_type=_infer_client_type(dialog),
+                client_type=client_type,
                 outcome="unknown",
                 manager_name="",
                 chat_id=dialog_id,
             )
             total_lessons += len(lessons)
+
+            if self.memory:
+                await self.memory.learn_from_conversation(
+                    conversation=text,
+                    entity_type=client_type,
+                    entity_name=dialog_name,
+                    source="userbot_scan",
+                )
+
             await asyncio.sleep(1.5)
 
         if messages:
