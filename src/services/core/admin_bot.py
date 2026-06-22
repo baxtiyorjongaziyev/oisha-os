@@ -2003,19 +2003,14 @@ class AdminBot:
 
         try:
             from src.services.core.tez_natija_exporter import TezNatijaExporter
-            from src.settings import settings
 
-            exporter = TezNatijaExporter(
-                gemini_api_key=settings.GEMINI_API_KEY,
-                sheets=gsheets,
-            )
+            exporter = TezNatijaExporter(sheets=gsheets)
 
             async def progress(group, count):
-                await event.respond(f"📊 {group}: {count} yangi a'zo qayta ishlandi...")
+                await event.respond(f"📊 {group}: {count} yangi a'zo...")
 
             result = await exporter.export_all_groups(
                 client=client,
-                generate_invites=True,
                 progress_cb=progress,
             )
 
@@ -2029,7 +2024,7 @@ class AdminBot:
                 for e in result["errors"]:
                     msg += f"  • {e}\n"
             if gsheets:
-                msg += "\n📊 Google Sheets'ga yozildi: **Tez Natija Leads** varog'i"
+                msg += "\n📊 Google Sheets'ga yozildi: **Tez Natija CRM** varog'i"
             else:
                 msg += "\n⚠️ GSHEET_ID sozlanmagan — sheets'ga yozilmadi"
 
