@@ -3,7 +3,7 @@ Sales Analytics Module — Menejer KPI, Stagnatsiya Alert, Pipeline Funnel
 Oisha-OS v5.0 — Sotuvchilar conversiyasini oshirish uchun
 """
 
-import logging
+import structlog
 import time
 import requests
 from datetime import datetime, timedelta
@@ -11,7 +11,7 @@ from typing import Dict, List
 
 from src.services.core.amocrm_pipeline_config import SALES_PIPELINE_ID
 
-logger = logging.getLogger("SalesAnalytics")
+logger = structlog.get_logger()
 
 
 class SalesAnalytics:
@@ -83,7 +83,7 @@ class SalesAnalytics:
                     return "Oydin (Sales Manager)"
                 return name
         except Exception:
-            pass
+            logger.debug("[SALES_ANALYTICS] Failed to fetch user name for user_id=%s", user_id, exc_info=True)
         return f"User_{user_id}"
 
     # ═══════════════════════════════════════════════════════════════

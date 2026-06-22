@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from src import main
+from src.api import health as health_module
 from src.main import _is_shutdown_daemon_task
 
 
@@ -52,7 +53,7 @@ def test_shutdown_daemon_detection_keeps_short_lived_handler_drainable():
 @pytest.mark.asyncio
 async def test_stop_health_check_api_requests_clean_uvicorn_exit(monkeypatch):
     server = SimpleNamespace(should_exit=False)
-    monkeypatch.setattr(main, "_health_api_server", server)
+    monkeypatch.setattr(health_module, "_health_api_server", server)
 
     async def fake_server():
         while not server.should_exit:
@@ -63,4 +64,4 @@ async def test_stop_health_check_api_requests_clean_uvicorn_exit(monkeypatch):
 
     assert server.should_exit is True
     assert task.done()
-    assert main._health_api_server is None
+    assert health_module._health_api_server is None

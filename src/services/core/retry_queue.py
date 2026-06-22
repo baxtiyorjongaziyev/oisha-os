@@ -22,11 +22,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
+import structlog
 from contextlib import asynccontextmanager
 from typing import Any, Callable, Dict, Optional
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 Status = str  # "pending" | "retrying" | "succeeded" | "dead"
 
@@ -164,7 +164,7 @@ class RetryQueue:
             try:
                 payload = json.loads(payload_json)
             except Exception:
-                pass
+                logger.warning("[RETRY_QUEUE] Failed to parse payload JSON for action %s", action_name, exc_info=True)
 
             new_attempt = attempt + 1
             success, error = await self._try_execute(action_name, payload)
