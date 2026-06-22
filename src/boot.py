@@ -52,6 +52,10 @@ def _negotiation_int(name: str, default: int) -> int:
 
 _background_tasks: set = set()
 
+oisha_brain = None
+bot_messenger = None
+agent_orchestrator = None
+
 
 def _spawn_task(coro, *, name: str) -> asyncio.Task:
     task = asyncio.create_task(coro, name=name)
@@ -577,6 +581,7 @@ async def boot_application():
     evolution_scheduler.set_userbot_client(client)
     m.meeting_scheduler = meeting_scheduler
     m.oisha_brain = oisha_brain
+    app_ctx.oisha_brain = oisha_brain
     m.bot_messenger = bot_messenger
     m.agent_orchestrator = agent_orchestrator
     m.BOT_TOKEN_STR = BOT_TOKEN_STR
