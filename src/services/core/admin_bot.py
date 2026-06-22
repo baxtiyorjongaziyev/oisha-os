@@ -293,6 +293,11 @@ class AdminBot:
             if self.access_manager.is_admin(event.sender_id):
                 await self.send_vps_status(event)
 
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/teznatija"))
+        async def tez_natija_handler(event):
+            if self.access_manager.is_admin(event.sender_id):
+                await self.export_tez_natija(event)
+
         @self.bot_client.on(events.CallbackQuery())
         async def callback_handler(event):
             data = event.data.decode("utf-8")
@@ -313,6 +318,8 @@ class AdminBot:
                     await self.send_kpi_report(event)
                 elif data == "deadlines":
                     await self.send_deadline_report(event)
+                elif data == "tez_natija_export":
+                    await self.export_tez_natija(event)
                 elif data == "settings":
                     await self._show_settings_menu(event, edit=True)
                 elif data.startswith("set_dist_mode:"):
@@ -1967,6 +1974,69 @@ class AdminBot:
         except Exception as e:
             logger.error(f"❌ [KPI REPORT ERROR] {e}")
             await event.respond(f"❌ **KPI hisobotini yuklashda xatolik yuz berdi:**\n`{str(e)}`")
+
+    async def export_tez_natija(self, event):
+        """Tez Natija guruhlaridan a'zolarni Google Sheets'ga eksport qiladi."""
+        import src.main as m
+        client = getattr(m, "client", None)
+        if not client:
+            await event.respond("❌ Userbot ulanmagan. Tez Natija eksporti uchun userbot kerak.")
+            return
+
+        gsheets = getattr(m, "gsheets", None) or getattr(self, "_gsheets", None)
+        try:
+            from src.services.core.gsheets import GoogleSheetsSync
+            from src.settings import settings
+            import os
+            if gsheets is None:
+                gsheet_id = os.getenv("GSHEET_ID", "")
+                if gsheet_id:
+                    gsheets = GoogleSheetsSync(gsheet_id)
+        except Exception:
+            gsheets = None
+
+        await event.respond(
+            "⏳ **Tez Natija eksporti boshlandi...**\n"
+            "Guruhlar: TEZ NATIJA 2, 3, 4, 5\n"
+            "Bu 5-15 daqiqa vaqt olishi mumkin."
+        )
+
+        try:
+            from src.services.core.tez_natija_exporter import TezNatijaExporter
+            from src.settings import settings
+
+            exporter = TezNatijaExporter(
+                gemini_api_key=settings.GEMINI_API_KEY,
+                sheets=gsheets,
+            )
+
+            async def progress(group, count):
+                await event.respond(f"📊 {group}: {count} yangi a'zo qayta ishlandi...")
+
+            result = await exporter.export_all_groups(
+                client=client,
+                generate_invites=True,
+                progress_cb=progress,
+            )
+
+            msg = (
+                f"✅ **Tez Natija eksporti tugadi!**\n\n"
+                f"📥 Yangi a'zolar: **{result['new']}**\n"
+                f"⏭ Allaqachon bor: **{result['skip']}**\n"
+            )
+            if result["errors"]:
+                msg += f"⚠️ Xatolar: {len(result['errors'])} guruh\n"
+                for e in result["errors"]:
+                    msg += f"  • {e}\n"
+            if gsheets:
+                msg += "\n📊 Google Sheets'ga yozildi: **Tez Natija Leads** varog'i"
+            else:
+                msg += "\n⚠️ GSHEET_ID sozlanmagan — sheets'ga yozilmadi"
+
+            await event.respond(msg, parse_mode="markdown")
+        except Exception as e:
+            logger.error(f"❌ [TEZ NATIJA EXPORT ERROR] {e}")
+            await event.respond(f"❌ **Eksportda xatolik:** `{str(e)}`")
 
     async def send_deadline_report(self, event):
         """Muddati o'tgan vazifalar va loyihalar bo'yicha hisobot."""
