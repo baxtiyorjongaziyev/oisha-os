@@ -84,7 +84,7 @@ async def _command_processor():
 
             elif cmd == "audit":
                 if app_ctx.audit_agent:
-                    asyncio.create_task(app_ctx.audit_agent.run_full_audit())
+                    _spawn_task(app_ctx.audit_agent.run_full_audit(), name="full_audit")
                     logger.info("[COMMANDS] Full audit triggered.")
 
             api_module.command_queue.task_done()
@@ -393,6 +393,7 @@ async def boot_application():
 
     from src.services.core.evolution_scheduler import EvolutionScheduler
     evolution_scheduler = EvolutionScheduler(db=msg_controller.db, gemini_api_key=api_keys["gemini"])
+    advisor_agent.memory = evolution_scheduler.memory
     _spawn_task(evolution_scheduler.start(), name="evolution_scheduler")
 
     workflow_manager = WorkflowManager(crm=msg_controller.crm.amocrm, db=msg_controller.db, client=client)
