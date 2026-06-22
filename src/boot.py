@@ -292,7 +292,7 @@ async def boot_application():
 
     # Early health check
     health_api_task = asyncio.create_task(m.run_health_check_api(), name="health_check_api")
-    asyncio.create_task(_command_processor(), name="command_processor")
+    _spawn_task(_command_processor(), name="command_processor")
     m._restore_cloud_artifacts()
 
     # Credentials & Database
@@ -371,9 +371,9 @@ async def boot_application():
     safe_responder = SafeResponder()
 
     # Background discipline loop
-    asyncio.create_task(_crm_discipline_loop())
-    asyncio.create_task(_crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop")
-    asyncio.create_task(_ai_autopilot_loop())
+    _spawn_task(_crm_discipline_loop(), name="crm_discipline_loop")
+    _spawn_task(_crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop")
+    _spawn_task(_ai_autopilot_loop(), name="ai_autopilot_loop")
 
     # Surgical negotiator
     surgical_integration = get_surgical_integration()
@@ -395,7 +395,7 @@ async def boot_application():
 
     from src.services.core.evolution_scheduler import EvolutionScheduler
     evolution_scheduler = EvolutionScheduler(db=msg_controller.db, gemini_api_key=api_keys["gemini"])
-    asyncio.create_task(evolution_scheduler.start(), name="evolution_scheduler")
+    _spawn_task(evolution_scheduler.start(), name="evolution_scheduler")
 
     workflow_manager = WorkflowManager(crm=msg_controller.crm.amocrm, db=msg_controller.db, client=client)
     access_manager = AccessManager(owner_id=src_config.OWNER_ID)
@@ -444,7 +444,7 @@ async def boot_application():
             await asyncio.sleep(15)
 
     api_module.mark_heartbeat()
-    asyncio.create_task(_heartbeat_task(), name="api_heartbeat")
+    _spawn_task(_heartbeat_task(), name="api_heartbeat")
 
     if cloud_control_plane_only:
         api_module.set_runtime_context(
@@ -478,6 +478,11 @@ async def boot_application():
             except Exception as admin_exc:
                 logger.error(f"[BOT_ONLY] Admin bot startup failed: {admin_exc}", exc_info=True)
         api_module.update_api_status("degraded", "Bot-token mode active; userbot needs re-login")
+        m.client = None
+        m.bot_client = bot_client
+        m.msg_controller = msg_controller
+        m.admin_bot = admin_bot
+        m.access_manager = access_manager
         from src import scheduler as _scheduler
         _spawn_task(_scheduler.background_monitor_task(), name="background_monitor_task")
         await asyncio.Event().wait()
@@ -501,7 +506,7 @@ async def boot_application():
             if webhook_url and webhook_secret:
                 webhook_path = f"{webhook_url.rstrip('/')}/webhook/telegram-ai"
                 logger.info("[BOT API 10] Setting authenticated webhook.")
-                asyncio.create_task(
+                _spawn_task(
                     tg_ai_client.set_webhook(webhook_path, secret_token=webhook_secret, allowed_updates=BOT_API_10_ALLOWED_UPDATES),
                     name="telegram_bot_api_webhook_setup",
                 )
@@ -511,7 +516,7 @@ async def boot_application():
                     return await api_module.process_telegram_ai_update(update)
 
                 poller = TelegramBotAPILongPoller(BOT_TOKEN_STR, _dispatch_bot_api_update)
-                asyncio.create_task(poller.run(), name="telegram_bot_api_long_poll")
+                _spawn_task(poller.run(), name="telegram_bot_api_long_poll")
                 api_module.set_telegram_ai_ingress_status(mode="long_poll", active=True)
                 logger.info("[BOT API 10] Long-poll receiver started.")
 
@@ -526,7 +531,7 @@ async def boot_application():
                 db=msg_controller.db, gemini_api_key=api_keys["gemini"],
                 bot_token=BOT_TOKEN_STR, owner_id=getattr(src_config, "OWNER_ID", None),
             )
-            asyncio.create_task(_brain_evolution_loop(), name="oisha_brain_evolution")
+            _spawn_task(_brain_evolution_loop(), name="oisha_brain_evolution")
             logger.info("[BRAIN] OishaBrain initialized.")
 
             # BotMessenger
@@ -546,7 +551,7 @@ async def boot_application():
             from src.services.core.guest_bot import GuestBotHandler, enable_guest_queries
             _guest_handler = GuestBotHandler(bot_client=bot_client, message_controller=msg_controller)
             _guest_handler.register()
-            asyncio.create_task(enable_guest_queries(bot_client), name="guest_bot_enable")
+            _spawn_task(enable_guest_queries(bot_client), name="guest_bot_enable")
             logger.info("[GUEST_BOT] GuestBotHandler registered.")
 
         except Exception as bot_exc:
@@ -654,7 +659,7 @@ async def boot_application():
                 delay_seconds = min(delay_seconds, _negotiation_int("TELEGRAM_GROUP_PROBE_RETRY_SECS", 60))
             await asyncio.sleep(delay_seconds)
 
-    asyncio.create_task(telegram_group_access_probe_loop(), name="telegram_group_access_probe_loop")
+    _spawn_task(telegram_group_access_probe_loop(), name="telegram_group_access_probe_loop")
 
     # Calendar autoscan
     async def calendar_autoscan_loop():
@@ -673,7 +678,7 @@ async def boot_application():
                 logger.warning(f"[MEETING SCAN] Autoscan failed: {type(exc).__name__}: {exc}")
             await asyncio.sleep(_negotiation_int("CALENDAR_SCAN_INTERVAL_SECS", 900))
 
-    asyncio.create_task(calendar_autoscan_loop(), name="calendar_autoscan_loop")
+    _spawn_task(calendar_autoscan_loop(), name="calendar_autoscan_loop")
 
     # Graceful shutdown
     _shutdown_event = asyncio.Event()
