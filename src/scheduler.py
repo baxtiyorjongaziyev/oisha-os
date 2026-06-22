@@ -25,6 +25,24 @@ import src.main as m
 logger = logging.getLogger(__name__)
 
 
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("[SCHEDULE] Invalid %s=%r; using default %d", name, raw, default)
+        return default
+
+
+def _is_due(now, hour: int, minute: int, window_min: int = 5) -> bool:
+    """True if now is within [minute, minute+window_min) of the given hour."""
+    if now.hour != hour:
+        return False
+    return minute <= now.minute < (minute + window_min)
+
+
 async def background_monitor_task() -> None:
     """Barcha korporativ monitoring vazifalarini fonda ishga tushirish (AmoCRM + Airtable).
 
@@ -74,7 +92,7 @@ async def background_monitor_task() -> None:
                     )
                     background_monitor_task._lead_cycle_at = now
 
-                if now.hour in [10, 14, 18, 22] and now.minute == 0:
+                if any(_is_due(now, h, 0) for h in [10, 14, 18, 22]):
                     today_str = now.strftime("%Y-%m-%d")
                     job_key = f"lead_reengagement_{now.hour}_{today_str}"
                     if not hasattr(background_monitor_task, "_sent_jobs"):
@@ -86,7 +104,7 @@ async def background_monitor_task() -> None:
                         background_monitor_task._sent_jobs.add(job_key)
 
             # 3. Muddati o'tgan eslatmalar (17:00 - faqat bir marta)
-            if now.hour == 17 and now.minute == 0:
+            if _is_due(now, 17, 0):
                 today_str = now.strftime("%Y-%m-%d")
                 job_key = f"overdue_nudges_{today_str}"
                 if not hasattr(background_monitor_task, "_sent_jobs"):
@@ -96,7 +114,7 @@ async def background_monitor_task() -> None:
                     background_monitor_task._sent_jobs.add(job_key)
 
             # 4. Har 4 soatda "Hushyor" xabari (13:00, 17:00, 21:00 - faqat bir marta)
-            if now.hour in [13, 17, 21] and now.minute == 0:
+            if any(_is_due(now, h, 0) for h in [13, 17, 21]):
                 today_str = now.strftime("%Y-%m-%d")
                 job_key = f"status_notify_{now.hour}_{today_str}"
                 if not hasattr(background_monitor_task, "_sent_jobs"):
@@ -111,7 +129,7 @@ async def background_monitor_task() -> None:
             # ─────────────────────────────────────────────────────────
             # 6. [JUMA] Juma kuni 09:00 — JumaNotifier
             # ─────────────────────────────────────────────────────────
-            if now.weekday() == 4 and now.hour == 9 and now.minute == 0:
+            if now.weekday() == 4 and _is_due(now, 9, 0):
                 today_str = now.strftime("%Y-%m-%d")
                 job_key = f"juma_notifier_{today_str}"
                 if not hasattr(background_monitor_task, "_sent_jobs"):
@@ -132,7 +150,7 @@ async def background_monitor_task() -> None:
             # ─────────────────────────────────────────────────────────
             # 7. [MISSIONS] Har kuni 09:30 — MissionControl (Surgical Missions)
             # ─────────────────────────────────────────────────────────
-            if now.hour == 9 and now.minute == 30:
+            if _is_due(now, 9, 30):
                 today_str = now.strftime("%Y-%m-%d")
                 job_key = f"surgical_missions_{today_str}"
                 if not hasattr(background_monitor_task, "_sent_jobs"):
@@ -161,7 +179,7 @@ async def background_monitor_task() -> None:
             # ─────────────────────────────────────────────────────────
             # 8. [REPORT] Har kuni 18:00 — EnterpriseReporter kunlik hisobot
             # ─────────────────────────────────────────────────────────
-            if now.hour == 18 and now.minute == 0:
+            if _is_due(now, 18, 0):
                 today_str = now.strftime("%Y-%m-%d")
                 job_key = f"daily_report_{today_str}"
                 if not hasattr(background_monitor_task, "_sent_jobs"):
@@ -206,7 +224,7 @@ async def background_monitor_task() -> None:
             # ─────────────────────────────────────────────────────────
             # 8b. [CRMDailyReport] Har kuni 19:30 — AmoCRM Kunlik Hisobot (Reportagram)
             # ─────────────────────────────────────────────────────────
-            if now.hour == 19 and now.minute == 30:
+            if _is_due(now, 19, 30):
                 today_str = now.strftime("%Y-%m-%d")
                 job_key = f"crm_daily_report_{today_str}"
                 if not hasattr(background_monitor_task, "_sent_jobs"):
@@ -253,14 +271,13 @@ async def background_monitor_task() -> None:
                 "no",
                 "off",
             }
-            weekly_weekday = int(os.getenv("CRM_WEEKLY_REPORT_WEEKDAY", "0"))
-            weekly_hour = int(os.getenv("CRM_WEEKLY_REPORT_HOUR", "9"))
-            weekly_minute = int(os.getenv("CRM_WEEKLY_REPORT_MINUTE", "0"))
+            weekly_weekday = _env_int("CRM_WEEKLY_REPORT_WEEKDAY", 0)
+            weekly_hour = _env_int("CRM_WEEKLY_REPORT_HOUR", 9)
+            weekly_minute = _env_int("CRM_WEEKLY_REPORT_MINUTE", 0)
             if (
                 weekly_enabled
                 and now.weekday() == weekly_weekday
-                and now.hour == weekly_hour
-                and now.minute == weekly_minute
+                and _is_due(now, weekly_hour, weekly_minute)
             ):
                 try:
                     from src.services.core.crm.crm_daily_report import (
@@ -328,7 +345,7 @@ async def background_monitor_task() -> None:
                         f"[SCHEDULE][CRM_WEEKLY_REPORT] Error: {weekly_exc}"
                     )
 
-            if now.hour in [10, 22] and now.minute == 0:
+            if any(_is_due(now, h, 0) for h in [10, 22]):
                 today_str = now.strftime("%Y-%m-%d")
                 job_key = f"stagnation_alert_{now.hour}_{today_str}"
                 if not hasattr(background_monitor_task, "_sent_jobs"):
@@ -351,7 +368,7 @@ async def background_monitor_task() -> None:
                                     logger.info(
                                         f"[SCHEDULE] Stagnation alert sent to group {target_group}, topic {target_topic} at {now.hour}:00"
                                     )
-                                else:
+                                elif m.client:
                                     await m.notify_admin(alert, m.client)
                                     logger.info(
                                         f"[SCHEDULE] Stagnation alert sent to admin at {now.hour}:00"
