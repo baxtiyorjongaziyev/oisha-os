@@ -299,6 +299,12 @@ async def boot_application():
     }
     db = Database()
     await db.init_instance()
+
+    # Hisobchi AI tables
+    from src.services.core.hisobchi_schema import init_hisobchi_tables
+    await init_hisobchi_tables(db)
+    logger.info("[HISOBCHI] DB tables initialized.")
+
     msg_controller = MessageController(api_keys=api_keys, db=db)
 
     cloud_control_plane = bool(os.getenv("K_SERVICE"))
@@ -542,7 +548,7 @@ async def boot_application():
         except Exception as bot_exc:
             logger.error(f"[BOT] Bot-token head startup failed: {bot_exc}", exc_info=True)
 
-    # Event handlers
+    # Event handlers — sync to both main module globals and app_ctx
     m.client = client
     m.bot_client = bot_client
     m.msg_controller = msg_controller
@@ -567,6 +573,30 @@ async def boot_application():
     m.BOT_TOKEN_STR = BOT_TOKEN_STR
     m.health_api_server = None
 
+    # Sync to app_ctx for new code
+    app_ctx.client = client
+    app_ctx.bot_client = bot_client
+    app_ctx.msg_controller = msg_controller
+    app_ctx.lead_scraper = lead_scraper
+    app_ctx.action_parser = action_parser
+    app_ctx.advisor_agent = advisor_agent
+    app_ctx.auto_lead_agent = auto_lead_agent
+    app_ctx.safe_responder = safe_responder
+    app_ctx.activity_monitor = activity_monitor
+    app_ctx.audit_agent = audit_agent
+    app_ctx.workflow_manager = workflow_manager
+    app_ctx.access_manager = access_manager
+    app_ctx.admin_bot = admin_bot
+    app_ctx.juma_notifier = juma_notifier
+    app_ctx.session_manager = session_manager
+    app_ctx.surgical_integration = surgical_integration
+    app_ctx.evolution_scheduler = evolution_scheduler
+    app_ctx.meeting_scheduler = meeting_scheduler
+    app_ctx.oisha_brain = oisha_brain
+    app_ctx.bot_messenger = bot_messenger
+    app_ctx.agent_orchestrator = agent_orchestrator
+    app_ctx.bot_token_str = BOT_TOKEN_STR
+
     # Register event handlers on client
     if settings.TEAM_GROUP_ID and settings.TOPIC_KIRIM_ID:
         client.add_event_handler(
@@ -582,6 +612,7 @@ async def boot_application():
     client.add_event_handler(m.meeting_scheduler_handler, events.NewMessage(incoming=True))
     client.add_event_handler(m.meeting_scheduler_handler, events.NewMessage(outgoing=True))
     client.add_event_handler(m.self_command_handler, events.NewMessage(chats="me"))
+    client.add_event_handler(m.handle_new_message, events.NewMessage(incoming=True))
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
     # Group access probe
