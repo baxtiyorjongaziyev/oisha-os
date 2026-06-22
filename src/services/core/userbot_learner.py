@@ -61,6 +61,7 @@ class UserbotLearner:
                     last_scanned_at TEXT
                 )
             """)
+            await conn.commit()
 
     async def scan_and_learn(self, client: "TelegramClient") -> dict:
         """Barcha dialoglarni skanlab darslar chiqaradi. Natijani dict qaytaradi."""
@@ -179,6 +180,7 @@ class UserbotLearner:
                      dialog_name = excluded.dialog_name""",
                 (dialog_id, dialog_name, last_id, now),
             )
+            await conn.commit()
 
 
 def _group_into_conversations(

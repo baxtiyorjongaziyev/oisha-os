@@ -84,6 +84,7 @@ class OishaMemory:
             await conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_memory_type ON oisha_memory(entity_type)"
             )
+            await conn.commit()
 
     async def learn_from_conversation(
         self,
@@ -174,6 +175,7 @@ class OishaMemory:
                         ),
                     )
                 saved += 1
+            await conn.commit()
 
         if saved:
             logger.info("[MEMORY] %d fakt saqlandi (source=%s)", saved, source)
