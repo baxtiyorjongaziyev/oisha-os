@@ -79,6 +79,9 @@ class UserbotLearner:
             if total_convs >= _MAX_CONVS_PER_CYCLE:
                 break
 
+            if _should_skip_dialog(dialog):
+                continue
+
             try:
                 lessons_count = await self._process_dialog(client, dialog)
                 if lessons_count > 0:
@@ -208,6 +211,24 @@ def _group_into_conversations(
         blocks.append(current)
 
     return blocks
+
+
+def _should_skip_dialog(dialog) -> bool:
+    """Bot, broadcast channel va servis dialoglarini o'tkazib yuboradi."""
+    try:
+        from telethon.tl.types import User, Channel
+        entity = getattr(dialog, "entity", None)
+        if entity is None:
+            return True
+        if isinstance(entity, User) and getattr(entity, "bot", False):
+            return True
+        if isinstance(entity, Channel) and getattr(entity, "broadcast", False):
+            return True
+        if getattr(dialog, "name", "") in ("Telegram", ""):
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _infer_client_type(dialog) -> str:
