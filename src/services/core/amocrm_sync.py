@@ -7,7 +7,9 @@ import requests  # type: ignore
 from typing import Optional, Dict, Any, List
 from functools import wraps
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger()
 
 
 def retry_with_backoff(
@@ -186,7 +188,7 @@ class AmoCRMSync:
             try:
                 resp_json = response.json()
             except Exception:
-                pass
+                logger.debug("[AMOCRM] Failed to parse JSON error response body", exc_info=True)
 
             error_msg = (
                 resp_json.get("detail") or resp_json.get("title") or response.text
@@ -374,7 +376,7 @@ class AmoCRMSync:
                             )
                         )
                 except Exception:
-                    pass
+                    logger.warning("[AMOCRM] Failed to send 403 critical alert via Telegram", exc_info=True)
             elif response.status_code == 401:
                 logger.warning("[AMOCRM 401] Token expired. Attempting refresh...")
                 if self.refresh_token():

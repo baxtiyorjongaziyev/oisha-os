@@ -31,6 +31,10 @@ import os
 from dataclasses import dataclass
 from typing import Any, Optional
 
+import structlog
+
+logger = structlog.get_logger()
+
 # Escalation triggers — if the user message contains any of these, the bot
 # must NOT auto-reply and instead escalate to the Owner. Matched case-insensitive.
 ESCALATION_TRIGGERS = (
@@ -69,7 +73,7 @@ async def _load_mode(db: Any) -> str:
             if stored and str(stored).lower() in VALID_MODES:
                 return str(stored).lower()
         except Exception:
-            pass
+            logger.debug("failed_to_load_mode_from_db", exc_info=True)
     env = os.environ.get("AUTO_REPLY_MODE", "off").strip().lower()
     return env if env in VALID_MODES else "off"
 
