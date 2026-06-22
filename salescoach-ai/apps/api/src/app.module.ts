@@ -10,6 +10,7 @@ import { ScorecardsModule } from './scorecards/scorecards.module';
 import { SharesModule } from './shares/shares.module';
 import { NegotiationsModule } from './negotiations/negotiations.module';
 import { CoachingModule } from './coaching/coaching.module';
+import { CallIntelModule } from './integrations/call-intel/call-intel.module';
 import { PrismaModule } from './common/prisma.module';
 import { QueueModule } from './common/queue.module';
 
@@ -28,6 +29,7 @@ import { QueueModule } from './common/queue.module';
     SharesModule,
     NegotiationsModule,
     CoachingModule,
+    CallIntelModule,
   ],
 })
 export class AppModule {}

@@ -1,9 +1,9 @@
-import logging
 import datetime
 import asyncio
 import time
 import requests
 from typing import Dict, Any, List, Set
+import structlog
 from src.database import Database
 from src.services.core.crm_service import CRMService
 from src.services.core.amocrm_pipeline_config import (
@@ -12,7 +12,7 @@ from src.services.core.amocrm_pipeline_config import (
 )
 from src.time_utils import get_local_now
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class EnterpriseReporter:
@@ -557,7 +557,10 @@ class EnterpriseReporter:
                 report.append(f"• Jami shubhali sdelkalar: **{len(junk_leads)} ta**")
                 report.append("  _(Batafsil ko'rish uchun: `/junk_audit`)_")
         except Exception:
-            pass
+            logger.debug(
+                "Failed to identify junk leads for audit report",
+                exc_info=True,
+            )
 
         # 7. Accountability (Managers) - FIXED
         report.append("\n👥 **MENEdjerlar FAOLLIGI:**")
