@@ -26,8 +26,6 @@ from src.services.core.sales_coach import SalesCoach
 from src.services.core.crm.crm_guard import CRMGuard
 from src.services.core.admin_bot import AdminBot
 from src.services.utils.access_manager import AccessManager
-from src.services.core.juma_notifier import JumaNotifier
-from src.services.core.case_publisher import CasePublisher
 from src.services.core.telegram.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
