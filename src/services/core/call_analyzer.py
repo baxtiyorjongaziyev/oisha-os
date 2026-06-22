@@ -3,7 +3,7 @@ import hashlib
 import io
 import inspect
 import json
-import logging
+import structlog
 import os
 import re
 import time
@@ -15,7 +15,7 @@ import requests as _requests
 from src.database import Database
 from src.services.core.amocrm_sync import AmoCRMSync
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 ANALYSIS_MARKER = "AI_CALL_ANALYSIS"
 CATEGORIES = ["Shaxsiy", "Oila", "Jamoa", "Mijoz", "Boshqa"]
@@ -1172,7 +1172,7 @@ class CallAnalyzer:
                         if lead_info:
                             lead_name = lead_info.get("name") or str(lead_id)
                     except Exception:
-                        pass
+                        logger.warning("failed_to_fetch_lead_name_from_amocrm", exc_info=True)
 
                     # DB'ga darhol yozish — restart'dan keyin ham deduplication ishlaydi.
                     # task_id yo'q bo'lganda None, qayta yozilishi mumkin emas.
@@ -1515,5 +1515,5 @@ class CallAnalyzer:
                         if values:
                             return str(values[0].get("value", ""))
         except Exception:
-            pass
+            logger.debug("failed_to_extract_lead_phone", exc_info=True)
         return ""
