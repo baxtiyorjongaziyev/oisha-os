@@ -33,6 +33,9 @@
   - salescoach-ai: `apps/api/src/mcp/server.ts`, `apps/api/src/integrations/call-intel/*`, `apps/api/src/common/guards/service-or-jwt-auth.guard.ts`, `apps/worker/src/services/telegram_notify.ts`, `apps/api/src/app.module.ts`, `apps/api/src/{calls,negotiations}/*.controller.ts`, `apps/api/package.json`
   - oisha-os: `src/services/core/{salescoach_sync,docusign_sync,apollo_enrich}.py` (YANGI fayllar, shared emas)
   - ⚠️ `settings.py` ga TEGILMAYDI (Coordinator owns) — Python kod `getattr` bilan himoyalangan; kerakli env varlar "For Coordinator" da
+- **Integration (Antigravity)** — Tez Natija Telegram guruh a'zolarini Google Sheets va AmoCRM-ga skanerlash integratsiyasi. Fayllar:
+  - `src/services/core/gsheets.py`
+  - `src/commands/sync.py`
 
 ### Done
 - boot.py yaratildi (685 lines, main() ini logikasi)
