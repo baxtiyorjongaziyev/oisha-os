@@ -37,6 +37,7 @@ from src.agents.autonomous_sales_agent import AutonomousSalesAgent
 from src.settings import settings
 from src.time_utils import get_local_now
 from src.api import dashboard
+from src.api.live_monitor import router as live_monitor_router
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -227,6 +228,8 @@ app = FastAPI(title="Oisha-OS Enterprise API")
 # Include Dashboard Router
 app.include_router(dashboard.router)
 
+# Include Live Monitor Router
+app.include_router(live_monitor_router)
 
 def _setting_text(value: Any) -> str:
     if value is None:

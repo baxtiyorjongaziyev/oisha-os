@@ -539,10 +539,26 @@ async def background_monitor_task() -> None:
 
 async def handle_new_message(event):
     """Barcha kiruvchi xabarlarni xavfsizlik va aqllilik bilan tahlil qilish."""
+    from src.api.live_monitor import broadcast_event
 
     # 0. Botning o'z ID sini olish (Sikl oldini olish uchun)
     me = await client.get_me()
     await safe_responder.update_me_id(me.id)
+
+    # Broadcast: incoming message
+    sender = await event.get_sender()
+    sender_name = getattr(sender, "first_name", "User")
+    msg_text = (event.message.message or "")[:200]
+    chat_title = getattr(event.chat, "title", None) or sender_name
+    await broadcast_event({
+        "type": "message",
+        "chat_id": event.chat_id,
+        "chat_name": chat_title,
+        "sender": sender_name,
+        "text": msg_text,
+        "is_private": event.is_private,
+        "message_id": event.id,
+    })
 
     # [PHASE 1.6] Advance per-chat checkpoint BEFORE any filtering.
     from src.handlers.message_handler import advance_checkpoint
@@ -566,6 +582,7 @@ async def handle_new_message(event):
         )
         # Run sync in parallel using the unified LeadScraper logic
         asyncio.create_task(sync_single_lead(event))
+        await broadcast_event({"type": "sync", "text": f"Lead sync boshlandi: {event.id}", "chat_id": event.chat_id})
         return
 
     # 1.6 Admin Commands
@@ -611,6 +628,7 @@ async def handle_new_message(event):
         voice_processor=voice_processor,
         settings=settings,
     ):
+        await broadcast_event({"type": "system", "text": f"Hisobchi AI qayta ishladi: {sender_name}", "chat_id": event.chat_id})
         return
     # ─────────────────────────────────────────────────────────────────────
 
@@ -696,6 +714,7 @@ async def handle_new_message(event):
         action_parser=action_parser,
         admin_bot=admin_bot,
     )
+    await broadcast_event({"type": "reply", "text": f"AI reply jo'natildi: {sender_name}", "chat_id": chat_id})
 
 
 async def sync_single_lead(event):
@@ -767,12 +786,14 @@ from src.commands import analysis as _cmd_analysis
 
 async def self_command_handler(event):
     """Handle commands from the owner in 'Saved Messages'."""
+    from src.api.live_monitor import broadcast_event
     if not event.message.text:
         return
     cmd = event.message.text.lower().strip()
 
     handler, prefix = get_command_handler(cmd)
     if handler:
+        await broadcast_event({"type": "command", "text": f"Buyruq: {cmd}", "chat_id": "saved_messages"})
         ctx = {
             "msg_controller": msg_controller,
             "client": client,
