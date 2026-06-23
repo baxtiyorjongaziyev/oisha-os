@@ -83,11 +83,11 @@ class UnansweredMonitor:
                     f"⏳ **MIJOZ JAVOB KUTYAPTI!** (20+ daqiqa)\n"
                     f"👤 **Lid:** {lead['name']}\n"
                     f"📝 **Mijoz xabari:** _{last_text[:100]}..._\n\n"
-                    f"👸 **Oisha Tavsiyasi:**\n`{draft_reply}`"
+                    f"👸 **Oisha Tavsiyasi:**\n`{draft_reply}`\n\n"
+                    f"✅ **Avtomatik yuborildi**"
                 )
 
                 buttons = [
-                    [Button.inline("✅ Yuborish (Draft)", f"send_draft:{lead_id}")],
                     [
                         Button.url(
                             "🌐 amoCRM-da ochish",
@@ -97,6 +97,7 @@ class UnansweredMonitor:
                 ]
 
                 try:
+                    await self.send_draft_to_crm(lead_id, draft_reply)
                     await self.bot_client.send_message(
                         target_chat, msg, buttons=buttons, parse_mode="markdown"
                     )
