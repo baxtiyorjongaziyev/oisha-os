@@ -66,7 +66,7 @@ class Decision:
 
 
 async def _load_mode(db: Any) -> str:
-    """DB override wins; else env; else 'off' (safe default)."""
+    """DB override wins; else env; else 'auto' (barcha xabarlar avtomatik)."""
     if db is not None:
         try:
             stored = await db.get_state(FLAG_MODE)
@@ -74,8 +74,8 @@ async def _load_mode(db: Any) -> str:
                 return str(stored).lower()
         except Exception:
             logger.debug("failed_to_load_mode_from_db", exc_info=True)
-    env = os.environ.get("AUTO_REPLY_MODE", "off").strip().lower()
-    return env if env in VALID_MODES else "off"
+    env = os.environ.get("AUTO_REPLY_MODE", "auto").strip().lower()
+    return env if env in VALID_MODES else "auto"
 
 
 async def _load_kill_switch(db: Any) -> bool:
