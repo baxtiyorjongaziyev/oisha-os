@@ -2279,28 +2279,19 @@ class AdminBot:
             await wait_msg.edit(f"⚠️ Tahlil jarayonida xatolik: `{str(e)}`")
 
     async def send_draft_for_approval(self, user_id: int, name: str, draft: str):
-        """AI tomonidan tayyorlangan javobni adminga tasdiqlash uchun yuborish."""
-        import uuid
-
-        draft_id = str(uuid.uuid4())[:8]
-        self.pending_drafts[draft_id] = draft
-
-        msg = (
-            f"📝 **DRAFT JAVOB (Lid: {name})**\n"
-            f"──────────────────────\n"
-            f'"{draft}"\n'
-            f"──────────────────────\n"
-            f"💡 *Ushbu javobni unga yuboraymi?*"
-        )
-        # Send to owner
-        if self.access_manager.owner_id:
-            await self.bot_client.send_message(
-                self.access_manager.owner_id,
-                msg,
-                buttons=[
-                    [
-                        Button.inline("🚀 Ayt!", f"send_draft:{draft_id}:{user_id}"),
-                        Button.inline("❌ Rad et", f"reject_draft:{draft_id}"),
-                    ]
-                ],
-            )
+        """AI tomonidan tayyorlangan javobni avtomatik yuborish (tasdiqlashsiz)."""
+        try:
+            await self.user_client.send_message(user_id, draft)
+            logger.info("[ADMIN_BOT] Draft avtomatik yuborildi: lid=%s (%s)", user_id, name)
+            if self.access_manager.owner_id:
+                await self.bot_client.send_message(
+                    self.access_manager.owner_id,
+                    f"✅ Draft avtomatik yuborildi → {name} (ID: {user_id})",
+                )
+        except Exception as e:
+            logger.error("[ADMIN_BOT] Draft yuborishda xatolik: %s", e)
+            if self.access_manager.owner_id:
+                await self.bot_client.send_message(
+                    self.access_manager.owner_id,
+                    f"❌ Draft yuborib bo'lmadi → {name}: {e}",
+                )
