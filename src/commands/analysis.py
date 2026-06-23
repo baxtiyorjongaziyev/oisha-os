@@ -17,27 +17,19 @@ async def cmd_tahlil(event, **ctx):
     await event.respond("⏳ So'nggi qo'ng'iroqlar tahlil qilinmoqda...")
     try:
         from src.services.core.call_analyzer import CallAnalyzer
-        from src.services.core.crm_note_approval import CRMNoteApprovalService
         parts = event.message.text.lower().strip().split()
         limit = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 3
         analyzer = CallAnalyzer(
             amocrm=msg_controller.crm.amocrm,
             db=msg_controller.db,
         )
-        owner_id = getattr(settings, "OWNER_ID", None)
-        if owner_id:
-            analyzer.approval_service = CRMNoteApprovalService(
-                amocrm_client=msg_controller.crm.amocrm,
-                owner_telegram_id=int(owner_id),
-                bot_client=bot_client,
-            )
         result = await analyzer.analyze_recent_calls(limit=limit, write=True)
         if isinstance(result, dict):
             analyzed = result.get("calls_processed", 0)
             total = result.get("leads_scanned", 0)
             await event.respond(
                 f"✅ {analyzed}/{total} qo'ng'iroq tahlil qilindi.\n"
-                f"Tasdiqlash so'rovlari yuborildi — ✅ yoki ✏️ bosing."
+                f"AmoCRM ga primicheniya qo'shildi."
             )
         else:
             await event.respond(f"✅ Tahlil tugadi: {result}")
