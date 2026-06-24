@@ -244,8 +244,8 @@ async def _build_amocrm_call_analysis_status(runtime_db) -> dict:
             row = r.fetchone() if hasattr(r, "fetchone") else None
             if row:
                 last_started_raw = row[0] if isinstance(row, (tuple, list)) else row.get("value")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[amocrm-backfill] get state failed: %s", exc)
 
     return {
         "last_started_at": _timestamp_to_iso(last_started_raw),
