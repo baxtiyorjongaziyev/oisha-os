@@ -127,7 +127,7 @@ def test_openrouter_live():
     import openai
     client = openai.OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
     response = client.chat.completions.create(
-        model="meta-llama/llama-3.3-70b-instruct:free",
+        model="google/gemma-4-26b-a4b-it:free",
         messages=[{"role": "user", "content": "Say hello in 3 words."}],
         max_tokens=50,
     )
