@@ -73,7 +73,7 @@ class AppSettings(BaseSettings):
     OPENAI_TEXT_MODEL: str = "gpt-4o-mini"
     DEEPSEEK_API_KEY: Optional[SecretStr] = None
     OPENROUTER_API_KEY: Optional[SecretStr] = None
-    OPENROUTER_TEXT_MODEL: str = "google/gemma-4-26b-a4b-it:free"
+    OPENROUTER_TEXT_MODEL: str = "meta-llama/llama-3.2-3b-instruct:free"
     # --- Bepul AI providerlar (Gemini kvotasi tugaganda fallback) ---
     NVIDIA_NIM_API_KEY: Optional[SecretStr] = None
     NVIDIA_NIM_MODEL: str = "meta/llama-3.3-70b-instruct"
