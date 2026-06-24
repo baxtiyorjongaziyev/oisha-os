@@ -663,7 +663,7 @@ async def handle_new_message(event):
             folder_manager=folder_manager,
             admin_bot=admin_bot,
             bot_client=bot_client,
-            welcome_manager=welcome_manager,
+            welcome_manager=app_ctx.welcome_manager,
             TN5_GROUP_ID=TN5_GROUP_ID,
         )
 
@@ -709,7 +709,7 @@ async def handle_new_message(event):
         msg_controller=msg_controller,
         auto_reply_gate=auto_reply_gate,
         safe_responder=safe_responder,
-        scouter=scouter,
+        scouter=app_ctx.scouter,
         surgical_integration=surgical_integration,
         action_parser=action_parser,
         admin_bot=admin_bot,
