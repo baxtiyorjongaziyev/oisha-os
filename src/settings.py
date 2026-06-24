@@ -72,6 +72,17 @@ class AppSettings(BaseSettings):
     OPENAI_TRANSCRIBE_MODEL: str = "whisper-1"
     OPENAI_TEXT_MODEL: str = "gpt-4o-mini"
     DEEPSEEK_API_KEY: Optional[SecretStr] = None
+    OPENROUTER_API_KEY: Optional[SecretStr] = None
+    OPENROUTER_TEXT_MODEL: str = "google/gemma-4-26b-a4b-it:free"
+    # --- Bepul AI providerlar (Gemini kvotasi tugaganda fallback) ---
+    NVIDIA_NIM_API_KEY: Optional[SecretStr] = None
+    NVIDIA_NIM_MODEL: str = "meta/llama-3.3-70b-instruct"
+    TOGETHERAI_API_KEY: Optional[SecretStr] = None
+    TOGETHERAI_MODEL: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+    HUGGINGFACE_API_KEY: Optional[SecretStr] = None
+    HUGGINGFACE_MODEL: str = "meta-llama/Llama-3.3-70B-Instruct"
+    CEREBRAS_API_KEY: Optional[SecretStr] = None
+    CEREBRAS_MODEL: str = "gpt-oss-120b"
     AWS_ACCESS_KEY_ID: Optional[SecretStr] = None
     AWS_SECRET_ACCESS_KEY: Optional[SecretStr] = None
     AWS_REGION: str = "us-east-1"
@@ -226,6 +237,7 @@ class AppSettings(BaseSettings):
             "CLOUDFLARE_ACCOUNT_ID",
             "CLOUDFLARE_AI_API_TOKEN",
             "DEEPSEEK_API_KEY",
+            "OPENROUTER_API_KEY",
             "AMOCRM_CLIENT_SECRET",
             "AIRTABLE_API_KEY",
             "AIRTABLE_BASE_ID",
