@@ -50,6 +50,8 @@ class ApplicationContext:
     voice_processor: Optional[VoiceProcessor] = None
     health_api_server: Optional[Any] = None
     bot_token_str: Optional[str] = None
+    welcome_manager: Optional[Any] = None
+    scouter: Optional[Any] = None
 
     # Runtime state
     crm_audit_running: bool = False

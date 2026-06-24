@@ -36,6 +36,10 @@
 - **Integration (Antigravity)** — Tez Natija Telegram guruh a'zolarini Google Sheets va AmoCRM-ga skanerlash integratsiyasi. Fayllar:
   - `src/services/core/gsheets.py`
   - `src/commands/sync.py`
+- **Performance (Antigravity)** — branch `feat/multi-provider-fallback`. Multi-provider AI fallback. Fayllar:
+  - `src/services/utils/gemini_fallback.py`
+  - `src/utils/ai_utils.py`
+  - `src/settings.py` (faqat yangi AI provider field'lar qo'shish)
 
 ### Done
 - boot.py yaratildi (685 lines, main() ini logikasi)

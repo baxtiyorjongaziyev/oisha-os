@@ -385,7 +385,7 @@ async def boot_application():
     evolution_scheduler = EvolutionScheduler(db=msg_controller.db, gemini_api_key=api_keys["gemini"])
     asyncio.create_task(evolution_scheduler.start(), name="evolution_scheduler")
 
-    workflow_manager = WorkflowManager(crm=msg_controller.crm.amocrm, db=msg_controller.db, client=client)
+    workflow_manager = WorkflowManager(crm=msg_controller.crm, db=msg_controller.db, client=client)
     access_manager = AccessManager(owner_id=src_config.OWNER_ID)
 
     # Admin Bot
@@ -397,7 +397,9 @@ async def boot_application():
     if meeting_scheduler:
         meeting_scheduler.admin_notifier = admin_bot
     from src.services.utils.welcome_manager import WelcomeManager
-    WelcomeManager(client=client)
+    app_ctx.welcome_manager = WelcomeManager(client=client)
+    from src.services.utils.scouter import Scouter
+    app_ctx.scouter = Scouter(api_key=api_keys.get("gemini"), db=msg_controller.db)
     lead_scraper.notify_callback = admin_bot.notify_lead
 
     from src.services.core.workflow_orchestrator import WorkflowOrchestrator
@@ -621,7 +623,6 @@ async def boot_application():
         _hisobchi_event_handler,
         events.NewMessage(incoming=True),
     )
-    client.add_event_handler(m.handle_new_message, events.NewMessage(incoming=True))
 
     if settings.TEAM_GROUP_ID and settings.TOPIC_KIRIM_ID:
         client.add_event_handler(
