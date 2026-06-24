@@ -632,15 +632,15 @@ async def _schedule_amocrm_call_backfill(
                         "reason": "throttled",
                         "retry_after_seconds": int(interval - elapsed),
                     }
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[backfill] throttle check failed: %s", exc)
 
     limit = _get_call_backfill_limit(limit)
     if db:
         try:
             await db.set_state(_CALL_BACKFILL_LAST_STARTED_KEY, str(time.time()))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[backfill] failed to set start state: %s", exc)
     _call_backfill_task = asyncio.create_task(
         _run_amocrm_call_backfill(db, reason=reason, limit=limit)
     )
@@ -656,20 +656,20 @@ async def _build_amocrm_call_analysis_status(db) -> dict:
     if db:
         try:
             last_started_raw = await db.get_state(_CALL_BACKFILL_LAST_STARTED_KEY)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[backfill] get state started failed: %s", exc)
         try:
             last_finished_raw = await db.get_state(_CALL_BACKFILL_LAST_FINISHED_KEY)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[backfill] get state finished failed: %s", exc)
         try:
             last_result_raw = await db.get_state(_CALL_BACKFILL_LAST_RESULT_KEY) or ""
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[backfill] get state result failed: %s", exc)
         try:
             last_error = await db.get_state(_CALL_BACKFILL_LAST_ERROR_KEY) or ""
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[backfill] get state error failed: %s", exc)
 
     # Memory fallback
     from src.api.routes.state import api_state as _api_state
@@ -716,8 +716,8 @@ async def _build_amocrm_call_analysis_status(db) -> dict:
                         "amocrm_analyses": row[1] if len(row) > 1 else 0,
                         "tasks_created": row[2] if len(row) > 2 else 0,
                     }
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[backfill] totals query failed: %s", exc)
 
     running = bool(_call_backfill_task and not _call_backfill_task.done())
     last_run = {}
