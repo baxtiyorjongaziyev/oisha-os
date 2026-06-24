@@ -68,8 +68,8 @@ async def build_health_snapshot(
                     api_state.db_instance.get_recent_agent_actions(limit=25),
                     timeout=api_state._HEALTH_DB_TIMEOUT_SECONDS,
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("[dashboard] get agent actions failed: %s", exc)
 
     storage_health = get_storage_health(
         db_path,
@@ -159,8 +159,8 @@ async def get_system_stats():
     if api_state.db_instance:
         try:
             counts = await api_state.db_instance.get_storage_counts()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[dashboard] get storage counts failed: %s", exc)
     return {
         "timestamp": get_local_now().isoformat(),
         "storage": counts,
