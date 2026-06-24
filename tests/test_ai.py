@@ -199,7 +199,7 @@ def test_fallback_chain_end_to_end():
     has_cerebras = bool(_get_cerebras_key())
 
     if has_groq or has_cerebras:
-        response, provider = asyncio.get_event_loop().run_until_complete(run())
+        response, provider = asyncio.run(run())
         assert response is not None
         print(f"[Fallback] OK — provider: {provider}")
     else:
