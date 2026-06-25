@@ -74,9 +74,8 @@ class DatabasePool:
 
     def __new__(cls):
         if cls._instance is None:
-            _instance = super(DatabasePool, cls).__new__(cls)
-            _instance._circuit_open_until = 0
-            cls._instance = _instance
+            cls._instance = super(DatabasePool, cls).__new__(cls)
+            cls._instance._circuit_open_until = 0
         return cls._instance
 
     def __init__(self):
@@ -107,15 +106,6 @@ class DatabasePool:
         self, query: str, params: Optional[List[Any]] = None
     ) -> List[SmartRow]:
         params = params or []
-
-        # Circuit breaker: if DB was failing, wait before retrying
-        import time
-        now = time.time()
-        if now < self._circuit_open_until:
-            wait = int(self._circuit_open_until - now)
-            logger.warning(f"[DB POOL] Circuit open, waiting {wait}s before retry")
-            raise RuntimeError(f"DB circuit open, retry in {wait}s")
-
         conn = self.get_connection()
 
         def _run():
@@ -142,9 +132,6 @@ class DatabasePool:
                     await asyncio.sleep(delay)
                     conn = self.get_connection()
                     continue
-                # Circuit breaker: all retries failed — cooldown 5 daqiqa
-                self._circuit_open_until = time.time() + 300
-                logger.error("[DB POOL] Circuit OPEN — all 5 retries failed. Cooldown 300s.")
                 raise
             except BaseException as e:
                 if isinstance(e, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
