@@ -18,12 +18,12 @@ import sys
 import httpx
 
 
-def exchange_code(code: str) -> dict:
+def exchange_code(code: str, redirect_uri: str | None = None) -> dict:
     """Authorization code ni token ga almashtirish."""
     subdomain = os.getenv("AMOCRM_SUBDOMAIN", "")
     client_id = os.getenv("AMOCRM_CLIENT_ID", "")
     client_secret = os.getenv("AMOCRM_CLIENT_SECRET", "")
-    redirect_url = os.getenv("AMOCRM_REDIRECT_URL", "https://localhost")
+    redirect_url = redirect_uri or os.getenv("AMOCRM_REDIRECT_URL", "https://localhost")
 
     if not all([subdomain, client_id, client_secret]):
         print("XATO: AMOCRM_SUBDOMAIN, AMOCRM_CLIENT_ID, AMOCRM_CLIENT_SECRET kerak")
@@ -45,25 +45,30 @@ def exchange_code(code: str) -> dict:
 
 def main():
     if len(sys.argv) < 2:
-        print("Ishlatish: python -m src.scripts.get_amocrm_token <authorization_code>")
+        print("Ishlatish: python -m src.scripts.get_amocrm_token <authorization_code> [--redirect-uri URL]")
         print()
-        print("1. Brauzerada oching:")
+        print("1. AmoCRM Integratsiya sozlamalarida Redirect URI ni 'http://localhost' ga o'zgartiring")
+        print("2. Brauzerada oching:")
         subdomain = os.getenv("AMOCRM_SUBDOMAIN", "YOUR_SUBDOMAIN")
         client_id = os.getenv("AMOCRM_CLIENT_ID", "YOUR_CLIENT_ID")
-        redirect_url = os.getenv("AMOCRM_REDIRECT_URL", "https://localhost")
-        print(f"   https://{subdomain}.amocrm.ru/oauth2/authorize?client_id={client_id}&redirect_uri={redirect_url}")
+        print(f"   https://{subdomain}.amocrm.ru/oauth2/authorize?client_id={client_id}&redirect_uri=http://localhost")
         print()
-        print("2. Ruxsat bering")
-        print("3. Redirect URL dan code ni oling (URL da ?code=... bo'ladi)")
-        print("4. python -m src.scripts.get_amocrm_token <code>")
+        print("3. Ruxsat bering")
+        print("4. Brauzer URL bar dan code ni oling (?code=...)")
+        print("5. python -m src.scripts.get_amocrm_token <code>")
         sys.exit(0)
 
     code = sys.argv[1]
+    redirect_uri = None
+    if "--redirect-uri" in sys.argv:
+        idx = sys.argv.index("--redirect-uri")
+        redirect_uri = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else None
+
     print(f"Code: {code[:10]}...")
     print("Token olinmoqda...")
 
     try:
-        data = exchange_code(code)
+        data = exchange_code(code, redirect_uri)
         print()
         print("MUVAFFAQIYATLI!")
         print()
