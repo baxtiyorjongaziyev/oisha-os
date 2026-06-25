@@ -29,6 +29,7 @@
 ## Current State
 
 ### Locked
+- **Hisobchi (Codex)** — branch/worktree `codex/hisobchi-production` (`C:\Users\baxti\playground\oisha-os-card-finance`). Vazifa: Hisobchi card-bot production verification, userbot session holati, Oracle VM runtime dalillari. Shared fayllarga tegilmaydi.
 - **Integration (Claude)** — branch `feat/agent-integrations`. Fayllar:
   - salescoach-ai: `apps/api/src/mcp/server.ts`, `apps/api/src/integrations/call-intel/*`, `apps/api/src/common/guards/service-or-jwt-auth.guard.ts`, `apps/worker/src/services/telegram_notify.ts`, `apps/api/src/app.module.ts`, `apps/api/src/{calls,negotiations}/*.controller.ts`, `apps/api/package.json`
   - oisha-os: `src/services/core/{salescoach_sync,docusign_sync,apollo_enrich}.py` (YANGI fayllar, shared emas)
