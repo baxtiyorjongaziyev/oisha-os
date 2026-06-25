@@ -118,14 +118,17 @@ class DatabasePool:
             return [SmartRow(row, columns) for row in rows]
 
         # Use wait_for with retries to handle intermittent Turso connection drops
-        for attempt in range(3):
+        import time
+        for attempt in range(5):
             try:
                 return await asyncio.wait_for(asyncio.to_thread(_run), timeout=45.0)
             except Exception as e:
-                if attempt < 2 and _is_resettable_connection_error(e):
-                    logger.warning(f"[DB POOL] Connection dropped. Retrying ({attempt+1}/3)...")
-                    self.close()  # Reset connection
-                    conn = self.get_connection()  # Get new one
+                if attempt < 4 and _is_resettable_connection_error(e):
+                    delay = min(2 ** attempt, 30)  # 1, 2, 4, 8, max 30 seconds
+                    logger.warning(f"[DB POOL] Connection dropped. Retrying ({attempt+1}/5) in {delay}s...")
+                    self.close()
+                    await asyncio.sleep(delay)
+                    conn = self.get_connection()
                     continue
                 raise
             except BaseException as e:
@@ -135,10 +138,12 @@ class DatabasePool:
                 # (pyo3_runtime.PanicException). Reset the connection so a
                 # transient bad handle does not turn /healthz into ASGI 500.
                 self.close()
-                if attempt < 2:
+                if attempt < 4:
+                    delay = min(2 ** attempt, 30)
                     logger.warning(
-                        f"[DB POOL] Non-standard database error. Retrying ({attempt+1}/3): {type(e).__name__}"
+                        f"[DB POOL] Non-standard database error. Retrying ({attempt+1}/5) in {delay}s: {type(e).__name__}"
                     )
+                    await asyncio.sleep(delay)
                     conn = self.get_connection()
                     continue
                 raise RuntimeError(f"database_pool_failed:{type(e).__name__}") from e
