@@ -73,10 +73,9 @@ class TelegramSessionManager:
                 # FAQAT env var dan o'qish — yangi session YARATMAYDI
                 env_string = os.environ.get("USERBOT_SESSION_STRING", "").strip()
                 if env_string:
-                    logger.info("[SESSION] Env session ishlatilmoqda")
+                    logger.info("[SESSION] Env session ishlatilmoqda (len=%d)", len(env_string))
                     session = StringSession(env_string)
-                    # Faylga saqlash — keyingi safar fayldan o'qisin
-                    await self._save_string_to_file(env_string)
+                    # Faylga SAQLAMAYMIZ — faqat MUVAFFAQIYATLI ulanishdan keyin saqlaymiz
                 else:
                     logger.error("[SESSION] HECH QANDAY session topilmadi!")
                     logger.error("[SESSION] USERBOT_SESSION_STRING env yoki %s fayl kerak", self._session_file)
@@ -100,10 +99,11 @@ class TelegramSessionManager:
                 # AUTH_KEY_DUPLICATED — ENG XAVFLI XATO
                 if "AUTH_KEY_DUPLICATED" in error_msg or "AUTHKEYDUPLICATED" in error_msg:
                     logger.critical(
-                        "[SESSION] ❌ AUTH_KEY_DUPLICATED — Session boshqa runtime da ishlatilgan!"
+                        "[SESSION] AUTH_KEY_DUPLICATED — Session boshqa runtime da ishlatilgan!"
                     )
-                    logger.critical("[SESSION] ❌ QAYTA ULANMAYDI — Telegram ban qo'yishi mumkin!")
+                    logger.critical("[SESSION] QAYTA ULANMAYDI — Telegram ban qo'yishi mumkin!")
                     await self._handle_auth_key_duplicated()
+                    # Burned sessionni faylga SAQLAMASLIK
                     return False
 
                 # Boshqa xatolar
@@ -115,7 +115,10 @@ class TelegramSessionManager:
                 self._is_connected = True
                 self._last_connected_at = time.time()
                 self._reconnect_count = 0
-                logger.info("[SESSION] ✅ Muvaffaqiyatli ulandi!")
+                logger.info("[SESSION] Muvaffaqiyatli ulandi!")
+                # Faqat muvaffaqiyatli ulanishdan keyin faylga saqlash
+                if self._session_string:
+                    await self._save_string_to_file(self._session_string)
                 return True
             else:
                 logger.warning("[SESSION] Session authorized emas")
