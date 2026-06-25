@@ -305,29 +305,39 @@ async def boot_application():
     force_control_plane_only = _parse_bool(os.getenv("CLOUD_RUN_CONTROL_PLANE_ONLY", ""))
     cloud_control_plane_only = force_control_plane_only or (cloud_control_plane and not enable_cloud_userbot)
 
-    # Telegram Client init
+    # Telegram Client init — XAVFSIZ SESSION MANAGER
+    telegram_session_manager = None  # Default — cloud control plane uchun
     if cloud_control_plane_only:
         client = TelegramClient(
             StringSession(), settings.API_ID, settings.API_HASH,
             device_model="Oisha Enterprise Control Plane", system_version="Cloud Run",
         )
     else:
-        session_string = os.environ.get("USERBOT_SESSION_STRING", "").strip()
-        if session_string:
-            client = TelegramClient(
-                StringSession(session_string), settings.API_ID, settings.API_HASH,
-                device_model="Oisha Enterprise v2", system_version="Windows 11 Agent",
-            )
-        elif cloud_control_plane:
-            client = TelegramClient(
-                StringSession(), settings.API_ID, settings.API_HASH,
-                device_model="Oisha Enterprise Control Plane", system_version="Cloud Run",
-            )
+        from src.services.core.telegram_session_manager import TelegramSessionManager
+
+        # Session manager yaratish
+        telegram_session_manager = TelegramSessionManager(
+            api_id=settings.API_ID,
+            api_hash=settings.API_HASH,
+            session_file="data/userbot.session",
+            session_string=os.environ.get("USERBOT_SESSION_STRING", "").strip() or None,
+            admin_notifier=None,  # keyin qo'shiladi
+            device_model="Oisha Enterprise v2",
+            system_version="Linux Server",
+        )
+
+        # Ulanish — xavfsiz
+        userbot_ready = await telegram_session_manager.connect()
+        if not userbot_ready:
+            logger.error("[SESSION] ❌ Userbot session ulanmadi!")
+            logger.error("[SESSION] Admin ga xabar yuborilmoqda...")
+            # Client ni None qilish — bot token mode da ishlaydi
+            client = None
         else:
-            client = TelegramClient(
-                "data/oisha_user_active", settings.API_ID, settings.API_HASH,
-                device_model="Oisha Enterprise v2", system_version="Windows 11 Agent",
-            )
+            client = telegram_session_manager.client
+            logger.info("[SESSION] ✅ Userbot session ulandi — reconnect monitor ishga tushadi")
+            # Reconnect monitorini ishga tushirish
+            await telegram_session_manager.start_reconnect_monitor()
 
     # Bot Client init
     BOT_TOKEN = settings.BOT_TOKEN.get_secret_value()
@@ -446,14 +456,16 @@ async def boot_application():
         await asyncio.Event().wait()
         return
 
-    # Userbot connection
-    userbot_ready = await m._connect_user_client(client)
+    # Userbot connection — SESSION MANAGER ALAQACHON ULADI
+    # Eski _connect_user_client chaqirig'ini o'chiramiz — session manager buni qildi
+    userbot_ready = client is not None and await session_manager.health_check()
     api_module.set_runtime_context(
         state_backend=db.get_backend_name(), state_db_path=msg_controller.db.db_path,
         userbot_authorized=userbot_ready,
     )
     if not userbot_ready:
         api_module.user_client = None
+        logger.warning("[SESSION] Userbot tayyor emas — bot-token mode da ishlaydi")
         if BOT_TOKEN_STR:
             try:
                 await bot_client.start(bot_token=BOT_TOKEN_STR)
@@ -567,6 +579,7 @@ async def boot_application():
     m.agent_orchestrator = agent_orchestrator
     m.BOT_TOKEN_STR = BOT_TOKEN_STR
     m.health_api_server = None
+    m.telegram_session_manager = telegram_session_manager  # XAVFSIZ SESSION MANAGER
 
     # Sync to app_ctx for new code
     app_ctx.client = client
@@ -584,6 +597,7 @@ async def boot_application():
     app_ctx.admin_bot = admin_bot
     app_ctx.juma_notifier = juma_notifier
     app_ctx.session_manager = session_manager
+    app_ctx.telegram_session_manager = telegram_session_manager  # XAVFSIZ SESSION MANAGER
     app_ctx.surgical_integration = surgical_integration
     app_ctx.evolution_scheduler = evolution_scheduler
     app_ctx.meeting_scheduler = meeting_scheduler
