@@ -92,7 +92,14 @@ class TelegramSessionManager:
 
             # Ulanish — xatolikni tekshirish
             try:
-                await self.client.connect()
+                await asyncio.wait_for(self.client.connect(), timeout=30)
+            except asyncio.TimeoutError:
+                logger.error("[SESSION] Connect 30s timeout — Telegram javob bermadi")
+                try:
+                    await self.client.disconnect()
+                except Exception:
+                    pass
+                return False
             except Exception as exc:
                 error_msg = str(exc).upper()
 
