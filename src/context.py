@@ -40,6 +40,7 @@ class ApplicationContext:
     admin_bot: Optional[AdminBot] = None
     juma_notifier: Optional[JumaNotifier] = None
     session_manager: Optional[SessionManager] = None
+    telegram_session_manager: Optional[Any] = None  # XAVFSIZ SESSION MANAGER
     surgical_integration: Optional[Any] = None
     evolution_scheduler: Optional[Any] = None
     meeting_scheduler: Optional[TelegramMeetingScheduler] = None
