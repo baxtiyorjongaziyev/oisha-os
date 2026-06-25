@@ -307,6 +307,7 @@ async def boot_application():
 
     # Telegram Client init — XAVFSIZ SESSION MANAGER
     telegram_session_manager = None  # Default — cloud control plane uchun
+    logger.info("[BOOT] Session manager ga keldi, cloud_control_plane_only=%s", cloud_control_plane_only)
     if cloud_control_plane_only:
         client = TelegramClient(
             StringSession(), settings.API_ID, settings.API_HASH,
@@ -327,7 +328,9 @@ async def boot_application():
         )
 
         # Ulanish — xavfsiz
+        logger.info("[BOOT] telegram_session_manager.connect() chaqilmoqda...")
         userbot_ready = await telegram_session_manager.connect()
+        logger.info("[BOOT] connect() qaytdi: userbot_ready=%s", userbot_ready)
         if not userbot_ready:
             logger.error("[SESSION] ❌ Userbot session ulanmadi!")
             logger.error("[SESSION] Admin ga xabar yuborilmoqda...")
