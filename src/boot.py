@@ -458,7 +458,7 @@ async def boot_application():
 
     # Userbot connection — SESSION MANAGER ALAQACHON ULADI
     # Eski _connect_user_client chaqirig'ini o'chiramiz — session manager buni qildi
-    userbot_ready = client is not None and await session_manager.health_check()
+    userbot_ready = client is not None and (telegram_session_manager is not None and await telegram_session_manager.health_check())
     api_module.set_runtime_context(
         state_backend=db.get_backend_name(), state_db_path=msg_controller.db.db_path,
         userbot_authorized=userbot_ready,
