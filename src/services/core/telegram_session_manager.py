@@ -97,8 +97,8 @@ class TelegramSessionManager:
                 logger.error("[SESSION] Connect 30s timeout — Telegram javob bermadi")
                 try:
                     await self.client.disconnect()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("[SESSION] Disconnect after timeout: %s", exc)
                 return False
             except Exception as exc:
                 error_msg = str(exc).upper()
@@ -160,8 +160,8 @@ class TelegramSessionManager:
         if self.client:
             try:
                 await self.client.disconnect()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("[SESSION] Disconnect in auth key handler: %s", exc)
 
     async def _reconnect_loop(self):
         """Xavfsiz qayta ulanish — 10+ sekund kutib, max 5 marta."""
@@ -301,8 +301,8 @@ class TelegramSessionManager:
         if self.client and hasattr(self.client.session, "get_string"):
             try:
                 return self.client.session.get_string()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("[SESSION] Get session string: %s", exc)
         return self._session_string or ""
 
     @property
