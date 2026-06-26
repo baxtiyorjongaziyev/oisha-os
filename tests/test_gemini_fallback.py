@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -106,21 +106,26 @@ async def test_generate_content_fails_fast_when_all_models_are_cooling_down():
     )
     client = SimpleNamespace(aio=SimpleNamespace(models=models))
 
-    with pytest.raises(RuntimeError, match="RESOURCE_EXHAUSTED"):
-        await generate_content_with_fallback(
-            client,
-            primary_model="gemini-2.5-flash",
-            contents="first",
-        )
+    # Mock non-Gemini fallback to also fail (return None)
+    with patch("src.services.utils.gemini_fallback._non_gemini_fallback", return_value=None):
+        # First call: Gemini fails, non-Gemini fallback also fails → RuntimeError
+        with pytest.raises(RuntimeError, match="RESOURCE_EXHAUSTED"):
+            await generate_content_with_fallback(
+                client,
+                primary_model="gemini-2.5-flash",
+                contents="first",
+            )
 
-    models.generate_content.reset_mock()
+        models.generate_content.reset_mock()
 
-    with pytest.raises(GeminiModelCooldownError, match="cooling down"):
-        await generate_content_with_fallback(
-            client,
-            primary_model="gemini-2.5-flash",
-            contents="second",
-        )
+        # Second call: All Gemini models cooling down, non-Gemini also fails
+        # → GeminiModelCooldownError
+        with pytest.raises(GeminiModelCooldownError, match="cooling down"):
+            await generate_content_with_fallback(
+                client,
+                primary_model="gemini-2.5-flash",
+                contents="second",
+            )
 
     models.generate_content.assert_not_awaited()
 
