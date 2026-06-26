@@ -97,7 +97,7 @@ async def test_gemini_generate_content_pauses_after_quota_error():
     )
 
     # Mock non-Gemini fallback to also fail (return None)
-    with patch("src.services.utils.gemini_fallback._non_gemini_fallback", return_value=None):
+    with patch("src.services.utils.gemini_fallback._non_gemini_fallback", new_callable=AsyncMock, return_value=None):
         with pytest.raises(GeminiQuotaCooldownError):
             await analyzer._gemini_generate_content(contents="first")
         with pytest.raises(GeminiQuotaCooldownError):

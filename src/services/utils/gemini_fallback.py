@@ -228,8 +228,8 @@ def _get_secret(key_attr: str) -> str:
             if callable(getter):
                 return getter() or ""
             return str(val or "")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("[AI_FALLBACK] Secret load %s: %s", key_attr, exc)
     return os.getenv(key_attr, "")
 
 
