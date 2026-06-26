@@ -28,22 +28,39 @@
 
 ## Current State
 
-### Locked
-- **Integration (Claude)** — branch `feat/agent-integrations`. Fayllar:
-  - salescoach-ai: `apps/api/src/mcp/server.ts`, `apps/api/src/integrations/call-intel/*`, `apps/api/src/common/guards/service-or-jwt-auth.guard.ts`, `apps/worker/src/services/telegram_notify.ts`, `apps/api/src/app.module.ts`, `apps/api/src/{calls,negotiations}/*.controller.ts`, `apps/api/package.json`
-  - oisha-os: `src/services/core/{salescoach_sync,docusign_sync,apollo_enrich}.py` (YANGI fayllar, shared emas)
-  - ⚠️ `settings.py` ga TEGILMAYDI (Coordinator owns) — Python kod `getattr` bilan himoyalangan; kerakli env varlar "For Coordinator" da
-- **Integration (Antigravity)** — Tez Natija Telegram guruh a'zolarini Google Sheets va AmoCRM-ga skanerlash integratsiyasi. Fayllar:
-  - `src/services/core/gsheets.py`
-  - `src/commands/sync.py`
+# Oisha-OS Agent Coordination Protocol
 
-### Done
-- boot.py yaratildi (685 lines, main() ini logikasi)
-- context.py: ApplicationContext, `from __future__ import annotations`
-- settings.py: Hisobchi env vars qo'shildi
-- main.py: 4069 → 2723 lines (boot.py chiqarildi)
-- test_api_server_security.py: boot.py ga moslandi
-- Hisobchi env vars: `.env`, `.env.example` ga qo'shildi
+> Barcha AI agentlar ish boshlashdan oldin bu faylni o'qiydi va tugatgandan keyin yangilaydi.
+
+## Communication Rules
+
+1. **Bir faylga bir vaqtda faqat bitta agent yozadi**
+2. **Agent ish boshlaganda `## Locks` ga o'z nomini yozadi, tugatganda o'chiradi**
+3. **Shared fayllarga (settings.py, context.py, boot.py) faqat Agent Coordinator yozadi**
+4. **Har bir PR dan oldin `pytest -q` va `bandit -r src/ -ll` ishga tushiriladi**
+5. **git commit → git push → keyin keyingi agent pull qiladi (rebase)**
+
+## Roles
+
+| Agent | Scope | Owner |
+|-------|-------|-------|
+| **Coordinator** | AGENTS.md, settings.py, context.py, boot.py, PR merge | @user |
+| **Parser** | main.py → handlers/, commands/, schedulers/ | — |
+| **Hisobchi** | hisobchi_engine.py, hisobchi_handlers.py, hisobchi_schema.py | — |
+| **Security** | tests/, bandit issues, exception handling | — |
+| **Migration** | global variable → app_ctx.* | — |
+| **Database** | database.py, migrations, SQL optimization | — |
+| **API Server** | api_server.py, endpoints, auth | — |
+| **Integration** | AmoCRM, Airtable, Telegram integrations | — |
+| **Documentation** | README, API docs, inline docs | — |
+| **Performance** | profiling, caching, optimization | — |
+| **Code Quality** | dead code, naming, type hints | — |
+
+## Current State
+
+### Locked
+- **Hisobchi (Codex)** — branch/worktree `codex/hisobchi-production` (`C:\Users\baxti\playground\oisha-os-card-finance`). Vazifa: Hisobchi card-bot production verification, userbot session holati, Oracle VM runtime dalillari. Shared fayllarga tegilmaydi.
+- **Integration (Claude)** — branch `feat/agent-integrations`. Fayllar:
 - Test: 316 passed, 1 failed (instagrapi missing), 8 skipped
 
 ### Done (yangi)
