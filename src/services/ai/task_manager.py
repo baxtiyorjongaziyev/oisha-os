@@ -299,16 +299,19 @@ class AITaskManager:
     async def _create_in_amocrm(
         self, task: Dict[str, Any], lead_id: Optional[int]
     ) -> bool:
-        """AmoCRM da vazifa yaratish."""
+        """AmoCRM da vazifa yaratish — ish vaqtini hisobga oladi.
+
+        Working hours: 10:00-17:00 (Toshkent), Dushanba-Shanba.
+        """
+        from src.utils.task_scheduler import task_deadline
+
         if not self.amocrm or not lead_id:
             return False
 
         try:
-            # Complete till timestamp
+            # Complete till timestamp — ish vaqtini hisobga oladi
             due_hours = task.get("due_in_hours", 24)
-            complete_till = int(
-                (datetime.now() + timedelta(hours=due_hours)).timestamp()
-            )
+            complete_till = task_deadline(due_in_hours=due_hours)
 
             # Vazifa text
             text = task.get("text", task.get("title", "Vazifa"))

@@ -13,6 +13,10 @@ Tests that specifically exercise Turso paths must opt in via the
 import os
 import pytest
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 @pytest.fixture(autouse=True)
 def _force_local_sqlite(monkeypatch):
