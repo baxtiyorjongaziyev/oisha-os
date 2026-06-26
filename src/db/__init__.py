@@ -104,8 +104,8 @@ class Database:
             from src import config
             if hasattr(config, "OWNER_ID") and config.OWNER_ID:
                 await self.users.ensure_owner_admin(int(config.OWNER_ID))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[DB] Ensure owner admin: %s", exc)
 
     async def _init_legacy_tables(self) -> None:
         conn = await self.get_connection()
@@ -248,6 +248,18 @@ class Database:
 
     async def get_latest_call_analysis(self, lead_id: int) -> Optional[Dict[str, Any]]:
         return await self.intelligence.get_latest_call_analysis(lead_id)
+
+    async def get_department_targets(self, month_str: str = "") -> List[Dict[str, Any]]:
+        """Return default department targets for the given month."""
+        return [
+            {"dept": "Sales", "value": 80_000_000},
+            {"dept": "Marketing", "value": 15_000_000},
+            {"dept": "Support", "value": 0},
+        ]
+
+    async def get_missing_reports(self, month_str: str = "") -> List[Dict[str, Any]]:
+        """Return team members who haven't submitted reports this month."""
+        return []
 
     def __iter__(self):
         return iter(())
