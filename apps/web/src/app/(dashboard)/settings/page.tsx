@@ -421,8 +421,8 @@ function SettingsPageContent() {
                           <div key={itemIdx} className="flex justify-between items-center rounded-xl bg-bg-card p-2.5 border border-border text-xs">
                             <span className="font-semibold text-text">{item}</span>
                             <div className="flex items-center gap-1.5">
-                              <button type="button" className="text-text-muted hover:text-brand">✏️</button>
-                              <button type="button" className="text-rose-500">🗑️</button>
+                              <button type="button" aria-label="Tahrirlash" className="text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded">✏️</button>
+                              <button type="button" aria-label="O'chirish" className="text-rose-500 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 rounded">🗑️</button>
                             </div>
                           </div>
                         ))}
