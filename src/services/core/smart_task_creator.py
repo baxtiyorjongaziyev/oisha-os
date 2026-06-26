@@ -108,8 +108,8 @@ class SmartTaskCreator:
                 )
                 if notes_resp.status_code == 200:
                     notes = notes_resp.json().get("_embedded", {}).get("notes", [])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("[SMART_TASK] Notes fetch failed for lead %d: %s", lead_id, exc)
 
             # Tasks (bitta so'rov)
             tasks = []
@@ -126,8 +126,8 @@ class SmartTaskCreator:
                 )
                 if tasks_resp.status_code == 200:
                     tasks = tasks_resp.json().get("_embedded", {}).get("tasks", [])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("[SMART_TASK] Tasks fetch failed for lead %d: %s", lead_id, exc)
 
             # Contact phones — faqat bitta contact uchun
             phones = []
@@ -144,8 +144,8 @@ class SmartTaskCreator:
                             if cf.get("field_code") == "PHONE":
                                 for v in cf.get("values", []):
                                     phones.append(v.get("value", ""))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("[SMART_TASK] Contact phones fetch failed for lead %d: %s", lead_id, exc)
 
             return {
                 "lead": lead,

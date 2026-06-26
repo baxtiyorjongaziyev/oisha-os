@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -10,6 +11,8 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from src.api.routes.state import api_state
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["health"])
 
@@ -192,8 +195,8 @@ async def production_readiness_probe():
             amocrm_ok = await asyncio.wait_for(amocrm.check_connection(), timeout=3.0)
             if not amocrm_ok and getattr(amocrm, "last_error", None):
                 problems.append(f"amocrm_error: {amocrm.last_error}")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("[HEALTH] AmoCRM check: %s", exc)
     checks["amocrm"] = "connected" if amocrm_ok else "unavailable"
 
     runtime = get_runtime_context()
