@@ -33,6 +33,7 @@ async def send_group_message_with_fallback(
     thread_id: Optional[int] = None,
     parse_mode: Optional[str] = None,
     disable_web_page_preview: bool = False,
+    allow_userbot_fallback: bool = True,
 ) -> Any:
     """Send through Bot API first, then through the already-connected userbot."""
     try:
@@ -44,7 +45,7 @@ async def send_group_message_with_fallback(
             disable_web_page_preview=disable_web_page_preview,
         )
     except Exception as bot_exc:
-        if _userbot_group_fallback is None:
+        if not allow_userbot_fallback or _userbot_group_fallback is None:
             raise
         logger.warning(
             "[TELEGRAM TOOL] Bot group send failed; using userbot fallback: %s",
@@ -77,6 +78,7 @@ class TelegramNotificationAdapter:
         thread_id: Optional[int] = None,
         parse_mode: Optional[str] = None,
         disable_web_page_preview: bool = False,
+        allow_userbot_fallback: bool = True,
     ) -> ToolResult:
         try:
             message = await send_group_message_with_fallback(
@@ -86,6 +88,7 @@ class TelegramNotificationAdapter:
                 parse_mode=parse_mode or self.default_parse_mode,
                 thread_id=thread_id,
                 disable_web_page_preview=disable_web_page_preview,
+                allow_userbot_fallback=allow_userbot_fallback,
             )
             return ToolResult(
                 tool_name="telegram.group_message",

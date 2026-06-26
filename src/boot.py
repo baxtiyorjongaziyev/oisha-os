@@ -653,6 +653,26 @@ async def boot_application():
     client.add_event_handler(m.meeting_scheduler_handler, events.NewMessage(outgoing=True))
     client.add_event_handler(m.self_command_handler, events.NewMessage(chats="me"))
     client.add_event_handler(m.handle_new_message, events.NewMessage(incoming=True))
+
+    async def _hisobchi_callback_handler(event):
+        """Handle hisobchi approval inline button callbacks."""
+        try:
+            from src.services.core.hisobchi_approval import handle_callback
+            data = event.data.decode("utf-8") if isinstance(event.data, bytes) else event.data
+            if data and (data.startswith("happrove:") or data.startswith("hedit:") or
+                         data.startswith("hskip:") or data.startswith("hcat:") or
+                         data.startswith("howner:") or data.startswith("hback:")):
+                await handle_callback(data, event, hisobchi_engine)
+                raise events.StopPropagation
+        except events.StopPropagation:
+            raise
+        except Exception as exc:
+            logger.error("[HISOBCHI] Callback handler failed: %s", exc, exc_info=True)
+
+    client.add_event_handler(
+        _hisobchi_callback_handler,
+        events.CallbackQuery(),
+    )
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
     asyncio.create_task(
