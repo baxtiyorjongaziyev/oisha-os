@@ -54,7 +54,7 @@ class TaskRepository(BaseRepository):
             except ValueError:
                 continue
             now_cmp = (
-                now
+                now.replace(tzinfo=None)
                 if deadline_dt.tzinfo is None
                 else now.astimezone(datetime.timezone.utc)
             )
