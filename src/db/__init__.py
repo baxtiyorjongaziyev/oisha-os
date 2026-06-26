@@ -104,8 +104,8 @@ class Database:
             from src import config
             if hasattr(config, "OWNER_ID") and config.OWNER_ID:
                 await self.users.ensure_owner_admin(int(config.OWNER_ID))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[DB] Ensure owner admin: %s", exc)
 
     async def _init_legacy_tables(self) -> None:
         conn = await self.get_connection()
