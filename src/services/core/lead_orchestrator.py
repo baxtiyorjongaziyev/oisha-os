@@ -161,9 +161,10 @@ class LeadOrchestrator:
 
         # Create a fallback task if a lead was created or found
         if lead_id and isinstance(lead_id, int):
-            import time
+            from src.utils.task_scheduler import task_deadline
 
-            complete_till = int(time.time()) + (15 * 60)
+            # Tezkor vazifa — ish vaqti ichida 15 daqiqada
+            complete_till = task_deadline(due_in_hours=1)  # 1 soat ichida
             await self.amocrm.create_task(
                 element_id=lead_id,
                 text=f"Yangi {intent} murojaat! {'(Mavjud mijoz)' if is_repeat else ''} Bog'laning: {name}",

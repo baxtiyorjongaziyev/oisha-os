@@ -364,13 +364,13 @@ class AmoCRMSync:
                 logger.error(err_msg)
                 # Auto-Alert for Owner
                 try:
-                    from src.main import client as telethon_client
+                    from src.context import app_ctx
 
-                    if telethon_client:
+                    if app_ctx.client:
                         import asyncio
 
                         asyncio.create_task(
-                            telethon_client.send_message(
+                            app_ctx.client.send_message(
                                 "me",
                                 f"🆘 **AMOCRM CRITICAL: 403 Forbidden**\n\n{err_msg}",
                             )
