@@ -18,17 +18,19 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, Request, HTTPException, Query, Header, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from src.database import get_db
 from src.services.core.agent_runtime import (
     collect_legacy_runtime_inventory,
     get_runtime_context,
     get_storage_health,
     set_runtime_context,
 )
+from src.services.core.airtable_client import AirtableClient
 from src.settings import settings
 from src.time_utils import get_local_now
 
@@ -109,6 +111,9 @@ _conversation_engine: Any = None
 
 # CRM audit running flag
 crm_audit_running: bool = False
+
+# State and code verifier cache (in-memory for simple auth flow)
+_oauth_sessions: Dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -516,6 +521,344 @@ async def telegram_ai_webhook(request: Request):
 async def telegram_webhook(request: Request):
     """Legacy webhook alias."""
     return await telegram_ai_webhook(request)
+
+
+# =====================================================================
+# Airtable OAuth 2.0 Integratsiyasi
+# =====================================================================
+
+@app.get("/api/auth/airtable/login")
+async def airtable_login():
+    """Redirect to Airtable for OAuth authorization."""
+    # Generate PKCE code verifier and challenge
+    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).decode('utf-8').rstrip('=')
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode('utf-8')).digest()
+    ).decode('utf-8').rstrip('=')
+    
+    state = base64.urlsafe_b64encode(os.urandom(16)).decode('utf-8').rstrip('=')
+    
+    # Store verifier temporarily to use in callback
+    _oauth_sessions[state] = code_verifier
+    
+    client = AirtableClient()
+    url = client.get_authorization_url(state, code_challenge)
+    return RedirectResponse(url)
+
+
+@app.get("/api/auth/airtable/callback")
+async def airtable_callback(code: str = None, state: str = None, error: str = None, error_description: str = None):
+    """Handle Airtable OAuth callback."""
+    if error:
+        raise HTTPException(status_code=400, detail=f"Airtable Auth Error: {error} - {error_description}")
+        
+    if not code or not state:
+        raise HTTPException(status_code=400, detail="Missing code or state")
+        
+    code_verifier = _oauth_sessions.pop(state, None)
+    if not code_verifier:
+        raise HTTPException(status_code=400, detail="Invalid or expired state")
+        
+    client = AirtableClient()
+    try:
+        await client.exchange_code_for_token(code, code_verifier)
+    except Exception as e:
+        logger.error(f"Failed to exchange Airtable token: {e}")
+        raise HTTPException(status_code=500, detail="Failed to exchange token")
+        
+    html_content = """
+    <html>
+        <head>
+            <title>Airtable Muvaffaqiyatli Ulandi</title>
+            <style>
+                body { font-family: 'Inter', sans-serif; text-align: center; padding-top: 50px; background: #f3f4f6; color: #1f2937; }
+                .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; }
+                h1 { color: #10b981; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h1>✅ Muvaffaqiyatli!</h1>
+                <p>Oisha-OS Airtable bilan to'g'ridan-to'g'ri bog'landi.</p>
+                <p>Ushbu oynani yopishingiz mumkin.</p>
+            </div>
+        </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+
+@app.get("/api/auth/airtable/status")
+async def airtable_status():
+    """Check if Airtable is connected."""
+    db = get_db()
+    tokens = await db.oauth.get_tokens("airtable")
+    if tokens:
+        return {"status": "connected", "expires_at": tokens.get("expires_at")}
+    return {"status": "disconnected"}
+
+
+# =====================================================================
+# Telegram OAuth Integratsiyasi (ERP Login)
+# =====================================================================
+
+@app.get("/api/auth/telegram/login")
+async def telegram_login():
+    """Return an HTML page with the Telegram Login Widget."""
+    bot_username = getattr(config, "BOT_USERNAME", "jonairobot")
+    # For local testing, auth_url could be the local IP, but for prod it's the domain
+    html_content = f"""
+    <html>
+        <head>
+            <title>Oisha-OS Enterprise Login</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {{ font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f3f4f6; color: #1f2937; margin: 0; }}
+                .card {{ background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; }}
+                h2 {{ color: #2563eb; margin-bottom: 20px; }}
+                p {{ color: #4b5563; margin-bottom: 30px; line-height: 1.5; }}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h2>Oisha-OS Enterprise</h2>
+                <p>Tizimga kirish uchun Telegram orqali tasdiqlang. Hech qanday parol kerak emas.</p>
+                <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{bot_username.replace('@', '')}" data-size="large" data-auth-url="/api/auth/telegram/callback" data-request-access="write"></script>
+            </div>
+        </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+
+@app.get("/api/auth/telegram/callback")
+async def telegram_callback(
+    id: int,
+    first_name: str,
+    hash: str,
+    last_name: str = None,
+    username: str = None,
+    photo_url: str = None,
+    auth_date: int = None,
+):
+    """Handle Telegram OAuth callback."""
+    import hashlib
+    import jwt
+    import config
+    
+    # 1. Verify hash
+    bot_token = config.BOT_TOKEN
+    
+    # Create data_check_string
+    data = {{
+        "id": str(id),
+        "first_name": first_name,
+        "auth_date": str(auth_date),
+    }}
+    if last_name: data["last_name"] = last_name
+    if username: data["username"] = username
+    if photo_url: data["photo_url"] = photo_url
+    
+    data_check_arr = []
+    for key, val in sorted(data.items()):
+        data_check_arr.append(f"{key}={val}")
+    data_check_string = "\\n".join(data_check_arr)
+    
+    secret_key = hashlib.sha256(bot_token.encode()).digest()
+    expected_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    
+    if expected_hash != hash:
+        raise HTTPException(status_code=403, detail="Invalid Telegram Auth Hash")
+        
+    # Check expiry (prevent replay attacks - 24 hours max)
+    if auth_date and time.time() - int(auth_date) > 86400:
+        raise HTTPException(status_code=403, detail="Auth date is expired")
+        
+    # 2. Get or Create user in DB, sync role
+    db = get_db()
+    # Ensure they exist in our users table
+    await db.users.upsert_user(
+        user_id=id,
+        username=username,
+        first_name=first_name,
+        last_name=last_name
+    )
+    user = await db.users.get_user(id)
+    role = user.get("role", "client") if user else "client"
+    
+    # Generate JWT
+    jwt_secret = getattr(config, "JWT_SECRET", bot_token) # Fallback to bot token if no separate secret
+    payload = {{
+        "sub": str(id),
+        "username": username,
+        "first_name": first_name,
+        "role": role,
+        "exp": int(time.time()) + (30 * 24 * 3600) # 30 days
+    }}
+    token = jwt.encode(payload, jwt_secret, algorithm="HS256")
+    
+    # Create response that stores the cookie and redirects to Dashboard
+    response = RedirectResponse(url="/client")
+    response.set_cookie(
+        key="oisha_token",
+        value=token,
+        max_age=30 * 24 * 3600,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
+
+@app.get("/client")
+async def client_dashboard(request: Request):
+    """Serve the Client Dashboard (MVP)."""
+    # Simple check for JWT token in cookies
+    token = request.cookies.get("oisha_token")
+    if not token:
+        return RedirectResponse(url="/api/auth/telegram/login")
+        
+    import jwt
+    import config
+    jwt_secret = getattr(config, "JWT_SECRET", config.BOT_TOKEN)
+    try:
+        payload = jwt.decode(token, jwt_secret, algorithms=["HS256"])
+        user_id = payload.get("sub")
+        first_name = payload.get("first_name", "Foydalanuvchi")
+        role = payload.get("role", "client")
+    except Exception:
+        # Invalid or expired token
+        return RedirectResponse(url="/api/auth/telegram/login")
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="uz">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Oisha-OS | {first_name}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+            :root {{
+                --primary: #2563eb;
+                --primary-hover: #1d4ed8;
+                --bg: #f3f4f6;
+                --card-bg: #ffffff;
+                --text: #1f2937;
+                --text-light: #6b7280;
+                --success: #10b981;
+                --warning: #f59e0b;
+                --danger: #ef4444;
+            }}
+            * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }}
+            body {{ background-color: var(--bg); color: var(--text); }}
+            
+            /* Navbar */
+            header {{ background: var(--card-bg); padding: 1rem 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }}
+            .logo {{ font-weight: 700; font-size: 1.25rem; color: var(--primary); display: flex; align-items: center; gap: 0.5rem; }}
+            .user-profile {{ display: flex; align-items: center; gap: 1rem; }}
+            .avatar {{ width: 36px; height: 36px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; }}
+            
+            /* Main Content */
+            main {{ padding: 2rem; max-width: 1200px; margin: 0 auto; }}
+            .welcome {{ margin-bottom: 2rem; }}
+            .welcome h1 {{ font-size: 1.8rem; margin-bottom: 0.5rem; }}
+            .welcome p {{ color: var(--text-light); }}
+            
+            /* Kanban Board */
+            .kanban-board {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; align-items: start; }}
+            .column {{ background: var(--card-bg); border-radius: 0.75rem; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-height: 400px; }}
+            .column-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 0.75rem; border-bottom: 2px solid var(--bg); font-weight: 600; }}
+            .count-badge {{ background: var(--bg); padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.875rem; color: var(--text-light); }}
+            
+            /* Task Cards */
+            .task-card {{ background: var(--bg); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid #e5e7eb; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }}
+            .task-card:hover {{ transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }}
+            .task-title {{ font-weight: 600; margin-bottom: 0.5rem; font-size: 0.95rem; }}
+            .task-meta {{ display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-light); margin-top: 1rem; }}
+            .priority-tag {{ padding: 0.15rem 0.5rem; border-radius: 0.25rem; font-weight: 500; }}
+            .priority-high {{ background: #fee2e2; color: var(--danger); }}
+            .priority-medium {{ background: #fef3c7; color: var(--warning); }}
+            .priority-low {{ background: #d1fae5; color: var(--success); }}
+            
+            /* Empty State */
+            .empty-state {{ text-align: center; padding: 2rem; color: var(--text-light); font-size: 0.9rem; }}
+            
+            /* FAB */
+            .fab {{ position: fixed; bottom: 2rem; right: 2rem; width: 56px; height: 56px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 12px rgba(37,99,235,0.4); cursor: pointer; transition: transform 0.2s; border: none; }}
+            .fab:hover {{ transform: scale(1.05); background: var(--primary-hover); }}
+            
+            @media (max-width: 768px) {{
+                .kanban-board {{ grid-template-columns: 1fr; }}
+                main {{ padding: 1rem; }}
+            }}
+        </style>
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                Oisha-OS
+            </div>
+            <div class="user-profile">
+                <span style="font-weight: 500; font-size: 0.9rem;">{first_name}</span>
+                <div class="avatar">{first_name[0].upper()}</div>
+            </div>
+        </header>
+
+        <main>
+            <div class="welcome">
+                <h1>Xush kelibsiz, {first_name}!</h1>
+                <p>Loyihalaringiz va vazifalaringiz shu yerda boshqariladi.</p>
+            </div>
+
+            <div class="kanban-board">
+                <!-- Bajarilmoqda -->
+                <div class="column">
+                    <div class="column-header">
+                        <span style="color: var(--primary);">Jarayonda (In Progress)</span>
+                        <span class="count-badge" id="count-progress">0</span>
+                    </div>
+                    <div id="col-progress" class="task-list">
+                        <div class="empty-state">Vazifalar yo'q</div>
+                    </div>
+                </div>
+
+                <!-- Kutilmoqda -->
+                <div class="column">
+                    <div class="column-header">
+                        <span style="color: var(--warning);">Mijoz Tasdig'ida</span>
+                        <span class="count-badge" id="count-review">0</span>
+                    </div>
+                    <div id="col-review" class="task-list">
+                        <div class="empty-state">Vazifalar yo'q</div>
+                    </div>
+                </div>
+
+                <!-- Bajarildi -->
+                <div class="column">
+                    <div class="column-header">
+                        <span style="color: var(--success);">Tugatilgan</span>
+                        <span class="count-badge" id="count-done">0</span>
+                    </div>
+                    <div id="col-done" class="task-list">
+                        <div class="empty-state">Vazifalar yo'q</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <script>
+            // MVP script for future API connection
+            document.addEventListener('DOMContentLoaded', () => {{
+                console.log("Dashboard loaded for role: {role}");
+                // Future: fetch('/api/tasks') and render
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
 
 # ---------------------------------------------------------------------------
