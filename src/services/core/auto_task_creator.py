@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+from src.context import app_ctx
 
 import time
 import logging
@@ -288,15 +289,14 @@ class AutoTaskCreator:
 
 
 # Singleton
-_creator: Optional[AutoTaskCreator] = None
+app_ctx.creator: Optional[AutoTaskCreator] = None
 
 
 def get_auto_task_creator() -> AutoTaskCreator:
     """AutoTaskCreator singleton."""
-    global _creator
-    if _creator is None:
-        _creator = AutoTaskCreator()
-    return _creator
+    if app_ctx.creator is None:
+        app_ctx.creator = AutoTaskCreator()
+    return app_ctx.creator
 
 
 async def run_auto_task_creation(dry_run: bool = False) -> dict:
