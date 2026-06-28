@@ -91,6 +91,9 @@ class AppSettings(BaseSettings):
     AMOCRM_CLIENT_ID: str = ""
     AMOCRM_CLIENT_SECRET: Optional[SecretStr] = None
     AMOCRM_REDIRECT_URL: str = "https://localhost"
+    AIRTABLE_CLIENT_ID: str = ""
+    AIRTABLE_CLIENT_SECRET: Optional[SecretStr] = None
+    AIRTABLE_REDIRECT_URI: str = "https://localhost"
     AMOCRM_CRON_SECRET: Optional[SecretStr] = None
     ENABLE_AMOCRM_LEAD_ENRICHMENT: bool = True
     AMOCRM_ENRICHMENT_MESSAGE_LIMIT: int = 20
