@@ -225,12 +225,13 @@ export default function CallDetailsPage() {
           </div>
 
           {/* Playback speed selector */}
-          <div className="flex rounded-xl bg-bg border border-border p-1">
+          <div role="group" aria-label="Ovoz tezligi" className="flex rounded-xl bg-bg border border-border p-1">
             {[1, 1.25, 1.5, 2].map((speed) => (
               <button
                 key={speed}
                 onClick={() => setPlaybackSpeed(speed)}
-                className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all ${
+                aria-pressed={playbackSpeed === speed}
+                className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${
                   playbackSpeed === speed ? "bg-brand text-white" : "text-text-muted hover:text-brand"
                 }`}
               >
