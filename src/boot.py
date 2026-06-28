@@ -224,6 +224,25 @@ async def _ai_autopilot_loop():
         await asyncio.sleep(interval)
 
 
+async def _daily_analytics_loop():
+    from src.schedulers.daily_analytics_reporter import run_daily_analytics_report
+    from src.time_utils import get_local_now
+    
+    await asyncio.sleep(60)
+    while True:
+        try:
+            now = get_local_now()
+            if now.hour == 9 and now.minute == 0:
+                logger.info("[GA4] Triggering daily analytics report...")
+                await run_daily_analytics_report()
+                await asyncio.sleep(61)
+        except Exception as e:
+            logger.error(f"[GA4] Error in daily analytics loop: {e}")
+        await asyncio.sleep(30)
+
+
+
+
 async def _brain_evolution_loop():
     await asyncio.sleep(300)
     while True:
@@ -531,7 +550,9 @@ async def boot_application():
                 db=msg_controller.db, gemini_api_key=api_keys["gemini"],
                 bot_token=BOT_TOKEN_STR, owner_id=getattr(src_config, "OWNER_ID", None),
             )
-            asyncio.create_task(_brain_evolution_loop(), name="oisha_brain_evolution")
+            if settings.SURGICAL_MODE:
+                asyncio.create_task(_brain_evolution_loop(), name="oisha_brain_evolution")
+                asyncio.create_task(_daily_analytics_loop(), name="oisha_daily_analytics")
             logger.info("[BRAIN] OishaBrain initialized.")
 
             # BotMessenger
