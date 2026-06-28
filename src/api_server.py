@@ -415,6 +415,7 @@ from src.api.routes.erp_routes import router as erp_router
 from src.api.routes.instagram_routes import router as instagram_router
 from src.api.routes.product_suite import router as product_router
 from src.api.routes.crm_dashboard import router as crm_dashboard_router
+from src.api.routes.marketing_dashboard import router as marketing_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
@@ -428,6 +429,7 @@ app.include_router(erp_router)
 app.include_router(instagram_router)
 app.include_router(product_router)
 app.include_router(crm_dashboard_router)
+app.include_router(marketing_router)
 
 # Mount Static Files
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -605,6 +607,7 @@ async def airtable_status():
 @app.get("/api/auth/telegram/login")
 async def telegram_login():
     """Return an HTML page with the Telegram Login Widget."""
+    import config
     bot_username = getattr(config, "BOT_USERNAME", "jonairobot")
     # For local testing, auth_url could be the local IP, but for prod it's the domain
     html_content = f"""
@@ -650,11 +653,11 @@ async def telegram_callback(
     bot_token = config.BOT_TOKEN
     
     # Create data_check_string
-    data = {{
+    data = {
         "id": str(id),
         "first_name": first_name,
         "auth_date": str(auth_date),
-    }}
+    }
     if last_name: data["last_name"] = last_name
     if username: data["username"] = username
     if photo_url: data["photo_url"] = photo_url
@@ -662,7 +665,7 @@ async def telegram_callback(
     data_check_arr = []
     for key, val in sorted(data.items()):
         data_check_arr.append(f"{key}={val}")
-    data_check_string = "\\n".join(data_check_arr)
+    data_check_string = "\n".join(data_check_arr)
     
     secret_key = hashlib.sha256(bot_token.encode()).digest()
     expected_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
@@ -688,13 +691,13 @@ async def telegram_callback(
     
     # Generate JWT
     jwt_secret = getattr(config, "JWT_SECRET", bot_token) # Fallback to bot token if no separate secret
-    payload = {{
+    payload = {
         "sub": str(id),
         "username": username,
         "first_name": first_name,
         "role": role,
         "exp": int(time.time()) + (30 * 24 * 3600) # 30 days
-    }}
+    }
     token = jwt.encode(payload, jwt_secret, algorithm="HS256")
     
     # Create response that stores the cookie and redirects to Dashboard

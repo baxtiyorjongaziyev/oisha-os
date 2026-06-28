@@ -230,7 +230,8 @@ class CallAnalyzer:
             api_key = ""
             try:
                 api_key = settings.GEMINI_API_KEY.get_secret_value()
-            except Exception:
+            except Exception as exc:
+                logger.error("[CALL] Failed to read GEMINI_API_KEY: %s", exc)
                 api_key = ""
             if api_key:
                 from google import genai
@@ -312,7 +313,8 @@ class CallAnalyzer:
             return ""
         try:
             value = (setting.get_secret_value() or "").strip()
-        except Exception:
+        except Exception as exc:
+            logger.warning("[CALL] Exception while reading OPENAI_API_KEY: %s", exc)
             value = str(setting or "").strip()
         if value.lower().startswith("sk-place") or "placeholder" in value.lower():
             return ""
@@ -395,7 +397,8 @@ class CallAnalyzer:
         if callable(get_headers):
             try:
                 headers_auth = get_headers() or {}
-            except Exception:
+            except Exception as exc:
+                logger.error("[CALL] Exception fetching AmoCRM headers: %s", exc)
                 headers_auth = {}
 
         def _get(headers: Dict[str, str]):
@@ -1171,8 +1174,8 @@ class CallAnalyzer:
                         lead_info = await _maybe_await(self.amocrm.get_lead(lead_id))
                         if lead_info:
                             lead_name = lead_info.get("name") or str(lead_id)
-                    except Exception:
-                        logger.warning("failed_to_fetch_lead_name_from_amocrm", exc_info=True)
+                    except Exception as exc:
+                        logger.error("[CALL] Failed to fetch lead name for %s: %s", lead_id, exc)
 
                     # DB'ga darhol yozish — restart'dan keyin ham deduplication ishlaydi.
                     # task_id yo'q bo'lganda None, qayta yozilishi mumkin emas.
@@ -1514,6 +1517,6 @@ class CallAnalyzer:
                         values = field.get("values") or []
                         if values:
                             return str(values[0].get("value", ""))
-        except Exception:
-            logger.debug("failed_to_extract_lead_phone", exc_info=True)
+        except Exception as exc:
+            logger.error("[CALL] Failed to extract lead phone: %s", exc)
         return ""

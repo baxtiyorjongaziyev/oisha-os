@@ -37,7 +37,7 @@ class APIState:
 
     # Heartbeat
     _last_heartbeat_at: Any = None
-    _boot_at: Any = None
+    _boot_at: Any = field(default_factory=lambda: __import__('datetime').datetime.now(__import__('datetime').timezone.utc))
     _heartbeat_stale_seconds: int = 120
 
     # CRM audit
