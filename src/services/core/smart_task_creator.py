@@ -10,6 +10,7 @@ Lead status, notes, tags, kontakt, pipeline holatiga qarab:
 """
 
 from __future__ import annotations
+from src.context import app_ctx
 
 import json
 import time
@@ -391,15 +392,14 @@ DIQQAT:
 
 
 # Singleton
-_creator: Optional[SmartTaskCreator] = None
+app_ctx.creator: Optional[SmartTaskCreator] = None
 
 
 def get_smart_task_creator() -> SmartTaskCreator:
     """SmartTaskCreator singleton."""
-    global _creator
-    if _creator is None:
-        _creator = SmartTaskCreator()
-    return _creator
+    if app_ctx.creator is None:
+        app_ctx.creator = SmartTaskCreator()
+    return app_ctx.creator
 
 
 async def run_smart_task_creation(dry_run: bool = False) -> dict:

@@ -78,11 +78,11 @@
 - Web chat widgeti production xatoligi (FastAPI /api/chat/send va /api/chat/history API-dagi 422 xatoliklar) `X-Secret-Key` header qo'llab-quvvatlash orqali tuzatildi, barcha testlardan o'tdi va remote Oracle VM ga deploy qilinib muvaffaqiyatli ishga tushirildi (Antigravity).
 
 ### Next Tasks
-1. `self_command_handler` (1000+ lines) → `src/commands/` ga ajratish
-2. `except Exception: pass` larni tuzatish (~20+ joy)
-3. Global → app_ctx.* migratsiyasi
+1. [Done] `self_command_handler` (1000+ lines) → `src/commands/` ga ajratish
+2. [Done] `except Exception: pass` larni tuzatish (~30+ joy `call_analyzer.py` da tuzatildi)
+3. Global → app_ctx.* migratsiyasi (Jarayonda)
 4. [Done] f-string SQL → parametrized query (database.py:682, 998)
-5. Handler lar: `src/handlers/` ga ajratish (negotiation, kirim, case_publisher, etc.)
+5. [Done] Handler lar: `src/handlers/` ga ajratish (negotiation, kirim, case_publisher, etc.)
 
 ### Dead Files (don't touch)
 - `src/agents/` — autonomous AI agents, domain-specific, bu refactoringga kirmaydi
