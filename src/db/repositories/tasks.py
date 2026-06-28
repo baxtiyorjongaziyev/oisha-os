@@ -24,6 +24,10 @@ class TaskRepository(BaseRepository):
                 deadline DATETIME,
                 priority TEXT DEFAULT 'Medium',
                 status TEXT DEFAULT 'Pending',
+                profit_estimate INTEGER DEFAULT 0,
+                source_manager TEXT DEFAULT 'oisha',
+                external_task_id TEXT,
+                is_frog BOOLEAN DEFAULT FALSE,
                 created_by INTEGER,
                 created_at DATETIME,
                 completed_at DATETIME
