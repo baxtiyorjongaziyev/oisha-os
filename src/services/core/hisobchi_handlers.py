@@ -12,6 +12,7 @@ Entry points:
   handle_finance_group_reply(event, client, engine)
 """
 from __future__ import annotations
+from src.context import app_ctx
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -38,7 +39,7 @@ _MAX_REPLY_LEN = 500
 
 # Cache: group_id → (kirim_topic_id, chiqim_topic_id) discovered at runtime
 _topic_cache: dict[int, tuple[Optional[int], Optional[int]]] = {}
-_finance_group_cache: Optional[int] = None
+app_ctx.finance_group_cache: Optional[int] = None
 _FINANCE_GROUP_WORDS = frozenset(
     {"moliya", "finance", "buxgalter", "accounting", "hisobchi"}
 )
@@ -111,9 +112,8 @@ async def _resolve_topics(
 
 async def _discover_finance_group(client) -> Optional[int]:
     """Find the finance group without mistaking generic report groups for it."""
-    global _finance_group_cache
-    if _finance_group_cache is not None:
-        return _finance_group_cache
+    if app_ctx.finance_group_cache is not None:
+        return app_ctx.finance_group_cache
 
     try:
         dialogs = await client.get_dialogs(limit=500)
@@ -127,13 +127,13 @@ async def _discover_finance_group(client) -> Optional[int]:
             if words & _FINANCE_GROUP_WORDS:
                 group_id = getattr(dialog, "id", None)
                 if group_id is not None:
-                    _finance_group_cache = int(group_id)
+                    app_ctx.finance_group_cache = int(group_id)
                     logger.info(
                         "[HISOBCHI] Finance group discovered: %s (%s)",
                         title,
-                        _finance_group_cache,
+                        app_ctx.finance_group_cache,
                     )
-                    return _finance_group_cache
+                    return app_ctx.finance_group_cache
     except Exception as exc:
         logger.warning("[HISOBCHI] Finance group discovery failed: %s", exc)
     return None

@@ -31,6 +31,13 @@ class TaskRepository(BaseRepository):
         """)
         await self._execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
 
+    async def get_task_count(self) -> int:
+        """Return total number of tasks in the database."""
+        conn = await self._get_conn()
+        async with conn.execute("SELECT COUNT(*) FROM tasks") as cursor:
+            row = await cursor.fetchone()
+        return row[0] if row else 0
+
     async def get_overdue_tasks(self) -> List[Dict[str, Any]]:
         """Get all overdue tasks."""
         from src.time_utils import get_local_now
