@@ -393,6 +393,9 @@ async def boot_application():
     asyncio.create_task(_crm_discipline_loop())
     asyncio.create_task(_crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop")
     asyncio.create_task(_ai_autopilot_loop())
+    
+    from src.schedulers.frog_scheduler import daily_frog_loop
+    asyncio.create_task(daily_frog_loop(client, settings.TEAM_GROUP_ID), name="daily_frog_loop")
 
     # Surgical negotiator
     surgical_integration = get_surgical_integration()
