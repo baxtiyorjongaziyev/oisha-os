@@ -158,6 +158,11 @@ class AppSettings(BaseSettings):
     META_PAGE_ACCESS_TOKEN: Optional[SecretStr] = None
     META_APP_SECRET: Optional[SecretStr] = None
 
+    # Google Analytics 4
+    GA4_PROPERTY_ID: Optional[str] = None
+    GA4_CREDENTIALS_JSON: Optional[SecretStr] = None
+
+
     # Lead Distribution
     SALES_MANAGER_IDS: list[int] = Field(
         default_factory=list
@@ -279,6 +284,8 @@ class AppSettings(BaseSettings):
             "META_VERIFY_TOKEN",
             "META_PAGE_ACCESS_TOKEN",
             "META_APP_SECRET",
+            "GA4_PROPERTY_ID",
+            "GA4_CREDENTIALS_JSON",
         }
         for key in optional_keys:
             if data.get(key) == "":
