@@ -219,7 +219,9 @@ async def _ai_autopilot_loop():
             logger.info("[AUTOPILOT] AI Autopilot cycle completed.")
         except Exception as exc:
             logger.error(f"[AUTOPILOT] Critical error in autopilot loop: {exc}")
-        await asyncio.sleep(900)
+        
+        interval = getattr(settings, "AUTOPILOT_INTERVAL_SECONDS", 180)
+        await asyncio.sleep(interval)
 
 
 async def _brain_evolution_loop():
