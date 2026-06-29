@@ -105,11 +105,9 @@ export default function Sidebar() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand font-display text-lg font-bold text-white shadow-lg shadow-brand/20">
             M
           </div>
-          {sidebarOpen && (
-            <span className="font-display text-lg font-bold text-text tracking-wide animate-fade-in">
-              Metasell
-            </span>
-          )}
+          <span className={`font-display text-lg font-bold text-text tracking-wide ${sidebarOpen ? 'animate-fade-in' : 'sr-only'}`}>
+            Metasell
+          </span>
         </Link>
       </div>
 
@@ -129,7 +127,7 @@ export default function Sidebar() {
                   }`}
                 >
                   <div className="shrink-0">{item.icon}</div>
-                  {sidebarOpen && <span className="animate-fade-in">{item.name}</span>}
+                  <span className={sidebarOpen ? "animate-fade-in" : "sr-only"}>{item.name}</span>
 
                   {/* Badge count for alerts */}
                   {item.badgeKey && alertsCount > 0 && (
@@ -164,17 +162,15 @@ export default function Sidebar() {
           className="flex w-full items-center justify-center gap-3 rounded-2xl p-3 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
         >
           {sidebarOpen ? (
-            <>
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-              </svg>
-              <span className="text-xs font-semibold uppercase tracking-wider">Yig&apos;ish</span>
-            </>
+            <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
           ) : (
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
             </svg>
           )}
+          <span className={`text-xs font-semibold uppercase tracking-wider ${sidebarOpen ? '' : 'sr-only'}`}>Yig&apos;ish</span>
         </button>
       </div>
     </aside>
