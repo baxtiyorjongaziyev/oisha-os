@@ -59,3 +59,6 @@
 ## 2026-06-25 - Consistent Keyboard Navigation
 **Learning:** Hardcoded `focus:` styles (like `focus:ring-2`) trigger visually during mouse clicks, leading to an inconsistent UX. Many generic interactive elements omit focus indicators entirely relying on `focus:outline-none`.
 **Action:** Always replace `focus:` with `focus-visible:` for focus rings (e.g. `focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1`) to ensure accessibility borders only appear for keyboard navigators, keeping mouse interactions clean.
+## 2026-06-03 - [Collapsible Sidebar Accessibility]
+**Learning:** Conditionally unmounting text labels (e.g., `{isOpen && <span>Label</span>}`) in collapsible UI elements (like sidebars) completely removes the accessible name for screen reader users when collapsed, leaving them with unlabelled icon buttons and links.
+**Action:** Use the `sr-only` utility class to visually hide text while keeping it in the DOM (e.g., `<span className={isOpen ? 'animate-fade-in' : 'sr-only'}>Label</span>`) to maintain accessibility states regardless of visual layout.
