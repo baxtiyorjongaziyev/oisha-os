@@ -1,14 +1,14 @@
 import { Controller, Get, Post, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CallsService } from './calls.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { ServiceOrJwtAuthGuard } from '../common/guards/service-or-jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OrgId } from '../common/decorators/org-id.decorator';
 import { CreateCallDto } from './dto/create-call.dto';
 
 @ApiTags('calls')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(ServiceOrJwtAuthGuard)
 @Controller('calls')
 export class CallsController {
   constructor(private callsService: CallsService) {}
