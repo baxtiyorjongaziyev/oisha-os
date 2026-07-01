@@ -172,47 +172,6 @@ class ReportsRepository(BaseRepository):
         )
         await conn.commit()
 
-    async def get_missing_reports(self, report_date: str = "") -> List[Dict[str, Any]]:
-        """Return team members who haven't submitted reports today.
-
-        Team members are auto-detected: users who have a role set, OR
-        users without business_type (not clients). No manual role assignment needed.
-        """
-        from src.time_utils import get_local_now
-
-        today = report_date or get_local_now().strftime("%Y-%m-%d")
-        conn = await self._get_conn()
-
-        # Count potential team members: has role OR no business_type (= not a client)
-        async with conn.execute(
-            """SELECT COUNT(*) FROM users
-               WHERE role IS NOT NULL
-               OR (role IS NULL AND (business_type IS NULL OR business_type = ''))"""
-        ) as cursor:
-            row = await cursor.fetchone()
-            team_count = row[0] if row else 0
-
-        if team_count == 0:
-            return [{"username": "N/A", "name": "Jamoa tarkibi aniqlanmagan"}]
-
-        async with conn.execute(
-            """SELECT u.user_id, u.username, u.first_name
-               FROM users u
-               WHERE (u.role IS NOT NULL
-                  OR (u.role IS NULL AND (u.business_type IS NULL OR u.business_type = '')))
-               AND u.user_id NOT IN (
-                   SELECT user_id FROM team_reports
-                   WHERE report_date = ? AND report_type = 'daily' AND status = 'submitted'
-               )""",
-            (today,),
-        ) as cursor:
-            rows = await cursor.fetchall()
-
-        return [
-            {"username": r[1], "name": r[2] or f"User_{r[0]}"}
-            for r in rows
-        ]
-
     async def save_team_report(
         self,
         user_id: int,

@@ -10,10 +10,10 @@
     "type-check": "turbo run type-check"
   },
   "devDependencies": {
-    "eslint": "^9.39.4",
-    "prettier": "^3.8.5",
-    "turbo": "^2.10.0",
-    "typescript": "^5.9.3"
+    "turbo": "^2.9.14",
+    "prettier": "^3.4.2",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2"
   },
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -27,11 +27,7 @@
       "fast-xml-builder": "^1.2.0",
       "postcss": "^8.5.14",
       "qs": "^6.15.2",
-      "ws": "^8.20.1",
-      "nodemailer": "^6.9.14",
-      "multer": "^1.4.5-lts.1",
-      "js-yaml": "^3.14.1",
-      "@babel/core": "^7.29.6"
+      "ws": "^8.20.1"
     }
   }
 }

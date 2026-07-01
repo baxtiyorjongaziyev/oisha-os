@@ -3,7 +3,6 @@ import datetime
 import logging
 from src.database import Database
 from src.services.core.amocrm_sync import AmoCRMSync
-from src.services.core.crm_service import CRMService
 from src.settings import settings
 from src.services.core.enterprise_reporter import EnterpriseReporter
 from src.services.core.amocrm_pipeline_config import (
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class WorkflowManager:
-    def __init__(self, db: Database, crm: CRMService, client=None):
+    def __init__(self, db: Database, crm: AmoCRMSync, client=None):
         self.db = db
         self.crm = crm
         self.client = client
@@ -38,7 +37,7 @@ class WorkflowManager:
         """
         logger.info("[WORKFLOW] Checking for lead re-assignments...")
 
-        leads = self.crm.amocrm.get_leads_detailed()
+        leads = self.crm.get_leads_detailed()
         if not leads:
             return
 

@@ -56,17 +56,17 @@ async def list_tools() -> List[Tool]:
         Tool(
             name="check_amo_auth",
             description="AmoCRM avtorizatsiya holatini tekshirish va 401/403 xatolarini diagnostika qilish.",
-            inputSchema={"type": "object", "properties": {}},
+            input_schema={"type": "object", "properties": {}},
         ),
         Tool(
             name="list_lost_leads",
             description="AmoCRMdagi 'Lost' (143) statusidagi bitimlar sonini va ro'yxatini olish.",
-            inputSchema={"type": "object", "properties": {}},
+            input_schema={"type": "object", "properties": {}},
         ),
         Tool(
             name="create_amo_lead",
             description="AmoCRMda yangi bitim va kontakt yaratish.",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "Mijoz ismi"},
@@ -82,12 +82,12 @@ async def list_tools() -> List[Tool]:
         Tool(
             name="get_sales_report",
             description="AmoCRMdan oylik sotuv hisobotini (Plan-Fakt) olish.",
-            inputSchema={"type": "object", "properties": {}},
+            input_schema={"type": "object", "properties": {}},
         ),
         Tool(
             name="get_airtable_projects",
             description="Airtabledan loyihalar ro'yxatini va muddatlarini olish.",
-            inputSchema={"type": "object", "properties": {}},
+            input_schema={"type": "object", "properties": {}},
         ),
     ]
 

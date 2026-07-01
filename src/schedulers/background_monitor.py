@@ -272,26 +272,6 @@ class BackgroundMonitor:
             except Exception as exc:
                 logger.warning("[HEARTBEAT] Failed to update status: %s", exc)
 
-    async def _job_auto_tasks(self, now: datetime) -> None:
-        """CRM leadlarni AI tahlili asosida smart task yaratish."""
-        key = self._job_key("auto_tasks", now)
-        if self._already_sent(key):
-            return
-
-        try:
-            from src.services.core.smart_task_creator import run_smart_task_creation
-
-            stats = await run_smart_task_creation(dry_run=False)
-            if stats["tasks_created"] > 0:
-                logger.info(
-                    "[SMART_TASKS] Created %d smart tasks (analyzed %d leads)",
-                    stats["tasks_created"],
-                    stats["analyzed"],
-                )
-            self._mark_sent(key)
-        except Exception as exc:
-            logger.error("[SMART_TASKS] Error: %s", exc)
-
     # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
@@ -362,10 +342,6 @@ class BackgroundMonitor:
 
                 # 11. Heartbeat
                 await self._job_heartbeat()
-
-                # 12. Auto tasks — har soat boshida
-                if now.minute == 0:
-                    await self._job_auto_tasks(now)
 
                 await asyncio.sleep(300)
             except Exception as exc:

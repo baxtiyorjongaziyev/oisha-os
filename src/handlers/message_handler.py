@@ -278,7 +278,7 @@ async def process_admin_commands(
             "👸 Oisha-OS: O'tgan 1 yillik shaxsiy yozishmalarni (DM) bazaga kiritishni boshladim... 👸🛡️\n"
             "Bu biroz vaqt olishi mumkin, orqa fonda xavfsiz ishlayman."
         )
-        from src.services.core.historical_sync import HistoricalSyncService
+        from src.services.enterprise.historical_sync import HistoricalSyncService
 
         sync_service = HistoricalSyncService(msg_controller.db, client)
         asyncio.create_task(sync_service.start_backlog_sync(days=365))

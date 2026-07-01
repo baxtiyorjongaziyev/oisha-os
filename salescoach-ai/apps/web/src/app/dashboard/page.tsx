@@ -61,9 +61,6 @@ export default function DashboardPage() {
         <Link href="/dashboard">
           <div className="nav-item active">📊 Dashboard</div>
         </Link>
-        <Link href="/marketing">
-          <div className="nav-item">📈 Adtru AI</div>
-        </Link>
         <Link href="/calls/upload">
           <div className="nav-item">⬆️ Upload Call</div>
         </Link>

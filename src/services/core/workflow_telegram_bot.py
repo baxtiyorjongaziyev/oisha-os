@@ -4,7 +4,6 @@ Jon.Branding - Har bir qadam nazorat ostida!
 """
 
 from __future__ import annotations
-from src.context import app_ctx
 
 from typing import Optional
 from datetime import datetime
@@ -545,11 +544,12 @@ class WorkflowTelegramBot:
 
 
 # Singleton
-app_ctx.bot: Optional[WorkflowTelegramBot] = None
+_bot: Optional[WorkflowTelegramBot] = None
 
 
 def get_workflow_bot() -> WorkflowTelegramBot:
     """Global bot instance"""
-    if app_ctx.bot is None:
-        app_ctx.bot = WorkflowTelegramBot()
-    return app_ctx.bot
+    global _bot
+    if _bot is None:
+        _bot = WorkflowTelegramBot()
+    return _bot

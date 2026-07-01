@@ -1,10 +1,8 @@
 import asyncio
 
 import pytest
-from unittest.mock import patch
 
 from src import api_server
-from src.api.routes.state import api_state
 
 
 @pytest.mark.asyncio
@@ -19,10 +17,10 @@ async def test_health_snapshot_uses_cached_storage_when_turso_query_times_out(mo
         async def get_storage_counts(self):
             return {}
 
-    monkeypatch.setattr(api_state, "db_instance", SlowDatabase())
-    monkeypatch.setattr(api_state, "_HEALTH_DB_TIMEOUT_SECONDS", 0.001)
+    monkeypatch.setattr(api_server, "db_instance", SlowDatabase())
+    monkeypatch.setattr(api_server, "_HEALTH_DB_TIMEOUT_SECONDS", 0.001)
     monkeypatch.setattr(
-        api_state,
+        api_server,
         "_health_db_snapshot_cache",
         {
             "recent_job_runs": [{"job_name": "cached"}],
@@ -30,12 +28,13 @@ async def test_health_snapshot_uses_cached_storage_when_turso_query_times_out(mo
             "updated_at": "2026-06-01T00:00:00+05:00",
         },
     )
+    monkeypatch.setattr(
+        api_server,
+        "get_runtime_context",
+        lambda: {"state_backend": "turso", "state_db_path": "/tmp/placeholder.db"},
+    )
 
-    with patch(
-        "src.services.core.agent_runtime.get_runtime_context",
-        return_value={"state_backend": "turso", "state_db_path": "/tmp/placeholder.db"},
-    ):
-        snapshot = await api_server.build_health_snapshot()
+    snapshot = await api_server.build_health_snapshot()
 
     assert snapshot["storage"]["cached"] is True
     assert snapshot["storage"]["agent_action_rows"] == 7
@@ -54,18 +53,20 @@ async def test_health_snapshot_refreshes_storage_cache(monkeypatch):
         async def get_storage_counts(self):
             return {"kv_settings": 3}
 
-    monkeypatch.setattr(api_state, "db_instance", FastDatabase())
-    monkeypatch.setattr(api_state, "_HEALTH_DB_TIMEOUT_SECONDS", 1.0)
+    monkeypatch.setattr(api_server, "db_instance", FastDatabase())
+    monkeypatch.setattr(api_server, "_HEALTH_DB_TIMEOUT_SECONDS", 1.0)
     monkeypatch.setattr(
-        api_state,
+        api_server,
         "_health_db_snapshot_cache",
         {"recent_job_runs": [], "storage_counts": {}, "updated_at": None},
     )
-    with patch(
-        "src.services.core.agent_runtime.get_runtime_context",
-        return_value={"state_backend": "turso", "state_db_path": "/tmp/placeholder.db"},
-    ):
-        snapshot = await api_server.build_health_snapshot()
+    monkeypatch.setattr(
+        api_server,
+        "get_runtime_context",
+        lambda: {"state_backend": "turso", "state_db_path": "/tmp/placeholder.db"},
+    )
+
+    snapshot = await api_server.build_health_snapshot()
 
     assert snapshot["storage"]["cached"] is False
     assert snapshot["storage"]["kv_rows"] == 3

@@ -5,7 +5,6 @@ Har bir a'zo, har bir qadam majburiy!
 """
 
 from __future__ import annotations
-from src.context import app_ctx
 
 import asyncio
 from dataclasses import dataclass, field
@@ -702,11 +701,12 @@ class MandatoryWorkflowManager:
 
 
 # Singleton instance
-app_ctx.workflow_manager: Optional[MandatoryWorkflowManager] = None
+_workflow_manager: Optional[MandatoryWorkflowManager] = None
 
 
 def get_mandatory_workflow() -> MandatoryWorkflowManager:
     """Global workflow manager"""
-    if app_ctx.workflow_manager is None:
-        app_ctx.workflow_manager = MandatoryWorkflowManager()
-    return app_ctx.workflow_manager
+    global _workflow_manager
+    if _workflow_manager is None:
+        _workflow_manager = MandatoryWorkflowManager()
+    return _workflow_manager

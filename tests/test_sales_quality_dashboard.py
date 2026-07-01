@@ -1,13 +1,11 @@
 import pytest
 
-from src.api.routes.state import api_state
-
 
 @pytest.mark.asyncio
 async def test_sales_quality_overview_never_returns_demo_data(monkeypatch):
     from src import api_server
 
-    monkeypatch.setattr(api_state, "db_instance", None)
+    monkeypatch.setattr(api_server, "db_instance", None)
 
     payload = await api_server.get_sales_quality_overview()
 
