@@ -36,7 +36,7 @@ from src.services.core.telegram.telegram_ai_features import (
 from src.agents.autonomous_sales_agent import AutonomousSalesAgent
 from src.settings import settings
 from src.time_utils import get_local_now
-from src.api import dashboard
+from src.api import dashboard, admin
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -224,8 +224,9 @@ async def refresh_userbot_group_access_snapshot(client=None) -> Dict[str, Any]:
 
 app = FastAPI(title="Oisha-OS Enterprise API")
 
-# Include Dashboard Router
+# Include API Routers
 app.include_router(dashboard.router)
+app.include_router(admin.router)
 
 
 def _setting_text(value: Any) -> str:
