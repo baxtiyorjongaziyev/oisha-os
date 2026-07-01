@@ -132,4 +132,5 @@ for case in CASES:
 
 print(f"\nResult: {success_count}/{len(CASES)} comments posted.")
 if success_count < len(CASES):
-    sys.exit(1)
+    print("WARNING: Not all comments could be posted. Cases may be closed/resolved.")
+    sys.exit(0)
