@@ -12,8 +12,8 @@ import sys
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-API_ID = 30643078
-API_HASH = "e5850001c1d86ac0fb439fbd8319cb7f"
+API_ID = int(os.getenv("TELEGRAM_API_ID", "0"))
+API_HASH = os.getenv("TELEGRAM_API_HASH", "")
 
 async def main():
     from telethon import TelegramClient
