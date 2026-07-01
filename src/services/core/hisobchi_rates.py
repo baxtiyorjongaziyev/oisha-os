@@ -14,7 +14,7 @@ _BANK_UZ_URL = "https://bank.uz/uz/currency/conversion-rates"
 async def fetch_bank_uz_rates(timeout: int = 15) -> Optional[dict]:
     """Fetch USD/UZS rates from bank.uz (CB rate)."""
     try:
-        async with httpx.AsyncClient(timeout=timeout, verify=False) as c:
+        async with httpx.AsyncClient(timeout=timeout) as c:
             r = await c.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/")
             if r.status_code == 200:
                 data = r.json()
@@ -32,7 +32,7 @@ async def fetch_bank_uz_rates(timeout: int = 15) -> Optional[dict]:
         logger.warning("[RATES] CBU uz failed: %s", exc)
 
     try:
-        async with httpx.AsyncClient(timeout=timeout, verify=False) as c:
+        async with httpx.AsyncClient(timeout=timeout) as c:
             r = await c.get("https://nbu.uz/uz/exchange-rates/json/")
             if r.status_code == 200:
                 data = r.json()
