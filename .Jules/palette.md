@@ -59,3 +59,7 @@
 ## 2026-05-29 - Contextual Icon-Only Button ARIA Labels
 **Learning:** Uzbek language accessibility requires accurate translation for screen reader clarity. Playwright UI verification may require explicitly clicking tabs or menus to expose nested elements before they can be focused.
 **Action:** Always provide localized `aria-label` values (e.g., "Tahrirlash", "O'chirish") for icon-only action buttons. Ensure verification scripts correctly mimic user navigation flows to reach dynamic UI states before attempting assertions.
+
+## 2026-06-25 - Consistent Keyboard Navigation
+**Learning:** Hardcoded `focus:` styles (like `focus:ring-2`) trigger visually during mouse clicks, leading to an inconsistent UX. Many generic interactive elements omit focus indicators entirely relying on `focus:outline-none`.
+**Action:** Always replace `focus:` with `focus-visible:` for focus rings (e.g. `focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1`) to ensure accessibility borders only appear for keyboard navigators, keeping mouse interactions clean.
