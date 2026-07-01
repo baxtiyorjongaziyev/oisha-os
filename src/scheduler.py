@@ -262,6 +262,26 @@ async def background_monitor_task() -> None:
                     background_monitor_task._sent_jobs.add(job_key)
 
             # ─────────────────────────────────────────────────────────
+            # 8d. [AUTO-BRIEFING] Har kuni 09:00 — ROI + KPI + Deadline
+            #     Panel tugmalarini avtomatik push qiladi (tugmasiz).
+            # ─────────────────────────────────────────────────────────
+            if _is_due(now, 9, 0):
+                today_str = now.strftime("%Y-%m-%d")
+                job_key = f"auto_briefing_{today_str}"
+                if not hasattr(background_monitor_task, "_sent_jobs"):
+                    background_monitor_task._sent_jobs = set()
+                if job_key not in background_monitor_task._sent_jobs:
+                    try:
+                        if getattr(m, "admin_bot", None):
+                            await m.admin_bot.run_auto_briefing()
+                            logger.info("[SCHEDULE] Auto-briefing (ROI+KPI+Deadline) yuborildi.")
+                        else:
+                            logger.warning("[SCHEDULE] admin_bot yo'q — brifing o'tkazildi.")
+                    except Exception as brief_exc:
+                        logger.error(f"[SCHEDULE][AUTO-BRIEFING] Error: {brief_exc}")
+                    background_monitor_task._sent_jobs.add(job_key)
+
+            # ─────────────────────────────────────────────────────────
             # 9. [STAGNATION] Har kuni 10:00 va 22:00 — Stagnation Alert
             # ─────────────────────────────────────────────────────────
             # 8c. [CRMWeeklyReport] Har dushanba 09:00 - AmoCRM haftalik hisobot
