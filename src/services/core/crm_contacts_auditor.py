@@ -1102,11 +1102,8 @@ class CRMContactsAuditor:
                 try:
                     responsible_user_id = lead.get("responsible_user_id")
                     # Calculate tomorrow at 18:00 local time (GMT+5 offset)
-                    tz_offset = timezone(timedelta(hours=5))
-                    now_gmt5 = datetime.now(tz_offset)
-                    tomorrow_gmt5 = now_gmt5 + timedelta(days=1)
-                    tomorrow_18_gmt5 = tomorrow_gmt5.replace(hour=18, minute=0, second=0, microsecond=0)
-                    complete_till = int(tomorrow_18_gmt5.timestamp())
+                    from src.utils.task_scheduler import task_deadline
+                    complete_till = task_deadline(due_in_hours=24)
 
                     task_text = f"🤖 Oisha-OS Keyingi Qadam:\n{next_step_task_clean}"
                     await self.amocrm.create_task(

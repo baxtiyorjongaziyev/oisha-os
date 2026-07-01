@@ -81,7 +81,7 @@ export default function Header() {
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label="Sidebar menyusini almashtirish"
-            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
+            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
           >
             <svg
               className="h-6 w-6"
@@ -107,7 +107,7 @@ export default function Header() {
           {/* Quick Search Trigger */}
           <button
             onClick={() => setSearchOpen(true)}
-            className="flex items-center gap-2 rounded-2xl border border-border bg-bg px-3 py-2 text-xs text-text-muted hover:border-brand-hover hover:bg-brand-light/30 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1 w-36 md:w-56"
+            className="flex items-center gap-2 rounded-2xl border border-border bg-bg px-3 py-2 text-xs text-text-muted hover:border-brand-hover hover:bg-brand-light/30 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 w-36 md:w-56"
           >
             <svg
               className="h-4 w-4 text-text-muted"
@@ -134,7 +134,7 @@ export default function Header() {
               onClick={() => setBusinessDropdownOpen(!businessDropdownOpen)}
               aria-expanded={businessDropdownOpen}
               aria-label="Biznesni o'zgartirish menyusi"
-              className="flex items-center gap-1.5 rounded-2xl bg-brand-light px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand-light/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
+              className="flex items-center gap-1.5 rounded-2xl bg-brand-light px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand-light/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
             >
               <svg
                 className="h-4 w-4"
@@ -178,10 +178,8 @@ export default function Header() {
                           setBusinessDropdownOpen(false);
                         }}
                         aria-current={currentBusiness === b.name ? "true" : undefined}
-                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-colors hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1 ${
-                          currentBusiness === b.name
-                            ? "bg-brand-light font-semibold text-brand"
-                            : "text-text"
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-colors hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${
+                          currentBusiness === b.name ? "bg-brand-light font-semibold text-brand" : "text-text"
                         }`}
                       >
                         <span className="flex items-center gap-2">
@@ -200,7 +198,7 @@ export default function Header() {
                               />
                             </svg>
                           )}
-                          <span className={currentBusiness !== b.name ? "pl-5.5" : ""}>
+                          <span className={currentBusiness !== b.name ? "pl-5" : ""}>
                             {b.name}
                           </span>
                         </span>
@@ -223,7 +221,7 @@ export default function Header() {
                     setNewBusinessModalOpen(true);
                     setBusinessDropdownOpen(false);
                   }}
-                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-brand font-medium hover:bg-brand-light transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-brand font-medium hover:bg-brand-light transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                 >
                   <svg
                     className="h-4 w-4 shrink-0"
@@ -244,7 +242,7 @@ export default function Header() {
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             aria-label="Tungi rejimni yoqish/o'chirish"
-            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
+            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
           >
             {theme === "dark" ? (
               <svg
@@ -282,7 +280,7 @@ export default function Header() {
             <button
               onClick={() => setNotificationsOpen(!notificationsOpen)}
               aria-label="Bildirishnomalar"
-              className="relative rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
+              className="relative rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
             >
               <svg
                 className="h-5 w-5"
@@ -356,7 +354,7 @@ export default function Header() {
           <button
             onClick={() => setBugReportOpen(true)}
             aria-label="Bug yoki taklif yuborish"
-            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
+            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
           >
             <svg
               className="h-5 w-5"
@@ -384,7 +382,7 @@ export default function Header() {
               onClick={() => setAvatarDropdownOpen(!avatarDropdownOpen)}
               aria-expanded={avatarDropdownOpen}
               aria-label="Foydalanuvchi profili menyusi"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-xs font-bold text-white ring-2 ring-brand/10 hover:scale-105 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-xs font-bold text-white ring-2 ring-brand/10 hover:scale-105 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
             >
               B
               <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-bg-card"></span>
@@ -459,7 +457,7 @@ export default function Header() {
               />
               <button
                 onClick={() => setSearchOpen(false)}
-                className="rounded-lg p-1.5 text-text-muted hover:bg-bg transition-colors"
+                className="rounded-lg p-1.5 text-text-muted hover:bg-bg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
               >
                 ESC
               </button>
@@ -605,13 +603,13 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => setBugReportOpen(false)}
-                  className="rounded-xl px-4 py-2 text-xs font-medium text-text-muted hover:bg-bg"
+                  className="rounded-xl px-4 py-2 text-xs font-medium text-text-muted hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                 >
                   Bekor qilish
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md transition-colors"
+                  className="rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                 >
                   Yuborish
                 </button>
@@ -643,13 +641,13 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => setNewBusinessModalOpen(false)}
-                  className="rounded-xl px-4 py-2 text-xs font-medium text-text-muted hover:bg-bg"
+                  className="rounded-xl px-4 py-2 text-xs font-medium text-text-muted hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                 >
                   Bekor qilish
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md"
+                  className="rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                 >
                   Qo&apos;shish
                 </button>

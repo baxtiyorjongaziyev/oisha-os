@@ -412,6 +412,7 @@ class SalesAnalytics:
                 text=text,
                 parse_mode="HTML",
                 thread_id=thread_id,
+                allow_userbot_fallback=True,
             )
         except Exception as e:
             logger.warning(f"[ANALYTICS] HTML xato, plain text-ga o'tildi: {e}")
@@ -423,5 +424,6 @@ class SalesAnalytics:
                 chat_id=chat_id,
                 text=clean,
                 thread_id=thread_id,
+                allow_userbot_fallback=True,
             )
 
