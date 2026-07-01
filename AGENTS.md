@@ -28,42 +28,13 @@
 
 ## Current State
 
-# Oisha-OS Agent Coordination Protocol
-
-> Barcha AI agentlar ish boshlashdan oldin bu faylni o'qiydi va tugatgandan keyin yangilaydi.
-
-## Communication Rules
-
-1. **Bir faylga bir vaqtda faqat bitta agent yozadi**
-2. **Agent ish boshlaganda `## Locks` ga o'z nomini yozadi, tugatganda o'chiradi**
-3. **Shared fayllarga (settings.py, context.py, boot.py) faqat Agent Coordinator yozadi**
-4. **Har bir PR dan oldin `pytest -q` va `bandit -r src/ -ll` ishga tushiriladi**
-5. **git commit → git push → keyin keyingi agent pull qiladi (rebase)**
-
-## Roles
-
-| Agent | Scope | Owner |
-|-------|-------|-------|
-| **Coordinator** | AGENTS.md, settings.py, context.py, boot.py, PR merge | @user |
-| **Parser** | main.py → handlers/, commands/, schedulers/ | — |
-| **Hisobchi** | hisobchi_engine.py, hisobchi_handlers.py, hisobchi_schema.py | — |
-| **Security** | tests/, bandit issues, exception handling | — |
-| **Migration** | global variable → app_ctx.* | — |
-| **Database** | database.py, migrations, SQL optimization | — |
-| **API Server** | api_server.py, endpoints, auth | — |
-| **Integration** | AmoCRM, Airtable, Telegram integrations | — |
-| **Documentation** | README, API docs, inline docs | — |
-| **Performance** | profiling, caching, optimization | — |
-| **Code Quality** | dead code, naming, type hints | — |
-
-## Current State
-
 ### Locked
 - **Hisobchi (Codex)** — branch/worktree `codex/hisobchi-production` (`C:\Users\baxti\playground\oisha-os-card-finance`). Vazifa: Hisobchi card-bot production verification, userbot session holati, Oracle VM runtime dalillari. Shared fayllarga tegilmaydi.
 - **Integration (Claude)** — branch `feat/agent-integrations`. Fayllar:
 - Test: 316 passed, 1 failed (instagrapi missing), 8 skipped
 
 ### Done (yangi)
+- Barcha ochiq PRlar (38 ta) va Dependabot security alerts (multer, nodemailer, @babel/core) hal qilindi: dependency lar eng oxirgi versiyaga yangilandi, xavfsizlik kamchiliklari (SSL verification) tuzatildi va gitleaks historical allowlist yangilandi (TRAE).
 - Meta Graph API orqali Instagram DM va Comment webhooklari to'liq implement qilindi (`src/api_server.py` va `src/services/core/instagram_agent.py` yaratildi) hamda local va remote testlardan muvaffaqiyatli o'tdi (Antigravity).
 - Webhook so'rovlarini `x-hub-signature-256` orqali xavfsiz tasdiqlash va background tasks orqali Meta timeoutlarining oldini olish yo'lga qo'yildi (Antigravity).
 - Yangilangan kod remote Oracle VM ga deploy qilindi, uerdagi `oisha-os` systemd xizmati qayta ishga tushirilib, API server muvaffaqiyatli ishlayotganligi `/healthz/` orqali tasdiqlandi (Antigravity).
