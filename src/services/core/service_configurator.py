@@ -4,7 +4,6 @@ Jon.Branding - Mijoz qaysi xizmatlarni olganiga qarab checklist yaratadi
 """
 
 from __future__ import annotations
-from src.context import app_ctx
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -398,14 +397,15 @@ class ServiceConfigurator:
 
 
 # Singleton
-app_ctx.configurator: Optional[ServiceConfigurator] = None
+_configurator: Optional[ServiceConfigurator] = None
 
 
 def get_service_configurator() -> ServiceConfigurator:
     """Global configurator instance"""
-    if app_ctx.configurator is None:
-        app_ctx.configurator = ServiceConfigurator()
-    return app_ctx.configurator
+    global _configurator
+    if _configurator is None:
+        _configurator = ServiceConfigurator()
+    return _configurator
 
 
 # Quick test

@@ -220,15 +220,15 @@ class ProactiveWorker:
                             chat_id=owner_id, text=alert_text, parse_mode="HTML"
                         )
                     else:
-                        # Fallback to Telethon if available via app_ctx
+                        # Fallback to Telethon if available in global src.main
                         try:
-                            from src.context import app_ctx
+                            from src.main import client as telethon_client
 
-                            if app_ctx.client:
-                                await app_ctx.client.send_message(
+                            if telethon_client:
+                                await telethon_client.send_message(
                                     "me", alert_text, parse_mode="html"
                                 )
-                        except Exception:
+                        except:
                             logger.error(
                                 "[PROACTIVE] Failed to send alert via Telethon fallback."
                             )
@@ -753,10 +753,10 @@ class ProactiveWorker:
             # or use context if PtB is active.
 
             # Using Telethon as primary enforcer (shows as 'Oisha Userbot')
-            from src.context import app_ctx
+            from src.main import client as telethon_client
 
-            if app_ctx.client:
-                await app_ctx.client.send_message(
+            if telethon_client:
+                await telethon_client.send_message(
                     target_chat, full_message, parse_mode="html"
                 )
                 logger.info(

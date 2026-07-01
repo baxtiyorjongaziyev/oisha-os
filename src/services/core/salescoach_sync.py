@@ -8,7 +8,6 @@ SALESCOACH_ENABLED.
 """
 
 from __future__ import annotations
-from src.context import app_ctx
 
 import logging
 from typing import Any, Dict, List, Optional
@@ -152,10 +151,11 @@ class SalesCoachSync:
             return None
 
 
-app_ctx.instance: Optional[SalesCoachSync] = None
+_instance: Optional[SalesCoachSync] = None
 
 
 def get_salescoach_sync() -> SalesCoachSync:
-    if app_ctx.instance is None:
-        app_ctx.instance = SalesCoachSync()
-    return app_ctx.instance
+    global _instance
+    if _instance is None:
+        _instance = SalesCoachSync()
+    return _instance

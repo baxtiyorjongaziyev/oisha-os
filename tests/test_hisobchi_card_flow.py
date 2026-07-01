@@ -263,10 +263,9 @@ class _NoFinanceClient:
 
 @pytest.mark.asyncio
 async def test_finance_data_is_not_sent_to_plain_team_group(monkeypatch) -> None:
-    from src.context import app_ctx
     from src.services.core import hisobchi_handlers
 
-    app_ctx.finance_group_cache = None
+    hisobchi_handlers._finance_group_cache = None
     hisobchi_handlers._topic_cache.clear()
     monkeypatch.setattr(
         hisobchi_handlers,
@@ -314,11 +313,8 @@ class _BackfillClient:
 
 @pytest.mark.asyncio
 async def test_backfill_replays_once_and_deduplicates(monkeypatch, temp_db) -> None:
-    from src.context import app_ctx
     from src.services.core import hisobchi_handlers
 
-    app_ctx.finance_group_cache = None
-    hisobchi_handlers._topic_cache.clear()
     client = _BackfillClient()
     engine = HisobchiEngine(temp_db)
     monkeypatch.setattr(

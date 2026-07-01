@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src import api_server
-from src.api.routes.state import api_state
 
 
 class _Cursor:
@@ -22,8 +21,13 @@ class _Database:
 
 @pytest.mark.asyncio
 async def test_readiness_requires_userbot_and_amocrm(monkeypatch):
-    monkeypatch.setattr(api_state, "db_instance", _Database())
-    monkeypatch.setattr(api_state, "user_client", None)
+    monkeypatch.setattr(api_server, "db_instance", _Database())
+    monkeypatch.setattr(api_server, "user_client", None)
+    monkeypatch.setattr(
+        api_server,
+        "_get_amocrm_instance",
+        lambda: SimpleNamespace(check_connection=AsyncMock(return_value=True), last_error=None),
+    )
 
     response = await api_server.production_readiness_probe()
 
@@ -33,17 +37,16 @@ async def test_readiness_requires_userbot_and_amocrm(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_readiness_passes_critical_dependencies(monkeypatch):
-    monkeypatch.setattr(api_state, "db_instance", _Database())
+    monkeypatch.setattr(api_server, "db_instance", _Database())
     monkeypatch.setattr(
-        api_state,
+        api_server,
         "user_client",
         SimpleNamespace(is_user_authorized=AsyncMock(return_value=True)),
     )
-
-    mock_amocrm = SimpleNamespace(check_connection=AsyncMock(return_value=True), last_error=None)
     monkeypatch.setattr(
-        "src.api.routes.amocrm_integration._get_amocrm_instance",
-        lambda: mock_amocrm,
+        api_server,
+        "_get_amocrm_instance",
+        lambda: SimpleNamespace(check_connection=AsyncMock(return_value=True), last_error=None),
     )
 
     response = await api_server.production_readiness_probe()

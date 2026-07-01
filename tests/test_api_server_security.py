@@ -6,74 +6,92 @@ import os
 from unittest.mock import patch, MagicMock, AsyncMock
 import sys
 
+# Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from src.api.routes.state import api_state
 
 
 class TestAPISecurity:
+    """Test API security features."""
+
     def test_api_secret_required_from_env(self):
+        """API secret must be loaded from environment only."""
         with patch.dict(os.environ, {}, clear=True):
             from src.api_server import lookup_user_by_phone
             import asyncio
+
             result = asyncio.run(lookup_user_by_phone("+1234567890", "any_secret"))
             assert result == {"error": "Unauthorized"}
 
     def test_api_secret_mismatch_blocks_access(self):
+        """Wrong API secret must return Unauthorized."""
         with patch.dict(os.environ, {"OISHA_API_SECRET": "correct_secret"}):
             from src.api_server import lookup_user_by_phone
             import asyncio
+
             result = asyncio.run(lookup_user_by_phone("+1234567890", "wrong_secret"))
             assert result == {"error": "Unauthorized"}
 
     def test_api_secret_match_allows_access(self):
+        """Correct API secret should proceed to DB check."""
         with patch.dict(os.environ, {"OISHA_API_SECRET": "correct_secret"}):
             from src.api_server import lookup_user_by_phone
             import asyncio
-            result = asyncio.run(lookup_user_by_phone("+998901234567", "correct_secret"))
+
+            # Should pass secret check but fail on DB (no db_instance)
+            result = asyncio.run(lookup_user_by_phone("+1234567890", "correct_secret"))
             assert result == {"error": "Database not connected"}
 
     def test_no_hardcoded_secret_default(self):
+        """Ensure no hardcoded default secret exists."""
         api_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'api_server.py')
         with open(api_file, 'r', encoding='utf-8') as f:
             content = f.read()
-        assert 'oisha_safe_123' not in content
-        assert 'os.environ.get("OISHA_API_SECRET", "")' not in content
+
+        assert 'oisha_safe_123' not in content, "Hardcoded secret found!"
+        assert 'os.environ.get("OISHA_API_SECRET", "")' not in content, "Empty default found!"
 
     def test_health_check_is_not_force_green(self):
+        """Health must fail when its dependency checks fail."""
         api_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'api_server.py')
         with open(api_file, 'r', encoding='utf-8') as f:
-            api_content = f.read()
-        health_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'api', 'routes', 'health.py')
-        with open(health_file, 'r', encoding='utf-8') as f:
-            health_content = f.read()
-        combined = api_content + health_content
+            content = f.read()
 
-        assert "async def liveness_probe" in combined
-        assert "db_ok" in combined
+        assert "async def liveness_probe" in content
+        assert "db_ok" in content
+        assert "healthy = True" not in content
+        assert "healthy = not problems and db_ok and telegram_bot_ok and crm_ok" in content
+        assert '"crm_required": not control_plane_mode' in content
 
     def test_http_transport_logs_do_not_expose_bot_api_tokens(self):
+        """HTTP client INFO logs must stay disabled because Bot API URLs contain secrets."""
         for relative_path in ('main.py', 'api_server.py'):
             source_file = os.path.join(os.path.dirname(__file__), '..', 'src', relative_path)
             with open(source_file, 'r', encoding='utf-8') as f:
                 content = f.read()
+
             assert 'logging.getLogger("httpx").setLevel(logging.WARNING)' in content
             assert 'logging.getLogger("httpcore").setLevel(logging.WARNING)' in content
 
     def test_database_pool_has_no_hardcoded_turso_token(self):
+        """Turso token must come from environment/Secret Manager, never source code."""
         pool_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'database_pool.py')
         with open(pool_file, 'r', encoding='utf-8') as f:
             content = f.read()
+
         assert "settings.TURSO_AUTH_TOKEN" in content
         assert "eyJhbGci" not in content
 
     def test_oracle_is_the_only_oisha_production_deploy_workflow(self):
+        """Oisha must deploy to Oracle without reviving the redundant Cloud Run stack."""
         workflow_dir = os.path.join(os.path.dirname(__file__), '..', '.github', 'workflows')
         cloud_run_workflow = os.path.join(workflow_dir, 'deploy.yml')
         oracle_workflow = os.path.join(workflow_dir, 'oracle-deploy.yml')
+
         assert not os.path.exists(cloud_run_workflow)
+
         with open(oracle_workflow, 'r', encoding='utf-8') as f:
             content = f.read()
+
         assert "CLOUD_RUN_CONTROL_PLANE_ONLY=false" in content
         assert "ENABLE_CLOUD_USERBOT=true" in content
         assert "USERBOT_DISABLE_PRIVATE_REPLIES=true" in content
@@ -83,27 +101,34 @@ class TestAPISecurity:
         assert "http://127.0.0.1:8080/readyz/" in content
 
     def test_cloud_run_control_plane_skips_userbot_session_parsing(self):
+        """Cloud Run control-plane must not parse the personal userbot session."""
         boot_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'boot.py')
         with open(boot_file, 'r', encoding='utf-8') as f:
             content = f.read()
+
         assert "if cloud_control_plane_only:" in content
         assert "[CLOUD] Control-plane mode active." in content
         assert "StringSession()" in content.split("if cloud_control_plane_only:")[1].split("else:")[0]
 
     def test_oracle_deploy_runs_for_every_main_push(self):
+        """Oracle production deploy must not be limited to selected paths."""
         workflow_file = os.path.join(
             os.path.dirname(__file__), '..', '.github', 'workflows', 'oracle-deploy.yml'
         )
         with open(workflow_file, 'r', encoding='utf-8') as f:
             content = f.read()
+
         push_block = content.split("workflow_dispatch:", 1)[0]
         assert "branches: [main]" in push_block
         assert "paths:" not in push_block
 
 
 class TestAPIEndpoints:
+    """Test API endpoint functionality."""
+
     @pytest.fixture
     def mock_db(self):
+        """Create a mock database instance."""
         mock = MagicMock()
         async def mock_get_user_id(phone): return 12345
         async def mock_get_recent(user_id, limit=30):
@@ -111,54 +136,69 @@ class TestAPIEndpoints:
                 {"text": "Hello", "is_ai": False, "created_at": "2024-01-01 10:00:00"},
                 {"text": "Hi there", "is_ai": True, "created_at": "2024-01-01 10:05:00"}
             ]
+
         mock.get_user_id_by_phone = mock_get_user_id
         mock.get_recent_messages = mock_get_recent
         return mock
 
     def test_lookup_user_found(self, mock_db):
+        """Test user lookup when user exists."""
         with patch.dict(os.environ, {"OISHA_API_SECRET": "test_secret"}):
-            with patch.object(api_state, 'db_instance', mock_db):
+            with patch('src.api_server.db_instance', mock_db):
                 from src.api_server import lookup_user_by_phone
                 import asyncio
+
                 result = asyncio.run(lookup_user_by_phone("+998901234567", "test_secret"))
                 assert result["status"] == "found"
                 assert result["user_id"] == 12345
 
     def test_lookup_user_not_found(self, mock_db):
+        """Test user lookup when user doesn't exist."""
         async def mock_none(phone): return None
         mock_db.get_user_id_by_phone = mock_none
+
         with patch.dict(os.environ, {"OISHA_API_SECRET": "test_secret"}):
-            with patch.object(api_state, 'db_instance', mock_db):
+            with patch('src.api_server.db_instance', mock_db):
                 from src.api_server import lookup_user_by_phone
                 import asyncio
+
                 result = asyncio.run(lookup_user_by_phone("+99999999999", "test_secret"))
                 assert result["status"] == "not_found"
 
     def test_chat_history_endpoint(self, mock_db):
+        """Test chat history retrieval."""
         with patch.dict(os.environ, {"OISHA_API_SECRET": "test_secret"}):
-            with patch.object(api_state, 'db_instance', mock_db):
+            with patch('src.api_server.db_instance', mock_db):
                 from src.api_server import get_chat_history
                 import asyncio
+
                 result = asyncio.run(get_chat_history("12345", "test_secret"))
                 assert "history" in result
                 assert len(result["history"]) == 2
 
     def test_chat_history_with_string_and_web_user_id(self, mock_db):
+        """Test that numeric strings and web strings are parsed correctly."""
         recorded_ids = []
         async def mock_get_recent(user_id, limit=30):
             recorded_ids.append(user_id)
             return []
         mock_db.get_recent_messages = mock_get_recent
+
         with patch.dict(os.environ, {"OISHA_API_SECRET": "test_secret"}):
-            with patch.object(api_state, 'db_instance', mock_db):
+            with patch('src.api_server.db_instance', mock_db):
                 from src.api_server import get_chat_history
                 import asyncio
+
+                # 1. Numeric string should convert to int
                 asyncio.run(get_chat_history("98765", "test_secret"))
                 assert recorded_ids[-1] == 98765
+
+                # 2. Web string should remain str
                 asyncio.run(get_chat_history("web_user123", "test_secret"))
                 assert recorded_ids[-1] == "web_user123"
 
     def test_send_chat_message_sync_for_web_user(self, mock_db):
+        """Test that web_ user messages generate a sync AI response and do not queue."""
         from src.api_server import send_chat_message, SendMessageRequest
         import asyncio
 
@@ -170,20 +210,26 @@ class TestAPIEndpoints:
         mock_agent_instance.handle_incoming = mock_handle
 
         with patch.dict(os.environ, {"OISHA_API_SECRET": "test_secret"}):
-            with patch.object(api_state, 'db_instance', mock_db):
-                with patch('src.agents.autonomous_sales_agent.AutonomousSalesAgent', return_value=mock_agent_instance):
-                    with patch.object(api_state, 'command_queue') as mock_queue:
+            with patch('src.api_server.db_instance', mock_db):
+                with patch('src.api_server.AutonomousSalesAgent', return_value=mock_agent_instance):
+                    with patch('src.api_server.command_queue') as mock_queue:
                         req = SendMessageRequest(
                             user_id="web_session_999",
                             text="Salom Oisha",
                             secret_key="test_secret"
                         )
                         result = asyncio.run(send_chat_message(req))
+
+                        # 1. Verify synchronous response returned
                         assert result["status"] == "success"
                         assert result["response"] == "Mocked AI Response"
+
+                        # 2. Verify messages logged to DB
                         assert mock_db.log_message.call_count == 2
                         mock_db.log_message.assert_any_call("web_session_999", "Salom Oisha", is_ai=False)
                         mock_db.log_message.assert_any_call("web_session_999", "Mocked AI Response", is_ai=True)
+
+                        # 3. Verify it was NOT queued to the Telegram userbot command queue
                         mock_queue.put_nowait.assert_not_called()
 
 

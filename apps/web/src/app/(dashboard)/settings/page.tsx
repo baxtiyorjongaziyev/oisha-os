@@ -421,17 +421,8 @@ function SettingsPageContent() {
                           <div key={itemIdx} className="flex justify-between items-center rounded-xl bg-bg-card p-2.5 border border-border text-xs">
                             <span className="font-semibold text-text">{item}</span>
                             <div className="flex items-center gap-1.5">
-                              <button type="button" aria-label="Tahrirlash" className="text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded">
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.65-1.65a1.875 1.875 0 1 1 2.652 2.652L7.5 19.154a4.5 4.5 0 0 1-1.897 1.13L4 21l.716-1.603a4.5 4.5 0 0 1 1.13-1.897l10.966-11.013Z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 6.75 17.25 4.5" />
-                                </svg>
-                              </button>
-                              <button type="button" aria-label="O'chirish" className="text-rose-500 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 rounded">
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12m-10 0V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m-9 0h10m-8 0v12a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V7" />
-                                </svg>
-                              </button>
+                              <button type="button" className="text-text-muted hover:text-brand">✏️</button>
+                              <button type="button" className="text-rose-500">🗑️</button>
                             </div>
                           </div>
                         ))}

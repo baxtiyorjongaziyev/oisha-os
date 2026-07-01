@@ -173,8 +173,8 @@ async def process_instagram_webhook(payload: dict, db) -> None:
                         parts = m.group(1).split("=", 1)
                         if len(parts) == 2:
                             info_updates[parts[0].strip().lower()] = parts[1].strip()
-                    except Exception as exc:
-                        logger.debug("[META] Parse SAVE_INFO tag: %s", exc)
+                    except Exception:
+                        pass
 
                 if info_updates:
                     await db.upsert_user(user_id_str, "Foydalanuvchi", **info_updates)

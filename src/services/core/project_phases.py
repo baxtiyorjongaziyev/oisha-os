@@ -4,7 +4,6 @@ Jon.Branding - Branding loyihalari uchun to'liq qadamlar tizimi
 """
 
 from __future__ import annotations
-from src.context import app_ctx
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -1173,11 +1172,12 @@ class ProjectPhaseManager:
 
 
 # Singleton
-app_ctx.phase_manager: Optional[ProjectPhaseManager] = None
+_phase_manager: Optional[ProjectPhaseManager] = None
 
 
 def get_project_phase_manager() -> ProjectPhaseManager:
     """Global phase manager"""
-    if app_ctx.phase_manager is None:
-        app_ctx.phase_manager = ProjectPhaseManager()
-    return app_ctx.phase_manager
+    global _phase_manager
+    if _phase_manager is None:
+        _phase_manager = ProjectPhaseManager()
+    return _phase_manager

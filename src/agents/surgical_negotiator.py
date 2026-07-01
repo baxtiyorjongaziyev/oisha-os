@@ -4,7 +4,6 @@ Oisha-OS Ideal AI Agent
 """
 
 from __future__ import annotations
-from src.context import app_ctx
 
 import asyncio
 from typing import Any, Dict, Optional
@@ -447,23 +446,24 @@ class SurgicalNegotiator:
 
 
 # Singleton
-app_ctx.surgical_negotiator: Optional[SurgicalNegotiator] = None
+_surgical_negotiator: Optional[SurgicalNegotiator] = None
 
 
 def get_surgical_negotiator(db=None, amocrm=None, send_fn=None) -> SurgicalNegotiator:
     """Global negotiator instance. Pass deps on first call to inject them."""
-    if app_ctx.surgical_negotiator is None:
-        app_ctx.surgical_negotiator = SurgicalNegotiator(db=db, amocrm=amocrm, send_fn=send_fn)
+    global _surgical_negotiator
+    if _surgical_negotiator is None:
+        _surgical_negotiator = SurgicalNegotiator(db=db, amocrm=amocrm, send_fn=send_fn)
     else:
         # Late injection — allows main.py to wire deps after startup
-        if db is not None and app_ctx.surgical_negotiator.db is None:
-            app_ctx.surgical_negotiator.db = db
-            app_ctx.surgical_negotiator.sales_agent.db = db
-        if amocrm is not None and app_ctx.surgical_negotiator.amocrm is None:
-            app_ctx.surgical_negotiator.amocrm = amocrm
-        if send_fn is not None and app_ctx.surgical_negotiator.send_fn is None:
-            app_ctx.surgical_negotiator.send_fn = send_fn
-    return app_ctx.surgical_negotiator
+        if db is not None and _surgical_negotiator.db is None:
+            _surgical_negotiator.db = db
+            _surgical_negotiator.sales_agent.db = db
+        if amocrm is not None and _surgical_negotiator.amocrm is None:
+            _surgical_negotiator.amocrm = amocrm
+        if send_fn is not None and _surgical_negotiator.send_fn is None:
+            _surgical_negotiator.send_fn = send_fn
+    return _surgical_negotiator
 
 
 # Convenience function for quick use

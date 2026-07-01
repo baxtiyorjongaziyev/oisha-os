@@ -81,7 +81,7 @@ export default function Header() {
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label="Sidebar menyusini almashtirish"
-            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus:ring-2 focus:ring-brand"
           >
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -99,7 +99,7 @@ export default function Header() {
           {/* Quick Search Trigger */}
           <button
             onClick={() => setSearchOpen(true)}
-            className="flex items-center gap-2 rounded-2xl border border-border bg-bg px-3 py-2 text-xs text-text-muted hover:border-brand-hover hover:bg-brand-light/30 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 w-36 md:w-56"
+            className="flex items-center gap-2 rounded-2xl border border-border bg-bg px-3 py-2 text-xs text-text-muted hover:border-brand-hover hover:bg-brand-light/30 transition-all focus:outline-none focus:ring-2 focus:ring-brand w-36 md:w-56"
           >
             <svg className="h-4 w-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -116,7 +116,7 @@ export default function Header() {
               onClick={() => setBusinessDropdownOpen(!businessDropdownOpen)}
               aria-expanded={businessDropdownOpen}
               aria-label="Biznesni o'zgartirish menyusi"
-              className="flex items-center gap-1.5 rounded-2xl bg-brand-light px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand-light/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+              className="flex items-center gap-1.5 rounded-2xl bg-brand-light px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand-light/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -141,7 +141,7 @@ export default function Header() {
                           setBusinessDropdownOpen(false);
                         }}
                         aria-current={currentBusiness === b.name ? "true" : undefined}
-                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-colors hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-colors hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1 ${
                           currentBusiness === b.name ? "bg-brand-light font-semibold text-brand" : "text-text"
                         }`}
                       >
@@ -172,7 +172,7 @@ export default function Header() {
                     setNewBusinessModalOpen(true);
                     setBusinessDropdownOpen(false);
                   }}
-                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-brand font-medium hover:bg-brand-light transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-brand font-medium hover:bg-brand-light transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
                 >
                   <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -187,7 +187,7 @@ export default function Header() {
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             aria-label="Tungi rejimni yoqish/o'chirish"
-            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none"
           >
             {theme === "dark" ? (
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -205,7 +205,7 @@ export default function Header() {
             <button
               onClick={() => setNotificationsOpen(!notificationsOpen)}
               aria-label="Bildirishnomalar"
-              className="relative rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+              className="relative rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -263,7 +263,7 @@ export default function Header() {
           <button
             onClick={() => setBugReportOpen(true)}
             aria-label="Bug yoki taklif yuborish"
-            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+            className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -277,7 +277,7 @@ export default function Header() {
               onClick={() => setAvatarDropdownOpen(!avatarDropdownOpen)}
               aria-expanded={avatarDropdownOpen}
               aria-label="Foydalanuvchi profili menyusi"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-xs font-bold text-white ring-2 ring-brand/10 hover:scale-105 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-xs font-bold text-white ring-2 ring-brand/10 hover:scale-105 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-amberline focus-visible:ring-offset-1"
             >
               B
               <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-bg-card"></span>
@@ -342,7 +342,7 @@ export default function Header() {
               />
               <button
                 onClick={() => setSearchOpen(false)}
-                className="rounded-lg p-1.5 text-text-muted hover:bg-bg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                className="rounded-lg p-1.5 text-text-muted hover:bg-bg transition-colors"
               >
                 ESC
               </button>
@@ -471,13 +471,13 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => setBugReportOpen(false)}
-                  className="rounded-xl px-4 py-2 text-xs font-medium text-text-muted hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                  className="rounded-xl px-4 py-2 text-xs font-medium text-text-muted hover:bg-bg"
                 >
                   Bekor qilish
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                  className="rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md transition-colors"
                 >
                   Yuborish
                 </button>
@@ -507,13 +507,13 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => setNewBusinessModalOpen(false)}
-                  className="rounded-xl px-4 py-2 text-xs font-medium text-text-muted hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                  className="rounded-xl px-4 py-2 text-xs font-medium text-text-muted hover:bg-bg"
                 >
                   Bekor qilish
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                  className="rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md"
                 >
                   Qo&apos;shish
                 </button>
