@@ -27,6 +27,7 @@ import argparse
 import asyncio
 import json
 import logging
+import structlog
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,7 +38,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
-        pass
+        logger.debug("stdout_utf8_reconfigure_failed", exc_info=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -50,7 +51,7 @@ logging.basicConfig(
         )
     ],
 )
-logger = logging.getLogger("call_pipeline")
+logger = structlog.get_logger()
 
 
 
@@ -296,7 +297,7 @@ def _extract_phone_from_lead(lead: dict) -> str:
                     if vals:
                         return str(vals[0].get("value", ""))
     except Exception:
-        pass
+        logger.debug("amocrm_phone_field_extraction_failed", exc_info=True)
     return ""
 
 
@@ -377,7 +378,7 @@ async def main():
             try:
                 await user_client.disconnect()
             except Exception:
-                pass
+                logger.debug("user_client_disconnect_failed", exc_info=True)
         await db.close()
         await append_report(args.report_path, {"event": "run_finished"})
         logger.info("🏁 [PIPELINE] Pipeline finished.")

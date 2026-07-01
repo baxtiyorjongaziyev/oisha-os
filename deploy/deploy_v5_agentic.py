@@ -66,7 +66,7 @@ def deploy():
         
         # [AUDIT] Verify the file was actually updated on remote
         print("Verifying remote file integrity...")
-        stdin, stdout, stderr = ssh.exec_command(f"grep '150074828' {REMOTE_DIR}/src/services/access_manager.py")
+        stdin, stdout, stderr = ssh.exec_command(f"grep '150074828' {REMOTE_DIR}/src/services/utils/access_manager.py")
         if not stdout.read():
             print("❌ ERROR: Remote file integrity check FAILED! The hardcoded ID is missing on VPS.")
             sys.exit(1)

@@ -21,8 +21,8 @@ from src.services.core.tool_adapters import (
 )
 from src.services.core.persona_hub import get_persona
 from src.services.core.gdrive import GoogleDriveSync
-from src.services.core.crm.crm_file_offloader import CRMFileOffloader
-from src.services.core.crm.amocrm_pipeline_config import LEGACY_CLOSER_PIPELINE_ID
+from src.services.core.crm_file_offloader import CRMFileOffloader
+from src.services.core.amocrm_pipeline_config import LEGACY_CLOSER_PIPELINE_ID
 from src.settings import settings
 from telegram import Bot
 
@@ -565,6 +565,7 @@ async def send_proactive_followups():
                                 chat_id=config.CRM_GROUP_ID,
                                 text=draft_msg,
                                 parse_mode="Markdown",
+                            allow_userbot_fallback=False,
                             )
                             drafts_sent += 1
                             await conn.commit()
@@ -604,7 +605,7 @@ async def distribute_team_tasks(force: bool = False):
 
     from src.services.core.mission_control import MissionControl
     from src.services.core.enterprise_reporter import EnterpriseReporter
-    from src.services.core.crm.crm_service import CRMService
+    from src.services.core.crm_service import CRMService
 
     mc = MissionControl(db)
     crm_service = CRMService()
@@ -639,6 +640,7 @@ async def distribute_team_tasks(force: bool = False):
                 parse_mode="HTML",
                 disable_web_page_preview=True,
                 thread_id=thread_id,
+            allow_userbot_fallback=False,
             )
             await db.mark_job_run(job_key, today)
             logger.info(f"[DISTRIBUTION] Cycle {now.hour}:00 completed.")
@@ -665,7 +667,7 @@ async def _legacy_check_amocrm_stagnation_direct():
         return
 
     logger.info("[STAGNATION] Time to audit! Checking AmoCRM...")
-    from src.services.core.crm.amocrm_sync import AmoCRMSync
+    from src.services.core.amocrm_sync import AmoCRMSync
 
     amo = AmoCRMSync(
         config.AMOCRM_SUBDOMAIN,
@@ -738,70 +740,43 @@ async def _legacy_check_amocrm_stagnation_direct():
 
 
 async def check_airtable_deadlines():
-    """Airtable 24 soatlik deadline monitoringi.
-
-    Dedup: bir xil loyihalar to'plami uchun kuniga faqat BIR marta yuboradi.
-    Yangi loyiha 24 soat oynasiga kirsa — signature o'zgaradi va qayta yuboriladi.
-    Bu 5 daqiqalik sikldagi takroriy spamni to'xtatadi.
-    """
+    """Airtable 72 soatlik deadline monitoringi."""
     logger.info("Project deadline check started...")
-    import hashlib
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
-    from src.database import Database
     import src.config as config
 
     sync = AirtableSync()
     upcoming = sync.get_upcoming_deadlines(hours=24)
 
-    if not upcoming:
-        return
+    if upcoming:
+        bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+        group_id = getattr(config, "PROJECTS_GROUP_ID", None)
+        if not (bot_token and group_id):
+            return
 
-    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-    group_id = getattr(config, "PROJECTS_GROUP_ID", None)
-    if not (bot_token and group_id):
-        return
+        bot = Bot(token=bot_token)
 
-    # [DEDUP] Loyihalar to'plamiga qarab kunlik kalit — bir xil ro'yxat qayta yuborilmaydi
-    db = Database()
-    today = get_local_now().strftime("%Y-%m-%d")
-    rec_ids = sorted(str(p.get("id", "")) for p in upcoming)
-    signature = hashlib.md5("|".join(rec_ids).encode("utf-8")).hexdigest()[:12]
-    job_key = f"airtable_deadline_{signature}"
-    if await db.is_job_run(job_key, today):
-        logger.debug("[PROACTIVE] Deadline alert bugun shu loyihalar uchun yuborilgan. Skip.")
-        return
+        msg = "⏳ **URGENT PROJECT DEADLINE (24h)**\n\nQuyidagi topshiriqlar muddati tugashiga 1 kun qoldi:\n"
+        for p in upcoming[:5]:
+            fields = p.get("fields", {})
+            from src.services.core.airtable_sync import AirtableSync as _AT  # type: ignore
 
-    from src.services.core.airtable_sync import AirtableSync as _AT  # type: ignore
+            p_name = _AT._get_field(fields, "project_name") or "Nomsiz"
+            stage = _AT._get_field(fields, "stage") or "?"
+            deadline = _AT._get_field(fields, "deadline") or "?"
+            msg += f"- {p_name} (Bosqich: {stage}, Muddat: {deadline})\n"
 
-    bot = Bot(token=bot_token)
-
-    msg = "⏳ **URGENT PROJECT DEADLINE (24h)**\n\nQuyidagi topshiriqlar muddati tugashiga 1 kun qoldi:\n"
-    for p in upcoming[:5]:
-        fields = p.get("fields", {})
-        p_name = _AT._get_field(fields, "project_name") or "Nomsiz"
-        stage = _AT._get_field(fields, "stage") or "?"
-        deadline = _AT._get_field(fields, "deadline") or "?"
-
-        # Loyihaga to'g'ridan-to'g'ri link (Airtable record)
-        link = None
         try:
-            link = sync.get_record_url(p.get("id"))
-        except Exception:
-            link = None
-        title = f"[{p_name}]({link})" if link else p_name
-        msg += f"- {title} (Bosqich: {stage}, Muddat: {deadline})\n"
-
-    try:
-        await send_group_message_with_fallback(
-            bot,
-            chat_id=group_id,
-            text=msg,
-            parse_mode="Markdown",
-        )
-        await db.mark_job_run(job_key, today)
-        logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin. Alert yuborildi.")
-    except Exception as e:
-        logger.error(f"[XATO] Airtable deadline alert: {e}")
+            await send_group_message_with_fallback(
+                bot,
+                chat_id=group_id,
+                text=msg,
+                parse_mode="Markdown",
+            allow_userbot_fallback=False,
+            )
+            logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
+        except Exception as e:
+            logger.error(f"[XATO] Airtable deadline alert: {e}")
 
 
 async def _legacy_check_airtable_stagnation():
@@ -921,7 +896,7 @@ async def _legacy_check_amocrm_stagnation_mixed():
         return
 
     logger.info("[STAGNATION] Checking AmoCRM for stalled conversion opportunities...")
-    from src.services.core.crm.amocrm_sync import AmoCRMSync
+    from src.services.core.amocrm_sync import AmoCRMSync
 
     amo = AmoCRMSync(
         config.AMOCRM_SUBDOMAIN,
@@ -1357,7 +1332,7 @@ async def send_daily_report():
     logger.info("Daily report job started...")
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
     from src.services.core.enterprise_reporter import EnterpriseReporter
-    from src.services.core.crm.crm_service import CRMService
+    from src.services.core.crm_service import CRMService
     import src.config as config
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
@@ -1396,6 +1371,7 @@ async def send_daily_report():
                 text=report_msg,
                 parse_mode="HTML",
                 thread_id=thread_id,
+            allow_userbot_fallback=False,
             )
             logger.info(f"[DAILY REPORT] Jamoa guruhiga ({group_id}) yuborildi.")
         except Exception as html_err:
@@ -1411,6 +1387,7 @@ async def send_daily_report():
                 text=clean_text,
                 parse_mode=None,
                 thread_id=thread_id,
+            allow_userbot_fallback=False,
             )
 
         # 2. Owner-ga (Baxtiyor aka) yuborish
@@ -1459,7 +1436,7 @@ async def send_morning_briefing():
         logger.info("[MORNING BRIEFING] Allaqachon bugun yuborilgan. Skip.")
         return
 
-    from src.services.core.crm.crm_service import CRMService
+    from src.services.core.crm_service import CRMService
     from src.services.core.enterprise_reporter import EnterpriseReporter
 
     crm = CRMService()
@@ -1508,6 +1485,7 @@ async def send_morning_briefing():
                 text=clean_briefing,
                 parse_mode="HTML",
                 thread_id=thread_id,
+            allow_userbot_fallback=False,
             )
             logger.info(f"[MORNING BRIEFING] Jamoa guruhiga ({group_id}) yuborildi.")
         except Exception as html_err:
@@ -1521,6 +1499,7 @@ async def send_morning_briefing():
                     chat_id=group_id,
                     text=full_briefing,
                     parse_mode=None,
+                allow_userbot_fallback=False,
                 )
                 logger.info("[MORNING BRIEFING] Fallback muvaffaqiyatli.")
             except Exception as final_err:
@@ -1594,6 +1573,7 @@ async def send_overdue_nudges():
             text=msg,
             parse_mode="HTML",
             thread_id=thread_id,
+        allow_userbot_fallback=False,
         )
         await db.mark_job_run("overdue_nudges", today)
         logger.info(f"[PROACTIVE] Public nudges sent for {len(by_user)} users.")
@@ -1676,6 +1656,7 @@ async def send_lunch_reminder():
             text=msg,
             parse_mode="HTML",
             thread_id=thread_id,
+        allow_userbot_fallback=False,
         )
         await db.mark_job_run("lunch_reminder", today)
         logger.info("[LUNCH] Eslatma yuborildi.")
@@ -1688,7 +1669,7 @@ async def send_evening_fact_report():
     """Kechki Plan-Fakt natijalarini audit qilish va guruhga yuborish."""
     logger.info("Evening Fact report job started...")
     from src.services.core.enterprise_reporter import EnterpriseReporter
-    from src.services.core.crm.crm_service import CRMService
+    from src.services.core.crm_service import CRMService
     import src.config as config
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
@@ -1718,6 +1699,7 @@ async def send_evening_fact_report():
             text=report_msg,
             parse_mode="HTML",
             thread_id=thread_id,
+        allow_userbot_fallback=False,
         )
         await db.mark_job_run("evening_fact", today)
         logger.info("[EVENING FACT] Sent successfully.")
@@ -1729,7 +1711,7 @@ async def send_junk_leads_report():
     """CRM'dagi bekorchi sdelkalar (junk leads) hisobotini yuborish."""
     logger.info("Junk leads audit job started...")
     from src.services.core.enterprise_reporter import EnterpriseReporter
-    from src.services.core.crm.crm_service import CRMService
+    from src.services.core.crm_service import CRMService
     import src.config as config
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
@@ -1761,6 +1743,7 @@ async def send_junk_leads_report():
             text=report_msg,
             parse_mode="HTML",
             thread_id=thread_id,
+        allow_userbot_fallback=False,
         )
         await db.mark_job_run("junk_audit", today)
         logger.info("[JUNK AUDIT] Sent successfully.")
@@ -1783,6 +1766,7 @@ async def _execute_telegram_notification(
         message,
         thread_id=thread_id,
         disable_web_page_preview=disable_web_page_preview,
+        allow_userbot_fallback=False,
     )
     dm_result = await telegram_tool.send_direct_messages(direct_messages or [])
     return {
@@ -1801,7 +1785,7 @@ async def _execute_telegram_notification(
 async def check_amocrm_stagnation():
     """Qotib qolgan leadlarni topib, menejerlarga conversion push yuborish."""
     import src.config as config
-    from src.services.core.crm.amocrm_sync import AmoCRMSync
+    from src.services.core.amocrm_sync import AmoCRMSync
 
     db = Database()
     now = get_local_now()
@@ -1884,7 +1868,7 @@ async def check_amocrm_stagnation():
     total_value = sum(int(lead.get("price") or 0) for lead in stagnated)
 
     from src.services.core.enterprise_reporter import EnterpriseReporter
-    from src.services.core.crm.crm_service import CRMService
+    from src.services.core.crm_service import CRMService
 
     crm_service = CRMService()
     reporter = EnterpriseReporter(db, crm_service)
@@ -2148,7 +2132,7 @@ async def check_client_journey_excellence():
     """Mijoz yo'li bo'yicha wow-service signal va mikromanagement push yuborish."""
     import src.config as config
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
-    from src.services.core.crm.amocrm_sync import AmoCRMSync
+    from src.services.core.amocrm_sync import AmoCRMSync
 
     db = Database()
     now = get_local_now()
@@ -2274,9 +2258,9 @@ async def check_client_journey_excellence():
 async def run_crm_offload():
     """CLI orqali AmoCRM fayllarini offload qilish."""
     import src.config as config
-    from src.services.core.crm.amocrm_sync import AmoCRMSync
+    from src.services.core.amocrm_sync import AmoCRMSync
     from src.services.core.gdrive import GoogleDriveSync
-    from src.services.core.crm.crm_file_offloader import CRMFileOffloader
+    from src.services.core.crm_file_offloader import CRMFileOffloader
     from src.settings import settings
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)

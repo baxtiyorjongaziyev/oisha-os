@@ -8,7 +8,7 @@ time.
 
 from __future__ import annotations
 
-import logging
+import structlog
 import os
 import re
 from dataclasses import dataclass, field
@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from typing import Any, Iterable, List, Optional
 from zoneinfo import ZoneInfo
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 TZ = ZoneInfo("Asia/Tashkent")
 
@@ -562,7 +562,7 @@ class TelegramMeetingScheduler:
                 try:
                     await self.db.set_state(f"crm:lead:{user_id}", str(lead_id))
                 except Exception:
-                    pass
+                    logger.warning("[MEETING] Failed to persist CRM lead state for user", exc_info=True)
 
         if lead_id:
             logger.info(f"[MEETING] AmoCRM meeting lead synced: {lead_id}")
