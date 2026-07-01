@@ -13,7 +13,7 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 
 API_ID   = 30643078
-API_HASH = "***REDACTED***"
+API_HASH = "e5850001c1d86ac0fb439fbd8319cb7f"
 
 
 async def main() -> None:
