@@ -12,6 +12,8 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import structlog
+
 from src.settings import settings
 from src.services.utils.gemini_fallback import generate_content_with_fallback
 
@@ -22,7 +24,7 @@ except Exception:
     genai = None
     genai_types = None
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class AmbassadorJourneyManager:
@@ -290,12 +292,12 @@ class AmbassadorJourneyManager:
                     try:
                         return await self.user_client.get_input_entity(username)
                     except Exception:
-                        pass
+                        logger.debug("[AMBASSADOR] Failed to resolve entity by username for user %s", user_id, exc_info=True)
                 if phone:
                     try:
                         return await self.user_client.get_input_entity(phone)
                     except Exception:
-                        pass
+                        logger.debug("[AMBASSADOR] Failed to resolve entity by phone for user %s", user_id, exc_info=True)
         return None
 
     def _extract_phone(self, lead: Dict[str, Any]) -> str:
@@ -312,7 +314,7 @@ class AmbassadorJourneyManager:
                         if vals:
                             return str(vals[0].get("value", ""))
         except Exception:
-            pass
+            logger.debug("[AMBASSADOR] Failed to extract phone from lead", exc_info=True)
         return ""
 
     def _extract_contact_name(self, lead: Dict[str, Any]) -> str:
@@ -324,5 +326,5 @@ class AmbassadorJourneyManager:
             if contacts:
                 return str(contacts[0].get("name", ""))
         except Exception:
-            pass
+            logger.debug("[AMBASSADOR] Failed to extract contact name from lead", exc_info=True)
         return ""

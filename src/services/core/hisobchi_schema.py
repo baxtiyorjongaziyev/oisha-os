@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import structlog
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from src.database_pool import SmartRow
+
+logger = structlog.get_logger()
 
 
 @dataclass

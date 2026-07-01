@@ -73,6 +73,12 @@ def __getattr__(name: str):
             settings.SYSTEM_INSTRUCTION
             + "\n\n[AGENTIC OPS] Suhbat davomida aniq topshiriqlar berilsa yoki kelishilsa, avtomatik ravishda [TASK: title=...|assigned_to=...|deadline=...] formatida javob oxirida vazifa yarating."
         )
+    if name == "META_VERIFY_TOKEN":
+        return _secret_or_none(settings.META_VERIFY_TOKEN)
+    if name == "META_PAGE_ACCESS_TOKEN":
+        return _secret_or_none(settings.META_PAGE_ACCESS_TOKEN)
+    if name == "META_APP_SECRET":
+        return _secret_or_none(settings.META_APP_SECRET)
     raise AttributeError(name)
 
 
@@ -108,4 +114,7 @@ __all__ = [
     "OWNER_ID",
     "WHITELIST_IDS",
     "SYSTEM_INSTRUCTION",
+    "META_VERIFY_TOKEN",
+    "META_PAGE_ACCESS_TOKEN",
+    "META_APP_SECRET",
 ]

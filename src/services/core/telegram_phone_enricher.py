@@ -25,7 +25,7 @@ Xavfsizlik:
 from __future__ import annotations
 
 import asyncio
-import logging
+import structlog
 import re
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
@@ -33,7 +33,7 @@ from typing import Any, Dict, List, Optional, Set
 
 import requests  # type: ignore
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 USERNAME_RE = re.compile(r"(?<![A-Za-z0-9_])@?([A-Za-z][A-Za-z0-9_]{4,31})")
 TME_RE = re.compile(r"t\.me/(?:joinchat/)?([A-Za-z0-9_]{5,32})", re.IGNORECASE)
@@ -368,7 +368,7 @@ class TelegramPhoneEnricher:
                             functions.contacts.DeleteContactsRequest(id=[user])
                         )
                     except Exception:
-                        pass
+                        logger.debug("[ENRICH] Failed to clean up imported Telegram contact", exc_info=True)
                     return normalize_phone(user.phone), tg_id
         except Exception as exc:
             logger.debug(f"[ENRICH] ImportContacts probe failed for @{username}: {exc}")

@@ -12,6 +12,7 @@ Entry points:
   handle_finance_group_reply(event, client, engine)
 """
 from __future__ import annotations
+from src.context import app_ctx
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -38,7 +39,7 @@ _MAX_REPLY_LEN = 500
 
 # Cache: group_id → (kirim_topic_id, chiqim_topic_id) discovered at runtime
 _topic_cache: dict[int, tuple[Optional[int], Optional[int]]] = {}
-_finance_group_cache: Optional[int] = None
+app_ctx.finance_group_cache: Optional[int] = None
 _FINANCE_GROUP_WORDS = frozenset(
     {"moliya", "finance", "buxgalter", "accounting", "hisobchi"}
 )
@@ -111,9 +112,8 @@ async def _resolve_topics(
 
 async def _discover_finance_group(client) -> Optional[int]:
     """Find the finance group without mistaking generic report groups for it."""
-    global _finance_group_cache
-    if _finance_group_cache is not None:
-        return _finance_group_cache
+    if app_ctx.finance_group_cache is not None:
+        return app_ctx.finance_group_cache
 
     try:
         dialogs = await client.get_dialogs(limit=500)
@@ -127,13 +127,13 @@ async def _discover_finance_group(client) -> Optional[int]:
             if words & _FINANCE_GROUP_WORDS:
                 group_id = getattr(dialog, "id", None)
                 if group_id is not None:
-                    _finance_group_cache = int(group_id)
+                    app_ctx.finance_group_cache = int(group_id)
                     logger.info(
                         "[HISOBCHI] Finance group discovered: %s (%s)",
                         title,
-                        _finance_group_cache,
+                        app_ctx.finance_group_cache,
                     )
-                    return _finance_group_cache
+                    return app_ctx.finance_group_cache
     except Exception as exc:
         logger.warning("[HISOBCHI] Finance group discovery failed: %s", exc)
     return None
@@ -199,6 +199,7 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
     )
     category = known_rule["category"] if known_rule else None
     ownership = known_rule["ownership"] if known_rule else "business"
+
     tx_id, created = await engine.save_transaction_once(
         source_bot=tx.source_bot,
         direction=tx.direction,
@@ -210,43 +211,56 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
         raw_text=text,
         category=category,
         ownership=ownership,
-        status="categorized" if known_rule else "pending",
+        status="pending",
         source_message_id=getattr(getattr(event, "message", None), "id", None),
     )
     if not created:
         logger.info("[HISOBCHI] Duplicate transaction ignored: #%s", tx_id)
         return True
 
-    # Finance group xabarlari @jonairobot (bot_client) orqali yuboriladi
     sender_client = bot_client or client
 
-    if known_rule:
-        logger.info("[HISOBCHI] Auto-categorized tx #%s -> %s", tx_id, category)
-        if finance_group_id:
-            try:
-                await sender_client.send_message(
-                    finance_group_id,
-                    engine.build_auto_msg(tx, category, ownership),
-                    parse_mode="html",
-                    reply_to=topic_id,
-                )
-            except Exception as exc:
-                logger.error("[HISOBCHI] Failed to notify finance group: %s", exc)
-    else:
-        logger.info("[HISOBCHI] New tx #%s, asking finance group", tx_id)
-        if finance_group_id:
-            try:
-                sent = await sender_client.send_message(
-                    finance_group_id,
-                    engine.build_finance_question(tx, tx_id),
-                    parse_mode="html",
-                    reply_to=topic_id,
-                )
-                await engine.update_finance_msg(
-                    tx_id, finance_msg_id=sent.id, finance_chat_id=finance_group_id,
-                )
-            except Exception as exc:
-                logger.error("[HISOBCHI] Failed to send question: %s", exc)
+    from src.services.core.hisobchi_approval import (
+        build_approval_keyboard,
+        build_approval_message,
+        register_pending,
+    )
+
+    await register_pending(tx_id, tx, ownership, category)
+
+    owner_id = None
+    try:
+        from src.settings import settings
+        owner_id = getattr(settings, "OWNER_ID", None)
+    except Exception as exc:
+        logger.debug("[HISOBCHI] OWNER_ID from settings: %s", exc)
+
+    if owner_id:
+        try:
+            msg = build_approval_message(tx, tx_id, ownership)
+            kb = build_approval_keyboard(tx_id, ownership)
+            if category:
+                msg = f"🗂 <b>Avto-kategoriya:</b> {html.escape(category)}\n\n" + msg
+            await client.send_message(int(owner_id), msg, parse_mode="html", buttons=kb)
+            logger.info("[HISOBCHI] Sent approval request to owner #%s for tx #%s", owner_id, tx_id)
+        except Exception as exc:
+            logger.error("[HISOBCHI] Failed to send approval to owner: %s", exc)
+
+    if finance_group_id:
+        try:
+            sent = await sender_client.send_message(
+                finance_group_id,
+                engine.build_finance_question(tx, tx_id),
+                parse_mode="html",
+                reply_to=topic_id,
+            )
+            await engine.update_finance_msg(
+                tx_id,
+                finance_msg_id=sent.id,
+                finance_chat_id=finance_group_id,
+            )
+        except Exception as exc:
+            logger.error("[HISOBCHI] Failed to send question: %s", exc)
     return True
 
 
@@ -675,71 +689,6 @@ async def handle_xodim_command(event, engine: HisobchiEngine) -> bool:
         )
         return True
     return False
-    finance_group_id, kirim_topic_id, chiqim_topic_id = (
-        await resolve_finance_destination(client)
-    )
-
-    topic_id = _pick_topic(tx.direction, kirim_topic_id, chiqim_topic_id)
-
-    known_rule = await engine.get_known_rule(
-        tx.merchant, tx.card_suffix, tx.direction, tx.amount
-    )
-    category = known_rule["category"] if known_rule else None
-    ownership = known_rule["ownership"] if known_rule else "business"
-    tx_id, created = await engine.save_transaction_once(
-        source_bot=tx.source_bot,
-        direction=tx.direction,
-        amount=tx.amount,
-        merchant=tx.merchant,
-        card_suffix=tx.card_suffix,
-        tx_time=tx.tx_time,
-        balance=tx.balance,
-        raw_text=text,
-        category=category,
-        ownership=ownership,
-        status="categorized" if known_rule else "pending",
-        source_message_id=getattr(getattr(event, "message", None), "id", None),
-    )
-    if not created:
-        logger.info("[HISOBCHI] Duplicate transaction ignored: #%s", tx_id)
-        return True
-
-    if known_rule:
-        logger.info("[HISOBCHI] Auto-categorized tx #%s → %s", tx_id, category)
-
-        if finance_group_id:
-            try:
-                await client.send_message(
-                    finance_group_id,
-                    engine.build_auto_msg(tx, category, ownership),
-                    parse_mode="html",
-                    reply_to=topic_id,
-                )
-            except Exception as exc:
-                logger.error("[HISOBCHI] Failed to notify finance group: %s", exc)
-    else:
-        logger.info("[HISOBCHI] New tx #%s, asking finance group", tx_id)
-
-        if finance_group_id:
-            try:
-                sent = await client.send_message(
-                    finance_group_id,
-                    engine.build_finance_question(tx, tx_id),
-                    parse_mode="html",
-                    reply_to=topic_id,
-                )
-                await engine.update_finance_msg(
-                    tx_id,
-                    finance_msg_id=sent.id,
-                    finance_chat_id=finance_group_id,
-                )
-            except Exception as exc:
-                logger.error("[HISOBCHI] Failed to send question to finance group: %s", exc)
-        else:
-            logger.warning(
-                "[HISOBCHI] Finance group not found — question not sent"
-            )
-    return True
 
 
 async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> bool:
