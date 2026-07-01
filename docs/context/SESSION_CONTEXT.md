@@ -31,11 +31,11 @@
 | O'zgaruvchi | Qiymat/Joylashuvi |
 |---|---|
 | `API_ID` | 30643078 |
-| `API_HASH` | ***REDACTED*** |
+| `API_HASH` | e5850001c1d86ac0fb439fbd8319cb7f |
 | `BOT_TOKEN` | 8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4 |
 | `GEMINI_API_KEY` | `.env` da |
-| `OISHA_API_SECRET` | ***REDACTED*** |
-| `OPENCLAW_SECRET` | ***REDACTED*** |
+| `OISHA_API_SECRET` | 4044ab7961480d56b8c0a3277c739b47 |
+| `OPENCLAW_SECRET` | 76ae980ba923a1bcf5bbaba02b88ca0c43d528b076999053bc8b5b62041fb8d7 |
 | `USERBOT_SESSION_STRING` | `.env` da (353 belgi, DC2) |
 
 ---
