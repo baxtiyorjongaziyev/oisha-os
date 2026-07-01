@@ -10,6 +10,92 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+_AIRTABLE_TOKEN_URL = "https://airtable.com/oauth2/v1/token"
+_AIRTABLE_OAUTH_TOKEN_FILE = os.path.join("data", "airtable_oauth_token.json")
+
+
+class AirtableOAuth:
+    """Airtable OAuth 2.0 token boshqaruvchisi.
+
+    API key (PAT) o'rniga to'g'ridan-to'g'ri OAuth access token bilan ishlaydi.
+    Access token muddati tugasa (401), refresh token orqali yangilaydi va
+    yangi tokenlarni diskka saqlaydi. Airtable refresh tokenlari rotatsiya
+    qilinadi — har refreshdan keyin yangi refresh_token qaytadi.
+    """
+
+    def __init__(self, client_id, client_secret, access_token, refresh_token,
+                 token_file=_AIRTABLE_OAUTH_TOKEN_FILE):
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.token_file = token_file
+        self.access_token = access_token
+        self.refresh_token = refresh_token
+        # Diskda saqlangan (yangilangan) tokenlar env'dan ustun turadi
+        self._load_from_disk()
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.client_id and self.refresh_token)
+
+    def _load_from_disk(self):
+        try:
+            with open(self.token_file, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if data.get("access_token"):
+                self.access_token = data["access_token"]
+            if data.get("refresh_token"):
+                self.refresh_token = data["refresh_token"]
+        except FileNotFoundError:
+            pass
+        except Exception as exc:
+            logger.warning("[AIRTABLE OAUTH] Token faylini o'qishda xato: %s", exc)
+
+    def _save_to_disk(self):
+        try:
+            os.makedirs(os.path.dirname(self.token_file), exist_ok=True)
+            with open(self.token_file, "w", encoding="utf-8") as fh:
+                json.dump(
+                    {"access_token": self.access_token, "refresh_token": self.refresh_token},
+                    fh,
+                )
+        except Exception as exc:
+            logger.warning("[AIRTABLE OAUTH] Token faylini saqlashda xato: %s", exc)
+
+    def bearer(self) -> str:
+        return self.access_token or ""
+
+    def refresh(self) -> bool:
+        """Refresh token orqali yangi access token oladi. Muvaffaqiyatda True."""
+        if not (self.client_id and self.refresh_token):
+            return False
+        try:
+            auth = None
+            data = {
+                "grant_type": "refresh_token",
+                "refresh_token": self.refresh_token,
+                "client_id": self.client_id,
+            }
+            # Confidential client bo'lsa — Basic auth; public client bo'lsa client_id body'da
+            if self.client_secret:
+                auth = (self.client_id, self.client_secret)
+            resp = requests.post(_AIRTABLE_TOKEN_URL, data=data, auth=auth, timeout=30)
+            if resp.status_code == 200:
+                payload = resp.json()
+                self.access_token = payload.get("access_token", self.access_token)
+                # Airtable refresh tokenni rotatsiya qiladi
+                if payload.get("refresh_token"):
+                    self.refresh_token = payload["refresh_token"]
+                self._save_to_disk()
+                logger.info("[AIRTABLE OAUTH] Access token yangilandi.")
+                return True
+            logger.error(
+                "[AIRTABLE OAUTH] Refresh xato %s: %s", resp.status_code, resp.text[:200]
+            )
+            return False
+        except Exception as exc:
+            logger.error("[AIRTABLE OAUTH] Refresh exception: %s", exc)
+            return False
+
 
 class AirtableSync:
     READ_RETRIES = 3
@@ -126,10 +212,36 @@ class AirtableSync:
         self.read_cache_ttl_seconds = int(
             os.getenv("AIRTABLE_READ_CACHE_TTL_SECONDS", "600")
         )
+
+        # [OAUTH] API key o'rniga OAuth access token — agar sozlangan bo'lsa ustun turadi
+        def _secret(v):
+            return v.get_secret_value() if v else None
+
+        self.oauth = AirtableOAuth(
+            client_id=settings.AIRTABLE_OAUTH_CLIENT_ID,
+            client_secret=_secret(settings.AIRTABLE_OAUTH_CLIENT_SECRET),
+            access_token=_secret(settings.AIRTABLE_ACCESS_TOKEN),
+            refresh_token=_secret(settings.AIRTABLE_REFRESH_TOKEN),
+        )
         self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {self._current_bearer()}",
             "Content-Type": "application/json",
         }
+
+    def _current_bearer(self) -> str:
+        """OAuth token sozlangan bo'lsa uni, aks holda API key (PAT) qaytaradi."""
+        if getattr(self, "oauth", None) and self.oauth.configured and self.oauth.bearer():
+            return self.oauth.bearer()
+        return self.api_key
+
+    def _reauth_with_oauth(self) -> bool:
+        """401 kelganda OAuth tokenni yangilaydi va headerni yangilaydi."""
+        if not (getattr(self, "oauth", None) and self.oauth.configured):
+            return False
+        if self.oauth.refresh():
+            self.headers["Authorization"] = f"Bearer {self._current_bearer()}"
+            return True
+        return False
 
     def _table_url(self, table_name=None):
         table = quote(str(table_name or self.table_name), safe="")
@@ -227,6 +339,7 @@ class AirtableSync:
 
         attempts = self.READ_RETRIES if retry and method.upper() == "GET" else 1
         last_exc = None
+        oauth_retried = False
 
         for attempt in range(1, attempts + 1):
             try:
@@ -234,6 +347,16 @@ class AirtableSync:
                 request_kwargs.setdefault("headers", self.headers)
                 request_kwargs.setdefault("timeout", self.REQUEST_TIMEOUT_SECONDS)
                 response = requests.request(method, url, **request_kwargs)
+
+                # [OAUTH] Access token muddati tugagan bo'lsa — bir marta refresh + retry
+                if (
+                    response.status_code == 401
+                    and not oauth_retried
+                    and self._reauth_with_oauth()
+                ):
+                    oauth_retried = True
+                    request_kwargs["headers"] = self.headers
+                    response = requests.request(method, url, **request_kwargs)
 
                 if self._is_billing_limit_response(response):
                     cls._billing_block_reason = "PUBLIC_API_BILLING_LIMIT_EXCEEDED"
