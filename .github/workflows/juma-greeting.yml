@@ -8,6 +8,9 @@ on:
     paths:
       - 'deploy/juma-trigger'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   send-greetings:
     name: TN5 Juma Tabrigi
