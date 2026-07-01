@@ -275,6 +275,16 @@ def mark_heartbeat() -> None:
     global _last_heartbeat_at
     _last_heartbeat_at = datetime.now(timezone.utc)
 
+# Hisobchi MCP router
+try:
+    from src.services.core.hisobchi_mcp import mcp_router
+    if mcp_router is not None:
+        app.include_router(mcp_router)
+        _mcp_logger = logging.getLogger(__name__)
+        _mcp_logger.info("[MCP] Hisobchi MCP router mounted at /mcp")
+except Exception:
+    pass
+
 
 def add_activity(action: str, details: str = "", type: str = "info"):
     activity = {
