@@ -579,9 +579,7 @@ class TelegramTaskCreator:
             if is_duplicate:
                 continue
 
-            # Ish vaqtini hisobga olgan holda deadline
-            from src.utils.task_scheduler import task_deadline
-            complete_till = task_deadline(due_in_hours=due_hours)
+            complete_till = now_ts + (due_hours * 3600)
             try:
                 res = await self.amocrm.create_task(
                     element_id=lead_id,
@@ -589,7 +587,7 @@ class TelegramTaskCreator:
                     complete_till=complete_till,
                 )
                 if res:
-                    logger.info(f"✅ [TELEGRAM_TASK] AmoCRM Task created: '{task_text}' (Due in {due_hours}h, working hours).")
+                    logger.info(f"✅ [TELEGRAM_TASK] AmoCRM Task created: '{task_text}' (Due in {due_hours}h).")
                     created_tasks.append({"text": task_text, "due_in_hours": due_hours})
                     existing_task_texts.add(task_lower)
             except Exception as exc:

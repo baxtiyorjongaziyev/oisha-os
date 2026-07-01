@@ -10,7 +10,6 @@ telefon-match cheklangan. [[uz-email-not-used]]
 """
 
 from __future__ import annotations
-from src.context import app_ctx
 
 import logging
 from typing import Any, Dict, Optional
@@ -119,10 +118,11 @@ class ApolloEnrich:
         return " | ".join(parts)
 
 
-app_ctx.instance: Optional[ApolloEnrich] = None
+_instance: Optional[ApolloEnrich] = None
 
 
 def get_apollo() -> ApolloEnrich:
-    if app_ctx.instance is None:
-        app_ctx.instance = ApolloEnrich()
-    return app_ctx.instance
+    global _instance
+    if _instance is None:
+        _instance = ApolloEnrich()
+    return _instance

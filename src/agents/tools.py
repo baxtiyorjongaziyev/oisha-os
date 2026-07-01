@@ -962,13 +962,7 @@ class AgentToolExecutor:
         due_at: Optional[str] = None,
         due_in_hours: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """AmoCRM ichida lead uchun follow-up vazifa yaratish.
-
-        Working hours: 10:00-17:00 (Toshkent), Dushanba-Shanba.
-        Vazifalar ish vaqti ichida tarqatiladi.
-        """
-        from src.utils.task_scheduler import task_deadline, next_work_slot
-
+        """AmoCRM ichida lead uchun follow-up vazifa yaratish."""
         lead_context = await self._resolve_lead_context(
             user_id=user_id, lead_id=lead_id
         )
@@ -986,10 +980,8 @@ class AgentToolExecutor:
             except ValueError:
                 return {"success": False, "error": f"Noto'g'ri due_at format: {due_at}"}
         else:
-            # Ish vaqtini hisobga olgan holda deadline
-            complete_till_ts = task_deadline(due_in_hours=deadline_hours)
-            due_dt = datetime.datetime.fromtimestamp(
-                complete_till_ts, tz=datetime.timezone.utc
+            due_dt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+                hours=deadline_hours
             )
 
         complete_till = int(due_dt.timestamp())

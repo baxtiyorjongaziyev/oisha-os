@@ -33,7 +33,6 @@ Dizayn tamoyillari:
 """
 
 from __future__ import annotations
-from src.context import app_ctx
 
 import asyncio
 import hashlib
@@ -134,12 +133,13 @@ def _cache_put(prompt_hash: str, result: Dict[str, Any]) -> None:
 # Gemini client (singleton)
 # ──────────────────────────────────────────────────────────────────────────────
 
-app_ctx.gemini_client = None
+_gemini_client = None
 
 
 def _get_gemini_client():
-    if app_ctx.gemini_client is not None:
-        return app_ctx.gemini_client
+    global _gemini_client
+    if _gemini_client is not None:
+        return _gemini_client
 
     try:
         from google import genai  # pyright: ignore[reportMissingImports]
@@ -162,8 +162,8 @@ def _get_gemini_client():
         logger.error("[AI_ROUTER] GEMINI_API_KEY not set")
         return None
 
-    app_ctx.gemini_client = genai.Client(api_key=api_key)
-    return app_ctx.gemini_client
+    _gemini_client = genai.Client(api_key=api_key)
+    return _gemini_client
 
 
 # ──────────────────────────────────────────────────────────────────────────────

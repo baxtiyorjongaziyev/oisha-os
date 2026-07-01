@@ -96,12 +96,10 @@ async def test_gemini_generate_content_pauses_after_quota_error():
         gemini_client=SimpleNamespace(aio=SimpleNamespace(models=models)),
     )
 
-    # Mock non-Gemini fallback to also fail (return None)
-    with patch("src.services.utils.gemini_fallback._non_gemini_fallback", new_callable=AsyncMock, return_value=None):
-        with pytest.raises(GeminiQuotaCooldownError):
-            await analyzer._gemini_generate_content(contents="first")
-        with pytest.raises(GeminiQuotaCooldownError):
-            await analyzer._gemini_generate_content(contents="second")
+    with pytest.raises(GeminiQuotaCooldownError):
+        await analyzer._gemini_generate_content(contents="first")
+    with pytest.raises(GeminiQuotaCooldownError):
+        await analyzer._gemini_generate_content(contents="second")
 
     assert models.generate_content.await_count == len(
         model_candidates(analyzer.model_name)

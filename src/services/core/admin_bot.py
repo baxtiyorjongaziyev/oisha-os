@@ -1983,7 +1983,6 @@ class AdminBot:
             
             report_msg = await reporter.get_accountability_segment()
             
-            all_projects = airtable.get_projects() if airtable else []
             overdue_projects = airtable.get_overdue_projects() if airtable else []
             project_lines = []
             if overdue_projects:
@@ -1995,8 +1994,6 @@ class AdminBot:
                     project_lines.append(f"  • {name} — <i>PM: {pm}</i>")
                 if len(overdue_projects) > 5:
                     project_lines.append(f"  ... va yana {len(overdue_projects)-5} ta.")
-            elif not all_projects:
-                project_lines.append("\n🏗 Airtable ma'lumoti olinmadi (API limit yoki xato)")
             else:
                 project_lines.append("\n🏗 Barcha loyihalar muddatida! ✅")
                 

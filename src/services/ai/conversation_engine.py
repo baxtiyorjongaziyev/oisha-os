@@ -3,7 +3,6 @@ AI Conversation Analysis Engine - Metasell.ai o'xshash funksionallik
 AmoCRM suhbatlarini tahlil qilish va avtomatik vazifa qo'yish
 """
 
-from src.context import app_ctx
 import logging
 import json
 from typing import Dict, List, Optional, Any
@@ -604,11 +603,12 @@ class ConversationEngine:
 
 
 # Singleton instance
-app_ctx.conversation_engine: Optional[ConversationEngine] = None
+_conversation_engine: Optional[ConversationEngine] = None
 
 
 def get_conversation_engine(amocrm_client=None, db_pool=None) -> ConversationEngine:
     """Global conversation engine instance."""
-    if app_ctx.conversation_engine is None:
-        app_ctx.conversation_engine = ConversationEngine(amocrm_client, db_pool)
-    return app_ctx.conversation_engine
+    global _conversation_engine
+    if _conversation_engine is None:
+        _conversation_engine = ConversationEngine(amocrm_client, db_pool)
+    return _conversation_engine

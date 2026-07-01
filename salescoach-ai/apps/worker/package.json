@@ -10,21 +10,21 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",
-    "@aws-sdk/client-s3": "^3.1075.0",
-    "@aws-sdk/s3-request-presigner": "^3.1075.0",
-    "@prisma/client": "^6.19.3",
+    "@aws-sdk/client-s3": "^3.1045.0",
+    "@aws-sdk/s3-request-presigner": "^3.1045.0",
+    "@prisma/client": "^6.3.1",
     "@salescoach/shared-types": "workspace:*",
-    "bullmq": "^5.79.1",
-    "dotenv": "^16.6.1",
-    "ioredis": "^5.11.1",
-    "openai": "^4.104.0",
-    "pino": "^9.14.0",
-    "zod": "^3.25.76"
+    "bullmq": "^5.34.8",
+    "dotenv": "^16.4.7",
+    "ioredis": "^5.4.1",
+    "openai": "^4.86.2",
+    "pino": "^9.6.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@types/node": "^22.20.0",
-    "prisma": "^6.19.3",
+    "@types/node": "^22.10.7",
+    "prisma": "^6.3.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.7.2"
   }
 }

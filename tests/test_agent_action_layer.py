@@ -11,8 +11,6 @@ class _FakeDB:
     async def get_state(self, key, default=None):
         if key == "runtime:userbot_authorized":
             return "false"
-        if key == "policy:auto_master":
-            return "false"
         return default
 
 

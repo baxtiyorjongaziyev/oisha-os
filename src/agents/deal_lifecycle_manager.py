@@ -4,7 +4,6 @@ Oisha-OS Surgical Pipeline
 """
 
 from __future__ import annotations
-from src.context import app_ctx
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Callable
@@ -483,11 +482,12 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 
 
 # Singleton
-app_ctx.lifecycle_manager: Optional[DealLifecycleManager] = None
+_lifecycle_manager: Optional[DealLifecycleManager] = None
 
 
 def get_lifecycle_manager() -> DealLifecycleManager:
     """Global lifecycle manager"""
-    if app_ctx.lifecycle_manager is None:
-        app_ctx.lifecycle_manager = DealLifecycleManager()
-    return app_ctx.lifecycle_manager
+    global _lifecycle_manager
+    if _lifecycle_manager is None:
+        _lifecycle_manager = DealLifecycleManager()
+    return _lifecycle_manager

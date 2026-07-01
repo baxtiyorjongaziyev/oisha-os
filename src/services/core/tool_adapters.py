@@ -1,5 +1,4 @@
 from __future__ import annotations
-from src.context import app_ctx
 
 import asyncio
 import logging
@@ -17,11 +16,13 @@ from src.services.core.tool_registry import ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
 
+_userbot_group_fallback: Optional[Any] = None
 
 
 def configure_userbot_group_fallback(client: Optional[Any]) -> None:
     """Reuse the running userbot for group delivery when the bot lacks access."""
-    app_ctx.userbot_group_fallback = client
+    global _userbot_group_fallback
+    _userbot_group_fallback = client
 
 
 async def send_group_message_with_fallback(
@@ -32,7 +33,6 @@ async def send_group_message_with_fallback(
     thread_id: Optional[int] = None,
     parse_mode: Optional[str] = None,
     disable_web_page_preview: bool = False,
-    allow_userbot_fallback: bool = True,
 ) -> Any:
     """Send through Bot API first, then through the already-connected userbot."""
     try:
@@ -44,7 +44,7 @@ async def send_group_message_with_fallback(
             disable_web_page_preview=disable_web_page_preview,
         )
     except Exception as bot_exc:
-        if not allow_userbot_fallback or app_ctx.userbot_group_fallback is None:
+        if _userbot_group_fallback is None:
             raise
         logger.warning(
             "[TELEGRAM TOOL] Bot group send failed; using userbot fallback: %s",
@@ -57,7 +57,7 @@ async def send_group_message_with_fallback(
             kwargs["reply_to"] = thread_id
         if parse_mode:
             kwargs["parse_mode"] = str(parse_mode).lower()
-        return await app_ctx.userbot_group_fallback.send_message(chat_id, text, **kwargs)
+        return await _userbot_group_fallback.send_message(chat_id, text, **kwargs)
 
 
 class TelegramNotificationAdapter:
@@ -77,7 +77,6 @@ class TelegramNotificationAdapter:
         thread_id: Optional[int] = None,
         parse_mode: Optional[str] = None,
         disable_web_page_preview: bool = False,
-        allow_userbot_fallback: bool = True,
     ) -> ToolResult:
         try:
             message = await send_group_message_with_fallback(
@@ -87,7 +86,6 @@ class TelegramNotificationAdapter:
                 parse_mode=parse_mode or self.default_parse_mode,
                 thread_id=thread_id,
                 disable_web_page_preview=disable_web_page_preview,
-                allow_userbot_fallback=allow_userbot_fallback,
             )
             return ToolResult(
                 tool_name="telegram.group_message",

@@ -565,7 +565,6 @@ async def send_proactive_followups():
                                 chat_id=config.CRM_GROUP_ID,
                                 text=draft_msg,
                                 parse_mode="Markdown",
-                            allow_userbot_fallback=False,
                             )
                             drafts_sent += 1
                             await conn.commit()
@@ -640,7 +639,6 @@ async def distribute_team_tasks(force: bool = False):
                 parse_mode="HTML",
                 disable_web_page_preview=True,
                 thread_id=thread_id,
-            allow_userbot_fallback=False,
             )
             await db.mark_job_run(job_key, today)
             logger.info(f"[DISTRIBUTION] Cycle {now.hour}:00 completed.")
@@ -772,7 +770,6 @@ async def check_airtable_deadlines():
                 chat_id=group_id,
                 text=msg,
                 parse_mode="Markdown",
-            allow_userbot_fallback=False,
             )
             logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
         except Exception as e:
@@ -1371,7 +1368,6 @@ async def send_daily_report():
                 text=report_msg,
                 parse_mode="HTML",
                 thread_id=thread_id,
-            allow_userbot_fallback=False,
             )
             logger.info(f"[DAILY REPORT] Jamoa guruhiga ({group_id}) yuborildi.")
         except Exception as html_err:
@@ -1387,7 +1383,6 @@ async def send_daily_report():
                 text=clean_text,
                 parse_mode=None,
                 thread_id=thread_id,
-            allow_userbot_fallback=False,
             )
 
         # 2. Owner-ga (Baxtiyor aka) yuborish
@@ -1485,7 +1480,6 @@ async def send_morning_briefing():
                 text=clean_briefing,
                 parse_mode="HTML",
                 thread_id=thread_id,
-            allow_userbot_fallback=False,
             )
             logger.info(f"[MORNING BRIEFING] Jamoa guruhiga ({group_id}) yuborildi.")
         except Exception as html_err:
@@ -1499,7 +1493,6 @@ async def send_morning_briefing():
                     chat_id=group_id,
                     text=full_briefing,
                     parse_mode=None,
-                allow_userbot_fallback=False,
                 )
                 logger.info("[MORNING BRIEFING] Fallback muvaffaqiyatli.")
             except Exception as final_err:
@@ -1573,7 +1566,6 @@ async def send_overdue_nudges():
             text=msg,
             parse_mode="HTML",
             thread_id=thread_id,
-        allow_userbot_fallback=False,
         )
         await db.mark_job_run("overdue_nudges", today)
         logger.info(f"[PROACTIVE] Public nudges sent for {len(by_user)} users.")
@@ -1656,7 +1648,6 @@ async def send_lunch_reminder():
             text=msg,
             parse_mode="HTML",
             thread_id=thread_id,
-        allow_userbot_fallback=False,
         )
         await db.mark_job_run("lunch_reminder", today)
         logger.info("[LUNCH] Eslatma yuborildi.")
@@ -1699,7 +1690,6 @@ async def send_evening_fact_report():
             text=report_msg,
             parse_mode="HTML",
             thread_id=thread_id,
-        allow_userbot_fallback=False,
         )
         await db.mark_job_run("evening_fact", today)
         logger.info("[EVENING FACT] Sent successfully.")
@@ -1743,7 +1733,6 @@ async def send_junk_leads_report():
             text=report_msg,
             parse_mode="HTML",
             thread_id=thread_id,
-        allow_userbot_fallback=False,
         )
         await db.mark_job_run("junk_audit", today)
         logger.info("[JUNK AUDIT] Sent successfully.")
@@ -1766,7 +1755,6 @@ async def _execute_telegram_notification(
         message,
         thread_id=thread_id,
         disable_web_page_preview=disable_web_page_preview,
-        allow_userbot_fallback=False,
     )
     dm_result = await telegram_tool.send_direct_messages(direct_messages or [])
     return {

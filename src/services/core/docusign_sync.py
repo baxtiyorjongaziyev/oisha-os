@@ -18,7 +18,6 @@ Integratsiya (surgical_negotiator deal yopilganda):
 """
 
 from __future__ import annotations
-from src.context import app_ctx
 
 import base64
 import logging
@@ -222,10 +221,11 @@ class DocuSignSync:
             return None
 
 
-app_ctx.instance: Optional[DocuSignSync] = None
+_instance: Optional[DocuSignSync] = None
 
 
 def get_docusign() -> DocuSignSync:
-    if app_ctx.instance is None:
-        app_ctx.instance = DocuSignSync()
-    return app_ctx.instance
+    global _instance
+    if _instance is None:
+        _instance = DocuSignSync()
+    return _instance

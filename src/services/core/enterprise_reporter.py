@@ -249,10 +249,7 @@ class EnterpriseReporter:
             projects = self.airtable.get_projects()
             overdue = self.airtable.get_overdue_projects()
             report.append("\n🏗 <b>Production & PM (Airtable):</b>")
-            if not projects:
-                report.append("- Airtable ma'lumoti olinmadi (API limit yoki ulanish xatosi)")
-            else:
-                report.append(f"- Aktiv loyihalar: {len(projects)} ta")
+            report.append(f"- Aktiv loyihalar: {len(projects)} ta")
 
             # 3 kunlik ishlab chiqarish qoidasi (SLA: 3 days)
             urgent_projects = []
@@ -291,21 +288,23 @@ class EnterpriseReporter:
 
             if overdue:
                 report.append(f"- Muddati o'tgan: {len(overdue)} ta ⚠️")
+
                 report.append(
                     f"- <b>SLA xavfi (3 kundan oshish arafasida):</b> {len(urgent_projects)} ta"
                 )
+
+                # Tag specific PMs for urgent projects
                 pm_mentions = set()
-                for p in overdue:
+                for p in projects:
                     fields = p.get("fields", {})
+                    # Re-check if urgent (simplified for reporting)
                     pm_value = _AT._get_field(fields, "manager")
                     pm_mention = _AT.resolve_pm_handle(pm_value)
-                    if pm_mention:
-                        pm_mentions.add(pm_mention)
+                    pm_mentions.add(pm_mention)
+
                 if pm_mentions:
                     mentions_str = ", ".join(sorted(pm_mentions))
                     report.append(f"  <i>(Iltimos, {mentions_str} nazoratga oling)</i>")
-            elif projects:
-                report.append("- Muddati o'tgan loyihalar yo'q ✅")
 
         # 4. FINANCE SUMMARY (Airtable — Kirim + Chiqim)
         if self.airtable:
@@ -356,33 +355,27 @@ class EnterpriseReporter:
 
         # 1. Muddati o'tgan vazifalar
         overdue_tasks = await self.db.get_overdue_tasks()
-        task_count = await self.db.get_task_count()
         if overdue_tasks:
             report.append(
                 f"- <b>Muddati o'tgan vazifalar:</b> {len(overdue_tasks)} ta ⚠️"
             )
-            for t in overdue_tasks[:3]:
+            for t in overdue_tasks[:3]:  # Faqat birinchi 3 tasini ko'rsatamiz
                 name = t.get("name") or t.get("username") or "Unknown"
                 task_label = t.get("title") or t.get("description") or "Vazifa"
                 report.append(f"  • {task_label} — <i>{name}</i>")
             if len(overdue_tasks) > 3:
                 report.append(f"  ... va yana {len(overdue_tasks)-3} ta.")
-        elif task_count == 0:
-            report.append("- Vazifalar tizimiga ma'lumot kiritilmagan")
         else:
             report.append("- Barcha vazifalar o'z vaqtida! ✅")
 
         # 2. Topshirilmagan hisobotlar (Bugun uchun)
         missing_reports = await self.db.get_missing_reports()
         if missing_reports:
-            if missing_reports[0].get("username") == "N/A":
-                report.append("- Jamoa tarkibi aniqlanmagan (users.role ma'lumoti yo'q)")
-            else:
-                names = [
-                    f"@{m['username']}" if m["username"] else m["name"]
-                    for m in missing_reports
-                ]
-                report.append(f"- <b>Bugun hisobot bermaganlar:</b> {', '.join(names)} 🛑")
+            names = [
+                f"@{m['username']}" if m["username"] else m["name"]
+                for m in missing_reports
+            ]
+            report.append(f"- <b>Bugun hisobot bermaganlar:</b> {', '.join(names)} 🛑")
         else:
             report.append("- Hamma hisobot topshirdi! 🌟")
 

@@ -28,39 +28,22 @@
 
 ## Current State
 
-# Oisha-OS Agent Coordination Protocol
-
-> Barcha AI agentlar ish boshlashdan oldin bu faylni o'qiydi va tugatgandan keyin yangilaydi.
-
-## Communication Rules
-
-1. **Bir faylga bir vaqtda faqat bitta agent yozadi**
-2. **Agent ish boshlaganda `## Locks` ga o'z nomini yozadi, tugatganda o'chiradi**
-3. **Shared fayllarga (settings.py, context.py, boot.py) faqat Agent Coordinator yozadi**
-4. **Har bir PR dan oldin `pytest -q` va `bandit -r src/ -ll` ishga tushiriladi**
-5. **git commit → git push → keyin keyingi agent pull qiladi (rebase)**
-
-## Roles
-
-| Agent | Scope | Owner |
-|-------|-------|-------|
-| **Coordinator** | AGENTS.md, settings.py, context.py, boot.py, PR merge | @user |
-| **Parser** | main.py → handlers/, commands/, schedulers/ | — |
-| **Hisobchi** | hisobchi_engine.py, hisobchi_handlers.py, hisobchi_schema.py | — |
-| **Security** | tests/, bandit issues, exception handling | — |
-| **Migration** | global variable → app_ctx.* | — |
-| **Database** | database.py, migrations, SQL optimization | — |
-| **API Server** | api_server.py, endpoints, auth | — |
-| **Integration** | AmoCRM, Airtable, Telegram integrations | — |
-| **Documentation** | README, API docs, inline docs | — |
-| **Performance** | profiling, caching, optimization | — |
-| **Code Quality** | dead code, naming, type hints | — |
-
-## Current State
-
 ### Locked
-- **Hisobchi (Codex)** — branch/worktree `codex/hisobchi-production` (`C:\Users\baxti\playground\oisha-os-card-finance`). Vazifa: Hisobchi card-bot production verification, userbot session holati, Oracle VM runtime dalillari. Shared fayllarga tegilmaydi.
 - **Integration (Claude)** — branch `feat/agent-integrations`. Fayllar:
+  - salescoach-ai: `apps/api/src/mcp/server.ts`, `apps/api/src/integrations/call-intel/*`, `apps/api/src/common/guards/service-or-jwt-auth.guard.ts`, `apps/worker/src/services/telegram_notify.ts`, `apps/api/src/app.module.ts`, `apps/api/src/{calls,negotiations}/*.controller.ts`, `apps/api/package.json`
+  - oisha-os: `src/services/core/{salescoach_sync,docusign_sync,apollo_enrich}.py` (YANGI fayllar, shared emas)
+  - ⚠️ `settings.py` ga TEGILMAYDI (Coordinator owns) — Python kod `getattr` bilan himoyalangan; kerakli env varlar "For Coordinator" da
+- **Integration (Antigravity)** — Tez Natija Telegram guruh a'zolarini Google Sheets va AmoCRM-ga skanerlash integratsiyasi. Fayllar:
+  - `src/services/core/gsheets.py`
+  - `src/commands/sync.py`
+
+### Done
+- boot.py yaratildi (685 lines, main() ini logikasi)
+- context.py: ApplicationContext, `from __future__ import annotations`
+- settings.py: Hisobchi env vars qo'shildi
+- main.py: 4069 → 2723 lines (boot.py chiqarildi)
+- test_api_server_security.py: boot.py ga moslandi
+- Hisobchi env vars: `.env`, `.env.example` ga qo'shildi
 - Test: 316 passed, 1 failed (instagrapi missing), 8 skipped
 
 ### Done (yangi)
@@ -78,11 +61,11 @@
 - Web chat widgeti production xatoligi (FastAPI /api/chat/send va /api/chat/history API-dagi 422 xatoliklar) `X-Secret-Key` header qo'llab-quvvatlash orqali tuzatildi, barcha testlardan o'tdi va remote Oracle VM ga deploy qilinib muvaffaqiyatli ishga tushirildi (Antigravity).
 
 ### Next Tasks
-1. [Done] `self_command_handler` (1000+ lines) → `src/commands/` ga ajratish
-2. [Done] `except Exception: pass` larni tuzatish (~30+ joy `call_analyzer.py` da tuzatildi)
-3. Global → app_ctx.* migratsiyasi (Jarayonda)
+1. `self_command_handler` (1000+ lines) → `src/commands/` ga ajratish
+2. `except Exception: pass` larni tuzatish (~20+ joy)
+3. Global → app_ctx.* migratsiyasi
 4. [Done] f-string SQL → parametrized query (database.py:682, 998)
-5. [Done] Handler lar: `src/handlers/` ga ajratish (negotiation, kirim, case_publisher, etc.)
+5. Handler lar: `src/handlers/` ga ajratish (negotiation, kirim, case_publisher, etc.)
 
 ### Dead Files (don't touch)
 - `src/agents/` — autonomous AI agents, domain-specific, bu refactoringga kirmaydi

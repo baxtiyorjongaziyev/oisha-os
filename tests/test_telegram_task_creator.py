@@ -98,15 +98,13 @@ async def test_analyze_text_for_tasks_pauses_after_gemini_quota_error():
         side_effect=RuntimeError("429 RESOURCE_EXHAUSTED")
     )
 
-    # Mock non-Gemini fallback to also fail (return None)
-    with patch("src.services.utils.gemini_fallback._non_gemini_fallback", return_value=None):
-        assert await creator.analyze_text_for_tasks("Suhbat") == []
-        assert await creator.analyze_text_for_tasks("Takror suhbat") == []
-        assert creator.genai_client.aio.models.generate_content.await_count == len(
-            model_candidates(creator.gemini_model)
-        )
-        assert creator.is_cooling_down()
-        assert creator.cooldown_reason() == "gemini_quota"
+    assert await creator.analyze_text_for_tasks("Suhbat") == []
+    assert await creator.analyze_text_for_tasks("Takror suhbat") == []
+    assert creator.genai_client.aio.models.generate_content.await_count == len(
+        model_candidates(creator.gemini_model)
+    )
+    assert creator.is_cooling_down()
+    assert creator.cooldown_reason() == "gemini_quota"
 
 
 @pytest.mark.asyncio

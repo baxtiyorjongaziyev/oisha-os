@@ -4,7 +4,6 @@ Jon.Branding - Har kuni, har soat, har daqiqa nazorat!
 """
 
 from __future__ import annotations
-from src.context import app_ctx
 
 import asyncio
 from datetime import datetime, time
@@ -405,14 +404,15 @@ class DailyEnforcer:
 
 
 # Singleton
-app_ctx.enforcer: Optional[DailyEnforcer] = None
+_enforcer: Optional[DailyEnforcer] = None
 
 
 def get_daily_enforcer() -> DailyEnforcer:
     """Global enforcer instance"""
-    if app_ctx.enforcer is None:
-        app_ctx.enforcer = DailyEnforcer()
-    return app_ctx.enforcer
+    global _enforcer
+    if _enforcer is None:
+        _enforcer = DailyEnforcer()
+    return _enforcer
 
 
 # Demo uchun team setup

@@ -72,17 +72,6 @@ class AppSettings(BaseSettings):
     OPENAI_TRANSCRIBE_MODEL: str = "whisper-1"
     OPENAI_TEXT_MODEL: str = "gpt-4o-mini"
     DEEPSEEK_API_KEY: Optional[SecretStr] = None
-    OPENROUTER_API_KEY: Optional[SecretStr] = None
-    OPENROUTER_TEXT_MODEL: str = "meta-llama/llama-3.2-3b-instruct:free"
-    # --- Bepul AI providerlar (Gemini kvotasi tugaganda fallback) ---
-    NVIDIA_NIM_API_KEY: Optional[SecretStr] = None
-    NVIDIA_NIM_MODEL: str = "meta/llama-3.3-70b-instruct"
-    TOGETHERAI_API_KEY: Optional[SecretStr] = None
-    TOGETHERAI_MODEL: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
-    HUGGINGFACE_API_KEY: Optional[SecretStr] = None
-    HUGGINGFACE_MODEL: str = "meta-llama/Llama-3.3-70B-Instruct"
-    CEREBRAS_API_KEY: Optional[SecretStr] = None
-    CEREBRAS_MODEL: str = "gpt-oss-120b"
     AWS_ACCESS_KEY_ID: Optional[SecretStr] = None
     AWS_SECRET_ACCESS_KEY: Optional[SecretStr] = None
     AWS_REGION: str = "us-east-1"
@@ -91,9 +80,6 @@ class AppSettings(BaseSettings):
     AMOCRM_CLIENT_ID: str = ""
     AMOCRM_CLIENT_SECRET: Optional[SecretStr] = None
     AMOCRM_REDIRECT_URL: str = "https://localhost"
-    AIRTABLE_CLIENT_ID: str = ""
-    AIRTABLE_CLIENT_SECRET: Optional[SecretStr] = None
-    AIRTABLE_REDIRECT_URI: str = "https://localhost"
     AMOCRM_CRON_SECRET: Optional[SecretStr] = None
     ENABLE_AMOCRM_LEAD_ENRICHMENT: bool = True
     AMOCRM_ENRICHMENT_MESSAGE_LIMIT: int = 20
@@ -157,11 +143,6 @@ class AppSettings(BaseSettings):
     META_VERIFY_TOKEN: Optional[SecretStr] = None
     META_PAGE_ACCESS_TOKEN: Optional[SecretStr] = None
     META_APP_SECRET: Optional[SecretStr] = None
-
-    # Google Analytics 4
-    GA4_PROPERTY_ID: Optional[str] = None
-    GA4_CREDENTIALS_JSON: Optional[SecretStr] = None
-
 
     # Lead Distribution
     SALES_MANAGER_IDS: list[int] = Field(
@@ -245,7 +226,6 @@ class AppSettings(BaseSettings):
             "CLOUDFLARE_ACCOUNT_ID",
             "CLOUDFLARE_AI_API_TOKEN",
             "DEEPSEEK_API_KEY",
-            "OPENROUTER_API_KEY",
             "AMOCRM_CLIENT_SECRET",
             "AIRTABLE_API_KEY",
             "AIRTABLE_BASE_ID",
@@ -284,8 +264,6 @@ class AppSettings(BaseSettings):
             "META_VERIFY_TOKEN",
             "META_PAGE_ACCESS_TOKEN",
             "META_APP_SECRET",
-            "GA4_PROPERTY_ID",
-            "GA4_CREDENTIALS_JSON",
         }
         for key in optional_keys:
             if data.get(key) == "":

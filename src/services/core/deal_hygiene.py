@@ -501,12 +501,10 @@ class AmoCRMDealHygieneAgent:
         }
 
     async def _create_review_task(self, lead_id: int, text: str) -> Dict[str, Any]:
-        from src.utils.task_scheduler import task_deadline
-
         result = await self.amocrm.create_task(
             element_id=lead_id,
             text=text,
-            complete_till=task_deadline(due_in_hours=24),
+            complete_till=int(time.time()) + 24 * 60 * 60,
         )
         return {
             "lead_id": lead_id,

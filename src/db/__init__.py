@@ -22,7 +22,6 @@ from src.db.repositories.tasks import TaskRepository
 from src.db.repositories.checkpoints import CheckpointRepository
 from src.db.repositories.intelligence import IntelligenceRepository
 from src.db.repositories.reports import ReportsRepository
-from src.db.repositories.oauth import OAuthRepository
 
 logger = structlog.get_logger()
 
@@ -56,12 +55,11 @@ class Database:
         self.checkpoints = CheckpointRepository(self.conn_manager)
         self.intelligence = IntelligenceRepository(self.conn_manager)
         self.reports = ReportsRepository(self.conn_manager)
-        self.oauth = OAuthRepository(self.conn_manager)
 
         # Wire connection factory so monkeypatching db.get_connection works
         for repo in [
             self.users, self.messages, self.kv, self.crm,
-            self.tasks, self.checkpoints, self.intelligence, self.reports, self.oauth,
+            self.tasks, self.checkpoints, self.intelligence, self.reports,
         ]:
             repo.set_connection_factory(lambda: self.get_connection())
 
@@ -106,8 +104,8 @@ class Database:
             from src import config
             if hasattr(config, "OWNER_ID") and config.OWNER_ID:
                 await self.users.ensure_owner_admin(int(config.OWNER_ID))
-        except Exception as exc:
-            logger.debug("[DB] Ensure owner admin: %s", exc)
+        except Exception:
+            pass
 
     async def _init_legacy_tables(self) -> None:
         conn = await self.get_connection()
@@ -233,9 +231,6 @@ class Database:
     async def save_team_report(self, user_id, report_type, content, report_date=None, status="submitted") -> bool:
         return await self.reports.save_team_report(user_id, report_type, content, report_date, status)
 
-    async def get_task_count(self) -> int:
-        return await self.tasks.get_task_count()
-
     async def get_overdue_tasks(self) -> List[Dict[str, Any]]:
         return await self.tasks.get_overdue_tasks()
 
@@ -253,35 +248,6 @@ class Database:
 
     async def get_latest_call_analysis(self, lead_id: int) -> Optional[Dict[str, Any]]:
         return await self.intelligence.get_latest_call_analysis(lead_id)
-
-    async def get_department_targets(self, month_str: str = "") -> List[Dict[str, Any]]:
-        """Return department targets — from db_targets table if it exists, else hardcoded defaults."""
-        try:
-            conn = await self._get_conn()
-            async with conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='department_targets'"
-            ) as cursor:
-                table_exists = await cursor.fetchone()
-            if table_exists:
-                async with conn.execute(
-                    "SELECT dept, value FROM department_targets WHERE month = ?",
-                    (month_str,),
-                ) as cursor:
-                    rows = await cursor.fetchall()
-                if rows:
-                    return [{"dept": r[0], "value": r[1]} for r in rows]
-        except Exception:
-            logger.debug("Failed to read department_targets table, using defaults")
-
-        return [
-            {"dept": "Sales", "value": 80_000_000},
-            {"dept": "Marketing", "value": 15_000_000},
-            {"dept": "Support", "value": 0},
-        ]
-
-    async def get_missing_reports(self, report_date: str = "") -> List[Dict[str, Any]]:
-        """Return team members who haven't submitted reports for the given date."""
-        return await self.reports.get_missing_reports(report_date)
 
     def __iter__(self):
         return iter(())

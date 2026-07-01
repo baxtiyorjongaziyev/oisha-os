@@ -160,7 +160,6 @@ class ActionParser:
                                 parse_mode="HTML",
                                 thread_id=getattr(self.config, "TOPIC_CRM_ID", None)
                                 or getattr(self.config, "CRM_TOPIC_ID", None),
-                                allow_userbot_fallback=False,
                             )
                         )
             except Exception as e:
@@ -275,7 +274,6 @@ class ActionParser:
                                 parse_mode="HTML",
                                 thread_id=getattr(self.config, "TOPIC_CRM_ID", None)
                                 or getattr(self.config, "CRM_TOPIC_ID", None),
-                                allow_userbot_fallback=False,
                             )
 
                     asyncio.create_task(run_amo_sync())

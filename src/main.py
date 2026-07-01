@@ -47,8 +47,10 @@ from src.services.core.admin_bot import AdminBot
 from src.services.core import auto_reply_gate
 from src.services.core.folder_manager import FolderManager
 from src.services.utils.voice_processor import VoiceProcessor
+from src.services.utils.access_manager import AccessManager
 from src.services.core.juma_notifier import JumaNotifier
 from src.services.core.case_publisher import CasePublisher
+from src.services.core.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
 from src.services.core.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
@@ -102,12 +104,20 @@ auto_lead_agent = None
 safe_responder = None
 activity_monitor = None
 audit_agent = None
+workflow_manager = None
+access_manager = None
 admin_bot = None
 juma_notifier = None
+session_manager = None
+chat_bridge = None
+BOT_TOKEN_STR = None
 surgical_integration = None
 evolution_scheduler = None
 meeting_scheduler = None
 oisha_brain = None
+bot_messenger = None
+agent_orchestrator = None
+_health_api_server = None
 _hisobchi_engine = None
 
 # TN5 Group Config (env-configurable; fallback keeps legacy behavior)
@@ -653,7 +663,7 @@ async def handle_new_message(event):
             folder_manager=folder_manager,
             admin_bot=admin_bot,
             bot_client=bot_client,
-            welcome_manager=app_ctx.welcome_manager,
+            welcome_manager=welcome_manager,
             TN5_GROUP_ID=TN5_GROUP_ID,
         )
 
@@ -699,7 +709,7 @@ async def handle_new_message(event):
         msg_controller=msg_controller,
         auto_reply_gate=auto_reply_gate,
         safe_responder=safe_responder,
-        scouter=app_ctx.scouter,
+        scouter=scouter,
         surgical_integration=surgical_integration,
         action_parser=action_parser,
         admin_bot=admin_bot,

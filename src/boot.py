@@ -219,28 +219,7 @@ async def _ai_autopilot_loop():
             logger.info("[AUTOPILOT] AI Autopilot cycle completed.")
         except Exception as exc:
             logger.error(f"[AUTOPILOT] Critical error in autopilot loop: {exc}")
-        
-        interval = getattr(settings, "AUTOPILOT_INTERVAL_SECONDS", 180)
-        await asyncio.sleep(interval)
-
-
-async def _daily_analytics_loop():
-    from src.schedulers.daily_analytics_reporter import run_daily_analytics_report
-    from src.time_utils import get_local_now
-    
-    await asyncio.sleep(60)
-    while True:
-        try:
-            now = get_local_now()
-            if now.hour == 9 and now.minute == 0:
-                logger.info("[GA4] Triggering daily analytics report...")
-                await run_daily_analytics_report()
-                await asyncio.sleep(61)
-        except Exception as e:
-            logger.error(f"[GA4] Error in daily analytics loop: {e}")
-        await asyncio.sleep(30)
-
-
+        await asyncio.sleep(900)
 
 
 async def _brain_evolution_loop():
@@ -326,39 +305,29 @@ async def boot_application():
     force_control_plane_only = _parse_bool(os.getenv("CLOUD_RUN_CONTROL_PLANE_ONLY", ""))
     cloud_control_plane_only = force_control_plane_only or (cloud_control_plane and not enable_cloud_userbot)
 
-    # Telegram Client init — XAVFSIZ SESSION MANAGER
-    telegram_session_manager = None  # Default — cloud control plane uchun
+    # Telegram Client init
     if cloud_control_plane_only:
         client = TelegramClient(
             StringSession(), settings.API_ID, settings.API_HASH,
             device_model="Oisha Enterprise Control Plane", system_version="Cloud Run",
         )
     else:
-        from src.services.core.telegram_session_manager import TelegramSessionManager
-
-        # Session manager yaratish
-        telegram_session_manager = TelegramSessionManager(
-            api_id=settings.API_ID,
-            api_hash=settings.API_HASH,
-            session_file="data/userbot.session",
-            session_string=os.environ.get("USERBOT_SESSION_STRING", "").strip() or None,
-            admin_notifier=None,  # keyin qo'shiladi
-            device_model="Oisha Enterprise v2",
-            system_version="Linux Server",
-        )
-
-        # Ulanish — xavfsiz
-        userbot_ready = await telegram_session_manager.connect()
-        if not userbot_ready:
-            logger.error("[SESSION] ❌ Userbot session ulanmadi!")
-            logger.error("[SESSION] Admin ga xabar yuborilmoqda...")
-            # Client ni None qilish — bot token mode da ishlaydi
-            client = None
+        session_string = os.environ.get("USERBOT_SESSION_STRING", "").strip()
+        if session_string:
+            client = TelegramClient(
+                StringSession(session_string), settings.API_ID, settings.API_HASH,
+                device_model="Oisha Enterprise v2", system_version="Windows 11 Agent",
+            )
+        elif cloud_control_plane:
+            client = TelegramClient(
+                StringSession(), settings.API_ID, settings.API_HASH,
+                device_model="Oisha Enterprise Control Plane", system_version="Cloud Run",
+            )
         else:
-            client = telegram_session_manager.client
-            logger.info("[SESSION] ✅ Userbot session ulandi — reconnect monitor ishga tushadi")
-            # Reconnect monitorini ishga tushirish
-            await telegram_session_manager.start_reconnect_monitor()
+            client = TelegramClient(
+                "data/oisha_user_active", settings.API_ID, settings.API_HASH,
+                device_model="Oisha Enterprise v2", system_version="Windows 11 Agent",
+            )
 
     # Bot Client init
     BOT_TOKEN = settings.BOT_TOKEN.get_secret_value()
@@ -393,9 +362,6 @@ async def boot_application():
     asyncio.create_task(_crm_discipline_loop())
     asyncio.create_task(_crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop")
     asyncio.create_task(_ai_autopilot_loop())
-    
-    from src.schedulers.frog_scheduler import daily_frog_loop
-    asyncio.create_task(daily_frog_loop(client, settings.TEAM_GROUP_ID), name="daily_frog_loop")
 
     # Surgical negotiator
     surgical_integration = get_surgical_integration()
@@ -419,7 +385,7 @@ async def boot_application():
     evolution_scheduler = EvolutionScheduler(db=msg_controller.db, gemini_api_key=api_keys["gemini"])
     asyncio.create_task(evolution_scheduler.start(), name="evolution_scheduler")
 
-    workflow_manager = WorkflowManager(crm=msg_controller.crm, db=msg_controller.db, client=client)
+    workflow_manager = WorkflowManager(crm=msg_controller.crm.amocrm, db=msg_controller.db, client=client)
     access_manager = AccessManager(owner_id=src_config.OWNER_ID)
 
     # Admin Bot
@@ -431,9 +397,7 @@ async def boot_application():
     if meeting_scheduler:
         meeting_scheduler.admin_notifier = admin_bot
     from src.services.utils.welcome_manager import WelcomeManager
-    app_ctx.welcome_manager = WelcomeManager(client=client)
-    from src.services.utils.scouter import Scouter
-    app_ctx.scouter = Scouter(api_key=api_keys.get("gemini"), db=msg_controller.db)
+    WelcomeManager(client=client)
     lead_scraper.notify_callback = admin_bot.notify_lead
 
     from src.services.core.workflow_orchestrator import WorkflowOrchestrator
@@ -480,16 +444,14 @@ async def boot_application():
         await asyncio.Event().wait()
         return
 
-    # Userbot connection — SESSION MANAGER ALAQACHON ULADI
-    # Eski _connect_user_client chaqirig'ini o'chiramiz — session manager buni qildi
-    userbot_ready = client is not None and (telegram_session_manager is not None and await telegram_session_manager.health_check())
+    # Userbot connection
+    userbot_ready = await m._connect_user_client(client)
     api_module.set_runtime_context(
         state_backend=db.get_backend_name(), state_db_path=msg_controller.db.db_path,
         userbot_authorized=userbot_ready,
     )
     if not userbot_ready:
         api_module.user_client = None
-        logger.warning("[SESSION] Userbot tayyor emas — bot-token mode da ishlaydi")
         if BOT_TOKEN_STR:
             try:
                 await bot_client.start(bot_token=BOT_TOKEN_STR)
@@ -553,9 +515,7 @@ async def boot_application():
                 db=msg_controller.db, gemini_api_key=api_keys["gemini"],
                 bot_token=BOT_TOKEN_STR, owner_id=getattr(src_config, "OWNER_ID", None),
             )
-            if settings.SURGICAL_MODE:
-                asyncio.create_task(_brain_evolution_loop(), name="oisha_brain_evolution")
-                asyncio.create_task(_daily_analytics_loop(), name="oisha_daily_analytics")
+            asyncio.create_task(_brain_evolution_loop(), name="oisha_brain_evolution")
             logger.info("[BRAIN] OishaBrain initialized.")
 
             # BotMessenger
@@ -605,7 +565,6 @@ async def boot_application():
     m.agent_orchestrator = agent_orchestrator
     m.BOT_TOKEN_STR = BOT_TOKEN_STR
     m.health_api_server = None
-    m.telegram_session_manager = telegram_session_manager  # XAVFSIZ SESSION MANAGER
 
     # Sync to app_ctx for new code
     app_ctx.client = client
@@ -623,7 +582,6 @@ async def boot_application():
     app_ctx.admin_bot = admin_bot
     app_ctx.juma_notifier = juma_notifier
     app_ctx.session_manager = session_manager
-    app_ctx.telegram_session_manager = telegram_session_manager  # XAVFSIZ SESSION MANAGER
     app_ctx.surgical_integration = surgical_integration
     app_ctx.evolution_scheduler = evolution_scheduler
     app_ctx.meeting_scheduler = meeting_scheduler
@@ -663,6 +621,7 @@ async def boot_application():
         _hisobchi_event_handler,
         events.NewMessage(incoming=True),
     )
+    client.add_event_handler(m.handle_new_message, events.NewMessage(incoming=True))
 
     if settings.TEAM_GROUP_ID and settings.TOPIC_KIRIM_ID:
         client.add_event_handler(
@@ -679,26 +638,6 @@ async def boot_application():
     client.add_event_handler(m.meeting_scheduler_handler, events.NewMessage(outgoing=True))
     client.add_event_handler(m.self_command_handler, events.NewMessage(chats="me"))
     client.add_event_handler(m.handle_new_message, events.NewMessage(incoming=True))
-
-    async def _hisobchi_callback_handler(event):
-        """Handle hisobchi approval inline button callbacks."""
-        try:
-            from src.services.core.hisobchi_approval import handle_callback
-            data = event.data.decode("utf-8") if isinstance(event.data, bytes) else event.data
-            if data and (data.startswith("happrove:") or data.startswith("hedit:") or
-                         data.startswith("hskip:") or data.startswith("hcat:") or
-                         data.startswith("howner:") or data.startswith("hback:")):
-                await handle_callback(data, event, hisobchi_engine)
-                raise events.StopPropagation
-        except events.StopPropagation:
-            raise
-        except Exception as exc:
-            logger.error("[HISOBCHI] Callback handler failed: %s", exc, exc_info=True)
-
-    client.add_event_handler(
-        _hisobchi_callback_handler,
-        events.CallbackQuery(),
-    )
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
     asyncio.create_task(
