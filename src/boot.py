@@ -486,8 +486,6 @@ async def boot_application():
         m.msg_controller = msg_controller
         m.admin_bot = admin_bot
         m.access_manager = access_manager
-        from src import scheduler as _scheduler
-        _spawn_task(_scheduler.background_monitor_task(), name="background_monitor_task")
         await asyncio.Event().wait()
         return
 
