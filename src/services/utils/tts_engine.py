@@ -2,9 +2,10 @@ import edge_tts  # type: ignore
 import os
 import re
 import logging
+import structlog
 import config  # type: ignore
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class TTSEngine:
@@ -107,7 +108,7 @@ class TTSEngine:
                     await communicate.save(path)
                     return path
                 except Exception:
-                    pass
+                    logger.warning("edge_tts_fallback_failed", exc_info=True)
             return None
 
     def cleanup(self, path):
