@@ -10,6 +10,7 @@ if project_root not in sys.path:
 
 from mcp.server.fastmcp import FastMCP
 from src.database import Database
+import structlog
 
 # Configure logging to stderr to avoid interfering with stdout-based MCP protocol
 logging.basicConfig(
@@ -17,6 +18,19 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     stream=sys.stderr,
 )
+
+# Re-configure structlog to write to stderr so it doesn't pollute stdout (critical for MCP stdio)
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer(),
+    ],
+    context_class=dict,
+    logger_factory=structlog.PrintLoggerFactory(sys.stderr),
+    cache_logger_on_first_use=True,
+)
+
 logger = logging.getLogger("telegram-mcp")
 
 # Initialize FastMCP server

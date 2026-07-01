@@ -1,12 +1,13 @@
 import logging
 import asyncio
 from typing import Optional
+import structlog
 from telegram import Update
 from telegram.ext import ContextTypes
 import config
 from src.services.core.telegram.telegram_ai_features import TelegramBotAPI10Client, build_text_article_result
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 async def process_message_logic(
@@ -110,7 +111,7 @@ async def process_message_logic(
                     text="Oisha javob tayyorlamoqda...",
                 )
             except Exception:
-                pass  # streaming is best-effort, don't block response
+                logger.debug("send_message_draft_typing_indicator_failed", exc_info=True)
 
         # Use MessageController for agentic flow
         # Strip bot mention from message so agents don't see "@jonairobot" prefix

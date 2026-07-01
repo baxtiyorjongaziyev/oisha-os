@@ -4,6 +4,7 @@ Jon.Branding - Lead topishdan loyiha topshirishgacha barcha qadamlar
 """
 
 from __future__ import annotations
+from src.context import app_ctx
 
 import asyncio
 from dataclasses import dataclass, field
@@ -436,15 +437,14 @@ class ClientProjectChecklistManager:
 
 
 # Singleton
-_checklist_manager: Optional[ClientProjectChecklistManager] = None
+app_ctx.checklist_manager: Optional[ClientProjectChecklistManager] = None
 
 
 def get_client_project_manager() -> ClientProjectChecklistManager:
     """Global manager instance"""
-    global _checklist_manager
-    if _checklist_manager is None:
-        _checklist_manager = ClientProjectChecklistManager()
-    return _checklist_manager
+    if app_ctx.checklist_manager is None:
+        app_ctx.checklist_manager = ClientProjectChecklistManager()
+    return app_ctx.checklist_manager
 
 
 # Quick API functions
