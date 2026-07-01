@@ -1,4 +1,5 @@
-"""Hisobchi AI — DB schema and dataclasses for card transaction tracking."""
+"""Hisobchi AI — DB schema, dataclasses, and storage factory."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -96,7 +97,7 @@ _COLUMN_MIGRATIONS = (
 
 
 class HisobchiDatabaseAdapter:
-    """Expose the small execute/commit surface on the app's Database class."""
+    """SQL database adapter (Turso/SQLite)."""
 
     def __init__(self, database: Any) -> None:
         self.database = database
@@ -138,6 +139,7 @@ def ensure_hisobchi_db(db: Any) -> Any:
 
 
 async def init_hisobchi_tables(db=None) -> None:
+    """Initialize SQL tables (only needed for DB backend)."""
     from src.database_pool import db_pool
 
     _db = ensure_hisobchi_db(db if db is not None else db_pool)
@@ -148,8 +150,6 @@ async def init_hisobchi_tables(db=None) -> None:
         try:
             await _db.execute(ddl)
         except Exception as exc:
-            # SQLite/libSQL do not support ADD COLUMN IF NOT EXISTS. Re-running
-            # boot is expected, so duplicate-column errors are harmless here.
             message = str(exc).casefold()
             if not any(
                 marker in message
@@ -163,3 +163,24 @@ async def init_hisobchi_tables(db=None) -> None:
     )
 
     await _db.commit()
+
+
+async def init_hisobchi_gsheets(
+    spreadsheet_id: str,
+    credentials_path: str = "service_account.json",
+) -> Any:
+    """Initialize Google Sheets backend for hisobchi."""
+    from src.services.core.hisobchi_gsheets import HisobchiGsheetStore
+
+    store = HisobchiGsheetStore(spreadsheet_id, credentials_path)
+    await store.init()
+    return store
+
+
+def create_hisobchi_engine(
+    db=None,
+    gs_store: Any = None,
+) -> Any:
+    """Factory: creates HisobchiEngine with the right backend."""
+    from src.services.core.hisobchi_engine import HisobchiEngine
+    return HisobchiEngine(db=db, gs_store=gs_store)
