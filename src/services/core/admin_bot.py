@@ -293,7 +293,12 @@ class AdminBot:
             if self.access_manager.is_admin(event.sender_id):
                 await self.send_vps_status(event)
 
-        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/teznatija"))
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/teznatija_amo"))
+        async def tez_natija_amo_handler(event):
+            if self.access_manager.is_admin(event.sender_id):
+                await self.export_tez_natija_amocrm(event)
+
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/teznatija(?!_amo)"))
         async def tez_natija_handler(event):
             if self.access_manager.is_admin(event.sender_id):
                 await self.export_tez_natija(event)
@@ -2032,6 +2037,59 @@ class AdminBot:
         except Exception as e:
             logger.error(f"❌ [TEZ NATIJA EXPORT ERROR] {e}")
             await event.respond(f"❌ **Eksportda xatolik:** `{str(e)}`")
+
+    async def export_tez_natija_amocrm(self, event):
+        """Tez Natija guruhlaridan a'zolarni AmoCRM'ga lead sifatida eksport qiladi."""
+        import src.main as m
+        client = getattr(m, "client", None)
+        if not client:
+            await event.respond("❌ Userbot ulanmagan. AmoCRM eksporti uchun userbot kerak.")
+            return
+
+        amocrm = None
+        msg_controller = getattr(m, "msg_controller", None)
+        if msg_controller is not None:
+            amocrm = getattr(getattr(msg_controller, "crm", None), "amocrm", None)
+        if amocrm is None:
+            await event.respond("❌ AmoCRM ulanmagan. Eksport bekor qilindi.")
+            return
+
+        await event.respond(
+            "⏳ **AmoCRM eksporti boshlandi...**\n"
+            "Guruhlar: TEZ NATIJA 2, 3, 4, 5\n"
+            "Har bir a'zo alohida lead sifatida yaratiladi.\n"
+            "Bu 15-40 daqiqa vaqt olishi mumkin (AmoCRM rate limit)."
+        )
+
+        try:
+            from src.services.core.tez_natija_exporter import TezNatijaExporter
+
+            exporter = TezNatijaExporter(amocrm=amocrm, db=self.db)
+
+            async def progress(group, count):
+                await event.respond(f"📊 {group}: {count} lead yaratildi...")
+
+            result = await exporter.export_all_groups_to_amocrm(
+                client=client,
+                progress_cb=progress,
+            )
+
+            msg = (
+                f"✅ **AmoCRM eksporti tugadi!**\n\n"
+                f"📥 Yangi leadlar: **{result['new']}**\n"
+                f"⏭ Allaqachon bor / raqamsiz: **{result['skip']}**\n"
+            )
+            if result["errors"]:
+                msg += f"⚠️ Xatolar: {len(result['errors'])} guruh\n"
+                for e in result["errors"]:
+                    msg += f"  • {e}\n"
+            msg += "\n📇 AmoCRM Hunter voronkasi → 'Yangi so'rov' bosqichi\n"
+            msg += "🏷 Teg: 'Tez Natija' + guruh nomi"
+
+            await event.respond(msg, parse_mode="markdown")
+        except Exception as e:
+            logger.error(f"❌ [TEZ NATIJA AMOCRM EXPORT ERROR] {e}")
+            await event.respond(f"❌ **AmoCRM eksportda xatolik:** `{str(e)}`")
 
     async def send_deadline_report(self, event):
         """Muddati o'tgan vazifalar va loyihalar bo'yicha hisobot."""
