@@ -4,6 +4,7 @@ Oisha-OS Surgical Closer
 """
 
 from __future__ import annotations
+from src.context import app_ctx
 
 import asyncio
 from dataclasses import dataclass, field
@@ -549,14 +550,13 @@ class PricingEngine:
 
 
 # Singleton instance
-_autonomous_agent: Optional[AutonomousSalesAgent] = None
+app_ctx.autonomous_agent: Optional[AutonomousSalesAgent] = None
 
 
 def get_autonomous_agent(db=None) -> AutonomousSalesAgent:
     """Global agent instance. Pass db on first call to enable persistence."""
-    global _autonomous_agent
-    if _autonomous_agent is None:
-        _autonomous_agent = AutonomousSalesAgent(db=db)
-    elif db is not None and _autonomous_agent.db is None:
-        _autonomous_agent.db = db
-    return _autonomous_agent
+    if app_ctx.autonomous_agent is None:
+        app_ctx.autonomous_agent = AutonomousSalesAgent(db=db)
+    elif db is not None and app_ctx.autonomous_agent.db is None:
+        app_ctx.autonomous_agent.db = db
+    return app_ctx.autonomous_agent
