@@ -39,7 +39,7 @@ class JumaNotifier:
             f"Text: {text}"
         )
         try:
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
 
             response = await safe_ai_call(
                 client=self.genai_client, prompt=prompt, model=self.model_name
