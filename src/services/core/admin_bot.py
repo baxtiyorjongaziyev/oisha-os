@@ -1,5 +1,6 @@
 import os
 import logging
+import structlog
 import asyncio
 import psutil
 import platform
@@ -16,7 +17,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from src.services.utils.access_manager import AccessManager
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class AdminBot:
@@ -379,8 +380,8 @@ class AdminBot:
                                 await event.edit(
                                     event.message.message + "\n\n✅ Yuborildi"
                                 )
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                logger.debug("[ADMIN_BOT] send_draft: failed to edit message after send", exc_info=True)
                         except Exception as ex:
                             logger.error(f"[SEND_DRAFT] {ex}", exc_info=True)
                             await event.answer(f"⚠️ Yuborishda xato: {ex}", alert=True)
@@ -394,8 +395,8 @@ class AdminBot:
                             await event.edit(
                                 event.message.message + "\n\n❌ Rad etildi"
                             )
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("[ADMIN_BOT] reject_draft: failed to edit message after reject", exc_info=True)
                     else:
                         await event.answer(
                             "ℹ️ Draft allaqachon qayta ishlangan.", alert=True
@@ -429,8 +430,8 @@ class AdminBot:
                         await event.edit(
                             event.message.message + f"\n\n🤝 **Qabul qildi:** {name}"
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("[ADMIN_BOT] accept/claim_lead: failed to edit message with claimer name", exc_info=True)
             except Exception as e:
                 logger.error(f"❌ [ADMIN_BOT] CALLBACK ERROR: {str(e)}")
                 await event.answer("⚠️ Xatolik yuz berdi.", alert=True)
@@ -460,8 +461,8 @@ class AdminBot:
                 if user_data:
                     first_name = user_data.get("first_name") or first_name
                     last_name = user_data.get("last_name") or ""
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("[ADMIN_BOT] contact_card: global lookup failed for %s", normalized, exc_info=True)
 
             try:
                 await event.respond(
@@ -955,8 +956,8 @@ class AdminBot:
                     if user_data:
                         first_name = user_data.get("first_name") or first_name
                         last_name = user_data.get("last_name") or ""
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("[ADMIN_BOT] inline_search: global lookup failed for %s", normalized, exc_info=True)
 
                 contact_result = InputBotInlineResult(
                     id=str(uuid.uuid4()),
@@ -1982,6 +1983,7 @@ class AdminBot:
             
             report_msg = await reporter.get_accountability_segment()
             
+            all_projects = airtable.get_projects() if airtable else []
             overdue_projects = airtable.get_overdue_projects() if airtable else []
             project_lines = []
             if overdue_projects:
@@ -1993,6 +1995,8 @@ class AdminBot:
                     project_lines.append(f"  • {name} — <i>PM: {pm}</i>")
                 if len(overdue_projects) > 5:
                     project_lines.append(f"  ... va yana {len(overdue_projects)-5} ta.")
+            elif not all_projects:
+                project_lines.append("\n🏗 Airtable ma'lumoti olinmadi (API limit yoki xato)")
             else:
                 project_lines.append("\n🏗 Barcha loyihalar muddatida! ✅")
                 
@@ -2278,28 +2282,19 @@ class AdminBot:
             await wait_msg.edit(f"⚠️ Tahlil jarayonida xatolik: `{str(e)}`")
 
     async def send_draft_for_approval(self, user_id: int, name: str, draft: str):
-        """AI tomonidan tayyorlangan javobni adminga tasdiqlash uchun yuborish."""
-        import uuid
-
-        draft_id = str(uuid.uuid4())[:8]
-        self.pending_drafts[draft_id] = draft
-
-        msg = (
-            f"📝 **DRAFT JAVOB (Lid: {name})**\n"
-            f"──────────────────────\n"
-            f'"{draft}"\n'
-            f"──────────────────────\n"
-            f"💡 *Ushbu javobni unga yuboraymi?*"
-        )
-        # Send to owner
-        if self.access_manager.owner_id:
-            await self.bot_client.send_message(
-                self.access_manager.owner_id,
-                msg,
-                buttons=[
-                    [
-                        Button.inline("🚀 Ayt!", f"send_draft:{draft_id}:{user_id}"),
-                        Button.inline("❌ Rad et", f"reject_draft:{draft_id}"),
-                    ]
-                ],
-            )
+        """AI tomonidan tayyorlangan javobni avtomatik yuborish (tasdiqlashsiz)."""
+        try:
+            await self.user_client.send_message(user_id, draft)
+            logger.info("[ADMIN_BOT] Draft avtomatik yuborildi: lid=%s (%s)", user_id, name)
+            if self.access_manager.owner_id:
+                await self.bot_client.send_message(
+                    self.access_manager.owner_id,
+                    f"✅ Draft avtomatik yuborildi → {name} (ID: {user_id})",
+                )
+        except Exception as e:
+            logger.error("[ADMIN_BOT] Draft yuborishda xatolik: %s", e)
+            if self.access_manager.owner_id:
+                await self.bot_client.send_message(
+                    self.access_manager.owner_id,
+                    f"❌ Draft yuborib bo'lmadi → {name}: {e}",
+                )
