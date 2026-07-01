@@ -4,12 +4,13 @@ Oisha-OS Ideal AI Agent
 """
 
 from __future__ import annotations
+from src.context import app_ctx
 
 import asyncio
 from typing import Any, Dict, Optional
 from datetime import datetime, timedelta
 
-import logging
+import structlog
 
 from src.agents.autonomous_sales_agent import get_autonomous_agent
 from src.agents.deal_lifecycle_manager import (
@@ -20,7 +21,7 @@ from src.agents.deal_lifecycle_manager import (
 from src.agents.contract_generator import ContractGenerator, RiskAssessor
 from src.services.core.gcontacts import GoogleContactsSync
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class SurgicalNegotiator:
@@ -401,7 +402,10 @@ class SurgicalNegotiator:
                 uid = int(fu["user_id"])
                 await self._send_proactive(uid, fu["message"])
             except Exception:
-                pass
+                logger.warning(
+                    "[SurgicalNegotiator] failed to send follow-up proactive message",
+                    exc_info=True,
+                )
         results["follow_ups_sent"] = follow_ups
 
         # 2. Automation rules
@@ -443,24 +447,23 @@ class SurgicalNegotiator:
 
 
 # Singleton
-_surgical_negotiator: Optional[SurgicalNegotiator] = None
+app_ctx.surgical_negotiator: Optional[SurgicalNegotiator] = None
 
 
 def get_surgical_negotiator(db=None, amocrm=None, send_fn=None) -> SurgicalNegotiator:
     """Global negotiator instance. Pass deps on first call to inject them."""
-    global _surgical_negotiator
-    if _surgical_negotiator is None:
-        _surgical_negotiator = SurgicalNegotiator(db=db, amocrm=amocrm, send_fn=send_fn)
+    if app_ctx.surgical_negotiator is None:
+        app_ctx.surgical_negotiator = SurgicalNegotiator(db=db, amocrm=amocrm, send_fn=send_fn)
     else:
         # Late injection — allows main.py to wire deps after startup
-        if db is not None and _surgical_negotiator.db is None:
-            _surgical_negotiator.db = db
-            _surgical_negotiator.sales_agent.db = db
-        if amocrm is not None and _surgical_negotiator.amocrm is None:
-            _surgical_negotiator.amocrm = amocrm
-        if send_fn is not None and _surgical_negotiator.send_fn is None:
-            _surgical_negotiator.send_fn = send_fn
-    return _surgical_negotiator
+        if db is not None and app_ctx.surgical_negotiator.db is None:
+            app_ctx.surgical_negotiator.db = db
+            app_ctx.surgical_negotiator.sales_agent.db = db
+        if amocrm is not None and app_ctx.surgical_negotiator.amocrm is None:
+            app_ctx.surgical_negotiator.amocrm = amocrm
+        if send_fn is not None and app_ctx.surgical_negotiator.send_fn is None:
+            app_ctx.surgical_negotiator.send_fn = send_fn
+    return app_ctx.surgical_negotiator
 
 
 # Convenience function for quick use
