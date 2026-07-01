@@ -9,12 +9,14 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-import logging
 import os
 import random
 import re
+
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple
+
+import structlog
 
 import requests  # type: ignore
 from src.settings import settings
@@ -33,7 +35,7 @@ except Exception:
     functions = None
     types = None
 
-logger = logging.getLogger("crm_contacts_auditor")
+logger = structlog.get_logger()
 
 
 def normalize_phone(phone: Optional[str]) -> str:
@@ -124,11 +126,11 @@ class CRMContactsAuditor:
             try:
                 await _maybe_await(conn.execute("ALTER TABLE crm_contacts_audit ADD COLUMN detailed_summary TEXT"))
             except Exception:
-                pass
+                logger.debug("[CRM_AUDIT] detailed_summary column may already exist", exc_info=True)
             try:
                 await _maybe_await(conn.execute("ALTER TABLE crm_contacts_audit ADD COLUMN task_text TEXT"))
             except Exception:
-                pass
+                logger.debug("[CRM_AUDIT] task_text column may already exist", exc_info=True)
             await _maybe_await(conn.commit())
             
             logger.info("[AUDITOR] crm_contacts_audit table initialized successfully.")
@@ -325,7 +327,7 @@ class CRMContactsAuditor:
                                 functions.contacts.DeleteContactsRequest(id=[int(telegram_user_id)])
                             )
                         except Exception:
-                            pass
+                            logger.debug("[CRM_AUDIT] Failed to clean up imported contact after phone lookup", exc_info=True)
             except Exception as e:
                 logger.warning("[AUDITOR] Phone lookup failed for %s: %s", norm_phone, e)
 
@@ -600,7 +602,7 @@ class CRMContactsAuditor:
                 date_str = datetime.fromtimestamp(int(created_at), tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
                 details.append(f"Yaratilgan sana: {date_str}")
             except Exception:
-                pass
+                logger.debug("[CRM_AUDIT] Failed to format created_at timestamp", exc_info=True)
 
         closed_at = lead.get("closed_at")
         if closed_at:
@@ -608,7 +610,7 @@ class CRMContactsAuditor:
                 date_str = datetime.fromtimestamp(int(closed_at), tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
                 details.append(f"Yopilgan sana: {date_str}")
             except Exception:
-                pass
+                logger.debug("[CRM_AUDIT] Failed to format closed_at timestamp", exc_info=True)
 
         details.append(f"Mas'ul xodim ID (Responsible User): {lead.get('responsible_user_id')}")
         details.append(f"Status (Pipeline Stage) ID: {lead.get('status_id')}")
@@ -671,7 +673,7 @@ class CRMContactsAuditor:
                 try:
                     created = datetime.fromtimestamp(int(t.get("created_at")), tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
                 except Exception:
-                    pass
+                    logger.debug("[CRM_AUDIT] Failed to format task created_at timestamp", exc_info=True)
             text = t.get("text") or "Tavsifsiz vazifa"
             result_info = ""
             if t.get("is_completed") and t.get("result"):
@@ -778,7 +780,7 @@ class CRMContactsAuditor:
                             try:
                                 date_str = datetime.fromtimestamp(int(created_at)).strftime("%Y-%m-%d %H:%M")
                             except Exception:
-                                pass
+                                logger.debug("[CRM_AUDIT] Failed to format call note created_at timestamp", exc_info=True)
                         call_lines.append(f"Qo'ng'iroq ({date_str}): {direction}, davomiyligi={duration}s")
                 
                 if call_lines:
@@ -812,7 +814,7 @@ class CRMContactsAuditor:
                     try:
                         date_str = datetime.fromtimestamp(int(created_at)).strftime("%Y-%m-%d %H:%M")
                     except Exception:
-                        pass
+                        logger.debug("[CRM_AUDIT] Failed to format note created_at timestamp", exc_info=True)
                 
                 lines.append(f"[{date_str}] ({note_type}): {text}")
             
@@ -1080,7 +1082,7 @@ class CRMContactsAuditor:
                     draft_note = f"🤖 **Oisha-OS Telegram Draft:**\nMijozning shaxsiy Telegramdagi oxirgi javobsiz xabariga userbot orqali taklif etilgan javob qoralama (draft) sifatida saqlandi:\n\n\"{draft_text}\"\n\n*(Menejer ushbu javobni tahrirlashi yoki o'zgartirmasdan shaxsiy Telegram orqali yuborishi mumkin)*"
                     await asyncio.to_thread(self.amocrm.add_lead_note, int(lead_id), draft_note)
                 except Exception:
-                    pass
+                    logger.warning("[CRM_AUDIT] Failed to add draft reply note to AmoCRM for lead %s", lead_id, exc_info=True)
             except Exception as draft_err:
                 logger.error("[AUDITOR] Failed to save draft in Telegram for user %s: %s", telegram_user_id, draft_err)
 
@@ -1095,16 +1097,13 @@ class CRMContactsAuditor:
                     dup_note = f"🤖 **Oisha-OS Eslatma:**\nKeyingi qadam vazifasi ('{next_step_task_clean}') bitimda allaqachon faol yoki bajarilganligi sababli takroran yaratilmadi."
                     await asyncio.to_thread(self.amocrm.add_lead_note, int(lead_id), dup_note)
                 except Exception:
-                    pass
+                    logger.warning("[CRM_AUDIT] Failed to add duplicate task note to AmoCRM for lead %s", lead_id, exc_info=True)
             else:
                 try:
                     responsible_user_id = lead.get("responsible_user_id")
                     # Calculate tomorrow at 18:00 local time (GMT+5 offset)
-                    tz_offset = timezone(timedelta(hours=5))
-                    now_gmt5 = datetime.now(tz_offset)
-                    tomorrow_gmt5 = now_gmt5 + timedelta(days=1)
-                    tomorrow_18_gmt5 = tomorrow_gmt5.replace(hour=18, minute=0, second=0, microsecond=0)
-                    complete_till = int(tomorrow_18_gmt5.timestamp())
+                    from src.utils.task_scheduler import task_deadline
+                    complete_till = task_deadline(due_in_hours=24)
 
                     task_text = f"🤖 Oisha-OS Keyingi Qadam:\n{next_step_task_clean}"
                     await self.amocrm.create_task(
@@ -1183,7 +1182,7 @@ class CRMContactsAuditor:
             try:
                 await progress_callback(len(leads), len(leads), stats)
             except Exception:
-                pass
+                logger.debug("[CRM_AUDIT] Final progress callback failed", exc_info=True)
 
         return stats
 

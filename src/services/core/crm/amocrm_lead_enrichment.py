@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import structlog
+
 from src.settings import settings
 from src.services.utils.gemini_fallback import generate_content_with_fallback
 
@@ -24,7 +26,7 @@ except Exception:  # pragma: no cover - optional for bot-only runtimes
     functions = None
     types = None
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 def normalize_phone(phone: Optional[str]) -> str:
@@ -358,7 +360,7 @@ class AmoCRMLeadEnricher:
                         functions.contacts.DeleteContactsRequest(id=[int(user_id)])
                     )
                 except Exception:
-                    pass
+                    logger.debug("[AMO_ENRICH] Failed to delete imported contact for user %s", user_id, exc_info=True)
             return {k: v for k, v in data.items() if v is not None}
         except Exception as exc:
             logger.warning("[AMO_ENRICH] Userbot phone lookup failed: %s", exc)
