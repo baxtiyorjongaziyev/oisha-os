@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from src import api_server
+from src.api.routes.state import api_state
 
 
 class FakeStateDB:
@@ -24,12 +25,7 @@ class FakeStateDB:
 
 class FakeTotalsCursor:
     async def fetchone(self):
-        return {
-            "total_analyses": 3,
-            "amocrm_analyses": 2,
-            "tasks_created": 1,
-            "latest_analyzed_at": "2026-05-25T10:00:00+00:00",
-        }
+        return (3, 2, 1)
 
 
 class FakeTotalsConnection:
