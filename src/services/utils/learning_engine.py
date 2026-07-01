@@ -47,7 +47,7 @@ CHAT TARIXI:
 """
 
         try:
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
 
             response = await safe_ai_call(
                 client=self.client,
