@@ -64,6 +64,7 @@
 - Test: 316 passed, 1 failed (instagrapi missing), 8 skipped
 
 ### Done (yangi)
+- PR #196 (openai versiyasini yangilash) muammolari hal qilindi: `openai>=2.44.0` ga yangilandi, Bandit High severity issues (`verify=False`) bartaraf etildi va `API_HASH` hardcoded maxfiyligi muhit o'zgaruvchisiga o'tkazildi (TRAE).
 - Meta Graph API orqali Instagram DM va Comment webhooklari to'liq implement qilindi (`src/api_server.py` va `src/services/core/instagram_agent.py` yaratildi) hamda local va remote testlardan muvaffaqiyatli o'tdi (Antigravity).
 - Webhook so'rovlarini `x-hub-signature-256` orqali xavfsiz tasdiqlash va background tasks orqali Meta timeoutlarining oldini olish yo'lga qo'yildi (Antigravity).
 - Yangilangan kod remote Oracle VM ga deploy qilindi, uerdagi `oisha-os` systemd xizmati qayta ishga tushirilib, API server muvaffaqiyatli ishlayotganligi `/healthz/` orqali tasdiqlandi (Antigravity).
