@@ -315,10 +315,17 @@ async def boot_application():
     }
     db = Database()
     await db.init_instance()
-    # Hisobchi AI tables
-    from src.services.core.hisobchi_schema import init_hisobchi_tables
-    await init_hisobchi_tables(db)
-    logger.info("[HISOBCHI] Database schema is ready.")
+    from src.services.core.hisobchi_schema import init_hisobchi_tables, init_hisobchi_gsheets
+
+    hisobchi_gs_id = getattr(settings, "HISOBCHI_GSHEET_ID", None)
+    hisobchi_gs_creds = getattr(settings, "HISOBCHI_GSHEET_CREDS_FILE", None) or getattr(settings, "GSHEET_CREDS_FILE", "service_account.json")
+    if hisobchi_gs_id:
+        hisobchi_gs_store = await init_hisobchi_gsheets(hisobchi_gs_id, hisobchi_gs_creds)
+        logger.info("[HISOBCHI] Google Sheets backend is ready (spreadsheet: %s)", hisobchi_gs_id)
+    else:
+        hisobchi_gs_store = None
+        await init_hisobchi_tables(db)
+        logger.info("[HISOBCHI] Database schema is ready.")
     msg_controller = MessageController(api_keys=api_keys, db=db)
 
     cloud_control_plane = bool(os.getenv("K_SERVICE"))
@@ -633,27 +640,83 @@ async def boot_application():
     app_ctx.bot_token_str = BOT_TOKEN_STR
 
     # Register event handlers on client
-    from src.services.core.hisobchi_engine import HisobchiEngine
+    from src.services.core.hisobchi_schema import create_hisobchi_engine
     from src.services.core.hisobchi_handlers import (
         backfill_card_bot_messages,
         handle_card_bot_message,
         handle_finance_group_reply,
+        handle_hisobchi_command,
+        handle_qarz_command,
+        handle_byudjet_command,
+        handle_kirim_chiqim_text,
+        handle_receipt_photo,
+        handle_valyuta_command,
+        handle_kassa_command,
+        handle_otkazma_command,
+        handle_xodim_command,
         is_card_bot_sender,
     )
+    from src.services.core.hisobchi_analyst import HisobchiAnalyst
 
-    hisobchi_engine = HisobchiEngine(msg_controller.db)
+    hisobchi_engine = create_hisobchi_engine(db=msg_controller.db, gs_store=hisobchi_gs_store)
     m._hisobchi_engine = hisobchi_engine
+
+    # Init HisobchiAnalyst if Gemini available
+    hisobchi_analyst = None
+    gemini_key_ = api_keys.get("gemini")
+    if gemini_key_:
+        try:
+            hisobchi_analyst = HisobchiAnalyst(
+                gemini_key=gemini_key_,
+                engine=hisobchi_engine,
+                gs_store=hisobchi_gs_store,
+            )
+            logger.info("[HISOBCHI] HisobchiAnalyst initialized.")
+        except Exception as exc:
+            logger.warning("[HISOBCHI] HisobchiAnalyst init failed: %s", exc)
 
     async def _hisobchi_event_handler(event):
         """Handle finance events before generic bot/spam filters can drop them."""
         try:
             sender = await event.get_sender()
+            # 1. Card bot private messages (finance group xabarlari @jonairobot orqali)
             if event.is_private and not event.out and is_card_bot_sender(sender):
-                await handle_card_bot_message(event, client, hisobchi_engine)
+                await handle_card_bot_message(event, client, hisobchi_engine, bot_client=bot_client)
                 raise events.StopPropagation
+            # 2. Finance group replies
             if not event.is_private and not event.out:
                 if await handle_finance_group_reply(event, client, hisobchi_engine):
                     raise events.StopPropagation
+                return  # not a finance reply — let generic handler process it
+            # 3. Private commands from user
+            if event.is_private and not event.out:
+                text = (event.message.message or "").strip()
+                is_owner = sender and sender.id == src_config.OWNER_ID
+                if is_owner and text.startswith("/"):
+                    lowered = text.lower()
+                    handled = True
+                    if lowered.startswith("/hisobchi"):
+                        handled = await handle_hisobchi_command(event, client, hisobchi_engine, hisobchi_analyst)
+                    elif lowered.startswith("/qarz"):
+                        handled = await handle_qarz_command(event, hisobchi_engine)
+                    elif lowered.startswith("/byudjet"):
+                        handled = await handle_byudjet_command(event, hisobchi_engine)
+                    elif lowered.startswith("/valyuta"):
+                        handled = await handle_valyuta_command(event, hisobchi_engine)
+                    elif lowered.startswith("/kassa"):
+                        handled = await handle_kassa_command(event, hisobchi_engine)
+                    elif lowered.startswith("/otkazma"):
+                        handled = await handle_otkazma_command(event, hisobchi_engine)
+                    elif lowered.startswith("/xodim"):
+                        handled = await handle_xodim_command(event, hisobchi_engine)
+                    elif lowered.startswith("/kirim") or lowered.startswith("/chiqim"):
+                        handled = await handle_kirim_chiqim_text(event, hisobchi_engine)
+                    if handled:
+                        raise events.StopPropagation
+                # 4. Photo/receipt from owner
+                if is_owner and event.message.photo:
+                    if await handle_receipt_photo(event, hisobchi_engine):
+                        raise events.StopPropagation
         except events.StopPropagation:
             raise
         except Exception as exc:
