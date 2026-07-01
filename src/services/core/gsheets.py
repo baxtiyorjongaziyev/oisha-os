@@ -139,3 +139,67 @@ class GoogleSheetsSync:
         except Exception as e:
             logger.error(f"[GSHEET] log_message error: {e}")
             self.log_sheet = None
+
+    def sync_group_member_to_crm(
+        self,
+        group_name,
+        user_id,
+        first_name,
+        last_name,
+        username,
+        phone,
+        amocrm_status="Yuborilmagan",
+    ):
+        """Tez Natija guruh a'zosini CRM varog'iga qo'shish."""
+        ss_obj = self.spreadsheet
+        if ss_obj is None:
+            logger.warning("[GSHEET] Spreadsheet ulanmagan, sync_group_member_to_crm bajarilmadi.")
+            return False
+
+        try:
+            # 1. Tez Natija CRM varog'ini topish yoki yaratish
+            try:
+                sheet_obj = ss_obj.worksheet("Tez Natija CRM")
+            except gspread.exceptions.WorksheetNotFound:
+                sheet_obj = ss_obj.add_worksheet(
+                    title="Tez Natija CRM", rows="5000", cols="10"
+                )
+                sheet_obj.append_row([
+                    "Telegram ID", "Guruh", "Ism", "Familiya", "Username", "Telefon",
+                    "Sotuvchi holati", "Izoh", "Sinxronizatsiya vaqti", "AmoCRM Status"
+                ])
+                logger.info("[GSHEET] 'Tez Natija CRM' varog'i yaratildi.")
+
+            if sheet_obj is None:
+                return False
+
+            # 2. Telegram ID bo'yicha qidirish (A ustun)
+            user_id_str = str(user_id)
+            cells = sheet_obj.findall(user_id_str, in_column=1)
+
+            if cells:
+                # Agar allaqachon mavjud bo'lsa, o'tkazib yuboramiz (sotuvchilar statusi/izohini o'chirmaslik uchun)
+                logger.debug(f"[GSHEET] User {user_id} allaqachon CRM varog'ida bor. Skipping.")
+                return False
+
+            # 3. Yangi qator qo'shish
+            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            username_str = f"@{username}" if username else ""
+            phone_str = str(phone) if phone else ""
+            
+            sheet_obj.append_row([
+                user_id_str,
+                group_name,
+                first_name or "",
+                last_name or "",
+                username_str,
+                phone_str,
+                "Yangi",       # Sotuvchi holati
+                "",            # Izoh
+                now_str,       # Sinxronizatsiya vaqti
+                amocrm_status  # AmoCRM Status
+            ])
+            return True
+        except Exception as e:
+            logger.error(f"[GSHEET] sync_group_member_to_crm error: {e}")
+            return False

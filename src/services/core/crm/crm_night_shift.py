@@ -163,7 +163,8 @@ class CRMNightShift:
                 # Create a task for the responsible user
                 resp_id = lead.get("responsible_user_id")
                 if resp_id:
-                    deadline = int(time.time()) + 3600 * 24  # 24 hours to fix
+                    from src.utils.task_scheduler import task_deadline
+                    deadline = task_deadline(due_in_hours=24)
                     await self.amocrm.create_task(
                         element_id=lead["id"],
                         text="⚠️ Stagnatsiya! Mijoz bilan 7 kundan beri yangilik yo'q. Bog'laning yoki yoping.",

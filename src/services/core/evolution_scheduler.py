@@ -11,17 +11,14 @@ Scheduled tasks:
 from __future__ import annotations
 
 import asyncio
-import logging
+import structlog
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from src.database import Database
 from src.time_utils import get_local_now
 
-if TYPE_CHECKING:
-    from telethon import TelegramClient
-
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class EvolutionScheduler:
@@ -32,9 +29,6 @@ class EvolutionScheduler:
         self.gemini_api_key = gemini_api_key
         self._learning_engine = None
         self._evolution_engine = None
-        self._learner = None
-        self._memory_engine = None
-        self._userbot_client: Optional["TelegramClient"] = None
         self._running = False
         self._task: Optional[asyncio.Task] = None
 
@@ -52,41 +46,12 @@ class EvolutionScheduler:
             self._evolution_engine = SelfEvolutionEngine(self.db, self.gemini_api_key)
         return self._evolution_engine
 
-    @property
-    def learner(self):
-        if self._learner is None:
-            from src.services.core.userbot_learner import UserbotLearner
-            self._learner = UserbotLearner(self.db, self.learning, memory=self.memory)
-        return self._learner
-
-    @property
-    def memory(self):
-        if self._memory_engine is None:
-            from src.services.core.oisha_memory import OishaMemory
-            self._memory_engine = OishaMemory(self.db, self.gemini_api_key)
-        return self._memory_engine
-
-    def set_userbot_client(self, client: "TelegramClient"):
-        """Userbot client'ini o'rnatadi — scan uchun zarur."""
-        self._userbot_client = client
-
-    async def get_memory_context(self, entity_id: Optional[str] = None) -> str:
-        """Joriy kontekst uchun xotira snippet'ini qaytaradi (prompt injection uchun)."""
-        try:
-            if entity_id:
-                return await self.memory.get_context_for_entity(entity_id)
-            return await self.memory.get_global_context(limit=10)
-        except Exception:
-            return ""
-
     async def start(self):
         """Start the evolution scheduler loop."""
         if self._running:
             return
         self._running = True
         await self.learning.ensure_tables()
-        await self.learner.ensure_tables()
-        await self.memory.ensure_tables()
         self._task = asyncio.create_task(self._run_loop())
         logger.info("[SCHEDULER] Evolution scheduler started")
 
@@ -133,7 +98,6 @@ class EvolutionScheduler:
         last_synthesis: Optional[datetime] = None
         last_evolution: Optional[datetime] = None
         last_metrics: Optional[datetime] = None
-        last_userbot_scan: Optional[datetime] = None
 
         while self._running:
             try:
@@ -152,13 +116,6 @@ class EvolutionScheduler:
                     await self._record_metrics_snapshot()
                     last_metrics = now
 
-                if self._userbot_client and (
-                    last_userbot_scan is None
-                    or (now - last_userbot_scan) > timedelta(hours=2)
-                ):
-                    await self._do_userbot_scan()
-                    last_userbot_scan = now
-
                 await asyncio.sleep(300)
 
             except asyncio.CancelledError:
@@ -166,18 +123,6 @@ class EvolutionScheduler:
             except Exception as exc:
                 logger.error(f"[SCHEDULER] Loop error: {exc}")
                 await asyncio.sleep(60)
-
-    async def _do_userbot_scan(self):
-        """Barcha userbot dialoglarini skanlab darslar chiqaradi."""
-        try:
-            result = await self.learner.scan_and_learn(self._userbot_client)
-            logger.info(
-                "[SCHEDULER] Userbot scan: %d dialog, %d lessons",
-                result.get("dialogs", 0),
-                result.get("lessons", 0),
-            )
-        except Exception as exc:
-            logger.warning("[SCHEDULER] Userbot scan xato: %s", exc)
 
     async def _do_synthesis(self):
         """Synthesize strategies from accumulated lessons."""
@@ -232,4 +177,4 @@ class EvolutionScheduler:
             async with aiohttp.ClientSession() as session:
                 await session.post(url, json={"chat_id": owner_id, "text": msg})
         except Exception:
-            pass
+            logger.warning("[EVOLUTION_SCHEDULER] Failed to send evolution notification to Telegram", exc_info=True)
