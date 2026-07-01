@@ -227,6 +227,16 @@ app = FastAPI(title="Oisha-OS Enterprise API")
 # Include Dashboard Router
 app.include_router(dashboard.router)
 
+# Hisobchi MCP router
+try:
+    from src.services.core.hisobchi_mcp import mcp_router
+    if mcp_router is not None:
+        app.include_router(mcp_router)
+        _mcp_logger = logging.getLogger(__name__)
+        _mcp_logger.info("[MCP] Hisobchi MCP router mounted at /mcp")
+except Exception:
+    pass
+
 
 def _setting_text(value: Any) -> str:
     if value is None:
