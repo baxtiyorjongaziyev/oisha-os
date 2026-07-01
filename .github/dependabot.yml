@@ -13,23 +13,22 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "daily"
       time: "09:30"
       timezone: "Asia/Tashkent"
     labels:
       - "Type: Maintenance"
       - "Proj: DevOps"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
+    rebase-strategy: "auto"
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "daily"
       time: "10:00"
       timezone: "Asia/Tashkent"
     labels:
       - "Type: Maintenance"
       - "Proj: DevOps"
-    open-pull-requests-limit: 5
-
+    open-pull-requests-limit: 10
+    rebase-strategy: "auto"
