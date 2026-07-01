@@ -119,10 +119,10 @@ class ApolloEnrich:
         return " | ".join(parts)
 
 
-app_ctx.instance: Optional[ApolloEnrich] = None
+app_ctx.apollo_enrich: Optional[ApolloEnrich] = None
 
 
 def get_apollo() -> ApolloEnrich:
-    if app_ctx.instance is None:
-        app_ctx.instance = ApolloEnrich()
-    return app_ctx.instance
+    if app_ctx.apollo_enrich is None:
+        app_ctx.apollo_enrich = ApolloEnrich()
+    return app_ctx.apollo_enrich
