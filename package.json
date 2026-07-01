@@ -25,7 +25,9 @@
   },
   "pnpm": {
     "overrides": {
-      "postcss": "^8.5.14"
+      "postcss": "^8.5.14",
+      "js-yaml": "^3.14.1",
+      "@babel/core": "^7.26.0"
     }
   }
 }
