@@ -21,23 +21,22 @@ async def main(limit: int = 15):
     logger.info("Initializing components for AmoCRM call recordings audit...")
 
     db = Database()
-    await db.init_instance()
-
-    amocrm = AmoCRMSync(
-        subdomain=settings.AMOCRM_SUBDOMAIN,
-        client_id=settings.AMOCRM_CLIENT_ID,
-        client_secret=(
-            settings.AMOCRM_CLIENT_SECRET.get_secret_value()
-            if settings.AMOCRM_CLIENT_SECRET
-            else ""
-        ),
-        redirect_url=settings.AMOCRM_REDIRECT_URL,
-    )
-
-    # CallAnalyzer now handles everything inline (no VoiceProcessor needed)
-    analyzer = CallAnalyzer(amocrm=amocrm, db=db)
-
     try:
+        await db.init_instance()
+
+        amocrm = AmoCRMSync(
+            subdomain=settings.AMOCRM_SUBDOMAIN,
+            client_id=settings.AMOCRM_CLIENT_ID,
+            client_secret=(
+                settings.AMOCRM_CLIENT_SECRET.get_secret_value()
+                if settings.AMOCRM_CLIENT_SECRET
+                else ""
+            ),
+            redirect_url=settings.AMOCRM_REDIRECT_URL,
+        )
+
+        # CallAnalyzer now handles everything inline (no VoiceProcessor needed)
+        analyzer = CallAnalyzer(amocrm=amocrm, db=db)
         stats = await analyzer.analyze_recent_calls(limit=limit)
         logger.info(
             f"🎉 [AUDIT COMPLETE]\n"
