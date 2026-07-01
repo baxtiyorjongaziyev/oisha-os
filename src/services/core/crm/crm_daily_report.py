@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 import sqlite3
 import time
@@ -31,8 +30,9 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
@@ -554,7 +554,10 @@ class CRMDailyReporter:
                 # rough count via page × 50 + remainder
                 return max(page_count * 50, len(leads_embedded))
         except Exception:
-            pass
+            logger.debug(
+                "Failed to fetch calls count from AmoCRM API",
+                exc_info=True,
+            )
         return 0
 
     async def _calc_avg_response(self, leads: List[Dict]) -> float:
@@ -626,7 +629,10 @@ class CRMDailyReporter:
             for (j,) in rows:
                 result.append(CRMStats.from_dict(json.loads(j)))
         except Exception:
-            pass
+            logger.debug(
+                "Failed to load report history from SQLite",
+                exc_info=True,
+            )
         return result
 
     @staticmethod

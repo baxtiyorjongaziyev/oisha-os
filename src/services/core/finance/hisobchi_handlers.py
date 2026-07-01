@@ -12,6 +12,7 @@ Entry points:
   handle_finance_group_reply(event, client, engine)
 """
 from __future__ import annotations
+from src.context import app_ctx
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -22,11 +23,11 @@ import json
 import re
 from typing import Optional
 
-from src.services.core.finance.hisobchi_card_parser import (
+from src.services.core.hisobchi_card_parser import (
     CARD_BOT_USERNAMES,
     parse_card_notification,
 )
-from src.services.core.finance.hisobchi_engine import HisobchiEngine
+from src.services.core.hisobchi_engine import HisobchiEngine, _fmt_money
 from src.services.utils.gemini_fallback import generate_content_with_fallback
 from src.settings import settings
 from src.time_utils import get_local_now
@@ -38,7 +39,7 @@ _MAX_REPLY_LEN = 500
 
 # Cache: group_id → (kirim_topic_id, chiqim_topic_id) discovered at runtime
 _topic_cache: dict[int, tuple[Optional[int], Optional[int]]] = {}
-_finance_group_cache: Optional[int] = None
+app_ctx.finance_group_cache: Optional[int] = None
 _FINANCE_GROUP_WORDS = frozenset(
     {"moliya", "finance", "buxgalter", "accounting", "hisobchi"}
 )
@@ -111,9 +112,8 @@ async def _resolve_topics(
 
 async def _discover_finance_group(client) -> Optional[int]:
     """Find the finance group without mistaking generic report groups for it."""
-    global _finance_group_cache
-    if _finance_group_cache is not None:
-        return _finance_group_cache
+    if app_ctx.finance_group_cache is not None:
+        return app_ctx.finance_group_cache
 
     try:
         dialogs = await client.get_dialogs(limit=500)
@@ -127,13 +127,13 @@ async def _discover_finance_group(client) -> Optional[int]:
             if words & _FINANCE_GROUP_WORDS:
                 group_id = getattr(dialog, "id", None)
                 if group_id is not None:
-                    _finance_group_cache = int(group_id)
+                    app_ctx.finance_group_cache = int(group_id)
                     logger.info(
                         "[HISOBCHI] Finance group discovered: %s (%s)",
                         title,
-                        _finance_group_cache,
+                        app_ctx.finance_group_cache,
                     )
-                    return _finance_group_cache
+                    return app_ctx.finance_group_cache
     except Exception as exc:
         logger.warning("[HISOBCHI] Finance group discovery failed: %s", exc)
     return None
@@ -175,7 +175,7 @@ def _pick_topic(direction: str, kirim_topic: Optional[int], chiqim_topic: Option
     return chiqim_topic
 
 
-async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> bool:
+async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_client=None) -> bool:
     """Called when @HUMOcardbot or @CardXabarBot sends a message."""
     sender = await event.get_sender()
     username = (getattr(sender, "username", None) or "").lower()
@@ -185,7 +185,7 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> bool
     text = event.message.message or ""
     tx = parse_card_notification(username, text)
     if not tx:
-        logger.warning("[HISOBCHI] Could not parse card message from @%s", username)
+        logger.warning("[HISOBCHI] Failed to parse card notification: %s", text[:100])
         return False
 
     finance_group_id, kirim_topic_id, chiqim_topic_id = (
@@ -199,6 +199,7 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> bool
     )
     category = known_rule["category"] if known_rule else None
     ownership = known_rule["ownership"] if known_rule else "business"
+
     tx_id, created = await engine.save_transaction_once(
         source_bot=tx.source_bot,
         direction=tx.direction,
@@ -210,49 +211,484 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine) -> bool
         raw_text=text,
         category=category,
         ownership=ownership,
-        status="categorized" if known_rule else "pending",
+        status="pending",
         source_message_id=getattr(getattr(event, "message", None), "id", None),
     )
     if not created:
         logger.info("[HISOBCHI] Duplicate transaction ignored: #%s", tx_id)
         return True
 
-    if known_rule:
-        logger.info("[HISOBCHI] Auto-categorized tx #%s → %s", tx_id, category)
+    sender_client = bot_client or client
 
-        if finance_group_id:
-            try:
-                await client.send_message(
-                    finance_group_id,
-                    engine.build_auto_msg(tx, category, ownership),
-                    parse_mode="html",
-                    reply_to=topic_id,
-                )
-            except Exception as exc:
-                logger.error("[HISOBCHI] Failed to notify finance group: %s", exc)
-    else:
-        logger.info("[HISOBCHI] New tx #%s, asking finance group", tx_id)
+    from src.services.core.hisobchi_approval import (
+        build_approval_keyboard,
+        build_approval_message,
+        register_pending,
+    )
 
-        if finance_group_id:
-            try:
-                sent = await client.send_message(
-                    finance_group_id,
-                    engine.build_finance_question(tx, tx_id),
-                    parse_mode="html",
-                    reply_to=topic_id,
-                )
-                await engine.update_finance_msg(
-                    tx_id,
-                    finance_msg_id=sent.id,
-                    finance_chat_id=finance_group_id,
-                )
-            except Exception as exc:
-                logger.error("[HISOBCHI] Failed to send question to finance group: %s", exc)
-        else:
-            logger.warning(
-                "[HISOBCHI] Finance group not found — question not sent"
+    await register_pending(tx_id, tx, ownership, category)
+
+    owner_id = None
+    try:
+        from src.settings import settings
+        owner_id = getattr(settings, "OWNER_ID", None)
+    except Exception as exc:
+        logger.debug("[HISOBCHI] OWNER_ID from settings: %s", exc)
+
+    if owner_id:
+        try:
+            msg = build_approval_message(tx, tx_id, ownership)
+            kb = build_approval_keyboard(tx_id, ownership)
+            if category:
+                msg = f"🗂 <b>Avto-kategoriya:</b> {html.escape(category)}\n\n" + msg
+            await client.send_message(int(owner_id), msg, parse_mode="html", buttons=kb)
+            logger.info("[HISOBCHI] Sent approval request to owner #%s for tx #%s", owner_id, tx_id)
+        except Exception as exc:
+            logger.error("[HISOBCHI] Failed to send approval to owner: %s", exc)
+
+    if finance_group_id:
+        try:
+            sent = await sender_client.send_message(
+                finance_group_id,
+                engine.build_finance_question(tx, tx_id),
+                parse_mode="html",
+                reply_to=topic_id,
             )
+            await engine.update_finance_msg(
+                tx_id,
+                finance_msg_id=sent.id,
+                finance_chat_id=finance_group_id,
+            )
+        except Exception as exc:
+            logger.error("[HISOBCHI] Failed to send question: %s", exc)
     return True
+
+
+async def handle_hisobchi_command(
+    event, client, engine: HisobchiEngine, analyst: Any
+) -> bool:
+    """Handle /hisobchi commands for analysis, forecast, Q&A."""
+    text = (event.message.message or "").strip()
+
+    cmd_match = re.match(r"^/hisobchi\s+(.+)$", text, re.IGNORECASE)
+    if not cmd_match:
+        return False
+    cmd = cmd_match.group(1).strip().lower()
+
+    now = get_local_now()
+    period = now.strftime("%Y-%m")
+
+    if cmd.startswith("tahlil") or cmd == "analiz":
+        if not analyst:
+            await event.reply("⚠️ HisobchiAnalyst yoqilmagan.")
+            return True
+        await event.reply("⏳ Hisobchi tahlil tayyorlayapti...")
+        report = await analyst.analyze_month(period)
+        await event.reply(report, parse_mode="html")
+        return True
+
+    if cmd.startswith("prognoz") or cmd.startswith("forecast"):
+        if not analyst:
+            await event.reply("⚠️ HisobchiAnalyst yoqilmagan.")
+            return True
+        await event.reply("⏳ Prognoz tayyorlanmoqda...")
+        result = await analyst.forecast()
+        await event.reply(result, parse_mode="html")
+        return True
+
+    if cmd.startswith("qarz"):
+        debts = await engine.get_debts(active_only=True)
+        if not debts:
+            await event.reply("✅ Faol qarzlar yo'q.")
+            return True
+        lines = ["<b>📋 Faol qarzlar:</b>\n"]
+        for d in debts:
+            icon = "🔴" if d["debt_type"] == "Berilgan" else "🟡"
+            due = f", muddat: {d['due_date']}" if d.get("due_date") else ""
+            lines.append(
+                f"{icon} {d['person']}: {_fmt_money(d['remaining'])} UZS "
+                f"({d['debt_type']}){due}"
+            )
+        await event.reply("\n".join(lines), parse_mode="html")
+        return True
+
+    if cmd.startswith("byudjet"):
+        budgets = await engine.get_budget_status(period)
+        if not budgets:
+            await event.reply(f"📭 {period} uchun byudjet belgilanmagan.")
+            return True
+        lines = [f"<b>📊 Byudjet — {period}</b>\n"]
+        for b in budgets:
+            icon = {"yaxshi": "✅", "ogohlantirish": "⚠️", "yomon": "🚫"}.get(b["status"], "➖")
+            lines.append(
+                f"{icon} <b>{b['category']}</b>: {_fmt_money(b['spent'])} / "
+                f"{_fmt_money(b['budget_limit'])} UZS (qoldiq: {_fmt_money(b['remaining'])})"
+            )
+        await event.reply("\n".join(lines), parse_mode="html")
+        return True
+
+    await event.reply(
+        "Hisobchi buyruqlari:\n"
+        "/hisobchi tahlil — AI tahlil\n"
+        "/hisobchi prognoz — Kelajak prognozi\n"
+        "/hisobchi qarz — Qarzlar ro'yxati\n"
+        "/hisobchi byudjet — Byudjet holati"
+    )
+    return True
+
+
+async def handle_qarz_command(event, engine: HisobchiEngine) -> bool:
+    """/qarz ber [kimga] [summa] [sabab] — new debt"""
+    text = (event.message.message or "").strip()
+    m = re.match(r"^/qarz\s+(ber|ol|to[\'\"]?la)\s+(.+?)\s+(\d[\d\s]*)\s*(.*)", text, re.IGNORECASE)
+    if not m:
+        return False
+    action = m.group(1).lower()
+    person = m.group(2).strip()
+    amount_str = re.sub(r"\s+", "", m.group(3))
+    note = m.group(4).strip()
+
+    if not amount_str.isdigit():
+        await event.reply("⚠️ Summani to'g'ri kiriting (raqam).")
+        return True
+    amount = int(amount_str)
+
+    if action in ("ber",):
+        debt_type = "Berilgan"
+        confirm = f"✅ <b>Qarz berildi</b>\n{person}: {_fmt_money(amount)} UZS"
+        if note:
+            confirm += f"\n📝 {note}"
+        await engine.add_debt(debt_type, person, amount, note=note)
+        await event.reply(confirm, parse_mode="html")
+        return True
+
+    if action == "ol":
+        debt_type = "Olingan"
+        confirm = f"✅ <b>Qarz olindi</b>\n{person} dan: {_fmt_money(amount)} UZS"
+        if note:
+            confirm += f"\n📝 {note}"
+        await engine.add_debt(debt_type, person, amount, note=note)
+        await event.reply(confirm, parse_mode="html")
+        return True
+
+    if action in ("to'la", "tola"):
+        debts = await engine.get_debts(active_only=True)
+        found = [d for d in debts if person.lower() in d["person"].lower()]
+        if not found:
+            await event.reply(f"❌ {person} uchun faol qarz topilmadi.")
+            return True
+        result = await engine.repay_debt(found[0]["id"], amount)
+        if result:
+            await event.reply(
+                f"✅ <b>Qarz to'landi</b>\n{person}: "
+                f"qoldiq {_fmt_money(result['remaining'])} UZS",
+                parse_mode="html",
+            )
+        return True
+
+    return True
+
+
+async def handle_byudjet_command(event, engine: HisobchiEngine) -> bool:
+    """/byudjet set [kategoriya] [limit] — set budget for current month"""
+    text = (event.message.message or "").strip()
+    m = re.match(r"^/byudjet\s+set\s+(.+?)\s+(\d[\d\s]*)", text, re.IGNORECASE)
+    if not m:
+        return False
+    category = m.group(1).strip()
+    limit_str = re.sub(r"\s+", "", m.group(2))
+    if not limit_str.isdigit():
+        await event.reply("⚠️ Limitni raqamda kiriting.")
+        return True
+    limit = int(limit_str)
+    now = get_local_now()
+    period = now.strftime("%Y-%m")
+    await engine.set_budget(category, period, limit)
+    await event.reply(
+        f"✅ <b>Byudjet belgilandi</b>\n📂 {category}: <b>{_fmt_money(limit)} UZS</b> ({period})",
+        parse_mode="html",
+    )
+    return True
+
+
+async def handle_kirim_chiqim_text(event, engine: HisobchiEngine, text: str = "") -> bool:
+    """Parse /kirim or /chiqim command + free text."""
+    if not text:
+        text = (event.message.message or "").strip()
+    m = re.match(r"^/(kirim|chiqim)\s+(\d[\d\s]*)\s+(.+)$", text, re.IGNORECASE)
+    if not m:
+        return False
+    direction = "in" if m.group(1).lower() == "kirim" else "out"
+    amount_str = re.sub(r"\s+", "", m.group(2))
+    if not amount_str.isdigit():
+        return False
+    amount = int(amount_str)
+    rest = m.group(3).strip()
+    parts = rest.split("|", 1)
+    merchant = parts[0].strip()[:50]
+    reason = parts[1].strip() if len(parts) > 1 else ""
+    ownership = "personal" if any(w in text.lower() for w in ["shaxsiy", "shaxsy"]) else "business"
+    now = get_local_now()
+    tx_time = now.strftime("%H:%M %d.%m.%Y")
+
+    tx_id = await engine.save_transaction(
+        source_bot="manual",
+        direction=direction,
+        amount=amount,
+        merchant=merchant or "Noma'lum",
+        card_suffix="",
+        tx_time=tx_time,
+        balance=None,
+        raw_text=text,
+        category="Boshqa",
+        ownership=ownership,
+        status="categorized",
+        reason=reason,
+    )
+    icon = "➖ Chiqim" if direction == "out" else "➕ Kirim"
+    own_label = "Biznes" if ownership == "business" else "Shaxsiy"
+    await event.reply(
+        f"✅ <b>#{tx_id} saqlandi</b>\n"
+        f"{icon}: <b>{_fmt_money(amount)} UZS</b> ({own_label})\n"
+        f"📍 {merchant}\n"
+        f"{'📝 ' + reason if reason else ''}",
+        parse_mode="html",
+    )
+    return True
+
+
+async def handle_receipt_photo(event, engine: HisobchiEngine, client=None, voice_processor=None) -> bool:
+    """Process a receipt/cheque photo via Gemini Vision."""
+    msg = event.message
+    photo = getattr(msg, "photo", None)
+    if not photo:
+        return False
+
+    try:
+        await event.reply("⏳ Chek o'qilmoqda...")
+        temp_path = f"temp_hisobchi_photo_{event.id}.jpg"
+        dl_client = client or event.client
+        await dl_client.download_media(msg, file=temp_path)
+
+        from src.services.core.hisobchi_vision import process_receipt_photo
+
+        gemini_client = voice_processor.client if voice_processor else None
+        if not gemini_client:
+            from src.services.utils.voice_processor import VoiceProcessor
+            from src.settings import settings as _s
+            gemini_key = getattr(_s, "GEMINI_API_KEY", None)
+            if gemini_key:
+                try:
+                    gemini_key_val = gemini_key.get_secret_value() if hasattr(gemini_key, "get_secret_value") else str(gemini_key)
+                    vp = VoiceProcessor(api_key=gemini_key_val)
+                    gemini_client = vp.client
+                except Exception:
+                    pass
+        if not gemini_client:
+            await event.reply("⚠️ Gemini client yoqilmagan.")
+            return True
+        parsed = await process_receipt_photo(gemini_client, temp_path)
+        if not parsed:
+            await event.reply("⚠️ Rasmda chek/chek ma'lumotlari topilmadi.")
+            return True
+
+        amount = parsed["amount"]
+        merchant = parsed["merchant"]
+        category = parsed.get("category", "Boshqa")
+        notes = parsed.get("notes", "")
+        now = get_local_now()
+        tx_time = now.strftime("%H:%M %d.%m.%Y")
+
+        tx_id = await engine.save_transaction(
+            source_bot="photo",
+            direction="out",
+            amount=amount,
+            merchant=merchant,
+            card_suffix="",
+            tx_time=tx_time,
+            balance=None,
+            raw_text=f"[Chek] {merchant}: {amount} UZS",
+            category=category,
+            ownership="business",
+            status="categorized",
+            reason=notes,
+        )
+        reply = (
+            f"📸 <b>Chek #{tx_id} saqlandi!</b>\n"
+            f"➖ Chiqim: <b>{_fmt_money(amount)} UZS</b>\n"
+            f"📍 {merchant}\n"
+            f"🗂 {category}"
+        )
+        if notes:
+            reply += f"\n📝 {notes}"
+        await event.reply(reply, parse_mode="html")
+        return True
+
+    except Exception as exc:
+        logger.error("[HISOBCHI-PHOTO] Error: %s", exc, exc_info=True)
+        await event.reply("⚠️ Chekni o'qishda xatolik.")
+        return True
+    finally:
+        temp = f"temp_hisobchi_photo_{event.id}.jpg"
+        if os.path.exists(temp):
+            try:
+                os.remove(temp)
+            except Exception:
+                pass
+
+    text = event.message.message or ""
+    tx = parse_card_notification(username, text)
+    if not tx:
+        logger.warning("[HISOBCHI] Could not parse card message from @%s", username)
+    return False
+
+
+# ── VALYUTA / KASSA / XODIM / O'TKAZMA ────────────────────────────────
+
+async def handle_valyuta_command(event, engine: HisobchiEngine) -> bool:
+    text = (event.message.message or "").strip()
+    if not text.lower().startswith("/valyuta"):
+        return False
+
+    from src.services.core.hisobchi_rates import fetch_bank_uz_rates
+
+    await event.reply("⏳ Kurslar yangilanmoqda...")
+    rates = await fetch_bank_uz_rates()
+    if rates and "USD" in rates:
+        r = rates["USD"]
+        await engine.update_rate("USD", r["buy"], r["sell"], r["cb"])
+        await event.reply(
+            f"💱 <b>USD/UZS kursi yangilandi</b>\n"
+            f"💰 Sotib olish: <b>{r['buy']:,.0f}</b>\n"
+            f"💸 Sotish: <b>{r['sell']:,.0f}</b>\n"
+            f"🏦 MB kursi: <b>{r['cb']:,.0f}</b>\n"
+            f"📅 {r.get('date', '')}",
+            parse_mode="html",
+        )
+    else:
+        saved = await engine.get_rates()
+        usd = saved.get("USD", {})
+        if usd:
+            await event.reply(
+                f"💱 <b>USD/UZS (kesh)</b>\n"
+                f"Sotib olish: {usd.get('buy', 0):,.0f}\n"
+                f"Sotish: {usd.get('sell', 0):,.0f}",
+                parse_mode="html",
+            )
+        else:
+            await event.reply("⚠️ Kurslarni yuklab bo'lmadi.")
+    return True
+
+
+async def handle_kassa_command(event, engine: HisobchiEngine) -> bool:
+    text = (event.message.message or "").strip()
+    m = re.match(r"^/kassa\s+(ko\'?rsat|show|list)$", text, re.IGNORECASE)
+    if m:
+        wallets = await engine.get_kassa()
+        if not wallets:
+            await event.reply("📭 Kassa hisoblari yo'q.")
+            return True
+        lines = ["<b>💰 Kassa hisoblari:</b>\n"]
+        for w in wallets:
+            icon = {"Naqd": "💵", "Karta": "💳", "Jamg'arma": "🏦", "Valyuta": "💱"}.get(w["type"], "💰")
+            lines.append(f"{icon} <b>{w['name']}</b>: {_fmt_money(w['balance'])} {w['currency']} ({w['type']})")
+        await event.reply("\n".join(lines), parse_mode="html")
+        return True
+
+    m = re.match(r"^/kassa\s+add\s+(.+?)\s+(\d[\d\s]*)\s*(.*)", text, re.IGNORECASE)
+    if m:
+        name = m.group(1).strip()
+        amt = int(re.sub(r"\s+", "", m.group(2)))
+        rest = m.group(3).strip()
+        wallet_type = "Naqd"
+        currency = "UZS"
+        note = rest
+        if rest:
+            parts = rest.split()
+            if parts[0].upper() in ("USD", "UZS", "EUR", "RUB"):
+                currency = parts[0].upper()
+                note = " ".join(parts[1:])
+        await engine.add_kassa(name, currency, amt, wallet_type, note)
+        await event.reply(
+            f"✅ <b>Kassa ochildi</b>\n{name}: {_fmt_money(amt)} {currency}",
+            parse_mode="html",
+        )
+        return True
+    return False
+
+
+async def handle_otkazma_command(event, engine: HisobchiEngine) -> bool:
+    text = (event.message.message or "").strip()
+    m = re.match(r"^/otkazma\s+(.+?)\s*[-–>]\s*(.+?)\s+(\d[\d\s]*)\s*(.*)", text, re.IGNORECASE)
+    if not m:
+        return False
+    from_name = m.group(1).strip().lower()
+    to_name = m.group(2).strip().lower()
+    amt = int(re.sub(r"\s+", "", m.group(3)))
+    note = m.group(4).strip()
+
+    wallets = await engine.get_kassa()
+    from_w = next((w for w in wallets if from_name in w["name"].lower()), None)
+    to_w = next((w for w in wallets if to_name in w["name"].lower()), None)
+
+    if not from_w:
+        await event.reply(f"❌ '{m.group(1)}' topilmadi.")
+        return True
+    if not to_w:
+        await event.reply(f"❌ '{m.group(2)}' topilmadi.")
+        return True
+
+    result = await engine.transfer_balance(from_w["id"], to_w["id"], amt, note)
+    if not result:
+        await event.reply("⚠️ O'tkazma amalga oshmadi (valyuta kursi topilmadi?).")
+        return True
+
+    rate_line = f" (kurs: {result['rate']:,.0f})" if result.get("rate", 1) != 1 else ""
+    await event.reply(
+        f"✅ <b>O'tkazma amalga oshirildi</b>\n"
+        f"📤 {result['from']}: {_fmt_money(result['amount'])} UZS\n"
+        f"📥 {result['to']}: {_fmt_money(result['converted'])} UZS{rate_line}\n"
+        f"{'📝 ' + result.get('note', '') if result.get('note') else ''}",
+        parse_mode="html",
+    )
+    return True
+
+
+async def handle_xodim_command(event, engine: HisobchiEngine) -> bool:
+    text = (event.message.message or "").strip()
+    m = re.match(r"^/xodim\s+(add|qo\'?sh|list|ko\'?rsat)\s*(.*)", text, re.IGNORECASE)
+    if not m:
+        return False
+    action = m.group(1).lower()
+    rest = m.group(2).strip()
+
+    if action in ("list", "ko'rsat", "korsat"):
+        xodimlar = await engine.get_xodimlar()
+        if not xodimlar:
+            await event.reply("📭 Xodimlar yo'q.")
+            return True
+        lines = ["<b>👥 Xodimlar:</b>\n"]
+        for x in xodimlar:
+            perm_icon = {"to'liq": "🔵", "yozish": "🟢", "kuzatish": "⚪"}.get(x["permission"], "⚪")
+            lines.append(f"{perm_icon} <b>{x['name']}</b> — {x['role']} ({x['permission']})")
+        await event.reply("\n".join(lines), parse_mode="html")
+        return True
+
+    if action in ("add", "qo'sh", "qosh"):
+        parts = rest.split("|")
+        name = parts[0].strip() if parts else ""
+        role = parts[1].strip() if len(parts) > 1 else "Xodim"
+        perm = parts[2].strip() if len(parts) > 2 else "kuzatish"
+        if not name:
+            await event.reply("⚠️ Ismni kiriting: /xodim add Ism | Rol | ruxsat")
+            return True
+        await engine.add_xodim(name, role, permission=perm)
+        await event.reply(
+            f"✅ <b>Xodim qo'shildi</b>\n👤 {name} — {role} ({perm})",
+            parse_mode="html",
+        )
+        return True
+    return False
 
 
 async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> bool:

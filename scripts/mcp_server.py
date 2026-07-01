@@ -8,6 +8,8 @@ from mcp.types import Tool, TextContent
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.airtable_sync import AirtableSync
 from src.settings import settings
+import structlog
+import sys
 
 # Setup logging to stderr as per MCP debugging best practices
 logging.basicConfig(
@@ -15,6 +17,19 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     stream=sys.stderr,
 )
+
+# Re-configure structlog to write to stderr so it doesn't pollute stdout (critical for MCP stdio)
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer(),
+    ],
+    context_class=dict,
+    logger_factory=structlog.PrintLoggerFactory(sys.stderr),
+    cache_logger_on_first_use=True,
+)
+
 logger = logging.getLogger("OishaMCP")
 
 # Create the MCP Server
@@ -41,17 +56,17 @@ async def list_tools() -> List[Tool]:
         Tool(
             name="check_amo_auth",
             description="AmoCRM avtorizatsiya holatini tekshirish va 401/403 xatolarini diagnostika qilish.",
-            input_schema={"type": "object", "properties": {}},
+            inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="list_lost_leads",
             description="AmoCRMdagi 'Lost' (143) statusidagi bitimlar sonini va ro'yxatini olish.",
-            input_schema={"type": "object", "properties": {}},
+            inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="create_amo_lead",
             description="AmoCRMda yangi bitim va kontakt yaratish.",
-            input_schema={
+            inputSchema={
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "Mijoz ismi"},
@@ -67,12 +82,12 @@ async def list_tools() -> List[Tool]:
         Tool(
             name="get_sales_report",
             description="AmoCRMdan oylik sotuv hisobotini (Plan-Fakt) olish.",
-            input_schema={"type": "object", "properties": {}},
+            inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="get_airtable_projects",
             description="Airtabledan loyihalar ro'yxatini va muddatlarini olish.",
-            input_schema={"type": "object", "properties": {}},
+            inputSchema={"type": "object", "properties": {}},
         ),
     ]
 
