@@ -1,6 +1,7 @@
 """Free-first text and speech provider routing for Oisha."""
 
 from __future__ import annotations
+from src.context import app_ctx
 
 import logging
 import time
@@ -197,16 +198,14 @@ class FreeAIProviderRouter:
         return ProviderResult(str(response.json().get("response") or "").strip(), "ollama", model)
 
 
-_router: Optional[FreeAIProviderRouter] = None
+app_ctx.router: Optional[FreeAIProviderRouter] = None
 
 
 def get_free_ai_router() -> FreeAIProviderRouter:
-    global _router
-    if _router is None:
-        _router = FreeAIProviderRouter()
-    return _router
+    if app_ctx.router is None:
+        app_ctx.router = FreeAIProviderRouter()
+    return app_ctx.router
 
 
 def reset_free_ai_router() -> None:
-    global _router
-    _router = None
+    app_ctx.router = None
