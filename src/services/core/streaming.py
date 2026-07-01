@@ -13,12 +13,12 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import logging
+import structlog
 from typing import AsyncIterator, Optional
 
 from src.settings import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 _CURSOR = " ▌"
 _FLUSH_CHARS = 30        # edit every N new characters to limit API rate
@@ -92,7 +92,7 @@ async def stream_gemini_response(
         try:
             await client.edit_message(chat_id, msg.id, fallback[-_MAX_MESSAGE_LEN:])
         except Exception:
-            pass
+            logger.debug("failed_to_send_fallback_stream_message", exc_info=True)
 
     return full_text
 

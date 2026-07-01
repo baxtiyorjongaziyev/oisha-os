@@ -33,19 +33,21 @@ Dizayn tamoyillari:
 """
 
 from __future__ import annotations
+from src.context import app_ctx
 
 import asyncio
 import hashlib
 import json
-import logging
 import os
 import random
 import time
 from typing import Any, Dict, Literal, Optional
 
+import structlog
+
 from src.settings import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Konfiguratsiya
@@ -132,13 +134,12 @@ def _cache_put(prompt_hash: str, result: Dict[str, Any]) -> None:
 # Gemini client (singleton)
 # ──────────────────────────────────────────────────────────────────────────────
 
-_gemini_client = None
+app_ctx.gemini_client = None
 
 
 def _get_gemini_client():
-    global _gemini_client
-    if _gemini_client is not None:
-        return _gemini_client
+    if app_ctx.gemini_client is not None:
+        return app_ctx.gemini_client
 
     try:
         from google import genai  # pyright: ignore[reportMissingImports]
@@ -154,15 +155,15 @@ def _get_gemini_client():
             from src import config
 
             api_key = getattr(config, "GEMINI_API_KEY", "")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[AI_ROUTER] failed to read GEMINI_API_KEY from config", exc_info=True)
 
     if not api_key:
         logger.error("[AI_ROUTER] GEMINI_API_KEY not set")
         return None
 
-    _gemini_client = genai.Client(api_key=api_key)
-    return _gemini_client
+    app_ctx.gemini_client = genai.Client(api_key=api_key)
+    return app_ctx.gemini_client
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -329,7 +330,10 @@ async def route(
             _cache_put(prompt_hash, final)
             return final
         except Exception:
-            pass
+            logger.warning(
+                "[AI_ROUTER] fallback free AI router failed (gemini client unavailable)",
+                exc_info=True,
+            )
         return _error_result(
             "Gemini client unavailable",
             task_type=task_type,
