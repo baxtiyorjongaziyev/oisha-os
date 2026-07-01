@@ -19,6 +19,7 @@ Design:
   - All steps are logged to agent_actions table
 """
 from __future__ import annotations
+from src.context import app_ctx
 
 import asyncio
 import logging
@@ -201,7 +202,7 @@ class AgentOrchestrator:
 
 
 # Singleton
-_orchestrator: Optional[AgentOrchestrator] = None
+app_ctx.orchestrator: Optional[AgentOrchestrator] = None
 
 
 def get_orchestrator(
@@ -209,7 +210,6 @@ def get_orchestrator(
     bot_messenger=None,
     db=None,
 ) -> AgentOrchestrator:
-    global _orchestrator
-    if _orchestrator is None:
-        _orchestrator = AgentOrchestrator(agent_registry, bot_messenger, db)
-    return _orchestrator
+    if app_ctx.orchestrator is None:
+        app_ctx.orchestrator = AgentOrchestrator(agent_registry, bot_messenger, db)
+    return app_ctx.orchestrator
