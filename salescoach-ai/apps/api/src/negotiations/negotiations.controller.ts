@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { ServiceOrJwtAuthGuard } from '../common/guards/service-or-jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OrgId } from '../common/decorators/org-id.decorator';
 import { NegotiationsService } from './negotiations.service';
@@ -8,7 +8,7 @@ import { NegotiateDto, RealtimeSuggestionDto } from './dto/negotiate.dto';
 
 @ApiTags('negotiations')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(ServiceOrJwtAuthGuard)
 @Controller('negotiations')
 export class NegotiationsController {
   constructor(private service: NegotiationsService) {}

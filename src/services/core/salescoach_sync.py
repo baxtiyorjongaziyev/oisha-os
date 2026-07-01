@@ -152,10 +152,10 @@ class SalesCoachSync:
             return None
 
 
-app_ctx.instance: Optional[SalesCoachSync] = None
+app_ctx.salescoach_sync: Optional[SalesCoachSync] = None
 
 
 def get_salescoach_sync() -> SalesCoachSync:
-    if app_ctx.instance is None:
-        app_ctx.instance = SalesCoachSync()
-    return app_ctx.instance
+    if app_ctx.salescoach_sync is None:
+        app_ctx.salescoach_sync = SalesCoachSync()
+    return app_ctx.salescoach_sync
