@@ -1,5 +1,6 @@
 import os
 import logging
+import structlog
 import asyncio
 import psutil
 import platform
@@ -10,13 +11,13 @@ from src.database import Database
 from src.controllers.message_controller import MessageController
 from src.time_utils import get_local_now, is_quiet_hours
 
-from src.services.core.crm.crm_night_shift import CRMNightShift
+from src.services.core.crm_night_shift import CRMNightShift
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.services.utils.access_manager import AccessManager
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class AdminBot:
@@ -144,7 +145,7 @@ class AdminBot:
 
             try:
                 from src.services.core.enterprise_reporter import EnterpriseReporter
-                from src.services.core.crm.crm_service import CRMService
+                from src.services.core.crm_service import CRMService
 
                 crm_service = CRMService()
                 reporter = EnterpriseReporter(self.db, crm_service)
@@ -293,16 +294,6 @@ class AdminBot:
             if self.access_manager.is_admin(event.sender_id):
                 await self.send_vps_status(event)
 
-        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/teznatija_amo"))
-        async def tez_natija_amo_handler(event):
-            if self.access_manager.is_admin(event.sender_id):
-                await self.export_tez_natija_amocrm(event)
-
-        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/teznatija(?!_amo)"))
-        async def tez_natija_handler(event):
-            if self.access_manager.is_admin(event.sender_id):
-                await self.export_tez_natija(event)
-
         @self.bot_client.on(events.CallbackQuery())
         async def callback_handler(event):
             data = event.data.decode("utf-8")
@@ -323,8 +314,6 @@ class AdminBot:
                     await self.send_kpi_report(event)
                 elif data == "deadlines":
                     await self.send_deadline_report(event)
-                elif data == "tez_natija_export":
-                    await self.export_tez_natija(event)
                 elif data == "settings":
                     await self._show_settings_menu(event, edit=True)
                 elif data.startswith("set_dist_mode:"):
@@ -358,7 +347,7 @@ class AdminBot:
                     await event.answer("🧹 CRM Audit boshlandi...", alert=True)
                     try:
                         from src.services.core.enterprise_reporter import EnterpriseReporter
-                        from src.services.core.crm.crm_service import CRMService
+                        from src.services.core.crm_service import CRMService
 
                         crm_service = CRMService()
                         reporter = EnterpriseReporter(self.db, crm_service)
@@ -391,8 +380,8 @@ class AdminBot:
                                 await event.edit(
                                     event.message.message + "\n\n✅ Yuborildi"
                                 )
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                logger.debug("[ADMIN_BOT] send_draft: failed to edit message after send", exc_info=True)
                         except Exception as ex:
                             logger.error(f"[SEND_DRAFT] {ex}", exc_info=True)
                             await event.answer(f"⚠️ Yuborishda xato: {ex}", alert=True)
@@ -406,8 +395,8 @@ class AdminBot:
                             await event.edit(
                                 event.message.message + "\n\n❌ Rad etildi"
                             )
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("[ADMIN_BOT] reject_draft: failed to edit message after reject", exc_info=True)
                     else:
                         await event.answer(
                             "ℹ️ Draft allaqachon qayta ishlangan.", alert=True
@@ -441,8 +430,8 @@ class AdminBot:
                         await event.edit(
                             event.message.message + f"\n\n🤝 **Qabul qildi:** {name}"
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("[ADMIN_BOT] accept/claim_lead: failed to edit message with claimer name", exc_info=True)
             except Exception as e:
                 logger.error(f"❌ [ADMIN_BOT] CALLBACK ERROR: {str(e)}")
                 await event.answer("⚠️ Xatolik yuz berdi.", alert=True)
@@ -472,8 +461,8 @@ class AdminBot:
                 if user_data:
                     first_name = user_data.get("first_name") or first_name
                     last_name = user_data.get("last_name") or ""
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("[ADMIN_BOT] contact_card: global lookup failed for %s", normalized, exc_info=True)
 
             try:
                 await event.respond(
@@ -967,8 +956,8 @@ class AdminBot:
                     if user_data:
                         first_name = user_data.get("first_name") or first_name
                         last_name = user_data.get("last_name") or ""
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("[ADMIN_BOT] inline_search: global lookup failed for %s", normalized, exc_info=True)
 
                 contact_result = InputBotInlineResult(
                     id=str(uuid.uuid4()),
@@ -1929,57 +1918,9 @@ class AdminBot:
                 [Button.url("📞 Bog'lanish", "https://t.me/baxtiyorjon_gaziyev")],
             ]
 
-    async def push_to_owner(self, text: str, parse_mode: str = "markdown") -> bool:
-        """Avtomatik hisobotni egaga (admin bot chatiga) yuboradi. Tugmasiz."""
-        owner_id = getattr(self.access_manager, "owner_id", None)
-        if not owner_id or not self.bot_client:
-            logger.warning("[AUTO-PUSH] owner_id yoki bot_client yo'q — yuborilmadi")
-            return False
-        try:
-            await self.bot_client.send_message(
-                owner_id, text, parse_mode=parse_mode, link_preview=False
-            )
-            return True
-        except Exception as exc:
-            logger.error("[AUTO-PUSH] Yuborishda xato: %s", exc)
-            return False
-
-    async def run_auto_briefing(self) -> bool:
-        """Ertalabki avtomatik brifing: ROI + KPI + Deadline — tugmasiz push.
-
-        Scheduler har kuni ertalab bir marta chaqiradi. Har bo'lim alohida
-        try bilan himoyalangan — biri yiqilsa boshqalari yuboriladi.
-        """
-        sent_any = False
-
-        try:
-            roi = await self.build_dashboard_text()
-            if await self.push_to_owner(roi, parse_mode="markdown"):
-                sent_any = True
-        except Exception as exc:
-            logger.error("[AUTO-BRIEFING] ROI xato: %s", exc)
-
-        try:
-            kpi = await self.build_kpi_text()
-            if kpi and await self.push_to_owner(kpi, parse_mode="html"):
-                sent_any = True
-        except Exception as exc:
-            logger.error("[AUTO-BRIEFING] KPI xato: %s", exc)
-
-        try:
-            deadlines = await self.build_deadline_text()
-            if deadlines and await self.push_to_owner(deadlines, parse_mode="html"):
-                sent_any = True
-        except Exception as exc:
-            logger.error("[AUTO-BRIEFING] Deadline xato: %s", exc)
-
-        logger.info("[AUTO-BRIEFING] Yakunlandi (yuborildi=%s)", sent_any)
-        return sent_any
-
-    async def build_dashboard_text(self) -> str:
-        """Kunlik ROI hisobot matnini qaytaradi (tugma va avtomatika uchun umumiy)."""
+    async def send_dashboard(self, event):
         stats = await self.db.get_today_stats()
-        return (
+        msg = (
             "📊 **KUNLIK ROI HISOBOTI**\n"
             "──────────────────────\n"
             f"📅 **Sana:** {datetime.now().strftime('%d-%m-%Y')}\n\n"
@@ -1991,60 +1932,18 @@ class AdminBot:
             "──────────────────────\n"
             "💡 *Oisha har 5 daqiqada yangi lidlarni qidirishda davom etmoqda.*"
         )
-
-    async def build_kpi_text(self) -> str:
-        """Jamoa KPI hisobot matnini qaytaradi."""
-        from src.services.core.enterprise_reporter import EnterpriseReporter
-        from src.services.core.crm.crm_service import CRMService
-        from src.services.core.airtable_sync import AirtableSync
-
-        crm_service = CRMService()
-        airtable = AirtableSync()
-        reporter = EnterpriseReporter(self.db, crm_service, airtable)
-        return await reporter.get_team_efficiency_report()
-
-    async def build_deadline_text(self) -> str:
-        """Muddati o'tgan vazifa/loyihalar hisobot matnini qaytaradi."""
-        from src.services.core.enterprise_reporter import EnterpriseReporter
-        from src.services.core.crm.crm_service import CRMService
-        from src.services.core.airtable_sync import AirtableSync
-
-        crm_service = CRMService()
-        airtable = AirtableSync()
-        reporter = EnterpriseReporter(self.db, crm_service, airtable)
-
-        report_msg = await reporter.get_accountability_segment()
-
-        overdue_projects = airtable.get_overdue_projects() if airtable else []
-        project_lines = []
-        if overdue_projects:
-            project_lines.append("\n🏗 <b>Muddati o'tgan Loyihalar (Airtable):</b>")
-            for p in overdue_projects[:5]:
-                fields = p.get("fields", {})
-                name = fields.get("project_name") or fields.get("Loyihani nomi?") or "Nomsiz"
-                pm = fields.get("manager") or "Noma'lum"
-                project_lines.append(f"  • {name} — <i>PM: {pm}</i>")
-            if len(overdue_projects) > 5:
-                project_lines.append(f"  ... va yana {len(overdue_projects)-5} ta.")
-        else:
-            project_lines.append("\n🏗 Barcha loyihalar muddatida! ✅")
-
-        return f"{report_msg}\n" + "\n".join(project_lines)
-
-    async def send_dashboard(self, event):
-        msg = await self.build_dashboard_text()
         await event.respond(msg)
 
     async def send_weekly_report(self, event):
         """AmoCRM-dan olingan haftalik hisobotning visual ko'rinishi."""
         await event.respond("📊 **Haftalik hisobot tayyorlanmoqda...**\nBu bir oz vaqt olishi mumkin (AmoCRM-ga so'rov yuborilmoqda).")
         try:
-            from src.services.core.crm.crm_service import CRMService
-            from src.services.core.crm.crm_daily_report import CRMDailyReporter as CRMDailyReport
-
+            from src.services.core.crm_service import CRMService
+            from src.services.core.crm_daily_report import CRMDailyReport
+            
             crm = CRMService()
             report_engine = CRMDailyReport(crm.amocrm)
-
+            
             stats = await report_engine.fetch_weekly_stats()
             msg = report_engine.format_weekly_report_uz(stats)
             await event.respond(msg, parse_mode="markdown")
@@ -2056,128 +1955,52 @@ class AdminBot:
         """Jamoa kpi va samaradorlik hisobotini yuborish."""
         await event.respond("📊 **Jamoa KPI va samaradorlik hisoboti shakllantirilmoqda...**")
         try:
-            report_msg = await self.build_kpi_text()
+            from src.services.core.enterprise_reporter import EnterpriseReporter
+            from src.services.core.crm_service import CRMService
+            from src.services.core.airtable_sync import AirtableSync
+            
+            crm_service = CRMService()
+            airtable = AirtableSync()
+            reporter = EnterpriseReporter(self.db, crm_service, airtable)
+            
+            report_msg = await reporter.get_team_efficiency_report()
             await event.respond(report_msg, parse_mode="html", link_preview=False)
         except Exception as e:
             logger.error(f"❌ [KPI REPORT ERROR] {e}")
             await event.respond(f"❌ **KPI hisobotini yuklashda xatolik yuz berdi:**\n`{str(e)}`")
 
-    async def export_tez_natija(self, event):
-        """Tez Natija guruhlaridan a'zolarni Google Sheets'ga eksport qiladi."""
-        import src.main as m
-        client = getattr(m, "client", None)
-        if not client:
-            await event.respond("❌ Userbot ulanmagan. Tez Natija eksporti uchun userbot kerak.")
-            return
-
-        gsheets = getattr(m, "gsheets", None) or getattr(self, "_gsheets", None)
-        try:
-            from src.services.core.gsheets import GoogleSheetsSync
-            from src.settings import settings
-            import os
-            if gsheets is None:
-                gsheet_id = os.getenv("GSHEET_ID", "")
-                if gsheet_id:
-                    gsheets = GoogleSheetsSync(gsheet_id)
-        except Exception:
-            gsheets = None
-
-        await event.respond(
-            "⏳ **Tez Natija eksporti boshlandi...**\n"
-            "Guruhlar: TEZ NATIJA 2, 3, 4, 5\n"
-            "Bu 5-15 daqiqa vaqt olishi mumkin."
-        )
-
-        try:
-            from src.services.core.tez_natija_exporter import TezNatijaExporter
-
-            exporter = TezNatijaExporter(sheets=gsheets)
-
-            async def progress(group, count):
-                await event.respond(f"📊 {group}: {count} yangi a'zo...")
-
-            result = await exporter.export_all_groups(
-                client=client,
-                progress_cb=progress,
-            )
-
-            msg = (
-                f"✅ **Tez Natija eksporti tugadi!**\n\n"
-                f"📥 Yangi a'zolar: **{result['new']}**\n"
-                f"⏭ Allaqachon bor: **{result['skip']}**\n"
-            )
-            if result["errors"]:
-                msg += f"⚠️ Xatolar: {len(result['errors'])} guruh\n"
-                for e in result["errors"]:
-                    msg += f"  • {e}\n"
-            if gsheets:
-                msg += "\n📊 Google Sheets'ga yozildi: **Tez Natija CRM** varog'i"
-            else:
-                msg += "\n⚠️ GSHEET_ID sozlanmagan — sheets'ga yozilmadi"
-
-            await event.respond(msg, parse_mode="markdown")
-        except Exception as e:
-            logger.error(f"❌ [TEZ NATIJA EXPORT ERROR] {e}")
-            await event.respond(f"❌ **Eksportda xatolik:** `{str(e)}`")
-
-    async def export_tez_natija_amocrm(self, event):
-        """Tez Natija guruhlaridan a'zolarni AmoCRM'ga lead sifatida eksport qiladi."""
-        import src.main as m
-        client = getattr(m, "client", None)
-        if not client:
-            await event.respond("❌ Userbot ulanmagan. AmoCRM eksporti uchun userbot kerak.")
-            return
-
-        amocrm = None
-        msg_controller = getattr(m, "msg_controller", None)
-        if msg_controller is not None:
-            amocrm = getattr(getattr(msg_controller, "crm", None), "amocrm", None)
-        if amocrm is None:
-            await event.respond("❌ AmoCRM ulanmagan. Eksport bekor qilindi.")
-            return
-
-        await event.respond(
-            "⏳ **AmoCRM eksporti boshlandi...**\n"
-            "Guruhlar: TEZ NATIJA 2, 3, 4, 5\n"
-            "Har bir a'zo alohida lead sifatida yaratiladi.\n"
-            "Bu 15-40 daqiqa vaqt olishi mumkin (AmoCRM rate limit)."
-        )
-
-        try:
-            from src.services.core.tez_natija_exporter import TezNatijaExporter
-
-            exporter = TezNatijaExporter(amocrm=amocrm, db=self.db)
-
-            async def progress(group, count):
-                await event.respond(f"📊 {group}: {count} lead yaratildi...")
-
-            result = await exporter.export_all_groups_to_amocrm(
-                client=client,
-                progress_cb=progress,
-            )
-
-            msg = (
-                f"✅ **AmoCRM eksporti tugadi!**\n\n"
-                f"📥 Yangi leadlar: **{result['new']}**\n"
-                f"⏭ Allaqachon bor / raqamsiz: **{result['skip']}**\n"
-            )
-            if result["errors"]:
-                msg += f"⚠️ Xatolar: {len(result['errors'])} guruh\n"
-                for e in result["errors"]:
-                    msg += f"  • {e}\n"
-            msg += "\n📇 AmoCRM Hunter voronkasi → 'Yangi so'rov' bosqichi\n"
-            msg += "🏷 Teg: 'Tez Natija' + guruh nomi"
-
-            await event.respond(msg, parse_mode="markdown")
-        except Exception as e:
-            logger.error(f"❌ [TEZ NATIJA AMOCRM EXPORT ERROR] {e}")
-            await event.respond(f"❌ **AmoCRM eksportda xatolik:** `{str(e)}`")
-
     async def send_deadline_report(self, event):
         """Muddati o'tgan vazifalar va loyihalar bo'yicha hisobot."""
         await event.respond("⏰ **Muddati o'tgan vazifalar va loyihalar tahlil qilinmoqda...**")
         try:
-            full_msg = await self.build_deadline_text()
+            from src.services.core.enterprise_reporter import EnterpriseReporter
+            from src.services.core.crm_service import CRMService
+            from src.services.core.airtable_sync import AirtableSync
+            
+            crm_service = CRMService()
+            airtable = AirtableSync()
+            reporter = EnterpriseReporter(self.db, crm_service, airtable)
+            
+            report_msg = await reporter.get_accountability_segment()
+            
+            all_projects = airtable.get_projects() if airtable else []
+            overdue_projects = airtable.get_overdue_projects() if airtable else []
+            project_lines = []
+            if overdue_projects:
+                project_lines.append("\n🏗 <b>Muddati o'tgan Loyihalar (Airtable):</b>")
+                for p in overdue_projects[:5]:
+                    fields = p.get("fields", {})
+                    name = fields.get("project_name") or fields.get("Loyihani nomi?") or "Nomsiz"
+                    pm = fields.get("manager") or "Noma'lum"
+                    project_lines.append(f"  • {name} — <i>PM: {pm}</i>")
+                if len(overdue_projects) > 5:
+                    project_lines.append(f"  ... va yana {len(overdue_projects)-5} ta.")
+            elif not all_projects:
+                project_lines.append("\n🏗 Airtable ma'lumoti olinmadi (API limit yoki xato)")
+            else:
+                project_lines.append("\n🏗 Barcha loyihalar muddatida! ✅")
+                
+            full_msg = f"{report_msg}\n" + "\n".join(project_lines)
             await event.respond(full_msg, parse_mode="html")
         except Exception as e:
             logger.error(f"❌ [DEADLINES REPORT ERROR] {e}")
@@ -2459,28 +2282,19 @@ class AdminBot:
             await wait_msg.edit(f"⚠️ Tahlil jarayonida xatolik: `{str(e)}`")
 
     async def send_draft_for_approval(self, user_id: int, name: str, draft: str):
-        """AI tomonidan tayyorlangan javobni adminga tasdiqlash uchun yuborish."""
-        import uuid
-
-        draft_id = str(uuid.uuid4())[:8]
-        self.pending_drafts[draft_id] = draft
-
-        msg = (
-            f"📝 **DRAFT JAVOB (Lid: {name})**\n"
-            f"──────────────────────\n"
-            f'"{draft}"\n'
-            f"──────────────────────\n"
-            f"💡 *Ushbu javobni unga yuboraymi?*"
-        )
-        # Send to owner
-        if self.access_manager.owner_id:
-            await self.bot_client.send_message(
-                self.access_manager.owner_id,
-                msg,
-                buttons=[
-                    [
-                        Button.inline("🚀 Ayt!", f"send_draft:{draft_id}:{user_id}"),
-                        Button.inline("❌ Rad et", f"reject_draft:{draft_id}"),
-                    ]
-                ],
-            )
+        """AI tomonidan tayyorlangan javobni avtomatik yuborish (tasdiqlashsiz)."""
+        try:
+            await self.user_client.send_message(user_id, draft)
+            logger.info("[ADMIN_BOT] Draft avtomatik yuborildi: lid=%s (%s)", user_id, name)
+            if self.access_manager.owner_id:
+                await self.bot_client.send_message(
+                    self.access_manager.owner_id,
+                    f"✅ Draft avtomatik yuborildi → {name} (ID: {user_id})",
+                )
+        except Exception as e:
+            logger.error("[ADMIN_BOT] Draft yuborishda xatolik: %s", e)
+            if self.access_manager.owner_id:
+                await self.bot_client.send_message(
+                    self.access_manager.owner_id,
+                    f"❌ Draft yuborib bo'lmadi → {name}: {e}",
+                )

@@ -220,15 +220,15 @@ class ProactiveWorker:
                             chat_id=owner_id, text=alert_text, parse_mode="HTML"
                         )
                     else:
-                        # Fallback to Telethon if available in global src.main
+                        # Fallback to Telethon if available via app_ctx
                         try:
-                            from src.main import client as telethon_client
+                            from src.context import app_ctx
 
-                            if telethon_client:
-                                await telethon_client.send_message(
+                            if app_ctx.client:
+                                await app_ctx.client.send_message(
                                     "me", alert_text, parse_mode="html"
                                 )
-                        except:
+                        except Exception:
                             logger.error(
                                 "[PROACTIVE] Failed to send alert via Telethon fallback."
                             )
@@ -269,7 +269,7 @@ class ProactiveWorker:
 
             # promptni yuboramiz (ASYNCHRONOUS & SAFE)
             from google import genai
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
 
             client = genai.Client(api_key=api_key)
 
@@ -377,7 +377,7 @@ class ProactiveWorker:
                 return
 
             from google import genai
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
 
             client = genai.Client(api_key=api_key)
 
@@ -477,7 +477,7 @@ class ProactiveWorker:
             )
 
             from google import genai
-            from src.main import safe_ai_call
+            from src.utils.ai_utils import safe_ai_call
 
             client = genai.Client(api_key=config.GEMINI_API_KEY)
 
@@ -753,10 +753,10 @@ class ProactiveWorker:
             # or use context if PtB is active.
 
             # Using Telethon as primary enforcer (shows as 'Oisha Userbot')
-            from src.main import client as telethon_client
+            from src.context import app_ctx
 
-            if telethon_client:
-                await telethon_client.send_message(
+            if app_ctx.client:
+                await app_ctx.client.send_message(
                     target_chat, full_message, parse_mode="html"
                 )
                 logger.info(

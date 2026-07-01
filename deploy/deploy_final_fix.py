@@ -76,7 +76,7 @@ def deploy():
                 print(f"Warning: {f} not found locally.")
         
         # Upload mandatory directories
-        mandatory_dirs = ['services', 'controllers', 'handlers', 'agents', 'invoices']
+        mandatory_dirs = ['services', 'controllers', 'handlers', 'agents', 'invoices', 'commands']
         for d in mandatory_dirs:
             if os.path.exists(d):
                 upload_dir(d, f"{REMOTE_DIR}/{d}")
