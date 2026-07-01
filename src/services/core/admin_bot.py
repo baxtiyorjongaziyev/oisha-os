@@ -1929,9 +1929,57 @@ class AdminBot:
                 [Button.url("📞 Bog'lanish", "https://t.me/baxtiyorjon_gaziyev")],
             ]
 
-    async def send_dashboard(self, event):
+    async def push_to_owner(self, text: str, parse_mode: str = "markdown") -> bool:
+        """Avtomatik hisobotni egaga (admin bot chatiga) yuboradi. Tugmasiz."""
+        owner_id = getattr(self.access_manager, "owner_id", None)
+        if not owner_id or not self.bot_client:
+            logger.warning("[AUTO-PUSH] owner_id yoki bot_client yo'q — yuborilmadi")
+            return False
+        try:
+            await self.bot_client.send_message(
+                owner_id, text, parse_mode=parse_mode, link_preview=False
+            )
+            return True
+        except Exception as exc:
+            logger.error("[AUTO-PUSH] Yuborishda xato: %s", exc)
+            return False
+
+    async def run_auto_briefing(self) -> bool:
+        """Ertalabki avtomatik brifing: ROI + KPI + Deadline — tugmasiz push.
+
+        Scheduler har kuni ertalab bir marta chaqiradi. Har bo'lim alohida
+        try bilan himoyalangan — biri yiqilsa boshqalari yuboriladi.
+        """
+        sent_any = False
+
+        try:
+            roi = await self.build_dashboard_text()
+            if await self.push_to_owner(roi, parse_mode="markdown"):
+                sent_any = True
+        except Exception as exc:
+            logger.error("[AUTO-BRIEFING] ROI xato: %s", exc)
+
+        try:
+            kpi = await self.build_kpi_text()
+            if kpi and await self.push_to_owner(kpi, parse_mode="html"):
+                sent_any = True
+        except Exception as exc:
+            logger.error("[AUTO-BRIEFING] KPI xato: %s", exc)
+
+        try:
+            deadlines = await self.build_deadline_text()
+            if deadlines and await self.push_to_owner(deadlines, parse_mode="html"):
+                sent_any = True
+        except Exception as exc:
+            logger.error("[AUTO-BRIEFING] Deadline xato: %s", exc)
+
+        logger.info("[AUTO-BRIEFING] Yakunlandi (yuborildi=%s)", sent_any)
+        return sent_any
+
+    async def build_dashboard_text(self) -> str:
+        """Kunlik ROI hisobot matnini qaytaradi (tugma va avtomatika uchun umumiy)."""
         stats = await self.db.get_today_stats()
-        msg = (
+        return (
             "📊 **KUNLIK ROI HISOBOTI**\n"
             "──────────────────────\n"
             f"📅 **Sana:** {datetime.now().strftime('%d-%m-%Y')}\n\n"
@@ -1943,6 +1991,48 @@ class AdminBot:
             "──────────────────────\n"
             "💡 *Oisha har 5 daqiqada yangi lidlarni qidirishda davom etmoqda.*"
         )
+
+    async def build_kpi_text(self) -> str:
+        """Jamoa KPI hisobot matnini qaytaradi."""
+        from src.services.core.enterprise_reporter import EnterpriseReporter
+        from src.services.core.crm.crm_service import CRMService
+        from src.services.core.airtable_sync import AirtableSync
+
+        crm_service = CRMService()
+        airtable = AirtableSync()
+        reporter = EnterpriseReporter(self.db, crm_service, airtable)
+        return await reporter.get_team_efficiency_report()
+
+    async def build_deadline_text(self) -> str:
+        """Muddati o'tgan vazifa/loyihalar hisobot matnini qaytaradi."""
+        from src.services.core.enterprise_reporter import EnterpriseReporter
+        from src.services.core.crm.crm_service import CRMService
+        from src.services.core.airtable_sync import AirtableSync
+
+        crm_service = CRMService()
+        airtable = AirtableSync()
+        reporter = EnterpriseReporter(self.db, crm_service, airtable)
+
+        report_msg = await reporter.get_accountability_segment()
+
+        overdue_projects = airtable.get_overdue_projects() if airtable else []
+        project_lines = []
+        if overdue_projects:
+            project_lines.append("\n🏗 <b>Muddati o'tgan Loyihalar (Airtable):</b>")
+            for p in overdue_projects[:5]:
+                fields = p.get("fields", {})
+                name = fields.get("project_name") or fields.get("Loyihani nomi?") or "Nomsiz"
+                pm = fields.get("manager") or "Noma'lum"
+                project_lines.append(f"  • {name} — <i>PM: {pm}</i>")
+            if len(overdue_projects) > 5:
+                project_lines.append(f"  ... va yana {len(overdue_projects)-5} ta.")
+        else:
+            project_lines.append("\n🏗 Barcha loyihalar muddatida! ✅")
+
+        return f"{report_msg}\n" + "\n".join(project_lines)
+
+    async def send_dashboard(self, event):
+        msg = await self.build_dashboard_text()
         await event.respond(msg)
 
     async def send_weekly_report(self, event):
@@ -1951,10 +2041,10 @@ class AdminBot:
         try:
             from src.services.core.crm.crm_service import CRMService
             from src.services.core.crm.crm_daily_report import CRMDailyReporter as CRMDailyReport
-            
+
             crm = CRMService()
             report_engine = CRMDailyReport(crm.amocrm)
-            
+
             stats = await report_engine.fetch_weekly_stats()
             msg = report_engine.format_weekly_report_uz(stats)
             await event.respond(msg, parse_mode="markdown")
@@ -1966,15 +2056,7 @@ class AdminBot:
         """Jamoa kpi va samaradorlik hisobotini yuborish."""
         await event.respond("📊 **Jamoa KPI va samaradorlik hisoboti shakllantirilmoqda...**")
         try:
-            from src.services.core.enterprise_reporter import EnterpriseReporter
-            from src.services.core.crm.crm_service import CRMService
-            from src.services.core.airtable_sync import AirtableSync
-            
-            crm_service = CRMService()
-            airtable = AirtableSync()
-            reporter = EnterpriseReporter(self.db, crm_service, airtable)
-            
-            report_msg = await reporter.get_team_efficiency_report()
+            report_msg = await self.build_kpi_text()
             await event.respond(report_msg, parse_mode="html", link_preview=False)
         except Exception as e:
             logger.error(f"❌ [KPI REPORT ERROR] {e}")
@@ -2095,31 +2177,7 @@ class AdminBot:
         """Muddati o'tgan vazifalar va loyihalar bo'yicha hisobot."""
         await event.respond("⏰ **Muddati o'tgan vazifalar va loyihalar tahlil qilinmoqda...**")
         try:
-            from src.services.core.enterprise_reporter import EnterpriseReporter
-            from src.services.core.crm.crm_service import CRMService
-            from src.services.core.airtable_sync import AirtableSync
-            
-            crm_service = CRMService()
-            airtable = AirtableSync()
-            reporter = EnterpriseReporter(self.db, crm_service, airtable)
-            
-            report_msg = await reporter.get_accountability_segment()
-            
-            overdue_projects = airtable.get_overdue_projects() if airtable else []
-            project_lines = []
-            if overdue_projects:
-                project_lines.append("\n🏗 <b>Muddati o'tgan Loyihalar (Airtable):</b>")
-                for p in overdue_projects[:5]:
-                    fields = p.get("fields", {})
-                    name = fields.get("project_name") or fields.get("Loyihani nomi?") or "Nomsiz"
-                    pm = fields.get("manager") or "Noma'lum"
-                    project_lines.append(f"  • {name} — <i>PM: {pm}</i>")
-                if len(overdue_projects) > 5:
-                    project_lines.append(f"  ... va yana {len(overdue_projects)-5} ta.")
-            else:
-                project_lines.append("\n🏗 Barcha loyihalar muddatida! ✅")
-                
-            full_msg = f"{report_msg}\n" + "\n".join(project_lines)
+            full_msg = await self.build_deadline_text()
             await event.respond(full_msg, parse_mode="html")
         except Exception as e:
             logger.error(f"❌ [DEADLINES REPORT ERROR] {e}")
