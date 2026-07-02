@@ -185,5 +185,5 @@ def create_hisobchi_engine(
     gs_store: Any = None,
 ) -> Any:
     """Factory: creates HisobchiEngine with the right backend."""
-    from src.services.core.hisobchi_engine import HisobchiEngine
+    from src.services.core.finance.hisobchi_engine import HisobchiEngine
     return HisobchiEngine(db=db, gs_store=gs_store)

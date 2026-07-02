@@ -17,19 +17,19 @@ from src.database import Database
 from src.controllers.message_controller import MessageController
 from src.services.core.safe_responder import SafeResponder
 from src.services.core.action_parser import ActionParser
-from src.services.core.lead_scraper import LeadScraper
+from src.services.core.leads.lead_scraper import LeadScraper
 from src.services.core.advisor_agent import AdvisorAgent
 from src.services.core.auto_lead_agent import AutoLeadAgent
 from src.services.core.activity_monitor import ActivityMonitor
 from src.services.core.audit_agent import AuditAgent
 from src.services.core.sales_coach import SalesCoach
-from src.services.core.crm_guard import CRMGuard
+from src.services.core.crm.crm_guard import CRMGuard
 from src.services.core.admin_bot import AdminBot
 from src.services.utils.access_manager import AccessManager
-from src.services.core.session_manager import SessionManager
+from src.services.core.telegram.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
-from src.services.core.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
+from src.services.core.crm.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
 from src.services.core.workflow_manager import WorkflowManager
 from src.context import app_ctx
 
@@ -103,7 +103,7 @@ async def _crm_capacity_archiver_loop():
     while True:
         try:
             logger.info("[ARCHIVER_LOOP] Active AmoCRM capacity check starting...")
-            from src.services.core.crm_archiver import CRMArchiver
+            from src.services.core.crm.crm_archiver import CRMArchiver
 
             archiver = CRMArchiver(
                 amocrm=app_ctx.msg_controller.crm.amocrm,
@@ -139,7 +139,7 @@ async def _crm_capacity_archiver_loop():
 
 async def _ai_autopilot_loop():
     await asyncio.sleep(15)
-    from src.services.core.telegram_task_creator import TelegramTaskCreator
+    from src.services.core.telegram.telegram_task_creator import TelegramTaskCreator
     from src.services.core.call_analyzer import CallAnalyzer
     from src.services.core.ambassador_journey import AmbassadorJourneyManager
     from src.services.utils.voice_processor import VoiceProcessor
@@ -315,7 +315,7 @@ async def boot_application():
     }
     db = Database()
     await db.init_instance()
-    from src.services.core.hisobchi_schema import init_hisobchi_tables, init_hisobchi_gsheets
+    from src.services.core.finance.hisobchi_schema import init_hisobchi_tables, init_hisobchi_gsheets
 
     hisobchi_gs_id = getattr(settings, "HISOBCHI_GSHEET_ID", None)
     hisobchi_gs_creds = getattr(settings, "HISOBCHI_GSHEET_CREDS_FILE", None) or getattr(settings, "GSHEET_CREDS_FILE", "service_account.json")
@@ -525,7 +525,7 @@ async def boot_application():
         try:
             await bot_client.start(bot_token=BOT_TOKEN_STR)
 
-            from src.services.core.telegram_ai_features import (
+            from src.services.core.telegram.telegram_ai_features import (
                 BOT_API_10_ALLOWED_UPDATES, TelegramBotAPI10Client, TelegramBotAPILongPoller,
             )
 
@@ -640,8 +640,8 @@ async def boot_application():
     app_ctx.bot_token_str = BOT_TOKEN_STR
 
     # Register event handlers on client
-    from src.services.core.hisobchi_schema import create_hisobchi_engine
-    from src.services.core.hisobchi_handlers import (
+    from src.services.core.finance.hisobchi_schema import create_hisobchi_engine
+    from src.services.core.finance.hisobchi_handlers import (
         backfill_card_bot_messages,
         handle_card_bot_message,
         handle_finance_group_reply,
