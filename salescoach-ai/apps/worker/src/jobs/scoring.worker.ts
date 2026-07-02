@@ -4,6 +4,7 @@ import { prisma } from '../services/prisma';
 import { ScoringService } from '../services/scoring.service';
 import { CoachingService } from '../services/coaching.service';
 import { ObjectionService } from '../services/objection.service';
+import { notifyTelegramScoring } from '../services/telegram_notify';
 
 const QUEUE_NAME = 'scoring';
 
@@ -122,11 +123,17 @@ export class ScoringWorker {
       this.coaching.deliver(callId).catch((err) => {
         console.error(`[scoring] Coaching delivery failed for ${callId}:`, err.message);
       });
+
+      // Notify oisha-os bot about completed scoring (fire-and-forget)
+      notifyTelegramScoring(callId, result.overallScore, call.customerName ?? null, 'DONE').catch(
+        () => {},
+      );
     } catch (err: any) {
-      await prisma.call.update({
+      const failedCall = await prisma.call.update({
         where: { id: callId },
         data: { status: 'FAILED', errorMessage: err.message },
       });
+      notifyTelegramScoring(callId, 0, failedCall.customerName ?? null, 'FAILED').catch(() => {});
       throw err;
     }
   }
