@@ -181,11 +181,12 @@ async def get_deadlines(airtable=Depends(get_airtable_instance)):
         fields = rec.get("fields", {}) or {}
         rec_id = str(rec.get("id", ""))
 
-        due_raw = AirtableSync._get_field(fields, "deadline")
-        if not due_raw:
+        # Lookup/rollup maydonlari list qaytarishi mumkin — matnga keltiramiz
+        due_str = _coerce_text(AirtableSync._get_field(fields, "deadline"))
+        if not due_str:
             continue
         try:
-            due_date = datetime.fromisoformat(str(due_raw)[:10]).date()
+            due_date = datetime.fromisoformat(due_str[:10]).date()
         except (ValueError, TypeError):
             continue
 
@@ -215,7 +216,7 @@ async def get_deadlines(airtable=Depends(get_airtable_instance)):
             Deadline(
                 id=rec_id,
                 name=_coerce_text(AirtableSync._get_field(fields, "project_name")) or "Nomsiz loyiha",
-                due_date=str(due_raw),
+                due_date=due_str,
                 days_until_due=days,
                 status=status,
                 manager=_coerce_text(AirtableSync._get_field(fields, "manager")),
