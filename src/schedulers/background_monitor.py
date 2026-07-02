@@ -102,7 +102,7 @@ class BackgroundMonitor:
         await check_airtable_deadlines()
 
     async def _job_lead_os_cycle(self, now: datetime) -> None:
-        from src.services.core.lead_operating_system import LeadOperatingSystem
+        from src.services.core.leads.lead_operating_system import LeadOperatingSystem
 
         if not self.msg_controller:
             return
@@ -188,7 +188,7 @@ class BackgroundMonitor:
         key = self._job_key("crm_daily_report", now)
         if not self._already_sent(key):
             try:
-                from src.services.core.crm_daily_report import CRMDailyReporter
+                from src.services.core.crm.crm_daily_report import CRMDailyReporter
 
                 amocrm_client = self._get_amocrm_client()
                 if amocrm_client:
@@ -208,7 +208,7 @@ class BackgroundMonitor:
 
     async def _job_crm_weekly_report(self, now: datetime) -> None:
         try:
-            from src.services.core.crm_daily_report import CRMDailyReporter, previous_week_range
+            from src.services.core.crm.crm_daily_report import CRMDailyReporter, previous_week_range
 
             period_start, period_end = previous_week_range(now.date())
             run_key = f"{period_start.isoformat()}_{period_end.isoformat()}"
