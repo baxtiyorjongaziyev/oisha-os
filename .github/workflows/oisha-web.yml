@@ -60,6 +60,33 @@ jobs:
             curl -s -m 5 -o /dev/null -w 'localhost:3000 -> %{http_code}\n' http://127.0.0.1:3000/ || echo "localhost:3000 -> ulanib bo'lmadi"
             echo "=== OISHA-OS LOGS (DB/xato) ==="
             sudo journalctl -u oisha-os -n 400 --no-pager 2>/dev/null | grep -iE 'turso|libsql|auth|token|error|traceback' | tail -25 || true
+            echo "=== BOOT OQIMI (oxirgi restart'dan beri qayerda) ==="
+            sudo journalctl -u oisha-os --no-pager 2>/dev/null | grep -E 'Started Oisha|BOOT|boot|wiring|SESSION|MONITOR|Boshlandi' | tail -20 || true
+            echo "=== TURSO TO'G'RIDAN-TO'G'RI TEST ==="
+            cd /home/ubuntu/oisha-os && ./venv/bin/python - <<'PYEOF' || true
+            import os, sys, time
+            from dotenv import load_dotenv
+            load_dotenv()
+            url = os.getenv("TURSO_DATABASE_URL", "")
+            tok = os.getenv("TURSO_AUTH_TOKEN", "")
+            print("URL bor:", bool(url), "| Token bor:", bool(tok))
+            try:
+                import libsql
+            except ImportError:
+                import libsql_experimental as libsql
+            try:
+                t0 = time.time()
+                conn = libsql.connect("local-replica.db", sync_url=url, auth_token=tok) if url else None
+                if conn is None:
+                    print("TURSO URL yo'q — SQLite rejimi")
+                else:
+                    conn.sync()
+                    cur = conn.execute("SELECT 1")
+                    print("TURSO OK:", cur.fetchone(), f"({time.time()-t0:.1f}s)")
+            except Exception as exc:
+                print("TURSO XATO:", type(exc).__name__, str(exc)[:300])
+            PYEOF
+            rm -f /home/ubuntu/oisha-os/local-replica.db* 2>/dev/null || true
 
   deploy:
     if: >-
@@ -203,6 +230,11 @@ jobs:
 
             # Buzilgan venv tuzatilgani uchun botni qayta ishga tushiramiz
             sudo systemctl restart oisha-os
-            sleep 8
-            curl -s -m 8 http://127.0.0.1:8080/healthz/ | head -c 200; echo
+            # Bot ko'tarilishini kutamiz (1GB serverda 8s yetmaydi — run'ni
+            # noto'g'ri "failure" qilmaslik uchun 60s gacha retry)
+            for i in $(seq 1 12); do
+              curl -s -m 5 -o /dev/null http://127.0.0.1:8080/healthz/ && break
+              sleep 5
+            done
+            curl -s -m 8 http://127.0.0.1:8080/healthz/ | head -c 200 || true; echo
             curl -s -m 8 -o /dev/null -w 'https://oisha.jonbranding.uz -> %{http_code}\n' https://oisha.jonbranding.uz/ || true
