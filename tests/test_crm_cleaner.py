@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.services.core.telegram_phone_enricher import (
+from src.services.core.telegram.telegram_phone_enricher import (
     TelegramPhoneEnricher,
     extract_usernames,
     normalize_phone,

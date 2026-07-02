@@ -867,7 +867,7 @@ class AgentToolExecutor:
             }
 
         try:
-            from src.services.core.crm_service import CRMService
+            from src.services.core.crm.crm_service import CRMService
 
             crm = CRMService()
             status = await crm.get_user_context(phone)
