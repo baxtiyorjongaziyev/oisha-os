@@ -59,3 +59,6 @@
 ## 2026-06-25 - Consistent Keyboard Navigation
 **Learning:** Hardcoded `focus:` styles (like `focus:ring-2`) trigger visually during mouse clicks, leading to an inconsistent UX. Many generic interactive elements omit focus indicators entirely relying on `focus:outline-none`.
 **Action:** Always replace `focus:` with `focus-visible:` for focus rings (e.g. `focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1`) to ensure accessibility borders only appear for keyboard navigators, keeping mouse interactions clean.
+## 2026-07-02 - Accessible Selection Groups
+**Learning:** When rendering custom selection groups (like category pickers), buttons need `role="group"`, an `aria-labelledby` association, and `aria-pressed` states to correctly communicate functionality and state to screen readers.
+**Action:** Always wrap custom button-based selectors in a `role="group"` container linked to a descriptive label, and use `aria-pressed` on individual options.
