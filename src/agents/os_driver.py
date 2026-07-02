@@ -6,6 +6,7 @@ sichqonchani boshqarish va klaviaturada yozish imkoniyatini beradi.
 """
 import logging
 import subprocess
+import sys
 import time
 from typing import Optional, Tuple
 
@@ -54,6 +55,7 @@ try:
     import pyautogui  # noqa: E402
 except Exception as _pyautogui_error:
     pyautogui = _UnavailablePyAutoGUI(_pyautogui_error)
+    sys.modules["pyautogui"] = pyautogui
 
 logger = logging.getLogger(__name__)
 
