@@ -444,6 +444,8 @@ app.include_router(crm_dashboard_router)
 app.include_router(marketing_router)
 app.include_router(callmaster_router)
 app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
+app.add_api_route("/healthz", liveness_probe, methods=["GET"], include_in_schema=False)
+app.add_api_route("/healthz/", liveness_probe, methods=["GET"], include_in_schema=False)
 
 # Mount Static Files
 static_dir = os.path.join(os.path.dirname(__file__), "static")
