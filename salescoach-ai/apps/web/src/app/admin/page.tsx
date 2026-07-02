@@ -84,18 +84,15 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Team Efficiency */}
-      {stats?.team_efficiency && Object.keys(stats.team_efficiency).length > 0 && (
+      {/* Team Efficiency — backend Telegram-HTML hisobot qaytaradi */}
+      {stats?.team_efficiency?.report_html && (
         <div className="glass p-6">
-          <h3 className="text-lg font-semibold mb-4">Team Efficiency</h3>
-          <div className="space-y-3">
-            {Object.entries(stats.team_efficiency).map(([key, value]) => (
-              <div key={key} className="flex justify-between items-center">
-                <span style={{ color: 'var(--text-secondary)' }}>{key}</span>
-                <span className="font-semibold">{String(value)}</span>
-              </div>
-            ))}
-          </div>
+          <h3 className="text-lg font-semibold mb-4">Enterprise Audit</h3>
+          <div
+            className="text-sm leading-relaxed whitespace-pre-wrap"
+            style={{ color: 'var(--text-secondary)' }}
+            dangerouslySetInnerHTML={{ __html: stats.team_efficiency.report_html }}
+          />
         </div>
       )}
 
@@ -106,9 +103,9 @@ export default function AdminDashboardPage() {
           onClick={async () => {
             try {
               await api.post('/admin/actions/send_briefing', {});
-              alert('Briefing sent to owner');
+              alert('✅ Briefing owner\'ga yuborildi');
             } catch (err) {
-              alert('Failed to send briefing');
+              alert(`❌ ${err instanceof Error ? err.message : 'Failed to send briefing'}`);
             }
           }}
         />
@@ -117,9 +114,9 @@ export default function AdminDashboardPage() {
           onClick={async () => {
             try {
               await api.post('/admin/actions/export_tez_natija_sheets', {});
-              alert('Exported to Google Sheets');
+              alert('✅ Google Sheets\'ga eksport qilindi');
             } catch (err) {
-              alert('Failed to export');
+              alert(`❌ ${err instanceof Error ? err.message : 'Failed to export'}`);
             }
           }}
         />
@@ -128,9 +125,9 @@ export default function AdminDashboardPage() {
           onClick={async () => {
             try {
               await api.post('/admin/actions/export_tez_natija_amocrm', {});
-              alert('Exported to AmoCRM');
+              alert('✅ AmoCRM\'ga eksport qilindi');
             } catch (err) {
-              alert('Failed to export');
+              alert(`❌ ${err instanceof Error ? err.message : 'Failed to export'}`);
             }
           }}
         />
