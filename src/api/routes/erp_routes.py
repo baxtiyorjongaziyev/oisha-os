@@ -29,7 +29,7 @@ async def erp_dashboard(request: Request):
     if not _is_authorized(request):
         return {"error": "Unauthorized"}
     try:
-        from src.services.core.erp_dashboard import ERPDashboard
+        from src.services.core.finance.erp_dashboard import ERPDashboard
         erp = ERPDashboard(db=api_state.db_instance)
         return await erp.get_dashboard_summary()
     except Exception as exc:
@@ -42,7 +42,7 @@ async def erp_finance(request: Request):
     if not _is_authorized(request):
         return {"error": "Unauthorized"}
     try:
-        from src.services.core.finance_engine import FinanceEngine
+        from src.services.core.finance.finance_engine import FinanceEngine
         engine = FinanceEngine(db=api_state.db_instance)
         return await engine.get_finance_summary()
     except Exception as exc:

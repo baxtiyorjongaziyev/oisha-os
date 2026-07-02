@@ -111,6 +111,11 @@ class AppSettings(BaseSettings):
     AMOCRM_CALL_TRANSCRIPT_NOTE_CHARS: int = 6000
     AIRTABLE_API_KEY: Optional[SecretStr] = None
     AIRTABLE_BASE_ID: Optional[str] = None
+    # Airtable OAuth 2.0 (API key o'rniga to'g'ridan-to'g'ri OAuth token)
+    AIRTABLE_OAUTH_CLIENT_ID: Optional[str] = None
+    AIRTABLE_OAUTH_CLIENT_SECRET: Optional[SecretStr] = None
+    AIRTABLE_ACCESS_TOKEN: Optional[SecretStr] = None
+    AIRTABLE_REFRESH_TOKEN: Optional[SecretStr] = None
     DATABASE_URL: str = Field(default="bot_database.db")
     TURSO_DATABASE_URL: Optional[str] = None
     TURSO_AUTH_TOKEN: Optional[SecretStr] = None
@@ -253,6 +258,10 @@ class AppSettings(BaseSettings):
             "AMOCRM_CLIENT_SECRET",
             "AIRTABLE_API_KEY",
             "AIRTABLE_BASE_ID",
+            "AIRTABLE_OAUTH_CLIENT_ID",
+            "AIRTABLE_OAUTH_CLIENT_SECRET",
+            "AIRTABLE_ACCESS_TOKEN",
+            "AIRTABLE_REFRESH_TOKEN",
             "TURSO_DATABASE_URL",
             "TURSO_AUTH_TOKEN",
             "AMOCRM_TG_CHAT_FIELD_ID",

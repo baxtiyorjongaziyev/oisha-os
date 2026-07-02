@@ -47,7 +47,13 @@ class OishaOSDriver:
     """PyAutoGUI va MSS asosidagi desktop avtomatizatsiya driveri."""
 
     def __init__(self):
-        self.sct = mss.MSS()
+        try:
+            self.sct = mss.MSS()
+        except Exception as exc:
+            # Headless server (DISPLAY yo'q) — pyautogui proxy kabi kechiktirilgan xato
+            self.sct = None
+            self._sct_error = exc
+            logger.warning("[OSDriver] Headless muhit — screenshot o'chirilgan: %s", exc)
         logger.info("[OSDriver] Initialized.")
 
     # ── Screen ─────────────────────────────────────────────
@@ -61,6 +67,10 @@ class OishaOSDriver:
         Ekran skrinshotini olish.
         region: (x, y, width, height) — ixtiyoriy, faqat shu qismni olish.
         """
+        if self.sct is None:
+            raise RuntimeError(
+                f"OSDriver: desktop muhiti mavjud emas (screenshot o'chirilgan): {self._sct_error}"
+            )
         if region:
             monitor = {"left": region[0], "top": region[1], "width": region[2], "height": region[3]}
             sct_img = self.sct.grab(monitor)

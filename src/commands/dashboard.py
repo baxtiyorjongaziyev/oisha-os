@@ -28,7 +28,7 @@ async def cmd_dashboard(event, **ctx):
 @register_command("/lead_cockpit", "/pipeline")
 async def cmd_lead_cockpit(event, **ctx):
     msg_controller = ctx["msg_controller"]
-    from src.services.core.lead_operating_system import LeadOperatingSystem
+    from src.services.core.leads.lead_operating_system import LeadOperatingSystem
     lead_os = LeadOperatingSystem(msg_controller, msg_controller.db)
     report = await lead_os.render_cockpit_report(limit=12, lookback_hours=72)
     await event.respond(report, parse_mode="HTML")
@@ -45,7 +45,7 @@ async def cmd_report(event, **ctx):
     get_surgical_integration = ctx["get_surgical_integration"]
     await event.respond("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
     try:
-        from src.services.core.crm_daily_report import CRMDailyReporter
+        from src.services.core.crm.crm_daily_report import CRMDailyReporter
         amocrm_client = None
         if msg_controller and getattr(msg_controller, "crm", None):
             amocrm_client = getattr(msg_controller.crm, "amocrm", None)
@@ -67,7 +67,7 @@ async def cmd_stats(event, **ctx):
     get_surgical_integration = ctx["get_surgical_integration"]
     await event.respond("⏳ Joriy statistika olinmoqda...")
     try:
-        from src.services.core.crm_daily_report import CRMDailyReporter
+        from src.services.core.crm.crm_daily_report import CRMDailyReporter
         amocrm_client = None
         if msg_controller and getattr(msg_controller, "crm", None):
             amocrm_client = getattr(msg_controller.crm, "amocrm", None)
@@ -93,7 +93,7 @@ async def cmd_stats(event, **ctx):
 @register_command("/history")
 async def cmd_history(event, **ctx):
     try:
-        from src.services.core.crm_daily_report import CRMDailyReporter
+        from src.services.core.crm.crm_daily_report import CRMDailyReporter
         reporter = CRMDailyReporter(amocrm=None)
         history = reporter.get_history(7)
         if not history:
