@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import TYPE_CHECKING, Optional
 
 from src.time_utils import get_local_now
@@ -84,6 +85,10 @@ class OishaMemory:
             await conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_memory_type ON oisha_memory(entity_type)"
             )
+            # _save_facts har faktda (entity_id, fact_key) bo'yicha qidiradi
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_memory_entity_key ON oisha_memory(entity_id, fact_key)"
+            )
             await conn.commit()
 
     async def learn_from_conversation(
@@ -115,7 +120,12 @@ class OishaMemory:
                 model=model,
             )
             text = response.text.strip()
-            if text.startswith("```"):
+            # LLM JSON atrofida qo'shimcha matn qaytarishi mumkin —
+            # avval massivni regex bilan ajratib olamiz
+            json_match = re.search(r"\[\s*\{.*\}\s*\]", text, re.DOTALL)
+            if json_match:
+                text = json_match.group(0)
+            elif text.startswith("```"):
                 text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
             facts = json.loads(text)
