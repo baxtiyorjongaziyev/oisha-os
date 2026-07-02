@@ -31,6 +31,7 @@ from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
 from src.services.core.crm.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
 from src.services.core.workflow_manager import WorkflowManager
+from src.api.routes.state import api_state
 from src.context import app_ctx
 
 logger = logging.getLogger(__name__)
@@ -461,7 +462,6 @@ async def boot_application():
     # Route modullari (health /readyz va boshqalar) api_state'dan o'qiydi —
     # eski api_server globallari bilan sinxronlamasak readyz doim
     # "no_instance"/"unauthorized" qaytaradi va deploy health check yiqiladi
-    from src.api.routes.state import api_state
     api_state.user_client = client
     api_state.db_instance = msg_controller.db
     api_state.msg_controller = msg_controller
