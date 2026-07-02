@@ -104,6 +104,8 @@ jobs:
 
       - name: Install and start on server
         uses: appleboy/ssh-action@v1
+        env:
+          ADMIN_PASS: ${{ secrets.OISHA_API_SECRET }}
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
@@ -111,8 +113,14 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 15m
+          envs: ADMIN_PASS
           script: |
             set -euo pipefail
+
+            # Buzilgan venv'ni ta'mirlash: BotAccessSettings import xatosi —
+            # python-telegram-bot chala yangilangan
+            cd /home/ubuntu/oisha-os
+            ./venv/bin/pip install -q --force-reinstall "python-telegram-bot>=22.8" || true
             # Node runtime (standalone uchun faqat node kerak, pnpm shart emas)
             if ! command -v node >/dev/null 2>&1 || [ "$(node -v | cut -c2-3 | tr -d '.')" -lt 20 ]; then
               curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
@@ -158,4 +166,40 @@ jobs:
             sleep 6
             sudo systemctl status oisha-web --no-pager | head -8
             curl -s -m 8 -o /dev/null -w 'localhost:3000 -> %{http_code}\n' http://127.0.0.1:3000/
+
+            # Caddy routing: / -> web (:3000), /api va servis yo'llari -> API (:8080)
+            # Basic auth: butun sayt (healthz'dan tashqari), user=oisha, parol=OISHA_API_SECRET
+            OTHER_SITES=$(grep -E '^[A-Za-z0-9.*-]+(\s|,).*\{|^[A-Za-z0-9.*-]+\{' /etc/caddy/Caddyfile | grep -v 'oisha\.jonbranding\.uz' || true)
+            if grep -q "oisha.jonbranding.uz" /etc/caddy/Caddyfile && [ -z "$OTHER_SITES" ]; then
+              HASH=$(caddy hash-password --plaintext "$ADMIN_PASS")
+              sudo tee /etc/caddy/Caddyfile > /dev/null <<CADDY
+            oisha.jonbranding.uz {
+                @public path /healthz /healthz/ /readyz /readyz/
+                handle @public {
+                    reverse_proxy localhost:8080
+                }
+                @api path /api/* /webhook/* /docs /openapi.json /static/* /dashboard/*
+                handle @api {
+                    basic_auth {
+                        oisha $HASH
+                    }
+                    reverse_proxy localhost:8080
+                }
+                handle {
+                    basic_auth {
+                        oisha $HASH
+                    }
+                    reverse_proxy localhost:3000
+                }
+            }
+            CADDY
+              sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+            else
+              echo "Caddyfile kutilmagan holatda — routing o'zgartirilmadi"
+            fi
+
+            # Buzilgan venv tuzatilgani uchun botni qayta ishga tushiramiz
+            sudo systemctl restart oisha-os
+            sleep 8
+            curl -s -m 8 http://127.0.0.1:8080/healthz/ | head -c 200; echo
             curl -s -m 8 -o /dev/null -w 'https://oisha.jonbranding.uz -> %{http_code}\n' https://oisha.jonbranding.uz/ || true

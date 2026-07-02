@@ -458,6 +458,14 @@ async def boot_application():
     api_module.db_instance = msg_controller.db
     api_module.msg_controller = msg_controller
     api_module.action_parser = action_parser
+    # Route modullari (health /readyz va boshqalar) api_state'dan o'qiydi —
+    # eski api_server globallari bilan sinxronlamasak readyz doim
+    # "no_instance"/"unauthorized" qaytaradi va deploy health check yiqiladi
+    from src.api.routes.state import api_state
+    api_state.user_client = client
+    api_state.db_instance = msg_controller.db
+    api_state.msg_controller = msg_controller
+    api_state.action_parser = action_parser
     api_module.set_runtime_context(
         service_name=os.getenv("K_SERVICE") or "oisha-main",
         canonical_entrypoint="src/main.py",
@@ -496,6 +504,7 @@ async def boot_application():
     )
     if not userbot_ready:
         api_module.user_client = None
+        api_state.user_client = None
         logger.warning("[SESSION] Userbot tayyor emas — bot-token mode da ishlaydi")
         if BOT_TOKEN_STR:
             try:
