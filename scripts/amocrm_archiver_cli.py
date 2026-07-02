@@ -23,8 +23,8 @@ except Exception:
 # Add src folder to PYTHONPATH
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.services.core.crm_archiver import CRMArchiver
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.crm_archiver import CRMArchiver
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 
 # Setup logging
 logging.basicConfig(

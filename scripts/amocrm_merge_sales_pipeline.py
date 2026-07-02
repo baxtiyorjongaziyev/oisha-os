@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.services.core.amocrm_pipeline_config import (
+from src.services.core.crm.amocrm_pipeline_config import (
     CLOSER_TO_SALES_STATUS_NAME,
     FARMER_FINAL_PAYMENT_PENDING_STATUS_NAME,
     FARMER_PIPELINE_ID,
@@ -31,7 +31,7 @@ from src.services.core.amocrm_pipeline_config import (
     STATUS_WON,
     DesiredStatus,
 )
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.settings import settings
 
 CONFIRM_TEXT = "MERGE_HUNTER_CLOSER_TO_SALES"

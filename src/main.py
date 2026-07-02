@@ -31,14 +31,14 @@ from src.settings import settings
 from src.database import Database
 from src.services.core.safe_responder import SafeResponder
 from src.services.core.action_parser import ActionParser
-from src.services.core.lead_scraper import LeadScraper
+from src.services.core.leads.lead_scraper import LeadScraper
 from src.controllers.message_controller import MessageController
 from src.services.core.advisor_agent import AdvisorAgent
 from src.services.core.auto_lead_agent import AutoLeadAgent, detect_non_customer_context
 from src.services.core.activity_monitor import ActivityMonitor
 from src.services.core.audit_agent import AuditAgent
 from src.services.core.sales_coach import SalesCoach
-from src.services.core.crm_guard import CRMGuard
+from src.services.core.crm.crm_guard import CRMGuard
 import uvicorn
 from telethon import functions, types
 import random
@@ -51,7 +51,7 @@ from src.services.core.juma_notifier import JumaNotifier
 from src.services.core.case_publisher import CasePublisher
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
-from src.services.core.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
+from src.services.core.crm.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
 from src.context import app_ctx
 from src.handlers.income_workflow import (
     income_state_key as _income_state_key,

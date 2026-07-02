@@ -1,7 +1,7 @@
 import logging
 import random
 from typing import List, Dict
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.persona_hub import get_persona
 from src.utils.ai_utils import safe_ai_call
 
