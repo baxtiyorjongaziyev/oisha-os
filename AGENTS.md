@@ -28,36 +28,6 @@
 
 ## Current State
 
-# Oisha-OS Agent Coordination Protocol
-
-> Barcha AI agentlar ish boshlashdan oldin bu faylni o'qiydi va tugatgandan keyin yangilaydi.
-
-## Communication Rules
-
-1. **Bir faylga bir vaqtda faqat bitta agent yozadi**
-2. **Agent ish boshlaganda `## Locks` ga o'z nomini yozadi, tugatganda o'chiradi**
-3. **Shared fayllarga (settings.py, context.py, boot.py) faqat Agent Coordinator yozadi**
-4. **Har bir PR dan oldin `pytest -q` va `bandit -r src/ -ll` ishga tushiriladi**
-5. **git commit → git push → keyin keyingi agent pull qiladi (rebase)**
-
-## Roles
-
-| Agent | Scope | Owner |
-|-------|-------|-------|
-| **Coordinator** | AGENTS.md, settings.py, context.py, boot.py, PR merge | @user |
-| **Parser** | main.py → handlers/, commands/, schedulers/ | — |
-| **Hisobchi** | hisobchi_engine.py, hisobchi_handlers.py, hisobchi_schema.py | — |
-| **Security** | tests/, bandit issues, exception handling | — |
-| **Migration** | global variable → app_ctx.* | — |
-| **Database** | database.py, migrations, SQL optimization | — |
-| **API Server** | api_server.py, endpoints, auth | — |
-| **Integration** | AmoCRM, Airtable, Telegram integrations | — |
-| **Documentation** | README, API docs, inline docs | — |
-| **Performance** | profiling, caching, optimization | — |
-| **Code Quality** | dead code, naming, type hints | — |
-
-## Current State
-
 ### Locked
 *(none)*
 
@@ -66,9 +36,10 @@
 - oisha-os bridge (YANGI, shared emas): `salescoach_sync.py`, `apollo_enrich.py`, `docusign_sync.py` (DocuSign → **Telegram signing URL**, email'siz — UZ). app_ctx singleton COLLISION tuzatildi (uchchalasi `app_ctx.instance` edi → unikal nomlar).
 - 5 agent MCP config ulandi (repo tashqarisida): Claude/Codex/Gemini/OpenCode/Antigravity-Cline → oisha-amocrm, oisha-telegram, salescoach-ai.
 - ⚠️ **For Coordinator (settings.py ga qo'shing):** SALESCOACH_{API_URL,SERVICE_TOKEN,ENABLED}, DOCUSIGN_{ENABLED,BASE_URI,ACCOUNT_ID,ACCESS_TOKEN,TEMPLATE_ID}, APOLLO_{ENABLED,API_KEY}. Kod `getattr` bilan himoyalangan — varsiz ham ishlaydi (disabled).
-- ⚠️ **Known issue:** worker `tsc` — ioredis dup (5.11.1 vs 5.10.1) pre-existing dep drift; mening kodim emas (telegram_notify.ts toza). `pnpm dedupe` kerak.
+- ioredis dup TUZATILDI: bullmq 5.79.1 ioredis'ni aynan `5.10.1` ga pin qiladi, worker `^5.11.1` so'ragan edi → root `pnpm.overrides.ioredis="5.10.1"` + worker range `^5.10.1`. Worker `tsc --noEmit` endi TOZA.
 
 ### Done (yangi)
+- Barcha ochiq PRlar (38 ta) va Dependabot security alerts (multer, nodemailer, @babel/core) hal qilindi: dependency lar eng oxirgi versiyaga yangilandi, xavfsizlik kamchiliklari (SSL verification) tuzatildi va gitleaks historical allowlist yangilandi (TRAE).
 - Pytest/Bandit pre-flight failurelari ideal PR holatiga keltirildi: OS driver unit testlari desktop dependencydan ajratildi, `SKIP_LIVE=1` live AI testlarga qo'llandi, OAuth helper import-safe qilindi va default `127.0.0.1` ga bind qiladi; regression testlar qo'shildi. Full pre-flight: 364 passed, 13 skipped; Bandit: no issues (Codex).
 - Meta Graph API orqali Instagram DM va Comment webhooklari to'liq implement qilindi (`src/api_server.py` va `src/services/core/instagram_agent.py` yaratildi) hamda local va remote testlardan muvaffaqiyatli o'tdi (Antigravity).
 - Webhook so'rovlarini `x-hub-signature-256` orqali xavfsiz tasdiqlash va background tasks orqali Meta timeoutlarining oldini olish yo'lga qo'yildi (Antigravity).
