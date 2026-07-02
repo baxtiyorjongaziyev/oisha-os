@@ -390,7 +390,7 @@ def _get_amocrm_instance():
     global amocrm_instance
     if amocrm_instance:
         return amocrm_instance
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
     amocrm_instance = AmoCRMSync(
         subdomain=_setting_text(settings.AMOCRM_SUBDOMAIN),
         client_id=_setting_text(settings.AMOCRM_CLIENT_ID),
@@ -472,7 +472,7 @@ app.add_middleware(
 
 async def process_telegram_ai_update(update: Dict[str, Any]):
     """Central dispatcher for Bot API 10.0 AI updates."""
-    from src.services.core.telegram_ai_features import (
+    from src.services.core.telegram.telegram_ai_features import (
         TelegramBotAPI10Client,
         classify_update as classify_bot_api_update,
         extract_guest_message_context,
