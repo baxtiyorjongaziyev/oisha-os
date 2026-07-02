@@ -1,0 +1,23 @@
+[Unit]
+Description=Oisha Admin Web (Next.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/oisha-os/salescoach-ai/apps/web
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# jon-free-micro: 1GB RAM — Node heap'ini cheklaymiz
+Environment=NODE_OPTIONS=--max-old-space-size=256
+Environment=NEXT_TELEMETRY_DISABLED=1
+ExecStart=/usr/local/bin/pnpm start
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=oisha-web
+
+[Install]
+WantedBy=multi-user.target
