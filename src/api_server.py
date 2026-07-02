@@ -407,9 +407,10 @@ def _get_amocrm_instance():
 app = FastAPI(title="Oisha-OS Enterprise API")
 
 # Include existing routers
-from src.api import dashboard
+from src.api import admin, dashboard
 from src.api.live_monitor import router as live_monitor_router
 app.include_router(dashboard.router)
+app.include_router(admin.router)
 app.include_router(live_monitor_router)
 
 # Include new route modules
@@ -454,6 +455,7 @@ _CORS_ORIGINS = [
 ] or [
     "https://oisha.uz",
     "https://www.oisha.uz",
+    "https://oisha.jonbranding.uz",
 ]
 app.add_middleware(
     CORSMiddleware,
