@@ -427,6 +427,7 @@ from src.api.routes.instagram_routes import router as instagram_router
 from src.api.routes.product_suite import router as product_router
 from src.api.routes.crm_dashboard import router as crm_dashboard_router
 from src.api.routes.marketing_dashboard import router as marketing_router
+from src.api.routes.callmaster_routes import router as callmaster_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
@@ -441,6 +442,7 @@ app.include_router(instagram_router)
 app.include_router(product_router)
 app.include_router(crm_dashboard_router)
 app.include_router(marketing_router)
+app.include_router(callmaster_router)
 
 # Mount Static Files
 static_dir = os.path.join(os.path.dirname(__file__), "static")
