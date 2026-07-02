@@ -21,8 +21,8 @@ from src.services.core.tool_adapters import (
 )
 from src.services.core.persona_hub import get_persona
 from src.services.core.gdrive import GoogleDriveSync
-from src.services.core.crm_file_offloader import CRMFileOffloader
-from src.services.core.amocrm_pipeline_config import LEGACY_CLOSER_PIPELINE_ID
+from src.services.core.crm.crm_file_offloader import CRMFileOffloader
+from src.services.core.crm.amocrm_pipeline_config import LEGACY_CLOSER_PIPELINE_ID
 from src.settings import settings
 from telegram import Bot
 
@@ -605,7 +605,7 @@ async def distribute_team_tasks(force: bool = False):
 
     from src.services.core.mission_control import MissionControl
     from src.services.core.enterprise_reporter import EnterpriseReporter
-    from src.services.core.crm_service import CRMService
+    from src.services.core.crm.crm_service import CRMService
 
     mc = MissionControl(db)
     crm_service = CRMService()
@@ -667,7 +667,7 @@ async def _legacy_check_amocrm_stagnation_direct():
         return
 
     logger.info("[STAGNATION] Time to audit! Checking AmoCRM...")
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
 
     amo = AmoCRMSync(
         config.AMOCRM_SUBDOMAIN,
@@ -896,7 +896,7 @@ async def _legacy_check_amocrm_stagnation_mixed():
         return
 
     logger.info("[STAGNATION] Checking AmoCRM for stalled conversion opportunities...")
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
 
     amo = AmoCRMSync(
         config.AMOCRM_SUBDOMAIN,
@@ -1332,7 +1332,7 @@ async def send_daily_report():
     logger.info("Daily report job started...")
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
     from src.services.core.enterprise_reporter import EnterpriseReporter
-    from src.services.core.crm_service import CRMService
+    from src.services.core.crm.crm_service import CRMService
     import src.config as config
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
@@ -1436,7 +1436,7 @@ async def send_morning_briefing():
         logger.info("[MORNING BRIEFING] Allaqachon bugun yuborilgan. Skip.")
         return
 
-    from src.services.core.crm_service import CRMService
+    from src.services.core.crm.crm_service import CRMService
     from src.services.core.enterprise_reporter import EnterpriseReporter
 
     crm = CRMService()
@@ -1669,7 +1669,7 @@ async def send_evening_fact_report():
     """Kechki Plan-Fakt natijalarini audit qilish va guruhga yuborish."""
     logger.info("Evening Fact report job started...")
     from src.services.core.enterprise_reporter import EnterpriseReporter
-    from src.services.core.crm_service import CRMService
+    from src.services.core.crm.crm_service import CRMService
     import src.config as config
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
@@ -1711,7 +1711,7 @@ async def send_junk_leads_report():
     """CRM'dagi bekorchi sdelkalar (junk leads) hisobotini yuborish."""
     logger.info("Junk leads audit job started...")
     from src.services.core.enterprise_reporter import EnterpriseReporter
-    from src.services.core.crm_service import CRMService
+    from src.services.core.crm.crm_service import CRMService
     import src.config as config
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
@@ -1785,7 +1785,7 @@ async def _execute_telegram_notification(
 async def check_amocrm_stagnation():
     """Qotib qolgan leadlarni topib, menejerlarga conversion push yuborish."""
     import src.config as config
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
 
     db = Database()
     now = get_local_now()
@@ -1868,7 +1868,7 @@ async def check_amocrm_stagnation():
     total_value = sum(int(lead.get("price") or 0) for lead in stagnated)
 
     from src.services.core.enterprise_reporter import EnterpriseReporter
-    from src.services.core.crm_service import CRMService
+    from src.services.core.crm.crm_service import CRMService
 
     crm_service = CRMService()
     reporter = EnterpriseReporter(db, crm_service)
@@ -2132,7 +2132,7 @@ async def check_client_journey_excellence():
     """Mijoz yo'li bo'yicha wow-service signal va mikromanagement push yuborish."""
     import src.config as config
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
 
     db = Database()
     now = get_local_now()
@@ -2258,9 +2258,9 @@ async def check_client_journey_excellence():
 async def run_crm_offload():
     """CLI orqali AmoCRM fayllarini offload qilish."""
     import src.config as config
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
     from src.services.core.gdrive import GoogleDriveSync
-    from src.services.core.crm_file_offloader import CRMFileOffloader
+    from src.services.core.crm.crm_file_offloader import CRMFileOffloader
     from src.settings import settings
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)

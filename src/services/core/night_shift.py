@@ -4,7 +4,7 @@ import logging
 import os
 from src import config
 from src.database import Database
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.agents.researcher_agent import ResearcherAgent
 from src.services.core.google_service import GoogleService
 from src.services.core.airtable_sync import AirtableSync

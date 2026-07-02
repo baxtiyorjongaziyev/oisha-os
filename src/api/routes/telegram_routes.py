@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 async def telegram_status():
     """Diagnostic info for Telegram Bot API 10.0 integration."""
     try:
-        from src.services.core.telegram_ai_features import (
+        from src.services.core.telegram.telegram_ai_features import (
             TelegramBotAPI10Client,
             build_live_feature_status,
         )
@@ -51,7 +51,7 @@ async def telegram_group_access(refresh: bool = False):
 @router.get("/ai-features")
 async def telegram_ai_features():
     """Current status of Bot API 10.0 AI features."""
-    from src.services.core.telegram_ai_features import (
+    from src.services.core.telegram.telegram_ai_features import (
         build_live_feature_status,
         build_offline_feature_status,
     )
@@ -60,7 +60,7 @@ async def telegram_ai_features():
         runtime = get_runtime_context()
         if runtime.get("userbot_authorized"):
             token = os.environ.get("BOT_TOKEN") or settings.BOT_TOKEN.get_secret_value()
-            from src.services.core.telegram_ai_features import TelegramBotAPI10Client
+            from src.services.core.telegram.telegram_ai_features import TelegramBotAPI10Client
             client = TelegramBotAPI10Client(token)
             me = await client.get_me()
             return {
