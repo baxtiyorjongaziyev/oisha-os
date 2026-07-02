@@ -414,7 +414,7 @@ app.include_router(admin.router)
 app.include_router(live_monitor_router)
 
 # Include new route modules
-from src.api.routes.health import router as health_router
+from src.api.routes.health import router as health_router, liveness_probe
 from src.api.routes.telegram_routes import router as telegram_router
 from src.api.routes.system_dashboard import router as system_router
 from src.api.routes.sales_quality import router as sales_quality_router
@@ -443,6 +443,7 @@ app.include_router(product_router)
 app.include_router(crm_dashboard_router)
 app.include_router(marketing_router)
 app.include_router(callmaster_router)
+app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
 
 # Mount Static Files
 static_dir = os.path.join(os.path.dirname(__file__), "static")
