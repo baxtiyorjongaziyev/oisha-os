@@ -130,6 +130,11 @@ class TezNatijaExporter:
         progress_cb,
     ) -> dict:
         ws = self._get_or_create_worksheet()
+        if ws is None:
+            # Sheets ulanmagan — guruhni skan qilib Telegram so'rovlarini
+            # behuda sarflamaymiz
+            logger.error("[EXPORT] Worksheet yo'q (Sheets ulanmagan) — %s o'tkazib yuborildi", group_name)
+            return {"new": 0, "skip": 0}
 
         target = None
         async for dialog in client.iter_dialogs():

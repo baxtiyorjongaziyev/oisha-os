@@ -43,4 +43,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 print(f"Server {PORT} portda ishga tushdi")
 print(f"Brauzerda oching: http://109.199.100.137:{PORT}/auth")
-http.server.HTTPServer(("0.0.0.0", PORT), Handler).handle_request()
+# Bir martalik OAuth callback server — tashqi provayder redirect'i uchun
+# barcha interfeyslarga bog'lanish shart; bitta so'rovdan keyin o'chadi
+http.server.HTTPServer(("0.0.0.0", PORT), Handler).handle_request()  # nosec B104

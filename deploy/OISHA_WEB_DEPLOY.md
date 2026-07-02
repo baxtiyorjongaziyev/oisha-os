@@ -87,9 +87,9 @@ sudo systemctl status oisha-web oisha-os nginx --no-pager
 sudo journalctl -u oisha-web -f
 sudo journalctl -u oisha-os -f
 
-# API (basic auth bilan)
-curl -u oisha:PAROL https://oisha.jonbranding.uz/api/v1/admin/dashboard/stats
-curl -u oisha:PAROL https://oisha.jonbranding.uz/api/v1/admin/deadlines
+# API (basic auth bilan — parolni curl o'zi so'raydi)
+curl -u oisha https://oisha.jonbranding.uz/api/v1/admin/dashboard/stats
+curl -u oisha https://oisha.jonbranding.uz/api/v1/admin/deadlines
 
 # Health (auth'siz)
 curl https://oisha.jonbranding.uz/healthz
