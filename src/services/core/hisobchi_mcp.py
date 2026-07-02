@@ -285,6 +285,7 @@ except ImportError:
 
 
 if __name__ == "__main__":
+    import os
     import uvicorn
     from fastapi import FastAPI
 
@@ -292,4 +293,4 @@ if __name__ == "__main__":
     if mcp_router is not None:
         app.include_router(mcp_router)
 
-    uvicorn.run(app, host="0.0.0.0", port=8088)
+    uvicorn.run(app, host=os.getenv("HISOBCHI_MCP_HOST", "127.0.0.1"), port=8088)
