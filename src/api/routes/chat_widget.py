@@ -135,7 +135,7 @@ async def create_amo_lead(
     if not _check_secret(request.secret_key, x_secret_key):
         return {"error": "Unauthorized"}
 
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
     from src.time_utils import get_local_now
 
     amocrm = AmoCRMSync(
