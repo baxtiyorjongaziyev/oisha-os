@@ -16,7 +16,7 @@ class TestRetryDecorator:
 
     def test_retry_success_after_failure(self):
         """Test that retry succeeds after initial failures."""
-        from src.services.core.amocrm_sync import retry_with_backoff
+        from src.services.core.crm.amocrm_sync import retry_with_backoff
         
         call_count = 0
         
@@ -34,7 +34,7 @@ class TestRetryDecorator:
 
     def test_retry_exhaustion_raises(self):
         """Test that exception is raised after max retries."""
-        from src.services.core.amocrm_sync import retry_with_backoff
+        from src.services.core.crm.amocrm_sync import retry_with_backoff
         
         @retry_with_backoff(max_retries=3, initial_delay=0.1, exceptions=(Exception,))
         def always_fails():
@@ -45,7 +45,7 @@ class TestRetryDecorator:
 
     def test_retry_backoff_timing(self):
         """Test that backoff delays increase exponentially."""
-        from src.services.core.amocrm_sync import retry_with_backoff
+        from src.services.core.crm.amocrm_sync import retry_with_backoff
         
         delays = []
         original_sleep = time.sleep
@@ -76,7 +76,7 @@ class TestAmoCRMSyncMethods:
     @pytest.fixture
     def mock_amocrm(self):
         """Create a mock AmoCRM instance."""
-        from src.services.core.amocrm_sync import AmoCRMSync
+        from src.services.core.crm.amocrm_sync import AmoCRMSync
         
         with patch.dict(os.environ, {}, clear=True):
             amocrm = AmoCRMSync(
@@ -91,7 +91,7 @@ class TestAmoCRMSyncMethods:
     def test_create_lead_has_retry_decorator(self, mock_amocrm):
         """Verify create_lead_for_contact has retry decorator."""
         import inspect
-        from src.services.core.amocrm_sync import retry_with_backoff
+        from src.services.core.crm.amocrm_sync import retry_with_backoff
         
         # Check if method has retry decorator
         method = mock_amocrm.create_lead_for_contact
@@ -109,7 +109,7 @@ class TestAmoCRMErrorHandling:
 
     def test_401_token_refresh(self):
         """Test that 401 triggers token refresh."""
-        from src.services.core.amocrm_sync import AmoCRMSync
+        from src.services.core.crm.amocrm_sync import AmoCRMSync
         
         with patch.dict(os.environ, {}, clear=True):
             amocrm = AmoCRMSync(
@@ -143,7 +143,7 @@ class TestAmoCRMErrorHandling:
 
     def test_firestore_removed_from_amocrm_sync(self):
         """Firestore was removed to eliminate GCP billing. amocrm_sync must not import it."""
-        import src.services.core.amocrm_sync as amocrm_sync
+        import src.services.core.crm.amocrm_sync as amocrm_sync
 
         assert not hasattr(amocrm_sync, "HAS_FIRESTORE"), (
             "Firestore was removed from the project to eliminate GCP billing costs. "
