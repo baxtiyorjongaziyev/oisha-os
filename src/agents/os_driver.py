@@ -31,6 +31,25 @@ class _UnavailablePyAutoGUI:
         return _unavailable
 
 
+class _UnavailableMSS:
+    """Keep OSDriver constructible on headless CI/Linux servers."""
+
+    def __init__(self, init_error: BaseException) -> None:
+        self._init_error = init_error
+
+    def grab(self, *args, **kwargs):
+        raise RuntimeError(
+            "Bu serverda ekran/display mavjud emas; screenshot faqat desktop "
+            "muhitida ishlaydi."
+        ) from self._init_error
+
+    def shot(self, *args, **kwargs):
+        raise RuntimeError(
+            "Bu serverda ekran/display mavjud emas; screenshot faqat desktop "
+            "muhitida ishlaydi."
+        ) from self._init_error
+
+
 try:
     import pyautogui  # noqa: E402
 except Exception as _pyautogui_error:
@@ -47,7 +66,10 @@ class OishaOSDriver:
     """PyAutoGUI va MSS asosidagi desktop avtomatizatsiya driveri."""
 
     def __init__(self):
-        self.sct = mss.MSS()
+        try:
+            self.sct = mss.MSS()
+        except Exception as exc:
+            self.sct = _UnavailableMSS(exc)
         logger.info("[OSDriver] Initialized.")
 
     # ── Screen ─────────────────────────────────────────────
