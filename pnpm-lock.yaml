@@ -140,8 +140,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared-types
       bullmq:
-        specifier: ^5.77.7
-        version: 5.78.0
+        specifier: ^5.79.2
+        version: 5.79.2
       ioredis:
         specifier: ^5.11.1
         version: 5.11.1
@@ -1366,8 +1366,8 @@ packages:
   buffer-from@1.1.2:
     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
 
-  bullmq@5.78.0:
-    resolution: {integrity: sha512-tT9jJmbobk9ueEfFc22egLmgwCcMGgOjZ5Y1cvgczBPv1JUmC7iHQVbQtqku2YBE5dE9uzdVpxIrBvL/YAjGwA==}
+  bullmq@5.79.2:
+    resolution: {integrity: sha512-FebD+8XCZl/hnS1R4to24L4EAN70XSndKZO0776M36vGRk5MKVhKlNFM8/34zXLXKyYB4QaeIPFhVXSYYGTHpQ==}
     engines: {node: '>=12.22.0'}
     peerDependencies:
       redis: '>=5.0.0'
@@ -2296,8 +2296,8 @@ packages:
     resolution: {integrity: sha512-4kmO/MdyUIkLIvTPr8VHLil4AtoKIoniWPIEk5+CDy0xnWC84azhSFmuJ7PxZdsYtiP5kEeQsORAVIeMgxT+Hw==}
     hasBin: true
 
-  msgpackr@2.0.2:
-    resolution: {integrity: sha512-c5hYOXFbP79Slh6Dzd2wzk+jnV7mX1UxfMYtilnY1NmalXPqG8DGb5cYCMBrW4AsH3zekBBZd4QrKz9NhtvYLQ==}
+  msgpackr@2.0.4:
+    resolution: {integrity: sha512-o1C5KRmuRt+apqMr1HuGSqWStZoRBUpEsCsl15uM9VdAF1qHLtvMOU2En747EnTyEl6c4pzPewRMFF31s1CNbA==}
 
   multer@2.2.0:
     resolution: {integrity: sha512-6rdyFg2kLrMh9Jee7/BMPuV9lEAd7lLW2YUpF9/YxR7njyoUwwQ0ZPh3TaIY50Sw6vlyD2HW3wGOkTS4P79xrQ==}
@@ -2589,11 +2589,6 @@ packages:
 
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
-    hasBin: true
-
-  semver@7.8.0:
-    resolution: {integrity: sha512-AcM7dV/5ul4EekoQ29Agm5vri8JNqRyj39o0qpX6vDF2GZrtutZl5RwgD1XnZjiTAfncsJhMI48QQH3sN87YNA==}
-    engines: {node: '>=10'}
     hasBin: true
 
   semver@7.8.5:
@@ -3962,13 +3957,13 @@ snapshots:
 
   buffer-from@1.1.2: {}
 
-  bullmq@5.78.0:
+  bullmq@5.79.2:
     dependencies:
       cron-parser: 4.9.0
       ioredis: 5.10.1
-      msgpackr: 2.0.2
+      msgpackr: 2.0.4
       node-abort-controller: 3.1.1
-      semver: 7.8.0
+      semver: 7.8.5
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
@@ -5109,7 +5104,7 @@ snapshots:
       '@msgpackr-extract/msgpackr-extract-win32-x64': 3.0.4
     optional: true
 
-  msgpackr@2.0.2:
+  msgpackr@2.0.4:
     optionalDependencies:
       msgpackr-extract: 3.0.4
 
@@ -5419,8 +5414,6 @@ snapshots:
   scheduler@0.27.0: {}
 
   semver@6.3.1: {}
-
-  semver@7.8.0: {}
 
   semver@7.8.5: {}
 
