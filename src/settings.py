@@ -56,6 +56,7 @@ class AppSettings(BaseSettings):
     API_HASH: str = ""
     GEMINI_API_KEY: SecretStr = SecretStr("")
     GEMINI_CALL_MODEL: str = "gemini-2.5-flash"
+    GEMINI_VISION_MODEL: str = "gemini-2.0-flash"
     FREE_AI_GEMINI_MODEL: str = "gemini-2.5-flash-lite"
     GROQ_API_KEY: Optional[SecretStr] = None
     GROQ_TEXT_MODEL: str = "llama-3.3-70b-versatile"
@@ -153,6 +154,10 @@ class AppSettings(BaseSettings):
     GSHEET_ID: Optional[str] = None
     GSHEET_CREDS_FILE: str = "service_account.json"
 
+    # Hisobchi Google Sheets backend
+    HISOBCHI_GSHEET_ID: Optional[str] = None
+    HISOBCHI_GSHEET_CREDS_FILE: Optional[str] = None
+
     # Meta Graph API settings (Instagram)
     META_VERIFY_TOKEN: Optional[SecretStr] = None
     META_PAGE_ACCESS_TOKEN: Optional[SecretStr] = None
@@ -161,7 +166,6 @@ class AppSettings(BaseSettings):
     # Google Analytics 4
     GA4_PROPERTY_ID: Optional[str] = None
     GA4_CREDENTIALS_JSON: Optional[SecretStr] = None
-
 
     # Lead Distribution
     SALES_MANAGER_IDS: list[int] = Field(
@@ -276,6 +280,8 @@ class AppSettings(BaseSettings):
             "STAGNATION_TOPIC_ID",
             "WOW_SERVICE_TOPIC_ID",
             "GSHEET_ID",
+            "HISOBCHI_GSHEET_ID",
+            "HISOBCHI_GSHEET_CREDS_FILE",
             "GDRIVE_OFFLOAD_FOLDER_ID",
             "AMOCRM_CRON_SECRET",
             "AWS_ACCESS_KEY_ID",
