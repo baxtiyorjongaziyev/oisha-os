@@ -52,12 +52,17 @@ class AirtableOAuth:
 
     def _save_to_disk(self):
         try:
-            os.makedirs(os.path.dirname(self.token_file), exist_ok=True)
-            with open(self.token_file, "w", encoding="utf-8") as fh:
+            token_dir = os.path.dirname(self.token_file)
+            if token_dir:
+                os.makedirs(token_dir, exist_ok=True)
+            # Atomik yozish: chala yozilgan fayl token'ni buzmasligi uchun
+            temp_file = f"{self.token_file}.tmp"
+            with open(temp_file, "w", encoding="utf-8") as fh:
                 json.dump(
                     {"access_token": self.access_token, "refresh_token": self.refresh_token},
                     fh,
                 )
+            os.replace(temp_file, self.token_file)
         except Exception as exc:
             logger.warning("[AIRTABLE OAUTH] Token faylini saqlashda xato: %s", exc)
 
