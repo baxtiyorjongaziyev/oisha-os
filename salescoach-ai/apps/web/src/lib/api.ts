@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -20,7 +20,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.message ?? 'Request failed');
+    // NestJS uses `message`, FastAPI uses `detail`
+    throw new ApiError(res.status, body.message ?? body.detail ?? 'Request failed');
   }
 
   return res.json();
