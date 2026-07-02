@@ -6,7 +6,7 @@ from scripts.amocrm_merge_sales_pipeline import (
     AmoCRMSalesFarmerMigration,
     CONFIRM_TEXT,
 )
-from src.services.core.amocrm_pipeline_config import (
+from src.services.core.crm.amocrm_pipeline_config import (
     CLOSER_TO_SALES_STATUS_NAME,
     FARMER_PIPELINE_ID,
     FINAL_PAYMENT_TASK_TEXT,

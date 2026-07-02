@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 
 
 class _Response:
