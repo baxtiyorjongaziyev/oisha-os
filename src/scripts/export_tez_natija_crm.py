@@ -189,7 +189,7 @@ async def export_to_amocrm(
 ) -> int:
     """Barcha a'zolarni AmoCRM ga sync qilish."""
     try:
-        from src.services.core.amocrm_sync import AmoCRMSync
+        from src.services.core.crm.amocrm_sync import AmoCRMSync
         amocrm = AmoCRMSync()
     except Exception as exc:
         logger.warning("⚠️ AmoCRM ulanmadi: %s", exc)
