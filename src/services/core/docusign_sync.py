@@ -222,10 +222,10 @@ class DocuSignSync:
             return None
 
 
-app_ctx.instance: Optional[DocuSignSync] = None
+app_ctx.docusign_sync: Optional[DocuSignSync] = None
 
 
 def get_docusign() -> DocuSignSync:
-    if app_ctx.instance is None:
-        app_ctx.instance = DocuSignSync()
-    return app_ctx.instance
+    if app_ctx.docusign_sync is None:
+        app_ctx.docusign_sync = DocuSignSync()
+    return app_ctx.docusign_sync
