@@ -114,7 +114,7 @@ async def process_admin_commands(
     if text == "/report":
         await event.respond("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
         try:
-            from src.services.core.crm_daily_report import CRMDailyReporter
+            from src.services.core.crm.crm_daily_report import CRMDailyReporter
 
             amocrm_client = None
             if msg_controller and getattr(msg_controller, "crm", None):
@@ -134,7 +134,7 @@ async def process_admin_commands(
     if text == "/stats":
         await event.respond("⏳ Joriy statistika olinmoqda...")
         try:
-            from src.services.core.crm_daily_report import CRMDailyReporter
+            from src.services.core.crm.crm_daily_report import CRMDailyReporter
 
             amocrm_client = None
             if msg_controller and getattr(msg_controller, "crm", None):
@@ -160,7 +160,7 @@ async def process_admin_commands(
 
     if text == "/history":
         try:
-            from src.services.core.crm_daily_report import CRMDailyReporter
+            from src.services.core.crm.crm_daily_report import CRMDailyReporter
 
             reporter = CRMDailyReporter(amocrm=None)
             history = reporter.get_history(7)
@@ -305,12 +305,12 @@ async def process_hisobchi(
     Hisobchi AI — card bot xabarlarini qayta ishlash.
     Qaytaradi: True = xabar qayta ishlandi, False = davom etish.
     """
-    from src.services.core.hisobchi_handlers import (
+    from src.services.core.finance.hisobchi_handlers import (
         handle_card_bot_message,
         handle_finance_group_reply,
         is_card_bot_sender,
     )
-    from src.services.core.hisobchi_engine import HisobchiEngine
+    from src.services.core.finance.hisobchi_engine import HisobchiEngine
 
     try:
         _hisobchi_engine = HisobchiEngine(msg_controller.db)
@@ -320,7 +320,7 @@ async def process_hisobchi(
             return True
 
         if not event.out and event.message.voice and voice_processor:
-            from src.services.core.hisobchi_handlers import _get_finance_config
+            from src.services.core.finance.hisobchi_handlers import _get_finance_config
 
             finance_group_id, _, _ = _get_finance_config()
             is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
@@ -331,7 +331,7 @@ async def process_hisobchi(
                 me = await client.get_me()
                 is_auth_user = (sender_id is not None and (sender_id in managers or sender_id == me.id))
             if is_finance_chat or is_auth_user:
-                from src.services.core.hisobchi_handlers import process_finance_voice_message
+                from src.services.core.finance.hisobchi_handlers import process_finance_voice_message
 
                 was_voice_hisobchi = await process_finance_voice_message(
                     event, client, _hisobchi_engine, voice_processor

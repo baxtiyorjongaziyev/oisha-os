@@ -19,8 +19,9 @@ def test_os_driver_initialization():
     """OS Driver to'g'ri yaratilishini tekshirish."""
     driver = OishaOSDriver()
     assert driver is not None
-    # PyAutoGUI global sozlamalarini tekshirish
-    import pyautogui
+    # PyAutoGUI global sozlamalari — headless muhitda os_driver haqiqiy modul
+    # o'rniga _UnavailablePyAutoGUI proxy'sini ishlatadi, atributlar unda ham bor
+    from src.agents.os_driver import pyautogui
     assert pyautogui.FAILSAFE is True
 
 

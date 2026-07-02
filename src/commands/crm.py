@@ -95,7 +95,7 @@ async def cmd_contacts_audit(event, **ctx):
             db_instance = msg_controller.db
             tg_client = client
 
-            from src.services.core.crm_contacts_auditor import CRMContactsAuditor
+            from src.services.core.crm.crm_contacts_auditor import CRMContactsAuditor
             auditor = CRMContactsAuditor(
                 amocrm=amocrm_client,
                 db=db_instance,

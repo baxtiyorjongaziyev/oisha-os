@@ -6,14 +6,14 @@ import pytest
 
 from src.database import Database
 from src.database_pool import SmartRow
-from src.services.core.hisobchi_card_parser import parse_card_notification
-from src.services.core.hisobchi_engine import HisobchiEngine, _normalize_merchant
-from src.services.core.hisobchi_handlers import (
+from src.services.core.finance.hisobchi_card_parser import parse_card_notification
+from src.services.core.finance.hisobchi_engine import HisobchiEngine, _normalize_merchant
+from src.services.core.finance.hisobchi_handlers import (
     backfill_card_bot_messages,
     resolve_finance_destination,
 )
-from src.services.core.hisobchi_schema import init_hisobchi_tables
-from src.services.core.hisobchi_schema import ensure_hisobchi_db
+from src.services.core.finance.hisobchi_schema import init_hisobchi_tables
+from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 
 
 HUMO_SAMPLE = """💸 To'lov
@@ -240,7 +240,7 @@ class _DialogsClient:
 
 @pytest.mark.asyncio
 async def test_finance_group_is_discovered_by_title(monkeypatch) -> None:
-    from src.services.core import hisobchi_handlers
+    from src.services.core.finance import hisobchi_handlers
 
     hisobchi_handlers._finance_group_cache = None
     monkeypatch.setattr(
@@ -264,7 +264,7 @@ class _NoFinanceClient:
 @pytest.mark.asyncio
 async def test_finance_data_is_not_sent_to_plain_team_group(monkeypatch) -> None:
     from src.context import app_ctx
-    from src.services.core import hisobchi_handlers
+    from src.services.core.finance import hisobchi_handlers
 
     app_ctx.finance_group_cache = None
     hisobchi_handlers._topic_cache.clear()
@@ -315,7 +315,7 @@ class _BackfillClient:
 @pytest.mark.asyncio
 async def test_backfill_replays_once_and_deduplicates(monkeypatch, temp_db) -> None:
     from src.context import app_ctx
-    from src.services.core import hisobchi_handlers
+    from src.services.core.finance import hisobchi_handlers
 
     app_ctx.finance_group_cache = None
     hisobchi_handlers._topic_cache.clear()

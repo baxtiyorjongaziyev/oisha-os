@@ -29,7 +29,7 @@ from src.agents.checklist_agent import ChecklistAgent
 from src.agents.orchestrator import AgentOrchestrator
 from src.agents.negotiation_engine import NegotiationEngine
 from src.agents.feedback_memory import FeedbackMemory
-from src.services.core.crm_service import CRMService
+from src.services.core.crm.crm_service import CRMService
 from src.services.core.google_service import GoogleService
 from src.services.core.enterprise_reporter import EnterpriseReporter
 from src.agents.tools import AgentToolExecutor

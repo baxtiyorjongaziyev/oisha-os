@@ -42,7 +42,7 @@ def _is_authorized_cron_request(request: Request) -> bool:
 
 
 def _get_amocrm_instance():
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
     from src.api_server import _setting_text, _secret_setting_text
 
     if api_state.amocrm_instance:
@@ -158,7 +158,7 @@ async def _process_amocrm_event(data: Dict[str, Any]):
 
         if getattr(settings, "ENABLE_AMOCRM_LEAD_ENRICHMENT", True):
             try:
-                from src.services.core.amocrm_lead_enrichment import AmoCRMLeadEnricher
+                from src.services.core.crm.amocrm_lead_enrichment import AmoCRMLeadEnricher
                 enricher = AmoCRMLeadEnricher(amocrm=amocrm, db=runtime_db, user_client=api_state.user_client)
                 enrichment_result = await enricher.enrich_lead(lead_id=int(lead_id), lead_data=lead_data, phone=phone)
                 logger.info("[Webhook] AmoCRM enrichment result: %s", enrichment_result.to_dict())

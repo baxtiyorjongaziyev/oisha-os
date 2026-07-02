@@ -76,7 +76,7 @@ async def cmd_sync_archive(event, **ctx):
 
     await event.respond(f"🧹 **AmoCRM limitsizlantirish va arxivlash boshlandi...**\nBatch limiti: {limit} ta bitim. Iltimos, kuting... ⏳")
     try:
-        from src.services.core.crm_archiver import CRMArchiver
+        from src.services.core.crm.crm_archiver import CRMArchiver
         archiver = CRMArchiver()
         await archiver.init_tables()
 
