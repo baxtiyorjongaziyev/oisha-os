@@ -142,7 +142,7 @@ async def ai_manager_comparison():
 @router.get("/lead-classifier")
 async def ai_lead_classifier():
     try:
-        from src.services.core.lead_classifier import LeadClassifier
+        from src.services.core.leads.lead_classifier import LeadClassifier
         classifier = LeadClassifier(db=api_state.db_instance)
         return await classifier.get_classification_summary()
     except Exception as exc:
@@ -156,7 +156,7 @@ async def ai_lead_classifier_tag(request: Request):
     try:
         data = await request.json()
         lead_id = data.get("lead_id")
-        from src.services.core.lead_classifier import LeadClassifier
+        from src.services.core.leads.lead_classifier import LeadClassifier
         classifier = LeadClassifier(db=api_state.db_instance)
         return await classifier.classify_lead(lead_id)
     except Exception as exc:
