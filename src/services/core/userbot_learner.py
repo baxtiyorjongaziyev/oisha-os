@@ -110,13 +110,18 @@ class UserbotLearner:
         cutoff = datetime.utcnow() - timedelta(days=_INITIAL_LOOKBACK_DAYS)
 
         messages = []
+        # sender_id bo'yicha kesh — har xabarda get_sender() chaqirish
+        # FloodWait'ga olib keladi
+        sender_cache: dict = {}
         try:
             async for msg in client.iter_messages(dialog, limit=150, min_id=last_msg_id):
                 if msg.date and msg.date.replace(tzinfo=None) < cutoff and last_msg_id == 0:
                     break
                 if msg.text and msg.text.strip():
-                    sender = await _get_sender_name(msg)
-                    messages.append((msg.id, msg.date, sender, msg.text.strip()))
+                    sender_id = msg.sender_id
+                    if sender_id not in sender_cache:
+                        sender_cache[sender_id] = await _get_sender_name(msg)
+                    messages.append((msg.id, msg.date, sender_cache[sender_id], msg.text.strip()))
         except Exception as exc:
             logger.debug("[LEARN] iter_messages xato (%s): %s", dialog_name, exc)
             return 0
