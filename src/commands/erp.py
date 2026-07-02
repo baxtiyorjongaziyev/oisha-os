@@ -14,7 +14,7 @@ async def cmd_erp(event, **ctx):
     cmd = event.message.text.lower().strip()
 
     try:
-        from src.services.core.erp_handlers import (
+        from src.services.core.finance.erp_handlers import (
             cmd_erp_holat, cmd_moliya, cmd_jamoa, cmd_loyihalar,
             cmd_erp_salomatlik, cmd_qo_shish_loyiha, cmd_xarajat_qosh,
             ERP_HELP_TEXT,
