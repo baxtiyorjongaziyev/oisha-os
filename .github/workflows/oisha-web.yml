@@ -11,6 +11,12 @@ on:
         description: "diagnose | deploy"
         required: true
         default: "diagnose"
+  # Dispatch API'ga ruxsat bo'lmagan muhitlar uchun: ops/web-diagnose yoki
+  # ops/web-deploy branch'iga push qilish ham ishga tushiradi
+  push:
+    branches:
+      - "ops/web-diagnose"
+      - "ops/web-deploy"
 
 concurrency:
   group: oisha-web-ops
@@ -18,7 +24,9 @@ concurrency:
 
 jobs:
   diagnose:
-    if: inputs.mode == 'diagnose'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'diagnose') ||
+      github.ref_name == 'ops/web-diagnose'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -54,7 +62,9 @@ jobs:
             sudo journalctl -u oisha-os -n 400 --no-pager 2>/dev/null | grep -iE 'turso|libsql|auth|token|error|traceback' | tail -25 || true
 
   deploy:
-    if: inputs.mode == 'deploy'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'deploy') ||
+      github.ref_name == 'ops/web-deploy'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
