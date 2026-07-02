@@ -185,6 +185,9 @@ jobs:
                     }
                     reverse_proxy localhost:8080
                 }
+                # SalesCoach API (NestJS) deploy qilinmagan — ishlaydigan
+                # sahifa /admin, root'ni o'sha yerga yo'naltiramiz
+                redir / /admin 302
                 handle {
                     basic_auth {
                         oisha $HASH
