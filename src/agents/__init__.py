@@ -1,13 +1,29 @@
 """
 Oisha-OS Agents Package
 
-Ideal AI Agent darajasidagi komponentlar:
-- SurgicalNegotiator: Asosiy avtonom negotiator
-- AutonomousSalesAgent: Self-directed savdo agenti
-- DealLifecycleManager: Pipeline boshqaruvchi
-- NegotiationEngine: Savdo tahlil tizimi
-- ContractGenerator: Avtomatik shartnomalar
-- RiskAssessor: Xavf baholash
+## Arxitektura: ikkita parallel yo'l
+
+### 1. Surgical path (asosiy, SURGICAL_MODE=True by default)
+   surgical_integration.py → SurgicalNegotiator → AutonomousSalesAgent
+   Trigger: savdo kalit so'zlari (narx, loyiha, shartnoma...)
+   Entry: main.py `should_use_surgical()` check
+
+### 2. Standard path (fallback / oddiy xabarlar)
+   message_controller.py → SalesAgent + NegotiationEngine
+   SalesAgent: Telegram suhbat handler (eskalatsiya, reengagement)
+   NegotiationEngine: Semantic assessment (Gemini, holat tahlili)
+
+### 3. Web API path
+   api_server.py → AutonomousSalesAgent (to'g'ridan-to'g'ri)
+
+### Yordamchi komponentlar (SalesAgent tomonidan ishlatiladi)
+   negotiation_reengagement.py — reengagement kandidatlarini tanlash
+   negotiation_verifier.py — bitim yopilish holati
+   persona_router.py — persona yo'naltirish
+
+### Tahlil: agents/ da dead code yo'q (2026-06-22)
+   ai_router.py — faqat testlarda ishlatiladi (ishlab chiqarish kodi chaqirmaydi)
+   Barcha boshqa agentlar aktiv importlangan.
 """
 
 from src.agents.surgical_negotiator import (
@@ -48,26 +64,24 @@ from src.agents.os_driver import OishaOSDriver
 from src.agents.mobile_proxy import OishaMobileProxy, OishaTelegramProxy
 
 __all__ = [
-    # Main orchestrator
+    # Surgical path — SurgicalNegotiator → AutonomousSalesAgent
     "SurgicalNegotiator",
     "get_surgical_negotiator",
     "negotiate",
-    # Sales agent
     "AutonomousSalesAgent",
     "ConversationState",
     "DealProposal",
     "PricingEngine",
     "get_autonomous_agent",
-    # Lifecycle
+    # Standard path — SalesAgent + NegotiationEngine (message_controller.py)
+    "NegotiationEngine",
+    "NegotiationAssessment",
+    # Lifecycle & contracts
     "DealLifecycleManager",
     "DealStage",
     "DealPriority",
     "Deal",
     "get_lifecycle_manager",
-    # Negotiation
-    "NegotiationEngine",
-    "NegotiationAssessment",
-    # Contract
     "ContractGenerator",
     "RiskAssessor",
     "ContractTemplate",
