@@ -43,6 +43,22 @@ app_ctx.finance_group_cache: Optional[int] = None
 _FINANCE_GROUP_WORDS = frozenset(
     {"moliya", "finance", "buxgalter", "accounting", "hisobchi"}
 )
+_PRIVATE_RECEIPT_PHOTO_PREFIXES = (
+    "/kirim",
+    "/chiqim",
+    "/chek",
+    "/receipt",
+    "#kirim",
+    "#chiqim",
+)
+
+
+def should_process_private_receipt_photo(*, is_owner: bool, has_photo: bool, text: str = "") -> bool:
+    """Private photos are receipts only when the owner explicitly marks them."""
+    if not is_owner or not has_photo:
+        return False
+    normalized = (text or "").strip().lower()
+    return normalized.startswith(_PRIVATE_RECEIPT_PHOTO_PREFIXES)
 
 
 def _get_finance_config() -> tuple[Optional[int], Optional[int], Optional[int]]:
