@@ -150,6 +150,7 @@ jobs:
             HISOBCHI_QARZDORLIK_TOPIC_ID=${HISOBCHI_QARZDORLIK_TOPIC_ID}
             HISOBCHI_GSHEET_ID=${HISOBCHI_GSHEET_ID}
             HISOBCHI_PNL_WORKSHEET_GID=${HISOBCHI_PNL_WORKSHEET_GID}
+            AIRTABLE_API_KEY=${AIRTABLE_API_KEY}
             ENVFILE
             sed -i 's/^            //' .env
 
