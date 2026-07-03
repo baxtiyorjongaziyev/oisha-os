@@ -77,9 +77,15 @@ jobs:
       - name: Telegram — natijani yuborish
         if: always()
         run: |
-          VPS1_STATUS="${{ steps.vps1.conclusion }}"
-          VPS2_STATUS="${{ steps.vps2.conclusion }}"
+          # steps.<id>.outcome reflects the real result of the SSH step;
+          # .conclusion would always read "success" here because of
+          # continue-on-error, hiding real SSH/auth failures.
+          VPS1_STATUS="${{ steps.vps1.outcome }}"
+          VPS2_STATUS="${{ steps.vps2.outcome }}"
           MSG="Oisha userbot VPS decommission%0AVPS 1: $VPS1_STATUS%0AVPS 2: $VPS2_STATUS%0AOracle VM endi yagona userbot session egasi."
+          if [ "$VPS1_STATUS" != "success" ] || [ "$VPS2_STATUS" != "success" ]; then
+            MSG="⚠️ ${MSG}%0ADIQQAT: kamida bitta VPS ga ulanib bo'lmadi — userbot u yerda hali ham ishlab turgan bo'lishi mumkin. VPS_PASSWORD_1/VPS_PASSWORD_2 secretlarini tekshiring."
+          fi
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
             -d "chat_id=${OWNER_ID}" \
             -d "text=${MSG}" || true
