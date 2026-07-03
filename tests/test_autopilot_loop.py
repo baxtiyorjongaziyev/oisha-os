@@ -33,7 +33,7 @@ async def test_ai_autopilot_loop_execution_cycle():
     mock_amocrm.get_leads_detailed = AsyncMock(return_value=mock_leads)
 
     # 2. Mock all imported service classes to prevent actual HTTP/AI requests
-    with patch("src.services.core.telegram_task_creator.TelegramTaskCreator") as mock_creator_cls, \
+    with patch("src.services.core.telegram.telegram_task_creator.TelegramTaskCreator") as mock_creator_cls, \
          patch("src.services.core.call_analyzer.CallAnalyzer") as mock_analyzer_cls, \
          patch("src.services.core.ambassador_journey.AmbassadorJourneyManager") as mock_ambassador_cls, \
          patch("src.services.utils.voice_processor.VoiceProcessor") as mock_voice_cls, \
@@ -57,7 +57,7 @@ async def test_ai_autopilot_loop_execution_cycle():
         # Alternatively, we can verify that the classes instantiate with correct args.
         
         # For direct testing, we simulate the body of the autopilot loop cycle once
-        from src.services.core.telegram_task_creator import TelegramTaskCreator
+        from src.services.core.telegram.telegram_task_creator import TelegramTaskCreator
         from src.services.core.call_analyzer import CallAnalyzer
         from src.services.core.ambassador_journey import AmbassadorJourneyManager
 
