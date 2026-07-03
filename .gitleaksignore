@@ -1,0 +1,14 @@
+# Gitleaks false-positive / tarixiy fingerprint'lar.
+# Format: <commit>:<file>:<rule>:<line>
+
+# Docs'dagi placeholder (curl -u oisha:PAROL) — haqiqiy parol emas,
+# hozirgi versiyada pattern olib tashlangan; commit tarixda qoladi.
+8965adef9eb7751f4d5a4bf716b1b837538956bf:deploy/OISHA_WEB_DEPLOY.md:curl-auth-user:91
+8965adef9eb7751f4d5a4bf716b1b837538956bf:deploy/OISHA_WEB_DEPLOY.md:curl-auth-user:92
+
+# google-labs-jules[bot] commitlaridagi tarixiy API_HASH — hozirgi versiya
+# env'dan o'qiydi (scripts/generate_session_string.py). Telegram API
+# credentiallarini rotatsiya qilish tavsiya etilgan.
+53f40252d9a6d7acae0006e4c3d0a2810a7b660d:scripts/generate_session_string.py:generic-api-key:16
+7472fd11624074a919e733da60a50df71533fa0e:scripts/generate_session_string.py:generic-api-key:16
+c20c5a60916c49f4c9aeef0024115cfcd045158d:scripts/generate_session_string.py:generic-api-key:16

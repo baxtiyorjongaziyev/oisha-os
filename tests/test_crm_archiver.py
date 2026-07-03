@@ -3,7 +3,7 @@ import pytest
 import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.services.core.crm_archiver import CRMArchiver
+from src.services.core.crm.crm_archiver import CRMArchiver
 
 @pytest.mark.asyncio
 async def test_init_tables():

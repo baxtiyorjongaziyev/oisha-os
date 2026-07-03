@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests as _requests
 
 from src.database import Database
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 
 logger = structlog.get_logger()
 

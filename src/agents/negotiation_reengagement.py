@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Iterable, List
 
-from src.services.core.amocrm_pipeline_config import LEGACY_CLOSER_PIPELINE_ID
+from src.services.core.crm.amocrm_pipeline_config import LEGACY_CLOSER_PIPELINE_ID
 
 DEFAULT_MIN_IDLE_HOURS = 48
 CLOSED_STATUS_IDS = {142, 143}

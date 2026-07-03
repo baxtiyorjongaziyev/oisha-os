@@ -27,7 +27,7 @@ async def crm_note_callback_handler(event):
         data = event.data.decode("utf-8") if isinstance(event.data, bytes) else event.data
         if not (data.startswith("crm_approve:") or data.startswith("crm_edit:")):
             return
-        from src.services.core.crm_note_approval import handle_callback
+        from src.services.core.crm.crm_note_approval import handle_callback
         await handle_callback(data, event)
     except Exception as e:
         logger.error(f"[CRM_CALLBACK] Xatolik: {e}", exc_info=True)
@@ -36,12 +36,12 @@ async def crm_note_callback_handler(event):
 async def crm_edit_text_handler(event):
     """Captures follow-up text message after user clicked ✏️ Tahrirlash."""
     try:
-        from src.services.core.crm_note_approval import pop_pending_edit, handle_callback
+        from src.services.core.crm.crm_note_approval import pop_pending_edit, handle_callback
         approve_key = pop_pending_edit(event.sender_id)
         if not approve_key:
             return
         if event.raw_text and event.raw_text.startswith("/"):
-            from src.services.core.crm_note_approval import push_pending_edit
+            from src.services.core.crm.crm_note_approval import push_pending_edit
             push_pending_edit(event.sender_id, approve_key)
             return
         edit_key = approve_key.replace("crm_approve:", "crm_edit:", 1)
