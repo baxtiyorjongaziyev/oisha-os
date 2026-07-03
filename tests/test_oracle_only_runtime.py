@@ -18,7 +18,7 @@ def test_legacy_gcp_scripts_require_explicit_opt_in():
         ROOT / "scripts" / "deploy-final.bat",
         ROOT / "scripts" / "setup-ci-cd.sh",
         ROOT / "scripts" / "reanimate_bot.py",
-        ROOT / "src" / "sync_secrets_to_gcp.py",
+        ROOT / "scripts" / "sync_secrets_to_gcp.py",
     ]
 
     for path in guarded_files:
