@@ -5,7 +5,7 @@ import sys
 # Project root-ni qo'shish
 sys.path.append(os.getcwd())
 
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.settings import settings
 
 async def test_lead_creation():

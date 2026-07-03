@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.database import Database
-from src.services.core.amocrm_lead_enrichment import (
+from src.services.core.crm.amocrm_lead_enrichment import (
     AmoCRMLeadEnricher,
     normalize_phone,
 )

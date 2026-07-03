@@ -226,7 +226,20 @@ async def test_database_reuses_existing_turso_adapter(monkeypatch, tmp_path):
 async def test_api_exposes_health_aliases():
     from src.api_server import app
 
-    paths = {getattr(route, "path", None) for route in app.routes}
+    # FastAPI >= 0.130: include_router lazy bo'lib, app.routes ichida
+    # _IncludedRouter o'ramlari paydo bo'ldi — yo'llarni rekursiv yig'amiz
+    def collect_paths(routes) -> set:
+        paths = set()
+        for route in routes:
+            path = getattr(route, "path", None)
+            if path is not None:
+                paths.add(path)
+            inner = getattr(route, "original_router", None)
+            if inner is not None:
+                paths |= collect_paths(inner.routes)
+        return paths
+
+    paths = collect_paths(app.routes)
 
     assert "/health" in paths
     assert "/healthz" in paths
