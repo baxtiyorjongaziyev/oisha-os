@@ -73,7 +73,10 @@ class OishaOSDriver:
         try:
             self.sct = mss.MSS()
         except Exception as exc:
-            self.sct = _UnavailableMSS(exc)
+            # Headless server (DISPLAY yo'q) — pyautogui proxy kabi kechiktirilgan xato
+            self.sct = None
+            self._sct_error = exc
+            logger.warning("[OSDriver] Headless muhit — screenshot o'chirilgan: %s", exc)
         logger.info("[OSDriver] Initialized.")
 
     # ── Screen ─────────────────────────────────────────────
