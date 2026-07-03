@@ -35,6 +35,13 @@ jobs:
           OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
           OPENCLAW_SECRET: ${{ secrets.OPENCLAW_SECRET }}
           USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
+          HISOBCHI_FINANCE_GROUP_ID: ${{ secrets.HISOBCHI_FINANCE_GROUP_ID }}
+          HISOBCHI_KIRIM_TOPIC_ID: ${{ secrets.HISOBCHI_KIRIM_TOPIC_ID }}
+          HISOBCHI_CHIQIM_TOPIC_ID: ${{ secrets.HISOBCHI_CHIQIM_TOPIC_ID }}
+          HISOBCHI_PNL_TOPIC_ID: ${{ secrets.HISOBCHI_PNL_TOPIC_ID }}
+          HISOBCHI_CASHFLOW_TOPIC_ID: ${{ secrets.HISOBCHI_CASHFLOW_TOPIC_ID }}
+          HISOBCHI_BALANCE_TOPIC_ID: ${{ secrets.HISOBCHI_BALANCE_TOPIC_ID }}
+          HISOBCHI_GSHEET_ID: ${{ secrets.HISOBCHI_GSHEET_ID }}
         with:
           host: 109.199.100.137
           username: root
@@ -42,7 +49,7 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 10m
-          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING
+          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING,HISOBCHI_FINANCE_GROUP_ID,HISOBCHI_KIRIM_TOPIC_ID,HISOBCHI_CHIQIM_TOPIC_ID,HISOBCHI_PNL_TOPIC_ID,HISOBCHI_CASHFLOW_TOPIC_ID,HISOBCHI_BALANCE_TOPIC_ID,HISOBCHI_GSHEET_ID
           script: |
             set -e
             echo "=== VPS 1 (109.199.100.137) ga ulandi ==="
@@ -85,6 +92,13 @@ jobs:
             echo "CRM_GROUP_ID=-1002566480563" >> .env
             echo "TEAM_GROUP_ID=-4860594772" >> .env
             echo "GSHEET_ID=1KEFClhl4mVwCXI3YPfeE1B9X3SOkML2fp3NMocZzm8k" >> .env
+            echo "HISOBCHI_FINANCE_GROUP_ID=${HISOBCHI_FINANCE_GROUP_ID}" >> .env
+            echo "HISOBCHI_KIRIM_TOPIC_ID=${HISOBCHI_KIRIM_TOPIC_ID}" >> .env
+            echo "HISOBCHI_CHIQIM_TOPIC_ID=${HISOBCHI_CHIQIM_TOPIC_ID}" >> .env
+            echo "HISOBCHI_PNL_TOPIC_ID=${HISOBCHI_PNL_TOPIC_ID}" >> .env
+            echo "HISOBCHI_CASHFLOW_TOPIC_ID=${HISOBCHI_CASHFLOW_TOPIC_ID}" >> .env
+            echo "HISOBCHI_BALANCE_TOPIC_ID=${HISOBCHI_BALANCE_TOPIC_ID}" >> .env
+            echo "HISOBCHI_GSHEET_ID=${HISOBCHI_GSHEET_ID}" >> .env
 
             # Python paketlar
             if [ -f requirements.txt ]; then
@@ -156,6 +170,13 @@ jobs:
           OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
           OPENCLAW_SECRET: ${{ secrets.OPENCLAW_SECRET }}
           USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
+          HISOBCHI_FINANCE_GROUP_ID: ${{ secrets.HISOBCHI_FINANCE_GROUP_ID }}
+          HISOBCHI_KIRIM_TOPIC_ID: ${{ secrets.HISOBCHI_KIRIM_TOPIC_ID }}
+          HISOBCHI_CHIQIM_TOPIC_ID: ${{ secrets.HISOBCHI_CHIQIM_TOPIC_ID }}
+          HISOBCHI_PNL_TOPIC_ID: ${{ secrets.HISOBCHI_PNL_TOPIC_ID }}
+          HISOBCHI_CASHFLOW_TOPIC_ID: ${{ secrets.HISOBCHI_CASHFLOW_TOPIC_ID }}
+          HISOBCHI_BALANCE_TOPIC_ID: ${{ secrets.HISOBCHI_BALANCE_TOPIC_ID }}
+          HISOBCHI_GSHEET_ID: ${{ secrets.HISOBCHI_GSHEET_ID }}
         with:
           host: 104.197.19.4
           username: baxtiyorjongaziyev
@@ -163,7 +184,7 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 10m
-          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING
+          envs: GITHUB_TOKEN,BOT_TOKEN,API_ID,API_HASH,GEMINI_API_KEY,AMOCRM_CLIENT_ID,AMOCRM_CLIENT_SECRET,OISHA_API_SECRET,OPENCLAW_SECRET,USERBOT_SESSION_STRING,HISOBCHI_FINANCE_GROUP_ID,HISOBCHI_KIRIM_TOPIC_ID,HISOBCHI_CHIQIM_TOPIC_ID,HISOBCHI_PNL_TOPIC_ID,HISOBCHI_CASHFLOW_TOPIC_ID,HISOBCHI_BALANCE_TOPIC_ID,HISOBCHI_GSHEET_ID
           script: |
             set -e
             echo "=== VPS 2 (104.197.19.4) ==="
@@ -199,6 +220,13 @@ jobs:
             echo "OWNER_ID=150074828" >> .env
             echo "ENABLE_AUTO_REPLY=false" >> .env
             echo "RUNNING_IN_CLOUD=False" >> .env
+            echo "HISOBCHI_FINANCE_GROUP_ID=${HISOBCHI_FINANCE_GROUP_ID}" >> .env
+            echo "HISOBCHI_KIRIM_TOPIC_ID=${HISOBCHI_KIRIM_TOPIC_ID}" >> .env
+            echo "HISOBCHI_CHIQIM_TOPIC_ID=${HISOBCHI_CHIQIM_TOPIC_ID}" >> .env
+            echo "HISOBCHI_PNL_TOPIC_ID=${HISOBCHI_PNL_TOPIC_ID}" >> .env
+            echo "HISOBCHI_CASHFLOW_TOPIC_ID=${HISOBCHI_CASHFLOW_TOPIC_ID}" >> .env
+            echo "HISOBCHI_BALANCE_TOPIC_ID=${HISOBCHI_BALANCE_TOPIC_ID}" >> .env
+            echo "HISOBCHI_GSHEET_ID=${HISOBCHI_GSHEET_ID}" >> .env
 
             if [ -f requirements.txt ]; then
               python3 -m pip install -r requirements.txt -q --break-system-packages 2>/dev/null || true
