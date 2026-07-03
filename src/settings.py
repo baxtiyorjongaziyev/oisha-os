@@ -131,6 +131,7 @@ class AppSettings(BaseSettings):
     HISOBCHI_PNL_TOPIC_ID: Optional[int] = None                          # P&L (foyda/zarar) topic ID
     HISOBCHI_CASHFLOW_TOPIC_ID: Optional[int] = None                     # Cashflow topic ID
     HISOBCHI_BALANCE_TOPIC_ID: Optional[int] = None                      # Balance topic ID
+    HISOBCHI_QARZDORLIK_TOPIC_ID: Optional[int] = None                   # Qarzdorlik / Debt topic ID
 
     # Case Publisher & CMS Settings
     JONBRANDING_CHANNEL: str = "jonbranding"
@@ -145,6 +146,7 @@ class AppSettings(BaseSettings):
     TOPIC_MEETINGS_ID: Optional[int] = None
     TOPIC_SELLER_1_LEADS_ID: Optional[int] = None
     TOPIC_SELLER_2_LEADS_ID: Optional[int] = None
+    TOPIC_FOLLOWUP_ID: Optional[int] = None
     TOPIC_GENERAL_ID: Optional[int] = None
     TOPIC_KIRIM_ID: Optional[int] = None
     STAGNATION_TOPIC_ID: Optional[int] = None
@@ -157,6 +159,7 @@ class AppSettings(BaseSettings):
     # Hisobchi Google Sheets backend
     HISOBCHI_GSHEET_ID: Optional[str] = None
     HISOBCHI_GSHEET_CREDS_FILE: Optional[str] = None
+    HISOBCHI_PNL_WORKSHEET_GID: Optional[int] = None
 
     # Meta Graph API settings (Instagram)
     META_VERIFY_TOKEN: Optional[SecretStr] = None
@@ -275,6 +278,7 @@ class AppSettings(BaseSettings):
             "TOPIC_MEETINGS_ID",
             "TOPIC_SELLER_1_LEADS_ID",
             "TOPIC_SELLER_2_LEADS_ID",
+            "TOPIC_FOLLOWUP_ID",
             "TOPIC_GENERAL_ID",
             "TOPIC_KIRIM_ID",
             "STAGNATION_TOPIC_ID",
@@ -282,6 +286,8 @@ class AppSettings(BaseSettings):
             "GSHEET_ID",
             "HISOBCHI_GSHEET_ID",
             "HISOBCHI_GSHEET_CREDS_FILE",
+            "HISOBCHI_QARZDORLIK_TOPIC_ID",
+            "HISOBCHI_PNL_WORKSHEET_GID",
             "GDRIVE_OFFLOAD_FOLDER_ID",
             "AMOCRM_CRON_SECRET",
             "AWS_ACCESS_KEY_ID",
