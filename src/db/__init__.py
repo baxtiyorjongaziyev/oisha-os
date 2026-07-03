@@ -84,13 +84,6 @@ class Database:
 
     # ─── Initialization ───────────────────────────────────────
     async def init_db(self) -> None:
-        try:
-            from src.hisobchi_schema import init_hisobchi_tables
-            conn = await self.get_connection()
-            await init_hisobchi_tables(conn)
-        except Exception as exc:
-            logger.warning("[DB] Hisobchi tables init skipped: %s", exc)
-
         await self.users.init_table()
         await self.messages.init_tables()
         await self.kv.init_table()
