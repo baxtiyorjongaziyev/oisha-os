@@ -17,6 +17,7 @@ on:
     branches:
       - "ops/web-diagnose"
       - "ops/web-deploy"
+      - "ops/web-passwd"
 
 concurrency:
   group: oisha-web-ops
@@ -132,7 +133,9 @@ jobs:
       - name: Install and start on server
         uses: appleboy/ssh-action@v1
         env:
-          ADMIN_PASS: ${{ secrets.OISHA_API_SECRET }}
+          # OISHA_ADMIN_PASS secret'i bo'lsa — dashboard paroli o'sha;
+          # bo'lmasa OISHA_API_SECRET ishlatiladi
+          ADMIN_PASS: ${{ secrets.OISHA_ADMIN_PASS || secrets.OISHA_API_SECRET }}
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
@@ -238,3 +241,29 @@ jobs:
             done
             curl -s -m 8 http://127.0.0.1:8080/healthz/ | head -c 200 || true; echo
             curl -s -m 8 -o /dev/null -w 'https://oisha.jonbranding.uz -> %{http_code}\n' https://oisha.jonbranding.uz/ || true
+
+  passwd:
+    if: >-
+      github.ref_name == 'ops/web-passwd'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Update dashboard password from OISHA_ADMIN_PASS secret
+        uses: appleboy/ssh-action@v1
+        env:
+          ADMIN_PASS: ${{ secrets.OISHA_ADMIN_PASS || secrets.OISHA_API_SECRET }}
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 3m
+          envs: ADMIN_PASS
+          script: |
+            set -euo pipefail
+            NEW_HASH=$(caddy hash-password --plaintext "$ADMIN_PASS")
+            sudo sed -i "s|oisha \$2[^ ]*|oisha $NEW_HASH|g" /etc/caddy/Caddyfile
+            sudo caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1
+            sudo systemctl reload caddy
+            echo "Dashboard paroli yangilandi, Caddy qayta yuklandi"
