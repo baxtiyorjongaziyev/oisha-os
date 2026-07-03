@@ -664,6 +664,7 @@ async def boot_application():
         handle_otkazma_command,
         handle_xodim_command,
         is_card_bot_sender,
+        should_process_private_receipt_photo,
     )
     from src.services.core.hisobchi_analyst import HisobchiAnalyst
 
@@ -722,8 +723,12 @@ async def boot_application():
                         handled = await handle_kirim_chiqim_text(event, hisobchi_engine)
                     if handled:
                         raise events.StopPropagation
-                # 4. Photo/receipt from owner
-                if is_owner and event.message.photo:
+                # 4. Private photos are ignored unless explicitly marked as finance receipts.
+                if should_process_private_receipt_photo(
+                    is_owner=bool(is_owner),
+                    has_photo=bool(event.message.photo),
+                    text=text,
+                ):
                     if await handle_receipt_photo(event, hisobchi_engine):
                         raise events.StopPropagation
         except events.StopPropagation:
