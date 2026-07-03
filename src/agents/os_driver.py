@@ -8,16 +8,18 @@ import logging
 import subprocess
 import sys
 import time
+import types
 from typing import Optional, Tuple
 
 import mss
 import mss.tools
 
 
-class _UnavailablePyAutoGUI:
+class _UnavailablePyAutoGUI(types.ModuleType):
     """Keep headless servers importable while rejecting desktop actions."""
 
     def __init__(self, import_error: BaseException) -> None:
+        super().__init__("pyautogui")
         self._import_error = import_error
         self.FAILSAFE = True
         self.PAUSE = 0.3
