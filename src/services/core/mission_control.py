@@ -5,10 +5,10 @@ import logging
 import requests
 
 from src.database import Database
-from .amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.settings import settings
 from src.agents.negotiation_engine import NegotiationEngine
-from src.services.core.amocrm_pipeline_config import (
+from src.services.core.crm.amocrm_pipeline_config import (
     ACTIVE_PIPELINE_IDS,
     FARMER_PIPELINE_ID as CONFIG_FARMER_PIPELINE_ID,
     LEGACY_CLOSER_PIPELINE_ID,

@@ -21,7 +21,7 @@ async def test_send_kpi_report(monkeypatch):
     mock_airtable = MagicMock()
     
     # Monkeypatch the classes in their original import modules
-    monkeypatch.setattr("src.services.core.crm_service.CRMService", MagicMock(return_value=mock_crm))
+    monkeypatch.setattr("src.services.core.crm.crm_service.CRMService", MagicMock(return_value=mock_crm))
     monkeypatch.setattr("src.services.core.airtable_sync.AirtableSync", MagicMock(return_value=mock_airtable))
     monkeypatch.setattr("src.services.core.enterprise_reporter.EnterpriseReporter", MagicMock(return_value=mock_reporter))
     
@@ -49,7 +49,7 @@ async def test_send_deadline_report(monkeypatch):
         {"fields": {"project_name": "Project A", "manager": "PM A"}}
     ])
     
-    monkeypatch.setattr("src.services.core.crm_service.CRMService", MagicMock())
+    monkeypatch.setattr("src.services.core.crm.crm_service.CRMService", MagicMock())
     monkeypatch.setattr("src.services.core.airtable_sync.AirtableSync", MagicMock(return_value=mock_airtable))
     monkeypatch.setattr("src.services.core.enterprise_reporter.EnterpriseReporter", MagicMock(return_value=mock_reporter))
     

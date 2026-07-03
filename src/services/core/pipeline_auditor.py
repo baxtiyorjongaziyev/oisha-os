@@ -6,7 +6,7 @@ import os
 import inspect
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.airtable_sync import AirtableSync
 from src.database import Database
 from src.services.core.call_analyzer import CallAnalyzer
