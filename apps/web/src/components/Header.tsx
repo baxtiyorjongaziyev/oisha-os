@@ -421,14 +421,15 @@ export default function Header() {
 
             <form onSubmit={handleBugSubmit} className="mt-4 space-y-4">
               <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block">Turi</label>
-                <div className="grid grid-cols-3 gap-2 mt-1">
+                <label id="bug-category-label" className="text-[10px] font-bold text-text-muted uppercase block">Turi</label>
+                <div role="group" aria-labelledby="bug-category-label" className="grid grid-cols-3 gap-2 mt-1">
                   {["idea", "request", "bug"].map((cat) => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setBugCategory(cat)}
-                      className={`rounded-xl py-2 text-xs font-medium border transition-all ${
+                      aria-pressed={bugCategory === cat}
+                      className={`rounded-xl py-2 text-xs font-medium border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${
                         bugCategory === cat
                           ? "bg-brand text-white border-brand shadow-md"
                           : "bg-bg text-text border-border hover:bg-brand-light"
