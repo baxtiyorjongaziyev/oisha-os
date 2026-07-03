@@ -61,6 +61,12 @@ jobs:
           HISOBCHI_CASHFLOW_TOPIC_ID: ${{ secrets.HISOBCHI_CASHFLOW_TOPIC_ID }}
           HISOBCHI_BALANCE_TOPIC_ID: ${{ secrets.HISOBCHI_BALANCE_TOPIC_ID }}
           HISOBCHI_GSHEET_ID: ${{ secrets.HISOBCHI_GSHEET_ID }}
+          TOPIC_MEETINGS_ID: ${{ secrets.TOPIC_MEETINGS_ID }}
+          TOPIC_FOLLOWUP_ID: ${{ secrets.TOPIC_FOLLOWUP_ID }}
+          TOPIC_SELLER_1_LEADS_ID: ${{ secrets.TOPIC_SELLER_1_LEADS_ID }}
+          TOPIC_SELLER_2_LEADS_ID: ${{ secrets.TOPIC_SELLER_2_LEADS_ID }}
+          HISOBCHI_QARZDORLIK_TOPIC_ID: ${{ secrets.HISOBCHI_QARZDORLIK_TOPIC_ID }}
+          HISOBCHI_PNL_WORKSHEET_GID: ${{ secrets.HISOBCHI_PNL_WORKSHEET_GID }}
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
