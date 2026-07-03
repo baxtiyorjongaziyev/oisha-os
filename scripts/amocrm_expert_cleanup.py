@@ -31,8 +31,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.services.core.amocrm_sync import AmoCRMSync
-from src.services.core.amocrm_pipeline_config import (
+from src.services.core.crm.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_pipeline_config import (
     FARMER_PIPELINE_ID,
     FINAL_PAYMENT_TASK_TEXT,
     LEGACY_CLOSER_PIPELINE_ID,

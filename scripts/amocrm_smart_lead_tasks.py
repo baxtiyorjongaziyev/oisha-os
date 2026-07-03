@@ -38,8 +38,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.services.core.amocrm_lead_enrichment import normalize_phone
-from src.services.core.amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_lead_enrichment import normalize_phone
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.call_analyzer import CallAnalyzer
 from src.settings import settings
 
