@@ -9,14 +9,14 @@
 "Proj: Telegram":
   - changed-files:
       - any-glob-to-any-file:
-          - "src/services/core/*telegram*"
-          - "src/services/core/*juma*"
+          - "src/services/core/**/*telegram*"
+          - "src/services/core/**/*juma*"
           - "src/main.py"
 "Proj: CRM":
   - changed-files:
       - any-glob-to-any-file:
-          - "src/services/core/*crm*"
-          - "src/services/core/*amocrm*"
+          - "src/services/core/**/*crm*"
+          - "src/services/core/**/*amocrm*"
           - "src/agents/**"
 "Proj: Airtable":
   - changed-files:

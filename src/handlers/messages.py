@@ -5,7 +5,7 @@ import structlog
 from telegram import Update
 from telegram.ext import ContextTypes
 import config
-from src.services.core.telegram_ai_features import TelegramBotAPI10Client, build_text_article_result
+from src.services.core.telegram.telegram_ai_features import TelegramBotAPI10Client, build_text_article_result
 
 logger = structlog.get_logger()
 

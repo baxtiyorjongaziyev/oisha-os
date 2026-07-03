@@ -22,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.settings import settings  # noqa: E402
-from src.services.core.amocrm_sync import AmoCRMSync  # noqa: E402
+from src.services.core.crm.amocrm_sync import AmoCRMSync  # noqa: E402
 
 import requests  # noqa: E402
 
