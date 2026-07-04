@@ -261,11 +261,12 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
             logger.error("[HISOBCHI] Failed to send approval to owner: %s", exc)
 
     if finance_group_id:
-        if bot_client is None:
+        if bot_client is None or not bot_client.is_connected():
             # Guruh xabari faqat @jonairobot (bot_client) orqali yuboriladi —
             # userbot identitasi bilan yuborilmasligi kerak. bot_client yo'q
-            # bo'lsa (bot-token o'rnatilmagan/ishga tushmagan), guruhga
-            # yubormay o'tkazib yuboramiz — owner baribir private approval oladi.
+            # yoki uzilgan bo'lsa (bot-token o'rnatilmagan/ishga tushmagan/
+            # network xatosi), guruhga yubormay o'tkazib yuboramiz — owner
+            # baribir private approval oladi.
             logger.error(
                 "[HISOBCHI] bot_client yo'q — moliya guruhiga savol yuborilmadi (tx #%s)",
                 tx_id,
