@@ -218,8 +218,6 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
         logger.info("[HISOBCHI] Duplicate transaction ignored: #%s", tx_id)
         return True
 
-    sender_client = bot_client or client
-
     from src.services.core.hisobchi_approval import (
         build_approval_keyboard,
         build_approval_message,
@@ -227,6 +225,18 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
     )
 
     await register_pending(tx_id, tx, ownership, category)
+
+    # Buttons only produce working callbacks when the message is sent by the
+    # bot account (@jonairobot) — Telegram never routes CallbackQuery updates
+    # to a userbot session for messages it didn't send as a bot. So all
+    # approval prompts (owner DM + finance group) must go via bot_client.
+    if not bot_client:
+        logger.error(
+            "[HISOBCHI] bot_client unavailable — approval prompt for tx #%s not sent "
+            "(refusing silent userbot fallback, buttons would be non-functional)",
+            tx_id,
+        )
+        return True
 
     owner_id = None
     try:
@@ -241,17 +251,22 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
             kb = build_approval_keyboard(tx_id, ownership)
             if category:
                 msg = f"🗂 <b>Avto-kategoriya:</b> {html.escape(category)}\n\n" + msg
-            await client.send_message(int(owner_id), msg, parse_mode="html", buttons=kb)
+            await bot_client.send_message(int(owner_id), msg, parse_mode="html", buttons=kb)
             logger.info("[HISOBCHI] Sent approval request to owner #%s for tx #%s", owner_id, tx_id)
         except Exception as exc:
             logger.error("[HISOBCHI] Failed to send approval to owner: %s", exc)
 
     if finance_group_id:
         try:
-            sent = await sender_client.send_message(
+            msg = build_approval_message(tx, tx_id, ownership)
+            kb = build_approval_keyboard(tx_id, ownership)
+            if category:
+                msg = f"🗂 <b>Avto-kategoriya:</b> {html.escape(category)}\n\n" + msg
+            sent = await bot_client.send_message(
                 finance_group_id,
-                engine.build_finance_question(tx, tx_id),
+                msg,
                 parse_mode="html",
+                buttons=kb,
                 reply_to=topic_id,
             )
             await engine.update_finance_msg(
