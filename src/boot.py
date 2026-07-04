@@ -784,10 +784,17 @@ async def boot_application():
         except Exception as exc:
             logger.error("[HISOBCHI] Callback handler failed: %s", exc, exc_info=True)
 
-    client.add_event_handler(
-        _hisobchi_callback_handler,
-        events.CallbackQuery(),
-    )
+    # Registered on bot_client, not client: Telegram only delivers
+    # UpdateBotCallbackQuery to the bot account that actually sent the
+    # inline-keyboard message. A userbot session never receives these,
+    # so the approval buttons would silently do nothing if attached to `client`.
+    if bot_client:
+        bot_client.add_event_handler(
+            _hisobchi_callback_handler,
+            events.CallbackQuery(),
+        )
+    else:
+        logger.error("[HISOBCHI] bot_client missing — approval button callbacks will not work")
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
     asyncio.create_task(
