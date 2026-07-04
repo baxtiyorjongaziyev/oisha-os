@@ -552,7 +552,7 @@ async def boot_application():
 
     from src.services.core.tool_adapters import configure_userbot_group_fallback
     configure_userbot_group_fallback(client)
-    _spawn_task(m.background_monitor_task(), name="background_monitor_task")
+    asyncio.create_task(m.background_monitor_task(), name="background_monitor_task")
     logger.info("[MONITOR] Persistent CRM/Airtable scheduler registered.")
 
     # Bot-token head startup
