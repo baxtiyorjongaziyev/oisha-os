@@ -1939,10 +1939,10 @@ class AdminBot:
         await event.respond("📊 **Haftalik hisobot tayyorlanmoqda...**\nBu bir oz vaqt olishi mumkin (AmoCRM-ga so'rov yuborilmoqda).")
         try:
             from src.services.core.crm.crm_service import CRMService
-            from src.services.core.crm.crm_daily_report import CRMDailyReport
-            
+            from src.services.core.crm.crm_daily_report import CRMDailyReporter
+
             crm = CRMService()
-            report_engine = CRMDailyReport(crm.amocrm)
+            report_engine = CRMDailyReporter(crm.amocrm)
             
             stats = await report_engine.fetch_weekly_stats()
             msg = report_engine.format_weekly_report_uz(stats)
@@ -1950,6 +1950,36 @@ class AdminBot:
         except Exception as e:
             logger.error(f"❌ [WEEKLY REPORT ERROR] {e}")
             await event.respond(f"❌ **Haftalik hisobotni yuklashda xatolik yuz berdi:**\n`{str(e)}`")
+
+    @staticmethod
+    async def _respond_safe(event, text: str, parse_mode: str = "html"):
+        """event.respond, lekin HTML bo'lak chegarasida teg uzilib qolsa
+        (masalan <b> bir bo'lakda ochilib, boshqasida yopilsa) Telegram
+        MessageHTMLAnalyseError bilan xabarni butunlay rad etadi — bunday
+        holatda oddiy matn sifatida qayta yuboramiz, xabar hech qachon
+        yo'qolib ketmasin."""
+        try:
+            await event.respond(text, parse_mode=parse_mode, link_preview=False)
+        except Exception as exc:
+            logger.warning("[REPORT] HTML bilan yuborib bo'lmadi, oddiy matnga o'tildi: %s", exc)
+            await event.respond(text, parse_mode=None, link_preview=False)
+
+    async def _send_long_message(self, event, text: str, parse_mode: str = "html"):
+        """Telegram'ning ~4096 belgi chegarasidan uzun xabarlarni qator
+        chegaralari bo'yicha bo'laklarga bo'lib ketma-ket yuboradi."""
+        limit = 3800
+        if len(text) <= limit:
+            await self._respond_safe(event, text, parse_mode)
+            return
+        lines = text.split("\n")
+        chunk = ""
+        for line in lines:
+            if len(chunk) + len(line) + 1 > limit and chunk:
+                await self._respond_safe(event, chunk, parse_mode)
+                chunk = ""
+            chunk += (line + "\n")
+        if chunk.strip():
+            await self._respond_safe(event, chunk, parse_mode)
 
     async def send_kpi_report(self, event):
         """Jamoa kpi va samaradorlik hisobotini yuborish."""
@@ -1964,7 +1994,7 @@ class AdminBot:
             reporter = EnterpriseReporter(self.db, crm_service, airtable)
             
             report_msg = await reporter.get_team_efficiency_report()
-            await event.respond(report_msg, parse_mode="html", link_preview=False)
+            await self._send_long_message(event, report_msg, parse_mode="html")
         except Exception as e:
             logger.error(f"❌ [KPI REPORT ERROR] {e}")
             await event.respond(f"❌ **KPI hisobotini yuklashda xatolik yuz berdi:**\n`{str(e)}`")
@@ -1990,8 +2020,10 @@ class AdminBot:
                 project_lines.append("\n🏗 <b>Muddati o'tgan Loyihalar (Airtable):</b>")
                 for p in overdue_projects[:5]:
                     fields = p.get("fields", {})
-                    name = fields.get("project_name") or fields.get("Loyihani nomi?") or "Nomsiz"
-                    pm = fields.get("manager") or "Noma'lum"
+                    name = AirtableSync._get_field(fields, "project_name") or "Nomsiz"
+                    pm = AirtableSync.resolve_pm_handle(
+                        AirtableSync._get_field(fields, "manager")
+                    )
                     project_lines.append(f"  • {name} — <i>PM: {pm}</i>")
                 if len(overdue_projects) > 5:
                     project_lines.append(f"  ... va yana {len(overdue_projects)-5} ta.")
@@ -2001,7 +2033,7 @@ class AdminBot:
                 project_lines.append("\n🏗 Barcha loyihalar muddatida! ✅")
                 
             full_msg = f"{report_msg}\n" + "\n".join(project_lines)
-            await event.respond(full_msg, parse_mode="html")
+            await self._send_long_message(event, full_msg, parse_mode="html")
         except Exception as e:
             logger.error(f"❌ [DEADLINES REPORT ERROR] {e}")
             await event.respond(f"❌ **Muddatlar hisobotini yuklashda xatolik yuz berdi:**\n`{str(e)}`")
@@ -2026,12 +2058,34 @@ class AdminBot:
         await event.respond(status_msg)
 
     async def send_recent_logs(self, event):
-        """Oxirgi 15 qator logni ko'rsatish."""
+        """Oxirgi 15 qator logni ko'rsatish.
+
+        Production'da fayl logging emas, systemd/journald ishlatiladi
+        (StandardOutput=journal) — shuning uchun avval journalctl'dan
+        o'qishga urinamiz, u ishlamasa (huquq yo'q, journalctl yo'q va h.k.)
+        eski fayl usuliga qaytamiz.
+        """
+        import subprocess
+
+        try:
+            proc = subprocess.run(
+                ["journalctl", "-u", "oisha-os", "-n", "15", "--no-pager", "-o", "cat"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                last_logs = proc.stdout.strip()
+                await event.respond(f"📜 **SO'NGGI LOGLAR (journalctl):**\n\n```\n{last_logs}\n```")
+                return
+        except Exception as exc:
+            logger.debug("[LOGS] journalctl orqali o'qib bo'lmadi: %s", exc)
+
         log_path = "data/oisha.log"
 
         if not os.path.exists(log_path):
             await event.respond(
-                "⚠️ **Hozircha loglar mavjud emas.**\n(data/oisha.log fayli topilmadi)"
+                "⚠️ **Loglarni o'qib bo'lmadi.**\n"
+                "journalctl'ga huquq yo'q va `data/oisha.log` fayli mavjud emas.\n"
+                "Serverda qo'lda tekshiring: `sudo journalctl -u oisha-os -n 15`"
             )
             return
 
