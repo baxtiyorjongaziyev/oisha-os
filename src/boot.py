@@ -227,7 +227,7 @@ async def _ai_autopilot_loop():
 async def _daily_analytics_loop():
     from src.schedulers.daily_analytics_reporter import run_daily_analytics_report
     from src.time_utils import get_local_now
-    
+
     await asyncio.sleep(60)
     while True:
         try:
@@ -238,6 +238,31 @@ async def _daily_analytics_loop():
                 await asyncio.sleep(61)
         except Exception as e:
             logger.error(f"[GA4] Error in daily analytics loop: {e}")
+        await asyncio.sleep(30)
+
+
+async def _channel_scout_loop():
+    """Scan Telegram business trainer channels 3x daily for leads."""
+    from src.services.core.channel_scheduler import daily_channel_scout
+    from src.time_utils import get_local_now
+
+    await asyncio.sleep(120)
+    scan_times = [10, 14, 18]  # 10:00, 14:00, 18:00 Tashkent
+
+    while True:
+        try:
+            now = get_local_now()
+            if now.hour in scan_times and now.minute == 0:
+                logger.info("[CHANNEL-SCOUT] Starting daily scan...")
+                result = await daily_channel_scout(
+                    client=app_ctx.client,
+                    amocrm=app_ctx.amocrm,
+                    db=app_ctx.db,
+                )
+                logger.info(f"[CHANNEL-SCOUT] Scan complete: {result.get('status')} ({result.get('total_leads_extracted', 0)} leads)")
+                await asyncio.sleep(61)
+        except Exception as e:
+            logger.error(f"[CHANNEL-SCOUT] Error in channel scout loop: {e}")
         await asyncio.sleep(30)
 
 
@@ -403,6 +428,7 @@ async def boot_application():
     
     from src.schedulers.frog_scheduler import daily_frog_loop
     asyncio.create_task(daily_frog_loop(client, settings.TEAM_GROUP_ID), name="daily_frog_loop")
+    asyncio.create_task(_channel_scout_loop(), name="channel_scout_loop")
 
     # Surgical negotiator
     surgical_integration = get_surgical_integration()
