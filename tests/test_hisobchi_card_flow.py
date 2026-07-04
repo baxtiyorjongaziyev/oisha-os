@@ -299,6 +299,9 @@ class _BackfillClient:
             "cardxabarbot": [_BackfillMessage(20, UZCARD_SAMPLE, "CardXabarBot")],
         }
 
+    def is_connected(self):
+        return True
+
     async def get_entity(self, username):
         return SimpleNamespace(username=username.lower().lstrip("@"))
 
