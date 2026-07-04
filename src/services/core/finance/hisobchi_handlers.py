@@ -738,7 +738,16 @@ async def _reply_via_bot(event, bot_client, text: str, *, parse_mode: Optional[s
             parse_mode=parse_mode,
         )
     except Exception as exc:
-        logger.error("[HISOBCHI] Failed to send group reply via bot_client: %s", exc)
+        # Original message may have been deleted/inaccessible (e.g.
+        # ReplyToMsgIdInvalidError) — retry without the reply anchor so the
+        # confirmation still lands instead of silently disappearing.
+        logger.warning(
+            "[HISOBCHI] Group reply with reply_to failed, retrying without it: %s", exc
+        )
+        try:
+            await bot_client.send_message(event.chat_id, text, parse_mode=parse_mode)
+        except Exception as retry_exc:
+            logger.error("[HISOBCHI] Failed to send group reply via bot_client: %s", retry_exc)
 
 
 async def handle_finance_group_reply(
