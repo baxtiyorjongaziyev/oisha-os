@@ -22,7 +22,8 @@ def _is_resettable_connection_error(exc: BaseException) -> bool:
         "connection reset",
         "broken pipe",
         "stream not found",
-        "hrana",
+        "hrana: stream not found",
+        "hrana: connection",
     )
     return any(marker in message for marker in markers)
 
@@ -127,7 +128,7 @@ class DatabasePool:
             except Exception as e:
                 if attempt < 4 and _is_resettable_connection_error(e):
                     delay = min(2 ** attempt, 30)  # 1, 2, 4, 8, max 30 seconds
-                    logger.warning(f"[DB POOL] Connection dropped. Retrying ({attempt+1}/5) in {delay}s...")
+                    logger.warning(f"[DB POOL] Connection dropped ({str(e)}). Retrying ({attempt+1}/5) in {delay}s...")
                     self.close()
                     await asyncio.sleep(delay)
                     conn = self.get_connection()
