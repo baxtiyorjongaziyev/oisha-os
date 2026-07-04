@@ -54,6 +54,7 @@
 - Chatbot webhook POST so'rovlari muvaffaqiyatli sinovdan o'tdi (Response: `{"output":"..."}`).
 - database.py: f-string SQL -> parametrized query refactoring bajarildi (682 va 998 qatorlar, `upsert_user` va `get_storage_counts`). Bandit va pytest tekshiruvlaridan muvaffaqiyatli o'tdi (Antigravity).
 - Web chat widgeti production xatoligi (FastAPI /api/chat/send va /api/chat/history API-dagi 422 xatoliklar) `X-Secret-Key` header qo'llab-quvvatlash orqali tuzatildi, barcha testlardan o'tdi va remote Oracle VM ga deploy qilinib muvaffaqiyatli ishga tushirildi (Antigravity).
+- Telegram kanallaridan a'zolarni o'rniga faol mijozlarni (postlarga komment yozganlarni) sifatli lead sifatida ajratib olish tizimi `TelegramScraperReal`da implement qilindi (`_extract_channel_members` yangilandi va unikal `extract_leads_from_channel` metodi qo'shildi). Testlardan o'tdi va GitHubga push qilindi (Antigravity).
 
 ### Next Tasks
 1. [Done] `self_command_handler` (1000+ lines) → `src/commands/` ga ajratish
