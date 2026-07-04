@@ -7,25 +7,44 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Target business trainer channels (UZBEK + RUSSIAN)
+# Target business trainer channels (REAL Uzbek B2B leads)
 TARGET_CHANNELS = {
-    # === UZBEK BUSINESS TRAINERS ===
-    "business_uz": {"category": "General Business", "region": "UZ", "priority": 1},
-    "entrepreneur_uz": {"category": "Entrepreneurship", "region": "UZ", "priority": 1},
-    "startup_uz": {"category": "Startups", "region": "UZ", "priority": 2},
-    "biznes_trener_uz": {"category": "Business Training", "region": "UZ", "priority": 1},
-    "marketing_uz": {"category": "Marketing", "region": "UZ", "priority": 2},
-    "sales_training_uz": {"category": "Sales Training", "region": "UZ", "priority": 1},
-
-    # === RUSSIAN BUSINESS TRAINERS (CIS) ===
-    "predprinimateli": {"category": "Entrepreneurs", "region": "RU", "priority": 2},
-    "biznes_coach": {"category": "Business Coaching", "region": "RU", "priority": 2},
-    "prodazhi_master": {"category": "Sales Mastery", "region": "RU", "priority": 2},
-    "maркeting_bosс": {"category": "Marketing", "region": "RU", "priority": 2},
-
-    # === ENGLISH GLOBAL ===
-    "entrepreneurship": {"category": "Global Entrepreneurship", "region": "EN", "priority": 3},
-    "business_growth": {"category": "Business Growth", "region": "EN", "priority": 3},
+    # === TOP BUSINESS TRAINERS (UZBEKISTAN) ===
+    "IbrahimGulyamov": {"category": "Business Coach", "region": "UZ", "priority": 1},
+    "alisherisaev_blog": {"category": "Business Advisor", "region": "UZ", "priority": 1},
+    "MFaktoruz": {"category": "Business Education", "region": "UZ", "priority": 1},
+    "mylifeplanner_uz": {"category": "Personal Development", "region": "UZ", "priority": 1},
+    "KozimkhonTorayev": {"category": "Business Mentor", "region": "UZ", "priority": 1},
+    "TopBrains_uz": {"category": "Startup Hub", "region": "UZ", "priority": 1},
+    "biz_masofadan": {"category": "Remote Business", "region": "UZ", "priority": 2},
+    "UmidjoniUZ": {"category": "Business Training", "region": "UZ", "priority": 1},
+    "MFaktor_school": {"category": "Business School", "region": "UZ", "priority": 1},
+    "IkhtiyarDosmetov": {"category": "Life Coach", "region": "UZ", "priority": 2},
+    "AlisherAvazov_blog": {"category": "Business Blog", "region": "UZ", "priority": 1},
+    "mufeedmoliya": {"category": "Finance", "region": "UZ", "priority": 2},
+    "MastersClubUZ": {"category": "Exclusive Club", "region": "UZ", "priority": 2},
+    "najot_nur": {"category": "Tech Education", "region": "UZ", "priority": 2},
+    "jahongir_polatov": {"category": "Advice Channel", "region": "UZ", "priority": 2},
+    "boburmusa_official": {"category": "Business Coach", "region": "UZ", "priority": 1},
+    "AzizAxtamov": {"category": "Entrepreneur", "region": "UZ", "priority": 2},
+    "biznesrivoj": {"category": "Business Growth", "region": "UZ", "priority": 1},
+    "sarvar_sales_blog": {"category": "Sales Training", "region": "UZ", "priority": 1},
+    "hikmatkundi": {"category": "Wisdom Daily", "region": "UZ", "priority": 2},
+    "sardor_valixanov": {"category": "Sales Coach", "region": "UZ", "priority": 1},
+    "mehriniso_nur": {"category": "Finance Advisor", "region": "UZ", "priority": 2},
+    "foydali_moliya": {"category": "Money Tips", "region": "UZ", "priority": 2},
+    "SherzodMustafaev": {"category": "Business Coach", "region": "UZ", "priority": 1},
+    "SherzodTursunov": {"category": "Business Strategy", "region": "UZ", "priority": 1},
+    "alisher_avazov_blog": {"category": "Business Blog", "region": "UZ", "priority": 1},
+    "azizjon_gapparov": {"category": "Entrepreneur", "region": "UZ", "priority": 2},
+    "sanjar_maksudov": {"category": "Business Coach", "region": "UZ", "priority": 1},
+    "akmal_nasridinov_sales": {"category": "Sales Trainer", "region": "UZ", "priority": 1},
+    "zafar_khashimov": {"category": "Businessman", "region": "UZ", "priority": 2},
+    "MountainBranding": {"category": "Marketing Agency", "region": "UZ", "priority": 2},
+    "murod_nazarov": {"category": "Business Mentor", "region": "UZ", "priority": 2},
+    "laziz_adhamov": {"category": "Coach", "region": "UZ", "priority": 2},
+    "Perfect_Media_official": {"category": "Marketing", "region": "UZ", "priority": 2},
+    "paiziev24": {"category": "Business", "region": "UZ", "priority": 2},
 }
 
 class ChannelScout:
