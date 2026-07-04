@@ -802,10 +802,17 @@ async def boot_application():
         _hisobchi_callback_handler,
         events.CallbackQuery(),
     )
+    if bot_client:
+        # Moliya guruhidagi tugmalar @jonairobot orqali yuboriladi, shuning
+        # uchun ularning callback query'lari bot_client'ga keladi, client'ga emas.
+        bot_client.add_event_handler(
+            _hisobchi_callback_handler,
+            events.CallbackQuery(),
+        )
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
     asyncio.create_task(
-        backfill_card_bot_messages(client, hisobchi_engine),
+        backfill_card_bot_messages(client, hisobchi_engine, bot_client=bot_client),
         name="hisobchi_card_backfill",
     )
 
