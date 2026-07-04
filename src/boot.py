@@ -17,20 +17,21 @@ from src.database import Database
 from src.controllers.message_controller import MessageController
 from src.services.core.safe_responder import SafeResponder
 from src.services.core.action_parser import ActionParser
-from src.services.core.lead_scraper import LeadScraper
+from src.services.core.leads.lead_scraper import LeadScraper
 from src.services.core.advisor_agent import AdvisorAgent
 from src.services.core.auto_lead_agent import AutoLeadAgent
 from src.services.core.activity_monitor import ActivityMonitor
 from src.services.core.audit_agent import AuditAgent
 from src.services.core.sales_coach import SalesCoach
-from src.services.core.crm_guard import CRMGuard
+from src.services.core.crm.crm_guard import CRMGuard
 from src.services.core.admin_bot import AdminBot
 from src.services.utils.access_manager import AccessManager
-from src.services.core.session_manager import SessionManager
+from src.services.core.telegram.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
-from src.services.core.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
+from src.services.core.crm.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
 from src.services.core.workflow_manager import WorkflowManager
+from src.api.routes.state import api_state
 from src.context import app_ctx
 
 logger = logging.getLogger(__name__)
@@ -103,7 +104,7 @@ async def _crm_capacity_archiver_loop():
     while True:
         try:
             logger.info("[ARCHIVER_LOOP] Active AmoCRM capacity check starting...")
-            from src.services.core.crm_archiver import CRMArchiver
+            from src.services.core.crm.crm_archiver import CRMArchiver
 
             archiver = CRMArchiver(
                 amocrm=app_ctx.msg_controller.crm.amocrm,
@@ -139,7 +140,7 @@ async def _crm_capacity_archiver_loop():
 
 async def _ai_autopilot_loop():
     await asyncio.sleep(15)
-    from src.services.core.telegram_task_creator import TelegramTaskCreator
+    from src.services.core.telegram.telegram_task_creator import TelegramTaskCreator
     from src.services.core.call_analyzer import CallAnalyzer
     from src.services.core.ambassador_journey import AmbassadorJourneyManager
     from src.services.utils.voice_processor import VoiceProcessor
@@ -340,7 +341,7 @@ async def boot_application():
     }
     db = Database()
     await db.init_instance()
-    from src.services.core.hisobchi_schema import init_hisobchi_tables, init_hisobchi_gsheets
+    from src.services.core.finance.hisobchi_schema import init_hisobchi_tables, init_hisobchi_gsheets
 
     hisobchi_gs_id = getattr(settings, "HISOBCHI_GSHEET_ID", None)
     hisobchi_gs_creds = getattr(settings, "HISOBCHI_GSHEET_CREDS_FILE", None) or getattr(settings, "GSHEET_CREDS_FILE", "service_account.json")
@@ -484,6 +485,13 @@ async def boot_application():
     api_module.db_instance = msg_controller.db
     api_module.msg_controller = msg_controller
     api_module.action_parser = action_parser
+    # Route modullari (health /readyz va boshqalar) api_state'dan o'qiydi —
+    # eski api_server globallari bilan sinxronlamasak readyz doim
+    # "no_instance"/"unauthorized" qaytaradi va deploy health check yiqiladi
+    api_state.user_client = client
+    api_state.db_instance = msg_controller.db
+    api_state.msg_controller = msg_controller
+    api_state.action_parser = action_parser
     api_module.set_runtime_context(
         service_name=os.getenv("K_SERVICE") or "oisha-main",
         canonical_entrypoint="src/main.py",
@@ -522,6 +530,7 @@ async def boot_application():
     )
     if not userbot_ready:
         api_module.user_client = None
+        api_state.user_client = None
         logger.warning("[SESSION] Userbot tayyor emas — bot-token mode da ishlaydi")
         if BOT_TOKEN_STR:
             try:
@@ -543,7 +552,7 @@ async def boot_application():
 
     from src.services.core.tool_adapters import configure_userbot_group_fallback
     configure_userbot_group_fallback(client)
-    asyncio.create_task(m.background_monitor_task(), name="background_monitor_task")
+    _spawn_task(m.background_monitor_task(), name="background_monitor_task")
     logger.info("[MONITOR] Persistent CRM/Airtable scheduler registered.")
 
     # Bot-token head startup
@@ -551,7 +560,7 @@ async def boot_application():
         try:
             await bot_client.start(bot_token=BOT_TOKEN_STR)
 
-            from src.services.core.telegram_ai_features import (
+            from src.services.core.telegram.telegram_ai_features import (
                 BOT_API_10_ALLOWED_UPDATES, TelegramBotAPI10Client, TelegramBotAPILongPoller,
             )
 
@@ -666,8 +675,8 @@ async def boot_application():
     app_ctx.bot_token_str = BOT_TOKEN_STR
 
     # Register event handlers on client
-    from src.services.core.hisobchi_schema import create_hisobchi_engine
-    from src.services.core.hisobchi_handlers import (
+    from src.services.core.finance.hisobchi_schema import create_hisobchi_engine
+    from src.services.core.finance.hisobchi_handlers import (
         backfill_card_bot_messages,
         handle_card_bot_message,
         handle_finance_group_reply,
@@ -681,6 +690,7 @@ async def boot_application():
         handle_otkazma_command,
         handle_xodim_command,
         is_card_bot_sender,
+        should_process_private_receipt_photo,
     )
     from src.services.core.hisobchi_analyst import HisobchiAnalyst
 
@@ -739,8 +749,12 @@ async def boot_application():
                         handled = await handle_kirim_chiqim_text(event, hisobchi_engine)
                     if handled:
                         raise events.StopPropagation
-                # 4. Photo/receipt from owner
-                if is_owner and event.message.photo:
+                # 4. Private photos are ignored unless explicitly marked as finance receipts.
+                if should_process_private_receipt_photo(
+                    is_owner=bool(is_owner),
+                    has_photo=bool(event.message.photo),
+                    text=text,
+                ):
                     if await handle_receipt_photo(event, hisobchi_engine):
                         raise events.StopPropagation
         except events.StopPropagation:

@@ -390,7 +390,7 @@ def _get_amocrm_instance():
     global amocrm_instance
     if amocrm_instance:
         return amocrm_instance
-    from src.services.core.amocrm_sync import AmoCRMSync
+    from src.services.core.crm.amocrm_sync import AmoCRMSync
     amocrm_instance = AmoCRMSync(
         subdomain=_setting_text(settings.AMOCRM_SUBDOMAIN),
         client_id=_setting_text(settings.AMOCRM_CLIENT_ID),
@@ -407,13 +407,14 @@ def _get_amocrm_instance():
 app = FastAPI(title="Oisha-OS Enterprise API")
 
 # Include existing routers
-from src.api import dashboard
+from src.api import admin, dashboard
 from src.api.live_monitor import router as live_monitor_router
 app.include_router(dashboard.router)
+app.include_router(admin.router)
 app.include_router(live_monitor_router)
 
 # Include new route modules
-from src.api.routes.health import router as health_router
+from src.api.routes.health import router as health_router, liveness_probe
 from src.api.routes.telegram_routes import router as telegram_router
 from src.api.routes.system_dashboard import router as system_router
 from src.api.routes.sales_quality import router as sales_quality_router
@@ -426,6 +427,7 @@ from src.api.routes.instagram_routes import router as instagram_router
 from src.api.routes.product_suite import router as product_router
 from src.api.routes.crm_dashboard import router as crm_dashboard_router
 from src.api.routes.marketing_dashboard import router as marketing_router
+from src.api.routes.callmaster_routes import router as callmaster_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
@@ -440,6 +442,10 @@ app.include_router(instagram_router)
 app.include_router(product_router)
 app.include_router(crm_dashboard_router)
 app.include_router(marketing_router)
+app.include_router(callmaster_router)
+app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
+app.add_api_route("/healthz", liveness_probe, methods=["GET"], include_in_schema=False)
+app.add_api_route("/healthz/", liveness_probe, methods=["GET"], include_in_schema=False)
 
 # Mount Static Files
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -454,6 +460,7 @@ _CORS_ORIGINS = [
 ] or [
     "https://oisha.uz",
     "https://www.oisha.uz",
+    "https://oisha.jonbranding.uz",
 ]
 app.add_middleware(
     CORSMiddleware,
@@ -470,7 +477,7 @@ app.add_middleware(
 
 async def process_telegram_ai_update(update: Dict[str, Any]):
     """Central dispatcher for Bot API 10.0 AI updates."""
-    from src.services.core.telegram_ai_features import (
+    from src.services.core.telegram.telegram_ai_features import (
         TelegramBotAPI10Client,
         classify_update as classify_bot_api_update,
         extract_guest_message_context,

@@ -6,17 +6,20 @@ sichqonchani boshqarish va klaviaturada yozish imkoniyatini beradi.
 """
 import logging
 import subprocess
+import sys
 import time
+import types
 from typing import Optional, Tuple
 
 import mss
 import mss.tools
 
 
-class _UnavailablePyAutoGUI:
+class _UnavailablePyAutoGUI(types.ModuleType):
     """Keep headless servers importable while rejecting desktop actions."""
 
     def __init__(self, import_error: BaseException) -> None:
+        super().__init__("pyautogui")
         self._import_error = import_error
         self.FAILSAFE = True
         self.PAUSE = 0.3
@@ -31,10 +34,30 @@ class _UnavailablePyAutoGUI:
         return _unavailable
 
 
+class _UnavailableMSS:
+    """Keep OSDriver constructible on headless CI/Linux servers."""
+
+    def __init__(self, init_error: BaseException) -> None:
+        self._init_error = init_error
+
+    def grab(self, *args, **kwargs):
+        raise RuntimeError(
+            "Bu serverda ekran/display mavjud emas; screenshot faqat desktop "
+            "muhitida ishlaydi."
+        ) from self._init_error
+
+    def shot(self, *args, **kwargs):
+        raise RuntimeError(
+            "Bu serverda ekran/display mavjud emas; screenshot faqat desktop "
+            "muhitida ishlaydi."
+        ) from self._init_error
+
+
 try:
     import pyautogui  # noqa: E402
 except Exception as _pyautogui_error:
     pyautogui = _UnavailablePyAutoGUI(_pyautogui_error)
+    sys.modules["pyautogui"] = pyautogui
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +70,13 @@ class OishaOSDriver:
     """PyAutoGUI va MSS asosidagi desktop avtomatizatsiya driveri."""
 
     def __init__(self):
-        self.sct = mss.MSS()
+        try:
+            self.sct = mss.MSS()
+        except Exception as exc:
+            # Headless server (DISPLAY yo'q) — pyautogui proxy kabi kechiktirilgan xato
+            self.sct = None
+            self._sct_error = exc
+            logger.warning("[OSDriver] Headless muhit — screenshot o'chirilgan: %s", exc)
         logger.info("[OSDriver] Initialized.")
 
     # ── Screen ─────────────────────────────────────────────
@@ -61,6 +90,10 @@ class OishaOSDriver:
         Ekran skrinshotini olish.
         region: (x, y, width, height) — ixtiyoriy, faqat shu qismni olish.
         """
+        if self.sct is None:
+            raise RuntimeError(
+                f"OSDriver: desktop muhiti mavjud emas (screenshot o'chirilgan): {self._sct_error}"
+            )
         if region:
             monitor = {"left": region[0], "top": region[1], "width": region[2], "height": region[3]}
             sct_img = self.sct.grab(monitor)

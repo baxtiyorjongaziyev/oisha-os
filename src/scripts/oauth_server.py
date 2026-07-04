@@ -5,10 +5,12 @@ Brauzerda oching: http://109.199.100.137:9999/auth
 """
 import http.server
 import json
+import os
 import urllib.parse
 import sys
 
 PORT = 9999
+HOST = os.getenv("OAUTH_SERVER_HOST", "127.0.0.1")
 CODE = None
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -43,4 +45,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 print(f"Server {PORT} portda ishga tushdi")
 print(f"Brauzerda oching: http://109.199.100.137:{PORT}/auth")
-http.server.HTTPServer(("0.0.0.0", PORT), Handler).handle_request()
+# Bir martalik OAuth callback server — tashqi provayder redirect'i uchun
+# barcha interfeyslarga bog'lanish shart; bitta so'rovdan keyin o'chadi
+http.server.HTTPServer(("0.0.0.0", PORT), Handler).handle_request()  # nosec B104
