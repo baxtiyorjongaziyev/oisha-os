@@ -25,12 +25,13 @@ esac
 echo "=== Oisha-OS: provisioning role='$ROLE' ==="
 
 # 1. System update
-sudo apt-get update -qq
-sudo apt-get upgrade -y -qq
-sudo apt-get install -y -qq curl git ufw fail2ban
+export DEBIAN_FRONTEND=noninteractive
+sudo -E apt-get update -qq
+sudo -E apt-get upgrade -y -qq -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+sudo -E apt-get install -y -qq curl git ufw fail2ban
 
 # 2. Swap (2GB) — skip if one already exists
-if ! swapon --show | grep -q .; then
+if ! sudo swapon --show | grep -q .; then
   sudo fallocate -l 2G /swapfile
   sudo chmod 600 /swapfile
   sudo mkswap /swapfile
@@ -67,15 +68,19 @@ else
 fi
 
 # 6. SSH hardening — key-only auth
-sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-sudo sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+# Written to sshd_config.d/ (loaded before the main file) since cloud-init's
+# own drop-in (e.g. 50-cloud-init.conf) would otherwise win on "first match".
+sudo mkdir -p /etc/ssh/sshd_config.d
+printf 'PasswordAuthentication no\nPermitRootLogin prohibit-password\n' \
+  | sudo tee /etc/ssh/sshd_config.d/00-hardening.conf > /dev/null
 sudo systemctl reload ssh 2>/dev/null || sudo systemctl reload sshd
 
 # 7. Firewall — role-specific ports
+SSH_PORT="$(sudo sshd -T 2>/dev/null | awk '/^port /{print $2}')"
 sudo ufw --force reset
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
-sudo ufw allow 22/tcp
+sudo ufw allow "${SSH_PORT:-22}"/tcp
 case "$ROLE" in
   monitoring)
     sudo ufw allow 80/tcp
@@ -97,7 +102,7 @@ echo ""
 echo "=== Provisioning complete: role=$ROLE ==="
 echo "  Timezone:  Asia/Tashkent"
 echo "  Docker:    $(docker --version 2>/dev/null || echo 'not found')"
-echo "  Swap:      $(swapon --show --noheadings | wc -l) active"
+echo "  Swap:      $(sudo swapon --show --noheadings | wc -l) active"
 echo "  Firewall:  $(sudo ufw status | head -1)"
 echo "  Next step: log in as 'deploy' user, pull oisha-os, wire into"
 echo "             the matching GitHub Actions workflow."
