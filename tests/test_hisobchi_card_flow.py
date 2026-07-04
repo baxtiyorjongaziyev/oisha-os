@@ -327,8 +327,8 @@ async def test_backfill_replays_once_and_deduplicates(monkeypatch, temp_db) -> N
         lambda _client: _async_value((-1002, None, None)),
     )
 
-    first = await backfill_card_bot_messages(client, engine, max_age_hours=48)
-    second = await backfill_card_bot_messages(client, engine, max_age_hours=48)
+    first = await backfill_card_bot_messages(client, engine, bot_client=client, max_age_hours=48)
+    second = await backfill_card_bot_messages(client, engine, bot_client=client, max_age_hours=48)
 
     assert first["created"] == 2
     assert second["created"] == 0
