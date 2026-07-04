@@ -3,19 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --bg-base:        #0a0b0f;
-  --bg-card:        #12141a;
-  --bg-card-hover:  #1a1d27;
-  --border:         rgba(255,255,255,0.07);
-  --border-accent:  rgba(0,242,255,0.25);
-  --accent-cyan:    #00f2ff;
-  --accent-violet:  #7000ff;
-  --accent-green:   #00ff88;
-  --accent-red:     #ff4b6e;
-  --accent-amber:   #ffb300;
-  --text-primary:   rgba(255,255,255,0.92);
-  --text-secondary: rgba(255,255,255,0.50);
-  --text-muted:     rgba(255,255,255,0.28);
+  --bg-base:        #f8fafc;
+  --bg-card:        #ffffff;
+  --bg-card-hover:  #f1f5f9;
+  --border:         rgba(0,0,0,0.06);
+  --border-accent:  rgba(99,102,241,0.15);
+  --accent-cyan:    #0ea5e9;
+  --accent-violet:  #6366f1;
+  --accent-green:   #10b981;
+  --accent-red:     #f43f5e;
+  --accent-amber:   #f59e0b;
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
 }
 
 * { box-sizing: border-box; }
@@ -31,11 +31,13 @@ body {
 .glass {
   background: var(--bg-card);
   border: 1px solid var(--border);
+  box-shadow: 0 4px 20px -2px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
   border-radius: 16px;
 }
 .glass-accent {
-  background: linear-gradient(135deg, rgba(0,242,255,0.05), rgba(112,0,255,0.05));
+  background: linear-gradient(135deg, rgba(14,165,233,0.02), rgba(99,102,241,0.02));
   border: 1px solid var(--border-accent);
+  box-shadow: 0 4px 20px -2px rgba(99,102,241,0.05);
   border-radius: 16px;
 }
 
@@ -43,7 +45,7 @@ body {
 .score-ring {
   width: 80px; height: 80px; border-radius: 50%;
   background: conic-gradient(
-    var(--accent-cyan) calc(var(--pct,0) * 1%), rgba(255,255,255,0.06) 0
+    var(--accent-cyan) calc(var(--pct,0) * 1%), rgba(0,0,0,0.04) 0
   );
   display: flex; align-items: center; justify-content: center; position: relative;
 }
@@ -51,14 +53,14 @@ body {
   content: ''; position: absolute; inset: 8px;
   border-radius: 50%; background: var(--bg-card);
 }
-.score-ring span { position: relative; z-index:1; font-weight:700; font-size:1.1rem; }
+.score-ring span { position: relative; z-index:1; font-weight:700; font-size:1.1rem; color: var(--text-primary); }
 
 /* ── Badges ── */
-.badge-cyan   { background:rgba(0,242,255,.12); color:var(--accent-cyan);  border:1px solid rgba(0,242,255,.2); }
-.badge-violet { background:rgba(112,0,255,.12); color:#c084fc;              border:1px solid rgba(112,0,255,.25); }
-.badge-green  { background:rgba(0,255,136,.10); color:var(--accent-green); border:1px solid rgba(0,255,136,.2); }
-.badge-red    { background:rgba(255,75,110,.12); color:var(--accent-red);  border:1px solid rgba(255,75,110,.2); }
-.badge-amber  { background:rgba(255,179,0,.10);  color:var(--accent-amber); border:1px solid rgba(255,179,0,.2); }
+.badge-cyan   { background:rgba(14,165,233,.08); color:#0369a1;  border:1px solid rgba(14,165,233,.18); }
+.badge-violet { background:rgba(99,102,241,.08); color:#4338ca;  border:1px solid rgba(99,102,241,.18); }
+.badge-green  { background:rgba(16,185,129,.08); color:#047857; border:1px solid rgba(16,185,129,.18); }
+.badge-red    { background:rgba(244,63,94,.08);  color:#be123c;  border:1px solid rgba(244,63,94,.18); }
+.badge-amber  { background:rgba(245,158,11,.08);  color:#b45309; border:1px solid rgba(245,158,11,.18); }
 
 /* ── Nav ── */
 .nav-item {
@@ -67,11 +69,11 @@ body {
   color:var(--text-secondary); cursor:pointer;
   transition:all .15s; font-size:.875rem; font-weight:500;
 }
-.nav-item:hover  { background:rgba(255,255,255,.04); color:var(--text-primary); }
-.nav-item.active { background:rgba(0,242,255,.08);   color:var(--accent-cyan); }
+.nav-item:hover  { background:rgba(0,0,0,.03); color:var(--text-primary); }
+.nav-item.active { background:rgba(99,102,241,.08);   color:var(--accent-violet); }
 
 /* ── Progress ── */
-.progress-bar  { height:6px; border-radius:3px; background:rgba(255,255,255,.06); overflow:hidden; }
+.progress-bar  { height:6px; border-radius:3px; background:rgba(0,0,0,.04); overflow:hidden; }
 .progress-fill {
   height:100%; border-radius:3px;
   background:linear-gradient(90deg,var(--accent-violet),var(--accent-cyan));
@@ -100,4 +102,4 @@ body {
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width:4px; }
 ::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:rgba(255,255,255,.12); border-radius:2px; }
+::-webkit-scrollbar-thumb { background:rgba(0,0,0,.15); border-radius:2px; }
