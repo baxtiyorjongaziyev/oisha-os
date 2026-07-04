@@ -56,6 +56,9 @@
 - Web chat widgeti production xatoligi (FastAPI /api/chat/send va /api/chat/history API-dagi 422 xatoliklar) `X-Secret-Key` header qo'llab-quvvatlash orqali tuzatildi, barcha testlardan o'tdi va remote Oracle VM ga deploy qilinib muvaffaqiyatli ishga tushirildi (Antigravity).
 - Telegram kanallaridan a'zolarni o'rniga faol mijozlarni (postlarga komment yozganlarni) sifatli lead sifatida ajratib olish tizimi `TelegramScraperReal`da implement qilindi (`_extract_channel_members` yangilandi va unikal `extract_leads_from_channel` metodi qo'shildi). Testlardan o'tdi va GitHubga push qilindi (Antigravity).
 - `salescoach-ai`dagi yangi Dependabot xavfsizlik kamchiliklari (`multer`, `postcss`, `js-yaml`) root `package.json` overrides orqali to'liq bartaraf etildi va `pnpm-lock.yaml` yangilandi (Antigravity).
+- Oisha-OS Admin veb-sayti (`https://oisha.jonbranding.uz/`) uchun to'liq premium oq-dizayn (light theme) ishlab chiqildi, CSS o'zgaruvchilari modernizatsiya qilindi va muvaffaqiyatli build qilinib, ishga tushirildi (Antigravity).
+- Remote VM dagi Google API / Sheets xizmatlarining ishlamayotganligi `data/service_account.json` faylini serverga yuklash orqali bartaraf etildi va to'liq bog'landi (Antigravity).
+- `src/boot.py` faylidagi fatal NameError xatoligi (aniqlanmagan `_spawn_task` o'rniga `asyncio.create_task` qo'llash orqali) to'liq tuzatildi va bot muvaffaqiyatli ishga tushdi (Antigravity).
 
 ### Next Tasks
 1. [Done] `self_command_handler` (1000+ lines) → `src/commands/` ga ajratish
