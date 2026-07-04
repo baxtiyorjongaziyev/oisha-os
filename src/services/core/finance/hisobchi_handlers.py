@@ -718,7 +718,32 @@ async def handle_xodim_command(event, engine: HisobchiEngine) -> bool:
     return False
 
 
-async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> bool:
+async def _reply_via_bot(event, bot_client, text: str, *, parse_mode: Optional[str] = None) -> None:
+    """Reply in the finance group as @jonairobot, never as the userbot.
+
+    event.reply() would send via whichever client received the event —
+    the userbot in production — which is exactly what we must avoid here.
+    """
+    if bot_client is None or not bot_client.is_connected():
+        logger.error(
+            "[HISOBCHI] bot_client yo'q — moliya guruhiga javob yuborilmadi: %s",
+            text[:60],
+        )
+        return
+    try:
+        await bot_client.send_message(
+            event.chat_id,
+            text,
+            reply_to=event.message.id,
+            parse_mode=parse_mode,
+        )
+    except Exception as exc:
+        logger.error("[HISOBCHI] Failed to send group reply via bot_client: %s", exc)
+
+
+async def handle_finance_group_reply(
+    event, client, engine: HisobchiEngine, bot_client=None
+) -> bool:
     """
     Called for messages in the finance group.
     Returns True if this was a hisobchi reply (so caller can skip other processing).
@@ -752,16 +777,17 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
     # /skip — with or without explicit tx ID
     if text.lower().startswith("/skip"):
         await engine.skip(tx["id"])
-        await event.reply("⏭ O'tkazib yuborildi.")
+        await _reply_via_bot(event, bot_client, "⏭ O'tkazib yuborildi.")
         return True
 
     if not text or text.startswith("/"):
         return False
 
     if len(text) > _MAX_REPLY_LEN:
-        await event.reply(
+        await _reply_via_bot(
+            event, bot_client,
             f"⚠️ Izoh juda uzun (maksimal {_MAX_REPLY_LEN} belgi). "
-            "Iltimos, qisqaroq yozing."
+            "Iltimos, qisqaroq yozing.",
         )
         return True
 
@@ -781,7 +807,7 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
         flags=re.IGNORECASE,
     ).strip()
     if not category:
-        await event.reply("⚠️ Toifa yoki sabab matnini yozing.")
+        await _reply_via_bot(event, bot_client, "⚠️ Toifa yoki sabab matnini yozing.")
         return True
     if len(category) > _MAX_CATEGORY_LEN:
         category = category[:_MAX_CATEGORY_LEN].rstrip()
@@ -802,7 +828,8 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
     amount_str = f"{tx['amount']:,}".replace(",", " ")
     direction_icon = "➖" if tx["direction"] == "out" else "➕"
     own_label = "Biznes" if ownership == "business" else "Shaxsiy"
-    await event.reply(
+    await _reply_via_bot(
+        event, bot_client,
         f"✅ Saqlandi!\n"
         f"{direction_icon} {amount_str} UZS — <b>{html.escape(category)} ({own_label})</b>\n"
         f"📍 {html.escape(merchant)}\n"
