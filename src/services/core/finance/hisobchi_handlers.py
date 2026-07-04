@@ -234,8 +234,6 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
         logger.info("[HISOBCHI] Duplicate transaction ignored: #%s", tx_id)
         return True
 
-    sender_client = bot_client or client
-
     from src.services.core.hisobchi_approval import (
         build_approval_keyboard,
         build_approval_message,
@@ -263,20 +261,32 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
             logger.error("[HISOBCHI] Failed to send approval to owner: %s", exc)
 
     if finance_group_id:
-        try:
-            sent = await sender_client.send_message(
-                finance_group_id,
-                engine.build_finance_question(tx, tx_id),
-                parse_mode="html",
-                reply_to=topic_id,
-            )
-            await engine.update_finance_msg(
+        if bot_client is None:
+            # Guruh xabari faqat @jonairobot (bot_client) orqali yuboriladi —
+            # userbot identitasi bilan yuborilmasligi kerak. bot_client yo'q
+            # bo'lsa (bot-token o'rnatilmagan/ishga tushmagan), guruhga
+            # yubormay o'tkazib yuboramiz — owner baribir private approval oladi.
+            logger.error(
+                "[HISOBCHI] bot_client yo'q — moliya guruhiga savol yuborilmadi (tx #%s)",
                 tx_id,
-                finance_msg_id=sent.id,
-                finance_chat_id=finance_group_id,
             )
-        except Exception as exc:
-            logger.error("[HISOBCHI] Failed to send question: %s", exc)
+        else:
+            try:
+                kb = build_approval_keyboard(tx_id, ownership)
+                sent = await bot_client.send_message(
+                    finance_group_id,
+                    engine.build_finance_question(tx, tx_id),
+                    parse_mode="html",
+                    reply_to=topic_id,
+                    buttons=kb,
+                )
+                await engine.update_finance_msg(
+                    tx_id,
+                    finance_msg_id=sent.id,
+                    finance_chat_id=finance_group_id,
+                )
+            except Exception as exc:
+                logger.error("[HISOBCHI] Failed to send question: %s", exc)
     return True
 
 
@@ -825,6 +835,7 @@ async def backfill_card_bot_messages(
     client,
     engine: HisobchiEngine,
     *,
+    bot_client=None,
     limit: int = 50,
     max_age_hours: int = 72,
     delay_seconds: float = 0.05,
@@ -866,7 +877,8 @@ async def backfill_card_bot_messages(
                         stats["duplicates"] += 1
                         continue
                     await handle_card_bot_message(
-                        _CardBackfillEvent(message, entity), client, engine
+                        _CardBackfillEvent(message, entity), client, engine,
+                        bot_client=bot_client,
                     )
                     stats["created"] += 1
                 except Exception as exc:
