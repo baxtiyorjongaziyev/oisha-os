@@ -320,7 +320,7 @@ async def process_hisobchi(
 
             await handle_card_bot_message(
                 event, client, _hisobchi_engine,
-                bot_client=getattr(app_ctx, "bot_client", None),
+                bot_client=app_ctx.bot_client,
             )
             return True
 
