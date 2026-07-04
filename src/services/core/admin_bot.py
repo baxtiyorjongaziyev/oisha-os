@@ -1951,22 +1951,35 @@ class AdminBot:
             logger.error(f"❌ [WEEKLY REPORT ERROR] {e}")
             await event.respond(f"❌ **Haftalik hisobotni yuklashda xatolik yuz berdi:**\n`{str(e)}`")
 
+    @staticmethod
+    async def _respond_safe(event, text: str, parse_mode: str = "html"):
+        """event.respond, lekin HTML bo'lak chegarasida teg uzilib qolsa
+        (masalan <b> bir bo'lakda ochilib, boshqasida yopilsa) Telegram
+        MessageHTMLAnalyseError bilan xabarni butunlay rad etadi — bunday
+        holatda oddiy matn sifatida qayta yuboramiz, xabar hech qachon
+        yo'qolib ketmasin."""
+        try:
+            await event.respond(text, parse_mode=parse_mode, link_preview=False)
+        except Exception as exc:
+            logger.warning("[REPORT] HTML bilan yuborib bo'lmadi, oddiy matnga o'tildi: %s", exc)
+            await event.respond(text, parse_mode=None, link_preview=False)
+
     async def _send_long_message(self, event, text: str, parse_mode: str = "html"):
         """Telegram'ning ~4096 belgi chegarasidan uzun xabarlarni qator
         chegaralari bo'yicha bo'laklarga bo'lib ketma-ket yuboradi."""
         limit = 3800
         if len(text) <= limit:
-            await event.respond(text, parse_mode=parse_mode, link_preview=False)
+            await self._respond_safe(event, text, parse_mode)
             return
         lines = text.split("\n")
         chunk = ""
         for line in lines:
             if len(chunk) + len(line) + 1 > limit and chunk:
-                await event.respond(chunk, parse_mode=parse_mode, link_preview=False)
+                await self._respond_safe(event, chunk, parse_mode)
                 chunk = ""
             chunk += (line + "\n")
         if chunk.strip():
-            await event.respond(chunk, parse_mode=parse_mode, link_preview=False)
+            await self._respond_safe(event, chunk, parse_mode)
 
     async def send_kpi_report(self, event):
         """Jamoa kpi va samaradorlik hisobotini yuborish."""
