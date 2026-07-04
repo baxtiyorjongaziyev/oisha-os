@@ -30,7 +30,6 @@ class ChannelLeadExtractor:
         lead_data = {
             "name": f"{first_name} {last_name}".strip() or username,
             "phone": None,  # Extract from message if available
-            "email": None,
             "custom_fields": {
                 "telegram_username": username,
                 "telegram_id": user_id,
@@ -42,13 +41,10 @@ class ChannelLeadExtractor:
             },
         }
 
-        # Try to extract phone/email from message
+        # Try to extract phone from message
         phone = await self._extract_phone(message_preview)
-        email = await self._extract_email(message_preview)
         if phone:
             lead_data["phone"] = phone
-        if email:
-            lead_data["email"] = email
 
         # Push to AmoCRM if available
         if self.amocrm:
@@ -56,7 +52,6 @@ class ChannelLeadExtractor:
                 crm_lead = await self.amocrm.create_lead(
                     name=lead_data["name"],
                     phone=lead_data["phone"],
-                    email=lead_data["email"],
                     status="new",
                     tags=[category, source_channel, "telegram_discovered"],
                     custom_fields=lead_data["custom_fields"],
@@ -107,15 +102,6 @@ class ChannelLeadExtractor:
                 return match.group()
         return None
 
-    @staticmethod
-    async def _extract_email(text: str) -> Optional[str]:
-        """Extract email from text."""
-        import re
-
-        pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-        match = re.search(pattern, text)
-        return match.group() if match else None
-
     async def _save_to_db(self, lead_data: dict) -> None:
         """Save lead to local database for tracking."""
         if not self.db:
@@ -132,7 +118,6 @@ class ChannelLeadExtractor:
                     telegram_username TEXT UNIQUE,
                     telegram_id INTEGER,
                     phone TEXT,
-                    email TEXT,
                     source_channel TEXT,
                     message_preview TEXT,
                     category TEXT,
@@ -147,9 +132,9 @@ class ChannelLeadExtractor:
             await self.db.execute(
                 """
                 INSERT INTO channel_discovered_leads
-                (crm_id, name, telegram_username, telegram_id, phone, email,
+                (crm_id, name, telegram_username, telegram_id, phone,
                  source_channel, message_preview, category, discovered_at, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     lead_data.get("crm_id"),
@@ -157,7 +142,6 @@ class ChannelLeadExtractor:
                     lead_data.get("custom_fields", {}).get("telegram_username"),
                     lead_data.get("custom_fields", {}).get("telegram_id"),
                     lead_data.get("phone"),
-                    lead_data.get("email"),
                     lead_data.get("custom_fields", {}).get("source_channel"),
                     lead_data.get("custom_fields", {}).get("message_preview"),
                     lead_data.get("custom_fields", {}).get("category"),
