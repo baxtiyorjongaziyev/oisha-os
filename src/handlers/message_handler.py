@@ -316,7 +316,12 @@ async def process_hisobchi(
         _hisobchi_engine = HisobchiEngine(msg_controller.db)
 
         if event.is_private and not event.out and is_card_bot_sender(sender):
-            await handle_card_bot_message(event, client, _hisobchi_engine)
+            from src.context import app_ctx
+
+            await handle_card_bot_message(
+                event, client, _hisobchi_engine,
+                bot_client=app_ctx.bot_client,
+            )
             return True
 
         if not event.out and event.message.voice and voice_processor:
