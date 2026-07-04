@@ -101,7 +101,7 @@ class ChannelScout:
         return round(total / len(messages), 2)
 
     async def extract_leads_from_channel(self, channel_name: str, limit: int = 20) -> list:
-        """Extract potential trainer profiles from channel messages."""
+        """Extract engaged commenters as leads from channel posts."""
         if not self.client:
             return []
 
@@ -111,21 +111,29 @@ class ChannelScout:
             messages = await self.client.get_messages(entity, limit=limit)
 
             for msg in messages:
-                if msg.sender:
-                    lead = {
-                        "source_channel": channel_name,
-                        "username": msg.sender.username or f"user_{msg.sender.id}",
-                        "user_id": msg.sender.id,
-                        "first_name": getattr(msg.sender, "first_name", ""),
-                        "last_name": getattr(msg.sender, "last_name", ""),
-                        "is_bot": getattr(msg.sender, "bot", False),
-                        "message_preview": (msg.text or "")[:100],
-                        "message_date": msg.date.isoformat(),
-                        "extracted_at": datetime.now().isoformat(),
-                    }
-                    leads.append(lead)
+                # Get replies/comments on this message
+                try:
+                    replies = await self.client.get_messages(entity, reply_to=msg.id, limit=5)
 
-            logger.info(f"[SCOUT] Extracted {len(leads)} potential leads from {channel_name}")
+                    for reply in replies:
+                        if reply.sender and reply.sender.username and not reply.sender.bot:
+                            lead = {
+                                "source_channel": channel_name,
+                                "username": reply.sender.username,
+                                "user_id": reply.sender.id,
+                                "first_name": getattr(reply.sender, "first_name", ""),
+                                "last_name": getattr(reply.sender, "last_name", ""),
+                                "message_preview": (reply.text or "")[:100],
+                                "engagement_type": "comment",
+                                "post_date": msg.date.isoformat(),
+                                "comment_date": reply.date.isoformat(),
+                            }
+                            leads.append(lead)
+                except Exception as e:
+                    logger.debug(f"[SCOUT] Could not get replies for {channel_name}: {e}")
+                    continue
+
+            logger.info(f"[SCOUT] Extracted {len(leads)} engaged commenters from {channel_name}")
             return leads
         except Exception as exc:
             logger.error(f"[SCOUT] Lead extraction from {channel_name} failed: {exc}")
