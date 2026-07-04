@@ -65,6 +65,9 @@ function SettingsPageContent() {
     setWorkDays({ ...workDays, [day]: !workDays[day] });
   };
 
+  // General tab states
+  const [autoTasksEnabled, setAutoTasksEnabled] = useState(true);
+
   // Playbook tabs
   const [playbookTab, setPlaybookTab] = useState<"criteria" | "questions" | "services" | "crm">("criteria");
 
@@ -230,11 +233,23 @@ function SettingsPageContent() {
             {/* Task generation toggle */}
             <div className="rounded-2xl border border-border bg-bg p-4 flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-bold text-text">Avtomatik vazifalar yaratish</h4>
-                <p className="text-[10px] text-text-muted mt-0.5">AI suhbat tahlilidan kelib chiqib CRM topshiriqlar yaratadi.</p>
+                <h4 id="auto-tasks-label" className="text-xs font-bold text-text">Avtomatik vazifalar yaratish</h4>
+                <p id="auto-tasks-desc" className="text-[10px] text-text-muted mt-0.5">AI suhbat tahlilidan kelib chiqib CRM topshiriqlar yaratadi.</p>
               </div>
-              <button className="h-6 w-11 rounded-full bg-brand p-1 transition-colors relative flex items-center">
-                <span className="h-4 w-4 rounded-full bg-white absolute right-1 transition-transform"></span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={autoTasksEnabled}
+                aria-labelledby="auto-tasks-label"
+                aria-describedby="auto-tasks-desc"
+                onClick={() => setAutoTasksEnabled(!autoTasksEnabled)}
+                className={`h-6 w-11 rounded-full p-1 transition-colors relative flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${
+                  autoTasksEnabled ? "bg-brand" : "bg-border"
+                }`}
+              >
+                <span className={`h-4 w-4 rounded-full bg-white absolute transition-transform ${
+                  autoTasksEnabled ? "translate-x-5" : "translate-x-0"
+                }`}></span>
               </button>
             </div>
           </div>
