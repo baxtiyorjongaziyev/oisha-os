@@ -62,3 +62,6 @@
 ## 2026-07-02 - Accessible Selection Groups
 **Learning:** When rendering custom selection groups (like category pickers), buttons need `role="group"`, an `aria-labelledby` association, and `aria-pressed` states to correctly communicate functionality and state to screen readers.
 **Action:** Always wrap custom button-based selectors in a `role="group"` container linked to a descriptive label, and use `aria-pressed` on individual options.
+## 2025-02-24 - Accessible Custom Toggle Switches
+**Learning:** Custom UI toggle switches (often built with `<button>`) frequently lack semantic roles and state indicators, making them invisible or confusing to screen readers, especially when the surrounding text only acts as a visual label.
+**Action:** Always add `role="switch"` and dynamically set `aria-checked={state}` on custom toggle buttons. Bind them to adjacent text labels using `aria-labelledby` and `aria-describedby` with matching IDs to ensure complete context is announced to assistive technologies.
