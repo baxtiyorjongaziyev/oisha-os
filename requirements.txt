@@ -37,3 +37,4 @@ mss>=10.2.0
 instagrapi>=2.18.0
 pyperclip>=1.11.0
 google-analytics-data>=0.19.0
+mcp>=1.26.0
