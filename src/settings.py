@@ -145,6 +145,8 @@ class AppSettings(BaseSettings):
     SANITY_PROJECT_ID: Optional[str] = None
     SANITY_DATASET: Optional[str] = None
     SANITY_TOKEN: Optional[SecretStr] = None
+    RUN_USERBOT_ONLY: bool = False
+
 
 
     # Topic IDs (Forum Groups)
