@@ -391,7 +391,8 @@ async def boot_application():
             client = None
         else:
             client = telegram_session_manager.client
-            logger.info("[SESSION] ✅ Userbot session ulandi — reconnect monitor ishga tushadi")
+            me = await client.get_me()
+            logger.info(f"[TELEGRAM] Userbot client initialized and authorized successfully! ✅ (Username: @{me.username or 'None'})")
             # Reconnect monitorini ishga tushirish
             await telegram_session_manager.start_reconnect_monitor()
 
