@@ -77,6 +77,7 @@ def test_policy_blocks_sensitive_client_message_without_userbot_or_owner():
             "message": "Narx va to'lov bo'yicha kelishamiz",
             "confidence": 0.99,
             "allow_in_quiet_hours": True,
+            "allow_on_sunday": True,
         },
         requested_by="scheduler",
     )
@@ -93,7 +94,12 @@ def test_policy_allows_internal_crm_actions_without_userbot():
         task_id="t3",
         kind="sales_conversion_push",
         goal="create internal CRM tasks",
-        payload={"target": "crm", "confidence": 1.0, "allow_in_quiet_hours": True},
+        payload={
+            "target": "crm",
+            "confidence": 1.0,
+            "allow_in_quiet_hours": True,
+            "allow_on_sunday": True,
+        },
         requested_by="scheduler",
     )
 
