@@ -142,6 +142,10 @@ class AppSettings(BaseSettings):
     JONBRANDING_CHANNEL: str = "jonbranding"
     CMS_WEBHOOK_URL: Optional[str] = None
     ENABLE_CASE_PUBLISHER: bool = True
+    SANITY_PROJECT_ID: Optional[str] = None
+    SANITY_DATASET: Optional[str] = None
+    SANITY_TOKEN: Optional[SecretStr] = None
+
 
     # Topic IDs (Forum Groups)
     CRM_TOPIC_ID: Optional[int] = 1
@@ -307,6 +311,9 @@ class AppSettings(BaseSettings):
             "META_APP_SECRET",
             "GA4_PROPERTY_ID",
             "GA4_CREDENTIALS_JSON",
+            "SANITY_PROJECT_ID",
+            "SANITY_DATASET",
+            "SANITY_TOKEN",
         }
         for key in optional_keys:
             if data.get(key) == "":
