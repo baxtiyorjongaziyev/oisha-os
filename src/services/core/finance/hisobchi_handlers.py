@@ -764,6 +764,14 @@ async def handle_finance_group_reply(
     if event.chat_id != finance_group_id:
         return False
 
+    # Never treat a bot's own message as a human answering the question —
+    # @jonairobot's own question (sent with reply_to=topic_id for forum
+    # threading) can otherwise be picked up by this exact matcher and
+    # self-answer with garbage (category = the bot's own question text).
+    sender = await event.get_sender()
+    if getattr(sender, "bot", False):
+        return False
+
     msg = event.message
     reply_to = getattr(msg, "reply_to", None)
     if not reply_to:
@@ -782,6 +790,21 @@ async def handle_finance_group_reply(
         return False  # Not a hisobchi question reply
 
     text = (msg.message or "").strip()
+
+    # Defense in depth: never accept the bot's own question template as a
+    # "category" (e.g. someone forwards/quotes the question back verbatim).
+    # Real categories don't contain these markers.
+    lower_full_text = text.casefold()
+    if any(
+        marker in lower_full_text
+        for marker in ("yangi to'lov #", "javob bering yoki", "bu to'lov nima uchun",
+                       "bu pul nima uchun")
+    ):
+        logger.warning(
+            "[HISOBCHI] Ignoring reply that looks like the bot's own question "
+            "template (tx #%s)", tx["id"],
+        )
+        return False
 
     # /skip — with or without explicit tx ID
     if text.lower().startswith("/skip"):
