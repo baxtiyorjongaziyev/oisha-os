@@ -326,7 +326,9 @@ async def boot_application():
     print("Oisha-OS Tizimi tayyorlanmoqda (Dual-Head Architecture)...")
 
     # Early health check
-    health_api_task = asyncio.create_task(m.run_health_check_api(), name="health_check_api")
+    health_api_task = None
+    if not settings.RUN_USERBOT_ONLY:
+        health_api_task = asyncio.create_task(m.run_health_check_api(), name="health_check_api")
     asyncio.create_task(_command_processor(), name="command_processor")
     m._restore_cloud_artifacts()
 
@@ -423,13 +425,14 @@ async def boot_application():
     safe_responder = SafeResponder()
 
     # Background discipline loop
-    asyncio.create_task(_crm_discipline_loop())
-    asyncio.create_task(_crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop")
-    asyncio.create_task(_ai_autopilot_loop())
-    
-    from src.schedulers.frog_scheduler import daily_frog_loop
-    asyncio.create_task(daily_frog_loop(client, settings.TEAM_GROUP_ID), name="daily_frog_loop")
-    asyncio.create_task(_channel_scout_loop(), name="channel_scout_loop")
+    if not settings.RUN_USERBOT_ONLY:
+        asyncio.create_task(_crm_discipline_loop())
+        asyncio.create_task(_crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop")
+        asyncio.create_task(_ai_autopilot_loop())
+        
+        from src.schedulers.frog_scheduler import daily_frog_loop
+        asyncio.create_task(daily_frog_loop(client, settings.TEAM_GROUP_ID), name="daily_frog_loop")
+        asyncio.create_task(_channel_scout_loop(), name="channel_scout_loop")
 
     # Surgical negotiator
     surgical_integration = get_surgical_integration()
@@ -449,9 +452,10 @@ async def boot_application():
     activity_monitor = ActivityMonitor(db=msg_controller.db)
     audit_agent = AuditAgent(api_key=api_keys["gemini"], db=msg_controller.db)
 
-    from src.services.core.evolution_scheduler import EvolutionScheduler
-    evolution_scheduler = EvolutionScheduler(db=msg_controller.db, gemini_api_key=api_keys["gemini"])
-    asyncio.create_task(evolution_scheduler.start(), name="evolution_scheduler")
+    if not settings.RUN_USERBOT_ONLY:
+        from src.services.core.evolution_scheduler import EvolutionScheduler
+        evolution_scheduler = EvolutionScheduler(db=msg_controller.db, gemini_api_key=api_keys["gemini"])
+        asyncio.create_task(evolution_scheduler.start(), name="evolution_scheduler")
 
     workflow_manager = WorkflowManager(crm=msg_controller.crm, db=msg_controller.db, client=client)
     access_manager = AccessManager(owner_id=src_config.OWNER_ID)
@@ -478,6 +482,11 @@ async def boot_application():
     )
 
     session_manager = SessionManager(sync_callback=m.push_block_to_amocrm)
+
+    if settings.RUN_USERBOT_ONLY:
+        logger.info("[USERBOT] Run-userbot-only mode active. Telegram listener is running.")
+        await asyncio.Event().wait()
+        return
 
     # API server wiring
     import src.api_server as api_module
