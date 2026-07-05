@@ -718,7 +718,41 @@ async def handle_xodim_command(event, engine: HisobchiEngine) -> bool:
     return False
 
 
-async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> bool:
+async def _reply_via_bot(event, bot_client, text: str, *, parse_mode: Optional[str] = None) -> None:
+    """Reply in the finance group as @jonairobot, never as the userbot.
+
+    event.reply() would send via whichever client received the event —
+    the userbot in production — which is exactly what we must avoid here.
+    """
+    if bot_client is None or not bot_client.is_connected():
+        logger.error(
+            "[HISOBCHI] bot_client yo'q — moliya guruhiga javob yuborilmadi: %s",
+            text[:60],
+        )
+        return
+    try:
+        await bot_client.send_message(
+            event.chat_id,
+            text,
+            reply_to=event.message.id,
+            parse_mode=parse_mode,
+        )
+    except Exception as exc:
+        # Original message may have been deleted/inaccessible (e.g.
+        # ReplyToMsgIdInvalidError) — retry without the reply anchor so the
+        # confirmation still lands instead of silently disappearing.
+        logger.warning(
+            "[HISOBCHI] Group reply with reply_to failed, retrying without it: %s", exc
+        )
+        try:
+            await bot_client.send_message(event.chat_id, text, parse_mode=parse_mode)
+        except Exception as retry_exc:
+            logger.error("[HISOBCHI] Failed to send group reply via bot_client: %s", retry_exc)
+
+
+async def handle_finance_group_reply(
+    event, client, engine: HisobchiEngine, bot_client=None
+) -> bool:
     """
     Called for messages in the finance group.
     Returns True if this was a hisobchi reply (so caller can skip other processing).
@@ -728,6 +762,14 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
         return False
 
     if event.chat_id != finance_group_id:
+        return False
+
+    # Never treat a bot's own message as a human answering the question —
+    # @jonairobot's own question (sent with reply_to=topic_id for forum
+    # threading) can otherwise be picked up by this exact matcher and
+    # self-answer with garbage (category = the bot's own question text).
+    sender = await event.get_sender()
+    if getattr(sender, "bot", False):
         return False
 
     msg = event.message
@@ -749,19 +791,35 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
 
     text = (msg.message or "").strip()
 
+    # Defense in depth: never accept the bot's own question template as a
+    # "category" (e.g. someone forwards/quotes the question back verbatim).
+    # Real categories don't contain these markers.
+    lower_full_text = text.casefold()
+    if any(
+        marker in lower_full_text
+        for marker in ("yangi to'lov #", "javob bering yoki", "bu to'lov nima uchun",
+                       "bu pul nima uchun")
+    ):
+        logger.warning(
+            "[HISOBCHI] Ignoring reply that looks like the bot's own question "
+            "template (tx #%s)", tx["id"],
+        )
+        return False
+
     # /skip — with or without explicit tx ID
     if text.lower().startswith("/skip"):
         await engine.skip(tx["id"])
-        await event.reply("⏭ O'tkazib yuborildi.")
+        await _reply_via_bot(event, bot_client, "⏭ O'tkazib yuborildi.")
         return True
 
     if not text or text.startswith("/"):
         return False
 
     if len(text) > _MAX_REPLY_LEN:
-        await event.reply(
+        await _reply_via_bot(
+            event, bot_client,
             f"⚠️ Izoh juda uzun (maksimal {_MAX_REPLY_LEN} belgi). "
-            "Iltimos, qisqaroq yozing."
+            "Iltimos, qisqaroq yozing.",
         )
         return True
 
@@ -781,7 +839,7 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
         flags=re.IGNORECASE,
     ).strip()
     if not category:
-        await event.reply("⚠️ Toifa yoki sabab matnini yozing.")
+        await _reply_via_bot(event, bot_client, "⚠️ Toifa yoki sabab matnini yozing.")
         return True
     if len(category) > _MAX_CATEGORY_LEN:
         category = category[:_MAX_CATEGORY_LEN].rstrip()
@@ -802,7 +860,8 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine) -> b
     amount_str = f"{tx['amount']:,}".replace(",", " ")
     direction_icon = "➖" if tx["direction"] == "out" else "➕"
     own_label = "Biznes" if ownership == "business" else "Shaxsiy"
-    await event.reply(
+    await _reply_via_bot(
+        event, bot_client,
         f"✅ Saqlandi!\n"
         f"{direction_icon} {amount_str} UZS — <b>{html.escape(category)} ({own_label})</b>\n"
         f"📍 {html.escape(merchant)}\n"

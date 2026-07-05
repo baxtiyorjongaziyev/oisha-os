@@ -313,11 +313,11 @@ async def process_hisobchi(
     from src.services.core.finance.hisobchi_engine import HisobchiEngine
 
     try:
+        from src.context import app_ctx
+
         _hisobchi_engine = HisobchiEngine(msg_controller.db)
 
         if event.is_private and not event.out and is_card_bot_sender(sender):
-            from src.context import app_ctx
-
             await handle_card_bot_message(
                 event, client, _hisobchi_engine,
                 bot_client=app_ctx.bot_client,
@@ -345,7 +345,9 @@ async def process_hisobchi(
                     return True
 
         if not event.is_private and not event.out and message_text:
-            was_hisobchi = await handle_finance_group_reply(event, client, _hisobchi_engine)
+            was_hisobchi = await handle_finance_group_reply(
+                event, client, _hisobchi_engine, bot_client=app_ctx.bot_client
+            )
             if was_hisobchi:
                 return True
     except Exception as exc:
