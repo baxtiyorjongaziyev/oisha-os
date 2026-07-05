@@ -24,6 +24,11 @@ _runtime_context: Dict[str, Any] = {
 
 
 def detect_runtime_source() -> str:
+    explicit_runtime = (os.getenv("OISHA_RUNTIME") or "").strip().lower()
+    if explicit_runtime in {"vm_service", "oracle_vm", "production"}:
+        return "vm_service"
+    if explicit_runtime == "cloud_run":
+        return "cloud_run"
     if settings.RUNNING_IN_CLOUD or os.getenv("K_SERVICE"):
         return "cloud_run"
     if os.getenv("INVOCATION_ID") or os.getenv("SYSTEMD_EXEC_PID"):
