@@ -735,7 +735,9 @@ async def boot_application():
                 raise events.StopPropagation
             # 2. Finance group replies
             if not event.is_private and not event.out:
-                if await handle_finance_group_reply(event, client, hisobchi_engine):
+                if await handle_finance_group_reply(
+                    event, client, hisobchi_engine, bot_client=bot_client
+                ):
                     raise events.StopPropagation
                 return  # not a finance reply — let generic handler process it
             # 3. Private commands from user
