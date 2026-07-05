@@ -1,6 +1,9 @@
 import os
 import sys
 import logging
+import json
+import urllib.request
+import urllib.error
 
 # Ensure the project root is in sys.path so we can import from src
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -9,7 +12,6 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from mcp.server.fastmcp import FastMCP
-from src.database import Database
 import structlog
 
 # Configure logging to stderr to avoid interfering with stdout-based MCP protocol
@@ -36,30 +38,58 @@ logger = logging.getLogger("telegram-mcp")
 # Initialize FastMCP server
 mcp = FastMCP("telegram")
 
+API_BASE_URL = "http://127.0.0.1:8080/internal/mcp"
 
 @mcp.tool()
-async def send_telegram_message(user_id: int, text: str) -> str:
+async def get_recent_dialogs(limit: int = 10) -> str:
     """
-    Send a Telegram message to a specific user.
+    Fetch the most recent Telegram dialogs (chats).
+    """
+    logger.info(f"Fetching recent dialogs, limit={limit}")
+    url = f"{API_BASE_URL}/dialogs?limit={limit}"
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            return json.dumps(data, indent=2, ensure_ascii=False)
+    except urllib.error.URLError as e:
+        logger.error(f"Error fetching dialogs: {e}")
+        return f"Error: Cannot connect to Telegram backend. {e}"
+
+@mcp.tool()
+async def get_chat_history(chat_id: str, limit: int = 20) -> str:
+    """
+    Fetch the recent message history for a specific Telegram chat/user ID.
+    """
+    logger.info(f"Fetching chat history for {chat_id}, limit={limit}")
+    url = f"{API_BASE_URL}/messages/{chat_id}?limit={limit}"
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            return json.dumps(data, indent=2, ensure_ascii=False)
+    except urllib.error.URLError as e:
+        logger.error(f"Error fetching chat history: {e}")
+        return f"Error: Cannot connect to Telegram backend. {e}"
+
+@mcp.tool()
+async def send_telegram_message(user_id: str, text: str) -> str:
+    """
+    Send a Telegram message to a specific user or group.
     """
     logger.info(f"Sending message to {user_id}")
-    # In a real scenario, we would use the shared Telegram client
-    # For now, we simulate success to verify the MCP connection
-    return f"Successfully sent message to {user_id}: {text}"
-
-
-@mcp.tool()
-async def get_user_info(user_id: int) -> str:
-    """
-    Retrieve user information from the local database.
-    """
-    db = Database("data/bot_database.db")
-    user = db.get_user_info(user_id)
-    if user:
-        return f"User Info: {user}"
-    return "User not found."
-
+    url = f"{API_BASE_URL}/send_message"
+    payload = json.dumps({"user_id": str(user_id), "text": text}).encode("utf-8")
+    try:
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            return f"Successfully sent message to {user_id}: {text}"
+    except urllib.error.URLError as e:
+        logger.error(f"Error sending message: {e}")
+        return f"Error: Cannot connect to Telegram backend. {e}"
 
 if __name__ == "__main__":
     # Start the server using stdio transport
     mcp.run(transport="stdio")
+
