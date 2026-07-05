@@ -10,6 +10,7 @@ from src.services.core.finance.hisobchi_card_parser import parse_card_notificati
 from src.services.core.finance.hisobchi_engine import HisobchiEngine, _normalize_merchant
 from src.services.core.finance.hisobchi_handlers import (
     backfill_card_bot_messages,
+    handle_finance_group_reply,
     resolve_finance_destination,
 )
 from src.services.core.finance.hisobchi_schema import init_hisobchi_tables
@@ -340,6 +341,147 @@ async def test_backfill_replays_once_and_deduplicates(monkeypatch, temp_db) -> N
 
 async def _async_value(value):
     return value
+
+
+class _FakeReplyTo:
+    def __init__(self, reply_to_msg_id):
+        self.reply_to_msg_id = reply_to_msg_id
+
+
+class _FakeGroupMessage:
+    def __init__(self, text, reply_to_msg_id, msg_id=999):
+        self.message = text
+        self.reply_to = _FakeReplyTo(reply_to_msg_id)
+        self.id = msg_id
+
+
+class _FakeGroupReplyEvent:
+    def __init__(self, chat_id, text, reply_to_msg_id, sender_is_bot):
+        self.chat_id = chat_id
+        self.message = _FakeGroupMessage(text, reply_to_msg_id)
+        self._sender_is_bot = sender_is_bot
+
+    async def get_sender(self):
+        return SimpleNamespace(bot=self._sender_is_bot)
+
+
+class _FakeBotClient:
+    def __init__(self):
+        self.sent = []
+
+    def is_connected(self):
+        return True
+
+    async def send_message(self, chat_id, text, **kwargs):
+        self.sent.append((chat_id, text, kwargs))
+        return SimpleNamespace(id=1)
+
+
+async def _seed_pending_tx(engine, *, finance_chat_id, finance_msg_id):
+    tx = parse_card_notification("humocardbot", HUMO_SAMPLE)
+    assert tx is not None
+    tx_id = await engine.save_transaction(
+        source_bot=tx.source_bot,
+        direction=tx.direction,
+        amount=tx.amount,
+        merchant=tx.merchant,
+        card_suffix=tx.card_suffix,
+        tx_time=tx.tx_time,
+        balance=tx.balance,
+        raw_text=HUMO_SAMPLE,
+    )
+    await engine.update_finance_msg(tx_id, finance_msg_id=finance_msg_id, finance_chat_id=finance_chat_id)
+    return tx_id
+
+
+@pytest.mark.asyncio
+async def test_bot_sender_reply_is_ignored_in_finance_group(monkeypatch, temp_db) -> None:
+    """A bot's own message (e.g. @jonairobot's question replying to the
+    topic root) must never be treated as a human answering the question —
+    this was the root cause of transactions self-categorizing as garbage."""
+    from src.services.core.finance import hisobchi_handlers
+
+    monkeypatch.setattr(
+        hisobchi_handlers, "resolve_finance_destination",
+        lambda _client: _async_value((-1002, None, None)),
+    )
+    engine = HisobchiEngine(temp_db)
+    tx_id = await _seed_pending_tx(engine, finance_chat_id=-1002, finance_msg_id=555)
+    bot_client = _FakeBotClient()
+
+    event = _FakeGroupReplyEvent(
+        chat_id=-1002,
+        text="💳 Yangi to'lov #1\n\n➖ Chiqim: 4 000 UZS\n\n❓ Bu to'lov nima uchun ketdi?\nJavob bering yoki /skip 1",
+        reply_to_msg_id=555,
+        sender_is_bot=True,
+    )
+
+    handled = await handle_finance_group_reply(event, client=None, engine=engine, bot_client=bot_client)
+
+    assert handled is False
+    assert bot_client.sent == []
+    tx = await engine.get_pending_by_finance_msg(finance_chat_id=-1002, finance_msg_id=555)
+    assert tx is not None and tx["id"] == tx_id  # still pending, untouched
+
+
+@pytest.mark.asyncio
+async def test_human_reply_quoting_bot_template_is_ignored(monkeypatch, temp_db) -> None:
+    """Defense in depth: even from a genuine human, text that's just the
+    bot's own question template (e.g. accidentally forwarded) must not be
+    accepted as a real category."""
+    from src.services.core.finance import hisobchi_handlers
+
+    monkeypatch.setattr(
+        hisobchi_handlers, "resolve_finance_destination",
+        lambda _client: _async_value((-1002, None, None)),
+    )
+    engine = HisobchiEngine(temp_db)
+    await _seed_pending_tx(engine, finance_chat_id=-1002, finance_msg_id=555)
+    bot_client = _FakeBotClient()
+
+    event = _FakeGroupReplyEvent(
+        chat_id=-1002,
+        text="💳 Yangi to'lov #1 — Javob bering yoki /skip 1",
+        reply_to_msg_id=555,
+        sender_is_bot=False,
+    )
+
+    handled = await handle_finance_group_reply(event, client=None, engine=engine, bot_client=bot_client)
+
+    assert handled is False
+    assert bot_client.sent == []
+
+
+@pytest.mark.asyncio
+async def test_human_reply_saves_category_via_bot_client(monkeypatch, temp_db) -> None:
+    """The normal, correct path: a real human's category answer is saved
+    and the confirmation is sent via bot_client (@jonairobot), never the
+    userbot."""
+    from src.services.core.finance import hisobchi_handlers
+
+    monkeypatch.setattr(
+        hisobchi_handlers, "resolve_finance_destination",
+        lambda _client: _async_value((-1002, None, None)),
+    )
+    engine = HisobchiEngine(temp_db)
+    tx_id = await _seed_pending_tx(engine, finance_chat_id=-1002, finance_msg_id=555)
+    bot_client = _FakeBotClient()
+
+    event = _FakeGroupReplyEvent(
+        chat_id=-1002,
+        text="Ofis xarajati",
+        reply_to_msg_id=555,
+        sender_is_bot=False,
+    )
+
+    handled = await handle_finance_group_reply(event, client=None, engine=engine, bot_client=bot_client)
+
+    assert handled is True
+    assert len(bot_client.sent) == 1
+    _, sent_text, _ = bot_client.sent[0]
+    assert "Ofis xarajati" in sent_text
+    tx = await engine.get_pending_by_finance_msg(finance_chat_id=-1002, finance_msg_id=555)
+    assert tx is None  # no longer pending — categorized
 
 
 def test_boot_registers_primary_message_handler_and_initializes_schema() -> None:
