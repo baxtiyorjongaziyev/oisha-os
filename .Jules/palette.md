@@ -65,3 +65,6 @@
 ## 2025-02-24 - Accessible Custom Toggle Switches
 **Learning:** Custom UI toggle switches (often built with `<button>`) frequently lack semantic roles and state indicators, making them invisible or confusing to screen readers, especially when the surrounding text only acts as a visual label.
 **Action:** Always add `role="switch"` and dynamically set `aria-checked={state}` on custom toggle buttons. Bind them to adjacent text labels using `aria-labelledby` and `aria-describedby` with matching IDs to ensure complete context is announced to assistive technologies.
+## 2025-07-04 - Form Input Accessibility
+**Learning:** Form inputs within modal dialogs often miss explicit `aria-label` or `id`/`htmlFor` pairings, relying instead on visual context or placeholder text, which negatively impacts screen reader users.
+**Action:** When adding or reviewing modals with form elements, ensure every `<input>` has an explicit `aria-label` and every `<textarea>` is correctly linked to its `<label>` via `id` and `htmlFor`.
