@@ -335,6 +335,7 @@ export default function Header() {
               <input
                 type="text"
                 autoFocus
+                aria-label="Qidiruv so'rovi"
                 placeholder="Ism, telefon raqami yoki kalit so'zni yozing... (masalan: 'Baxtiyorjon')"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -342,6 +343,7 @@ export default function Header() {
               />
               <button
                 onClick={() => setSearchOpen(false)}
+                aria-label="Qidiruvni yopish"
                 className="rounded-lg p-1.5 text-text-muted hover:bg-bg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
               >
                 ESC
@@ -442,8 +444,9 @@ export default function Header() {
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block">Tavsif</label>
+                <label htmlFor="bug-description" className="text-[10px] font-bold text-text-muted uppercase block">Tavsif</label>
                 <textarea
+                  id="bug-description"
                   required
                   rows={4}
                   value={bugText}
@@ -499,6 +502,7 @@ export default function Header() {
               <input
                 required
                 type="text"
+                aria-label="Yangi biznes nomi"
                 value={newBusinessName}
                 onChange={(e) => setNewBusinessName(e.target.value)}
                 placeholder="Masalan: Jon Marketing, Jon Academy..."
