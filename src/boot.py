@@ -576,13 +576,18 @@ async def boot_application():
                 )
                 api_module.set_telegram_ai_ingress_status(mode="webhook", active=True)
             else:
-                async def _dispatch_bot_api_update(update):
-                    return await api_module.process_telegram_ai_update(update)
+                enable_raw_long_poll = os.getenv("ENABLE_TELEGRAM_AI_LONG_POLL", "").strip().lower() in {"1", "true", "yes", "on"}
+                if enable_raw_long_poll:
+                    async def _dispatch_bot_api_update(update):
+                        return await api_module.process_telegram_ai_update(update)
 
-                poller = TelegramBotAPILongPoller(BOT_TOKEN_STR, _dispatch_bot_api_update)
-                asyncio.create_task(poller.run(), name="telegram_bot_api_long_poll")
-                api_module.set_telegram_ai_ingress_status(mode="long_poll", active=True)
-                logger.info("[BOT API 10] Long-poll receiver started.")
+                    poller = TelegramBotAPILongPoller(BOT_TOKEN_STR, _dispatch_bot_api_update)
+                    asyncio.create_task(poller.run(), name="telegram_bot_api_long_poll")
+                    api_module.set_telegram_ai_ingress_status(mode="long_poll", active=True)
+                    logger.info("[BOT API 10] Long-poll receiver started.")
+                else:
+                    api_module.set_telegram_ai_ingress_status(mode="telethon", active=True)
+                    logger.info("[BOT API 10] Raw long-poll disabled; Telethon bot head owns updates.")
 
             if admin_bot:
                 admin_bot.user_client = client
