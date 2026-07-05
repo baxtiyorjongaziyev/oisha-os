@@ -184,8 +184,12 @@ async def production_readiness_probe():
         except Exception:
             userbot_ok = False
     checks["userbot"] = "authorized" if userbot_ok else "unauthorized"
-    if not userbot_ok:
+    
+    runtime = get_runtime_context()
+    scheduler_mode = runtime.get("scheduler_mode", "persistent")
+    if not userbot_ok and scheduler_mode != "control-plane":
         problems.append("userbot_unauthorized")
+
 
     amocrm_ok = False
     try:
