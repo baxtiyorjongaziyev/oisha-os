@@ -39,6 +39,7 @@
 - ioredis dup TUZATILDI: bullmq 5.79.1 ioredis'ni aynan `5.10.1` ga pin qiladi, apps esa `^5.11.1` (TRAE security update) → root `pnpm.overrides.ioredis="^5.11.1"` (TRAE yangi versiyasi saqlanadi, bullmq'niki ko'tariladi). Worker+API `tsc --noEmit` TOZA.
 
 ### Done (yangi)
+- capcom6/android-sms-gateway cloud/private API uchun `SmsGatewayClient` qo'shildi: `Oisha -> api.sms-gate.app -> Android telefon -> SMS` oqimi env orqali disabled-by-default ishlaydi, webhook payload normalize qiladi. Test: `tests/test_sms_gateway_client.py` 5 passed; yangi fayl Bandit: no issues (Codex).
 - Saved Messages/private photo receipt auto-scan cheklandi: endi owner private rasmlari faqat `/kirim`, `/chiqim`, `/chek`, `/receipt`, `#kirim`, `#chiqim` markerlari bilan ishlanadi; oddiy saqlangan rasmlar Hisobchi/Gemini tekshiruviga tushmaydi. Test: 358 passed, 13 skipped; Bandit: no issues (Codex).
 - Barcha ochiq PRlar (38 ta) va Dependabot security alerts (multer, nodemailer, @babel/core) hal qilindi: dependency lar eng oxirgi versiyaga yangilandi, xavfsizlik kamchiliklari (SSL verification) tuzatildi va gitleaks historical allowlist yangilandi (TRAE).
 - Pytest/Bandit pre-flight failurelari ideal PR holatiga keltirildi: OS driver unit testlari desktop dependencydan ajratildi, `SKIP_LIVE=1` live AI testlarga qo'llandi, OAuth helper import-safe qilindi va default `127.0.0.1` ga bind qiladi; regression testlar qo'shildi. Full pre-flight: 364 passed, 13 skipped; Bandit: no issues (Codex).
