@@ -1,7 +1,7 @@
-import os
 import sys
 import logging
 import json
+import os
 import urllib.request
 import urllib.error
 
@@ -40,6 +40,15 @@ mcp = FastMCP("telegram")
 
 API_BASE_URL = "http://127.0.0.1:8080/internal/mcp"
 
+def _request(url: str, data: bytes | None = None) -> urllib.request.Request:
+    headers = {}
+    secret = (os.environ.get("OISHA_API_SECRET") or "").strip()
+    if secret:
+        headers["Authorization"] = f"Bearer {secret}"
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    return urllib.request.Request(url, data=data, headers=headers)
+
 @mcp.tool()
 async def get_recent_dialogs(limit: int = 10) -> str:
     """
@@ -48,7 +57,7 @@ async def get_recent_dialogs(limit: int = 10) -> str:
     logger.info(f"Fetching recent dialogs, limit={limit}")
     url = f"{API_BASE_URL}/dialogs?limit={limit}"
     try:
-        req = urllib.request.Request(url)
+        req = _request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode("utf-8"))
             return json.dumps(data, indent=2, ensure_ascii=False)
@@ -64,7 +73,7 @@ async def get_chat_history(chat_id: str, limit: int = 20) -> str:
     logger.info(f"Fetching chat history for {chat_id}, limit={limit}")
     url = f"{API_BASE_URL}/messages/{chat_id}?limit={limit}"
     try:
-        req = urllib.request.Request(url)
+        req = _request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode("utf-8"))
             return json.dumps(data, indent=2, ensure_ascii=False)
@@ -81,7 +90,7 @@ async def send_telegram_message(user_id: str, text: str) -> str:
     url = f"{API_BASE_URL}/send_message"
     payload = json.dumps({"user_id": str(user_id), "text": text}).encode("utf-8")
     try:
-        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+        req = _request(url, data=payload)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode("utf-8"))
             return f"Successfully sent message to {user_id}: {text}"
