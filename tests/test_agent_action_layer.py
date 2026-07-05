@@ -66,6 +66,9 @@ def test_notification_verifier_fails_when_attached_action_fails():
     assert result["failed_actions"][0]["tool_name"] == "amocrm.lead_note"
 
 
+import freezegun
+
+@freezegun.freeze_time("2026-07-06 12:00:00")
 def test_policy_blocks_sensitive_client_message_without_userbot_or_owner():
     policy = AgentPolicyEngine(_FakeDB())
     task = AgentTask(
@@ -88,6 +91,7 @@ def test_policy_blocks_sensitive_client_message_without_userbot_or_owner():
     assert decision.reason == "userbot_unavailable_for_client_action"
 
 
+@freezegun.freeze_time("2026-07-06 12:00:00")
 def test_policy_allows_internal_crm_actions_without_userbot():
     policy = AgentPolicyEngine(_FakeDB())
     task = AgentTask(
