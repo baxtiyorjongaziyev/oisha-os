@@ -164,11 +164,16 @@ async def production_readiness_probe():
 
     if api_state.db_instance is not None:
         try:
-            conn = await api_state.db_instance.get_connection()
+            conn = await asyncio.wait_for(
+                api_state.db_instance.get_connection(), timeout=3.0
+            )
             result = conn.execute("SELECT 1")
             if hasattr(result, "__await__"):
                 result = await result
             checks["database"] = "ok"
+        except asyncio.TimeoutError:
+            checks["database"] = "timeout"
+            problems.append("database_timeout")
         except Exception as exc:
             checks["database"] = f"failed: {type(exc).__name__}"
             problems.append("database_unavailable")
@@ -185,11 +190,8 @@ async def production_readiness_probe():
             userbot_ok = False
     checks["userbot"] = "authorized" if userbot_ok else "unauthorized"
     
-    runtime = get_runtime_context()
-    scheduler_mode = runtime.get("scheduler_mode", "persistent")
-    if not userbot_ok and scheduler_mode != "control-plane":
+    if not userbot_ok and scheduler_mode != "control-plane" and runtime_source != "vm_service":
         problems.append("userbot_unauthorized")
-
 
     amocrm_ok = False
     try:
@@ -202,9 +204,7 @@ async def production_readiness_probe():
     except Exception as exc:
         logger.debug("[HEALTH] AmoCRM check: %s", exc)
     checks["amocrm"] = "connected" if amocrm_ok else "unavailable"
-
-    runtime = get_runtime_context()
-    checks["runtime"] = runtime.get("runtime_source", "unknown")
+    checks["runtime"] = runtime_source
 
     ready = len(problems) == 0
     result = {
