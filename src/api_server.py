@@ -31,6 +31,7 @@ from src.services.core.agent_runtime import (
     set_runtime_context,
 )
 from src.services.core.airtable_client import AirtableClient
+from src.api.routes.state import api_state
 from src.settings import settings
 from src.time_utils import get_local_now
 
@@ -273,7 +274,9 @@ async def refresh_userbot_group_access_snapshot(client=None) -> Dict[str, Any]:
 
 def mark_heartbeat() -> None:
     global _last_heartbeat_at
-    _last_heartbeat_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    _last_heartbeat_at = now
+    api_state._last_heartbeat_at = now
 
 # Hisobchi MCP router
 try:
