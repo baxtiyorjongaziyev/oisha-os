@@ -7,6 +7,9 @@ Handles all service wiring, client init, and background task registration.
 import asyncio
 import os
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
