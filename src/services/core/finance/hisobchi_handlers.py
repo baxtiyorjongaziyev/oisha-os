@@ -898,11 +898,18 @@ async def backfill_card_bot_messages(
     bot_client=None,
     limit: int = 50,
     max_age_hours: int = 72,
+    since: Optional[datetime] = None,
     delay_seconds: float = 0.05,
 ) -> dict[str, int]:
-    """Replay recent card notifications once after boot, with deduplication."""
+    """Replay recent card notifications once after boot, with deduplication.
+
+    Pass `since` (an absolute, tz-aware datetime) instead of `max_age_hours`
+    for a wide historical resync (e.g. "everything since June 1") — it takes
+    precedence over max_age_hours when given. Remember to also raise `limit`
+    for a wide window; the default of 50 is tuned for routine short catch-up.
+    """
     stats = {"scanned": 0, "created": 0, "duplicates": 0, "errors": 0}
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+    cutoff = since if since is not None else datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
 
     for username in sorted(CARD_BOT_USERNAMES):
         try:
