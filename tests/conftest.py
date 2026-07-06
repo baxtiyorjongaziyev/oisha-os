@@ -42,3 +42,17 @@ def _reset_gemini_model_quota_cooldowns():
     reset_model_quota_cooldowns()
     yield
     reset_model_quota_cooldowns()
+
+
+@pytest.fixture(autouse=True)
+def _reset_agent_runtime_context():
+    """agent_runtime._runtime_context is a module-level global that leaks
+    across the whole pytest session otherwise — e.g. GitHub Actions runners
+    have SYSTEMD_EXEC_PID set, so the first test to resolve it pins
+    runtime_source to "vm_service" for every test that runs afterward,
+    regardless of what that test is actually exercising."""
+    from src.services.core.agent_runtime import reset_runtime_context
+
+    reset_runtime_context()
+    yield
+    reset_runtime_context()
