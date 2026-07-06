@@ -9,6 +9,7 @@ except ImportError:
     import libsql_experimental as libsql  # type: ignore[import,no-redef]
 
 from src.settings import settings
+from src.db._helpers import normalize_turso_url, setting_text as _setting_text
 
 logger = logging.getLogger(__name__)
 
@@ -26,23 +27,6 @@ def _is_resettable_connection_error(exc: BaseException) -> bool:
         "hrana: connection",
     )
     return any(marker in message for marker in markers)
-
-
-def _setting_text(value: Any) -> str:
-    if value is None:
-        return ""
-    getter = getattr(value, "get_secret_value", None)
-    if callable(getter):
-        try:
-            value = getter()
-        except Exception as exc:
-            logger.debug("[DB POOL] Secret getter failed, using str: %s", exc)
-            value = str(value)
-
-    # Remove BOM and all invisible/whitespace characters
-    text = str(value).replace("\ufeff", "").strip()
-    # Remove any other potential control characters
-    return "".join(char for char in text if ord(char) >= 32)
 
 
 class SmartRow(dict):
@@ -81,13 +65,25 @@ class DatabasePool:
 
     def __init__(self):
         if not hasattr(self, "initialized"):
-            self.url = _setting_text(settings.TURSO_DATABASE_URL).replace(
-                "libsql://", "https://"
-            )
+            self.url = normalize_turso_url(_setting_text(settings.TURSO_DATABASE_URL))
             self.auth_token = _setting_text(settings.TURSO_AUTH_TOKEN)
             self.initialized = True
             self._circuit_open_until = 0
             logger.info(f"[DB POOL] Initialized for Turso: {self.url}")
+
+    def configure(self, url: str, auth_token: str) -> None:
+        """Point the pool at a new Turso endpoint and drop any live connection.
+
+        Preferred over mutating ``url``/``auth_token`` directly so callers
+        (e.g. ``ConnectionManager``) do not reach into pool internals.
+        """
+        new_url = normalize_turso_url(_setting_text(url))
+        new_token = _setting_text(auth_token)
+        if new_url == self.url and new_token == self.auth_token:
+            return
+        self.url = new_url
+        self.auth_token = new_token
+        self.close()
 
     def get_connection(self):
         if self._connection is None:

@@ -18,27 +18,12 @@ except ImportError:
 from src.settings import settings
 from src.database_pool import db_pool
 from src.db.turso import TursoAdapter  # noqa: F811 — override stub
+from src.db._helpers import (
+    normalize_turso_url as _normalize_turso_url,
+    setting_text as _setting_text,
+)
 
 logger = structlog.get_logger()
-
-
-def _normalize_turso_url(url: str) -> str:
-    if url.startswith("libsql://"):
-        return "https://" + url[len("libsql://"):]
-    return url
-
-
-def _setting_text(value: Any) -> str:
-    if value is None:
-        return ""
-    getter = getattr(value, "get_secret_value", None)
-    if callable(getter):
-        try:
-            value = getter()
-        except Exception as exc:
-            logger.debug("[DB] Secret getter failed, using str: %s", exc)
-            value = str(value)
-    return str(value).lstrip("\ufeff").strip()
 
 
 class ConnectionManager:
@@ -64,42 +49,21 @@ class ConnectionManager:
                 return self._conn
 
             try:
-                db_pool.url = turso_url
-                db_pool.auth_token = turso_token
-                db_pool.close()
-
-                def _probe_turso():
-                    if turso_url == ":memory:":
-                        conn = libsql.connect(turso_url)
-                    else:
-                        conn = libsql.connect(turso_url, auth_token=turso_token)
-                    res = conn.execute("SELECT 1")
-                    if hasattr(res, "fetchone"):
-                        res.fetchone()
-                    else:
-                        list(res)
-                    return conn
-
-                probe_conn = await asyncio.wait_for(
-                    asyncio.to_thread(_probe_turso), timeout=15.0
-                )
-                try:
-                    pass
-                finally:
-                    try:
-                        probe_conn.close()
-                    except Exception as exc:
-                        logger.debug("[DB] Probe conn close failed: %s", exc)
+                # Point the shared pool at this endpoint (no direct attribute
+                # mutation) and validate via the real pooled connection, which
+                # carries the pool's own retry/backoff. No throwaway probe.
+                db_pool.configure(turso_url, turso_token)
+                await asyncio.wait_for(db_pool.execute("SELECT 1"), timeout=15.0)
 
                 self._conn = TursoAdapter()
                 self._state_backend = "turso"
                 return self._conn
             except Exception as exc:
-                logger.warning("[DB] Turso probe failed, using SQLite: %s", exc)
+                logger.warning("[DB] Turso connect failed, using SQLite: %s", exc)
                 try:
                     db_pool.close()
-                except Exception as exc:
-                    logger.debug("[DB] Pool close failed: %s", exc)
+                except Exception as close_exc:
+                    logger.debug("[DB] Pool close failed: %s", close_exc)
                 self._conn = None
 
         if (
