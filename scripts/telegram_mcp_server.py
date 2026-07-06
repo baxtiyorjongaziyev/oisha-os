@@ -11,6 +11,11 @@ project_root = os.path.dirname(script_dir)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# Load .env so OISHA_API_SECRET is available to authenticate with the API
+from dotenv import load_dotenv
+dotenv_path = os.path.join(project_root, ".env")
+load_dotenv(dotenv_path)
+
 from mcp.server.fastmcp import FastMCP
 import structlog
 
