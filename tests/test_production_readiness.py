@@ -24,6 +24,15 @@ class _Database:
 async def test_readiness_requires_userbot_and_amocrm(monkeypatch):
     monkeypatch.setattr(api_state, "db_instance", _Database())
     monkeypatch.setattr(api_state, "user_client", None)
+    # userbot_unauthorized is exempt when runtime_source=="vm_service" (Oracle
+    # VM re-auth is treated as non-fatal there). This test is about the
+    # generic unauthorized-userbot path, not runtime detection, so pin a
+    # non-exempt runtime explicitly — CI runners set SYSTEMD_EXEC_PID, which
+    # would otherwise make detect_runtime_source() resolve to "vm_service"
+    # and silently suppress the very problem this test asserts on.
+    from src.services.core.agent_runtime import set_runtime_context
+
+    set_runtime_context(runtime_source="cloud_run")
 
     response = await api_server.production_readiness_probe()
 
