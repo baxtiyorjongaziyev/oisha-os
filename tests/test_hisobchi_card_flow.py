@@ -13,8 +13,11 @@ from src.services.core.finance.hisobchi_handlers import (
     handle_finance_group_reply,
     resolve_finance_destination,
 )
-from src.services.core.finance.hisobchi_schema import init_hisobchi_tables
-from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
+from src.services.core.finance.hisobchi_schema import (
+    init_hisobchi_tables,
+    ensure_hisobchi_db,
+    run_one_time_reset_and_resync,
+)
 
 
 HUMO_SAMPLE = """💸 To'lov
@@ -489,3 +492,72 @@ def test_boot_registers_primary_message_handler_and_initializes_schema() -> None
     text = open(source, encoding="utf-8").read()
     assert "init_hisobchi_tables" in text
     assert "m.handle_new_message" in text
+
+
+@pytest.mark.asyncio
+async def test_reset_learning_and_transactions_clears_everything(temp_db) -> None:
+    engine = HisobchiEngine(temp_db)
+    tx = parse_card_notification("humocardbot", HUMO_SAMPLE)
+    assert tx is not None
+    await engine.save_transaction(
+        source_bot=tx.source_bot, direction=tx.direction, amount=tx.amount,
+        merchant=tx.merchant, card_suffix=tx.card_suffix, tx_time=tx.tx_time,
+        balance=tx.balance, raw_text=HUMO_SAMPLE,
+    )
+    await engine.learn_category(tx.merchant, "Ofis xarajati")
+    await engine.learn_rule(
+        merchant=tx.merchant, card_suffix=tx.card_suffix, direction=tx.direction,
+        amount=tx.amount, category="Ofis xarajati", ownership="business",
+    )
+
+    rows = await temp_db.execute("SELECT COUNT(*) AS cnt FROM hisobchi_transactions")
+    assert rows[0]["cnt"] == 1
+    rows = await temp_db.execute("SELECT COUNT(*) AS cnt FROM hisobchi_merchant_memory")
+    assert rows[0]["cnt"] == 1
+    rows = await temp_db.execute("SELECT COUNT(*) AS cnt FROM hisobchi_category_rules")
+    assert rows[0]["cnt"] == 1
+
+    await engine.reset_learning_and_transactions()
+
+    for table in ("hisobchi_transactions", "hisobchi_merchant_memory", "hisobchi_category_rules"):
+        rows = await temp_db.execute(f"SELECT COUNT(*) AS cnt FROM {table}")
+        assert rows[0]["cnt"] == 0, f"{table} should be empty after reset"
+
+
+class _FakeUserbotClient:
+    """Minimal stand-in — backfill_card_bot_messages is stubbed out, so this
+    never actually needs to iterate real Telegram messages in these tests."""
+
+
+@pytest.mark.asyncio
+async def test_one_time_reset_resync_runs_only_once(monkeypatch, temp_db) -> None:
+    from src.services.core.finance import hisobchi_schema
+
+    engine = HisobchiEngine(temp_db)
+    reset_calls = []
+    backfill_calls = []
+
+    async def _fake_reset():
+        reset_calls.append(1)
+
+    async def _fake_backfill(client, engine, *, bot_client=None, limit=50, since=None, delay_seconds=0.05):
+        backfill_calls.append(since)
+        return {"scanned": 0, "created": 0, "duplicates": 0, "errors": 0}
+
+    monkeypatch.setattr(engine, "reset_learning_and_transactions", _fake_reset)
+    monkeypatch.setattr(
+        "src.services.core.finance.hisobchi_handlers.backfill_card_bot_messages",
+        _fake_backfill,
+    )
+
+    first = await run_one_time_reset_and_resync(
+        db=temp_db.db, engine=engine, client=_FakeUserbotClient(), since_date="2026-06-01",
+    )
+    second = await run_one_time_reset_and_resync(
+        db=temp_db.db, engine=engine, client=_FakeUserbotClient(), since_date="2026-06-01",
+    )
+
+    assert first is not None
+    assert second is None  # guarded — did nothing the second time
+    assert len(reset_calls) == 1
+    assert len(backfill_calls) == 1
