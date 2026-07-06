@@ -328,6 +328,8 @@ async def test_backfill_replays_once_and_deduplicates(monkeypatch, temp_db) -> N
     hisobchi_handlers._topic_cache.clear()
     client = _BackfillClient()
     engine = HisobchiEngine(temp_db)
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OWNER_ID", None)
     monkeypatch.setattr(
         hisobchi_handlers,
         "resolve_finance_destination",

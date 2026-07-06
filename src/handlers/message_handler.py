@@ -344,6 +344,41 @@ async def process_hisobchi(
                 if was_voice_hisobchi:
                     return True
 
+        # Handle manual group logs (text, photos) sent directly in finance group
+        from src.services.core.finance.hisobchi_handlers import _get_finance_config
+        finance_group_id, kirim_topic_id, chiqim_topic_id = _get_finance_config()
+        is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
+
+        if is_finance_chat and not event.out:
+            # 1. Photos (receipts) posted in finance group topics
+            if event.message.photo:
+                from src.services.core.finance.hisobchi_handlers import handle_receipt_photo
+                reply_to = getattr(event.message, "reply_to", None)
+                topic_id = getattr(reply_to, "reply_to_msg_id", None) if reply_to else None
+                direction = "in" if topic_id == kirim_topic_id else "out"
+                if await handle_receipt_photo(
+                    event, _hisobchi_engine, client=client, voice_processor=voice_processor, direction=direction
+                ):
+                    return True
+
+            # 2. Text commands or plain text posted in finance group topics
+            if message_text:
+                from src.services.core.finance.hisobchi_handlers import (
+                    handle_kirim_chiqim_text,
+                    handle_topic_plain_text,
+                )
+                # First try command format /?kirim or /?chiqim
+                if await handle_kirim_chiqim_text(event, _hisobchi_engine, message_text):
+                    return True
+
+                # If sent directly in Kirim/Chiqim topics, support plain text "50000 taxi"
+                reply_to = getattr(event.message, "reply_to", None)
+                topic_id = getattr(reply_to, "reply_to_msg_id", None) if reply_to else None
+                if topic_id in (kirim_topic_id, chiqim_topic_id):
+                    direction = "in" if topic_id == kirim_topic_id else "out"
+                    if await handle_topic_plain_text(event, _hisobchi_engine, message_text, direction):
+                        return True
+
         if not event.is_private and not event.out and message_text:
             was_hisobchi = await handle_finance_group_reply(
                 event, client, _hisobchi_engine, bot_client=app_ctx.bot_client
