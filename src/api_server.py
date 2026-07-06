@@ -285,8 +285,8 @@ try:
         app.include_router(mcp_router)
         _mcp_logger = logging.getLogger(__name__)
         _mcp_logger.info("[MCP] Hisobchi MCP router mounted at /mcp")
-except Exception:
-    pass
+except Exception as exc:
+    logger.warning("[MCP] Hisobchi MCP router not mounted: %s", exc)
 
 
 def add_activity(action: str, details: str = "", type: str = "info"):
