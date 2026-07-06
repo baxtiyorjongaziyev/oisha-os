@@ -84,3 +84,87 @@ async def send_telegram_message(request: SendMessageRequest):
     except Exception as e:
         logger.error(f"[MCP API] Failed to send message to {request.user_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/analyze_private_chats", dependencies=[Depends(_require_internal_secret)])
+async def analyze_private_chats():
+    from telethon.tl.functions.messages import GetDialogFiltersRequest
+    from telethon.tl.types import DialogFilter, PeerUser
+    from datetime import datetime, timezone
+    if not app_ctx.client:
+        raise HTTPException(status_code=503, detail="Telegram client not initialized")
+    try:
+        # 1. Fetch dialog filters to identify the "Oila" folder
+        try:
+            filters = await app_ctx.client(GetDialogFiltersRequest())
+        except Exception as fe:
+            logger.warning(f"[MCP API] Failed to fetch filters: {fe}")
+            filters = []
+            
+        family_user_ids = set()
+        
+        filters_list = getattr(filters, 'filters', []) if hasattr(filters, 'filters') else (filters if isinstance(filters, list) else [])
+        for f in filters_list:
+            if isinstance(f, DialogFilter):
+                title_lower = str(f.title).lower()
+                # Check for oila, family, shaxsiy, relative
+                if any(x in title_lower for x in ["oila", "family", "shaxsiy", "rodn"]):
+                    for peer in f.include_peers:
+                        if isinstance(peer, PeerUser):
+                            family_user_ids.add(peer.user_id)
+        
+        # 2. Get dialogs
+        dialogs = await app_ctx.client.get_dialogs(limit=100)
+        private_chats = []
+        
+        for d in dialogs:
+            if d.is_user and not d.is_group and not d.is_channel:
+                if not d.entity:
+                    continue
+                real_id = d.entity.id
+                if real_id in family_user_ids:
+                    logger.info(f"Excluding family member: {d.name} (ID: {real_id})")
+                    continue
+                # Skip bot or itself
+                if real_id == 150074828 or getattr(d.entity, 'bot', False):
+                    continue
+                
+                private_chats.append(d)
+        
+        # 3. For each private chat, fetch messages since 2025-01-01
+        start_date = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        result = []
+        
+        for chat in private_chats[:25]:  # Fetch up to 25 chats
+            if not chat.entity:
+                continue
+            messages = []
+            try:
+                async for m in app_ctx.client.iter_messages(chat.entity, limit=40):
+                    if m.date < start_date:
+                        break
+                    if m.text:
+                        messages.append({
+                            "sender": "Me" if m.out else chat.name,
+                            "text": str(m.text),
+                            "date": m.date.isoformat()
+                        })
+            except Exception as me:
+                logger.warning(f"[MCP API] Failed to fetch messages for {chat.name}: {me}")
+                continue
+                
+            if messages:
+                result.append({
+                    "chat_id": chat.entity.id,
+                    "name": chat.name,
+                    "username": getattr(chat.entity, 'username', None),
+                    "messages": messages
+                })
+                
+        return {
+            "family_folder_users_excluded": list(family_user_ids),
+            "chats": result
+        }
+    except Exception as e:
+        logger.error(f"[MCP API] Failed to analyze private chats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
