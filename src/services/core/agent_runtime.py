@@ -79,6 +79,22 @@ def get_runtime_context() -> Dict[str, Any]:
     return dict(_runtime_context)
 
 
+_DEFAULT_RUNTIME_CONTEXT: Dict[str, Any] = dict(_runtime_context)
+
+
+def reset_runtime_context() -> None:
+    """Restore _runtime_context to its pristine default.
+
+    Test isolation only. _runtime_context is a module-level global that
+    otherwise leaks across the whole pytest session — once anything
+    resolves runtime_source away from "unknown" (e.g. a CI runner setting
+    SYSTEMD_EXEC_PID resolves it to "vm_service"), every later test
+    inherits that value regardless of what it's actually exercising.
+    """
+    _runtime_context.clear()
+    _runtime_context.update(_DEFAULT_RUNTIME_CONTEXT)
+
+
 def get_storage_health(
     db_path: Optional[str],
     recent_job_runs: Optional[List[Dict[str, Any]]] = None,
