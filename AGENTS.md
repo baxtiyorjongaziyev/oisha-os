@@ -31,6 +31,10 @@
 ### Locked
 *(none)*
 
+### Operational Notes
+- ⚠️ **USERBOT SESSION OWNER: Oracle VM.** Localda parallel userbot ishga tushirmang! `USERBOT_SESSION_STRING` endi GitHub secret + production env da yangilangan. Oracle Production Deploy #28758418917 success: `/readyz` dan o'tdi. Agar localda userbot kodi ishlasa, `AuthKeyDuplicatedError` qaytadi — Oracle VM dagi session bekor bo'ladi.
+- Telegram Bot API guruh access qayta tiklandi: `crm_group` va `team_group` `getChat` tekshiruvida `200 OK`. `scripts/prod/probe_integrations.py` bilan AmoCRM, Airtable va Telegram Bot API ham OK tasdiqlangan.
+
 ### Done (Integration — Claude)
 - salescoach-ai qayta yaratildi: MCP `server.ts`, `call-intel/*` (Fireflies+Gong → scoring queue, webhook secret bilan), `ServiceOrJwtAuthGuard` (calls+negotiations), worker `telegram_notify.ts`. API `tsc --noEmit` TOZA.
 - oisha-os bridge (YANGI, shared emas): `salescoach_sync.py`, `apollo_enrich.py`, `docusign_sync.py` (DocuSign → **Telegram signing URL**, email'siz — UZ). app_ctx singleton COLLISION tuzatildi (uchchalasi `app_ctx.instance` edi → unikal nomlar).
@@ -39,6 +43,10 @@
 - ioredis dup TUZATILDI: bullmq 5.79.1 ioredis'ni aynan `5.10.1` ga pin qiladi, apps esa `^5.11.1` (TRAE security update) → root `pnpm.overrides.ioredis="^5.11.1"` (TRAE yangi versiyasi saqlanadi, bullmq'niki ko'tariladi). Worker+API `tsc --noEmit` TOZA.
 
 ### Done (yangi)
+- Oracle Production Deploy #28758418917 success. Fixes: `c8a9871` missing `telegram_mcp` route qo'shildi, `27306eb`/`59820c8` runtime detection VM/systemd uchun tuzatildi. Test: `tests/test_agent_runtime.py` 2 passed.
+- `src/api_server.py:288`: silent `except Exception: pass` → `logger.warning` (hisobchi_mcp router mount failure endi loglanadi)
+- Local `.env` cleaned up (170→104 lines, duplicate block removed)
+- Server `.env` Python code qoldiqlari tozalandi, keyingi deploy GitHub secretlardan to'g'ri qiymatlarni tiklaydi
 - capcom6/android-sms-gateway cloud/private API uchun `SmsGatewayClient` qo'shildi: `Oisha -> api.sms-gate.app -> Android telefon -> SMS` oqimi env orqali disabled-by-default ishlaydi, webhook payload normalize qiladi. Test: `tests/test_sms_gateway_client.py` 5 passed; yangi fayl Bandit: no issues (Codex).
 - Saved Messages/private photo receipt auto-scan cheklandi: endi owner private rasmlari faqat `/kirim`, `/chiqim`, `/chek`, `/receipt`, `#kirim`, `#chiqim` markerlari bilan ishlanadi; oddiy saqlangan rasmlar Hisobchi/Gemini tekshiruviga tushmaydi. Test: 358 passed, 13 skipped; Bandit: no issues (Codex).
 - Barcha ochiq PRlar (38 ta) va Dependabot security alerts (multer, nodemailer, @babel/core) hal qilindi: dependency lar eng oxirgi versiyaga yangilandi, xavfsizlik kamchiliklari (SSL verification) tuzatildi va gitleaks historical allowlist yangilandi (TRAE).
