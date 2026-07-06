@@ -735,6 +735,10 @@ async def boot_application():
     async def _hisobchi_event_handler(event):
         """Handle finance events before generic bot/spam filters can drop them."""
         try:
+            # Ignore Saved Messages (chat with self)
+            if me and event.is_private and event.chat_id == me.id:
+                return
+
             sender = await event.get_sender()
             # 1. Card bot private messages (finance group xabarlari @jonairobot orqali)
             if event.is_private and not event.out and is_card_bot_sender(sender):
