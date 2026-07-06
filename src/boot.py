@@ -811,7 +811,18 @@ async def boot_application():
             if data and (data.startswith("happrove:") or data.startswith("hedit:") or
                          data.startswith("hskip:") or data.startswith("hcat:") or
                          data.startswith("howner:") or data.startswith("hback:")):
-                await handle_callback(data, event, hisobchi_engine)
+                logger.info("[HISOBCHI] Callback received: %s", data)
+                try:
+                    await handle_callback(data, event, hisobchi_engine)
+                except Exception as exc:
+                    # If handle_callback dies before calling event.answer(),
+                    # Telegram leaves the button spinning forever with no
+                    # feedback at all — always answer so the tap isn't silent.
+                    logger.error("[HISOBCHI] handle_callback failed for %s: %s", data, exc, exc_info=True)
+                    try:
+                        await event.answer("⚠️ Xatolik yuz berdi, qayta urinib ko'ring.")
+                    except Exception:
+                        pass
                 raise events.StopPropagation
         except events.StopPropagation:
             raise
