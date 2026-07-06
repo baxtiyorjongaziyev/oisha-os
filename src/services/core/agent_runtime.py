@@ -4,11 +4,63 @@ import os
 import platform
 import socket
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.settings import settings
 from src.time_utils import get_local_now
+
+
+def parse_bool(val: Any) -> bool:
+    """Canonical truthy-env parser used across the runtime layer."""
+    if isinstance(val, bool):
+        return val
+    if not val:
+        return False
+    clean = str(val).replace("﻿", "").strip().lower()
+    return clean in {"1", "true", "yes", "on"}
+
+
+@dataclass(frozen=True)
+class RuntimeMode:
+    """Single source of truth for how this process should run.
+
+    Replaces the previously scattered env-var checks in boot.py and main.py.
+    """
+
+    source: str            # "cloud_run" | "vm_service" | "local"
+    is_cloud: bool         # running on a managed/cloud/VM host (not a dev box)
+    control_plane_only: bool  # Cloud Run API-only, no Telethon userbot login
+    userbot_enabled: bool  # userbot session should be established
+    allow_local: bool      # dev override to permit local execution
+
+
+def resolve_runtime_mode() -> RuntimeMode:
+    """Resolve the runtime mode from environment + settings, in ONE place.
+
+    - ``source``/``is_cloud`` come from :func:`detect_runtime_source`.
+    - ``userbot_enabled`` reads ``settings.ENABLE_CLOUD_USERBOT`` (Pydantic
+      already parses the env var, so there is no second parse path).
+    - ``control_plane_only`` is forced by ``CLOUD_RUN_CONTROL_PLANE_ONLY`` or
+      implied by running on Cloud Run without the userbot enabled.
+    """
+    source = detect_runtime_source()
+    is_cloud = source in {"cloud_run", "vm_service"}
+    on_cloud_run = bool(os.getenv("K_SERVICE"))
+
+    userbot_enabled = bool(settings.ENABLE_CLOUD_USERBOT)
+    force_control_plane = parse_bool(os.getenv("CLOUD_RUN_CONTROL_PLANE_ONLY"))
+    control_plane_only = force_control_plane or (on_cloud_run and not userbot_enabled)
+    allow_local = parse_bool(os.getenv("ALLOW_LOCAL_RUN"))
+
+    return RuntimeMode(
+        source=source,
+        is_cloud=is_cloud,
+        control_plane_only=control_plane_only,
+        userbot_enabled=userbot_enabled,
+        allow_local=allow_local,
+    )
 
 _runtime_context: Dict[str, Any] = {
     "runtime_source": "unknown",
