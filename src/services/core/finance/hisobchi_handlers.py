@@ -442,7 +442,7 @@ async def handle_kirim_chiqim_text(event, engine: HisobchiEngine, text: str = ""
     """Parse /kirim or /chiqim command + free text."""
     if not text:
         text = (event.message.message or "").strip()
-    m = re.match(r"^/(kirim|chiqim)\s+(\d[\d\s]*)\s+(.+)$", text, re.IGNORECASE)
+    m = re.match(r"^/?(kirim|chiqim)\s+(\d[\d\s]*)\s+(.+)$", text, re.IGNORECASE)
     if not m:
         return False
     direction = "in" if m.group(1).lower() == "kirim" else "out"
@@ -484,7 +484,53 @@ async def handle_kirim_chiqim_text(event, engine: HisobchiEngine, text: str = ""
     return True
 
 
-async def handle_receipt_photo(event, engine: HisobchiEngine, client=None, voice_processor=None) -> bool:
+async def handle_topic_plain_text(event, engine: HisobchiEngine, text: str, direction: str) -> bool:
+    """Parse numeric plain text like '50000 taxi' when sent in a specific Kirim/Chiqim topic."""
+    text = text.strip()
+    m = re.match(r"^/?(\d[\d\s]*)\s*(?:uzs|so['\"]m)?\s*(.+)$", text, re.IGNORECASE)
+    if not m:
+        return False
+    amount_str = re.sub(r"\s+", "", m.group(1))
+    if not amount_str.isdigit():
+        return False
+    amount = int(amount_str)
+    rest = m.group(2).strip()
+    parts = rest.split("|", 1)
+    merchant = parts[0].strip()[:50]
+    reason = parts[1].strip() if len(parts) > 1 else ""
+    ownership = "personal" if any(w in text.lower() for w in ["shaxsiy", "shaxsy"]) else "business"
+    now = get_local_now()
+    tx_time = now.strftime("%H:%M %d.%m.%Y")
+
+    tx_id = await engine.save_transaction(
+        source_bot="manual",
+        direction=direction,
+        amount=amount,
+        merchant=merchant or "Noma'lum",
+        card_suffix="",
+        tx_time=tx_time,
+        balance=None,
+        raw_text=text,
+        category="Boshqa",
+        ownership=ownership,
+        status="categorized",
+        reason=reason,
+    )
+    icon = "➖ Chiqim" if direction == "out" else "➕ Kirim"
+    own_label = "Biznes" if ownership == "business" else "Shaxsiy"
+    await event.reply(
+        f"✅ <b>#{tx_id} saqlandi</b>\n"
+        f"{icon}: <b>{_fmt_money(amount)} UZS</b> ({own_label})\n"
+        f"📍 {merchant}\n"
+        f"{'📝 ' + reason if reason else ''}",
+        parse_mode="html",
+    )
+    return True
+
+
+async def handle_receipt_photo(
+    event, engine: HisobchiEngine, client=None, voice_processor=None, direction: Optional[str] = None
+) -> bool:
     """Process a receipt/cheque photo via Gemini Vision."""
     msg = event.message
     photo = getattr(msg, "photo", None)
@@ -526,9 +572,11 @@ async def handle_receipt_photo(event, engine: HisobchiEngine, client=None, voice
         now = get_local_now()
         tx_time = now.strftime("%H:%M %d.%m.%Y")
 
+        dir_val = direction or "out"
+
         tx_id = await engine.save_transaction(
             source_bot="photo",
-            direction="out",
+            direction=dir_val,
             amount=amount,
             merchant=merchant,
             card_suffix="",
@@ -540,9 +588,10 @@ async def handle_receipt_photo(event, engine: HisobchiEngine, client=None, voice
             status="categorized",
             reason=notes,
         )
+        icon = "➖ Chiqim" if dir_val == "out" else "➕ Kirim"
         reply = (
             f"📸 <b>Chek #{tx_id} saqlandi!</b>\n"
-            f"➖ Chiqim: <b>{_fmt_money(amount)} UZS</b>\n"
+            f"{icon}: <b>{_fmt_money(amount)} UZS</b>\n"
             f"📍 {merchant}\n"
             f"🗂 {category}"
         )
