@@ -840,6 +840,26 @@ class HisobchiGsheetStore:
     async def init(self):
         self._load_cache()
 
+    async def reset_learning_and_transactions(self) -> None:
+        """Full reset: clear Pul oqimi, Xotira, Qoidalar (keep headers only),
+        then reload every in-memory cache from the now-cleared sheets."""
+        if not self.spreadsheet:
+            return
+        for title in (SHEET_PUL_OQIMI, SHEET_XOTIRA, SHEET_QOIDALAR):
+            ws = self._worksheets.get(title)
+            if not ws:
+                continue
+            try:
+                headers = ws.row_values(1)
+                ws.clear()
+                if headers:
+                    ws.append_row(headers)
+            except Exception as exc:
+                logger.error("[HISOBCHI-GS] Failed to clear sheet %s: %s", title, exc)
+        self._loaded = False
+        self._load_cache()
+        logger.info("[HISOBCHI-GS] Reset: Pul oqimi, Xotira, Qoidalar cleared.")
+
     # ── Merchant Memory ────────────────────────────────────────────────────
 
     async def get_known_category(self, merchant: str) -> Optional[str]:
