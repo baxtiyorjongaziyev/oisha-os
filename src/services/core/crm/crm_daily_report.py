@@ -25,6 +25,7 @@ import json
 import os
 import sqlite3
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -576,29 +577,43 @@ class CRMDailyReporter:
 
     # ── History DB ──────────────────────────────────────────────────────────
 
-    def _ensure_db(self) -> None:
+    @contextmanager
+    def _history_conn(self):
+        """Single connection point for the isolated daily-stats history cache.
+
+        ``report_history.db`` is deliberately a small, self-contained SQLite
+        store accessed synchronously (its callers in handlers/monitors are
+        sync). It is NOT the canonical async DB; keeping it separate avoids
+        WAL lock contention with the async pool. All access funnels through
+        here so there is exactly one raw ``sqlite3.connect`` in this module.
+        """
         os.makedirs(os.path.dirname(self._db_path) if os.path.dirname(self._db_path) else ".", exist_ok=True)
         conn = sqlite3.connect(self._db_path)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS daily_stats (
-                report_date TEXT PRIMARY KEY,
-                stats_json  TEXT NOT NULL,
-                created_at  TEXT DEFAULT (datetime('now'))
-            )
-        """)
-        conn.commit()
-        conn.close()
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    def _ensure_db(self) -> None:
+        with self._history_conn() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS daily_stats (
+                    report_date TEXT PRIMARY KEY,
+                    stats_json  TEXT NOT NULL,
+                    created_at  TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.commit()
 
     def _save_stats(self, for_date: Optional[date], stats: CRMStats) -> None:
         key = (for_date or date.today()).isoformat()
         try:
-            conn = sqlite3.connect(self._db_path)
-            conn.execute(
-                "INSERT OR REPLACE INTO daily_stats (report_date, stats_json) VALUES (?, ?)",
-                (key, json.dumps(stats.to_dict())),
-            )
-            conn.commit()
-            conn.close()
+            with self._history_conn() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO daily_stats (report_date, stats_json) VALUES (?, ?)",
+                    (key, json.dumps(stats.to_dict())),
+                )
+                conn.commit()
         except Exception as exc:
             logger.debug(f"[CRMDailyReporter] _save_stats: {exc}")
 
@@ -606,11 +621,10 @@ class CRMDailyReporter:
         target   = (for_date or date.today()) - timedelta(days=1)
         prev_key = target.isoformat()
         try:
-            conn = sqlite3.connect(self._db_path)
-            row  = conn.execute(
-                "SELECT stats_json FROM daily_stats WHERE report_date = ?", (prev_key,)
-            ).fetchone()
-            conn.close()
+            with self._history_conn() as conn:
+                row = conn.execute(
+                    "SELECT stats_json FROM daily_stats WHERE report_date = ?", (prev_key,)
+                ).fetchone()
             if row:
                 return CRMStats.from_dict(json.loads(row[0]))
         except Exception as exc:
@@ -621,11 +635,10 @@ class CRMDailyReporter:
         """So'nggi N kunlik tarix."""
         result = []
         try:
-            conn   = sqlite3.connect(self._db_path)
-            rows   = conn.execute(
-                "SELECT stats_json FROM daily_stats ORDER BY report_date DESC LIMIT ?", (days,)
-            ).fetchall()
-            conn.close()
+            with self._history_conn() as conn:
+                rows = conn.execute(
+                    "SELECT stats_json FROM daily_stats ORDER BY report_date DESC LIMIT ?", (days,)
+                ).fetchall()
             for (j,) in rows:
                 result.append(CRMStats.from_dict(json.loads(j)))
         except Exception:

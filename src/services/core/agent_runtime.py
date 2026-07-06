@@ -177,6 +177,9 @@ def get_storage_health(
 
         try:
             if exists:
+                # Health-only, read-only row counts. Intentionally a direct
+                # sqlite3 read (not the async pool): this runs in the health
+                # endpoint and must not depend on the async DB being up.
                 conn = sqlite3.connect(str(resolved_path))
                 try:
                     cursor = conn.cursor()
