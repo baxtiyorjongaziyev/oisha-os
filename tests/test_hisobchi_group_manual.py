@@ -154,3 +154,30 @@ async def test_process_hisobchi_integration(monkeypatch, temp_db) -> None:
     assert rows[0]["amount"] == 25000
     assert rows[0]["direction"] == "out"
     assert rows[0]["merchant"] == "yandex taxi"
+
+
+class _FakeClientWithMe:
+    async def get_me(self):
+        return SimpleNamespace(id=111, username="test_user")
+
+
+@pytest.mark.asyncio
+async def test_saved_messages_ignored(monkeypatch, temp_db) -> None:
+    from src.settings import settings
+    msg_controller = SimpleNamespace(db=temp_db)
+    client = _FakeClientWithMe()
+
+    # Simulate message to Saved Messages (chat_id == me.id)
+    ev = _FakeEvent(chat_id=111, text="kirim 50000 test", is_private=True)
+    res = await process_hisobchi(
+        event=ev,
+        client=client,
+        sender=SimpleNamespace(id=111, bot=False),
+        message_text="kirim 50000 test",
+        msg_controller=msg_controller,
+        voice_processor=None,
+        settings=settings,
+    )
+    assert res is False
+    rows = await temp_db.execute("SELECT COUNT(*) AS cnt FROM hisobchi_transactions")
+    assert rows[0]["cnt"] == 0
