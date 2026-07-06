@@ -164,6 +164,18 @@ class HisobchiEngine:
             )
         await self._db.commit()
 
+    async def reset_learning_and_transactions(self) -> None:
+        """Full reset: clear all transactions and everything the system has
+        learned (merchant memory + exact-match rules), so categorization
+        starts from zero on the next card-bot message."""
+        if self._gs:
+            return await self._gs.reset_learning_and_transactions()
+        await self._db.execute("DELETE FROM hisobchi_transactions")
+        await self._db.execute("DELETE FROM hisobchi_merchant_memory")
+        await self._db.execute("DELETE FROM hisobchi_category_rules")
+        await self._db.commit()
+        logger.info("[HISOBCHI] Reset: transactions + merchant memory + rules cleared.")
+
     @staticmethod
     def _normalize_card_suffix(card_suffix: str) -> str:
         return _normalize_card_suffix(card_suffix)
