@@ -26,4 +26,4 @@ logger = logging.getLogger(__name__)
 from src.db.repositories.base import _is_benign_schema_error  # noqa: F401
 
 # Backward compat helpers used by tests and some modules
-from src.db_helpers import normalize_turso_url as _normalize_turso_url  # noqa: F401,E402
+from src.db._helpers import normalize_turso_url as _normalize_turso_url  # noqa: F401,E402
