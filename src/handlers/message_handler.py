@@ -315,6 +315,12 @@ async def process_hisobchi(
     try:
         from src.context import app_ctx
 
+        # Ignore Saved Messages (chat with self)
+        if client:
+            me = await client.get_me()
+            if event.is_private and event.chat_id == me.id:
+                return False
+
         _hisobchi_engine = HisobchiEngine(msg_controller.db)
 
         if event.is_private and not event.out and is_card_bot_sender(sender):
