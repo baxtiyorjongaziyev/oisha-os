@@ -683,9 +683,9 @@ async def telegram_callback(
     # 1. Verify hash
     bot_token = config.BOT_TOKEN
     fields = {
-        "id": str(id) if id is not None else None,
+        "id": str(id),
         "first_name": first_name,
-        "auth_date": str(auth_date) if auth_date is not None else None,
+        "auth_date": str(auth_date),
         "last_name": last_name,
         "username": username,
         "photo_url": photo_url,
