@@ -945,7 +945,7 @@ class _CardBackfillEvent:
         return self._sender
 
 
-async def _gather_card_messages_since(client, username: str, cutoff: datetime, limit: int) -> list:
+async def _gather_card_messages_since(client, username: str, cutoff: datetime, limit: int) -> tuple:
     """Chronologically-ordered (oldest first) card-bot messages newer than cutoff."""
     entity = await client.get_entity(username)
     messages = []
@@ -982,7 +982,8 @@ async def _process_one_card_message(
         tx_id = await handle_card_bot_message(
             _CardBackfillEvent(message, entity), client, engine, bot_client=bot_client,
         )
-        stats["created"] += 1
+        if tx_id is not None:
+            stats["created"] += 1
         return tx_id
     except Exception as exc:
         stats["errors"] += 1
@@ -1052,23 +1053,30 @@ async def resync_since_sequential(
         try:
             entity, messages = await _gather_card_messages_since(client, username, since, limit)
             for message in messages:
-                tx_id = await _process_one_card_message(
-                    message, entity, username, client, engine, bot_client, stats
-                )
-                if tx_id is None:
-                    continue
-                waited = 0.0
-                while waited < max_wait_sec:
-                    await asyncio.sleep(poll_interval_sec)
-                    waited += poll_interval_sec
-                    status = await engine.get_transaction_status(tx_id)
-                    if status != "pending":
-                        break
-                else:
-                    stats["timed_out"] += 1
+                try:
+                    tx_id = await _process_one_card_message(
+                        message, entity, username, client, engine, bot_client, stats
+                    )
+                    if tx_id is None:
+                        continue
+                    waited = 0.0
+                    while waited < max_wait_sec:
+                        await asyncio.sleep(poll_interval_sec)
+                        waited += poll_interval_sec
+                        status = await engine.get_transaction_status(tx_id)
+                        if status != "pending":
+                            break
+                    else:
+                        stats["timed_out"] += 1
+                        logger.warning(
+                            "[HISOBCHI] Resync: tx #%s unanswered after %.0fs, moving on",
+                            tx_id, max_wait_sec,
+                        )
+                except Exception as exc:
+                    stats["errors"] += 1
                     logger.warning(
-                        "[HISOBCHI] Resync: tx #%s unanswered after %.0fs, moving on",
-                        tx_id, max_wait_sec,
+                        "[HISOBCHI] Resync: failed to process/poll message id=%s: %s",
+                        getattr(message, "id", None), exc,
                     )
         except Exception as exc:
             stats["errors"] += 1
