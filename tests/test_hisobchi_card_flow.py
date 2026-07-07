@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -12,6 +13,7 @@ from src.services.core.finance.hisobchi_handlers import (
     backfill_card_bot_messages,
     handle_finance_group_reply,
     resolve_finance_destination,
+    resync_since_sequential,
 )
 from src.services.core.finance.hisobchi_schema import (
     init_hisobchi_tables,
@@ -537,29 +539,83 @@ async def test_one_time_reset_resync_runs_only_once(monkeypatch, temp_db) -> Non
 
     engine = HisobchiEngine(temp_db)
     reset_calls = []
-    backfill_calls = []
+    resync_calls = []
 
     async def _fake_reset():
         reset_calls.append(1)
 
-    async def _fake_backfill(client, engine, *, bot_client=None, limit=50, since=None, delay_seconds=0.05):
-        backfill_calls.append(since)
-        return {"scanned": 0, "created": 0, "duplicates": 0, "errors": 0}
+    async def _fake_resync(client, engine, *, bot_client=None, since=None, limit=5000, poll_interval_sec=5.0, max_wait_sec=3600.0):
+        resync_calls.append(since)
+        return {"scanned": 0, "created": 0, "duplicates": 0, "errors": 0, "timed_out": 0}
 
     monkeypatch.setattr(engine, "reset_learning_and_transactions", _fake_reset)
     monkeypatch.setattr(
-        "src.services.core.finance.hisobchi_handlers.backfill_card_bot_messages",
-        _fake_backfill,
+        "src.services.core.finance.hisobchi_handlers.resync_since_sequential",
+        _fake_resync,
     )
 
     first = await run_one_time_reset_and_resync(
-        db=temp_db.db, engine=engine, client=_FakeUserbotClient(), since_date="2026-06-01",
+        db=temp_db.db, engine=engine, client=_FakeUserbotClient(), since_date="2026-07-01",
     )
     second = await run_one_time_reset_and_resync(
-        db=temp_db.db, engine=engine, client=_FakeUserbotClient(), since_date="2026-06-01",
+        db=temp_db.db, engine=engine, client=_FakeUserbotClient(), since_date="2026-07-01",
     )
 
     assert first is not None
     assert second is None  # guarded — did nothing the second time
     assert len(reset_calls) == 1
-    assert len(backfill_calls) == 1
+    assert len(resync_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_resync_sequential_waits_for_answer_before_next(monkeypatch, temp_db) -> None:
+    from src.services.core.finance import hisobchi_handlers
+    from datetime import datetime, timezone
+
+    hisobchi_handlers._topic_cache.clear()
+    client = _BackfillClient()
+    engine = HisobchiEngine(temp_db)
+    monkeypatch.setattr(
+        hisobchi_handlers, "resolve_finance_destination",
+        lambda _client: _async_value((-1002, None, None)),
+    )
+
+    async def _answer_both_shortly():
+        await asyncio.sleep(0.03)
+        await engine.categorize(1, "Ofis xarajati", "business")
+        await asyncio.sleep(0.03)
+        await engine.categorize(2, "Ofis xarajati", "business")
+
+    answer_task = asyncio.create_task(_answer_both_shortly())
+    stats = await resync_since_sequential(
+        client, engine, bot_client=client,
+        since=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        limit=50, poll_interval_sec=0.01, max_wait_sec=2.0,
+    )
+    await answer_task
+
+    assert stats["created"] == 2
+    assert stats["timed_out"] == 0
+
+
+@pytest.mark.asyncio
+async def test_resync_sequential_times_out_and_moves_on(monkeypatch, temp_db) -> None:
+    from src.services.core.finance import hisobchi_handlers
+    from datetime import datetime, timezone
+
+    hisobchi_handlers._topic_cache.clear()
+    client = _BackfillClient()
+    engine = HisobchiEngine(temp_db)
+    monkeypatch.setattr(
+        hisobchi_handlers, "resolve_finance_destination",
+        lambda _client: _async_value((-1002, None, None)),
+    )
+
+    stats = await resync_since_sequential(
+        client, engine, bot_client=client,
+        since=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        limit=50, poll_interval_sec=0.01, max_wait_sec=0.03,
+    )
+
+    assert stats["created"] == 2
+    assert stats["timed_out"] == 2  # neither ever answered — still moved on

@@ -416,6 +416,14 @@ class HisobchiEngine:
         )
         return dict(rows[0]) if rows else None
 
+    async def get_transaction_status(self, tx_id: int) -> Optional[str]:
+        if self._gs:
+            return await self._gs.get_transaction_status(tx_id)
+        rows = await self._db.execute(
+            "SELECT status FROM hisobchi_transactions WHERE id=?", [tx_id]
+        )
+        return rows[0]["status"] if rows else None
+
     async def get_monthly_summary(self, period: str) -> dict:
         """period = 'YYYY-MM'"""
         if self._gs:
