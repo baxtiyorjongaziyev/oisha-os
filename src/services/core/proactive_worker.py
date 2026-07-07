@@ -738,62 +738,91 @@ async def _legacy_check_amocrm_stagnation_direct():
             except Exception as e:
                 logger.warning(f"[STAGNATION ADVICE ERROR] {e}")
 
+# In-memory dedup set — survives across scheduler iterations within same process
+_deadline_sent_keys: set = set()
+
 
 async def check_airtable_deadlines():
-    """Airtable 72 soatlik deadline monitoringi."""
-    logger.info("Project deadline check started...")
+    """Airtable 24 soatlik deadline monitoringi.
+
+    Kuniga faqat 2 marta (10:00 va 15:00 Toshkent) yuboriladi.
+    Uch qavatli dedup: 1) soat filtri, 2) in-memory set, 3) DB.
+    """
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
     import src.config as config
 
-    # [DEDUP] Scheduler har 5 daqiqada chaqiradi. Kuniga 2 marta yuboramiz:
-    # 10:00 va 15:00. Soat boshida 10 daqiqa oyna + DB dedup.
-    db = Database()
     now = get_local_now()
     today = now.strftime("%Y-%m-%d")
     target_hours = [10, 15]
 
+    # 1) Strict hour + minute filter
     if now.hour not in target_hours or now.minute > 10:
-        logger.info(f"[PROACTIVE] check_airtable_deadlines skipped: hour={now.hour}, minute={now.minute}")
-        return
+        return  # Silent skip — no log spam
 
     job_key = f"airtable_deadline_alert_{now.hour}"
-    if await db.is_job_run(job_key, today):
-        logger.info(f"[PROACTIVE] check_airtable_deadlines already run for {job_key} today.")
+
+    # 2) In-memory dedup (fastest, no I/O)
+    mem_key = f"{job_key}_{today}"
+    if mem_key in _deadline_sent_keys:
         return
 
-    sync = AirtableSync()
-    upcoming = sync.get_upcoming_deadlines(hours=24)
-
-    if upcoming:
-        bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-        group_id = getattr(config, "PROJECTS_GROUP_ID", None)
-        if not (bot_token and group_id):
+    # 3) DB dedup (survives restarts)
+    try:
+        db = Database()
+        if await db.is_job_run(job_key, today):
+            _deadline_sent_keys.add(mem_key)  # sync memory with DB
             return
+    except Exception as e:
+        logger.warning(f"[PROACTIVE] DB dedup check failed: {e}")
 
-        bot = Bot(token=bot_token)
+    logger.info("Project deadline check started...")
 
-        msg = "⏳ **URGENT PROJECT DEADLINE (24h)**\n\nQuyidagi topshiriqlar muddati tugashiga 1 kun qoldi:\n"
-        for p in upcoming[:5]:
-            fields = p.get("fields", {})
-            from src.services.core.airtable_sync import AirtableSync as _AT  # type: ignore
+    try:
+        sync = AirtableSync()
+        upcoming = sync.get_upcoming_deadlines(hours=24)
+    except Exception as e:
+        logger.error(f"[PROACTIVE] Airtable fetch failed: {e}")
+        return
 
-            p_name = _AT._get_field(fields, "project_name") or "Nomsiz"
-            stage = _AT._get_field(fields, "stage") or "?"
-            deadline = _AT._get_field(fields, "deadline") or "?"
-            msg += f"- {p_name} (Bosqich: {stage}, Muddat: {deadline})\n"
-
+    if not upcoming:
+        # No deadlines — still mark as run to avoid re-checks
+        _deadline_sent_keys.add(mem_key)
         try:
-            await send_group_message_with_fallback(
-                bot,
-                chat_id=group_id,
-                text=msg,
-                parse_mode="Markdown",
-            allow_userbot_fallback=False,
-            )
             await db.mark_job_run(job_key, today)
-            logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
-        except Exception as e:
-            logger.error(f"[XATO] Airtable deadline alert: {e}")
+        except Exception:
+            pass
+        return
+
+    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
+    group_id = getattr(config, "PROJECTS_GROUP_ID", None)
+    if not (bot_token and group_id):
+        return
+
+    bot = Bot(token=bot_token)
+
+    msg = "⏳ **URGENT PROJECT DEADLINE (24h)**\n\nQuyidagi topshiriqlar muddati tugashiga 1 kun qoldi:\n"
+    for p in upcoming[:5]:
+        fields = p.get("fields", {})
+        p_name = AirtableSync._get_field(fields, "project_name") or "Nomsiz"
+        stage = AirtableSync._get_field(fields, "stage") or "?"
+        deadline = AirtableSync._get_field(fields, "deadline") or "?"
+        msg += f"- {p_name} (Bosqich: {stage}, Muddat: {deadline})\n"
+
+    try:
+        await send_group_message_with_fallback(
+            bot,
+            chat_id=group_id,
+            text=msg,
+            parse_mode="Markdown",
+            allow_userbot_fallback=False,
+        )
+        # Mark as sent in BOTH dedup layers
+        _deadline_sent_keys.add(mem_key)
+        await db.mark_job_run(job_key, today)
+        logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
+    except Exception as e:
+        logger.error(f"[XATO] Airtable deadline alert: {e}")
+
 
 
 async def _legacy_check_airtable_stagnation():
