@@ -230,10 +230,18 @@ class FreeAIProviderRouter:
                 "temperature": temperature,
             },
         )
-        data = response.json()
+        payload = response.json()
+        data = payload if isinstance(payload, dict) else {}
+        choices = data.get("choices")
+        if not choices:
+            error = data.get("error")
+            detail = error.get("message", "") if isinstance(error, dict) else str(error or "")
+            raise ValueError(f"{provider}: no choices in response ({detail or 'unexpected format'})")
+        message = choices[0].get("message") if isinstance(choices[0], dict) else None
+        content = (message or {}).get("content") if isinstance(message, dict) else None
         usage = data.get("usage") or {}
         return ProviderResult(
-            str(data["choices"][0]["message"]["content"]).strip(),
+            str(content or "").strip(),
             provider,
             model,
             int(usage.get("prompt_tokens") or 0),

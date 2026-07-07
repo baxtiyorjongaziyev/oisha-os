@@ -165,6 +165,37 @@ async def test_openai_compatible_fallback_after_groq_429():
 
 
 @pytest.mark.asyncio
+async def test_openai_compatible_malformed_response_falls_back():
+    # First provider returns 200 with an error body (no `choices`); router must
+    # not raise KeyError/IndexError but treat it as a failure and fall back.
+    client = SimpleNamespace(
+        request=AsyncMock(
+            side_effect=[
+                _response(200, {"error": {"message": "invalid model"}}),
+                _response(
+                    200,
+                    {"choices": [{"message": {"content": "or javob"}}], "usage": {}},
+                ),
+            ]
+        )
+    )
+    router = FreeAIProviderRouter(
+        _settings(
+            CEREBRAS_API_KEY="ck",
+            CEREBRAS_MODEL="cerebras-model",
+            OPENROUTER_API_KEY="k",
+            OPENROUTER_TEXT_MODEL="or-model",
+        ),
+        client,
+    )
+
+    result = await router.generate_text("salom")
+
+    assert result.provider == "openrouter"
+    assert result.text == "or javob"
+
+
+@pytest.mark.asyncio
 async def test_openai_compatible_primary_when_only_provider_configured():
     client = SimpleNamespace(
         request=AsyncMock(

@@ -408,7 +408,6 @@ async def route(
             system=system,
             max_tokens=max_tokens,
             temperature=temperature,
-            providers=("cloudflare", "ollama"),
         )
         final = {
             "text": routed.text,
