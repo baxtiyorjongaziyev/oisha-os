@@ -68,3 +68,11 @@
 ## 2025-07-04 - Form Input Accessibility
 **Learning:** Form inputs within modal dialogs often miss explicit `aria-label` or `id`/`htmlFor` pairings, relying instead on visual context or placeholder text, which negatively impacts screen reader users.
 **Action:** When adding or reviewing modals with form elements, ensure every `<input>` has an explicit `aria-label` and every `<textarea>` is correctly linked to its `<label>` via `id` and `htmlFor`.
+
+## 2024-05-28 - Screen Reader Compatibility for Collapsible Sidebars
+**Learning:** Conditionally unmounting DOM text elements (e.g., `{isOpen && <span>Label</span>}`) for visual collapsing completely removes the accessible name from buttons and links for screen reader users.
+**Action:** When hiding text to leave only icons in a collapsed state, apply the `sr-only` class to keep the text semantically available in the DOM rather than removing the node entirely.
+
+## 2024-05-28 - Hiding Redundant Tooltip Announcements
+**Learning:** If a navigation link or button contains `sr-only` text, and it also triggers a hover tooltip component displaying the identical text, screen readers will read the label twice (once from the DOM element, once from the tooltip structure).
+**Action:** Always add `aria-hidden="true"` to visual-only hover tooltips that duplicate the accessible text already present inside the parent interactive element.
