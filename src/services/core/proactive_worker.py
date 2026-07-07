@@ -2166,19 +2166,21 @@ async def check_client_journey_excellence():
         return False
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-    group_id = getattr(config, "WOW_SERVICE_GROUP_ID", None)
+    group_id = getattr(config, "PROJECTS_GROUP_ID", None)
+    if not group_id:
+        group_id = getattr(config, "WOW_SERVICE_GROUP_ID", None)
     if not group_id:
         group_id = (
             getattr(config, "TEAM_GROUP_ID", None)
             or getattr(config, "CRM_GROUP_ID", None)
-            or getattr(config, "PROJECTS_GROUP_ID", None)
         )
-    thread_id = getattr(config, "WOW_SERVICE_TOPIC_ID", None)
+    thread_id = getattr(config, "TOPIC_TASKS_ID", None)
+    if thread_id is None:
+        thread_id = getattr(config, "WOW_SERVICE_TOPIC_ID", None)
     if thread_id is None:
         thread_id = (
             getattr(config, "TOPIC_GENERAL_ID", None)
             or getattr(config, "TOPIC_REPORTS_ID", None)
-            or getattr(config, "TOPIC_TASKS_ID", None)
         )
     if not (bot_token and group_id):
         return False
