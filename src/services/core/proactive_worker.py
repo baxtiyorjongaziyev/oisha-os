@@ -745,22 +745,21 @@ async def check_airtable_deadlines():
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
     import src.config as config
 
-    # [DEDUP] Scheduler bu funksiyani har 5 daqiqada chaqiradi. Guard bo'lmasa
-    # bir xil deadline xabari qayta-qayta yuboriladi (spam). Xuddi
-    # check_airtable_stagnation kabi belgilangan soatlarda, kuniga bir marta
-    # yuboramiz.
+    # [NUCLEAR DEDUP] Kuniga 1 marta, faqat ertalab 10:00. Scheduler har
+    # 5 daqiqada chaqiradi, lekin bu guard spamni butunlay o'ldiradi.
     db = Database()
     now = get_local_now()
     today = now.strftime("%Y-%m-%d")
-    target_hours = [10, 15]  # ertalab + tushdan keyin eslatma
+    daily_key = "airtable_deadline_daily"
 
-    if now.hour not in target_hours or now.minute > 10:
-        logger.info(f"[PROACTIVE] check_airtable_deadlines skipped: hour={now.hour}, minute={now.minute}")
+    # 1-da: kunlik limit — kuniga 1 martadan oshmaydi
+    if await db.is_job_run(daily_key, today):
+        logger.info(f"[PROACTIVE] check_airtable_deadlines already run today.")
         return
 
-    job_key = f"airtable_deadline_alert_{now.hour}"
-    if await db.is_job_run(job_key, today):
-        logger.info(f"[PROACTIVE] check_airtable_deadlines already run for {job_key} today.")
+    # 2-da: faqat 10:00-10:05 oralig'ida ishlaydi
+    if now.hour != 10 or now.minute > 5:
+        logger.info(f"[PROACTIVE] check_airtable_deadlines skipped: hour={now.hour}, minute={now.minute}")
         return
 
     sync = AirtableSync()
@@ -792,7 +791,7 @@ async def check_airtable_deadlines():
                 parse_mode="Markdown",
             allow_userbot_fallback=False,
             )
-            await db.mark_job_run(job_key, today)
+            await db.mark_job_run(daily_key, today)
             logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
         except Exception as e:
             logger.error(f"[XATO] Airtable deadline alert: {e}")
