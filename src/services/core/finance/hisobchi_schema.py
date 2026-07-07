@@ -186,11 +186,12 @@ async def run_one_time_reset_and_resync(
     engine: Any,
     client: Any,
     bot_client: Any = None,
-    since_date: str = "2026-06-01",
+    since_date: str = "2026-07-01",
 ) -> Optional[dict]:
     """One-time migration: clear all learned categorization data and
-    transactions, then replay every card-bot message since `since_date` so
-    the owner re-teaches the system from a clean slate.
+    transactions, then replay every card-bot message since `since_date`,
+    one at a time — the owner re-teaches the system from a clean slate,
+    answering each transaction before the next one is sent.
 
     Guarded by a kv_settings flag keyed on `since_date`, so it is safe to
     leave this call in boot.py permanently — it only ever fires once per
@@ -203,7 +204,7 @@ async def run_one_time_reset_and_resync(
 
     from datetime import datetime
     from src.time_utils import get_local_timezone
-    from src.services.core.finance.hisobchi_handlers import backfill_card_bot_messages
+    from src.services.core.finance.hisobchi_handlers import resync_since_sequential
 
     year, month, day = (int(p) for p in since_date.split("-"))
     since = datetime(year, month, day, tzinfo=get_local_timezone())
@@ -211,9 +212,8 @@ async def run_one_time_reset_and_resync(
     logger.info("[HISOBCHI] One-time reset+resync starting (since=%s)...", since_date)
     await engine.reset_learning_and_transactions()
 
-    stats = await backfill_card_bot_messages(
-        client, engine, bot_client=bot_client,
-        limit=5000, since=since, delay_seconds=0.3,
+    stats = await resync_since_sequential(
+        client, engine, bot_client=bot_client, since=since, limit=5000,
     )
     await db.set_state(flag_key, True)
     logger.info("[HISOBCHI] One-time reset+resync done: %s", stats)
