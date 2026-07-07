@@ -613,13 +613,13 @@ async def boot_application():
             bot_messenger = BotMessenger(bot_client=bot_client, userbot_client=client)
             logger.info("[BOT2BOT] BotMessenger initialized.")
 
-            # AgentOrchestrator
+            # PipelineOrchestrator (deterministic multi-step flows)
             from src.services.core.agent_orchestrator import get_orchestrator
             agent_orchestrator = get_orchestrator(
                 agent_registry={"advisor": advisor_agent, "audit": audit_agent},
                 bot_messenger=bot_messenger, db=msg_controller.db,
             )
-            logger.info("[ORCHESTRATOR] AgentOrchestrator initialized.")
+            logger.info("[ORCHESTRATOR] PipelineOrchestrator initialized.")
 
             # Guest bot
             from src.services.core.guest_bot import GuestBotHandler, enable_guest_queries
