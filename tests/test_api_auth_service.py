@@ -29,7 +29,11 @@ def test_data_check_string_ignores_none_and_sorts():
 def test_auth_date_freshness_window():
     assert auth_service.is_auth_date_fresh(int(time.time())) is True
     assert auth_service.is_auth_date_fresh(int(time.time()) - 100000) is False
-    assert auth_service.is_auth_date_fresh(None) is True
+    # Missing auth_date fails closed (no replay protection).
+    assert auth_service.is_auth_date_fresh(None) is False
+    assert auth_service.is_auth_date_fresh(0) is False
+    # Implausible future timestamp beyond clock-drift tolerance is rejected.
+    assert auth_service.is_auth_date_fresh(int(time.time()) + 10000) is False
 
 
 def test_session_jwt_roundtrip_and_rejects_wrong_secret():

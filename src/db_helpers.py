@@ -9,6 +9,10 @@ from __future__ import annotations
 
 from typing import Any
 
+# Zero-width byte-order mark. Written as an escape (not a literal invisible
+# char) so editors/formatters cannot silently drop or mangle it.
+_BOM = "﻿"
+
 
 def normalize_turso_url(url: str) -> str:
     """Convert a ``libsql://`` URL to the ``https://`` form libsql expects."""
@@ -34,5 +38,5 @@ def setting_text(value: Any) -> str:
         except Exception:
             value = str(value)
 
-    text = str(value).replace("﻿", "").strip()
+    text = str(value).replace(_BOM, "").strip()
     return "".join(char for char in text if ord(char) >= 32)

@@ -231,8 +231,8 @@ class CRMDailyReporter:
         # Calls — try /api/v4/calls if available
         stats.incoming_calls = await self._get_calls_count(t_from, t_to)
 
-        # Cache to history DB
-        self._save_stats(target, stats)
+        # Cache to history DB (offload sync SQLite off the event loop)
+        await asyncio.to_thread(self._save_stats, target, stats)
         return stats
 
     async def fetch_weekly_stats(
@@ -403,7 +403,7 @@ class CRMDailyReporter:
         """Statistika olish va guruhga yuborish."""
         try:
             stats = await self.fetch_stats(for_date)
-            prev  = self._load_prev_stats(for_date)
+            prev  = await asyncio.to_thread(self._load_prev_stats, for_date)
             text  = self.format_report(stats, prev)
             await client.send_message(chat_id, text)
             logger.info(f"[CRMDailyReporter] Report sent to {chat_id}")
