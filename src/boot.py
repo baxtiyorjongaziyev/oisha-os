@@ -631,7 +631,11 @@ async def boot_application():
         except Exception as bot_exc:
             logger.error(f"[BOT] Bot-token head startup failed: {bot_exc}", exc_info=True)
 
-    # Event handlers — sync to both main module globals and app_ctx
+    # Service wiring. `app_ctx` (below) is the CANONICAL single source of truth
+    # for all shared services; new code must read from app_ctx.*. The `m.*`
+    # assignments here are a backward-compat mirror for legacy modules that
+    # still read src.main globals, and are being phased out. Keep the two in
+    # sync until every reader migrates to app_ctx.
     m.client = client
     m.bot_client = bot_client
     m.msg_controller = msg_controller
