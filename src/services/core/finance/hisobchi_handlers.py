@@ -191,18 +191,23 @@ def _pick_topic(direction: str, kirim_topic: Optional[int], chiqim_topic: Option
     return chiqim_topic
 
 
-async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_client=None) -> bool:
-    """Called when @HUMOcardbot or @CardXabarBot sends a message."""
+async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_client=None) -> Optional[int]:
+    """Called when @HUMOcardbot or @CardXabarBot sends a message.
+
+    Returns the transaction id on success (new or duplicate — both "handled"
+    in the boolean sense every caller uses this for), or None if this
+    wasn't a card-bot message / failed to parse.
+    """
     sender = await event.get_sender()
     username = (getattr(sender, "username", None) or "").lower()
     if username not in CARD_BOT_USERNAMES:
-        return False
+        return None
 
     text = event.message.message or ""
     tx = parse_card_notification(username, text)
     if not tx:
         logger.warning("[HISOBCHI] Failed to parse card notification: %s", text[:100])
-        return False
+        return None
 
     finance_group_id, kirim_topic_id, chiqim_topic_id = (
         await resolve_finance_destination(client)
@@ -232,7 +237,7 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
     )
     if not created:
         logger.info("[HISOBCHI] Duplicate transaction ignored: #%s", tx_id)
-        return True
+        return tx_id
 
     from src.services.core.hisobchi_approval import (
         build_approval_keyboard,
@@ -288,7 +293,7 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
                 )
             except Exception as exc:
                 logger.error("[HISOBCHI] Failed to send question: %s", exc)
-    return True
+    return tx_id
 
 
 async def handle_hisobchi_command(
@@ -940,6 +945,55 @@ class _CardBackfillEvent:
         return self._sender
 
 
+async def _gather_card_messages_since(client, username: str, cutoff: datetime, limit: int) -> tuple:
+    """Chronologically-ordered (oldest first) card-bot messages newer than cutoff."""
+    entity = await client.get_entity(username)
+    messages = []
+    async for message in client.iter_messages(entity, limit=limit):
+        message_date = getattr(message, "date", None)
+        if message_date is not None:
+            if message_date.tzinfo is None:
+                message_date = message_date.replace(tzinfo=timezone.utc)
+            if message_date < cutoff:
+                break
+        messages.append(message)
+    return entity, list(reversed(messages))
+
+
+async def _process_one_card_message(
+    message, entity, username: str, client, engine: HisobchiEngine, bot_client, stats: dict
+) -> Optional[int]:
+    """Parse + dedup + hand off one message. Returns the tx_id if a *new*
+    question was sent, None if it was a duplicate/unparseable/failed."""
+    stats["scanned"] += 1
+    try:
+        text = getattr(message, "message", None) or ""
+        tx = parse_card_notification(username, text)
+        if tx is None:
+            return None
+        existed = await engine.transaction_exists(
+            source_bot=tx.source_bot, direction=tx.direction, amount=tx.amount,
+            merchant=tx.merchant, card_suffix=tx.card_suffix, tx_time=tx.tx_time,
+            source_message_id=getattr(message, "id", None),
+        )
+        if existed:
+            stats["duplicates"] += 1
+            return None
+        tx_id = await handle_card_bot_message(
+            _CardBackfillEvent(message, entity), client, engine, bot_client=bot_client,
+        )
+        if tx_id is not None:
+            stats["created"] += 1
+        return tx_id
+    except Exception as exc:
+        stats["errors"] += 1
+        logger.warning(
+            "[HISOBCHI] Backfill message failed bot=%s id=%s: %s",
+            username, getattr(message, "id", None), exc,
+        )
+        return None
+
+
 async def backfill_card_bot_messages(
     client,
     engine: HisobchiEngine,
@@ -953,7 +1007,7 @@ async def backfill_card_bot_messages(
     """Replay recent card notifications once after boot, with deduplication.
 
     Pass `since` (an absolute, tz-aware datetime) instead of `max_age_hours`
-    for a wide historical resync (e.g. "everything since June 1") — it takes
+    for a wide historical resync (e.g. "everything since July 1") — it takes
     precedence over max_age_hours when given. Remember to also raise `limit`
     for a wide window; the default of 50 is tuned for routine short catch-up.
     """
@@ -962,49 +1016,9 @@ async def backfill_card_bot_messages(
 
     for username in sorted(CARD_BOT_USERNAMES):
         try:
-            entity = await client.get_entity(username)
-            messages = []
-            async for message in client.iter_messages(entity, limit=limit):
-                message_date = getattr(message, "date", None)
-                if message_date is not None:
-                    if message_date.tzinfo is None:
-                        message_date = message_date.replace(tzinfo=timezone.utc)
-                    if message_date < cutoff:
-                        break
-                messages.append(message)
-
-            for message in reversed(messages):
-                stats["scanned"] += 1
-                try:
-                    text = getattr(message, "message", None) or ""
-                    tx = parse_card_notification(username, text)
-                    if tx is None:
-                        continue
-                    existed = await engine.transaction_exists(
-                        source_bot=tx.source_bot,
-                        direction=tx.direction,
-                        amount=tx.amount,
-                        merchant=tx.merchant,
-                        card_suffix=tx.card_suffix,
-                        tx_time=tx.tx_time,
-                        source_message_id=getattr(message, "id", None),
-                    )
-                    if existed:
-                        stats["duplicates"] += 1
-                        continue
-                    await handle_card_bot_message(
-                        _CardBackfillEvent(message, entity), client, engine,
-                        bot_client=bot_client,
-                    )
-                    stats["created"] += 1
-                except Exception as exc:
-                    stats["errors"] += 1
-                    logger.warning(
-                        "[HISOBCHI] Backfill message failed bot=%s id=%s: %s",
-                        username,
-                        getattr(message, "id", None),
-                        exc,
-                    )
+            entity, messages = await _gather_card_messages_since(client, username, cutoff, limit)
+            for message in messages:
+                await _process_one_card_message(message, entity, username, client, engine, bot_client, stats)
                 if delay_seconds:
                     await asyncio.sleep(delay_seconds)
         except Exception as exc:
@@ -1012,6 +1026,63 @@ async def backfill_card_bot_messages(
             logger.warning("[HISOBCHI] Backfill source @%s failed: %s", username, exc)
 
     logger.info("[HISOBCHI] Backfill finished: %s", stats)
+    return stats
+
+
+async def resync_since_sequential(
+    client,
+    engine: HisobchiEngine,
+    *,
+    bot_client=None,
+    since: datetime,
+    limit: int = 5000,
+    poll_interval_sec: float = 5.0,
+    max_wait_sec: float = 3600.0,
+) -> dict[str, int]:
+    """Like backfill, but one transaction at a time: send the question, then
+    wait until it's answered (categorized or skipped — via button or reply)
+    before moving on to the next one, instead of sending them all at once.
+
+    If a question goes unanswered for `max_wait_sec`, it's left pending and
+    the resync moves on anyway (so one forgotten question can't stall the
+    entire resync forever).
+    """
+    stats = {"scanned": 0, "created": 0, "duplicates": 0, "errors": 0, "timed_out": 0}
+
+    for username in sorted(CARD_BOT_USERNAMES):
+        try:
+            entity, messages = await _gather_card_messages_since(client, username, since, limit)
+            for message in messages:
+                try:
+                    tx_id = await _process_one_card_message(
+                        message, entity, username, client, engine, bot_client, stats
+                    )
+                    if tx_id is None:
+                        continue
+                    waited = 0.0
+                    while waited < max_wait_sec:
+                        await asyncio.sleep(poll_interval_sec)
+                        waited += poll_interval_sec
+                        status = await engine.get_transaction_status(tx_id)
+                        if status != "pending":
+                            break
+                    else:
+                        stats["timed_out"] += 1
+                        logger.warning(
+                            "[HISOBCHI] Resync: tx #%s unanswered after %.0fs, moving on",
+                            tx_id, max_wait_sec,
+                        )
+                except Exception as exc:
+                    stats["errors"] += 1
+                    logger.warning(
+                        "[HISOBCHI] Resync: failed to process/poll message id=%s: %s",
+                        getattr(message, "id", None), exc,
+                    )
+        except Exception as exc:
+            stats["errors"] += 1
+            logger.warning("[HISOBCHI] Resync source @%s failed: %s", username, exc)
+
+    logger.info("[HISOBCHI] Sequential resync finished: %s", stats)
     return stats
 
 
