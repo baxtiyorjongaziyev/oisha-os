@@ -755,10 +755,12 @@ async def check_airtable_deadlines():
     target_hours = [10, 15]  # ertalab + tushdan keyin eslatma
 
     if now.hour not in target_hours or now.minute > 10:
+        logger.info(f"[PROACTIVE] check_airtable_deadlines skipped: hour={now.hour}, minute={now.minute}")
         return
 
     job_key = f"airtable_deadline_alert_{now.hour}"
     if await db.is_job_run(job_key, today):
+        logger.info(f"[PROACTIVE] check_airtable_deadlines already run for {job_key} today.")
         return
 
     sync = AirtableSync()
