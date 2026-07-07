@@ -9,7 +9,7 @@ except ImportError:
     import libsql_experimental as libsql  # type: ignore[import,no-redef]
 
 from src.settings import settings
-from src.db._helpers import normalize_turso_url, setting_text as _setting_text
+from src.db_helpers import normalize_turso_url, setting_text as _setting_text
 
 logger = logging.getLogger(__name__)
 

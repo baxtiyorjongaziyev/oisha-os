@@ -43,10 +43,16 @@ def verify_telegram_hash(
 def is_auth_date_fresh(
     auth_date: Optional[int], max_age_seconds: int = TELEGRAM_AUTH_MAX_AGE_SECONDS
 ) -> bool:
-    """Return True if the Telegram ``auth_date`` is within the replay window."""
+    """Return True if the Telegram ``auth_date`` is within the replay window.
+
+    A missing ``auth_date`` fails closed (no replay protection → reject). A
+    small negative tolerance absorbs clock drift while still rejecting
+    implausible future timestamps.
+    """
     if not auth_date:
-        return True
-    return (time.time() - int(auth_date)) <= max_age_seconds
+        return False
+    diff = time.time() - int(auth_date)
+    return -300 <= diff <= max_age_seconds
 
 
 def issue_session_jwt(

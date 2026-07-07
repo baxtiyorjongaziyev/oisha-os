@@ -18,7 +18,7 @@ except ImportError:
 from src.settings import settings
 from src.database_pool import db_pool
 from src.db.turso import TursoAdapter  # noqa: F811 — override stub
-from src.db._helpers import (
+from src.db_helpers import (
     normalize_turso_url as _normalize_turso_url,
     setting_text as _setting_text,
 )
