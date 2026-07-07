@@ -77,7 +77,18 @@ export class CallsService {
       };
     }
 
-    return { ...call, scorecard, audioUrl };
+    const processingNote =
+      call.status === 'UPLOADED'
+        ? 'Audio yuklandi, hali ishlanmagan'
+        : call.status === 'TRANSCRIBING'
+          ? 'Transkripsiya jarayonda'
+          : call.status === 'SCORING'
+            ? 'Baholash jarayonda'
+            : call.status === 'FAILED'
+              ? `Ishlashda xatolik: ${call.errorMessage ?? 'noma'lum'}`
+              : null;
+
+    return { ...call, scorecard, audioUrl, processingNote };
   }
 
   async getTranscript(callId: string, orgId: string) {
