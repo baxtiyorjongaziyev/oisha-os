@@ -6,18 +6,47 @@ from src.services.ai.frog_agent import FrogAgent
 
 logger = logging.getLogger(__name__)
 
-async def send_daily_frog_brief(client=None, team_group_id=None):
-    """Fetches tasks, finds the frog, and sends to team group."""
+async def send_daily_frog_brief(bot_client=None, team_group_id=None):
+    """Fetches tasks, finds the frog, and sends to team group.
+
+    The brief is delivered by the @jonairobot bot (``bot_client``), never the
+    userbot — the morning motivational message must come from the bot account.
+    """
     logger.info("[FROG] Starting daily frog identification...")
-    db = get_db()
+    from src.settings import settings
+    from src.services.core.composio_tasks import ComposioTaskService
     
-    # Get all pending tasks
-    # Wait, get_overdue_tasks only returns overdue tasks. We need all pending tasks.
+    db = get_db()
     conn = await db.get_connection()
-    async with conn.execute(
+
+    if getattr(settings, "FROG_SOURCE", "db") == "composio":
+        logger.info("[FROG] Fetching tasks from Composio...")
+        composio_service = ComposioTaskService()
+        fetched_tasks = await composio_service.fetch_tasks()
+        if fetched_tasks:
+            for t in fetched_tasks:
+                cur = await conn.execute("SELECT id FROM tasks WHERE external_task_id=?", (t["external_task_id"],))
+                row = await cur.fetchone()
+                if row:
+                    await conn.execute(
+                        "UPDATE tasks SET title=?, description=?, priority=?, profit_estimate=?, status='Pending' WHERE id=?",
+                        (t["title"], t["description"], t["priority"], t["profit_estimate"], row[0])
+                    )
+                else:
+                    await conn.execute(
+                        "INSERT INTO tasks (title, description, priority, profit_estimate, external_task_id, source_manager, status) VALUES (?, ?, ?, ?, ?, ?, 'Pending')",
+                        (t["title"], t["description"], t["priority"], t["profit_estimate"], t["external_task_id"], t["source_manager"])
+                    )
+            await conn.commit()
+            logger.info(f"[FROG] Synced {len(fetched_tasks)} tasks from Composio to DB.")
+        else:
+            logger.warning("[FROG] No tasks fetched from Composio.")
+
+    # Get all pending tasks
+    cursor = await conn.execute(
         "SELECT id, title, description, priority, profit_estimate FROM tasks WHERE status='Pending'"
-    ) as cursor:
-        rows = await cursor.fetchall()
+    )
+    rows = await cursor.fetchall()
         
     if not rows:
         logger.info("[FROG] No pending tasks found.")
@@ -46,10 +75,11 @@ async def send_daily_frog_brief(client=None, team_group_id=None):
     await conn.execute("UPDATE tasks SET is_frog=1 WHERE id=?", (frog.most_important_task_id,))
     await conn.commit()
     
-    # Send message via Telegram
-    if client and team_group_id:
+    # Send message via Telegram — only through @jonairobot (bot_client),
+    # never the userbot.
+    if bot_client and team_group_id:
         try:
-            await client.send_message(
+            await bot_client.send_message(
                 team_group_id,
                 f"🐸 <b>Qurbaqani yeymiz!</b>\n\n{frog.motivation_message}\n\n"
                 f"<i>Daromad prognozi: ${frog.profit_estimate}</i>",
@@ -58,19 +88,23 @@ async def send_daily_frog_brief(client=None, team_group_id=None):
         except Exception as e:
             logger.error(f"[FROG] Failed to send telegram message: {e}")
 
-async def daily_frog_loop(client, team_group_id):
-    """Async loop that runs every minute and triggers at 09:00."""
+async def daily_frog_loop(bot_client, team_group_id):
+    """Async loop that runs every minute and triggers at 09:00.
+
+    ``bot_client`` is the @jonairobot bot client — the brief is always sent
+    from the bot account, not the userbot.
+    """
     from src.time_utils import get_local_now
     await asyncio.sleep(10)
     logger.info("[FROG] Daily frog loop started.")
     last_run_date = None
-    
+
     while True:
         try:
             now = get_local_now()
             today_str = now.strftime("%Y-%m-%d")
             if now.hour == 9 and now.minute == 0 and last_run_date != today_str:
-                await send_daily_frog_brief(client, team_group_id)
+                await send_daily_frog_brief(bot_client, team_group_id)
                 last_run_date = today_str
         except Exception as e:
             logger.error(f"[FROG] Error in loop: {e}")
