@@ -8,7 +8,7 @@ from src.database import Database
 from src.services.core.uzbek_entrepreneurs_schema import (
     init_uzbek_entrepreneurs_tables,
 )
-from src.services.core.hisobchi_schema import ensure_hisobchi_db
+from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 from src.services.core.uzbek_entrepreneurs_scraper import (
     UzbekEntrepreneurScraper,
     ScrapedEntrepreneur,

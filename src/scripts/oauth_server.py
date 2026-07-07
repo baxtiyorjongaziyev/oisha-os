@@ -9,8 +9,6 @@ import os
 import urllib.parse
 import sys
 
-PORT = 9999
-HOST = os.getenv("OAUTH_SERVER_HOST", "127.0.0.1")
 CODE = None
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -43,8 +41,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-print(f"Server {PORT} portda ishga tushdi")
-print(f"Brauzerda oching: http://109.199.100.137:{PORT}/auth")
-# Bir martalik OAuth callback server — tashqi provayder redirect'i uchun
-# barcha interfeyslarga bog'lanish shart; bitta so'rovdan keyin o'chadi
-http.server.HTTPServer(("0.0.0.0", PORT), Handler).handle_request()  # nosec B104
+
+def run_server():
+    """Bir martalik OAuth callback serverini ishga tushiradi (bitta
+    so'rovni kutib, keyin to'xtaydi). Modul import qilinganda emas, faqat
+    shu funksiya chaqirilganda ishga tushadi — shu bilan modulni import
+    qilish (masalan testlarda) hech qachon osilib qolmaydi."""
+    host = os.getenv("OISHA_OAUTH_BIND_HOST", "127.0.0.1")
+    port = int(os.getenv("OISHA_OAUTH_PORT", "9999"))
+    print(f"Server {host}:{port} da ishga tushdi")
+    print(f"Brauzerda oching: http://{host}:{port}/auth")
+    with http.server.HTTPServer((host, port), Handler) as server:
+        server.handle_request()
+
+
+if __name__ == "__main__":
+    run_server()

@@ -10,7 +10,7 @@ from typing import Optional
 import httpx
 
 from src.database_pool import db_pool
-from src.services.core.hisobchi_schema import ensure_hisobchi_db
+from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 
 logger = logging.getLogger(__name__)
 
