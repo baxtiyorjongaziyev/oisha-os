@@ -1192,6 +1192,10 @@ class HisobchiGsheetStore:
                 }
         return None
 
+    async def get_transaction_status(self, tx_id: int) -> Optional[str]:
+        tx = self._cache_transactions.get(tx_id)
+        return tx.get("status") if tx else None
+
     async def get_monthly_summary(self, period: str) -> dict:
         summary = {
             "business": {"income": 0, "expense": 0, "net": 0, "categories": {},
