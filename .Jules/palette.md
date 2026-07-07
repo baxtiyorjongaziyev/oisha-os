@@ -76,3 +76,7 @@
 ## 2024-05-28 - Hiding Redundant Tooltip Announcements
 **Learning:** If a navigation link or button contains `sr-only` text, and it also triggers a hover tooltip component displaying the identical text, screen readers will read the label twice (once from the DOM element, once from the tooltip structure).
 **Action:** Always add `aria-hidden="true"` to visual-only hover tooltips that duplicate the accessible text already present inside the parent interactive element.
+
+## 2024-03-24 - Tactile Button Feedback
+**Learning:** Adding a subtle scale transform on the active state of buttons provides immediate, satisfying tactile feedback that makes the interface feel more responsive and polished.
+**Action:** Use `active:scale-[0.98]` along with `transition-all` on primary interactive elements.
