@@ -745,6 +745,22 @@ async def check_airtable_deadlines():
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
     import src.config as config
 
+    # [DEDUP] Scheduler bu funksiyani har 5 daqiqada chaqiradi. Guard bo'lmasa
+    # bir xil deadline xabari qayta-qayta yuboriladi (spam). Xuddi
+    # check_airtable_stagnation kabi belgilangan soatlarda, kuniga bir marta
+    # yuboramiz.
+    db = Database()
+    now = get_local_now()
+    today = now.strftime("%Y-%m-%d")
+    target_hours = [10, 15]  # ertalab + tushdan keyin eslatma
+
+    if now.hour not in target_hours or now.minute > 10:
+        return
+
+    job_key = f"airtable_deadline_alert_{now.hour}"
+    if await db.is_job_run(job_key, today):
+        return
+
     sync = AirtableSync()
     upcoming = sync.get_upcoming_deadlines(hours=24)
 
@@ -774,6 +790,7 @@ async def check_airtable_deadlines():
                 parse_mode="Markdown",
             allow_userbot_fallback=False,
             )
+            await db.mark_job_run(job_key, today)
             logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
         except Exception as e:
             logger.error(f"[XATO] Airtable deadline alert: {e}")
