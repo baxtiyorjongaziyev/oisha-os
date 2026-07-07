@@ -83,7 +83,9 @@ async def background_monitor_task() -> None:
             await check_amocrm_stagnation()
             await check_airtable_stagnation()
             await check_client_journey_excellence()
-            await check_airtable_deadlines()
+            
+            if now.hour in [10, 15] and now.minute < 5:
+                await check_airtable_deadlines()
 
             if m.msg_controller:
                 if not hasattr(background_monitor_task, "_lead_os"):

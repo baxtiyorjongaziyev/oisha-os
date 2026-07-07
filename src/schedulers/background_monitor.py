@@ -99,7 +99,11 @@ class BackgroundMonitor:
         await check_amocrm_stagnation()
         await check_airtable_stagnation()
         await check_client_journey_excellence()
-        await check_airtable_deadlines()
+        
+        from src.time_utils import get_local_now
+        now = get_local_now()
+        if now.hour in [10, 15] and now.minute < 5:
+            await check_airtable_deadlines()
 
     async def _job_lead_os_cycle(self, now: datetime) -> None:
         from src.services.core.leads.lead_operating_system import LeadOperatingSystem

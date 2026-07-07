@@ -168,6 +168,11 @@ class AppSettings(BaseSettings):
     GSHEET_CREDS_FILE: str = "service_account.json"
 
     # Hisobchi Google Sheets backend
+    COMPOSIO_API_KEY: Optional[SecretStr] = None
+    FROG_SOURCE: str = "db"  # "db" or "composio"
+    COMPOSIO_TRELLO_BOARD_ID: Optional[str] = None
+    COMPOSIO_GOOGLE_TASKLIST_ID: Optional[str] = None
+
     HISOBCHI_GSHEET_ID: Optional[str] = None
     HISOBCHI_GSHEET_CREDS_FILE: Optional[str] = None
     HISOBCHI_PNL_WORKSHEET_GID: Optional[int] = None
