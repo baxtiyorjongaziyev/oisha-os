@@ -435,7 +435,8 @@ async def boot_application():
         asyncio.create_task(_ai_autopilot_loop())
         
         from src.schedulers.frog_scheduler import daily_frog_loop
-        asyncio.create_task(daily_frog_loop(client, settings.TEAM_GROUP_ID), name="daily_frog_loop")
+        # Frog brief is sent from @jonairobot (bot_client), not the userbot.
+        asyncio.create_task(daily_frog_loop(bot_client, settings.TEAM_GROUP_ID), name="daily_frog_loop")
         asyncio.create_task(_channel_scout_loop(), name="channel_scout_loop")
 
     # Surgical negotiator
