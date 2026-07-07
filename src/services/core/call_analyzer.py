@@ -30,6 +30,8 @@ _CALL_NOTE_TYPES = {
     "voip_call",
 }
 
+NO_SPEECH_SENTINEL = "[SUHBAT_ANIQLANMADI]"
+
 _AUDIO_MIME_MAP = {
     ".mp3": "audio/mpeg",
     ".mp4": "audio/mp4",
@@ -470,12 +472,17 @@ class CallAnalyzer:
         prompt = (
             "Siz professional qo'ng'iroq transkripsiya mutaxassisisiz. "
             "Audio yozuvni eshiting va suhbatni O'zbek lotinida yozing.\n\n"
-            "Qoidalar:\n"
+            "QOIDALAR (qat'iy rioya qiling):\n"
+            "- Faqat audio faylda HAQIQATDA eshitilgan gaplarni yozing. "
+            "Hech qachon o'zingizdan suhbat, ism, narx yoki tafsilot O'YLAB TOPMANG.\n"
+            "- Agar audioda tushunarli inson nutqi bo'lmasa (sukunat, band/chaqiruv "
+            "ohangi, faqat shovqin, juda qisqa yoki tushunarsiz ovoz) — hech narsa "
+            f"to'qimang, faqat aynan shu so'zni qaytaring: {NO_SPEECH_SENTINEL}\n"
             "- Ikki tomon gaplarini A: va B: qilib ajrating.\n"
             "- Ruscha yoki boshqa tilda gapirilgan bo'lsa, mazmunini O'zbek lotiniga tarjima qilib yozing.\n"
             "- Ism, telefon, narx, muddat va vazifalarni aniq saqlang.\n"
             "- Eshitilmagan joylarni [...] deb belgilang.\n"
-            "- Faqat transkripsiya matnini qaytaring."
+            "- Faqat transkripsiya matnini (yoki yuqoridagi sentinel so'zni) qaytaring."
         )
 
         try:
@@ -501,6 +508,9 @@ class CallAnalyzer:
                 ),
             )
             text = (getattr(response, "text", None) or "").strip()
+            if text and NO_SPEECH_SENTINEL in text:
+                logger.info("[CALL] Gemini: audio'da tushunarli nutq topilmadi — tahlil o'tkazib yuborildi.")
+                return None
             if text:
                 logger.info("[CALL] STT done: %s chars", len(text))
                 return text

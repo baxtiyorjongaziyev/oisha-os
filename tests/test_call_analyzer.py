@@ -361,3 +361,53 @@ async def test_contact_level_calls_route_only_to_single_linked_lead():
     kwargs = analyzer.process_call_recordings_for_lead.await_args.kwargs
     assert kwargs["responsible_user_id"] == 777
     assert kwargs["call_notes_override"] == [notes[0]]
+
+
+@pytest.mark.asyncio
+async def test_short_call_skipped_with_min_duration_guard():
+    """Ovoz pochtasi/band ohang kabi juda qisqa yozuvlar hech qanday AI
+    tahliliga yuborilmasligi va CRM'ga yozilmasligi kerak — real suhbat
+    bo'lmagan qo'ng'iroqni AI "tahlil qilib" to'qib yozishining oldini oladi."""
+    call_note = {
+        "id": 1,
+        "note_type": "call_in",
+        "params": {
+            "uniq": "call-short-1",
+            "link": "https://amocrm.com/calls/recording.mp3",
+            "duration": 2,  # 2 soniya — haqiqiy suhbat bo'lishi mumkin emas
+        },
+    }
+    amocrm_mock = MagicMock()
+    amocrm_mock.get_lead_notes = AsyncMock(return_value=[call_note])
+    amocrm_mock.add_lead_note = MagicMock(return_value=True)
+
+    analyzer = CallAnalyzer(amocrm=amocrm_mock, voice_processor=MagicMock(), db=_mock_db_with_processed_row(None))
+
+    with patch.object(analyzer, "_fetch_audio_bytes") as fetch_mock, patch.object(
+        analyzer, "_transcribe_inline"
+    ) as transcribe_mock:
+        processed = await analyzer.process_call_recordings_for_lead(
+            999, min_call_duration_seconds=10,
+        )
+
+    assert processed == 0
+    fetch_mock.assert_not_called()
+    transcribe_mock.assert_not_called()
+    amocrm_mock.add_lead_note.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_transcribe_inline_returns_none_when_gemini_reports_no_speech():
+    """Gemini audio'da tushunarli nutq yo'qligini bildirsa (sentinel),
+    to'qilgan (hallucinated) transkripsiya sifatida qabul qilinmasligi kerak."""
+    from src.services.core.call_analyzer import NO_SPEECH_SENTINEL
+
+    analyzer = CallAnalyzer(amocrm=MagicMock(), voice_processor=MagicMock(), db=MagicMock())
+    analyzer.free_ai_router = MagicMock()
+    analyzer.free_ai_router.transcribe_audio = AsyncMock(side_effect=RuntimeError("no free provider"))
+
+    fake_response = SimpleNamespace(text=NO_SPEECH_SENTINEL)
+    with patch.object(analyzer, "_gemini_generate_content", return_value=fake_response):
+        transcript = await analyzer._transcribe_inline(b"AUDIO", "audio/mpeg")
+
+    assert transcript is None
