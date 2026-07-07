@@ -106,7 +106,8 @@ const TOOLS = [
   {
     name: 'get_call_detail',
     description:
-      "Bitta qo'ng'iroqning to'liq tafsilotlari: transcript, scorecard (6 bosqich balli, ovoz analitikasi, risk flaglar).",
+      "Bitta qo'ng'iroq ma'lumotlari. Faqat ishlov berilgan (status=DONE) qo'ng'iroqlarda transcript va scorecard bor. " +
+      "Agar status=UPLOADED/TRANSCRIBING/SCORING bo'lsa, hali tayyor emas. processingNote maydoniga qarang.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -195,6 +196,19 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
 // ── Start ──────────────────────────────────────────────────────
 async function main() {
+  // Health check: verify API is reachable
+  try {
+    const healthRes = await fetch(`${API_URL}/v1/health`, { signal: AbortSignal.timeout(5000) });
+    if (!healthRes.ok) {
+      process.stderr.write(`[salescoach-ai MCP] WARNING: API at ${API_URL} returned HTTP ${healthRes.status}\n`);
+    } else {
+      process.stderr.write(`[salescoach-ai MCP] API at ${API_URL} is reachable\n`);
+    }
+  } catch (err: any) {
+    process.stderr.write(`[salescoach-ai MCP] WARNING: API at ${API_URL} not reachable — ${err.message}\n`);
+    process.stderr.write('[salescoach-ai MCP] Tools will fail until API is started\n');
+  }
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   process.stderr.write('[salescoach-ai MCP] Server started\n');
