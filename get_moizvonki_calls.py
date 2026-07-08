@@ -3,7 +3,7 @@ import os
 import requests
 import time
 
-API_KEY = os.environ["MOIZVONKI_API_KEY"]
+API_KEY = os.environ.get("MOIZVONKI_API_KEY", "")
 emails = ["jonbranding@agency.uz"]
 
 for email in emails:
