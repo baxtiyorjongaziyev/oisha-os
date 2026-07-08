@@ -1,7 +1,7 @@
 import os
 import requests
 
-API_KEY = "4bj3tqn0mbq54crzfr2zqnjnfrb3n3rd"
+API_KEY = os.environ.get("MOIZVONKI_API_KEY", "")
 url = "https://jonbrandingagency.moizvonki.ru/calls/recordings/CHYSAlcyisFYrEijUDEWswXbJURDcRMk.mp3/"
 
 # Try different auth methods and check output size/content
