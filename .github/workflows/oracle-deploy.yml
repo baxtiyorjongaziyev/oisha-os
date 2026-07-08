@@ -3,6 +3,16 @@ name: Oracle Production Deploy
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'requirements.txt'
+      - 'deploy/**'
+      - 'scripts/**'
+      - 'data/service_account.json'
+      - '.github/workflows/oracle-deploy.yml'
+    paths-ignore:
+      - 'deploy/*-trigger'
+      - '**.md'
   workflow_dispatch:
 
 concurrency:
