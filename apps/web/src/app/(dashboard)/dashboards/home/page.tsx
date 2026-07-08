@@ -511,8 +511,9 @@ export default function HomePage() {
               <div className="flex items-center justify-between border-b border-border pb-4">
                 <h3 className="text-base font-bold text-text">Dashboard bo&apos;limlarini sozlash</h3>
                 <button
+                  aria-label="Yopish"
                   onClick={() => setCustomizerOpen(false)}
-                  className="rounded-lg p-1.5 text-text-muted hover:bg-bg"
+                  className="rounded-lg p-1.5 text-text-muted hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                 >
                   Yopish
                 </button>
@@ -530,8 +531,11 @@ export default function HomePage() {
                     <div className="flex items-center gap-2">
                       {/* Checkbox trigger toggle */}
                       <button
+                        role="switch"
+                        aria-checked={widget.enabled}
+                        aria-label={`${widget.name} blokini ko'rsatish`}
                         onClick={() => toggleWidget(widget.id)}
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${
                           widget.enabled ? "bg-brand border-brand text-white" : "border-border bg-bg-card"
                         }`}
                       >
@@ -547,18 +551,24 @@ export default function HomePage() {
                     {/* Up/Down ordering controls */}
                     <div className="flex items-center gap-1">
                       <button
+                        aria-label="Yuqoriga siljitish"
                         disabled={index === 0}
                         onClick={() => moveWidget(index, "up")}
-                        className="rounded p-1 text-text-muted hover:bg-brand-light hover:text-brand disabled:opacity-30 disabled:pointer-events-none"
+                        className="rounded p-1 text-text-muted hover:bg-brand-light hover:text-brand disabled:opacity-30 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                       >
-                        ▲
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                        </svg>
                       </button>
                       <button
+                        aria-label="Pastga siljitish"
                         disabled={index === widgets.length - 1}
                         onClick={() => moveWidget(index, "down")}
-                        className="rounded p-1 text-text-muted hover:bg-brand-light hover:text-brand disabled:opacity-30 disabled:pointer-events-none"
+                        className="rounded p-1 text-text-muted hover:bg-brand-light hover:text-brand disabled:opacity-30 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                       >
-                        ▼
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
                       </button>
                     </div>
                   </div>

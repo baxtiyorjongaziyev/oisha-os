@@ -76,3 +76,6 @@
 ## 2024-05-28 - Hiding Redundant Tooltip Announcements
 **Learning:** If a navigation link or button contains `sr-only` text, and it also triggers a hover tooltip component displaying the identical text, screen readers will read the label twice (once from the DOM element, once from the tooltip structure).
 **Action:** Always add `aria-hidden="true"` to visual-only hover tooltips that duplicate the accessible text already present inside the parent interactive element.
+## 2024-07-08 - Widget Customizer Button Enhancements
+**Learning:** Raw text characters like "▲" and "▼" for interactive actions lack screen reader accessibility and visual polish compared to semantic SVG icons. Additionally, custom component interactive elements require explicit ARIA attributes and keyboard focus states to function inclusively.
+**Action:** When refining list ordering or custom toggle buttons, replace raw text characters with SVGs, define clear `aria-label` and `aria-checked` properties, and apply consistent `focus-visible:ring` styles to ensure correct screen reader announcements and robust keyboard navigation.
