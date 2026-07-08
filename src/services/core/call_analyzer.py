@@ -104,6 +104,33 @@ def _compute_talk_ratio(transcript: str) -> tuple[int, int]:
     return round(client_chars * 100 / total), round(agent_chars * 100 / total)
 
 
+# Whisper-turkum ASR modellari sukunat/shovqinda ko'pincha shu qisqa,
+# ma'nosiz iboralarni "eshitib" qaytaradi (yaxshi hujjatlashtirilgan
+# hallucination artifaktlari). Gemini'ning maxsus sentinel'idan farqli
+# o'laroq, bu — barcha STT provayderlariga (free_ai_router, OpenAI
+# fallback) qo'llaniladigan umumiy himoya.
+_STT_HALLUCINATION_PHRASES = {
+    "you", "thank you", "thanks for watching", "thank you for watching",
+    "bye", "goodbye", "subscribe", "silence", "music", "[music]",
+    "rahmat", "xayr",
+}
+
+
+def _looks_like_stt_hallucination(text: str) -> bool:
+    """Juda qisqa yoki ma'lum hallucination iboralariga mos matnni
+    ishonchsiz deb belgilaydi — real qo'ng'iroq suhbati bunday bo'lmaydi."""
+    if not text:
+        return True
+    normalised = text.strip().strip(".!?").lower()
+    if normalised in _STT_HALLUCINATION_PHRASES:
+        return True
+    # Real ikki tomonlama suhbat deyarli hech qachon bir necha so'zdan
+    # qisqa bo'lmaydi.
+    if len(normalised) < 12:
+        return True
+    return False
+
+
 def _talk_ratio_verdict(client_pct: int) -> str:
     """Human-readable verdict for the talk ratio."""
     if client_pct >= 55:
@@ -488,6 +515,13 @@ class CallAnalyzer:
         try:
             routed = await self.free_ai_router.transcribe_audio(audio_bytes, mime_type)
             if routed and routed.text:
+                if _looks_like_stt_hallucination(routed.text):
+                    logger.info(
+                        "[CALL] %s: shubhali/hallucination-o'xshash natija rad etildi: %r",
+                        routed.provider,
+                        routed.text[:60],
+                    )
+                    return None
                 logger.info(
                     "[CALL] STT done provider=%s model=%s chars=%s",
                     routed.provider,
@@ -510,6 +544,9 @@ class CallAnalyzer:
             text = (getattr(response, "text", None) or "").strip()
             if text and NO_SPEECH_SENTINEL in text:
                 logger.info("[CALL] Gemini: audio'da tushunarli nutq topilmadi — tahlil o'tkazib yuborildi.")
+                return None
+            if text and _looks_like_stt_hallucination(text):
+                logger.info("[CALL] Gemini: shubhali/hallucination-o'xshash natija rad etildi: %r", text[:60])
                 return None
             if text:
                 logger.info("[CALL] STT done: %s chars", len(text))
@@ -562,6 +599,9 @@ class CallAnalyzer:
             response = await asyncio.to_thread(_create)
             text = response if isinstance(response, str) else getattr(response, "text", "")
             text = (text or "").strip()
+            if text and _looks_like_stt_hallucination(text):
+                logger.info("[CALL] OpenAI Whisper: shubhali/hallucination-o'xshash natija rad etildi: %r", text[:60])
+                return None
             if text:
                 logger.info("[CALL] OpenAI STT fallback done: %s chars", len(text))
                 return text

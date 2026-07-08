@@ -48,7 +48,10 @@ def run_server():
     shu funksiya chaqirilganda ishga tushadi — shu bilan modulni import
     qilish (masalan testlarda) hech qachon osilib qolmaydi."""
     host = os.getenv("OISHA_OAUTH_BIND_HOST", "127.0.0.1")
-    port = int(os.getenv("OISHA_OAUTH_PORT", "9999"))
+    try:
+        port = int(os.getenv("OISHA_OAUTH_PORT", "9999"))
+    except ValueError:
+        port = 9999
     print(f"Server {host}:{port} da ishga tushdi")
     print(f"Brauzerda oching: http://{host}:{port}/auth")
     with http.server.HTTPServer((host, port), Handler) as server:
