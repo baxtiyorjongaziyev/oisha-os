@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -43,6 +44,14 @@ class UzbekVoiceAgent:
             headers={"Authorization": f"Bearer {config.api_key}"},
             timeout=30.0,
         )
+
+    @staticmethod
+    def _normalize_card_suffix(value: str) -> str:
+        """Har qanday matndan (karta raqami, telefon...) oxirgi 4 ta
+        raqamni ajratib oladi — karta/telefonni to'liq ko'rsatmasdan
+        loglash/solishtirish uchun."""
+        digits = re.sub(r"\D", "", value or "")
+        return digits[-4:]
 
     async def initiate_call(
         self,
