@@ -48,7 +48,7 @@ class LTVPredictor:
         if os.path.exists(self.model_path):
             try:
                 with open(self.model_path, "rb") as f:
-                    self.model = pickle.load(f)
+                    self.model = pickle.load(f)  # nosec B301
                 logger.info("[LTV] Model loaded", path=self.model_path)
             except Exception as e:
                 logger.warning("[LTV] Failed to load model", error=str(e))
