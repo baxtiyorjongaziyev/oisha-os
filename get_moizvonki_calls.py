@@ -1,8 +1,9 @@
+import os
 import json
 import requests
 import time
 
-API_KEY = "4bj3tqn0mbq54crzfr2zqnjnfrb3n3rd"
+API_KEY = os.environ.get("MOIZVONKI_API_KEY", "")
 emails = ["jonbranding@agency.uz"]
 
 for email in emails:

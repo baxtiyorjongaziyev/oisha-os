@@ -17,4 +17,4 @@ global_vars = {
     "__name__": "__main__",
     "__package__": None,
 }
-exec(code, global_vars)
+exec(code, global_vars)  # nosec B102
