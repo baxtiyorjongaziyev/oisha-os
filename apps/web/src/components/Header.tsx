@@ -83,13 +83,21 @@ export default function Header() {
             aria-label="Sidebar menyusini almashtirish"
             className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
           >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          
+
           <div className="hidden sm:block">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">METASELL</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
+              METASELL
+            </span>
             <h2 className="text-sm font-semibold text-text mt-[-2px]">Sotuv Tahlil Tizimi</h2>
           </div>
         </div>
@@ -101,8 +109,18 @@ export default function Header() {
             onClick={() => setSearchOpen(true)}
             className="flex items-center gap-2 rounded-2xl border border-border bg-bg px-3 py-2 text-xs text-text-muted hover:border-brand-hover hover:bg-brand-light/30 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 w-36 md:w-56"
           >
-            <svg className="h-4 w-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <svg
+              className="h-4 w-4 text-text-muted"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
             <span className="flex-1 text-left hidden md:inline">Qidirish...</span>
             <kbd className="hidden md:inline-flex h-5 items-center gap-1 rounded border border-border bg-bg-card px-1.5 font-mono text-[10px] font-medium text-text-muted">
@@ -118,18 +136,37 @@ export default function Header() {
               aria-label="Biznesni o'zgartirish menyusi"
               className="flex items-center gap-1.5 rounded-2xl bg-brand-light px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand-light/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                />
               </svg>
               <span className="max-w-[120px] truncate">{currentBusiness}</span>
-              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <svg
+                className="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {businessDropdownOpen && (
               <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-border bg-bg-popover p-2 shadow-xl animate-fade-in z-50">
-                <div id="businesses-heading" className="px-3 py-1.5 text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                <div
+                  id="businesses-heading"
+                  className="px-3 py-1.5 text-[10px] font-semibold text-text-muted uppercase tracking-wider"
+                >
                   Mavjud Bizneslar
                 </div>
                 <ul aria-labelledby="businesses-heading" className="space-y-0.5">
@@ -142,16 +179,30 @@ export default function Header() {
                         }}
                         aria-current={currentBusiness === b.name ? "true" : undefined}
                         className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-colors hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${
-                          currentBusiness === b.name ? "bg-brand-light font-semibold text-brand" : "text-text"
+                          currentBusiness === b.name
+                            ? "bg-brand-light font-semibold text-brand"
+                            : "text-text"
                         }`}
                       >
                         <span className="flex items-center gap-2">
                           {currentBusiness === b.name && (
-                            <svg className="h-3.5 w-3.5 text-brand shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            <svg
+                              className="h-3.5 w-3.5 text-brand shrink-0"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M5 13l4 4L19 7"
+                              />
                             </svg>
                           )}
-                          <span className={currentBusiness !== b.name ? "pl-5.5" : ""}>{b.name}</span>
+                          <span className={currentBusiness !== b.name ? "pl-5.5" : ""}>
+                            {b.name}
+                          </span>
                         </span>
                         <span
                           className={`rounded px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
@@ -174,7 +225,13 @@ export default function Header() {
                   }}
                   className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-brand font-medium hover:bg-brand-light transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                 >
-                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    className="h-4 w-4 shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
                   Yangi biznes qo&apos;shish
@@ -190,12 +247,32 @@ export default function Header() {
             className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
           >
             {theme === "dark" ? (
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"
+                />
               </svg>
             ) : (
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+                />
               </svg>
             )}
           </button>
@@ -207,8 +284,18 @@ export default function Header() {
               aria-label="Bildirishnomalar"
               className="relative rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
             >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                />
               </svg>
               {alertsCount > 0 && (
                 <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white ring-2 ring-bg-card">
@@ -224,7 +311,7 @@ export default function Header() {
                   <Link
                     href="/alerts"
                     onClick={() => setNotificationsOpen(false)}
-                    className="text-[10px] font-semibold text-brand hover:underline"
+                    className="text-[10px] font-semibold text-brand hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded-sm"
                   >
                     Hammasini ko&apos;rish
                   </Link>
@@ -246,11 +333,17 @@ export default function Header() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-text-muted">{a.typeLabel}</span>
+                          <span className="text-[10px] font-bold text-text-muted">
+                            {a.typeLabel}
+                          </span>
                           <span className="text-[9px] text-text-muted">{a.time}</span>
                         </div>
-                        <h4 className="text-xs font-semibold text-text truncate mt-0.5">{a.title}</h4>
-                        <p className="text-[10px] text-text-muted line-clamp-2 mt-0.5">{a.description}</p>
+                        <h4 className="text-xs font-semibold text-text truncate mt-0.5">
+                          {a.title}
+                        </h4>
+                        <p className="text-[10px] text-text-muted line-clamp-2 mt-0.5">
+                          {a.description}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -265,9 +358,23 @@ export default function Header() {
             aria-label="Bug yoki taklif yuborish"
             className="rounded-xl p-2 text-text-muted hover:bg-brand-light hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
           >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
             </svg>
           </button>
 
@@ -296,14 +403,14 @@ export default function Header() {
                   <Link
                     href="/settings?tab=profil"
                     onClick={() => setAvatarDropdownOpen(false)}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-text hover:bg-bg transition-colors"
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-text hover:bg-bg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                   >
                     Profil
                   </Link>
                   <Link
                     href="/settings"
                     onClick={() => setAvatarDropdownOpen(false)}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-text hover:bg-bg transition-colors"
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-text hover:bg-bg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                   >
                     Sozlamalar
                   </Link>
@@ -313,7 +420,7 @@ export default function Header() {
                       alert("Tizimdan chiqildi!");
                       setAvatarDropdownOpen(false);
                     }}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1"
                   >
                     Chiqish
                   </button>
@@ -329,8 +436,18 @@ export default function Header() {
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-20">
           <div className="w-full max-w-xl rounded-3xl border border-border bg-bg-popover p-4 shadow-2xl animate-fade-in">
             <div className="flex items-center gap-3 border-b border-border pb-3">
-              <svg className="h-5 w-5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <svg
+                className="h-5 w-5 text-text-muted"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
               </svg>
               <input
                 type="text"
@@ -416,15 +533,26 @@ export default function Header() {
       {bugReportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-3xl border border-border bg-bg-popover p-6 shadow-2xl animate-fade-in">
-            <h3 className="text-lg font-bold text-text">Tizim bo&apos;yicha taklif yoki xatolik yuborish</h3>
+            <h3 className="text-lg font-bold text-text">
+              Tizim bo&apos;yicha taklif yoki xatolik yuborish
+            </h3>
             <p className="text-xs text-text-muted mt-1">
               Metasell platformasini yanada yaxshilash uchun bizga yordam bering.
             </p>
 
             <form onSubmit={handleBugSubmit} className="mt-4 space-y-4">
               <div>
-                <label id="bug-category-label" className="text-[10px] font-bold text-text-muted uppercase block">Turi</label>
-                <div role="group" aria-labelledby="bug-category-label" className="grid grid-cols-3 gap-2 mt-1">
+                <label
+                  id="bug-category-label"
+                  className="text-[10px] font-bold text-text-muted uppercase block"
+                >
+                  Turi
+                </label>
+                <div
+                  role="group"
+                  aria-labelledby="bug-category-label"
+                  className="grid grid-cols-3 gap-2 mt-1"
+                >
                   {["idea", "request", "bug"].map((cat) => (
                     <button
                       key={cat}
@@ -444,7 +572,12 @@ export default function Header() {
               </div>
 
               <div>
-                <label htmlFor="bug-description" className="text-[10px] font-bold text-text-muted uppercase block">Tavsif</label>
+                <label
+                  htmlFor="bug-description"
+                  className="text-[10px] font-bold text-text-muted uppercase block"
+                >
+                  Tavsif
+                </label>
                 <textarea
                   id="bug-description"
                   required
@@ -457,11 +590,22 @@ export default function Header() {
               </div>
 
               <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-3 flex gap-2.5">
-                <svg className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="h-4 w-4 text-amber-600 shrink-0 mt-0.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 <span className="text-[10px] text-amber-800 dark:text-amber-400">
-                  <strong>Eslatma:</strong> Muammoni tezroq hal qilishimiz uchun joriy biznes konteksti (Jon Branding agency ma&apos;lumotlari) xabarga qo&apos;shib yuboriladi.
+                  <strong>Eslatma:</strong> Muammoni tezroq hal qilishimiz uchun joriy biznes
+                  konteksti (Jon Branding agency ma&apos;lumotlari) xabarga qo&apos;shib yuboriladi.
                 </span>
               </div>
 
@@ -496,8 +640,10 @@ export default function Header() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-3xl border border-border bg-bg-popover p-6 shadow-2xl animate-fade-in">
             <h3 className="text-base font-bold text-text">Yangi biznes qo&apos;shish</h3>
-            <p className="text-xs text-text-muted mt-1">Platformaga yangi sotuv voronkasi qo&apos;shish uchun nom tanlang.</p>
-            
+            <p className="text-xs text-text-muted mt-1">
+              Platformaga yangi sotuv voronkasi qo&apos;shish uchun nom tanlang.
+            </p>
+
             <form onSubmit={handleAddBusiness} className="mt-4 space-y-4">
               <input
                 required

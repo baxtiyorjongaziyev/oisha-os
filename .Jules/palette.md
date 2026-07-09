@@ -76,3 +76,7 @@
 ## 2024-05-28 - Hiding Redundant Tooltip Announcements
 **Learning:** If a navigation link or button contains `sr-only` text, and it also triggers a hover tooltip component displaying the identical text, screen readers will read the label twice (once from the DOM element, once from the tooltip structure).
 **Action:** Always add `aria-hidden="true"` to visual-only hover tooltips that duplicate the accessible text already present inside the parent interactive element.
+
+## 2024-07-09 - Semantic focus rings for destructive actions in dropdown menus
+**Learning:** Applying semantically-colored focus rings (e.g., `focus-visible:ring-rose-500` instead of the default `ring-brand`) to destructive actions within dropdown menus (like "Chiqish" / Logout) improves visual feedback for keyboard users, reinforcing the intent of the action.
+**Action:** Use matching semantic colors for focus rings on destructive/warning interactive elements throughout the UI, rather than solely relying on the primary brand color.
