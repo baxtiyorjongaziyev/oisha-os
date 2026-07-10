@@ -22,7 +22,7 @@ export default function CallsPage() {
   const [directionFilter, setDirectionFilter] = useState<string>("Barchasi");
   const [serviceFilter, setServiceFilter] = useState<string>("Barchasi");
   const [managerFilter, setManagerFilter] = useState<string>("Barchasi");
-  
+
   // Sorting state
   const [sortKey, setSortKey] = useState<keyof CallData>("date");
   const [sortAsc, setSortAsc] = useState(false);
@@ -38,18 +38,22 @@ export default function CallsPage() {
       })
       .then((payload) => {
         const rows = Array.isArray(payload.calls) ? payload.calls : [];
-        setCalls(rows.map((call: Record<string, unknown>) => ({
-          id: String(call.id ?? ""),
-          date: String(call.analyzed_at ?? ""),
-          manager: String(call.manager ?? "Noma'lum manager"),
-          direction: "Kiruvchi" as const,
-          duration: String(call.duration ?? "00:00"),
-          status: String(call.result ?? "Tahlil qilindi"),
-          score: call.score === undefined ? "-" : `${call.score}%`,
-          family: String(call.category ?? "Noma'lum"),
-          service: String(call.client ?? "Noma'lum mijoz")
-        })));
-        setLoadError(payload.real_data === false ? String(payload.message ?? "Real tahlillar topilmadi") : "");
+        setCalls(
+          rows.map((call: Record<string, unknown>) => ({
+            id: String(call.id ?? ""),
+            date: String(call.analyzed_at ?? ""),
+            manager: String(call.manager ?? "Noma'lum manager"),
+            direction: "Kiruvchi" as const,
+            duration: String(call.duration ?? "00:00"),
+            status: String(call.result ?? "Tahlil qilindi"),
+            score: call.score === undefined ? "-" : `${call.score}%`,
+            family: String(call.category ?? "Noma'lum"),
+            service: String(call.client ?? "Noma'lum mijoz")
+          }))
+        );
+        setLoadError(
+          payload.real_data === false ? String(payload.message ?? "Real tahlillar topilmadi") : ""
+        );
       })
       .catch((error: Error) => setLoadError(`Real API ulanmagan: ${error.message}`));
   }, []);
@@ -67,7 +71,7 @@ export default function CallsPage() {
   const sortedCalls = [...filteredCalls].sort((a, b) => {
     let valA: string | number = a[sortKey];
     let valB: string | number = b[sortKey];
-    
+
     // Custom logic for score parsing or empty values
     if (sortKey === "score") {
       valA = a.score === "—" ? -1 : parseInt(a.score);
@@ -90,7 +94,7 @@ export default function CallsPage() {
 
   const handleDeleteCall = (id: string) => {
     if (confirm("Ushbu qo'ng'iroq tahlilini ro'yxatdan o'chirishni xohlaysizmi?")) {
-      setCalls(calls.filter(c => c.id !== id));
+      setCalls(calls.filter((c) => c.id !== id));
       setActiveActionsMenu(null);
     }
   };
@@ -101,7 +105,8 @@ export default function CallsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-text">Qo&apos;ng&apos;iroqlar</h1>
         <p className="text-xs text-text-muted mt-1">
-          Barcha yozib olingan va AI tomonidan tahlil qilingan qo&apos;ng&apos;iroqlar ro&apos;yxati.
+          Barcha yozib olingan va AI tomonidan tahlil qilingan qo&apos;ng&apos;iroqlar
+          ro&apos;yxati.
         </p>
         {loadError ? <p className="mt-2 text-xs text-amber-600">{loadError}</p> : null}
       </div>
@@ -109,7 +114,7 @@ export default function CallsPage() {
       {/* Filter panel */}
       <div className="rounded-3xl border border-border bg-bg-card p-5 shadow-sm space-y-4">
         <h3 className="text-xs font-bold text-text uppercase tracking-wider">Filtrlar</h3>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {/* Status Filter */}
           <div>
@@ -130,7 +135,9 @@ export default function CallsPage() {
 
           {/* Direction Filter */}
           <div>
-            <label className="text-[10px] font-bold text-text-muted uppercase block">Yo&apos;nalishi</label>
+            <label className="text-[10px] font-bold text-text-muted uppercase block">
+              Yo&apos;nalishi
+            </label>
             <select
               value={directionFilter}
               onChange={(e) => setDirectionFilter(e.target.value)}
@@ -144,7 +151,9 @@ export default function CallsPage() {
 
           {/* Service Filter */}
           <div>
-            <label className="text-[10px] font-bold text-text-muted uppercase block">Xizmat turi</label>
+            <label className="text-[10px] font-bold text-text-muted uppercase block">
+              Xizmat turi
+            </label>
             <select
               value={serviceFilter}
               onChange={(e) => setServiceFilter(e.target.value)}
@@ -185,23 +194,161 @@ export default function CallsPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-border text-text-muted font-bold select-none">
-                  <th onClick={() => handleSort("date")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Sana {sortKey === "date" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("date")}
+                      aria-label={`Sana bo'yicha ${sortKey === "date" ? (sortAsc ? "kamayish" : "o'sish") : "tartiblash"}`}
+                      className="flex items-center gap-1 w-full text-left font-bold text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded active:scale-[0.98] transition-all"
+                    >
+                      Sana
+                      {sortKey === "date" && (
+                        <svg
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          {sortAsc ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          )}
+                        </svg>
+                      )}
+                    </button>
                   </th>
-                  <th onClick={() => handleSort("manager")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Menejer {sortKey === "manager" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("manager")}
+                      aria-label={`Menejer bo'yicha ${sortKey === "manager" ? (sortAsc ? "kamayish" : "o'sish") : "tartiblash"}`}
+                      className="flex items-center gap-1 w-full text-left font-bold text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded active:scale-[0.98] transition-all"
+                    >
+                      Menejer
+                      {sortKey === "manager" && (
+                        <svg
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          {sortAsc ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          )}
+                        </svg>
+                      )}
+                    </button>
                   </th>
-                  <th onClick={() => handleSort("direction")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Yo&apos;nalish {sortKey === "direction" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("direction")}
+                      aria-label={`Yo'nalish bo'yicha ${sortKey === "direction" ? (sortAsc ? "kamayish" : "o'sish") : "tartiblash"}`}
+                      className="flex items-center gap-1 w-full text-left font-bold text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded active:scale-[0.98] transition-all"
+                    >
+                      Yo&apos;nalish
+                      {sortKey === "direction" && (
+                        <svg
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          {sortAsc ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          )}
+                        </svg>
+                      )}
+                    </button>
                   </th>
-                  <th onClick={() => handleSort("duration")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Davomiylik {sortKey === "duration" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("duration")}
+                      aria-label={`Davomiylik bo'yicha ${sortKey === "duration" ? (sortAsc ? "kamayish" : "o'sish") : "tartiblash"}`}
+                      className="flex items-center gap-1 w-full text-left font-bold text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded active:scale-[0.98] transition-all"
+                    >
+                      Davomiylik
+                      {sortKey === "duration" && (
+                        <svg
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          {sortAsc ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          )}
+                        </svg>
+                      )}
+                    </button>
                   </th>
-                  <th onClick={() => handleSort("status")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Holat {sortKey === "status" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("status")}
+                      aria-label={`Holat bo'yicha ${sortKey === "status" ? (sortAsc ? "kamayish" : "o'sish") : "tartiblash"}`}
+                      className="flex items-center gap-1 w-full text-left font-bold text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded active:scale-[0.98] transition-all"
+                    >
+                      Holat
+                      {sortKey === "status" && (
+                        <svg
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          {sortAsc ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          )}
+                        </svg>
+                      )}
+                    </button>
                   </th>
-                  <th onClick={() => handleSort("score")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Suhbat sifati {sortKey === "score" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("score")}
+                      aria-label={`Suhbat sifati bo'yicha ${sortKey === "score" ? (sortAsc ? "kamayish" : "o'sish") : "tartiblash"}`}
+                      className="flex items-center gap-1 w-full text-left font-bold text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded active:scale-[0.98] transition-all"
+                    >
+                      Suhbat sifati
+                      {sortKey === "score" && (
+                        <svg
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          {sortAsc ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          )}
+                        </svg>
+                      )}
+                    </button>
                   </th>
                   <th className="py-3 px-3">Kategoriya</th>
                   <th className="py-3 px-3 text-right">Amallar</th>
@@ -209,27 +356,34 @@ export default function CallsPage() {
               </thead>
               <tbody>
                 {sortedCalls.map((call) => (
-                  <tr key={call.id} className="border-b border-border/50 hover:bg-bg/40 transition-colors">
+                  <tr
+                    key={call.id}
+                    className="border-b border-border/50 hover:bg-bg/40 transition-colors"
+                  >
                     <td className="py-3.5 px-3 font-medium text-text">{call.date}</td>
                     <td className="py-3.5 px-3 text-text">{call.manager}</td>
                     <td className="py-3.5 px-3">
-                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                        call.direction === "Kiruvchi"
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
-                          : "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
-                      }`}>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                          call.direction === "Kiruvchi"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                            : "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
+                        }`}
+                      >
                         {call.direction}
                       </span>
                     </td>
                     <td className="py-3.5 px-3 text-text-muted font-mono">{call.duration}</td>
                     <td className="py-3.5 px-3">
-                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                        call.status === "Bog'langan"
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
-                          : call.status === "Xatolik"
-                          ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400"
-                          : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
-                      }`}>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                          call.status === "Bog'langan"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                            : call.status === "Xatolik"
+                              ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+                        }`}
+                      >
                         {call.status}
                       </span>
                     </td>
@@ -246,16 +400,18 @@ export default function CallsPage() {
                         >
                           👁 Tahlil
                         </Link>
-                        
+
                         {/* 3 dots action menu */}
                         <div className="relative">
                           <button
-                            onClick={() => setActiveActionsMenu(activeActionsMenu === call.id ? null : call.id)}
+                            onClick={() =>
+                              setActiveActionsMenu(activeActionsMenu === call.id ? null : call.id)
+                            }
                             className="rounded-xl p-1.5 text-text-muted hover:bg-bg transition-colors focus:outline-none"
                           >
                             ⋯
                           </button>
-                          
+
                           {activeActionsMenu === call.id && (
                             <div className="absolute right-0 mt-1 w-28 rounded-xl border border-border bg-bg-popover p-1 shadow-lg z-10 animate-fade-in text-left">
                               <Link

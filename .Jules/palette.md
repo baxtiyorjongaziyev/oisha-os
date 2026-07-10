@@ -76,3 +76,7 @@
 ## 2024-05-28 - Hiding Redundant Tooltip Announcements
 **Learning:** If a navigation link or button contains `sr-only` text, and it also triggers a hover tooltip component displaying the identical text, screen readers will read the label twice (once from the DOM element, once from the tooltip structure).
 **Action:** Always add `aria-hidden="true"` to visual-only hover tooltips that duplicate the accessible text already present inside the parent interactive element.
+
+## 2026-07-28 - [UX Improvement] Replace Raw Text Characters with Semantic SVG Icons
+**Learning:** Using raw text characters like "▲" and "▼" for interactive actions (such as sorting table headers or moving widgets) is problematic for accessibility and scaling. They are not consistently read by screen readers, lack inherent meaning, and their visual rendering can vary across platforms. Furthermore, using `<th>` directly with an `onClick` handler without an underlying semantic element reduces accessibility since the header itself is not natively focusable or announced as interactive without appropriate roles.
+**Action:** Always replace text-based interactive indicators with semantic SVG icons (using `aria-hidden="true"`). Wrap these interactions in properly typed `<button type="button">` elements equipped with dynamically updating `aria-label`s, comprehensive `focus-visible` states, and tactile interaction (`active:scale-[0.98]`).
