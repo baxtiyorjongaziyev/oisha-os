@@ -172,6 +172,7 @@ async def _process_amocrm_event(data: Dict[str, Any]):
                 calls_processed = await call_analyzer.process_call_recordings_for_lead(
                     lead_id=int(lead_id), caller_phone=phone or "",
                     responsible_user_id=lead_data.get("responsible_user_id"),
+                    min_call_duration_seconds=settings.AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS,
                 )
                 logger.info("[Webhook] AmoCRM call analysis result: lead_id=%s processed=%s", lead_id, calls_processed)
             except Exception as call_exc:

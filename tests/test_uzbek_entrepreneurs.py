@@ -8,7 +8,7 @@ from src.database import Database
 from src.services.core.uzbek_entrepreneurs_schema import (
     init_uzbek_entrepreneurs_tables,
 )
-from src.services.core.hisobchi_schema import ensure_hisobchi_db
+from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 from src.services.core.uzbek_entrepreneurs_scraper import (
     UzbekEntrepreneurScraper,
     ScrapedEntrepreneur,
@@ -25,15 +25,24 @@ async def temp_db(tmp_path):
     db = Database(str(tmp_path / "uzbek_test.db"))
     await db.init_instance()
     await init_uzbek_entrepreneurs_tables(db)
-    yield db
+    # Raw Database faqat get_connection() beradi — testlar to'g'ridan-to'g'ri
+    # .execute()/.commit() chaqirgani uchun (scraper qanday ishlatsa xuddi
+    # shunday) hisobchi adapteriga o'raymiz.
+    yield ensure_hisobchi_db(db)
     await db.close()
 
 
 @pytest.mark.asyncio
 async def test_uzbek_tables_initialized(temp_db) -> None:
     """Test that Uzbek Entrepreneurs tables are created."""
+    # E'tibor: qavs shart — AND OR'dan ustun bo'lgani uchun qavssiz yozilsa
+    # (type='table' AND name LIKE 'uzbek%') OR (name LIKE 'entrepreneur%')
+    # bo'lib, type filtri ikkinchi shartga qo'llanmaydi. call_operators esa
+    # na 'uzbek%' na 'entrepreneur%' naqshiga to'g'ri kelmaydi — aniq ism
+    # bilan qo'shiladi.
     rows = await temp_db.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'uzbek%' OR name LIKE 'entrepreneur%'"
+        "SELECT name FROM sqlite_master WHERE type='table' "
+        "AND (name LIKE 'uzbek%' OR name LIKE 'entrepreneur%' OR name = 'call_operators')"
     )
     table_names = [row["name"] for row in rows]
 
@@ -227,8 +236,9 @@ async def test_voice_agent_config() -> None:
 @pytest.mark.asyncio
 async def test_database_adapter_preserves_mapping(temp_db) -> None:
     """Test that database adapter preserves Turso mapping."""
-    from src.services.core.uzbek_entrepreneurs_schema import ensure_hisobchi_db
-
+    # ensure_hisobchi_db allaqachon fayl boshida to'g'ri moduldan
+    # (finance.hisobchi_schema) import qilingan; temp_db o'zi ham
+    # allaqachon adapter bo'lgani uchun idempotent qayta-o'rash.
     _db = ensure_hisobchi_db(temp_db)
 
     # This should work with both direct Database and Turso connection
