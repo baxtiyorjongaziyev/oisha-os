@@ -102,6 +102,13 @@ DAILY_COST_HARD_LIMIT = float(os.environ.get("AI_DAILY_COST_HARD_LIMIT", "10.0")
 # Cache TTL (sekund) — bir xil prompt bu vaqt ichida takrorlansa cache'dan qaytadi
 CACHE_TTL_SEC = int(os.environ.get("AI_ROUTER_CACHE_TTL", "3600"))
 
+# Vazifa turiga qarab bepul provayder tartibi. Oddiy (draft/classify/summarize)
+# vazifalar tez Groq'dan boshlaydi; Gemini "aqlli" tier muvaffaqiyatsiz bo'lgan
+# murakkab (reason) vazifalar uchun Groq o'tkazib yuboriladi — u aynan shu
+# soddaroq vazifalar uchun mo'ljallangan, murakkab fikrlashda foydasiz.
+_SIMPLE_TASK_PROVIDERS: tuple[str, ...] = ("groq", "cloudflare", "ollama")
+_COMPLEX_FALLBACK_PROVIDERS: tuple[str, ...] = ("cloudflare", "ollama")
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # In-memory idempotency cache
@@ -270,6 +277,7 @@ async def route(
                 system=system,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                providers=_SIMPLE_TASK_PROVIDERS,
             )
             final = {
                 "text": routed.text,
@@ -310,6 +318,7 @@ async def route(
                 system=system,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                providers=_SIMPLE_TASK_PROVIDERS,
             )
             final = {
                 "text": routed.text,
@@ -408,6 +417,7 @@ async def route(
             system=system,
             max_tokens=max_tokens,
             temperature=temperature,
+            providers=_COMPLEX_FALLBACK_PROVIDERS,
         )
         final = {
             "text": routed.text,

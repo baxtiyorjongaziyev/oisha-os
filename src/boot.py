@@ -210,7 +210,10 @@ async def _ai_autopilot_loop():
                 logger.error(f"[AUTOPILOT] Telegram Task Creator error: {tg_err}")
 
             try:
-                await call_analyzer.analyze_recent_calls(limit=30)
+                await call_analyzer.analyze_recent_calls(
+                    limit=30,
+                    min_call_duration_seconds=settings.AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS,
+                )
             except Exception as call_err:
                 logger.error(f"[AUTOPILOT] Call Analyzer error: {call_err}")
 

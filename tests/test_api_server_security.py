@@ -91,6 +91,10 @@ class TestAPISecurity:
         assert "StringSession()" in content.split("if cloud_control_plane_only:")[1].split("else:")[0]
 
     def test_oracle_deploy_runs_for_every_main_push(self):
+        """Deploy har qanday push'da emas — CI xarajatini tejash uchun
+        `paths:` filtri ataylab qo'shilgan (ce261ce, 2026-07-09). Muhim
+        kafolat endi shu: ilova kodi (`src/**`) o'zgarsa, deploy albatta
+        ishga tushishi kerak — bu haqiqiy xavfsizlik invarianti."""
         workflow_file = os.path.join(
             os.path.dirname(__file__), '..', '.github', 'workflows', 'oracle-deploy.yml'
         )
@@ -98,7 +102,7 @@ class TestAPISecurity:
             content = f.read()
         push_block = content.split("workflow_dispatch:", 1)[0]
         assert "branches: [main]" in push_block
-        assert "paths:" not in push_block
+        assert "'src/**'" in push_block, "src/** o'zgarishlari doim deploy qilinishi shart"
 
 
 class TestAPIEndpoints:
