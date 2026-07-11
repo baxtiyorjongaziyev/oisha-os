@@ -76,3 +76,7 @@
 ## 2024-05-28 - Hiding Redundant Tooltip Announcements
 **Learning:** If a navigation link or button contains `sr-only` text, and it also triggers a hover tooltip component displaying the identical text, screen readers will read the label twice (once from the DOM element, once from the tooltip structure).
 **Action:** Always add `aria-hidden="true"` to visual-only hover tooltips that duplicate the accessible text already present inside the parent interactive element.
+
+## 2026-05-30 - Replace raw text characters in UI controls
+**Learning:** Using raw text characters like `▲` and `▼` for interactive actions leads to poor visual presentation and no screen reader semantic meaning, reducing both accessibility and the overall UI polish.
+**Action:** Always replace raw text characters used for interactive actions with semantic SVG icons paired with descriptive `aria-label` attributes and proper keyboard focus styles (`focus-visible:ring`) to maximize accessibility.
