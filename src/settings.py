@@ -84,6 +84,10 @@ class AppSettings(BaseSettings):
     HUGGINGFACE_MODEL: str = "meta-llama/Llama-3.3-70B-Instruct"
     CEREBRAS_API_KEY: Optional[SecretStr] = None
     CEREBRAS_MODEL: str = "gpt-oss-120b"
+    MISTRAL_API_KEY: Optional[SecretStr] = None
+    MISTRAL_MODEL: str = "mistral-small-latest"
+    SAMBANOVA_API_KEY: Optional[SecretStr] = None
+    SAMBANOVA_MODEL: str = "Meta-Llama-3.3-70B-Instruct"
     AWS_ACCESS_KEY_ID: Optional[SecretStr] = None
     AWS_SECRET_ACCESS_KEY: Optional[SecretStr] = None
     AWS_REGION: str = "us-east-1"
@@ -273,6 +277,12 @@ class AppSettings(BaseSettings):
             "CLOUDFLARE_AI_API_TOKEN",
             "DEEPSEEK_API_KEY",
             "OPENROUTER_API_KEY",
+            "NVIDIA_NIM_API_KEY",
+            "TOGETHERAI_API_KEY",
+            "HUGGINGFACE_API_KEY",
+            "CEREBRAS_API_KEY",
+            "MISTRAL_API_KEY",
+            "SAMBANOVA_API_KEY",
             "AMOCRM_CLIENT_SECRET",
             "AIRTABLE_API_KEY",
             "AIRTABLE_BASE_ID",
