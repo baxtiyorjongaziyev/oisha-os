@@ -138,7 +138,7 @@ _COLUMN_MIGRATIONS = [
 async def init_uzbek_entrepreneurs_tables(db=None) -> None:
     """Initialize all tables for Uzbek Entrepreneurs system."""
     from src.database_pool import db_pool
-    from src.services.core.hisobchi_schema import ensure_hisobchi_db
+    from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 
     _db = ensure_hisobchi_db(db if db is not None else db_pool)
 
