@@ -549,16 +549,22 @@ export default function HomePage() {
                       <button
                         disabled={index === 0}
                         onClick={() => moveWidget(index, "up")}
-                        className="rounded p-1 text-text-muted hover:bg-brand-light hover:text-brand disabled:opacity-30 disabled:pointer-events-none"
+                        aria-label="Yuqoriga siljitish"
+                        className="rounded p-1 text-text-muted hover:bg-brand-light hover:text-brand disabled:opacity-30 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                       >
-                        ▲
+                        <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                        </svg>
                       </button>
                       <button
                         disabled={index === widgets.length - 1}
                         onClick={() => moveWidget(index, "down")}
-                        className="rounded p-1 text-text-muted hover:bg-brand-light hover:text-brand disabled:opacity-30 disabled:pointer-events-none"
+                        aria-label="Pastga siljitish"
+                        className="rounded p-1 text-text-muted hover:bg-brand-light hover:text-brand disabled:opacity-30 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                       >
-                        ▼
+                        <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
                       </button>
                     </div>
                   </div>
