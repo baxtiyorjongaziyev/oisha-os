@@ -131,6 +131,23 @@ def _looks_like_stt_hallucination(text: str) -> bool:
     return False
 
 
+def _transcript_impossible_for_duration(transcript: str, duration_seconds: int) -> bool:
+    """Transkripsiya qo'ng'iroq davomiyligiga jismonan sig'maydimi?
+
+    Real misol: 47 soniyalik qo'ng'iroq uchun Gemini ~250 so'zlik ravon
+    "suhbat" to'qib bergan — uni ovoz chiqarib o'qish 2-3 daqiqa oladi.
+    Tez nutq ~2.5 so'z/soniya; biz saxiy 4 so'z/soniya chegarasini
+    olamiz — undan oshsa, matn haqiqiy audio'dan kelmagani aniq.
+    """
+    if not transcript or not duration_seconds or duration_seconds <= 0:
+        return False
+    word_count = len(transcript.split())
+    # Juda qisqa matnlarda nisbat shovqinli bo'ladi — 30 so'zgacha tekshirmaymiz
+    if word_count <= 30:
+        return False
+    return word_count > duration_seconds * 4
+
+
 def _talk_ratio_verdict(client_pct: int) -> str:
     """Human-readable verdict for the talk ratio."""
     if client_pct >= 55:
@@ -516,19 +533,23 @@ class CallAnalyzer:
             routed = await self.free_ai_router.transcribe_audio(audio_bytes, mime_type)
             if routed and routed.text:
                 if _looks_like_stt_hallucination(routed.text):
+                    # Rad etamiz, lekin return qilmaymiz — heuristikaning
+                    # yolg'on-musbat xatosi butun qo'ng'iroqni tashlab
+                    # yubormasligi uchun quyidagi Gemini yo'liga (sentinel
+                    # prompt bilan) o'tamiz.
                     logger.info(
-                        "[CALL] %s: shubhali/hallucination-o'xshash natija rad etildi: %r",
+                        "[CALL] %s: shubhali/hallucination-o'xshash natija rad etildi, Gemini'ga o'tilyapti: %r",
                         routed.provider,
                         routed.text[:60],
                     )
-                    return None
-                logger.info(
-                    "[CALL] STT done provider=%s model=%s chars=%s",
-                    routed.provider,
-                    routed.model,
-                    len(routed.text),
-                )
-                return routed.text
+                else:
+                    logger.info(
+                        "[CALL] STT done provider=%s model=%s chars=%s",
+                        routed.provider,
+                        routed.model,
+                        len(routed.text),
+                    )
+                    return routed.text
         except Exception as exc:
             logger.warning("[CALL] Free-first STT failed: %s", type(exc).__name__)
 
@@ -1192,6 +1213,20 @@ class CallAnalyzer:
 
             transcript = await self._transcribe_inline(audio_bytes, mime_type)
             if not transcript:
+                continue
+
+            # Jismoniy imkoniyat tekshiruvi: transkripsiya so'z soni
+            # qo'ng'iroq davomiyligiga sig'masa — bu STT to'qigan matn
+            # (real misol: 47s qo'ng'iroqqa ~250 so'zlik "suhbat")
+            if _transcript_impossible_for_duration(transcript, duration):
+                logger.warning(
+                    "[CALL] Transkripsiya davomiylikka sig'maydi — hallucination deb rad etildi: "
+                    "lead_id=%s call_id=%s duration=%ss words=%s",
+                    lead_id,
+                    call_id,
+                    duration,
+                    len(transcript.split()),
+                )
                 continue
 
             analysis = await self.analyze_transcript(transcript)

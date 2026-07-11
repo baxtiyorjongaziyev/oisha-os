@@ -411,3 +411,71 @@ async def test_transcribe_inline_returns_none_when_gemini_reports_no_speech():
         transcript = await analyzer._transcribe_inline(b"AUDIO", "audio/mpeg")
 
     assert transcript is None
+
+
+@pytest.mark.asyncio
+async def test_free_stt_hallucination_falls_through_to_gemini():
+    """Free STT provayder natijasi hallucination deb rad etilsa, butun
+    transkripsiya bekor bo'lmasligi kerak — Gemini (sentinel prompt bilan)
+    yo'liga o'tib, uning haqiqiy natijasi qabul qilinadi (Codex P2 review)."""
+    analyzer = CallAnalyzer(amocrm=MagicMock(), voice_processor=MagicMock(), db=MagicMock())
+    analyzer.free_ai_router = MagicMock()
+    analyzer.free_ai_router.transcribe_audio = AsyncMock(
+        return_value=SimpleNamespace(provider="groq", model="whisper", text="Thank you for watching")
+    )
+
+    real_transcript = "A: Salom, brending xizmati kerak edi\nB: Albatta, qaysi yo'nalishda?"
+    fake_response = SimpleNamespace(text=real_transcript)
+    with patch.object(analyzer, "_gemini_generate_content", return_value=fake_response):
+        transcript = await analyzer._transcribe_inline(b"AUDIO", "audio/mpeg")
+
+    assert transcript == real_transcript
+
+
+def test_transcript_impossible_for_duration():
+    """47s qo'ng'iroqqa ~250 so'zlik 'suhbat' jismonan sig'maydi — rad
+    etilishi kerak; real hajmdagi transkripsiya esa o'tishi kerak."""
+    from src.services.core.call_analyzer import _transcript_impossible_for_duration
+
+    fabricated = " ".join(["so'z"] * 250)  # foydalanuvchi ko'rsatgan real hodisa
+    assert _transcript_impossible_for_duration(fabricated, 47) is True
+
+    realistic = " ".join(["so'z"] * 100)  # 47s uchun ~2.1 so'z/s — normal
+    assert _transcript_impossible_for_duration(realistic, 47) is False
+
+    # Davomiylik noma'lum bo'lsa tekshiruv o'tkazib yuboriladi
+    assert _transcript_impossible_for_duration(fabricated, 0) is False
+    # Qisqa matnlar shovqinli nisbat bergani uchun tekshirilmaydi
+    assert _transcript_impossible_for_duration("salom alaykum rahmat", 1) is False
+
+
+@pytest.mark.asyncio
+async def test_impossible_transcript_skipped_before_analysis():
+    """Davomiylikka sig'maydigan transkripsiya AmoCRM'ga yozilmasligi va
+    tahlilga umuman yuborilmasligi kerak."""
+    call_note = {
+        "id": 5054,
+        "note_type": "call_in",
+        "params": {
+            "uniq": "call-impossible-47s",
+            "link": "https://amocrm.com/calls/recording.mp3",
+            "duration": 47,
+        },
+    }
+    amocrm_mock = MagicMock()
+    amocrm_mock.get_lead_notes = AsyncMock(return_value=[call_note])
+    amocrm_mock.add_lead_note = MagicMock(return_value=True)
+
+    analyzer = CallAnalyzer(amocrm=amocrm_mock, voice_processor=MagicMock(), db=_mock_db_with_processed_row(None))
+
+    fabricated = " ".join(["so'z"] * 250)
+    with patch.object(
+        analyzer, "_fetch_audio_bytes", return_value=(b"AUDIO", "audio/mpeg")
+    ), patch.object(
+        analyzer, "_transcribe_inline", return_value=fabricated
+    ), patch.object(analyzer, "analyze_transcript") as analyze_mock:
+        processed = await analyzer.process_call_recordings_for_lead(999)
+
+    assert processed == 0
+    analyze_mock.assert_not_called()
+    amocrm_mock.add_lead_note.assert_not_called()
