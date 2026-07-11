@@ -108,6 +108,10 @@ class AppSettings(BaseSettings):
     ENABLE_AMOCRM_CALL_TASKS: bool = True
     AMOCRM_CALL_TASK_DUE_HOURS: int = 24
     AMOCRM_CALL_ANALYSIS_LIMIT: int = 20
+    # Juda qisqa yozuvlar (ovoz pochtasi signali, band ohang, xato raqam)
+    # haqiqiy suhbat bo'lmasa ham AI orqali "tahlil qilinib", to'qilgan
+    # (hallucination) natija AmoCRM'ga yozilishining oldini oladi.
+    AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS: int = 10
     AMOCRM_CALL_BACKFILL_ON_WEBHOOK: bool = True
     AMOCRM_CALL_BACKFILL_INTERVAL_MINUTES: int = 60
     AMOCRM_CALL_BACKFILL_LIMIT: int = 50
