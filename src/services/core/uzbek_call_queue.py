@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional
 
 from src.database_pool import db_pool
-from src.services.core.hisobchi_schema import ensure_hisobchi_db
+from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +332,7 @@ CREATE TABLE IF NOT EXISTS call_operators (
 async def init_call_queue_tables(db=None) -> None:
     """Initialize call queue tables."""
     from src.database_pool import db_pool
-    from src.services.core.hisobchi_schema import ensure_hisobchi_db
+    from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 
     _db = ensure_hisobchi_db(db if db is not None else db_pool)
 

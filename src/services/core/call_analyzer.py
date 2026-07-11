@@ -30,6 +30,8 @@ _CALL_NOTE_TYPES = {
     "voip_call",
 }
 
+NO_SPEECH_SENTINEL = "[SUHBAT_ANIQLANMADI]"
+
 _AUDIO_MIME_MAP = {
     ".mp3": "audio/mpeg",
     ".mp4": "audio/mp4",
@@ -100,6 +102,50 @@ def _compute_talk_ratio(transcript: str) -> tuple[int, int]:
     if total == 0:
         return 0, 0
     return round(client_chars * 100 / total), round(agent_chars * 100 / total)
+
+
+# Whisper-turkum ASR modellari sukunat/shovqinda ko'pincha shu qisqa,
+# ma'nosiz iboralarni "eshitib" qaytaradi (yaxshi hujjatlashtirilgan
+# hallucination artifaktlari). Gemini'ning maxsus sentinel'idan farqli
+# o'laroq, bu — barcha STT provayderlariga (free_ai_router, OpenAI
+# fallback) qo'llaniladigan umumiy himoya.
+_STT_HALLUCINATION_PHRASES = {
+    "you", "thank you", "thanks for watching", "thank you for watching",
+    "bye", "goodbye", "subscribe", "silence", "music", "[music]",
+    "rahmat", "xayr",
+}
+
+
+def _looks_like_stt_hallucination(text: str) -> bool:
+    """Juda qisqa yoki ma'lum hallucination iboralariga mos matnni
+    ishonchsiz deb belgilaydi — real qo'ng'iroq suhbati bunday bo'lmaydi."""
+    if not text:
+        return True
+    normalised = text.strip().strip(".!?").lower()
+    if normalised in _STT_HALLUCINATION_PHRASES:
+        return True
+    # Real ikki tomonlama suhbat deyarli hech qachon bir necha so'zdan
+    # qisqa bo'lmaydi.
+    if len(normalised) < 12:
+        return True
+    return False
+
+
+def _transcript_impossible_for_duration(transcript: str, duration_seconds: int) -> bool:
+    """Transkripsiya qo'ng'iroq davomiyligiga jismonan sig'maydimi?
+
+    Real misol: 47 soniyalik qo'ng'iroq uchun Gemini ~250 so'zlik ravon
+    "suhbat" to'qib bergan — uni ovoz chiqarib o'qish 2-3 daqiqa oladi.
+    Tez nutq ~2.5 so'z/soniya; biz saxiy 4 so'z/soniya chegarasini
+    olamiz — undan oshsa, matn haqiqiy audio'dan kelmagani aniq.
+    """
+    if not transcript or not duration_seconds or duration_seconds <= 0:
+        return False
+    word_count = len(transcript.split())
+    # Juda qisqa matnlarda nisbat shovqinli bo'ladi — 30 so'zgacha tekshirmaymiz
+    if word_count <= 30:
+        return False
+    return word_count > duration_seconds * 4
 
 
 def _talk_ratio_verdict(client_pct: int) -> str:
@@ -470,24 +516,40 @@ class CallAnalyzer:
         prompt = (
             "Siz professional qo'ng'iroq transkripsiya mutaxassisisiz. "
             "Audio yozuvni eshiting va suhbatni O'zbek lotinida yozing.\n\n"
-            "Qoidalar:\n"
+            "QOIDALAR (qat'iy rioya qiling):\n"
+            "- Faqat audio faylda HAQIQATDA eshitilgan gaplarni yozing. "
+            "Hech qachon o'zingizdan suhbat, ism, narx yoki tafsilot O'YLAB TOPMANG.\n"
+            "- Agar audioda tushunarli inson nutqi bo'lmasa (sukunat, band/chaqiruv "
+            "ohangi, faqat shovqin, juda qisqa yoki tushunarsiz ovoz) — hech narsa "
+            f"to'qimang, faqat aynan shu so'zni qaytaring: {NO_SPEECH_SENTINEL}\n"
             "- Ikki tomon gaplarini A: va B: qilib ajrating.\n"
             "- Ruscha yoki boshqa tilda gapirilgan bo'lsa, mazmunini O'zbek lotiniga tarjima qilib yozing.\n"
             "- Ism, telefon, narx, muddat va vazifalarni aniq saqlang.\n"
             "- Eshitilmagan joylarni [...] deb belgilang.\n"
-            "- Faqat transkripsiya matnini qaytaring."
+            "- Faqat transkripsiya matnini (yoki yuqoridagi sentinel so'zni) qaytaring."
         )
 
         try:
             routed = await self.free_ai_router.transcribe_audio(audio_bytes, mime_type)
             if routed and routed.text:
-                logger.info(
-                    "[CALL] STT done provider=%s model=%s chars=%s",
-                    routed.provider,
-                    routed.model,
-                    len(routed.text),
-                )
-                return routed.text
+                if _looks_like_stt_hallucination(routed.text):
+                    # Rad etamiz, lekin return qilmaymiz — heuristikaning
+                    # yolg'on-musbat xatosi butun qo'ng'iroqni tashlab
+                    # yubormasligi uchun quyidagi Gemini yo'liga (sentinel
+                    # prompt bilan) o'tamiz.
+                    logger.info(
+                        "[CALL] %s: shubhali/hallucination-o'xshash natija rad etildi, Gemini'ga o'tilyapti: %r",
+                        routed.provider,
+                        routed.text[:60],
+                    )
+                else:
+                    logger.info(
+                        "[CALL] STT done provider=%s model=%s chars=%s",
+                        routed.provider,
+                        routed.model,
+                        len(routed.text),
+                    )
+                    return routed.text
         except Exception as exc:
             logger.warning("[CALL] Free-first STT failed: %s", type(exc).__name__)
 
@@ -501,6 +563,12 @@ class CallAnalyzer:
                 ),
             )
             text = (getattr(response, "text", None) or "").strip()
+            if text and NO_SPEECH_SENTINEL in text:
+                logger.info("[CALL] Gemini: audio'da tushunarli nutq topilmadi — tahlil o'tkazib yuborildi.")
+                return None
+            if text and _looks_like_stt_hallucination(text):
+                logger.info("[CALL] Gemini: shubhali/hallucination-o'xshash natija rad etildi: %r", text[:60])
+                return None
             if text:
                 logger.info("[CALL] STT done: %s chars", len(text))
                 return text
@@ -552,6 +620,9 @@ class CallAnalyzer:
             response = await asyncio.to_thread(_create)
             text = response if isinstance(response, str) else getattr(response, "text", "")
             text = (text or "").strip()
+            if text and _looks_like_stt_hallucination(text):
+                logger.info("[CALL] OpenAI Whisper: shubhali/hallucination-o'xshash natija rad etildi: %r", text[:60])
+                return None
             if text:
                 logger.info("[CALL] OpenAI STT fallback done: %s chars", len(text))
                 return text
@@ -1142,6 +1213,20 @@ class CallAnalyzer:
 
             transcript = await self._transcribe_inline(audio_bytes, mime_type)
             if not transcript:
+                continue
+
+            # Jismoniy imkoniyat tekshiruvi: transkripsiya so'z soni
+            # qo'ng'iroq davomiyligiga sig'masa — bu STT to'qigan matn
+            # (real misol: 47s qo'ng'iroqqa ~250 so'zlik "suhbat")
+            if _transcript_impossible_for_duration(transcript, duration):
+                logger.warning(
+                    "[CALL] Transkripsiya davomiylikka sig'maydi — hallucination deb rad etildi: "
+                    "lead_id=%s call_id=%s duration=%ss words=%s",
+                    lead_id,
+                    call_id,
+                    duration,
+                    len(transcript.split()),
+                )
                 continue
 
             analysis = await self.analyze_transcript(transcript)

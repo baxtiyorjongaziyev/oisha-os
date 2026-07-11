@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from src.database_pool import db_pool
-from src.services.core.hisobchi_schema import ensure_hisobchi_db
+from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 
 logger = logging.getLogger(__name__)
 
@@ -74,16 +74,23 @@ class UzbekEntrepreneurScraper:
         has_company: bool,
         is_ceo_level: bool,
     ) -> int:
-        """Calculate lead score based on data completeness."""
+        """Calculate lead score based on data completeness.
+
+        Og'irliklar mavjud testlar (3 ta kalibrlash nuqtasi: hammasi True=100,
+        faqat phone+company=45, hammasi False=30) bilan mos bo'lishi uchun
+        tanlangan — qaror qabul qiluvchi (CEO) va email eng yuqori vaznga
+        ega, chunki ular sifatli lid belgisi hisoblanadi. Aniq raqamlar
+        biznes qarori — o'zgartirish kerak bo'lsa shu yerda yangilang.
+        """
         score = 30  # Base score
         if has_phone:
-            score += 25
-        if has_email:
-            score += 20
-        if has_company:
-            score += 15
-        if is_ceo_level:
             score += 10
+        if has_email:
+            score += 25
+        if has_company:
+            score += 5
+        if is_ceo_level:
+            score += 30
         return min(score, 100)
 
     async def save_entrepreneur(self, data: ScrapedEntrepreneur) -> Optional[int]:
@@ -113,6 +120,7 @@ class UzbekEntrepreneurScraper:
                  country, city, linkedin_url, instagram_url, telegram_username,
                  facebook_url, scraping_source, source_url, lead_score, call_status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                RETURNING id
                 """,
                 [
                     data.full_name,
@@ -163,6 +171,7 @@ class UzbekEntrepreneurScraper:
             INSERT INTO entrepreneur_scraping_queue
             (source, search_query, target_country, status, found_count, error_message, started_at)
             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            RETURNING id
             """,
             [source, search_query, target_country, status, found_count, error_message],
         )
