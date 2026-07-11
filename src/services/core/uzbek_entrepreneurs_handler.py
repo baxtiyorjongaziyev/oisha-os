@@ -119,7 +119,7 @@ class UzbekEntrepreneursHandler:
         """Get dashboard statistics."""
         try:
             from src.database_pool import db_pool
-            from src.services.core.hisobchi_schema import ensure_hisobchi_db
+            from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 
             _db = ensure_hisobchi_db(db_pool)
 
