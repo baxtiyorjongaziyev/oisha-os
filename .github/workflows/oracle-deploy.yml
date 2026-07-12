@@ -10,9 +10,6 @@ on:
       - 'scripts/**'
       - 'data/service_account.json'
       - '.github/workflows/oracle-deploy.yml'
-    paths-ignore:
-      - 'deploy/*-trigger'
-      - '**.md'
   workflow_dispatch:
 
 concurrency:
