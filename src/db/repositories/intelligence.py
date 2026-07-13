@@ -133,8 +133,11 @@ class IntelligenceRepository(BaseRepository):
             async with conn.execute(query, (lead_id,)) as cursor:
                 row = await cursor.fetchone()
                 if row:
-                    cols = [description[0] for description in cursor.description]
-                    data = dict(zip(cols, row))
+                    if isinstance(row, dict):
+                        data = dict(row)
+                    else:
+                        cols = [description[0] for description in cursor.description]
+                        data = dict(zip(cols, row))
                     json_fields = [
                         "scores", "strengths", "weaknesses",
                         "objections", "next_steps", "recommended_tasks",
