@@ -48,6 +48,10 @@ class BaseRepository:
         row = await cursor.fetchone()
         if row is None:
             return None
+        if isinstance(row, dict):
+            # Turso/libsql rows (SmartRow) are already {column: value} dicts.
+            # zip(columns, row) would iterate dict keys, not values.
+            return dict(row)
         columns = [desc[0] for desc in cursor.description] if cursor.description else []
         return dict(zip(columns, row)) if columns else row
 
@@ -55,6 +59,8 @@ class BaseRepository:
         """Fetch all rows."""
         cursor = await self._execute(sql, params)
         rows = await cursor.fetchall()
+        if rows and isinstance(rows[0], dict):
+            return [dict(row) for row in rows]
         columns = [desc[0] for desc in cursor.description] if cursor.description else []
         return [dict(zip(columns, row)) for row in rows] if columns else rows
 
