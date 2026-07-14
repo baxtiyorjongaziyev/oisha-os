@@ -288,6 +288,16 @@ try:
 except Exception as exc:
     logger.warning("[MCP] Hisobchi MCP router not mounted: %s", exc)
 
+# Telegram SSE MCP Server
+try:
+    import sys
+    sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+    from telegram_mcp_server import mcp as telegram_mcp_instance
+    app.mount("/telegram-mcp", telegram_mcp_instance.sse_app(mount_path="/telegram-mcp"))
+    logger.info("[MCP] Telegram SSE MCP server mounted at /telegram-mcp")
+except Exception as exc:
+    logger.warning("[MCP] Failed to mount Telegram SSE MCP: %s", exc)
+
 
 def add_activity(action: str, details: str = "", type: str = "info"):
     activity = {
