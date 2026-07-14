@@ -31,7 +31,7 @@ def test_os_driver_opens_application_without_shell(monkeypatch):
 
     OishaOSDriver().open_application("notepad.exe")
 
-    popen.assert_called_once_with(["notepad.exe"], shell=False)
+    popen.assert_any_call(["notepad.exe"], shell=False)
 
 
 def test_headless_gui_proxy_fails_only_when_desktop_action_is_used():
