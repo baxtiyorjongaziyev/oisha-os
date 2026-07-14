@@ -10,6 +10,18 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+import sys
+import logging
+import json
+import os
+import urllib.request
+import urllib.error
+
+# Ensure the project root is in sys.path so we can import from src
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # Load .env so OISHA_API_SECRET is available to authenticate with the API
 from dotenv import load_dotenv
@@ -43,7 +55,8 @@ logger = logging.getLogger("telegram-mcp")
 # Initialize FastMCP server
 mcp = FastMCP("telegram")
 
-API_BASE_URL = "http://127.0.0.1:8080/internal/mcp"
+oisha_url = (os.environ.get("OISHA_API_URL") or "http://127.0.0.1:8080").rstrip("/")
+API_BASE_URL = f"{oisha_url}/internal/mcp"
 
 def _request(url: str, data: bytes | None = None) -> urllib.request.Request:
     headers = {}
