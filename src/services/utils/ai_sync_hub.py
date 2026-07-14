@@ -10,15 +10,20 @@ logger = structlog.get_logger()
 # canonical DB rather than a rogue top-level bot_memory.db). Accessed
 # synchronously; not the canonical async DB, so no WAL lock contention.
 _MEMORY_DB_PATH = os.path.join("data", "ai_sync_memory.db")
+_schema_ready = False
 
 
 def _memory_conn() -> sqlite3.Connection:
+    global _schema_ready
     os.makedirs(os.path.dirname(_MEMORY_DB_PATH), exist_ok=True)
     conn = sqlite3.connect(_MEMORY_DB_PATH)
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS learned_facts ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, fact TEXT)"
-    )
+    if not _schema_ready:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS learned_facts ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, fact TEXT)"
+        )
+        conn.commit()
+        _schema_ready = True
     return conn
 
 

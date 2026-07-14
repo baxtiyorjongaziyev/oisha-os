@@ -51,9 +51,12 @@ class ConnectionManager:
             try:
                 # Point the shared pool at this endpoint (no direct attribute
                 # mutation) and validate via the real pooled connection, which
-                # carries the pool's own retry/backoff. No throwaway probe.
+                # carries the pool's own retry/backoff (up to 5 attempts with
+                # exponential backoff, can exceed 15s). No external timeout
+                # wrapper here — a short one could fire mid-retry and cause an
+                # incorrect silent fallback to SQLite. No throwaway probe.
                 db_pool.configure(turso_url, turso_token)
-                await asyncio.wait_for(db_pool.execute("SELECT 1"), timeout=15.0)
+                await db_pool.execute("SELECT 1")
 
                 self._conn = TursoAdapter()
                 self._state_backend = "turso"
