@@ -419,6 +419,7 @@ app.include_router(live_monitor_router)
 # Include new route modules
 from src.api.routes.health import router as health_router, liveness_probe
 from src.api.routes.telegram_routes import router as telegram_router
+from src.api.routes.telegram_mcp import router as telegram_mcp_router
 from src.api.routes.system_dashboard import router as system_router
 from src.api.routes.sales_quality import router as sales_quality_router
 from src.api.routes.chat_widget import router as chat_router
@@ -434,6 +435,7 @@ from src.api.routes.callmaster_routes import router as callmaster_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
+app.include_router(telegram_mcp_router)
 app.include_router(system_router)
 app.include_router(sales_quality_router)
 app.include_router(chat_router)
