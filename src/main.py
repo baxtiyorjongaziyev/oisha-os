@@ -335,8 +335,10 @@ def _restore_cloud_artifacts() -> None:
 
 
 async def _connect_user_client(telegram_client: TelegramClient) -> bool:
-    if os.environ.get("CLOUD_RUN_CONTROL_PLANE_ONLY") == "1":
-        logger.info("[AUTH] Skipping userbot login: CLOUD_RUN_CONTROL_PLANE_ONLY=1")
+    from src.services.core.agent_runtime import resolve_runtime_mode
+
+    if resolve_runtime_mode().control_plane_only:
+        logger.info("[AUTH] Skipping userbot login: control-plane-only runtime")
         return False
 
     """Connect the userbot without ever falling back to interactive auth.

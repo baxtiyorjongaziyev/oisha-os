@@ -2,7 +2,7 @@ import asyncio
 from unittest.mock import AsyncMock
 
 from src.services.core.agent_brain import OishaBrain
-from src.services.core.agent_orchestrator import AgentOrchestrator, Pipeline
+from src.services.core.agent_orchestrator import PipelineOrchestrator, Pipeline
 
 
 def test_oisha_brain_logs_with_database_contract():
@@ -28,7 +28,7 @@ def test_oisha_brain_uses_shared_gemini_model(monkeypatch):
 
 def test_agent_orchestrator_logs_with_database_contract():
     db = AsyncMock()
-    orchestrator = AgentOrchestrator(db=db)
+    orchestrator = PipelineOrchestrator(db=db)
     pipeline = Pipeline(id="pipeline-1", goal="verify logging")
 
     asyncio.run(orchestrator.run_pipeline(pipeline))
