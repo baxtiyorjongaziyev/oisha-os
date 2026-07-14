@@ -315,8 +315,16 @@ class AdminBot:
                         alert=outcome.status in {"denied", "failed"},
                     )
                     try:
+                        from telethon.extensions import html
+
+                        current_html = html.unparse(
+                            event.message.message,
+                            event.message.entities or [],
+                        )
                         await event.edit(
-                            event.message.message + f"\n\n{outcome.badge}"
+                            current_html + f"\n\n{outcome.badge}",
+                            parse_mode="html",
+                            buttons=None,
                         )
                     except Exception:
                         logger.debug(
