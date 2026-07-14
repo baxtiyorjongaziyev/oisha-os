@@ -1,0 +1,13 @@
+[mcp_servers.oisha-amocrm]
+command = '.venv\Scripts\python.exe'
+args = [
+    "-m",
+    "src.mcp_server",
+]
+
+[mcp_servers.oisha-telegram]
+command = '.venv\Scripts\python.exe'
+args = [
+    "-m",
+    "src.telegram_mcp_server",
+]

@@ -194,7 +194,7 @@ async def test_process_voice_message_standalone_business(temp_db, mock_voice_pro
         processed = await process_finance_voice_message(event, client, engine, mock_voice_processor)
         assert processed is True
         event.reply.assert_awaited_once()
-        assert "saqlandi" in event.reply.call_args[0][0].lower()
+        assert "kiritildi" in event.reply.call_args[0][0].lower()
         assert "50 000" in event.reply.call_args[0][0]
 
         # Verify saved in DB
@@ -249,7 +249,7 @@ async def test_process_voice_message_reply_categorization(temp_db, mock_voice_pr
         processed = await process_finance_voice_message(event, client, engine, mock_voice_processor)
         assert processed is True
         event.reply.assert_awaited_once()
-        assert "javob saqlandi" in event.reply.call_args[0][0].lower()
+        assert "javob qabul qilindi" in event.reply.call_args[0][0].lower()
 
         # Verify transaction was categorized and updated to personal
         conn = await temp_db.get_connection()
