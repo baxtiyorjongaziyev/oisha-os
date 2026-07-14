@@ -117,6 +117,8 @@ class AppSettings(BaseSettings):
     AMOCRM_CALL_BACKFILL_LIMIT: int = 50
     AMOCRM_CALL_MAX_AUDIO_MB: int = 19
     AMOCRM_CALL_TRANSCRIPT_NOTE_CHARS: int = 6000
+    MOIZVONKI_EMAIL: Optional[str] = None
+    MOIZVONKI_PASSWORD: Optional[SecretStr] = None
     AIRTABLE_API_KEY: Optional[SecretStr] = None
     AIRTABLE_BASE_ID: Optional[str] = None
     # Airtable OAuth 2.0 (API key o'rniga to'g'ridan-to'g'ri OAuth token)
@@ -189,6 +191,9 @@ class AppSettings(BaseSettings):
     META_VERIFY_TOKEN: Optional[SecretStr] = None
     META_PAGE_ACCESS_TOKEN: Optional[SecretStr] = None
     META_APP_SECRET: Optional[SecretStr] = None
+    META_INSTAGRAM_USER_ID: Optional[str] = None
+    META_INSTAGRAM_ACCOUNT_ID: Optional[str] = None
+    INSTAGRAM_REPORT_AIRTABLE_TABLE: Optional[str] = None
 
     # Google Analytics 4
     GA4_PROPERTY_ID: Optional[str] = None
@@ -330,6 +335,9 @@ class AppSettings(BaseSettings):
             "META_VERIFY_TOKEN",
             "META_PAGE_ACCESS_TOKEN",
             "META_APP_SECRET",
+            "META_INSTAGRAM_USER_ID",
+            "META_INSTAGRAM_ACCOUNT_ID",
+            "INSTAGRAM_REPORT_AIRTABLE_TABLE",
             "GA4_PROPERTY_ID",
             "GA4_CREDENTIALS_JSON",
             "SANITY_PROJECT_ID",
