@@ -9,7 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from services.core.telegram_mcp.executor import ApprovalExecutor
-from services.core.telegram_mcp.gateway import GatewayService
+from services.core.telegram_mcp.gateway import GatewayService, build_http_app
 from services.core.telegram_mcp.store import ApprovalStore
 from services.core.telegram_mcp.upstream import UpstreamClient
 
@@ -156,6 +156,38 @@ class GatewayExecutorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(counters["stream_closes"], 1)
         self.assertEqual(counters["session_closes"], 1)
+
+
+class GatewayHTTPTests(unittest.TestCase):
+    def test_mcp_route_accepts_initialize_post(self):
+        from starlette.testclient import TestClient
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            service = GatewayService(
+                FakeUpstream(),
+                ApprovalStore(Path(tempdir) / "approvals.db"),
+                FakeNotifier(),
+            )
+            app = build_http_app(service)
+            initialize = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "1.0"},
+                },
+            }
+            with TestClient(app, base_url="http://127.0.0.1:8766") as client:
+                response = client.post(
+                    "/mcp",
+                    json=initialize,
+                    headers={"Accept": "application/json, text/event-stream"},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotEqual(response.status_code, 405)
 
 
 if __name__ == "__main__":
