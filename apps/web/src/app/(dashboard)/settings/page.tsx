@@ -123,8 +123,9 @@ function SettingsPageContent() {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block">Ism</label>
+                <label htmlFor="profile-name" className="text-[10px] font-bold text-text-muted uppercase block">Ism</label>
                 <input
+                  id="profile-name"
                   required
                   type="text"
                   value={profileName}
@@ -133,8 +134,9 @@ function SettingsPageContent() {
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block">Elektron pochta</label>
+                <label htmlFor="profile-email" className="text-[10px] font-bold text-text-muted uppercase block">Elektron pochta</label>
                 <input
+                  id="profile-email"
                   required
                   type="email"
                   value={profileEmail}
@@ -191,16 +193,18 @@ function SettingsPageContent() {
             <h3 className="text-base font-bold text-text border-b border-border pb-2">Umumiy sozlamalar</h3>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block">Biznes nomi</label>
+                <label htmlFor="business-name" className="text-[10px] font-bold text-text-muted uppercase block">Biznes nomi</label>
                 <input
+                  id="business-name"
                   type="text"
                   defaultValue={currentBusiness}
                   className="w-full rounded-xl border border-border bg-bg p-2.5 text-xs text-text focus:border-brand focus:outline-none mt-1"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block">Soha</label>
+                <label htmlFor="business-industry" className="text-[10px] font-bold text-text-muted uppercase block">Soha</label>
                 <input
+                  id="business-industry"
                   type="text"
                   placeholder="Masalan: Brending agentligi..."
                   className="w-full rounded-xl border border-border bg-bg p-2.5 text-xs text-text focus:border-brand focus:outline-none mt-1"
@@ -211,8 +215,9 @@ function SettingsPageContent() {
             {/* Language and timezone */}
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block">Biznes tili (Playbook & AI)</label>
+                <label htmlFor="business-language" className="text-[10px] font-bold text-text-muted uppercase block">Biznes tili (Playbook & AI)</label>
                 <select
+                  id="business-language"
                   value={language}
                   onChange={(e) => setLanguage(e.target.value as any)}
                   className="w-full rounded-xl border border-border bg-bg p-2.5 text-xs text-text focus:border-brand focus:outline-none mt-1"
@@ -223,8 +228,8 @@ function SettingsPageContent() {
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block">Vaqt zonasi</label>
-                <select className="w-full rounded-xl border border-border bg-bg p-2.5 text-xs text-text focus:border-brand focus:outline-none mt-1">
+                <label htmlFor="business-timezone" className="text-[10px] font-bold text-text-muted uppercase block">Vaqt zonasi</label>
+                <select id="business-timezone" className="w-full rounded-xl border border-border bg-bg p-2.5 text-xs text-text focus:border-brand focus:outline-none mt-1">
                   <option>Asia/Tashkent UTC+5</option>
                 </select>
               </div>
