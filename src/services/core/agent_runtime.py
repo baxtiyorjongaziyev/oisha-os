@@ -18,7 +18,7 @@ def parse_bool(val: Any) -> bool:
         return val
     if not val:
         return False
-    clean = str(val).replace("﻿", "").strip().lower()
+    clean = str(val).replace("\ufeff", "").strip().lower()
     return clean in {"1", "true", "yes", "on"}
 
 
