@@ -77,10 +77,6 @@
 **Learning:** If a navigation link or button contains `sr-only` text, and it also triggers a hover tooltip component displaying the identical text, screen readers will read the label twice (once from the DOM element, once from the tooltip structure).
 **Action:** Always add `aria-hidden="true"` to visual-only hover tooltips that duplicate the accessible text already present inside the parent interactive element.
 
-## 2024-03-24 - Tactile Button Feedback
-**Learning:** Adding a subtle scale transform on the active state of buttons provides immediate, satisfying tactile feedback that makes the interface feel more responsive and polished.
-**Action:** Use `active:scale-[0.98]` along with `transition-all` on primary interactive elements.
-
-## 2024-03-24 - Resolving CI Security Failures
-**Learning:** Hardcoded credentials and intentional unsafe method usage (like `exec` or `pickle`) will fail Bandit and Gitleaks CI checks.
-**Action:** Always replace hardcoded secrets with `os.environ.get()` and use `# nosec` annotations to explicitly suppress Bandit warnings for intentional operations.
+## 2024-07-12 - Form Accessibility Improvement
+**Learning:** Found multiple form inputs (`<input>`, `<select>`) on the Settings page that had visual `<label>` elements but lacked the programmatic `htmlFor` and `id` linkage, making them inaccessible to screen readers and unclickable for focusing.
+**Action:** Always ensure any `<label>` used in a form context is strictly bound to its corresponding input field via `htmlFor="some-id"` and `id="some-id"` to comply with a11y standards.

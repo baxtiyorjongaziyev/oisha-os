@@ -34,17 +34,16 @@ from src.services.core.meeting_scheduler import TelegramMeetingScheduler
 from src.controllers.surgical_integration import get_surgical_integration
 from src.services.core.crm.amocrm_pipeline_config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
 from src.services.core.workflow_manager import WorkflowManager
+from src.services.core.agent_runtime import resolve_runtime_mode
 from src.api.routes.state import api_state
 from src.context import app_ctx
 
 logger = logging.getLogger(__name__)
 
 
-def _parse_bool(val: str) -> bool:
-    if not val:
-        return False
-    clean = val.replace("\ufeff", "").strip().lower()
-    return clean in {"1", "true", "yes", "on"}
+# Canonical truthy-env parser now lives in agent_runtime; kept as an alias
+# for backward compatibility.
+from src.services.core.agent_runtime import parse_bool as _parse_bool  # noqa: E402
 
 
 def _negotiation_int(name: str, default: int) -> int:
@@ -210,7 +209,10 @@ async def _ai_autopilot_loop():
                 logger.error(f"[AUTOPILOT] Telegram Task Creator error: {tg_err}")
 
             try:
-                await call_analyzer.analyze_recent_calls(limit=30)
+                await call_analyzer.analyze_recent_calls(
+                    limit=30,
+                    min_call_duration_seconds=settings.AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS,
+                )
             except Exception as call_err:
                 logger.error(f"[AUTOPILOT] Call Analyzer error: {call_err}")
 
@@ -310,15 +312,9 @@ async def boot_application():
 
     import src.main as m
 
-    # [ENTERPRISE] Anti-Local Execution Lock
-    runtime_name = os.getenv("OISHA_RUNTIME", "").strip().lower()
-    is_cloud = (
-        os.getenv("K_SERVICE")
-        or os.getenv("RUNNING_IN_CLOUD") == "1"
-        or runtime_name in {"vm_service", "oracle_vm", "production"}
-    )
-    allow_local = os.getenv("ALLOW_LOCAL_RUN") == "1"
-    if not is_cloud and not allow_local:
+    # [ENTERPRISE] Anti-Local Execution Lock — single source of runtime truth
+    runtime_mode = resolve_runtime_mode()
+    if not runtime_mode.is_cloud and not runtime_mode.allow_local:
         print("\n" + "!" * 60)
         print("[SECURITY LOCK] Oisha-OS Local Execution is DISABLED.")
         print("Set ALLOW_LOCAL_RUN=1 to override on dev machine.")
@@ -359,10 +355,7 @@ async def boot_application():
         logger.info("[HISOBCHI] Database schema is ready.")
     msg_controller = MessageController(api_keys=api_keys, db=db)
 
-    cloud_control_plane = bool(os.getenv("K_SERVICE"))
-    enable_cloud_userbot = _parse_bool(os.getenv("ENABLE_CLOUD_USERBOT", ""))
-    force_control_plane_only = _parse_bool(os.getenv("CLOUD_RUN_CONTROL_PLANE_ONLY", ""))
-    cloud_control_plane_only = force_control_plane_only or (cloud_control_plane and not enable_cloud_userbot)
+    cloud_control_plane_only = runtime_mode.control_plane_only
 
     # Telegram Client init — XAVFSIZ SESSION MANAGER
     telegram_session_manager = None  # Default — cloud control plane uchun
@@ -438,6 +431,11 @@ async def boot_application():
         # Frog brief is sent from @jonairobot (bot_client), not the userbot.
         asyncio.create_task(daily_frog_loop(bot_client, settings.TEAM_GROUP_ID), name="daily_frog_loop")
         asyncio.create_task(_channel_scout_loop(), name="channel_scout_loop")
+        from src.schedulers.instagram_weekly_reporter import instagram_weekly_report_loop
+        asyncio.create_task(
+            instagram_weekly_report_loop(bot_client, settings.TEAM_GROUP_ID),
+            name="instagram_weekly_report_loop",
+        )
 
     # Surgical negotiator
     surgical_integration = get_surgical_integration()
@@ -624,13 +622,13 @@ async def boot_application():
             bot_messenger = BotMessenger(bot_client=bot_client, userbot_client=client)
             logger.info("[BOT2BOT] BotMessenger initialized.")
 
-            # AgentOrchestrator
+            # PipelineOrchestrator (deterministic multi-step flows)
             from src.services.core.agent_orchestrator import get_orchestrator
             agent_orchestrator = get_orchestrator(
                 agent_registry={"advisor": advisor_agent, "audit": audit_agent},
                 bot_messenger=bot_messenger, db=msg_controller.db,
             )
-            logger.info("[ORCHESTRATOR] AgentOrchestrator initialized.")
+            logger.info("[ORCHESTRATOR] PipelineOrchestrator initialized.")
 
             # Guest bot
             from src.services.core.guest_bot import GuestBotHandler, enable_guest_queries
@@ -642,7 +640,11 @@ async def boot_application():
         except Exception as bot_exc:
             logger.error(f"[BOT] Bot-token head startup failed: {bot_exc}", exc_info=True)
 
-    # Event handlers — sync to both main module globals and app_ctx
+    # Service wiring. `app_ctx` (below) is the CANONICAL single source of truth
+    # for all shared services; new code must read from app_ctx.*. The `m.*`
+    # assignments here are a backward-compat mirror for legacy modules that
+    # still read src.main globals, and are being phased out. Keep the two in
+    # sync until every reader migrates to app_ctx.
     m.client = client
     m.bot_client = bot_client
     m.msg_controller = msg_controller

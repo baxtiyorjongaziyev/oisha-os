@@ -468,7 +468,12 @@ TOOL_DECLARATIONS = [
 
 
 class AgentToolExecutor:
-    """Gemini chaqirgan tool larni bajaruvchi sinf."""
+    """Gemini chaqirgan tool larni bajaruvchi sinf.
+
+    Tool layer for the LIVE CHAT agents (src/agents/*): executes Gemini
+    function-calls. Distinct from services/core ToolRegistry+adapters, which
+    serve the background/proactive framework via typed ToolResult objects.
+    """
 
     def __init__(self, db, gcontacts, gcalendar, gsheet, amocrm, bot_app, config, gdrive=None):
         self.db = db
