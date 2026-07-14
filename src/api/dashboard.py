@@ -1,14 +1,20 @@
+"""Dashboard API backed only by persisted call analyses."""
+
+import json
+from typing import Any, List
+
 from fastapi import APIRouter, HTTPException
-from typing import List
 from pydantic import BaseModel
+
+from src.api.routes.state import api_state
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
 
 
 class CallMetric(BaseModel):
     label: str
-    score: int  # 0-100
-    status: str  # "success", "warning", "danger"
+    score: int
+    status: str
 
 
 class Entity(BaseModel):
@@ -23,80 +29,84 @@ class CallDetails(BaseModel):
     sentiment: str
     metrics: List[CallMetric]
     entities: List[Entity]
-    transcript: List[dict]  # {speaker: str, text: str, timestamp: str}
+    transcript: List[dict]
     next_steps: List[str]
+
+
+def _json_list(value: Any) -> list:
+    if isinstance(value, list):
+        return value
+    if not value:
+        return []
+    try:
+        parsed = json.loads(str(value))
+        return parsed if isinstance(parsed, list) else []
+    except (TypeError, ValueError):
+        return []
+
+
+async def _query(sql: str, params: tuple = ()) -> list:
+    if api_state.db_instance is None:
+        raise HTTPException(status_code=503, detail="Database not connected")
+    try:
+        conn = await api_state.db_instance.get_connection()
+        result = conn.execute(sql, params)
+        if hasattr(result, "__await__"):
+            result = await result
+        fetchall = getattr(result, "fetchall", None)
+        rows = fetchall() if callable(fetchall) else []
+        if hasattr(rows, "__await__"):
+            rows = await rows
+        return list(rows or [])
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Call analytics unavailable: {type(exc).__name__}") from exc
 
 
 @router.get("/call/{call_id}", response_model=CallDetails)
 async def get_call_analytics(call_id: str):
-    """
-    Metasell uslubida qo'ng'iroq tahlilini qaytaradi.
-    Hozircha Turso DB dan ma'lumotlarni oladi yoki mock qiladi.
-    """
-    try:
-        # Haqiqiy loyihada Turso DB dan olinadi:
-        # url = settings.TURSO_DATABASE_URL
-        # token = settings.TURSO_AUTH_TOKEN
-        # client = libsql_client.create_client_sync(url=url, auth_token=token)
-        # res = client.execute("SELECT * FROM calls WHERE call_id = ?", (call_id,))
-
-        # Mock data (Metasell dizaynini sinash uchun)
-        return CallDetails(
-            call_id=call_id,
-            lead_name="Baxtiyorjon Gaziyev",
-            summary="Mijoz Oisha-OS integratsiyasi bo'yicha qiziqish bildirdi. Asosiy ehtiyoj - CRM dagi bitimlarni avtomatlashtirish va menejerlar ishini nazorat qilish.",
-            sentiment="Positive / High Intent",
-            metrics=[
-                CallMetric(label="Salomlashish", score=100, status="success"),
-                CallMetric(label="Ehtiyoj aniqlash", score=85, status="success"),
-                CallMetric(
-                    label="E'tirozlar bilan ishlash", score=40, status="warning"
-                ),
-                CallMetric(label="Narx taklif qilish", score=20, status="danger"),
-                CallMetric(
-                    label="Keyingi qadamni tayinlash", score=90, status="success"
-                ),
-            ],
-            entities=[
-                Entity(key="Kompaniya", value="Metasell AI"),
-                Entity(key="Byudjet", value="5,000,000 UZS"),
-                Entity(
-                    key="Pain Point",
-                    value="Menejerlar bitimlarni o'z vaqtida yopmayapti",
-                ),
-            ],
-            transcript=[
-                {
-                    "speaker": "Manager",
-                    "text": "Assalomu alaykum, Baxtiyor aka. Oisha-OS loyihasi bo'yicha bog'lanayotgan edim.",
-                    "timestamp": "00:01",
-                },
-                {
-                    "speaker": "Client",
-                    "text": "Vaalaykum assalom. Ha, kutyapman. Bizga aynan Bitrix24 yoki amoCRM bilan integratsiya kerak.",
-                    "timestamp": "00:05",
-                },
-                {
-                    "speaker": "Manager",
-                    "text": "Tushunarli. Bizda amoCRM uchun tayyor integratsiya bor. Hozirgi tarifingiz qanday?",
-                    "timestamp": "00:12",
-                },
-            ],
-            next_steps=[
-                "Demo taqdimot yuborish",
-                "Dushanba kuni soat 10:00 da qayta aloqaga chiqish",
-            ],
+    rows = await _query("SELECT * FROM call_analyses WHERE call_id = ? LIMIT 1", (call_id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail="Call analysis not found")
+    row = rows[0]
+    get = row.get if isinstance(row, dict) else lambda key, default=None: getattr(row, key, default)
+    scores = _json_list(get("scores"))
+    transcript_raw = get("transcript", "") or ""
+    transcript = _json_list(transcript_raw)
+    if not transcript and transcript_raw:
+        transcript = [{"speaker": "Transcript", "text": transcript_raw, "timestamp": ""}]
+    metrics = [
+        CallMetric(
+            label=str(item.get("label") or item.get("name") or "Mezon"),
+            score=int(item.get("score") or 0),
+            status=str(item.get("status") or "measured"),
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        for item in scores
+        if isinstance(item, dict)
+    ]
+    return CallDetails(
+        call_id=str(get("call_id", call_id)),
+        lead_name=str(get("client_name") or "Noma'lum mijoz"),
+        summary=str(get("summary") or ""),
+        sentiment=str(get("client_mood") or "unknown"),
+        metrics=metrics,
+        entities=[],
+        transcript=transcript,
+        next_steps=[str(item) for item in _json_list(get("next_steps"))],
+    )
 
 
 @router.get("/stats")
 async def get_general_stats():
-    """Dashboardning tepa qismidagi umumiy statistika"""
+    rows = await _query(
+        "SELECT COUNT(*) AS total_calls, AVG(overall_score) AS avg_score "
+        "FROM call_analyses"
+    )
+    row = rows[0] if rows else {}
+    get = row.get if isinstance(row, dict) else lambda key, default=None: getattr(row, key, default)
     return {
-        "total_calls": 1240,
-        "avg_score": 76,
-        "high_intent_leads": 45,
-        "efficiency_growth": "+12%",
+        "source": "real_call_analytics",
+        "total_calls": int(get("total_calls") or 0),
+        "avg_score": round(float(get("avg_score") or 0), 1),
     }

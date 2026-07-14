@@ -10,6 +10,12 @@ import os
 import pytest
 
 
+pytestmark = pytest.mark.skipif(
+    os.getenv("SKIP_LIVE") == "1",
+    reason="Live provider tests disabled by SKIP_LIVE=1.",
+)
+
+
 # ---------------------------------------------------------------------------
 # Gemini (quota 429 bo'lishi mumkin — faqat ixtiyoriy)
 # ---------------------------------------------------------------------------

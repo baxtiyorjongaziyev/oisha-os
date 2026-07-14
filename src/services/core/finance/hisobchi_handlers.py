@@ -480,7 +480,7 @@ async def handle_kirim_chiqim_text(event, engine: HisobchiEngine, text: str = ""
     icon = "➖ Chiqim" if direction == "out" else "➕ Kirim"
     own_label = "Biznes" if ownership == "business" else "Shaxsiy"
     await event.reply(
-        f"✅ <b>#{tx_id} saqlandi</b>\n"
+        f"✅ <b>#{tx_id} kiritildi</b>\n"
         f"{icon}: <b>{_fmt_money(amount)} UZS</b> ({own_label})\n"
         f"📍 {merchant}\n"
         f"{'📝 ' + reason if reason else ''}",
@@ -524,7 +524,7 @@ async def handle_topic_plain_text(event, engine: HisobchiEngine, text: str, dire
     icon = "➖ Chiqim" if direction == "out" else "➕ Kirim"
     own_label = "Biznes" if ownership == "business" else "Shaxsiy"
     await event.reply(
-        f"✅ <b>#{tx_id} saqlandi</b>\n"
+        f"✅ <b>#{tx_id} kiritildi</b>\n"
         f"{icon}: <b>{_fmt_money(amount)} UZS</b> ({own_label})\n"
         f"📍 {merchant}\n"
         f"{'📝 ' + reason if reason else ''}",
@@ -595,7 +595,7 @@ async def handle_receipt_photo(
         )
         icon = "➖ Chiqim" if dir_val == "out" else "➕ Kirim"
         reply = (
-            f"📸 <b>Chek #{tx_id} saqlandi!</b>\n"
+            f"📸 <b>Chek #{tx_id} — qabul qilindi!</b>\n"
             f"{icon}: <b>{_fmt_money(amount)} UZS</b>\n"
             f"📍 {merchant}\n"
             f"🗂 {category}"
@@ -916,10 +916,10 @@ async def handle_finance_group_reply(
     own_label = "Biznes" if ownership == "business" else "Shaxsiy"
     await _reply_via_bot(
         event, bot_client,
-        f"✅ Saqlandi!\n"
+        f"✅ <b>Qabul qilindi!</b>\n"
         f"{direction_icon} {amount_str} UZS — <b>{html.escape(category)} ({own_label})</b>\n"
         f"📍 {html.escape(merchant)}\n"
-        f"🧠 Keyingi safar avtomatik qo'yiladi.",
+        f"🧠 Keyingi safar avtomatik kategoriyalanadi.",
         parse_mode="html",
     )
     logger.info("[HISOBCHI] tx #%s categorized as '%s' (%s), exact rule learned", tx_id, category, ownership)
@@ -1214,7 +1214,7 @@ async def process_finance_voice_message(
             own_label = "Biznes" if ownership == "business" else "Shaxsiy"
 
             await event.reply(
-                f"🎙️ <b>Ovozli javob saqlandi!</b>\n"
+                f"🎙️ <b>Ovozli javob qabul qilindi!</b>\n"
                 f"{direction_icon} {amount_str} UZS — <b>{html.escape(category)} ({own_label})</b>\n"
                 f"📍 {html.escape(merchant)}\n"
                 f"🧠 Keyingi safar avtomatik toifalanadi.",
@@ -1251,7 +1251,7 @@ async def process_finance_voice_message(
             reason_line = f"\n📝 Izoh: {reason}" if reason else ""
 
             await event.reply(
-                f"🎙️ <b>Ovozli to'lov #{tx_id} saqlandi!</b>\n\n"
+                f"🎙️ <b>Ovozli to'lov #{tx_id} kiritildi!</b>\n\n"
                 f"{direction_icon}: <b>{amount_str} UZS</b> ({own_label})\n"
                 f"📍 {html.escape(merchant)}\n"
                 f"🗂 Toifa: <b>{html.escape(category)}</b>"
