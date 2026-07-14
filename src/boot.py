@@ -441,6 +441,11 @@ async def boot_application():
         # Frog brief is sent from @jonairobot (bot_client), not the userbot.
         asyncio.create_task(daily_frog_loop(bot_client, settings.TEAM_GROUP_ID), name="daily_frog_loop")
         asyncio.create_task(_channel_scout_loop(), name="channel_scout_loop")
+        from src.schedulers.instagram_weekly_reporter import instagram_weekly_report_loop
+        asyncio.create_task(
+            instagram_weekly_report_loop(bot_client, settings.TEAM_GROUP_ID),
+            name="instagram_weekly_report_loop",
+        )
 
     # Surgical negotiator
     surgical_integration = get_surgical_integration()
