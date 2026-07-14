@@ -121,6 +121,10 @@ def build_http_app(service: GatewayService) -> Any:
         ),
     )
 
+    class MCPASGIEndpoint:
+        async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+            await session_manager.handle_request(scope, receive, send)
+
     @asynccontextmanager
     async def lifespan(_: Any):
         await service.start()
@@ -129,6 +133,12 @@ def build_http_app(service: GatewayService) -> Any:
         await service.stop()
 
     return Starlette(
-        routes=[Route("/mcp", endpoint=session_manager.handle_request)],
+        routes=[
+            Route(
+                "/mcp",
+                endpoint=MCPASGIEndpoint(),
+                methods=["GET", "POST", "DELETE"],
+            )
+        ],
         lifespan=lifespan,
     )
