@@ -50,9 +50,11 @@ PUL_OQIMI_COLUMNS = [
     ("Xabar", "raw_text"),
     ("Fingerprint", "fingerprint"),
     ("Xabar ID", "source_message_id"),
+    ("Finansi chat ID", "finance_chat_id"),
+    ("Finansi xabar ID", "finance_msg_id"),
 ]
 
-SHAXSIY_COLUMNS = PUL_OQIMI_COLUMNS
+SHAXSIY_COLUMNS = list(PUL_OQIMI_COLUMNS)
 
 FOYDA_ZARAR_COLUMNS = [
     ("#", "id"),
@@ -311,8 +313,14 @@ class HisobchiGsheetStore:
             else:
                 existing = ws.row_values(1) or []
                 if existing != headers:
-                    ws.clear()
-                    ws.append_row(headers)
+                    if len(existing) < len(headers):
+                        added = headers[len(existing):]
+                        col_start = len(existing) + 1
+                        for i, h in enumerate(added):
+                            ws.update_cell(1, col_start + i, h)
+                    else:
+                        ws.clear()
+                        ws.append_row(headers)
             self._worksheets[title] = ws
         self._ensure_hisobot()
         self._apply_formatting()

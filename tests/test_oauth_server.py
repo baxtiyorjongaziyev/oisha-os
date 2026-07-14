@@ -41,3 +41,18 @@ def test_oauth_server_exposes_public_host_only_when_explicit(monkeypatch):
     oauth_server.run_server()
 
     assert DummyHTTPServer.address == ("0.0.0.0", 10001)
+
+
+def test_oauth_server_falls_back_to_default_port_on_invalid_value(monkeypatch):
+    """OISHA_OAUTH_PORT noto'g'ri qiymatga (masalan bo'sh yoki matn)
+    o'rnatilgan bo'lsa, server crash bo'lmasdan default portga qaytishi kerak."""
+    DummyHTTPServer.address = None
+    DummyHTTPServer.handled = False
+    monkeypatch.delenv("OISHA_OAUTH_BIND_HOST", raising=False)
+    monkeypatch.setenv("OISHA_OAUTH_PORT", "not-a-number")
+    monkeypatch.setattr(oauth_server.http.server, "HTTPServer", DummyHTTPServer)
+
+    oauth_server.run_server()
+
+    assert DummyHTTPServer.address == ("127.0.0.1", 9999)
+    assert DummyHTTPServer.handled is True
