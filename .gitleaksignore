@@ -12,3 +12,9 @@
 53f40252d9a6d7acae0006e4c3d0a2810a7b660d:scripts/generate_session_string.py:generic-api-key:16
 7472fd11624074a919e733da60a50df71533fa0e:scripts/generate_session_string.py:generic-api-key:16
 c20c5a60916c49f4c9aeef0024115cfcd045158d:scripts/generate_session_string.py:generic-api-key:16
+
+# Moizvonki (call-tracking) API kaliti — tarixiy commitda ochiq qolgan,
+# hozirgi versiya MOIZVONKI_API_KEY env o'zgaruvchisidan o'qiydi.
+# ESLATMA: bu kalit ROTATSIYA QILINISHI KERAK (moizvonki.ru boshqaruv paneli).
+35e6a43098c1f767f62f8a37b17e746a058c8568:get_moizvonki_calls.py:generic-api-key:5
+35e6a43098c1f767f62f8a37b17e746a058c8568:test_moizvonki_auth.py:generic-api-key:4

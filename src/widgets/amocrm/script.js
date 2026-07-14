@@ -94,19 +94,27 @@ define(['jquery', 'underscore', 'twigjs'], function ($, _, Twig) {
     };
 
     this.fetchHistory = function (url, userId, secret) {
-      $.get(url + '/api/chat/history/' + userId + '?secret_key=' + secret, function(data) {
+      $.ajax({
+        url: url + '/api/chat/history/' + userId,
+        method: 'GET',
+        headers: {'X-Secret-Key': secret},
+        success: function(data) {
         if (data.history) {
           var chatHtml = '';
           data.history.forEach(function(msg) {
             var roleClass = msg.role === 'model' ? 'me' : 'user';
-            chatHtml += '<div class="oisha-message ' + roleClass + '">' + msg.parts[0].text + '</div>';
+            chatHtml += '<div class="oisha-message ' + roleClass + '">' + self.escapeHtml(msg.parts[0].text) + '</div>';
           });
           $('#oisha-chat-history').html(chatHtml);
           // Scroll to bottom
           var objDiv = document.getElementById("oisha-chat-history");
           objDiv.scrollTop = objDiv.scrollHeight;
         }
-      });
+      }});
+    };
+
+    this.escapeHtml = function (value) {
+      return $('<div>').text(String(value || '')).html();
     };
 
     this.sendMessage = function (url, userId, text, secret) {
@@ -116,16 +124,16 @@ define(['jquery', 'underscore', 'twigjs'], function ($, _, Twig) {
         url: url + '/api/chat/send',
         method: 'POST',
         contentType: 'application/json',
+        headers: {'X-Secret-Key': secret},
         data: JSON.stringify({
           user_id: parseInt(userId),
-          text: text,
-          secret_key: secret
+          text: text
         }),
         success: function(response) {
           $('#oisha-msg-input').val('');
           $('#oisha-send-trigger').prop('disabled', false).text('YUBORISH');
           // Update local UI
-          $('#oisha-chat-history').append('<div class="oisha-message me">' + text + '</div>');
+          $('#oisha-chat-history').append('<div class="oisha-message me">' + self.escapeHtml(text) + '</div>');
           var objDiv = document.getElementById("oisha-chat-history");
           objDiv.scrollTop = objDiv.scrollHeight;
         },

@@ -1,6 +1,5 @@
 import { createServer } from "node:http";
 import { Worker } from "bullmq";
-import IORedis from "ioredis";
 
 const port = Number(process.env.WORKER_HEALTH_PORT ?? 3002);
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
@@ -21,7 +20,15 @@ server.listen(port, "0.0.0.0", () => {
 });
 
 if (process.env.START_WORKER !== "false") {
-  const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
+  const parsedRedisUrl = new URL(redisUrl);
+  const connection = {
+    host: parsedRedisUrl.hostname,
+    port: Number(parsedRedisUrl.port || 6379),
+    username: parsedRedisUrl.username || undefined,
+    password: parsedRedisUrl.password || undefined,
+    maxRetriesPerRequest: null,
+    ...(parsedRedisUrl.protocol === "rediss:" ? { tls: {} } : {}),
+  };
 
   new Worker(
     "salescoach-jobs",

@@ -391,7 +391,7 @@ class AmoCRMDealHygieneAgent:
             return profiles
 
         for row in rows:
-            profile = dict(zip(columns, row))
+            profile = dict(row) if isinstance(row, dict) else dict(zip(columns, row))
             phone = normalize_phone(profile.get("phone"))
             username = str(profile.get("username") or "").lstrip("@").lower()
             if phone:
