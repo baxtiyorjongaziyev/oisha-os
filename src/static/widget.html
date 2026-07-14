@@ -265,12 +265,13 @@
     </div>
 
     <script>
-        const API_BASE = window.location.origin; 
-        const SECRET = "oisha_safe_123";
+        const API_BASE = window.location.origin;
+        const urlParams = new URLSearchParams(window.location.search);
+        const SECRET = window.OISHA_WIDGET_SECRET || urlParams.get('secret_key') || '';
+        const authHeaders = SECRET ? {'X-Secret-Key': SECRET} : {};
         let currentUserId = null;
         let isTyping = false;
 
-        const urlParams = new URLSearchParams(window.location.search);
         const userPhone = urlParams.get('phone');
         const amoContactId = urlParams.get('contact_id');
 
@@ -280,6 +281,11 @@
         const modelSelect = document.getElementById('model-select');
 
         async function initChat() {
+            if (!SECRET) {
+                chatWindow.innerHTML = '<div class="error-msg">Widget autentifikatsiyasi sozlanmagan.</div>';
+                document.getElementById('user-name').innerText = "Xatolik";
+                return;
+            }
             if (!userPhone) {
                 chatWindow.innerHTML = '<div class="error-msg">Telefon raqami topilmadi. Widgetni AmoCRM orqali oching.</div>';
                 document.getElementById('user-name').innerText = "Xatolik";
@@ -287,7 +293,7 @@
             }
 
             try {
-                const res = await fetch(`${API_BASE}/api/chat/lookup/${userPhone}?secret_key=${SECRET}`);
+                const res = await fetch(`${API_BASE}/api/chat/lookup/${userPhone}`, {headers: authHeaders});
                 const data = await res.json();
                 
                 if (data.status === 'found') {
@@ -313,7 +319,7 @@
         async function loadHistory() {
             if (!currentUserId || isTyping) return;
             try {
-                const res = await fetch(`${API_BASE}/api/chat/history/${currentUserId}?secret_key=${SECRET}`);
+                const res = await fetch(`${API_BASE}/api/chat/history/${currentUserId}`, {headers: authHeaders});
                 const data = await res.json();
                 
                 if (data.history) {
@@ -357,12 +363,11 @@
             try {
                 await fetch(`${API_BASE}/api/chat/send`, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {'Content-Type': 'application/json', ...authHeaders},
                     body: JSON.stringify({
                         user_id: currentUserId,
                         text: text,
-                        model: modelSelect.value,
-                        secret_key: SECRET
+                        model: modelSelect.value
                     })
                 });
             } catch (err) {

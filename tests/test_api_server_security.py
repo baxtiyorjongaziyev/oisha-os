@@ -40,6 +40,21 @@ class TestAPISecurity:
         assert 'oisha_safe_123' not in content
         assert 'os.environ.get("OISHA_API_SECRET", "")' not in content
 
+        widget_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'static', 'widget.html')
+        with open(widget_file, 'r', encoding='utf-8') as f:
+            widget_content = f.read()
+        assert 'oisha_safe_123' not in widget_content
+        assert '?secret_key=' not in widget_content
+        assert "'X-Secret-Key': SECRET" in widget_content
+
+        amocrm_widget = os.path.join(
+            os.path.dirname(__file__), '..', 'src', 'widgets', 'amocrm', 'script.js'
+        )
+        with open(amocrm_widget, 'r', encoding='utf-8') as f:
+            amocrm_widget_content = f.read()
+        assert '?secret_key=' not in amocrm_widget_content
+        assert "headers: {'X-Secret-Key': secret}" in amocrm_widget_content
+
     def test_health_check_is_not_force_green(self):
         api_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'api_server.py')
         with open(api_file, 'r', encoding='utf-8') as f:

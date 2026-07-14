@@ -209,19 +209,17 @@ class LinkedInScraper(UzbekEntrepreneurScraper):
         )
 
         try:
-            # TODO: Implement actual LinkedIn scraping
-            # This would use LinkedIn API or browser automation
-            # For now, placeholder implementation
+            # No provider is configured; preserve the real failed state.
 
             logger.info(
                 "[LINKEDIN] Searching for '%s' in %s (limit: %d)", keyword, country, limit
             )
 
-            # Placeholder: would return real scraped data
-            # scraped = await self._scrape_linkedin_page(keyword, country, limit)
-
-            await self.update_scraping_queue(queue_id, "completed", found_count=0)
-            return queue_id
+            await self.update_scraping_queue(
+                queue_id, "failed", found_count=0,
+                error_message="LinkedIn scraper provider is not configured",
+            )
+            return 0
 
         except Exception as e:
             logger.error("[LINKEDIN] Scraping failed: %s", e)
@@ -245,11 +243,11 @@ class InstagramScraper(UzbekEntrepreneurScraper):
         try:
             logger.info("[INSTAGRAM] Searching for #%s (limit: %d)", hashtag, limit)
 
-            # TODO: Implement actual Instagram scraping
-            # This would use Instagram API or browser automation
-
-            await self.update_scraping_queue(queue_id, "completed", found_count=0)
-            return queue_id
+            await self.update_scraping_queue(
+                queue_id, "failed", found_count=0,
+                error_message="Instagram scraper provider is not configured",
+            )
+            return 0
 
         except Exception as e:
             logger.error("[INSTAGRAM] Scraping failed: %s", e)
@@ -277,11 +275,11 @@ class TelegramScraper(UzbekEntrepreneurScraper):
                 limit,
             )
 
-            # TODO: Implement actual Telegram scraping
-            # This would use Telethon to search groups and extract member info
-
-            await self.update_scraping_queue(queue_id, "completed", found_count=0)
-            return queue_id
+            await self.update_scraping_queue(
+                queue_id, "failed", found_count=0,
+                error_message="Telegram scraper provider is not configured",
+            )
+            return 0
 
         except Exception as e:
             logger.error("[TELEGRAM] Scraping failed: %s", e)
