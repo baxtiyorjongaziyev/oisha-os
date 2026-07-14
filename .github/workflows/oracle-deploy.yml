@@ -159,6 +159,14 @@ jobs:
             sed -i 's/^            //' .env
 
             # Sync nginx config and reload (for /telegram-mcp SSE endpoint etc.)
+            echo "=== NGINX SITES-ENABLED FILES ==="
+            ls -la /etc/nginx/sites-enabled/ || true
+            for f in /etc/nginx/sites-enabled/*; do
+              if [ -f "$f" ] || [ -L "$f" ]; then
+                echo "=== FILE: $f ==="
+                sudo cat "$f" || true
+              fi
+            done
             sudo cp deploy/nginx-oisha.conf /etc/nginx/sites-available/oisha
             sudo nginx -t && sudo systemctl reload nginx || echo "WARN: nginx reload failed, continuing"
 
