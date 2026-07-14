@@ -42,8 +42,9 @@ class QueuedCall:
 class CallQueueManager:
     """Manages call queue distribution to human operators."""
 
-    def __init__(self, db=None):
+    def __init__(self, db=None, bot_client=None):
         self._db = ensure_hisobchi_db(db if db is not None else db_pool)
+        self._bot_client = bot_client
 
     async def add_to_queue(
         self,
@@ -226,8 +227,29 @@ class CallQueueManager:
     async def notify_operator(self, operator_id: int, call: QueuedCall) -> bool:
         """Send notification to operator via Telegram."""
         try:
-            # TODO: Implement Telegram notification
-            # This would send a message to the operator's Telegram with call details
+            rows = await self._db.execute(
+                "SELECT telegram_id FROM call_operators WHERE id = ?",
+                [operator_id],
+            )
+            if not rows:
+                logger.warning("[CALL_QUEUE] Operator #%s not found", operator_id)
+                return False
+
+            if self._bot_client is None:
+                from src.context import app_ctx
+
+                self._bot_client = app_ctx.bot_client
+            if self._bot_client is None:
+                logger.warning("[CALL_QUEUE] Telegram bot client is unavailable")
+                return False
+
+            message = (
+                "Yangi qo'ng'iroq tayinlandi\n\n"
+                f"Mijoz: {call.entrepreneur_name}\n"
+                f"Telefon: {call.entrepreneur_phone}\n"
+                f"Navbat: #{call.id}"
+            )
+            await self._bot_client.send_message(rows[0]["telegram_id"], message)
             logger.info(
                 "[CALL_QUEUE] Notified operator #%s about call: %s",
                 operator_id,
