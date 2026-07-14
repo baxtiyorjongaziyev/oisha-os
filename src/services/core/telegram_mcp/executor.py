@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from .models import ExecutionOutcome
@@ -72,10 +71,9 @@ class ApprovalExecutor:
 
 
 def _result_summary(result: Any) -> str:
-    structured = getattr(result, "structuredContent", None)
-    if isinstance(structured, dict):
-        return json.dumps(structured, ensure_ascii=False, sort_keys=True)[:500]
-    return type(result).__name__
+    # Never persist Telegram message bodies returned by the upstream tool.
+    is_error = bool(getattr(result, "isError", False))
+    return f"{type(result).__name__}:is_error={is_error}"
 
 
 async def get_default_executor() -> ApprovalExecutor:
