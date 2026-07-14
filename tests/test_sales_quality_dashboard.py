@@ -1,4 +1,6 @@
 import pytest
+import json
+from fastapi.responses import JSONResponse
 
 from src.api.routes.state import api_state
 
@@ -11,11 +13,14 @@ async def test_sales_quality_overview_never_returns_demo_data(monkeypatch):
 
     payload = await api_server.get_sales_quality_overview()
 
-    assert payload["source"] == "real_call_analytics"
-    assert payload["real_data"] is False
-    assert payload["team"]["calls_total"] == 0
-    assert payload["managers"] == []
-    assert "demo" not in str(payload).lower()
+    assert isinstance(payload, JSONResponse)
+    assert payload.status_code == 503
+    body = json.loads(payload.body)
+    assert body["source"] == "real_call_analytics"
+    assert body["real_data"] is False
+    assert body["team"]["calls_total"] == 0
+    assert body["managers"] == []
+    assert "demo" not in str(body).lower()
 
 
 @pytest.mark.asyncio

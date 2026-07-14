@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from src.database_pool import db_pool
-from src.services.core.hisobchi_schema import ensure_hisobchi_db
+from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 
 logger = logging.getLogger(__name__)
 
@@ -130,20 +130,26 @@ class AmoCRMIntegration:
             amo_lead_id = rows[0]["amocrm_lead_id"]
 
             # Map call result to AmoCRM status
+            import os
+
             status_map = {
-                "interested": "NEW_LEAD_STATUS_ID",  # Configure
-                "callback": "CALLBACK_STATUS_ID",  # Configure
-                "not_interested": "REJECTED_STATUS_ID",  # Configure
-                "disconnected": "FAILED_STATUS_ID",  # Configure
+                "interested": os.getenv("AMOCRM_INTERESTED_STATUS_ID"),
+                "callback": os.getenv("AMOCRM_CALLBACK_STATUS_ID"),
+                "not_interested": os.getenv("AMOCRM_REJECTED_STATUS_ID"),
+                "disconnected": os.getenv("AMOCRM_FAILED_STATUS_ID"),
             }
 
             status_id = status_map.get(call_result)
             if not status_id:
-                logger.warning("[AMOCRM] Unknown call result: %s", call_result)
+                logger.warning("[AMOCRM] Status ID is not configured for: %s", call_result)
                 return False
 
             # Update lead in AmoCRM
-            await self.amocrm.update_lead(amo_lead_id, {"status_id": status_id})
+            updated = await self.amocrm.update_lead(
+                amo_lead_id, {"status_id": int(status_id)}
+            )
+            if updated is False:
+                return False
 
             # Add note to lead
             if notes:
@@ -304,10 +310,12 @@ class UzbekEntrepreneurIntegrator:
             entrepreneur_name = rows[0]["full_name"]
 
             # Update AmoCRM lead
-            await self.amocrm.update_lead_status(entrepreneur_id, call_result, notes)
+            crm_ok = await self.amocrm.update_lead_status(
+                entrepreneur_id, call_result, notes
+            )
 
             # Notify team
-            await self.telegram.notify_team_call_result(
+            telegram_ok = await self.telegram.notify_team_call_result(
                 entrepreneur_name, call_result, notes
             )
 
@@ -316,7 +324,7 @@ class UzbekEntrepreneurIntegrator:
                 entrepreneur_id,
                 call_result,
             )
-            return True
+            return bool(crm_ok and telegram_ok)
 
         except Exception as e:
             logger.error("[INTEGRATOR] Failed to process call result: %s", e)

@@ -288,6 +288,16 @@ try:
 except Exception as exc:
     logger.warning("[MCP] Hisobchi MCP router not mounted: %s", exc)
 
+# Telegram SSE MCP Server
+try:
+    import sys
+    sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+    from telegram_mcp_server import mcp as telegram_mcp_instance
+    app.mount("/telegram-mcp", telegram_mcp_instance.sse_app(mount_path="/telegram-mcp"))
+    logger.info("[MCP] Telegram SSE MCP server mounted at /telegram-mcp")
+except Exception as exc:
+    logger.warning("[MCP] Failed to mount Telegram SSE MCP: %s", exc)
+
 
 def add_activity(action: str, details: str = "", type: str = "info"):
     activity = {
@@ -419,6 +429,7 @@ app.include_router(live_monitor_router)
 # Include new route modules
 from src.api.routes.health import router as health_router, liveness_probe
 from src.api.routes.telegram_routes import router as telegram_router
+from src.api.routes.telegram_mcp import router as telegram_mcp_router
 from src.api.routes.system_dashboard import router as system_router
 from src.api.routes.sales_quality import router as sales_quality_router
 from src.api.routes.chat_widget import router as chat_router
@@ -434,6 +445,7 @@ from src.api.routes.callmaster_routes import router as callmaster_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
+app.include_router(telegram_mcp_router)
 app.include_router(system_router)
 app.include_router(sales_quality_router)
 app.include_router(chat_router)
@@ -665,38 +677,26 @@ async def telegram_callback(
     auth_date: int = None,
 ):
     """Handle Telegram OAuth callback."""
-    import hashlib
-    import jwt
     import config
-    
+    from src.api import auth_service
+
     # 1. Verify hash
     bot_token = config.BOT_TOKEN
-    
-    # Create data_check_string
-    data = {
-        "id": str(id),
+    fields = {
+        "id": str(id) if id is not None else None,
         "first_name": first_name,
-        "auth_date": str(auth_date),
+        "auth_date": str(auth_date) if auth_date is not None else None,
+        "last_name": last_name,
+        "username": username,
+        "photo_url": photo_url,
     }
-    if last_name: data["last_name"] = last_name
-    if username: data["username"] = username
-    if photo_url: data["photo_url"] = photo_url
-    
-    data_check_arr = []
-    for key, val in sorted(data.items()):
-        data_check_arr.append(f"{key}={val}")
-    data_check_string = "\n".join(data_check_arr)
-    
-    secret_key = hashlib.sha256(bot_token.encode()).digest()
-    expected_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-    
-    if expected_hash != hash:
+    if not auth_service.verify_telegram_hash(fields, bot_token, hash):
         raise HTTPException(status_code=403, detail="Invalid Telegram Auth Hash")
-        
+
     # Check expiry (prevent replay attacks - 24 hours max)
-    if auth_date and time.time() - int(auth_date) > 86400:
+    if not auth_service.is_auth_date_fresh(auth_date):
         raise HTTPException(status_code=403, detail="Auth date is expired")
-        
+
     # 2. Get or Create user in DB, sync role
     db = get_db()
     # Ensure they exist in our users table
@@ -708,18 +708,14 @@ async def telegram_callback(
     )
     user = await db.users.get_user(id)
     role = user.get("role", "client") if user else "client"
-    
-    # Generate JWT
-    jwt_secret = getattr(config, "JWT_SECRET", bot_token) # Fallback to bot token if no separate secret
-    payload = {
-        "sub": str(id),
-        "username": username,
-        "first_name": first_name,
-        "role": role,
-        "exp": int(time.time()) + (30 * 24 * 3600) # 30 days
-    }
-    token = jwt.encode(payload, jwt_secret, algorithm="HS256")
-    
+
+    # Generate JWT (fallback to bot token if no separate secret)
+    jwt_secret = getattr(config, "JWT_SECRET", bot_token)
+    token = auth_service.issue_session_jwt(
+        user_id=id, username=username, first_name=first_name,
+        role=role, secret=jwt_secret,
+    )
+
     # Create response that stores the cookie and redirects to Dashboard
     response = RedirectResponse(url="/client")
     response.set_cookie(
@@ -740,18 +736,17 @@ async def client_dashboard(request: Request):
     token = request.cookies.get("oisha_token")
     if not token:
         return RedirectResponse(url="/api/auth/telegram/login")
-        
-    import jwt
+
     import config
+    from src.api import auth_service
     jwt_secret = getattr(config, "JWT_SECRET", config.BOT_TOKEN)
-    try:
-        payload = jwt.decode(token, jwt_secret, algorithms=["HS256"])
-        user_id = payload.get("sub")
-        first_name = payload.get("first_name", "Foydalanuvchi")
-        role = payload.get("role", "client")
-    except Exception:
+    payload = auth_service.decode_session_jwt(token, jwt_secret)
+    if payload is None:
         # Invalid or expired token
         return RedirectResponse(url="/api/auth/telegram/login")
+    user_id = payload.get("sub")
+    first_name = payload.get("first_name", "Foydalanuvchi")
+    role = payload.get("role", "client")
 
     html_content = f"""
     <!DOCTYPE html>
@@ -1105,6 +1100,10 @@ async def _build_amocrm_call_analysis_status(db) -> dict:
     }
 
 
+# Backward-compat re-exports: these symbols are pulled back into the
+# api_server namespace for legacy callers that do `from src.api_server import X`.
+# They are INTENTIONALLY at module end — the router modules import from here, so
+# importing them earlier would create circular imports. Do not move to the top.
 from src.api.routes.chat_widget import (  # noqa: F401
     lookup_user_by_phone,
     get_chat_history,
