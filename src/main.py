@@ -11,11 +11,16 @@ from typing import Optional, Dict, Any
 
 # [STABILITY] Windows and UTF-8 setup
 try:
-    if hasattr(sys.stdout, "reconfigure"):
+    if sys.stdout is None or getattr(sys.stdout, "closed", False):
+        sys.stdout = open(os.devnull, "w")
+    elif hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    if hasattr(sys.stderr, "reconfigure"):
+
+    if sys.stderr is None or getattr(sys.stderr, "closed", False):
+        sys.stderr = open(os.devnull, "w")
+    elif hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except OSError:
+except (OSError, ValueError):
     pass
 
 if os.name == "nt":
