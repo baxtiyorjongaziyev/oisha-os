@@ -1,5 +1,9 @@
 # Oisha-OS: Continuous Integration (Tests)
 # Path-filtered to save GitHub Actions minutes (free tier: 2000 min/month)
+# Runs on the self-hosted Oracle runner: GitHub-hosted (ubuntu-latest) jobs
+# have been failing instantly without ever being assigned a runner
+# (account-level Actions issue), while the self-hosted runner keeps working —
+# the same move oracle-deploy.yml made in 49177e5.
 name: CI - Oisha-OS
 
 on:
@@ -20,27 +24,33 @@ on:
       - 'pyproject.toml'
       - '.github/workflows/test.yml'
 
+concurrency:
+  group: ci-test-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: [self-hosted, oracle]
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
-      
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
-          
+
+      # Persistent venv on the runner replaces setup-python + pip cache:
+      # the VM's system python3 backs it, and reuse across runs keeps
+      # installs fast on the small Oracle box.
+      - name: Set up Python virtualenv
+        run: |
+          VENV="$HOME/.cache/oisha-ci-venv"
+          if [ ! -x "$VENV/bin/python" ]; then
+            python3 -m venv "$VENV"
+          fi
+          "$VENV/bin/pip" install -q --upgrade pip
+          echo "$VENV/bin" >> "$GITHUB_PATH"
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          pip install -q -r requirements.txt
+          pip install -q -r requirements-dev.txt
           
       - name: Security scan
         run: |
