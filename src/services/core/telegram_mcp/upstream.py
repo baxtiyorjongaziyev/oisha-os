@@ -36,17 +36,32 @@ class UpstreamClient:
             await stack.aclose()
 
     async def list_tools(self) -> list[Any]:
-        await self.start()
-        response = await self._session.list_tools()
-        return list(response.tools)
+        if self._session is not None:
+            response = await self._session.list_tools()
+            return list(response.tools)
+        return await self._one_shot("list_tools")
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
-        await self.start()
-        try:
-            return await self._session.call_tool(name, arguments)
-        except Exception:
-            await self.stop()
-            raise
+        if self._session is None:
+            return await self._one_shot("call_tool", name, arguments)
+        return await self._session.call_tool(name, arguments)
+
+    async def _one_shot(self, operation: str, *args: Any) -> Any:
+        """Use a task-local session for AdminBot approval callbacks."""
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamable_http_client
+
+        async with streamable_http_client(self.url) as (
+            read_stream,
+            write_stream,
+            _,
+        ):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                if operation == "list_tools":
+                    response = await session.list_tools()
+                    return list(response.tools)
+                return await session.call_tool(args[0], args[1])
 
     async def __aenter__(self) -> "UpstreamClient":
         return await self.start()
