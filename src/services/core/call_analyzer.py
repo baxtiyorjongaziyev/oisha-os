@@ -263,6 +263,7 @@ class CallAnalyzer:
         )
         self.create_tasks = bool(getattr(settings, "ENABLE_AMOCRM_CALL_TASKS", True))
         self.task_due_hours = int(getattr(settings, "AMOCRM_CALL_TASK_DUE_HOURS", 24) or 24)
+        self._moizvonki_session = None
         self.gemini_cooldown_seconds = int(
             os.getenv("GEMINI_CALL_COOLDOWN_SECONDS", "900")
         )
@@ -436,8 +437,47 @@ class CallAnalyzer:
         except Exception as exc:
             logger.error("[CALL] DB log failed for %s: %s", call_id, exc)
 
+    def _login_moizvonki(self):
+        email = getattr(self._settings, "MOIZVONKI_EMAIL", None)
+        password = getattr(self._settings, "MOIZVONKI_PASSWORD", None)
+        if not email or not password:
+            logger.warning("[CALL] Moizvonki credentials not configured")
+            return None
+
+        session = _requests.Session()
+        login_url = f"https://{self.amocrm.subdomain}.moizvonki.ru/accounts/login/"
+        try:
+            r = session.get(login_url, timeout=30)
+            csrf_token = session.cookies.get("csrftoken")
+            csrf_mid = re.search(r'name=["\']csrfmiddlewaretoken["\']\s+value=["\']([^"\']+)["\']', r.text)
+            csrf_val = csrf_mid.group(1) if csrf_mid else csrf_token
+
+            login_data = {
+                "csrfmiddlewaretoken": csrf_val,
+                "username": email,
+                "password": password.get_secret_value() if hasattr(password, "get_secret_value") else password,
+                "foreign_pc": "on"
+            }
+            headers = {
+                "Referer": login_url,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            }
+            r_post = session.post(login_url, data=login_data, headers=headers, timeout=30)
+            if r_post.status_code == 200 and "sessionid" in session.cookies:
+                logger.info("[CALL] Moizvonki login successful")
+                return session
+            else:
+                logger.error("[CALL] Moizvonki login failed: status=%s cookies=%s", r_post.status_code, session.cookies.get_dict())
+                return None
+        except Exception as exc:
+            logger.error("[CALL] Moizvonki login exception: %s", exc)
+            return None
+
     async def _fetch_audio_bytes(self, url: str) -> Optional[Tuple[bytes, str]]:
         """Download an AmoCRM recording into memory."""
+        # Check if URL belongs to Moizvonki and needs session authentication
+        is_moizvonki = "moizvonki.ru" in url or "moizvonki" in url
+        
         headers_auth = {}
         get_headers = getattr(self.amocrm, "_get_headers", None)
         if callable(get_headers):
@@ -447,13 +487,29 @@ class CallAnalyzer:
                 logger.error("[CALL] Exception fetching AmoCRM headers: %s", exc)
                 headers_auth = {}
 
-        def _get(headers: Dict[str, str]):
+        def _get(headers: Dict[str, str], session: Optional[_requests.Session] = None):
+            if is_moizvonki and session:
+                return session.get(url, timeout=90, stream=False)
             return _requests.get(url, headers=headers, timeout=90, stream=False)
 
         try:
-            resp = await asyncio.to_thread(_get, headers_auth)
-            if resp.status_code != 200:
-                resp = await asyncio.to_thread(_get, {})
+            resp = None
+            if is_moizvonki:
+                if not self._moizvonki_session:
+                    self._moizvonki_session = self._login_moizvonki()
+                if self._moizvonki_session:
+                    resp = await asyncio.to_thread(_get, {}, self._moizvonki_session)
+                    # If session expired, try re-login once
+                    if resp and (resp.status_code != 200 or len(resp.content) == 60027):
+                        logger.info("[CALL] Moizvonki session expired or dummy received, retrying login")
+                        self._moizvonki_session = self._login_moizvonki()
+                        if self._moizvonki_session:
+                            resp = await asyncio.to_thread(_get, {}, self._moizvonki_session)
+
+            if not resp or resp.status_code != 200:
+                resp = await asyncio.to_thread(_get, headers_auth)
+                if resp.status_code != 200:
+                    resp = await asyncio.to_thread(_get, {})
 
             if resp.status_code == 200 and resp.content:
                 content_type = (resp.headers.get("Content-Type") or "").lower()
@@ -1554,7 +1610,19 @@ class CallAnalyzer:
                 return str(value)
         return ""
 
-    def _find_audio_url(self, payload: Any) -> Optional[str]:
+    def _find_audio_url(self, payload: Any, strict: bool = False) -> Optional[str]:
+        """Find a recording URL inside a note's params.
+
+        strict=True only accepts URLs with a real audio/video file
+        extension (_AUDIO_URL_RE). strict=False also falls back to
+        generic keys like "link"/"url", which is useful for locating the
+        actual recording URL inside a note we already *know* is a call
+        (note_type in _CALL_NOTE_TYPES) but is too loose to use for
+        *classifying* a note as a call in the first place — those generic
+        keys also show up on unrelated notes (e.g. a Telegram invite link),
+        which previously caused non-call notes to be misdetected as calls
+        and downloaded as HTML instead of audio.
+        """
         candidates: List[str] = []
 
         def walk(value: Any, key: str = "") -> None:
@@ -1575,6 +1643,8 @@ class CallAnalyzer:
             audio_match = _AUDIO_URL_RE.search(text)
             if audio_match:
                 candidates.append(audio_match.group(0))
+                return
+            if strict:
                 return
             if key in {
                 "link",
