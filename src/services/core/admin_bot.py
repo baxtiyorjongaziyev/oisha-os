@@ -298,6 +298,33 @@ class AdminBot:
         async def callback_handler(event):
             data = event.data.decode("utf-8")
             try:
+                if data.startswith(("mcp:approve:", "mcp:cancel:")):
+                    from src.services.core.telegram_mcp.executor import (
+                        get_default_executor,
+                    )
+
+                    executor = await get_default_executor()
+                    if data.startswith("mcp:approve:"):
+                        operation_id = data.removeprefix("mcp:approve:")
+                        outcome = await executor.approve(operation_id, event.sender_id)
+                    else:
+                        operation_id = data.removeprefix("mcp:cancel:")
+                        outcome = await executor.cancel(operation_id, event.sender_id)
+                    await event.answer(
+                        outcome.user_message,
+                        alert=outcome.status in {"denied", "failed"},
+                    )
+                    try:
+                        await event.edit(
+                            event.message.message + f"\n\n{outcome.badge}"
+                        )
+                    except Exception:
+                        logger.debug(
+                            "[ADMIN_BOT] MCP approval card edit failed",
+                            exc_info=True,
+                        )
+                    return
+
                 # [SECURITY] Check access for administrative callbacks
                 if (
                     not self.access_manager.is_admin(event.sender_id)
