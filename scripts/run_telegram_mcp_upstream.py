@@ -18,7 +18,7 @@ def main() -> None:
     os.environ["MCP_HOST"] = "127.0.0.1"
     os.environ["MCP_PORT"] = "8765"
 
-    from main import main as telegram_mcp_main
+    from telegram_mcp.runner import main as telegram_mcp_main
 
     telegram_mcp_main()
 
