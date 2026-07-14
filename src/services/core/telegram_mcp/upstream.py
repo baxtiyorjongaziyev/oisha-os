@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+import asyncio
+from contextlib import AsyncExitStack
+from typing import Any
+
+
+class UpstreamClient:
+    """Small lifecycle wrapper around a Streamable HTTP MCP server."""
+
+    def __init__(self, url: str):
+        if not url.startswith(("http://127.0.0.1:", "http://localhost:")):
+            raise ValueError("Telegram MCP upstream must use a loopback URL")
+        self.url = url
+        self._stack: AsyncExitStack | None = None
+        self._session: Any = None
+        self._lifecycle_lock = asyncio.Lock()
+
+    async def start(self) -> "UpstreamClient":
+        async with self._lifecycle_lock:
+            if self._session is not None:
+                return self
+            from mcp import ClientSession
+            from mcp.client.streamable_http import streamable_http_client
+
+            stack = AsyncExitStack()
+            try:
+                read_stream, write_stream, _ = await stack.enter_async_context(
+                    streamable_http_client(self.url)
+                )
+                session = await stack.enter_async_context(
+                    ClientSession(read_stream, write_stream)
+                )
+                await session.initialize()
+            except BaseException:
+                await stack.aclose()
+                raise
+            self._stack = stack
+            self._session = session
+            return self
+
+    async def stop(self) -> None:
+        async with self._lifecycle_lock:
+            stack, self._stack, self._session = self._stack, None, None
+            if stack is not None:
+                await stack.aclose()
+
+    async def list_tools(self) -> list[Any]:
+        if self._session is not None:
+            response = await self._session.list_tools()
+            return list(response.tools)
+        return await self._one_shot("list_tools")
+
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+        if self._session is None:
+            return await self._one_shot("call_tool", name, arguments)
+        return await self._session.call_tool(name, arguments)
+
+    async def _one_shot(self, operation: str, *args: Any) -> Any:
+        """Use a task-local session for AdminBot approval callbacks."""
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamable_http_client
+
+        async with streamable_http_client(self.url) as (
+            read_stream,
+            write_stream,
+            _,
+        ):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                if operation == "list_tools":
+                    response = await session.list_tools()
+                    return list(response.tools)
+                return await session.call_tool(args[0], args[1])
+
+    async def __aenter__(self) -> "UpstreamClient":
+        return await self.start()
+
+    async def __aexit__(self, *_: Any) -> None:
+        await self.stop()
