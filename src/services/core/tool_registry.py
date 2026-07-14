@@ -39,6 +39,13 @@ class ToolAdapter(Protocol):
 
 
 class ToolRegistry:
+    """Tool layer for the BACKGROUND/PROACTIVE framework (services/core).
+
+    Maps tool names to adapters that return typed ``ToolResult`` objects.
+    Distinct from src.agents.tools.AgentToolExecutor, which serves the live
+    chat agents via Gemini function-calling.
+    """
+
     def __init__(self) -> None:
         self._adapters: Dict[str, ToolAdapter] = {}
 
