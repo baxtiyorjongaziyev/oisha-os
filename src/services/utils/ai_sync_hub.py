@@ -1,3 +1,32 @@
+import json
+import os
+import sqlite3
+
+import structlog
+
+logger = structlog.get_logger()
+
+# Isolated, self-contained memory store (kept under data/ alongside the
+# canonical DB rather than a rogue top-level bot_memory.db). Accessed
+# synchronously; not the canonical async DB, so no WAL lock contention.
+_MEMORY_DB_PATH = os.path.join("data", "ai_sync_memory.db")
+_schema_ready = False
+
+
+def _memory_conn() -> sqlite3.Connection:
+    global _schema_ready
+    os.makedirs(os.path.dirname(_MEMORY_DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(_MEMORY_DB_PATH)
+    if not _schema_ready:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS learned_facts ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, fact TEXT)"
+        )
+        conn.commit()
+        _schema_ready = True
+    return conn
+
+
 class AIFactory:
     """ChatGPT, Claude, Gemini, Perplexity va Manus AI modellarini boshqarish markazi."""
 
@@ -83,7 +112,7 @@ class AISyncHub:
             with open(json_file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            conn = sqlite3.connect("bot_memory.db")
+            conn = _memory_conn()
             cursor = conn.cursor()
 
             count = 0
@@ -124,7 +153,7 @@ class AISyncHub:
         """Yangi suhbatlarni real vaqtda sinxronizatsiya qilish (API orqali)."""
         # Bu yerda API orqali kelgan xabarlarni bazaga saqlash logikasi
         try:
-            conn = sqlite3.connect("bot_memory.db")
+            conn = _memory_conn()
             cursor = conn.cursor()
             for msg in messages:
                 fact = f"{platform} (Live) - {msg['role']}: {msg['content']}"

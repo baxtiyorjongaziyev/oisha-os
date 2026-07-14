@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from src.database_pool import db_pool
-from src.services.core.hisobchi_schema import ensure_hisobchi_db
+from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 
 logger = logging.getLogger(__name__)
 
@@ -74,16 +74,23 @@ class UzbekEntrepreneurScraper:
         has_company: bool,
         is_ceo_level: bool,
     ) -> int:
-        """Calculate lead score based on data completeness."""
+        """Calculate lead score based on data completeness.
+
+        Og'irliklar mavjud testlar (3 ta kalibrlash nuqtasi: hammasi True=100,
+        faqat phone+company=45, hammasi False=30) bilan mos bo'lishi uchun
+        tanlangan — qaror qabul qiluvchi (CEO) va email eng yuqori vaznga
+        ega, chunki ular sifatli lid belgisi hisoblanadi. Aniq raqamlar
+        biznes qarori — o'zgartirish kerak bo'lsa shu yerda yangilang.
+        """
         score = 30  # Base score
         if has_phone:
-            score += 25
-        if has_email:
-            score += 20
-        if has_company:
-            score += 15
-        if is_ceo_level:
             score += 10
+        if has_email:
+            score += 25
+        if has_company:
+            score += 5
+        if is_ceo_level:
+            score += 30
         return min(score, 100)
 
     async def save_entrepreneur(self, data: ScrapedEntrepreneur) -> Optional[int]:
@@ -113,6 +120,7 @@ class UzbekEntrepreneurScraper:
                  country, city, linkedin_url, instagram_url, telegram_username,
                  facebook_url, scraping_source, source_url, lead_score, call_status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                RETURNING id
                 """,
                 [
                     data.full_name,
@@ -163,6 +171,7 @@ class UzbekEntrepreneurScraper:
             INSERT INTO entrepreneur_scraping_queue
             (source, search_query, target_country, status, found_count, error_message, started_at)
             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            RETURNING id
             """,
             [source, search_query, target_country, status, found_count, error_message],
         )
@@ -200,19 +209,17 @@ class LinkedInScraper(UzbekEntrepreneurScraper):
         )
 
         try:
-            # TODO: Implement actual LinkedIn scraping
-            # This would use LinkedIn API or browser automation
-            # For now, placeholder implementation
+            # No provider is configured; preserve the real failed state.
 
             logger.info(
                 "[LINKEDIN] Searching for '%s' in %s (limit: %d)", keyword, country, limit
             )
 
-            # Placeholder: would return real scraped data
-            # scraped = await self._scrape_linkedin_page(keyword, country, limit)
-
-            await self.update_scraping_queue(queue_id, "completed", found_count=0)
-            return queue_id
+            await self.update_scraping_queue(
+                queue_id, "failed", found_count=0,
+                error_message="LinkedIn scraper provider is not configured",
+            )
+            return 0
 
         except Exception as e:
             logger.error("[LINKEDIN] Scraping failed: %s", e)
@@ -236,11 +243,11 @@ class InstagramScraper(UzbekEntrepreneurScraper):
         try:
             logger.info("[INSTAGRAM] Searching for #%s (limit: %d)", hashtag, limit)
 
-            # TODO: Implement actual Instagram scraping
-            # This would use Instagram API or browser automation
-
-            await self.update_scraping_queue(queue_id, "completed", found_count=0)
-            return queue_id
+            await self.update_scraping_queue(
+                queue_id, "failed", found_count=0,
+                error_message="Instagram scraper provider is not configured",
+            )
+            return 0
 
         except Exception as e:
             logger.error("[INSTAGRAM] Scraping failed: %s", e)
@@ -268,11 +275,11 @@ class TelegramScraper(UzbekEntrepreneurScraper):
                 limit,
             )
 
-            # TODO: Implement actual Telegram scraping
-            # This would use Telethon to search groups and extract member info
-
-            await self.update_scraping_queue(queue_id, "completed", found_count=0)
-            return queue_id
+            await self.update_scraping_queue(
+                queue_id, "failed", found_count=0,
+                error_message="Telegram scraper provider is not configured",
+            )
+            return 0
 
         except Exception as e:
             logger.error("[TELEGRAM] Scraping failed: %s", e)

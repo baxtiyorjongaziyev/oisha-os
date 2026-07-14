@@ -1,3 +1,13 @@
+"""Thin compatibility shim over :mod:`src.settings`.
+
+This module's ONLY responsibilities are:
+  1. Unwrap ``SecretStr`` values into plain strings for legacy callers.
+  2. Apply group/topic-id fallbacks (e.g. ``PROJECTS_GROUP_ID`` → ``CRM_GROUP_ID``).
+
+It must NOT mutate or rewrite setting values — ``config.SYSTEM_INSTRUCTION`` is
+guaranteed to equal ``settings.SYSTEM_INSTRUCTION``. Prefer importing
+``src.settings.settings`` directly in new code.
+"""
 from src.settings import settings
 
 
@@ -69,10 +79,9 @@ def __getattr__(name: str):
     if name == "WHITELIST_IDS":
         return settings.WHITELIST_IDS
     if name == "SYSTEM_INSTRUCTION":
-        return (
-            settings.SYSTEM_INSTRUCTION
-            + "\n\n[AGENTIC OPS] Suhbat davomida aniq topshiriqlar berilsa yoki kelishilsa, avtomatik ravishda [TASK: title=...|assigned_to=...|deadline=...] formatida javob oxirida vazifa yarating."
-        )
+        # The [AGENTIC OPS] suffix now lives in settings.SYSTEM_INSTRUCTION itself,
+        # so config.SYSTEM_INSTRUCTION and settings.SYSTEM_INSTRUCTION are identical.
+        return settings.SYSTEM_INSTRUCTION
     if name == "META_VERIFY_TOKEN":
         return _secret_or_none(settings.META_VERIFY_TOKEN)
     if name == "META_PAGE_ACCESS_TOKEN":

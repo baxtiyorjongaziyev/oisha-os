@@ -35,7 +35,68 @@ def _text(value: Any) -> str:
     return str(value or "").strip()
 
 
+# OpenAI-compatible chat-completion providers offering free / trial tiers
+# (see github.com/cheahjs/free-llm-api-resources). Each entry maps a provider
+# name to its chat-completions endpoint plus the settings attributes that hold
+# the API key and default model. They all speak the OpenAI wire format, so a
+# single helper (`_openai_compatible_text`) serves them.
+_OPENAI_COMPATIBLE: dict[str, dict[str, str]] = {
+    "cerebras": {
+        "url": "https://api.cerebras.ai/v1/chat/completions",
+        "key": "CEREBRAS_API_KEY",
+        "model": "CEREBRAS_MODEL",
+    },
+    "sambanova": {
+        "url": "https://api.sambanova.ai/v1/chat/completions",
+        "key": "SAMBANOVA_API_KEY",
+        "model": "SAMBANOVA_MODEL",
+    },
+    "together": {
+        "url": "https://api.together.xyz/v1/chat/completions",
+        "key": "TOGETHERAI_API_KEY",
+        "model": "TOGETHERAI_MODEL",
+    },
+    "openrouter": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "key": "OPENROUTER_API_KEY",
+        "model": "OPENROUTER_TEXT_MODEL",
+    },
+    "nvidia": {
+        "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+        "key": "NVIDIA_NIM_API_KEY",
+        "model": "NVIDIA_NIM_MODEL",
+    },
+    "mistral": {
+        "url": "https://api.mistral.ai/v1/chat/completions",
+        "key": "MISTRAL_API_KEY",
+        "model": "MISTRAL_MODEL",
+    },
+    "huggingface": {
+        "url": "https://router.huggingface.co/v1/chat/completions",
+        "key": "HUGGINGFACE_API_KEY",
+        "model": "HUGGINGFACE_MODEL",
+    },
+}
+
+# Default free-first fallback order: unlimited/fast providers first, hosted
+# free tiers next, local Ollama last.
+DEFAULT_TEXT_PROVIDERS: tuple[str, ...] = (
+    "groq",
+    "cerebras",
+    "sambanova",
+    "together",
+    "openrouter",
+    "nvidia",
+    "mistral",
+    "huggingface",
+    "cloudflare",
+    "ollama",
+)
+
+
 class FreeAIProviderRouter:
+    _OPENAI_COMPATIBLE = _OPENAI_COMPATIBLE
+
     def __init__(self, settings_obj: Any = settings, http_client: Any = None):
         self.settings = settings_obj
         self.http_client = http_client
@@ -56,6 +117,9 @@ class FreeAIProviderRouter:
             )
         if provider == "ollama":
             return bool(_text(getattr(self.settings, "OLLAMA_BASE_URL", None)))
+        spec = self._OPENAI_COMPATIBLE.get(provider)
+        if spec:
+            return bool(_text(getattr(self.settings, spec["key"], None)))
         return False
 
     def _pause(self, provider: str, exc: Exception) -> None:
@@ -80,7 +144,7 @@ class FreeAIProviderRouter:
         system: Optional[str] = None,
         max_tokens: int = 2048,
         temperature: float = 0.3,
-        providers: Iterable[str] = ("groq", "cloudflare", "ollama"),
+        providers: Iterable[str] = DEFAULT_TEXT_PROVIDERS,
     ) -> ProviderResult:
         errors: list[str] = []
         for provider in providers:
@@ -93,6 +157,10 @@ class FreeAIProviderRouter:
                     return await self._cloudflare_text(prompt, system)
                 if provider == "ollama":
                     return await self._ollama_text(prompt, system, temperature)
+                if provider in self._OPENAI_COMPATIBLE:
+                    return await self._openai_compatible_text(
+                        provider, prompt, system, max_tokens, temperature
+                    )
             except Exception as exc:
                 self._pause(provider, exc)
                 errors.append(f"{provider}:{type(exc).__name__}")
@@ -131,6 +199,50 @@ class FreeAIProviderRouter:
         return ProviderResult(
             str(data["choices"][0]["message"]["content"]).strip(),
             "groq",
+            model,
+            int(usage.get("prompt_tokens") or 0),
+            int(usage.get("completion_tokens") or 0),
+        )
+
+    async def _openai_compatible_text(
+        self,
+        provider: str,
+        prompt: str,
+        system: Optional[str],
+        max_tokens: int,
+        temperature: float,
+    ) -> ProviderResult:
+        """Shared OpenAI-format chat call for hosted free providers."""
+        spec = self._OPENAI_COMPATIBLE[provider]
+        model = getattr(self.settings, spec["model"])
+        messages = [{"role": "system", "content": system}] if system else []
+        messages.append({"role": "user", "content": prompt})
+        response = await self._request(
+            "POST",
+            spec["url"],
+            headers={
+                "Authorization": f"Bearer {_text(getattr(self.settings, spec['key']))}"
+            },
+            json={
+                "model": model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            },
+        )
+        payload = response.json()
+        data = payload if isinstance(payload, dict) else {}
+        choices = data.get("choices")
+        if not choices:
+            error = data.get("error")
+            detail = error.get("message", "") if isinstance(error, dict) else str(error or "")
+            raise ValueError(f"{provider}: no choices in response ({detail or 'unexpected format'})")
+        message = choices[0].get("message") if isinstance(choices[0], dict) else None
+        content = (message or {}).get("content") if isinstance(message, dict) else None
+        usage = data.get("usage") or {}
+        return ProviderResult(
+            str(content or "").strip(),
+            provider,
             model,
             int(usage.get("prompt_tokens") or 0),
             int(usage.get("completion_tokens") or 0),
