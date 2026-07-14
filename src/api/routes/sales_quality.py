@@ -83,7 +83,7 @@ def _build_empty_sales_quality(timestamp: str, reason: str = "") -> dict:
 
 async def _fetch_call_analysis_rows() -> list:
     if not api_state.db_instance:
-        return []
+        raise RuntimeError("database_not_connected")
     try:
         conn = await api_state.db_instance.get_connection()
         result = conn.execute(
@@ -100,7 +100,7 @@ async def _fetch_call_analysis_rows() -> list:
         return []
     except Exception as exc:
         logger.error("[SALES QUALITY] DB read failed: %s", exc)
-        return []
+        raise
 
 
 def _build_sales_quality_payload(rows: list) -> dict:
@@ -140,12 +140,17 @@ def _build_sales_quality_payload(rows: list) -> dict:
     calls = []
     for r in records:
         calls.append({
+            "id": r.get("call_id"),
             "call_id": r.get("call_id"),
             "client": r.get("client_name"),
             "manager": r.get("manager_name"),
             "score": r.get("overall_score", 0),
             "duration": _format_duration(r.get("duration_seconds", 0)),
             "outcome": r.get("outcome", ""),
+            "result": r.get("outcome", ""),
+            "category": r.get("category", ""),
+            "summary": r.get("summary", ""),
+            "analyzed_at": r.get("analyzed_at", ""),
         })
 
     return {
@@ -171,9 +176,12 @@ async def get_sales_quality_overview():
         rows = await _fetch_call_analysis_rows()
     except Exception as exc:
         logger.error("[SALES QUALITY] Real data read failed: %s", exc)
-        return _build_empty_sales_quality(
-            get_local_now().isoformat(),
-            f"Real call analytics o'qishda xato: {type(exc).__name__}",
+        return JSONResponse(
+            status_code=503,
+            content=_build_empty_sales_quality(
+                get_local_now().isoformat(),
+                f"Real call analytics o'qishda xato: {type(exc).__name__}",
+            ),
         )
     return _build_sales_quality_payload(rows)
 

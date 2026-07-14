@@ -28,6 +28,7 @@ export default function Header() {
   const [bugCategory, setBugCategory] = useState("idea");
   const [bugText, setBugText] = useState("");
   const [bugSuccess, setBugSuccess] = useState(false);
+  const [bugError, setBugError] = useState("");
   const [businessDropdownOpen, setBusinessDropdownOpen] = useState(false);
   const [avatarDropdownOpen, setAvatarDropdownOpen] = useState(false);
   const [newBusinessModalOpen, setNewBusinessModalOpen] = useState(false);
@@ -38,30 +39,30 @@ export default function Header() {
     { name: "Jon Academy", status: "Faol" }
   ];
 
-  // Mock search matches
-  const searchResults =
-    searchQuery.trim().toLowerCase() === "baxtiyorjon"
-      ? {
-          contacts: [
-            { name: "Baxtiyorjon Gaziyev", role: "Sotuv menejeri", phone: "+998 90 123 45 67" },
-            { name: "Baxtiyorjon Gaziyev (Alt)", role: "Menejer", phone: "+998 91 999 88 77" },
-            { name: "Baxtiyorjon (Owner)", role: "Rahbar", phone: "+998 93 555 44 33" }
-          ],
-          leads: [
-            { name: "Zvonok na +998973355900 (Ne dozovilsya)", stage: "Yangi so'rov", id: "lead-1" }
-          ]
-        }
-      : null;
+  const searchResults: {
+    contacts: Array<{ name: string; role: string; phone: string }>;
+    leads: Array<{ name: string; stage: string; id: string }>;
+  } | null = searchQuery.trim() ? { contacts: [], leads: [] } : null;
+  const searchError = searchQuery.trim() ? "Real CRM qidiruv endpointi sozlanmagan." : "";
 
-  const handleBugSubmit = (e: React.FormEvent) => {
+  const handleBugSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bugText.trim()) return;
-    setBugSuccess(true);
-    setTimeout(() => {
-      setBugSuccess(false);
+    setBugSuccess(false);
+    setBugError("");
+    try {
+      const response = await fetch("/api/oisha/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: bugCategory, text: bugText, business: currentBusiness }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+      setBugSuccess(true);
       setBugText("");
-      setBugReportOpen(false);
-    }, 2000);
+    } catch (error) {
+      setBugError(error instanceof Error ? error.message : "Xabar yuborilmadi");
+    }
   };
 
   const handleAddBusiness = (e: React.FormEvent) => {
@@ -356,6 +357,8 @@ export default function Header() {
                 <div className="py-6 text-center text-xs text-text-muted">
                   Qidiruv natijalarini ko&apos;rish uchun biror narsa kiriting...
                 </div>
+              ) : searchError ? (
+                <div className="py-6 text-center text-xs text-amber-700">{searchError}</div>
               ) : searchResults ? (
                 <div className="space-y-4">
                   <div>
@@ -468,6 +471,11 @@ export default function Header() {
               {bugSuccess && (
                 <div className="text-center text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 py-2 rounded-xl border border-emerald-200">
                   Xabar jo&apos;natildi! Rahmat!
+                </div>
+              )}
+              {bugError && (
+                <div className="text-center text-xs font-bold text-rose-600 bg-rose-50 py-2 border border-rose-200">
+                  Xabar yuborilmadi: {bugError}
                 </div>
               )}
 

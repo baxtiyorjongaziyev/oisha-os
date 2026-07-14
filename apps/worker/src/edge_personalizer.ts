@@ -3,6 +3,7 @@
 // Deploy: npx wrangler deploy apps/worker/src/edge_personalizer.ts
 
 export interface Env {
+  CLOUDFLARE_ACCOUNT_ID: string;
   CLOUDFLARE_AI_API_TOKEN: string;
   AI_GATEWAY?: string;
 }

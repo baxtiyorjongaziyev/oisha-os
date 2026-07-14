@@ -132,9 +132,18 @@ async def liveness_probe():
         except Exception:
             crm_connected = False
 
-    checks["userbot_connected"] = userbot_authorized
-    checks["telegram_bot"] = telegram_bot_ok
-    checks["crm_connected"] = crm_connected
+    if control_plane_mode:
+        checks["userbot_connected"] = "delegated"
+        checks["telegram_bot"] = "delegated"
+        checks["crm_connected"] = "delegated"
+    else:
+        checks["userbot_connected"] = userbot_authorized
+        checks["telegram_bot"] = telegram_bot_ok
+        checks["crm_connected"] = crm_connected
+        if not userbot_authorized:
+            problems.append("userbot_disconnected")
+        if not crm_connected:
+            problems.append("crm_disconnected")
 
     overall = "healthy"
     if problems:

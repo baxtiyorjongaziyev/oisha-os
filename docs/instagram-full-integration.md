@@ -27,10 +27,13 @@ Kerakli env:
 META_VERIFY_TOKEN=...
 META_PAGE_ACCESS_TOKEN=...
 META_APP_SECRET=...
+META_INSTAGRAM_USER_ID=...
+# Eski env alias ham qo'llab-quvvatlanadi:
 META_INSTAGRAM_ACCOUNT_ID=...
 META_PAGE_ID=...
 META_GRAPH_API_VERSION=v19.0
 OISHA_API_SECRET=...
+INSTAGRAM_REPORT_AIRTABLE_TABLE=Instagram Weekly Insights
 ```
 
 Meta permission/app review odatda shu capabilitylarga bog'liq:
@@ -78,6 +81,16 @@ Live read-only Meta probe:
 ```powershell
 python scripts/probe_instagram_integration.py --live --media-limit 3
 ```
+
+Haftalik reportni qo'lda tekshirish:
+
+```powershell
+python scripts/prod/instagram_weekly_report_now.py --status
+python scripts/prod/instagram_weekly_report_now.py --dry-run
+python scripts/prod/instagram_weekly_report_now.py --send
+```
+
+`--send` faqat `BOT_TOKEN` orqali Telegram Bot API ishlatadi; local userbot ishga tushmaydi.
 
 API server orqali:
 
