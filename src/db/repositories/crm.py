@@ -91,5 +91,7 @@ class CRMRepository(BaseRepository):
             (cutoff, max(1, int(limit))),
         ) as cursor:
             rows = await cursor.fetchall()
+            if rows and isinstance(rows[0], dict):
+                return [dict(row) for row in rows]
             columns = [description[0] for description in cursor.description]
         return [dict(zip(columns, row)) for row in rows]

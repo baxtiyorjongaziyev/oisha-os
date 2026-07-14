@@ -120,6 +120,104 @@ async def test_text_falls_back_from_groq_to_cloudflare_then_ollama():
     assert result.text == "lokal javob"
 
 
+def test_openai_compatible_provider_requires_key():
+    router = FreeAIProviderRouter(_settings(), None)
+    assert router.available("cerebras") is False
+    assert router.available("mistral") is False
+    assert router.available("sambanova") is False
+
+    configured = FreeAIProviderRouter(_settings(MISTRAL_API_KEY="key"), None)
+    assert configured.available("mistral") is True
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_fallback_after_groq_429():
+    client = SimpleNamespace(
+        request=AsyncMock(
+            side_effect=[
+                _response(429, {"error": "quota"}),
+                _response(
+                    200,
+                    {
+                        "choices": [{"message": {"content": "cerebras javob"}}],
+                        "usage": {"prompt_tokens": 1, "completion_tokens": 2},
+                    },
+                ),
+            ]
+        )
+    )
+    router = FreeAIProviderRouter(
+        _settings(
+            GROQ_API_KEY="key",
+            CEREBRAS_API_KEY="ck",
+            CEREBRAS_MODEL="cerebras-model",
+        ),
+        client,
+    )
+
+    result = await router.generate_text("salom")
+
+    assert result.provider == "cerebras"
+    assert result.text == "cerebras javob"
+    assert result.model == "cerebras-model"
+    assert result.tokens_in == 1 and result.tokens_out == 2
+    assert router.blocked_until["groq"] > 0
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_malformed_response_falls_back():
+    # First provider returns 200 with an error body (no `choices`); router must
+    # not raise KeyError/IndexError but treat it as a failure and fall back.
+    client = SimpleNamespace(
+        request=AsyncMock(
+            side_effect=[
+                _response(200, {"error": {"message": "invalid model"}}),
+                _response(
+                    200,
+                    {"choices": [{"message": {"content": "or javob"}}], "usage": {}},
+                ),
+            ]
+        )
+    )
+    router = FreeAIProviderRouter(
+        _settings(
+            CEREBRAS_API_KEY="ck",
+            CEREBRAS_MODEL="cerebras-model",
+            OPENROUTER_API_KEY="k",
+            OPENROUTER_TEXT_MODEL="or-model",
+        ),
+        client,
+    )
+
+    result = await router.generate_text("salom")
+
+    assert result.provider == "openrouter"
+    assert result.text == "or javob"
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_primary_when_only_provider_configured():
+    client = SimpleNamespace(
+        request=AsyncMock(
+            return_value=_response(
+                200,
+                {"choices": [{"message": {"content": "or javob"}}], "usage": {}},
+            )
+        )
+    )
+    router = FreeAIProviderRouter(
+        _settings(OPENROUTER_API_KEY="k", OPENROUTER_TEXT_MODEL="or-model"),
+        client,
+    )
+
+    result = await router.generate_text("salom")
+
+    assert result.provider == "openrouter"
+    assert result.text == "or javob"
+    assert result.model == "or-model"
+    assert result.tokens_in == 0
+
+
 @pytest.mark.asyncio
 async def test_audio_falls_back_from_groq_to_cloudflare():
     client = SimpleNamespace(

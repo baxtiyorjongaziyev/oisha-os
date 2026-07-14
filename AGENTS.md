@@ -32,6 +32,7 @@
 *(none)*
 
 ### Operational Notes
+- Telegram MCP approval gateway: upstream `127.0.0.1:8765/mcp`, gateway `127.0.0.1:8766/mcp`. `TELEGRAM_MCP_SESSION_STRING` must be a dedicated session and must never equal `USERBOT_SESSION_STRING`. Read tools are automatic; every mutation is owner-approved through Telegram. Neither port may be exposed by Nginx.
 - ⚠️ **USERBOT SESSION OWNER: Oracle VM.** Localda parallel userbot ishga tushirmang! `USERBOT_SESSION_STRING` endi GitHub secret + production env da yangilangan. Oracle Production Deploy #28758418917 success: `/readyz` dan o'tdi. Agar localda userbot kodi ishlasa, `AuthKeyDuplicatedError` qaytadi — Oracle VM dagi session bekor bo'ladi.
 - Telegram Bot API guruh access qayta tiklandi: `crm_group` va `team_group` `getChat` tekshiruvida `200 OK`. `scripts/prod/probe_integrations.py` bilan AmoCRM, Airtable va Telegram Bot API ham OK tasdiqlangan.
 

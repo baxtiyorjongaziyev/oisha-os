@@ -3,7 +3,7 @@ Marketing Attribution Dashboard Routes
 Oisha-OS v5.0 - /api/marketing/
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 
@@ -28,5 +28,7 @@ async def get_marketing_performance(
         end_date = datetime.now().strftime("%Y-%m-%d")
         
     service = MarketingAttributionService(amocrm_sync=None) # Pass amocrm when available
-    data = service.get_performance_data(start_date=start_date, end_date=end_date)
-    return data
+    try:
+        return service.get_performance_data(start_date=start_date, end_date=end_date)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

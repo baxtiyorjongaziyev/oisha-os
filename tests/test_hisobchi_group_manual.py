@@ -83,14 +83,14 @@ async def test_handle_kirim_chiqim_text_optional_slash(temp_db) -> None:
     res1 = await handle_kirim_chiqim_text(ev1, engine)
     assert res1 is True
     assert len(ev1.replied) == 1
-    assert "saqlandi" in ev1.replied[0]
+    assert "kiritildi" in ev1.replied[0]
 
     # 2. Without slash
     ev2 = _FakeEvent(-1002, "kirim 150000 Avans")
     res2 = await handle_kirim_chiqim_text(ev2, engine)
     assert res2 is True
     assert len(ev2.replied) == 1
-    assert "saqlandi" in ev2.replied[0]
+    assert "kiritildi" in ev2.replied[0]
 
     rows = await temp_db.execute("SELECT amount, direction, merchant, reason FROM hisobchi_transactions ORDER BY id")
     assert len(rows) == 2
