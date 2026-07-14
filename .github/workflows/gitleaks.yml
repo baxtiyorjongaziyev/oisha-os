@@ -1,8 +1,8 @@
 name: Security - Secret Scan (gitleaks)
 
 on:
-  push:
-    branches: [main, master]
+  # Push trigger removed — gitleaks scans full history, so running on
+  # every push wastes minutes. Weekly schedule + PR checks are sufficient.
   pull_request:
     branches: [main, master]
   schedule:
@@ -16,6 +16,7 @@ jobs:
   gitleaks:
     name: gitleaks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v7

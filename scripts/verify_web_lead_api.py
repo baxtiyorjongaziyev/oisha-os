@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_URL = "http://localhost:8080/api/leads"
-SECRET_KEY = os.getenv("OISHA_API_SECRET", "oisha_safe_123")
+SECRET_KEY = os.getenv("OISHA_API_SECRET", "")
 
 def test_create_lead():
     payload = {

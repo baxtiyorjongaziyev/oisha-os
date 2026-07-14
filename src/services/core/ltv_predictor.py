@@ -48,6 +48,9 @@ class LTVPredictor:
         if os.path.exists(self.model_path):
             try:
                 with open(self.model_path, "rb") as f:
+                    # Trusted artifact: only ever written by _save_model() below onto a
+                    # path this app controls (settings.LTV_MODEL_PATH) — never fed
+                    # user-supplied or externally sourced data.
                     self.model = pickle.load(f)  # nosec B301
                 logger.info("[LTV] Model loaded", path=self.model_path)
             except Exception as e:
