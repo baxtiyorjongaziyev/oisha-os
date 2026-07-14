@@ -8,7 +8,7 @@
     "dev": "tsx watch src/main.ts",
     "lint": "eslint src",
     "start": "node dist/main.js",
-    "test": "node -e \"console.log('worker smoke test placeholder')\"",
+    "test": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
