@@ -38,8 +38,14 @@ class GatewayService:
 
     async def list_tools(self) -> list[Any]:
         if not self._tools:
-            return await self.refresh_tools()
-        return list(self._tools.values())
+            await self.refresh_tools()
+        exposed = []
+        for tool in self._tools.values():
+            decision = classify_tool(tool.name, getattr(tool, "annotations", None))
+            if not decision.automatic and getattr(tool, "outputSchema", None) is not None:
+                tool = tool.model_copy(update={"outputSchema": None})
+            exposed.append(tool)
+        return exposed
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any] | None, requester: str = "chatgpt"
