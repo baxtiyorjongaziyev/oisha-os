@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import AsyncExitStack
 from typing import Any
 
@@ -13,27 +14,36 @@ class UpstreamClient:
         self.url = url
         self._stack: AsyncExitStack | None = None
         self._session: Any = None
+        self._lifecycle_lock = asyncio.Lock()
 
     async def start(self) -> "UpstreamClient":
-        if self._session is not None:
-            return self
-        from mcp import ClientSession
-        from mcp.client.streamable_http import streamable_http_client
+        async with self._lifecycle_lock:
+            if self._session is not None:
+                return self
+            from mcp import ClientSession
+            from mcp.client.streamable_http import streamable_http_client
 
-        stack = AsyncExitStack()
-        read_stream, write_stream, _ = await stack.enter_async_context(
-            streamable_http_client(self.url)
-        )
-        session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
-        await session.initialize()
-        self._stack = stack
-        self._session = session
-        return self
+            stack = AsyncExitStack()
+            try:
+                read_stream, write_stream, _ = await stack.enter_async_context(
+                    streamable_http_client(self.url)
+                )
+                session = await stack.enter_async_context(
+                    ClientSession(read_stream, write_stream)
+                )
+                await session.initialize()
+            except BaseException:
+                await stack.aclose()
+                raise
+            self._stack = stack
+            self._session = session
+            return self
 
     async def stop(self) -> None:
-        stack, self._stack, self._session = self._stack, None, None
-        if stack is not None:
-            await stack.aclose()
+        async with self._lifecycle_lock:
+            stack, self._stack, self._session = self._stack, None, None
+            if stack is not None:
+                await stack.aclose()
 
     async def list_tools(self) -> list[Any]:
         if self._session is not None:
