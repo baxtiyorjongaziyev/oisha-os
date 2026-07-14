@@ -60,9 +60,13 @@ class Pipeline:
         return self
 
 
-class AgentOrchestrator:
+class PipelineOrchestrator:
     """
-    Master orchestrator — creates and executes multi-step agent pipelines.
+    Pipeline orchestrator — creates and executes multi-step agent pipelines.
+
+    NOTE: distinct from ``src.agents.orchestrator.AgentOrchestrator`` (the LLM
+    intent-router used by MessageController). This one runs deterministic
+    multi-step DAGs for proactive/background flows.
 
     Each step can be:
       - An internal Python agent (called directly via agent registry)
@@ -202,14 +206,14 @@ class AgentOrchestrator:
 
 
 # Singleton
-app_ctx.orchestrator: Optional[AgentOrchestrator] = None
+app_ctx.orchestrator: Optional[PipelineOrchestrator] = None
 
 
 def get_orchestrator(
     agent_registry: Optional[Dict] = None,
     bot_messenger=None,
     db=None,
-) -> AgentOrchestrator:
+) -> PipelineOrchestrator:
     if app_ctx.orchestrator is None:
-        app_ctx.orchestrator = AgentOrchestrator(agent_registry, bot_messenger, db)
+        app_ctx.orchestrator = PipelineOrchestrator(agent_registry, bot_messenger, db)
     return app_ctx.orchestrator
