@@ -1,14 +1,17 @@
+import asyncio
 import sys
 import tempfile
 import unittest
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from services.core.telegram_mcp.executor import ApprovalExecutor
 from services.core.telegram_mcp.gateway import GatewayService
 from services.core.telegram_mcp.store import ApprovalStore
+from services.core.telegram_mcp.upstream import UpstreamClient
 
 
 @dataclass
@@ -46,6 +49,37 @@ class FakeNotifier:
 
     async def notify(self, operation):
         self.operations.append(operation)
+
+
+class FakeStreamContext:
+    def __init__(self, counters):
+        self.counters = counters
+
+    async def __aenter__(self):
+        self.counters["streams"] += 1
+        await asyncio.sleep(0)
+        return object(), object(), None
+
+    async def __aexit__(self, *_):
+        self.counters["stream_closes"] += 1
+
+
+class FakeClientSession:
+    counters = None
+
+    def __init__(self, *_):
+        pass
+
+    async def __aenter__(self):
+        self.counters["sessions"] += 1
+        await asyncio.sleep(0)
+        return self
+
+    async def __aexit__(self, *_):
+        self.counters["session_closes"] += 1
+
+    async def initialize(self):
+        await asyncio.sleep(0)
 
 
 class GatewayExecutorTests(unittest.IsolatedAsyncioTestCase):
@@ -94,6 +128,34 @@ class GatewayExecutorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cancelled.status, "cancelled")
         self.assertEqual(after.status, "not_pending")
         self.assertFalse(any(name == "delete_messages" for name, _ in self.upstream.calls))
+
+    async def test_concurrent_upstream_start_opens_one_session(self):
+        counters = {
+            "streams": 0,
+            "sessions": 0,
+            "stream_closes": 0,
+            "session_closes": 0,
+        }
+        FakeClientSession.counters = counters
+
+        def fake_streamable_http_client(_url):
+            return FakeStreamContext(counters)
+
+        client = UpstreamClient("http://127.0.0.1:8765/mcp")
+        with (
+            patch("mcp.ClientSession", FakeClientSession),
+            patch(
+                "mcp.client.streamable_http.streamable_http_client",
+                fake_streamable_http_client,
+            ),
+        ):
+            await asyncio.gather(client.start(), client.start())
+            self.assertEqual(counters["streams"], 1)
+            self.assertEqual(counters["sessions"], 1)
+            await client.stop()
+
+        self.assertEqual(counters["stream_closes"], 1)
+        self.assertEqual(counters["session_closes"], 1)
 
 
 if __name__ == "__main__":
