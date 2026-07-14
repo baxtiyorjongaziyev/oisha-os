@@ -158,6 +158,10 @@ jobs:
             ENVFILE
             sed -i 's/^            //' .env
 
+            # Sync nginx config and reload (for /telegram-mcp SSE endpoint etc.)
+            sudo cp deploy/nginx-oisha.conf /etc/nginx/sites-available/oisha
+            sudo nginx -t && sudo systemctl reload nginx || echo "WARN: nginx reload failed, continuing"
+
             sudo sed -i '/^WatchdogSec=/d' /etc/systemd/system/oisha-os.service || true
             sudo systemctl daemon-reload
             sudo systemctl reset-failed oisha-os || true
