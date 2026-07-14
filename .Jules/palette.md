@@ -76,3 +76,7 @@
 ## 2024-05-28 - Hiding Redundant Tooltip Announcements
 **Learning:** If a navigation link or button contains `sr-only` text, and it also triggers a hover tooltip component displaying the identical text, screen readers will read the label twice (once from the DOM element, once from the tooltip structure).
 **Action:** Always add `aria-hidden="true"` to visual-only hover tooltips that duplicate the accessible text already present inside the parent interactive element.
+
+## 2024-07-12 - Form Accessibility Improvement
+**Learning:** Found multiple form inputs (`<input>`, `<select>`) on the Settings page that had visual `<label>` elements but lacked the programmatic `htmlFor` and `id` linkage, making them inaccessible to screen readers and unclickable for focusing.
+**Action:** Always ensure any `<label>` used in a form context is strictly bound to its corresponding input field via `htmlFor="some-id"` and `id="some-id"` to comply with a11y standards.
