@@ -1,0 +1,24 @@
+[Unit]
+Description=Oisha private Telegram MCP upstream
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/oisha-os
+EnvironmentFile=/home/ubuntu/oisha-os/.env
+Environment=MCP_TRANSPORT=http
+Environment=MCP_HOST=127.0.0.1
+Environment=MCP_PORT=8765
+ExecStart=/home/ubuntu/oisha-os/venv/bin/python scripts/run_telegram_mcp_upstream.py
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntu/oisha-os/data
+
+[Install]
+WantedBy=multi-user.target

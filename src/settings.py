@@ -38,6 +38,10 @@ class AppSettings(BaseSettings):
     AUTORUN_MASS_SYNC: bool = True
     ENABLE_CLOUD_USERBOT: bool = False  # Set to True to enable userbot session
     USERBOT_SESSION_STRING: Optional[SecretStr] = None
+    TELEGRAM_MCP_ENABLED: bool = False
+    TELEGRAM_MCP_SESSION_STRING: Optional[SecretStr] = None
+    TELEGRAM_MCP_UPSTREAM_URL: str = "http://127.0.0.1:8765/mcp"
+    TELEGRAM_MCP_APPROVAL_TTL_SECONDS: int = 900
     SURGICAL_MODE: bool = True  # Autonomous negotiations agent — ON by default
     AUTONOMY_THRESHOLD: float = (
         0.55  # Min confidence for auto-send (lowered for proactivity)
@@ -277,6 +281,7 @@ class AppSettings(BaseSettings):
 
         optional_keys = {
             "ADMIN_BOT_TOKEN",
+            "TELEGRAM_MCP_SESSION_STRING",
             "TELEGRAM_WEBHOOK_SECRET",
             "TELEGRAM_MINI_APP_URL",
             "OPENAI_API_KEY",
