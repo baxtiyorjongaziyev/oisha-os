@@ -1569,7 +1569,7 @@ class CallAnalyzer:
         note_type = str(note.get("note_type") or "").lower()
         if note_type in _CALL_NOTE_TYPES:
             return True
-        return self._find_audio_url(note.get("params") or {}) is not None
+        return self._find_audio_url(note.get("params") or {}, strict=True) is not None
 
     def _extract_call_id(self, note: Dict[str, Any], lead_id: int, audio_url: str) -> str:
         params = note.get("params") or {}
