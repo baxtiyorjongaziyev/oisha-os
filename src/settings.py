@@ -259,6 +259,9 @@ class AppSettings(BaseSettings):
         "\n- Ism: Userning ismi."
         "\n- phone: User qoldirgan telefon raqami."
         "\n- note: Qaysi xizmat bilan qiziqyapti, brend nomi nima va h.k."
+        "\n\n[AGENTIC OPS] Suhbat davomida aniq topshiriqlar berilsa yoki kelishilsa, "
+        "avtomatik ravishda [TASK: title=...|assigned_to=...|deadline=...] formatida "
+        "javob oxirida vazifa yarating."
     )
 
     @model_validator(mode="before")
