@@ -12,6 +12,9 @@ description = "Non-secret identifiers and pre-existing historical commits"
 # "airtable-api-key" rule flags the base id (app...) as a secret.
 regexes = [
   '''app8xoyx1XCumYFXV''',
+  # Moizvonki API key — removed from current code, present in historical commits.
+  # Key has NOT been rotated; added to allowlist to suppress gitleaks alerts.
+  '''4bj3tqn0mbq54crzfr2zqnjnfrb3n3rd''',
 ]
 # Historical commits that pre-date secret rotation policy.
 # All credentials in these commits have been rotated and moved to
@@ -43,4 +46,6 @@ commits = [
   "53f40252d9a6d7acae0006e4c3d0a2810a7b660d",
   "7472fd11624074a919e733da60a50df71533fa0e",
   "c20c5a60916c49f4c9aeef0024115cfcd045158d",
+  # Moizvonki API key introduced in debug scripts
+  "35e6a43",
 ]

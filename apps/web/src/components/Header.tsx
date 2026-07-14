@@ -28,6 +28,7 @@ export default function Header() {
   const [bugCategory, setBugCategory] = useState("idea");
   const [bugText, setBugText] = useState("");
   const [bugSuccess, setBugSuccess] = useState(false);
+  const [bugError, setBugError] = useState("");
   const [businessDropdownOpen, setBusinessDropdownOpen] = useState(false);
   const [avatarDropdownOpen, setAvatarDropdownOpen] = useState(false);
   const [newBusinessModalOpen, setNewBusinessModalOpen] = useState(false);
@@ -38,30 +39,30 @@ export default function Header() {
     { name: "Jon Academy", status: "Faol" }
   ];
 
-  // Mock search matches
-  const searchResults =
-    searchQuery.trim().toLowerCase() === "baxtiyorjon"
-      ? {
-          contacts: [
-            { name: "Baxtiyorjon Gaziyev", role: "Sotuv menejeri", phone: "+998 90 123 45 67" },
-            { name: "Baxtiyorjon Gaziyev (Alt)", role: "Menejer", phone: "+998 91 999 88 77" },
-            { name: "Baxtiyorjon (Owner)", role: "Rahbar", phone: "+998 93 555 44 33" }
-          ],
-          leads: [
-            { name: "Zvonok na +998973355900 (Ne dozovilsya)", stage: "Yangi so'rov", id: "lead-1" }
-          ]
-        }
-      : null;
+  const searchResults: {
+    contacts: Array<{ name: string; role: string; phone: string }>;
+    leads: Array<{ name: string; stage: string; id: string }>;
+  } | null = searchQuery.trim() ? { contacts: [], leads: [] } : null;
+  const searchError = searchQuery.trim() ? "Real CRM qidiruv endpointi sozlanmagan." : "";
 
-  const handleBugSubmit = (e: React.FormEvent) => {
+  const handleBugSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bugText.trim()) return;
-    setBugSuccess(true);
-    setTimeout(() => {
-      setBugSuccess(false);
+    setBugSuccess(false);
+    setBugError("");
+    try {
+      const response = await fetch("/api/oisha/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: bugCategory, text: bugText, business: currentBusiness }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+      setBugSuccess(true);
       setBugText("");
-      setBugReportOpen(false);
-    }, 2000);
+    } catch (error) {
+      setBugError(error instanceof Error ? error.message : "Xabar yuborilmadi");
+    }
   };
 
   const handleAddBusiness = (e: React.FormEvent) => {
@@ -147,7 +148,7 @@ export default function Header() {
                       >
                         <span className="flex items-center gap-2">
                           {currentBusiness === b.name && (
-                            <svg className="h-3.5 w-3.5 text-brand shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                            <svg aria-hidden="true" className="h-3.5 w-3.5 text-brand shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                           )}
@@ -174,7 +175,7 @@ export default function Header() {
                   }}
                   className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-brand font-medium hover:bg-brand-light transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                 >
-                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
                   Yangi biznes qo&apos;shish
@@ -329,7 +330,7 @@ export default function Header() {
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-20">
           <div className="w-full max-w-xl rounded-3xl border border-border bg-bg-popover p-4 shadow-2xl animate-fade-in">
             <div className="flex items-center gap-3 border-b border-border pb-3">
-              <svg className="h-5 w-5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <svg aria-hidden="true" className="h-5 w-5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
@@ -356,6 +357,8 @@ export default function Header() {
                 <div className="py-6 text-center text-xs text-text-muted">
                   Qidiruv natijalarini ko&apos;rish uchun biror narsa kiriting...
                 </div>
+              ) : searchError ? (
+                <div className="py-6 text-center text-xs text-amber-700">{searchError}</div>
               ) : searchResults ? (
                 <div className="space-y-4">
                   <div>
@@ -457,7 +460,7 @@ export default function Header() {
               </div>
 
               <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-3 flex gap-2.5">
-                <svg className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <svg aria-hidden="true" className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="text-[10px] text-amber-800 dark:text-amber-400">
@@ -468,6 +471,11 @@ export default function Header() {
               {bugSuccess && (
                 <div className="text-center text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 py-2 rounded-xl border border-emerald-200">
                   Xabar jo&apos;natildi! Rahmat!
+                </div>
+              )}
+              {bugError && (
+                <div className="text-center text-xs font-bold text-rose-600 bg-rose-50 py-2 border border-rose-200">
+                  Xabar yuborilmadi: {bugError}
                 </div>
               )}
 

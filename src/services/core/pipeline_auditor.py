@@ -10,6 +10,7 @@ from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.airtable_sync import AirtableSync
 from src.database import Database
 from src.services.core.call_analyzer import CallAnalyzer
+from src.settings import settings
 
 logger = structlog.get_logger()
 
@@ -251,7 +252,10 @@ class PipelineAuditor:
             # 3. Process and transcribe new call recordings for this lead
             try:
                 logger.info(f"[AUDITOR] Scanning and transcribing call recordings for lead {lead_id}...")
-                await self.call_analyzer.process_call_recordings_for_lead(int(lead_id))
+                await self.call_analyzer.process_call_recordings_for_lead(
+                    int(lead_id),
+                    min_call_duration_seconds=settings.AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS,
+                )
             except Exception as e:
                 logger.warning(f"[AUDITOR] Call processing failed for lead {lead_id}: {e}")
 
