@@ -18,7 +18,7 @@ def parse_bool(val: Any) -> bool:
         return val
     if not val:
         return False
-    clean = str(val).replace("﻿", "").strip().lower()
+    clean = str(val).replace("\ufeff", "").strip().lower()
     return clean in {"1", "true", "yes", "on"}
 
 
@@ -83,7 +83,7 @@ def detect_runtime_source() -> str:
         return "cloud_run"
     if os.getenv("INVOCATION_ID") or os.getenv("SYSTEMD_EXEC_PID"):
         return "vm_service"
-    if settings.RUNNING_IN_CLOUD or os.getenv("K_SERVICE"):
+    if os.getenv("RUNNING_IN_CLOUD") or os.getenv("K_SERVICE"):
         return "cloud_run"
     return "local"
 
