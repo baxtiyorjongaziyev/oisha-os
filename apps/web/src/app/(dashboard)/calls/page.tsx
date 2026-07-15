@@ -185,23 +185,95 @@ export default function CallsPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-border text-text-muted font-bold select-none">
-                  <th onClick={() => handleSort("date")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Sana {sortKey === "date" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("date")}
+                      className="flex items-center gap-1.5 w-full hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded transition-colors"
+                      aria-label="Sana bo'yicha tartiblash"
+                    >
+                      Sana
+                      {sortKey === "date" && (
+                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                      )}
+                    </button>
                   </th>
-                  <th onClick={() => handleSort("manager")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Menejer {sortKey === "manager" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("manager")}
+                      className="flex items-center gap-1.5 w-full hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded transition-colors"
+                      aria-label="Menejer bo'yicha tartiblash"
+                    >
+                      Menejer
+                      {sortKey === "manager" && (
+                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                      )}
+                    </button>
                   </th>
-                  <th onClick={() => handleSort("direction")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Yo&apos;nalish {sortKey === "direction" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("direction")}
+                      className="flex items-center gap-1.5 w-full hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded transition-colors"
+                      aria-label="Yo'nalish bo'yicha tartiblash"
+                    >
+                      Yo&apos;nalish
+                      {sortKey === "direction" && (
+                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                      )}
+                    </button>
                   </th>
-                  <th onClick={() => handleSort("duration")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Davomiylik {sortKey === "duration" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("duration")}
+                      className="flex items-center gap-1.5 w-full hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded transition-colors"
+                      aria-label="Davomiylik bo'yicha tartiblash"
+                    >
+                      Davomiylik
+                      {sortKey === "duration" && (
+                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                      )}
+                    </button>
                   </th>
-                  <th onClick={() => handleSort("status")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Holat {sortKey === "status" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("status")}
+                      className="flex items-center gap-1.5 w-full hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded transition-colors"
+                      aria-label="Holat bo'yicha tartiblash"
+                    >
+                      Holat
+                      {sortKey === "status" && (
+                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                      )}
+                    </button>
                   </th>
-                  <th onClick={() => handleSort("score")} className="py-3 px-3 cursor-pointer hover:text-brand">
-                    Suhbat sifati {sortKey === "score" && (sortAsc ? "▲" : "▼")}
+                  <th className="py-3 px-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSort("score")}
+                      className="flex items-center gap-1.5 w-full hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded transition-colors"
+                      aria-label="Suhbat sifati bo'yicha tartiblash"
+                    >
+                      Suhbat sifati
+                      {sortKey === "score" && (
+                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                      )}
+                    </button>
                   </th>
                   <th className="py-3 px-3">Kategoriya</th>
                   <th className="py-3 px-3 text-right">Amallar</th>
