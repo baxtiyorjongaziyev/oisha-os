@@ -5,6 +5,7 @@ Scheduled tasks:
   - Every conversation end: extract lessons (real-time)
   - Every 6 hours: synthesize strategies from lessons
   - Weekly (Sunday 03:00): propose evolution PR
+  - Daily (09:00): self-improvement gap analysis → owner'ga takliflar
   - Every hour: record metrics snapshot
 """
 
@@ -29,6 +30,7 @@ class EvolutionScheduler:
         self.gemini_api_key = gemini_api_key
         self._learning_engine = None
         self._evolution_engine = None
+        self._improvement_agent = None
         self._running = False
         self._task: Optional[asyncio.Task] = None
 
@@ -45,6 +47,13 @@ class EvolutionScheduler:
             from src.services.core.self_evolution import SelfEvolutionEngine
             self._evolution_engine = SelfEvolutionEngine(self.db, self.gemini_api_key)
         return self._evolution_engine
+
+    @property
+    def improvement(self):
+        if self._improvement_agent is None:
+            from src.services.core.self_improvement_agent import SelfImprovementAgent
+            self._improvement_agent = SelfImprovementAgent(self.db, self.gemini_api_key)
+        return self._improvement_agent
 
     async def start(self):
         """Start the evolution scheduler loop."""
@@ -98,6 +107,7 @@ class EvolutionScheduler:
         last_synthesis: Optional[datetime] = None
         last_evolution: Optional[datetime] = None
         last_metrics: Optional[datetime] = None
+        last_improvement: Optional[datetime] = None
 
         while self._running:
             try:
@@ -111,6 +121,11 @@ class EvolutionScheduler:
                     if now.weekday() == 6 and now.hour == 3:
                         await self._do_evolution()
                         last_evolution = now
+
+                if last_improvement is None or (now - last_improvement) > timedelta(days=1):
+                    if now.hour == 9:
+                        await self._do_improvement()
+                        last_improvement = now
 
                 if last_metrics is None or (now - last_metrics) > timedelta(hours=1):
                     await self._record_metrics_snapshot()
@@ -145,6 +160,16 @@ class EvolutionScheduler:
         except Exception as exc:
             logger.warning(f"[SCHEDULER] Evolution failed: {exc}")
 
+    async def _do_improvement(self):
+        """Kunlik self-improvement tsikli: kamchiliklarni tahlil qilib owner'ga taklif yuborish."""
+        try:
+            report = await self.improvement.run_cycle()
+            if report:
+                logger.info("[SCHEDULER] Self-improvement proposals ready")
+                await self._send_owner_message(report)
+        except Exception as exc:
+            logger.warning(f"[SCHEDULER] Self-improvement failed: {exc}")
+
     async def _record_metrics_snapshot(self):
         """Record hourly metrics."""
         try:
@@ -159,6 +184,15 @@ class EvolutionScheduler:
 
     async def _notify_owner(self, pr_url: str):
         """Notify owner about new evolution PR via Telegram."""
+        msg = (
+            f"🧬 Oisha Self-Evolution\n\n"
+            f"Yangi yaxshilanish taklifi tayyor:\n{pr_url}\n\n"
+            f"Approve qilsangiz, avtomatik deploy bo'ladi."
+        )
+        await self._send_owner_message(msg)
+
+    async def _send_owner_message(self, text: str):
+        """Send an arbitrary message to the owner via Telegram bot API."""
         try:
             import os
             import aiohttp
@@ -168,13 +202,8 @@ class EvolutionScheduler:
             if not bot_token or not owner_id:
                 return
 
-            msg = (
-                f"🧬 Oisha Self-Evolution\n\n"
-                f"Yangi yaxshilanish taklifi tayyor:\n{pr_url}\n\n"
-                f"Approve qilsangiz, avtomatik deploy bo'ladi."
-            )
             url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
             async with aiohttp.ClientSession() as session:
-                await session.post(url, json={"chat_id": owner_id, "text": msg})
+                await session.post(url, json={"chat_id": owner_id, "text": text})
         except Exception:
-            logger.warning("[EVOLUTION_SCHEDULER] Failed to send evolution notification to Telegram", exc_info=True)
+            logger.warning("[EVOLUTION_SCHEDULER] Failed to send owner notification to Telegram", exc_info=True)
