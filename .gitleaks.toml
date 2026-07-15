@@ -46,6 +46,9 @@ commits = [
   "53f40252d9a6d7acae0006e4c3d0a2810a7b660d",
   "7472fd11624074a919e733da60a50df71533fa0e",
   "c20c5a60916c49f4c9aeef0024115cfcd045158d",
-  # Moizvonki API key introduced in debug scripts
-  "35e6a43",
+  # Moizvonki API key introduced in debug scripts (full SHA — gitleaks
+  # matches allowlist commits exactly, short hashes never match).
+  # WARNING: unlike the rotated commits above, this key has NOT been
+  # rotated yet — owner must still rotate it in the Moizvonki panel.
+  "35e6a43098c1f767f62f8a37b17e746a058c8568",
 ]
