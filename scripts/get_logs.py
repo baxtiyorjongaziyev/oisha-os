@@ -1,3 +1,4 @@
+import os
 import urllib.request
 import json
 import sys
@@ -10,8 +11,14 @@ class NoAuthRedirect(urllib.request.HTTPRedirectHandler):
         return new_req
 
 def main():
-    token = "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"
-    job_id = "87192746112"
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        print("Error: GITHUB_TOKEN environment variable is not set.")
+        sys.exit(1)
+    job_id = os.environ.get("JOB_ID") or (sys.argv[1] if len(sys.argv) > 1 else "")
+    if not job_id:
+        print("Error: pass JOB_ID via env var or as the first argument.")
+        sys.exit(1)
     url = f"https://api.github.com/repos/baxtiyorjongaziyev/oisha-os/actions/jobs/{job_id}/logs"
     
     req = urllib.request.Request(
