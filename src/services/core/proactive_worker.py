@@ -633,6 +633,20 @@ async def check_airtable_deadlines():
     logger.info("Project deadline check started...")
     from src.services.core.airtable_sync import AirtableSync # type: ignore
     import src.config as config
+    from src.database import Database
+    from src.time_utils import get_local_now
+
+    db = Database()
+    now = get_local_now()
+    today = now.strftime('%Y-%m-%d')
+    target_hours = [10, 14, 18] # 3 marta kuniga
+    
+    if now.hour not in target_hours:
+        return
+
+    job_key = f"airtable_deadline_{now.hour}"
+    if await db.is_job_run(job_key, today):
+        return
     
     sync = AirtableSync()
     upcoming = sync.get_upcoming_deadlines(hours=24)
@@ -656,6 +670,7 @@ async def check_airtable_deadlines():
         try:
             await bot.send_message(chat_id=group_id, text=msg, parse_mode="Markdown")
             logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
+            await db.mark_job_run(job_key, today)
         except Exception as e:
             logger.error(f"[XATO] Airtable deadline alert: {e}")
             
