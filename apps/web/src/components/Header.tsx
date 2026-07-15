@@ -88,9 +88,11 @@ export default function Header() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          
+
           <div className="hidden sm:block">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">METASELL</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
+              METASELL
+            </span>
             <h2 className="text-sm font-semibold text-text mt-[-2px]">Sotuv Tahlil Tizimi</h2>
           </div>
         </div>
@@ -130,7 +132,10 @@ export default function Header() {
 
             {businessDropdownOpen && (
               <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-border bg-bg-popover p-2 shadow-xl animate-fade-in z-50">
-                <div id="businesses-heading" className="px-3 py-1.5 text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                <div
+                  id="businesses-heading"
+                  className="px-3 py-1.5 text-[10px] font-semibold text-text-muted uppercase tracking-wider"
+                >
                   Mavjud Bizneslar
                 </div>
                 <ul aria-labelledby="businesses-heading" className="space-y-0.5">
@@ -143,7 +148,9 @@ export default function Header() {
                         }}
                         aria-current={currentBusiness === b.name ? "true" : undefined}
                         className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-colors hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${
-                          currentBusiness === b.name ? "bg-brand-light font-semibold text-brand" : "text-text"
+                          currentBusiness === b.name
+                            ? "bg-brand-light font-semibold text-brand"
+                            : "text-text"
                         }`}
                       >
                         <span className="flex items-center gap-2">
@@ -152,7 +159,9 @@ export default function Header() {
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                           )}
-                          <span className={currentBusiness !== b.name ? "pl-5.5" : ""}>{b.name}</span>
+                          <span className={currentBusiness !== b.name ? "pl-5.5" : ""}>
+                            {b.name}
+                          </span>
                         </span>
                         <span
                           className={`rounded px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
@@ -225,7 +234,7 @@ export default function Header() {
                   <Link
                     href="/alerts"
                     onClick={() => setNotificationsOpen(false)}
-                    className="text-[10px] font-semibold text-brand hover:underline"
+                    className="text-[10px] font-semibold text-brand hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded-sm"
                   >
                     Hammasini ko&apos;rish
                   </Link>
@@ -247,11 +256,17 @@ export default function Header() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-text-muted">{a.typeLabel}</span>
+                          <span className="text-[10px] font-bold text-text-muted">
+                            {a.typeLabel}
+                          </span>
                           <span className="text-[9px] text-text-muted">{a.time}</span>
                         </div>
-                        <h4 className="text-xs font-semibold text-text truncate mt-0.5">{a.title}</h4>
-                        <p className="text-[10px] text-text-muted line-clamp-2 mt-0.5">{a.description}</p>
+                        <h4 className="text-xs font-semibold text-text truncate mt-0.5">
+                          {a.title}
+                        </h4>
+                        <p className="text-[10px] text-text-muted line-clamp-2 mt-0.5">
+                          {a.description}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -297,14 +312,14 @@ export default function Header() {
                   <Link
                     href="/settings?tab=profil"
                     onClick={() => setAvatarDropdownOpen(false)}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-text hover:bg-bg transition-colors"
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-text hover:bg-bg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                   >
                     Profil
                   </Link>
                   <Link
                     href="/settings"
                     onClick={() => setAvatarDropdownOpen(false)}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-text hover:bg-bg transition-colors"
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-text hover:bg-bg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                   >
                     Sozlamalar
                   </Link>
@@ -314,7 +329,7 @@ export default function Header() {
                       alert("Tizimdan chiqildi!");
                       setAvatarDropdownOpen(false);
                     }}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1"
                   >
                     Chiqish
                   </button>
@@ -419,15 +434,26 @@ export default function Header() {
       {bugReportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-3xl border border-border bg-bg-popover p-6 shadow-2xl animate-fade-in">
-            <h3 className="text-lg font-bold text-text">Tizim bo&apos;yicha taklif yoki xatolik yuborish</h3>
+            <h3 className="text-lg font-bold text-text">
+              Tizim bo&apos;yicha taklif yoki xatolik yuborish
+            </h3>
             <p className="text-xs text-text-muted mt-1">
               Metasell platformasini yanada yaxshilash uchun bizga yordam bering.
             </p>
 
             <form onSubmit={handleBugSubmit} className="mt-4 space-y-4">
               <div>
-                <label id="bug-category-label" className="text-[10px] font-bold text-text-muted uppercase block">Turi</label>
-                <div role="group" aria-labelledby="bug-category-label" className="grid grid-cols-3 gap-2 mt-1">
+                <label
+                  id="bug-category-label"
+                  className="text-[10px] font-bold text-text-muted uppercase block"
+                >
+                  Turi
+                </label>
+                <div
+                  role="group"
+                  aria-labelledby="bug-category-label"
+                  className="grid grid-cols-3 gap-2 mt-1"
+                >
                   {["idea", "request", "bug"].map((cat) => (
                     <button
                       key={cat}
@@ -447,7 +473,12 @@ export default function Header() {
               </div>
 
               <div>
-                <label htmlFor="bug-description" className="text-[10px] font-bold text-text-muted uppercase block">Tavsif</label>
+                <label
+                  htmlFor="bug-description"
+                  className="text-[10px] font-bold text-text-muted uppercase block"
+                >
+                  Tavsif
+                </label>
                 <textarea
                   id="bug-description"
                   required
@@ -464,7 +495,8 @@ export default function Header() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="text-[10px] text-amber-800 dark:text-amber-400">
-                  <strong>Eslatma:</strong> Muammoni tezroq hal qilishimiz uchun joriy biznes konteksti (Jon Branding agency ma&apos;lumotlari) xabarga qo&apos;shib yuboriladi.
+                  <strong>Eslatma:</strong> Muammoni tezroq hal qilishimiz uchun joriy biznes
+                  konteksti (Jon Branding agency ma&apos;lumotlari) xabarga qo&apos;shib yuboriladi.
                 </span>
               </div>
 
@@ -504,8 +536,10 @@ export default function Header() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-3xl border border-border bg-bg-popover p-6 shadow-2xl animate-fade-in">
             <h3 className="text-base font-bold text-text">Yangi biznes qo&apos;shish</h3>
-            <p className="text-xs text-text-muted mt-1">Platformaga yangi sotuv voronkasi qo&apos;shish uchun nom tanlang.</p>
-            
+            <p className="text-xs text-text-muted mt-1">
+              Platformaga yangi sotuv voronkasi qo&apos;shish uchun nom tanlang.
+            </p>
+
             <form onSubmit={handleAddBusiness} className="mt-4 space-y-4">
               <input
                 required
