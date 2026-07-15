@@ -779,6 +779,7 @@ from src.commands import calendar as _cmd_calendar
 from src.commands import sync as _cmd_sync
 from src.commands import erp as _cmd_erp
 from src.commands import analysis as _cmd_analysis
+from src.commands import improvement as _cmd_improvement
 
 
 async def self_command_handler(event):
