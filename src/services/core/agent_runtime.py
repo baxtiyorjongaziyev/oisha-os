@@ -83,7 +83,7 @@ def detect_runtime_source() -> str:
         return "cloud_run"
     if os.getenv("INVOCATION_ID") or os.getenv("SYSTEMD_EXEC_PID"):
         return "vm_service"
-    if settings.RUNNING_IN_CLOUD or os.getenv("K_SERVICE"):
+    if os.getenv("RUNNING_IN_CLOUD") or os.getenv("K_SERVICE"):
         return "cloud_run"
     return "local"
 
