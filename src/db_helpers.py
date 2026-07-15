@@ -11,7 +11,7 @@ from typing import Any
 
 # Zero-width byte-order mark. Written as an escape (not a literal invisible
 # char) so editors/formatters cannot silently drop or mangle it.
-_BOM = "﻿"
+_BOM = "\ufeff"
 
 
 def normalize_turso_url(url: str) -> str:
