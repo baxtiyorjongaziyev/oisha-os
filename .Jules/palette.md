@@ -77,6 +77,9 @@
 **Learning:** If a navigation link or button contains `sr-only` text, and it also triggers a hover tooltip component displaying the identical text, screen readers will read the label twice (once from the DOM element, once from the tooltip structure).
 **Action:** Always add `aria-hidden="true"` to visual-only hover tooltips that duplicate the accessible text already present inside the parent interactive element.
 
-## 2024-07-09 - Semantic focus rings for destructive actions in dropdown menus
-**Learning:** Applying semantically-colored focus rings (e.g., `focus-visible:ring-rose-500` instead of the default `ring-brand`) to destructive actions within dropdown menus (like "Chiqish" / Logout) improves visual feedback for keyboard users, reinforcing the intent of the action.
-**Action:** Use matching semantic colors for focus rings on destructive/warning interactive elements throughout the UI, rather than solely relying on the primary brand color.
+## 2024-07-12 - Form Accessibility Improvement
+**Learning:** Found multiple form inputs (`<input>`, `<select>`) on the Settings page that had visual `<label>` elements but lacked the programmatic `htmlFor` and `id` linkage, making them inaccessible to screen readers and unclickable for focusing.
+**Action:** Always ensure any `<label>` used in a form context is strictly bound to its corresponding input field via `htmlFor="some-id"` and `id="some-id"` to comply with a11y standards.
+## 2024-07-14 - Semantic Interactive Table Headers
+**Learning:** Table header cells (`<th>`) acting as sort toggles lack native keyboard support and semantic meaning when bound directly with `onClick` and plain text arrows.
+**Action:** Always wrap interactive header content in `<button type="button">`, include `aria-label`s, apply `focus-visible:ring-2` styling, and use semantic SVGs for directional feedback instead of raw text like "▲" and "▼".

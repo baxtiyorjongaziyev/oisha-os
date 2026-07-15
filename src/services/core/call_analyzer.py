@@ -30,6 +30,8 @@ _CALL_NOTE_TYPES = {
     "voip_call",
 }
 
+NO_SPEECH_SENTINEL = "[SUHBAT_ANIQLANMADI]"
+
 _AUDIO_MIME_MAP = {
     ".mp3": "audio/mpeg",
     ".mp4": "audio/mp4",
@@ -100,6 +102,50 @@ def _compute_talk_ratio(transcript: str) -> tuple[int, int]:
     if total == 0:
         return 0, 0
     return round(client_chars * 100 / total), round(agent_chars * 100 / total)
+
+
+# Whisper-turkum ASR modellari sukunat/shovqinda ko'pincha shu qisqa,
+# ma'nosiz iboralarni "eshitib" qaytaradi (yaxshi hujjatlashtirilgan
+# hallucination artifaktlari). Gemini'ning maxsus sentinel'idan farqli
+# o'laroq, bu — barcha STT provayderlariga (free_ai_router, OpenAI
+# fallback) qo'llaniladigan umumiy himoya.
+_STT_HALLUCINATION_PHRASES = {
+    "you", "thank you", "thanks for watching", "thank you for watching",
+    "bye", "goodbye", "subscribe", "silence", "music", "[music]",
+    "rahmat", "xayr",
+}
+
+
+def _looks_like_stt_hallucination(text: str) -> bool:
+    """Juda qisqa yoki ma'lum hallucination iboralariga mos matnni
+    ishonchsiz deb belgilaydi — real qo'ng'iroq suhbati bunday bo'lmaydi."""
+    if not text:
+        return True
+    normalised = text.strip().strip(".!?").lower()
+    if normalised in _STT_HALLUCINATION_PHRASES:
+        return True
+    # Real ikki tomonlama suhbat deyarli hech qachon bir necha so'zdan
+    # qisqa bo'lmaydi.
+    if len(normalised) < 12:
+        return True
+    return False
+
+
+def _transcript_impossible_for_duration(transcript: str, duration_seconds: int) -> bool:
+    """Transkripsiya qo'ng'iroq davomiyligiga jismonan sig'maydimi?
+
+    Real misol: 47 soniyalik qo'ng'iroq uchun Gemini ~250 so'zlik ravon
+    "suhbat" to'qib bergan — uni ovoz chiqarib o'qish 2-3 daqiqa oladi.
+    Tez nutq ~2.5 so'z/soniya; biz saxiy 4 so'z/soniya chegarasini
+    olamiz — undan oshsa, matn haqiqiy audio'dan kelmagani aniq.
+    """
+    if not transcript or not duration_seconds or duration_seconds <= 0:
+        return False
+    word_count = len(transcript.split())
+    # Juda qisqa matnlarda nisbat shovqinli bo'ladi — 30 so'zgacha tekshirmaymiz
+    if word_count <= 30:
+        return False
+    return word_count > duration_seconds * 4
 
 
 def _talk_ratio_verdict(client_pct: int) -> str:
@@ -217,6 +263,7 @@ class CallAnalyzer:
         )
         self.create_tasks = bool(getattr(settings, "ENABLE_AMOCRM_CALL_TASKS", True))
         self.task_due_hours = int(getattr(settings, "AMOCRM_CALL_TASK_DUE_HOURS", 24) or 24)
+        self._moizvonki_session = None
         self.gemini_cooldown_seconds = int(
             os.getenv("GEMINI_CALL_COOLDOWN_SECONDS", "900")
         )
@@ -390,8 +437,47 @@ class CallAnalyzer:
         except Exception as exc:
             logger.error("[CALL] DB log failed for %s: %s", call_id, exc)
 
+    def _login_moizvonki(self):
+        email = getattr(self._settings, "MOIZVONKI_EMAIL", None)
+        password = getattr(self._settings, "MOIZVONKI_PASSWORD", None)
+        if not email or not password:
+            logger.warning("[CALL] Moizvonki credentials not configured")
+            return None
+
+        session = _requests.Session()
+        login_url = f"https://{self.amocrm.subdomain}.moizvonki.ru/accounts/login/"
+        try:
+            r = session.get(login_url, timeout=30)
+            csrf_token = session.cookies.get("csrftoken")
+            csrf_mid = re.search(r'name=["\']csrfmiddlewaretoken["\']\s+value=["\']([^"\']+)["\']', r.text)
+            csrf_val = csrf_mid.group(1) if csrf_mid else csrf_token
+
+            login_data = {
+                "csrfmiddlewaretoken": csrf_val,
+                "username": email,
+                "password": password.get_secret_value() if hasattr(password, "get_secret_value") else password,
+                "foreign_pc": "on"
+            }
+            headers = {
+                "Referer": login_url,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            }
+            r_post = session.post(login_url, data=login_data, headers=headers, timeout=30)
+            if r_post.status_code == 200 and "sessionid" in session.cookies:
+                logger.info("[CALL] Moizvonki login successful")
+                return session
+            else:
+                logger.error("[CALL] Moizvonki login failed: status=%s cookies=%s", r_post.status_code, session.cookies.get_dict())
+                return None
+        except Exception as exc:
+            logger.error("[CALL] Moizvonki login exception: %s", exc)
+            return None
+
     async def _fetch_audio_bytes(self, url: str) -> Optional[Tuple[bytes, str]]:
         """Download an AmoCRM recording into memory."""
+        # Check if URL belongs to Moizvonki and needs session authentication
+        is_moizvonki = "moizvonki.ru" in url or "moizvonki" in url
+        
         headers_auth = {}
         get_headers = getattr(self.amocrm, "_get_headers", None)
         if callable(get_headers):
@@ -401,13 +487,29 @@ class CallAnalyzer:
                 logger.error("[CALL] Exception fetching AmoCRM headers: %s", exc)
                 headers_auth = {}
 
-        def _get(headers: Dict[str, str]):
+        def _get(headers: Dict[str, str], session: Optional[_requests.Session] = None):
+            if is_moizvonki and session:
+                return session.get(url, timeout=90, stream=False)
             return _requests.get(url, headers=headers, timeout=90, stream=False)
 
         try:
-            resp = await asyncio.to_thread(_get, headers_auth)
-            if resp.status_code != 200:
-                resp = await asyncio.to_thread(_get, {})
+            resp = None
+            if is_moizvonki:
+                if not self._moizvonki_session:
+                    self._moizvonki_session = self._login_moizvonki()
+                if self._moizvonki_session:
+                    resp = await asyncio.to_thread(_get, {}, self._moizvonki_session)
+                    # If session expired, try re-login once
+                    if resp and (resp.status_code != 200 or len(resp.content) == 60027):
+                        logger.info("[CALL] Moizvonki session expired or dummy received, retrying login")
+                        self._moizvonki_session = self._login_moizvonki()
+                        if self._moizvonki_session:
+                            resp = await asyncio.to_thread(_get, {}, self._moizvonki_session)
+
+            if not resp or resp.status_code != 200:
+                resp = await asyncio.to_thread(_get, headers_auth)
+                if resp.status_code != 200:
+                    resp = await asyncio.to_thread(_get, {})
 
             if resp.status_code == 200 and resp.content:
                 content_type = (resp.headers.get("Content-Type") or "").lower()
@@ -470,24 +572,40 @@ class CallAnalyzer:
         prompt = (
             "Siz professional qo'ng'iroq transkripsiya mutaxassisisiz. "
             "Audio yozuvni eshiting va suhbatni O'zbek lotinida yozing.\n\n"
-            "Qoidalar:\n"
+            "QOIDALAR (qat'iy rioya qiling):\n"
+            "- Faqat audio faylda HAQIQATDA eshitilgan gaplarni yozing. "
+            "Hech qachon o'zingizdan suhbat, ism, narx yoki tafsilot O'YLAB TOPMANG.\n"
+            "- Agar audioda tushunarli inson nutqi bo'lmasa (sukunat, band/chaqiruv "
+            "ohangi, faqat shovqin, juda qisqa yoki tushunarsiz ovoz) — hech narsa "
+            f"to'qimang, faqat aynan shu so'zni qaytaring: {NO_SPEECH_SENTINEL}\n"
             "- Ikki tomon gaplarini A: va B: qilib ajrating.\n"
             "- Ruscha yoki boshqa tilda gapirilgan bo'lsa, mazmunini O'zbek lotiniga tarjima qilib yozing.\n"
             "- Ism, telefon, narx, muddat va vazifalarni aniq saqlang.\n"
             "- Eshitilmagan joylarni [...] deb belgilang.\n"
-            "- Faqat transkripsiya matnini qaytaring."
+            "- Faqat transkripsiya matnini (yoki yuqoridagi sentinel so'zni) qaytaring."
         )
 
         try:
             routed = await self.free_ai_router.transcribe_audio(audio_bytes, mime_type)
             if routed and routed.text:
-                logger.info(
-                    "[CALL] STT done provider=%s model=%s chars=%s",
-                    routed.provider,
-                    routed.model,
-                    len(routed.text),
-                )
-                return routed.text
+                if _looks_like_stt_hallucination(routed.text):
+                    # Rad etamiz, lekin return qilmaymiz — heuristikaning
+                    # yolg'on-musbat xatosi butun qo'ng'iroqni tashlab
+                    # yubormasligi uchun quyidagi Gemini yo'liga (sentinel
+                    # prompt bilan) o'tamiz.
+                    logger.info(
+                        "[CALL] %s: shubhali/hallucination-o'xshash natija rad etildi, Gemini'ga o'tilyapti: %r",
+                        routed.provider,
+                        routed.text[:60],
+                    )
+                else:
+                    logger.info(
+                        "[CALL] STT done provider=%s model=%s chars=%s",
+                        routed.provider,
+                        routed.model,
+                        len(routed.text),
+                    )
+                    return routed.text
         except Exception as exc:
             logger.warning("[CALL] Free-first STT failed: %s", type(exc).__name__)
 
@@ -501,6 +619,12 @@ class CallAnalyzer:
                 ),
             )
             text = (getattr(response, "text", None) or "").strip()
+            if text and NO_SPEECH_SENTINEL in text:
+                logger.info("[CALL] Gemini: audio'da tushunarli nutq topilmadi — tahlil o'tkazib yuborildi.")
+                return None
+            if text and _looks_like_stt_hallucination(text):
+                logger.info("[CALL] Gemini: shubhali/hallucination-o'xshash natija rad etildi: %r", text[:60])
+                return None
             if text:
                 logger.info("[CALL] STT done: %s chars", len(text))
                 return text
@@ -552,6 +676,9 @@ class CallAnalyzer:
             response = await asyncio.to_thread(_create)
             text = response if isinstance(response, str) else getattr(response, "text", "")
             text = (text or "").strip()
+            if text and _looks_like_stt_hallucination(text):
+                logger.info("[CALL] OpenAI Whisper: shubhali/hallucination-o'xshash natija rad etildi: %r", text[:60])
+                return None
             if text:
                 logger.info("[CALL] OpenAI STT fallback done: %s chars", len(text))
                 return text
@@ -1144,6 +1271,20 @@ class CallAnalyzer:
             if not transcript:
                 continue
 
+            # Jismoniy imkoniyat tekshiruvi: transkripsiya so'z soni
+            # qo'ng'iroq davomiyligiga sig'masa — bu STT to'qigan matn
+            # (real misol: 47s qo'ng'iroqqa ~250 so'zlik "suhbat")
+            if _transcript_impossible_for_duration(transcript, duration):
+                logger.warning(
+                    "[CALL] Transkripsiya davomiylikka sig'maydi — hallucination deb rad etildi: "
+                    "lead_id=%s call_id=%s duration=%ss words=%s",
+                    lead_id,
+                    call_id,
+                    duration,
+                    len(transcript.split()),
+                )
+                continue
+
             analysis = await self.analyze_transcript(transcript)
             category = _normalise_category(analysis.get("category"))
             client_mood = _normalise_mood(analysis.get("client_mood"))
@@ -1428,7 +1569,7 @@ class CallAnalyzer:
         note_type = str(note.get("note_type") or "").lower()
         if note_type in _CALL_NOTE_TYPES:
             return True
-        return self._find_audio_url(note.get("params") or {}) is not None
+        return self._find_audio_url(note.get("params") or {}, strict=True) is not None
 
     def _extract_call_id(self, note: Dict[str, Any], lead_id: int, audio_url: str) -> str:
         params = note.get("params") or {}
@@ -1469,7 +1610,19 @@ class CallAnalyzer:
                 return str(value)
         return ""
 
-    def _find_audio_url(self, payload: Any) -> Optional[str]:
+    def _find_audio_url(self, payload: Any, strict: bool = False) -> Optional[str]:
+        """Find a recording URL inside a note's params.
+
+        strict=True only accepts URLs with a real audio/video file
+        extension (_AUDIO_URL_RE). strict=False also falls back to
+        generic keys like "link"/"url", which is useful for locating the
+        actual recording URL inside a note we already *know* is a call
+        (note_type in _CALL_NOTE_TYPES) but is too loose to use for
+        *classifying* a note as a call in the first place — those generic
+        keys also show up on unrelated notes (e.g. a Telegram invite link),
+        which previously caused non-call notes to be misdetected as calls
+        and downloaded as HTML instead of audio.
+        """
         candidates: List[str] = []
 
         def walk(value: Any, key: str = "") -> None:
@@ -1490,6 +1643,8 @@ class CallAnalyzer:
             audio_match = _AUDIO_URL_RE.search(text)
             if audio_match:
                 candidates.append(audio_match.group(0))
+                return
+            if strict:
                 return
             if key in {
                 "link",

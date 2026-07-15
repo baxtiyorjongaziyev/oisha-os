@@ -38,6 +38,10 @@ class AppSettings(BaseSettings):
     AUTORUN_MASS_SYNC: bool = True
     ENABLE_CLOUD_USERBOT: bool = False  # Set to True to enable userbot session
     USERBOT_SESSION_STRING: Optional[SecretStr] = None
+    TELEGRAM_MCP_ENABLED: bool = False
+    TELEGRAM_MCP_SESSION_STRING: Optional[SecretStr] = None
+    TELEGRAM_MCP_UPSTREAM_URL: str = "http://127.0.0.1:8765/mcp"
+    TELEGRAM_MCP_APPROVAL_TTL_SECONDS: int = 900
     SURGICAL_MODE: bool = True  # Autonomous negotiations agent — ON by default
     AUTONOMY_THRESHOLD: float = (
         0.55  # Min confidence for auto-send (lowered for proactivity)
@@ -108,11 +112,17 @@ class AppSettings(BaseSettings):
     ENABLE_AMOCRM_CALL_TASKS: bool = True
     AMOCRM_CALL_TASK_DUE_HOURS: int = 24
     AMOCRM_CALL_ANALYSIS_LIMIT: int = 20
+    # Juda qisqa yozuvlar (ovoz pochtasi signali, band ohang, xato raqam)
+    # haqiqiy suhbat bo'lmasa ham AI orqali "tahlil qilinib", to'qilgan
+    # (hallucination) natija AmoCRM'ga yozilishining oldini oladi.
+    AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS: int = 10
     AMOCRM_CALL_BACKFILL_ON_WEBHOOK: bool = True
     AMOCRM_CALL_BACKFILL_INTERVAL_MINUTES: int = 60
     AMOCRM_CALL_BACKFILL_LIMIT: int = 50
     AMOCRM_CALL_MAX_AUDIO_MB: int = 19
     AMOCRM_CALL_TRANSCRIPT_NOTE_CHARS: int = 6000
+    MOIZVONKI_EMAIL: Optional[str] = None
+    MOIZVONKI_PASSWORD: Optional[SecretStr] = None
     AIRTABLE_API_KEY: Optional[SecretStr] = None
     AIRTABLE_BASE_ID: Optional[str] = None
     # Airtable OAuth 2.0 (API key o'rniga to'g'ridan-to'g'ri OAuth token)
@@ -185,6 +195,9 @@ class AppSettings(BaseSettings):
     META_VERIFY_TOKEN: Optional[SecretStr] = None
     META_PAGE_ACCESS_TOKEN: Optional[SecretStr] = None
     META_APP_SECRET: Optional[SecretStr] = None
+    META_INSTAGRAM_USER_ID: Optional[str] = None
+    META_INSTAGRAM_ACCOUNT_ID: Optional[str] = None
+    INSTAGRAM_REPORT_AIRTABLE_TABLE: Optional[str] = None
 
     # Google Analytics 4
     GA4_PROPERTY_ID: Optional[str] = None
@@ -250,6 +263,9 @@ class AppSettings(BaseSettings):
         "\n- Ism: Userning ismi."
         "\n- phone: User qoldirgan telefon raqami."
         "\n- note: Qaysi xizmat bilan qiziqyapti, brend nomi nima va h.k."
+        "\n\n[AGENTIC OPS] Suhbat davomida aniq topshiriqlar berilsa yoki kelishilsa, "
+        "avtomatik ravishda [TASK: title=...|assigned_to=...|deadline=...] formatida "
+        "javob oxirida vazifa yarating."
     )
 
     @model_validator(mode="before")
@@ -265,6 +281,7 @@ class AppSettings(BaseSettings):
 
         optional_keys = {
             "ADMIN_BOT_TOKEN",
+            "TELEGRAM_MCP_SESSION_STRING",
             "TELEGRAM_WEBHOOK_SECRET",
             "TELEGRAM_MINI_APP_URL",
             "OPENAI_API_KEY",
@@ -326,6 +343,9 @@ class AppSettings(BaseSettings):
             "META_VERIFY_TOKEN",
             "META_PAGE_ACCESS_TOKEN",
             "META_APP_SECRET",
+            "META_INSTAGRAM_USER_ID",
+            "META_INSTAGRAM_ACCOUNT_ID",
+            "INSTAGRAM_REPORT_AIRTABLE_TABLE",
             "GA4_PROPERTY_ID",
             "GA4_CREDENTIALS_JSON",
             "SANITY_PROJECT_ID",

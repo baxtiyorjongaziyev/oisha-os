@@ -11,11 +11,16 @@ from typing import Optional, Dict, Any
 
 # [STABILITY] Windows and UTF-8 setup
 try:
-    if hasattr(sys.stdout, "reconfigure"):
+    if sys.stdout is None or getattr(sys.stdout, "closed", False):
+        sys.stdout = open(os.devnull, "w")
+    elif hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    if hasattr(sys.stderr, "reconfigure"):
+
+    if sys.stderr is None or getattr(sys.stderr, "closed", False):
+        sys.stderr = open(os.devnull, "w")
+    elif hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except OSError:
+except (OSError, ValueError):
     pass
 
 if os.name == "nt":
@@ -330,8 +335,10 @@ def _restore_cloud_artifacts() -> None:
 
 
 async def _connect_user_client(telegram_client: TelegramClient) -> bool:
-    if os.environ.get("CLOUD_RUN_CONTROL_PLANE_ONLY") == "1":
-        logger.info("[AUTH] Skipping userbot login: CLOUD_RUN_CONTROL_PLANE_ONLY=1")
+    from src.services.core.agent_runtime import resolve_runtime_mode
+
+    if resolve_runtime_mode().control_plane_only:
+        logger.info("[AUTH] Skipping userbot login: control-plane-only runtime")
         return False
 
     """Connect the userbot without ever falling back to interactive auth.
@@ -772,6 +779,7 @@ from src.commands import calendar as _cmd_calendar
 from src.commands import sync as _cmd_sync
 from src.commands import erp as _cmd_erp
 from src.commands import analysis as _cmd_analysis
+from src.commands import improvement as _cmd_improvement
 
 
 async def self_command_handler(event):

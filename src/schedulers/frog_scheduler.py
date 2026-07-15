@@ -67,8 +67,22 @@ async def send_daily_frog_brief(bot_client=None, team_group_id=None):
     if not frog:
         logger.error("[FROG] Agent failed to identify a frog.")
         return
-        
-    logger.info(f"[FROG] Found frog task {frog.most_important_task_id}. Estimate: ${frog.profit_estimate}")
+
+    # Ground the numbers on the REAL source task, never the LLM's guess.
+    # The LLM only picks which task is the frog + writes the motivation text;
+    # profit_estimate must come from the actual Trello/Google Task data.
+    selected = next(
+        (t for t in tasks if t["id"] == frog.most_important_task_id), None
+    )
+    if selected is None:
+        logger.error(
+            "[FROG] LLM returned unknown task id %s — not in source tasks; aborting.",
+            frog.most_important_task_id,
+        )
+        return
+    frog.profit_estimate = selected["profit_estimate"] or 0
+
+    logger.info(f"[FROG] Found frog task {frog.most_important_task_id} ({selected['title']}). Real estimate: ${frog.profit_estimate}")
     
     # Mark as frog in DB
     await conn.execute("UPDATE tasks SET is_frog=0") # reset old frogs

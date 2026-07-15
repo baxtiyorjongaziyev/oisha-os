@@ -42,41 +42,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const initialAlerts: Alert[] = [
-  {
-    id: "1",
-    type: "warning",
-    typeLabel: "Faoliyatsiz menejer",
-    status: "new",
-    time: "17 soat oldin",
-    title: "Menejer faoliyatsizligi aniqlandi",
-    description: "Baxtiyorjon Gaziyev bugun birorta ham qo'ng'iroqni amalga oshirmadi. Kunlik reja 15 ta qo'ng'iroq edi.",
-    manager: "Baxtiyorjon Gaziyev",
-    managerAvatar: "B"
-  },
-  {
-    id: "2",
-    type: "error",
-    typeLabel: "Past samaradorlik",
-    status: "new",
-    time: "1 kun oldin",
-    title: "Suhbat sifati past ko'rsatkichda",
-    description: "Oxirgi 5 ta qo'ng'iroq bo'yicha o'rtacha suhbat sifati 24% ni tashkil etdi (maqsadli KPI: 75%+).",
-    manager: "Baxtiyorjon Gaziyev",
-    managerAvatar: "B"
-  },
-  {
-    id: "3",
-    type: "warning",
-    typeLabel: "Faoliyatsiz menejer",
-    status: "new",
-    time: "2 kun oldin",
-    title: "CRM topshiriqlar muddati o'tdi",
-    description: "Jami 8 ta faol bitim bo'yicha muddati o'tgan yoki bajarilmagan vazifalar mavjud.",
-    manager: "Baxtiyorjon Gaziyev",
-    managerAvatar: "B"
-  }
-];
+const initialAlerts: Alert[] = [];
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
@@ -147,7 +113,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const alertsCount = alerts.filter(a => a.status === "new").length + 22; // Hardcoded default offset of 22 to make 25 unread alerts in total
+  const alertsCount = alerts.filter(a => a.status === "new").length;
 
   return (
     <ThemeContext.Provider
