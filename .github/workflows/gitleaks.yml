@@ -15,7 +15,9 @@ permissions:
 jobs:
   gitleaks:
     name: gitleaks
-    runs-on: ubuntu-latest
+    # Self-hosted Oracle runner: ubuntu-latest jobs currently die without a
+    # runner (account-level Actions issue) — see test.yml for details.
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -26,9 +28,15 @@ jobs:
       - name: Install gitleaks
         run: |
           VERSION=8.21.2
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
-          gitleaks version
+          case "$(uname -m)" in
+            aarch64|arm64) ARCH=arm64 ;;
+            *) ARCH=x64 ;;
+          esac
+          mkdir -p "$RUNNER_TEMP/gitleaks-bin"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_${ARCH}.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP/gitleaks-bin" gitleaks
+          echo "$RUNNER_TEMP/gitleaks-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/gitleaks-bin/gitleaks" version
 
       # Scan the full git history (history has been scrubbed with git-filter-repo,
       # so commits no longer carry legacy leaks). fetch-depth: 0 above gives the
