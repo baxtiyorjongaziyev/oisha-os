@@ -80,3 +80,6 @@
 ## 2024-07-12 - Form Accessibility Improvement
 **Learning:** Found multiple form inputs (`<input>`, `<select>`) on the Settings page that had visual `<label>` elements but lacked the programmatic `htmlFor` and `id` linkage, making them inaccessible to screen readers and unclickable for focusing.
 **Action:** Always ensure any `<label>` used in a form context is strictly bound to its corresponding input field via `htmlFor="some-id"` and `id="some-id"` to comply with a11y standards.
+## 2024-07-14 - Semantic Interactive Table Headers
+**Learning:** Table header cells (`<th>`) acting as sort toggles lack native keyboard support and semantic meaning when bound directly with `onClick` and plain text arrows.
+**Action:** Always wrap interactive header content in `<button type="button">`, include `aria-label`s, apply `focus-visible:ring-2` styling, and use semantic SVGs for directional feedback instead of raw text like "▲" and "▼".
