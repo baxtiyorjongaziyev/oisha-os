@@ -36,11 +36,11 @@ export default function DailySummaryPage() {
       {/* Weekly calendar selector header */}
       <div className="rounded-3xl border border-border bg-bg-card p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <button className="rounded-xl border border-border bg-bg p-2 text-text-muted hover:text-brand" aria-label="Oldingi hafta">
+          <button className="rounded-xl border border-border bg-bg p-2 text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1" aria-label="Oldingi hafta">
             &larr;
           </button>
           <span className="text-xs font-bold text-text">Iyun 2026</span>
-          <button className="rounded-xl border border-border bg-bg p-2 text-text-muted hover:text-brand" aria-label="Keyingi hafta">
+          <button className="rounded-xl border border-border bg-bg p-2 text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1" aria-label="Keyingi hafta">
             &rarr;
           </button>
         </div>
@@ -51,7 +51,7 @@ export default function DailySummaryPage() {
             <button
               key={day.dateStr}
               onClick={() => setSelectedDate(day.dateStr)}
-              className={`flex flex-col items-center rounded-2xl p-2.5 w-12 border transition-all ${
+              className={`flex flex-col items-center rounded-2xl p-2.5 w-12 border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${
                 selectedDate === day.dateStr
                   ? "bg-brand border-brand text-white shadow-md shadow-brand/15"
                   : "border-border bg-bg hover:border-brand/40"
@@ -74,7 +74,7 @@ export default function DailySummaryPage() {
 
         <button
           onClick={() => setSelectedDate("2026-06-03")}
-          className="rounded-xl bg-brand-light text-brand px-3.5 py-2 text-xs font-semibold hover:bg-brand hover:text-white transition-colors"
+          className="rounded-xl bg-brand-light text-brand px-3.5 py-2 text-xs font-semibold hover:bg-brand hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
         >
           BUGUN
         </button>
@@ -173,7 +173,7 @@ export default function DailySummaryPage() {
           {/* Accordion Trigger */}
           <button
             onClick={() => setManagerExpanded(!managerExpanded)}
-            className="w-full flex items-center justify-between px-5 py-4 text-xs font-bold text-text hover:bg-brand-light/35 transition-colors focus:outline-none"
+            className="w-full flex items-center justify-between px-5 py-4 text-xs font-bold text-text hover:bg-brand-light/35 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
           >
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded bg-brand text-white text-[10px] font-bold">
