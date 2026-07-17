@@ -27,6 +27,7 @@ SESSION_NAME = 'oisha_userbot'
 
 # Guruhlar ro'yxati
 GROUPS = [
+    ('"TEZ NATIJA 6" UMUMIY', 'TN6'),
     ('"TEZ NATIJA 5" UMUMIY', 'TN5'),
     ('"TEZ NATIJA 4" UMUMIY', 'TN4'),
     ('"TEZ NATIJA 3" UMUMIY', 'TN3'),
