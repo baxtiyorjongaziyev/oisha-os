@@ -83,3 +83,6 @@
 ## 2024-07-14 - Semantic Interactive Table Headers
 **Learning:** Table header cells (`<th>`) acting as sort toggles lack native keyboard support and semantic meaning when bound directly with `onClick` and plain text arrows.
 **Action:** Always wrap interactive header content in `<button type="button">`, include `aria-label`s, apply `focus-visible:ring-2` styling, and use semantic SVGs for directional feedback instead of raw text like "▲" and "▼".
+## 2024-07-19 - Added Clear Button to Global Search Modal
+**Learning:** The global search modal (toggled via header or `/` keypress) previously trapped users in a state where they had to manually backspace through their entire query to start over. By introducing a 'clear' (`X`) button that appears contextually when text is present, we improve the interaction flow significantly. Furthermore, returning focus programmatically to the input field upon clearing ensures that keyboard-only and screen-reader users don't lose their place in the DOM, maintaining seamless accessibility and usability.
+**Action:** When adding secondary actions (like clear or reset buttons) that mutate the state of a primary interactive element (like an input), always programmatically return focus to that primary element immediately after the state mutation to preserve keyboard accessibility flow.
