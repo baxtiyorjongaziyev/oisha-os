@@ -268,6 +268,34 @@ def build_text_article_result(
     }
 
 
+def build_input_rich_message(
+    text: Optional[str] = None,
+    blocks: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Assemble an InputRichMessage dict for sendRichMessage (Bot API 10.1).
+
+    ``blocks`` is a list of InputRichBlock* dicts (paragraph, section heading,
+    table, block quotation, list, …). At least one of ``text``/``blocks`` should
+    be provided; empty values are stripped so the payload stays minimal.
+    """
+    payload: Dict[str, Any] = {}
+    if text:
+        payload["text"] = text
+    if blocks:
+        payload["blocks"] = list(blocks)
+    return payload
+
+
+def rich_paragraph(text: str) -> Dict[str, Any]:
+    """Convenience InputRichBlockParagraph block."""
+    return {"type": "paragraph", "text": text}
+
+
+def rich_section_heading(text: str) -> Dict[str, Any]:
+    """Convenience InputRichBlockSectionHeading block."""
+    return {"type": "section_heading", "text": text}
+
+
 def extract_guest_message_context(update: Dict[str, Any]) -> Optional[GuestMessageContext]:
     message = update.get("guest_message")
     if not isinstance(message, dict):
@@ -527,6 +555,161 @@ class TelegramBotAPI10Client:
         )
         return bool(result)
 
+    async def get_user_personal_chat_messages(
+        self,
+        user_id: int,
+        *,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        bounded_limit = max(1, min(int(limit), 20))
+        result = await self.call(
+            "getUserPersonalChatMessages",
+            {"user_id": user_id, "limit": bounded_limit},
+        )
+        return result if isinstance(result, list) else []
+
+    async def delete_message_reaction(
+        self,
+        chat_id: int | str,
+        message_id: int,
+        user_id: int,
+    ) -> bool:
+        result = await self.call(
+            "deleteMessageReaction",
+            {"chat_id": chat_id, "message_id": message_id, "user_id": user_id},
+        )
+        return bool(result)
+
+    async def delete_all_message_reactions(
+        self,
+        chat_id: int | str,
+        *,
+        user_id: Optional[int] = None,
+        actor_chat_id: Optional[int | str] = None,
+    ) -> bool:
+        """Remove an actor's recent reactions in a chat (Bot API 10, actor-scoped).
+
+        Per the changelog this is scoped to an actor (``user_id`` or ``actor_chat_id``),
+        not to a single message. Unverified here — confirm against a live Bot API 10 bot
+        before production use.
+        """
+        result = await self.call(
+            "deleteAllMessageReactions",
+            {"chat_id": chat_id, "user_id": user_id, "actor_chat_id": actor_chat_id},
+        )
+        return bool(result)
+
+    async def send_poll(
+        self,
+        chat_id: int | str,
+        question: str,
+        options: List[Dict[str, Any]],
+        *,
+        is_anonymous: bool = True,
+        type: str = "regular",
+        allows_multiple_answers: bool = False,
+        members_only: Optional[bool] = None,
+        country_codes: Optional[List[str]] = None,
+        disable_notification: bool = False,
+        message_thread_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Send poll with Bot API 10 limit parameters (members_only, country_codes)."""
+        result = await self.call(
+            "sendPoll",
+            {
+                "chat_id": chat_id,
+                "question": question,
+                "options": options,
+                "is_anonymous": is_anonymous,
+                "type": type,
+                "allows_multiple_answers": allows_multiple_answers,
+                "members_only": members_only,
+                "country_codes": country_codes,
+                "disable_notification": disable_notification,
+                "message_thread_id": message_thread_id,
+            },
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def send_ephemeral_message(
+        self,
+        chat_id: int | str,
+        text: str,
+        *,
+        receiver_user_id: Optional[int] = None,
+        callback_query_id: Optional[str] = None,
+        message_thread_id: Optional[int] = None,
+        parse_mode: Optional[str] = "HTML",
+        reply_markup: Optional[Dict[str, Any]] = None,
+        disable_notification: bool = False,
+    ) -> Dict[str, Any]:
+        """Send a message visible only to one user (Bot API 10.2).
+
+        Pass ``receiver_user_id`` to show the message to a single group member, or
+        ``callback_query_id`` to answer an ephemeral callback. NOTE: verify against a
+        live Bot API 10.2 bot before enabling in production.
+        """
+        result = await self.call(
+            "sendMessage",
+            {
+                "chat_id": chat_id,
+                "text": text,
+                "receiver_user_id": receiver_user_id,
+                "callback_query_id": callback_query_id,
+                "message_thread_id": message_thread_id,
+                "parse_mode": parse_mode,
+                "reply_markup": reply_markup,
+                "disable_notification": disable_notification,
+            },
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def delete_ephemeral_message(
+        self,
+        chat_id: int | str,
+        ephemeral_message_id: int,
+    ) -> bool:
+        """Delete a previously sent ephemeral message (Bot API 10.2)."""
+        result = await self.call(
+            "deleteEphemeralMessage",
+            {"chat_id": chat_id, "ephemeral_message_id": ephemeral_message_id},
+        )
+        return bool(result)
+
+    async def send_rich_message(
+        self,
+        chat_id: int | str,
+        rich_message: Dict[str, Any],
+        *,
+        business_connection_id: Optional[str] = None,
+        message_thread_id: Optional[int] = None,
+        reply_parameters: Optional[Dict[str, Any]] = None,
+        link_preview_options: Optional[Dict[str, Any]] = None,
+        reply_markup: Optional[Dict[str, Any]] = None,
+        effect_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Send a block-structured rich message (Bot API 10.1 ``sendRichMessage``).
+
+        ``rich_message`` is an InputRichMessage dict — e.g.
+        ``{"text": "...", "blocks": [...]}``. Build it with
+        :func:`build_input_rich_message`. NOTE: verify block schema against a live
+        Bot API 10.1 bot before enabling in production.
+        """
+        result = await self.call(
+            "sendRichMessage",
+            {
+                "chat_id": chat_id,
+                "rich_message": rich_message,
+                "business_connection_id": business_connection_id,
+                "message_thread_id": message_thread_id,
+                "reply_parameters": reply_parameters,
+                "link_preview_options": link_preview_options,
+                "reply_markup": reply_markup,
+                "effect_id": effect_id,
+            },
+        )
+        return result if isinstance(result, dict) else {}
+
 
 class TelegramBotAPILongPoller:
     """Receive Bot API-only updates when a public HTTPS webhook is unavailable."""
@@ -663,71 +846,3 @@ class TelegramBotAPILongPoller:
                     await asyncio.sleep(self.retry_delay)
         finally:
             await self._stop_workers()
-
-    async def get_user_personal_chat_messages(
-        self,
-        user_id: int,
-        *,
-        limit: int = 20,
-    ) -> List[Dict[str, Any]]:
-        bounded_limit = max(1, min(int(limit), 20))
-        result = await self.call(
-            "getUserPersonalChatMessages",
-            {"user_id": user_id, "limit": bounded_limit},
-        )
-        return result if isinstance(result, list) else []
-
-    async def delete_message_reaction(
-        self,
-        chat_id: int | str,
-        message_id: int,
-        user_id: int,
-    ) -> bool:
-        result = await self.call(
-            "deleteMessageReaction",
-            {"chat_id": chat_id, "message_id": message_id, "user_id": user_id},
-        )
-        return bool(result)
-
-    async def delete_all_message_reactions(
-        self,
-        chat_id: int | str,
-        message_id: int,
-    ) -> bool:
-        result = await self.call(
-            "deleteAllMessageReactions",
-            {"chat_id": chat_id, "message_id": message_id},
-        )
-        return bool(result)
-
-    async def send_poll(
-        self,
-        chat_id: int | str,
-        question: str,
-        options: List[Dict[str, Any]],
-        *,
-        is_anonymous: bool = True,
-        type: str = "regular",
-        allows_multiple_answers: bool = False,
-        members_only: Optional[bool] = None,
-        country_codes: Optional[List[str]] = None,
-        disable_notification: bool = False,
-        message_thread_id: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Send poll with Bot API 10 limit parameters (members_only, country_codes)."""
-        result = await self.call(
-            "sendPoll",
-            {
-                "chat_id": chat_id,
-                "question": question,
-                "options": options,
-                "is_anonymous": is_anonymous,
-                "type": type,
-                "allows_multiple_answers": allows_multiple_answers,
-                "members_only": members_only,
-                "country_codes": country_codes,
-                "disable_notification": disable_notification,
-                "message_thread_id": message_thread_id,
-            },
-        )
-        return result if isinstance(result, dict) else {}
