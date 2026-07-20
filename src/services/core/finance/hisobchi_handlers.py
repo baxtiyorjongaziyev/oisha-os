@@ -31,6 +31,7 @@ from src.services.core.finance.hisobchi_engine import HisobchiEngine, _fmt_money
 from src.services.utils.gemini_fallback import generate_content_with_fallback
 from src.settings import settings
 from src.time_utils import get_local_now
+from src.services.core.telegram.bot_runtime import BotRuntimePort, TelethonBotRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,23 @@ _PRIVATE_RECEIPT_PHOTO_PREFIXES = (
     "#kirim",
     "#chiqim",
 )
+
+
+def _as_bot_runtime(bot_client) -> BotRuntimePort | None:
+    if bot_client is None:
+        return None
+    if hasattr(bot_client, "backend") and hasattr(bot_client, "send_message"):
+        return bot_client
+    return TelethonBotRuntime(bot_client)
+
+
+def _bot_runtime_connected(bot_client) -> bool:
+    if bot_client is None:
+        return False
+    is_connected = getattr(bot_client, "is_connected", None)
+    if callable(is_connected):
+        return bool(is_connected())
+    return True
 
 
 def should_process_private_receipt_photo(*, is_owner: bool, has_photo: bool, text: str = "") -> bool:
@@ -266,7 +284,8 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
             logger.error("[HISOBCHI] Failed to send approval to owner: %s", exc)
 
     if finance_group_id:
-        if bot_client is None or not bot_client.is_connected():
+        bot_runtime = _as_bot_runtime(bot_client)
+        if not _bot_runtime_connected(bot_client) or bot_runtime is None:
             # Guruh xabari faqat @jonairobot (bot_client) orqali yuboriladi —
             # userbot identitasi bilan yuborilmasligi kerak. bot_client yo'q
             # yoki uzilgan bo'lsa (bot-token o'rnatilmagan/ishga tushmagan/
@@ -279,16 +298,16 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
         else:
             try:
                 kb = build_approval_keyboard(tx_id, ownership)
-                sent = await bot_client.send_message(
+                sent = await bot_runtime.send_message(
                     finance_group_id,
                     engine.build_finance_question(tx, tx_id),
-                    parse_mode="html",
-                    reply_to=topic_id,
+                    parse_mode="HTML",
+                    reply_to_message_id=topic_id,
                     buttons=kb,
                 )
                 await engine.update_finance_msg(
                     tx_id,
-                    finance_msg_id=sent.id,
+                    finance_msg_id=sent.message_id or getattr(sent.raw, "id", None),
                     finance_chat_id=finance_group_id,
                 )
             except Exception as exc:
@@ -778,18 +797,19 @@ async def _reply_via_bot(event, bot_client, text: str, *, parse_mode: Optional[s
     event.reply() would send via whichever client received the event —
     the userbot in production — which is exactly what we must avoid here.
     """
-    if bot_client is None or not bot_client.is_connected():
+    bot_runtime = _as_bot_runtime(bot_client)
+    if not _bot_runtime_connected(bot_client) or bot_runtime is None:
         logger.error(
             "[HISOBCHI] bot_client yo'q — moliya guruhiga javob yuborilmadi: %s",
             text[:60],
         )
         return
     try:
-        await bot_client.send_message(
+        await bot_runtime.send_message(
             event.chat_id,
             text,
-            reply_to=event.message.id,
-            parse_mode=parse_mode,
+            reply_to_message_id=event.message.id,
+            parse_mode=parse_mode.upper() if parse_mode else None,
         )
     except Exception as exc:
         # Original message may have been deleted/inaccessible (e.g.
@@ -799,7 +819,11 @@ async def _reply_via_bot(event, bot_client, text: str, *, parse_mode: Optional[s
             "[HISOBCHI] Group reply with reply_to failed, retrying without it: %s", exc
         )
         try:
-            await bot_client.send_message(event.chat_id, text, parse_mode=parse_mode)
+            await bot_runtime.send_message(
+                event.chat_id,
+                text,
+                parse_mode=parse_mode.upper() if parse_mode else None,
+            )
         except Exception as retry_exc:
             logger.error("[HISOBCHI] Failed to send group reply via bot_client: %s", retry_exc)
 

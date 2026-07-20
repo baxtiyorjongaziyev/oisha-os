@@ -30,6 +30,7 @@ class ApplicationContext:
     msg_controller: Optional[MessageController] = None
     client: Optional[TelegramClient] = None
     bot_client: Optional[TelegramClient] = None
+    bot_runtime: Optional[Any] = None
     lead_scraper: Optional[LeadScraper] = None
     action_parser: Optional[ActionParser] = None
     advisor_agent: Optional[AdvisorAgent] = None
@@ -40,6 +41,7 @@ class ApplicationContext:
     workflow_manager: Optional[WorkflowManager] = None
     access_manager: Optional[AccessManager] = None
     admin_bot: Optional[AdminBot] = None
+    admin_aiogram_dispatcher: Optional[Any] = None
     juma_notifier: Optional[JumaNotifier] = None
     session_manager: Optional[SessionManager] = None
     telegram_session_manager: Optional[Any] = None  # XAVFSIZ SESSION MANAGER
