@@ -439,6 +439,7 @@ from src.api.routes.ai_analytics import router as ai_router
 from src.api.routes.erp_routes import router as erp_router
 from src.api.routes.instagram_routes import router as instagram_router
 from src.api.routes.product_suite import router as product_router
+from src.api.routes.business_commands import router as business_commands_router
 from src.api.routes.crm_dashboard import router as crm_dashboard_router
 from src.api.routes.marketing_dashboard import router as marketing_router
 from src.api.routes.callmaster_routes import router as callmaster_router
@@ -455,6 +456,7 @@ app.include_router(ai_router)
 app.include_router(erp_router)
 app.include_router(instagram_router)
 app.include_router(product_router)
+app.include_router(business_commands_router)
 app.include_router(crm_dashboard_router)
 app.include_router(marketing_router)
 app.include_router(callmaster_router)
@@ -717,7 +719,7 @@ async def telegram_callback(
     )
 
     # Create response that stores the cookie and redirects to Dashboard
-    response = RedirectResponse(url="/client")
+    response = RedirectResponse(url="/")
     response.set_cookie(
         key="oisha_token",
         value=token,
