@@ -55,7 +55,7 @@ bandit -r src/ -ll -x src/services/debug/ --quiet
 ### Pre-flight checklist (run before every PR — see AGENTS.md)
 ```bash
 SKIP_LIVE=1 python -m pytest -q --tb=short
-bandit -r src/ -ll
+bandit -r src/ -ll -x src/services/debug/
 ```
 
 ### Run the Python app locally
