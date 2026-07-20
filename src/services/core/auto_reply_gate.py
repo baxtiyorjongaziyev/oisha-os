@@ -66,7 +66,11 @@ class Decision:
 
 
 async def _load_mode(db: Any) -> str:
-    """DB override wins; else env; else 'auto' (barcha xabarlar avtomatik)."""
+    """DB override wins; else env; else 'shadow' (fail-safe: draft, never auto-send).
+
+    The default is deliberately 'shadow', not an auto-send tier: if AUTO_REPLY_MODE is
+    unset the bot must draft for owner approval, never auto-reply on its own.
+    """
     if db is not None:
         try:
             stored = await db.get_state(FLAG_MODE)
@@ -74,8 +78,8 @@ async def _load_mode(db: Any) -> str:
                 return str(stored).lower()
         except Exception:
             logger.debug("failed_to_load_mode_from_db", exc_info=True)
-    env = os.environ.get("AUTO_REPLY_MODE", "auto").strip().lower()
-    return env if env in VALID_MODES else "auto"
+    env = os.environ.get("AUTO_REPLY_MODE", "shadow").strip().lower()
+    return env if env in VALID_MODES else "shadow"
 
 
 async def _load_kill_switch(db: Any) -> bool:
@@ -143,16 +147,7 @@ async def evaluate(
             kill_switch_on=kill_on,
         )
 
-    # Mention short-circuits to send (Owner directly called us).
-    if is_mentioned:
-        return Decision(
-            action="send",
-            reason="mention_override",
-            effective_mode=mode,
-            kill_switch_on=kill_on,
-        )
-
-    # Escalation triggers win over every mode.
+    # Escalation triggers win over every mode — never auto-reply, escalate to Owner.
     trigger = _has_escalation_trigger(message_text)
     if trigger:
         return Decision(
@@ -162,7 +157,8 @@ async def evaluate(
             kill_switch_on=kill_on,
         )
 
-    # Kill switch forces "off".
+    # Kill switch is the incident handle — it overrides everything, including
+    # @mentions. When pulled, nothing sends.
     if kill_on:
         return Decision(
             action="skip",
@@ -171,7 +167,27 @@ async def evaluate(
             kill_switch_on=True,
         )
 
-    # Low-confidence always shadows, regardless of mode (except off).
+    # Shadow mode NEVER auto-sends: every message — including @mentions — is
+    # drafted and queued for Owner approval, so the bot cannot reply on its own.
+    if mode == "shadow":
+        return Decision(
+            action="shadow",
+            reason="tier1_shadow",
+            effective_mode="shadow",
+            kill_switch_on=kill_on,
+        )
+
+    # From here mode is an explicit auto-send tier (vip_only / live / auto).
+    # Mention short-circuits to send (Owner directly called us).
+    if is_mentioned:
+        return Decision(
+            action="send",
+            reason="mention_override",
+            effective_mode=mode,
+            kill_switch_on=kill_on,
+        )
+
+    # Low-confidence always shadows in auto-send tiers.
     if confidence is not None and confidence < 0.6 and mode in ("vip_only", "live"):
         return Decision(
             action="shadow",
@@ -180,20 +196,6 @@ async def evaluate(
             kill_switch_on=kill_on,
         )
 
-    if mode == "off":
-        return Decision(
-            action="skip",
-            reason="mode_off",
-            effective_mode="off",
-            kill_switch_on=kill_on,
-        )
-    if mode == "shadow":
-        return Decision(
-            action="shadow",
-            reason="tier1_shadow",
-            effective_mode="shadow",
-            kill_switch_on=kill_on,
-        )
     if mode == "vip_only":
         threshold = _vip_threshold()
         if lead_score >= threshold:
