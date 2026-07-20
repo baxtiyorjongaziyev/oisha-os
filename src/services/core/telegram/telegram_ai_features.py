@@ -527,6 +527,74 @@ class TelegramBotAPI10Client:
         )
         return bool(result)
 
+    async def get_user_personal_chat_messages(
+        self,
+        user_id: int,
+        *,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        bounded_limit = max(1, min(int(limit), 20))
+        result = await self.call(
+            "getUserPersonalChatMessages",
+            {"user_id": user_id, "limit": bounded_limit},
+        )
+        return result if isinstance(result, list) else []
+
+    async def delete_message_reaction(
+        self,
+        chat_id: int | str,
+        message_id: int,
+        user_id: int,
+    ) -> bool:
+        result = await self.call(
+            "deleteMessageReaction",
+            {"chat_id": chat_id, "message_id": message_id, "user_id": user_id},
+        )
+        return bool(result)
+
+    async def delete_all_message_reactions(
+        self,
+        chat_id: int | str,
+        message_id: int,
+    ) -> bool:
+        result = await self.call(
+            "deleteAllMessageReactions",
+            {"chat_id": chat_id, "message_id": message_id},
+        )
+        return bool(result)
+
+    async def send_poll(
+        self,
+        chat_id: int | str,
+        question: str,
+        options: List[Dict[str, Any]],
+        *,
+        is_anonymous: bool = True,
+        type: str = "regular",
+        allows_multiple_answers: bool = False,
+        members_only: Optional[bool] = None,
+        country_codes: Optional[List[str]] = None,
+        disable_notification: bool = False,
+        message_thread_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Send poll with Bot API 10 limit parameters (members_only, country_codes)."""
+        result = await self.call(
+            "sendPoll",
+            {
+                "chat_id": chat_id,
+                "question": question,
+                "options": options,
+                "is_anonymous": is_anonymous,
+                "type": type,
+                "allows_multiple_answers": allows_multiple_answers,
+                "members_only": members_only,
+                "country_codes": country_codes,
+                "disable_notification": disable_notification,
+                "message_thread_id": message_thread_id,
+            },
+        )
+        return result if isinstance(result, dict) else {}
+
 
 class TelegramBotAPILongPoller:
     """Receive Bot API-only updates when a public HTTPS webhook is unavailable."""
@@ -663,71 +731,3 @@ class TelegramBotAPILongPoller:
                     await asyncio.sleep(self.retry_delay)
         finally:
             await self._stop_workers()
-
-    async def get_user_personal_chat_messages(
-        self,
-        user_id: int,
-        *,
-        limit: int = 20,
-    ) -> List[Dict[str, Any]]:
-        bounded_limit = max(1, min(int(limit), 20))
-        result = await self.call(
-            "getUserPersonalChatMessages",
-            {"user_id": user_id, "limit": bounded_limit},
-        )
-        return result if isinstance(result, list) else []
-
-    async def delete_message_reaction(
-        self,
-        chat_id: int | str,
-        message_id: int,
-        user_id: int,
-    ) -> bool:
-        result = await self.call(
-            "deleteMessageReaction",
-            {"chat_id": chat_id, "message_id": message_id, "user_id": user_id},
-        )
-        return bool(result)
-
-    async def delete_all_message_reactions(
-        self,
-        chat_id: int | str,
-        message_id: int,
-    ) -> bool:
-        result = await self.call(
-            "deleteAllMessageReactions",
-            {"chat_id": chat_id, "message_id": message_id},
-        )
-        return bool(result)
-
-    async def send_poll(
-        self,
-        chat_id: int | str,
-        question: str,
-        options: List[Dict[str, Any]],
-        *,
-        is_anonymous: bool = True,
-        type: str = "regular",
-        allows_multiple_answers: bool = False,
-        members_only: Optional[bool] = None,
-        country_codes: Optional[List[str]] = None,
-        disable_notification: bool = False,
-        message_thread_id: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Send poll with Bot API 10 limit parameters (members_only, country_codes)."""
-        result = await self.call(
-            "sendPoll",
-            {
-                "chat_id": chat_id,
-                "question": question,
-                "options": options,
-                "is_anonymous": is_anonymous,
-                "type": type,
-                "allows_multiple_answers": allows_multiple_answers,
-                "members_only": members_only,
-                "country_codes": country_codes,
-                "disable_notification": disable_notification,
-                "message_thread_id": message_thread_id,
-            },
-        )
-        return result if isinstance(result, dict) else {}

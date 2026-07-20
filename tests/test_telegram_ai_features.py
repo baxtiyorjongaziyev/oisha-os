@@ -142,6 +142,41 @@ async def test_raw_client_raises_structured_error():
     assert exc.value.parameters["retry_after"] == 3
 
 
+@pytest.mark.asyncio
+async def test_raw_client_exposes_poll_and_moderation_methods():
+    """Regression: these raw Bot API methods must live on the client (which owns
+    .call), not on the long-poller. The poller has no .call, so a misplaced method
+    would raise AttributeError at call time instead of hitting the transport."""
+    calls = []
+
+    async def transport(method, payload):
+        calls.append((method, payload))
+        return {"ok": True, "result": {"poll": {"id": "p1"}} if method == "sendPoll" else True}
+
+    client = TelegramBotAPI10Client("token", transport=transport)
+
+    # send_poll forwards Bot API 10 limit params and strips None values.
+    poll = await client.send_poll(
+        -100123,
+        "Ish rejasi tayyormi?",
+        [{"text": "Ha"}, {"text": "Yo'q"}],
+        members_only=True,
+        country_codes=["UZ"],
+    )
+    assert poll == {"poll": {"id": "p1"}}
+    assert calls[-1][0] == "sendPoll"
+    assert calls[-1][1]["members_only"] is True
+    assert calls[-1][1]["country_codes"] == ["UZ"]
+    assert "message_thread_id" not in calls[-1][1]  # None stripped
+
+    # The remaining relocated methods must also resolve on the client.
+    assert hasattr(client, "get_user_personal_chat_messages")
+    assert hasattr(client, "delete_message_reaction")
+    assert hasattr(client, "delete_all_message_reactions")
+    # And must NOT leak onto the long-poller, which cannot service self.call.
+    assert not hasattr(TelegramBotAPILongPoller, "send_poll")
+
+
 def test_feature_status_helpers():
     offline = build_offline_feature_status()
     live = build_live_feature_status(
