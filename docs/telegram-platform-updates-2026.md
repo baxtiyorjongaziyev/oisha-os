@@ -49,6 +49,33 @@ kontekst cheklovini hisobga olish kerak (bot to'liq tarixni ko'rmaydi).
    javoblar. Shuning uchun lead/finance scraping'ga (message history yo'qolishi) **ta'sir
    qilmaydi** — dastlabki xavotir tasdiqlanmadi.
 
+## Audit topilmalari (2026-07-20)
+
+Telegram qatlamining to'liq auditi davomida aniqlangan va shu PR'da hal qilingan:
+
+- **Bug (tuzatildi):** `get_user_personal_chat_messages`, `delete_message_reaction`,
+  `delete_all_message_reactions`, `send_poll` metodlari `TelegramBotAPILongPoller`
+  klassiga xato joylashib, `self.call()` (faqat `TelegramBotAPI10Client`da bor)
+  chaqirar edi — chaqirilsa `AttributeError`. `FEATURE_MATRIX` bularni "code_ready"
+  deb ko'rsatsa-da, amalda ishlamas edi. Metodlar to'g'ri klassga ko'chirildi +
+  regression testi (`tests/test_telegram_ai_features.py`).
+- **Yangi adapterlar (qo'shildi):** tuzatilgan metodlar endi
+  `TelegramNotificationAdapter`ga ulandi — `send_group_poll` (members_only /
+  country_codes audience limitlari bilan), `clear_message_reactions` (bitta user
+  yoki hammasi), `fetch_user_personal_chat_messages` (xatoga chidamli). Har biri
+  `ToolResult` qaytaradi (`tests/test_tool_adapters.py`).
+- **Tekshirildi (to'g'ri):** userbot Telethon init (API_ID/API_HASH + cloud
+  StringSession fallback, `boot.py:360-385`), Bot API 10 ingress rejimlari
+  (webhook / long-poll / telethon, `boot.py:570-602`), streaming/guest/bot-to-bot
+  adapterlari (`tool_adapters.py`).
+
+### Keyingi bosqich (hali qilinmagan — live bot testi kerak)
+
+- **Rich Text for Bots** — 32K belgigacha formatlangan javoblar; enterprise reporter
+  va dashboard javoblarida sinash. Live bot bilan tekshirish kerak.
+- **Ephemeral (private) replies** — Hisobchi tasdiqlari / xatolik / menyu javoblari
+  guruh tarixini to'ldirmasligi uchun. Bot API metodi live sinovni talab qiladi.
+
 ## Manbalar
 
 - [AI Bot Revolution — 11 New Features (7-May-2026)](https://telegram.org/blog/ai-bot-revolution-11-new-features)
