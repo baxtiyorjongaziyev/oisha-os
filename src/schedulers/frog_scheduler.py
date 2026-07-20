@@ -3,8 +3,17 @@ import asyncio
 import logging
 from src.database import get_db
 from src.services.ai.frog_agent import FrogAgent
+from src.services.core.telegram.bot_runtime import BotRuntimePort, TelethonBotRuntime
 
 logger = logging.getLogger(__name__)
+
+
+def _as_bot_runtime(bot_client) -> BotRuntimePort | None:
+    if bot_client is None:
+        return None
+    if hasattr(bot_client, "backend") and hasattr(bot_client, "send_message"):
+        return bot_client
+    return TelethonBotRuntime(bot_client)
 
 async def send_daily_frog_brief(bot_client=None, team_group_id=None):
     """Fetches tasks, finds the frog, and sends to team group.
@@ -91,13 +100,14 @@ async def send_daily_frog_brief(bot_client=None, team_group_id=None):
     
     # Send message via Telegram — only through @jonairobot (bot_client),
     # never the userbot.
-    if bot_client and team_group_id:
+    bot_runtime = _as_bot_runtime(bot_client)
+    if bot_runtime and team_group_id:
         try:
-            await bot_client.send_message(
+            await bot_runtime.send_message(
                 team_group_id,
                 f"🐸 <b>Qurbaqani yeymiz!</b>\n\n{frog.motivation_message}\n\n"
                 f"<i>Daromad prognozi: ${frog.profit_estimate}</i>",
-                parse_mode="html"
+                parse_mode="HTML"
             )
         except Exception as e:
             logger.error(f"[FROG] Failed to send telegram message: {e}")
