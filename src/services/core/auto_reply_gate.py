@@ -187,8 +187,8 @@ async def evaluate(
             kill_switch_on=kill_on,
         )
 
-    # Low-confidence always shadows in auto-send tiers.
-    if confidence is not None and confidence < 0.6 and mode in ("vip_only", "live"):
+    # Low-confidence always shadows in every auto-send tier (vip_only/live/auto).
+    if confidence is not None and confidence < 0.6 and mode in ("vip_only", "live", "auto"):
         return Decision(
             action="shadow",
             reason=f"low_confidence({confidence:.2f})",

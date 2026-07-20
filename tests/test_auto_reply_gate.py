@@ -74,6 +74,16 @@ async def test_live_mode_autosends(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_low_confidence_shadows_in_auto_mode(monkeypatch):
+    monkeypatch.setenv("AUTO_REPLY_MODE", "auto")
+    decision = await auto_reply_gate.evaluate(
+        _FakeDB(), message_text="salom", confidence=0.4
+    )
+    # Low confidence must draft for approval even in the 'auto' send tier.
+    assert decision.action == "shadow"
+
+
+@pytest.mark.asyncio
 async def test_db_mode_override_beats_env(monkeypatch):
     monkeypatch.setenv("AUTO_REPLY_MODE", "live")
     db = _FakeDB({auto_reply_gate.FLAG_MODE: "shadow"})
