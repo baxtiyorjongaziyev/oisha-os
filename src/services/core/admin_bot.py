@@ -12,6 +12,25 @@ from src.controllers.message_controller import MessageController
 from src.time_utils import get_local_now, is_quiet_hours
 
 from src.services.core.crm.crm_night_shift import CRMNightShift
+from src.services.core.admin_command_router import (
+    build_chatid_response,
+    build_command_center_response,
+    build_finance_risks_response,
+    build_oisha_stats_response,
+    build_project_risks_response,
+    build_sales_priorities_response,
+    build_start_response,
+    build_team_capacity_response,
+    resolve_start_role,
+)
+from src.services.core.business_command_center import (
+    collect_business_command_snapshot,
+    collect_finance_project_risks,
+    collect_project_delivery_risks,
+    collect_sales_today_priorities,
+    collect_team_capacity_snapshot,
+)
+from src.services.core.telegram.bot_runtime import BotRuntimePort, TelethonBotRuntime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -31,8 +50,10 @@ class AdminBot:
         night_shift: CRMNightShift = None,
         team_group_id: int = None,
         juma_notifier=None,
+        bot_runtime: BotRuntimePort = None,
     ):
         self.bot_client = bot_client
+        self.bot_runtime = bot_runtime or TelethonBotRuntime(bot_client)
         self.user_client = user_client
         self.db = db
         self.msg_controller = msg_controller
@@ -42,6 +63,13 @@ class AdminBot:
         self.juma_notifier = juma_notifier
         self.active_searches = {}  # user_id -> timestamp
         self.pending_drafts = {}  # draft_id -> draft_text
+        from src.services.core.self_improvement import SelfImprovementService
+
+        self.self_improvement = SelfImprovementService(
+            db,
+            bot_client=self.bot_runtime,
+            owner_id=access_manager.owner_id,
+        )
 
         # [EXPERT ADVICE] Professional scripts to obtain phone numbers
         self.PHONE_GETTING_SCRIPTS = {
@@ -63,6 +91,14 @@ class AdminBot:
                 "qisqa qo'ng'iroqda hal qilsak tezroq bitar edi. Qaysi raqamga bog'lansak bo'ladi?\""
             ),
         }
+
+    def _outbound_bot_runtime(self) -> BotRuntimePort:
+        runtime = getattr(self, "bot_runtime", None)
+        if runtime is not None:
+            return runtime
+        runtime = TelethonBotRuntime(self.bot_client)
+        self.bot_runtime = runtime
+        return runtime
 
     async def start(self):
         """Botni eventlarini ro'yxatdan o'tkazish va schedulerni parallel yuritish."""
@@ -132,6 +168,42 @@ class AdminBot:
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n💡 *To'liq tahlil dashboardda mavjud.*"
             )
             await event.respond(report)
+
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/oisha_rivoj$"))
+        async def oisha_self_diagnosis_handler(event):
+            """Owner-triggered read-only self-improvement diagnosis."""
+            if int(event.sender_id or 0) != self.self_improvement.owner_id:
+                return
+            await event.respond("🧬 Oisha o'zini tahlil qilmoqda...")
+            try:
+                outcome = await self.self_improvement.run_diagnosis(
+                    force=True,
+                    notify=False,
+                )
+                from src.services.core.oisha_self_diagnosis import OishaSelfDiagnosis
+
+                await event.respond(
+                    OishaSelfDiagnosis.format_telegram_report(outcome.proposals),
+                    parse_mode="html",
+                    link_preview=False,
+                )
+            except Exception as exc:
+                logger.error("[SELF-IMPROVEMENT] Manual diagnosis failed", exc_info=True)
+                await event.respond(f"❌ Diagnostika xatosi: {type(exc).__name__}")
+
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/oisha_takliflar$"))
+        async def oisha_improvements_handler(event):
+            """Show owner decision cards for actionable proposals."""
+            if int(event.sender_id or 0) != self.self_improvement.owner_id:
+                return
+            try:
+                await self.self_improvement.send_proposal_cards(
+                    target=event.sender_id,
+                    limit=5,
+                )
+            except Exception:
+                logger.error("[SELF-IMPROVEMENT] Proposal cards failed", exc_info=True)
+                await event.respond("❌ Takliflarni ochib bo'lmadi.")
 
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/junk_audit"))
         async def junk_audit_handler(event):
@@ -210,7 +282,71 @@ class AdminBot:
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"👸 *Oisha hozirda avtonom rejimda ishlamoqda.*"
             )
-            await event.respond(msg)
+            response = build_oisha_stats_response(
+                stats=stats,
+                health_score=int(health or 0),
+            )
+            await event.respond(response.text, parse_mode=response.parse_mode)
+
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/(sales_today|bugun_sotuv|kimga_qongiroq)"))
+        async def sales_priorities_handler(event):
+            """Show today's seller outreach priorities from AmoCRM evidence."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            crm = getattr(self.msg_controller, "crm", None)
+            amocrm = getattr(crm, "amocrm", None)
+            payload = await collect_sales_today_priorities(amocrm, limit=7)
+            response = build_sales_priorities_response(payload, max_items=7)
+            await event.respond(response.text, parse_mode=response.parse_mode)
+
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/(project_risks|loyiha_risk|deadline_risk)"))
+        async def project_risks_handler(event):
+            """Show project/deadline risks from Airtable evidence."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            crm = getattr(self.msg_controller, "crm", None)
+            airtable = getattr(crm, "airtable", None)
+            payload = await collect_project_delivery_risks(airtable, limit=7)
+            response = build_project_risks_response(payload, max_items=7)
+            await event.respond(response.text, parse_mode=response.parse_mode)
+
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/(finance_risks|moliya_risk|pul_risk)"))
+        async def finance_risks_handler(event):
+            """Show project payment risks from real finance/project fields."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            crm = getattr(self.msg_controller, "crm", None)
+            source = getattr(crm, "airtable", None)
+            payload = await collect_finance_project_risks(source, limit=7)
+            response = build_finance_risks_response(payload, max_items=7)
+            await event.respond(response.text, parse_mode=response.parse_mode)
+
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/(team_capacity|jamoa_yuklama|bandlik)"))
+        async def team_capacity_handler(event):
+            """Show team workload from active project assignments."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            crm = getattr(self.msg_controller, "crm", None)
+            source = getattr(crm, "airtable", None)
+            payload = await collect_team_capacity_snapshot(source, limit=7)
+            response = build_team_capacity_response(payload, max_items=7)
+            await event.respond(response.text, parse_mode=response.parse_mode)
+
+        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/(command_center|oisha_center|biznes_markaz)"))
+        async def command_center_handler(event):
+            """Show one owner-facing Oisha command center snapshot."""
+            if not self.access_manager.is_admin(event.sender_id):
+                return
+            crm = getattr(self.msg_controller, "crm", None)
+            project_source = getattr(crm, "airtable", None)
+            payload = await collect_business_command_snapshot(
+                amocrm=getattr(crm, "amocrm", None),
+                project_source=project_source,
+                finance_source=project_source,
+                limit=3,
+            )
+            response = build_command_center_response(payload)
+            await event.respond(response.text, parse_mode=response.parse_mode)
 
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/chatid"))
         async def chatid_handler(event):
@@ -220,15 +356,12 @@ class AdminBot:
             chat_title = getattr(chat, "title", None) or getattr(chat, "first_name", "shaxsiy")
             reply_to = getattr(event.message, "reply_to", None)
             topic_id = getattr(reply_to, "reply_to_top_id", None) or getattr(reply_to, "reply_to_msg_id", None)
-            lines = [
-                f"\U0001f194 <b>Chat ID:</b> <code>{chat_id}</code>",
-                f"\U0001f4db <b>Nom:</b> {chat_title}",
-            ]
-            if topic_id:
-                lines.append(f"\U0001f9f5 <b>Topic ID:</b> <code>{topic_id}</code>")
-            else:
-                lines.append("ℹ️ Topic ID olish uchun — topicning ichida /chatid yozing")
-            await event.respond("\n".join(lines), parse_mode="html")
+            response = build_chatid_response(
+                chat_id=chat_id,
+                chat_title=chat_title,
+                topic_id=topic_id,
+            )
+            await event.respond(response.text, parse_mode=response.parse_mode)
 
         # [AUDIT: UI/UX] Case-insensitive and robust command matching
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/start"))
@@ -240,17 +373,18 @@ class AdminBot:
 
             try:
                 # [AUDIT: ARCHITECT] Identity Check (Fail-safe)
-                is_owner = (sender_id == self.access_manager.owner_id) or (
-                    sender_id == 150074828
-                )
+                is_owner = int(sender_id or 0) in {
+                    int(self.access_manager.owner_id or 0),
+                    150074828,
+                }
                 logger.info(
                     f"🚀 [ADMIN_BOT] POINT B: is_owner={is_owner} (Config Owner: {self.access_manager.owner_id})"
                 )
 
-                role = (
-                    "OWNER"
-                    if is_owner
-                    else self.access_manager.get_role(sender_id) or "GUEST"
+                role = resolve_start_role(
+                    sender_id=sender_id,
+                    owner_id=self.access_manager.owner_id,
+                    get_role=self.access_manager.get_role,
                 )
                 role_name = self.access_manager.get_role_name(role)
                 logger.info(
@@ -262,6 +396,11 @@ class AdminBot:
                     f"Assalomu alaykum, **{role_name}**!\n"
                     f"Tizimga muvaffaqiyatli kirdingiz. Boshqaruv pulti tayyor.\n\n"
                     f"📅 Bugun: `{get_local_now().strftime('%d.%m.%Y %H:%M')}`"
+                )
+
+                response = build_start_response(
+                    role_name=role_name,
+                    now_text=get_local_now().strftime("%d.%m.%Y %H:%M"),
                 )
 
                 # Rollarga ko'ra tugmalar
@@ -280,7 +419,7 @@ class AdminBot:
                 logger.info(
                     f"🚀 [ADMIN_BOT] POINT D: Responding to {sender_id} with {len(buttons)} buttons"
                 )
-                await event.respond(welcome_msg, buttons=buttons)
+                await event.respond(response.text, buttons=buttons)
                 logger.info(f"✅ [ADMIN_BOT] POINT E: Response SENT to {sender_id}")
 
             except Exception as e:
@@ -298,6 +437,53 @@ class AdminBot:
         async def callback_handler(event):
             data = event.data.decode("utf-8")
             try:
+                if data.startswith("improve:"):
+                    if int(event.sender_id or 0) != self.self_improvement.owner_id:
+                        await event.answer("Bu qarorni faqat owner bera oladi.", alert=True)
+                        return
+                    parts = data.split(":", 2)
+                    if len(parts) != 3:
+                        await event.answer("Noto'g'ri taklif buyrug'i.", alert=True)
+                        return
+                    _, action, proposal_id = parts
+                    changed, outcome_message, _ = await self.self_improvement.decide(
+                        proposal_id,
+                        action,
+                        actor_id=event.sender_id,
+                    )
+                    await event.answer(
+                        "Qaror saqlandi." if changed else outcome_message[:180],
+                        alert=not changed,
+                    )
+                    if not changed:
+                        return
+
+                    badges = {
+                        "accept": "✅ AI agent uchun qabul qilindi",
+                        "defer": "⏸ 7 kunga kechiktirildi",
+                        "reject": "❌ Rad etildi",
+                    }
+                    try:
+                        from telethon.extensions import html
+
+                        current_html = html.unparse(
+                            event.message.message,
+                            event.message.entities or [],
+                        )
+                        await event.edit(
+                            current_html + f"\n\n<b>{badges[action]}</b>",
+                            parse_mode="html",
+                            buttons=None,
+                        )
+                    except Exception:
+                        logger.debug(
+                            "[SELF-IMPROVEMENT] Decision card edit failed",
+                            exc_info=True,
+                        )
+                    if action == "accept":
+                        await event.respond(outcome_message, parse_mode="html")
+                    return
+
                 if data.startswith(("mcp:approve:", "mcp:cancel:")):
                     from src.services.core.telegram_mcp.executor import (
                         get_default_executor,
@@ -2149,6 +2335,7 @@ class AdminBot:
             return False
 
         sent_any = False
+        bot_runtime = self._outbound_bot_runtime()
 
         async def _safe_send(client, target, label: str) -> bool:
             if not client or not target:
@@ -2171,13 +2358,13 @@ class AdminBot:
 
         for target in dict.fromkeys(owner_targets):
             sent_any = (
-                await _safe_send(self.bot_client, target, f"owner:{target}") or sent_any
+                await _safe_send(bot_runtime, target, f"owner:{target}") or sent_any
             )
 
         if self.team_group_id:
             sent_any = (
                 await _safe_send(
-                    self.bot_client, self.team_group_id, f"team:{self.team_group_id}"
+                    bot_runtime, self.team_group_id, f"team:{self.team_group_id}"
                 )
                 or sent_any
             )
@@ -2196,13 +2383,13 @@ class AdminBot:
         if not self.team_group_id:
             return
 
+        bot_runtime = self._outbound_bot_runtime()
         try:
-            # Telethon-da reply_to parametri orqali topic (forum thread) ni ko'rsatish mumkin
-            await self.bot_client.send_message(
+            await bot_runtime.send_message(
                 self.team_group_id,
                 text,
                 buttons=buttons,
-                reply_to=topic_id,
+                reply_to_message_id=topic_id,
                 parse_mode=parse_mode,
             )
             logger.info(
