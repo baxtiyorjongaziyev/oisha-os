@@ -7,12 +7,15 @@ from src.services.core.telegram.telegram_ai_features import (
     TelegramBotAPI10Client,
     TelegramBotAPIError,
     TelegramBotAPILongPoller,
+    build_input_rich_message,
     build_live_feature_status,
     build_offline_feature_status,
     build_text_article_result,
     classify_update,
     extract_guest_message_context,
     feature_matrix_payload,
+    rich_paragraph,
+    rich_section_heading,
 )
 
 
@@ -140,6 +143,97 @@ async def test_raw_client_raises_structured_error():
     assert exc.value.method == "getMe"
     assert exc.value.error_code == 429
     assert exc.value.parameters["retry_after"] == 3
+
+
+@pytest.mark.asyncio
+async def test_raw_client_exposes_poll_and_moderation_methods():
+    """Regression: these raw Bot API methods must live on the client (which owns
+    .call), not on the long-poller. The poller has no .call, so a misplaced method
+    would raise AttributeError at call time instead of hitting the transport."""
+    calls = []
+
+    async def transport(method, payload):
+        calls.append((method, payload))
+        return {"ok": True, "result": {"poll": {"id": "p1"}} if method == "sendPoll" else True}
+
+    client = TelegramBotAPI10Client("token", transport=transport)
+
+    # send_poll forwards Bot API 10 limit params and strips None values.
+    poll = await client.send_poll(
+        -100123,
+        "Ish rejasi tayyormi?",
+        [{"text": "Ha"}, {"text": "Yo'q"}],
+        members_only=True,
+        country_codes=["UZ"],
+    )
+    assert poll == {"poll": {"id": "p1"}}
+    assert calls[-1][0] == "sendPoll"
+    assert calls[-1][1]["members_only"] is True
+    assert calls[-1][1]["country_codes"] == ["UZ"]
+    assert "message_thread_id" not in calls[-1][1]  # None stripped
+
+    # The remaining relocated methods must also resolve on the client.
+    assert hasattr(client, "get_user_personal_chat_messages")
+    assert hasattr(client, "delete_message_reaction")
+    assert hasattr(client, "delete_all_message_reactions")
+    # And must NOT leak onto the long-poller, which cannot service self.call.
+    assert not hasattr(TelegramBotAPILongPoller, "send_poll")
+
+
+@pytest.mark.asyncio
+async def test_raw_client_send_ephemeral_message_forwards_receiver():
+    calls = []
+
+    async def transport(method, payload):
+        calls.append((method, payload))
+        return {"ok": True, "result": {"message_id": 11}}
+
+    client = TelegramBotAPI10Client("token", transport=transport)
+    sent = await client.send_ephemeral_message(
+        -100500,
+        "Faqat sizga",
+        receiver_user_id=777,
+        parse_mode=None,
+    )
+
+    assert sent == {"message_id": 11}
+    assert calls[0][0] == "sendMessage"
+    assert calls[0][1]["receiver_user_id"] == 777
+    assert calls[0][1]["chat_id"] == -100500
+    # None values (callback_query_id, parse_mode, reply_markup, thread) are stripped.
+    assert "callback_query_id" not in calls[0][1]
+    assert "parse_mode" not in calls[0][1]
+
+
+@pytest.mark.asyncio
+async def test_raw_client_send_rich_message_builds_input_rich_message():
+    calls = []
+
+    async def transport(method, payload):
+        calls.append((method, payload))
+        return {"ok": True, "result": {"message_id": 22}}
+
+    client = TelegramBotAPI10Client("token", transport=transport)
+    rich = build_input_rich_message(
+        text="Sarlavha",
+        blocks=[rich_section_heading("Hisobot"), rich_paragraph("Matn")],
+    )
+    sent = await client.send_rich_message(-100500, rich, message_thread_id=3)
+
+    assert sent == {"message_id": 22}
+    assert calls[0][0] == "sendRichMessage"
+    assert calls[0][1]["rich_message"]["text"] == "Sarlavha"
+    assert calls[0][1]["rich_message"]["blocks"][0]["type"] == "section_heading"
+    assert calls[0][1]["message_thread_id"] == 3
+    # business_connection_id and other None options stripped.
+    assert "business_connection_id" not in calls[0][1]
+
+
+def test_build_input_rich_message_strips_empty():
+    assert build_input_rich_message() == {}
+    assert build_input_rich_message(text="hi") == {"text": "hi"}
+    only_blocks = build_input_rich_message(blocks=[rich_paragraph("p")])
+    assert only_blocks == {"blocks": [{"type": "paragraph", "text": "p"}]}
 
 
 def test_feature_status_helpers():
