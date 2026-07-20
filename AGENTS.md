@@ -29,11 +29,12 @@
 ## Current State
 
 ### Locked
-*(none)*
+- **Codex Coordinator** — self-improvement report dedup, failure root-cause, approval UX va Telegram MCP restore
 
 ### Operational Notes
 - Telegram MCP approval gateway: upstream `127.0.0.1:8765/mcp`, gateway `127.0.0.1:8766/mcp`. `TELEGRAM_MCP_SESSION_STRING` must be a dedicated session and must never equal `USERBOT_SESSION_STRING`. Read tools are automatic; every mutation is owner-approved through Telegram. Neither port may be exposed by Nginx.
 - ⚠️ **USERBOT SESSION OWNER: Oracle VM.** Localda parallel userbot ishga tushirmang! `USERBOT_SESSION_STRING` endi GitHub secret + production env da yangilangan. Oracle Production Deploy #28758418917 success: `/readyz` dan o'tdi. Agar localda userbot kodi ishlasa, `AuthKeyDuplicatedError` qaytadi — Oracle VM dagi session bekor bo'ladi.
+- **Telegram architecture decision:** userbot Telethon'da qoladi. Bot akkaunt (`BOT_TOKEN`, @jonairobot) bosqichma-bosqich Aiogram'ga ko'chiriladi. Migratsiya adapter-first bo'lsin: avval `bot_client.send_message`/callback/command yuzasi uchun compatibility adapter, keyin Hisobchi approvals, admin commands, Frog reports va boshqa bot-token flows alohida ko'chiriladi. Bir martada to'liq almashtirmang; har bosqichda test va production-safe rollback bo'lsin.
 - Telegram Bot API guruh access qayta tiklandi: `crm_group` va `team_group` `getChat` tekshiruvida `200 OK`. `scripts/prod/probe_integrations.py` bilan AmoCRM, Airtable va Telegram Bot API ham OK tasdiqlangan.
 
 ### Done (Integration — Claude)
@@ -44,6 +45,8 @@
 - ioredis dup TUZATILDI: bullmq 5.79.1 ioredis'ni aynan `5.10.1` ga pin qiladi, apps esa `^5.11.1` (TRAE security update) → root `pnpm.overrides.ioredis="^5.11.1"` (TRAE yangi versiyasi saqlanadi, bullmq'niki ko'tariladi). Worker+API `tsc --noEmit` TOZA.
 
 ### Done (yangi)
+- JARVIS gap-auditidan keyin Oisha Business Command Center branding agentligi fokusida qo'shildi: lead, vazifa, eslatma, brief/KP, loyiha/deadline, avans, agentlik analitikasi va jamoa yuklamasi intentlari; mutation approval gate, stable idempotency key, evidence-first read policy va secret chiqarmaydigan real integration registry. Ombor funksiyasi ataylab kiritilmagan. API: `POST /api/oisha/command/plan`, `GET /api/oisha/integrations` (Codex).
+- Oisha self-improvement loop qo'shildi: har kuni 10:00 da read-only diagnostika, stable fingerprint/dedup, ownerga Telegram digest, `/oisha_rivoj` va `/oisha_takliflar`, owner-only accept/defer/reject hamda AI-agent handoff. Weekly self-evolution endi tasdiqsiz branch/PR yaratmaydi. Test: 11 yangi + 13 regressiya testlari passed; Bandit `src/ -ll`: no issues (Codex).
 - Oracle Production Deploy #28758418917 success. Fixes: `c8a9871` missing `telegram_mcp` route qo'shildi, `27306eb`/`59820c8` runtime detection VM/systemd uchun tuzatildi. Test: `tests/test_agent_runtime.py` 2 passed.
 - `src/api_server.py:288`: silent `except Exception: pass` → `logger.warning` (hisobchi_mcp router mount failure endi loglanadi)
 - Local `.env` cleaned up (170→104 lines, duplicate block removed)
@@ -78,6 +81,7 @@
 - [Done] Handler lar: `src/handlers/` ga ajratish (negotiation, kirim, case_publisher, etc.)
 - [Done] Turso DB schema migration for FrogAgent (added profit_estimate, source_manager, external_task_id, is_frog to tasks table) and fixed database_pool SQLite error handling.
 - [Done] FrogAgent va FrogScheduler remote VM ga deploy qilinib muvaffaqiyatli ishga tushirildi. Har kuni 09:00 da Telegram orqali eng foydali vazifalar (Frog) ro'yxati yuboriladi.
+- Bot akkauntni Aiogram'ga bosqichma-bosqich migratsiya qilish: Telethon userbot o'zgarmaydi; @jonairobot bot-token head adapter orqali ajratilib, keyin command/callback/report oqimlari navbat bilan ko'chiriladi.
 
 ### Dead Files (don't touch)
 - `src/agents/` — autonomous AI agents, domain-specific, bu refactoringga kirmaydi
