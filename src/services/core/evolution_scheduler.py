@@ -4,8 +4,8 @@ Evolution Scheduler — Self-learning va self-evolution loop'larini boshqaradi.
 Scheduled tasks:
   - Every conversation end: extract lessons (real-time)
   - Every 6 hours: synthesize strategies from lessons
-  - Weekly (Sunday 03:00): propose evolution PR
-  - Daily (09:00): self-improvement gap analysis → owner'ga takliflar
+  - Weekly (Sunday 03:00): persist an owner-reviewed evolution proposal
+  - Daily (10:00): run read-only self-diagnosis and send a Telegram digest
   - Every hour: record metrics snapshot
 """
 
@@ -25,12 +25,20 @@ logger = structlog.get_logger()
 class EvolutionScheduler:
     """Coordinates self-learning and self-evolution on schedule."""
 
-    def __init__(self, db: Database, gemini_api_key: str):
+    def __init__(
+        self,
+        db: Database,
+        gemini_api_key: str,
+        bot_client=None,
+        owner_id: Optional[int] = None,
+    ):
         self.db = db
         self.gemini_api_key = gemini_api_key
+        self.bot_client = bot_client
+        self.owner_id = owner_id
         self._learning_engine = None
         self._evolution_engine = None
-        self._improvement_agent = None
+        self._improvement_service = None
         self._running = False
         self._task: Optional[asyncio.Task] = None
 
@@ -38,6 +46,7 @@ class EvolutionScheduler:
     def learning(self):
         if self._learning_engine is None:
             from src.services.core.self_learning import SelfLearningEngine
+
             self._learning_engine = SelfLearningEngine(self.db, self.gemini_api_key)
         return self._learning_engine
 
@@ -45,15 +54,22 @@ class EvolutionScheduler:
     def evolution(self):
         if self._evolution_engine is None:
             from src.services.core.self_evolution import SelfEvolutionEngine
+
             self._evolution_engine = SelfEvolutionEngine(self.db, self.gemini_api_key)
         return self._evolution_engine
 
     @property
     def improvement(self):
-        if self._improvement_agent is None:
-            from src.services.core.self_improvement_agent import SelfImprovementAgent
-            self._improvement_agent = SelfImprovementAgent(self.db, self.gemini_api_key)
-        return self._improvement_agent
+        if self._improvement_service is None:
+            from src.services.core.self_improvement import SelfImprovementService
+
+            self._improvement_service = SelfImprovementService(
+                self.db,
+                bot_client=self.bot_client,
+                owner_id=self.owner_id,
+                gemini_api_key=self.gemini_api_key,
+            )
+        return self._improvement_service
 
     async def start(self):
         """Start the evolution scheduler loop."""
@@ -61,6 +77,10 @@ class EvolutionScheduler:
             return
         self._running = True
         await self.learning.ensure_tables()
+        try:
+            await self.improvement.ensure_ready()
+        except Exception as exc:
+            logger.warning(f"[SCHEDULER] Self-improvement init failed: {exc}")
         self._task = asyncio.create_task(self._run_loop())
         logger.info("[SCHEDULER] Evolution scheduler started")
 
@@ -98,34 +118,42 @@ class EvolutionScheduler:
 
     async def get_learning_context(self, category: Optional[str] = None) -> str:
         """Get learning context string to inject into prompts."""
-        lessons = await self.learning.get_relevant_lessons(context="", category=category)
+        lessons = await self.learning.get_relevant_lessons(
+            context="", category=category
+        )
         strategies = await self.learning.get_active_strategies()
         return self.learning.build_learning_context(lessons, strategies)
 
     async def _run_loop(self):
         """Main scheduler loop."""
         last_synthesis: Optional[datetime] = None
-        last_evolution: Optional[datetime] = None
         last_metrics: Optional[datetime] = None
-        last_improvement: Optional[datetime] = None
 
         while self._running:
             try:
                 now = get_local_now()
 
-                if last_synthesis is None or (now - last_synthesis) > timedelta(hours=6):
+                if last_synthesis is None or (now - last_synthesis) > timedelta(
+                    hours=6
+                ):
                     await self._do_synthesis()
                     last_synthesis = now
 
-                if last_evolution is None or (now - last_evolution) > timedelta(days=7):
-                    if now.weekday() == 6 and now.hour == 3:
-                        await self._do_evolution()
-                        last_evolution = now
+                # Daily read-only diagnosis. Persistent scheduled_jobs state in
+                # SelfImprovementService prevents duplicates after restarts.
+                if now.hour == 10:
+                    await self.improvement.run_diagnosis()
 
-                if last_improvement is None or (now - last_improvement) > timedelta(days=1):
-                    if now.hour == 9:
-                        await self._do_improvement()
-                        last_improvement = now
+                # Weekly AI suggestion is now proposal-only. Code/PR mutation is
+                # blocked until the owner explicitly accepts the proposal.
+                if now.weekday() == 6 and now.hour == 3:
+                    run_date = now.strftime("%Y-%m-%d")
+                    if not await self.db.is_job_run("oisha_weekly_evolution", run_date):
+                        completed = await self._do_evolution()
+                        if completed:
+                            await self.db.mark_job_run(
+                                "oisha_weekly_evolution", run_date
+                            )
 
                 if last_metrics is None or (now - last_metrics) > timedelta(hours=1):
                     await self._record_metrics_snapshot()
@@ -148,27 +176,17 @@ class EvolutionScheduler:
         except Exception as exc:
             logger.warning(f"[SCHEDULER] Synthesis failed: {exc}")
 
-    async def _do_evolution(self):
-        """Propose an evolution PR."""
+    async def _do_evolution(self) -> bool:
+        """Persist an AI evolution proposal without changing code or Git state."""
         try:
             proposal = await self.evolution.propose_evolution()
             if proposal:
-                pr_url = await self.evolution.create_evolution_pr(proposal)
-                if pr_url:
-                    logger.info(f"[SCHEDULER] Evolution PR created: {pr_url}")
-                    await self._notify_owner(pr_url)
+                saved = await self.improvement.save_ai_evolution_suggestion(proposal)
+                logger.info(f"[SCHEDULER] Evolution suggestion saved: {saved.id}")
+            return True
         except Exception as exc:
             logger.warning(f"[SCHEDULER] Evolution failed: {exc}")
-
-    async def _do_improvement(self):
-        """Kunlik self-improvement tsikli: kamchiliklarni tahlil qilib owner'ga taklif yuborish."""
-        try:
-            report = await self.improvement.run_cycle()
-            if report:
-                logger.info("[SCHEDULER] Self-improvement proposals ready")
-                await self._send_owner_message(report)
-        except Exception as exc:
-            logger.warning(f"[SCHEDULER] Self-improvement failed: {exc}")
+            return False
 
     async def _record_metrics_snapshot(self):
         """Record hourly metrics."""
@@ -181,29 +199,3 @@ class EvolutionScheduler:
                 await self.learning.record_metric("lessons_per_hour", float(count))
         except Exception as exc:
             logger.debug(f"[SCHEDULER] Metrics snapshot failed: {exc}")
-
-    async def _notify_owner(self, pr_url: str):
-        """Notify owner about new evolution PR via Telegram."""
-        msg = (
-            f"🧬 Oisha Self-Evolution\n\n"
-            f"Yangi yaxshilanish taklifi tayyor:\n{pr_url}\n\n"
-            f"Approve qilsangiz, avtomatik deploy bo'ladi."
-        )
-        await self._send_owner_message(msg)
-
-    async def _send_owner_message(self, text: str):
-        """Send an arbitrary message to the owner via Telegram bot API."""
-        try:
-            import os
-            import aiohttp
-
-            bot_token = os.environ.get("BOT_TOKEN", "")
-            owner_id = os.environ.get("OWNER_ID", "")
-            if not bot_token or not owner_id:
-                return
-
-            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-            async with aiohttp.ClientSession() as session:
-                await session.post(url, json={"chat_id": owner_id, "text": text})
-        except Exception:
-            logger.warning("[EVOLUTION_SCHEDULER] Failed to send owner notification to Telegram", exc_info=True)
