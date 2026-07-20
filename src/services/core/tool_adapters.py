@@ -11,6 +11,7 @@ from src.services.core.airtable_sync import AirtableSync
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.telegram.telegram_ai_features import (
     TelegramBotAPI10Client,
+    build_input_rich_message,
     build_text_article_result,
 )
 from src.services.core.tool_registry import ToolRegistry, ToolResult
@@ -367,6 +368,94 @@ class TelegramNotificationAdapter:
                 "[TELEGRAM TOOL] Personal chat fetch failed for %s: %s", user_id, exc
             )
             return []
+
+    async def send_ephemeral_reply(
+        self,
+        chat_id: int | str,
+        text: str,
+        receiver_user_id: int,
+        *,
+        thread_id: Optional[int] = None,
+        parse_mode: Optional[str] = None,
+        reply_markup: Optional[Dict[str, Any]] = None,
+    ) -> ToolResult:
+        """Send a private (ephemeral) reply visible only to receiver_user_id.
+
+        Bot API 10.2 — verify against a live bot before enabling in production.
+        """
+        try:
+            message = await self.bot_api10.send_ephemeral_message(
+                chat_id,
+                text,
+                receiver_user_id=receiver_user_id,
+                message_thread_id=thread_id,
+                parse_mode=parse_mode or self.default_parse_mode,
+                reply_markup=reply_markup,
+            )
+            return ToolResult(
+                tool_name="telegram.ephemeral_message",
+                success=True,
+                sent_count=1,
+                group_message_id=message.get("message_id"),
+                metadata={"chat_id": chat_id, "receiver_user_id": receiver_user_id},
+            )
+        except Exception as exc:
+            logger.warning("[TELEGRAM TOOL] Ephemeral reply failed: %s", exc)
+            return ToolResult(
+                tool_name="telegram.ephemeral_message",
+                success=False,
+                status="failed",
+                reason=str(exc),
+                metadata={"chat_id": chat_id, "receiver_user_id": receiver_user_id},
+            )
+
+    async def send_rich_group_message(
+        self,
+        chat_id: int | str,
+        *,
+        text: Optional[str] = None,
+        blocks: Optional[List[Dict[str, Any]]] = None,
+        thread_id: Optional[int] = None,
+        reply_markup: Optional[Dict[str, Any]] = None,
+    ) -> ToolResult:
+        """Send a block-structured rich message (Bot API 10.1 sendRichMessage).
+
+        Provide plain ``text`` and/or ``blocks`` (InputRichBlock* dicts). Verify the
+        block schema against a live Bot API 10.1 bot before enabling in production.
+        """
+        try:
+            rich_message = build_input_rich_message(text=text, blocks=blocks)
+            if not rich_message:
+                return ToolResult(
+                    tool_name="telegram.rich_message",
+                    success=False,
+                    status="failed",
+                    reason="rich message requires text or blocks",
+                    metadata={"chat_id": chat_id},
+                )
+            message = await self.bot_api10.send_rich_message(
+                chat_id,
+                rich_message,
+                message_thread_id=thread_id,
+                reply_markup=reply_markup,
+            )
+            return ToolResult(
+                tool_name="telegram.rich_message",
+                success=True,
+                sent_count=1,
+                group_message_id=message.get("message_id"),
+                metadata={"chat_id": chat_id, "thread_id": thread_id},
+            )
+        except Exception as exc:
+            logger.warning("[TELEGRAM TOOL] Rich message send failed: %s", exc)
+            return ToolResult(
+                tool_name="telegram.rich_message",
+                success=False,
+                status="failed",
+                reason=str(exc),
+                failed_targets=[{"chat_id": chat_id, "error": str(exc)}],
+                metadata={"chat_id": chat_id, "thread_id": thread_id},
+            )
 
 
 class AmoCRMLeadAdapter:

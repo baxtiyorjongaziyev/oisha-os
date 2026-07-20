@@ -113,3 +113,36 @@ async def test_fetch_user_personal_chat_messages_is_error_safe():
         side_effect=RuntimeError("forbidden")
     )
     assert await adapter.fetch_user_personal_chat_messages(777) == []
+
+
+@pytest.mark.asyncio
+async def test_send_ephemeral_reply_forwards_receiver():
+    adapter = TelegramNotificationAdapter("123456:fake-token")
+    adapter.bot_api10 = MagicMock()
+    adapter.bot_api10.send_ephemeral_message = AsyncMock(
+        return_value={"message_id": 321}
+    )
+
+    result = await adapter.send_ephemeral_reply(-100500, "Faqat sizga", 777)
+
+    assert result.success is True
+    assert result.group_message_id == 321
+    kwargs = adapter.bot_api10.send_ephemeral_message.await_args.kwargs
+    assert kwargs["receiver_user_id"] == 777
+
+
+@pytest.mark.asyncio
+async def test_send_rich_group_message_requires_content():
+    adapter = TelegramNotificationAdapter("123456:fake-token")
+    adapter.bot_api10 = MagicMock()
+    adapter.bot_api10.send_rich_message = AsyncMock(return_value={"message_id": 9})
+
+    empty = await adapter.send_rich_group_message(-100500)
+    assert empty.success is False
+    adapter.bot_api10.send_rich_message.assert_not_awaited()
+
+    ok = await adapter.send_rich_group_message(-100500, text="Salom")
+    assert ok.success is True
+    assert ok.group_message_id == 9
+    rich_message = adapter.bot_api10.send_rich_message.await_args.args[1]
+    assert rich_message == {"text": "Salom"}

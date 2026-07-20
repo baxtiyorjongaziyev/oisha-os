@@ -69,12 +69,21 @@ Telegram qatlamining to'liq auditi davomida aniqlangan va shu PR'da hal qilingan
   (webhook / long-poll / telethon, `boot.py:570-602`), streaming/guest/bot-to-bot
   adapterlari (`tool_adapters.py`).
 
-### Keyingi bosqich (hali qilinmagan — live bot testi kerak)
+### Implement qilindi (scaffolding — live bot verifikatsiyasi kerak)
 
-- **Rich Text for Bots** — 32K belgigacha formatlangan javoblar; enterprise reporter
-  va dashboard javoblarida sinash. Live bot bilan tekshirish kerak.
-- **Ephemeral (private) replies** — Hisobchi tasdiqlari / xatolik / menyu javoblari
-  guruh tarixini to'ldirmasligi uchun. Bot API metodi live sinovni talab qiladi.
+Rasmiy Bot API changelog asosida (core.telegram.org/bots/api#recent-changes):
+
+- **Rich Text for Bots** (Bot API 10.1, `sendRichMessage` + `InputRichMessage`) —
+  `TelegramBotAPI10Client.send_rich_message()` va helper `build_input_rich_message()`
+  (+ `rich_paragraph`, `rich_section_heading`). Adapter: `send_rich_group_message()`.
+- **Ephemeral (private) replies** (Bot API 10.2, `receiver_user_id` +
+  `deleteEphemeralMessage`) — `send_ephemeral_message()` / `delete_ephemeral_message()`.
+  Adapter: `send_ephemeral_reply()`.
+
+> ⚠️ **Verifikatsiya:** bu metodlar rasmiy API changelog nomlariga muvofiq yozilgan
+> va unit-test (payload shaping) bilan qoplangan, lekin **ishlaydigan Bot API 10.1/10.2
+> bot bilan live sinovdan o'tkazilmagan** — `InputRichBlock*` schema va ephemeral
+> ko'rinish xatti-harakati production'da yoqishdan oldin tasdiqlanishi shart.
 
 ## Manbalar
 

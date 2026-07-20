@@ -7,12 +7,15 @@ from src.services.core.telegram.telegram_ai_features import (
     TelegramBotAPI10Client,
     TelegramBotAPIError,
     TelegramBotAPILongPoller,
+    build_input_rich_message,
     build_live_feature_status,
     build_offline_feature_status,
     build_text_article_result,
     classify_update,
     extract_guest_message_context,
     feature_matrix_payload,
+    rich_paragraph,
+    rich_section_heading,
 )
 
 
@@ -175,6 +178,62 @@ async def test_raw_client_exposes_poll_and_moderation_methods():
     assert hasattr(client, "delete_all_message_reactions")
     # And must NOT leak onto the long-poller, which cannot service self.call.
     assert not hasattr(TelegramBotAPILongPoller, "send_poll")
+
+
+@pytest.mark.asyncio
+async def test_raw_client_send_ephemeral_message_forwards_receiver():
+    calls = []
+
+    async def transport(method, payload):
+        calls.append((method, payload))
+        return {"ok": True, "result": {"message_id": 11}}
+
+    client = TelegramBotAPI10Client("token", transport=transport)
+    sent = await client.send_ephemeral_message(
+        -100500,
+        "Faqat sizga",
+        receiver_user_id=777,
+        parse_mode=None,
+    )
+
+    assert sent == {"message_id": 11}
+    assert calls[0][0] == "sendMessage"
+    assert calls[0][1]["receiver_user_id"] == 777
+    assert calls[0][1]["chat_id"] == -100500
+    # None values (callback_query_id, parse_mode, reply_markup, thread) are stripped.
+    assert "callback_query_id" not in calls[0][1]
+    assert "parse_mode" not in calls[0][1]
+
+
+@pytest.mark.asyncio
+async def test_raw_client_send_rich_message_builds_input_rich_message():
+    calls = []
+
+    async def transport(method, payload):
+        calls.append((method, payload))
+        return {"ok": True, "result": {"message_id": 22}}
+
+    client = TelegramBotAPI10Client("token", transport=transport)
+    rich = build_input_rich_message(
+        text="Sarlavha",
+        blocks=[rich_section_heading("Hisobot"), rich_paragraph("Matn")],
+    )
+    sent = await client.send_rich_message(-100500, rich, message_thread_id=3)
+
+    assert sent == {"message_id": 22}
+    assert calls[0][0] == "sendRichMessage"
+    assert calls[0][1]["rich_message"]["text"] == "Sarlavha"
+    assert calls[0][1]["rich_message"]["blocks"][0]["type"] == "section_heading"
+    assert calls[0][1]["message_thread_id"] == 3
+    # business_connection_id and other None options stripped.
+    assert "business_connection_id" not in calls[0][1]
+
+
+def test_build_input_rich_message_strips_empty():
+    assert build_input_rich_message() == {}
+    assert build_input_rich_message(text="hi") == {"text": "hi"}
+    only_blocks = build_input_rich_message(blocks=[rich_paragraph("p")])
+    assert only_blocks == {"blocks": [{"type": "paragraph", "text": "p"}]}
 
 
 def test_feature_status_helpers():
