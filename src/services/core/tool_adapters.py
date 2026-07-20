@@ -270,6 +270,104 @@ class TelegramNotificationAdapter:
                 metadata={"bot_username": bot_username},
             )
 
+    async def send_group_poll(
+        self,
+        chat_id: int,
+        question: str,
+        options: List[Dict[str, Any]],
+        *,
+        is_anonymous: bool = True,
+        allows_multiple_answers: bool = False,
+        members_only: Optional[bool] = None,
+        country_codes: Optional[List[str]] = None,
+        disable_notification: bool = False,
+        thread_id: Optional[int] = None,
+    ) -> ToolResult:
+        """Send a poll with Bot API 10 audience limits (members_only, country_codes)."""
+        try:
+            message = await self.bot_api10.send_poll(
+                chat_id,
+                question,
+                options,
+                is_anonymous=is_anonymous,
+                allows_multiple_answers=allows_multiple_answers,
+                members_only=members_only,
+                country_codes=country_codes,
+                disable_notification=disable_notification,
+                message_thread_id=thread_id,
+            )
+            return ToolResult(
+                tool_name="telegram.poll",
+                success=True,
+                sent_count=1,
+                group_message_id=message.get("message_id"),
+                metadata={"chat_id": chat_id, "thread_id": thread_id},
+            )
+        except Exception as exc:
+            logger.warning("[TELEGRAM TOOL] Poll send failed: %s", exc)
+            return ToolResult(
+                tool_name="telegram.poll",
+                success=False,
+                status="failed",
+                reason=str(exc),
+                failed_targets=[{"chat_id": chat_id, "error": str(exc)}],
+                metadata={"chat_id": chat_id, "thread_id": thread_id},
+            )
+
+    async def clear_message_reactions(
+        self,
+        chat_id: int | str,
+        message_id: int,
+        *,
+        user_id: Optional[int] = None,
+    ) -> ToolResult:
+        """Remove one user's reaction, or all reactions when user_id is omitted."""
+        try:
+            if user_id is not None:
+                ok = await self.bot_api10.delete_message_reaction(
+                    chat_id, message_id, user_id
+                )
+            else:
+                ok = await self.bot_api10.delete_all_message_reactions(
+                    chat_id, message_id
+                )
+            return ToolResult(
+                tool_name="telegram.reaction_cleanup",
+                success=bool(ok),
+                status="succeeded" if ok else "failed",
+                metadata={
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "user_id": user_id,
+                },
+            )
+        except Exception as exc:
+            logger.warning("[TELEGRAM TOOL] Reaction cleanup failed: %s", exc)
+            return ToolResult(
+                tool_name="telegram.reaction_cleanup",
+                success=False,
+                status="failed",
+                reason=str(exc),
+                metadata={"chat_id": chat_id, "message_id": message_id},
+            )
+
+    async def fetch_user_personal_chat_messages(
+        self,
+        user_id: int,
+        *,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Read permissioned messages from a user's public personal channel/chat."""
+        try:
+            return await self.bot_api10.get_user_personal_chat_messages(
+                user_id, limit=limit
+            )
+        except Exception as exc:
+            logger.warning(
+                "[TELEGRAM TOOL] Personal chat fetch failed for %s: %s", user_id, exc
+            )
+            return []
+
 
 class AmoCRMLeadAdapter:
     tool_name = "amocrm_leads"
