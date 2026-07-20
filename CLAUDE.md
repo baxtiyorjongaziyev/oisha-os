@@ -55,13 +55,20 @@ bandit -r src/ -ll -x src/services/debug/ --quiet
 ### Pre-flight checklist (run before every PR — see AGENTS.md)
 ```bash
 SKIP_LIVE=1 python -m pytest -q --tb=short
-bandit -r src/ -ll -x src/services/debug/
+bandit -r src/ -ll
 ```
+> `AGENTS.md` Rule 4 requires the pre-flight scan without exclusions. The CI/security
+> gate (above) additionally passes `-x src/services/debug/ --quiet`; keep them distinct.
 
 ### Run the Python app locally
 ```bash
-# Requires a populated .env (copy from .env.example)
-python src/main.py
+# Requires a populated .env (copy from .env.example).
+# .env.example ships ALLOW_LOCAL_RUN=0, which trips the Anti-Local Execution Lock
+# in boot.py (the process exits before wiring services). To run on a dev machine:
+#   1. Set ALLOW_LOCAL_RUN=1
+#   2. Use a DEDICATED, non-production Telegram session (never the Oracle-owned
+#      USERBOT_SESSION_STRING) or you will invalidate prod with AuthKeyDuplicatedError.
+ALLOW_LOCAL_RUN=1 python src/main.py
 ```
 
 ### TypeScript monorepo (root apps/ + packages/)
@@ -181,8 +188,10 @@ Two local ports: upstream `127.0.0.1:8765/mcp`, owner-approval gateway `127.0.0.
 Telegram. Neither port may be exposed publicly (Nginx).
 
 ### Database
-- Primary: Turso (`TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`) for cloud/production
-- Local: SQLite via `DATABASE_URL=file:oisha.db`
+- Primary: Turso — the connection layer reads `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`
+- Local fallback: SQLite at `data/bot.db` (the default `Database()` path when Turso is
+  unset). Note: `settings.DATABASE_URL` exists but is **not** used to pick the local file —
+  the local DB is always `data/bot.db`.
 - All writes go through `database_pool.py` — never open raw connections
 - Schema: leads, daily_plans, job_traces, agent_state, tasks (incl. Frog fields), finance tables
 
@@ -197,8 +206,9 @@ BOT_TOKEN                Telegram bot token
 USERBOT_SESSION_STRING   Telethon userbot session (Oracle-owned in prod)
 GEMINI_API_KEY           Google Gemini
 AMOCRM_CLIENT_ID / AMOCRM_CLIENT_SECRET / AMOCRM_SUBDOMAIN   AmoCRM OAuth
-DATABASE_URL             Local SQLite (file:oisha.db) or libsql URL
-TURSO_AUTH_TOKEN         Turso auth (with TURSO_DATABASE_URL in cloud)
+TURSO_DATABASE_URL / TURSO_AUTH_TOKEN   Turso cloud DB (production). Unset ⇒ local
+                                        SQLite at data/bot.db (DATABASE_URL is not
+                                        consulted for the local path)
 ```
 
 Common optional groups:
