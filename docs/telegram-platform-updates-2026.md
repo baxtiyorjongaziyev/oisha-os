@@ -10,7 +10,7 @@
 
 Oisha-OS'ning Telegram AI qatlami (`src/services/core/telegram/telegram_ai_features.py`)
 Telegram'ning **2026-yil 7-may "AI Bot Revolution"** e'loniga to'g'ridan-to'g'ri asoslangan:
-guest AI mode, bot-to-bot chat, va streaming javoblar allaqachon `settings.py`da
+guest AI mode, bot-to-bot chat, va streaming javoblar allaqachon `src/settings.py`da
 bayroqlar bilan qo'llab-quvvatlanadi. Yangi (hali kodda yo'q) imkoniyatlar: **rich text
 for bots**, **AI Guardians**, **ephemeral (private) bot replies**, va **Communities**.
 
@@ -18,12 +18,12 @@ for bots**, **AI Guardians**, **ephemeral (private) bot replies**, va **Communit
 
 | Telegram xususiyati | E'lon | Oisha-OS holati | Bog'liq joy |
 |---|---|---|---|
-| **Guest AI Bots** (botni a'zo bo'lmagan chatda `@username` bilan chaqirish) | 7-May-2026 | ✅ Bor | `TELEGRAM_AI_GUEST_MODE_ENABLED` (`settings.py:54`) |
-| **Bot-to-Bot chats** (bot boshqa botga javob beradi) | 7-May-2026 | ✅ Bor | `TELEGRAM_BOT_TO_BOT_ENABLED` (`settings.py:56`) |
-| **Streaming javoblar** (matn generatsiya bo'lishi bilan oqim) | 7-May-2026 | ✅ Bor | `TELEGRAM_AI_STREAMING_ENABLED` (`settings.py:55`), `telegram/streaming.py` |
-| **Bots Managed by Bots** (botni bot boshqaradi) | 31-Mar-2026 | ⚙️ Bayroq bor, default off | `TELEGRAM_MANAGED_BOTS_ENABLED` (`settings.py:57`) |
+| **Guest AI Bots** (botni a'zo bo'lmagan chatda `@username` bilan chaqirish) | 7-May-2026 | ✅ Bor | `TELEGRAM_AI_GUEST_MODE_ENABLED` (`src/settings.py:54`) |
+| **Bot-to-Bot chats** (bot boshqa botga javob beradi) | 7-May-2026 | ✅ Bor | `TELEGRAM_BOT_TO_BOT_ENABLED` (`src/settings.py:56`) |
+| **Streaming javoblar** (matn generatsiya bo'lishi bilan oqim) | 7-May-2026 | ✅ Bor | `TELEGRAM_AI_STREAMING_ENABLED` (`src/settings.py:55`), `src/services/core/telegram/streaming.py` |
+| **Bots Managed by Bots** (botni bot boshqaradi) | 31-Mar-2026 | ⚙️ Bayroq bor, default off | `TELEGRAM_MANAGED_BOTS_ENABLED` (`src/settings.py:57`) |
 | **Rich Text for Bots** (jadval, heading, media carousel, 32K belgigacha) | 11-Iyun-2026 | ❌ Gap | admin/guest bot javoblari |
-| **AI Guardians for Groups** (AI moderator, join-request skrining) | 11-Iyun-2026 | ❌ Gap (bizda custom `agent_policy.py` bor) | guruh moderatsiyasi |
+| **AI Guardians for Groups** (AI moderator, join-request skrining) | 11-Iyun-2026 | ❌ Gap (bizda custom `src/services/core/agent_policy.py` bor) | guruh moderatsiyasi |
 | **Ephemeral / private bot replies** (faqat bitta userga ko'rinadigan javob) | 14-Iyul-2026 | ❌ Gap | Hisobchi/xatolik/menyu javoblari |
 | **Communities** (guruh+kanallarni birlashtirish) | 14-Iyul-2026 | ❌ Gap | lead scraping struktura |
 
@@ -43,8 +43,8 @@ kontekst cheklovini hisobga olish kerak (bot to'liq tarixni ko'rmaydi).
    guruh tarixini to'ldirmasligi uchun private ko'rinishda yuborilishi mumkin. Bu MCP
    approval kartalari va `/kirim`/`/chiqim` javoblarida shovqinni kamaytiradi.
 3. **AI Guardians** (11-Iyun) — native join-request skrining bizning manual guruh
-   boshqaruvini qisman avtomatlashtirishi mumkin; `agent_policy.py` guardrails bilan
-   qanday birga ishlashini baholash kerak.
+   boshqaruvini qisman avtomatlashtirishi mumkin; `src/services/core/agent_policy.py`
+   guardrails bilan qanday birga ishlashini baholash kerak.
 4. **Ephemeral messages ≠ o'chib ketuvchi user xabarlari** — bu bot-generated private
    javoblar. Shuning uchun lead/finance scraping'ga (message history yo'qolishi) **ta'sir
    qilmaydi** — dastlabki xavotir tasdiqlanmadi.
