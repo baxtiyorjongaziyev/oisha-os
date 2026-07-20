@@ -61,9 +61,16 @@ Telegram qatlamining to'liq auditi davomida aniqlangan va shu PR'da hal qilingan
   regression testi (`tests/test_telegram_ai_features.py`).
 - **Yangi adapterlar (qo'shildi):** tuzatilgan metodlar endi
   `TelegramNotificationAdapter`ga ulandi — `send_group_poll` (members_only /
-  country_codes audience limitlari bilan), `clear_message_reactions` (bitta user
-  yoki hammasi), `fetch_user_personal_chat_messages` (xatoga chidamli). Har biri
-  `ToolResult` qaytaradi (`tests/test_tool_adapters.py`).
+  country_codes audience limitlari bilan), `clear_message_reactions` (faqat bitta
+  user reaction'i — quyidagi eslatmaga qarang), `fetch_user_personal_chat_messages`
+  (xatoga chidamli). Har biri `ToolResult` qaytaradi (`tests/test_tool_adapters.py`).
+
+> ⚠️ **Reaction/poll metodlari — live verifikatsiya kerak.** Bu metodlar (relocatsiya
+> bug fix'idan tashqari) rasmiy Bot API 10 nomlariga muvofiq, lekin ishlaydigan bot
+> bilan tasdiqlanmagan. Xususan `deleteAllMessageReactions` **actor-scoped** (`chat_id`
+> + `user_id`/`actor_chat_id`, `message_id` emas) — shuning uchun "bitta xabardan barcha
+> reaction'ni o'chirish" yo'li adapterga **ataylab chiqarilmadi**; faqat bitta userning
+> reaction'ini olib tashlash (`deleteMessageReaction`) ekspoz qilingan.
 - **Tekshirildi (to'g'ri):** userbot Telethon init (API_ID/API_HASH + cloud
   StringSession fallback, `boot.py:360-385`), Bot API 10 ingress rejimlari
   (webhook / long-poll / telethon, `boot.py:570-602`), streaming/guest/bot-to-bot

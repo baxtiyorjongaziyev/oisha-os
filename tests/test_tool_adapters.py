@@ -84,20 +84,17 @@ async def test_send_group_poll_forwards_bot_api_10_limits():
 
 
 @pytest.mark.asyncio
-async def test_clear_message_reactions_targets_single_user_or_all():
+async def test_clear_message_reactions_removes_single_user_reaction():
     adapter = TelegramNotificationAdapter("123456:fake-token")
     adapter.bot_api10 = MagicMock()
     adapter.bot_api10.delete_message_reaction = AsyncMock(return_value=True)
     adapter.bot_api10.delete_all_message_reactions = AsyncMock(return_value=True)
 
-    one = await adapter.clear_message_reactions(-100123, 55, user_id=777)
+    one = await adapter.clear_message_reactions(-100123, 55, 777)
     assert one.success is True
     adapter.bot_api10.delete_message_reaction.assert_awaited_once_with(-100123, 55, 777)
+    # The unverified, actor-scoped "delete all" path is intentionally not surfaced.
     adapter.bot_api10.delete_all_message_reactions.assert_not_awaited()
-
-    every = await adapter.clear_message_reactions(-100123, 55)
-    assert every.success is True
-    adapter.bot_api10.delete_all_message_reactions.assert_awaited_once_with(-100123, 55)
 
 
 @pytest.mark.asyncio

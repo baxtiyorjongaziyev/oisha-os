@@ -583,11 +583,19 @@ class TelegramBotAPI10Client:
     async def delete_all_message_reactions(
         self,
         chat_id: int | str,
-        message_id: int,
+        *,
+        user_id: Optional[int] = None,
+        actor_chat_id: Optional[int | str] = None,
     ) -> bool:
+        """Remove an actor's recent reactions in a chat (Bot API 10, actor-scoped).
+
+        Per the changelog this is scoped to an actor (``user_id`` or ``actor_chat_id``),
+        not to a single message. Unverified here — confirm against a live Bot API 10 bot
+        before production use.
+        """
         result = await self.call(
             "deleteAllMessageReactions",
-            {"chat_id": chat_id, "message_id": message_id},
+            {"chat_id": chat_id, "user_id": user_id, "actor_chat_id": actor_chat_id},
         )
         return bool(result)
 

@@ -319,19 +319,19 @@ class TelegramNotificationAdapter:
         self,
         chat_id: int | str,
         message_id: int,
-        *,
-        user_id: Optional[int] = None,
+        user_id: int,
     ) -> ToolResult:
-        """Remove one user's reaction, or all reactions when user_id is omitted."""
+        """Remove a specific user's reaction from a message (Bot API 10 deleteMessageReaction).
+
+        Only single-actor removal is exposed. deleteAllMessageReactions is actor-scoped
+        (chat_id + user_id/actor_chat_id, not message-scoped), so a "clear every reaction
+        on this message" call is intentionally not modeled here. Verify reaction methods
+        against a live Bot API 10 bot before production use.
+        """
         try:
-            if user_id is not None:
-                ok = await self.bot_api10.delete_message_reaction(
-                    chat_id, message_id, user_id
-                )
-            else:
-                ok = await self.bot_api10.delete_all_message_reactions(
-                    chat_id, message_id
-                )
+            ok = await self.bot_api10.delete_message_reaction(
+                chat_id, message_id, user_id
+            )
             return ToolResult(
                 tool_name="telegram.reaction_cleanup",
                 success=bool(ok),
