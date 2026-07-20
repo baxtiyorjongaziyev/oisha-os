@@ -55,6 +55,11 @@ class AppSettings(BaseSettings):
     TELEGRAM_AI_STREAMING_ENABLED: bool = True
     TELEGRAM_BOT_TO_BOT_ENABLED: bool = True
     TELEGRAM_MANAGED_BOTS_ENABLED: bool = False
+    TELEGRAM_BOT_RUNTIME_BACKEND: str = "telethon"  # telethon | aiogram, send-only migration flag
+    TELEGRAM_ADMIN_AIOGRAM_DISPATCHER_ENABLED: bool = False
+    OISHA_COMMAND_CENTER_DIGEST_ENABLED: bool = False
+    OISHA_COMMAND_CENTER_DIGEST_HOUR: int = 9
+    OISHA_COMMAND_CENTER_DIGEST_MINUTE: int = 5
     TELEGRAM_MINI_APP_URL: Optional[str] = None
     API_ID: int = 0
     API_HASH: str = ""
