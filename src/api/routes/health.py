@@ -100,7 +100,7 @@ async def liveness_probe():
         checks["db_ok"] = True
 
     userbot_authorized = runtime.get("userbot_authorized", False)
-    if not userbot_authorized and api_state.user_client:
+    if not control_plane_mode and not userbot_authorized and api_state.user_client:
         try:
             userbot_authorized = await asyncio.wait_for(
                 api_state.user_client.is_user_authorized(), timeout=2.0
@@ -170,6 +170,10 @@ async def production_readiness_probe():
     now = get_local_now()
     checks: Dict[str, Any] = {}
     problems: List[str] = []
+    runtime = get_runtime_context()
+    scheduler_mode = runtime.get("scheduler_mode", "persistent")
+    runtime_source = runtime.get("runtime_source", "unknown")
+    control_plane_mode = scheduler_mode == "control-plane" or runtime_source == "vm_service"
 
     if api_state.db_instance is not None:
         try:
@@ -190,19 +194,20 @@ async def production_readiness_probe():
         checks["database"] = "no_instance"
 
     userbot_ok = False
-    if api_state.user_client is not None:
+    if control_plane_mode:
+        checks["userbot"] = "delegated"
+    elif api_state.user_client is not None:
         try:
             userbot_ok = await asyncio.wait_for(
                 api_state.user_client.is_user_authorized(), timeout=2.0
             )
         except Exception:
             userbot_ok = False
-    checks["userbot"] = "authorized" if userbot_ok else "unauthorized"
+        checks["userbot"] = "authorized" if userbot_ok else "unauthorized"
+    else:
+        checks["userbot"] = "unauthorized"
 
-    runtime = get_runtime_context()
-    scheduler_mode = runtime.get("scheduler_mode", "persistent")
-    runtime_source = runtime.get("runtime_source", "unknown")
-    if not userbot_ok and scheduler_mode != "control-plane" and runtime_source != "vm_service":
+    if not userbot_ok and not control_plane_mode:
         problems.append("userbot_unauthorized")
 
     amocrm_ok = False
