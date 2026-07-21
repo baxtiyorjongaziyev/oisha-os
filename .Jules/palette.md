@@ -83,3 +83,7 @@
 ## 2024-07-14 - Semantic Interactive Table Headers
 **Learning:** Table header cells (`<th>`) acting as sort toggles lack native keyboard support and semantic meaning when bound directly with `onClick` and plain text arrows.
 **Action:** Always wrap interactive header content in `<button type="button">`, include `aria-label`s, apply `focus-visible:ring-2` styling, and use semantic SVGs for directional feedback instead of raw text like "▲" and "▼".
+
+## 2023-10-27 - [Semantic Icons over Characters for Action Menus]
+**Learning:** Action menus in data tables often rely on raw text characters like "⋯" for triggers, leading to inconsistent rendering and lack of keyboard navigation styles. Also missing were proper ARIA attributes to indicate a popup menu was attached.
+**Action:** Always replace raw text characters for menu triggers with semantic SVG icons and an explicit `aria-label`. Ensure the button uses `aria-haspopup` and `aria-expanded`, wrap the popup container with `role="menu"`, and explicitly add `focus-visible:ring` (such as a destructive ring for delete actions) to menu items.
