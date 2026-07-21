@@ -252,8 +252,12 @@ ALLOW_LOCAL_RUN, ENABLE_CLOUD_USERBOT, SURGICAL_MODE, ENABLE_AI_NEGOTIATION
 
 - `services/core/agent_policy.py` — blocks actions during quiet-hours
   (23:00–07:00 Tashkent), requires approval for destructive CRM actions
-- `services/core/auto_reply_gate.py` — gates autonomous Telegram replies behind
-  `ENABLE_AUTO_REPLY` / `AUTO_REPLY_MODE`
+- `services/core/auto_reply_gate.py` — gates autonomous Telegram replies via
+  `AUTO_REPLY_MODE` (off / shadow / vip_only / live / auto) plus a DB kill-switch.
+  Default when unset is **shadow** (fail-safe: draft for Owner approval, never
+  auto-send); shadow never auto-sends even on @mention. Private DMs are hard-blocked
+  from auto-reply in the handler regardless of mode. (Note: `ENABLE_AUTO_REPLY` exists
+  in settings but is not wired into this reply path.)
 - `WHITELIST_IDS` / `OWNER_ID` — only whitelisted Telegram IDs get full agent capabilities
 - Telegram MCP mutations are owner-approved; MCP ports stay private
 - `src/services/debug/` — excluded from bandit, must NEVER be imported in production
