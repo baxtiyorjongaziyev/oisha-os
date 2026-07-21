@@ -1,6 +1,16 @@
 import React from 'react';
+import { getCrmDashboardStats } from '@/lib/apiClient';
 
-export default function TasksDashboard() {
+export const dynamic = 'force-dynamic';
+
+export default async function TasksDashboard() {
+  const stats = await getCrmDashboardStats();
+
+  const todoCount = stats?.tasks.pending || 0;
+  const overdueCount = stats?.tasks.overdue || 0;
+  const doneCount = stats?.tasks.completed_today || 0;
+  
+  // TODO: Fetch detailed tasks list from a backend endpoint when available
   const dummyTasks = [
     { id: 1, title: 'Oisha-OS yangi dizayni', assignee: 'Sardor', priority: 'High', status: 'In Progress', deadline: '2026-07-25' },
     { id: 2, type: 'AmoCRM integratsiyasi', assignee: 'Bekzod', priority: 'Medium', status: 'Todo', deadline: '2026-07-28' },
@@ -16,28 +26,31 @@ export default function TasksDashboard() {
         </button>
       </div>
 
-      <div className="grid grid-cols-4 gap-6">
-        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm border-l-4 border-l-gray-300">
-          <p className="text-sm font-medium text-gray-500">Qilinishi kerak (Todo)</p>
-          <p className="mt-2 text-2xl font-bold text-gray-900">12</p>
+      {!stats ? (
+        <div className="border border-rose-300 bg-rose-50 p-4 rounded-xl text-sm text-rose-700">
+          Real vazifalar statistikasi topilmadi. Backend bilan aloqa yo'q.
         </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm border-l-4 border-l-blue-500">
-          <p className="text-sm font-medium text-gray-500">Jarayonda (In Progress)</p>
-          <p className="mt-2 text-2xl font-bold text-gray-900">8</p>
+          <p className="text-sm font-medium text-gray-500">Bajarilishi kutilayotgan (Pending)</p>
+          <p className="mt-2 text-3xl font-bold text-blue-600">{todoCount}</p>
         </div>
-        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm border-l-4 border-l-yellow-500">
-          <p className="text-sm font-medium text-gray-500">Tekshiruvda (Review)</p>
-          <p className="mt-2 text-2xl font-bold text-gray-900">3</p>
+        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm border-l-4 border-l-red-500">
+          <p className="text-sm font-medium text-gray-500">Kechikkan (Overdue)</p>
+          <p className="mt-2 text-3xl font-bold text-red-600">{overdueCount}</p>
         </div>
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm border-l-4 border-l-green-500">
-          <p className="text-sm font-medium text-gray-500">Bajarildi (Done)</p>
-          <p className="mt-2 text-2xl font-bold text-gray-900">24</p>
+          <p className="text-sm font-medium text-gray-500">Bugun bajarildi (Done)</p>
+          <p className="mt-2 text-3xl font-bold text-green-600">{doneCount}</p>
         </div>
       </div>
 
       <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-        <div className="border-b border-gray-100 px-6 py-4">
-          <h2 className="font-semibold text-gray-900">Faol Vazifalar</h2>
+        <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900">Faol Vazifalar (Demo)</h2>
+          <span className="text-xs text-gray-400">Backend API kutilmoqda...</span>
         </div>
         <table className="w-full text-left text-sm text-gray-600">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
