@@ -22,7 +22,7 @@ export default function CallsPage() {
   const [directionFilter, setDirectionFilter] = useState<string>("Barchasi");
   const [serviceFilter, setServiceFilter] = useState<string>("Barchasi");
   const [managerFilter, setManagerFilter] = useState<string>("Barchasi");
-  
+
   // Sorting state
   const [sortKey, setSortKey] = useState<keyof CallData>("date");
   const [sortAsc, setSortAsc] = useState(false);
@@ -38,18 +38,22 @@ export default function CallsPage() {
       })
       .then((payload) => {
         const rows = Array.isArray(payload.calls) ? payload.calls : [];
-        setCalls(rows.map((call: Record<string, unknown>) => ({
-          id: String(call.id ?? ""),
-          date: String(call.analyzed_at ?? ""),
-          manager: String(call.manager ?? "Noma'lum manager"),
-          direction: "Kiruvchi" as const,
-          duration: String(call.duration ?? "00:00"),
-          status: String(call.result ?? "Tahlil qilindi"),
-          score: call.score === undefined ? "-" : `${call.score}%`,
-          family: String(call.category ?? "Noma'lum"),
-          service: String(call.client ?? "Noma'lum mijoz")
-        })));
-        setLoadError(payload.real_data === false ? String(payload.message ?? "Real tahlillar topilmadi") : "");
+        setCalls(
+          rows.map((call: Record<string, unknown>) => ({
+            id: String(call.id ?? ""),
+            date: String(call.analyzed_at ?? ""),
+            manager: String(call.manager ?? "Noma'lum manager"),
+            direction: "Kiruvchi" as const,
+            duration: String(call.duration ?? "00:00"),
+            status: String(call.result ?? "Tahlil qilindi"),
+            score: call.score === undefined ? "-" : `${call.score}%`,
+            family: String(call.category ?? "Noma'lum"),
+            service: String(call.client ?? "Noma'lum mijoz")
+          }))
+        );
+        setLoadError(
+          payload.real_data === false ? String(payload.message ?? "Real tahlillar topilmadi") : ""
+        );
       })
       .catch((error: Error) => setLoadError(`Real API ulanmagan: ${error.message}`));
   }, []);
@@ -67,7 +71,7 @@ export default function CallsPage() {
   const sortedCalls = [...filteredCalls].sort((a, b) => {
     let valA: string | number = a[sortKey];
     let valB: string | number = b[sortKey];
-    
+
     // Custom logic for score parsing or empty values
     if (sortKey === "score") {
       valA = a.score === "—" ? -1 : parseInt(a.score);
@@ -90,7 +94,7 @@ export default function CallsPage() {
 
   const handleDeleteCall = (id: string) => {
     if (confirm("Ushbu qo'ng'iroq tahlilini ro'yxatdan o'chirishni xohlaysizmi?")) {
-      setCalls(calls.filter(c => c.id !== id));
+      setCalls(calls.filter((c) => c.id !== id));
       setActiveActionsMenu(null);
     }
   };
@@ -101,7 +105,8 @@ export default function CallsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-text">Qo&apos;ng&apos;iroqlar</h1>
         <p className="text-xs text-text-muted mt-1">
-          Barcha yozib olingan va AI tomonidan tahlil qilingan qo&apos;ng&apos;iroqlar ro&apos;yxati.
+          Barcha yozib olingan va AI tomonidan tahlil qilingan qo&apos;ng&apos;iroqlar
+          ro&apos;yxati.
         </p>
         {loadError ? <p className="mt-2 text-xs text-amber-600">{loadError}</p> : null}
       </div>
@@ -109,7 +114,7 @@ export default function CallsPage() {
       {/* Filter panel */}
       <div className="rounded-3xl border border-border bg-bg-card p-5 shadow-sm space-y-4">
         <h3 className="text-xs font-bold text-text uppercase tracking-wider">Filtrlar</h3>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {/* Status Filter */}
           <div>
@@ -130,7 +135,9 @@ export default function CallsPage() {
 
           {/* Direction Filter */}
           <div>
-            <label className="text-[10px] font-bold text-text-muted uppercase block">Yo&apos;nalishi</label>
+            <label className="text-[10px] font-bold text-text-muted uppercase block">
+              Yo&apos;nalishi
+            </label>
             <select
               value={directionFilter}
               onChange={(e) => setDirectionFilter(e.target.value)}
@@ -144,7 +151,9 @@ export default function CallsPage() {
 
           {/* Service Filter */}
           <div>
-            <label className="text-[10px] font-bold text-text-muted uppercase block">Xizmat turi</label>
+            <label className="text-[10px] font-bold text-text-muted uppercase block">
+              Xizmat turi
+            </label>
             <select
               value={serviceFilter}
               onChange={(e) => setServiceFilter(e.target.value)}
@@ -194,8 +203,19 @@ export default function CallsPage() {
                     >
                       Sana
                       {sortKey === "date" && (
-                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        <svg
+                          aria-hidden="true"
+                          className={`h-3 w-3 transition-transform ${sortAsc ? "rotate-180" : ""}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                          />
                         </svg>
                       )}
                     </button>
@@ -209,8 +229,19 @@ export default function CallsPage() {
                     >
                       Menejer
                       {sortKey === "manager" && (
-                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        <svg
+                          aria-hidden="true"
+                          className={`h-3 w-3 transition-transform ${sortAsc ? "rotate-180" : ""}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                          />
                         </svg>
                       )}
                     </button>
@@ -224,8 +255,19 @@ export default function CallsPage() {
                     >
                       Yo&apos;nalish
                       {sortKey === "direction" && (
-                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        <svg
+                          aria-hidden="true"
+                          className={`h-3 w-3 transition-transform ${sortAsc ? "rotate-180" : ""}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                          />
                         </svg>
                       )}
                     </button>
@@ -239,8 +281,19 @@ export default function CallsPage() {
                     >
                       Davomiylik
                       {sortKey === "duration" && (
-                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        <svg
+                          aria-hidden="true"
+                          className={`h-3 w-3 transition-transform ${sortAsc ? "rotate-180" : ""}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                          />
                         </svg>
                       )}
                     </button>
@@ -254,8 +307,19 @@ export default function CallsPage() {
                     >
                       Holat
                       {sortKey === "status" && (
-                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        <svg
+                          aria-hidden="true"
+                          className={`h-3 w-3 transition-transform ${sortAsc ? "rotate-180" : ""}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                          />
                         </svg>
                       )}
                     </button>
@@ -269,8 +333,19 @@ export default function CallsPage() {
                     >
                       Suhbat sifati
                       {sortKey === "score" && (
-                        <svg aria-hidden="true" className={`h-3 w-3 transition-transform ${sortAsc ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        <svg
+                          aria-hidden="true"
+                          className={`h-3 w-3 transition-transform ${sortAsc ? "rotate-180" : ""}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                          />
                         </svg>
                       )}
                     </button>
@@ -281,27 +356,34 @@ export default function CallsPage() {
               </thead>
               <tbody>
                 {sortedCalls.map((call) => (
-                  <tr key={call.id} className="border-b border-border/50 hover:bg-bg/40 transition-colors">
+                  <tr
+                    key={call.id}
+                    className="border-b border-border/50 hover:bg-bg/40 transition-colors"
+                  >
                     <td className="py-3.5 px-3 font-medium text-text">{call.date}</td>
                     <td className="py-3.5 px-3 text-text">{call.manager}</td>
                     <td className="py-3.5 px-3">
-                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                        call.direction === "Kiruvchi"
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
-                          : "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
-                      }`}>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                          call.direction === "Kiruvchi"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                            : "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400"
+                        }`}
+                      >
                         {call.direction}
                       </span>
                     </td>
                     <td className="py-3.5 px-3 text-text-muted font-mono">{call.duration}</td>
                     <td className="py-3.5 px-3">
-                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                        call.status === "Bog'langan"
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
-                          : call.status === "Xatolik"
-                          ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400"
-                          : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
-                      }`}>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                          call.status === "Bog'langan"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400"
+                            : call.status === "Xatolik"
+                              ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+                        }`}
+                      >
                         {call.status}
                       </span>
                     </td>
@@ -318,28 +400,51 @@ export default function CallsPage() {
                         >
                           👁 Tahlil
                         </Link>
-                        
+
                         {/* 3 dots action menu */}
                         <div className="relative">
                           <button
-                            onClick={() => setActiveActionsMenu(activeActionsMenu === call.id ? null : call.id)}
-                            className="rounded-xl p-1.5 text-text-muted hover:bg-bg transition-colors focus:outline-none"
+                            onClick={() =>
+                              setActiveActionsMenu(activeActionsMenu === call.id ? null : call.id)
+                            }
+                            aria-label="Amallar menyusi"
+                            aria-haspopup="true"
+                            aria-expanded={activeActionsMenu === call.id}
+                            className="rounded-xl p-1.5 text-text-muted hover:bg-bg hover:text-brand transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                           >
-                            ⋯
+                            <svg
+                              aria-hidden="true"
+                              className="h-5 w-5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"
+                              />
+                            </svg>
                           </button>
-                          
+
                           {activeActionsMenu === call.id && (
-                            <div className="absolute right-0 mt-1 w-28 rounded-xl border border-border bg-bg-popover p-1 shadow-lg z-10 animate-fade-in text-left">
+                            <div
+                              role="menu"
+                              className="absolute right-0 mt-1 w-28 rounded-xl border border-border bg-bg-popover p-1 shadow-lg z-10 animate-fade-in text-left"
+                            >
                               <Link
                                 href={`/calls/${call.id}`}
-                                className="block rounded-lg px-3 py-1.5 text-xs text-text hover:bg-bg transition-colors"
+                                role="menuitem"
+                                className="block rounded-lg px-3 py-1.5 text-xs text-text hover:bg-bg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                                 onClick={() => setActiveActionsMenu(null)}
                               >
                                 Ko&apos;rish
                               </Link>
                               <button
                                 onClick={() => handleDeleteCall(call.id)}
-                                className="w-full block rounded-lg px-3 py-1.5 text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-left transition-colors"
+                                role="menuitem"
+                                className="w-full block rounded-lg px-3 py-1.5 text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1"
                               >
                                 O&apos;chirish
                               </button>
