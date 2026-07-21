@@ -152,8 +152,8 @@ class ConversationEngine:
                 logger.warning(f"[ENGINE] No transcript for call {call_record.call_id}")
                 return None
 
-            # AI tahlil
-            analysis = self.analyzer.analyze_conversation(
+            # AI tahlil (Gemini; ishlamasa evristikaga tushadi)
+            analysis = await self.analyzer.analyze_conversation_ai(
                 conversation_text=transcript,
                 conversation_id=call_record.call_id,
                 lead_id=call_record.lead_id,
