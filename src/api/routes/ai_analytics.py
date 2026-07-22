@@ -130,12 +130,14 @@ async def metasell_dashboard():
 
 
 @router.get("/coach/daily-report")
-async def coach_daily_report(day: str = ""):
+async def coach_daily_report(request: Request, day: str = ""):
     """Kunlik savdo sifati: eng yaxshi sotuvchi + o'sish nuqtalari.
 
     `day` — YYYY-MM-DD, bo'sh bo'lsa bugun. Bu hisobot har kuni 20:00 da
     Telegram'ga ham yuboriladi.
     """
+    if not _secret_check(request):
+        return _unauthorized()
     if api_state.db_instance is None:
         return _unavailable("coach_daily_report", "db_not_connected")
     try:
@@ -155,8 +157,10 @@ async def coach_daily_report(day: str = ""):
 
 
 @router.get("/coach/ideal-script")
-async def coach_ideal_script():
+async def coach_ideal_script(request: Request):
     """Eng yaxshi qo'ng'iroqlardan sintez qilingan ideal skript (taklif)."""
+    if not _secret_check(request):
+        return _unauthorized()
     if api_state.db_instance is None:
         return _unavailable("coach_ideal_script", "db_not_connected")
     try:
@@ -179,11 +183,13 @@ async def coach_ideal_script():
 
 
 @router.get("/coach/playbook-suggestions")
-async def coach_playbook_suggestions():
+async def coach_playbook_suggestions(request: Request):
     """Oxirgi hafta zaifliklari asosida playbook takliflari.
 
     Playbook avtomatik o'zgarmaydi — bu faqat tavsiya.
     """
+    if not _secret_check(request):
+        return _unauthorized()
     if api_state.db_instance is None:
         return _unavailable("coach_playbook_suggestions", "db_not_connected")
     try:
@@ -294,8 +300,14 @@ def _build_lead_classifier() -> Optional[Any]:
     """LeadClassifier — AmoCRM va Gemini kaliti bo'lsagina quriladi."""
     if api_state.amocrm_instance is None:
         return None
-    gemini_key = getattr(settings, "GEMINI_API_KEY", "") or ""
-    if not gemini_key:
+    # `GEMINI_API_KEY` — Pydantic SecretStr. O'ramni uzatib bo'lmaydi:
+    # `genai.Client` niqoblangan qiymat oladi va autentifikatsiya yiqiladi.
+    raw_key = getattr(settings, "GEMINI_API_KEY", "")
+    if hasattr(raw_key, "get_secret_value"):
+        gemini_key = raw_key.get_secret_value() or ""
+    else:
+        gemini_key = str(raw_key or "")
+    if not gemini_key.strip():
         return None
 
     from src.services.core.leads.lead_classifier import LeadClassifier

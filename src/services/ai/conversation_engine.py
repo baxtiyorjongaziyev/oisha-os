@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from collections import defaultdict
 
+from src.services.utils.db_rows import execute_write
+
 from .quality_analyzer import QualityAnalyzer, ConversationAnalysis
 from .call_analytics import CallAnalytics
 from .task_manager import AITaskManager
@@ -214,7 +216,8 @@ class ConversationEngine:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
-            await self.db.execute(
+            await execute_write(
+                self.db,
                 query,
                 (
                     analysis.conversation_id,

@@ -8,7 +8,11 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from enum import Enum
 
-from src.services.core.sales_playbook import category_for_score, rubric_prompt_uz
+from src.services.core.sales_playbook import (
+    category_for_score,
+    metric_weights,
+    rubric_prompt_uz,
+)
 from src.services.utils.transcript import speaker_split
 
 logger = logging.getLogger(__name__)
@@ -16,6 +20,11 @@ logger = logging.getLogger(__name__)
 # Ball qayerdan kelgani — natijada ochiq ko'rsatiladi.
 SCORING_METHOD_AI = "gemini"
 SCORING_METHOD_HEURISTIC = "keyword_heuristic"
+
+# Savdoga aloqasi yo'q qo'ng'iroq (shaxsiy, xizmat, tasodifiy). Savdo
+# rubrikasi qo'llanmaydi va menejer reytingiga kirmaydi.
+OUTCOME_NOT_SALES = "not_sales"
+CATEGORY_NOT_SALES = "not_sales"
 
 _GEMINI_MODEL = "gemini-1.5-flash"
 
@@ -250,18 +259,13 @@ class QualityAnalyzer:
     # Sifat kategoriyalari
     # Toifa chegaralari rasmiy playbook'da (`sales_playbook.category_for_score`).
 
-    # Ballar uchun og'irliklar
+    # Ballar uchun og'irliklar — rasmiy playbook'dan olinadi, bu yerda
+    # qo'lda yozilmaydi. Ilgari e'tiroz/yakunlash bosqichlari boshqalar
+    # bilan bir xil (0.15) edi, ya'ni playbook e'lon qilgan x2 urg'u
+    # `quality_analyzer` yo'lida qo'llanmasdi va bitta qo'ng'iroq
+    # `call_analyzer` bilan turlicha baholanardi.
     DEFAULT_WEIGHTS = {
-        QualityMetric.INTRODUCTION: 0.10,
-        QualityMetric.NEED_IDENTIFICATION: 0.15,
-        QualityMetric.VALUE_PROPOSITION: 0.15,
-        QualityMetric.OBJECTION_HANDLING: 0.15,
-        QualityMetric.CLOSING: 0.15,
-        QualityMetric.FOLLOW_UP: 0.05,
-        QualityMetric.TONE: 0.05,
-        QualityMetric.ACTIVE_LISTENING: 0.05,
-        QualityMetric.QUESTION_QUALITY: 0.05,
-        QualityMetric.TALK_RATIO: 0.10,
+        QualityMetric(metric): weight for metric, weight in metric_weights().items()
     }
 
     def __init__(
@@ -383,7 +387,9 @@ class QualityAnalyzer:
             # Ilgari bunda 30 ball qo'yilar edi, ya'ni transkripsiya formati
             # uchun menejer jazolanardi.
             skip_metrics: set = set()
-            if attributed:
+            is_sales_call = str(analysis.get("outcome") or "") != OUTCOME_NOT_SALES
+
+            if attributed and is_sales_call:
                 if client_pct >= 55:
                     talk_ratio_score = 100
                 elif client_pct >= 40:
@@ -392,8 +398,32 @@ class QualityAnalyzer:
                     talk_ratio_score = 30
                 analysis.setdefault("metric_scores", {})["talk_ratio"] = talk_ratio_score
             else:
-                client_pct = agent_pct = 0
+                if not attributed:
+                    client_pct = agent_pct = 0
                 skip_metrics.add(QualityMetric.TALK_RATIO)
+
+            if not is_sales_call:
+                # Shaxsiy/xizmat/tasodifiy qo'ng'iroq — savdo rubrikasi
+                # qo'llanmaydi. Ilgari gapirish nisbati baribir 30-100 ball
+                # berib, noldan katta umumiy ball hosil qilardi va menejer
+                # reytingiga qo'shilardi.
+                return ConversationAnalysis(
+                    conversation_id=conversation_id,
+                    lead_id=lead_id,
+                    manager_id=manager_id,
+                    manager_name=manager_name,
+                    duration_seconds=duration_seconds,
+                    overall_score=0,
+                    category=CATEGORY_NOT_SALES,
+                    scores=[],
+                    summary=analysis.get("summary", ""),
+                    talk_ratio_client=client_pct,
+                    talk_ratio_agent=agent_pct,
+                    client_mood=analysis.get("client_mood", "neutral"),
+                    outcome=OUTCOME_NOT_SALES,
+                    recommended_tasks=[],
+                    scoring_method=scoring_method,
+                )
 
             # Ballar hisoblash
             scores = self._calculate_scores(analysis, skip_metrics=skip_metrics)
@@ -797,9 +827,14 @@ class QualityAnalyzer:
             - trend
             - rank
         """
-        # Texnik xatolik natijasi (`_create_fallback_analysis` → category
-        # "unknown", ball 0) menejer reytingiga kirmaydi — bu uning ishi emas.
-        analyses = [a for a in analyses if a.category != "unknown"]
+        # Reytingdan chiqariladi:
+        #  - "unknown": texnik xatolik natijasi (`_create_fallback_analysis`),
+        #    ball 0 — bu menejerning ishi emas;
+        #  - "not_sales": shaxsiy/xizmat qo'ng'irog'i — savdo rubrikasi
+        #    qo'llanmagan, uni savdo bahosi sifatida hisoblash noto'g'ri.
+        analyses = [
+            a for a in analyses if a.category not in ("unknown", CATEGORY_NOT_SALES)
+        ]
 
         if not analyses:
             return {

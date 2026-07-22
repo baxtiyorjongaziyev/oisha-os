@@ -22,6 +22,7 @@ import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
+from src.services.utils.db_rows import fetch_rows
 from src.services.core.sales_playbook import SCORE_RED, rubric_prompt_uz
 
 logger = logging.getLogger(__name__)
@@ -73,8 +74,9 @@ class SalesQualityCoach:
         if self.db is None:
             return []
         try:
-            rows = await self.db.execute(sql, params)
-            return list(rows or [])
+            # `Database` fasadida `execute()` yo'q, `DatabasePool` da bor —
+            # ikkalasini ham qo'llab-quvvatlaydigan yordamchi orqali o'qiymiz.
+            return await fetch_rows(self.db, sql, params)
         except Exception as exc:
             logger.error("[COACH] DB read failed: %s", exc)
             return []

@@ -435,11 +435,14 @@ class BackgroundMonitor:
                     await self._job_stagnation_alert(now)
 
                 # 11. Kunlik savdo sifati hisoboti (20:00)
-                if now.hour == 20 and now.minute == 0:
+                # Sikl har 5 daqiqada aylanadi va drift bo'ladi — `minute == 0`
+                # ga tushmay ketishi mumkin. Oyna kengroq, takrorlashdan
+                # `_already_sent` himoya qiladi.
+                if now.hour == 20 and now.minute < 5:
                     await self._job_call_quality_daily(now)
 
                 # 12. Haftalik: ideal skript + playbook takliflari (dushanba 10:00)
-                if now.weekday() == 0 and now.hour == 10 and now.minute == 0:
+                if now.weekday() == 0 and now.hour == 10 and now.minute < 5:
                     await self._job_call_quality_weekly(now)
 
                 # 13. Heartbeat

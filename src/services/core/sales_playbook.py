@@ -31,6 +31,34 @@ STAGE_WEIGHTS = {
     "muloqot_sifati": 1.0,
 }
 
+# `quality_analyzer` bosqichlarni mayda metriklarga bo'lib baholaydi.
+# Qaysi metrik qaysi bosqichga tegishli ekani ham SHU YERDA turadi — aks
+# holda ikki baholovchi bir xil rubrikani turli og'irlik bilan hisoblab,
+# bitta qo'ng'iroqqa ikki xil ball qo'yadi.
+STAGE_METRICS = {
+    "salomlashish": ("introduction",),
+    "ehtiyojlar": ("need_identification", "question_quality"),
+    "qiymat": ("value_proposition",),
+    "etirozlar": ("objection_handling",),
+    "yakunlash": ("closing", "follow_up"),
+    "muloqot_sifati": ("tone", "active_listening", "talk_ratio"),
+}
+
+
+def metric_weights() -> dict[str, float]:
+    """Metrik bo'yicha normallashtirilgan og'irliklar (yig'indisi 1.0).
+
+    Bosqich og'irligi o'z metriklari orasida teng bo'linadi. Masalan
+    `yakunlash` (2.0) ikkiga bo'linadi: closing va follow_up.
+    """
+    total = sum(STAGE_WEIGHTS.values())
+    weights: dict[str, float] = {}
+    for stage, metrics in STAGE_METRICS.items():
+        share = STAGE_WEIGHTS[stage] / total / len(metrics)
+        for metric in metrics:
+            weights[metric] = share
+    return weights
+
 # ─── Qattiq qoidalar ───
 MIN_CALL_SECONDS = 180          # 3 daqiqadan qisqa savdo suhbati — yomon belgi
 IDEAL_CLIENT_TALK_PCT = 55      # mijoz kamida shuncha gapirishi kerak

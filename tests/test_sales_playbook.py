@@ -2,8 +2,10 @@
 
 from src.services.core.sales_playbook import (
     SCORE_RED,
+    STAGE_METRICS,
     STAGE_WEIGHTS,
     category_for_score,
+    metric_weights,
     rubric_prompt_uz,
 )
 
@@ -77,3 +79,70 @@ def test_both_analyzers_share_identical_rubric():
 
     rubric = rubric_prompt_uz()
     assert rubric in _build_scoring_prompt("test")
+
+
+def test_every_metric_belongs_to_exactly_one_stage():
+    from src.services.ai.quality_analyzer import QualityMetric
+
+    mapped = [m for metrics in STAGE_METRICS.values() for m in metrics]
+
+    assert sorted(mapped) == sorted(m.value for m in QualityMetric)
+    assert len(mapped) == len(set(mapped)), "metrik ikki bosqichga tegishli bo'lolmaydi"
+    assert set(STAGE_METRICS) == set(STAGE_WEIGHTS)
+
+
+def test_metric_weights_normalised_and_follow_stage_priorities():
+    weights = metric_weights()
+
+    assert abs(sum(weights.values()) - 1.0) < 1e-9
+    # E'tiroz (2.0) salomlashishdan (1.0) aynan 2 barobar og'ir
+    assert abs(weights["objection_handling"] / weights["introduction"] - 2.0) < 1e-9
+    # Bosqich og'irligi metriklari orasida teng bo'linadi
+    assert abs(weights["closing"] - weights["follow_up"]) < 1e-9
+
+
+def test_quality_analyzer_weights_come_from_playbook():
+    """Regressiya: og'irliklar qo'lda yozilib qolgan edi, x2 urg'u yo'qolardi."""
+    from src.services.ai.quality_analyzer import QualityAnalyzer, QualityMetric
+
+    weights = QualityAnalyzer.DEFAULT_WEIGHTS
+
+    assert weights == {QualityMetric(k): v for k, v in metric_weights().items()}
+
+    # Playbook e'lon qilgan urg'u BOSQICH darajasida qo'llanadi. Metrikani
+    # yakka solishtirib bo'lmaydi: `yakunlash` ikkiga bo'linadi (closing +
+    # follow_up), shuning uchun har biri alohida kichikroq ko'rinadi.
+    def stage_total(stage: str) -> float:
+        return sum(weights[QualityMetric(m)] for m in STAGE_METRICS[stage])
+
+    total = sum(STAGE_WEIGHTS.values())
+    for stage, stage_weight in STAGE_WEIGHTS.items():
+        assert abs(stage_total(stage) - stage_weight / total) < 1e-9
+
+    # E'tiroz va yakunlash (2.0) ehtiyoj va qiymatdan (1.5) og'irroq
+    assert stage_total("etirozlar") > stage_total("ehtiyojlar")
+    assert stage_total("yakunlash") > stage_total("qiymat")
+    assert abs(stage_total("etirozlar") / stage_total("salomlashish") - 2.0) < 1e-9
+
+
+def test_both_scoring_paths_agree_on_the_same_call():
+    """Bir xil bosqich ballari ikki yo'lda ham bir xil umumiy ball berishi kerak."""
+    from src.services.ai.quality_analyzer import QualityAnalyzer
+
+    # Har bosqich bo'yicha bir xil ball -> ikkala usul ham o'sha ballni beradi.
+    stage_score = 80
+
+    # call_analyzer yo'li: bosqich og'irliklari bilan
+    total_weight = sum(STAGE_WEIGHTS.values())
+    call_analyzer_score = round(
+        sum(stage_score * w for w in STAGE_WEIGHTS.values()) / total_weight
+    )
+
+    # quality_analyzer yo'li: metrik og'irliklari bilan
+    analyzer = QualityAnalyzer()
+    scores = analyzer._calculate_scores(
+        {"metric_scores": {m.value: stage_score for m in analyzer.weights}}
+    )
+    quality_analyzer_score = analyzer._calculate_overall_score(scores)
+
+    assert call_analyzer_score == quality_analyzer_score == stage_score

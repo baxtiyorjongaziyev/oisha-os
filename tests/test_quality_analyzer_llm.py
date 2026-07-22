@@ -168,3 +168,48 @@ def test_parse_llm_scores_handles_markdown_and_clamps():
     assert parsed["metric_scores"]["tone"] == 0  # raqam emas → 0
     # So'ralgan barcha metriklar mavjud.
     assert len(parsed["metric_scores"]) == 9
+
+
+# --- Savdo bo'lmagan qo'ng'iroqlar (Codex P1) ---
+
+NOT_SALES_REPLY = {
+    "metric_scores": {m: 0 for m in (
+        "introduction", "need_identification", "value_proposition",
+        "objection_handling", "closing", "follow_up", "tone",
+        "active_listening", "question_quality",
+    )},
+    "summary": "Kuryer eshik oldida turibdi.",
+    "outcome": "not_sales",
+    "client_mood": "neutral",
+}
+
+
+@pytest.mark.asyncio
+async def test_non_sales_call_scores_zero_not_partial(analyzer, monkeypatch):
+    """Gapirish nisbati savdo bo'lmagan qo'ng'iroqqa ball bermasligi kerak.
+
+    Ilgari `talk_ratio` 30-100 ball berib, noldan katta umumiy ball hosil
+    qilardi va menejer reytingiga tushardi.
+    """
+    _stub_llm(monkeypatch, json.dumps(NOT_SALES_REPLY))
+
+    result = await analyzer.analyze_conversation_ai(TRANSCRIPT, conversation_id="c1")
+
+    assert result.outcome == "not_sales"
+    assert result.overall_score == 0
+    assert result.scores == []
+    assert result.recommended_tasks == []
+
+
+@pytest.mark.asyncio
+async def test_non_sales_call_excluded_from_manager_rating(analyzer, monkeypatch):
+    _stub_llm(monkeypatch, json.dumps(NOT_SALES_REPLY))
+    not_sales = await analyzer.analyze_conversation_ai(TRANSCRIPT, conversation_id="c1")
+
+    _stub_llm(monkeypatch, json.dumps(LLM_REPLY))
+    real_call = await analyzer.analyze_conversation_ai(TRANSCRIPT, conversation_id="c2")
+
+    rating = analyzer.get_manager_rating([real_call, not_sales])
+
+    assert rating["total_calls"] == 1
+    assert rating["average_score"] == real_call.overall_score
