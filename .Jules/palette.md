@@ -83,6 +83,3 @@
 ## 2024-07-14 - Semantic Interactive Table Headers
 **Learning:** Table header cells (`<th>`) acting as sort toggles lack native keyboard support and semantic meaning when bound directly with `onClick` and plain text arrows.
 **Action:** Always wrap interactive header content in `<button type="button">`, include `aria-label`s, apply `focus-visible:ring-2` styling, and use semantic SVGs for directional feedback instead of raw text like "▲" and "▼".
-## 2026-07-22 - [UX Improvement] Add clear button and focus management to search input
-**Learning:** Users can easily make mistakes when typing search queries and often need a quick way to clear the entire input without spamming backspace. Furthermore, clearing the input visually isn't enough; the keyboard focus must be programmaticly returned to the input field so users can immediately type their new query without needing to reach for their mouse.
-**Action:** When adding a clear button ('X') to a search input, ensure it not only resets the search query state but also programmatically returns focus back to the input field (`element.focus()`) to maintain a seamless keyboard navigation flow. Additionally, ensure the clear button has an `aria-label` (e.g., 'Qidiruvni tozalash') and explicit `type="button"`.
