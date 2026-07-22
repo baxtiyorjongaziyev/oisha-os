@@ -4,7 +4,13 @@ import time
 
 import pytest
 
-from src.services.core.call_analyzer import CallAnalyzer, GeminiQuotaCooldownError
+from src.services.core.call_analyzer import (
+    CallAnalyzer,
+    GeminiQuotaCooldownError,
+    _rubric_applies,
+    _speaker_split,
+    _talk_ratio_verdict,
+)
 from src.services.utils.gemini_fallback import model_candidates
 
 
@@ -479,3 +485,61 @@ async def test_impossible_transcript_skipped_before_analysis():
     assert processed == 0
     analyze_mock.assert_not_called()
     amocrm_mock.add_lead_note.assert_not_called()
+
+
+# --- Gapirish nisbati va rubrik amal qilishi ---
+
+
+def test_speaker_split_generic_labels_not_attributed():
+    """Diarizatsiya 'A:'/'B:' bersa — nisbat hisoblanadi, lekin rol biriktirilmaydi."""
+    transcript = (
+        "A: Allo.\n"
+        "B: Allo, assalomu alaykum.\n"
+        "A: Va alaykum assalom. Qaysi tomondansiz?\n"
+        "B: Men mana eshik tomondanman, aka.\n"
+    )
+    first, second, attributed = _speaker_split(transcript)
+
+    assert attributed is False
+    assert first + second == 100
+    # Rol noma'lum ekan — sotuvchini ayblaydigan hukm chiqmasligi shart.
+    assert "aniqlanmadi" in _talk_ratio_verdict(first, attributed)
+
+
+def test_speaker_split_role_labels_attributed():
+    transcript = "Mijoz: " + "salom " * 40 + "\nSotuvchi: qisqa javob"
+    client_pct, agent_pct, attributed = _speaker_split(transcript)
+
+    assert attributed is True
+    assert client_pct > 55
+    assert "Yaxshi" in _talk_ratio_verdict(client_pct, attributed)
+
+
+def test_talk_ratio_verdict_no_data_is_not_an_accusation():
+    assert "aniqlanmadi" in _talk_ratio_verdict(0, True)
+
+
+def test_rubric_skipped_for_non_sales_or_short_calls():
+    long_sales = "Mijoz: " + "brending narxi " * 30
+    assert _rubric_applies("Mijoz", long_sales) is True
+    assert _rubric_applies("Oila", long_sales) is False
+    assert _rubric_applies("Mijoz", "A: Allo.\nB: Boldi, hozir otyapman.") is False
+
+
+def test_analysis_note_omits_rubric_when_not_applicable():
+    analyzer = CallAnalyzer(amocrm=MagicMock(), voice_processor=MagicMock(), db=MagicMock())
+    note = analyzer._build_amocrm_note(
+        {
+            "summary": "Kuryer eshik oldida.",
+            "category": "Boshqa",
+            "rubrik_amal_qiladi": False,
+            "talk_ratio_attributed": False,
+            "client_talk_pct": 0,
+            "agent_talk_pct": 0,
+        }
+    )
+
+    assert "JON BRANDING RUBRIK" not in note
+    assert "Sifat bahosi" not in note
+    assert "Baholanmadi" in note
+    assert "sotuvchi haddan ko'p gapirdi" not in note
