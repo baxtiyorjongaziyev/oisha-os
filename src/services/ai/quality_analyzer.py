@@ -1,149 +1,12 @@
 """AI-powered conversation quality analysis for sales calls."""
 
-import json
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from enum import Enum
 
-from src.services.core.sales_playbook import (
-    category_for_score,
-    metric_weights,
-    rubric_prompt_uz,
-)
-from src.services.utils.transcript import speaker_split
-
 logger = logging.getLogger(__name__)
-
-# Ball qayerdan kelgani — natijada ochiq ko'rsatiladi.
-SCORING_METHOD_AI = "gemini"
-SCORING_METHOD_HEURISTIC = "keyword_heuristic"
-
-# Savdoga aloqasi yo'q qo'ng'iroq (shaxsiy, xizmat, tasodifiy). Savdo
-# rubrikasi qo'llanmaydi va menejer reytingiga kirmaydi.
-OUTCOME_NOT_SALES = "not_sales"
-CATEGORY_NOT_SALES = "not_sales"
-
-_GEMINI_MODEL = "gemini-1.5-flash"
-
-# LLM shu metriklarni 0-100 oralig'ida baholaydi. `talk_ratio` bu ro'yxatda
-# yo'q — u transkripsiyadan hisoblanadi, taxmin qilinmaydi.
-_LLM_METRICS = (
-    "introduction",
-    "need_identification",
-    "value_proposition",
-    "objection_handling",
-    "closing",
-    "follow_up",
-    "tone",
-    "active_listening",
-    "question_quality",
-)
-
-
-def _build_scoring_prompt(transcript: str) -> str:
-    """Jon Branding rasmiy playbook'i bo'yicha baholash so'rovi."""
-    metrics_spec = ",\n".join(f'    "{m}": <0-100>' for m in _LLM_METRICS)
-    return (
-        "Sen Jon Branding agentligining savdo sifati nazoratchisisan. "
-        "Quyidagi telefon suhbatini RASMIY PLAYBOOK bo'yicha bahola.\n\n"
-        f"{rubric_prompt_uz()}\n"
-        "BAHOLANADIGAN METRIKLAR (har biri 0-100, yuqoridagi playbook mezonlari asosida):\n"
-        "- introduction: 1-bosqich (salomlashish) bo'yicha\n"
-        "- need_identification: 2-bosqich (ehtiyojlar) bo'yicha\n"
-        "- value_proposition: 3-bosqich (qiymat, vilka narx, portfolio) bo'yicha\n"
-        "- objection_handling: 4-bosqich (e'tirozlar) bo'yicha\n"
-        "- closing: 5-bosqich (yakunlash — uchrashuv/KP/portfolio/to'lov) bo'yicha\n"
-        "- follow_up: keyingi qadam uchun aniq muddat va mas'ul belgilandimi\n"
-        "- tone: 6-bosqich — professional ohang, hurmat\n"
-        "- active_listening: mijozni bo'lmasdan eshitdimi, tasdiqladimi\n"
-        "- question_quality: savollar ochiq va maqsadlimi\n\n"
-        "QOIDALAR:\n"
-        "- Faqat transkripsiyada haqiqatan sodir bo'lgan narsani bahola. "
-        "Taxmin qilma, to'qima.\n"
-        "- Bosqich umuman sodir bo'lmagan bo'lsa — past ball qo'y va sababini yoz.\n"
-        "- Suhbat savdoga aloqador bo'lmasa (shaxsiy, xizmat, tasodifiy qo'ng'iroq), "
-        'barcha ballarni 0 qilib, "outcome" ni "not_sales" deb belgila.\n\n'
-        "Javobni FAQAT quyidagi JSON ko'rinishida ber:\n"
-        "{\n"
-        '  "metric_scores": {\n'
-        f"{metrics_spec}\n"
-        "  },\n"
-        '  "summary": "<2-3 gap xulosa>",\n'
-        '  "strengths": ["<menejer nimani yaxshi qildi>"],\n'
-        '  "weaknesses": ["<nimani o\'tkazib yubordi>"],\n'
-        '  "client_mood": "positive|neutral|negative",\n'
-        '  "client_interest_level": <0-100>,\n'
-        '  "objections": ["<mijoz bildirgan e\'tiroz>"],\n'
-        '  "outcome": "sale|follow_up|lost|callback|not_sales|unknown",\n'
-        '  "next_steps": ["<aniq keyingi qadam>"]\n'
-        "}\n\n"
-        f"Transkripsiya:\n{transcript}"
-    )
-
-
-def _clamp_score(value: Any) -> int:
-    try:
-        return max(0, min(100, int(float(value))))
-    except (TypeError, ValueError):
-        return 0
-
-
-def _as_str_list(value: Any, limit: int = 10) -> List[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        value = [value]
-    if not isinstance(value, (list, tuple)):
-        return []
-    return [str(item).strip() for item in value if str(item).strip()][:limit]
-
-
-def _parse_llm_scores(raw: str) -> Optional[Dict[str, Any]]:
-    """LLM javobini ishonchli dict'ga aylantiradi.
-
-    Model markdown blok yoki atrofida matn qaytarishi mumkin — shuni tozalaymiz.
-    Ballar hech qachon 0-100 dan chiqmaydi.
-    """
-    raw = (raw or "").strip()
-    if not raw:
-        return None
-    if raw.startswith("```"):
-        raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.IGNORECASE)
-        raw = re.sub(r"\s*```$", "", raw)
-
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        start, end = raw.find("{"), raw.rfind("}")
-        if start < 0 or end <= start:
-            return None
-        try:
-            data = json.loads(raw[start : end + 1])
-        except json.JSONDecodeError:
-            return None
-
-    if not isinstance(data, dict):
-        return None
-
-    raw_scores = data.get("metric_scores")
-    if not isinstance(raw_scores, dict):
-        return None
-
-    metric_scores = {m: _clamp_score(raw_scores.get(m)) for m in _LLM_METRICS}
-    return {
-        "metric_scores": metric_scores,
-        "summary": str(data.get("summary") or "").strip(),
-        "strengths": _as_str_list(data.get("strengths")),
-        "weaknesses": _as_str_list(data.get("weaknesses")),
-        "client_mood": str(data.get("client_mood") or "neutral").strip(),
-        "client_interest_level": _clamp_score(data.get("client_interest_level")),
-        "objections": _as_str_list(data.get("objections")),
-        "outcome": str(data.get("outcome") or "unknown").strip(),
-        "next_steps": _as_str_list(data.get("next_steps")),
-    }
 
 
 class QualityMetric(Enum):
@@ -209,10 +72,6 @@ class ConversationAnalysis:
     # Vazifalar
     recommended_tasks: List[Dict[str, Any]] = field(default_factory=list)
 
-    # Ball qanday qo'yilgani: "gemini" yoki "keyword_heuristic".
-    # Mijoz/dashboard bu farqni ko'rishi shart.
-    scoring_method: str = SCORING_METHOD_HEURISTIC
-
     # Metadata
     analyzed_at: datetime = field(default_factory=datetime.now)
 
@@ -248,7 +107,6 @@ class ConversationAnalysis:
             "outcome": self.outcome,
             "next_steps": self.next_steps,
             "recommended_tasks": self.recommended_tasks,
-            "scoring_method": self.scoring_method,
             "analyzed_at": self.analyzed_at.isoformat(),
         }
 
@@ -257,25 +115,31 @@ class QualityAnalyzer:
     """AI-powered conversation quality analyzer."""
 
     # Sifat kategoriyalari
-    # Toifa chegaralari rasmiy playbook'da (`sales_playbook.category_for_score`).
-
-    # Ballar uchun og'irliklar — rasmiy playbook'dan olinadi, bu yerda
-    # qo'lda yozilmaydi. Ilgari e'tiroz/yakunlash bosqichlari boshqalar
-    # bilan bir xil (0.15) edi, ya'ni playbook e'lon qilgan x2 urg'u
-    # `quality_analyzer` yo'lida qo'llanmasdi va bitta qo'ng'iroq
-    # `call_analyzer` bilan turlicha baholanardi.
-    DEFAULT_WEIGHTS = {
-        QualityMetric(metric): weight for metric, weight in metric_weights().items()
+    CATEGORIES = {
+        (90, 100): "excellent",
+        (80, 89): "good",
+        (60, 79): "average",
+        (40, 59): "poor",
+        (0, 39): "critical",
     }
 
-    def __init__(
-        self,
-        openai_api_key: Optional[str] = None,
-        gemini_client: Optional[Any] = None,
-    ):
+    # Ballar uchun og'irliklar
+    DEFAULT_WEIGHTS = {
+        QualityMetric.INTRODUCTION: 0.10,
+        QualityMetric.NEED_IDENTIFICATION: 0.15,
+        QualityMetric.VALUE_PROPOSITION: 0.15,
+        QualityMetric.OBJECTION_HANDLING: 0.15,
+        QualityMetric.CLOSING: 0.15,
+        QualityMetric.FOLLOW_UP: 0.05,
+        QualityMetric.TONE: 0.05,
+        QualityMetric.ACTIVE_LISTENING: 0.05,
+        QualityMetric.QUESTION_QUALITY: 0.05,
+        QualityMetric.TALK_RATIO: 0.10,
+    }
+
+    def __init__(self, openai_api_key: Optional[str] = None):
         self.api_key = openai_api_key
         self.weights = self.DEFAULT_WEIGHTS.copy()
-        self._gemini_client = gemini_client
 
     def set_weights(self, weights: Dict[QualityMetric, float]):
         """Og'irliklarni sozlash."""
@@ -287,11 +151,25 @@ class QualityAnalyzer:
 
     @staticmethod
     def _compute_talk_ratio(text: str) -> tuple[int, int]:
-        """Back-compat: (client_pct, agent_pct) only. Rol aniqlanmasa (0, 0)."""
-        client_pct, agent_pct, attributed = speaker_split(text)
-        if not attributed:
+        """Return (client_pct, agent_pct) from a labelled transcript."""
+        import re
+        _client = re.compile(r"^(mijoz|xaridor|client)\s*:", re.IGNORECASE)
+        _agent = re.compile(r"^(sotuvchi|menejer|manager|agent|xodim|oisha)\s*:", re.IGNORECASE)
+        client_chars = agent_chars = 0
+        for line in (text or "").splitlines():
+            line = line.strip()
+            colon = line.find(":")
+            if colon < 1:
+                continue
+            label, content = line[:colon].strip(), line[colon + 1:].strip()
+            if _client.match(label + ":"):
+                client_chars += len(content)
+            elif _agent.match(label + ":"):
+                agent_chars += len(content)
+        total = client_chars + agent_chars
+        if total == 0:
             return 0, 0
-        return client_pct, agent_pct
+        return round(client_chars * 100 / total), round(agent_chars * 100 / total)
 
     def analyze_conversation(
         self,
@@ -316,117 +194,24 @@ class QualityAnalyzer:
         Returns:
             ConversationAnalysis: Tahlil natijalari
         """
-        analysis = self._ai_analyze(conversation_text)
-        return self._assemble(
-            analysis,
-            conversation_text,
-            conversation_id=conversation_id,
-            lead_id=lead_id,
-            manager_id=manager_id,
-            manager_name=manager_name,
-            duration_seconds=duration_seconds,
-            scoring_method=SCORING_METHOD_HEURISTIC,
-        )
-
-    async def analyze_conversation_ai(
-        self,
-        conversation_text: str,
-        conversation_id: str,
-        lead_id: Optional[int] = None,
-        manager_id: Optional[int] = None,
-        manager_name: str = "",
-        duration_seconds: int = 0,
-    ) -> ConversationAnalysis:
-        """Suhbatni haqiqiy LLM (Gemini) bilan baholaydi.
-
-        LLM ishlamasa — kalit so'z evristikasiga tushadi va natijadagi
-        `scoring_method` buni ochiq ko'rsatadi. Ball qayerdan kelganini
-        yashirmaslik shart: shu ballar asosida menejerlar baholanadi.
-        """
-        analysis = await self._llm_analyze(conversation_text)
-        if analysis is None:
-            analysis = self._ai_analyze(conversation_text)
-            scoring_method = SCORING_METHOD_HEURISTIC
-        else:
-            scoring_method = SCORING_METHOD_AI
-
-        return self._assemble(
-            analysis,
-            conversation_text,
-            conversation_id=conversation_id,
-            lead_id=lead_id,
-            manager_id=manager_id,
-            manager_name=manager_name,
-            duration_seconds=duration_seconds,
-            scoring_method=scoring_method,
-        )
-
-    def _assemble(
-        self,
-        analysis: Dict[str, Any],
-        conversation_text: str,
-        *,
-        conversation_id: str,
-        lead_id: Optional[int],
-        manager_id: Optional[int],
-        manager_name: str,
-        duration_seconds: int,
-        scoring_method: str,
-    ) -> ConversationAnalysis:
-        """Xom tahlil dict'idan yakuniy `ConversationAnalysis` quradi.
-
-        Evristika ham, LLM ham shu yerdan o'tadi — ballash qoidalari
-        (og'irliklar, talk_ratio, kategoriya) bitta joyda turadi.
-        """
         try:
             # Gapirish nisbatini hisoblash (transcript dan)
-            client_pct, agent_pct, attributed = speaker_split(conversation_text)
+            client_pct, agent_pct = self._compute_talk_ratio(conversation_text)
 
-            # talk_ratio ballini hisoblash: mijoz ≥55% → 100, 40-55% → 65, <40% → 30.
-            # Rol aniqlanmasa (rolsiz "A:/B:" yorliqlar) — ball qo'ymaymiz.
-            # Ilgari bunda 30 ball qo'yilar edi, ya'ni transkripsiya formati
-            # uchun menejer jazolanardi.
-            skip_metrics: set = set()
-            is_sales_call = str(analysis.get("outcome") or "") != OUTCOME_NOT_SALES
+            # AI tahlil (simulyatsiya - haqiqiy LLM integration bilan almashtirish mumkin)
+            analysis = self._ai_analyze(conversation_text)
 
-            if attributed and is_sales_call:
-                if client_pct >= 55:
-                    talk_ratio_score = 100
-                elif client_pct >= 40:
-                    talk_ratio_score = 65
-                else:
-                    talk_ratio_score = 30
-                analysis.setdefault("metric_scores", {})["talk_ratio"] = talk_ratio_score
+            # talk_ratio ballini hisoblash: mijoz ≥55% → 100, 40-55% → 65, <40% → 30
+            if client_pct >= 55:
+                talk_ratio_score = 100
+            elif client_pct >= 40:
+                talk_ratio_score = 65
             else:
-                if not attributed:
-                    client_pct = agent_pct = 0
-                skip_metrics.add(QualityMetric.TALK_RATIO)
-
-            if not is_sales_call:
-                # Shaxsiy/xizmat/tasodifiy qo'ng'iroq — savdo rubrikasi
-                # qo'llanmaydi. Ilgari gapirish nisbati baribir 30-100 ball
-                # berib, noldan katta umumiy ball hosil qilardi va menejer
-                # reytingiga qo'shilardi.
-                return ConversationAnalysis(
-                    conversation_id=conversation_id,
-                    lead_id=lead_id,
-                    manager_id=manager_id,
-                    manager_name=manager_name,
-                    duration_seconds=duration_seconds,
-                    overall_score=0,
-                    category=CATEGORY_NOT_SALES,
-                    scores=[],
-                    summary=analysis.get("summary", ""),
-                    talk_ratio_client=client_pct,
-                    talk_ratio_agent=agent_pct,
-                    client_mood=analysis.get("client_mood", "neutral"),
-                    outcome=OUTCOME_NOT_SALES,
-                    recommended_tasks=[],
-                    scoring_method=scoring_method,
-                )
+                talk_ratio_score = 30
+            analysis.setdefault("metric_scores", {})["talk_ratio"] = talk_ratio_score
 
             # Ballar hisoblash
-            scores = self._calculate_scores(analysis, skip_metrics=skip_metrics)
+            scores = self._calculate_scores(analysis)
 
             # Umumiy ball
             overall_score = self._calculate_overall_score(scores)
@@ -457,7 +242,6 @@ class QualityAnalyzer:
                 outcome=analysis.get("outcome", "unknown"),
                 next_steps=analysis.get("next_steps", []),
                 recommended_tasks=recommended_tasks,
-                scoring_method=scoring_method,
             )
 
         except Exception as e:
@@ -466,65 +250,6 @@ class QualityAnalyzer:
             return self._create_fallback_analysis(
                 conversation_id, lead_id, manager_id, manager_name, duration_seconds
             )
-
-    async def _llm_analyze(self, text: str) -> Optional[Dict[str, Any]]:
-        """Gemini bilan baholash. Muvaffaqiyatsiz bo'lsa `None`."""
-        text = (text or "").strip()
-        if not text:
-            return None
-
-        client = self._get_gemini_client()
-        if client is None:
-            logger.info("[QUALITY ANALYZER] Gemini mavjud emas — evristikaga o'tildi")
-            return None
-
-        try:
-            from google.genai import types
-
-            from src.services.utils.gemini_fallback import (
-                generate_content_with_fallback,
-            )
-
-            response, _model = await generate_content_with_fallback(
-                client,
-                primary_model=_GEMINI_MODEL,
-                contents=_build_scoring_prompt(text),
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.2,
-                ),
-                log_prefix="[QUALITY ANALYZER]",
-            )
-            raw = getattr(response, "text", "") or ""
-            return _parse_llm_scores(raw)
-        except Exception as exc:
-            logger.warning("[QUALITY ANALYZER] LLM baholash muvaffaqiyatsiz: %s", exc)
-            return None
-
-    def _get_gemini_client(self) -> Optional[Any]:
-        if self._gemini_client is not None:
-            return self._gemini_client
-
-        try:
-            from src.settings import settings
-
-            key = settings.GEMINI_API_KEY
-            api_key = key.get_secret_value() if hasattr(key, "get_secret_value") else str(key or "")
-        except Exception as exc:
-            logger.warning("[QUALITY ANALYZER] GEMINI_API_KEY o'qilmadi: %s", exc)
-            return None
-
-        if not api_key:
-            return None
-
-        try:
-            from google import genai
-
-            self._gemini_client = genai.Client(api_key=api_key)
-        except Exception as exc:
-            logger.warning("[QUALITY ANALYZER] Gemini klient yaratilmadi: %s", exc)
-            return None
-        return self._gemini_client
 
     def _ai_analyze(self, text: str) -> Dict[str, Any]:
         """Evidence-based fallback scoring when an async LLM is unavailable."""
@@ -584,24 +309,12 @@ class QualityAnalyzer:
             "metric_scores": metrics,
         }
 
-    def _calculate_scores(
-        self,
-        analysis: Dict[str, Any],
-        skip_metrics: Optional[set] = None,
-    ) -> List[ScoreBreakdown]:
-        """Har bir metric bo'yicha ball hisoblash.
-
-        `skip_metrics` — baholab bo'lmaydigan metriklar (masalan, transkripsiyada
-        rollar yo'q bo'lsa talk_ratio). Ular ro'yxatga umuman kirmaydi, shuning
-        uchun umumiy ballni pastga tortmaydi.
-        """
+    def _calculate_scores(self, analysis: Dict[str, Any]) -> List[ScoreBreakdown]:
+        """Har bir metric bo'yicha ball hisoblash."""
         scores = []
         metric_scores = analysis.get("metric_scores", {})
-        skip = skip_metrics or set()
 
         for metric, weight in self.weights.items():
-            if metric in skip:
-                continue
             score = metric_scores.get(metric.value, 50)  # Default 50
 
             # Feedback va tavsiyalar
@@ -625,18 +338,15 @@ class QualityAnalyzer:
         if not scores:
             return 0
 
-        # Og'irliklar yig'indisi bo'yicha normallashtiramiz — metrik chetlab
-        # o'tilganda (skip_metrics) qolganlari to'liq 100 balllik shkalada
-        # qoladi, aks holda ball sun'iy ravishda pasayardi.
-        total_weight = sum(s.weight for s in scores)
-        if total_weight <= 0:
-            return 0
         weighted_sum = sum(s.score * s.weight for s in scores)
-        return int(weighted_sum / total_weight)
+        return int(weighted_sum)
 
     def _get_category(self, score: int) -> str:
-        """Ball asosida rasmiy playbook toifasi."""
-        return category_for_score(score)
+        """Ball asosida kategoriya aniqlash."""
+        for (min_score, max_score), category in self.CATEGORIES.items():
+            if min_score <= score <= max_score:
+                return category
+        return "unknown"
 
     def _generate_tasks(
         self, analysis: Dict[str, Any], lead_id: Optional[int], overall_score: int
@@ -799,7 +509,6 @@ class QualityAnalyzer:
             overall_score=0,
             category="unknown",
             summary="Tahlil qilishda xatolik yuz berdi",
-            scoring_method=SCORING_METHOD_HEURISTIC,
             strengths=[],
             weaknesses=["Tahlil qilishda texnik xatolik"],
             recommended_tasks=[
@@ -827,15 +536,6 @@ class QualityAnalyzer:
             - trend
             - rank
         """
-        # Reytingdan chiqariladi:
-        #  - "unknown": texnik xatolik natijasi (`_create_fallback_analysis`),
-        #    ball 0 — bu menejerning ishi emas;
-        #  - "not_sales": shaxsiy/xizmat qo'ng'irog'i — savdo rubrikasi
-        #    qo'llanmagan, uni savdo bahosi sifatida hisoblash noto'g'ri.
-        analyses = [
-            a for a in analyses if a.category not in ("unknown", CATEGORY_NOT_SALES)
-        ]
-
         if not analyses:
             return {
                 "average_score": 0,

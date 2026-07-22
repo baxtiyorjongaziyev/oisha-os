@@ -1,75 +1,73 @@
-import React from 'react';
-import Link from 'next/link';
-import { getCrmDashboardStats } from '@/lib/apiClient';
+"use client";
 
-export const dynamic = 'force-dynamic';
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
-export default async function HomePage() {
-  const stats = await getCrmDashboardStats();
+type Call = { id?: string; call_id?: string; client?: string; manager?: string; score?: number; duration?: string; outcome?: string };
+type Payload = {
+  real_data?: boolean;
+  reason?: string;
+  overview?: { total_calls?: number; average_score?: number };
+  managers?: Array<{ name: string; total_calls: number; average_score: number }>;
+  calls?: Call[];
+};
 
-  const totalLeads = stats?.leads.total || 0;
-  const inNegotiation = stats?.deals.total || 0;
-  const closedThisMonth = stats?.deals.won || 0;
-  const contactsToday = stats?.contacts.new_today || 0;
+export default function HomePage() {
+  const [data, setData] = useState<Payload | null>(null);
+  const [error, setError] = useState("");
 
+  useEffect(() => {
+    fetch("/api/oisha/sales-quality", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.reason || payload.message || `HTTP ${response.status}`);
+        return payload;
+      })
+      .then(setData)
+      .catch((reason: Error) => setError(reason.message));
+  }, []);
+
+  const calls = data?.calls ?? [];
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Bosh sahifa</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Oisha-OS tizimining umumiy analitik ko'rsatkichlari.
-        </p>
+        <h1 className="text-2xl font-bold text-text">Bosh sahifa</h1>
+        <p className="mt-1 text-xs text-text-muted">Faqat saqlangan real qo&apos;ng&apos;iroq tahlillari.</p>
       </div>
 
-      {!stats ? (
-        <div className="border border-rose-300 bg-rose-50 p-4 rounded-xl text-sm text-rose-700">
-          Real backend bilan aloqa yo'q yoki xatolik yuz berdi. Backend (FastAPI) ishlayotganligini tekshiring.
-        </div>
+      {error ? <div className="border border-rose-300 bg-rose-50 p-4 text-sm text-rose-700">Real manba ishlamayapti: {error}</div> : null}
+      {!error && !data ? <div className="p-6 text-sm text-text-muted">Yuklanmoqda...</div> : null}
+      {data ? (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="border border-border bg-bg-card p-5">
+              <div className="text-xs text-text-muted">Tahlil qilingan qo&apos;ng&apos;iroqlar</div>
+              <div className="mt-2 text-3xl font-bold text-text">{data.overview?.total_calls ?? 0}</div>
+            </div>
+            <div className="border border-border bg-bg-card p-5">
+              <div className="text-xs text-text-muted">O&apos;rtacha sifat</div>
+              <div className="mt-2 text-3xl font-bold text-text">{data.overview?.average_score ?? 0}%</div>
+            </div>
+          </div>
+
+          {data.real_data === false ? <div className="border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">Real yozuv topilmadi. {data.reason || "Call analysis jadvali bo'sh."}</div> : null}
+
+          <section className="border border-border bg-bg-card p-5">
+            <h2 className="text-sm font-bold text-text">So&apos;nggi tahlillar</h2>
+            {calls.length === 0 ? <p className="mt-4 text-xs text-text-muted">Real tahlillar mavjud emas.</p> : (
+              <div className="mt-4 divide-y divide-border">
+                {calls.slice(0, 10).map((call) => {
+                  const id = String(call.call_id || call.id || "");
+                  return <Link key={id} href={`/calls/${id}`} className="flex items-center justify-between py-3 text-xs hover:text-brand">
+                    <span>{call.client || "Noma'lum mijoz"} · {call.manager || "Noma'lum menejer"}</span>
+                    <strong>{call.score ?? 0}%</strong>
+                  </Link>;
+                })}
+              </div>
+            )}
+          </section>
+        </>
       ) : null}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Jami Lidlar */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <div className="text-sm font-medium text-gray-500">Jami Lidlar</div>
-          <div className="mt-2 text-3xl font-bold text-gray-900">{totalLeads}</div>
-        </div>
-
-        {/* Muzokarada */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <div className="text-sm font-medium text-gray-500">Muzokarada</div>
-          <div className="mt-2 text-3xl font-bold text-blue-600">{inNegotiation}</div>
-        </div>
-
-        {/* Yopilgan */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <div className="text-sm font-medium text-gray-500">Yopilgan (Oy)</div>
-          <div className="mt-2 text-3xl font-bold text-green-600">{closedThisMonth}</div>
-        </div>
-
-        {/* Bugungi yangi kontaktlar */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <div className="text-sm font-medium text-gray-500">Bugungi yangi muloqotlar</div>
-          <div className="mt-2 text-3xl font-bold text-purple-600">{contactsToday}</div>
-        </div>
-      </div>
-
-      {stats?.amocrm?.status === "error" && (
-        <div className="border border-amber-300 bg-amber-50 rounded-xl p-4 text-sm text-amber-800">
-          AmoCRM bilan sinxronizatsiya muammosi: {stats.amocrm.error}
-        </div>
-      )}
-
-      <section className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden p-6 mt-6">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Tezkor havolalar</h2>
-        <div className="flex gap-4">
-          <Link href="/crm" className="text-sm font-medium text-blue-600 hover:underline">
-            → CRM bo'limiga o'tish
-          </Link>
-          <Link href="/calls" className="text-sm font-medium text-blue-600 hover:underline">
-            → Qo'ng'iroqlar sifatini ko'rish
-          </Link>
-        </div>
-      </section>
     </div>
   );
 }

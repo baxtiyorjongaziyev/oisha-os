@@ -11,8 +11,6 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from collections import defaultdict
 
-from src.services.utils.db_rows import execute_write
-
 from .quality_analyzer import QualityAnalyzer, ConversationAnalysis
 from .call_analytics import CallAnalytics
 from .task_manager import AITaskManager
@@ -154,8 +152,8 @@ class ConversationEngine:
                 logger.warning(f"[ENGINE] No transcript for call {call_record.call_id}")
                 return None
 
-            # AI tahlil (Gemini; ishlamasa evristikaga tushadi)
-            analysis = await self.analyzer.analyze_conversation_ai(
+            # AI tahlil
+            analysis = self.analyzer.analyze_conversation(
                 conversation_text=transcript,
                 conversation_id=call_record.call_id,
                 lead_id=call_record.lead_id,
@@ -216,8 +214,7 @@ class ConversationEngine:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
-            await execute_write(
-                self.db,
+            await self.db.execute(
                 query,
                 (
                     analysis.conversation_id,

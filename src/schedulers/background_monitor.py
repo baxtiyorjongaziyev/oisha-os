@@ -267,76 +267,6 @@ class BackgroundMonitor:
                 logger.error("[SCHEDULE][STAGNATION] Error: %s", exc)
             self._mark_sent(key)
 
-    def _get_db(self) -> Any:
-        if self.msg_controller:
-            return getattr(self.msg_controller, "db", None)
-        return None
-
-    async def _job_call_quality_daily(self, now: datetime) -> None:
-        """Kunlik savdo sifati: eng yaxshi sotuvchi + o'sish nuqtalari."""
-        key = self._job_key("call_quality_daily", now)
-        if self._already_sent(key):
-            return
-
-        try:
-            from src.services.core.sales_quality_coach import SalesQualityCoach
-
-            db = self._get_db()
-            if db is None:
-                logger.warning("[COACH] DB ulanmagan — kunlik hisobot o'tkazildi")
-                return
-
-            coach = SalesQualityCoach(db=db)
-            report = await coach.generate_daily_report(now.strftime("%Y-%m-%d"))
-            if report:
-                send_kwargs = {}
-                if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
-                    send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID
-                await self._send_to_group_or_admin(report, **send_kwargs)
-                logger.info("[COACH] Kunlik sifat hisoboti yuborildi.")
-            else:
-                logger.info("[COACH] Bugun baholangan qo'ng'iroq yo'q.")
-        except Exception as exc:
-            logger.error("[COACH][DAILY] Error: %s", exc)
-        self._mark_sent(key)
-
-    async def _job_call_quality_weekly(self, now: datetime) -> None:
-        """Haftalik: tarixdan ideal skript + playbook takliflari.
-
-        Ikkalasi ham TAKLIF — playbook avtomatik o'zgarmaydi.
-        """
-        key = self._job_key("call_quality_weekly", now)
-        if self._already_sent(key):
-            return
-
-        try:
-            from src.services.core.sales_quality_coach import SalesQualityCoach
-
-            db = self._get_db()
-            if db is None:
-                logger.warning("[COACH] DB ulanmagan — haftalik tahlil o'tkazildi")
-                return
-
-            coach = SalesQualityCoach(db=db)
-
-            script = await coach.generate_ideal_script()
-            if script:
-                await self._notify_admin(
-                    "📘 IDEAL SKRIPT (eng yaxshi qo'ng'iroqlardan sintez qilindi)\n"
-                    "Tasdiqlashingiz uchun taklif:\n\n" + script
-                )
-                logger.info("[COACH] Ideal skript yuborildi.")
-
-            suggestions = await coach.suggest_playbook_improvements()
-            if suggestions:
-                await self._notify_admin(
-                    "🧭 PLAYBOOK TAKLIFLARI (oxirgi 7 kun tahlili)\n\n" + suggestions
-                )
-                logger.info("[COACH] Playbook takliflari yuborildi.")
-        except Exception as exc:
-            logger.error("[COACH][WEEKLY] Error: %s", exc)
-        self._mark_sent(key)
-
     async def _job_heartbeat(self) -> None:
         if self.client:
             try:
@@ -434,21 +364,10 @@ class BackgroundMonitor:
                 if now.hour in [10, 22] and now.minute == 0:
                     await self._job_stagnation_alert(now)
 
-                # 11. Kunlik savdo sifati hisoboti (20:00)
-                # Sikl har 5 daqiqada aylanadi va drift bo'ladi — `minute == 0`
-                # ga tushmay ketishi mumkin. Oyna kengroq, takrorlashdan
-                # `_already_sent` himoya qiladi.
-                if now.hour == 20 and now.minute < 5:
-                    await self._job_call_quality_daily(now)
-
-                # 12. Haftalik: ideal skript + playbook takliflari (dushanba 10:00)
-                if now.weekday() == 0 and now.hour == 10 and now.minute < 5:
-                    await self._job_call_quality_weekly(now)
-
-                # 13. Heartbeat
+                # 11. Heartbeat
                 await self._job_heartbeat()
 
-                # 14. Auto tasks — har soat boshida
+                # 12. Auto tasks — har soat boshida
                 if now.minute == 0:
                     await self._job_auto_tasks(now)
 
