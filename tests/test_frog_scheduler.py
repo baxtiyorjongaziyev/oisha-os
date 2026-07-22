@@ -5,7 +5,6 @@ from types import SimpleNamespace
 import pytest
 
 import src.schedulers.frog_scheduler as frog_scheduler
-from src.services.core.telegram.bot_runtime import AiogramBotRuntime
 
 
 class _Cursor:
@@ -78,38 +77,6 @@ async def test_frog_brief_uses_bot_client(monkeypatch):
     assert len(bot_client.sent) == 1
     assert bot_client.sent[0][0] == -100123
     assert "Qurbaqani yeymiz!" in bot_client.sent[0][1]
-    assert bot_client.sent[0][2]["parse_mode"] == "html"
-
-
-class _AiogramBot:
-    def __init__(self):
-        self.sent = []
-
-    async def send_message(self, **kwargs):
-        self.sent.append(kwargs)
-        return SimpleNamespace(message_id=100)
-
-
-@pytest.mark.asyncio
-async def test_frog_brief_accepts_aiogram_runtime(monkeypatch):
-    db = _Db([(7, "Task", "Desc", 1, 1500)])
-    aiogram_bot = _AiogramBot()
-
-    monkeypatch.setattr(frog_scheduler, "get_db", lambda: db)
-    monkeypatch.setattr(
-        frog_scheduler,
-        "FrogAgent",
-        lambda: SimpleNamespace(identify_frog=lambda tasks: _async_value(_Frog())),
-    )
-
-    await frog_scheduler.send_daily_frog_brief(
-        bot_client=AiogramBotRuntime(aiogram_bot),
-        team_group_id=-100123,
-    )
-
-    assert len(aiogram_bot.sent) == 1
-    assert aiogram_bot.sent[0]["chat_id"] == -100123
-    assert aiogram_bot.sent[0]["parse_mode"] == "HTML"
 
 
 class _MockComposioService:

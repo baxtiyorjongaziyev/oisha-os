@@ -131,11 +131,6 @@ jobs:
             AUTO_REPLY_MODE=shadow
             USERBOT_DISABLE_PRIVATE_REPLIES=true
             TELEGRAM_BOT_TO_BOT_ENABLED=false
-            TELEGRAM_BOT_RUNTIME_BACKEND=telethon
-            TELEGRAM_ADMIN_AIOGRAM_DISPATCHER_ENABLED=false
-            OISHA_COMMAND_CENTER_DIGEST_ENABLED=true
-            OISHA_COMMAND_CENTER_DIGEST_HOUR=9
-            OISHA_COMMAND_CENTER_DIGEST_MINUTE=5
             ALLOW_LOCAL_RUN=0
             AIRTABLE_BASE_ID=app8xoyx1XCumYFXV
             CRM_GROUP_ID=${CRM_GROUP_ID}
@@ -176,18 +171,6 @@ jobs:
             sudo nginx -t && sudo systemctl reload nginx || echo "WARN: nginx reload failed, continuing"
 
             sudo sed -i '/^WatchdogSec=/d' /etc/systemd/system/oisha-os.service || true
-            sudo mkdir -p /etc/systemd/system/oisha-os.service.d
-            sudo tee /etc/systemd/system/oisha-os.service.d/10-resilience.conf >/dev/null <<'UNIT'
-            [Unit]
-            StartLimitIntervalSec=0
-
-            [Service]
-            Restart=always
-            RestartSec=10
-            TimeoutStopSec=35
-            KillSignal=SIGINT
-            UNIT
-            sudo sed -i 's/^            //' /etc/systemd/system/oisha-os.service.d/10-resilience.conf
             sudo systemctl daemon-reload
             sudo systemctl reset-failed oisha-os || true
             sudo systemctl restart oisha-os

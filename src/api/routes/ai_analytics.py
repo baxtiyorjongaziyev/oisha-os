@@ -1,30 +1,10 @@
-"""AI analytics routes — Metasell-style quality analytics.
-
-Bu router ilgari 16 ta endpoint e'lon qilardi, lekin ularning hech biri
-ishlamasdi: handlerlar mavjud bo'lmagan konstruktor imzolari va metod
-nomlarini chaqirar, xatolik esa `except: return {"error": ...}` bilan
-HTTP 200 ostida yashirinardi.
-
-Endi shu yerda faqat haqiqiy xizmatga ulangan endpointlar qoldi.
-
-Olib tashlanganlar va sababi:
-- `/dashboard`, `/manager-ratings`, `/lost-clients-analysis`, `/skills-radar`,
-  `/trend-analysis`, `/manager-comparison`, `/daily-report`, `/call-details/{id}`
-  va `/lead-classifier` — `QualityAnalyzer`/`CallAnalytics`/`LeadClassifier`
-  natijalarni faqat xotirada saqlaydi
-  (`add_analysis` ro'yxatga qo'shadi, restart'da yo'qoladi), shuning uchun bu
-  yerda ko'rsatiladigan doimiy ma'lumot yo'q edi. Haqiqiy, DB'ga tayangan
-  savdo sifati paneli allaqachon mavjud: `GET /api/sales-quality/overview`
-  (`call_analyses` jadvalidan o'qiydi).
-- `/create-tasks-from-analysis` — `AITaskManager.create_tasks_from_analysis`
-  `ConversationAnalysis` obyektini kutadi, endpoint esa `analysis_id` yuborardi;
-  id bo'yicha tahlilni topadigan saqlash qatlami yo'q.
-"""
+"""AI analytics routes — Metasell-style quality analytics."""
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import os
-from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -33,31 +13,10 @@ from fastapi.responses import JSONResponse
 
 from src.api.routes.state import api_state
 from src.settings import settings
+from src.time_utils import get_local_now
 
 router = APIRouter(prefix="/api/ai", tags=["ai-analytics"])
 logger = logging.getLogger(__name__)
-
-
-def _fail(endpoint: str, exc: Exception) -> JSONResponse:
-    """Xatoni server tomonda to'liq loglaymiz, mijozga HTTP 500 qaytaramiz.
-
-    Ilgari bu yerda 200 + {"error": ...} qaytardi — buzuq endpoint
-    monitoringda sog'lom ko'rinardi va yillab sezilmay qolardi.
-    """
-    logger.exception("[AI] %s failed: %s", endpoint, exc)
-    return JSONResponse(
-        status_code=500,
-        content={"error": "internal_error", "endpoint": endpoint},
-    )
-
-
-def _unavailable(endpoint: str, reason: str) -> JSONResponse:
-    """Kerakli bog'liqlik ulanmagan — 503, chunki bu vaqtinchalik holat."""
-    logger.warning("[AI] %s unavailable: %s", endpoint, reason)
-    return JSONResponse(
-        status_code=503,
-        content={"error": "service_unavailable", "reason": reason},
-    )
 
 
 def _secret_check(request: Request) -> bool:
@@ -68,290 +27,184 @@ def _secret_check(request: Request) -> bool:
     return auth == f"Bearer {expected}"
 
 
-def _unauthorized() -> JSONResponse:
-    return JSONResponse(status_code=401, content={"error": "Unauthorized"})
-
-
 @router.post("/analyze-conversation")
 async def analyze_conversation(request: Request):
-    """Suhbat matnini sifat rubrikasi bo'yicha baholaydi."""
     if not _secret_check(request):
-        return _unauthorized()
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
     try:
         data = await request.json()
-        text = str(data.get("conversation_text") or "").strip()
-        if not text:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "conversation_text is required"},
-            )
+        conversation = data.get("conversation", [])
+        lead_id = data.get("lead_id")
 
         from src.services.ai import QualityAnalyzer
-
-        analyzer = QualityAnalyzer()
-        # Haqiqiy LLM baholash; Gemini yo'q bo'lsa evristikaga tushadi va
-        # javobdagi `scoring_method` buni ochiq ko'rsatadi.
-        analysis = await analyzer.analyze_conversation_ai(
-            conversation_text=text,
-            conversation_id=str(data.get("conversation_id") or ""),
-            lead_id=data.get("lead_id"),
-            manager_id=data.get("manager_id"),
-            manager_name=str(data.get("manager_name") or ""),
-            duration_seconds=int(data.get("duration_seconds") or 0),
-        )
-        return analysis.to_dict()
+        analyzer = QualityAnalyzer(db=api_state.db_instance)
+        result = await analyzer.analyze_conversation(conversation, lead_id=lead_id)
+        return result
     except Exception as exc:
-        return _fail("analyze_conversation", exc)
+        logger.error("[AI] analyze_conversation error: %s", exc)
+        return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
+@router.get("/dashboard")
+async def ai_dashboard():
+    try:
+        from src.services.ai import QualityAnalyzer
+        analyzer = QualityAnalyzer(db=api_state.db_instance)
+        return await analyzer.get_dashboard_summary()
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.get("/manager-ratings")
+async def ai_manager_ratings():
+    try:
+        from src.services.ai import QualityAnalyzer
+        analyzer = QualityAnalyzer(db=api_state.db_instance)
+        return await analyzer.get_manager_ratings()
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.get("/lost-clients-analysis")
+async def ai_lost_clients():
+    try:
+        from src.services.ai import QualityAnalyzer
+        analyzer = QualityAnalyzer(db=api_state.db_instance)
+        return await analyzer.get_lost_clients_analysis()
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.post("/create-tasks-from-analysis")
+async def create_tasks_from_analysis(request: Request):
+    if not _secret_check(request):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    try:
+        data = await request.json()
+        analysis_id = data.get("analysis_id")
+        from src.services.ai import AITaskManager
+        manager = AITaskManager(db=api_state.db_instance, amocrm=api_state.amocrm_instance)
+        return await manager.create_tasks_from_analysis(analysis_id)
+    except Exception as exc:
+        return {"error": str(exc)}
 
 
 @router.get("/metasell-dashboard")
 async def metasell_dashboard():
-    """Savdo sifati paneli — `call_analyses` jadvalidagi haqiqiy tahlillar.
-
-    `/api/sales-quality/overview` bilan bir xil manba va format; bu yo'l
-    tashqi skilllar (openclaw) uchun saqlanib qolgan.
-    """
-    from src.api.routes.sales_quality import (
-        _build_sales_quality_payload,
-        _fetch_call_analysis_rows,
-    )
-
     try:
-        rows = await _fetch_call_analysis_rows()
+        from src.services.ai import QualityAnalyzer
+        analyzer = QualityAnalyzer(db=api_state.db_instance)
+        return await analyzer.get_metasell_dashboard()
     except Exception as exc:
-        return _unavailable(
-            "metasell_dashboard", f"db_read_failed: {type(exc).__name__}"
-        )
+        return {"error": str(exc)}
 
+
+@router.get("/call-details/{call_id}")
+async def get_call_details(call_id: str):
     try:
-        return _build_sales_quality_payload(rows)
+        from src.services.ai import CallAnalytics
+        analytics = CallAnalytics(db=api_state.db_instance)
+        return await analytics.get_call_details(call_id)
     except Exception as exc:
-        return _fail("metasell_dashboard", exc)
+        return {"error": str(exc)}
 
 
-@router.get("/coach/daily-report")
-async def coach_daily_report(request: Request, day: str = ""):
-    """Kunlik savdo sifati: eng yaxshi sotuvchi + o'sish nuqtalari.
-
-    `day` — YYYY-MM-DD, bo'sh bo'lsa bugun. Bu hisobot har kuni 20:00 da
-    Telegram'ga ham yuboriladi.
-    """
-    if not _secret_check(request):
-        return _unauthorized()
-    if api_state.db_instance is None:
-        return _unavailable("coach_daily_report", "db_not_connected")
+@router.get("/skills-radar")
+async def ai_skills_radar():
     try:
-        from src.services.core.sales_quality_coach import SalesQualityCoach
-        from src.time_utils import get_local_now
-
-        day_iso = day or get_local_now().strftime("%Y-%m-%d")
-        coach = SalesQualityCoach(db=api_state.db_instance)
-        report = await coach.generate_daily_report(day_iso)
-        return {
-            "day": day_iso,
-            "report": report,
-            "has_data": report is not None,
-        }
+        from src.services.ai import QualityAnalyzer
+        analyzer = QualityAnalyzer(db=api_state.db_instance)
+        return await analyzer.get_skills_radar()
     except Exception as exc:
-        return _fail("coach_daily_report", exc)
+        return {"error": str(exc)}
 
 
-@router.get("/coach/ideal-script")
-async def coach_ideal_script(request: Request):
-    """Eng yaxshi qo'ng'iroqlardan sintez qilingan ideal skript (taklif)."""
-    if not _secret_check(request):
-        return _unauthorized()
-    if api_state.db_instance is None:
-        return _unavailable("coach_ideal_script", "db_not_connected")
+@router.get("/trend-analysis")
+async def ai_trend_analysis(days: int = 30):
     try:
-        from src.services.core.sales_quality_coach import SalesQualityCoach
-
-        coach = SalesQualityCoach(db=api_state.db_instance)
-        script = await coach.generate_ideal_script()
-        if script is None:
-            return JSONResponse(
-                status_code=422,
-                content={
-                    "error": "not_enough_samples",
-                    "hint": "Kamida 3 ta yuqori baholi (75+) transkripsiya kerak",
-                },
-            )
-        # Bu — taklif, rasmiy playbook emas.
-        return {"script": script, "status": "draft_suggestion"}
+        from src.services.ai import QualityAnalyzer
+        analyzer = QualityAnalyzer(db=api_state.db_instance)
+        return await analyzer.get_trend_analysis(days=days)
     except Exception as exc:
-        return _fail("coach_ideal_script", exc)
+        return {"error": str(exc)}
 
 
-@router.get("/coach/playbook-suggestions")
-async def coach_playbook_suggestions(request: Request):
-    """Oxirgi hafta zaifliklari asosida playbook takliflari.
-
-    Playbook avtomatik o'zgarmaydi — bu faqat tavsiya.
-    """
-    if not _secret_check(request):
-        return _unauthorized()
-    if api_state.db_instance is None:
-        return _unavailable("coach_playbook_suggestions", "db_not_connected")
+@router.get("/manager-comparison")
+async def ai_manager_comparison():
     try:
-        from src.services.core.sales_quality_coach import SalesQualityCoach
-
-        coach = SalesQualityCoach(db=api_state.db_instance)
-        suggestions = await coach.suggest_playbook_improvements()
-        if suggestions is None:
-            return JSONResponse(
-                status_code=422,
-                content={
-                    "error": "not_enough_data",
-                    "hint": "Oxirgi 7 kunda kamida 5 ta qayd etilgan zaiflik kerak",
-                },
-            )
-        return {"suggestions": suggestions, "status": "advisory_only"}
+        from src.services.ai import QualityAnalyzer
+        analyzer = QualityAnalyzer(db=api_state.db_instance)
+        return await analyzer.get_manager_comparison()
     except Exception as exc:
-        return _fail("coach_playbook_suggestions", exc)
+        return {"error": str(exc)}
 
 
-@router.post("/process-call")
-async def ai_process_call(request: Request):
-    """Qo'ng'iroqni tahlil qilib, natijasini qaytaradi."""
-    if not _secret_check(request):
-        return _unauthorized()
+@router.get("/lead-classifier")
+async def ai_lead_classifier():
     try:
-        data = await request.json()
-        call_id = str(data.get("call_id") or "").strip()
-        if not call_id:
-            return JSONResponse(
-                status_code=400, content={"error": "call_id is required"}
-            )
-
-        from src.services.ai.conversation_engine import (
-            CallRecord,
-            get_conversation_engine,
-        )
-
-        record = CallRecord(
-            call_id=call_id,
-            lead_id=int(data.get("lead_id") or 0),
-            manager_id=int(data.get("manager_id") or 0),
-            manager_name=str(data.get("manager_name") or ""),
-            started_at=datetime.now(timezone.utc),
-            duration_seconds=int(data.get("duration_seconds") or 0),
-            audio_url=data.get("audio_url"),
-            transcript=str(data.get("transcript") or ""),
-        )
-        engine = get_conversation_engine(
-            amocrm_client=api_state.amocrm_instance,
-            db_pool=api_state.db_instance,
-        )
-        analysis = await engine.process_call(record)
-        if analysis is None:
-            return JSONResponse(
-                status_code=422,
-                content={"error": "analysis_failed", "call_id": call_id},
-            )
-        return analysis.to_dict()
+        from src.services.core.leads.lead_classifier import LeadClassifier
+        classifier = LeadClassifier(db=api_state.db_instance)
+        return await classifier.get_classification_summary()
     except Exception as exc:
-        return _fail("ai_process_call", exc)
-
-
-@router.get("/deal-hygiene")
-async def ai_deal_hygiene(limit: int = 100):
-    """AmoCRM bitimlari gigiyenasi bo'yicha audit hisoboti."""
-    if api_state.amocrm_instance is None:
-        return _unavailable("ai_deal_hygiene", "amocrm_not_connected")
-    try:
-        from src.services.core.deal_hygiene import AmoCRMDealHygieneAgent
-
-        agent = AmoCRMDealHygieneAgent(
-            amocrm=api_state.amocrm_instance, db=api_state.db_instance
-        )
-        return await agent.audit(limit=limit)
-    except Exception as exc:
-        return _fail("ai_deal_hygiene", exc)
-
-
-@router.post("/deal-hygiene/apply")
-async def ai_deal_hygiene_apply(request: Request):
-    """Auditni bajaradi va topilgan muammolar bo'yicha vazifa yaratadi."""
-    if not _secret_check(request):
-        return _unauthorized()
-    if api_state.amocrm_instance is None:
-        return _unavailable("ai_deal_hygiene_apply", "amocrm_not_connected")
-    try:
-        data: Dict[str, Any] = {}
-        try:
-            data = await request.json()
-        except Exception:
-            pass  # bo'sh tana — standart qiymatlar bilan ishlaymiz
-
-        from src.services.core.deal_hygiene import AmoCRMDealHygieneAgent
-
-        agent = AmoCRMDealHygieneAgent(
-            amocrm=api_state.amocrm_instance, db=api_state.db_instance
-        )
-        report = await agent.audit(limit=int(data.get("limit") or 100))
-        return await agent.apply_report(
-            report, create_tasks=bool(data.get("create_tasks", True))
-        )
-    except Exception as exc:
-        return _fail("ai_deal_hygiene_apply", exc)
-
-
-def _build_lead_classifier() -> Optional[Any]:
-    """LeadClassifier — AmoCRM va Gemini kaliti bo'lsagina quriladi."""
-    if api_state.amocrm_instance is None:
-        return None
-    # `GEMINI_API_KEY` — Pydantic SecretStr. O'ramni uzatib bo'lmaydi:
-    # `genai.Client` niqoblangan qiymat oladi va autentifikatsiya yiqiladi.
-    raw_key = getattr(settings, "GEMINI_API_KEY", "")
-    if hasattr(raw_key, "get_secret_value"):
-        gemini_key = raw_key.get_secret_value() or ""
-    else:
-        gemini_key = str(raw_key or "")
-    if not gemini_key.strip():
-        return None
-
-    from src.services.core.leads.lead_classifier import LeadClassifier
-
-    return LeadClassifier(amocrm=api_state.amocrm_instance, gemini_api_key=gemini_key)
+        return {"error": str(exc)}
 
 
 @router.post("/lead-classifier/tag")
 async def ai_lead_classifier_tag(request: Request):
-    """Bitta leadni klassifikatsiya qiladi."""
     if not _secret_check(request):
-        return _unauthorized()
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
     try:
         data = await request.json()
         lead_id = data.get("lead_id")
-        if not lead_id:
-            return JSONResponse(
-                status_code=400, content={"error": "lead_id is required"}
-            )
-
-        classifier = _build_lead_classifier()
-        if classifier is None:
-            return _unavailable(
-                "ai_lead_classifier_tag", "amocrm_or_gemini_key_missing"
-            )
-
-        # `classify_lead` lead obyektini kutadi, id emas.
-        lead = await api_state.amocrm_instance.get_lead(int(lead_id))
-        if not lead:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "lead_not_found", "lead_id": lead_id},
-            )
-
-        result = await classifier.classify_lead(lead)
-        if result is None:
-            return JSONResponse(
-                status_code=422,
-                content={"error": "classification_failed", "lead_id": lead_id},
-            )
-
-        payload = asdict(result)
-        # `category` — Enum, JSON uchun qiymatga aylantiramiz.
-        payload["category"] = result.category.value
-        return payload
+        from src.services.core.leads.lead_classifier import LeadClassifier
+        classifier = LeadClassifier(db=api_state.db_instance)
+        return await classifier.classify_lead(lead_id)
     except Exception as exc:
-        return _fail("ai_lead_classifier_tag", exc)
+        return {"error": str(exc)}
+
+
+@router.get("/deal-hygiene")
+async def ai_deal_hygiene():
+    try:
+        from src.services.core.deal_hygiene import AmoCRMDealHygieneAgent
+        agent = AmoCRMDealHygieneAgent(db=api_state.db_instance, amocrm=api_state.amocrm_instance)
+        return await agent.get_hygiene_report()
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.post("/deal-hygiene/apply")
+async def ai_deal_hygiene_apply(request: Request):
+    if not _secret_check(request):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    try:
+        from src.services.core.deal_hygiene import AmoCRMDealHygieneAgent
+        agent = AmoCRMDealHygieneAgent(db=api_state.db_instance, amocrm=api_state.amocrm_instance)
+        return await agent.apply_hygiene_fixes()
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.post("/process-call")
+async def ai_process_call(request: Request):
+    if not _secret_check(request):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    try:
+        data = await request.json()
+        call_id = data.get("call_id")
+        audio_url = data.get("audio_url")
+        from src.services.ai.conversation_engine import get_conversation_engine
+        engine = get_conversation_engine(db=api_state.db_instance)
+        return await engine.process_call(call_id=call_id, audio_url=audio_url)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.get("/daily-report")
+async def ai_daily_report():
+    try:
+        from src.services.ai import QualityAnalyzer
+        analyzer = QualityAnalyzer(db=api_state.db_instance)
+        return await analyzer.get_daily_report()
+    except Exception as exc:
+        return {"error": str(exc)}

@@ -20,8 +20,7 @@ import json
 import structlog
 import os
 import subprocess
-import ast
-from pathlib import Path
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from google import genai
@@ -87,9 +86,7 @@ class SelfEvolutionEngine:
     def __init__(self, db: Database, gemini_api_key: str):
         self.db = db
         self.client = genai.Client(api_key=gemini_api_key)
-        self.model = os.getenv(
-            "GEMINI_SELF_EVOLUTION_MODEL", settings.GEMINI_CALL_MODEL
-        )
+        self.model = os.getenv("GEMINI_SELF_EVOLUTION_MODEL", settings.GEMINI_CALL_MODEL)
         self.repo_dir = os.environ.get("OISHA_REPO_DIR", "/home/ubuntu/oisha-os")
         self.github_token = os.environ.get("GITHUB_TOKEN", "")
 
@@ -115,7 +112,6 @@ class SelfEvolutionEngine:
 
         try:
             from src.utils.ai_utils import safe_ai_call
-
             response = await safe_ai_call(
                 client=self.client,
                 prompt=[prompt],
@@ -133,12 +129,9 @@ class SelfEvolutionEngine:
 
             for change in proposal["changes"]:
                 if not self._is_safe_file(change.get("file", "")):
-                    logger.warning(
-                        f"[EVOLVE] Unsafe file rejected: {change.get('file')}"
-                    )
+                    logger.warning(f"[EVOLVE] Unsafe file rejected: {change.get('file')}")
                     proposal["changes"] = [
-                        c
-                        for c in proposal["changes"]
+                        c for c in proposal["changes"]
                         if self._is_safe_file(c.get("file", ""))
                     ]
 
@@ -153,12 +146,7 @@ class SelfEvolutionEngine:
             return None
 
     async def create_evolution_pr(self, proposal: Dict[str, Any]) -> Optional[str]:
-        """Create a review PR after an explicit owner-approved call.
-
-        The scheduler no longer calls this method directly. A clean tree and
-        exact resolved-path allowlist keep a future executor from staging
-        runtime or unrelated files.
-        """
+        """Taklif asosida GitHub PR ochish."""
         if not self.github_token:
             logger.warning("[EVOLVE] No GITHUB_TOKEN — cannot create PR")
             return None
@@ -167,39 +155,26 @@ class SelfEvolutionEngine:
             return None
 
         branch_name = f"oisha/auto-evolve-{get_local_now().strftime('%Y%m%d-%H%M')}"
-        changed_files: List[str] = []
 
         try:
-            if self._git_cmd(["status", "--porcelain"]):
-                logger.warning("[EVOLVE] Dirty repository — PR creation blocked")
-                return None
             self._git_cmd(["checkout", "-b", branch_name])
 
             for change in proposal["changes"]:
-                file_path = self._resolve_safe_file(change.get("file", ""))
-                if file_path is None or not file_path.exists():
+                file_path = os.path.join(self.repo_dir, change["file"])
+                if not os.path.exists(file_path):
                     continue
 
-                content = file_path.read_text(encoding="utf-8")
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
 
                 old_text = change.get("old_text", "")
                 new_text = change.get("new_text", "")
-                if not isinstance(old_text, str) or not isinstance(new_text, str):
-                    continue
                 if old_text and old_text in content:
-                    updated = content.replace(old_text, new_text, 1)
-                    ast.parse(updated, filename=str(file_path))
-                    file_path.write_text(updated, encoding="utf-8")
-                    changed_files.append(
-                        str(file_path.relative_to(Path(self.repo_dir).resolve()))
-                    )
+                    content = content.replace(old_text, new_text, 1)
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(content)
 
-            if not changed_files:
-                logger.info("[EVOLVE] No valid prompt changes to commit")
-                self._git_cmd(["checkout", "main"])
-                return None
-
-            self._git_cmd(["add", "--", *changed_files])
+            self._git_cmd(["add", "-A"])
 
             commit_msg = f"feat(ai): self-evolve — {proposal.get('pr_title', 'prompt improvement')}"
             self._git_cmd(["commit", "-m", commit_msg])
@@ -218,34 +193,14 @@ class SelfEvolutionEngine:
         except Exception as exc:
             logger.error(f"[EVOLVE] PR creation failed: {exc}")
             try:
-                if changed_files:
-                    self._git_cmd(
-                        ["restore", "--staged", "--worktree", "--", *changed_files]
-                    )
                 self._git_cmd(["checkout", "main"])
             except Exception:
-                logger.debug(
-                    "[EVOLVE] Failed to checkout main after PR creation error",
-                    exc_info=True,
-                )
+                logger.debug("[EVOLVE] Failed to checkout main after PR creation error", exc_info=True)
             return None
-
-    def _resolve_safe_file(self, file_path: str) -> Optional[Path]:
-        if not file_path or not isinstance(file_path, str):
-            return None
-        repo_root = Path(self.repo_dir).resolve()
-        allowed = {(repo_root / safe).resolve() for safe in SAFE_FILES}
-        normalized = file_path.replace("\\", "/")
-        if "/" not in normalized:
-            basename_matches = [path for path in allowed if path.name == normalized]
-            return basename_matches[0] if len(basename_matches) == 1 else None
-        candidate = (repo_root / normalized).resolve()
-        if candidate not in allowed:
-            return None
-        return candidate
 
     def _is_safe_file(self, file_path: str) -> bool:
-        return self._resolve_safe_file(file_path) is not None
+        normalized = file_path.replace("\\", "/")
+        return any(normalized.endswith(safe) or normalized == safe for safe in SAFE_FILES)
 
     def _git_cmd(self, args: List[str]) -> str:
         result = subprocess.run(
@@ -261,19 +216,7 @@ class SelfEvolutionEngine:
 
     def _create_pr(self, branch: str, title: str, body: str) -> str:
         result = subprocess.run(
-            [
-                "gh",
-                "pr",
-                "create",
-                "--title",
-                title,
-                "--body",
-                body,
-                "--base",
-                "main",
-                "--head",
-                branch,
-            ],
+            ["gh", "pr", "create", "--title", title, "--body", body, "--base", "main", "--head", branch],
             cwd=self.repo_dir,
             capture_output=True,
             text=True,
@@ -297,13 +240,11 @@ class SelfEvolutionEngine:
             lines.append(f"  Sabab: {change.get('reason', '')}")
             lines.append("")
 
-        lines.extend(
-            [
-                "---",
-                "🤖 Bu PR Oisha Self-Evolution Engine tomonidan avtomatik yaratilgan.",
-                "Owner approve qilganda deploy bo'ladi.",
-            ]
-        )
+        lines.extend([
+            "---",
+            "🤖 Bu PR Oisha Self-Evolution Engine tomonidan avtomatik yaratilgan.",
+            "Owner approve qilganda deploy bo'ladi.",
+        ])
         return "\n".join(lines)
 
     def _read_current_prompt(self) -> str:
@@ -327,13 +268,7 @@ class SelfEvolutionEngine:
                    LIMIT 20"""
             )
             return [
-                {
-                    "pattern": r[0],
-                    "lesson": r[1],
-                    "strategy": r[2],
-                    "confidence": r[3],
-                    "category": r[4],
-                }
+                {"pattern": r[0], "lesson": r[1], "strategy": r[2], "confidence": r[3], "category": r[4]}
                 for r in await rows.fetchall()
             ]
 
@@ -345,13 +280,7 @@ class SelfEvolutionEngine:
                    ORDER BY weight DESC LIMIT 10"""
             )
             return [
-                {
-                    "rule": r[0],
-                    "when": r[1],
-                    "weight": r[2],
-                    "success": r[3],
-                    "applied": r[4],
-                }
+                {"rule": r[0], "when": r[1], "weight": r[2], "success": r[3], "applied": r[4]}
                 for r in await rows.fetchall()
             ]
 
@@ -373,6 +302,6 @@ class SelfEvolutionEngine:
 
         return {
             "avg_quality": f"{(avg_q[0] or 0):.1f}/10" if avg_q else "N/A",
-            "conversion_rate": f"{(avg_c[0] or 0) * 100:.0f}%" if avg_c else "N/A",
+            "conversion_rate": f"{(avg_c[0] or 0)*100:.0f}%" if avg_c else "N/A",
             "top_issue": "data insufficient",
         }

@@ -7,16 +7,12 @@
     "clean": "rimraf .next",
     "dev": "next dev",
     "lint": "eslint .",
-    "test": "node --test src/components/searchAccessibility.test.mjs && tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@heroui/react": "^3.2.2",
-    "@heroui/styles": "^3.2.2",
-    "@heroui/system": "^2.4.28",
     "@salescoach/shared-types": "workspace:*",
     "@salescoach/ui": "workspace:*",
-    "framer-motion": "^12.42.2",
     "next": "^16.2.10",
     "react": "^19.2.7",
     "react-dom": "^19.0.0"

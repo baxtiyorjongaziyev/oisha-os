@@ -398,21 +398,6 @@ async def boot_application():
     _bot_session = StringSession(_bot_session_string) if _bot_session_string else StringSession()
     bot_client = TelegramClient(_bot_session, settings.API_ID, settings.API_HASH)
     BOT_TOKEN_STR = BOT_TOKEN
-    from src.services.core.telegram.bot_runtime import build_outbound_bot_runtime
-    bot_runtime = build_outbound_bot_runtime(
-        backend=getattr(settings, "TELEGRAM_BOT_RUNTIME_BACKEND", "telethon"),
-        bot_token=BOT_TOKEN_STR,
-        telethon_client=bot_client,
-    )
-    logger.info("[BOT] Outbound bot runtime backend=%s", bot_runtime.backend)
-    if telegram_session_manager is not None:
-        async def _notify_userbot_owner(message: str) -> None:
-            try:
-                await bot_runtime.send_message(settings.OWNER_ID, message)
-            except Exception as notify_exc:
-                logger.warning("[SESSION] Owner reconnect alert failed: %s", notify_exc)
-
-        telegram_session_manager.admin_notifier = _notify_userbot_owner
     juma_notifier = m.JumaNotifier(client=client, db=db)
 
     # Services
@@ -444,7 +429,7 @@ async def boot_application():
         
         from src.schedulers.frog_scheduler import daily_frog_loop
         # Frog brief is sent from @jonairobot (bot_client), not the userbot.
-        asyncio.create_task(daily_frog_loop(bot_runtime, settings.TEAM_GROUP_ID), name="daily_frog_loop")
+        asyncio.create_task(daily_frog_loop(bot_client, settings.TEAM_GROUP_ID), name="daily_frog_loop")
         asyncio.create_task(_channel_scout_loop(), name="channel_scout_loop")
         from src.schedulers.instagram_weekly_reporter import instagram_weekly_report_loop
         asyncio.create_task(
@@ -472,12 +457,7 @@ async def boot_application():
 
     if not settings.RUN_USERBOT_ONLY:
         from src.services.core.evolution_scheduler import EvolutionScheduler
-        evolution_scheduler = EvolutionScheduler(
-            db=msg_controller.db,
-            gemini_api_key=api_keys["gemini"],
-            bot_client=bot_client,
-            owner_id=settings.OWNER_ID,
-        )
+        evolution_scheduler = EvolutionScheduler(db=msg_controller.db, gemini_api_key=api_keys["gemini"])
         asyncio.create_task(evolution_scheduler.start(), name="evolution_scheduler")
 
     workflow_manager = WorkflowManager(crm=msg_controller.crm, db=msg_controller.db, client=client)
@@ -488,68 +468,7 @@ async def boot_application():
         bot_client=bot_client, user_client=client, db=msg_controller.db,
         msg_controller=msg_controller, access_manager=access_manager,
         team_group_id=settings.TEAM_GROUP_ID,
-        bot_runtime=bot_runtime,
     )
-    from src.services.core.admin_aiogram_dispatcher import maybe_build_admin_aiogram_dispatcher
-    from src.services.core.business_command_center import (
-        collect_business_command_snapshot,
-        collect_finance_project_risks,
-        collect_project_delivery_risks,
-        collect_sales_today_priorities,
-        collect_team_capacity_snapshot,
-    )
-
-    async def _get_sales_today_priorities():
-        return await collect_sales_today_priorities(msg_controller.crm.amocrm, limit=7)
-
-    async def _get_project_delivery_risks():
-        return await collect_project_delivery_risks(msg_controller.crm.airtable, limit=7)
-
-    async def _get_finance_project_risks():
-        return await collect_finance_project_risks(msg_controller.crm.airtable, limit=7)
-
-    async def _get_team_capacity():
-        return await collect_team_capacity_snapshot(msg_controller.crm.airtable, limit=7)
-
-    async def _get_command_center():
-        return await collect_business_command_snapshot(
-            amocrm=msg_controller.crm.amocrm,
-            project_source=msg_controller.crm.airtable,
-            finance_source=msg_controller.crm.airtable,
-            limit=3,
-        )
-
-    admin_aiogram_dispatcher = maybe_build_admin_aiogram_dispatcher(
-        enabled=getattr(settings, "TELEGRAM_ADMIN_AIOGRAM_DISPATCHER_ENABLED", False),
-        owner_id=access_manager.owner_id,
-        get_role=access_manager.get_role,
-        get_role_name=access_manager.get_role_name,
-        is_admin=access_manager.is_admin,
-        get_today_stats=msg_controller.db.get_today_stats,
-        cached_crm_audit=api_state.cached_crm_audit,
-        get_sales_today_priorities=_get_sales_today_priorities,
-        get_project_delivery_risks=_get_project_delivery_risks,
-        get_finance_project_risks=_get_finance_project_risks,
-        get_team_capacity=_get_team_capacity,
-        get_command_center=_get_command_center,
-    )
-    if admin_aiogram_dispatcher is not None:
-        logger.info("[BOT] Aiogram admin dispatcher prepared in manual mode.")
-    if getattr(settings, "OISHA_COMMAND_CENTER_DIGEST_ENABLED", False):
-        from src.schedulers.command_center_scheduler import command_center_digest_loop
-
-        asyncio.create_task(
-            command_center_digest_loop(
-                bot_client=bot_runtime,
-                target_chat_id=settings.TEAM_GROUP_ID,
-                snapshot_provider=_get_command_center,
-                hour=getattr(settings, "OISHA_COMMAND_CENTER_DIGEST_HOUR", 9),
-                minute=getattr(settings, "OISHA_COMMAND_CENTER_DIGEST_MINUTE", 5),
-                topic_id=getattr(settings, "TOPIC_REPORTS_ID", None),
-            ),
-            name="command_center_digest_loop",
-        )
-        logger.info("[COMMAND_CENTER] Daily digest loop enabled.")
     if meeting_scheduler:
         meeting_scheduler.admin_notifier = admin_bot
     from src.services.utils.welcome_manager import WelcomeManager
@@ -728,7 +647,6 @@ async def boot_application():
     # sync until every reader migrates to app_ctx.
     m.client = client
     m.bot_client = bot_client
-    m.bot_runtime = bot_runtime
     m.msg_controller = msg_controller
     m.lead_scraper = lead_scraper
     m.action_parser = action_parser
@@ -740,7 +658,6 @@ async def boot_application():
     m.workflow_manager = workflow_manager
     m.access_manager = access_manager
     m.admin_bot = admin_bot
-    m.admin_aiogram_dispatcher = admin_aiogram_dispatcher
     m.juma_notifier = juma_notifier
     m.session_manager = session_manager
     m.surgical_integration = surgical_integration
@@ -756,7 +673,6 @@ async def boot_application():
     # Sync to app_ctx for new code
     app_ctx.client = client
     app_ctx.bot_client = bot_client
-    app_ctx.bot_runtime = bot_runtime
     app_ctx.msg_controller = msg_controller
     app_ctx.lead_scraper = lead_scraper
     app_ctx.action_parser = action_parser
@@ -768,7 +684,6 @@ async def boot_application():
     app_ctx.workflow_manager = workflow_manager
     app_ctx.access_manager = access_manager
     app_ctx.admin_bot = admin_bot
-    app_ctx.admin_aiogram_dispatcher = admin_aiogram_dispatcher
     app_ctx.juma_notifier = juma_notifier
     app_ctx.session_manager = session_manager
     app_ctx.telegram_session_manager = telegram_session_manager  # XAVFSIZ SESSION MANAGER
@@ -830,12 +745,12 @@ async def boot_application():
             sender = await event.get_sender()
             # 1. Card bot private messages (finance group xabarlari @jonairobot orqali)
             if event.is_private and not event.out and is_card_bot_sender(sender):
-                await handle_card_bot_message(event, client, hisobchi_engine, bot_client=bot_runtime)
+                await handle_card_bot_message(event, client, hisobchi_engine, bot_client=bot_client)
                 raise events.StopPropagation
             # 2. Finance group replies
             if not event.is_private and not event.out:
                 if await handle_finance_group_reply(
-                    event, client, hisobchi_engine, bot_client=bot_runtime
+                    event, client, hisobchi_engine, bot_client=bot_client
                 ):
                     raise events.StopPropagation
                 return  # not a finance reply — let generic handler process it
@@ -916,8 +831,8 @@ async def boot_application():
                     logger.error("[HISOBCHI] handle_callback failed for %s: %s", data, exc, exc_info=True)
                     try:
                         await event.answer("⚠️ Xatolik yuz berdi, qayta urinib ko'ring.")
-                    except Exception as answer_exc:
-                        logger.debug("[HISOBCHI] Callback error answer failed: %s", answer_exc)
+                    except Exception:
+                        pass
                 raise events.StopPropagation
         except events.StopPropagation:
             raise
@@ -943,12 +858,12 @@ async def boot_application():
         try:
             await run_one_time_reset_and_resync(
                 db=msg_controller.db, engine=hisobchi_engine,
-                client=client, bot_client=bot_runtime,
+                client=client, bot_client=bot_client,
             )
         except Exception as exc:
             logger.error("[HISOBCHI] One-time reset+resync failed: %s", exc, exc_info=True)
         # Routine short-window catch-up — runs every boot, as before.
-        await backfill_card_bot_messages(client, hisobchi_engine, bot_client=bot_runtime)
+        await backfill_card_bot_messages(client, hisobchi_engine, bot_client=bot_client)
 
     asyncio.create_task(_hisobchi_startup_sync(), name="hisobchi_card_backfill")
 
