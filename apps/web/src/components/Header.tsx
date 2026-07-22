@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { useTheme } from "@/context/ThemeContext";
+import { clearSearchQuery } from "./searchAccessibility.mjs";
 
 export default function Header() {
   const {
@@ -25,6 +26,7 @@ export default function Header() {
 
   // Local state for search query and bug report
   const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [bugCategory, setBugCategory] = useState("idea");
   const [bugText, setBugText] = useState("");
   const [bugSuccess, setBugSuccess] = useState(false);
@@ -101,6 +103,8 @@ export default function Header() {
         <div className="flex items-center gap-2 md:gap-4">
           {/* Quick Search Trigger */}
           <button
+            type="button"
+            aria-label="Global qidiruvni ochish"
             onClick={() => setSearchOpen(true)}
             className="flex items-center gap-2 rounded-2xl border border-border bg-bg px-3 py-2 text-xs text-text-muted hover:border-brand-hover hover:bg-brand-light/30 active:scale-[0.98] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 w-36 md:w-56"
           >
@@ -345,10 +349,11 @@ export default function Header() {
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-20">
           <div className="w-full max-w-xl rounded-3xl border border-border bg-bg-popover p-4 shadow-2xl animate-fade-in">
             <div className="flex items-center gap-3 border-b border-border pb-3">
-              <svg aria-hidden="true" className="h-5 w-5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <svg aria-hidden="true" className="h-5 w-5 shrink-0 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
+                ref={searchInputRef}
                 type="text"
                 autoFocus
                 aria-label="Qidiruv so'rovi"
@@ -357,10 +362,23 @@ export default function Header() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent text-sm text-text focus:outline-none"
               />
+              {searchQuery.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => clearSearchQuery(setSearchQuery, searchInputRef.current)}
+                  aria-label="Qidiruvni tozalash"
+                  className="shrink-0 rounded-full p-1 text-text-muted transition-colors hover:bg-bg hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                >
+                  <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
               <button
+                type="button"
                 onClick={() => setSearchOpen(false)}
                 aria-label="Qidiruvni yopish"
-                className="rounded-lg p-1.5 text-text-muted hover:bg-bg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                className="shrink-0 rounded-lg p-1.5 text-text-muted hover:bg-bg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
               >
                 ESC
               </button>
