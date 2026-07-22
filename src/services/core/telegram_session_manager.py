@@ -24,6 +24,11 @@ from telethon.sessions import StringSession, SQLiteSession
 logger = logging.getLogger(__name__)
 
 
+def _is_auth_key_duplicated(exc: Exception) -> bool:
+    error_msg = f"{type(exc).__name__}:{exc}".upper()
+    return "AUTH_KEY_DUPLICATED" in error_msg or "AUTHKEYDUPLICATED" in error_msg
+
+
 def _env_int(name: str, default: int) -> int:
     raw = os.environ.get(name, "").strip()
     if not raw:
@@ -118,10 +123,8 @@ class TelegramSessionManager:
                     logger.debug("[SESSION] Disconnect after timeout: %s", exc)
                 return False
             except Exception as exc:
-                error_msg = str(exc).upper()
-
                 # AUTH_KEY_DUPLICATED — ENG XAVFLI XATO
-                if "AUTH_KEY_DUPLICATED" in error_msg or "AUTHKEYDUPLICATED" in error_msg:
+                if _is_auth_key_duplicated(exc):
                     logger.critical(
                         "[SESSION] AUTH_KEY_DUPLICATED — Session boshqa runtime da ishlatilgan!"
                     )
@@ -136,6 +139,8 @@ class TelegramSessionManager:
 
             # Authorized tekshirish
             if await self.client.is_user_authorized():
+                if not await self._validate_high_level_auth():
+                    return False
                 self._is_connected = True
                 self._last_connected_at = time.time()
                 self._reconnect_count = 0
@@ -182,6 +187,28 @@ class TelegramSessionManager:
             except Exception as exc:
                 logger.debug("[SESSION] Disconnect in auth key handler: %s", exc)
 
+    async def _validate_high_level_auth(self) -> bool:
+        """Transport connected bo'lsa ham session kuyganini RPC bilan tekshiradi."""
+        if not self.client:
+            return False
+        try:
+            await asyncio.wait_for(self.client.get_me(), timeout=10)
+            return True
+        except asyncio.TimeoutError:
+            logger.warning("[SESSION] get_me health probe timeout")
+            self._is_connected = False
+            return False
+        except Exception as exc:
+            if _is_auth_key_duplicated(exc):
+                logger.critical(
+                    "[SESSION] AUTH_KEY_DUPLICATED health probe'da aniqlandi; reconnect to'xtaydi"
+                )
+                await self._handle_auth_key_duplicated()
+                return False
+            logger.warning("[SESSION] get_me health probe failed: %s", exc)
+            self._is_connected = False
+            return False
+
     async def _notify_admin_throttled(self, message: str) -> None:
         if not self._admin_notifier:
             return
@@ -210,6 +237,8 @@ class TelegramSessionManager:
                         # Oddiy so'rov bilan tekshirish
                         if not self.client.is_connected():
                             raise ConnectionError("Client disconnected")
+                        if not await self._validate_high_level_auth():
+                            raise ConnectionError("Client auth probe failed")
                     except ConnectionError:
                         self._is_connected = False
                         logger.warning("[SESSION] Connection tushdi!")
