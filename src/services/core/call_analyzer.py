@@ -14,6 +14,12 @@ import requests as _requests
 
 from src.database import Database
 from src.services.core.crm.amocrm_sync import AmoCRMSync
+from src.services.core.sales_playbook import (
+    IDEAL_CLIENT_TALK_PCT,
+    STAGE_WEIGHTS,
+    rubric_prompt_uz,
+)
+from src.services.utils.transcript import speaker_split, talk_ratio_verdict
 
 logger = structlog.get_logger()
 
@@ -76,32 +82,15 @@ def _detect_mime(url: str, content_type: Optional[str] = None) -> str:
     return "audio/mpeg"
 
 
-_CLIENT_LABELS = re.compile(r"^(mijoz|xaridor|client)\s*:", re.IGNORECASE)
-_AGENT_LABELS = re.compile(r"^(sotuvchi|menejer|manager|agent|xodim|oisha)\s*:", re.IGNORECASE)
+# So'zlovchi yorliqlari va nisbat mantiqi `services.utils.transcript` da —
+# `quality_analyzer` ham aynan shu funksiyani ishlatadi.
+_speaker_split = speaker_split
 
 
 def _compute_talk_ratio(transcript: str) -> tuple[int, int]:
-    """Return (client_pct, agent_pct) based on character counts per speaker."""
-    client_chars = 0
-    agent_chars = 0
-    for line in (transcript or "").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        colon_pos = line.find(":")
-        if colon_pos < 1:
-            continue
-        label = line[:colon_pos].strip()
-        text = line[colon_pos + 1:].strip()
-        if _CLIENT_LABELS.match(label + ":"):
-            client_chars += len(text)
-        elif _AGENT_LABELS.match(label + ":"):
-            agent_chars += len(text)
-
-    total = client_chars + agent_chars
-    if total == 0:
-        return 0, 0
-    return round(client_chars * 100 / total), round(agent_chars * 100 / total)
+    """Back-compat wrapper: (client_pct, agent_pct) only."""
+    client_pct, agent_pct, _ = _speaker_split(transcript)
+    return client_pct, agent_pct
 
 
 # Whisper-turkum ASR modellari sukunat/shovqinda ko'pincha shu qisqa,
@@ -148,13 +137,20 @@ def _transcript_impossible_for_duration(transcript: str, duration_seconds: int) 
     return word_count > duration_seconds * 4
 
 
-def _talk_ratio_verdict(client_pct: int) -> str:
-    """Human-readable verdict for the talk ratio."""
-    if client_pct >= 55:
-        return f"✅ Yaxshi — mijoz {client_pct}% gapirdi (ideal: ≥55%)"
-    if client_pct >= 40:
-        return f"⚠️ O'rtacha — mijoz {client_pct}% gapirdi (ideal: ≥55%)"
-    return f"🔴 Zaif — sotuvchi haddan ko'p gapirdi, mijoz faqat {client_pct}% gapirdi"
+_talk_ratio_verdict = talk_ratio_verdict
+
+
+# Savdo rubrikasi mazmunli bo'lishi uchun minimal suhbat hajmi.
+# Undan qisqa qo'ng'iroqda 6 bosqichning hech biri sodir bo'lolmaydi —
+# 0/100 ko'rsatish sotuvchini asossiz ayblash bo'ladi.
+_RUBRIC_MIN_WORDS = 40
+
+
+def _rubric_applies(category: str, transcript: str) -> bool:
+    """Jon Branding sotuv rubrikasi shu qo'ng'iroqqa taalluqlimi?"""
+    if category != "Mijoz":
+        return False
+    return len((transcript or "").split()) >= _RUBRIC_MIN_WORDS
 
 
 def _clip(text: str, limit: int) -> str:
@@ -695,7 +691,12 @@ class CallAnalyzer:
         try:
             from google.genai import types
 
-            client_pct, agent_pct = _compute_talk_ratio(transcript)
+            client_pct, agent_pct, attributed = _speaker_split(transcript)
+            ratio_line = (
+                f"  Mijoz: {client_pct}%  |  Sotuvchi: {agent_pct}%\n"
+                if attributed
+                else "  Aniqlanmadi — transkripsiyada rollar belgilanmagan.\n"
+            )
             prompt = (
                 "Quyidagi telefon suhbati transkripsiyasini professional savdo tahlilchisi sifatida tahlil qiling.\n\n"
                 "TOIFALAR (faqat bittasini tanlang):\n"
@@ -705,34 +706,12 @@ class CallAnalyzer:
                 "- Mijoz: brending, dizayn, SMM, sayt, loyiha, narx, savdo yoki mijoz muzokarasi.\n"
                 "- Boshqa: aralash, spam yoki yuqoridagilarga aniq kirmaydigan qo'ng'iroq.\n\n"
                 "GAPIRISH NISBATI (hisoblangan):\n"
-                f"  Mijoz: {client_pct}%  |  Sotuvchi: {agent_pct}%\n"
-                "  Ideal: mijoz ≥55%, sotuvchi ≤45%.\n\n"
-                "JON BRANDING SOTUV RUBRIKASI (faqat Mijoz toifasida):\n"
-                "1. Salomlashish (ball: 0-100):\n"
-                "   - Menejer o'z ismini va 'Jon Branding' agentligini aniq aytdimi?\n"
-                "   - Mijoz bizni qayerdan topganini so'radimi?\n"
-                "   - Qo'ng'iroq maqsadini belgiladimi?\n\n"
-                "2. Ehtiyojlar (ball: 0-100):\n"
-                "   - Mijoz vaziyatini yetarli savollar bilan ochdimi?\n"
-                "   - Qaysi xizmat kerakligini aniqladimi?\n"
-                "   - Qaror beruvchi va resurs holatini aniqlastirdimi?\n\n"
-                "3. Qiymat (ball: 0-100):\n"
-                "   - Taklif mijoz ehtiyojiga bog'landimi?\n"
-                "   - Aniq biznes foyda ko'rsatildimi?\n"
-                "   - Mijozga mos format tavsiya qilindimi?\n\n"
-                "4. E'tirozlar (ball: 0-100, vaznli x2):\n"
-                "   - 'Qimmat' e'tiroziga narx tarkibi tushuntirildimi?\n"
-                "   - Muddat bo'yicha e'tirozni sifat bilan asosladimi?\n"
-                "   - Xizmat tarkibi bo'yicha to'liq tizim afzalliklari aytildimi?\n\n"
-                "5. Yakunlash (ball: 0-100, vaznli x2):\n"
-                "   - Brif yuborish yoki to'ldirish kelishildi mi?\n"
-                "   - Keyingi uchrashuv/qo'ng'iroq vaqti belgilandimi?\n"
-                "   - To'lov usuli va shartnoma tartibi kelishildimi?\n\n"
-                "6. Muloqot sifati (ball: 0-100):\n"
-                "   - Professional nutq va ohang saqlandi mi?\n"
-                "   - Mijozni bo'lmasdan tingladi mi?\n"
-                "   - Ma'lumotlar aniq va sodda yetkazildimi?\n\n"
-                "Agar toifa Mijoz emas (Shaxsiy, Oila, Jamoa, Boshqa) bo'lsa — rubrik_baholar uchun umumiy muloqot sifatiga qarab baholang.\n\n"
+                f"{ratio_line}"
+                f"  Ideal: mijoz ≥{IDEAL_CLIENT_TALK_PCT}%.\n\n"
+                f"{rubric_prompt_uz()}\n"
+                "Rubrik faqat Mijoz toifasiga taalluqli. Agar toifa Mijoz emas "
+                "(Shaxsiy, Oila, Jamoa, Boshqa) bo'lsa — rubrik_baholar uchun "
+                "umumiy muloqot sifatiga qarab baholang.\n\n"
                 "Javobni faqat JSON formatida qaytaring:\n"
                 "{\n"
                 '  "summary": "2-4 gapda O\'zbekcha xulosa",\n'
@@ -828,7 +807,7 @@ class CallAnalyzer:
     ) -> Dict[str, Any]:
         summary = str(data.get("summary") or "").strip()
         next_steps = str(data.get("next_steps") or "N/A").strip() or "N/A"
-        computed_client, computed_agent = _compute_talk_ratio(transcript)
+        computed_client, computed_agent, attributed = _speaker_split(transcript)
         client_pct = int(data.get("client_talk_pct") or computed_client)
         agent_pct = int(data.get("agent_talk_pct") or computed_agent)
 
@@ -848,22 +827,14 @@ class CallAnalyzer:
             def _stage(key: str) -> int:
                 s = rubrik_raw.get(key, {})
                 return _clamp_score(s.get("ball", 0) if isinstance(s, dict) else s)
-            s1 = _stage("salomlashish")
-            s2 = _stage("ehtiyojlar")
-            s3 = _stage("qiymat")
-            s4 = _stage("etirozlar")
-            s5 = _stage("yakunlash")
-            s6 = _stage("muloqot_sifati")
-            sifat_raw = (s1 * 1.0 + s2 * 1.5 + s3 * 1.5 + s4 * 2.0 + s5 * 2.0 + s6 * 1.0) / 9.0
+            # Og'irliklar rasmiy playbook'dan — bu yerda qayta yozilmaydi.
+            rubrik_baholar = {stage: _stage(stage) for stage in STAGE_WEIGHTS}
+            total_weight = sum(STAGE_WEIGHTS.values())
+            sifat_raw = (
+                sum(rubrik_baholar[s] * w for s, w in STAGE_WEIGHTS.items())
+                / total_weight
+            )
             sifat_bahosi = _clamp_score(round(sifat_raw))
-            rubrik_baholar = {
-                "salomlashish": s1,
-                "ehtiyojlar": s2,
-                "qiymat": s3,
-                "etirozlar": s4,
-                "yakunlash": s5,
-                "muloqot_sifati": s6,
-            }
         else:
             sifat_bahosi = _clamp_score(data.get("sifat_bahosi", 0))
             rubrik_baholar = {
@@ -871,14 +842,22 @@ class CallAnalyzer:
                 "etirozlar": 0, "yakunlash": 0, "muloqot_sifati": 0,
             }
 
+        category = _normalise_category(data.get("category"))
+        rubrik_amal_qiladi = _rubric_applies(category, transcript)
+        if not rubrik_amal_qiladi:
+            sifat_bahosi = 0
+            rubrik_baholar = dict.fromkeys(rubrik_baholar, 0)
+
         return {
             "summary": summary or _clip(transcript, 350),
-            "category": _normalise_category(data.get("category")),
+            "category": category,
             "client_mood": _normalise_mood(data.get("client_mood")),
             "next_steps": next_steps,
             "client_talk_pct": client_pct,
             "agent_talk_pct": agent_pct,
-            "talk_ratio_verdict": _talk_ratio_verdict(client_pct),
+            "talk_ratio_verdict": _talk_ratio_verdict(client_pct, attributed),
+            "talk_ratio_attributed": attributed,
+            "rubrik_amal_qiladi": rubrik_amal_qiladi,
             # MetaSell-like extended fields
             "sifat_bahosi": sifat_bahosi,
             "lead_bahosi": _clamp_score(data.get("lead_bahosi", 0)),
@@ -947,7 +926,7 @@ class CallAnalyzer:
         else:
             category = "Boshqa"
 
-        client_pct, agent_pct = _compute_talk_ratio(transcript)
+        client_pct, agent_pct, attributed = _speaker_split(transcript)
         return {
             "summary": _clip(transcript or "Tahlil uchun transkripsiya topilmadi.", 350),
             "category": category,
@@ -955,7 +934,10 @@ class CallAnalyzer:
             "next_steps": "N/A",
             "client_talk_pct": client_pct,
             "agent_talk_pct": agent_pct,
-            "talk_ratio_verdict": _talk_ratio_verdict(client_pct),
+            "talk_ratio_verdict": _talk_ratio_verdict(client_pct, attributed),
+            "talk_ratio_attributed": attributed,
+            # Fallback = LLM ishlamadi; hech narsa baholanmagan.
+            "rubrik_amal_qiladi": False,
             "sifat_bahosi": 0,
             "lead_bahosi": 0,
             "suhbat_oilasi": "Boshqa",
@@ -1020,31 +1002,58 @@ class CallAnalyzer:
         r_yak = int(rubrik.get("yakunlash") or 0)
         r_mul = int(rubrik.get("muloqot_sifati") or 0)
 
+        rubrik_amal_qiladi = bool(analysis.get("rubrik_amal_qiladi", True))
+        attributed = bool(analysis.get("talk_ratio_attributed", True))
+
         lines = [
             f"[{ANALYSIS_MARKER}] Oisha AI tahlil natijasi",
             "",
             _summary,
             "",
-            f"Sifat bahosi:  {self._score_bar(sifat)}",
-            f"Lead bahosi:   {self._score_bar(lead_b)}",
+        ]
+
+        if rubrik_amal_qiladi:
+            lines += [
+                f"Sifat bahosi:  {self._score_bar(sifat)}",
+                f"Lead bahosi:   {self._score_bar(lead_b)}",
+            ]
+        else:
+            lines.append("Baholanmadi — savdo suhbati emas yoki suhbat juda qisqa")
+
+        lines += [
             f"Suhbat oilasi: {suhbat_oilasi}",
             f"Suhbat domeni: {suhbat_domeni}",
             f"Baholash rejimi: {baholash}",
             f"Biznes mosligi: {mosligi}",
             f"Servis yo'nalishi: {servis}",
             f"Kayfiyat: {_mood}",
-            "",
-            "──── JON BRANDING RUBRIK (6 bosqich) ────",
-            f"1. Salomlashish:    {self._score_bar(r_salom)}",
-            f"2. Ehtiyojlar:      {self._score_bar(r_ehti)}",
-            f"3. Qiymat:          {self._score_bar(r_qiy)}",
-            f"4. E'tirozlar (×2): {self._score_bar(r_etir)}",
-            f"5. Yakunlash  (×2): {self._score_bar(r_yak)}",
-            f"6. Muloqot sifati:  {self._score_bar(r_mul)}",
+        ]
+
+        if rubrik_amal_qiladi:
+            lines += [
+                "",
+                "──── JON BRANDING RUBRIK (6 bosqich) ────",
+                f"1. Salomlashish:    {self._score_bar(r_salom)}",
+                f"2. Ehtiyojlar:      {self._score_bar(r_ehti)}",
+                f"3. Qiymat:          {self._score_bar(r_qiy)}",
+                f"4. E'tirozlar (×2): {self._score_bar(r_etir)}",
+                f"5. Yakunlash  (×2): {self._score_bar(r_yak)}",
+                f"6. Muloqot sifati:  {self._score_bar(r_mul)}",
+            ]
+
+        lines += [
             "",
             f"Keyingi qadam: {_next}",
-            f"Gapirish nisbati: Mijoz {_client_pct}% | Sotuvchi {_agent_pct}%",
         ]
+        if attributed:
+            lines.append(
+                f"Gapirish nisbati: Mijoz {_client_pct}% | Sotuvchi {_agent_pct}%"
+            )
+        elif _client_pct or _agent_pct:
+            lines.append(
+                f"So'zlovchilar nisbati: {_client_pct}% / {_agent_pct}% "
+                "(rollar noma'lum)"
+            )
         if _talk_verdict:
             lines.append(_talk_verdict)
 
