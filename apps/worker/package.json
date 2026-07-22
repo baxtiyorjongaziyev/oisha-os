@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@salescoach/shared-types": "workspace:*",
-    "bullmq": "^5.80.5",
+    "bullmq": "^5.80.10",
     "ioredis": "^5.11.1",
     "zod": "^4.4.3"
   },
