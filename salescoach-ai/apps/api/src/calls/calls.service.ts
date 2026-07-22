@@ -85,7 +85,7 @@ export class CallsService {
           : call.status === 'SCORING'
             ? 'Baholash jarayonda'
             : call.status === 'FAILED'
-              ? `Ishlashda xatolik: ${call.errorMessage ?? "noma'lum"}`
+              ? `Ishlashda xatolik: ${call.errorMessage ?? 'noma'lum'}`
               : null;
 
     return { ...call, scorecard, audioUrl, processingNote };

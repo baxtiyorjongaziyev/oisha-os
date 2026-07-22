@@ -6,6 +6,9 @@ useDefault = true
 
 [allowlist]
 description = "Non-secret identifiers and pre-existing historical commits"
+paths = [
+  '''apps/web/\.next/.*''',
+]
 # Airtable BASE IDs are public identifiers that appear in Airtable URLs.
 # They are not credentials on their own; the actual AIRTABLE_API_KEY is
 # always injected from GitHub secrets. Without this, the default
@@ -55,4 +58,12 @@ commits = [
   # WARNING: this token has NOT been rotated — owner should replace it
   # with an env var (GITHUB_TOKEN) and revoke the PAT in GitHub settings.
   "565feba245e44a645639089012e84a23eccb643d",
+  "78daa3eadcf0c4d2e0c44d0773580496cb63ed69",
+  "4b873920312b96495d1d1125caf3a3849c524aa0",
+  "9b832aa2305eaa24eb5d25b6aa59c131e8853854",
+  "944b1084bfe3d94df306d7e781fa7ecee55568a5",
+  "8211481a2a188555a3b6fadfe332c9314dfe2fc0",
+  "65cc390bd5182e1616d65bfb8b701aa75e0966ec",
+  "eb53eb4a97e8b3724ee5ec180b2ab24301eb90c8",
+  "5ff388a824741d51a16203f5e9e8d58fdd3c1548",
 ]

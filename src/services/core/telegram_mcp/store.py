@@ -5,7 +5,6 @@ import hashlib
 import json
 import secrets
 import sqlite3
-from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -55,7 +54,7 @@ class ApprovalStore:
         await asyncio.to_thread(self._initialize_sync)
 
     def _initialize_sync(self) -> None:
-        with closing(self._connect()) as connection:
+        with self._connect() as connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS mcp_pending_operations (
@@ -127,7 +126,7 @@ class ApprovalStore:
         )
 
     def _create_sync(self, *values: Any) -> None:
-        with closing(self._connect()) as connection:
+        with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 """
@@ -145,7 +144,7 @@ class ApprovalStore:
         return await asyncio.to_thread(self._get_sync, operation_id)
 
     def _get_sync(self, operation_id: str) -> PendingOperation | None:
-        with closing(self._connect()) as connection:
+        with self._connect() as connection:
             row = connection.execute(
                 "SELECT * FROM mcp_pending_operations WHERE id = ?", (operation_id,)
             ).fetchone()
@@ -164,7 +163,7 @@ class ApprovalStore:
     def _claim_sync(
         self, operation_id: str, owner_id: int, now_iso: str
     ) -> PendingOperation | None:
-        with closing(self._connect()) as connection:
+        with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             cursor = connection.execute(
                 """
@@ -195,7 +194,7 @@ class ApprovalStore:
             )
 
     def _cancel_sync(self, operation_id: str, owner_id: int, now_iso: str) -> bool:
-        with closing(self._connect()) as connection:
+        with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             cursor = connection.execute(
                 """
@@ -242,7 +241,7 @@ class ApprovalStore:
     def _finish_notification_failure_sync(
         self, operation_id: str, error_name: str, now_iso: str
     ) -> None:
-        with closing(self._connect()) as connection:
+        with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             cursor = connection.execute(
                 """
@@ -263,7 +262,7 @@ class ApprovalStore:
     def _finish_sync(
         self, operation_id: str, status: str, summary: str, now_iso: str
     ) -> None:
-        with closing(self._connect()) as connection:
+        with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             cursor = connection.execute(
                 """

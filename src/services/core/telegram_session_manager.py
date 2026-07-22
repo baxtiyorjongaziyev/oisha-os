@@ -6,7 +6,7 @@ Xavfsizlik:
 - AUTH_KEY_DUPLICATED → QAYTA ULANMAYDI, admin ga xabar
 - FloodWaitError → Telegram aytgan vaqtni KUTADI + 10s
 - Har qanday reconnect orasida MINIMUM 10 sekund kutish
-- Productionda qayta ulanish davom etadi; AUTH_KEY_DUPLICATED bo'lsa to'xtaydi
+- MAX 5 marta qayta urinish — keyin admin ga alert
 - Session faqat faylga saqlanadi, env var ga YAZILMAYDI
 """
 
@@ -22,17 +22,6 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession, SQLiteSession
 
 logger = logging.getLogger(__name__)
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = os.environ.get(name, "").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        logger.warning("[SESSION] %s=%r invalid; default=%s ishlatiladi", name, raw, default)
-        return default
 
 
 class TelegramSessionManager:
@@ -58,15 +47,10 @@ class TelegramSessionManager:
 
         self.client: Optional[TelegramClient] = None
         self._reconnect_count = 0
-        # 0 means "forever" so production does not give up after a short outage.
-        self._max_reconnect = max(0, _env_int("USERBOT_RECONNECT_MAX_ATTEMPTS", 0))
-        self._min_delay = max(10, _env_int("USERBOT_RECONNECT_MIN_DELAY_SECS", 10))
-        self._max_delay = max(self._min_delay, _env_int("USERBOT_RECONNECT_MAX_DELAY_SECS", 300))
-        self._alert_cooldown = max(60, _env_int("USERBOT_RECONNECT_ALERT_COOLDOWN_SECS", 900))
-        self._last_alert_at: float = 0
+        self._max_reconnect = 5  # MAX 5 marta qayta ulanish
+        self._min_delay = 10  # MIN 10 SEKUND kutish
         self._last_connected_at: float = 0
         self._is_connected = False
-        self._fatal_auth_error = False
         self._reconnect_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
 
@@ -78,34 +62,33 @@ class TelegramSessionManager:
         - Mavjud session ni ishlatadi, yangi YARATMAYDI
         """
         try:
-            if self.client is None:
-                # Session manbasini aniqlash
-                if self._session_string:
-                    logger.info("[SESSION] String session ishlatilmoqda")
-                    session = StringSession(self._session_string)
-                elif os.path.exists(self._session_file):
-                    logger.info("[SESSION] Fayl session ishlatilmoqda: %s", self._session_file)
-                    session = SQLiteSession(self._session_file)
+            # Session manbasini aniqlash
+            if self._session_string:
+                logger.info("[SESSION] String session ishlatilmoqda")
+                session = StringSession(self._session_string)
+            elif os.path.exists(self._session_file):
+                logger.info("[SESSION] Fayl session ishlatilmoqda: %s", self._session_file)
+                session = SQLiteSession(self._session_file)
+            else:
+                # FAQAT env var dan o'qish — yangi session YARATMAYDI
+                env_string = os.environ.get("USERBOT_SESSION_STRING", "").strip()
+                if env_string:
+                    logger.info("[SESSION] Env session ishlatilmoqda (len=%d)", len(env_string))
+                    session = StringSession(env_string)
+                    # Faylga SAQLAMAYMIZ — faqat MUVAFFAQIYATLI ulanishdan keyin saqlaymiz
                 else:
-                    # FAQAT env var dan o'qish — yangi session YARATMAYDI
-                    env_string = os.environ.get("USERBOT_SESSION_STRING", "").strip()
-                    if env_string:
-                        logger.info("[SESSION] Env session ishlatilmoqda (len=%d)", len(env_string))
-                        session = StringSession(env_string)
-                        # Faylga SAQLAMAYMIZ — faqat MUVAFFAQIYATLI ulanishdan keyin saqlaymiz
-                    else:
-                        logger.error("[SESSION] HECH QANDAY session topilmadi!")
-                        logger.error("[SESSION] USERBOT_SESSION_STRING env yoki %s fayl kerak", self._session_file)
-                        return False
+                    logger.error("[SESSION] HECH QANDAY session topilmadi!")
+                    logger.error("[SESSION] USERBOT_SESSION_STRING env yoki %s fayl kerak", self._session_file)
+                    return False
 
-                # Client yaratish
-                self.client = TelegramClient(
-                    session,
-                    self.api_id,
-                    self.api_hash,
-                    device_model=self._device_model,
-                    system_version=self._system_version,
-                )
+            # Client yaratish
+            self.client = TelegramClient(
+                session,
+                self.api_id,
+                self.api_hash,
+                device_model=self._device_model,
+                system_version=self._system_version,
+            )
 
             # Ulanish — xatolikni tekshirish
             try:
@@ -155,8 +138,6 @@ class TelegramSessionManager:
     async def _handle_auth_key_duplicated(self):
         """AUTH_KEY_DUPLICATED → QAYTA ULANMAYDI, admin ga xabar."""
         self._is_connected = False
-        self._fatal_auth_error = True
-        self._stop_event.set()
 
         # Admin ga xabar
         if self._admin_notifier:
@@ -182,28 +163,12 @@ class TelegramSessionManager:
             except Exception as exc:
                 logger.debug("[SESSION] Disconnect in auth key handler: %s", exc)
 
-    async def _notify_admin_throttled(self, message: str) -> None:
-        if not self._admin_notifier:
-            return
-        now = time.time()
-        if now - self._last_alert_at < self._alert_cooldown:
-            return
-        self._last_alert_at = now
-        try:
-            await self._admin_notifier(message)
-        except Exception as exc:
-            logger.error("[SESSION] Admin ga xabar jo'natishda xato: %s", exc)
-
     async def _reconnect_loop(self):
-        """Xavfsiz qayta ulanish — cooldown bilan, productionda taslim bo'lmaydi."""
+        """Xavfsiz qayta ulanish — 10+ sekund kutib, max 5 marta."""
         logger.info("[SESSION] Reconnect loop boshlandi")
 
         while not self._stop_event.is_set():
             try:
-                if self._fatal_auth_error:
-                    logger.critical("[SESSION] Fatal auth error bor — reconnect to'xtatildi")
-                    break
-
                 # Connection tushganini tekshirish
                 if self._is_connected and self.client:
                     try:
@@ -223,32 +188,26 @@ class TelegramSessionManager:
                     continue
 
                 # Qayta ulanish
-                if self._max_reconnect and self._reconnect_count >= self._max_reconnect:
+                if self._reconnect_count >= self._max_reconnect:
                     logger.critical(
                         "[SESSION] ❌ Max qayta urinishlar soniga yetdi (%d). Bot to'xtatildi.",
                         self._max_reconnect,
                     )
-                    await self._notify_admin_throttled(
-                        f"🚨 SESSION XATO\n\n"
-                        f"{self._max_reconnect} marta qayta urinish muvaffaqiyatsiz!\n"
-                        f"Bot to'xtatildi. Qo'lda tuzating."
-                    )
+                    if self._admin_notifier:
+                        await self._admin_notifier(
+                            f"🚨 SESSION XATO\n\n"
+                            f"{self._max_reconnect} marta qayta urinish muvaffaqiyatsiz!\n"
+                            f"Bot to'xtatildi. Qo'lda tuzating."
+                        )
                     break
 
                 # Kutish — MIN 10 sekund
-                delay = min(
-                    self._max_delay,
-                    max(self._min_delay, self._min_delay * (2 ** min(self._reconnect_count, 5))),
-                )
+                delay = max(self._min_delay, 10 * (2 ** self._reconnect_count))
                 logger.info(
-                    "[SESSION] %d sekund kutib qayta ulanadi... (urinish %d/%s)",
+                    "[SESSION] %d sekund kutib qayta ulanadi... (urinish %d/%d)",
                     delay,
                     self._reconnect_count + 1,
-                    self._max_reconnect or "forever",
-                )
-                await self._notify_admin_throttled(
-                    "⚠️ USERBOT RECONNECT\n\n"
-                    "Telegram userbot connection tushdi. Oisha avtomatik qayta ulanishga urinmoqda."
+                    self._max_reconnect,
                 )
                 await asyncio.sleep(delay)
 
@@ -358,16 +317,6 @@ class TelegramSessionManager:
             "is_connected": self.is_connected,
             "reconnect_count": self._reconnect_count,
             "max_reconnect": self._max_reconnect,
-            "reconnect_forever": self._max_reconnect == 0,
-            "fatal_auth_error": self._fatal_auth_error,
             "last_connected_at": self._last_connected_at,
             "has_client": self.client is not None,
         }
-
-    @property
-    def admin_notifier(self) -> Optional[Callable]:
-        return self._admin_notifier
-
-    @admin_notifier.setter
-    def admin_notifier(self, notifier: Optional[Callable]) -> None:
-        self._admin_notifier = notifier

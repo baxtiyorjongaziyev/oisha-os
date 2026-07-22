@@ -31,9 +31,7 @@ concurrency:
 jobs:
   test:
     runs-on: [self-hosted, oracle]
-    timeout-minutes: 35
-    env:
-      SKIP_LIVE: "1"
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -60,10 +58,9 @@ jobs:
           
       - name: Run tests with coverage
         run: |
-          pytest -q --tb=short
+          pytest --cov=src --cov-report=xml
           
       - name: Upload coverage to Codecov
-        if: ${{ hashFiles('coverage.xml') != '' }}
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

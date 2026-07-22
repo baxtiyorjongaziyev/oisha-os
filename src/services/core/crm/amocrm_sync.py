@@ -263,10 +263,6 @@ class AmoCRMSync:
 
     async def check_connection(self) -> bool:
         """AmoCRM OAuth tokenini real account endpoint orqali tekshiradi."""
-        return await asyncio.to_thread(self._check_connection_sync)
-
-    def _check_connection_sync(self) -> bool:
-        """Blocking AmoCRM account probe; keep it off the asyncio event loop."""
         if self.is_auth_blocked():
             return False
 

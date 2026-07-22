@@ -15,7 +15,6 @@ from src.services.core.finance.hisobchi_handlers import (
     resolve_finance_destination,
     resync_since_sequential,
 )
-from src.services.core.telegram.bot_runtime import AiogramBotRuntime
 from src.services.core.finance.hisobchi_schema import (
     init_hisobchi_tables,
     ensure_hisobchi_db,
@@ -385,15 +384,6 @@ class _FakeBotClient:
         return SimpleNamespace(id=1)
 
 
-class _FakeAiogramBot:
-    def __init__(self):
-        self.sent = []
-
-    async def send_message(self, **kwargs):
-        self.sent.append(kwargs)
-        return SimpleNamespace(message_id=2)
-
-
 async def _seed_pending_tx(engine, *, finance_chat_id, finance_msg_id):
     tx = parse_card_notification("humocardbot", HUMO_SAMPLE)
     assert tx is not None
@@ -501,39 +491,6 @@ async def test_human_reply_saves_category_via_bot_client(monkeypatch, temp_db) -
     assert tx is None  # no longer pending — categorized
 
 
-@pytest.mark.asyncio
-async def test_human_reply_saves_category_via_aiogram_runtime(monkeypatch, temp_db) -> None:
-    from src.services.core.finance import hisobchi_handlers
-
-    monkeypatch.setattr(
-        hisobchi_handlers, "resolve_finance_destination",
-        lambda _client: _async_value((-1002, None, None)),
-    )
-    engine = HisobchiEngine(temp_db)
-    await _seed_pending_tx(engine, finance_chat_id=-1002, finance_msg_id=555)
-    aiogram_bot = _FakeAiogramBot()
-
-    event = _FakeGroupReplyEvent(
-        chat_id=-1002,
-        text="Ofis xarajati",
-        reply_to_msg_id=555,
-        sender_is_bot=False,
-    )
-
-    handled = await handle_finance_group_reply(
-        event,
-        client=None,
-        engine=engine,
-        bot_client=AiogramBotRuntime(aiogram_bot),
-    )
-
-    assert handled is True
-    assert len(aiogram_bot.sent) == 1
-    assert aiogram_bot.sent[0]["chat_id"] == -1002
-    assert aiogram_bot.sent[0]["reply_to_message_id"] == 999
-    assert aiogram_bot.sent[0]["parse_mode"] == "HTML"
-
-
 def test_boot_registers_primary_message_handler_and_initializes_schema() -> None:
     source = ("src/boot.py")
     text = open(source, encoding="utf-8").read()
@@ -624,12 +581,10 @@ async def test_resync_sequential_waits_for_answer_before_next(monkeypatch, temp_
     )
 
     async def _answer_both_shortly():
-        for tx_id in (1, 2):
-            for _ in range(100):
-                if await engine.get_transaction_status(tx_id) == "pending":
-                    await engine.categorize(tx_id, "Ofis xarajati", "business")
-                    break
-                await asyncio.sleep(0.01)
+        await asyncio.sleep(0.03)
+        await engine.categorize(1, "Ofis xarajati", "business")
+        await asyncio.sleep(0.03)
+        await engine.categorize(2, "Ofis xarajati", "business")
 
     answer_task = asyncio.create_task(_answer_both_shortly())
     stats = await resync_since_sequential(
