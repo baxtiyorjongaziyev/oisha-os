@@ -47,7 +47,8 @@ POST ${OISHA_API_URL}/api/ai/analyze-conversation
 { "conversation_text": "...", "conversation_id": "...", "manager_name": "..." }
 
 # Dashboard ko'rsatkichlari
-GET ${OISHA_API_URL}/api/ai/metasell-dashboard?days=7
+GET ${OISHA_API_URL}/api/ai/metasell-dashboard
+# (bir xil ma'lumot: GET ${OISHA_API_URL}/api/sales-quality/overview)
 ```
 
 ### Tizim holati
