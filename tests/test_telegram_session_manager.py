@@ -21,6 +21,9 @@ class FakeTelegramClient:
     async def is_user_authorized(self):
         return True
 
+    async def get_me(self):
+        return object()
+
     def is_connected(self):
         return self.connected
 
@@ -69,3 +72,19 @@ async def test_auth_key_duplicated_stops_future_reconnects(monkeypatch):
     assert manager._stop_event.is_set()
     assert fake_client.disconnect_calls == 1
     assert messages
+
+
+@pytest.mark.asyncio
+async def test_high_level_auth_probe_stops_on_auth_key_duplicated():
+    class DuplicatedClient(FakeTelegramClient):
+        async def get_me(self):
+            raise RuntimeError("AuthKeyDuplicatedError: session used under two IPs")
+
+    manager = TelegramSessionManager(api_id=1, api_hash="hash", session_string="secret")
+    fake_client = DuplicatedClient()
+    manager.client = fake_client
+    fake_client.connected = True
+
+    assert await manager._validate_high_level_auth() is False
+    assert manager.status["fatal_auth_error"] is True
+    assert manager._stop_event.is_set()
