@@ -405,6 +405,14 @@ async def boot_application():
         telethon_client=bot_client,
     )
     logger.info("[BOT] Outbound bot runtime backend=%s", bot_runtime.backend)
+    if telegram_session_manager is not None:
+        async def _notify_userbot_owner(message: str) -> None:
+            try:
+                await bot_runtime.send_message(settings.OWNER_ID, message)
+            except Exception as notify_exc:
+                logger.warning("[SESSION] Owner reconnect alert failed: %s", notify_exc)
+
+        telegram_session_manager.admin_notifier = _notify_userbot_owner
     juma_notifier = m.JumaNotifier(client=client, db=db)
 
     # Services
@@ -908,8 +916,8 @@ async def boot_application():
                     logger.error("[HISOBCHI] handle_callback failed for %s: %s", data, exc, exc_info=True)
                     try:
                         await event.answer("⚠️ Xatolik yuz berdi, qayta urinib ko'ring.")
-                    except Exception:
-                        pass
+                    except Exception as answer_exc:
+                        logger.debug("[HISOBCHI] Callback error answer failed: %s", answer_exc)
                 raise events.StopPropagation
         except events.StopPropagation:
             raise
