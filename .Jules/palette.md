@@ -83,3 +83,6 @@
 ## 2024-07-14 - Semantic Interactive Table Headers
 **Learning:** Table header cells (`<th>`) acting as sort toggles lack native keyboard support and semantic meaning when bound directly with `onClick` and plain text arrows.
 **Action:** Always wrap interactive header content in `<button type="button">`, include `aria-label`s, apply `focus-visible:ring-2` styling, and use semantic SVGs for directional feedback instead of raw text like "▲" and "▼".
+## 2026-07-24 - Semantic Icons in Settings
+**Learning:** Found that some buttons in the settings page (specifically Playbook list edits) were using OS-level emojis (✏️, 🗑️) without any tactile visual feedback (`active:`) or hover backgrounds. Emojis render inconsistently and don't scale well aesthetically in professional design systems.
+**Action:** Replaced emojis with standard Lucide SVGs, added `aria-hidden="true"` to prevent double-reading (since buttons have `aria-label`), and included `active:scale-[0.98]` along with `hover:bg` utility classes for improved tactile feedback.
