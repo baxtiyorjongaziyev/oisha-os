@@ -3,17 +3,44 @@
 Usage:
     from src.api.routes.state import api_state
     api_state.db_instance  # access the database
+
+This module is imported immediately before the main FastAPI application is
+constructed. It installs the central access middleware on that named app so
+private routers cannot accidentally be mounted without authorization.
 """
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict
+
+from fastapi import FastAPI
+
+from src.api.security import ApiAccessMiddleware
+
+
+def _install_oisha_security_boundary() -> None:
+    if getattr(FastAPI, "_oisha_security_boundary_installed", False):
+        return
+
+    original_init = FastAPI.__init__
+
+    def secured_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        if kwargs.get("title") == "Oisha-OS Enterprise API":
+            self.add_middleware(ApiAccessMiddleware)
+
+    FastAPI.__init__ = secured_init
+    FastAPI._oisha_security_boundary_installed = True
+
+
+_install_oisha_security_boundary()
 
 
 @dataclass
 class APIState:
     """Mutable shared state accessed by all route modules."""
+
     user_client: Any = None
     db_instance: Any = None
     msg_controller: Any = None
@@ -37,7 +64,11 @@ class APIState:
 
     # Heartbeat
     _last_heartbeat_at: Any = None
-    _boot_at: Any = field(default_factory=lambda: __import__('datetime').datetime.now(__import__('datetime').timezone.utc))
+    _boot_at: Any = field(
+        default_factory=lambda: __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        )
+    )
     _heartbeat_stale_seconds: int = 120
 
     # CRM audit
