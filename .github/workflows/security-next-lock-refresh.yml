@@ -1,16 +1,18 @@
 name: One-shot Next security lock refresh
 
 on:
-  push:
-    branches: [security/next-runtime-16.2.11]
-    paths:
-      - 'apps/web/package.json'
+  pull_request_target:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   refresh-lockfile:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'security/next-runtime-16.2.11'
     runs-on: [self-hosted, oracle]
     timeout-minutes: 10
     steps:
