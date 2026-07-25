@@ -8,15 +8,19 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import html
+import re
 import time
 from typing import Any, Dict, Optional
 
 import jwt
 
-# Default session lifetime: 30 days.
-SESSION_TTL_SECONDS = 30 * 24 * 3600
+# Limit browser sessions to twelve hours. A fresh Telegram login can renew it.
+SESSION_TTL_SECONDS = 12 * 60 * 60
 # Telegram login payloads older than this are rejected (replay protection).
 TELEGRAM_AUTH_MAX_AGE_SECONDS = 86400
+_MIN_SESSION_SECRET_BYTES = 32
+_SAFE_ROLE_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 
 
 def build_telegram_data_check_string(fields: Dict[str, Optional[str]]) -> str:
@@ -55,6 +59,24 @@ def is_auth_date_fresh(
     return -300 <= diff <= max_age_seconds
 
 
+def sanitize_display_text(value: Optional[str], *, max_length: int = 120) -> str:
+    """Escape untrusted Telegram profile text before it reaches HTML templates."""
+    return html.escape(str(value or "").strip()[:max_length], quote=True)
+
+
+def normalize_session_role(role: str) -> str:
+    """Keep the role claim safe for legacy HTML/JavaScript interpolation."""
+    candidate = str(role or "client").strip().lower()
+    return candidate if _SAFE_ROLE_RE.fullmatch(candidate) else "client"
+
+
+def _strong_session_secret(secret: str) -> str:
+    candidate = str(secret or "").strip()
+    if len(candidate.encode("utf-8")) < _MIN_SESSION_SECRET_BYTES:
+        raise ValueError("Session signing secret must be at least 32 bytes")
+    return candidate
+
+
 def issue_session_jwt(
     *,
     user_id: int,
@@ -65,19 +87,24 @@ def issue_session_jwt(
     ttl_seconds: int = SESSION_TTL_SECONDS,
 ) -> str:
     """Encode the signed session token stored in the ``oisha_token`` cookie."""
+    clean_secret = _strong_session_secret(secret)
+
+    now = int(time.time())
     payload = {
         "sub": str(user_id),
-        "username": username,
-        "first_name": first_name,
-        "role": role,
-        "exp": int(time.time()) + ttl_seconds,
+        "username": sanitize_display_text(username, max_length=64),
+        "first_name": sanitize_display_text(first_name),
+        "role": normalize_session_role(role),
+        "iat": now,
+        "exp": now + max(60, int(ttl_seconds)),
     }
-    return jwt.encode(payload, secret, algorithm="HS256")
+    return jwt.encode(payload, clean_secret, algorithm="HS256")
 
 
 def decode_session_jwt(token: str, secret: str) -> Optional[Dict[str, Any]]:
     """Decode/verify a session token; return the payload or None if invalid."""
     try:
-        return jwt.decode(token, secret, algorithms=["HS256"])
+        clean_secret = _strong_session_secret(secret)
+        return jwt.decode(token, clean_secret, algorithms=["HS256"])
     except Exception:
         return None
