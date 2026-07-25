@@ -11,6 +11,9 @@ from src.api import auth_service
 from src.api.routes.telegram_mcp import _require_internal_secret
 from src.api.security import ApiAccessMiddleware, authorize_request_values
 
+STRONG_SESSION_SECRET = "session-secret-with-at-least-thirty-two-bytes"
+STRONG_API_SECRET = "api-secret-with-at-least-thirty-two-bytes"
+
 
 def test_api_access_fails_closed_without_any_credential():
     result = authorize_request_values(
@@ -78,15 +81,14 @@ def test_wrong_bearer_secret_is_rejected():
 
 
 def test_owner_session_is_accepted_but_client_session_is_rejected():
-    secret = "dedicated-jwt-secret"
     owner_token = jwt.encode(
         {"sub": "1", "role": "owner", "exp": int(time.time()) + 60},
-        secret,
+        STRONG_SESSION_SECRET,
         algorithm="HS256",
     )
     client_token = jwt.encode(
         {"sub": "2", "role": "client", "exp": int(time.time()) + 60},
-        secret,
+        STRONG_SESSION_SECRET,
         algorithm="HS256",
     )
 
@@ -96,7 +98,7 @@ def test_owner_session_is_accepted_but_client_session_is_rejected():
         proxy_user="",
         client_host="203.0.113.10",
         session_token=owner_token,
-        jwt_secret=secret,
+        jwt_secret=STRONG_SESSION_SECRET,
     )
     client = authorize_request_values(
         authorization="",
@@ -104,34 +106,34 @@ def test_owner_session_is_accepted_but_client_session_is_rejected():
         proxy_user="",
         client_host="203.0.113.10",
         session_token=client_token,
-        jwt_secret=secret,
+        jwt_secret=STRONG_SESSION_SECRET,
     )
 
     assert owner == {"auth_type": "session", "role": "owner", "subject": "1"}
     assert client is None
 
 
-def test_session_is_rejected_when_session_secret_is_missing():
+def test_session_is_rejected_when_session_secret_is_missing_or_weak():
     token = jwt.encode(
         {"sub": "1", "role": "owner", "exp": int(time.time()) + 60},
-        "bot-token-must-not-be-a-fallback",
+        STRONG_SESSION_SECRET,
         algorithm="HS256",
     )
 
-    result = authorize_request_values(
-        authorization="",
-        api_secret="",
-        proxy_user="",
-        client_host="203.0.113.10",
-        session_token=token,
-        jwt_secret="",
-    )
-
-    assert result is None
+    for secret in ("", "too-short"):
+        result = authorize_request_values(
+            authorization="",
+            api_secret="",
+            proxy_user="",
+            client_host="203.0.113.10",
+            session_token=token,
+            jwt_secret=secret,
+        )
+        assert result is None
 
 
 def _middleware_test_client(monkeypatch):
-    monkeypatch.setenv("OISHA_API_SECRET", "correct-secret")
+    monkeypatch.setenv("OISHA_API_SECRET", STRONG_API_SECRET)
     monkeypatch.delenv("JWT_SECRET", raising=False)
     app = FastAPI()
     app.add_middleware(ApiAccessMiddleware)
@@ -165,7 +167,7 @@ def test_private_api_accepts_exact_bearer_secret(monkeypatch):
     client = _middleware_test_client(monkeypatch)
 
     response = client.get(
-        "/api/private", headers={"Authorization": "Bearer correct-secret"}
+        "/api/private", headers={"Authorization": f"Bearer {STRONG_API_SECRET}"}
     )
 
     assert response.status_code == 200
@@ -195,15 +197,26 @@ def test_telegram_profile_claims_are_escaped_before_html_rendering():
         username='bad"><script>alert(1)</script>',
         first_name='<img src=x onerror=alert(1)>',
         role='admin";alert(1);//',
-        secret="dedicated-secret",
+        secret=STRONG_SESSION_SECRET,
     )
 
-    payload = auth_service.decode_session_jwt(token, "dedicated-secret")
+    payload = auth_service.decode_session_jwt(token, STRONG_SESSION_SECRET)
 
     assert payload is not None
     assert "<" not in payload["first_name"]
     assert "<" not in payload["username"]
     assert payload["role"] == "client"
+
+
+def test_auth_service_rejects_weak_session_secret():
+    with pytest.raises(ValueError):
+        auth_service.issue_session_jwt(
+            user_id=1,
+            username="owner",
+            first_name="Owner",
+            role="owner",
+            secret="too-short",
+        )
 
 
 def test_internal_mcp_denies_access_when_secret_is_unconfigured(monkeypatch):
@@ -235,10 +248,20 @@ def test_config_session_secret_never_falls_back_to_bot_token(monkeypatch):
         _ = config.JWT_SECRET
 
 
+def test_config_rejects_weak_session_secret(monkeypatch):
+    from src import config
+
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+    monkeypatch.setenv("OISHA_API_SECRET", "too-short")
+
+    with pytest.raises(RuntimeError):
+        _ = config.JWT_SECRET
+
+
 def test_config_can_use_api_secret_for_session_until_dedicated_key_exists(monkeypatch):
     from src import config
 
     monkeypatch.delenv("JWT_SECRET", raising=False)
-    monkeypatch.setenv("OISHA_API_SECRET", "separate-api-secret")
+    monkeypatch.setenv("OISHA_API_SECRET", STRONG_API_SECRET)
 
-    assert config.JWT_SECRET == "separate-api-secret"
+    assert config.JWT_SECRET == STRONG_API_SECRET
