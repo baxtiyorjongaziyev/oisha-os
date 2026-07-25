@@ -2,6 +2,7 @@
 # Security boundary: untrusted pull-request code must never execute on the
 # production Oracle runner. PRs use an isolated GitHub-hosted runner; only
 # trusted pushes to main/master may use the production-labelled runner.
+# One-shot lock refresh trigger: 2026-07-25.
 name: CI - Oisha-OS
 
 on:
