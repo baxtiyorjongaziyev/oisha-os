@@ -12,14 +12,30 @@ from __future__ import annotations
 
 import hmac
 import os
-from typing import Any, Mapping, Optional
+from typing import Any, Optional
 
 import jwt
 from fastapi import Depends, HTTPException
 from starlette.requests import HTTPConnection
+from starlette.responses import JSONResponse
 
 _ALLOWED_SESSION_ROLES = frozenset({"owner", "admin"})
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+_PROTECTED_PREFIXES = (
+    "/api/",
+    "/internal/",
+    "/mcp",
+    "/telegram-mcp",
+    "/client",
+    "/ws/live",
+)
+_PUBLIC_PATHS = frozenset(
+    {
+        "/api/auth/telegram/login",
+        "/api/auth/telegram/callback",
+        "/api/auth/airtable/callback",
+    }
+)
 
 
 def _clean(value: Any) -> str:
@@ -93,6 +109,47 @@ def require_admin_access(connection: HTTPConnection) -> dict[str, str]:
     if principal is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return principal
+
+
+def is_protected_path(path: str) -> bool:
+    normalized = path.rstrip("/") or "/"
+    if normalized in _PUBLIC_PATHS:
+        return False
+    return any(normalized == prefix.rstrip("/") or normalized.startswith(prefix) for prefix in _PROTECTED_PREFIXES)
+
+
+class ApiAccessMiddleware:
+    """ASGI middleware protecting HTTP, SSE and WebSocket private surfaces."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        scope_type = scope.get("type")
+        if scope_type not in {"http", "websocket"}:
+            await self.app(scope, receive, send)
+            return
+
+        if scope_type == "http" and scope.get("method") == "OPTIONS":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        if not is_protected_path(path):
+            await self.app(scope, receive, send)
+            return
+
+        connection = HTTPConnection(scope)
+        if authorize_connection(connection) is not None:
+            await self.app(scope, receive, send)
+            return
+
+        if scope_type == "websocket":
+            await send({"type": "websocket.close", "code": 4401, "reason": "Unauthorized"})
+            return
+
+        response = JSONResponse({"detail": "Unauthorized"}, status_code=401)
+        await response(scope, receive, send)
 
 
 AdminAccess = Depends(require_admin_access)
