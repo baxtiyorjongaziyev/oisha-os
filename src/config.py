@@ -12,6 +12,8 @@ import os
 
 from src.settings import settings
 
+_MIN_SESSION_SECRET_BYTES = 32
+
 
 def _secret_or_none(secret):
     if not secret:
@@ -20,10 +22,16 @@ def _secret_or_none(secret):
 
 
 def _session_secret() -> str:
-    """Return a non-Telegram session key or fail closed."""
-    secret = (os.environ.get("JWT_SECRET") or os.environ.get("OISHA_API_SECRET") or "").strip()
-    if not secret:
-        raise RuntimeError("JWT_SECRET or OISHA_API_SECRET is required for web sessions")
+    """Return a strong non-Telegram session key or fail closed."""
+    secret = (
+        os.environ.get("JWT_SECRET")
+        or os.environ.get("OISHA_API_SECRET")
+        or ""
+    ).strip()
+    if len(secret.encode("utf-8")) < _MIN_SESSION_SECRET_BYTES:
+        raise RuntimeError(
+            "JWT_SECRET or OISHA_API_SECRET must be at least 32 bytes for web sessions"
+        )
     return secret
 
 
