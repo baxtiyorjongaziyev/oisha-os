@@ -19,6 +19,7 @@ import jwt
 SESSION_TTL_SECONDS = 12 * 60 * 60
 # Telegram login payloads older than this are rejected (replay protection).
 TELEGRAM_AUTH_MAX_AGE_SECONDS = 86400
+_MIN_SESSION_SECRET_BYTES = 32
 _SAFE_ROLE_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 
 
@@ -69,6 +70,13 @@ def normalize_session_role(role: str) -> str:
     return candidate if _SAFE_ROLE_RE.fullmatch(candidate) else "client"
 
 
+def _strong_session_secret(secret: str) -> str:
+    candidate = str(secret or "").strip()
+    if len(candidate.encode("utf-8")) < _MIN_SESSION_SECRET_BYTES:
+        raise ValueError("Session signing secret must be at least 32 bytes")
+    return candidate
+
+
 def issue_session_jwt(
     *,
     user_id: int,
@@ -79,9 +87,7 @@ def issue_session_jwt(
     ttl_seconds: int = SESSION_TTL_SECONDS,
 ) -> str:
     """Encode the signed session token stored in the ``oisha_token`` cookie."""
-    clean_secret = str(secret or "").strip()
-    if not clean_secret:
-        raise ValueError("A dedicated session secret is required")
+    clean_secret = _strong_session_secret(secret)
 
     now = int(time.time())
     payload = {
@@ -97,10 +103,8 @@ def issue_session_jwt(
 
 def decode_session_jwt(token: str, secret: str) -> Optional[Dict[str, Any]]:
     """Decode/verify a session token; return the payload or None if invalid."""
-    clean_secret = str(secret or "").strip()
-    if not clean_secret:
-        return None
     try:
+        clean_secret = _strong_session_secret(secret)
         return jwt.decode(token, clean_secret, algorithms=["HS256"])
     except Exception:
         return None
