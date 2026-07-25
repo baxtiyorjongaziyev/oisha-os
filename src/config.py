@@ -8,6 +8,8 @@ It must NOT mutate or rewrite setting values — ``config.SYSTEM_INSTRUCTION`` i
 guaranteed to equal ``settings.SYSTEM_INSTRUCTION``. Prefer importing
 ``src.settings.settings`` directly in new code.
 """
+import os
+
 from src.settings import settings
 
 
@@ -17,9 +19,19 @@ def _secret_or_none(secret):
     return secret.get_secret_value()
 
 
+def _session_secret() -> str:
+    """Return a non-Telegram session key or fail closed."""
+    secret = (os.environ.get("JWT_SECRET") or os.environ.get("OISHA_API_SECRET") or "").strip()
+    if not secret:
+        raise RuntimeError("JWT_SECRET or OISHA_API_SECRET is required for web sessions")
+    return secret
+
+
 def __getattr__(name: str):
     if name == "BOT_TOKEN":
         return settings.BOT_TOKEN.get_secret_value()
+    if name == "JWT_SECRET":
+        return _session_secret()
     if name == "GEMINI_API_KEY":
         return settings.GEMINI_API_KEY.get_secret_value()
     if name == "API_ID":
@@ -47,9 +59,18 @@ def __getattr__(name: str):
     if name == "STAGNATION_GROUP_ID":
         return settings.STAGNATION_GROUP_ID or settings.CRM_GROUP_ID
     if name == "STAGNATION_TOPIC_ID":
-        return settings.STAGNATION_TOPIC_ID if settings.STAGNATION_TOPIC_ID is not None else settings.TOPIC_CRM_ID
+        return (
+            settings.STAGNATION_TOPIC_ID
+            if settings.STAGNATION_TOPIC_ID is not None
+            else settings.TOPIC_CRM_ID
+        )
     if name == "WOW_SERVICE_GROUP_ID":
-        return settings.WOW_SERVICE_GROUP_ID or settings.TEAM_GROUP_ID or settings.CRM_GROUP_ID or settings.PROJECTS_GROUP_ID
+        return (
+            settings.WOW_SERVICE_GROUP_ID
+            or settings.TEAM_GROUP_ID
+            or settings.CRM_GROUP_ID
+            or settings.PROJECTS_GROUP_ID
+        )
     if name == "WOW_SERVICE_TOPIC_ID":
         return settings.WOW_SERVICE_TOPIC_ID
     if name == "CRM_TOPIC_ID":
@@ -93,6 +114,7 @@ def __getattr__(name: str):
 
 __all__ = [
     "BOT_TOKEN",
+    "JWT_SECRET",
     "GEMINI_API_KEY",
     "API_ID",
     "API_HASH",
