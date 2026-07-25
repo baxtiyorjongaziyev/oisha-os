@@ -10,6 +10,15 @@ updates:
     labels:
       - "Type: Maintenance"
       - "Proj: DevOps"
+    # CI runners are currently unreliable. Pause routine version PRs while
+    # keeping grouped security updates enabled.
+    open-pull-requests-limit: 0
+    groups:
+      actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
@@ -19,8 +28,14 @@ updates:
     labels:
       - "Type: Maintenance"
       - "Proj: DevOps"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 0
     rebase-strategy: "auto"
+    groups:
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -30,5 +45,10 @@ updates:
     labels:
       - "Type: Maintenance"
       - "Proj: DevOps"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 0
     rebase-strategy: "auto"
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
