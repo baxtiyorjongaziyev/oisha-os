@@ -1,9 +1,7 @@
-# Oisha-OS: Continuous Integration (Tests)
-# Path-filtered to save GitHub Actions minutes (free tier: 2000 min/month)
-# Runs on the self-hosted Oracle runner: GitHub-hosted (ubuntu-latest) jobs
-# have been failing instantly without ever being assigned a runner
-# (account-level Actions issue), while the self-hosted runner keeps working —
-# the same move oracle-deploy.yml made in 49177e5.
+# Oisha-OS continuous integration.
+# Security boundary: untrusted pull-request code must never execute on the
+# production Oracle runner. PRs use an isolated GitHub-hosted runner; only
+# trusted pushes to main/master may use the production-labelled runner.
 name: CI - Oisha-OS
 
 on:
@@ -12,24 +10,72 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'apps/**'
+      - 'packages/**'
       - 'requirements*.txt'
       - 'pyproject.toml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'turbo.json'
+      - 'deploy/**'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [ main, master ]
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'apps/**'
+      - 'packages/**'
       - 'requirements*.txt'
       - 'pyproject.toml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'turbo.json'
+      - 'deploy/**'
       - '.github/workflows/test.yml'
 
 concurrency:
-  group: ci-test-${{ github.ref }}
+  group: ci-test-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
+  pull-request-tests:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      SKIP_LIVE: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Security scan
+        run: bandit -r src/ -ll -x src/services/debug/ --quiet
+
+      - name: Run Python tests
+        run: pytest -q --tb=short
+
+      - name: Upload coverage
+        if: ${{ hashFiles('coverage.xml') != '' }}
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  trusted-main-tests:
+    if: github.event_name == 'push'
     runs-on: [self-hosted, oracle]
     timeout-minutes: 35
     env:
@@ -37,9 +83,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Persistent venv on the runner replaces setup-python + pip cache:
-      # the VM's system python3 backs it, and reuse across runs keeps
-      # installs fast on the small Oracle box.
       - name: Set up Python virtualenv
         run: |
           VENV="$HOME/.cache/oisha-ci-venv"
@@ -53,16 +96,14 @@ jobs:
         run: |
           pip install -q -r requirements.txt
           pip install -q -r requirements-dev.txt
-          
+
       - name: Security scan
-        run: |
-          bandit -r src/ -ll -x src/services/debug/ --quiet
-          
+        run: bandit -r src/ -ll -x src/services/debug/ --quiet
+
       - name: Run tests with coverage
-        run: |
-          pytest -q --tb=short
-          
-      - name: Upload coverage to Codecov
+        run: pytest -q --tb=short
+
+      - name: Upload coverage
         if: ${{ hashFiles('coverage.xml') != '' }}
         uses: codecov/codecov-action@v7
         with:
