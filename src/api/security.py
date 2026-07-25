@@ -2,10 +2,11 @@
 
 Accepted credentials:
 - exact ``Bearer OISHA_API_SECRET`` for trusted service-to-service calls;
-- an owner/admin JWT signed with a dedicated ``JWT_SECRET``;
+- an owner/admin JWT signed with a strong ``JWT_SECRET`` (or
+  ``OISHA_API_SECRET`` as a temporary non-Telegram fallback);
 - an authenticated Nginx Basic Auth identity forwarded from a loopback proxy.
 
-The policy deliberately fails closed when secrets are missing.
+The policy deliberately fails closed when secrets are missing or too short.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from starlette.responses import JSONResponse
 
 _ALLOWED_SESSION_ROLES = frozenset({"owner", "admin"})
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+_MIN_SESSION_SECRET_BYTES = 32
 _PROTECTED_PREFIXES = (
     "/api/",
     "/internal/",
@@ -45,6 +47,18 @@ def _clean(value: Any) -> str:
     if callable(getter):
         value = getter()
     return str(value).lstrip("\ufeff").strip()
+
+
+def _is_strong_session_secret(value: str) -> bool:
+    return len(value.encode("utf-8")) >= _MIN_SESSION_SECRET_BYTES
+
+
+def _session_secret() -> str:
+    """Use a strong non-Telegram key for browser sessions."""
+    candidate = _clean(
+        os.environ.get("JWT_SECRET") or os.environ.get("OISHA_API_SECRET")
+    )
+    return candidate if _is_strong_session_secret(candidate) else ""
 
 
 def authorize_request_values(
@@ -76,7 +90,7 @@ def authorize_request_values(
 
     dedicated_jwt_secret = _clean(jwt_secret)
     token = _clean(session_token)
-    if not dedicated_jwt_secret or not token:
+    if not _is_strong_session_secret(dedicated_jwt_secret) or not token:
         return None
 
     try:
@@ -100,7 +114,7 @@ def authorize_connection(connection: HTTPConnection) -> Optional[dict[str, str]]
         proxy_user=connection.headers.get("X-Oisha-Authenticated-User", ""),
         client_host=client_host,
         session_token=connection.cookies.get("oisha_token", ""),
-        jwt_secret=os.environ.get("JWT_SECRET", ""),
+        jwt_secret=_session_secret(),
     )
 
 
@@ -115,7 +129,23 @@ def is_protected_path(path: str) -> bool:
     normalized = path.rstrip("/") or "/"
     if normalized in _PUBLIC_PATHS:
         return False
-    return any(normalized == prefix.rstrip("/") or normalized.startswith(prefix) for prefix in _PROTECTED_PREFIXES)
+    return any(
+        normalized == prefix.rstrip("/") or normalized.startswith(prefix)
+        for prefix in _PROTECTED_PREFIXES
+    )
+
+
+def _secure_session_cookie_headers(headers):
+    secured = []
+    for name, value in headers:
+        if name.lower() == b"set-cookie" and value.lower().startswith(b"oisha_token="):
+            lower_value = value.lower()
+            if b"; secure" not in lower_value:
+                value += b"; Secure"
+            if b"; httponly" not in lower_value:
+                value += b"; HttpOnly"
+        secured.append((name, value))
+    return secured
 
 
 class ApiAccessMiddleware:
@@ -130,18 +160,28 @@ class ApiAccessMiddleware:
             await self.app(scope, receive, send)
             return
 
+        async def secure_send(message):
+            if message.get("type") == "http.response.start":
+                message = dict(message)
+                message["headers"] = _secure_session_cookie_headers(
+                    list(message.get("headers", []))
+                )
+            await send(message)
+
+        downstream_send = secure_send if scope_type == "http" else send
+
         if scope_type == "http" and scope.get("method") == "OPTIONS":
-            await self.app(scope, receive, send)
+            await self.app(scope, receive, downstream_send)
             return
 
         path = scope.get("path", "")
         if not is_protected_path(path):
-            await self.app(scope, receive, send)
+            await self.app(scope, receive, downstream_send)
             return
 
         connection = HTTPConnection(scope)
         if authorize_connection(connection) is not None:
-            await self.app(scope, receive, send)
+            await self.app(scope, receive, downstream_send)
             return
 
         if scope_type == "websocket":
@@ -149,7 +189,7 @@ class ApiAccessMiddleware:
             return
 
         response = JSONResponse({"detail": "Unauthorized"}, status_code=401)
-        await response(scope, receive, send)
+        await response(scope, receive, downstream_send)
 
 
 AdminAccess = Depends(require_admin_access)
