@@ -83,3 +83,6 @@
 ## 2024-07-14 - Semantic Interactive Table Headers
 **Learning:** Table header cells (`<th>`) acting as sort toggles lack native keyboard support and semantic meaning when bound directly with `onClick` and plain text arrows.
 **Action:** Always wrap interactive header content in `<button type="button">`, include `aria-label`s, apply `focus-visible:ring-2` styling, and use semantic SVGs for directional feedback instead of raw text like "▲" and "▼".
+## 2025-02-27 - Keyboard Navigation for Global Search
+**Learning:** Adding a global keyboard shortcut (like `/`) for search requires carefully managing event listener contexts so that it isn't accidentally triggered when a user is typing within other inputs or text areas. Additionally, adding a "clear" (X) button is a common micro-UX improvement, but it must explicitly return focus to the input field (`element.focus()`) to maintain a seamless keyboard navigation flow and not leave the user's focus stranded.
+**Action:** When implementing global keyboard shortcuts, always verify `e.target` to ignore standard text entry fields. When building clear buttons for inputs, always use a `useRef` to programmatically refocus the associated input field after clearing the value.
