@@ -2,11 +2,11 @@
 
 Accepted credentials:
 - exact ``Bearer OISHA_API_SECRET`` for trusted service-to-service calls;
-- an owner/admin JWT signed with ``JWT_SECRET`` (or ``OISHA_API_SECRET`` as a
-  temporary non-Telegram fallback);
+- an owner/admin JWT signed with a strong ``JWT_SECRET`` (or
+  ``OISHA_API_SECRET`` as a temporary non-Telegram fallback);
 - an authenticated Nginx Basic Auth identity forwarded from a loopback proxy.
 
-The policy deliberately fails closed when secrets are missing.
+The policy deliberately fails closed when secrets are missing or too short.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from starlette.responses import JSONResponse
 
 _ALLOWED_SESSION_ROLES = frozenset({"owner", "admin"})
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+_MIN_SESSION_SECRET_BYTES = 32
 _PROTECTED_PREFIXES = (
     "/api/",
     "/internal/",
@@ -48,9 +49,16 @@ def _clean(value: Any) -> str:
     return str(value).lstrip("\ufeff").strip()
 
 
+def _is_strong_session_secret(value: str) -> bool:
+    return len(value.encode("utf-8")) >= _MIN_SESSION_SECRET_BYTES
+
+
 def _session_secret() -> str:
-    """Use a dedicated JWT key, never the Telegram bot token."""
-    return _clean(os.environ.get("JWT_SECRET") or os.environ.get("OISHA_API_SECRET"))
+    """Use a strong non-Telegram key for browser sessions."""
+    candidate = _clean(
+        os.environ.get("JWT_SECRET") or os.environ.get("OISHA_API_SECRET")
+    )
+    return candidate if _is_strong_session_secret(candidate) else ""
 
 
 def authorize_request_values(
@@ -82,7 +90,7 @@ def authorize_request_values(
 
     dedicated_jwt_secret = _clean(jwt_secret)
     token = _clean(session_token)
-    if not dedicated_jwt_secret or not token:
+    if not _is_strong_session_secret(dedicated_jwt_secret) or not token:
         return None
 
     try:
