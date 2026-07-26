@@ -5,27 +5,25 @@ Status: Approved for planning
 
 ## Purpose
 
-Close the remaining security and reliability gaps in Oisha without combining unrelated high-risk changes into one release. The work is split into independently reviewable branches and pull requests so each security boundary can be tested, deployed, and rolled back separately.
+Close Oisha's remaining security and reliability gaps through independently reviewable PRs. Each security boundary must be testable, deployable, and reversible without coupling unrelated high-risk changes.
 
 ## Scope
 
-This design covers:
-
 1. Complete `owner/admin/seller/viewer` RBAC.
-2. GitHub Actions runner and account diagnostics.
-3. A real finance data source backed by the existing Hisobchi Google Sheets integration.
-4. Docker and dependency hardening.
-5. Authenticated staging permission tests and a controlled staging pentest.
+2. Diagnose and resolve GitHub Actions runner/account failures.
+3. Connect finance endpoints to the existing Hisobchi Google Sheets integration.
+4. Harden Docker and dependency management.
+5. Run authenticated staging permission tests and a controlled staging pentest.
 
 Jon Branding CSP and spam monitoring are specified separately in the Jon Branding repository.
 
 ## Non-goals
 
-- No production destructive security testing.
+- No destructive production security testing.
 - No demo or fabricated finance values.
-- No execution of pull-request code on the production Oracle runner.
-- No shared all-powerful token for browser users and service integrations.
-- No broad unrelated refactoring.
+- No pull-request code on the production Oracle runner.
+- No all-powerful shared browser/service token.
+- No unrelated refactoring.
 
 ## Delivery sequence
 
@@ -35,7 +33,7 @@ Jon Branding CSP and spam monitoring are specified separately in the Jon Brandin
 4. `security/docker-dependency-hardening`
 5. `security/staging-auth-pentest`
 
-Each item is a separate PR and must pass its own acceptance criteria before the next security boundary is considered complete.
+Each item is a separate PR and must satisfy its own acceptance criteria.
 
 ---
 
@@ -43,7 +41,7 @@ Each item is a separate PR and must pass its own acceptance criteria before the 
 
 ### Principal model
 
-Every authenticated request resolves to a normalized principal:
+Every authenticated request resolves to:
 
 ```text
 Principal
@@ -54,34 +52,38 @@ Principal
 - scopes: optional object-level constraints
 ```
 
-The existing central middleware remains the fail-closed outer boundary. Endpoint-level authorization is added through explicit permission dependencies.
+The central middleware remains the fail-closed outer boundary. Endpoint-level authorization is enforced with explicit permission dependencies.
 
 ### Roles
 
 - `owner`: full business and platform control.
 - `admin`: operational administration, excluding owner-only secrets, deploy controls, and ownership transfer.
-- `seller`: access only to assigned leads, own calls, own tasks, and permitted sales actions.
-- `viewer`: read-only access to explicitly allowed, privacy-reduced views.
-- `service`: machine identity with explicit scopes; it is not automatically equivalent to owner.
+- `seller`: assigned leads, own calls, own tasks, and allowed sales actions only.
+- `viewer`: privacy-reduced read-only views only.
+- `service`: machine identity with explicit scopes; never automatically equivalent to owner.
 
 ### Permission matrix
 
 | Capability | Owner | Admin | Seller | Viewer | Service |
 |---|---:|---:|---:|---:|---:|
-| General dashboard | Full | Full | Own metrics | Read-only allowed metrics | Scoped |
+| General dashboard | Full | Full | Own metrics | Allowed read-only metrics | Scoped |
 | Leads and customers | Full | Full | Assigned records | Restricted read | Scoped |
-| Calls | Full | Full | Own calls | Redacted summary only | Scoped |
+| Calls | Full | Full | Own calls | Redacted summary | Scoped |
 | Full transcripts | Full | Full | Own calls only | No | Scoped |
-| Finance dashboard | Full | Full | No | Optional explicit permission | Scoped read |
+| Finance dashboard | Full | Full | No | No by default | Scoped read |
 | Finance writes | Full | Full | No | No | Scoped write |
 | Telegram chat read | Full | Restricted | No | No | Explicit read scope |
-| Telegram send | Owner approval policy | Owner approval policy | No | No | Explicit write scope plus approval policy |
+| Telegram send | Interactive owner confirmation | Requires owner approval | No | No | Explicit write scope plus owner approval |
 | MCP read tools | Full | Restricted | No | No | Explicit read scope |
-| MCP write tools | Full | Owner-approved | No | No | Explicit write scope plus approval policy |
+| MCP write tools | Interactive owner confirmation | Requires owner approval | No | No | Explicit write scope plus owner approval |
 | User role management | Full | Seller/viewer only | No | No | No |
 | Secrets and integrations | Full | No | No | No | No |
 | Deploy and system settings | Full | No | No | No | No |
 | Audit logs | Full | Full | Own events | No | No |
+
+A viewer may receive `finance:read` only through an explicit owner-issued grant recorded in the audit log. The base viewer role itself never includes finance access.
+
+For owner-initiated Telegram/MCP writes, the owner's explicit interactive confirmation is the approval. Admin and service writes require a separate owner approval record.
 
 ### Endpoint authorization
 
@@ -93,47 +95,34 @@ Depends(require_permissions("finance:read"))
 Depends(require_permissions("telegram:send"))
 ```
 
-Prefix protection remains a safety net, but a protected prefix alone is not sufficient authorization.
+Prefix protection remains a safety net, not the final authorization decision.
 
 ### Object-level authorization
 
-Seller access must validate assignment or ownership at query time. A seller cannot access another seller's lead, call, transcript, task, or customer merely by changing an object ID.
+Seller access validates assignment or ownership at query time. Seller A must not access Seller B's lead, call, transcript, task, or customer by changing an ID.
 
-Rules:
-
-- Seller queries include an ownership/assignment predicate.
-- Cross-seller access returns `403` without confirming whether the object exists.
-- Viewer responses omit private contact details, transcripts, secrets, and internal notes unless a specific permission allows them.
+- Seller queries include ownership/assignment predicates.
+- Cross-seller access returns `403` without confirming object existence.
+- Viewer responses omit contact details, transcripts, secrets, and internal notes unless a specific permission allows them.
 
 ### Trusted proxy handling
 
-A loopback proxy identity is accepted only when it maps to a known Oisha user and role. A forwarded username is not automatically promoted to `admin`.
+A loopback proxy identity is accepted only when it maps to a known Oisha user and role. A forwarded username is never automatically promoted to `admin`.
 
 ### Audit events
 
-Record at minimum:
-
-- authentication success/failure;
-- authorization denial;
-- role changes;
-- finance reads and writes;
-- Telegram and MCP write attempts;
-- secret/integration changes;
-- owner approvals;
-- deploy/system operations.
-
-Sensitive values and tokens must never be included in audit payloads.
+Record authentication failures, authorization denials, role/grant changes, finance access, Telegram/MCP writes, owner approvals, secret/integration changes, and deploy/system operations. Tokens and sensitive values are excluded.
 
 ### RBAC acceptance criteria
 
-- Anonymous access fails closed.
-- Invalid, expired, or malformed tokens fail closed.
-- `seller` and `viewer` sessions are accepted only for permitted endpoints.
+- Anonymous, malformed, invalid, and expired credentials fail closed.
+- Seller/viewer sessions work only on permitted endpoints.
 - Seller A cannot access Seller B objects.
-- Viewer endpoints return redacted data.
-- Service tokens are scope-limited and cannot use browser-only owner actions.
-- Proxy header spoofing from non-loopback clients is rejected.
-- Permission tests cover every protected route family.
+- Viewer data is redacted.
+- Base viewer role cannot read finance data.
+- Service tokens are scope-limited.
+- Proxy spoofing from non-loopback clients fails.
+- Every protected route family has permission tests.
 
 ---
 
@@ -141,18 +130,16 @@ Sensitive values and tokens must never be included in audit payloads.
 
 ### Source choice
 
-Use the existing Hisobchi Google Sheets integration as the first production finance source. The API must depend on a source interface rather than directly embedding Google Sheets logic.
+Use the existing Hisobchi Google Sheets integration through an interface:
 
 ```text
 Finance API
-  -> FinanceSource interface
+  -> FinanceSource
       -> GoogleSheetsFinanceSource
           -> Hisobchi Google Sheet
 ```
 
-### Source interface
-
-The source returns normalized domain objects:
+### Domain objects
 
 ```text
 FinanceSnapshot
@@ -165,7 +152,7 @@ FinanceSnapshot
 - freshness: fresh | stale
 
 FinanceTransaction
-- stable source id
+- stable_source_id
 - direction: income | expense
 - amount
 - currency
@@ -174,45 +161,36 @@ FinanceTransaction
 - category
 ```
 
-All monetary calculations use `Decimal`; floating-point arithmetic is prohibited.
+All monetary calculations use `Decimal`.
 
 ### Configuration
 
-Configuration identifies:
-
-- spreadsheet ID;
-- worksheet names;
-- required column names;
-- timezone;
-- default currency;
-- freshness threshold;
-- service account credential reference.
-
-Credentials remain in the deployment secret store and are never committed.
+Configuration provides spreadsheet ID, worksheet names, required columns, timezone, currency, freshness threshold, and a secret-store reference for the service account. Credentials are never committed.
 
 ### Error behavior
 
-- Missing configuration: `503 finance_source_not_configured`.
-- Source unavailable: `503 finance_source_unavailable`.
-- Invalid sheet schema/data: `502 finance_source_invalid`.
-- Stale data: return data with `freshness: stale` and emit monitoring; do not label it current.
-- No demo values under any production code path.
+- Missing config: `503 finance_source_not_configured`.
+- Unavailable source: `503 finance_source_unavailable`.
+- Invalid schema/data: `502 finance_source_invalid`.
+- Stale source: return `freshness: stale`, emit monitoring, and never label it current.
+- No demo values under any production path.
 
-### Finance authorization
+### Authorization
 
-- Dashboard and transaction reads: `finance:read`.
-- Writes/imports/reconciliation: `finance:write`.
-- Default access: owner/admin only.
+- Reads: `finance:read`.
+- Writes/import/reconciliation: `finance:write`.
+- Default: owner/admin only.
+- Explicit viewer grants are owner-issued and audited.
 - Every finance access is audited.
 
 ### Finance acceptance criteria
 
-- API values are derived from a controlled test sheet in staging.
-- Balances and monthly totals reconcile with fixture data.
+- Staging values come from a controlled test sheet.
+- Totals reconcile with fixtures.
 - Invalid rows do not silently corrupt totals.
 - Missing source returns explicit 503.
-- Seller and unauthorized viewer roles receive 403.
-- No sample transaction remains in production responses.
+- Seller/base-viewer access returns 403.
+- No sample transaction remains.
 
 ---
 
@@ -220,190 +198,126 @@ Credentials remain in the deployment secret store and are never committed.
 
 ### Security boundary
 
-- Pull requests run only on GitHub-hosted or disposable isolated runners.
-- The production Oracle runner is used only for trusted `main` deployment and explicitly trusted main-branch checks.
-- Pull-request dependencies are never installed on the production host.
+- PRs run only on GitHub-hosted or disposable isolated runners.
+- Oracle is limited to trusted `main` deploy and explicitly trusted main checks.
+- PR dependencies are never installed on production.
 
 ### Diagnostic workflow
 
-Add a minimal workflow with no repository build steps:
+Add a checkout-free GitHub-hosted `echo` job and a trusted manual/main-only Oracle diagnostic. Record runner metadata, labels, disk, service state, workspace permissions, and a small artifact/job summary.
 
-1. GitHub-hosted job: checkout-free `echo`, environment summary, and runner metadata.
-2. Oracle job: trusted manual/main-only diagnostic with runner labels, disk, service state, and workspace permissions.
-3. Upload a small diagnostic artifact and job summary.
+The result must distinguish:
 
-This separates account/runner assignment failure from application test failure.
-
-### Oracle runner requirements
-
-- Dedicated production label.
-- Runs as a minimal-privilege user.
-- No passwordless broad sudo.
-- Concurrency lock for deployments.
-- Clean workspace before and after trusted jobs.
-- Secrets exposed only to deploy jobs.
-- Runner service health documented and monitored.
-
-### Account checks
-
-The diagnostic result must identify whether the blocker is:
-
-- GitHub Actions spending/minutes restriction;
+- Actions spending/minutes restriction;
 - account payment restriction;
 - repository Actions policy;
-- GitHub-hosted runner assignment failure;
-- self-hosted runner offline/busy/label mismatch;
-- workflow syntax or permission error.
+- GitHub-hosted assignment failure;
+- self-hosted offline/busy/label mismatch;
+- workflow syntax/permission failure.
+
+### Oracle requirements
+
+Dedicated production label, minimal-privilege user, no broad passwordless sudo, deploy concurrency lock, clean workspace, deploy-only secrets, and monitored runner service health.
 
 ### CI acceptance criteria
 
-- A minimal GitHub-hosted job reaches step 1 and completes.
-- A pull-request Python job and TypeScript job complete on isolated runners.
-- No pull-request job targets `[self-hosted, oracle]`.
-- The Oracle runner reports online and only accepts trusted jobs.
-- Infrastructure failures are reported separately from test failures.
+- Minimal GitHub-hosted job reaches step 1 and completes.
+- PR Python and TypeScript jobs complete on isolated runners.
+- No PR job targets `[self-hosted, oracle]`.
+- Oracle reports online and accepts trusted jobs only.
+- Infrastructure failures are separated from test failures.
 
 ---
 
 ## 4. Docker hardening
 
-### Container runtime
-
-- Create a non-root `oisha` user.
-- Use `COPY --chown`.
-- Run the application as the non-root user.
+- Add non-root `oisha` user and `COPY --chown`.
+- Run as non-root with minimal writable paths.
 - Set `no-new-privileges` where supported.
-- Keep writable paths explicit and minimal.
-- Add a healthcheck.
-- Use pinned image versions or digests in production.
-
-### Compose networking
-
-Development service ports bind to loopback only unless external exposure is explicitly required:
-
-```yaml
-127.0.0.1:5432:5432
-127.0.0.1:6379:6379
-127.0.0.1:9000:9000
-```
-
-Production infrastructure services are not exposed publicly through compose port mappings.
-
-### Secrets
-
-- Remove default credentials from production compose files.
-- Require environment or secret-store values.
-- Production startup fails if required secrets are absent.
-- Separate development defaults from production configuration.
+- Add accurate healthcheck.
+- Pin production image versions/digests.
+- Bind development Postgres, Redis, and MinIO ports to loopback only.
+- Do not expose production infrastructure services publicly through compose mappings.
+- Remove production default credentials.
+- Require secret-store/environment values and fail startup when missing.
+- Separate development defaults from production config.
 
 ### Docker acceptance criteria
 
 - Runtime UID is non-root.
-- Database, Redis, and MinIO are not reachable from public interfaces by default.
-- No `latest` tags remain in production definitions.
-- Secret scanning finds no committed production credential.
-- Healthcheck reports service readiness accurately.
+- Postgres/Redis/MinIO are not publicly reachable by default.
+- No production `latest` tag remains.
+- Secret scan finds no production credential.
+- Healthcheck represents readiness accurately.
 
 ---
 
 ## 5. Dependency hardening
 
-### Python
+### Python decision
 
-- Produce a reproducible lock using `uv lock` or `pip-compile`.
-- Separate direct requirements from generated locked versions.
-- Use hashes for production installation where practical.
-- Run `pip-audit` against the locked environment.
+Use `pip-tools` and `pip-compile` because the repository already uses `requirements*.txt`. Direct dependencies remain human-maintained; generated lock files pin transitive versions. Production installation uses the compiled lock, with hashes where compatible.
+
+Run `pip-audit` against the compiled environment.
 
 ### TypeScript
 
-- Keep one authoritative `pnpm-lock.yaml`.
-- Install with `pnpm install --frozen-lockfile`.
-- Run `pnpm audit` and review security overrides explicitly.
-- Do not run untrusted lifecycle scripts during remediation workflows.
+Use one authoritative `pnpm-lock.yaml`, `pnpm install --frozen-lockfile`, `pnpm audit`, reviewed overrides, and no untrusted lifecycle scripts during remediation.
 
 ### GitHub Actions
 
-- Pin third-party actions to immutable commit SHAs in production/security workflows.
-- Keep Dependabot security updates separate from routine version updates.
-- Security remediation must include before/after audit evidence.
+Pin third-party actions to immutable commit SHAs in production/security workflows. Keep security updates separate from routine updates and attach before/after audit evidence.
 
 ### Dependency acceptance criteria
 
-- Repeated clean installs resolve identical versions.
-- Python and pnpm audits contain no unresolved fixable critical/high alerts.
-- Any accepted exception has a documented reason, affected path, and review date.
-- Lockfile changes pass typecheck, tests, and build.
+- Clean installs resolve identical versions.
+- No unresolved fixable critical/high Python or pnpm alert.
+- Exceptions include reason, affected path, and review date.
+- Lock changes pass typecheck, tests, and build.
 
 ---
 
 ## 6. Staging permission tests and pentest
 
-### Environment
-
-Use a dedicated staging deployment with synthetic data only. Production Telegram sessions, finance data, CRM records, customer contact details, and production secrets are prohibited.
+Use a dedicated staging deployment with synthetic data only. Production Telegram sessions, finance data, CRM records, customer details, and production secrets are prohibited.
 
 ### Test identities
 
-- anonymous;
-- invalid token;
-- expired token;
-- viewer;
-- seller A;
-- seller B;
-- admin;
-- owner;
-- scoped service token;
-- spoofed proxy identity.
+Anonymous, invalid token, expired token, viewer, seller A, seller B, admin, owner, scoped service token, and spoofed proxy identity.
 
-### Automated permission suite
+### Test scope
 
-For every protected endpoint, assert the expected status and response shape for each identity. Include object-level IDOR tests proving Seller A cannot access Seller B resources.
-
-### Security test scope
-
-- authentication bypass;
-- JWT validation and role escalation;
-- proxy header spoofing;
-- endpoint permission gaps;
+- auth bypass and JWT validation;
+- role escalation;
+- proxy spoofing;
+- permission gaps;
 - IDOR/BOLA;
-- WebSocket authentication;
+- WebSocket auth;
 - MCP read/write separation;
-- Telegram send approval enforcement;
+- Telegram approval enforcement;
 - finance authorization;
-- CORS and sensitive response leakage;
+- CORS and response leakage;
 - rate limiting;
-- dependency and container baseline scans;
+- dependency/container baseline scans;
 - authenticated ZAP baseline/API scan where compatible.
 
-### Safety controls
-
-- No destructive payloads.
-- Rate limits respected.
-- No denial-of-service testing.
-- Findings recorded with endpoint, identity, evidence, impact, and remediation.
+No destructive payloads, denial-of-service tests, or production targets.
 
 ### Pentest acceptance criteria
 
-- No anonymous or lower-role access to protected data.
-- No cross-seller object access.
-- No viewer write capability.
-- No unapproved Telegram/MCP write action.
-- No high or critical unresolved staging finding.
-- Final permission matrix matches automated test results.
+- No anonymous/lower-role protected-data access.
+- No cross-seller access.
+- No viewer writes.
+- No unapproved Telegram/MCP write.
+- No unresolved high/critical staging finding.
+- Automated results match the documented matrix.
 
 ---
 
 ## Rollout and rollback
 
-- Deploy each PR to staging first.
-- Run focused regression and permission tests.
-- Promote to production only after staging acceptance criteria pass.
-- RBAC can be rolled back independently of finance and infrastructure changes.
-- Finance remains fail-closed if the source is unavailable.
-- Docker changes retain the previous image/tag for rollback.
-- Runner diagnostic changes never expose production secrets to pull requests.
+Deploy each PR to staging, run focused regression/permission tests, then promote. RBAC, finance, runner, and Docker changes remain independently reversible. Finance stays fail-closed on source failure. Previous container image remains available for rollback. Runner diagnostics never expose production secrets to PRs.
 
 ## Completion definition
 
-The roadmap is complete only when all five PRs are merged, staging permission tests pass, the controlled pentest has no unresolved high/critical finding, and the documented role matrix matches production behavior.
+Complete only when all five PRs are merged, staging permission tests pass, the controlled pentest has no unresolved high/critical finding, and production behavior matches the documented role matrix.
