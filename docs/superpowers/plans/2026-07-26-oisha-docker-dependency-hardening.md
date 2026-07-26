@@ -383,33 +383,18 @@ def test_every_action_is_pinned_to_a_commit_sha():
 Run: `pytest tests/test_dependency_audit_workflow.py -q`
 Expected: FAIL because the workflow does not exist.
 
-- [ ] **Step 3: Resolve immutable action SHAs**
+- [ ] **Step 3: Implement the read-only audit workflow with exact action commits**
 
-Run this script and save its four 40-character outputs in the implementation notes before editing the workflow:
+Use these immutable action commits, verified from their official GitHub release commit pages on 2026-07-26:
 
-```bash
-set -euo pipefail
-resolve_tag() {
-  repo="$1"
-  tag="$2"
-  sha="$(git ls-remote "$repo" "refs/tags/${tag}^{}" | awk 'NR==1 {print $1}')"
-  if [ -z "$sha" ]; then
-    sha="$(git ls-remote "$repo" "refs/tags/${tag}" | awk 'NR==1 {print $1}')"
-  fi
-  test "${#sha}" -eq 40
-  printf '%s %s\n' "$tag" "$sha"
-}
-resolve_tag https://github.com/actions/checkout.git v7
-resolve_tag https://github.com/pnpm/action-setup.git v5
-resolve_tag https://github.com/actions/setup-node.git v6
-resolve_tag https://github.com/actions/setup-python.git v6
+```text
+actions/checkout v7.0.1       3d3c42e5aac5ba805825da76410c181273ba90b1
+pnpm/action-setup v6.0.9      0ebf47130e4866e96fce0953f49152a61190b271
+actions/setup-node v7.0.0     820762786026740c76f36085b0efc47a31fe5020
+actions/setup-python v7.0.0   5fda3b95a4ea91299a34e894583c3862153e4b97
 ```
 
-Use the exact printed SHA after each action repository name. Do not commit tag references.
-
-- [ ] **Step 4: Implement the read-only audit workflow**
-
-Create `.github/workflows/dependency-audit.yml` with:
+Create `.github/workflows/dependency-audit.yml`:
 
 ```yaml
 name: Dependency audit
@@ -424,34 +409,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@PASTE_THE_40_CHARACTER_SHA_PRINTED_FOR_V7
-      - uses: pnpm/action-setup@PASTE_THE_40_CHARACTER_SHA_PRINTED_FOR_V5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
         with:
           version: 10.33.2
-      - uses: actions/setup-node@PASTE_THE_40_CHARACTER_SHA_PRINTED_FOR_V6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '20'
+          package-manager-cache: false
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm audit --audit-level=high
-      - uses: actions/setup-python@PASTE_THE_40_CHARACTER_SHA_PRINTED_FOR_V6
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.11'
       - run: python -m pip install 'pip-audit==2.10.1'
       - run: pip-audit -r requirements.lock
 ```
 
-Before commit, replace every uppercase instruction token with the corresponding 40-character output. The regex test in Step 1 must pass; uppercase instruction tokens must not remain in the committed file.
-
-- [ ] **Step 5: Configure Dependabot grouping**
+- [ ] **Step 4: Configure Dependabot grouping**
 
 Separate security updates from routine version updates by ecosystem and cap open routine PRs. Do not ignore security advisories.
 
-- [ ] **Step 6: Verify workflow tests**
+- [ ] **Step 5: Verify workflow tests**
 
 Run: `pytest tests/test_dependency_audit_workflow.py -q`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add .github/workflows/dependency-audit.yml .github/dependabot.yml tests/test_dependency_audit_workflow.py
