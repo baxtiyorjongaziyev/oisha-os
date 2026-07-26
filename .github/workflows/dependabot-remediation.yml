@@ -1,0 +1,70 @@
+name: Dependabot security remediation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'requirements*.txt'
+      - '.github/workflows/dependabot-remediation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    name: Audit npm and Python dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Capture npm audit before remediation
+        run: pnpm audit --json > pnpm-audit-before.json || true
+
+      - name: Apply pnpm security fixes without lifecycle scripts
+        run: |
+          pnpm audit --fix --audit-level=low || true
+          pnpm install --lockfile-only --ignore-scripts
+
+      - name: Capture npm audit after remediation
+        run: pnpm audit --json > pnpm-audit-after.json || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Audit Python dependencies
+        run: |
+          python -m pip install --disable-pip-version-check pip-audit
+          grep -v '^telegram-mcp @' requirements.txt > requirements-audit.txt
+          pip-audit -r requirements-audit.txt --format json --output pip-audit.json || true
+
+      - name: Save remediation outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependabot-remediation
+          path: |
+            package.json
+            pnpm-workspace.yaml
+            pnpm-lock.yaml
+            pnpm-audit-before.json
+            pnpm-audit-after.json
+            pip-audit.json
+            requirements-audit.txt
+          retention-days: 7
