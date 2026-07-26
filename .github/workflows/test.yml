@@ -1,6 +1,6 @@
 # Oisha-OS continuous integration.
 # Security boundary: untrusted pull-request code must never execute on the
-# production Oracle runner. PRs use an isolated GitHub-hosted runner; only
+# production Oracle runner. PRs use isolated GitHub-hosted runners; only
 # trusted pushes to main/master may use the production-labelled runner.
 name: CI - Oisha-OS
 
@@ -73,6 +73,39 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage.xml
           fail_ci_if_error: false
+
+  typescript-monorepo:
+    name: TypeScript monorepo checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install TypeScript workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck workspace
+        run: pnpm run typecheck
+
+      - name: Lint workspace
+        run: pnpm run lint
+
+      - name: Test workspace
+        run: pnpm run test
+
+      - name: Build workspace
+        run: pnpm run build
 
   trusted-main-tests:
     if: github.event_name == 'push'
