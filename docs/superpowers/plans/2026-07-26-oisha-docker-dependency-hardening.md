@@ -18,7 +18,7 @@
 - Python production installation is locked and reproducible.
 - `pnpm install --frozen-lockfile` remains authoritative.
 - Dependency remediation does not run untrusted lifecycle scripts.
-- Third-party security/deploy actions are pinned to immutable commit SHAs.
+- Third-party security/deploy actions are pinned to immutable 40-character commit SHAs.
 
 ---
 
@@ -53,22 +53,22 @@ import yaml
 
 
 def test_dockerfile_runs_as_non_root():
-    text = Path('Dockerfile').read_text()
-    assert 'USER oisha' in text
-    assert 'COPY --chown=oisha:oisha' in text
+    text = Path("Dockerfile").read_text(encoding="utf-8")
+    assert "USER oisha" in text
+    assert "COPY --chown=oisha:oisha" in text
 
 
 def test_production_compose_has_no_default_passwords_or_latest_tags():
-    text = Path('docker-compose.production.yml').read_text()
-    assert 'salescoach_dev' not in text
-    assert ':latest' not in text
+    text = Path("docker-compose.production.yml").read_text(encoding="utf-8")
+    assert "salescoach_dev" not in text
+    assert ":latest" not in text
 
 
 def test_development_ports_bind_loopback():
-    compose = yaml.safe_load(Path('docker-compose.yml').read_text())
-    assert '127.0.0.1:5432:5432' in compose['services']['postgres']['ports']
-    assert '127.0.0.1:6379:6379' in compose['services']['redis']['ports']
-    assert '127.0.0.1:9000:9000' in compose['services']['minio']['ports']
+    compose = yaml.safe_load(Path("docker-compose.yml").read_text(encoding="utf-8"))
+    assert "127.0.0.1:5432:5432" in compose["services"]["postgres"]["ports"]
+    assert "127.0.0.1:6379:6379" in compose["services"]["redis"]["ports"]
+    assert "127.0.0.1:9000:9000" in compose["services"]["minio"]["ports"]
 ```
 
 - [ ] **Step 2: Verify failure**
@@ -267,7 +267,7 @@ git commit -m "fix(docker): isolate Oisha production services"
 
 ---
 
-### Task 4: Create reproducible Python dependency lock
+### Task 4: Create reproducible Python dependency locks
 
 **Files:**
 - Create: `requirements.in`
@@ -287,13 +287,13 @@ from pathlib import Path
 
 
 def test_production_lock_contains_hashes():
-    text = Path('requirements.lock').read_text()
-    assert '--hash=sha256:' in text
-    assert ' --index-url ' not in text
+    text = Path("requirements.lock").read_text(encoding="utf-8")
+    assert "--hash=sha256:" in text
+    assert " --index-url " not in text
 
 
 def test_docker_installs_from_production_lock():
-    assert 'requirements.lock' in Path('Dockerfile').read_text()
+    assert "requirements.lock" in Path("Dockerfile").read_text(encoding="utf-8")
 ```
 
 - [ ] **Step 2: Verify failure**
@@ -318,9 +318,9 @@ pip-compile --generate-hashes --resolver=backtracking --output-file=requirements
 pip-compile --generate-hashes --resolver=backtracking --output-file=requirements-dev.lock requirements-dev.in
 ```
 
-Review local/VCS dependency handling explicitly. Do not silently drop `telegram-mcp @ ...`; document and pin its immutable commit if present.
+Review the direct VCS dependency line beginning with `telegram-mcp @` explicitly. Pin it to an immutable commit and document why hash enforcement cannot cover that line if pip-tools cannot emit a compatible hash.
 
-- [ ] **Step 5: Install from clean environment**
+- [ ] **Step 5: Install from a clean environment**
 
 ```bash
 python -m venv /tmp/oisha-lock-test
@@ -328,7 +328,7 @@ python -m venv /tmp/oisha-lock-test
 /tmp/oisha-lock-test/bin/pip check
 ```
 
-Expected: installation and `pip check` succeed.
+Expected: installation and `pip check` succeed. If a VCS line prevents `--require-hashes`, split it into a separately verified immutable-install step and keep all registry packages hash-locked; record the exact exception in `docs/security/dependency-exceptions.md`.
 
 - [ ] **Step 6: Update Docker build**
 
@@ -361,21 +361,55 @@ git commit -m "build(deps): lock Python dependencies with hashes"
 
 ```python
 from pathlib import Path
+import re
 
 
 def test_dependency_audit_disables_pnpm_scripts():
-    text = Path('.github/workflows/dependency-audit.yml').read_text()
-    assert 'pnpm install --frozen-lockfile --ignore-scripts' in text
-    assert 'pip-audit' in text
-    assert 'permissions:' in text and 'contents: read' in text
+    text = Path(".github/workflows/dependency-audit.yml").read_text(encoding="utf-8")
+    assert "pnpm install --frozen-lockfile --ignore-scripts" in text
+    assert "pip-audit" in text
+    assert "permissions:" in text and "contents: read" in text
+
+
+def test_every_action_is_pinned_to_a_commit_sha():
+    text = Path(".github/workflows/dependency-audit.yml").read_text(encoding="utf-8")
+    uses_lines = [line.strip() for line in text.splitlines() if line.strip().startswith("- uses:")]
+    assert uses_lines
+    assert all(re.search(r"@[0-9a-f]{40}$", line) for line in uses_lines)
 ```
 
 - [ ] **Step 2: Verify failure**
 
 Run: `pytest tests/test_dependency_audit_workflow.py -q`
-Expected: FAIL because workflow does not exist.
+Expected: FAIL because the workflow does not exist.
 
-- [ ] **Step 3: Implement read-only audit workflow**
+- [ ] **Step 3: Resolve immutable action SHAs**
+
+Run this script and save its four 40-character outputs in the implementation notes before editing the workflow:
+
+```bash
+set -euo pipefail
+resolve_tag() {
+  repo="$1"
+  tag="$2"
+  sha="$(git ls-remote "$repo" "refs/tags/${tag}^{}" | awk 'NR==1 {print $1}')"
+  if [ -z "$sha" ]; then
+    sha="$(git ls-remote "$repo" "refs/tags/${tag}" | awk 'NR==1 {print $1}')"
+  fi
+  test "${#sha}" -eq 40
+  printf '%s %s\n' "$tag" "$sha"
+}
+resolve_tag https://github.com/actions/checkout.git v7
+resolve_tag https://github.com/pnpm/action-setup.git v5
+resolve_tag https://github.com/actions/setup-node.git v6
+resolve_tag https://github.com/actions/setup-python.git v6
+```
+
+Use the exact printed SHA after each action repository name. Do not commit tag references.
+
+- [ ] **Step 4: Implement the read-only audit workflow**
+
+Create `.github/workflows/dependency-audit.yml` with:
 
 ```yaml
 name: Dependency audit
@@ -388,35 +422,36 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@<immutable-sha>
-      - uses: pnpm/action-setup@<immutable-sha>
+      - uses: actions/checkout@PASTE_THE_40_CHARACTER_SHA_PRINTED_FOR_V7
+      - uses: pnpm/action-setup@PASTE_THE_40_CHARACTER_SHA_PRINTED_FOR_V5
         with:
           version: 10.33.2
-      - uses: actions/setup-node@<immutable-sha>
+      - uses: actions/setup-node@PASTE_THE_40_CHARACTER_SHA_PRINTED_FOR_V6
         with:
           node-version: '20'
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm audit --audit-level=high
-      - uses: actions/setup-python@<immutable-sha>
+      - uses: actions/setup-python@PASTE_THE_40_CHARACTER_SHA_PRINTED_FOR_V6
         with:
           python-version: '3.11'
       - run: python -m pip install 'pip-audit==2.10.1'
       - run: pip-audit -r requirements.lock
 ```
 
-Resolve every `<immutable-sha>` to the current release commit before commit; do not leave tag references or placeholders.
+Before commit, replace every uppercase instruction token with the corresponding 40-character output. The regex test in Step 1 must pass; uppercase instruction tokens must not remain in the committed file.
 
-- [ ] **Step 4: Configure Dependabot grouping**
+- [ ] **Step 5: Configure Dependabot grouping**
 
 Separate security updates from routine version updates by ecosystem and cap open routine PRs. Do not ignore security advisories.
 
-- [ ] **Step 5: Verify workflow test**
+- [ ] **Step 6: Verify workflow tests**
 
 Run: `pytest tests/test_dependency_audit_workflow.py -q`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add .github/workflows/dependency-audit.yml .github/dependabot.yml tests/test_dependency_audit_workflow.py
@@ -428,7 +463,7 @@ git commit -m "ci(security): audit Oisha dependencies"
 ### Task 6: Run audits, remediate, and verify images
 
 **Files:**
-- Modify as required by verified audit findings: `package.json`, `pnpm-lock.yaml`, `requirements.in`, generated lock files.
+- Modify only files named by verified findings: `package.json`, `pnpm-lock.yaml`, `requirements.in`, `requirements.lock`, `requirements-dev.lock`.
 - Create: `docs/security/dependency-exceptions.md` only when an exception is unavoidable.
 
 **Interfaces:**
@@ -450,7 +485,7 @@ Update direct version constraints or `pnpm.overrides`, regenerate lock files, an
 
 - [ ] **Step 3: Scan the image**
 
-Use the repository’s approved container scanner in CI or local tooling. Record image digest and findings; do not claim clean status without output.
+Use the repository’s approved container scanner in CI or local tooling. Record the image digest, scanner name/version, command, and findings. Do not claim clean status without captured output.
 
 - [ ] **Step 4: Run full verification**
 
@@ -469,7 +504,8 @@ Expected: PASS.
 - [ ] **Step 5: Commit verified remediations**
 
 ```bash
-git add package.json pnpm-lock.yaml requirements.in requirements.lock requirements-dev.lock docs/security/dependency-exceptions.md
+git add package.json pnpm-lock.yaml requirements.in requirements.lock requirements-dev.lock
+if [ -f docs/security/dependency-exceptions.md ]; then git add docs/security/dependency-exceptions.md; fi
 git commit -m "fix(security): remediate verified dependency findings"
 ```
 
