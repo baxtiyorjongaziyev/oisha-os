@@ -18,7 +18,7 @@ jobs:
   dependency-audit:
     if: github.head_ref == 'security/dependabot-all-alerts'
     name: Trusted dependency audit and patch
-    runs-on: [self-hosted, oracle]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout trusted main
@@ -46,8 +46,7 @@ jobs:
             -H 'Accept: application/vnd.github+json' \
             -H 'X-GitHub-Api-Version: 2022-11-28' \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/dependabot/alerts?state=open&per_page=100" \
-            > "$RUNNER_TEMP/oisha-dependency-audit/dependabot-alerts.json" \
-            || true
+            > "$RUNNER_TEMP/oisha-dependency-audit/dependabot-alerts.json"
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
