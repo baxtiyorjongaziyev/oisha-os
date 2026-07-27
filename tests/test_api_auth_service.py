@@ -37,12 +37,23 @@ def test_auth_date_freshness_window():
 
 
 def test_session_jwt_roundtrip_and_rejects_wrong_secret():
+    strong_secret = "session-secret-with-at-least-thirty-two-bytes"
     token = auth_service.issue_session_jwt(
-        user_id=7, username="aziz", first_name="Aziz", role="client", secret="s3cret"
+        user_id=7,
+        username="aziz",
+        first_name="Aziz",
+        role="seller",
+        secret=strong_secret,
     )
-    payload = auth_service.decode_session_jwt(token, "s3cret")
+    payload = auth_service.decode_session_jwt(token, strong_secret)
     assert payload is not None
     assert payload["sub"] == "7"
-    assert payload["role"] == "client"
+    assert payload["role"] == "seller"
     assert auth_service.decode_session_jwt(token, "wrong") is None
-    assert auth_service.decode_session_jwt("garbage", "s3cret") is None
+    assert auth_service.decode_session_jwt("garbage", strong_secret) is None
+
+
+def test_session_role_fails_safe_to_viewer():
+    assert auth_service.normalize_session_role("service") == "viewer"
+    assert auth_service.normalize_session_role("unknown") == "viewer"
+    assert auth_service.normalize_session_role("OWNER") == "owner"

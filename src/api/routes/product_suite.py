@@ -2,8 +2,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from src.api.rbac import Permission, require_permissions
 
-router = APIRouter(prefix="/api/oisha", tags=["product"])
+router = APIRouter(
+    prefix="/api/oisha",
+    tags=["product"],
+    dependencies=[require_permissions(Permission.DASHBOARD_READ)],
+)
 
 
 @router.get("/product-suite")
