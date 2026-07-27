@@ -37,11 +37,13 @@ def test_runner_diagnostic_has_checkout_free_github_hosted_probe():
     assert probe["steps"][0]["name"] == "Reach step one"
 
 
-def test_oracle_probe_is_manual_only_and_has_no_secrets():
+def test_oracle_probe_is_trusted_main_only_and_has_no_secrets():
     workflow_text = Path(".github/workflows/runner-diagnostics.yml").read_text()
     oracle_block = workflow_text.split("oracle-probe:", 1)[1]
     pre_steps = oracle_block.split("steps:", 1)[0]
+    assert "github.ref == 'refs/heads/main'" in pre_steps
     assert "github.event_name == 'workflow_dispatch'" in pre_steps
+    assert "github.event_name == 'push'" in pre_steps
     assert "pull_request" not in pre_steps
     assert "secrets." not in oracle_block
     assert "[self-hosted, oracle]" in oracle_block
