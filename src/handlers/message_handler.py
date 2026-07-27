@@ -860,6 +860,25 @@ async def process_ai_reply(
                                     sys.modules['src.main'].session_manager.add_message(
                                         sender.id, "Oisha-OS (AI)", final_text, phone
                                     )
+                                    
+                                # [WAZZUP ALTERNATIVE] Push AI reply to AmoCRM Native Chat
+                                if getattr(settings, 'AMOCRM_CHAT_SECRET', None):
+                                    from src.services.core.crm.amocrm_chat import AmoCRMChatClient
+                                    chat_client = AmoCRMChatClient(
+                                        amocrm_account_id=settings.AMOCRM_CHAT_ACCOUNT_ID,
+                                        channel_id=settings.AMOCRM_CHAT_CHANNEL_ID,
+                                        channel_secret=settings.AMOCRM_CHAT_SECRET
+                                    )
+                                    import asyncio
+                                    asyncio.create_task(
+                                        chat_client.send_message_to_amocrm(
+                                            user_id=sender.id,
+                                            chat_id=chat_id,
+                                            text=final_text,
+                                            sender_name="Oisha-OS (AI)",
+                                            phone=getattr(sender, 'phone', None)
+                                        )
+                                    )
                             except Exception as log_ex:
                                 logger.error("[USERBOT] Failed to log AI reply: %s", log_ex)
                             safe_responder.update_rate_limit(chat_id)
