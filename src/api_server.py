@@ -278,25 +278,7 @@ def mark_heartbeat() -> None:
     _last_heartbeat_at = now
     api_state._last_heartbeat_at = now
 
-# Hisobchi MCP router
-try:
-    from src.services.core.hisobchi_mcp import mcp_router
-    if mcp_router is not None:
-        app.include_router(mcp_router)
-        _mcp_logger = logging.getLogger(__name__)
-        _mcp_logger.info("[MCP] Hisobchi MCP router mounted at /mcp")
-except Exception as exc:
-    logger.warning("[MCP] Hisobchi MCP router not mounted: %s", exc)
 
-# Telegram SSE MCP Server
-try:
-    import sys
-    sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
-    from telegram_mcp_server import mcp as telegram_mcp_instance
-    app.mount("/telegram-mcp", telegram_mcp_instance.sse_app(mount_path="/telegram-mcp"))
-    logger.info("[MCP] Telegram SSE MCP server mounted at /telegram-mcp")
-except Exception as exc:
-    logger.warning("[MCP] Failed to mount Telegram SSE MCP: %s", exc)
 
 
 def add_activity(action: str, details: str = "", type: str = "info"):
@@ -425,6 +407,27 @@ from src.api.live_monitor import router as live_monitor_router
 app.include_router(dashboard.router)
 app.include_router(admin.router)
 app.include_router(live_monitor_router)
+
+# Hisobchi MCP router
+try:
+    from src.services.core.hisobchi_mcp import mcp_router
+    if mcp_router is not None:
+        app.include_router(mcp_router)
+        _mcp_logger = logging.getLogger(__name__)
+        _mcp_logger.info("[MCP] Hisobchi MCP router mounted at /mcp")
+except Exception as exc:
+    logger.warning("[MCP] Hisobchi MCP router not mounted: %s", exc)
+
+# Telegram SSE MCP Server
+try:
+    import sys
+    sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
+    from telegram_mcp_server import mcp as telegram_mcp_instance
+    app.mount("/telegram-mcp", telegram_mcp_instance.sse_app(mount_path="/telegram-mcp"))
+    logger.info("[MCP] Telegram SSE MCP server mounted at /telegram-mcp")
+except Exception as exc:
+    logger.warning("[MCP] Failed to mount Telegram SSE MCP: %s", exc)
+
 
 # Include new route modules
 from src.api.routes.health import router as health_router, liveness_probe
