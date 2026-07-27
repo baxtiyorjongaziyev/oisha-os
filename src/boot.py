@@ -404,6 +404,7 @@ async def boot_application():
         bot_token=BOT_TOKEN_STR,
         telethon_client=bot_client,
     )
+    aiogram_bot_head = None
     logger.info("[BOT] Outbound bot runtime backend=%s", bot_runtime.backend)
     if telegram_session_manager is not None:
         async def _notify_userbot_owner(message: str) -> None:
@@ -448,7 +449,7 @@ async def boot_application():
         asyncio.create_task(_channel_scout_loop(), name="channel_scout_loop")
         from src.schedulers.instagram_weekly_reporter import instagram_weekly_report_loop
         asyncio.create_task(
-            instagram_weekly_report_loop(bot_client, settings.TEAM_GROUP_ID),
+            instagram_weekly_report_loop(bot_runtime, settings.TEAM_GROUP_ID),
             name="instagram_weekly_report_loop",
         )
 
@@ -475,7 +476,7 @@ async def boot_application():
         evolution_scheduler = EvolutionScheduler(
             db=msg_controller.db,
             gemini_api_key=api_keys["gemini"],
-            bot_client=bot_client,
+            bot_client=bot_runtime,
             owner_id=settings.OWNER_ID,
         )
         asyncio.create_task(evolution_scheduler.start(), name="evolution_scheduler")
@@ -520,7 +521,14 @@ async def boot_application():
         )
 
     admin_aiogram_dispatcher = maybe_build_admin_aiogram_dispatcher(
-        enabled=getattr(settings, "TELEGRAM_ADMIN_AIOGRAM_DISPATCHER_ENABLED", False),
+        enabled=(
+            bot_runtime.backend == "aiogram"
+            or getattr(
+                settings,
+                "TELEGRAM_ADMIN_AIOGRAM_DISPATCHER_ENABLED",
+                False,
+            )
+        ),
         owner_id=access_manager.owner_id,
         get_role=access_manager.get_role,
         get_role_name=access_manager.get_role_name,
@@ -535,6 +543,17 @@ async def boot_application():
     )
     if admin_aiogram_dispatcher is not None:
         logger.info("[BOT] Aiogram admin dispatcher prepared in manual mode.")
+    legacy_bot_compat = None
+    if bot_runtime.backend == "aiogram":
+        from src.services.core.telegram.aiogram_telethon_compat import (
+            AiogramTelethonCompatClient,
+        )
+
+        legacy_bot_compat = AiogramTelethonCompatClient(
+            bot=bot_runtime.bot,
+            dispatcher=admin_aiogram_dispatcher,
+        )
+        admin_bot.bot_client = legacy_bot_compat
     if getattr(settings, "OISHA_COMMAND_CENTER_DIGEST_ENABLED", False):
         from src.schedulers.command_center_scheduler import command_center_digest_loop
 
@@ -625,7 +644,7 @@ async def boot_application():
         api_module.user_client = None
         api_state.user_client = None
         logger.warning("[SESSION] Userbot tayyor emas — bot-token mode da ishlaydi")
-        if BOT_TOKEN_STR:
+        if BOT_TOKEN_STR and bot_runtime.backend == "telethon":
             try:
                 await bot_client.start(bot_token=BOT_TOKEN_STR)
             except Exception as bot_exc:
@@ -638,6 +657,30 @@ async def boot_application():
                 logger.info("[BOT_ONLY] Admin bot started without userbot.")
             except Exception as admin_exc:
                 logger.error(f"[BOT_ONLY] Admin bot startup failed: {admin_exc}", exc_info=True)
+        if (
+            BOT_TOKEN_STR
+            and bot_runtime.backend == "aiogram"
+            and admin_aiogram_dispatcher is not None
+        ):
+            from src.services.core.telegram.aiogram_head import AiogramBotHead
+            from src.services.core.telegram.telegram_ai_features import (
+                BOT_API_10_ALLOWED_UPDATES,
+            )
+
+            legacy_bot_compat.attach()
+            aiogram_bot_head = AiogramBotHead(
+                bot=bot_runtime.bot,
+                dispatcher=admin_aiogram_dispatcher,
+                allowed_updates=BOT_API_10_ALLOWED_UPDATES,
+                raw_update_handler=api_module.process_telegram_ai_update,
+            )
+            aiogram_bot_head.start()
+            app_ctx.aiogram_bot_head = aiogram_bot_head
+            api_module.set_telegram_ai_ingress_status(
+                mode="aiogram",
+                active=True,
+            )
+            logger.info("[BOT_ONLY] Aiogram bot head polling started.")
         api_module.update_api_status("degraded", "Bot-token mode active; userbot needs re-login")
         asyncio.create_task(m.background_monitor_task(), name="background_monitor_task")
         await asyncio.Event().wait()
@@ -651,7 +694,8 @@ async def boot_application():
     # Bot-token head startup
     if BOT_TOKEN_STR and bot_client:
         try:
-            await bot_client.start(bot_token=BOT_TOKEN_STR)
+            if bot_runtime.backend == "telethon":
+                await bot_client.start(bot_token=BOT_TOKEN_STR)
 
             from src.services.core.telegram.telegram_ai_features import (
                 BOT_API_10_ALLOWED_UPDATES, TelegramBotAPI10Client, TelegramBotAPILongPoller,
@@ -660,7 +704,11 @@ async def boot_application():
             tg_ai_client = TelegramBotAPI10Client(BOT_TOKEN_STR)
             webhook_url = os.getenv("WEBHOOK_URL")
             webhook_secret = settings.TELEGRAM_WEBHOOK_SECRET.get_secret_value() if settings.TELEGRAM_WEBHOOK_SECRET else None
-            if webhook_url and webhook_secret:
+            if (
+                webhook_url
+                and webhook_secret
+                and bot_runtime.backend != "aiogram"
+            ):
                 webhook_path = f"{webhook_url.rstrip('/')}/webhook/telegram-ai"
                 logger.info("[BOT API 10] Setting authenticated webhook.")
                 asyncio.create_task(
@@ -670,7 +718,13 @@ async def boot_application():
                 api_module.set_telegram_ai_ingress_status(mode="webhook", active=True)
             else:
                 enable_raw_long_poll = os.getenv("ENABLE_TELEGRAM_AI_LONG_POLL", "").strip().lower() in {"1", "true", "yes", "on"}
-                if enable_raw_long_poll:
+                if bot_runtime.backend == "aiogram":
+                    api_module.set_telegram_ai_ingress_status(
+                        mode="aiogram",
+                        active=False,
+                    )
+                    logger.info("[BOT] Aiogram dispatcher will own bot updates.")
+                elif enable_raw_long_poll:
                     async def _dispatch_bot_api_update(update):
                         return await api_module.process_telegram_ai_update(update)
 
@@ -700,7 +754,10 @@ async def boot_application():
 
             # BotMessenger
             from src.services.core.bot_to_bot import BotMessenger
-            bot_messenger = BotMessenger(bot_client=bot_client, userbot_client=client)
+            bot_messenger = BotMessenger(
+                bot_client=bot_runtime,
+                userbot_client=client,
+            )
             logger.info("[BOT2BOT] BotMessenger initialized.")
 
             # PipelineOrchestrator (deterministic multi-step flows)
@@ -713,10 +770,17 @@ async def boot_application():
 
             # Guest bot
             from src.services.core.guest_bot import GuestBotHandler, enable_guest_queries
-            _guest_handler = GuestBotHandler(bot_client=bot_client, message_controller=msg_controller)
-            _guest_handler.register()
-            asyncio.create_task(enable_guest_queries(bot_client), name="guest_bot_enable")
-            logger.info("[GUEST_BOT] GuestBotHandler registered.")
+            if bot_runtime.backend == "telethon":
+                _guest_handler = GuestBotHandler(
+                    bot_client=bot_client,
+                    message_controller=msg_controller,
+                )
+                _guest_handler.register()
+                asyncio.create_task(
+                    enable_guest_queries(bot_client),
+                    name="guest_bot_enable",
+                )
+                logger.info("[GUEST_BOT] GuestBotHandler registered.")
 
         except Exception as bot_exc:
             logger.error(f"[BOT] Bot-token head startup failed: {bot_exc}", exc_info=True)
@@ -805,6 +869,29 @@ async def boot_application():
 
     hisobchi_engine = create_hisobchi_engine(db=msg_controller.db, gs_store=hisobchi_gs_store)
     m._hisobchi_engine = hisobchi_engine
+    if bot_runtime.backend == "aiogram":
+        from src.services.core.admin_aiogram_dispatcher import (
+            register_hisobchi_aiogram_callbacks,
+        )
+        from src.services.core.telegram.aiogram_head import AiogramBotHead
+        from src.services.core.telegram.telegram_ai_features import (
+            BOT_API_10_ALLOWED_UPDATES,
+        )
+
+        register_hisobchi_aiogram_callbacks(
+            admin_aiogram_dispatcher,
+            engine=hisobchi_engine,
+        )
+        legacy_bot_compat.attach()
+        aiogram_bot_head = AiogramBotHead(
+            bot=bot_runtime.bot,
+            dispatcher=admin_aiogram_dispatcher,
+            allowed_updates=BOT_API_10_ALLOWED_UPDATES,
+            raw_update_handler=api_module.process_telegram_ai_update,
+        )
+        aiogram_bot_head.start()
+        app_ctx.aiogram_bot_head = aiogram_bot_head
+        api_module.set_telegram_ai_ingress_status(mode="aiogram", active=True)
 
     # Init HisobchiAnalyst if Gemini available
     hisobchi_analyst = None
@@ -924,11 +1011,11 @@ async def boot_application():
         except Exception as exc:
             logger.error("[HISOBCHI] Callback handler failed: %s", exc, exc_info=True)
 
-    client.add_event_handler(
-        _hisobchi_callback_handler,
-        events.CallbackQuery(),
-    )
-    if bot_client:
+    if bot_runtime.backend == "telethon":
+        client.add_event_handler(
+            _hisobchi_callback_handler,
+            events.CallbackQuery(),
+        )
         # Moliya guruhidagi tugmalar @jonairobot orqali yuboriladi, shuning
         # uchun ularning callback query'lari bot_client'ga keladi, client'ga emas.
         bot_client.add_event_handler(
@@ -1022,7 +1109,12 @@ async def boot_application():
             logger.info("[SHUTDOWN] Userbot client disconnected.")
         except Exception as e:
             logger.warning(f"[SHUTDOWN] Userbot disconnect error: {e}")
-        if bot_client is not None:
+        if aiogram_bot_head is not None:
+            try:
+                await aiogram_bot_head.stop()
+            except Exception as e:
+                logger.warning(f"[SHUTDOWN] Aiogram bot head stop error: {e}")
+        elif bot_client is not None:
             try:
                 await bot_client.disconnect()
                 logger.info("[SHUTDOWN] Bot client disconnected.")
