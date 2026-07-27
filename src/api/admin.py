@@ -16,9 +16,12 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from src.api.rbac import Permission, require_permissions
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from src.api.rbac import Permission, Principal, Role, require_permissions
+from src.api.security_audit import SecurityAuditEvent, emit_security_audit
+from src.api.write_approval import ApprovalConflict, write_approval_store
 from src.settings import settings
 from src.time_utils import get_local_now
 
@@ -186,7 +189,7 @@ async def get_deadlines(airtable=Depends(get_airtable_instance)):
         fields = rec.get("fields", {}) or {}
         rec_id = str(rec.get("id", ""))
 
-        # Lookup/rollup maydonlari list qaytarishi mumkin — matnga keltiramiz
+        # Lookup/rollup maydonlari list/dict bo'lishi mumkin — matnga keltiramiz
         due_str = _coerce_text(AirtableSync._get_field(fields, "deadline"))
         if not due_str:
             continue
@@ -202,8 +205,6 @@ async def get_deadlines(airtable=Depends(get_airtable_instance)):
         days = (due_date - today).days
         status = "overdue" if days < 0 else ("at_risk" if days <= 3 else "on_track")
 
-        # Record URL: bitta probe bilan prefiksni aniqlab, qolganiga qo'llaymiz
-        # (get_record_url har chaqiriqda jadvallar bo'ylab HTTP qidiradi)
         project_url = None
         if rec_id:
             if url_prefix is None:
@@ -213,7 +214,7 @@ async def get_deadlines(airtable=Depends(get_airtable_instance)):
                         url_prefix = first_url[: -len(rec_id)]
                     project_url = first_url
                 except Exception:
-                    url_prefix = ""  # qayta urinmaymiz
+                    url_prefix = ""
             elif url_prefix:
                 project_url = f"{url_prefix}{rec_id}"
 
@@ -239,24 +240,69 @@ async def get_deadlines(airtable=Depends(get_airtable_instance)):
     )
 
 
-@router.post("/actions/{action_type}")
-async def execute_admin_action(action_type: str, payload: Optional[Dict[str, Any]] = None):
-    """Admin amallari. Telethon userbot talab qilinadigan amallar bot
-    ishlamayotgan jarayonda halol 503 qaytaradi."""
+async def _send_owner_briefing() -> dict[str, str]:
+    bot = _get_admin_bot()
+    if bot is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin bot bu jarayonda ishlamayapti — briefing VM'dagi asosiy bot orqali yuboriladi",
+        )
+    await bot.run_auto_briefing()
+    return {"status": "success", "message": "Briefing owner'ga yuborildi"}
+
+
+@router.post("/actions/{action_type}", dependencies=[require_permissions(Permission.TELEGRAM_SEND)])
+async def execute_admin_action(
+    action_type: str,
+    payload: Optional[Dict[str, Any]] = None,
+    principal: Principal = require_permissions(Permission.TELEGRAM_SEND),
+):
+    """Mutationlar read scope bilan ishlamaydi; admin writes owner approval oladi."""
     try:
         if action_type == "send_briefing":
-            bot = _get_admin_bot()
-            if bot is None:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Admin bot bu jarayonda ishlamayapti — briefing VM'dagi asosiy bot orqali yuboriladi",
+            if principal.role is Role.OWNER:
+                result = await _send_owner_briefing()
+                emit_security_audit(
+                    SecurityAuditEvent.privileged_write(
+                        principal=principal,
+                        route="/api/v1/admin/actions/send_briefing",
+                        method="POST",
+                        permissions=(Permission.TELEGRAM_SEND,),
+                        outcome="executed",
+                        resource_type="admin_action",
+                        resource_id=action_type,
+                    )
                 )
-            await bot.run_auto_briefing()
-            return {"status": "success", "message": "Briefing owner'ga yuborildi"}
+                return result
+
+            ticket = write_approval_store.request(
+                requester_subject=principal.subject,
+                permission=Permission.TELEGRAM_SEND,
+                action="admin.send_briefing",
+                payload={"action_type": action_type},
+            )
+            emit_security_audit(
+                SecurityAuditEvent.privileged_write(
+                    principal=principal,
+                    route="/api/v1/admin/actions/send_briefing",
+                    method="POST",
+                    permissions=(Permission.TELEGRAM_SEND,),
+                    outcome="approval_required",
+                    resource_type="write_approval",
+                    resource_id=ticket.id,
+                )
+            )
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "status": "approval_required",
+                    "ticket_id": ticket.id,
+                    "expires_at": ticket.expires_at.isoformat(),
+                    "payload_hash": ticket.payload_hash,
+                },
+            )
 
         if action_type in ("export_tez_natija_sheets", "export_tez_natija_amocrm"):
-            # Eksport jonli Telethon client bilan guruhlarni skan qiladi —
-            # API jarayonida client yo'q, Telegram buyrug'iga yo'naltiramiz
             raise HTTPException(
                 status_code=503,
                 detail=(
@@ -272,4 +318,47 @@ async def execute_admin_action(action_type: str, payload: Optional[Dict[str, Any
         raise
     except Exception as e:
         logger.error(f"Admin action '{action_type}' failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Admin action failed") from e
+
+
+@router.post(
+    "/actions/write-approvals/{ticket_id}/execute",
+    dependencies=[require_permissions(Permission.TELEGRAM_SEND)],
+)
+async def execute_admin_write_approval(
+    ticket_id: str,
+    principal: Principal = require_permissions(Permission.TELEGRAM_SEND),
+):
+    if principal.role is not Role.OWNER:
+        raise HTTPException(status_code=403, detail="Owner approval required")
+    try:
+        ticket = write_approval_store.get(ticket_id)
+        if ticket is None:
+            raise ApprovalConflict("approval ticket not found")
+        if ticket.status == "pending":
+            write_approval_store.approve(
+                ticket_id,
+                owner_subject=principal.subject,
+            )
+        consumed, _payload = write_approval_store.consume(
+            ticket_id,
+            owner_subject=principal.subject,
+        )
+    except ApprovalConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    if consumed.action != "admin.send_briefing":
+        raise HTTPException(status_code=409, detail="Unsupported approval action")
+    result = await _send_owner_briefing()
+    emit_security_audit(
+        SecurityAuditEvent.privileged_write(
+            principal=principal,
+            route=f"/api/v1/admin/actions/write-approvals/{ticket_id}/execute",
+            method="POST",
+            permissions=(Permission.TELEGRAM_SEND,),
+            outcome="consumed",
+            resource_type="write_approval",
+            resource_id=ticket_id,
+        )
+    )
+    return {**result, "ticket_id": ticket_id}
