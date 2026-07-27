@@ -47,6 +47,9 @@ jobs:
           AMOCRM_TOKEN_JSON: ${{ secrets.AMOCRM_TOKEN_JSON }}
           AMOCRM_REFRESH_TOKEN: ${{ secrets.AMOCRM_REFRESH_TOKEN }}
           OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
+          OISHA_SERVICE_TOKENS_JSON: ${{ secrets.OISHA_SERVICE_TOKENS_JSON }}
+          OISHA_PROXY_ROLE_MAP_JSON: ${{ secrets.OISHA_PROXY_ROLE_MAP_JSON }}
+          OISHA_LEAD_ASSIGNMENTS_JSON: ${{ secrets.OISHA_LEAD_ASSIGNMENTS_JSON }}
           OPENCLAW_SECRET: ${{ secrets.OPENCLAW_SECRET }}
           USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
@@ -96,6 +99,13 @@ jobs:
             OLLAMA_TEXT_MODEL=qwen2.5:3b deploy/bootstrap_ollama.sh
 
             : "${AMOCRM_REDIRECT_URL:=https://localhost}"
+            : "${OISHA_PROXY_ROLE_MAP_JSON:?OISHA_PROXY_ROLE_MAP_JSON production secret is required}"
+            if [ -z "${OISHA_SERVICE_TOKENS_JSON:-}" ]; then
+              OISHA_SERVICE_TOKENS_JSON='{}'
+            fi
+            if [ -z "${OISHA_LEAD_ASSIGNMENTS_JSON:-}" ]; then
+              OISHA_LEAD_ASSIGNMENTS_JSON='{}'
+            fi
             if [ -n "${AMOCRM_TOKEN_JSON:-}" ]; then
               printf '%s' "$AMOCRM_TOKEN_JSON" > data/amocrm_token.json
             fi
@@ -117,6 +127,9 @@ jobs:
             AMOCRM_REDIRECT_URL=${AMOCRM_REDIRECT_URL}
             AMOCRM_REFRESH_TOKEN=${AMOCRM_REFRESH_TOKEN}
             OISHA_API_SECRET=${OISHA_API_SECRET}
+            OISHA_SERVICE_TOKENS_JSON=${OISHA_SERVICE_TOKENS_JSON}
+            OISHA_PROXY_ROLE_MAP_JSON=${OISHA_PROXY_ROLE_MAP_JSON}
+            OISHA_LEAD_ASSIGNMENTS_JSON=${OISHA_LEAD_ASSIGNMENTS_JSON}
             OPENCLAW_SECRET=${OPENCLAW_SECRET}
             USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}
             TURSO_DATABASE_URL=${TURSO_DATABASE_URL}
