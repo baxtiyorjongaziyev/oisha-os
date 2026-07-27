@@ -1,3 +1,4 @@
+import secrets
 import time
 
 import jwt
@@ -8,7 +9,7 @@ from src.api.rbac import Permission, require_permissions
 from src.api.security import ApiAccessMiddleware
 
 
-SECRET = "permission-test-secret-with-at-least-32-bytes"
+SECRET = secrets.token_hex(32)
 
 
 def _cookie(role: str, subject: str = "user-1") -> dict[str, str]:
