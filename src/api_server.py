@@ -565,6 +565,41 @@ async def telegram_webhook(request: Request):
 
 
 # =====================================================================
+# AmoCRM Chat Integration (Wazzup Alternative)
+# =====================================================================
+
+@app.post("/webhook/amocrm_chat")
+async def amocrm_chat_webhook(request: Request):
+    """Receive outgoing messages from AmoCRM Chat and send them to Telegram."""
+    try:
+        body = await request.json()
+        logger.info(f"[AMOCRM CHAT WEBHOOK] Received: {body}")
+        
+        # We need to extract the target Telegram ID and message text
+        # AmoCRM sends payload depending on the action (e.g. new message)
+        # Assuming format: {"message": {"text": "...", "receiver": {"id": "..."}}} 
+        # or conversation client_id
+        
+        # Typically AmoCRM sends a webhook payload array or dict.
+        msg_data = body.get("message", {})
+        text = msg_data.get("text")
+        client_id = msg_data.get("conversation", {}).get("client_id")
+        
+        if text and client_id:
+            telegram_id = int(client_id)
+            if outgoing_messages is not None:
+                await outgoing_messages.put({
+                    "chat_id": telegram_id,
+                    "text": text
+                })
+                logger.info(f"[AMOCRM CHAT] Queued message to {telegram_id}")
+                return {"status": "ok"}
+        return {"status": "ignored"}
+    except Exception as e:
+        logger.error(f"[AMOCRM CHAT WEBHOOK ERROR] {e}")
+        return {"status": "error", "detail": str(e)}
+
+# =====================================================================
 # Airtable OAuth 2.0 Integratsiyasi
 # =====================================================================
 
