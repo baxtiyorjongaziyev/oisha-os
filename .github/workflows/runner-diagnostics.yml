@@ -1,0 +1,64 @@
+name: Runner diagnostics
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - '.github/workflows/runner-diagnostics.yml'
+      - 'scripts/ci/oracle_runner_diagnostic.sh'
+      - 'scripts/ci/render_runner_diagnostic.py'
+      - 'tests/test_runner_workflow_contract.py'
+      - 'tests/test_runner_diagnostic_classifier.py'
+
+permissions:
+  contents: read
+
+jobs:
+  github-hosted-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Reach step one
+        run: echo "github-hosted-step-1-reached=true" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record safe runner metadata
+        run: |
+          {
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "event=$GITHUB_EVENT_NAME"
+            echo "repository=$GITHUB_REPOSITORY"
+          } > runner-diagnostic.txt
+
+      - name: Upload GitHub-hosted diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-hosted-runner-diagnostic
+          path: runner-diagnostic.txt
+          retention-days: 3
+
+  oracle-probe:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, oracle]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Reach Oracle step one
+        run: echo "oracle-step-1-reached=true" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run safe diagnostic
+        run: bash scripts/ci/oracle_runner_diagnostic.sh > oracle-runner-diagnostic.txt
+
+      - name: Upload Oracle diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-runner-diagnostic
+          path: oracle-runner-diagnostic.txt
+          retention-days: 3
