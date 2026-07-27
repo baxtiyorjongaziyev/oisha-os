@@ -627,6 +627,8 @@ async def boot_application():
     )
 
     session_manager = SessionManager(sync_callback=m.push_block_to_amocrm)
+    m.session_manager = session_manager
+    asyncio.create_task(session_manager.monitor_sessions())
 
     if settings.RUN_USERBOT_ONLY:
         logger.info("[USERBOT] Run-userbot-only mode active. Telegram listener is running.")
