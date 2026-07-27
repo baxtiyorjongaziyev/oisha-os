@@ -854,6 +854,12 @@ async def process_ai_reply(
                                 await msg_controller.db.log_message(
                                     sender.id, final_text, is_ai=True
                                 )
+                                import sys
+                                if 'src.main' in sys.modules and hasattr(sys.modules['src.main'], 'session_manager'):
+                                    phone = getattr(sender, 'phone', None)
+                                    sys.modules['src.main'].session_manager.add_message(
+                                        sender.id, "Oisha-OS (AI)", final_text, phone
+                                    )
                             except Exception as log_ex:
                                 logger.error("[USERBOT] Failed to log AI reply: %s", log_ex)
                             safe_responder.update_rate_limit(chat_id)
