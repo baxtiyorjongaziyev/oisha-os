@@ -12,6 +12,7 @@ The policy deliberately fails closed when secrets are missing or too short.
 from __future__ import annotations
 
 import hmac
+import json
 import os
 from typing import Any, Optional
 
@@ -20,7 +21,9 @@ from fastapi import Depends, HTTPException
 from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse
 
-_ALLOWED_SESSION_ROLES = frozenset({"owner", "admin"})
+from src.api.rbac import Principal, Role
+
+_ALLOWED_SESSION_ROLES = frozenset({Role.OWNER, Role.ADMIN, Role.SELLER, Role.VIEWER})
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
 _MIN_SESSION_SECRET_BYTES = 32
 _PROTECTED_PREFIXES = (
@@ -36,6 +39,9 @@ _PUBLIC_PATHS = frozenset(
         "/api/auth/telegram/login",
         "/api/auth/telegram/callback",
         "/api/auth/airtable/callback",
+        # Meta must reach this exact verification/event endpoint. The route
+        # validates the verify token (GET) and x-hub-signature-256 (POST).
+        "/api/instagram/webhook",
     }
 )
 
@@ -69,7 +75,9 @@ def authorize_request_values(
     client_host: str,
     session_token: str,
     jwt_secret: str,
-) -> Optional[dict[str, str]]:
+    service_tokens_json: str = "",
+    proxy_role_map_json: str = "",
+) -> Optional[Principal]:
     """Return a normalized principal when the supplied credentials are trusted."""
 
     expected_api_secret = _clean(api_secret)
@@ -77,16 +85,48 @@ def authorize_request_values(
     if expected_api_secret and hmac.compare_digest(
         supplied_authorization, f"Bearer {expected_api_secret}"
     ):
-        return {"auth_type": "bearer", "role": "owner", "subject": "api-secret"}
+        return Principal(subject="api-secret", role=Role.OWNER, auth_type="bearer")
+
+    bearer_prefix = "Bearer "
+    if supplied_authorization.startswith(bearer_prefix):
+        supplied_token = supplied_authorization[len(bearer_prefix) :]
+        try:
+            service_tokens = json.loads(_clean(service_tokens_json) or "{}")
+        except (TypeError, ValueError):
+            service_tokens = {}
+        service = service_tokens.get(supplied_token) if isinstance(service_tokens, dict) else None
+        if isinstance(service, dict):
+            subject = _clean(service.get("subject"))
+            scopes = service.get("scopes")
+            if subject and isinstance(scopes, list) and all(
+                isinstance(scope, str) and scope.strip() for scope in scopes
+            ):
+                return Principal(
+                    subject=subject,
+                    role=Role.SERVICE,
+                    auth_type="bearer",
+                    scopes=frozenset(scope.strip() for scope in scopes),
+                )
 
     forwarded_user = _clean(proxy_user)
     normalized_host = _clean(client_host).lower()
     if forwarded_user and normalized_host in _LOOPBACK_HOSTS:
-        return {
-            "auth_type": "trusted_proxy",
-            "role": "admin",
-            "subject": forwarded_user,
-        }
+        try:
+            role_map = json.loads(_clean(proxy_role_map_json) or "{}")
+        except (TypeError, ValueError):
+            role_map = {}
+        mapped_role = role_map.get(forwarded_user) if isinstance(role_map, dict) else None
+        try:
+            role = Role(_clean(mapped_role).lower())
+        except ValueError:
+            return None
+        if role is Role.SERVICE:
+            return None
+        return Principal(
+            subject=forwarded_user,
+            role=role,
+            auth_type="trusted_proxy",
+        )
 
     dedicated_jwt_secret = _clean(jwt_secret)
     token = _clean(session_token)
@@ -98,15 +138,19 @@ def authorize_request_values(
     except Exception:
         return None
 
-    role = _clean(payload.get("role")).lower()
+    role_value = _clean(payload.get("role")).lower()
     subject = _clean(payload.get("sub"))
+    try:
+        role = Role(role_value)
+    except ValueError:
+        return None
     if role not in _ALLOWED_SESSION_ROLES or not subject:
         return None
 
-    return {"auth_type": "session", "role": role, "subject": subject}
+    return Principal(subject=subject, role=role, auth_type="session")
 
 
-def authorize_connection(connection: HTTPConnection) -> Optional[dict[str, str]]:
+def authorize_connection(connection: HTTPConnection) -> Optional[Principal]:
     client_host = connection.client.host if connection.client else ""
     return authorize_request_values(
         authorization=connection.headers.get("Authorization", ""),
@@ -115,10 +159,12 @@ def authorize_connection(connection: HTTPConnection) -> Optional[dict[str, str]]
         client_host=client_host,
         session_token=connection.cookies.get("oisha_token", ""),
         jwt_secret=_session_secret(),
+        service_tokens_json=os.environ.get("OISHA_SERVICE_TOKENS_JSON", ""),
+        proxy_role_map_json=os.environ.get("OISHA_PROXY_ROLE_MAP_JSON", ""),
     )
 
 
-def require_admin_access(connection: HTTPConnection) -> dict[str, str]:
+def require_admin_access(connection: HTTPConnection) -> Principal:
     principal = authorize_connection(connection)
     if principal is None:
         raise HTTPException(status_code=401, detail="Unauthorized")

@@ -4,13 +4,18 @@ Oisha-OS v5.0 - /api/marketing/
 """
 
 from fastapi import APIRouter, HTTPException, Query
+from src.api.rbac import Permission, require_permissions
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 
 from src.services.core.marketing_attribution import MarketingAttributionService
 
 
-router = APIRouter(prefix="/api/marketing", tags=["Marketing Analytics"])
+router = APIRouter(
+    prefix="/api/marketing",
+    tags=["Marketing Analytics"],
+    dependencies=[require_permissions(Permission.DASHBOARD_READ)],
+)
 
 @router.get("/performance", response_model=Dict[str, Any])
 async def get_marketing_performance(
