@@ -29,11 +29,11 @@ def test_trusted_main_job_is_push_only():
     assert trusted["runs-on"] == ["self-hosted", "oracle"]
 
 
-def test_runner_diagnostic_has_checkout_free_github_hosted_probe():
+def test_runner_diagnostic_has_action_free_github_hosted_probe():
     workflow = load_workflow("runner-diagnostics.yml")
     probe = workflow["jobs"]["github-hosted-probe"]
     assert probe["runs-on"] == "ubuntu-latest"
-    assert all("checkout" not in str(step.get("uses", "")) for step in probe["steps"])
+    assert all("uses" not in step for step in probe["steps"])
     assert probe["steps"][0]["name"] == "Reach step one"
 
 
