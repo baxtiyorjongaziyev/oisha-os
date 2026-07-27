@@ -47,7 +47,7 @@ logger = logging.getLogger("OishaAPI")
 # Global Bridges (set by boot.py before server starts)
 # ---------------------------------------------------------------------------
 command_queue: asyncio.Queue = asyncio.Queue()
-outgoing_messages: asyncio.Queue = asyncio.Queue()
+outgoing_messages: asyncio.Queue | None = None
 user_client: Any = None
 db_instance: Any = None
 msg_controller: Any = None
@@ -572,6 +572,7 @@ async def telegram_webhook(request: Request):
 async def amocrm_chat_webhook(request: Request):
     """Receive outgoing messages from AmoCRM Chat and send them to Telegram."""
     try:
+        global outgoing_messages
         body = await request.json()
         logger.info(f"[AMOCRM CHAT WEBHOOK] Received: {body}")
         
@@ -587,11 +588,12 @@ async def amocrm_chat_webhook(request: Request):
         
         if text and client_id:
             telegram_id = int(client_id)
-            if outgoing_messages is not None:
-                await outgoing_messages.put({
-                    "chat_id": telegram_id,
-                    "text": text
-                })
+            if outgoing_messages is None:
+                outgoing_messages = asyncio.Queue()
+            await outgoing_messages.put({
+                "chat_id": telegram_id,
+                "text": text
+            })
                 logger.info(f"[AMOCRM CHAT] Queued message to {telegram_id}")
                 return {"status": "ok"}
         return {"status": "ignored"}
