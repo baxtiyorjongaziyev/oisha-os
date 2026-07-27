@@ -36,11 +36,7 @@ class LeadAssignmentRequest(BaseModel):
 
 
 async def _apply_configured_assignment_backfill(connection) -> int:
-    """Apply one explicit mapping version once per process.
-
-    Invalid configuration fails visibly instead of silently leaving sellers with
-    misleading empty lists.
-    """
+    """Apply one explicit mapping version once per process when requested."""
     global _assignment_backfill_signature
     raw = (os.environ.get("OISHA_LEAD_ASSIGNMENTS_JSON") or "").strip()
     if not raw or raw == "{}":
@@ -99,8 +95,6 @@ async def crm_dashboard(
     if api_state.db_instance:
         try:
             conn = await api_state.db_instance.get_connection()
-            await _apply_configured_assignment_backfill(conn)
-
             if principal.role is Role.SELLER:
                 r = await conn.execute(
                     "SELECT COUNT(*) as cnt FROM users WHERE assigned_to = ?",
@@ -122,8 +116,6 @@ async def crm_dashboard(
                 result["contacts"]["new_today"] = (
                     row[0] if isinstance(row, tuple) else row.get("cnt", 0)
                 )
-        except HTTPException:
-            raise
         except Exception as exc:
             logger.debug("[crm-dashboard] db query failed: %s", exc)
 
@@ -155,7 +147,6 @@ async def crm_leads(
     if api_state.db_instance:
         try:
             conn = await api_state.db_instance.get_connection()
-            await _apply_configured_assignment_backfill(conn)
             sql, params = _lead_query(principal)
             r = await conn.execute(sql, params)
             rows = await r.fetchall() if hasattr(r, "fetchall") else r.fetchall()
@@ -174,12 +165,33 @@ async def crm_leads(
                             "assigned_to": row[6],
                         }
                     )
-        except HTTPException:
-            raise
         except Exception as exc:
             logger.debug("[crm-dashboard] leads query failed: %s", exc)
 
     return {"leads": leads, "total": len(leads)}
+
+
+@router.post("/api/crm/lead-assignments/backfill")
+async def backfill_lead_assignments(
+    principal: Principal = require_permissions(Permission.USERS_MANAGE_LIMITED),
+):
+    """Apply the deployment-controlled existing-data mapping explicitly."""
+    if not api_state.db_instance:
+        raise HTTPException(status_code=503, detail="Database is unavailable")
+    conn = await api_state.db_instance.get_connection()
+    changed = await _apply_configured_assignment_backfill(conn)
+    emit_security_audit(
+        SecurityAuditEvent.privileged_write(
+            principal=principal,
+            route="/api/crm/lead-assignments/backfill",
+            method="POST",
+            permissions=(Permission.USERS_MANAGE_LIMITED,),
+            outcome="backfilled",
+            resource_type="lead_assignment_backfill",
+            resource_id=f"changed:{changed}",
+        )
+    )
+    return {"status": "completed", "changed": changed}
 
 
 @router.put("/api/crm/leads/{user_id}/assignment")
