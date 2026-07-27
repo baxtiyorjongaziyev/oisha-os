@@ -169,6 +169,16 @@ class AppSettings(BaseSettings):
 
 
     # Topic IDs (Forum Groups)
+    AMOCRM_URL: Optional[str] = None
+    AMOCRM_CLIENT_ID: Optional[str] = None
+    AMOCRM_CLIENT_SECRET: Optional[str] = None
+    AMOCRM_AUTH_CODE: Optional[str] = None
+    AMOCRM_REDIRECT_URI: Optional[str] = None
+    
+    # AmoCRM Chats API (Wazzup alternative)
+    AMOCRM_CHAT_ACCOUNT_ID: Optional[str] = None
+    AMOCRM_CHAT_CHANNEL_ID: Optional[str] = None
+    AMOCRM_CHAT_SECRET: Optional[str] = None
     CRM_TOPIC_ID: Optional[int] = 1
     TOPIC_CRM_ID: Optional[int] = None
     TOPIC_REPORTS_ID: Optional[int] = None
