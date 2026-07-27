@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.services.core.admin_aiogram_dispatcher import (
+    AiogramCallbackEventAdapter,
     build_admin_aiogram_dispatcher,
     handle_aiogram_chatid,
     handle_aiogram_command_center,
@@ -14,6 +15,39 @@ from src.services.core.admin_aiogram_dispatcher import (
     handle_aiogram_team_capacity,
     maybe_build_admin_aiogram_dispatcher,
 )
+
+
+class _EditableMessage:
+    text = "old"
+
+    def __init__(self):
+        self.edits = []
+
+    async def edit_text(self, text, **kwargs):
+        self.edits.append((text, kwargs))
+
+
+class _Callback:
+    data = "happrove:1:business"
+
+    def __init__(self):
+        self.message = _EditableMessage()
+        self.answers = []
+
+    async def answer(self, text=""):
+        self.answers.append(text)
+
+
+async def test_aiogram_callback_adapter_supports_hisobchi_surface():
+    callback = _Callback()
+    event = AiogramCallbackEventAdapter(callback)
+
+    await event.answer("OK")
+    await event.edit("Updated", parse_mode="html")
+
+    assert event.data == "happrove:1:business"
+    assert callback.answers == ["OK"]
+    assert callback.message.edits == [("Updated", {"parse_mode": "HTML"})]
 
 
 class FakeAiogramMessage:
