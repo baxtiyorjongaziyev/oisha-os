@@ -381,3 +381,61 @@ def test_boot_prepares_dispatcher_without_polling_or_webhook():
     assert "get_team_capacity" in text
     assert "get_command_center" in text
     assert ".start_polling(" not in text
+
+
+@pytest.mark.asyncio
+async def test_aiogram_vps_status_handler():
+    from src.services.core.admin_aiogram_dispatcher import handle_aiogram_vps_status
+
+    non_admin = FakeAiogramMessage(text="/vps_status", user_id=10)
+    admin = FakeAiogramMessage(text="/vps_status", user_id=11)
+
+    await handle_aiogram_vps_status(non_admin, is_admin=lambda _uid: False)
+    await handle_aiogram_vps_status(admin, is_admin=lambda _uid: True)
+
+    assert non_admin.answers == []
+    assert "VPS SERVER HOLATI" in admin.answers[0][0]
+    assert "CPU:" in admin.answers[0][0]
+
+
+class FakeDb:
+    def __init__(self):
+        self.state = {}
+
+    async def get_state(self, key):
+        return self.state.get(key)
+
+    async def set_state(self, key, value):
+        self.state[key] = str(value)
+
+
+@pytest.mark.asyncio
+async def test_aiogram_auto_status_and_control_handlers():
+    from src.services.core.admin_aiogram_dispatcher import (
+        handle_aiogram_auto_status,
+        handle_aiogram_pause_auto,
+        handle_aiogram_resume_auto,
+        handle_aiogram_set_mode,
+    )
+
+    db = FakeDb()
+    admin = FakeAiogramMessage(text="/auto_status", user_id=11)
+
+    await handle_aiogram_auto_status(admin, is_admin=lambda _uid: True, db=db)
+    assert "AUTO-REPLY STATUS" in admin.answers[0][0]
+
+    pause_msg = FakeAiogramMessage(text="/pause_auto", user_id=11)
+    await handle_aiogram_pause_auto(pause_msg, is_admin=lambda _uid: True, db=db)
+    assert "Auto-reply PAUSED" in pause_msg.answers[0][0]
+    assert db.state.get("auto_reply_live") == "false"
+
+    resume_msg = FakeAiogramMessage(text="/resume_auto", user_id=11)
+    await handle_aiogram_resume_auto(resume_msg, is_admin=lambda _uid: True, db=db)
+    assert "Auto-reply RESUMED" in resume_msg.answers[0][0]
+    assert db.state.get("auto_reply_live") == "true"
+
+    mode_msg = FakeAiogramMessage(text="/set_mode shadow", user_id=11)
+    await handle_aiogram_set_mode(mode_msg, is_admin=lambda _uid: True, db=db)
+    assert "shadow" in mode_msg.answers[0][0]
+    assert db.state.get("auto_reply_mode") == "shadow"
+
