@@ -8,6 +8,7 @@ import os
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Request
+from src.api.rbac import Permission, require_permissions
 
 from src.api.routes.state import api_state
 from src.settings import settings
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/api/telegram", tags=["telegram"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/status")
+@router.get("/status", dependencies=[require_permissions(Permission.TELEGRAM_READ)])
 async def telegram_status():
     """Diagnostic info for Telegram Bot API 10.0 integration."""
     try:
@@ -39,7 +40,7 @@ async def telegram_status():
         return {"status": "error", "message": str(e)}
 
 
-@router.get("/group-access")
+@router.get("/group-access", dependencies=[require_permissions(Permission.TELEGRAM_READ)])
 async def telegram_group_access(refresh: bool = False):
     """Return the cached userbot group/topic snapshot or refresh it."""
     if refresh:
@@ -48,7 +49,7 @@ async def telegram_group_access(refresh: bool = False):
     return dict(api_state._userbot_group_access_snapshot)
 
 
-@router.get("/ai-features")
+@router.get("/ai-features", dependencies=[require_permissions(Permission.TELEGRAM_READ)])
 async def telegram_ai_features():
     """Current status of Bot API 10.0 AI features."""
     from src.services.core.telegram.telegram_ai_features import (
