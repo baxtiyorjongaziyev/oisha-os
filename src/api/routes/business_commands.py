@@ -6,6 +6,7 @@ import hmac
 import os
 
 from fastapi import APIRouter, HTTPException, Request
+from src.api.rbac import Permission, require_permissions
 from fastapi import Query
 from pydantic import BaseModel, Field
 
@@ -23,7 +24,11 @@ from src.services.core.business_command_center import (
 )
 
 
-router = APIRouter(prefix="/api/oisha", tags=["business-command-center"])
+router = APIRouter(
+    prefix="/api/oisha",
+    tags=["business-command-center"],
+    dependencies=[require_permissions(Permission.DASHBOARD_READ)],
+)
 
 
 class BusinessCommandRequest(BaseModel):
@@ -93,7 +98,10 @@ async def project_delivery_risks(
     return await collect_project_delivery_risks(_get_runtime_airtable(), limit=limit)
 
 
-@router.get("/finance/risks")
+@router.get(
+    "/finance/risks",
+    dependencies=[require_permissions(Permission.FINANCE_READ)],
+)
 async def finance_project_risks(
     request: Request,
     limit: int = Query(default=12, ge=1, le=50),

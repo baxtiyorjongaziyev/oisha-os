@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import html
-import re
 import time
 from typing import Any, Dict, Optional
 
@@ -20,7 +19,7 @@ SESSION_TTL_SECONDS = 12 * 60 * 60
 # Telegram login payloads older than this are rejected (replay protection).
 TELEGRAM_AUTH_MAX_AGE_SECONDS = 86400
 _MIN_SESSION_SECRET_BYTES = 32
-_SAFE_ROLE_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+SUPPORTED_BROWSER_ROLES = frozenset({"owner", "admin", "seller", "viewer"})
 
 
 def build_telegram_data_check_string(fields: Dict[str, Optional[str]]) -> str:
@@ -65,9 +64,9 @@ def sanitize_display_text(value: Optional[str], *, max_length: int = 120) -> str
 
 
 def normalize_session_role(role: str) -> str:
-    """Keep the role claim safe for legacy HTML/JavaScript interpolation."""
-    candidate = str(role or "client").strip().lower()
-    return candidate if _SAFE_ROLE_RE.fullmatch(candidate) else "client"
+    """Issue browser roles only; unknown or machine roles fail safe to viewer."""
+    candidate = str(role or "").strip().lower()
+    return candidate if candidate in SUPPORTED_BROWSER_ROLES else "viewer"
 
 
 def _strong_session_secret(secret: str) -> str:

@@ -16,13 +16,18 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from src.api.rbac import Permission, require_permissions
 from pydantic import BaseModel
 
 from src.settings import settings
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+router = APIRouter(
+    prefix="/api/v1/admin",
+    tags=["admin"],
+    dependencies=[require_permissions(Permission.SYSTEM_READ)],
+)
 
 # Bosqich nomida shu so'zlar bo'lsa loyiha yakunlangan deb hisoblanadi
 _CLOSED_STAGE_MARKERS = ("yopilgan", "yakunlangan", "done", "completed", "bekor", "cancel")

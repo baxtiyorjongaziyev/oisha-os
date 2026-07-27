@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter
+from src.api.rbac import Permission, require_permissions
 
 from src.api.routes.state import api_state
 from src.settings import settings
@@ -94,7 +95,7 @@ async def build_health_snapshot(
     return snapshot
 
 
-@router.get("/status")
+@router.get("/status", dependencies=[require_permissions(Permission.SYSTEM_READ)])
 async def get_system_status():
     from src.services.core.agent_runtime import get_runtime_context
     data = api_state.cached_status.copy()
@@ -107,7 +108,7 @@ async def get_system_status():
     return data
 
 
-@router.get("/runtime")
+@router.get("/runtime", dependencies=[require_permissions(Permission.SYSTEM_READ)])
 async def get_system_runtime():
     from src.services.core.agent_runtime import get_runtime_context
     return {
@@ -117,14 +118,14 @@ async def get_system_runtime():
     }
 
 
-@router.get("/health")
+@router.get("/health", dependencies=[require_permissions(Permission.SYSTEM_READ)])
 async def get_system_health():
     snapshot = await build_health_snapshot()
     snapshot["crm_audit"] = api_state.cached_crm_audit
     return snapshot
 
 
-@router.get("/traces")
+@router.get("/traces", dependencies=[require_permissions(Permission.SYSTEM_READ)])
 async def get_system_traces():
     snapshot = await build_health_snapshot(include_traces=True)
     return {
@@ -135,7 +136,7 @@ async def get_system_traces():
     }
 
 
-@router.get("/inventory")
+@router.get("/inventory", dependencies=[require_permissions(Permission.SYSTEM_READ)])
 async def get_system_inventory():
     snapshot = await build_health_snapshot(include_inventory=True)
     return {
@@ -145,7 +146,7 @@ async def get_system_inventory():
     }
 
 
-@router.get("/activity")
+@router.get("/activity", dependencies=[require_permissions(Permission.SYSTEM_READ)])
 async def get_system_activity():
     return {
         "timestamp": get_local_now().isoformat(),
@@ -153,7 +154,7 @@ async def get_system_activity():
     }
 
 
-@router.get("/stats")
+@router.get("/stats", dependencies=[require_permissions(Permission.SYSTEM_READ)])
 async def get_system_stats():
     counts = {}
     if api_state.db_instance:
@@ -172,7 +173,7 @@ async def get_system_stats():
     }
 
 
-@router.get("/info")
+@router.get("/info", dependencies=[require_permissions(Permission.SYSTEM_READ)])
 async def get_system_info():
     from src.services.core.agent_runtime import get_runtime_context
     return {
@@ -181,7 +182,7 @@ async def get_system_info():
     }
 
 
-@router.post("/audit")
+@router.post("/audit", dependencies=[require_permissions(Permission.AUDIT_READ_ALL)])
 async def run_system_audit():
     """Trigger a manual CRM audit."""
     if api_state.crm_audit_running:
