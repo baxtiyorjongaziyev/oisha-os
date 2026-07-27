@@ -1,9 +1,43 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import re
 from typing import Any
 
 from .policy import classify_tool
+
+
+DEFAULT_AGENT_IDS = frozenset({"antigravity", "claude", "codex"})
+_AGENT_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,31}$")
+
+
+def parse_allowed_agent_ids(value: str | None) -> frozenset[str]:
+    """Return the explicit agent allowlist without accepting unsafe identifiers."""
+    if value is None:
+        return DEFAULT_AGENT_IDS
+    parsed = {
+        item.strip().lower()
+        for item in value.split(",")
+        if item.strip()
+    }
+    invalid = sorted(item for item in parsed if not _AGENT_ID_PATTERN.fullmatch(item))
+    if invalid:
+        raise ValueError("Invalid TELEGRAM_MCP_AGENT_IDS entry")
+    if not parsed:
+        raise ValueError("TELEGRAM_MCP_AGENT_IDS must not be empty")
+    return frozenset(parsed)
+
+
+def require_allowed_agent_id(
+    agent_id: str,
+    allowed_agent_ids: frozenset[str],
+) -> str:
+    normalized = (agent_id or "").strip().lower()
+    if not _AGENT_ID_PATTERN.fullmatch(normalized):
+        raise ValueError("Invalid Telegram MCP agent id")
+    if normalized not in allowed_agent_ids:
+        raise PermissionError("Telegram MCP agent is not allowed")
+    return normalized
 
 
 class GatewayService:
@@ -80,7 +114,11 @@ class GatewayService:
         }
 
 
-def build_mcp_server(service: GatewayService) -> Any:
+def build_mcp_server(
+    service: GatewayService,
+    *,
+    requester: str = "mcp-http",
+) -> Any:
     from mcp.server.lowlevel import Server
 
     server = Server(
@@ -98,7 +136,7 @@ def build_mcp_server(service: GatewayService) -> Any:
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]) -> Any:
-        return await service.call_tool(name, arguments)
+        return await service.call_tool(name, arguments, requester=requester)
 
     return server
 
