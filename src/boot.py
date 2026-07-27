@@ -626,6 +626,7 @@ async def boot_application():
         advisor_agent=advisor_agent,
     )
 
+    import src.main as m
     session_manager = SessionManager(sync_callback=m.push_block_to_amocrm)
     m.session_manager = session_manager
     asyncio.create_task(session_manager.monitor_sessions())
