@@ -22,6 +22,59 @@ from src.services.core.admin_command_router import (
 from src.time_utils import get_local_now
 
 
+class AiogramCallbackEventAdapter:
+    """Expose the small Telethon callback surface used by Hisobchi."""
+
+    def __init__(self, callback: Any):
+        self.callback = callback
+        self.data = getattr(callback, "data", None)
+
+    async def answer(self, text: str = "") -> None:
+        await self.callback.answer(text)
+
+    async def edit(
+        self,
+        text: Optional[str] = None,
+        *,
+        parse_mode: Optional[str] = None,
+        buttons: Any = None,
+    ) -> None:
+        message = getattr(self.callback, "message", None)
+        if message is None:
+            return
+        kwargs: dict[str, Any] = {}
+        if parse_mode:
+            kwargs["parse_mode"] = parse_mode.upper()
+        if buttons is not None:
+            from src.services.core.telegram.bot_runtime import (
+                _coerce_aiogram_inline_keyboard,
+            )
+
+            kwargs["reply_markup"] = _coerce_aiogram_inline_keyboard(buttons)
+        await message.edit_text(text or getattr(message, "text", "") or "", **kwargs)
+
+
+def register_hisobchi_aiogram_callbacks(
+    dispatcher: Any,
+    *,
+    engine: Any,
+) -> None:
+    """Route every Hisobchi inline approval callback through Aiogram."""
+    from aiogram import F
+    from src.services.core.hisobchi_approval import handle_callback
+
+    prefixes = ("happrove:", "hedit:", "hskip:", "hcat:", "howner:", "hback:")
+
+    @dispatcher.callback_query(F.data.startswith(prefixes))
+    async def _hisobchi_callback(callback: Any) -> None:
+        data = str(getattr(callback, "data", "") or "")
+        event = AiogramCallbackEventAdapter(callback)
+        try:
+            await handle_callback(data, event, engine)
+        except Exception:
+            await event.answer("⚠️ Xatolik yuz berdi, qayta urinib ko'ring.")
+
+
 async def handle_aiogram_chatid(message: Any) -> None:
     chat = getattr(message, "chat", None)
     reply_to = getattr(message, "reply_to_message", None)
