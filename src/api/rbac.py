@@ -95,8 +95,8 @@ def has_permission(principal: Principal, permission: Permission) -> bool:
 
 def _dependency(required: Sequence[Permission], *, require_all: bool):
     async def authorize(connection: HTTPConnection) -> Principal:
-        # Local import avoids an import cycle: security owns authentication,
-        # while this module owns authorization.
+        # Local imports avoid cycles: security owns authentication, RBAC owns
+        # authorization, and security_audit consumes the normalized principal.
         from src.api.security import authorize_connection
 
         principal = authorize_connection(connection)
@@ -105,6 +105,16 @@ def _dependency(required: Sequence[Permission], *, require_all: bool):
         checks = (has_permission(principal, permission) for permission in required)
         allowed = all(checks) if require_all else any(checks)
         if not allowed:
+            from src.api.security_audit import SecurityAuditEvent, emit_security_audit
+
+            emit_security_audit(
+                SecurityAuditEvent.denied(
+                    principal=principal,
+                    route=connection.url.path,
+                    method=connection.scope.get("method", connection.scope.get("type", "")),
+                    permissions=required,
+                )
+            )
             raise HTTPException(status_code=403, detail="Forbidden")
         return principal
 
