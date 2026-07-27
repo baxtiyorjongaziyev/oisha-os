@@ -569,6 +569,31 @@ async def boot_application():
             name="command_center_digest_loop",
         )
         logger.info("[COMMAND_CENTER] Daily digest loop enabled.")
+
+    if getattr(settings, "OISHA_PROACTIVE_DIGEST_ENABLED", False):
+        from src.schedulers.aiogram_proactive_digest import start_proactive_digest_loops
+
+        start_proactive_digest_loops(
+            bot_client=bot_runtime,
+            target_chat_id=settings.TEAM_GROUP_ID,
+            get_sales_today_priorities=_get_sales_today_priorities,
+            get_project_delivery_risks=_get_project_delivery_risks,
+            get_finance_project_risks=_get_finance_project_risks,
+            get_team_capacity=_get_team_capacity,
+            topic_id=getattr(settings, "TOPIC_REPORTS_ID", None),
+            vps_hour=getattr(settings, "OISHA_VPS_DIGEST_HOUR", 9),
+            vps_minute=getattr(settings, "OISHA_VPS_DIGEST_MINUTE", 0),
+            sales_hour=getattr(settings, "OISHA_SALES_DIGEST_HOUR", 9),
+            sales_minute=getattr(settings, "OISHA_SALES_DIGEST_MINUTE", 10),
+            project_hour=getattr(settings, "OISHA_PROJECT_DIGEST_HOUR", 9),
+            project_minute=getattr(settings, "OISHA_PROJECT_DIGEST_MINUTE", 15),
+            finance_hour=getattr(settings, "OISHA_FINANCE_DIGEST_HOUR", 9),
+            finance_minute=getattr(settings, "OISHA_FINANCE_DIGEST_MINUTE", 20),
+            team_hour=getattr(settings, "OISHA_TEAM_DIGEST_HOUR", 9),
+            team_minute=getattr(settings, "OISHA_TEAM_DIGEST_MINUTE", 25),
+        )
+        logger.info("[PROACTIVE_DIGEST] All proactive digest loops started.")
+
     if meeting_scheduler:
         meeting_scheduler.admin_notifier = admin_bot
     from src.services.utils.welcome_manager import WelcomeManager

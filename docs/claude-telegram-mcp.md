@@ -20,7 +20,7 @@ Use `ssh -T` so OpenSSH does not allocate a pseudo-terminal. MCP uses stdio, so 
         "-o",
         "BatchMode=yes",
         "ubuntu@163.192.10.104",
-        "cd /home/ubuntu/oisha-os && exec /home/ubuntu/oisha-os/venv/bin/python3 /home/ubuntu/oisha-os/scripts/telegram_mcp_server.py"
+        "cd /home/ubuntu/oisha-os && exec /home/ubuntu/oisha-os/venv/bin/python3 /home/ubuntu/oisha-os/scripts/run_telegram_mcp_agent.py --agent claude"
       ]
     }
   }
@@ -34,7 +34,7 @@ Keep the remote command as a single argument so the remote shell can run `cd ...
 Run this before debugging Claude itself:
 
 ```powershell
-'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"diag","version":"1.0"}}}' | ssh -T -i C:\Users\baxti\.ssh\oracle_free_tier_ed25519 -o StrictHostKeyChecking=no -o BatchMode=yes ubuntu@163.192.10.104 "cd /home/ubuntu/oisha-os && /home/ubuntu/oisha-os/venv/bin/python3 /home/ubuntu/oisha-os/scripts/telegram_mcp_server.py"
+'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"diag","version":"1.0"}}}' | ssh -T -i C:\Users\baxti\.ssh\oracle_free_tier_ed25519 -o StrictHostKeyChecking=no -o BatchMode=yes ubuntu@163.192.10.104 "cd /home/ubuntu/oisha-os && /home/ubuntu/oisha-os/venv/bin/python3 /home/ubuntu/oisha-os/scripts/run_telegram_mcp_agent.py --agent claude"
 ```
 
 Expected result: stdout contains a JSON-RPC `result` response. If the command prints a traceback or SSH error instead, fix that error before reopening Claude Desktop.
@@ -48,7 +48,10 @@ cd /home/ubuntu/oisha-os
 /home/ubuntu/oisha-os/venv/bin/python3 -c "import mcp; print(mcp.__file__)"
 ```
 
-The Telegram MCP script calls the local Oisha API at `http://127.0.0.1:8080/internal/mcp`, so it should run on the Oracle VM where the production Oisha service and Telegram client are active.
+The bridge connects only to Oisha's loopback Telegram MCP upstream. It never
+receives `USERBOT_SESSION_STRING` or `TELEGRAM_MCP_SESSION_STRING`. Read tools
+run automatically; mutations are queued for owner approval through
+`@jonairobot`.
 
 ## Common failure clues
 
