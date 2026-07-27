@@ -10,6 +10,7 @@ from starlette.responses import Response
 from src.api import auth_service
 from src.api.routes.telegram_mcp import _require_internal_secret
 from src.api.security import ApiAccessMiddleware, authorize_request_values
+from src.api.security import is_protected_path
 
 STRONG_SESSION_SECRET = "session-secret-with-at-least-thirty-two-bytes"
 STRONG_API_SECRET = "api-secret-with-at-least-thirty-two-bytes"
@@ -49,9 +50,25 @@ def test_loopback_nginx_proxy_identity_is_accepted():
         client_host="127.0.0.1",
         session_token="",
         jwt_secret="",
+        proxy_role_map_json='{"admin":"admin"}',
     )
 
-    assert result == {"auth_type": "trusted_proxy", "role": "admin", "subject": "admin"}
+    assert result.role.value == "admin"
+    assert result.subject == "admin"
+
+
+def test_unmapped_loopback_proxy_identity_is_rejected():
+    result = authorize_request_values(
+        authorization="",
+        api_secret="",
+        proxy_user="unknown",
+        client_host="127.0.0.1",
+        session_token="",
+        jwt_secret="",
+        proxy_role_map_json='{"known":"admin"}',
+    )
+
+    assert result is None
 
 
 def test_exact_bearer_secret_is_accepted():
@@ -64,7 +81,8 @@ def test_exact_bearer_secret_is_accepted():
         jwt_secret="",
     )
 
-    assert result == {"auth_type": "bearer", "role": "owner", "subject": "api-secret"}
+    assert result.role.value == "owner"
+    assert result.subject == "api-secret"
 
 
 def test_wrong_bearer_secret_is_rejected():
@@ -109,8 +127,44 @@ def test_owner_session_is_accepted_but_client_session_is_rejected():
         jwt_secret=STRONG_SESSION_SECRET,
     )
 
-    assert owner == {"auth_type": "session", "role": "owner", "subject": "1"}
+    assert owner.role.value == "owner"
+    assert owner.subject == "1"
     assert client is None
+
+
+def test_seller_and_viewer_sessions_are_authenticated():
+    for role in ("seller", "viewer"):
+        token = jwt.encode(
+            {"sub": f"{role}-1", "role": role, "exp": int(time.time()) + 60},
+            STRONG_SESSION_SECRET,
+            algorithm="HS256",
+        )
+        result = authorize_request_values(
+            authorization="",
+            api_secret="",
+            proxy_user="",
+            client_host="203.0.113.10",
+            session_token=token,
+            jwt_secret=STRONG_SESSION_SECRET,
+        )
+        assert result.role.value == role
+
+
+def test_service_token_is_scope_limited():
+    result = authorize_request_values(
+        authorization="Bearer svc-token",
+        api_secret="owner-token",
+        proxy_user="",
+        client_host="203.0.113.10",
+        session_token="",
+        jwt_secret=STRONG_SESSION_SECRET,
+        service_tokens_json=(
+            '{"svc-token":{"subject":"finance-sync","scopes":["finance:read"]}}'
+        ),
+    )
+    assert result.role.value == "service"
+    assert result.subject == "finance-sync"
+    assert result.scopes == frozenset({"finance:read"})
 
 
 def test_session_is_rejected_when_session_secret_is_missing_or_weak():
@@ -181,6 +235,11 @@ def test_health_and_oauth_callback_remain_public(monkeypatch):
     assert client.get("/api/auth/telegram/callback").status_code == 302
 
 
+def test_only_exact_instagram_webhook_is_public():
+    assert is_protected_path("/api/instagram/webhook") is False
+    assert is_protected_path("/api/instagram/private") is True
+
+
 def test_session_cookie_is_forced_secure(monkeypatch):
     client = _middleware_test_client(monkeypatch)
 
@@ -205,7 +264,7 @@ def test_telegram_profile_claims_are_escaped_before_html_rendering():
     assert payload is not None
     assert "<" not in payload["first_name"]
     assert "<" not in payload["username"]
-    assert payload["role"] == "client"
+    assert payload["role"] == "viewer"
 
 
 def test_auth_service_rejects_weak_session_secret():

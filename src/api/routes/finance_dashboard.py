@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
 
+from src.api.rbac import Permission, require_permissions
+
 router = APIRouter(tags=["finance-dashboard"])
 
 _SOURCE_NOT_CONFIGURED = {
@@ -23,13 +25,19 @@ def _raise_source_not_configured() -> None:
     )
 
 
-@router.get("/api/finance/dashboard")
+@router.get(
+    "/api/finance/dashboard",
+    dependencies=[require_permissions(Permission.FINANCE_READ)],
+)
 async def finance_dashboard():
     """Return finance KPIs only after a real source is connected."""
     _raise_source_not_configured()
 
 
-@router.get("/api/finance/transactions")
+@router.get(
+    "/api/finance/transactions",
+    dependencies=[require_permissions(Permission.FINANCE_READ)],
+)
 async def finance_transactions():
     """Return finance transactions only after a real source is connected."""
     _raise_source_not_configured()

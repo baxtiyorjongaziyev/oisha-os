@@ -7,9 +7,12 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+from starlette.requests import HTTPConnection
 
+from src.api.rbac import Permission, Principal, Role, has_permission
+from src.api.security import authorize_connection
 from src.services.core.callmaster_service import CallmasterStore
 
 
@@ -60,6 +63,29 @@ def _require_admin(auth_header: str) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
+def _require_callmaster_permission(permission: Permission):
+    async def dependency(connection: HTTPConnection) -> Principal:
+        principal = authorize_connection(connection)
+        if principal is None:
+            authorization = connection.headers.get("Authorization", "")
+            try:
+                _require_admin(authorization)
+            except HTTPException:
+                raise HTTPException(status_code=401, detail="Unauthorized") from None
+            principal = Principal(
+                subject="callmaster-api-secret",
+                role=Role.OWNER,
+                auth_type="bearer",
+            )
+        if not has_permission(principal, permission):
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return principal
+
+    dependency.__oisha_permissions__ = (permission.value,)
+    dependency.__oisha_permission_mode__ = "all"
+    return Depends(dependency)
+
+
 def _verify_webhook(
     *,
     raw_body: bytes,
@@ -84,23 +110,25 @@ def _verify_webhook(
     raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
 
-@router.post("/campaigns")
+@router.post(
+    "/campaigns",
+    dependencies=[_require_callmaster_permission(Permission.CALL_WRITE)],
+)
 async def create_campaign(
     body: CampaignCreateRequest,
-    authorization: str = Header(default=""),
 ):
-    _require_admin(authorization)
     campaign = _store().create_campaign(**body.model_dump())
     return {"ok": True, "campaign": campaign}
 
 
-@router.post("/campaigns/{campaign_id}/contacts")
+@router.post(
+    "/campaigns/{campaign_id}/contacts",
+    dependencies=[_require_callmaster_permission(Permission.CALL_WRITE)],
+)
 async def import_contacts(
     campaign_id: str,
     body: ContactImportRequest,
-    authorization: str = Header(default=""),
 ):
-    _require_admin(authorization)
     try:
         result = _store().add_contacts(
             campaign_id,
@@ -111,13 +139,14 @@ async def import_contacts(
     return {"ok": True, **result}
 
 
-@router.post("/campaigns/{campaign_id}/launch")
+@router.post(
+    "/campaigns/{campaign_id}/launch",
+    dependencies=[_require_callmaster_permission(Permission.CALL_WRITE)],
+)
 async def launch_campaign(
     campaign_id: str,
     body: LaunchRequest = LaunchRequest(),
-    authorization: str = Header(default=""),
 ):
-    _require_admin(authorization)
     try:
         result = _store().launch_campaign(campaign_id, provider=body.provider)
     except KeyError:
@@ -125,12 +154,13 @@ async def launch_campaign(
     return {"ok": True, **result}
 
 
-@router.get("/campaigns/{campaign_id}")
+@router.get(
+    "/campaigns/{campaign_id}",
+    dependencies=[_require_callmaster_permission(Permission.CALL_READ_ALL)],
+)
 async def get_campaign(
     campaign_id: str,
-    authorization: str = Header(default=""),
 ):
-    _require_admin(authorization)
     try:
         result = _store().get_campaign(campaign_id)
     except KeyError:

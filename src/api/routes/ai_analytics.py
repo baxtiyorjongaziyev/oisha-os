@@ -29,12 +29,17 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Request
+from src.api.rbac import Permission, require_permissions
 from fastapi.responses import JSONResponse
 
 from src.api.routes.state import api_state
 from src.settings import settings
 
-router = APIRouter(prefix="/api/ai", tags=["ai-analytics"])
+router = APIRouter(
+    prefix="/api/ai",
+    tags=["ai-analytics"],
+    dependencies=[require_permissions(Permission.CALL_READ_ALL)],
+)
 logger = logging.getLogger(__name__)
 
 
