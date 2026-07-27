@@ -3,11 +3,14 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from src.api.rbac import Permission, Principal, Role, require_permissions
+from src.api.security_audit import SecurityAuditEvent, emit_security_audit
+from src.api.write_approval import ApprovalConflict, write_approval_store
 from src.context import app_ctx
-from src.api.rbac import Permission, require_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +23,12 @@ class SendMessageRequest(BaseModel):
 
 
 def _require_internal_secret(request: Request) -> None:
+    """Legacy helper retained for callers/tests, but not chained with RBAC routes.
+
+    Private MCP routes authenticate through the central principal resolver. This
+    helper remains only for legacy direct call sites that explicitly need the
+    historical owner-secret contract.
+    """
     expected = (os.environ.get("OISHA_API_SECRET") or "").strip()
     if not expected:
         logger.error("[MCP API] OISHA_API_SECRET is missing; denying internal access")
@@ -32,14 +41,31 @@ def _require_internal_secret(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
-@router.get(
-    "/dialogs",
-    dependencies=[
-        Depends(_require_internal_secret),
-        require_permissions(Permission.MCP_READ),
-    ],
-)
-async def get_recent_dialogs(limit: int = Query(10, ge=1, le=50)):
+def _target_id(user_id: str):
+    return int(user_id) if user_id.lstrip("-").isdigit() else user_id
+
+
+async def _send_message_payload(payload: dict[str, str]) -> None:
+    if not app_ctx.client:
+        raise HTTPException(status_code=503, detail="Telegram client not initialized")
+    try:
+        await app_ctx.client.send_message(_target_id(payload["user_id"]), payload["text"])
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "[MCP API] Failed to send message to %s: %s",
+            payload.get("user_id"),
+            type(exc).__name__,
+        )
+        raise HTTPException(status_code=500, detail="Telegram send failed") from exc
+
+
+@router.get("/dialogs")
+async def get_recent_dialogs(
+    limit: int = Query(10, ge=1, le=50),
+    principal: Principal = require_permissions(Permission.MCP_READ),
+):
     if not app_ctx.client:
         raise HTTPException(status_code=503, detail="Telegram client not initialized")
     try:
@@ -65,19 +91,16 @@ async def get_recent_dialogs(limit: int = Query(10, ge=1, le=50)):
         raise HTTPException(status_code=500, detail="Telegram dialogs unavailable") from exc
 
 
-@router.get(
-    "/messages/{chat_id}",
-    dependencies=[
-        Depends(_require_internal_secret),
-        require_permissions(Permission.MCP_READ),
-    ],
-)
-async def get_chat_history(chat_id: str, limit: int = Query(20, ge=1, le=100)):
+@router.get("/messages/{chat_id}")
+async def get_chat_history(
+    chat_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    principal: Principal = require_permissions(Permission.MCP_READ),
+):
     if not app_ctx.client:
         raise HTTPException(status_code=503, detail="Telegram client not initialized")
     try:
-        target_id = int(chat_id) if chat_id.lstrip("-").isdigit() else chat_id
-        messages = await app_ctx.client.get_messages(target_id, limit=limit)
+        messages = await app_ctx.client.get_messages(_target_id(chat_id), limit=limit)
         result = []
         for message in messages:
             if not message.text and not getattr(message, "media", None):
@@ -109,43 +132,127 @@ async def get_chat_history(chat_id: str, limit: int = Query(20, ge=1, le=100)):
         raise HTTPException(status_code=500, detail="Telegram history unavailable") from exc
 
 
-@router.post(
-    "/send_message",
-    dependencies=[
-        Depends(_require_internal_secret),
-        require_permissions(Permission.MCP_WRITE),
-    ],
-)
-async def send_telegram_message(request: SendMessageRequest):
-    if not app_ctx.client:
-        raise HTTPException(status_code=503, detail="Telegram client not initialized")
-    try:
-        target_id = (
-            int(request.user_id)
-            if request.user_id.lstrip("-").isdigit()
-            else request.user_id
+@router.post("/send_message")
+async def send_telegram_message(
+    request: SendMessageRequest,
+    principal: Principal = require_permissions(Permission.MCP_WRITE),
+):
+    payload = {"user_id": request.user_id, "text": request.text}
+    if principal.role is Role.OWNER:
+        await _send_message_payload(payload)
+        emit_security_audit(
+            SecurityAuditEvent.privileged_write(
+                principal=principal,
+                route="/internal/mcp/send_message",
+                method="POST",
+                permissions=(Permission.MCP_WRITE,),
+                outcome="executed",
+                resource_type="telegram_chat",
+                resource_id=request.user_id,
+            )
         )
-        await app_ctx.client.send_message(target_id, request.text)
         return {"status": "success", "user_id": request.user_id}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error(
-            "[MCP API] Failed to send message to %s: %s",
-            request.user_id,
-            type(exc).__name__,
+
+    ticket = write_approval_store.request(
+        requester_subject=principal.subject,
+        permission=Permission.MCP_WRITE,
+        action="telegram.send",
+        payload=payload,
+    )
+    emit_security_audit(
+        SecurityAuditEvent.privileged_write(
+            principal=principal,
+            route="/internal/mcp/send_message",
+            method="POST",
+            permissions=(Permission.MCP_WRITE,),
+            outcome="approval_required",
+            resource_type="write_approval",
+            resource_id=ticket.id,
         )
-        raise HTTPException(status_code=500, detail="Telegram send failed") from exc
+    )
+    return JSONResponse(
+        status_code=202,
+        content={
+            "status": "approval_required",
+            "ticket_id": ticket.id,
+            "expires_at": ticket.expires_at.isoformat(),
+            "payload_hash": ticket.payload_hash,
+        },
+    )
 
 
-@router.get(
-    "/analyze_private_chats",
-    dependencies=[
-        Depends(_require_internal_secret),
-        require_permissions(Permission.MCP_READ),
-    ],
-)
-async def analyze_private_chats():
+@router.post("/write-approvals/{ticket_id}/execute")
+async def execute_write_approval(
+    ticket_id: str,
+    principal: Principal = require_permissions(Permission.MCP_WRITE),
+):
+    if principal.role is not Role.OWNER:
+        raise HTTPException(status_code=403, detail="Owner approval required")
+    try:
+        ticket = write_approval_store.get(ticket_id)
+        if ticket is None:
+            raise ApprovalConflict("approval ticket not found")
+        if ticket.status == "pending":
+            write_approval_store.approve(
+                ticket_id,
+                owner_subject=principal.subject,
+            )
+        consumed, payload = write_approval_store.consume(
+            ticket_id,
+            owner_subject=principal.subject,
+        )
+    except ApprovalConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    if consumed.action != "telegram.send":
+        raise HTTPException(status_code=409, detail="Unsupported approval action")
+    await _send_message_payload(payload)
+    emit_security_audit(
+        SecurityAuditEvent.privileged_write(
+            principal=principal,
+            route=f"/internal/mcp/write-approvals/{ticket_id}/execute",
+            method="POST",
+            permissions=(Permission.MCP_WRITE,),
+            outcome="consumed",
+            resource_type="write_approval",
+            resource_id=ticket_id,
+        )
+    )
+    return {"status": "success", "ticket_id": ticket_id}
+
+
+@router.post("/write-approvals/{ticket_id}/reject")
+async def reject_write_approval(
+    ticket_id: str,
+    principal: Principal = require_permissions(Permission.MCP_WRITE),
+):
+    if principal.role is not Role.OWNER:
+        raise HTTPException(status_code=403, detail="Owner approval required")
+    try:
+        rejected = write_approval_store.reject(
+            ticket_id,
+            owner_subject=principal.subject,
+        )
+    except ApprovalConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    emit_security_audit(
+        SecurityAuditEvent.privileged_write(
+            principal=principal,
+            route=f"/internal/mcp/write-approvals/{ticket_id}/reject",
+            method="POST",
+            permissions=(Permission.MCP_WRITE,),
+            outcome="rejected",
+            resource_type="write_approval",
+            resource_id=ticket_id,
+        )
+    )
+    return {"status": rejected.status, "ticket_id": ticket_id}
+
+
+@router.get("/analyze_private_chats")
+async def analyze_private_chats(
+    principal: Principal = require_permissions(Permission.MCP_READ),
+):
     from telethon.tl.functions.messages import GetDialogFiltersRequest
     from telethon.tl.types import DialogFilter, PeerUser
 
