@@ -6,6 +6,13 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
+from src.api.rbac import (
+    Permission,
+    Principal,
+    Role,
+    require_any_permission,
+    require_permissions,
+)
 from src.api.routes.state import api_state
 
 router = APIRouter(tags=["crm-dashboard"])
@@ -13,7 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/api/crm/dashboard")
-async def crm_dashboard():
+async def crm_dashboard(
+    principal: Principal = require_permissions(Permission.DASHBOARD_READ),
+):
     """Barcha CRM ma'lumotlarini bitta endpointdan olish."""
     result = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -64,17 +73,34 @@ async def crm_dashboard():
     return result
 
 
+def _lead_query(principal: Principal) -> tuple[str, tuple[str, ...]]:
+    select = (
+        "SELECT user_id, first_name AS name, intent, region, business_type, "
+        "created_at, assigned_to "
+        "FROM users "
+    )
+    if principal.role is Role.SELLER:
+        return (
+            select + "WHERE assigned_to = ? ORDER BY created_at DESC LIMIT 50",
+            (principal.subject,),
+        )
+    return select + "ORDER BY created_at DESC LIMIT 50", ()
+
+
 @router.get("/api/crm/leads")
-async def crm_leads():
+async def crm_leads(
+    principal: Principal = require_any_permission(
+        Permission.LEAD_READ_ALL,
+        Permission.LEAD_READ_ASSIGNED,
+    ),
+):
     """Leadlar ro'yxati."""
     leads = []
     if api_state.db_instance:
         try:
             conn = await api_state.db_instance.get_connection()
-            r = await conn.execute(
-                "SELECT user_id, name, intent, region, business_type, created_at "
-                "FROM users ORDER BY created_at DESC LIMIT 50"
-            )
+            sql, params = _lead_query(principal)
+            r = await conn.execute(sql, params)
             rows = await r.fetchall() if hasattr(r, "fetchall") else r.fetchall()
             for row in (rows or []):
                 if isinstance(row, dict):
@@ -87,6 +113,7 @@ async def crm_leads():
                         "region": row[3],
                         "business_type": row[4],
                         "created_at": str(row[5]) if row[5] else None,
+                        "assigned_to": row[6],
                     })
         except Exception as exc:
             logger.debug("[crm-dashboard] leads query failed: %s", exc)

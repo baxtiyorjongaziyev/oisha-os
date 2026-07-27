@@ -8,12 +8,16 @@ import os
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Header, Request
+from src.api.rbac import Permission, require_permissions
 from pydantic import BaseModel
 
 from src.api.routes.state import api_state
 from src.settings import settings
 
-router = APIRouter(tags=["chat"])
+router = APIRouter(
+    tags=["chat"],
+    dependencies=[require_permissions(Permission.LEAD_READ_ALL)],
+)
 logger = logging.getLogger(__name__)
 
 
