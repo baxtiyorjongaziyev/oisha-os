@@ -649,6 +649,24 @@ async def handle_new_message(event):
                 phone = getattr(sender, 'phone', None)
                 sys.modules['src.main'].session_manager.add_message(sender.id, sender_name, message_text, phone)
 
+            # [WAZZUP ALTERNATIVE] Push to AmoCRM Native Chat
+            if getattr(settings, 'AMOCRM_CHAT_SECRET', None):
+                from src.services.core.crm.amocrm_chat import AmoCRMChatClient
+                chat_client = AmoCRMChatClient(
+                    amocrm_account_id=settings.AMOCRM_CHAT_ACCOUNT_ID,
+                    channel_id=settings.AMOCRM_CHAT_CHANNEL_ID,
+                    channel_secret=settings.AMOCRM_CHAT_SECRET
+                )
+                asyncio.create_task(
+                    chat_client.send_message_to_amocrm(
+                        user_id=sender.id,
+                        chat_id=chat_id,
+                        text=message_text,
+                        sender_name=sender_name,
+                        phone=getattr(sender, 'phone', None)
+                    )
+                )
+
             # [AUTONOMOUS ADVISOR] Real-time Analysis
             asyncio.create_task(
                 run_autonomous_advice(chat_id, sender_name, message_text)
