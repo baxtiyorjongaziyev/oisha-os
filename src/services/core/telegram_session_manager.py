@@ -145,9 +145,9 @@ class TelegramSessionManager:
                 self._last_connected_at = time.time()
                 self._reconnect_count = 0
                 logger.info("[SESSION] Muvaffaqiyatli ulandi!")
-                # Faqat muvaffaqiyatli ulanishdan keyin faylga saqlash
-                if self._session_string:
-                    await self._save_string_to_file(self._session_string)
+                # Muvaffaqiyatli ulanishdan keyin session stringni saqlash
+                from src.services.core.session_keeper import save_current_session_string
+                await save_current_session_string(self.client)
                 return True
             else:
                 logger.warning("[SESSION] Session authorized emas")
@@ -354,17 +354,9 @@ class TelegramSessionManager:
             logger.error("[SESSION] Session saqlash xatosi: %s", exc)
 
     async def _save_string_to_file(self, session_string: str):
-        """String session ni faylga saqlash."""
-        try:
-            os.makedirs(os.path.dirname(self._session_file) or ".", exist_ok=True)
-            # SQLiteSession ga o'tkazish
-            temp_session = SQLiteSession(self._session_file)
-            # StringSession dan ma'lumotlarni o'tkazish
-            # (Bu faqat yangi session uchun ishlaydi)
-            temp_session.close()
-            logger.info("[SESSION] Session string faylga saqlandi: %s", self._session_file)
-        except Exception as exc:
-            logger.warning("[SESSION] String → fayl saqlashda xato: %s", exc)
+        """String session ni faylga saqlash (session_keeper orqali)."""
+        from src.services.core.session_keeper import _write_session_string_to_file
+        _write_session_string_to_file(session_string)
 
     def get_session_string(self) -> str:
         """Hozirgi session string ni qaytarish."""
