@@ -6,11 +6,16 @@ from dataclasses import asdict
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Request
+from src.api.rbac import Permission, require_permissions
 from fastapi.responses import JSONResponse
 
 from src.api.routes.state import api_state
 
-router = APIRouter(prefix="/api/erp", tags=["erp"])
+router = APIRouter(
+    prefix="/api/erp",
+    tags=["erp"],
+    dependencies=[require_permissions(Permission.DASHBOARD_READ)],
+)
 logger = logging.getLogger(__name__)
 
 
@@ -57,7 +62,7 @@ async def erp_dashboard(request: Request, period: str = ""):
         return _fail("erp_dashboard", exc)
 
 
-@router.get("/finance")
+@router.get("/finance", dependencies=[require_permissions(Permission.FINANCE_READ)])
 async def erp_finance(request: Request, period: str = ""):
     if not _is_authorized(request):
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})

@@ -4,11 +4,16 @@ import json
 from typing import Any, List
 
 from fastapi import APIRouter, HTTPException
+from src.api.rbac import Permission, require_permissions
 from pydantic import BaseModel
 
 from src.api.routes.state import api_state
 
-router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
+router = APIRouter(
+    prefix="/api/v1/dashboard",
+    tags=["dashboard"],
+    dependencies=[require_permissions(Permission.CALL_READ_ALL)],
+)
 
 
 class CallMetric(BaseModel):

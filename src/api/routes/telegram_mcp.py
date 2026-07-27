@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from src.context import app_ctx
+from src.api.rbac import Permission, require_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,13 @@ def _require_internal_secret(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
-@router.get("/dialogs", dependencies=[Depends(_require_internal_secret)])
+@router.get(
+    "/dialogs",
+    dependencies=[
+        Depends(_require_internal_secret),
+        require_permissions(Permission.MCP_READ),
+    ],
+)
 async def get_recent_dialogs(limit: int = Query(10, ge=1, le=50)):
     if not app_ctx.client:
         raise HTTPException(status_code=503, detail="Telegram client not initialized")
@@ -58,7 +65,13 @@ async def get_recent_dialogs(limit: int = Query(10, ge=1, le=50)):
         raise HTTPException(status_code=500, detail="Telegram dialogs unavailable") from exc
 
 
-@router.get("/messages/{chat_id}", dependencies=[Depends(_require_internal_secret)])
+@router.get(
+    "/messages/{chat_id}",
+    dependencies=[
+        Depends(_require_internal_secret),
+        require_permissions(Permission.MCP_READ),
+    ],
+)
 async def get_chat_history(chat_id: str, limit: int = Query(20, ge=1, le=100)):
     if not app_ctx.client:
         raise HTTPException(status_code=503, detail="Telegram client not initialized")
@@ -96,7 +109,13 @@ async def get_chat_history(chat_id: str, limit: int = Query(20, ge=1, le=100)):
         raise HTTPException(status_code=500, detail="Telegram history unavailable") from exc
 
 
-@router.post("/send_message", dependencies=[Depends(_require_internal_secret)])
+@router.post(
+    "/send_message",
+    dependencies=[
+        Depends(_require_internal_secret),
+        require_permissions(Permission.MCP_WRITE),
+    ],
+)
 async def send_telegram_message(request: SendMessageRequest):
     if not app_ctx.client:
         raise HTTPException(status_code=503, detail="Telegram client not initialized")
@@ -119,7 +138,13 @@ async def send_telegram_message(request: SendMessageRequest):
         raise HTTPException(status_code=500, detail="Telegram send failed") from exc
 
 
-@router.get("/analyze_private_chats", dependencies=[Depends(_require_internal_secret)])
+@router.get(
+    "/analyze_private_chats",
+    dependencies=[
+        Depends(_require_internal_secret),
+        require_permissions(Permission.MCP_READ),
+    ],
+)
 async def analyze_private_chats():
     from telethon.tl.functions.messages import GetDialogFiltersRequest
     from telethon.tl.types import DialogFilter, PeerUser

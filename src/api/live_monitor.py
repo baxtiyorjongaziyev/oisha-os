@@ -22,11 +22,15 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from src.api.rbac import Permission, require_permissions
 from fastapi.responses import HTMLResponse
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["live-monitor"])
+router = APIRouter(
+    tags=["live-monitor"],
+    dependencies=[require_permissions(Permission.DASHBOARD_READ)],
+)
 
 # ---------------------------------------------------------------------------
 # Event bus — broadcasters and history
