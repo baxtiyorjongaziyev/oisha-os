@@ -222,6 +222,18 @@ jobs:
               exit 1
             fi
 
+            BACKFILL_CODE="$(curl -s -o /tmp/oisha-assignment-backfill.json -w "%{http_code}" \
+              --max-time 20 -X POST \
+              -H "Authorization: Bearer ${OISHA_API_SECRET}" \
+              http://127.0.0.1:8080/api/crm/lead-assignments/backfill || echo 000)"
+            if [ "$BACKFILL_CODE" != "200" ]; then
+              echo "XATO: lead assignment backfill ishlamadi (HTTP $BACKFILL_CODE)"
+              cat /tmp/oisha-assignment-backfill.json 2>/dev/null || true
+              sudo journalctl -u oisha-os --no-pager -n 80
+              exit 1
+            fi
+            cat /tmp/oisha-assignment-backfill.json
+
             # The userbot boot can briefly block the event loop while Telegram,
             # Google and CRM clients initialize. Treat stability as a short
             # window with retries, not a single brittle curl.
