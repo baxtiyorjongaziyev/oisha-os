@@ -424,6 +424,16 @@ async def push_block_to_amocrm(user_id: int, phone: str, block_text: str) -> Non
     if not msg_controller:
         return
     try:
+        if not phone:
+            # Try to get phone from DB
+            db_user = await msg_controller.db.get_user(user_id)
+            if db_user and db_user.get("phone"):
+                phone = db_user.get("phone")
+        
+        if not phone:
+            logger.warning(f"[ENTERPRISE SYNC] Cannot push block for {user_id}: No phone number.")
+            return
+
         contact_result = msg_controller.crm.amocrm.get_contact_by_phone(phone)
         contact = (
             await contact_result
@@ -632,6 +642,12 @@ async def handle_new_message(event):
     if event.is_private and not event.out and message_text:
         try:
             await msg_controller.db.log_message(sender.id, message_text, is_ai=False)
+            
+            # [AMOCRM SYNC] Add to SessionManager
+            import sys
+            if 'src.main' in sys.modules and hasattr(sys.modules['src.main'], 'session_manager'):
+                phone = getattr(sender, 'phone', None)
+                sys.modules['src.main'].session_manager.add_message(sender.id, sender_name, message_text, phone)
 
             # [AUTONOMOUS ADVISOR] Real-time Analysis
             asyncio.create_task(
