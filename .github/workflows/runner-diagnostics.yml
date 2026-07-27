@@ -2,6 +2,14 @@ name: Runner diagnostics
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/runner-diagnostics.yml'
+      - 'scripts/ci/oracle_runner_diagnostic.sh'
+      - 'scripts/ci/render_runner_diagnostic.py'
+      - 'tests/test_runner_workflow_contract.py'
+      - 'tests/test_runner_diagnostic_classifier.py'
   pull_request:
     branches: [main, master]
     paths:
@@ -39,7 +47,9 @@ jobs:
           retention-days: 3
 
   oracle-probe:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push') &&
+      github.ref == 'refs/heads/main'
     runs-on: [self-hosted, oracle]
     timeout-minutes: 5
     permissions:
