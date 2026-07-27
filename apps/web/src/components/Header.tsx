@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -33,6 +33,8 @@ export default function Header() {
   const [avatarDropdownOpen, setAvatarDropdownOpen] = useState(false);
   const [newBusinessModalOpen, setNewBusinessModalOpen] = useState(false);
   const [newBusinessName, setNewBusinessName] = useState("");
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const businesses = [
     { name: "Jon Branding agency", status: "Muzlatilgan" },
@@ -349,6 +351,7 @@ export default function Header() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
+                ref={searchInputRef}
                 type="text"
                 autoFocus
                 aria-label="Qidiruv so'rovi"
@@ -357,6 +360,20 @@ export default function Header() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent text-sm text-text focus:outline-none"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    searchInputRef.current?.focus();
+                  }}
+                  aria-label="Qidiruvni tozalash"
+                  className="rounded-full p-1 text-text-muted hover:bg-bg hover:text-text transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 flex-shrink-0"
+                >
+                  <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={() => setSearchOpen(false)}
                 aria-label="Qidiruvni yopish"
