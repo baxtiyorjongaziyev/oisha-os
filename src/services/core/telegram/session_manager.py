@@ -7,10 +7,10 @@ logger = logging.getLogger("SessionManager")
 
 
 class SessionManager:
-    def __init__(self, sync_callback, inactivity_timeout=600):
+    def __init__(self, sync_callback, inactivity_timeout=120):
         """
         sync_callback: Function to call when a session block is ready (async)
-        inactivity_timeout: Seconds of silence before flushing (default 10 mins)
+        inactivity_timeout: Seconds of silence before flushing (default 2 mins)
         """
         self.sessions: Dict[int, List[Dict]] = {}
         self.last_activity: Dict[int, float] = {}
@@ -46,7 +46,7 @@ class SessionManager:
                     await self.flush_session(user_id)
                     flushed_users.append(user_id)
 
-            await asyncio.sleep(60)  # Check every minute
+            await asyncio.sleep(30)  # Check every 30 seconds
 
     async def flush_session(self, user_id: int):
         if user_id not in self.sessions or not self.sessions[user_id]:
