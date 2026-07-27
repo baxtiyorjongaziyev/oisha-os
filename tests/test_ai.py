@@ -125,6 +125,8 @@ def _get_openrouter_key():
 
 
 def test_openrouter_live():
+    if os.getenv("SKIP_LIVE") == "1":
+        pytest.skip("Live provider tests disabled by SKIP_LIVE=1")
     pytest.importorskip("openai")
     api_key = _get_openrouter_key()
     if not api_key:
@@ -133,7 +135,7 @@ def test_openrouter_live():
     import openai
     client = openai.OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
     response = client.chat.completions.create(
-        model="meta-llama/llama-3.2-3b-instruct:free",
+        model="meta-llama/llama-3.2-3b-instruct",
         messages=[{"role": "user", "content": "Say hello in 3 words."}],
         max_tokens=50,
         timeout=60,

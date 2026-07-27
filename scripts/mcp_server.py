@@ -1,15 +1,16 @@
 import sys
 import logging
 import asyncio
+import json
 from typing import List, Dict, Any
 import mcp.server.stdio
 from mcp.server import Server
 from mcp.types import Tool, TextContent
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.airtable_sync import AirtableSync
+from src.services.core.instagram_agent import InstagramGraphClient
 from src.settings import settings
 import structlog
-import sys
 
 # Setup logging to stderr as per MCP debugging best practices
 logging.basicConfig(
@@ -47,6 +48,7 @@ amocrm = AmoCRMSync(
     redirect_url=settings.AMOCRM_REDIRECT_URL,
 )
 airtable = AirtableSync()
+instagram = InstagramGraphClient()
 
 
 @server.list_tools()
@@ -87,6 +89,31 @@ async def list_tools() -> List[Tool]:
         Tool(
             name="get_airtable_projects",
             description="Airtabledan loyihalar ro'yxatini va muddatlarini olish.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="get_instagram_profile",
+            description="Ulangan Instagram Creator/Business akkaunt profilini Meta Graph orqali read-only olish.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="list_instagram_recent_media",
+            description="Ulangan Instagram akkauntining oxirgi postlarini Meta Graph orqali read-only olish.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 25,
+                        "default": 10,
+                    }
+                },
+            },
+        ),
+        Tool(
+            name="get_instagram_latest_post",
+            description="Ulangan Instagram akkauntidagi eng oxirgi post va uning sanasini read-only olish.",
             inputSchema={"type": "object", "properties": {}},
         ),
     ]
@@ -160,6 +187,50 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             return [
                 TextContent(
                     type="text", text=f"📂 Found {len(projects)} projects in Airtable."
+                )
+            ]
+
+        elif name == "get_instagram_profile":
+            result = instagram.get_profile()
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result, ensure_ascii=False, indent=2),
+                )
+            ]
+
+        elif name == "list_instagram_recent_media":
+            result = instagram.list_media(limit=arguments.get("limit", 10))
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result, ensure_ascii=False, indent=2),
+                )
+            ]
+
+        elif name == "get_instagram_latest_post":
+            result = instagram.list_media(limit=5)
+            if not result.get("ok"):
+                latest_result = result
+            else:
+                media = result.get("data") or []
+                latest = max(
+                    media,
+                    key=lambda item: item.get("timestamp") or "",
+                    default=None,
+                )
+                latest_result = {
+                    "ok": True,
+                    "username": (
+                        latest.get("username") if latest else None
+                    ),
+                    "latest_post": latest,
+                    "checked_count": len(media),
+                }
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(latest_result, ensure_ascii=False, indent=2),
                 )
             ]
 
