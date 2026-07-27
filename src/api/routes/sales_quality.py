@@ -13,6 +13,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from src.api.rbac import Permission, Principal, Role, require_permissions, scope_owned_rows
 from src.api.routes.state import api_state
 from src.time_utils import get_local_now
 
@@ -103,7 +104,11 @@ async def _fetch_call_analysis_rows() -> list:
         raise
 
 
-def _build_sales_quality_payload(rows: list) -> dict:
+def _build_sales_quality_payload(
+    rows: list,
+    *,
+    principal: Optional[Principal] = None,
+) -> dict:
     now = get_local_now().isoformat()
     if not rows:
         return _build_empty_sales_quality(now)
@@ -115,6 +120,10 @@ def _build_sales_quality_payload(rows: list) -> dict:
         "outcome", "next_steps", "analyzed_at",
     ]
     records = [_row_to_dict(r, columns) for r in rows]
+    if principal and principal.role is Role.SELLER:
+        records = list(
+            scope_owned_rows(principal, records, owner_field="manager_id")
+        )
 
     total = len(records)
     avg_score = sum(r.get("overall_score", 0) for r in records) / max(total, 1)
@@ -139,7 +148,7 @@ def _build_sales_quality_payload(rows: list) -> dict:
 
     calls = []
     for r in records:
-        calls.append({
+        call = {
             "id": r.get("call_id"),
             "call_id": r.get("call_id"),
             "client": r.get("client_name"),
@@ -151,7 +160,11 @@ def _build_sales_quality_payload(rows: list) -> dict:
             "category": r.get("category", ""),
             "summary": r.get("summary", ""),
             "analyzed_at": r.get("analyzed_at", ""),
-        })
+        }
+        if principal and principal.role is Role.VIEWER:
+            call.pop("client", None)
+            call.pop("summary", None)
+        calls.append(call)
 
     return {
         "timestamp": now,
@@ -171,7 +184,9 @@ def _build_sales_quality_payload(rows: list) -> dict:
 
 
 @router.get("/api/sales-quality/overview")
-async def get_sales_quality_overview():
+async def get_sales_quality_overview(
+    principal: Principal = require_permissions(Permission.DASHBOARD_READ),
+):
     try:
         rows = await _fetch_call_analysis_rows()
     except Exception as exc:
@@ -183,7 +198,7 @@ async def get_sales_quality_overview():
                 f"Real call analytics o'qishda xato: {type(exc).__name__}",
             ),
         )
-    return _build_sales_quality_payload(rows)
+    return _build_sales_quality_payload(rows, principal=principal)
 
 
 class SalesQualityAnalysisRequest(BaseModel):
@@ -212,7 +227,10 @@ class SalesQualityAnalysisRequest(BaseModel):
     analyzed_at: Optional[str] = None
 
 
-@router.post("/api/sales-quality/ingest-analysis")
+@router.post(
+    "/api/sales-quality/ingest-analysis",
+    dependencies=[require_permissions(Permission.CALL_WRITE)],
+)
 async def ingest_sales_quality_analysis(data: SalesQualityAnalysisRequest):
     expected_secret = os.environ.get("OISHA_API_SECRET")
     if not expected_secret or not hmac.compare_digest(data.secret_key, expected_secret):
@@ -262,7 +280,10 @@ async def ingest_sales_quality_analysis(data: SalesQualityAnalysisRequest):
     return {"status": "ok", "call_id": data.call_id, "source": "real_call_analytics"}
 
 
-@router.get("/dashboard/sales-quality")
+@router.get(
+    "/dashboard/sales-quality",
+    dependencies=[require_permissions(Permission.DASHBOARD_READ)],
+)
 async def sales_quality_dashboard_html():
     """Serve a minimal HTML dashboard for sales quality."""
     html = """<!DOCTYPE html><html><head><title>Sales Quality</title></head>

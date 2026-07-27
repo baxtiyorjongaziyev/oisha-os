@@ -51,7 +51,8 @@ class UserRepository(BaseRepository):
                 close_probability REAL DEFAULT 0,
                 last_client_message_at DATETIME,
                 last_ai_message_at DATETIME,
-                lifecycle_updated_at DATETIME
+                lifecycle_updated_at DATETIME,
+                assigned_to TEXT
             )
         """)
 
@@ -76,6 +77,7 @@ class UserRepository(BaseRepository):
             ("last_client_message_at", "DATETIME"),
             ("last_ai_message_at", "DATETIME"),
             ("lifecycle_updated_at", "DATETIME"),
+            ("assigned_to", "TEXT"),
         ]
         for col, col_type in cols:
             await self._add_column_if_missing("users", col, col_type)
@@ -84,6 +86,7 @@ class UserRepository(BaseRepository):
         await self._execute("CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)")
         await self._execute("CREATE INDEX IF NOT EXISTS idx_users_intent ON users(intent)")
         await self._execute("CREATE INDEX IF NOT EXISTS idx_users_crm_synced ON users(crm_synced)")
+        await self._execute("CREATE INDEX IF NOT EXISTS idx_users_assigned_to ON users(assigned_to)")
 
     async def upsert_user(
         self,
