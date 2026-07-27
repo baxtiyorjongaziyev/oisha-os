@@ -42,6 +42,7 @@ class ApplicationContext:
     access_manager: Optional[AccessManager] = None
     admin_bot: Optional[AdminBot] = None
     admin_aiogram_dispatcher: Optional[Any] = None
+    aiogram_bot_head: Optional[Any] = None
     juma_notifier: Optional[JumaNotifier] = None
     session_manager: Optional[SessionManager] = None
     telegram_session_manager: Optional[Any] = None  # XAVFSIZ SESSION MANAGER
