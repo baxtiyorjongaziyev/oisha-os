@@ -34,6 +34,29 @@ structlog.configure(
 logger = logging.getLogger("OishaMCP")
 
 # Create the MCP Server
+
+# Setup logging to stderr as per MCP debugging best practices
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stderr,
+)
+
+# Re-configure structlog to write to stderr so it doesn't pollute stdout (critical for MCP stdio)
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer(),
+    ],
+    context_class=dict,
+    logger_factory=structlog.PrintLoggerFactory(sys.stderr),
+    cache_logger_on_first_use=True,
+)
+
+logger = logging.getLogger("OishaMCP")
+
+# Create the MCP Server
 server = Server("oisha-os-enterprise")
 
 # Initialize services
@@ -41,7 +64,7 @@ amocrm = AmoCRMSync(
     subdomain=settings.AMOCRM_SUBDOMAIN,
     client_id=settings.AMOCRM_CLIENT_ID,
     client_secret=(
-        settings.AMOCRM_CLIENT_SECRET.get_secret_value()
+        getattr(settings.AMOCRM_CLIENT_SECRET, "get_secret_value", lambda: settings.AMOCRM_CLIENT_SECRET)()
         if settings.AMOCRM_CLIENT_SECRET
         else None
     ),
