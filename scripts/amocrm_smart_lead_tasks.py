@@ -440,7 +440,7 @@ class SmartLeadTaskPipeline:
             if not audio_bytes:
                 continue
 
-            digest = hashlib.sha1(audio_bytes[:4096]).hexdigest()[:12]
+            digest = hashlib.sha1(audio_bytes[:4096], usedforsecurity=False).hexdigest()[:12]
             transcript = await self.call_analyzer._transcribe_inline(audio_bytes, mime_type or "audio/mpeg")
             if transcript:
                 context.audio_transcripts.append(

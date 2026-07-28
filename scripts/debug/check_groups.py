@@ -11,7 +11,7 @@ def test_groups():
     creds = None
     if os.path.exists("token.pickle"):
         with open("token.pickle", "rb") as token:
-            creds = pickle.load(token)
+            creds = pickle.load(token)  # nosec
 
     if not creds:
         print("No credentials found")
