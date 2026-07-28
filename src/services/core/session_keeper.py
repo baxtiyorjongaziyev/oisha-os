@@ -26,8 +26,10 @@ SESSION_STRING_FILE = "data/userbot_session_string.txt"
 KEEPALIVE_INTERVAL_SECS = 300  # 5 daqiqada bir ping
 
 
-def _read_session_string_from_file(path: str = SESSION_STRING_FILE) -> Optional[str]:
+def _read_session_string_from_file(path: Optional[str] = None) -> Optional[str]:
     """Fayldan session string o'qish."""
+    if path is None:
+        path = SESSION_STRING_FILE
     try:
         if os.path.exists(path):
             data = open(path, encoding="utf-8").read().strip()
@@ -39,8 +41,10 @@ def _read_session_string_from_file(path: str = SESSION_STRING_FILE) -> Optional[
     return None
 
 
-def _write_session_string_to_file(string: str, path: str = SESSION_STRING_FILE) -> bool:
+def _write_session_string_to_file(string: str, path: Optional[str] = None) -> bool:
     """Session string ni faylga yozish."""
+    if path is None:
+        path = SESSION_STRING_FILE
     try:
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
