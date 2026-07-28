@@ -365,49 +365,53 @@ async def boot_application():
             device_model="Oisha Enterprise Control Plane", system_version="Cloud Run",
         )
     else:
-        from src.services.core.telegram_session_manager import TelegramSessionManager
-        from src.services.core.session_keeper import get_best_session_string
-
-        # Session manager yaratish
-        telegram_session_manager = TelegramSessionManager(
-            api_id=settings.API_ID,
-            api_hash=settings.API_HASH,
-            session_file="data/userbot.session",
-            session_string=get_best_session_string(),  # fayl > env > None
-            admin_notifier=None,  # keyin qo'shiladi
-            device_model="Oisha Enterprise v2",
-            system_version="Linux Server",
-        )
-
-        # Ulanish — xavfsiz
-        userbot_ready = await telegram_session_manager.connect()
-        if not userbot_ready:
-            logger.error("[SESSION] ❌ Userbot session ulanmadi!")
-            logger.error("[SESSION] Admin ga xabar yuborilmoqda...")
-            # Client ni None qilish — bot token mode da ishlaydi
+        import platform
+        if platform.system() == "Windows":
+            logger.warning("[SESSION] ❌ Windows OS detected! Userbot is FORCED OFF locally to protect the remote session.")
             client = None
         else:
-            client = telegram_session_manager.client
-            me = await client.get_me()
-            logger.info(f"[TELEGRAM] Userbot client initialized and authorized successfully! ✅ (Username: @{me.username or 'None'})")
-            # Reconnect monitorini ishga tushirish
-            await telegram_session_manager.start_reconnect_monitor()
-            # Keep-alive taskni ishga tushirish — session idle o'lmasin
-            from src.services.core.session_keeper import (
-                session_keepalive_loop,
-                start_session_keepalive,
+            from src.services.core.telegram_session_manager import TelegramSessionManager
+            from src.services.core.session_keeper import get_best_session_string
+
+            # Session manager yaratish
+            telegram_session_manager = TelegramSessionManager(
+                api_id=settings.API_ID,
+                api_hash=settings.API_HASH,
+                session_file="data/userbot.session",
+                session_string=get_best_session_string(),  # fayl > env > None
+                admin_notifier=None,  # keyin qo'shiladi
+                device_model="Oisha Enterprise v2",
+                system_version="Linux Server",
             )
-            _keepalive_stop = telegram_session_manager._stop_event
-            asyncio.create_task(
-                session_keepalive_loop(
-                    client,
-                    interval_secs=int(os.getenv("USERBOT_KEEPALIVE_INTERVAL_SECS", "300")),
-                    notify_callback=None,  # Keyin admin_notifier o'rnatilganda yangilanadi
-                    stop_event=_keepalive_stop,
-                ),
-                name="userbot_session_keepalive",
-            )
-            logger.info("[SESSION] Keep-alive loop ishga tushdi")
+
+            # Ulanish — xavfsiz
+            userbot_ready = await telegram_session_manager.connect()
+            if not userbot_ready:
+                logger.error("[SESSION] ❌ Userbot session ulanmadi!")
+                logger.error("[SESSION] Admin ga xabar yuborilmoqda...")
+                # Client ni None qilish — bot token mode da ishlaydi
+                client = None
+            else:
+                client = telegram_session_manager.client
+                me = await client.get_me()
+                logger.info(f"[TELEGRAM] Userbot client initialized and authorized successfully! ✅ (Username: @{me.username or 'None'})")
+                # Reconnect monitorini ishga tushirish
+                await telegram_session_manager.start_reconnect_monitor()
+                # Keep-alive taskni ishga tushirish — session idle o'lmasin
+                from src.services.core.session_keeper import (
+                    session_keepalive_loop,
+                )
+                _keepalive_stop = telegram_session_manager._stop_event
+                asyncio.create_task(
+                    session_keepalive_loop(
+                        client,
+                        interval_secs=int(os.getenv("USERBOT_KEEPALIVE_INTERVAL_SECS", "300")),
+                        notify_callback=None,  # Keyin admin_notifier o'rnatilganda yangilanadi
+                        stop_event=_keepalive_stop,
+                    ),
+                    name="userbot_session_keepalive",
+                )
+                logger.info("[SESSION] Keep-alive loop ishga tushdi")
 
     # Bot Client init
     BOT_TOKEN = settings.BOT_TOKEN.get_secret_value()
