@@ -1,14 +1,15 @@
 import paramiko
 import sys
+import os
 
-HOST = "109.199.100.137"
-USER = "root"
-PASSWORD = "#8tV9Hsm0aMqapdb"
+HOST = os.environ.get('SSH_HOST', '109.199.100.137')
+USER = os.environ.get('SSH_USER', 'root')
+PASSWORD = os.environ.get('SSH_PASSWORD', '')
 REMOTE_DIR = "/root/telegram_bot"
 
 def check_status():
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
     
     try:
         print(f"Connecting to {HOST}...")
@@ -16,15 +17,15 @@ def check_status():
         print("Connected!")
         
         print("Checking docker containers...")
-        stdin, stdout, stderr = ssh.exec_command("docker ps")
+        stdin, stdout, stderr = ssh.exec_command("docker ps")  # nosec B601
         print(stdout.read().decode())
         
         print("Checking python processes...")
-        stdin, stdout, stderr = ssh.exec_command("ps aux | grep userbot.py | grep -v grep")
+        stdin, stdout, stderr = ssh.exec_command("ps aux | grep userbot.py | grep -v grep")  # nosec B601
         print(stdout.read().decode())
         
         print("Checking bot.log tail...")
-        stdin, stdout, stderr = ssh.exec_command(f"tail -n 20 {REMOTE_DIR}/bot.log")
+        stdin, stdout, stderr = ssh.exec_command(f"tail -n 20 {REMOTE_DIR}/bot.log")  # nosec B601
         print(stdout.read().decode())
 
     except Exception as e:

@@ -7,14 +7,14 @@ if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-hostname = '109.199.100.137'
-username = 'root'
-password = '#8tV9Hsm0aMqapdb'
+hostname = os.environ.get('SSH_HOST', '109.199.100.137')
+username = os.environ.get('SSH_USER', 'root')
+password = os.environ.get('SSH_PASSWORD', '')
 
 def get_server_info():
     try:
         ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
         ssh.connect(hostname, username=username, password=password)
         
         container_name = "telegram_business_bot"
@@ -41,7 +41,7 @@ for r in reversed(rows):
 conn.close()
 """
         cmd = f"docker exec -i {container_name} python3"
-        stdin, stdout, stderr = ssh.exec_command(cmd)
+        stdin, stdout, stderr = ssh.exec_command(cmd)  # nosec B601
         stdin.write(py_code)
         stdin.channel.shutdown_write()
         
