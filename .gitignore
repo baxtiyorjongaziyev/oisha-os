@@ -139,3 +139,7 @@ __pycache__/
 
 # Claude Code agent worktrees (local only)
 .claude/
+
+# Sensitive runtime outputs
+data/session_output.txt
+data/verify_result.txt
