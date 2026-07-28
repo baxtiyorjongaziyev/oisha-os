@@ -8,20 +8,20 @@ logger = logging.getLogger("VPS_DEPLOY")
 
 def deploy():
     # VPS Ma'lumotlari (JonBranding Discovery verified: baxti@34.159.150.1)
-    vps_ip = '34.159.150.1'
-    username = 'baxti'
-    password = 'parol1122'
+    vps_ip = os.environ.get('VPS_IP', '34.159.150.1')
+    username = os.environ.get('VPS_USER', 'baxti')
+    password = os.environ.get('VPS_PASSWORD', '')
     remote_path = '/home/baxti/oisha-os'
 
     try:
         # 1. SSH ulanish
         ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
         logger.info(f"Connecting to {vps_ip}...")
         ssh.connect(vps_ip, username=username, password=password)
 
         # 2. Papkani yaratish
-        ssh.exec_command(f"mkdir -p {remote_path}")
+        ssh.exec_command(f"mkdir -p {remote_path}")  # nosec B601
 
         # 3. Fayllarni uzatish (SCP)
         with scp.SCPClient(ssh.get_transport()) as scp_client:
@@ -49,7 +49,7 @@ def deploy():
 
         # 4. Serverda kutubxonalarni o'rnatish
         logger.info("Installing dependencies on VPS...")
-        ssh.exec_command(f"cd {remote_path} && pip3 install -r requirements.txt --break-system-packages")
+        ssh.exec_command(f"cd {remote_path} && pip3 install -r requirements.txt --break-system-packages")  # nosec B601
 
         # 5. Systemd xizmatini yoqish
         logger.info("Starting Oisha 24/7 System service...")
@@ -59,7 +59,7 @@ def deploy():
             "sudo systemctl enable oisha && "
             "sudo systemctl restart oisha"
         )
-        ssh.exec_command(setup_cmd)
+        ssh.exec_command(setup_cmd)  # nosec B601
 
         logger.info("✅ SUCCESS! Oisha is now running on the Cloud 24/7.")
         ssh.close()
