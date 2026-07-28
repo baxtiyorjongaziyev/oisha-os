@@ -1,54 +1,31 @@
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
+  - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "Asia/Tashkent"
-    labels:
-      - "Type: Maintenance"
-      - "Proj: DevOps"
-    # CI runners are currently unreliable. Pause routine version PRs while
-    # keeping grouped security updates enabled.
-    open-pull-requests-limit: 0
-    groups:
-      actions-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
+    open-pull-requests-limit: 10
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "npm"
+    directory: "/salescoach-ai"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "daily"
-      time: "09:30"
-      timezone: "Asia/Tashkent"
-    labels:
-      - "Type: Maintenance"
-      - "Proj: DevOps"
-    open-pull-requests-limit: 0
-    rebase-strategy: "auto"
-    groups:
-      python-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "daily"
-      time: "10:00"
-      timezone: "Asia/Tashkent"
-    labels:
-      - "Type: Maintenance"
-      - "Proj: DevOps"
-    open-pull-requests-limit: 0
-    rebase-strategy: "auto"
-    groups:
-      npm-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
+      interval: "weekly"
+    open-pull-requests-limit: 10
