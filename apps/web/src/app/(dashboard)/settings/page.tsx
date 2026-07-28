@@ -441,16 +441,8 @@ function SettingsPageContent() {
                           <div key={itemIdx} className="flex justify-between items-center rounded-xl bg-bg-card p-2.5 border border-border text-xs">
                             <span className="font-semibold text-text">{item}</span>
                             <div className="flex items-center gap-1.5">
-                              <button type="button" aria-label="Tahrirlash" className="p-1 text-text-muted hover:text-brand hover:bg-brand-light focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded">
-                                <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </button>
-                              <button type="button" aria-label="O'chirish" className="p-1 text-rose-500 hover:text-rose-600 hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 rounded">
-                                <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
+                              <button type="button" aria-label="Tahrirlash" className="text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded">✏️</button>
+                              <button type="button" aria-label="O'chirish" className="text-rose-500 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 rounded">🗑️</button>
                             </div>
                           </div>
                         ))}
