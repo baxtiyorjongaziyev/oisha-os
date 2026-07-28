@@ -86,3 +86,6 @@
 ## 2026-07-26 - Add Clear Button to Search Input
 **Learning:** Adding a clear ('X') button to search inputs is a common micro-UX improvement, but it's crucial to programmatically return focus to the input field (`ref.current?.focus()`) after clearing to maintain a seamless keyboard navigation flow and ensure the user can immediately type a new query without needing to re-select the input.
 **Action:** When adding actions that reset input states (like clear buttons or 'cancel' triggers within forms), always include a focus management step to return the user's cursor to the primary interaction point.
+## 2025-03-01 - Replaced OS-level emojis with SVG icons in action buttons
+**Learning:** Found an accessibility issue pattern specific to this app's components where OS-level emojis (✏️, 🗑️) were used as interactive button icons. This causes inconsistent cross-platform rendering and potential accessibility issues compared to using semantic SVGs.
+**Action:** When replacing raw text characters or emojis used for interactive actions, always use semantic SVG icons and ensure they are paired with descriptive `aria-label` attributes (or `sr-only` text), `aria-hidden="true"` on the SVG, and proper padding (`p-1`) for touch targets to maximize accessibility and visual consistency.
