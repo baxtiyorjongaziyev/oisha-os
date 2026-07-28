@@ -143,3 +143,4 @@ __pycache__/
 # Sensitive runtime outputs
 data/session_output.txt
 data/verify_result.txt
+data/reports/
