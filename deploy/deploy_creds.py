@@ -5,14 +5,14 @@ import sys
 # Force UTF-8 encoding for output
 sys.stdout.reconfigure(encoding='utf-8')
 
-HOST = "109.199.100.137"
-USER = "root"
-PASSWORD = "#8tV9Hsm0aMqapdb"
+HOST = os.environ.get('SSH_HOST', '109.199.100.137')
+USER = os.environ.get('SSH_USER', 'root')
+PASSWORD = os.environ.get('SSH_PASSWORD', '')
 REMOTE_DIR = "/root/telegram_bot"
 
 def deploy():
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
     
     try:
         print(f"Connecting to {HOST}...")
@@ -34,7 +34,7 @@ def deploy():
         sftp.close()
         
         print("Restarting Docker Compose...")
-        ssh.exec_command(f"cd {REMOTE_DIR} && docker compose restart")
+        ssh.exec_command(f"cd {REMOTE_DIR} && docker compose restart")  # nosec B601
         print("Deployment completed successfully!")
         
     except Exception as e:

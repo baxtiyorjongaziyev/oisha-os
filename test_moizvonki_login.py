@@ -3,8 +3,8 @@ import re
 
 from bs4 import BeautifulSoup
 
-email = "jonbranding@agency.uz"
-password = "a123456"
+email = os.environ.get("MOIZVONKI_EMAIL", "jonbranding@agency.uz")
+password = os.environ.get("MOIZVONKI_PASSWORD", "")
 
 session = requests.Session()
 login_url = "https://jonbrandingagency.moizvonki.ru/accounts/login/"
@@ -37,7 +37,7 @@ print("POST Cookies:", session.cookies.get_dict())
 import time
 payload = {
     "user_name": "jonbranding@agency.uz",
-    "api_key": "4bj3tqn0mbq54crzfr2zqnjnfrb3n3rd",
+    "api_key": os.environ.get("MOIZVONKI_API_KEY", ""),
     "action": "calls.list",
     "from_date": int(time.time()) - 7 * 24 * 3600,
     "max_results": 20

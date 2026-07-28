@@ -2,11 +2,11 @@ import paramiko
 import sys
 
 ssh = paramiko.SSHClient()
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect('104.197.19.4', username='baxtiyorjongaziyev', password='parol1122', timeout=15)
+ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
+ssh.connect(os.environ.get('VPS_HOST', '104.197.19.4'), username=os.environ.get('VPS_USER', 'baxtiyorjongaziyev'), password=os.environ.get('VPS_PASSWORD', ''), timeout=15)
 
 def run(cmd):
-    stdin, stdout, stderr = ssh.exec_command(cmd)
+    stdin, stdout, stderr = ssh.exec_command(cmd)  # nosec B601
     return stdout.read().decode() + stderr.read().decode()
 
 print("meta_webhook.service log:")

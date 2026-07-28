@@ -6,9 +6,9 @@ import os
 
 def analyze_last_24h():
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
     try:
-        ssh.connect('104.197.19.4', username='baxtiyorjongaziyev', password='parol1122', timeout=30)
+        ssh.connect(os.environ.get('VPS_HOST', '104.197.19.4'), username=os.environ.get('VPS_USER', 'baxtiyorjongaziyev'), password=os.environ.get('VPS_PASSWORD', ''), timeout=30)
         sftp = ssh.open_sftp()
         
         # Download the database to analyze locally

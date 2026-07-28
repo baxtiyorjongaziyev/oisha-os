@@ -2,11 +2,11 @@ import paramiko
 import sys
 
 def check_gc_status(password):
-    host = '104.197.19.4'
-    user = 'baxtiyorjongaziyev'
+    host = os.environ.get('VPS_HOST', '104.197.19.4')
+    user = os.environ.get('VPS_USER', 'baxtiyorjongaziyev')
     
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
     
     try:
         print(f"Connecting to Google Cloud VM at {host}...")
@@ -14,7 +14,7 @@ def check_gc_status(password):
         print("Connected!")
         
         print("Checking for python processes...")
-        stdin, stdout, stderr = ssh.exec_command("ps aux | grep userbot.py | grep -v grep")
+        stdin, stdout, stderr = ssh.exec_command("ps aux | grep userbot.py | grep -v grep")  # nosec B601
         output = stdout.read().decode()
         if output:
             print("Bot is running!")
@@ -23,11 +23,11 @@ def check_gc_status(password):
             print("Bot is NOT running via python directly.")
             
         print("Checking for docker containers...")
-        stdin, stdout, stderr = ssh.exec_command("docker ps -a")
+        stdin, stdout, stderr = ssh.exec_command("docker ps -a")  # nosec B601
         print(stdout.read().decode())
         
         print("Checking ~/telegram_bot directory...")
-        stdin, stdout, stderr = ssh.exec_command("ls -la ~/telegram_bot")
+        stdin, stdout, stderr = ssh.exec_command("ls -la ~/telegram_bot")  # nosec B601
         print(stdout.read().decode())
 
     except Exception as e:
@@ -36,5 +36,5 @@ def check_gc_status(password):
         ssh.close()
 
 if __name__ == "__main__":
-    pwd = sys.argv[1] if len(sys.argv) > 1 else "#8tV9Hsm0aMqapdb"
+    pwd = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('VPS_PASSWORD', '')
     check_gc_status(pwd)

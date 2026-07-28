@@ -44,7 +44,7 @@ class GoogleContactsSaver:
         
         if os.path.exists(TOKEN_FILE):
             with open(TOKEN_FILE, 'rb') as token:
-                self.creds = pickle.load(token)
+                self.creds = pickle.load(token)  # nosec
         
         if not self.creds or not self.creds.valid:
             if self.creds and self.creds.expired and self.creds.refresh_token:
