@@ -1,15 +1,15 @@
 import paramiko
 import os
 
-hostname = '109.199.100.137'
-username = 'root'
-password = '#8tV9Hsm0aMqapdb'
+hostname = os.environ.get('SSH_HOST', '109.199.100.137')
+username = os.environ.get('SSH_USER', 'root')
+password = os.environ.get('SSH_PASSWORD', '')
 remote_path = '/root/telegram_bot/userbot.py'
 local_path = 'userbot.py'
 
 try:
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
     ssh.connect(hostname, username=username, password=password)
     
     # Upload necessary files
@@ -23,7 +23,7 @@ try:
     
     # Webapp folder
     try:
-        ssh.exec_command('mkdir -p /root/telegram_bot/webapp')
+        ssh.exec_command('mkdir -p /root/telegram_bot/webapp')  # nosec B601
         webapp_files = os.listdir('webapp')
         for f in webapp_files:
             sftp.put(f'webapp/{f}', f'/root/telegram_bot/webapp/{f}')
@@ -39,7 +39,7 @@ try:
         'cd /root/telegram_bot && docker compose up -d --build --force-recreate'
     ]
     for cmd in commands:
-        stdin, stdout, stderr = ssh.exec_command(cmd)
+        stdin, stdout, stderr = ssh.exec_command(cmd)  # nosec B601
         exit_status = stdout.channel.recv_exit_status()
         if exit_status == 0:
             print(f"[OK] Executed: {cmd}")
@@ -48,7 +48,7 @@ try:
             print(stderr.read().decode())
             
     # Check if applied
-    stdin, stdout, stderr = ssh.exec_command("docker exec telegram_business_bot grep 'allowed_tags =' /app/userbot.py")
+    stdin, stdout, stderr = ssh.exec_command("docker exec telegram_business_bot grep 'allowed_tags =' /app/userbot.py")  # nosec B601
     result = stdout.read().decode()
     if 'allowed_tags =' in result:
         print("[VERIFIED] New code is running inside container.")

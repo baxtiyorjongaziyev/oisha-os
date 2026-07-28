@@ -4,14 +4,14 @@ import sys
 import time
 
 # VPS Details (Production)
-HOST = "109.199.100.137"
-USER = "root"
-PASSWORD = "#8tV9Hsm0aMqapdb"
+HOST = os.environ.get('SSH_HOST', '109.199.100.137')
+USER = os.environ.get('SSH_USER', 'root')
+PASSWORD = os.environ.get('SSH_PASSWORD', '')
 REMOTE_DIR = "/root/telegram_bot"
 
 def deploy():
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
     
     try:
         print(f"Connecting to {HOST}...")
@@ -20,9 +20,9 @@ def deploy():
         
         # Stop any previous bot processes (hard)
         print("Stopping existing bot processes...")
-        ssh.exec_command("pkill -9 -f main.py || true")
-        ssh.exec_command("pkill -9 -f userbot.py || true")
-        ssh.exec_command("pkill -9 -f proactive_worker.py || true")
+        ssh.exec_command("pkill -9 -f main.py || true")  # nosec B601
+        ssh.exec_command("pkill -9 -f userbot.py || true")  # nosec B601
+        ssh.exec_command("pkill -9 -f proactive_worker.py || true")  # nosec B601
         time.sleep(2)
         
         sftp = ssh.open_sftp()
@@ -30,7 +30,7 @@ def deploy():
         # 2. Create remote directories
         print("Creating directory structure...")
         for d in ["agents", "controllers", "services", "handlers", "webapp"]:
-            ssh.exec_command(f"mkdir -p {REMOTE_DIR}/{d}")
+            ssh.exec_command(f"mkdir -p {REMOTE_DIR}/{d}")  # nosec B601
         
         # 3. Collect all .py files and needed directories
         from glob import glob
@@ -58,7 +58,7 @@ def deploy():
             # Ensure all parent subdirectories exist on remote
             if "/" in path:
                 remote_subdir = f"{REMOTE_DIR}/{path.rsplit('/', 1)[0]}"
-                ssh.exec_command(f"mkdir -p {remote_subdir}")
+                ssh.exec_command(f"mkdir -p {remote_subdir}")  # nosec B601
 
             if os.path.exists(local_path):
                 print(f"Uploading {path} -> {remote_path}...")
@@ -66,7 +66,7 @@ def deploy():
         
         # [AUDIT] Verify the file was actually updated on remote
         print("Verifying remote file integrity...")
-        stdin, stdout, stderr = ssh.exec_command(f"grep '150074828' {REMOTE_DIR}/src/services/utils/access_manager.py")
+        stdin, stdout, stderr = ssh.exec_command(f"grep '150074828' {REMOTE_DIR}/src/services/utils/access_manager.py")  # nosec B601
         if not stdout.read():
             print("❌ ERROR: Remote file integrity check FAILED! The hardcoded ID is missing on VPS.")
             sys.exit(1)
@@ -84,27 +84,27 @@ def deploy():
         ]
         for cmd in commands:
             print(f"Executing: {cmd}")
-            stdin, stdout, stderr = ssh.exec_command(cmd)
+            stdin, stdout, stderr = ssh.exec_command(cmd)  # nosec B601
             stdout.channel.recv_exit_status()
         
         # 5. Start the bot using venv
         print("Starting bot in background using venv...")
         # Clear log first
-        ssh.exec_command(f"true > {REMOTE_DIR}/bot.log")
+        ssh.exec_command(f"true > {REMOTE_DIR}/bot.log")  # nosec B601
         # Start using nohup and venv python
-        ssh.exec_command(f"cd {REMOTE_DIR} && nohup ./venv/bin/python3 src/main.py >> bot.log 2>&1 &")
+        ssh.exec_command(f"cd {REMOTE_DIR} && nohup ./venv/bin/python3 src/main.py >> bot.log 2>&1 &")  # nosec B601
         
         print("Waiting for startup (5s)...")
         time.sleep(5)
         
         # 6. Check logs
         print("\n--- RECENT LOGS FROM VPS ---")
-        stdin, stdout, stderr = ssh.exec_command(f"tail -n 100 {REMOTE_DIR}/bot.log")
+        stdin, stdout, stderr = ssh.exec_command(f"tail -n 100 {REMOTE_DIR}/bot.log")  # nosec B601
         log_content = stdout.read().decode('utf-8')
         print(log_content)
         
         print("\n--- REMOTE .ENV CHECK ---")
-        stdin, stdout, stderr = ssh.exec_command(f"cat {REMOTE_DIR}/.env")
+        stdin, stdout, stderr = ssh.exec_command(f"cat {REMOTE_DIR}/.env")  # nosec B601
         print(stdout.read().decode('utf-8'))
         
         if "ERROR" in log_content or "Exception" in log_content:

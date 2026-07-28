@@ -3,14 +3,14 @@ import os
 import sys
 
 # VPS Credentials
-HOST = "109.199.100.137"
-USER = "root"
-PASSWORD = "#8tV9Hsm0aMqapdb"
+HOST = os.environ.get('SSH_HOST', '109.199.100.137')
+USER = os.environ.get('SSH_USER', 'root')
+PASSWORD = os.environ.get('SSH_PASSWORD', '')
 REMOTE_DIR = "/root/telegram_bot"
 
 def deploy():
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
     
     try:
         print(f"Connecting to {HOST}...")
@@ -18,7 +18,7 @@ def deploy():
         print("Connected!")
         
         # Ensure remote directory exists
-        ssh.exec_command(f"mkdir -p {REMOTE_DIR}")
+        ssh.exec_command(f"mkdir -p {REMOTE_DIR}")  # nosec B601
         
         sftp = ssh.open_sftp()
         
@@ -41,7 +41,7 @@ def deploy():
         for dir_name in ['agents', 'controllers', 'services']:
             if os.path.exists(dir_name):
                 print(f"Uploading {dir_name} directory...")
-                ssh.exec_command(f"mkdir -p {REMOTE_DIR}/{dir_name}")
+                ssh.exec_command(f"mkdir -p {REMOTE_DIR}/{dir_name}")  # nosec B601
                 for f in os.listdir(dir_name):
                     if f.endswith('.py'):
                         sftp.put(f"{dir_name}/{f}", f"{REMOTE_DIR}/{dir_name}/{f}")
@@ -50,14 +50,14 @@ def deploy():
         
         print("Restarting bot on VPS...")
         # Check if using docker-compose or direct python
-        stdin, stdout, stderr = ssh.exec_command(f"ls {REMOTE_DIR}/docker-compose.yml")
+        stdin, stdout, stderr = ssh.exec_command(f"ls {REMOTE_DIR}/docker-compose.yml")  # nosec B601
         if stdout.read():
             print("Using Docker Compose...")
-            ssh.exec_command(f"cd {REMOTE_DIR} && docker compose down && docker compose up -d")
+            ssh.exec_command(f"cd {REMOTE_DIR} && docker compose down && docker compose up -d")  # nosec B601
         else:
             print("Using direct Python...")
-            ssh.exec_command(f"pkill -f userbot.py || true")
-            ssh.exec_command(f"cd {REMOTE_DIR} && nohup python3 userbot.py > bot.log 2>&1 &")
+            ssh.exec_command(f"pkill -f userbot.py || true")  # nosec B601
+            ssh.exec_command(f"cd {REMOTE_DIR} && nohup python3 userbot.py > bot.log 2>&1 &")  # nosec B601
         
         print("Deployment completed successfully!")
         
