@@ -60,9 +60,10 @@ def _is_strong_session_secret(value: str) -> bool:
 
 
 def _session_secret() -> str:
+    from src.settings import settings
     """Use a strong non-Telegram key for browser sessions."""
     candidate = _clean(
-        os.environ.get("JWT_SECRET") or os.environ.get("OISHA_API_SECRET")
+        getattr(settings, "JWT_SECRET", "") or getattr(settings, "OISHA_API_SECRET", "")
     )
     return candidate if _is_strong_session_secret(candidate) else ""
 
@@ -151,16 +152,18 @@ def authorize_request_values(
 
 
 def authorize_connection(connection: HTTPConnection) -> Optional[Principal]:
+    from src.settings import settings
+
     client_host = connection.client.host if connection.client else ""
     return authorize_request_values(
         authorization=connection.headers.get("Authorization", ""),
-        api_secret=os.environ.get("OISHA_API_SECRET", ""),
+        api_secret=getattr(settings, "OISHA_API_SECRET", "") or "",
         proxy_user=connection.headers.get("X-Oisha-Authenticated-User", ""),
         client_host=client_host,
         session_token=connection.cookies.get("oisha_token", ""),
         jwt_secret=_session_secret(),
-        service_tokens_json=os.environ.get("OISHA_SERVICE_TOKENS_JSON", ""),
-        proxy_role_map_json=os.environ.get("OISHA_PROXY_ROLE_MAP_JSON", ""),
+        service_tokens_json=getattr(settings, "OISHA_SERVICE_TOKENS_JSON", "") or "",
+        proxy_role_map_json=getattr(settings, "OISHA_PROXY_ROLE_MAP_JSON", "") or "",
     )
 
 
