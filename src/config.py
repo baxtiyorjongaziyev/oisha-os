@@ -18,7 +18,7 @@ _MIN_SESSION_SECRET_BYTES = 32
 def _secret_or_none(secret):
     if not secret:
         return None
-    return secret.get_secret_value()
+    return getattr(secret, "get_secret_value", lambda: secret)()
 
 
 def _session_secret() -> str:
