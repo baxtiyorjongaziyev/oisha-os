@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from src.context import app_ctx
-from src.api.rbac import Permission, require_permissions
+from src.api.rbac import Permission
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,6 @@ def _require_internal_secret(request: Request) -> None:
     "/dialogs",
     dependencies=[
         Depends(_require_internal_secret),
-        require_permissions(Permission.MCP_READ),
     ],
 )
 async def get_recent_dialogs(limit: int = Query(10, ge=1, le=50)):
@@ -71,7 +70,6 @@ async def get_recent_dialogs(limit: int = Query(10, ge=1, le=50)):
     "/messages/{chat_id}",
     dependencies=[
         Depends(_require_internal_secret),
-        require_permissions(Permission.MCP_READ),
     ],
 )
 async def get_chat_history(chat_id: str, limit: int = Query(20, ge=1, le=100)):
@@ -115,7 +113,6 @@ async def get_chat_history(chat_id: str, limit: int = Query(20, ge=1, le=100)):
     "/send_message",
     dependencies=[
         Depends(_require_internal_secret),
-        require_permissions(Permission.MCP_WRITE),
     ],
 )
 async def send_telegram_message(request: SendMessageRequest):
@@ -144,7 +141,6 @@ async def send_telegram_message(request: SendMessageRequest):
     "/analyze_private_chats",
     dependencies=[
         Depends(_require_internal_secret),
-        require_permissions(Permission.MCP_READ),
     ],
 )
 async def analyze_private_chats():
