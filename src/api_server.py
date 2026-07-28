@@ -594,8 +594,8 @@ async def amocrm_chat_webhook(request: Request):
                 "chat_id": telegram_id,
                 "text": text
             })
-                logger.info(f"[AMOCRM CHAT] Queued message to {telegram_id}")
-                return {"status": "ok"}
+            logger.info(f"[AMOCRM CHAT] Queued message to {telegram_id}")
+            return {"status": "ok"}
         return {"status": "ignored"}
     except Exception as e:
         logger.error(f"[AMOCRM CHAT WEBHOOK ERROR] {e}")

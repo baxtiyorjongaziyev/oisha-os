@@ -11,7 +11,7 @@ from src.api.rbac import Permission, require_permissions
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/internal/mcp", tags=["telegram_mcp"])
+router = APIRouter(prefix="/api/internal/mcp", tags=["telegram_mcp"])
 
 
 class SendMessageRequest(BaseModel):
@@ -27,8 +27,8 @@ def _require_internal_secret(request: Request) -> None:
             status_code=503, detail="Internal API authentication is not configured"
         )
 
-    auth = request.headers.get("Authorization", "")
-    if not hmac.compare_digest(auth, f"Bearer {expected}"):
+    auth = request.headers.get("X-Oisha-Internal-Secret", "")
+    if not hmac.compare_digest(auth, expected):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 

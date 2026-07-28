@@ -8,13 +8,12 @@ from dotenv import load_dotenv
 load_dotenv()
 api_id = os.getenv("API_ID")
 api_hash = os.getenv("API_HASH")
-phone = os.getenv("TELEGRAM_PHONE")
-password = os.getenv("TELEGRAM_PASSWORD")
+phone = os.getenv("TELEGRAM_PHONE") or "+998336450097"
+password = os.getenv("TELEGRAM_PASSWORD") or None
 code_file = "data/code.txt"
 
 import logging
-
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 
 
 async def main():

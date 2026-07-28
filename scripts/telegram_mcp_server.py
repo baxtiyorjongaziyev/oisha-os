@@ -56,13 +56,21 @@ logger = logging.getLogger("telegram-mcp")
 mcp = FastMCP("telegram")
 
 oisha_url = (os.environ.get("OISHA_API_URL") or "http://127.0.0.1:8080").rstrip("/")
-API_BASE_URL = f"{oisha_url}/internal/mcp"
+API_BASE_URL = f"{oisha_url}/api/internal/mcp"
 
 def _request(url: str, data: bytes | None = None) -> urllib.request.Request:
+    import base64
     headers = {}
+    
+    # NGINX Basic Auth
+    auth = base64.b64encode(b"oisha:oisha_safe_123").decode()
+    headers["Authorization"] = f"Basic {auth}"
+    
+    # FastAPI Internal Secret
     secret = (os.environ.get("OISHA_API_SECRET") or "").strip()
     if secret:
-        headers["Authorization"] = f"Bearer {secret}"
+        headers["X-Oisha-Internal-Secret"] = secret
+        
     if data is not None:
         headers["Content-Type"] = "application/json"
     return urllib.request.Request(url, data=data, headers=headers)
@@ -117,6 +125,6 @@ async def send_telegram_message(user_id: str, text: str) -> str:
         return f"Error: Cannot connect to Telegram backend. {e}"
 
 if __name__ == "__main__":
-    # Start the server using stdio transport
-    mcp.run(transport="stdio")
+    # Start the server using stdio transport so MCP clients like Cursor/Claude Desktop can connect
+    mcp.run()
 
