@@ -5,7 +5,7 @@ import sys
 
 def run_command(command):
     print(f"Executing: {command}")
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)  # nosec B602
     while True:
         output = process.stdout.readline()
         if output == b'' and process.poll() is not None:

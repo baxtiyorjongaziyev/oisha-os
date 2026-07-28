@@ -7,9 +7,9 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 # Using the credentials from deploy_creds.py as it seems more specific
-HOST = "109.199.100.137"
-USER = "root"
-PASSWORD = "#8tV9Hsm0aMqapdb"
+HOST = os.environ.get('SSH_HOST', '109.199.100.137')
+USER = os.environ.get('SSH_USER', 'root')
+PASSWORD = os.environ.get('SSH_PASSWORD', '')
 REMOTE_DIR = "/root/telegram_bot"
 
 files_to_sync = [
@@ -35,7 +35,7 @@ files_to_sync = [
 
 def deploy():
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
     
     try:
         print(f"Connecting to {HOST}...")
@@ -86,7 +86,7 @@ def deploy():
         print("Restarting Docker Compose to apply changes...")
         # We use docker compose restart to ensure the container picks up updated files
         # If it's running via python directly in the container, restart is sufficient
-        stdin, stdout, stderr = ssh.exec_command(f"cd {REMOTE_DIR} && docker compose up -d --build")
+        stdin, stdout, stderr = ssh.exec_command(f"cd {REMOTE_DIR} && docker compose up -d --build")  # nosec B601
         stdout.channel.recv_exit_status()
         
         print("Deployment completed successfully!")

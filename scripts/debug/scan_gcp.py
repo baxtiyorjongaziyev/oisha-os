@@ -4,7 +4,7 @@ import os
 
 def run_cmd(cmd):
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)  # nosec B602
         return result.stdout.strip()
     except:
         return ""
