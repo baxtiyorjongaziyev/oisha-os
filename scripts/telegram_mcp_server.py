@@ -10,18 +10,6 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
-import sys
-import logging
-import json
-import os
-import urllib.request
-import urllib.error
-
-# Ensure the project root is in sys.path so we can import from src
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
 
 # Load .env so OISHA_API_SECRET is available to authenticate with the API
 from dotenv import load_dotenv
@@ -29,25 +17,12 @@ dotenv_path = os.path.join(project_root, ".env")
 load_dotenv(dotenv_path)
 
 from mcp.server.fastmcp import FastMCP
-import structlog
 
 # Configure logging to stderr to avoid interfering with stdout-based MCP protocol
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     stream=sys.stderr,
-)
-
-# Re-configure structlog to write to stderr so it doesn't pollute stdout (critical for MCP stdio)
-structlog.configure(
-    processors=[
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.JSONRenderer(),
-    ],
-    context_class=dict,
-    logger_factory=structlog.PrintLoggerFactory(sys.stderr),
-    cache_logger_on_first_use=True,
 )
 
 logger = logging.getLogger("telegram-mcp")
@@ -63,7 +38,9 @@ def _request(url: str, data: bytes | None = None) -> urllib.request.Request:
     headers = {}
     
     # NGINX Basic Auth
-    auth = base64.b64encode(b"oisha:oisha_safe_123").decode()
+    auth_user = os.environ.get("OISHA_API_USER", "oisha")
+    auth_pass = os.environ.get("OISHA_API_PASS", "oisha_safe_123")
+    auth = base64.b64encode(f"{auth_user}:{auth_pass}".encode()).decode()
     headers["Authorization"] = f"Basic {auth}"
     
     # FastAPI Internal Secret
