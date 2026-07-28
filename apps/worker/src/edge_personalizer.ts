@@ -43,7 +43,9 @@ async function getSector(request: Request, env: Env): Promise<string> {
     const data: any = await aiResp.json();
     const sector = (data?.result?.response || '').trim().toLowerCase();
     if (SECTOR_HEROES[sector]) return sector;
-  } catch {}
+  } catch (_e) {
+    // Ignore AI errors and fallback to unknown
+  }
 
   return 'unknown';
 }
