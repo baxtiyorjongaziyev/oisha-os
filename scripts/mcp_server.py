@@ -73,9 +73,16 @@ amocrm = AmoCRMSync(
 airtable = AirtableSync()
 instagram = InstagramGraphClient()
 
+def req_handler(method, params_type):
+    def decorator(func):
+        server.add_request_handler(method, params_type, func)
+        return func
+    return decorator
 
-#@server.list_tools()
-async def list_tools() -> List[Tool]:
+from mcp.types import PaginatedRequestParams, CallToolRequestParams
+
+@req_handler("tools/list", PaginatedRequestParams)
+async def list_tools(request=None) -> List[Tool]:
     """List available tools for Oisha-OS."""
     return [
         Tool(
@@ -142,9 +149,12 @@ async def list_tools() -> List[Tool]:
     ]
 
 
-#@server.call_tool()
-async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+@req_handler("tools/call", CallToolRequestParams)
+async def call_tool(request=None, name: str = None, arguments: Dict[str, Any] = None) -> List[TextContent]:
     """Handle tool calls from MCP hosts."""
+    if request is not None and hasattr(request, "params"):
+        name = getattr(request.params, "name", name)
+        arguments = getattr(request.params, "arguments", arguments) or {}
     logger.info(f"[MCP CALL] Tool: {name}, Args: {arguments}")
 
     try:
