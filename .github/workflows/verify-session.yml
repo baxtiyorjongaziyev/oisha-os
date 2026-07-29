@@ -29,6 +29,7 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           OWNER_ID: ${{ secrets.OWNER_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING || vars.USERBOT_SESSION_STRING }}
         run: |
           python3 - <<'PYEOF'
           import asyncio, os, json, base64, urllib.parse, urllib.request, urllib.error
