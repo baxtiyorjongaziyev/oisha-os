@@ -74,7 +74,7 @@ airtable = AirtableSync()
 instagram = InstagramGraphClient()
 
 
-@server.list_tools()
+#@server.list_tools()
 async def list_tools() -> List[Tool]:
     """List available tools for Oisha-OS."""
     return [
@@ -142,7 +142,7 @@ async def list_tools() -> List[Tool]:
     ]
 
 
-@server.call_tool()
+#@server.call_tool()
 async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     """Handle tool calls from MCP hosts."""
     logger.info(f"[MCP CALL] Tool: {name}, Args: {arguments}")
