@@ -441,8 +441,16 @@ function SettingsPageContent() {
                           <div key={itemIdx} className="flex justify-between items-center rounded-xl bg-bg-card p-2.5 border border-border text-xs">
                             <span className="font-semibold text-text">{item}</span>
                             <div className="flex items-center gap-1.5">
-                              <button type="button" aria-label="Tahrirlash" className="text-text-muted hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 rounded">✏️</button>
-                              <button type="button" aria-label="O'chirish" className="text-rose-500 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 rounded">🗑️</button>
+                              <button type="button" aria-label="Tahrirlash" className="p-1 rounded-lg text-text-muted hover:bg-brand-light/30 hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 transition-colors">
+                                <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                              </button>
+                              <button type="button" aria-label="O'chirish" className="p-1 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 transition-colors">
+                                <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
                             </div>
                           </div>
                         ))}
