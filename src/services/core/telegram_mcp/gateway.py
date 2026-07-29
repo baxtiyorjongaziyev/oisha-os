@@ -120,6 +120,7 @@ def build_mcp_server(
     requester: str = "mcp-http",
 ) -> Any:
     from mcp.server.lowlevel import Server
+    from mcp.types import PaginatedRequestParams, CallToolRequestParams
 
     server = Server(
         "oisha-telegram",
@@ -130,13 +131,22 @@ def build_mcp_server(
         ),
     )
 
-    @server.list_tools()
-    async def list_tools() -> list[Any]:
+    def req_handler(method, params_type):
+        def decorator(func):
+            server.add_request_handler(method, params_type, func)
+            return func
+        return decorator
+
+    @req_handler("tools/list", PaginatedRequestParams)
+    async def list_tools(request) -> list[Any]:
         return await service.list_tools()
 
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any]) -> Any:
-        return await service.call_tool(name, arguments, requester=requester)
+    @req_handler("tools/call", CallToolRequestParams)
+    async def call_tool(request) -> Any:
+        # Depending on MCP version, arguments are on request.params.arguments
+        args = getattr(request.params, "arguments", {}) if hasattr(request, "params") else {}
+        name = getattr(request.params, "name", "") if hasattr(request, "params") else ""
+        return await service.call_tool(name, args, requester=requester)
 
     return server
 

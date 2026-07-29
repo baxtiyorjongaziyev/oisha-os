@@ -51,8 +51,8 @@ async def test_mcp_lists_read_only_instagram_tools():
 async def test_mcp_profile_and_latest_post(monkeypatch):
     monkeypatch.setattr(mcp_server, "instagram", _Instagram())
 
-    profile_content = await mcp_server.call_tool("get_instagram_profile", {})
-    latest_content = await mcp_server.call_tool("get_instagram_latest_post", {})
+    profile_content = await mcp_server.call_tool(name="get_instagram_profile", arguments={})
+    latest_content = await mcp_server.call_tool(name="get_instagram_latest_post", arguments={})
     profile = json.loads(profile_content[0].text)
     latest = json.loads(latest_content[0].text)
 
