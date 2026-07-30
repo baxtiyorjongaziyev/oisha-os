@@ -415,6 +415,25 @@ async def background_monitor_task() -> None:
                         logger.error(f"[SCHEDULE][STAGNATION] Error: {stag_exc}")
                     background_monitor_task._sent_jobs.add(job_key)
 
+            # ─────────────────────────────────────────────────────────
+            # 10. [ESCALATION] Javobsiz ogohlantirishlarni vakolatlar
+            #     darajasida (xodim → rahbar → Owner) eskalatsiya qilish.
+            #     Soatning boshida (:00-:05) bir marta tekshiriladi;
+            #     ichki holat (agent_actions) qayta yuborishning oldini oladi.
+            # ─────────────────────────────────────────────────────────
+            if now.minute < 5:
+                try:
+                    from src.services.core.escalation_agent import EscalationAgent
+
+                    escalation_db = m.msg_controller.db if m.msg_controller else None
+                    if escalation_db and m.client:
+                        escalation_agent = EscalationAgent(
+                            escalation_db, bot_client=m.client
+                        )
+                        await escalation_agent.check_pending_feedbacks()
+                except Exception as esc_exc:
+                    logger.error(f"[SCHEDULE][ESCALATION] Error: {esc_exc}")
+
             # 5. [ALWAYS ONLINE] Keep-alive pulse
             if m.client:
                 try:
