@@ -383,37 +383,13 @@ async def background_monitor_task() -> None:
                         f"[SCHEDULE][CRM_WEEKLY_REPORT] Error: {weekly_exc}"
                     )
 
-            if any(_is_due(now, h, 0) for h in [10, 22]):
-                today_str = now.strftime("%Y-%m-%d")
-                job_key = f"stagnation_alert_{now.hour}_{today_str}"
-                if not hasattr(background_monitor_task, "_sent_jobs"):
-                    background_monitor_task._sent_jobs = set()
-                if job_key not in background_monitor_task._sent_jobs:
-                    try:
-                        if m.msg_controller:
-                            alert = (
-                                await m.msg_controller.enterprise_reporter.get_stagnant_leads_alert()
-                            )
-                            if alert:
-                                target_group = settings.STAGNATION_GROUP_ID
-                                target_topic = settings.STAGNATION_TOPIC_ID
-                                if target_group and m.client:
-                                    await m.client.send_message(
-                                        target_group,
-                                        alert,
-                                        reply_to=target_topic,
-                                    )
-                                    logger.info(
-                                        f"[SCHEDULE] Stagnation alert sent to group {target_group}, topic {target_topic} at {now.hour}:00"
-                                    )
-                                elif m.client:
-                                    await m.notify_admin(alert, m.client)
-                                    logger.info(
-                                        f"[SCHEDULE] Stagnation alert sent to admin at {now.hour}:00"
-                                    )
-                    except Exception as stag_exc:
-                        logger.error(f"[SCHEDULE][STAGNATION] Error: {stag_exc}")
-                    background_monitor_task._sent_jobs.add(job_key)
+            # NOTE: stagnatsiya ogohlantirishi endi FAQAT check_amocrm_stagnation()
+            # (proactive_worker.py, yuqorida chaqiriladi, soat 12:00 va 16:00 da)
+            # orqali yuboriladi. Ilgari shu yerda soat 10:00 va 22:00 da bir xil
+            # alertni (get_stagnant_leads_alert) alohida job_key bilan qayta
+            # yuboradigan duplikat blok bor edi — ikkalasi bir-birining
+            # is_job_run belgisini ko'rmagani uchun jamoa bir xil xabarni kuniga
+            # 4 marta (10, 12, 16, 22) olardi. Duplikat blok olib tashlandi.
 
             # ─────────────────────────────────────────────────────────
             # 10. [ESCALATION] Javobsiz ogohlantirishlarni vakolatlar
