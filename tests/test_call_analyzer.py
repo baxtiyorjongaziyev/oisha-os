@@ -543,3 +543,91 @@ def test_analysis_note_omits_rubric_when_not_applicable():
     assert "Sifat bahosi" not in note
     assert "Baholanmadi" in note
     assert "sotuvchi haddan ko'p gapirdi" not in note
+
+
+def test_parse_agreed_datetime_accepts_valid_future_time():
+    from datetime import datetime
+    from src.services.core.call_analyzer import _parse_agreed_datetime
+    from src.time_utils import get_local_timezone
+
+    reference = datetime(2026, 7, 15, 10, 0, tzinfo=get_local_timezone())
+    result = _parse_agreed_datetime("2026-07-16 15:00", reference_now=reference)
+
+    assert result is not None
+    assert result.year == 2026 and result.month == 7 and result.day == 16
+    assert result.hour == 15
+
+
+def test_parse_agreed_datetime_rejects_past_and_hallucinated_far_future():
+    from datetime import datetime
+    from src.services.core.call_analyzer import _parse_agreed_datetime
+    from src.time_utils import get_local_timezone
+
+    reference = datetime(2026, 7, 15, 10, 0, tzinfo=get_local_timezone())
+
+    # O'tmish — rad etiladi
+    assert _parse_agreed_datetime("2026-07-14 10:00", reference_now=reference) is None
+    # Juda uzoq kelajak (60 kundan ortiq) — hallucination deb rad etiladi
+    assert _parse_agreed_datetime("2027-01-01 10:00", reference_now=reference) is None
+    # Bo'sh/null — rad etiladi
+    assert _parse_agreed_datetime(None, reference_now=reference) is None
+    assert _parse_agreed_datetime("null", reference_now=reference) is None
+    assert _parse_agreed_datetime("N/A", reference_now=reference) is None
+
+
+@pytest.mark.asyncio
+async def test_follow_up_task_uses_agreed_datetime_when_present():
+    """Suhbatda 'ertaga soat 15da' kabi aniq vaqt kelishilgan bo'lsa, vazifa
+    standart 24-soatlik muddat o'rniga aynan shu vaqtga qo'yilishi kerak."""
+    from datetime import datetime, timezone as tz
+    from src.time_utils import get_local_timezone
+
+    amocrm_mock = MagicMock()
+    amocrm_mock.create_task = AsyncMock(return_value={"id": 777})
+
+    analyzer = CallAnalyzer(amocrm=amocrm_mock, db=MagicMock())
+    agreed = datetime(2026, 8, 1, 15, 0, tzinfo=get_local_timezone())
+
+    task_id = await analyzer._create_follow_up_task(
+        lead_id=999,
+        category="Mijoz",
+        summary="Mijoz brif yuborishga rozi bo'ldi",
+        client_mood="Ijobiy",
+        next_steps="Ertaga soat 15:00 da qayta qo'ng'iroq qilish",
+        agreed_datetime=agreed,
+    )
+
+    assert task_id
+    amocrm_mock.create_task.assert_awaited_once()
+    call_args = amocrm_mock.create_task.await_args
+    complete_till = call_args.args[2]
+    assert complete_till == int(agreed.astimezone(tz.utc).timestamp())
+    task_text = call_args.args[1]
+    assert "01.08.2026 15:00" in task_text
+
+
+@pytest.mark.asyncio
+async def test_follow_up_task_falls_back_to_default_hours_without_agreed_time():
+    """Suhbatda aniq vaqt kelishilmagan bo'lsa, standart 24-soatlik
+    (yoki sozlangan) muddatga qaytishi kerak — eski xatti-harakat buzilmaydi."""
+    amocrm_mock = MagicMock()
+    amocrm_mock.create_task = AsyncMock(return_value={"id": 778})
+
+    analyzer = CallAnalyzer(amocrm=amocrm_mock, db=MagicMock())
+
+    before = time.time()
+    await analyzer._create_follow_up_task(
+        lead_id=999,
+        category="Mijoz",
+        summary="Mijoz o'ylab ko'rishga va'da berdi",
+        client_mood="Neytral",
+        next_steps="Keyinroq qayta bog'lanish",
+        agreed_datetime=None,
+    )
+    after = time.time()
+
+    call_args = amocrm_mock.create_task.await_args
+    complete_till = call_args.args[2]
+    expected_min = before + analyzer.task_due_hours * 3600 - 5
+    expected_max = after + analyzer.task_due_hours * 3600 + 5
+    assert expected_min <= complete_till <= expected_max

@@ -20,12 +20,21 @@ from src.services.core.sales_playbook import (
     rubric_prompt_uz,
 )
 from src.services.utils.transcript import speaker_split, talk_ratio_verdict
+from src.time_utils import get_local_now, get_local_timezone
 
 logger = structlog.get_logger()
 
 ANALYSIS_MARKER = "AI_CALL_ANALYSIS"
 CATEGORIES = ["Shaxsiy", "Oila", "Jamoa", "Mijoz", "Boshqa"]
 MOODS = ["Ijobiy", "Neytral", "Salbiy", "Noaniq"]
+_WEEKDAY_UZ = [
+    "Dushanba", "Seshanba", "Chorshanba", "Payshanba",
+    "Juma", "Shanba", "Yakshanba",
+]
+
+# Kelishilgan vaqt shu oraliqdan tashqarida bo'lsa (o'tmishda yoki
+# hallucination'ga o'xshab juda uzoq kelajakda), ishonchsiz deb rad etiladi.
+_AGREED_TIME_MAX_DAYS_AHEAD = 60
 
 _CALL_NOTE_TYPES = {
     "call_in",
@@ -151,6 +160,39 @@ def _rubric_applies(category: str, transcript: str) -> bool:
     if category != "Mijoz":
         return False
     return len((transcript or "").split()) >= _RUBRIC_MIN_WORDS
+
+
+def _parse_agreed_datetime(raw: Any, reference_now: Optional[datetime] = None) -> Optional[datetime]:
+    """Suhbatda kelishilgan sana/vaqtni (AI "YYYY-MM-DD HH:MM" deb qaytargan)
+    xavfsiz parse qiladi. Noto'g'ri format, o'tmish yoki hallucination'ga
+    o'xshab juda uzoq kelajak (60 kundan ortiq) bo'lsa — None qaytaradi,
+    chunki bunday holatlarda standart follow-up muddatiga tushish kerak."""
+    if not raw or not isinstance(raw, str):
+        return None
+    text = raw.strip()
+    if not text or text.lower() in {"null", "none", "yo'q", "yoq", "n/a", "na", "-"}:
+        return None
+
+    reference = reference_now or get_local_now()
+    tz = get_local_timezone()
+    parsed: Optional[datetime] = None
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(text, fmt)
+            break
+        except ValueError:
+            continue
+    if parsed is None:
+        return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=tz)
+
+    if parsed <= reference:
+        return None
+    if parsed > reference + timedelta(days=_AGREED_TIME_MAX_DAYS_AHEAD):
+        return None
+    return parsed
 
 
 def _clip(text: str, limit: int) -> str:
@@ -697,8 +739,13 @@ class CallAnalyzer:
                 if attributed
                 else "  Aniqlanmadi — transkripsiyada rollar belgilanmagan.\n"
             )
+            now_local = get_local_now()
             prompt = (
                 "Quyidagi telefon suhbati transkripsiyasini professional savdo tahlilchisi sifatida tahlil qiling.\n\n"
+                f"HOZIRGI SANA VA VAQT (Toshkent): {now_local.strftime('%Y-%m-%d %H:%M')} "
+                f"({_WEEKDAY_UZ[now_local.weekday()]})\n"
+                "Transkripsiyada nisbiy vaqt aytilsa (\"ertaga\", \"peshin\", \"kelasi hafta\", "
+                "\"dushanba\"), shu hozirgi sanaga nisbatan hisoblang.\n\n"
                 "TOIFALAR (faqat bittasini tanlang):\n"
                 "- Shaxsiy: shaxsiy, biznesga aloqasi yo'q suhbat.\n"
                 "- Oila: oila a'zolari, uy ishlari, bolalar yoki qarindoshlar haqida.\n"
@@ -718,6 +765,10 @@ class CallAnalyzer:
                 '  "category": "Shaxsiy|Oila|Jamoa|Mijoz|Boshqa",\n'
                 '  "client_mood": "Ijobiy|Neytral|Salbiy|Noaniq",\n'
                 '  "next_steps": "Keyingi aniq qadamlar yoki N/A",\n'
+                '  "kelishilgan_vaqt": "Agar suhbatda aniq kun/soat kelishilgan bo\'lsa '
+                '(masalan \'ertaga soat 15da\', \'dushanba peshin\'), uni YYYY-MM-DD HH:MM '
+                'formatida yozing (hozirgi sanaga nisbatan hisoblab). Aniq vaqt aytilmagan '
+                'bo\'lsa — null.",\n'
                 f'  "client_talk_pct": {client_pct},\n'
                 f'  "agent_talk_pct": {agent_pct},\n'
                 '  "lead_bahosi": <0-100: lead potensiali — qiziqish, byudjet, qaror qabul qilish>,\n'
@@ -774,11 +825,15 @@ class CallAnalyzer:
             "Siz O'zbek tilida ishlaydigan amoCRM qo'ng'iroq tahlilchisisiz. "
             "Faqat JSON qaytaring."
         )
+        now_local = get_local_now()
         user = (
             "Telefon suhbati transkripsiyasini tahlil qiling.\n"
+            f"Hozirgi sana va vaqt (Toshkent): {now_local.strftime('%Y-%m-%d %H:%M')}\n"
             "Toifalar: Shaxsiy, Oila, Jamoa, Mijoz, Boshqa.\n"
             "Kayfiyat: Ijobiy, Neytral, Salbiy, Noaniq.\n"
-            "JSON schema: summary, category, client_mood, next_steps.\n\n"
+            "JSON schema: summary, category, client_mood, next_steps, "
+            "kelishilgan_vaqt (suhbatda aniq kun/soat kelishilgan bo'lsa "
+            "\"YYYY-MM-DD HH:MM\" formatida, aks holda null).\n\n"
             f"Transkripsiya:\n{transcript}"
         )
 
@@ -807,6 +862,7 @@ class CallAnalyzer:
     ) -> Dict[str, Any]:
         summary = str(data.get("summary") or "").strip()
         next_steps = str(data.get("next_steps") or "N/A").strip() or "N/A"
+        agreed_datetime = _parse_agreed_datetime(data.get("kelishilgan_vaqt"))
         computed_client, computed_agent, attributed = _speaker_split(transcript)
         client_pct = int(data.get("client_talk_pct") or computed_client)
         agent_pct = int(data.get("agent_talk_pct") or computed_agent)
@@ -853,6 +909,7 @@ class CallAnalyzer:
             "category": category,
             "client_mood": _normalise_mood(data.get("client_mood")),
             "next_steps": next_steps,
+            "kelishilgan_vaqt": agreed_datetime,
             "client_talk_pct": client_pct,
             "agent_talk_pct": agent_pct,
             "talk_ratio_verdict": _talk_ratio_verdict(client_pct, attributed),
@@ -932,6 +989,7 @@ class CallAnalyzer:
             "category": category,
             "client_mood": "Noaniq",
             "next_steps": "N/A",
+            "kelishilgan_vaqt": None,
             "client_talk_pct": client_pct,
             "agent_talk_pct": agent_pct,
             "talk_ratio_verdict": _talk_ratio_verdict(client_pct, attributed),
@@ -1129,9 +1187,15 @@ class CallAnalyzer:
         summary: str,
         client_mood: str,
         next_steps: str,
+        agreed_datetime: Optional[datetime] = None,
     ) -> str:
-        text = (
-            f"Oisha follow-up: {next_steps}\n\n"
+        text = f"Oisha follow-up: {next_steps}\n\n"
+        if agreed_datetime is not None:
+            text += (
+                f"⏰ Kelishilgan vaqt: {agreed_datetime.strftime('%d.%m.%Y %H:%M')} "
+                f"({_WEEKDAY_UZ[agreed_datetime.weekday()]})\n\n"
+            )
+        text += (
             f"Qo'ng'iroq xulosasi: {summary}\n"
             f"Toifa: {category}. Kayfiyat: {client_mood}."
         )
@@ -1145,6 +1209,7 @@ class CallAnalyzer:
         client_mood: str,
         next_steps: str,
         responsible_user_id: Optional[int] = None,
+        agreed_datetime: Optional[datetime] = None,
     ) -> str:
         if not self._should_create_task(next_steps):
             return ""
@@ -1154,14 +1219,22 @@ class CallAnalyzer:
             logger.warning("[CALL] AmoCRM client has no create_task method")
             return ""
 
-        complete_till = int(
-            (datetime.now(timezone.utc) + timedelta(hours=self.task_due_hours)).timestamp()
-        )
+        if agreed_datetime is not None:
+            complete_till = int(agreed_datetime.astimezone(timezone.utc).timestamp())
+            logger.info(
+                "[CALL] Vazifa suhbatda kelishilgan vaqtga qo'yildi: %s",
+                agreed_datetime.isoformat(),
+            )
+        else:
+            complete_till = int(
+                (datetime.now(timezone.utc) + timedelta(hours=self.task_due_hours)).timestamp()
+            )
         task_text = self._build_task_text(
             category=category,
             summary=summary,
             client_mood=client_mood,
             next_steps=next_steps,
+            agreed_datetime=agreed_datetime,
         )
 
         try:
@@ -1354,6 +1427,7 @@ class CallAnalyzer:
                         client_mood=client_mood,
                         next_steps=next_steps,
                         responsible_user_id=responsible_user_id,
+                        agreed_datetime=analysis.get("kelishilgan_vaqt"),
                     )
 
                     try:
@@ -1387,6 +1461,7 @@ class CallAnalyzer:
                         client_mood=client_mood,
                         next_steps=next_steps,
                         responsible_user_id=responsible_user_id,
+                        agreed_datetime=analysis.get("kelishilgan_vaqt"),
                     )
 
                     await self._log_call_analysis(
