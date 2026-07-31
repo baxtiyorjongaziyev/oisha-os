@@ -55,4 +55,15 @@ commits = [
   # WARNING: this token has NOT been rotated — owner should replace it
   # with an env var (GITHUB_TOKEN) and revoke the PAT in GitHub settings.
   "565feba245e44a645639089012e84a23eccb643d",
+  "1d1f36f6ee93039cdd776793a1f25aba3fb35b18",
+  "f2cf4d8588ed5333981bb5ad83d671c10fc0397f",
+  "ebc651aa926a179805f0b91498907c3274002430",
+  "d50adbe7ba14289c0809c9a5db9671573e1fcc0b",
+  "0ab548783598e967b1576e913670a3bbe1ad72d2",
+  "4bf5daff5defc83780b5556d698ff58b289561fa",
+  "4345c9f88582064bab56d7878c2ca77a1d572548",
+  "f9127223032f7850f1f92fb118317e5455fe9f92",
+  "338ae1251c54cb19869aeded070f2671893615af",
+  "97755fc9b10871320b885e7ed07572fa6403eea1",
+  "eacbf264877a6d58020ffdfd1dcf8b4b75733554",
 ]
