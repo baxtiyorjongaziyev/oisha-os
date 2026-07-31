@@ -137,13 +137,25 @@ async def amocrm_webhook(request: Request):
 async def _process_amocrm_event(data: Dict[str, Any]):
     try:
         lead_id = None
+        customer_id = None
         for key in data.keys():
             if "leads[" in key and "][id]" in key:
                 lead_id = data[key]
-                break
+            if "customers[" in key and "][id]" in key:
+                customer_id = data[key]
+
+        if customer_id:
+            amocrm = _get_amocrm_instance()
+            runtime_db = api_state.db_instance or await _get_db_instance()
+            try:
+                from src.services.core.crm.amocrm_customers import AmoCRMCustomersManager
+                manager = AmoCRMCustomersManager(amocrm=amocrm, db=runtime_db)
+                await manager.process_customer(int(customer_id))
+            except Exception as cust_exc:
+                logger.error("[Webhook] AmoCRM customer processing failed: %s", cust_exc, exc_info=True)
+
         if not lead_id:
             return
-
         amocrm = _get_amocrm_instance()
         runtime_db = api_state.db_instance or await _get_db_instance()
 

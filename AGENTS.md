@@ -29,6 +29,7 @@
 ## Current State
 
 ### Locked
+- **Antigravity** — Bosqich 4 (`admin_bot.py` refactoring)
 - **Codex Coordinator** — self-improvement report dedup, failure root-cause, approval UX va Telegram MCP restore
 
 ### Operational Notes
