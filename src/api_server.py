@@ -34,6 +34,7 @@ from src.services.core.airtable_client import AirtableClient
 from src.api.routes.state import api_state
 from src.settings import settings
 from src.time_utils import get_local_now
+from src.services.core.comms.whatsapp_handler import handle_whatsapp_webhook
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -568,8 +569,21 @@ async def telegram_webhook(request: Request):
 
 
 # =====================================================================
-# AmoCRM Chat Integration (Wazzup Alternative)
+# WhatsApp & AmoCRM Chat Integration (Wazzup Alternative)
 # =====================================================================
+
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(request: Request):
+    """Receive messages from Baileys WhatsApp Gateway."""
+    try:
+        body = await request.json()
+        await handle_whatsapp_webhook(body)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"[WHATSAPP WEBHOOK ERROR] {e}")
+        return {"status": "error"}
+
+
 
 @app.get("/webhook/amocrm_chat")
 async def amocrm_chat_webhook_verify(request: Request):
