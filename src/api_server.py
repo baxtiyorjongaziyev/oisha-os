@@ -571,6 +571,12 @@ async def telegram_webhook(request: Request):
 # AmoCRM Chat Integration (Wazzup Alternative)
 # =====================================================================
 
+@app.get("/webhook/amocrm_chat")
+async def amocrm_chat_webhook_verify(request: Request):
+    """AmoCRM redirect URL verification - responds with 200 OK to validate the endpoint."""
+    return {"status": "ok", "service": "Oisha AmoCRM Chat Gateway"}
+
+
 @app.post("/webhook/amocrm_chat")
 async def amocrm_chat_webhook(request: Request):
     """Receive outgoing messages from AmoCRM Chat and send them to Telegram."""
