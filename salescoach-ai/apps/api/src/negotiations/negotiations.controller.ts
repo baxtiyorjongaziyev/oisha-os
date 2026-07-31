@@ -5,6 +5,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OrgId } from '../common/decorators/org-id.decorator';
 import { NegotiationsService } from './negotiations.service';
 import { NegotiateDto, RealtimeSuggestionDto } from './dto/negotiate.dto';
+import { AnalyzeConversationDto } from './dto/analyze-conversation.dto';
 
 @ApiTags('negotiations')
 @ApiBearerAuth()
@@ -24,6 +25,20 @@ export class NegotiationsController {
     @Body() dto: NegotiateDto,
   ) {
     return this.service.getSuggestion(orgId, user.id, dto);
+  }
+
+  @Post('analyze-conversation')
+  @ApiOperation({
+    summary: 'Score a matched Telegram sales conversation',
+    description:
+      'Returns deterministic weighted SalesCoach scores, evidence IDs, risks, reply guidance, and safe task recommendations.',
+  })
+  analyzeConversation(
+    @OrgId() orgId: string,
+    @CurrentUser() user: any,
+    @Body() dto: AnalyzeConversationDto,
+  ) {
+    return this.service.analyzeConversation(orgId, user.id, dto);
   }
 
   @Post('realtime')
