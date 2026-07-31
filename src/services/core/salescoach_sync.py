@@ -1,31 +1,45 @@
-"""
-SalesCoach AI HTTP Bridge
-oisha-os → salescoach-ai API ga so'rovlar yuboradi.
-
-⚠️ settings.py YANGILANMAYDI (Coordinator owns) — env varlar getattr bilan o'qiladi.
-Coordinator settings.py ga qo'shishi kerak: SALESCOACH_API_URL, SALESCOACH_SERVICE_TOKEN,
-SALESCOACH_ENABLED.
-"""
+"""SalesCoach AI HTTP bridge for Oisha-OS."""
 
 from __future__ import annotations
-from src.context import app_ctx
 
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 import httpx
 
+from src.context import app_ctx
 from src.settings import settings
 
 logger = logging.getLogger("SalesCoachSync")
 
 
-def _cfg(name: str, default):
-    return getattr(settings, name, default)
+def _cfg(name: str, default: Any) -> Any:
+    """Read typed settings first, then undeclared deployment env vars safely."""
+    configured = getattr(settings, name, None)
+    if configured is not None:
+        return configured
+
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    if isinstance(default, bool):
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+    if isinstance(default, int):
+        try:
+            return int(raw)
+        except ValueError:
+            return default
+    if isinstance(default, float):
+        try:
+            return float(raw)
+        except ValueError:
+            return default
+    return raw
 
 
 class SalesCoachSync:
-    """salescoach-ai REST API bilan muloqot qiluvchi klient."""
+    """Client for the side-by-side salescoach-ai REST API."""
 
     def __init__(self):
         self.base_url = str(_cfg("SALESCOACH_API_URL", "")).rstrip("/")
@@ -40,15 +54,15 @@ class SalesCoachSync:
             if self.token:
                 headers["Authorization"] = f"Bearer {self.token}"
             self._client = httpx.AsyncClient(
-                base_url=self.base_url, headers=headers, timeout=15.0
+                base_url=self.base_url,
+                headers=headers,
+                timeout=15.0,
             )
         return self._client
 
-    async def close(self):
+    async def close(self) -> None:
         if self._client and not self._client.is_closed:
             await self._client.aclose()
-
-    # ── Negotiation Suggestion ─────────────────────────────────
 
     async def get_suggestion(
         self,
@@ -69,14 +83,16 @@ class SalesCoachSync:
             }
             if customer_name:
                 payload["customerName"] = customer_name
-            resp = await self.client.post("/v1/negotiations/suggest", json=payload)
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.warning(f"[SalesCoach] get_suggestion failed: {e}")
+            response = await self.client.post("/v1/negotiations/suggest", json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data if isinstance(data, dict) else None
+        except Exception as exc:
+            logger.warning(
+                "[SalesCoach] suggestion failed: %s",
+                type(exc).__name__,
+            )
             return None
-
-    # ── Telegram Conversation Analysis ─────────────────────────
 
     async def analyze_conversation(
         self,
@@ -86,10 +102,7 @@ class SalesCoachSync:
         messages: List[Dict[str, Any]],
         crm_status: str = "",
     ) -> Optional[Dict[str, Any]]:
-        """Telegram biznes dialogini strukturali SalesCoach tahliliga yuboradi.
-
-        Maxfiylik uchun xabar matni yoki upstream exception matni loglanmaydi.
-        """
+        """Send a bounded Telegram business-dialog batch for structured scoring."""
         if not self.enabled:
             return None
 
@@ -100,13 +113,13 @@ class SalesCoachSync:
             "messages": messages[-50:],
         }
         try:
-            resp = await self.client.post(
+            response = await self.client.post(
                 "/v1/negotiations/analyze-conversation",
                 json=payload,
                 timeout=30.0,
             )
-            resp.raise_for_status()
-            data = resp.json()
+            response.raise_for_status()
+            data = response.json()
             return data if isinstance(data, dict) else None
         except Exception as exc:
             logger.warning(
@@ -115,25 +128,27 @@ class SalesCoachSync:
             )
             return None
 
-    # ── Realtime Tip ───────────────────────────────────────────
-
     async def get_realtime_tip(
-        self, message: str, crm_status: str = ""
+        self,
+        message: str,
+        crm_status: str = "",
     ) -> Optional[Dict[str, Any]]:
         if not self.enabled:
             return None
         try:
-            resp = await self.client.post(
+            response = await self.client.post(
                 "/v1/negotiations/realtime",
                 json={"message": message, "crmStatus": crm_status},
             )
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.warning(f"[SalesCoach] get_realtime_tip failed: {e}")
+            response.raise_for_status()
+            data = response.json()
+            return data if isinstance(data, dict) else None
+        except Exception as exc:
+            logger.warning(
+                "[SalesCoach] realtime tip failed: %s",
+                type(exc).__name__,
+            )
             return None
-
-    # ── Voice Upload for Scoring ───────────────────────────────
 
     async def upload_voice(
         self,
@@ -147,7 +162,7 @@ class SalesCoachSync:
         if not self.enabled:
             return None
         try:
-            init_resp = await self.client.post(
+            init_response = await self.client.post(
                 "/v1/calls",
                 json={
                     "customerName": customer_name or None,
@@ -157,37 +172,53 @@ class SalesCoachSync:
                     "contentType": content_type,
                 },
             )
-            init_resp.raise_for_status()
-            init_data = init_resp.json()
+            init_response.raise_for_status()
+            init_data = init_response.json()
             call_id = init_data["callId"]
             upload_url = init_data["uploadUrl"]
 
-            s3_resp = await self.client.put(
-                upload_url, content=audio_bytes, headers={"Content-Type": content_type}
+            upload_response = await self.client.put(
+                upload_url,
+                content=audio_bytes,
+                headers={"Content-Type": content_type},
             )
-            if s3_resp.status_code not in (200, 204):
-                raise RuntimeError(f"S3 upload failed: {s3_resp.status_code}")
+            if upload_response.status_code not in (200, 204):
+                raise RuntimeError(
+                    f"S3 upload failed: {upload_response.status_code}"
+                )
 
-            confirm_resp = await self.client.post(f"/v1/calls/{call_id}/confirm", json={})
-            confirm_resp.raise_for_status()
-
-            logger.info(f"[SalesCoach] Call uploaded: {call_id}")
+            confirm_response = await self.client.post(
+                f"/v1/calls/{call_id}/confirm",
+                json={},
+            )
+            confirm_response.raise_for_status()
+            logger.info("[SalesCoach] call uploaded: %s", call_id)
             return {"callId": call_id, "status": "TRANSCRIBING"}
-        except Exception as e:
-            logger.warning(f"[SalesCoach] upload_voice failed: {e}")
+        except Exception as exc:
+            logger.warning(
+                "[SalesCoach] voice upload failed: %s",
+                type(exc).__name__,
+            )
             return None
 
-    # ── Pipeline Insights ──────────────────────────────────────
-
-    async def get_pipeline_insights(self, days: int = 7) -> Optional[Dict[str, Any]]:
+    async def get_pipeline_insights(
+        self,
+        days: int = 7,
+    ) -> Optional[Dict[str, Any]]:
         if not self.enabled:
             return None
         try:
-            resp = await self.client.get(f"/v1/negotiations/pipeline-insights?days={days}")
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.warning(f"[SalesCoach] get_pipeline_insights failed: {e}")
+            response = await self.client.get(
+                f"/v1/negotiations/pipeline-insights?days={days}"
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data if isinstance(data, dict) else None
+        except Exception as exc:
+            logger.warning(
+                "[SalesCoach] pipeline insights failed: %s",
+                type(exc).__name__,
+            )
             return None
 
 
