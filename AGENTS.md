@@ -46,6 +46,24 @@
 - ⚠️ **For Coordinator (settings.py ga qo'shing):** SALESCOACH_{API_URL,SERVICE_TOKEN,ENABLED}, DOCUSIGN_{ENABLED,BASE_URI,ACCOUNT_ID,ACCESS_TOKEN,TEMPLATE_ID}, APOLLO_{ENABLED,API_KEY}. Kod `getattr` bilan himoyalangan — varsiz ham ishlaydi (disabled).
 - ioredis dup TUZATILDI: bullmq 5.79.1 ioredis'ni aynan `5.10.1` ga pin qiladi, apps esa `^5.11.1` (TRAE security update) → root `pnpm.overrides.ioredis="^5.11.1"` (TRAE yangi versiyasi saqlanadi, bullmq'niki ko'tariladi). Worker+API `tsc --noEmit` TOZA.
 
+### Done (MCP birlashtirish — Claude)
+- **Uchta MCP yozuvi bittaga birlashtirildi.** Ilgari: `telegram` (SSH→Oracle),
+  `oisha-telegram` (lokal — API'siz, hech qayerga ulanmasdi), `oisha-amocrm` (lokal).
+  Endi yagona `scripts/oisha_mcp_server.py` (FastMCP) — 12 tool: Telegram (4),
+  AmoCRM (4), Airtable (1), Instagram (3). Oracle'da ishlaydi; Telegram toollari
+  `/api/internal/mcp` orqali boradi, userbot sessiyasiga to'g'ridan-to'g'ri tegmaydi.
+- Eski `scripts/mcp_server.py`, `scripts/telegram_mcp_server.py` va `src/*` shim'lari
+  yangi serverga yo'naltiruvchi bo'lib qoldi — mavjud konfiguratsiyalar buzilmaydi.
+- `scripts/telegram_mcp_server.py:42` dagi hardcoded Nginx paroli olib tashlandi;
+  Basic Auth endi faqat `OISHA_API_USER`/`OISHA_API_PASS` env'dan.
+  ⚠️ **Owner uchun:** eski parol repo tarixida qolgan — Nginx'da almashtirish kerak.
+- ⚠️ **Coordinator uchun (Rule 3 istisnosi):** `settings.py` ga `OISHA_API_SECRET`,
+  `JWT_SECRET`, `OISHA_SERVICE_TOKENS_JSON`, `OISHA_PROXY_ROLE_MAP_JSON` qo'shildi.
+  Sabab: `0e6b4d7` auth o'qishni `os.environ` dan `settings` ga ko'chirgan, lekin
+  maydonlar e'lon qilinmagan edi → `getattr(...)` doim `""` qaytarib, butun HTTP
+  auth jim ishlamay qolgan (main'da 34 test yiqilgan). Shoshilinch tuzatish sifatida
+  kiritildi.
+
 ### Done (yangi)
 - Telegram Userbot sessiyasini doimiy tirik saqlash (`session_keeper.py`) va har 5 daqiqada ping yuborish, hamda sessiya o'zgarganda avtomatik `data/userbot_session_string.txt` ga saqlash tizimi ishga tushirildi va Oracle VM ga deploy qilindi. Bu orqali 401 Unauthorized va qayta login qilish muammolari to'liq hal etildi (Antigravity).
 - Aiogram 3.x bot-token migratsiyasining navbatdagi bosqichi bajarildi: Admin komandalar dispetcheri (`admin_aiogram_dispatcher.py`) kengaytirilib, VPS status (`/vps_status`), auto-reply rejimi va kill-switch boshqaruvi (`/auto_status`, `/pause_auto`, `/resume_auto`, `/set_mode`) qo'shildi. `test_admin_aiogram_dispatcher.py` ga tegishli unit-testlar qo'shildi (Antigravity).

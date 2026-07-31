@@ -17,10 +17,10 @@ export default async function FinanceDashboard() {
         <h1 className="text-2xl font-bold text-gray-900">Moliya (Hisobchi AI)</h1>
         <div className="flex gap-3">
           <button className="rounded-xl bg-red-50 text-red-600 px-4 py-2 text-sm font-medium hover:bg-red-100 transition-colors">
-            - Chiqim qo'shish
+            - Chiqim qo&apos;shish
           </button>
           <button className="rounded-xl bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors">
-            + Kirim qo'shish
+            + Kirim qo&apos;shish
           </button>
         </div>
       </div>
@@ -72,7 +72,7 @@ export default async function FinanceDashboard() {
             )) : (
               <tr>
                 <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                  Hozircha tranzaksiyalar yo'q.
+                  Hozircha tranzaksiyalar yo&apos;q.
                 </td>
               </tr>
             )}

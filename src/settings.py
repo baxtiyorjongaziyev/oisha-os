@@ -108,6 +108,16 @@ class AppSettings(BaseSettings):
     AIRTABLE_CLIENT_ID: str = ""
     AIRTABLE_CLIENT_SECRET: Optional[SecretStr] = None
     AIRTABLE_REDIRECT_URI: str = "https://localhost"
+
+    # API auth. src/api/security.py bularni settings'dan o'qiydi; maydon
+    # e'lon qilinmasa getattr(...) doim "" qaytaradi va butun HTTP auth
+    # (Bearer token, JWT cookie, proxy rol xaritasi) jim ishlamay qoladi.
+    # SecretStr emas, chunki iste'molchilar qiymatni to'g'ridan-to'g'ri
+    # hmac.compare_digest / jwt.decode ga uzatadi.
+    OISHA_API_SECRET: str = ""
+    JWT_SECRET: str = ""
+    OISHA_SERVICE_TOKENS_JSON: str = ""
+    OISHA_PROXY_ROLE_MAP_JSON: str = ""
     AMOCRM_CRON_SECRET: Optional[SecretStr] = None
     ENABLE_AMOCRM_LEAD_ENRICHMENT: bool = True
     AMOCRM_ENRICHMENT_MESSAGE_LIMIT: int = 20
@@ -170,8 +180,9 @@ class AppSettings(BaseSettings):
 
     # Topic IDs (Forum Groups)
     AMOCRM_URL: Optional[str] = None
-    AMOCRM_CLIENT_ID: Optional[str] = None
-    AMOCRM_CLIENT_SECRET: Optional[str] = None
+    # AMOCRM_CLIENT_ID / AMOCRM_CLIENT_SECRET yuqorida (str / SecretStr) e'lon qilingan.
+    # Bu yerda qayta e'lon qilinsa, SecretStr oddiy str bilan almashib,
+    # .get_secret_value() chaqiruvlari AttributeError beradi.
     AMOCRM_AUTH_CODE: Optional[str] = None
     AMOCRM_REDIRECT_URI: Optional[str] = None
     

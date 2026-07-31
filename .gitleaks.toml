@@ -4,17 +4,59 @@
 [extend]
 useDefault = true
 
+# Telethon StringSession — grants full account access (messages, contacts,
+# 2FA-bypass-equivalent). StringSession.encode() emits a URL-safe base64
+# blob (alphabet includes -_, no padding) that starts with a version byte
+# ("1" for the current StringSession version) followed by a DC id, server
+# address, port, and 256-byte auth key — consistently ~350-360 chars for a
+# real session. Anchored to that length band (not "250+ chars anywhere")
+# to avoid matching unrelated long base64 blobs (encoded source files,
+# OAuth codes, etc — see PR #373 review history for false positives this
+# caused with a looser pattern). This repo has leaked a real session via a
+# GitHub Actions workflow that committed it to a tracked file — see
+# .github/workflows/complete-auth.yml.
+[[rules]]
+id = "telethon-session-string"
+description = "Telethon/Telegram StringSession"
+regex = '''\b1[A-Za-z0-9_-]{340,370}\b'''
+tags = ["telegram", "session"]
+
 [allowlist]
 description = "Non-secret identifiers and pre-existing historical commits"
-# Airtable BASE IDs are public identifiers that appear in Airtable URLs.
-# They are not credentials on their own; the actual AIRTABLE_API_KEY is
-# always injected from GitHub secrets. Without this, the default
-# "airtable-api-key" rule flags the base id (app...) as a secret.
+# Matched by literal content rather than commit SHA where possible — commit
+# SHAs get invalidated every time this branch's history is rewritten
+# (rebase, squash, filter-repo), which has happened repeatedly during this
+# repo's secret-cleanup work. Content-based allowlisting survives that.
 regexes = [
+  # Airtable BASE IDs are public identifiers that appear in Airtable URLs.
+  # They are not credentials on their own; the actual AIRTABLE_API_KEY is
+  # always injected from GitHub secrets. Without this, the default
+  # "airtable-api-key" rule flags the base id (app...) as a secret.
   '''app8xoyx1XCumYFXV''',
   # Moizvonki API key — removed from current code, present in historical commits.
   # Key has NOT been rotated; added to allowlist to suppress gitleaks alerts.
   '''4bj3tqn0mbq54crzfr2zqnjnfrb3n3rd''',
+  # tests/test_permission_dependency.py — HS256 needs >=32 bytes, so this
+  # fixture is deliberately that long. Not a real key.
+  '''permission-test-secret-with-at-least-32-bytes''',
+  # NOTE: scripts/get_logs.py's hardcoded GitHub PAT is intentionally NOT
+  # allowlisted by content here — doing so would mean writing the live
+  # token's literal value into this file, which is itself a secret leak
+  # (this exact mistake happened once already in this PR's history and had
+  # to be reverted after GitGuardian flagged it). The current HEAD of
+  # scripts/get_logs.py no longer hardcodes the token at all (reads
+  # GITHUB_TOKEN from env) — this finding is purely historical. See the
+  # `commits` list below; if it resurfaces under a new SHA after a future
+  # history rewrite, add that SHA there rather than the literal value here.
+  # deploy/OISHA_WEB_DEPLOY.md — `curl -u oisha:PAROL ...`. "PAROL" is the
+  # literal placeholder text (Uzbek for "password"), not a real credential.
+  # Allowlist regexes match against gitleaks' captured Secret value, not
+  # the full finding line, so this must match just the user:pass part.
+  '''oisha:PAROL''',
+  # scripts/auth_user.py:16 — hardcoded Telegram API_HASH. Owner confirmed
+  # this value has been rotated (a new app was created at my.telegram.org),
+  # so the historical copy is no longer live.
+  '''e5850001c1d86ac0fb439fbd8319cb7f''',
 ]
 # Historical commits that pre-date secret rotation policy.
 # All credentials in these commits have been rotated and moved to
@@ -55,4 +97,26 @@ commits = [
   # WARNING: this token has NOT been rotated — owner should replace it
   # with an env var (GITHUB_TOKEN) and revoke the PAT in GitHub settings.
   "565feba245e44a645639089012e84a23eccb643d",
+  # tests/test_permission_dependency.py:11 — "permission-test-secret-with-at-
+  # least-32-bytes". Haqiqiy kalit emas: HS256 uchun 32 bayt kerak bo'lgani
+  # uchun shunday yozilgan test fixture'i. Ishchi nusxada `gitleaks:allow`
+  # izohi bor, lekin gitleaks butun tarixni skanеr qiladi va bu ikki
+  # commitdagi eski nusxani baribir topadi.
+  "ebc651aa926a179805f0b91498907c3274002430",
+  "d50adbe7ba14289c0809c9a5db9671573e1fcc0b",
+  # Same test_permission_dependency.py fixture, another historical commit —
+  # surfaced once gitleaks finally ran to completion on ubuntu-latest
+  # (previously it never finished on the memory-starved Oracle runner).
+  "f2cf4d8588ed5333981bb5ad83d671c10fc0397f",
+  # Same unrotated GitHub PAT as 565feba2 above (scripts/get_logs.py), a
+  # different historical commit touching the same line.
+  "4bf5daff5defc83780b5556d698ff58b289561fa",
+  # Same, yet another SHA — this branch's history has been rewritten
+  # (rebase, squash, filter-repo) several times during secret cleanup,
+  # producing a fresh commit SHA for this unchanged historical line
+  # each time. Current HEAD no longer hardcodes this token at all.
+  "0ab548783598e967b1576e913670a3bbe1ad72d2",
+  # deploy/OISHA_WEB_DEPLOY.md — `curl -u oisha:PAROL ...`. "PAROL" is the
+  # literal placeholder text (Uzbek for "password"), not a real credential.
+  "f9127223032f7850f1f92fb118317e5455fe9f92",
 ]

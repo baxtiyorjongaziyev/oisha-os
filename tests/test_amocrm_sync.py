@@ -305,3 +305,38 @@ async def test_create_task_allows_verified_active_lead(monkeypatch):
     assert result == {"_embedded": {"tasks": [{"id": 77}]}}
     assert amocrm.last_error is None
     amocrm._request_with_auth.assert_awaited_once()
+
+
+def test_secret_str_client_secret_is_unwrapped():
+    """SecretStr xom holda uzatilsa ham OAuth body'ga oddiy matn tushishi kerak.
+
+    settings.AMOCRM_CLIENT_SECRET — Optional[SecretStr]. Ba'zi chaqiruvchilar
+    uni .get_secret_value() siz uzatadi. SecretStr obyekti JSON-serializable
+    emas va form-encoding'da '**********' bo'lib maskalanadi, ya'ni token
+    refresh jim yiqiladi.
+    """
+    from pydantic import SecretStr
+
+    amocrm = AmoCRMSync(
+        "jonbrandingagency",
+        "client-id",
+        SecretStr("super-secret"),
+        "https://example.test/cb",
+    )
+
+    assert amocrm.client_secret == "super-secret"
+    assert not isinstance(amocrm.client_secret, SecretStr)
+    # OAuth payload'i JSON-serializable bo'lishi shart.
+    json.dumps({"client_secret": amocrm.client_secret})
+
+
+def test_plain_client_secret_passes_through():
+    """Oddiy str uzatilganda xatti-harakat o'zgarmasligi kerak."""
+    amocrm = AmoCRMSync(
+        "jonbrandingagency",
+        "client-id",
+        "plain-secret",
+        "https://example.test/cb",
+    )
+
+    assert amocrm.client_secret == "plain-secret"

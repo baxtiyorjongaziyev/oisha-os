@@ -145,7 +145,9 @@ async def create_amo_lead(
     amocrm = AmoCRMSync(
         subdomain=getattr(settings, "AMOCRM_SUBDOMAIN", ""),
         client_id=getattr(settings, "AMOCRM_CLIENT_ID", ""),
-        client_secret=getattr(settings, "AMOCRM_CLIENT_SECRET", ""),
+        # AmoCRMSync SecretStr'ni o'zi ochadi (_plain_secret), shu sababli
+        # bu yerda xom qiymat uzatish xavfsiz.
+        client_secret=getattr(settings, "AMOCRM_CLIENT_SECRET", "") or "",
         redirect_url=getattr(settings, "AMOCRM_REDIRECT_URL", ""),
     )
 
