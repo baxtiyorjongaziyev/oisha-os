@@ -41,7 +41,13 @@ def dependencies():
         list_open_tasks=AsyncMock(return_value=[]),
         create_note=AsyncMock(return_value={"id": 8001}),
         list_notes=AsyncMock(
-            return_value=[{"id": 8001, "text": "[OISHA_SALESCOACH] Fingerprint: fp-001"}]
+            return_value=[
+                {
+                    "id": 8001,
+                    "note_type": "common",
+                    "params": {"text": "[OISHA_SALESCOACH] Fingerprint: fp-001"},
+                }
+            ]
         ),
         create_task=AsyncMock(return_value={"id": 9001}),
         get_task=AsyncMock(
