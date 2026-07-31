@@ -30,7 +30,13 @@ async def test_salescoach_bootstrap_is_disabled_by_default(monkeypatch):
 @pytest.mark.asyncio
 async def test_salescoach_bootstrap_runs_once_when_dependencies_are_ready(monkeypatch):
     monkeypatch.setenv("TELEGRAM_SALESCOACH_ENABLED", "1")
-    installer = AsyncMock(return_value=SimpleNamespace())
+
+    async def install(context: ApplicationContext):
+        service = SimpleNamespace()
+        context.telegram_salescoach = service
+        return service
+
+    installer = AsyncMock(side_effect=install)
     monkeypatch.setattr(
         "src.services.core.telegram_salescoach_runtime.install_telegram_salescoach",
         installer,
@@ -45,11 +51,10 @@ async def test_salescoach_bootstrap_runs_once_when_dependencies_are_ready(monkey
 
     installer.assert_awaited_once_with(context)
     assert context.telegram_salescoach_install_task is None
+    assert context.telegram_salescoach is not None
 
     context.client = SimpleNamespace()
     await asyncio.sleep(0)
     await asyncio.sleep(0)
 
-    # The fake installer does not set telegram_salescoach, so a later canonical
-    # dependency reassignment is allowed to retry. Production installer sets it.
-    assert installer.await_count == 2
+    installer.assert_awaited_once()
