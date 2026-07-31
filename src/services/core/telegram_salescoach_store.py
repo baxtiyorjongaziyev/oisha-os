@@ -6,7 +6,7 @@ import inspect
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping
 
 
 _SENSITIVE_ANALYSIS_KEYS = {
@@ -16,6 +16,22 @@ _SENSITIVE_ANALYSIS_KEYS = {
     "raw_messages",
     "transcript",
 }
+_ANALYSIS_COLUMNS = [
+    "id",
+    "conversation_hash",
+    "telegram_user_hash",
+    "lead_id",
+    "manager_id",
+    "fingerprint",
+    "overall_score",
+    "confidence",
+    "source_message_ids_json",
+    "rollout_mode",
+    "analysis_json",
+    "status",
+    "created_at",
+    "updated_at",
+]
 
 
 def _now_iso() -> str:
@@ -46,6 +62,23 @@ def _row_to_dict(row: Any, columns: list[str]) -> dict[str, Any]:
         return dict(row)
     except (TypeError, ValueError):
         return dict(zip(columns, row))
+
+
+def _decode_analysis_row(row: Any, columns: list[str]) -> dict[str, Any]:
+    item = _row_to_dict(row, columns)
+    if not item:
+        return {}
+    try:
+        item["source_message_ids"] = json.loads(
+            item.pop("source_message_ids_json", "[]")
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        item["source_message_ids"] = []
+    try:
+        item["analysis"] = json.loads(item.pop("analysis_json", "{}"))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        item["analysis"] = {}
+    return item
 
 
 @dataclass(frozen=True)
@@ -217,6 +250,47 @@ class TelegramSalesCoachStore:
             raise RuntimeError("conversation_analysis_not_persisted")
         return int(row[0])
 
+    async def get_analysis(self, analysis_id: int) -> dict[str, Any] | None:
+        connection = await self._connection()
+        cursor = await self._execute(
+            connection,
+            f"SELECT {', '.join(_ANALYSIS_COLUMNS)} FROM conversation_analyses WHERE id = ? LIMIT 1",  # nosec B608 -- fixed column allowlist
+            (int(analysis_id),),
+        )
+        row = await _maybe_await(cursor.fetchone())
+        if row is None:
+            return None
+        columns = [item[0] for item in (getattr(cursor, "description", None) or [])]
+        return _decode_analysis_row(row, columns or _ANALYSIS_COLUMNS)
+
+    async def update_analysis_status(
+        self,
+        analysis_id: int,
+        status: str,
+    ) -> bool:
+        allowed = {
+            "analyzed",
+            "pending",
+            "approved",
+            "rejected",
+            "write_failed",
+        }
+        normalized = str(status or "").strip().lower()
+        if normalized not in allowed:
+            raise ValueError("invalid_conversation_analysis_status")
+
+        connection = await self._connection()
+        cursor = await self._execute(
+            connection,
+            "UPDATE conversation_analyses SET status = ?, updated_at = ? WHERE id = ?",
+            (normalized, _now_iso(), int(analysis_id)),
+        )
+        await self._commit(connection)
+        rowcount = getattr(cursor, "rowcount", None)
+        if rowcount is None:
+            return await self.get_analysis(analysis_id) is not None
+        return int(rowcount) > 0
+
     async def fingerprint_exists(self, fingerprint: str) -> bool:
         connection = await self._connection()
         cursor = await self._execute(
@@ -279,31 +353,18 @@ class TelegramSalesCoachStore:
         connection = await self._connection()
         cursor = await self._execute(
             connection,
-            """
-            SELECT id, conversation_hash, telegram_user_hash, lead_id,
-                   manager_id, fingerprint, overall_score, confidence,
-                   source_message_ids_json, rollout_mode, analysis_json,
-                   status, created_at, updated_at
+            f"""
+            SELECT {', '.join(_ANALYSIS_COLUMNS)}
             FROM conversation_analyses
             ORDER BY updated_at DESC
             LIMIT ?
-            """,
+            """,  # nosec B608 -- fixed column allowlist
             (max(1, min(int(limit), 500)),),
         )
         rows = await _maybe_await(cursor.fetchall())
         columns = [item[0] for item in (getattr(cursor, "description", None) or [])]
-        output: list[dict[str, Any]] = []
-        for row in rows or []:
-            item = _row_to_dict(row, columns)
-            try:
-                item["source_message_ids"] = json.loads(
-                    item.pop("source_message_ids_json", "[]")
-                )
-            except (TypeError, ValueError, json.JSONDecodeError):
-                item["source_message_ids"] = []
-            try:
-                item["analysis"] = json.loads(item.pop("analysis_json", "{}"))
-            except (TypeError, ValueError, json.JSONDecodeError):
-                item["analysis"] = {}
-            output.append(item)
-        return output
+        return [
+            decoded
+            for row in rows or []
+            if (decoded := _decode_analysis_row(row, columns or _ANALYSIS_COLUMNS))
+        ]
