@@ -28,7 +28,7 @@ jobs:
     permissions:
       contents: read
       deployments: write
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Deploy to Oracle VM and verify health
         id: oracle
@@ -77,6 +77,23 @@ jobs:
             set -euo pipefail
             OISHA_DIR="/home/ubuntu/oisha-os"
             cd "$OISHA_DIR"
+
+            restore_aux_services() {
+              sudo systemctl start docker.socket docker.service 2>/dev/null || true
+              sudo systemctl start n8n.service n8n-mcp.service oisha-web.service 2>/dev/null || true
+              sudo systemctl start telegram-mcp-upstream.service oisha-telegram-mcp-gateway.service 2>/dev/null || true
+              sudo systemctl start watchdog.service 2>/dev/null || true
+            }
+            trap restore_aux_services EXIT
+
+            # The production VM has only 1 GB RAM. Keep deploy-time package
+            # installation and boot from competing with optional workloads.
+            sudo systemctl stop watchdog.service oisha-os.service 2>/dev/null || true
+            sudo systemctl stop n8n.service n8n-mcp.service oisha-web.service 2>/dev/null || true
+            sudo systemctl stop oisha-telegram-mcp-gateway.service telegram-mcp-upstream.service 2>/dev/null || true
+            sudo systemctl stop docker.service docker.socket 2>/dev/null || true
+            sync
+            echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null
 
             mkdir -p data
             cp -a data/*.session /tmp/ 2>/dev/null || true
@@ -163,17 +180,16 @@ jobs:
             ENVFILE
             sed -i 's/^            //' .env
 
-            # Sync nginx config and reload (for /telegram-mcp SSE endpoint etc.)
-            echo "=== NGINX SITES-ENABLED FILES ==="
-            ls -la /etc/nginx/sites-enabled/ || true
-            for f in /etc/nginx/sites-enabled/*; do
-              if [ -f "$f" ] || [ -L "$f" ]; then
-                echo "=== FILE: $f ==="
-                sudo cat "$f" || true
-              fi
-            done
-            sudo cp deploy/nginx-oisha.conf /etc/nginx/sites-available/oisha
-            sudo nginx -t && sudo systemctl reload nginx || echo "WARN: nginx reload failed, continuing"
+            # Caddy owns ports 80/443 on Oracle. Keep nginx only as a dormant
+            # fallback and never race it against the active reverse proxy.
+            if systemctl is-active --quiet caddy; then
+              sudo caddy validate --config /etc/caddy/Caddyfile
+              sudo systemctl reload caddy
+            else
+              sudo cp deploy/nginx-oisha.conf /etc/nginx/sites-available/oisha
+              sudo nginx -t
+              sudo systemctl reload nginx
+            fi
 
             sudo sed -i '/^WatchdogSec=/d' /etc/systemd/system/oisha-os.service || true
             sudo mkdir -p /etc/systemd/system/oisha-os.service.d
@@ -188,12 +204,21 @@ jobs:
             KillSignal=SIGINT
             UNIT
             sudo sed -i 's/^            //' /etc/systemd/system/oisha-os.service.d/10-resilience.conf
+            sudo cp ops/oisha-production-priority.conf \
+              /etc/systemd/system/oisha-os.service.d/20-production-priority.conf
+            sudo cp ops/watchdog.service /etc/systemd/system/watchdog.service
+
+            # CI/deploy processes must yield CPU, IO and memory to production.
+            RUNNER_UNIT="actions.runner.baxtiyorjongaziyev-oisha-os.oracle-vm.service"
+            sudo mkdir -p "/etc/systemd/system/${RUNNER_UNIT}.d"
+            sudo cp ops/oracle-runner-production-guard.conf \
+              "/etc/systemd/system/${RUNNER_UNIT}.d/20-production-guard.conf"
             sudo systemctl daemon-reload
             sudo systemctl reset-failed oisha-os || true
             sudo systemctl restart oisha-os
 
             HEALTH_OK=0
-            for _ in $(seq 1 24); do
+            for _ in $(seq 1 120); do
               HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/readyz/ || echo 000)"
               if [ "$HTTP_CODE" = "200" ] && systemctl is-active --quiet oisha-os; then
                 HEALTH_OK=1
@@ -214,7 +239,7 @@ jobs:
             # window with retries, not a single brittle curl.
             sleep 25
             STABLE_OK=0
-            for _ in $(seq 1 12); do
+            for _ in $(seq 1 24); do
               HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/readyz/ || echo 000)"
               if [ "$HTTP_CODE" = "200" ] && systemctl is-active --quiet oisha-os; then
                 STABLE_OK=1

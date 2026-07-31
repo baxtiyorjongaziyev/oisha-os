@@ -22,11 +22,30 @@ def test_pr_ci_has_python_and_typescript_jobs_on_ubuntu():
     assert workflow["jobs"]["typescript-monorepo"]["runs-on"] == "ubuntu-latest"
 
 
-def test_trusted_main_job_is_push_only():
+def test_trusted_main_job_is_push_only_and_isolated_from_production():
     workflow = load_workflow("test.yml")
     trusted = workflow["jobs"]["trusted-main-tests"]
     assert "github.event_name == 'push'" in trusted["if"]
-    assert trusted["runs-on"] == ["self-hosted", "oracle"]
+    assert trusted["runs-on"] == "ubuntu-latest"
+
+
+def test_gitleaks_never_runs_on_production_oracle():
+    workflow = load_workflow("gitleaks.yml")
+    assert workflow["jobs"]["gitleaks"]["runs-on"] == "ubuntu-latest"
+
+
+def test_oracle_deploy_is_resource_guarded():
+    workflow = load_workflow("oracle-deploy.yml")
+    deploy = workflow["jobs"]["deploy"]
+    script = deploy["steps"][0]["run"]
+
+    assert deploy["runs-on"] == ["self-hosted", "oracle"]
+    assert deploy["timeout-minutes"] >= 20
+    assert "systemctl stop watchdog.service oisha-os.service" in script
+    assert "ops/oracle-runner-production-guard.conf" in script
+    assert "ops/oisha-production-priority.conf" in script
+    assert "systemctl is-active --quiet caddy" in script
+    assert "seq 1 120" in script
 
 
 def test_runner_diagnostic_has_action_free_github_hosted_probe():
