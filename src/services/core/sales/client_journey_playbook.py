@@ -8,6 +8,8 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from src.services.core.airtable_sync import AirtableSync
 from src.time_utils import get_local_now
+import logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -517,6 +519,7 @@ def render_excellence_report(
     try:
         airtable = AirtableSync()
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         airtable = None
 
     total_signals = len(sales_signals) + len(project_signals)

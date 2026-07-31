@@ -5,6 +5,8 @@ import re
 from typing import Any
 
 from .policy import classify_tool
+import logging
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_AGENT_IDS = frozenset({"antigravity", "claude", "codex"})
@@ -104,6 +106,7 @@ class GatewayService:
         try:
             await self.notifier.notify(operation)
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             await self.store.finish_notification_failure(operation.id, type(exc).__name__)
             raise RuntimeError("Owner approval notification failed") from exc
         return {

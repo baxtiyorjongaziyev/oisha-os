@@ -139,7 +139,7 @@ class HisobchiMCPServer:
                     try:
                         rows += ws.get_all_records()
                     except Exception:
-                        pass
+                        logger.error("Exception handled in %s", __name__, exc_info=True)
         recent = sorted(rows, key=lambda r: str(r.get("Sana", "")), reverse=True)[:limit]
         if not recent:
             return "Tranzaksiyalar yo'q."

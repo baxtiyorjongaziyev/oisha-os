@@ -55,6 +55,7 @@ def _row_get(row: Any, key: str, default: Any = None) -> Any:
             value = getter(key, default)
             return default if value is None else value
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return default
     return getattr(row, key, default)
 

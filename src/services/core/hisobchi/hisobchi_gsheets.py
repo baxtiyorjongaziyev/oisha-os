@@ -555,7 +555,7 @@ class HisobchiGsheetStore:
                     try:
                         ws.update_cell(1, trend_col, "Trend (UZS)")
                     except Exception:
-                        pass
+                        logger.error("Exception handled in %s", __name__, exc_info=True)
 
                 elif title == SHEET_BYUDJET:
                     # Byudjet holati dropdown
@@ -598,7 +598,7 @@ class HisobchiGsheetStore:
                         ws.update_cell(1, num_cols + 1, "Foyda %")
                         ws.update_cell(2, num_cols + 1, '=IF(E2>0,(D2/E2)*100,"")')
                     except Exception:
-                        pass
+                        logger.error("Exception handled in %s", __name__, exc_info=True)
 
                 elif title == SHEET_MAOSH:
                     requests.append({
@@ -722,14 +722,14 @@ class HisobchiGsheetStore:
                         try:
                             self.spreadsheet.batch_update({"requests": [req]})
                         except Exception:
-                            pass
+                            logger.error("Exception handled in %s", __name__, exc_info=True)
 
             for title, ws in self._worksheets.items():
                 if title == SHEET_QARZ:
                     try:
                         ws.format(f"1:{1}", {"textFormat": {"bold": True, "fontSize": 10}})
                     except Exception:
-                        pass
+                        logger.error("Exception handled in %s", __name__, exc_info=True)
         except Exception as exc:
             logger.warning("[HISOBCHI-GS] Formatting skipped: %s", exc)
 
@@ -751,6 +751,7 @@ class HisobchiGsheetStore:
         try:
             rows = ws.get_all_records()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             rows = []
 
         if sheet_name == SHEET_XOTIRA:
@@ -828,6 +829,7 @@ class HisobchiGsheetStore:
             cell = ws.find(str(value), in_column=col_idx)
             return cell.row if cell else None
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return None
 
     def _update_row(self, sheet_name: str, row_num: int, values: dict):
@@ -1336,6 +1338,7 @@ class HisobchiGsheetStore:
         try:
             rows = ws.get_all_records()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return []
         result = []
         for r in rows:
@@ -1429,6 +1432,7 @@ class HisobchiGsheetStore:
         try:
             rows = ws.get_all_records()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return []
         result = []
         for r in rows:
@@ -1498,6 +1502,7 @@ class HisobchiGsheetStore:
         try:
             rows = ws.get_all_records()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"total": 0, "oylik": 0, "avans": 0, "bonus": 0, "entries": []}
         total = 0
         oylik = 0
@@ -1563,6 +1568,7 @@ class HisobchiGsheetStore:
         try:
             rows = ws.get_all_records()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {}
         rates = {}
         for r in rows:
@@ -1601,6 +1607,7 @@ class HisobchiGsheetStore:
         try:
             rows = ws.get_all_records()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return []
         result = []
         for r in rows:
@@ -1642,6 +1649,7 @@ class HisobchiGsheetStore:
         try:
             rows = ws.get_all_records()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return []
         result = []
         for r in rows:

@@ -62,6 +62,7 @@ class AIPortal:
                 res = requests.post(url, headers=headers, json=data, timeout=20)
                 return res.json()["choices"][0]["message"]["content"]
             except:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 return "OpenAI bilan bog'lanib bo'lmadi."
 
         elif platform.lower() == "claude":
@@ -81,6 +82,7 @@ class AIPortal:
                 res = requests.post(url, headers=headers, json=data, timeout=20)
                 return res.json()["content"][0]["text"]
             except:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 return "Claude bilan bog'lanib bo'lmadi."
 
         return "Unknown platforma."

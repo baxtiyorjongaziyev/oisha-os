@@ -790,7 +790,7 @@ async def check_airtable_deadlines():
         try:
             await db.mark_job_run(job_key, today)
         except Exception:
-            pass
+            logger.error("Exception handled in %s", __name__, exc_info=True)
         return
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)

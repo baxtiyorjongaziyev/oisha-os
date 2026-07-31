@@ -184,7 +184,7 @@ async def session_keepalive_loop(
                                 f"Reconnect manager ishga tushadi."
                             )
                         except Exception:
-                            pass
+                            logger.error("Exception handled in %s", __name__, exc_info=True)
                 else:
                     logger.warning("[SESSION_KEEPER] Ping xatosi (davom etadi): %s", exc)
                 continue

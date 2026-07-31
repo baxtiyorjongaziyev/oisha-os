@@ -138,6 +138,7 @@ async def export_to_google_sheets(
     try:
         existing_ids = set(sheet.col_values(1))
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         existing_ids = set()
 
     # Yangi qatorlarni tayyorlash
