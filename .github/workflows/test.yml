@@ -40,15 +40,10 @@ concurrency:
   group: ci-test-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Workflow-level default: read-only. These jobs run pull-request code
-# (pytest, lint, typecheck) and need no write access to the repo.
 permissions:
   contents: read
 
 jobs:
-  # Qaysi ekotizim o'zgarganini aniqlaymiz. Workflow path filtri butun run
-  # darajasida ishlaydi, job darajasida emas — usiz Python-only o'zgarish ham
-  # TypeScript job'ini ishga tushiradi va u yiqilsa CI doim qizil qoladi.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -159,7 +154,7 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
         with:
-          version: 9.15.0
+          version: 10.33.2
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
