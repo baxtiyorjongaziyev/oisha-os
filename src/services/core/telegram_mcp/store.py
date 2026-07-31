@@ -5,7 +5,7 @@ import hashlib
 import json
 import secrets
 import sqlite3
-from contextlib import closing
+from contextlib import nullcontext as closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -43,12 +43,9 @@ class ApprovalStore:
         self.path = Path(path)
         self._lock = asyncio.Lock()
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=15, isolation_level=None)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA foreign_keys=ON")
-        return connection
+    def _connect(self):
+        from src.database_pool import db_pool
+        return db_pool.get_connection()
 
     async def initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
