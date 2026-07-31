@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
+import pytest_asyncio
 
 from src.services.core.telegram_salescoach_store import (
     ConversationAnalysisRecord,
@@ -20,7 +21,7 @@ class FakeDatabase:
         return self.connection
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def store():
     db = FakeDatabase()
     instance = TelegramSalesCoachStore(db)
