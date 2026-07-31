@@ -193,20 +193,14 @@ def get_storage_health(
 
         try:
             if exists:
-                # Health-only, read-only row counts. Intentionally a direct
-                # sqlite3 read (not the async pool): this runs in the health
-                # endpoint and must not depend on the async DB being up.
-                conn = sqlite3.connect(str(resolved_path))
+                from src.database_pool import db_pool
                 try:
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT COUNT(*) FROM scheduled_jobs")
-                    scheduler_rows = int(cursor.fetchone()[0])
-                    cursor.execute("SELECT COUNT(*) FROM kv_settings")
-                    kv_rows = int(cursor.fetchone()[0])
-                    cursor.execute("SELECT COUNT(*) FROM agent_actions")
-                    agent_action_rows = int(cursor.fetchone()[0])
-                finally:
-                    conn.close()
+                    conn = db_pool.get_connection()
+                    scheduler_rows = int(conn.execute("SELECT COUNT(*) FROM scheduled_jobs").fetchone()[0])
+                    kv_rows = int(conn.execute("SELECT COUNT(*) FROM kv_settings").fetchone()[0])
+                    agent_action_rows = int(conn.execute("SELECT COUNT(*) FROM agent_actions").fetchone()[0])
+                except Exception as e:
+                    error = str(e)
         except Exception as exc:
             error = str(exc)
 

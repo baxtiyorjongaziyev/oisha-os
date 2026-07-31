@@ -587,12 +587,10 @@ class CRMDailyReporter:
         WAL lock contention with the async pool. All access funnels through
         here so there is exactly one raw ``sqlite3.connect`` in this module.
         """
-        os.makedirs(os.path.dirname(self._db_path) if os.path.dirname(self._db_path) else ".", exist_ok=True)
-        conn = sqlite3.connect(self._db_path)
-        try:
-            yield conn
-        finally:
-            conn.close()
+        from src.database_pool import db_pool
+        conn = db_pool.get_connection()
+        # Yield the global connection, do not close it
+        yield conn
 
     def _ensure_db(self) -> None:
         with self._history_conn() as conn:
