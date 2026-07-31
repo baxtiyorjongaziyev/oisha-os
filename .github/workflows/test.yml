@@ -12,6 +12,7 @@ on:
       - 'tests/**'
       - 'apps/**'
       - 'packages/**'
+      - 'salescoach-ai/**'
       - 'requirements*.txt'
       - 'pyproject.toml'
       - 'package.json'
@@ -26,6 +27,7 @@ on:
       - 'tests/**'
       - 'apps/**'
       - 'packages/**'
+      - 'salescoach-ai/**'
       - 'requirements*.txt'
       - 'pyproject.toml'
       - 'package.json'
@@ -52,6 +54,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       typescript: ${{ steps.filter.outputs.typescript }}
+      salescoach_ai: ${{ steps.filter.outputs.salescoach_ai }}
     steps:
       - uses: actions/checkout@v7
 
@@ -66,6 +69,9 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
+              - '.github/workflows/test.yml'
+            salescoach_ai:
+              - 'salescoach-ai/**'
               - '.github/workflows/test.yml'
 
   pull-request-tests:
@@ -137,6 +143,39 @@ jobs:
 
       - name: Build workspace
         run: pnpm run build
+
+  salescoach-ai:
+    name: SalesCoach AI checks
+    needs: changes
+    if: needs.changes.outputs.salescoach_ai == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: salescoach-ai
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 9.15.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: salescoach-ai/pnpm-lock.yaml
+
+      - name: Install SalesCoach workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run API contract tests
+        run: pnpm --filter @salescoach/api test -- negotiations.controller.spec.ts negotiations.service.spec.ts --runInBand
+
+      - name: Typecheck SalesCoach API
+        run: pnpm --filter @salescoach/api run type-check
 
   trusted-main-tests:
     if: github.event_name == 'push'
