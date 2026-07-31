@@ -1,7 +1,7 @@
 # Oisha-OS continuous integration.
 # Security boundary: untrusted pull-request code must never execute on the
-# production Oracle runner. PRs use isolated GitHub-hosted runners; only
-# trusted pushes to main/master may use the production-labelled runner.
+# production Oracle runner. Both PR and trusted-main validation use isolated
+# GitHub-hosted runners; the Oracle runner is reserved for deployment only.
 name: CI - Oisha-OS
 
 on:
@@ -109,7 +109,7 @@ jobs:
 
   trusted-main-tests:
     if: github.event_name == 'push'
-    runs-on: [self-hosted, oracle]
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
       SKIP_LIVE: "1"

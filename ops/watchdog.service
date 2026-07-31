@@ -11,7 +11,7 @@ Environment=PYTHONPATH=.
 Environment=PYTHONIOENCODING=utf-8
 Environment=OISHA_SYSTEMD_SERVICE=oisha-os
 Environment=OISHA_HEALTH_URL=http://127.0.0.1:8080/healthz/
-Environment=OISHA_STARTUP_GRACE_SECONDS=180
+Environment=OISHA_STARTUP_GRACE_SECONDS=900
 ExecStart=/home/ubuntu/oisha-os/venv/bin/python -u src/services/watchdog.py
 Restart=always
 RestartSec=5
