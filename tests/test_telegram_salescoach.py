@@ -75,6 +75,7 @@ def dependencies():
     )
     writer = SimpleNamespace(apply_analysis=AsyncMock(return_value=[]))
     loader = AsyncMock(return_value=make_messages())
+    message_loader = SimpleNamespace(load=loader)
     personal_checker = AsyncMock(return_value=False)
     approval_notifier = SimpleNamespace(send=AsyncMock())
     coach = TelegramSalesCoach(
@@ -82,7 +83,7 @@ def dependencies():
         salescoach_sync=sync,
         crm_matcher=matcher,
         task_writer=writer,
-        message_loader=loader,
+        message_loader=message_loader,
         personal_sender_checker=personal_checker,
         internal_user_ids={900},
         approval_notifier=approval_notifier,
