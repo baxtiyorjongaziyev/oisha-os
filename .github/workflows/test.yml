@@ -38,6 +38,11 @@ concurrency:
   group: ci-test-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Workflow-level default: read-only. These jobs run pull-request code
+# (pytest, lint, typecheck) and need no write access to the repo.
+permissions:
+  contents: read
+
 jobs:
   # Qaysi ekotizim o'zgarganini aniqlaymiz. Workflow path filtri butun run
   # darajasida ishlaydi, job darajasida emas — usiz Python-only o'zgarish ham

@@ -16,6 +16,12 @@ concurrency:
   group: oracle-production-deploy
   cancel-in-progress: true
 
+# Workflow-level default: read-only. import-guard runs pull-request-adjacent
+# code (compileall/pytest against checked-out src); it needs no write access.
+# The deploy job overrides this with the write scopes it actually needs.
+permissions:
+  contents: read
+
 env:
   OWNER_ID: "150074828"
 
