@@ -66,6 +66,16 @@ def _normalized_text(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip().casefold()
 
 
+def _note_text(note: Mapping[str, Any]) -> str:
+    direct = note.get("text")
+    if direct:
+        return str(direct)
+    params = note.get("params")
+    if isinstance(params, Mapping):
+        return str(params.get("text") or "")
+    return ""
+
+
 def _extract_id(value: Any) -> str:
     if isinstance(value, Mapping):
         direct = value.get("id")
@@ -83,7 +93,12 @@ def _extract_id(value: Any) -> str:
     return str(item_id) if item_id is not None else ""
 
 
-def _analysis_value(analysis: Mapping[str, Any], camel: str, snake: str, default: Any) -> Any:
+def _analysis_value(
+    analysis: Mapping[str, Any],
+    camel: str,
+    snake: str,
+    default: Any,
+) -> Any:
     if camel in analysis:
         return analysis[camel]
     if snake in analysis:
@@ -131,7 +146,10 @@ class SalesCoachTaskWriter:
 
         next_day = _next_business_day(
             (now + timedelta(days=1)).replace(
-                hour=10, minute=0, second=0, microsecond=0
+                hour=10,
+                minute=0,
+                second=0,
+                microsecond=0,
             )
         )
         return int(next_day.timestamp())
@@ -152,21 +170,34 @@ class SalesCoachTaskWriter:
     ) -> tuple[str, bool]:
         notes = await self.amocrm.list_notes(lead_id)
         for note in notes or []:
-            if conversation_fingerprint in str(note.get("text", "")):
+            if conversation_fingerprint in _note_text(note):
                 return _extract_id(note), True
 
-        score = int(_analysis_value(analysis, "overallScore", "overall_score", 0) or 0)
-        intent = str(_analysis_value(analysis, "clientIntent", "client_intent", "cold"))
-        risk = str(_analysis_value(analysis, "dealRisk", "deal_risk", "medium"))
+        score = int(
+            _analysis_value(analysis, "overallScore", "overall_score", 0) or 0
+        )
+        intent = str(
+            _analysis_value(analysis, "clientIntent", "client_intent", "cold")
+        )
+        risk = str(
+            _analysis_value(analysis, "dealRisk", "deal_risk", "medium")
+        )
         next_action = str(
             _analysis_value(analysis, "nextBestAction", "next_best_action", "")
         )
         objections = _analysis_value(analysis, "objections", "objections", [])
         evidence = _analysis_value(
-            analysis, "evidenceMessageIds", "evidence_message_ids", []
+            analysis,
+            "evidenceMessageIds",
+            "evidence_message_ids",
+            [],
         )
         objection_text = ", ".join(str(item) for item in objections or []) or "yo'q"
-        evidence_text = ",".join(str(int(item)) for item in evidence or [] if str(item).isdigit())
+        evidence_text = ",".join(
+            str(int(item))
+            for item in evidence or []
+            if str(item).isdigit()
+        )
         note_text = (
             "[OISHA_SALESCOACH]\n"
             f"Score: {max(0, min(score, 100))}/100\n"
@@ -182,7 +213,7 @@ class SalesCoachTaskWriter:
 
         refreshed = await self.amocrm.list_notes(lead_id)
         verified = any(
-            conversation_fingerprint in str(note.get("text", ""))
+            conversation_fingerprint in _note_text(note)
             for note in (refreshed or [])
         )
         return note_id, verified
@@ -260,7 +291,10 @@ class SalesCoachTaskWriter:
             ]
 
         recommendations = _analysis_value(
-            analysis, "recommendedTasks", "recommended_tasks", []
+            analysis,
+            "recommendedTasks",
+            "recommended_tasks",
+            [],
         )
         if not isinstance(recommendations, list):
             return []
@@ -282,7 +316,9 @@ class SalesCoachTaskWriter:
                 continue
 
             key = task_idempotency_key(
-                lead_id, task_type, conversation_fingerprint
+                lead_id,
+                task_type,
+                conversation_fingerprint,
             )
             if await self.store.task_key_exists(key):
                 results.append(
