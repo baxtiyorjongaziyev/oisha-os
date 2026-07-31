@@ -11,8 +11,12 @@ import time
 import types
 from typing import Optional, Tuple
 
-import mss
-import mss.tools
+try:
+    import mss
+    import mss.tools
+except ImportError as e:
+    # mss yo'q bo'lsa kutubxonani shim qilamiz
+    mss = None
 
 
 class _UnavailablePyAutoGUI(types.ModuleType):
