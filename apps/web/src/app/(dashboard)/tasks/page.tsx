@@ -28,7 +28,7 @@ export default async function TasksDashboard() {
 
       {!stats ? (
         <div className="border border-rose-300 bg-rose-50 p-4 rounded-xl text-sm text-rose-700">
-          Real vazifalar statistikasi topilmadi. Backend bilan aloqa yo'q.
+          Real vazifalar statistikasi topilmadi. Backend bilan aloqa yo&apos;q.
         </div>
       ) : null}
 
@@ -56,7 +56,7 @@ export default async function TasksDashboard() {
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
               <th className="px-6 py-3">Vazifa nomi</th>
-              <th className="px-6 py-3">Mas'ul xodim</th>
+              <th className="px-6 py-3">Mas&apos;ul xodim</th>
               <th className="px-6 py-3">Muhimlik</th>
               <th className="px-6 py-3">Holat</th>
               <th className="px-6 py-3">Muddat</th>

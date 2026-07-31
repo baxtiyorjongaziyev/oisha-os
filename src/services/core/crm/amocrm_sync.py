@@ -48,6 +48,19 @@ def retry_with_backoff(
     return decorator
 
 
+def _plain_secret(value: Any) -> Any:
+    """Pydantic SecretStr'ni oddiy matnga aylantiradi.
+
+    OAuth so'rovlari client_secret'ni JSON yoki form body'da yuboradi.
+    SecretStr obyekti JSON-serializable emas, form-encoding'da esa
+    '**********' ko'rinishida maskalanadi — ikkala holatda ham auth jim
+    yiqiladi. Chaqiruvchilarning bir qismi settings'dan xom SecretStr uzatadi,
+    shuning uchun normallashtirishni shu yerda, bitta joyda qilamiz.
+    """
+    getter = getattr(value, "get_secret_value", None)
+    return getter() if callable(getter) else value
+
+
 class AmoCRMSync:
     CLOSED_LEAD_STATUS_IDS = frozenset({142, 143})
 
@@ -61,7 +74,7 @@ class AmoCRMSync:
     ):
         self.subdomain = subdomain
         self.client_id = client_id
-        self.client_secret = client_secret
+        self.client_secret = _plain_secret(client_secret)
         self.redirect_url = redirect_url
         self.token_file = token_file
         self.base_url = f"https://{subdomain}.amocrm.ru"

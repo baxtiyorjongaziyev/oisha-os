@@ -43,8 +43,10 @@ async function getSector(request: Request, env: Env): Promise<string> {
     const data: any = await aiResp.json();
     const sector = (data?.result?.response || '').trim().toLowerCase();
     if (SECTOR_HEROES[sector]) return sector;
-  } catch {
-    // AI Gateway unreachable or errored — fall through to 'unknown'.
+  } catch (err) {
+    // Sektor aniqlash — best-effort. AI yiqilsa yoki javob kutilmagan bo'lsa,
+    // so'rovni to'xtatmaymiz: quyida 'unknown' qaytadi va default hero ishlatiladi.
+    console.warn('[edge_personalizer] sector detection failed:', err);
   }
 
   return 'unknown';
