@@ -103,7 +103,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Keyboard shortcut for search "/"
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable;
+
+      if (e.key === "/" && !isInput) {
         e.preventDefault();
         setSearchOpen(true);
       }
