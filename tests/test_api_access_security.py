@@ -279,7 +279,12 @@ def test_auth_service_rejects_weak_session_secret():
 
 
 def test_internal_mcp_denies_access_when_secret_is_unconfigured(monkeypatch):
+    from src.settings import settings
+
     monkeypatch.delenv("OISHA_API_SECRET", raising=False)
+    # settings .env fayldan qiymat olgan bo'lishi mumkin — "sozlanmagan"
+    # holatni sinash uchun ikkala manbani ham tozalaymiz.
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "", raising=False)
     request = Request(
         {
             "type": "http",
@@ -324,3 +329,54 @@ def test_config_can_use_api_secret_for_session_until_dedicated_key_exists(monkey
     monkeypatch.setenv("OISHA_API_SECRET", STRONG_API_SECRET)
 
     assert config.JWT_SECRET == STRONG_API_SECRET
+
+
+def test_auth_settings_are_declared_on_settings_model():
+    """security.py bu nomlarni settings'dan o'qiydi — maydonlar e'lon bo'lishi shart.
+
+    Maydon yo'q bo'lsa getattr(...) jimgina "" qaytaradi va butun HTTP auth
+    (Bearer token, JWT cookie, proxy rol xaritasi) ishlamay qoladi — 401
+    hamma joyda, hech qanday xato logisiz.
+    """
+    from src.settings import AppSettings
+
+    for name in (
+        "OISHA_API_SECRET",
+        "JWT_SECRET",
+        "OISHA_SERVICE_TOKENS_JSON",
+        "OISHA_PROXY_ROLE_MAP_JSON",
+    ):
+        assert name in AppSettings.model_fields, f"{name} settings'da e'lon qilinmagan"
+
+
+def test_auth_setting_prefers_runtime_env(monkeypatch):
+    """settings jarayon boshida yuklanadi; keyingi env o'zgarishi ko'rinishi kerak."""
+    from src.api.security import _auth_setting
+
+    monkeypatch.setenv("OISHA_API_SECRET", STRONG_API_SECRET)
+    assert _auth_setting("OISHA_API_SECRET") == STRONG_API_SECRET
+
+    monkeypatch.setenv("OISHA_API_SECRET", "  spaced-secret-value-thirty-two-b  ")
+    assert _auth_setting("OISHA_API_SECRET") == "spaced-secret-value-thirty-two-b"
+
+
+def test_auth_setting_falls_back_to_settings(monkeypatch):
+    """Env bo'lmasa settings qiymati ishlatiladi."""
+    from src.api.security import _auth_setting
+    from src.settings import settings
+
+    monkeypatch.delenv("OISHA_API_SECRET", raising=False)
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", STRONG_API_SECRET, raising=False)
+
+    assert _auth_setting("OISHA_API_SECRET") == STRONG_API_SECRET
+
+
+def test_auth_setting_returns_empty_when_unset(monkeypatch):
+    """Na env, na settings bo'lmasa bo'sh qator — auth fail-closed bo'ladi."""
+    from src.api.security import _auth_setting
+    from src.settings import settings
+
+    monkeypatch.delenv("OISHA_API_SECRET", raising=False)
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "", raising=False)
+
+    assert _auth_setting("OISHA_API_SECRET") == ""

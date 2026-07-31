@@ -21,19 +21,21 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install Telethon
-        run: pip install telethon==1.36.0
+        run: pip install telethon==1.36.0 pynacl
 
       - name: Auth — SMS yuborish va polling
         env:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_ADMIN_PAT: ${{ secrets.REPO_ADMIN_PAT }}
           TG_PHONE: ${{ secrets.TG_PHONE }}
           TG_PASSWORD: ${{ secrets.TG_PASSWORD }}
         run: |
           python3 - <<'PYEOF'
-          import asyncio, os, time, json, base64, subprocess
+          import asyncio, os, time, json, base64
           import urllib.request, urllib.error
+          from nacl import encoding, public
           from telethon import TelegramClient
           from telethon.errors import SessionPasswordNeededError
           from telethon.sessions import StringSession
@@ -42,15 +44,18 @@ jobs:
           PHONE = os.environ.get("TG_PHONE", "+998336450097")
           TG_PASSWORD = os.environ.get("TG_PASSWORD", "")
           GH_TOKEN = os.environ["GH_TOKEN"]
+          # Secrets API (unlike Variables) requires admin-level repo permissions
+          # that the default GITHUB_TOKEN doesn't have — a separate PAT is
+          # needed to write the session into a real (masked, encrypted) secret.
+          REPO_ADMIN_PAT = os.environ.get("REPO_ADMIN_PAT", "")
           REPO = "baxtiyorjongaziyev/oisha-os"
           CODE_FILE = "data/sms_code_input.txt"
-          SESSION_FILE = "data/session_output.txt"
 
-          def gh_request(method, path, data=None):
+          def gh_request(method, path, data=None, token=None):
               url = f"https://api.github.com{path}"
               body = json.dumps(data).encode() if data else None
               req = urllib.request.Request(url, data=body, method=method, headers={
-                  "Authorization": f"Bearer {GH_TOKEN}",
+                  "Authorization": f"Bearer {token or GH_TOKEN}",
                   "Accept": "application/vnd.github+json",
                   "Content-Type": "application/json",
               })
@@ -67,27 +72,28 @@ jobs:
                   return base64.b64decode(data["content"]).decode().strip(), data.get("sha", "")
               return None, None
 
-          def push_file_to_repo(path, content_str, message):
-              existing, sha = get_repo_file(path)
-              payload = {
-                  "message": message,
-                  "content": base64.b64encode(content_str.encode()).decode(),
-                  "committer": {"name": "GitHub Actions", "email": "actions@github.com"},
-              }
-              if sha:
-                  payload["sha"] = sha
-              _, status = gh_request("PUT", f"/repos/{REPO}/contents/{path}", payload)
-              return status
-
-          def set_actions_variable(name, value):
-              # Try PATCH (update existing)
-              _, status = gh_request("PATCH", f"/repos/{REPO}/actions/variables/{name}",
-                                     {"name": name, "value": value})
-              if status == 204:
-                  return 204
-              # Try POST (create new)
-              _, status = gh_request("POST", f"/repos/{REPO}/actions/variables",
-                                     {"name": name, "value": value})
+          def set_actions_secret(name, value):
+              if not REPO_ADMIN_PAT:
+                  raise RuntimeError(
+                      "REPO_ADMIN_PAT not set — cannot write a real Actions "
+                      "secret. Refusing to fall back to an Actions Variable "
+                      "(unmasked, not encrypted at rest)."
+                  )
+              key_data, status = gh_request(
+                  "GET", f"/repos/{REPO}/actions/secrets/public-key", token=REPO_ADMIN_PAT
+              )
+              if status != 200:
+                  raise RuntimeError(f"Failed to fetch secrets public key: {status}")
+              public_key = public.PublicKey(key_data["key"], encoding.Base64Encoder())
+              sealed_box = public.SealedBox(public_key)
+              encrypted = base64.b64encode(sealed_box.encrypt(value.encode())).decode()
+              _, status = gh_request(
+                  "PUT", f"/repos/{REPO}/actions/secrets/{name}",
+                  {"encrypted_value": encrypted, "key_id": key_data["key_id"]},
+                  token=REPO_ADMIN_PAT,
+              )
+              if status not in (201, 204):
+                  raise RuntimeError(f"Failed to write secret {name}: {status}")
               return status
 
           async def main():
@@ -135,19 +141,16 @@ jobs:
               session = client.session.save()
               print(f"\nLOGIN OK: {me.first_name} (@{me.username})")
 
-              # 1. Save to Actions Variable (PATCH or POST)
-              status = set_actions_variable("USERBOT_SESSION_STRING", session)
-              print(f"Actions Variable status: {status}")
+              # Save to a real Actions Secret (encrypted, masked in logs).
+              # Never commit the session string to the repo (git history) —
+              # a leaked session string is a standing account-takeover risk
+              # that git history rewrite cannot undo once pushed. Fail loudly
+              # rather than fall back to an Actions Variable so the SMS code
+              # file only gets cleaned up once the secret write is confirmed.
+              status = set_actions_secret("USERBOT_SESSION_STRING", session)
+              print(f"Actions Secret status: {status}")
 
-              # 2. Save to private repo file (backup — repo is private)
-              file_status = push_file_to_repo(
-                  SESSION_FILE,
-                  session,
-                  "auth: save new userbot session string [auto]"
-              )
-              print(f"File commit status: {file_status}")
-
-              # 3. Clean up code file
+              # Clean up code file
               _, sha = get_repo_file(CODE_FILE)
               if sha:
                   gh_request("DELETE", f"/repos/{REPO}/contents/{CODE_FILE}", {

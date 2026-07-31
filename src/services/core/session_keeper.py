@@ -27,7 +27,13 @@ KEEPALIVE_INTERVAL_SECS = 300  # 5 daqiqada bir ping
 
 
 def _read_session_string_from_file(path: Optional[str] = None) -> Optional[str]:
-    """Fayldan session string o'qish."""
+    """Fayldan session string o'qish.
+
+    `path=None` bo'lsa modul darajasidagi SESSION_STRING_FILE chaqiruv paytida
+    o'qiladi. Default argument sifatida yozib bo'lmaydi: Python uni funksiya
+    e'lon qilinganda bir marta hisoblaydi, natijada yo'lni keyin o'zgartirish
+    (monkeypatch yoki runtime konfiguratsiya) e'tiborsiz qolardi.
+    """
     if path is None:
         path = SESSION_STRING_FILE
     try:
@@ -42,7 +48,11 @@ def _read_session_string_from_file(path: Optional[str] = None) -> Optional[str]:
 
 
 def _write_session_string_to_file(string: str, path: Optional[str] = None) -> bool:
-    """Session string ni faylga yozish."""
+    """Session string ni faylga yozish.
+
+    `path=None` bo'lsa SESSION_STRING_FILE chaqiruv paytida o'qiladi
+    (sababi _read_session_string_from_file izohida).
+    """
     if path is None:
         path = SESSION_STRING_FILE
     try:

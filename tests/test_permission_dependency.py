@@ -8,7 +8,10 @@ from src.api.rbac import Permission, require_permissions
 from src.api.security import ApiAccessMiddleware
 
 
-SECRET = "permission-test-secret-with-at-least-32-bytes"
+# Test uchun to'qib chiqarilgan qator — haqiqiy kalit emas. Uzunligi HS256
+# talabidan (32 bayt) kelib chiqqan, shu sababli gitleaks uni generic-api-key
+# deb belgilaydi.
+SECRET = "permission-test-secret-with-at-least-32-bytes"  # gitleaks:allow
 
 
 def _cookie(role: str, subject: str = "user-1") -> dict[str, str]:

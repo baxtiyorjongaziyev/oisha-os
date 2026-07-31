@@ -4,6 +4,23 @@
 [extend]
 useDefault = true
 
+# Telethon StringSession — grants full account access (messages, contacts,
+# 2FA-bypass-equivalent). StringSession.encode() emits a URL-safe base64
+# blob (alphabet includes -_, no padding) that starts with a version byte
+# ("1" for the current StringSession version) followed by a DC id, server
+# address, port, and 256-byte auth key — consistently ~350-360 chars for a
+# real session. Anchored to that length band (not "250+ chars anywhere")
+# to avoid matching unrelated long base64 blobs (encoded source files,
+# OAuth codes, etc — see PR #373 review history for false positives this
+# caused with a looser pattern). This repo has leaked a real session via a
+# GitHub Actions workflow that committed it to a tracked file — see
+# .github/workflows/complete-auth.yml.
+[[rules]]
+id = "telethon-session-string"
+description = "Telethon/Telegram StringSession"
+regex = '''\b1[A-Za-z0-9_-]{340,370}\b'''
+tags = ["telegram", "session"]
+
 [allowlist]
 description = "Non-secret identifiers and pre-existing historical commits"
 # Airtable BASE IDs are public identifiers that appear in Airtable URLs.
@@ -55,4 +72,21 @@ commits = [
   # WARNING: this token has NOT been rotated — owner should replace it
   # with an env var (GITHUB_TOKEN) and revoke the PAT in GitHub settings.
   "565feba245e44a645639089012e84a23eccb643d",
+  # tests/test_permission_dependency.py:11 — "permission-test-secret-with-at-
+  # least-32-bytes". Haqiqiy kalit emas: HS256 uchun 32 bayt kerak bo'lgani
+  # uchun shunday yozilgan test fixture'i. Ishchi nusxada `gitleaks:allow`
+  # izohi bor, lekin gitleaks butun tarixni skanеr qiladi va bu ikki
+  # commitdagi eski nusxani baribir topadi.
+  "ebc651aa926a179805f0b91498907c3274002430",
+  "d50adbe7ba14289c0809c9a5db9671573e1fcc0b",
+  # Same test_permission_dependency.py fixture, another historical commit —
+  # surfaced once gitleaks finally ran to completion on ubuntu-latest
+  # (previously it never finished on the memory-starved Oracle runner).
+  "f2cf4d8588ed5333981bb5ad83d671c10fc0397f",
+  # Same unrotated GitHub PAT as 565feba2 above (scripts/get_logs.py), a
+  # different historical commit touching the same line.
+  "4bf5daff5defc83780b5556d698ff58b289561fa",
+  # deploy/OISHA_WEB_DEPLOY.md — `curl -u oisha:PAROL ...`. "PAROL" is the
+  # literal placeholder text (Uzbek for "password"), not a real credential.
+  "f9127223032f7850f1f92fb118317e5455fe9f92",
 ]

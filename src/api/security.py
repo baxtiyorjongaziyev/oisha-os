@@ -59,12 +59,25 @@ def _is_strong_session_secret(value: str) -> bool:
     return len(value.encode("utf-8")) >= _MIN_SESSION_SECRET_BYTES
 
 
-def _session_secret() -> str:
+def _auth_setting(name: str) -> str:
+    """Auth sozlamasini o'qish — env ustun, keyin settings.
+
+    `settings` jarayon boshida bir marta yuklanadi, shuning uchun keyin
+    o'rnatilgan env qiymatini (deploy skriptlari, testlardagi monkeypatch)
+    ko'rmaydi. Env'ni birinchi tekshirish shu farqni yopadi va sozlama
+    faqat bir joyda e'lon qilingan bo'lib qoladi.
+    """
     from src.settings import settings
+
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        raw = getattr(settings, name, "")
+    return _clean(raw)
+
+
+def _session_secret() -> str:
     """Use a strong non-Telegram key for browser sessions."""
-    candidate = _clean(
-        getattr(settings, "JWT_SECRET", "") or getattr(settings, "OISHA_API_SECRET", "")
-    )
+    candidate = _auth_setting("JWT_SECRET") or _auth_setting("OISHA_API_SECRET")
     return candidate if _is_strong_session_secret(candidate) else ""
 
 
@@ -152,18 +165,16 @@ def authorize_request_values(
 
 
 def authorize_connection(connection: HTTPConnection) -> Optional[Principal]:
-    from src.settings import settings
-
     client_host = connection.client.host if connection.client else ""
     return authorize_request_values(
         authorization=connection.headers.get("Authorization", ""),
-        api_secret=getattr(settings, "OISHA_API_SECRET", "") or "",
+        api_secret=_auth_setting("OISHA_API_SECRET"),
         proxy_user=connection.headers.get("X-Oisha-Authenticated-User", ""),
         client_host=client_host,
         session_token=connection.cookies.get("oisha_token", ""),
         jwt_secret=_session_secret(),
-        service_tokens_json=getattr(settings, "OISHA_SERVICE_TOKENS_JSON", "") or "",
-        proxy_role_map_json=getattr(settings, "OISHA_PROXY_ROLE_MAP_JSON", "") or "",
+        service_tokens_json=_auth_setting("OISHA_SERVICE_TOKENS_JSON"),
+        proxy_role_map_json=_auth_setting("OISHA_PROXY_ROLE_MAP_JSON"),
     )
 
 
