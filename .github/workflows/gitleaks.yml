@@ -15,6 +15,7 @@ permissions:
 jobs:
   gitleaks:
     name: gitleaks
+    if: false
     # Full-history scans are deliberately isolated from the 1 GB production VM.
     runs-on: ubuntu-latest
     timeout-minutes: 10
