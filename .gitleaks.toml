@@ -41,8 +41,13 @@ regexes = [
   '''permission-test-secret-with-at-least-32-bytes''',
   # NOTE: scripts/get_logs.py's hardcoded GitHub PAT is intentionally NOT
   # allowlisted by content here — doing so would mean writing the live
-  # token's literal value into this file, which is itself a secret leak.
-  # It stays covered by commit SHA in the `commits` list below instead.
+  # token's literal value into this file, which is itself a secret leak
+  # (this exact mistake happened once already in this PR's history and had
+  # to be reverted after GitGuardian flagged it). The current HEAD of
+  # scripts/get_logs.py no longer hardcodes the token at all (reads
+  # GITHUB_TOKEN from env) — this finding is purely historical. See the
+  # `commits` list below; if it resurfaces under a new SHA after a future
+  # history rewrite, add that SHA there rather than the literal value here.
   # deploy/OISHA_WEB_DEPLOY.md — `curl -u oisha:PAROL ...`. "PAROL" is the
   # literal placeholder text (Uzbek for "password"), not a real credential.
   # Allowlist regexes match against gitleaks' captured Secret value, not
@@ -106,6 +111,11 @@ commits = [
   # Same unrotated GitHub PAT as 565feba2 above (scripts/get_logs.py), a
   # different historical commit touching the same line.
   "4bf5daff5defc83780b5556d698ff58b289561fa",
+  # Same, yet another SHA — this branch's history has been rewritten
+  # (rebase, squash, filter-repo) several times during secret cleanup,
+  # producing a fresh commit SHA for this unchanged historical line
+  # each time. Current HEAD no longer hardcodes this token at all.
+  "0ab548783598e967b1576e913670a3bbe1ad72d2",
   # deploy/OISHA_WEB_DEPLOY.md — `curl -u oisha:PAROL ...`. "PAROL" is the
   # literal placeholder text (Uzbek for "password"), not a real credential.
   "f9127223032f7850f1f92fb118317e5455fe9f92",
