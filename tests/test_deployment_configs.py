@@ -31,6 +31,7 @@ def test_systemd_service_files_exist_and_valid():
     assert "WorkingDirectory=" in watchdog_content
     assert "ExecStart=" in watchdog_content
     assert "Restart=always" in watchdog_content
+    assert "Environment=OISHA_STARTUP_GRACE_SECONDS=900" in watchdog_content
 
 
 def test_deploy_script_exists_and_executable_logic():
@@ -47,3 +48,25 @@ def test_deploy_script_exists_and_executable_logic():
     assert "systemctl enable oisha" in deploy_content
     assert "systemctl restart oisha" in deploy_content
     assert "sed" in deploy_content  # Dynamic path replacement logic
+
+
+def test_oracle_runner_has_production_resource_guard():
+    guard_path = "ops/oracle-runner-production-guard.conf"
+    assert os.path.exists(guard_path)
+    guard = open(guard_path, "r", encoding="utf-8").read()
+
+    assert "CPUWeight=10" in guard
+    assert "IOWeight=10" in guard
+    assert "MemoryHigh=384M" in guard
+    assert "MemoryMax=512M" in guard
+    assert "OOMScoreAdjust=500" in guard
+
+
+def test_oisha_runtime_has_production_priority():
+    priority_path = "ops/oisha-production-priority.conf"
+    assert os.path.exists(priority_path)
+    priority = open(priority_path, "r", encoding="utf-8").read()
+
+    assert "CPUWeight=1000" in priority
+    assert "IOWeight=1000" in priority
+    assert "OOMScoreAdjust=-500" in priority

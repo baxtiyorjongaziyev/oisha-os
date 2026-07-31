@@ -21,8 +21,12 @@ Oisha-OS is an autonomous "Surgical COO" (Chief Operating Officer) system design
 
 ### 🧠 AI Layer
 
-- **Google Gemini 1.5 Pro/Flash**: Core reasoning.
+- **Google Gemini 2.5 Flash / 2.0 Flash**: Core reasoning (logic, missions).
+- **Google Gemini 1.5 Pro**: Complex coding tasks.
 - **Groq/DeepSeek**: Fallback or specialized tasks.
+- **Hisobchi AI**: Handles financial tasks, approvals, and metrics.
+- **Free-AI router**: Routes internal AI requests without cost overhead.
+- **MCP gateway**: Standardized context protocol for AI agents and services.
 
 ## Data Flow
 
@@ -36,4 +40,4 @@ Oisha-OS is an autonomous "Surgical COO" (Chief Operating Officer) system design
 
 - **Secrets**: Managed via Cloud Secret Manager (Production) or .env (Development).
 - **Testing**: Pytest unit tests for agent logic.
-- **CI/CD**: Automated deployment to Google Cloud Run with health-check rollbacks.
+- **CI/CD**: Primary deployment to Oracle VM via systemd (`oisha-os` service). Google Cloud Run is kept as a legacy fallback.

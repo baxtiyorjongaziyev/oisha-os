@@ -908,6 +908,26 @@ class AmoCRMSync:
             )
             return None
         except Exception as e:
+            self.last_error = "get_lead_exception"
+            logger.error(f"[AMOCRM GET LEAD ERROR] {e}")
+            return None
+
+    async def get_customer(self, customer_id: int) -> Optional[Dict[str, Any]]:
+        """Bitta mijoz (customer)."""
+        if not self.access_token:
+            self._load_token()
+        url = f"{self.base_url}/api/v4/customers/{customer_id}?with=contacts"
+        try:
+            response = await self._request_with_auth(requests.get, url, timeout=30)
+            if response.status_code == 401 and await asyncio.to_thread(self.refresh_token):
+                response = await self._request_with_auth(requests.get, url, timeout=30)
+            if response.status_code == 200:
+                return response.json()
+            logger.warning(
+                f"[AMOCRM GET CUSTOMER] {customer_id} -> HTTP {response.status_code}"
+            )
+            return None
+        except Exception as e:
             logger.error(f"[AMOCRM GET LEAD ERROR] {e}")
             return None
 

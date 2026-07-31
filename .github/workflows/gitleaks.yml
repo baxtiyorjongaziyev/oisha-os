@@ -15,9 +15,8 @@ permissions:
 jobs:
   gitleaks:
     name: gitleaks
-    # Self-hosted Oracle runner: ubuntu-latest jobs currently die without a
-    # runner (account-level Actions issue) — see test.yml for details.
-    runs-on: [self-hosted, oracle]
+    # Full-history scans are deliberately isolated from the 1 GB production VM.
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
