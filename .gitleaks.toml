@@ -39,15 +39,19 @@ regexes = [
   # tests/test_permission_dependency.py — HS256 needs >=32 bytes, so this
   # fixture is deliberately that long. Not a real key.
   '''permission-test-secret-with-at-least-32-bytes''',
-  # scripts/get_logs.py — hardcoded GitHub PAT (private repo).
-  # WARNING: this token has NOT been rotated — owner should replace it with
-  # an env var (GITHUB_TOKEN) and revoke the PAT in GitHub settings.
-  '''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''',
+  # NOTE: scripts/get_logs.py's hardcoded GitHub PAT is intentionally NOT
+  # allowlisted by content here — doing so would mean writing the live
+  # token's literal value into this file, which is itself a secret leak.
+  # It stays covered by commit SHA in the `commits` list below instead.
   # deploy/OISHA_WEB_DEPLOY.md — `curl -u oisha:PAROL ...`. "PAROL" is the
   # literal placeholder text (Uzbek for "password"), not a real credential.
   # Allowlist regexes match against gitleaks' captured Secret value, not
   # the full finding line, so this must match just the user:pass part.
   '''oisha:PAROL''',
+  # scripts/auth_user.py:16 — hardcoded Telegram API_HASH. Owner confirmed
+  # this value has been rotated (a new app was created at my.telegram.org),
+  # so the historical copy is no longer live.
+  '''e5850001c1d86ac0fb439fbd8319cb7f''',
 ]
 # Historical commits that pre-date secret rotation policy.
 # All credentials in these commits have been rotated and moved to
