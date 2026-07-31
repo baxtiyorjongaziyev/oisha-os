@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from src.context import app_ctx
-from src.api.rbac import Permission
+from src.api.rbac import Permission, require_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +20,11 @@ class SendMessageRequest(BaseModel):
 
 
 def _require_internal_secret(request: Request) -> None:
-    from src.settings import settings
-    expected_secret = settings.OISHA_API_SECRET
-    expected = str(getattr(expected_secret, "get_secret_value", lambda: expected_secret)()).strip() if expected_secret else ""
+    # security._auth_setting env'ga ustunlik beradi — settings jarayon
+    # boshida bir marta yuklangani uchun keyin o'rnatilgan qiymatni ko'rmaydi.
+    from src.api.security import _auth_setting
+
+    expected = _auth_setting("OISHA_API_SECRET")
     if not expected:
         logger.error("[MCP API] OISHA_API_SECRET is missing; denying internal access")
         raise HTTPException(
@@ -38,6 +40,7 @@ def _require_internal_secret(request: Request) -> None:
     "/dialogs",
     dependencies=[
         Depends(_require_internal_secret),
+        require_permissions(Permission.MCP_READ),
     ],
 )
 async def get_recent_dialogs(limit: int = Query(10, ge=1, le=50)):
@@ -70,6 +73,7 @@ async def get_recent_dialogs(limit: int = Query(10, ge=1, le=50)):
     "/messages/{chat_id}",
     dependencies=[
         Depends(_require_internal_secret),
+        require_permissions(Permission.MCP_READ),
     ],
 )
 async def get_chat_history(chat_id: str, limit: int = Query(20, ge=1, le=100)):
@@ -113,6 +117,7 @@ async def get_chat_history(chat_id: str, limit: int = Query(20, ge=1, le=100)):
     "/send_message",
     dependencies=[
         Depends(_require_internal_secret),
+        require_permissions(Permission.MCP_WRITE),
     ],
 )
 async def send_telegram_message(request: SendMessageRequest):
@@ -141,6 +146,7 @@ async def send_telegram_message(request: SendMessageRequest):
     "/analyze_private_chats",
     dependencies=[
         Depends(_require_internal_secret),
+        require_permissions(Permission.MCP_READ),
     ],
 )
 async def analyze_private_chats():

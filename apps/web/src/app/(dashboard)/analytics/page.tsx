@@ -54,17 +54,17 @@ export default function AnalyticsPage() {
 
       {/* Tabs navigation */}
       <div className="flex border-b border-border overflow-x-auto no-scrollbar scroll-smooth">
-        {[
+        {([
           { id: "overview", label: "Umumiy ko'rinish" },
           { id: "quality", label: "Sifat nazorati" },
           { id: "training", label: "Jamoa malakasi" },
           { id: "customer", label: "Mijoz tahlili" },
           { id: "activity", label: "Faoliyat tahlili" },
           { id: "leads", label: "Lid analitikasi" }
-        ].map((tab) => (
+        ] as const).map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => setActiveTab(tab.id)}
             className={`border-b-2 px-4 py-3 text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? "border-brand text-brand"

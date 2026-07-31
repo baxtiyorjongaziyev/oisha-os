@@ -44,10 +44,25 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const initialAlerts: Alert[] = [];
 
+// localStorage'ni useState lazy initializer'da o'qiymiz: effect ichida setState
+// qilish kaskadli render keltirib chiqaradi (react-hooks/set-state-in-effect).
+// SSR paytida `window` yo'q — fallback qiymat qaytadi, klientda esa birinchi
+// render'dayoq saqlangan qiymat ishlatiladi.
+function readStored<T extends string>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  return (localStorage.getItem(key) as T | null) ?? fallback;
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light");
-  const [palette, setPaletteState] = useState<Palette>("sage");
-  const [language, setLanguageState] = useState<Language>("uz");
+  const [theme, setThemeState] = useState<Theme>(() =>
+    readStored<Theme>("metasell-theme", "light")
+  );
+  const [palette, setPaletteState] = useState<Palette>(() =>
+    readStored<Palette>("metasell-palette", "sage")
+  );
+  const [language, setLanguageState] = useState<Language>(() =>
+    readStored<Language>("metasell-lang", "uz")
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentBusiness, setCurrentBusiness] = useState("Jon Branding agency");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -55,17 +70,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
 
-  // Sync with localStorage & DOM classes on mount/change
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("metasell-theme") as Theme;
-    const savedPalette = localStorage.getItem("metasell-palette") as Palette;
-    const savedLang = localStorage.getItem("metasell-lang") as Language;
-    
-    if (savedTheme) setThemeState(savedTheme);
-    if (savedPalette) setPaletteState(savedPalette);
-    if (savedLang) setLanguageState(savedLang);
-  }, []);
-
+  // DOM klasslarini va localStorage'ni state bilan sinxronlaymiz.
   useEffect(() => {
     const root = document.documentElement;
     

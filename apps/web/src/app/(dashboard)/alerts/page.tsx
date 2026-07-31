@@ -46,12 +46,12 @@ export default function AlertsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-2">
         {/* Category Tabs */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
-          {[
+          {([
             { id: "all", label: "Barchasi" },
             { id: "new", label: "Yangi" },
             { id: "read", label: "O'qilgan" },
             { id: "dismissed", label: "Bekor qilingan" }
-          ].map((tab) => {
+          ] as const).map((tab) => {
             const count = tab.id === "all" 
               ? alerts.length + 22 
               : tab.id === "new" 
@@ -61,7 +61,7 @@ export default function AlertsPage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id)}
                 className={`rounded-xl px-4 py-2 text-xs font-bold transition-all whitespace-nowrap ${
                   activeTab === tab.id
                     ? "bg-brand text-white"

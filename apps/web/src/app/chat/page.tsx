@@ -14,6 +14,11 @@ export default function ChatPage() {
   const [inputVal, setInputVal] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Xabar id'lari uchun monotonik hisoblagich. Date.now() render doirasida
+  // impure hisoblanadi (react-hooks/purity) va bir millisekundda yuborilgan
+  // ikki xabarga bir xil id berishi mumkin.
+  const nextMessageId = useRef(0);
+  const makeMessageId = (prefix: string) => `${prefix}-${nextMessageId.current++}`;
 
   // Scroll to bottom on updates
   useEffect(() => {
@@ -47,7 +52,7 @@ export default function ChatPage() {
     if (!text.trim()) return;
 
     const userMsg: ChatMessage = {
-      id: `u-${Date.now()}`,
+      id: makeMessageId("u"),
       sender: "user",
       text
     };
@@ -75,7 +80,7 @@ export default function ChatPage() {
       setMessages((prev) => [
         ...prev,
         {
-          id: `ai-${Date.now()}`,
+          id: makeMessageId("ai"),
           sender: "ai",
           text: responseText
         }

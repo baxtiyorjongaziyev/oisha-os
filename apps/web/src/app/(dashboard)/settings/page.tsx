@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useTheme, Palette } from "@/context/ThemeContext";
+import { useTheme, Palette, Language } from "@/context/ThemeContext";
 
 type TabId =
   | "profil"
@@ -30,19 +30,12 @@ function SettingsPageContent() {
     setCurrentBusiness
   } = useTheme();
 
-  // Active tab state
-  const [activeTab, setActiveTab] = useState<TabId>("profil");
-
-  // Read search params on load
-  useEffect(() => {
-    const tabParam = searchParams.get("tab") as TabId;
-    if (tabParam) {
-      setActiveTab(tabParam);
-    }
-  }, [searchParams]);
+  // Aktiv tab URL'dan hosil qilinadi — dublikat state emas.
+  // Effect ichida setState qilish kaskadli render keltirib chiqaradi
+  // (react-hooks/set-state-in-effect), shuning uchun to'g'ridan-to'g'ri o'qiymiz.
+  const activeTab = (searchParams.get("tab") as TabId | null) ?? "profil";
 
   const handleTabChange = (tab: TabId) => {
-    setActiveTab(tab);
     router.push(`/settings?tab=${tab}`);
   };
 
@@ -219,7 +212,7 @@ function SettingsPageContent() {
                 <select
                   id="business-language"
                   value={language}
-                  onChange={(e) => setLanguage(e.target.value as any)}
+                  onChange={(e) => setLanguage(e.target.value as Language)}
                   className="w-full rounded-xl border border-border bg-bg p-2.5 text-xs text-text focus:border-brand focus:outline-none mt-1"
                 >
                   <option value="uz">O&apos;zbek tili</option>
@@ -269,14 +262,14 @@ function SettingsPageContent() {
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-text-muted uppercase block">Rang rejimi</label>
               <div className="grid grid-cols-3 gap-3">
-                {[
+                {([
                   { id: "light", label: "Yorug' rejim", icon: "☀️" },
                   { id: "dark", label: "Qorong'u rejim", icon: "🌙" }
-                ].map((mode) => (
+                ] as const).map((mode) => (
                   <button
                     key={mode.id}
                     type="button"
-                    onClick={() => setTheme(mode.id as any)}
+                    onClick={() => setTheme(mode.id)}
                     className={`rounded-2xl border p-4 text-center text-xs font-bold transition-all ${
                       theme === mode.id
                         ? "border-brand bg-brand-light text-brand shadow-sm"
@@ -396,15 +389,15 @@ function SettingsPageContent() {
 
             {/* Sub-tabs for playbook */}
             <div className="flex gap-2 border-b border-border/60 pb-1">
-              {[
+              {([
                 { id: "criteria", label: "Baholash mezonlari" },
                 { id: "questions", label: "Anketa savollari" },
                 { id: "services", label: "Xizmat yo'nalishlari" },
                 { id: "crm", label: "CRM natijalari" }
-              ].map((subTab) => (
+              ] as const).map((subTab) => (
                 <button
                   key={subTab.id}
-                  onClick={() => setPlaybookTab(subTab.id as any)}
+                  onClick={() => setPlaybookTab(subTab.id)}
                   className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
                     playbookTab === subTab.id
                       ? "bg-brand-light text-brand"

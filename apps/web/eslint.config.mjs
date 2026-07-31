@@ -1,12 +1,11 @@
-import { FlatCompat } from "@eslint/eslintrc";
 import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
-
-const compat = new FlatCompat({
-  baseDirectory: import.meta.dirname,
-  resolvePluginsRelativeTo: import.meta.dirname
-});
+// eslint-config-next 16 nativ flat config eksport qiladi (massiv).
+// FlatCompat orqali o'tkazish shart emas va @eslint/eslintrc legacy loader'ida
+// "TypeError: Converting circular structure to JSON" crash'iga olib keladi.
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypescript from "eslint-config-next/typescript";
 
 const config = [
   {
@@ -14,10 +13,8 @@ const config = [
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  ...compat.extends("next/core-web-vitals", "next/typescript").map(c => {
-    delete c.name;
-    return c;
-  }),
+  ...nextCoreWebVitals,
+  ...nextTypescript,
   {
     languageOptions: {
       ecmaVersion: "latest",

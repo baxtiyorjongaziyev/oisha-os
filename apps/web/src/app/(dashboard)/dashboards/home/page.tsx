@@ -17,13 +17,13 @@ export default async function HomePage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Bosh sahifa</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Oisha-OS tizimining umumiy analitik ko'rsatkichlari.
+          Oisha-OS tizimining umumiy analitik ko&apos;rsatkichlari.
         </p>
       </div>
 
       {!stats ? (
         <div className="border border-rose-300 bg-rose-50 p-4 rounded-xl text-sm text-rose-700">
-          Real backend bilan aloqa yo'q yoki xatolik yuz berdi. Backend (FastAPI) ishlayotganligini tekshiring.
+          Real backend bilan aloqa yo&apos;q yoki xatolik yuz berdi. Backend (FastAPI) ishlayotganligini tekshiring.
         </div>
       ) : null}
 
@@ -63,10 +63,10 @@ export default async function HomePage() {
         <h2 className="text-lg font-bold text-gray-900 mb-4">Tezkor havolalar</h2>
         <div className="flex gap-4">
           <Link href="/crm" className="text-sm font-medium text-blue-600 hover:underline">
-            → CRM bo'limiga o'tish
+            → CRM bo&apos;limiga o&apos;tish
           </Link>
           <Link href="/calls" className="text-sm font-medium text-blue-600 hover:underline">
-            → Qo'ng'iroqlar sifatini ko'rish
+            → Qo&apos;ng&apos;iroqlar sifatini ko&apos;rish
           </Link>
         </div>
       </section>

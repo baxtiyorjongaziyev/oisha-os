@@ -1,107 +1,25 @@
-import sys
-import logging
-import json
+"""Eskirgan: `scripts/oisha_mcp_server.py` ga birlashtirildi.
+
+Ilgari Telegram va AmoCRM toollari uchun alohida MCP serverlar bor edi.
+Endi bittasi — `oisha` — ikkalasini ham beradi.
+
+Bu fayl mavjud MCP konfiguratsiyalari (Claude Desktop, Oracle'dagi eski
+yozuvlar) darrov buzilmasligi uchun qoldirilgan va yangi serverga
+yo'naltiradi. Yangi sozlamalarda to'g'ridan-to'g'ri oisha_mcp_server.py
+ishlatilsin.
+"""
+
 import os
-import urllib.request
-import urllib.error
+import runpy
+import sys
 
-# Ensure the project root is in sys.path so we can import from src
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-# Load .env so OISHA_API_SECRET is available to authenticate with the API
-from dotenv import load_dotenv
-dotenv_path = os.path.join(project_root, ".env")
-load_dotenv(dotenv_path)
-
-from mcp.server.fastmcp import FastMCP
-
-# Configure logging to stderr to avoid interfering with stdout-based MCP protocol
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    stream=sys.stderr,
-)
-
-logger = logging.getLogger("telegram-mcp")
-
-# Initialize FastMCP server
-mcp = FastMCP("telegram")
-
-oisha_url = (os.environ.get("OISHA_API_URL") or "http://127.0.0.1:8080").rstrip("/")
-API_BASE_URL = f"{oisha_url}/api/internal/mcp"
-
-def _request(url: str, data: bytes | None = None) -> urllib.request.Request:
-    import base64
-    headers = {}
-    
-    # NGINX Basic Auth
-    auth_user = os.environ.get("OISHA_API_USER", "oisha")
-    auth_pass = os.environ.get("OISHA_API_PASS", "oisha_safe_123")
-    auth = base64.b64encode(f"{auth_user}:{auth_pass}".encode()).decode()
-    headers["Authorization"] = f"Basic {auth}"
-    
-    # FastAPI Internal Secret
-    secret = (os.environ.get("OISHA_API_SECRET") or "").strip()
-    if secret:
-        headers["X-Oisha-Internal-Secret"] = secret
-        
-    if data is not None:
-        headers["Content-Type"] = "application/json"
-    return urllib.request.Request(url, data=data, headers=headers)
-
-@mcp.tool()
-async def get_recent_dialogs(limit: int = 10) -> str:
-    """
-    Fetch the most recent Telegram dialogs (chats).
-    """
-    logger.info(f"Fetching recent dialogs, limit={limit}")
-    url = f"{API_BASE_URL}/dialogs?limit={limit}"
-    try:
-        req = _request(url)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode("utf-8"))
-            return json.dumps(data, indent=2, ensure_ascii=False)
-    except urllib.error.URLError as e:
-        logger.error(f"Error fetching dialogs: {e}")
-        return f"Error: Cannot connect to Telegram backend. {e}"
-
-@mcp.tool()
-async def get_chat_history(chat_id: str, limit: int = 20) -> str:
-    """
-    Fetch the recent message history for a specific Telegram chat/user ID.
-    """
-    logger.info(f"Fetching chat history for {chat_id}, limit={limit}")
-    url = f"{API_BASE_URL}/messages/{chat_id}?limit={limit}"
-    try:
-        req = _request(url)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode("utf-8"))
-            return json.dumps(data, indent=2, ensure_ascii=False)
-    except urllib.error.URLError as e:
-        logger.error(f"Error fetching chat history: {e}")
-        return f"Error: Cannot connect to Telegram backend. {e}"
-
-@mcp.tool()
-async def send_telegram_message(user_id: str, text: str) -> str:
-    """
-    Send a Telegram message to a specific user or group.
-    """
-    logger.info(f"Sending message to {user_id}")
-    url = f"{API_BASE_URL}/send_message"
-    payload = json.dumps({"user_id": str(user_id), "text": text}).encode("utf-8")
-    try:
-        req = _request(url, data=payload)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode("utf-8"))
-            return f"Successfully sent message to {user_id}: {text}"
-    except urllib.error.URLError as e:
-        logger.error(f"Error sending message: {e}")
-        return f"Error: Cannot connect to Telegram backend. {e}"
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 if __name__ == "__main__":
-    # Start the server using stdio transport so MCP clients like Cursor/Claude Desktop can connect
-    mcp.run()
-
+    print(
+        "[DEPRECATED] scripts/telegram_mcp_server.py -> scripts/oisha_mcp_server.py",
+        file=sys.stderr,
+    )
+    runpy.run_path(
+        os.path.join(_SCRIPT_DIR, "oisha_mcp_server.py"), run_name="__main__"
+    )

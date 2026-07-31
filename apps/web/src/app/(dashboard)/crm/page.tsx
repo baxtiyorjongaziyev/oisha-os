@@ -38,7 +38,7 @@ export default async function CRMDashboard() {
 
       <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-gray-100 px-6 py-4">
-          <h2 className="font-semibold text-gray-900">So'nggi Lidlar</h2>
+          <h2 className="font-semibold text-gray-900">So&apos;nggi Lidlar</h2>
         </div>
         <table className="w-full text-left text-sm text-gray-600">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
@@ -70,7 +70,7 @@ export default async function CRMDashboard() {
             )) : (
               <tr>
                 <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                  Hozircha ma'lumot yo'q.
+                  Hozircha ma&apos;lumot yo&apos;q.
                 </td>
               </tr>
             )}
