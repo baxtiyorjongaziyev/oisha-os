@@ -30,6 +30,31 @@ async def store():
     db.connection.close()
 
 
+def pending_record() -> ConversationAnalysisRecord:
+    return ConversationAnalysisRecord(
+        conversation_hash="conv-hash",
+        telegram_user_hash="user-hash",
+        lead_id=42,
+        manager_id="77",
+        fingerprint="fp-001",
+        overall_score=64,
+        confidence=0.9,
+        source_message_ids=[1001, 1002],
+        rollout_mode="approval",
+        analysis={
+            "clientIntent": "warm",
+            "recommendedTasks": [
+                {
+                    "type": "follow_up",
+                    "reason": "Keyingi qadam kerak",
+                    "evidenceMessageIds": [1001],
+                }
+            ],
+        },
+        status="pending",
+    )
+
+
 @pytest.mark.asyncio
 async def test_initialize_creates_privacy_safe_tables():
     db = FakeDatabase()
@@ -60,18 +85,7 @@ async def test_initialize_creates_privacy_safe_tables():
 
 @pytest.mark.asyncio
 async def test_save_analysis_is_idempotent_by_fingerprint(store):
-    first = ConversationAnalysisRecord(
-        conversation_hash="conv-hash",
-        telegram_user_hash="user-hash",
-        lead_id=42,
-        manager_id="77",
-        fingerprint="fp-001",
-        overall_score=64,
-        confidence=0.9,
-        source_message_ids=[1001, 1002],
-        rollout_mode="shadow",
-        analysis={"clientIntent": "warm"},
-    )
+    first = pending_record()
     second = ConversationAnalysisRecord(
         conversation_hash="conv-hash",
         telegram_user_hash="user-hash",
@@ -94,6 +108,31 @@ async def test_save_analysis_is_idempotent_by_fingerprint(store):
     assert rows[0]["overall_score"] == 72
     assert rows[0]["analysis"]["clientIntent"] == "hot"
     assert await store.fingerprint_exists("fp-001") is True
+
+
+@pytest.mark.asyncio
+async def test_get_analysis_and_update_status(store):
+    analysis_id = await store.save_analysis(pending_record())
+
+    record = await store.get_analysis(analysis_id)
+    updated = await store.update_analysis_status(analysis_id, "approved")
+    refreshed = await store.get_analysis(analysis_id)
+
+    assert record is not None
+    assert record["id"] == analysis_id
+    assert record["status"] == "pending"
+    assert record["analysis"]["clientIntent"] == "warm"
+    assert updated is True
+    assert refreshed is not None
+    assert refreshed["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_update_status_rejects_unknown_value(store):
+    analysis_id = await store.save_analysis(pending_record())
+
+    with pytest.raises(ValueError, match="invalid_conversation_analysis_status"):
+        await store.update_analysis_status(analysis_id, "deleted")
 
 
 @pytest.mark.asyncio
