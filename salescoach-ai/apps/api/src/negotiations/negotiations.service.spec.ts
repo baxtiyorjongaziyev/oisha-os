@@ -83,7 +83,8 @@ describe('normalizeConversationAnalysis', () => {
     );
 
     expect(result.evidenceMessageIds).toEqual([1001]);
-    expect(result.recommendedTasks[0].evidenceMessageIds).toEqual([1002]);
+    expect(result.recommendedTasks).toHaveLength(1);
+    expect(result.recommendedTasks[0]!.evidenceMessageIds).toEqual([1002]);
   });
 
   it('returns safe defaults for malformed optional fields', () => {
