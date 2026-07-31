@@ -59,6 +59,7 @@ async def erp_dashboard(request: Request, period: str = ""):
         snapshot = await erp.get_snapshot(period or None)
         return asdict(snapshot)
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("erp_dashboard", exc)
 
 
@@ -72,6 +73,7 @@ async def erp_finance(request: Request, period: str = ""):
         engine = FinanceEngine(db=api_state.db_instance)
         return await engine.get_cash_flow_summary(period or _current_period())
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("erp_finance", exc)
 
 
@@ -85,6 +87,7 @@ async def erp_hr(request: Request):
         engine = HREngine(db=api_state.db_instance)
         return await engine.get_team_summary()
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("erp_hr", exc)
 
 
@@ -98,6 +101,7 @@ async def erp_projects(request: Request):
         engine = ProjectEngine(db=api_state.db_instance)
         return await engine.get_project_stats()
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("erp_projects", exc)
 
 

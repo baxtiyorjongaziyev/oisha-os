@@ -56,6 +56,7 @@ class _UnavailableMSS:
 try:
     import pyautogui  # noqa: E402
 except Exception as _pyautogui_error:
+    logger.error("Exception handled in %s", __name__, exc_info=True)
     pyautogui = _UnavailablePyAutoGUI(_pyautogui_error)
     sys.modules["pyautogui"] = pyautogui
 

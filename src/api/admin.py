@@ -213,6 +213,7 @@ async def get_deadlines(airtable=Depends(get_airtable_instance)):
                         url_prefix = first_url[: -len(rec_id)]
                     project_url = first_url
                 except Exception:
+                    logger.error("Exception handled in %s", __name__, exc_info=True)
                     url_prefix = ""  # qayta urinmaymiz
             elif url_prefix:
                 project_url = f"{url_prefix}{rec_id}"

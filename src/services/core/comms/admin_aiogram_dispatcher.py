@@ -20,6 +20,8 @@ from src.services.core.admin_command_router import (
     resolve_start_role,
 )
 from src.time_utils import get_local_now
+import logging
+logger = logging.getLogger(__name__)
 
 
 class AiogramCallbackEventAdapter:
@@ -72,6 +74,7 @@ def register_hisobchi_aiogram_callbacks(
         try:
             await handle_callback(data, event, engine)
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             await event.answer("⚠️ Xatolik yuz berdi, qayta urinib ko'ring.")
 
 
@@ -321,6 +324,7 @@ async def handle_aiogram_auto_status(
         )
         await message.answer(resp_text, parse_mode="markdown")
     except Exception as e:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         await message.answer(f"❌ Xato: {e}")
 
 
@@ -345,6 +349,7 @@ async def handle_aiogram_pause_auto(
             parse_mode="markdown",
         )
     except Exception as e:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         await message.answer(f"❌ Xato: {e}")
 
 
@@ -373,6 +378,7 @@ async def handle_aiogram_resume_auto(
             parse_mode="markdown",
         )
     except Exception as e:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         await message.answer(f"❌ Xato: {e}")
 
 
@@ -410,6 +416,7 @@ async def handle_aiogram_set_mode(
             parse_mode="markdown",
         )
     except Exception as e:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         await message.answer(f"❌ Xato: {e}")
 
 

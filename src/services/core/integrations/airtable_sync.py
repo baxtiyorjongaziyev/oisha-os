@@ -482,6 +482,7 @@ class AirtableSync:
             try:
                 response = self._request("GET", probe_url)
             except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 continue
 
             if response.status_code == 200:
@@ -597,6 +598,7 @@ class AirtableSync:
                     if deadline < now:
                         overdue.append(project)
                 except Exception:
+                    logger.error("Exception handled in %s", __name__, exc_info=True)
                     continue
         return overdue
 
@@ -688,6 +690,7 @@ class AirtableSync:
                     if now < deadline <= limit:
                         upcoming.append(project)
                 except Exception:
+                    logger.error("Exception handled in %s", __name__, exc_info=True)
                     continue
         return upcoming
 

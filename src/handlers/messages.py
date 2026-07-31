@@ -69,6 +69,7 @@ async def process_message_logic(
                 _s.PROJECTS_GROUP_ID, _s.TASKS_GROUP_ID,
             } - {None, 0}
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             _team_chat_ids = set()
 
         is_team_group = chat.id in _team_chat_ids

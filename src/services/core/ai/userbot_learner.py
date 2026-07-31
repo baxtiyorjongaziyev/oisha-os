@@ -232,7 +232,7 @@ def _should_skip_dialog(dialog) -> bool:
         if getattr(dialog, "name", "") in ("Telegram", ""):
             return True
     except Exception:
-        pass
+        logger.error("Exception handled in %s", __name__, exc_info=True)
     return False
 
 
@@ -258,4 +258,5 @@ async def _get_sender_name(msg) -> str:
         username = getattr(sender, "username", "") or ""
         return first or username or str(getattr(sender, "id", "Unknown"))
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return "Unknown"
