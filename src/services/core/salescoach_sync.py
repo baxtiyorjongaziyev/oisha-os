@@ -76,6 +76,45 @@ class SalesCoachSync:
             logger.warning(f"[SalesCoach] get_suggestion failed: {e}")
             return None
 
+    # ── Telegram Conversation Analysis ─────────────────────────
+
+    async def analyze_conversation(
+        self,
+        *,
+        lead_id: int,
+        manager_id: str,
+        messages: List[Dict[str, Any]],
+        crm_status: str = "",
+    ) -> Optional[Dict[str, Any]]:
+        """Telegram biznes dialogini strukturali SalesCoach tahliliga yuboradi.
+
+        Maxfiylik uchun xabar matni yoki upstream exception matni loglanmaydi.
+        """
+        if not self.enabled:
+            return None
+
+        payload = {
+            "leadId": int(lead_id),
+            "managerId": str(manager_id),
+            "crmStatus": crm_status,
+            "messages": messages[-50:],
+        }
+        try:
+            resp = await self.client.post(
+                "/v1/negotiations/analyze-conversation",
+                json=payload,
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data if isinstance(data, dict) else None
+        except Exception as exc:
+            logger.warning(
+                "[SalesCoach] conversation analysis failed: %s",
+                type(exc).__name__,
+            )
+            return None
+
     # ── Realtime Tip ───────────────────────────────────────────
 
     async def get_realtime_tip(
