@@ -19,6 +19,7 @@ from src.services.core.mandatory_workflow import (
     Role,
     TaskStatus,
 )
+from src.services.core.hisobchi.remaining_payments import check_and_notify_remaining_payments
 
 
 class DailyEnforcer:
@@ -158,6 +159,12 @@ class DailyEnforcer:
             print(f"   📋 {member['name']}: {len(tasks)} tasks assigned")
 
         print("✅ [DAILY ENFORCER] Morning routine completed")
+
+        # Qoldiq to'lovlarni tekshirish (Hisobchi AI vazifasi)
+        try:
+            await check_and_notify_remaining_payments(self.bot)
+        except Exception as e:
+            logger.error(f"Error checking remaining payments: {e}")
 
     async def _lunch_check(self):
         """Tushlik tekshiruvi - Yarim kun natijalari"""
