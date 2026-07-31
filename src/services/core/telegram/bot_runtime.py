@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Optional, Protocol
+import logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -114,6 +116,7 @@ class AiogramBotRuntime:
 
                 kwargs["link_preview_options"] = LinkPreviewOptions(is_disabled=True)
             except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 kwargs["disable_web_page_preview"] = True
 
         if reply_to_message_id or reply_to:
@@ -172,6 +175,7 @@ def _coerce_aiogram_inline_keyboard(buttons: Any) -> Any:
     try:
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return buttons
 
     rows = buttons if isinstance(buttons, list) else [[buttons]]

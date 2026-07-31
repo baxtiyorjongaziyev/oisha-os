@@ -17,12 +17,14 @@ try:
     from google import genai
     from google.genai import types as genai_types
 except Exception:  # pragma: no cover - optional at runtime in degraded installs
+    logger.error("Exception handled in %s", __name__, exc_info=True)
     genai = None
     genai_types = None
 
 try:
     from telethon import functions, types
 except Exception:  # pragma: no cover - optional for bot-only runtimes
+    logger.error("Exception handled in %s", __name__, exc_info=True)
     functions = None
     types = None
 

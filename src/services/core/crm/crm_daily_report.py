@@ -223,6 +223,7 @@ class CRMDailyReporter:
             try:
                 stats.top_manager = self._crm.get_user_name(top_uid)
             except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 stats.top_manager = f"Manager #{top_uid}"
 
         # Bog'lanish tezligi — avg (first_contact_at - created_at) for leads with notes
@@ -535,6 +536,7 @@ class CRMDailyReporter:
         try:
             return await self._crm.get_leads_detailed(limit=250)
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return []
 
     async def _get_calls_count(self, t_from: int, t_to: int) -> int:

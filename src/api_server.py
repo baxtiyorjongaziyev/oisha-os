@@ -185,6 +185,7 @@ async def refresh_userbot_group_access_snapshot(client=None) -> Dict[str, Any]:
                 entry["readable"] = True
                 entry["source"] = "entity_cache"
             except Exception as exc:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 entry["readable"] = False
                 entry["error"] = type(exc).__name__
                 unresolved_groups.append(label)
@@ -210,6 +211,7 @@ async def refresh_userbot_group_access_snapshot(client=None) -> Dict[str, Any]:
                 groups[label].update({"readable": True, "source": "dialogs"})
                 groups[label].pop("error", None)
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             for label in unresolved_groups:
                 groups[label]["dialogs_error"] = type(exc).__name__
 
@@ -246,6 +248,7 @@ async def refresh_userbot_group_access_snapshot(client=None) -> Dict[str, Any]:
                 entry["readable"] = True
                 entry["sample_messages"] = len(messages or [])
             except Exception as exc:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 entry["readable"] = False
                 entry["error"] = type(exc).__name__
                 entry["reason"] = (

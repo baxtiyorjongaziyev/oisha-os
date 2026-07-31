@@ -1450,6 +1450,7 @@ class AdminBot(AdminHandlersMixin):
                     analysis_prompt
                 )
             except:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 analysis_text = "⚠️ AI tahlilida texnik xatolik, lekin guruhlardagi faollik aniqlandi."
 
             res_report = (

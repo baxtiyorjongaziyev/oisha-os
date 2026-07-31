@@ -107,6 +107,7 @@ class AiogramLegacyMessageEvent:
 
                 kwargs["link_preview_options"] = LinkPreviewOptions(is_disabled=True)
             except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 kwargs["disable_web_page_preview"] = True
         sent = await self._message.answer(
             text,
@@ -134,6 +135,7 @@ class AiogramLegacyMessageEvent:
 
                 kwargs["link_preview_options"] = LinkPreviewOptions(is_disabled=True)
             except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 kwargs["disable_web_page_preview"] = True
         edited = await self._message.edit_text(
             text,

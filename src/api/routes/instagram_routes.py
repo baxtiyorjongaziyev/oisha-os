@@ -35,6 +35,7 @@ async def instagram_webhook(request: Request):
     try:
         body = await request.json()
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return {"status": "error", "message": "Invalid JSON"}
 
     signature = request.headers.get("X-Hub-Signature-256", "")

@@ -301,6 +301,7 @@ class TelegramPhoneEnricher:
             notes = self.amocrm._get_notes("contacts", int(contact.get("id"))) \
                 if hasattr(self.amocrm, "_get_notes") else []
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             notes = []
         for note in notes or []:
             params = note.get("params") or {}

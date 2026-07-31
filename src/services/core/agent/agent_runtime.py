@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional
 
 from src.settings import settings
 from src.time_utils import get_local_now
+import logging
+logger = logging.getLogger(__name__)
 
 
 def parse_bool(val: Any) -> bool:
@@ -189,6 +191,7 @@ def get_storage_health(
             with open(resolved_path, "ab"):
                 writable = True
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             error = str(exc)
 
         try:
@@ -200,8 +203,10 @@ def get_storage_health(
                     kv_rows = int(conn.execute("SELECT COUNT(*) FROM kv_settings").fetchone()[0])
                     agent_action_rows = int(conn.execute("SELECT COUNT(*) FROM agent_actions").fetchone()[0])
                 except Exception as e:
+                    logger.error("Exception handled in %s", __name__, exc_info=True)
                     error = str(e)
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             error = str(exc)
 
     return {

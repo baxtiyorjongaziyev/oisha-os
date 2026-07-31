@@ -314,6 +314,7 @@ class SelfEvolutionEngine:
                     with open(path, "r", encoding="utf-8") as f:
                         return f.read()
                 except Exception:
+                    logger.error("Exception handled in %s", __name__, exc_info=True)
                     continue
         return ""
 

@@ -134,7 +134,7 @@ async def vps_status_digest_loop(
                         await _safe_send(bot_client, target_chat_id, text, topic_id=topic_id)
                         logger.warning("[VPS_DIGEST] Critical CPU alert sent.")
             except Exception:
-                pass
+                logger.error("Exception handled in %s", __name__, exc_info=True)
 
         except Exception:
             logger.error("[VPS_DIGEST] Loop error.", exc_info=True)

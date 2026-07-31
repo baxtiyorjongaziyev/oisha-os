@@ -90,6 +90,7 @@ class BaseRepository:
         try:
             await self._execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             if _is_benign_schema_error(exc):
                 return
             raise

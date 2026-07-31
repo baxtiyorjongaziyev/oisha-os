@@ -11,6 +11,8 @@ from fastapi import Query
 from pydantic import BaseModel, Field
 
 from src.api.routes.state import api_state
+import logging
+logger = logging.getLogger(__name__)
 from src.services.core.business_command_center import (
     branding_erp_roadmap,
     collect_business_command_snapshot,
@@ -162,6 +164,7 @@ def _get_runtime_amocrm():
 
         return _get_amocrm_instance()
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return None
 
 
@@ -182,6 +185,7 @@ def _get_runtime_airtable():
 
         return AirtableSync()
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return None
 
 
@@ -193,6 +197,7 @@ def _get_runtime_project_engine():
 
         return ProjectEngine(db=api_state.db_instance)
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return None
 
 
@@ -204,4 +209,5 @@ def _get_runtime_hr_engine():
 
         return HREngine(db=api_state.db_instance)
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return None

@@ -239,6 +239,7 @@ def _get_setting(attr: str, default: str = "") -> str:
         from src.settings import settings as _settings
         return str(getattr(_settings, attr, default) or default)
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return os.getenv(attr, default)
 
 

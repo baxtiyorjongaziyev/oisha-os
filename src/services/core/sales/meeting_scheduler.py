@@ -445,9 +445,11 @@ class TelegramMeetingScheduler:
         try:
             return await event.get_chat()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             try:
                 return await event.get_sender()
             except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 return None
 
     def _peer_name(self, peer: Any) -> str:

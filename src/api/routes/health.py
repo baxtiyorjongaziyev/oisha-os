@@ -106,6 +106,7 @@ async def liveness_probe():
                 api_state.user_client.is_user_authorized(), timeout=2.0
             )
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             userbot_authorized = False
 
     telegram_bot_ok = True
@@ -130,6 +131,7 @@ async def liveness_probe():
         except asyncio.TimeoutError:
             crm_connected = False
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             crm_connected = False
 
     if control_plane_mode:
@@ -188,6 +190,7 @@ async def production_readiness_probe():
             checks["database"] = "timeout"
             problems.append("database_timeout")
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             checks["database"] = f"failed: {type(exc).__name__}"
             problems.append("database_unavailable")
     else:
@@ -202,6 +205,7 @@ async def production_readiness_probe():
                 api_state.user_client.is_user_authorized(), timeout=2.0
             )
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             userbot_ok = False
         checks["userbot"] = "authorized" if userbot_ok else "unauthorized"
     else:

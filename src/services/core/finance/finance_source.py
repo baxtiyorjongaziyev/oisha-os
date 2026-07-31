@@ -9,6 +9,8 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol, Sequence
 
 from src.services.core.hisobchi_gsheets import SHEET_PUL_OQIMI
+import logging
+logger = logging.getLogger(__name__)
 
 
 class FinanceSourceUnavailable(RuntimeError):
@@ -84,6 +86,7 @@ class GoogleSheetsFinanceSource:
         try:
             snapshot = await asyncio.to_thread(self._read_live)
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             now = datetime.now(timezone.utc)
             if (
                 self._cached is not None

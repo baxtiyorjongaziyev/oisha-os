@@ -89,6 +89,7 @@ def _get_finance_config() -> tuple[Optional[int], Optional[int], Optional[int]]:
             getattr(settings, "HISOBCHI_CHIQIM_TOPIC_ID", None),
         )
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return None, None, None
 
 
@@ -580,7 +581,7 @@ async def handle_receipt_photo(
                     vp = VoiceProcessor(api_key=gemini_key_val)
                     gemini_client = vp.client
                 except Exception:
-                    pass
+                    logger.error("Exception handled in %s", __name__, exc_info=True)
         if not gemini_client:
             await event.reply("⚠️ Gemini client yoqilmagan.")
             return True
@@ -634,7 +635,7 @@ async def handle_receipt_photo(
             try:
                 os.remove(temp)
             except Exception:
-                pass
+                logger.error("Exception handled in %s", __name__, exc_info=True)
 
     text = event.message.message or ""
     tx = parse_card_notification(username, text)

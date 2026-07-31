@@ -709,6 +709,7 @@ class AgentToolExecutor:
                 start_dt = datetime.datetime.fromisoformat(start_time)
                 end_time = (start_dt + datetime.timedelta(hours=1)).isoformat()
             except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 end_time = start_time
 
         try:
@@ -731,6 +732,7 @@ class AgentToolExecutor:
                 "event": result,
             }
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _save_google_contact(
@@ -757,6 +759,7 @@ class AgentToolExecutor:
                 "message": f"Google Contacts ga saqlandi: {name} ({phone})",
             }
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _send_stars_invoice(
@@ -858,6 +861,7 @@ class AgentToolExecutor:
             )
             return {"success": True, "message": f"CRM guruhiga yuborildi ({quality})"}
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _get_crm_status_tool(self, user_id: int) -> Dict[str, Any]:
@@ -878,6 +882,7 @@ class AgentToolExecutor:
             status = await crm.get_user_context(phone)
             return {"success": True, "status": status}
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _update_lead_status(
@@ -1176,6 +1181,7 @@ class AgentToolExecutor:
 
             return {"success": True, "message": " | ".join(results)}
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _get_user_profile(self, user_id: int) -> Dict[str, Any]:
@@ -1191,6 +1197,7 @@ class AgentToolExecutor:
                     "message": "Yangi foydalanuvchi — bazada yo'q",
                 }
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _get_team_members(self) -> Dict[str, Any]:
@@ -1199,6 +1206,7 @@ class AgentToolExecutor:
             members = await self._db_call("get_team_roles")
             return {"success": True, "members": members}
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _assign_task_to_human(
@@ -1249,6 +1257,7 @@ class AgentToolExecutor:
                 "task_id": task_id,
             }
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _sherlock_user_profile(self, user_id: int) -> Dict[str, Any]:
@@ -1326,6 +1335,7 @@ class AgentToolExecutor:
 
             return {"success": True, "files": results, "count": len(results)}
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _google_drive_search(self, query: str) -> Dict[str, Any]:
@@ -1338,6 +1348,7 @@ class AgentToolExecutor:
             )
             return {"success": True, "files": files}
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"success": False, "error": f"Google Drive xatosi: {e}"}
 
     async def _execute_shell_safe(self, command: str) -> Dict[str, Any]:
@@ -1371,6 +1382,7 @@ class AgentToolExecutor:
             ).decode(errors="replace")
             return {"success": True, "output": result}
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def _search_crm_leads(
@@ -1463,6 +1475,7 @@ class AgentToolExecutor:
             )
             stats["total_active_leads"] = len(leads)
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             stats["crm_error"] = str(e)
         try:
             from src.services.core.airtable_sync import AirtableSync
@@ -1470,6 +1483,7 @@ class AgentToolExecutor:
             overdue = await asyncio.to_thread(sync.get_overdue_projects)
             stats["overdue_projects"] = len(overdue)
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             stats["airtable_error"] = str(e)
         stats["date"] = today
         return {"success": True, **stats}

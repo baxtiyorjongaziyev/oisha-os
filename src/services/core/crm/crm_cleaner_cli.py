@@ -144,6 +144,7 @@ def _quiet_hours_blocked(force: bool) -> bool:
         from src.services.core.agent_policy import is_quiet_hours  # type: ignore
         return bool(is_quiet_hours())
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return False
 
 

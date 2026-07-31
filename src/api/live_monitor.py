@@ -79,6 +79,7 @@ async def broadcast_event(event: Dict[str, Any]) -> None:
         try:
             await ws.send_text(message)
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             disconnected.append(ws)
     for ws in disconnected:
         _connections.discard(ws)
