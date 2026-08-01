@@ -47,6 +47,7 @@ class APIState:
     action_parser: Any = None
     audit_agent: Any = None
     amocrm_instance: Any = None
+    finance_source: Any = None
 
     # Queues
     command_queue: Any = field(default_factory=asyncio.Queue)
