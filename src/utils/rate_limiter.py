@@ -266,6 +266,7 @@ class TelegramRateLimiter:
             await self._adaptive.report_success()
             return result
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             # Check if it's a flood wait error
             if "FLOOD_WAIT" in str(e) or "Too Many Requests" in str(e):
                 # Extract retry_after if available (placeholder for future implementation)

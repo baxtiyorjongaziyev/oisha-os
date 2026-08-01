@@ -357,6 +357,7 @@ class OishaSelfDiagnosis:
                 conn = await self._get_connection()
                 await conn.execute("SELECT 1")
             except Exception as exc:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 proposals.append(
                     ImprovementProposal(
                         id=self._next_id(),
@@ -397,6 +398,7 @@ class OishaSelfDiagnosis:
                 content = py_file.read_text(encoding="utf-8", errors="replace")
                 lines = content.splitlines()
             except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 continue
 
             rel_path = str(py_file.relative_to(self.project_root))
@@ -484,6 +486,7 @@ class OishaSelfDiagnosis:
                             rel = str(py_file.relative_to(self.project_root))
                             matches.append(rel)
                     except Exception:
+                        logger.error("Exception handled in %s", __name__, exc_info=True)
                         continue
 
             if matches:

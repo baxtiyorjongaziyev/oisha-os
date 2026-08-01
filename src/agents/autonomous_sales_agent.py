@@ -90,6 +90,7 @@ class AutonomousSalesAgent(BaseAgent):
         try:
             api_keys["gemini"] = settings.GEMINI_API_KEY.get_secret_value()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             api_keys = {}
 
         super().__init__(

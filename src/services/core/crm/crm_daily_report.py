@@ -223,6 +223,7 @@ class CRMDailyReporter:
             try:
                 stats.top_manager = self._crm.get_user_name(top_uid)
             except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 stats.top_manager = f"Manager #{top_uid}"
 
         # Bog'lanish tezligi — avg (first_contact_at - created_at) for leads with notes
@@ -535,6 +536,7 @@ class CRMDailyReporter:
         try:
             return await self._crm.get_leads_detailed(limit=250)
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return []
 
     async def _get_calls_count(self, t_from: int, t_to: int) -> int:
@@ -587,12 +589,10 @@ class CRMDailyReporter:
         WAL lock contention with the async pool. All access funnels through
         here so there is exactly one raw ``sqlite3.connect`` in this module.
         """
-        os.makedirs(os.path.dirname(self._db_path) if os.path.dirname(self._db_path) else ".", exist_ok=True)
-        conn = sqlite3.connect(self._db_path)
-        try:
-            yield conn
-        finally:
-            conn.close()
+        from src.database_pool import db_pool
+        conn = db_pool.get_connection()
+        # Yield the global connection, do not close it
+        yield conn
 
     def _ensure_db(self) -> None:
         with self._history_conn() as conn:

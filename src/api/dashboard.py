@@ -8,6 +8,8 @@ from src.api.rbac import Permission, require_permissions
 from pydantic import BaseModel
 
 from src.api.routes.state import api_state
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1/dashboard",
@@ -66,6 +68,7 @@ async def _query(sql: str, params: tuple = ()) -> list:
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         raise HTTPException(status_code=503, detail=f"Call analytics unavailable: {type(exc).__name__}") from exc
 
 

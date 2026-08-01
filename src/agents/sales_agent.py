@@ -18,6 +18,7 @@ from src.time_utils import get_local_now
 try:
     from src.services.core.auto_reply_gate import ESCALATION_TRIGGERS
 except Exception:  # pragma: no cover — agar modul yo'q bo'lsa (unit test uchun)
+    logger.error("Exception handled in %s", __name__, exc_info=True)
     ESCALATION_TRIGGERS = (
         "shikoyat",
         "qaytarish",

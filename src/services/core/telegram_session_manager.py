@@ -243,6 +243,7 @@ class TelegramSessionManager:
                         self._is_connected = False
                         logger.warning("[SESSION] Connection tushdi!")
                     except Exception:
+                        logger.error("Exception handled in %s", __name__, exc_info=True)
                         # Connection hali bor
                         await asyncio.sleep(30)
                         continue
@@ -325,6 +326,7 @@ class TelegramSessionManager:
         try:
             return self.client.is_connected()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return False
 
     async def disconnect(self):

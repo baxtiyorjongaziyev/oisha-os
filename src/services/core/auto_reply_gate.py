@@ -92,6 +92,7 @@ async def _load_kill_switch(db: Any) -> bool:
             return True
         return str(stored).lower() not in ("0", "false", "off", "no")
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return True
 
 

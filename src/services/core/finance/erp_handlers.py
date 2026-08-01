@@ -79,6 +79,7 @@ async def _check_permission(message) -> bool:
         sender = _sender_id(message)
         return sender in whitelist
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         # settings not importable (test context, etc.) — allow
         return True
 

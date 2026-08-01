@@ -198,6 +198,7 @@ class RetryQueue:
                 return bool(result.get("success", True)), result.get("error")
             return True, None
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return False, str(exc)
 
     async def _update(
@@ -280,4 +281,5 @@ class RetryQueue:
                 rows = await cursor.fetchall()
                 return {row[0]: row[1] for row in rows}
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return {}

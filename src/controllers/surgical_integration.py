@@ -9,10 +9,13 @@ import asyncio
 from typing import Any, Dict, Optional
 
 from src.settings import settings
+import logging
+logger = logging.getLogger(__name__)
 
 try:
     from src.agents.surgical_negotiator import get_surgical_negotiator
 except Exception as exc:  # pragma: no cover - production safety net
+    logger.error("Exception handled in %s", __name__, exc_info=True)
     get_surgical_negotiator = None
     _SURGICAL_IMPORT_ERROR = exc
 else:
