@@ -348,9 +348,13 @@ async def boot_application():
     hisobchi_gs_creds = getattr(settings, "HISOBCHI_GSHEET_CREDS_FILE", None) or getattr(settings, "GSHEET_CREDS_FILE", "service_account.json")
     if hisobchi_gs_id:
         hisobchi_gs_store = await init_hisobchi_gsheets(hisobchi_gs_id, hisobchi_gs_creds)
+        from src.services.core.finance.finance_source import GoogleSheetsFinanceSource
+
+        api_state.finance_source = GoogleSheetsFinanceSource(hisobchi_gs_store)
         logger.info("[HISOBCHI] Google Sheets backend is ready (spreadsheet: %s)", hisobchi_gs_id)
     else:
         hisobchi_gs_store = None
+        api_state.finance_source = None
         await init_hisobchi_tables(db)
         logger.info("[HISOBCHI] Database schema is ready.")
     msg_controller = MessageController(api_keys=api_keys, db=db)
