@@ -8,6 +8,8 @@ unwraps secret values identically.
 from __future__ import annotations
 
 from typing import Any
+import logging
+logger = logging.getLogger(__name__)
 
 # Zero-width byte-order mark. Written as an escape (not a literal invisible
 # char) so editors/formatters cannot silently drop or mangle it.
@@ -36,6 +38,7 @@ def setting_text(value: Any) -> str:
         try:
             value = getter()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             value = str(value)
 
     text = str(value).replace(_BOM, "").strip()

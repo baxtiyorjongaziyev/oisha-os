@@ -296,6 +296,7 @@ async def route(
             _cache_put(prompt_hash, final)
             return final
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return _error_result(
                 str(exc),
                 task_type=task_type,
@@ -436,6 +437,7 @@ async def route(
         _cache_put(prompt_hash, final)
         return final
     except Exception as fallback_exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         last_error = last_error or str(fallback_exc)
 
     # Barcha fallback'lar muvaffaqiyatsiz

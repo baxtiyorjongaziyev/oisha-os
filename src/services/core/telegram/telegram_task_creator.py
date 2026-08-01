@@ -26,6 +26,7 @@ try:
     from google import genai
     from google.genai import types as genai_types
 except Exception:
+    logger.error("Exception handled in %s", __name__, exc_info=True)
     genai = None
     genai_types = None
 
@@ -358,6 +359,7 @@ class TelegramTaskCreator:
         try:
             return await self.user_client.get_input_entity(phone_or_username), None
         except Exception as first_error:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             error_text = str(first_error).lower()
             if (
                 "flood" in error_text

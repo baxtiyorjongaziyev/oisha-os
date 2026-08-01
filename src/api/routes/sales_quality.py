@@ -41,6 +41,7 @@ def _row_to_dict(row: Any, columns: list) -> dict:
     try:
         return {col: getattr(row, col, None) for col in columns}
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return {}
 
 

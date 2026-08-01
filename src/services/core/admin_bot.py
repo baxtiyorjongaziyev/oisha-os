@@ -245,6 +245,7 @@ class AdminBot:
                     "✅ Bugun uchun barcha vazifalar taqsimlandi va jamoa guruhiga yuborildi."
                 )
             except Exception as e:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 await event.respond(f"❌ Xato yuz berdi: {e}")
 
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/oisha_fact"))
@@ -261,6 +262,7 @@ class AdminBot:
 
                 await send_evening_fact_report()
             except Exception as e:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 await event.respond(f"❌ Tahlil davomida xato yuz berdi: {e}")
 
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/oisha_stats"))
@@ -865,6 +867,7 @@ class AdminBot:
                     target_user = await self.user_client.get_entity(target_username)
                     position = " ".join(args[2:])
                 except Exception as e:
+                    logger.error("Exception handled in %s", __name__, exc_info=True)
                     await event.respond(f"❌ User topilmadi: {e}")
                     return
 
@@ -1039,6 +1042,7 @@ class AdminBot:
                     f"[ADMIN_BOT] Auto-reply PAUSED by admin {event.sender_id}"
                 )
             except Exception as e:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 await event.respond(f"❌ Xato: {e}")
 
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/resume_auto"))
@@ -1060,6 +1064,7 @@ class AdminBot:
                     f"[ADMIN_BOT] Auto-reply RESUMED by admin {event.sender_id}"
                 )
             except Exception as e:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 await event.respond(f"❌ Xato: {e}")
 
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/auto_status"))
@@ -1092,6 +1097,7 @@ class AdminBot:
                     f"Rejim o'zgartirish: `/set_mode off|shadow|vip_only|live`"
                 )
             except Exception as e:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 await event.respond(f"❌ Xato: {e}")
 
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/set_mode(\s+\S+)?"))
@@ -1124,6 +1130,7 @@ class AdminBot:
                     f"[ADMIN_BOT] Auto-reply mode set to '{new_mode}' by admin {event.sender_id}"
                 )
             except Exception as e:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 await event.respond(f"❌ Xato: {e}")
 
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/juma_send"))
@@ -2541,6 +2548,7 @@ class AdminBot:
                     analysis_prompt
                 )
             except:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 analysis_text = "⚠️ AI tahlilida texnik xatolik, lekin guruhlardagi faollik aniqlandi."
 
             res_report = (

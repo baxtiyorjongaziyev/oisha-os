@@ -13,6 +13,8 @@ import time
 from typing import Any, Dict, Optional
 
 import jwt
+import logging
+logger = logging.getLogger(__name__)
 
 # Limit browser sessions to twelve hours. A fresh Telegram login can renew it.
 SESSION_TTL_SECONDS = 12 * 60 * 60
@@ -106,4 +108,5 @@ def decode_session_jwt(token: str, secret: str) -> Optional[Dict[str, Any]]:
         clean_secret = _strong_session_secret(secret)
         return jwt.decode(token, clean_secret, algorithms=["HS256"])
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return None

@@ -5,6 +5,8 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from src.database import Database
 from src.time_utils import get_local_now
+import logging
+logger = logging.getLogger(__name__)
 
 ExecutorFn = Callable[["AgentTask"], Awaitable[Dict[str, Any]]]
 VerifierFn = Callable[["AgentTask", Dict[str, Any]], Awaitable[Dict[str, Any]]]
@@ -62,6 +64,7 @@ class MinimalAgentLoop:
         try:
             execution = await executor(task)
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             execution = {
                 "task_id": task.task_id,
                 "success": False,
@@ -78,6 +81,7 @@ class MinimalAgentLoop:
             else:
                 verification = await verifier(task, execution)
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             verification = {
                 "task_id": task.task_id,
                 "success": False,

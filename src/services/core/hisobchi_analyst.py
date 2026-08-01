@@ -51,7 +51,7 @@ class HisobchiAnalyst:
                 if "USD" in rates:
                     return float(rates["USD"].get("cb_rate", 0) or rates["USD"].get("sell_rate", 0) or 0)
         except Exception:
-            pass
+            logger.error("Exception handled in %s", __name__, exc_info=True)
         return 0
 
     async def analyze_month(self, period: str) -> str:
@@ -95,7 +95,7 @@ class HisobchiAnalyst:
                         for d in debts[:5]
                     )
             except Exception:
-                pass
+                logger.error("Exception handled in %s", __name__, exc_info=True)
 
         budget_info = ""
         if hasattr(self.engine, "_gs") and self.engine._gs:
@@ -107,7 +107,7 @@ class HisobchiAnalyst:
                         for b in budgets[:5]
                     )
             except Exception:
-                pass
+                logger.error("Exception handled in %s", __name__, exc_info=True)
 
         salary_info = ""
         if hasattr(self.engine, "_gs") and self.engine._gs:
@@ -116,7 +116,7 @@ class HisobchiAnalyst:
                 if salary["total"] > 0:
                     salary_info = f"\nMaosh xarajati: {_fmt(salary['total'])} UZS"
             except Exception:
-                pass
+                logger.error("Exception handled in %s", __name__, exc_info=True)
 
         prev_b = prev_summary.get("business", {})
         prev_p = prev_summary.get("personal", {})

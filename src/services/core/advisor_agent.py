@@ -142,7 +142,7 @@ class AdvisorAgent:
             try:
                 memory_ctx = await self.memory.get_global_context(limit=8)
             except Exception:
-                pass
+                logger.error("Exception handled in %s", __name__, exc_info=True)
 
         if memory_ctx:
             system_instruction = system_instruction + f"\n\n{memory_ctx}"

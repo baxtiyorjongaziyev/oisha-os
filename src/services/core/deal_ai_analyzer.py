@@ -200,6 +200,7 @@ class DealAIAnalyzer:
         try:
             raw = await self.ai_call(prompt)
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             raise RuntimeError(f"AI chaqiruv xatosi: {exc}") from exc
 
         parsed = self._parse_ai_response(raw)
@@ -234,6 +235,7 @@ class DealAIAnalyzer:
         try:
             notes = await self.amocrm.get_lead_notes(int(lead["id"]))
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             notes = []
         notes_text = " ".join(
             str((n.get("params") or {}).get("text") or "") for n in (notes or [])

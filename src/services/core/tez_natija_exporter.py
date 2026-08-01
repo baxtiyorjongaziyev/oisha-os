@@ -98,7 +98,7 @@ class TezNatijaExporter:
                 "horizontalAlignment": "CENTER",
             })
         except Exception:
-            pass
+            logger.error("Exception handled in %s", __name__, exc_info=True)
 
     async def export_all_groups(
         self,
@@ -152,7 +152,7 @@ class TezNatijaExporter:
                 col_a = ws.col_values(1)
                 existing_ids = {str(v) for v in col_a[1:] if v}
             except Exception:
-                pass
+                logger.error("Exception handled in %s", __name__, exc_info=True)
 
         new_count = 0
         skip_count = 0
@@ -207,7 +207,7 @@ class TezNatijaExporter:
                     await asyncio.sleep(exc.seconds + 5)
                     return {"new": new_count, "skip": skip_count}
             except Exception:
-                pass
+                logger.error("Exception handled in %s", __name__, exc_info=True)
             raise
 
         if batch:
@@ -352,7 +352,7 @@ class TezNatijaExporter:
                     await asyncio.sleep(exc.seconds + 5)
                     return {"new": new_count, "skip": skip_count}
             except Exception:
-                pass
+                logger.error("Exception handled in %s", __name__, exc_info=True)
             raise
 
         return {"new": new_count, "skip": skip_count}
@@ -385,7 +385,7 @@ class TezNatijaExporter:
                     try:
                         await self.amocrm.add_lead_tag(lead_id, tag)
                     except Exception:
-                        pass
+                        logger.error("Exception handled in %s", __name__, exc_info=True)
                     return lead_id
                 # Fallback: raqamli lead yaratib bo'lmasa standalone
             lead_id = await self.amocrm.create_standalone_lead(

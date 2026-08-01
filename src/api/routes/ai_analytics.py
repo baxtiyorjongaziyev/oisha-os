@@ -106,6 +106,7 @@ async def analyze_conversation(request: Request):
         )
         return analysis.to_dict()
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("analyze_conversation", exc)
 
 
@@ -124,6 +125,7 @@ async def metasell_dashboard():
     try:
         rows = await _fetch_call_analysis_rows()
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _unavailable(
             "metasell_dashboard", f"db_read_failed: {type(exc).__name__}"
         )
@@ -131,6 +133,7 @@ async def metasell_dashboard():
     try:
         return _build_sales_quality_payload(rows)
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("metasell_dashboard", exc)
 
 
@@ -158,6 +161,7 @@ async def coach_daily_report(request: Request, day: str = ""):
             "has_data": report is not None,
         }
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("coach_daily_report", exc)
 
 
@@ -184,6 +188,7 @@ async def coach_ideal_script(request: Request):
         # Bu — taklif, rasmiy playbook emas.
         return {"script": script, "status": "draft_suggestion"}
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("coach_ideal_script", exc)
 
 
@@ -212,6 +217,7 @@ async def coach_playbook_suggestions(request: Request):
             )
         return {"suggestions": suggestions, "status": "advisory_only"}
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("coach_playbook_suggestions", exc)
 
 
@@ -255,6 +261,7 @@ async def ai_process_call(request: Request):
             )
         return analysis.to_dict()
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("ai_process_call", exc)
 
 
@@ -271,6 +278,7 @@ async def ai_deal_hygiene(limit: int = 100):
         )
         return await agent.audit(limit=limit)
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("ai_deal_hygiene", exc)
 
 
@@ -286,6 +294,7 @@ async def ai_deal_hygiene_apply(request: Request):
         try:
             data = await request.json()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             pass  # bo'sh tana — standart qiymatlar bilan ishlaymiz
 
         from src.services.core.deal_hygiene import AmoCRMDealHygieneAgent
@@ -298,6 +307,7 @@ async def ai_deal_hygiene_apply(request: Request):
             report, create_tasks=bool(data.get("create_tasks", True))
         )
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("ai_deal_hygiene_apply", exc)
 
 
@@ -359,4 +369,5 @@ async def ai_lead_classifier_tag(request: Request):
         payload["category"] = result.category.value
         return payload
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return _fail("ai_lead_classifier_tag", exc)

@@ -133,6 +133,7 @@ class ActionParser:
                             start_dt = dt_mod.datetime.fromisoformat(str(start_str))
                             end_str = (start_dt + dt_mod.timedelta(hours=1)).isoformat()
                         except:
+                            logger.error("Exception handled in %s", __name__, exc_info=True)
                             end_str = start_str
 
                     self.gcalendar.create_event(

@@ -58,6 +58,7 @@ async def cmd_report(event, **ctx):
         report_text = reporter.format_report(stats, prev)
         await event.respond(report_text)
     except Exception as e:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         await event.respond(f"❌ Xatolik yuz berdi: {e}")
 
 
@@ -87,6 +88,7 @@ async def cmd_stats(event, **ctx):
         )
         await event.respond(text)
     except Exception as e:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         await event.respond(f"❌ Xatolik: {e}")
 
 
@@ -106,4 +108,5 @@ async def cmd_history(event, **ctx):
             )
         await event.respond("\n".join(lines))
     except Exception as e:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         await event.respond(f"❌ Xatolik: {e}")

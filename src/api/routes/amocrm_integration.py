@@ -207,6 +207,7 @@ async def _run_amocrm_call_backfill(runtime_db, *, reason: str = "unknown", limi
         }
         return api_state._call_backfill_last_status
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         finished_at = datetime.now(timezone.utc)
         api_state._call_backfill_last_status = {
             "started_at": started_at.isoformat(),

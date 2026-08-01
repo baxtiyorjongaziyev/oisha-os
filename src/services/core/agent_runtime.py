@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional
 
 from src.settings import settings
 from src.time_utils import get_local_now
+import logging
+logger = logging.getLogger(__name__)
 
 
 def parse_bool(val: Any) -> bool:
@@ -189,6 +191,7 @@ def get_storage_health(
             with open(resolved_path, "ab"):
                 writable = True
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             error = str(exc)
 
         try:
@@ -196,7 +199,8 @@ def get_storage_health(
                 # Health-only, read-only row counts. Intentionally a direct
                 # sqlite3 read (not the async pool): this runs in the health
                 # endpoint and must not depend on the async DB being up.
-                conn = sqlite3.connect(str(resolved_path))
+                from src.database_pool import db_pool
+                conn = db_pool.get_connection()
                 try:
                     cursor = conn.cursor()
                     cursor.execute("SELECT COUNT(*) FROM scheduled_jobs")
@@ -208,6 +212,7 @@ def get_storage_health(
                 finally:
                     conn.close()
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             error = str(exc)
 
     return {

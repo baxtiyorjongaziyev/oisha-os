@@ -74,6 +74,7 @@ class OAuthRepository(BaseRepository):
                 else:
                     expires_at = expires_str
             except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 expires_at = None
 
             extra_data = json.loads(row[3]) if row[3] else {}

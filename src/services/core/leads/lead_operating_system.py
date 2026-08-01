@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 
 from src.agents.sales_agent import SalesAgent
 from src.time_utils import get_local_now
+import logging
+logger = logging.getLogger(__name__)
 
 
 class LeadOperatingSystem:
@@ -65,6 +67,7 @@ class LeadOperatingSystem:
                 try:
                     crm_status = await self.controller.crm.get_user_context(phone)
                 except Exception:
+                    logger.error("Exception handled in %s", __name__, exc_info=True)
                     crm_status = "Yangi mijoz"
 
             last_client_dt = self._parse_dt(lead.get("last_client_message_at"))

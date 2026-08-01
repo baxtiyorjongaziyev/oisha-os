@@ -14,7 +14,8 @@ _MEMORY_DB_PATH = os.path.join("data", "ai_sync_memory.db")
 
 def _memory_conn() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(_MEMORY_DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(_MEMORY_DB_PATH)
+    from src.database_pool import db_pool
+    conn = db_pool.get_connection()
     conn.execute(
         "CREATE TABLE IF NOT EXISTS learned_facts ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, fact TEXT)"

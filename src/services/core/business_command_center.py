@@ -8,6 +8,8 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
 from typing import Any
+import logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -752,6 +754,7 @@ async def collect_sales_today_priorities(
     try:
         leads = await amocrm.get_leads_detailed(limit=min(max(limit * 3, 20), 50))
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return {
             "status": "source_unavailable",
             "source": "amocrm",
@@ -778,6 +781,7 @@ async def collect_sales_today_priorities(
             try:
                 open_tasks_by_lead[int(lead_id)] = await amocrm.get_lead_open_tasks(int(lead_id))
             except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
                 open_tasks_by_lead[int(lead_id)] = []
 
     return build_sales_today_priorities(
@@ -806,6 +810,7 @@ async def collect_project_delivery_risks(
 
         projects = await asyncio.to_thread(airtable.get_projects)
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return {
             "status": "source_unavailable",
             "source": "airtable",
@@ -846,6 +851,7 @@ async def collect_finance_project_risks(
                 "claim_policy": "No fake finance risks are generated without project finance access.",
             }
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return {
             "status": "source_unavailable",
             "source": "project_finance",
@@ -887,6 +893,7 @@ async def collect_team_capacity_snapshot(
                 "claim_policy": "No fake team capacity is generated without project assignments.",
             }
     except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return {
             "status": "source_unavailable",
             "source": "project_assignments",
@@ -903,6 +910,7 @@ async def collect_team_capacity_snapshot(
                 if employee_id:
                     employee_names[employee_id] = str(employee.get("name") or employee_id)
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             employee_names = {}
     return build_team_capacity_snapshot(
         projects or [],

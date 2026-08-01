@@ -46,5 +46,6 @@ class CBUApi:
                         rate_val = float(rate.get("Rate"))
                         return amount * rate_val
                     except Exception:
+                        logger.error("Exception handled in %s", __name__, exc_info=True)
                         return None
         return None

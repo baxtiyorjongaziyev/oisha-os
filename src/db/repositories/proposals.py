@@ -217,6 +217,7 @@ class ProposalRepository(BaseRepository):
                 await conn.execute(sql, item)
             await conn.commit()
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             rollback = getattr(conn, "rollback", None)
             if rollback is not None:
                 await rollback()
