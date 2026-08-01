@@ -143,10 +143,15 @@ class ApprovalStore:
 
     def _get_sync(self, operation_id: str) -> PendingOperation | None:
         with closing(self._connect()) as connection:
-            row = connection.execute(
+            res = connection.execute(
                 "SELECT * FROM mcp_pending_operations WHERE id = ?", (operation_id,)
-            ).fetchone()
-            return self._row_to_operation(row) if row else None
+            )
+            row = res.fetchone()
+            if not row:
+                return None
+            columns = [desc[0] for desc in res.description]
+            row_dict = dict(zip(columns, row))
+            return self._row_to_operation(row_dict)
 
     async def claim(
         self, operation_id: str, owner_id: int, expected_owner_id: int
@@ -175,11 +180,14 @@ class ApprovalStore:
                 connection.rollback()
                 return None
             self._audit(connection, operation_id, "approved", owner_id, "")
-            row = connection.execute(
+            res = connection.execute(
                 "SELECT * FROM mcp_pending_operations WHERE id = ?", (operation_id,)
-            ).fetchone()
+            )
+            row = res.fetchone()
+            columns = [desc[0] for desc in res.description]
+            row_dict = dict(zip(columns, row))
             connection.commit()
-            return self._row_to_operation(row)
+            return self._row_to_operation(row_dict)
 
     async def cancel(
         self, operation_id: str, owner_id: int, expected_owner_id: int
@@ -294,7 +302,7 @@ class ApprovalStore:
         )
 
     @staticmethod
-    def _row_to_operation(row: sqlite3.Row) -> PendingOperation:
+    def _row_to_operation(row: dict) -> PendingOperation:
         return PendingOperation(
             id=row["id"],
             tool_name=row["tool_name"],
