@@ -5,6 +5,8 @@ from typing import Any
 from .models import ExecutionOutcome
 from .policy import classify_tool
 from .store import payload_digest
+import logging
+logger = logging.getLogger(__name__)
 
 
 _default_executor: "ApprovalExecutor | None" = None
@@ -45,6 +47,7 @@ class ApprovalExecutor:
                 operation.tool_name, operation.arguments
             )
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             await self.store.finish(operation_id, "failed", type(exc).__name__)
             return ExecutionOutcome(
                 "failed", "Telegram amali bajarilmadi.", "⚠️ Xato", operation_id

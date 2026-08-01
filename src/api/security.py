@@ -22,6 +22,8 @@ from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse
 
 from src.api.rbac import Principal, Role
+import logging
+logger = logging.getLogger(__name__)
 
 _ALLOWED_SESSION_ROLES = frozenset({Role.OWNER, Role.ADMIN, Role.SELLER, Role.VIEWER})
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
@@ -150,6 +152,7 @@ def authorize_request_values(
     try:
         payload = jwt.decode(token, dedicated_jwt_secret, algorithms=["HS256"])
     except Exception:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
         return None
 
     role_value = _clean(payload.get("role")).lower()

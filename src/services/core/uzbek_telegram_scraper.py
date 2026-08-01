@@ -193,7 +193,7 @@ class TelegramScraperReal(UzbekEntrepreneurScraper):
                             }
                             leads.append(lead)
                 except Exception:
-                    pass
+                    logger.error("Exception handled in %s", __name__, exc_info=True)
         except Exception as e:
             logger.error(f"[TELEGRAM] Failed to extract leads from channel {channel_name}: {e}")
             

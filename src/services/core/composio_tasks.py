@@ -99,6 +99,7 @@ class ComposioTaskService:
                         params={"id": board_id}
                     )
                 except Exception:
+                    logger.error("Exception handled in %s", __name__, exc_info=True)
                     # Fallback to general cards search or board lists
                     res = client.tools.execute(
                         tool_slug="trello_get_cards",

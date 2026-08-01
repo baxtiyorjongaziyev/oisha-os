@@ -211,6 +211,7 @@ class InstagramWeeklyReportAgent:
         try:
             from openai import AsyncOpenAI
         except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             return None
 
         rows = []

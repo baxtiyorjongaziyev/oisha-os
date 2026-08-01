@@ -153,6 +153,7 @@ async def init_hisobchi_tables(db=None) -> None:
         try:
             await _db.execute(ddl)
         except Exception as exc:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             message = str(exc).casefold()
             if not any(
                 marker in message

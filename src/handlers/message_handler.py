@@ -128,6 +128,7 @@ async def process_admin_commands(
             report_text = reporter.format_report(stats, prev)
             await event.respond(report_text)
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             await event.respond(f"❌ Xatolik yuz berdi: {e}")
         return True
 
@@ -155,6 +156,7 @@ async def process_admin_commands(
             )
             await event.respond(report_text)
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             await event.respond(f"❌ Xatolik: {e}")
         return True
 
@@ -174,6 +176,7 @@ async def process_admin_commands(
                 )
             await event.respond("\n".join(lines))
         except Exception as e:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
             await event.respond(f"❌ Xatolik: {e}")
         return True
 
