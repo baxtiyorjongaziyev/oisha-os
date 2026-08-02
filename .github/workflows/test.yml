@@ -18,6 +18,8 @@ on:
       - 'pnpm-lock.yaml'
       - 'turbo.json'
       - 'deploy/**'
+      - 'salescoach-ai/**'
+      - 'marketing-os/frontend/**'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [ main, master ]
@@ -32,6 +34,8 @@ on:
       - 'pnpm-lock.yaml'
       - 'turbo.json'
       - 'deploy/**'
+      - 'salescoach-ai/**'
+      - 'marketing-os/frontend/**'
       - '.github/workflows/test.yml'
 
 concurrency:
@@ -52,6 +56,8 @@ jobs:
     timeout-minutes: 5
     outputs:
       typescript: ${{ steps.filter.outputs.typescript }}
+      salescoach: ${{ steps.filter.outputs.salescoach }}
+      marketing: ${{ steps.filter.outputs.marketing }}
     steps:
       - uses: actions/checkout@v7
 
@@ -66,6 +72,12 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
+              - '.github/workflows/test.yml'
+            salescoach:
+              - 'salescoach-ai/**'
+              - '.github/workflows/test.yml'
+            marketing:
+              - 'marketing-os/frontend/**'
               - '.github/workflows/test.yml'
 
   pull-request-tests:
@@ -137,6 +149,59 @@ jobs:
 
       - name: Build workspace
         run: pnpm run build
+
+  salescoach-monorepo:
+    name: SalesCoach workspace checks
+    needs: changes
+    if: needs.changes.outputs.salescoach == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: salescoach-ai
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v5
+        with:
+          package_json_file: salescoach-ai/package.json
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: salescoach-ai/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run type-check
+      - run: pnpm run test
+      - run: pnpm run build
+
+  marketing-frontend:
+    name: Marketing frontend checks
+    needs: changes
+    if: needs.changes.outputs.marketing == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: marketing-os/frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: marketing-os/frontend/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile --ignore-workspace
+      - run: pnpm audit --audit-level high --ignore-workspace
+      - run: pnpm run build
 
   trusted-main-tests:
     if: github.event_name == 'push'
