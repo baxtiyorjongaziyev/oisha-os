@@ -196,6 +196,6 @@ async def run_system_audit():
         return result
     except Exception as exc:
         logger.error("Exception handled in %s", __name__, exc_info=True)
-        return {"status": "error", "message": str(exc)}
+        return {"status": "error", "message": "CRM audit failed"}
     finally:
         api_state.crm_audit_running = False

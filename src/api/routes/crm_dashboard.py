@@ -46,7 +46,7 @@ async def crm_dashboard(
             result["amocrm"] = {"status": "configured", "subdomain": getattr(amocrm, "subdomain", "unknown")}
     except Exception as exc:
         logger.debug("[crm-dashboard] amocrm status check failed: %s", exc)
-        result["amocrm"] = {"status": "error", "error": str(exc)}
+        result["amocrm"] = {"status": "error", "error": "status check failed"}
 
     # DB-based stats
     if api_state.db_instance:
