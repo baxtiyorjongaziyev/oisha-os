@@ -4,11 +4,11 @@ packages:
 
 overrides:
   '@babel/core': ^7.29.6
-  # ReDoS (GHSA-v6h2-p8h4-qcjw) 1.1.12 va 5.0.8 da tuzatilgan.
+  # ReDoS/OOM advisories v1 uchun 1.1.17, v2+ uchun 5.0.8 da tuzatilgan.
   # v1 va v2+ ni alohida yopamiz: brace-expansion v2 da default eksportdan
   # named eksportga o'tgan, shuning uchun v1 iste'molchilarini (minimatch@3.x)
   # 5.x ga majburlash "TypeError: expand is not a function" beradi.
-  brace-expansion@<1.1.12: '>=1.1.12 <2'
+  brace-expansion@<1.1.17: '>=1.1.17 <2'
   brace-expansion@>=2 <5.0.8: '>=5.0.8'
   js-yaml: ^4.2.0
   multer: ^2.2.0
