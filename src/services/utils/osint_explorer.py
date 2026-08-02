@@ -1,5 +1,6 @@
 import logging
 import re
+from urllib.parse import urlsplit
 from googlesearch import search  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -32,11 +33,16 @@ class OSINTExplorer:
             search_results = list(search(query, num_results=10, sleep_interval=2))
 
             for url in search_results:
-                if "instagram.com" in url.lower():
+                hostname = (urlsplit(url).hostname or "").lower().rstrip(".")
+                if hostname == "instagram.com" or hostname.endswith(".instagram.com"):
                     results["instagram"] = url
-                elif "linkedin.com/in/" in url.lower():
+                elif (
+                    hostname == "linkedin.com" or hostname.endswith(".linkedin.com")
+                ) and urlsplit(url).path.startswith("/in/"):
                     results["linkedin"] = url
-                elif "facebook.com" in url.lower() and not results["facebook"]:
+                elif (
+                    hostname == "facebook.com" or hostname.endswith(".facebook.com")
+                ) and not results["facebook"]:
                     # Ko'pincha asosiy sahifalar chiqishi mumkin, shuning uchun ehtiyot bo'lamiz
                     results["facebook"] = url
                 else:

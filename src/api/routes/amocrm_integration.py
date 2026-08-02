@@ -131,7 +131,7 @@ async def amocrm_webhook(request: Request):
         return {"status": "ok", "message": "Event queued"}
     except Exception as e:
         logger.error("[Webhook] Error: %s", e)
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": "Webhook processing failed"}
 
 
 async def _process_amocrm_event(data: Dict[str, Any]):
