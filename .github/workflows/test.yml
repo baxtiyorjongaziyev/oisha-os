@@ -12,13 +12,13 @@ on:
       - 'tests/**'
       - 'apps/**'
       - 'packages/**'
+      - 'salescoach-ai/**'
       - 'requirements*.txt'
       - 'pyproject.toml'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'turbo.json'
       - 'deploy/**'
-      - 'salescoach-ai/**'
       - 'marketing-os/frontend/**'
       - '.github/workflows/test.yml'
   pull_request:
@@ -28,13 +28,13 @@ on:
       - 'tests/**'
       - 'apps/**'
       - 'packages/**'
+      - 'salescoach-ai/**'
       - 'requirements*.txt'
       - 'pyproject.toml'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'turbo.json'
       - 'deploy/**'
-      - 'salescoach-ai/**'
       - 'marketing-os/frontend/**'
       - '.github/workflows/test.yml'
 
@@ -42,15 +42,10 @@ concurrency:
   group: ci-test-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Workflow-level default: read-only. These jobs run pull-request code
-# (pytest, lint, typecheck) and need no write access to the repo.
 permissions:
   contents: read
 
 jobs:
-  # Qaysi ekotizim o'zgarganini aniqlaymiz. Workflow path filtri butun run
-  # darajasida ishlaydi, job darajasida emas — usiz Python-only o'zgarish ham
-  # TypeScript job'ini ishga tushiradi va u yiqilsa CI doim qizil qoladi.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -60,6 +55,8 @@ jobs:
       marketing: ${{ steps.filter.outputs.marketing }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -88,6 +85,8 @@ jobs:
       SKIP_LIVE: "1"
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -123,6 +122,8 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
@@ -161,6 +162,8 @@ jobs:
         working-directory: salescoach-ai
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v5
         with:
@@ -188,6 +191,8 @@ jobs:
         working-directory: marketing-os/frontend
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v5
         with:
@@ -211,6 +216,8 @@ jobs:
       SKIP_LIVE: "1"
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Python virtualenv
         run: |
