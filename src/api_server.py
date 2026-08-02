@@ -710,7 +710,7 @@ async def telegram_extension_history(phone: str):
         }
     except Exception as e:
         logger.error(f"[TELEGRAM EXT HISTORY] {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Telegram history request failed"}
 
 
 @app.post("/api/telegram/extension/send")
@@ -745,7 +745,7 @@ async def telegram_extension_send(request: Request):
         return {"success": True}
     except Exception as e:
         logger.error(f"[TELEGRAM EXT SEND] {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Telegram message send failed"}
 
 # =====================================================================
 # Airtable OAuth 2.0 Integratsiyasi
