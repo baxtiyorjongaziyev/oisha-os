@@ -354,7 +354,10 @@ async def boot_application():
         )
         from src.services.core.finance.finance_source import GoogleSheetsFinanceSource
 
-        api_state.finance_source = GoogleSheetsFinanceSource(hisobchi_gs_store)
+        api_state.finance_source = GoogleSheetsFinanceSource(
+            hisobchi_gs_store,
+            tracking_start_date=settings.HISOBCHI_TRACKING_START_DATE,
+        )
         # Cache warm-up is slower than the single-sheet dashboard read. Publish
         # the real finance source first so the dashboard is available while the
         # rest of Hisobchi finishes initializing.
@@ -928,7 +931,11 @@ async def boot_application():
     )
     from src.services.core.hisobchi_analyst import HisobchiAnalyst
 
-    hisobchi_engine = create_hisobchi_engine(db=msg_controller.db, gs_store=hisobchi_gs_store)
+    hisobchi_engine = create_hisobchi_engine(
+        db=msg_controller.db,
+        gs_store=hisobchi_gs_store,
+        tracking_start_date=settings.HISOBCHI_TRACKING_START_DATE,
+    )
     m._hisobchi_engine = hisobchi_engine
     if bot_runtime.backend == "aiogram":
         from src.services.core.admin_aiogram_dispatcher import (
