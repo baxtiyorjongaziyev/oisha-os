@@ -6,7 +6,8 @@ def fetch_bot_log():
     password = os.environ.get('VPS_PASSWORD', '')
     
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
+    ssh.load_system_host_keys()
+    ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
     try:
         ssh.connect(host, username=user, password=password)
         stdin, stdout, stderr = ssh.exec_command("tail -n 50 /home/baxtiyorjongaziyev/telegram_bot/bot.log")  # nosec B601
