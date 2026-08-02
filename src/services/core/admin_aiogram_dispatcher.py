@@ -78,6 +78,26 @@ def register_hisobchi_aiogram_callbacks(
             await event.answer("⚠️ Xatolik yuz berdi, qayta urinib ko'ring.")
 
 
+def register_salescoach_aiogram_callbacks(dispatcher: Any, *, context: Any) -> None:
+    """Route SalesCoach approval decisions through the bot-account head."""
+    from aiogram import F
+    from src.services.core.telegram_salescoach_runtime import (
+        handle_salescoach_callback,
+    )
+
+    @dispatcher.callback_query(F.data.startswith(("scapprove:", "screject:")))
+    async def _salescoach_callback(callback: Any) -> None:
+        try:
+            await handle_salescoach_callback(
+                str(getattr(callback, "data", "") or ""),
+                callback,
+                context,
+            )
+        except Exception:
+            logger.error("SalesCoach callback failed", exc_info=True)
+            await callback.answer("Xatolik yuz berdi, qayta urinib ko'ring")
+
+
 async def handle_aiogram_chatid(message: Any) -> None:
     chat = getattr(message, "chat", None)
     reply_to = getattr(message, "reply_to_message", None)
