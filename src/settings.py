@@ -42,6 +42,13 @@ class AppSettings(BaseSettings):
     TELEGRAM_MCP_SESSION_STRING: Optional[SecretStr] = None
     TELEGRAM_MCP_UPSTREAM_URL: str = "http://127.0.0.1:8765/mcp"
     TELEGRAM_MCP_APPROVAL_TTL_SECONDS: int = 900
+    SALESCOACH_API_URL: str = ""
+    SALESCOACH_SERVICE_TOKEN: Optional[SecretStr] = None
+    SALESCOACH_ENABLED: bool = False
+    TELEGRAM_SALESCOACH_ENABLED: bool = False
+    TELEGRAM_SALESCOACH_MODE: str = "shadow"
+    TELEGRAM_SALESCOACH_IDLE_SECONDS: int = 600
+    SALESCOACH_APPROVER_IDS: list[int] = Field(default_factory=list)
     SURGICAL_MODE: bool = True  # Autonomous negotiations agent — ON by default
     AUTONOMY_THRESHOLD: float = (
         0.55  # Min confidence for auto-send (lowered for proactivity)

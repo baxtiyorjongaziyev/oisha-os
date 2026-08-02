@@ -1,0 +1,53 @@
+name: CI - SalesCoach AI
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'salescoach-ai/**'
+      - '.github/workflows/salescoach-ai.yml'
+  push:
+    branches: [main, master]
+    paths:
+      - 'salescoach-ai/**'
+      - '.github/workflows/salescoach-ai.yml'
+
+concurrency:
+  group: ci-salescoach-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  api-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: salescoach-ai
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: salescoach-ai/pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run API contract tests
+        run: pnpm --filter @salescoach/api test -- negotiations.controller.spec.ts negotiations.service.spec.ts --runInBand
+
+      - name: Typecheck API
+        run: pnpm --filter @salescoach/api run type-check

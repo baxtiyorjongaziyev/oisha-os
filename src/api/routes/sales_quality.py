@@ -5,9 +5,8 @@ import hmac
 import json
 import logging
 import os
-from collections import Counter, defaultdict
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from collections import defaultdict
+from typing import Any, Dict, List, Mapping, Optional
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -36,8 +35,8 @@ def _safe_json_list(value: Any) -> list:
 def _row_to_dict(row: Any, columns: list) -> dict:
     if row is None:
         return {}
-    if isinstance(row, dict):
-        return row
+    if isinstance(row, Mapping):
+        return dict(row)
     try:
         return {col: getattr(row, col, None) for col in columns}
     except Exception:
@@ -98,8 +97,48 @@ async def _fetch_call_analysis_rows() -> list:
             rows = rows_method()
             if hasattr(rows, "__await__"):
                 rows = await rows
-            return list(rows or [])
-        return []
+            combined = list(rows or [])
+        else:
+            combined = []
+        try:
+            telegram_result = conn.execute(
+                """
+                SELECT
+                    'telegram-' || id AS call_id,
+                    manager_id,
+                    '' AS manager_name,
+                    NULL AS client_name,
+                    0 AS duration_seconds,
+                    overall_score,
+                    CASE
+                        WHEN overall_score >= 90 THEN 'excellent'
+                        WHEN overall_score >= 80 THEN 'good'
+                        WHEN overall_score >= 60 THEN 'average'
+                        ELSE 'poor'
+                    END AS category,
+                    'Telegram SalesCoach: ' || status AS summary,
+                    '[]' AS strengths,
+                    '[]' AS weaknesses,
+                    '' AS client_mood,
+                    0 AS client_interest_level,
+                    status AS outcome,
+                    '[]' AS next_steps,
+                    updated_at AS analyzed_at
+                FROM conversation_analyses
+                ORDER BY updated_at DESC
+                LIMIT 200
+                """
+            )
+            if hasattr(telegram_result, "__await__"):
+                telegram_result = await telegram_result
+            telegram_rows = telegram_result.fetchall()
+            if hasattr(telegram_rows, "__await__"):
+                telegram_rows = await telegram_rows
+            combined.extend(list(telegram_rows or []))
+        except Exception as exc:
+            if "no such table" not in str(exc).lower():
+                raise
+        return combined
     except Exception as exc:
         logger.error("[SALES QUALITY] DB read failed: %s", exc)
         raise
