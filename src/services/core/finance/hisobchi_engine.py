@@ -13,6 +13,10 @@ from typing import Any, Optional
 
 from src.database_pool import db_pool
 from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
+from src.services.core.finance.accounting_period import (
+    DEFAULT_TRACKING_START_DATE,
+    parse_tracking_start_date,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +43,14 @@ def _normalize_card_suffix(card_suffix: str) -> str:
 
 
 class HisobchiEngine:
-    def __init__(self, db=None, gs_store: Any = None) -> None:
+    def __init__(
+        self,
+        db=None,
+        gs_store: Any = None,
+        tracking_start_date: str = DEFAULT_TRACKING_START_DATE,
+    ) -> None:
         self._gs = gs_store
+        self._tracking_start_date = parse_tracking_start_date(tracking_start_date)
         self._db = None if gs_store else ensure_hisobchi_db(
             db if db is not None else db_pool
         )
@@ -427,16 +437,18 @@ class HisobchiEngine:
     async def get_monthly_summary(self, period: str) -> dict:
         """period = 'YYYY-MM'"""
         if self._gs:
-            return await self._gs.get_monthly_summary(period)
+            return await self._gs.get_monthly_summary(
+                period, tracking_start_date=self._tracking_start_date.isoformat()
+            )
         rows = await self._db.execute(
             """
             SELECT direction, category, ownership, SUM(amount) AS total, COUNT(*) AS cnt
             FROM hisobchi_transactions
-            WHERE created_at LIKE ?
+            WHERE created_at LIKE ? AND created_at >= ?
             GROUP BY direction, category, ownership
             ORDER BY total DESC
             """,
-            [f"{period}%"],
+            [f"{period}%", self._tracking_start_date.isoformat()],
         )
         summary = {
             "business": {"income": 0, "expense": 0, "net": 0, "categories": {}},
