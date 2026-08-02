@@ -11,6 +11,8 @@ import time
 import types
 from typing import Optional, Tuple
 
+logger = logging.getLogger(__name__)
+
 try:
     import mss
     import mss.tools
@@ -60,11 +62,9 @@ class _UnavailableMSS:
 try:
     import pyautogui  # noqa: E402
 except Exception as _pyautogui_error:
-    logger.error("Exception handled in %s", __name__, exc_info=True)
+    logger.warning("PyAutoGUI unavailable; desktop actions disabled: %s", _pyautogui_error)
     pyautogui = _UnavailablePyAutoGUI(_pyautogui_error)
     sys.modules["pyautogui"] = pyautogui
-
-logger = logging.getLogger(__name__)
 
 # PyAutoGUI global sozlamalari (headless proxy ham shu atributlarni qo'llaydi).
 pyautogui.FAILSAFE = True
