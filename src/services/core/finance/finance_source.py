@@ -9,6 +9,11 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol, Sequence
 
 from src.services.core.hisobchi_gsheets import SHEET_PUL_OQIMI
+from src.services.core.finance.accounting_period import (
+    DEFAULT_TRACKING_START_DATE,
+    is_on_or_after_start,
+    parse_tracking_start_date,
+)
 import logging
 logger = logging.getLogger(__name__)
 
@@ -77,9 +82,16 @@ def _parse_time(value: Any) -> datetime:
 class GoogleSheetsFinanceSource:
     """FinanceSource backed by Hisobchi's live ``Pul oqimi`` worksheet."""
 
-    def __init__(self, store: Any, *, stale_ttl_seconds: int = 900) -> None:
+    def __init__(
+        self,
+        store: Any,
+        *,
+        stale_ttl_seconds: int = 900,
+        tracking_start_date: str = DEFAULT_TRACKING_START_DATE,
+    ) -> None:
         self._store = store
         self._stale_ttl_seconds = max(0, stale_ttl_seconds)
+        self._tracking_start_date = parse_tracking_start_date(tracking_start_date)
         self._cached: FinanceSnapshot | None = None
 
     async def get_snapshot(self) -> FinanceSnapshot:
@@ -115,6 +127,10 @@ class GoogleSheetsFinanceSource:
             ).strip()
             amount = _decimal(_row_value(row, "Summa", "amount"))
             occurred_at = str(_row_value(row, "Sana", "date")).strip()
+            if not is_on_or_after_start(
+                _parse_time(occurred_at), self._tracking_start_date
+            ):
+                continue
             normalized_direction = direction.casefold()
             currency = str(
                 _row_value(row, "Valyuta", "currency", default="UZS")

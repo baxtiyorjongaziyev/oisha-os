@@ -230,7 +230,12 @@ async def run_one_time_reset_and_resync(
 def create_hisobchi_engine(
     db=None,
     gs_store: Any = None,
+    tracking_start_date: str = "2026-08-01",
 ) -> Any:
     """Factory: creates HisobchiEngine with the right backend."""
     from src.services.core.finance.hisobchi_engine import HisobchiEngine
-    return HisobchiEngine(db=db, gs_store=gs_store)
+    return HisobchiEngine(
+        db=db,
+        gs_store=gs_store,
+        tracking_start_date=tracking_start_date,
+    )
