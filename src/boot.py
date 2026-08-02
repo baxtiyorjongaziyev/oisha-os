@@ -342,15 +342,23 @@ async def boot_application():
     }
     db = Database()
     await db.init_instance()
-    from src.services.core.finance.hisobchi_schema import init_hisobchi_tables, init_hisobchi_gsheets
+    from src.services.core.finance.hisobchi_schema import init_hisobchi_tables
 
     hisobchi_gs_id = getattr(settings, "HISOBCHI_GSHEET_ID", None)
     hisobchi_gs_creds = getattr(settings, "HISOBCHI_GSHEET_CREDS_FILE", None) or getattr(settings, "GSHEET_CREDS_FILE", "service_account.json")
     if hisobchi_gs_id:
-        hisobchi_gs_store = await init_hisobchi_gsheets(hisobchi_gs_id, hisobchi_gs_creds)
+        from src.services.core.hisobchi_gsheets import HisobchiGsheetStore
+
+        hisobchi_gs_store = await asyncio.to_thread(
+            HisobchiGsheetStore, hisobchi_gs_id, hisobchi_gs_creds
+        )
         from src.services.core.finance.finance_source import GoogleSheetsFinanceSource
 
         api_state.finance_source = GoogleSheetsFinanceSource(hisobchi_gs_store)
+        # Cache warm-up is slower than the single-sheet dashboard read. Publish
+        # the real finance source first so the dashboard is available while the
+        # rest of Hisobchi finishes initializing.
+        await hisobchi_gs_store.init()
         logger.info("[HISOBCHI] Google Sheets backend is ready (spreadsheet: %s)", hisobchi_gs_id)
     else:
         hisobchi_gs_store = None
