@@ -966,6 +966,7 @@ async def boot_application():
     if bot_runtime.backend == "aiogram" and bot_ingress_mode == "polling":
         from src.services.core.admin_aiogram_dispatcher import (
             register_hisobchi_aiogram_callbacks,
+            register_salescoach_aiogram_callbacks,
         )
         from src.services.core.telegram.aiogram_head import AiogramBotHead
         from src.services.core.telegram.telegram_ai_features import (
@@ -975,6 +976,10 @@ async def boot_application():
         register_hisobchi_aiogram_callbacks(
             admin_aiogram_dispatcher,
             engine=hisobchi_engine,
+        )
+        register_salescoach_aiogram_callbacks(
+            admin_aiogram_dispatcher,
+            context=app_ctx,
         )
         legacy_bot_compat.attach()
         aiogram_bot_head = AiogramBotHead(
@@ -1084,6 +1089,13 @@ async def boot_application():
         try:
             from src.services.core.hisobchi_approval import handle_callback
             data = event.data.decode("utf-8") if isinstance(event.data, bytes) else event.data
+            if data and data.startswith(("scapprove:", "screject:")):
+                from src.services.core.telegram_salescoach_runtime import (
+                    handle_salescoach_callback,
+                )
+
+                await handle_salescoach_callback(str(data), event, app_ctx)
+                raise events.StopPropagation
             if data and (data.startswith("happrove:") or data.startswith("hedit:") or
                          data.startswith("hskip:") or data.startswith("hcat:") or
                          data.startswith("howner:") or data.startswith("hback:")):

@@ -1233,25 +1233,35 @@ class AmoCRMSync:
         for note_type in note_types or []:
             params.append(("filter[note_type][]", note_type))
         try:
-            response = await self._request_with_auth(
-                requests.get, url, params=params, timeout=30
-            )
-            if response.status_code == 401:
-                if await asyncio.to_thread(self.refresh_token):
-                    response = await self._request_with_auth(
-                        requests.get, url, params=params, timeout=30
-                    )
-                else:
-                    self.last_error = "amocrm_unauthorized"
+            notes: List[Dict[str, Any]] = []
+            page = 1
+            while page <= 20:
+                page_params = [*params, ("page", page)]
+                response = await self._request_with_auth(
+                    requests.get, url, params=page_params, timeout=30
+                )
+                if response.status_code == 401:
+                    if await asyncio.to_thread(self.refresh_token):
+                        response = await self._request_with_auth(
+                            requests.get, url, params=page_params, timeout=30
+                        )
+                    else:
+                        self.last_error = "amocrm_unauthorized"
+                        return []
+                if response.status_code == 204:
+                    break
+                if response.status_code != 200:
+                    if response.status_code == 401:
+                        self.last_error = "amocrm_unauthorized"
                     return []
-            if response.status_code == 200:
-                self.last_error = None
-                return response.json().get("_embedded", {}).get("notes", [])
-            if response.status_code == 204:
-                return []
-            if response.status_code == 401:
-                self.last_error = "amocrm_unauthorized"
-            return []
+                payload = response.json()
+                page_notes = payload.get("_embedded", {}).get("notes", [])
+                notes.extend(item for item in page_notes if isinstance(item, dict))
+                if not payload.get("_links", {}).get("next"):
+                    break
+                page += 1
+            self.last_error = None
+            return notes
         except Exception as e:
             self.last_error = "get_notes_exception"
             logger.error(f"[AMOCRM GET NOTES ERROR] {e}")
