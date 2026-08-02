@@ -21,7 +21,7 @@ class SendMessageRequest(BaseModel):
 
 def _require_internal_secret(request: Request) -> None:
     from src.settings import settings
-    expected_secret = settings.OISHA_API_SECRET
+    expected_secret = getattr(settings, "OISHA_API_SECRET", None)
     expected = str(getattr(expected_secret, "get_secret_value", lambda: expected_secret)()).strip() if expected_secret else ""
     if not expected:
         logger.error("[MCP API] OISHA_API_SECRET is missing; denying internal access")

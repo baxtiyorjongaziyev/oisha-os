@@ -13,6 +13,8 @@ def _client() -> TestClient:
 
 def test_business_command_routes_require_auth(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
 
     response = _client().get("/api/oisha/telegram/migration")
 
@@ -21,6 +23,8 @@ def test_business_command_routes_require_auth(monkeypatch):
 
 def test_telegram_migration_endpoint_is_read_only_and_secret_safe(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
     monkeypatch.setenv("USERBOT_RUNTIME_OWNER", "oracle_vm")
     monkeypatch.setenv("USERBOT_SESSION_STRING", "secret-session")
     monkeypatch.setenv("BOT_TOKEN", "secret-token")
@@ -42,6 +46,8 @@ def test_telegram_migration_endpoint_is_read_only_and_secret_safe(monkeypatch):
 
 def test_erp_roadmap_endpoint_keeps_integration_first_policy(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
 
     response = _client().get(
         "/api/oisha/erp/roadmap",
@@ -57,6 +63,8 @@ def test_erp_roadmap_endpoint_keeps_integration_first_policy(monkeypatch):
 
 def test_sales_today_priorities_returns_source_unavailable_without_crm(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
     monkeypatch.setattr(api_state, "amocrm_instance", None)
     monkeypatch.setattr("src.api.routes.business_commands._get_runtime_amocrm", lambda: None)
 
@@ -74,6 +82,8 @@ def test_sales_today_priorities_returns_source_unavailable_without_crm(monkeypat
 
 def test_sales_today_priorities_reads_amocrm_and_ranks(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
     fake_amocrm = _FakeAmoCRM()
     monkeypatch.setattr(api_state, "amocrm_instance", fake_amocrm)
 
@@ -93,6 +103,8 @@ def test_sales_today_priorities_reads_amocrm_and_ranks(monkeypatch):
 
 def test_project_risks_returns_source_unavailable_without_airtable(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
     monkeypatch.setattr("src.api.routes.business_commands._get_runtime_airtable", lambda: None)
 
     response = _client().get(
@@ -109,6 +121,8 @@ def test_project_risks_returns_source_unavailable_without_airtable(monkeypatch):
 
 def test_project_risks_reads_airtable_and_ranks(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
     monkeypatch.setattr(
         "src.api.routes.business_commands._get_runtime_airtable",
         lambda: _FakeAirtable(),
@@ -128,6 +142,8 @@ def test_project_risks_reads_airtable_and_ranks(monkeypatch):
 
 def test_finance_risks_returns_source_unavailable_without_source(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
     monkeypatch.setattr("src.api.routes.business_commands._get_runtime_airtable", lambda: None)
     monkeypatch.setattr("src.api.routes.business_commands._get_runtime_project_engine", lambda: None)
 
@@ -144,6 +160,8 @@ def test_finance_risks_returns_source_unavailable_without_source(monkeypatch):
 
 def test_finance_risks_reads_airtable_and_keeps_margin_unguessed(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
     monkeypatch.setattr(
         "src.api.routes.business_commands._get_runtime_airtable",
         lambda: _FakeFinanceAirtable(),
@@ -164,6 +182,8 @@ def test_finance_risks_reads_airtable_and_keeps_margin_unguessed(monkeypatch):
 
 def test_team_capacity_returns_source_unavailable_without_source(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
     monkeypatch.setattr("src.api.routes.business_commands._get_runtime_airtable", lambda: None)
     monkeypatch.setattr("src.api.routes.business_commands._get_runtime_project_engine", lambda: None)
     monkeypatch.setattr("src.api.routes.business_commands._get_runtime_hr_engine", lambda: None)
@@ -181,6 +201,8 @@ def test_team_capacity_returns_source_unavailable_without_source(monkeypatch):
 
 def test_team_capacity_reads_airtable_and_ranks(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
     monkeypatch.setattr(
         "src.api.routes.business_commands._get_runtime_airtable",
         lambda: _FakeTeamAirtable(),
@@ -202,6 +224,8 @@ def test_team_capacity_reads_airtable_and_ranks(monkeypatch):
 
 def test_command_center_aggregates_sections_without_fake_fill(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "api-secret", raising=False)
     fake_amocrm = _FakeAmoCRM()
     monkeypatch.setattr(api_state, "amocrm_instance", fake_amocrm)
     monkeypatch.setattr(
