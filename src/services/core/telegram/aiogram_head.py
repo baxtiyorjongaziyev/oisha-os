@@ -51,16 +51,21 @@ class AiogramBotHead:
         if self.running:
             return self._polling_task  # type: ignore[return-value]
         self._polling_task = asyncio.create_task(
-            self.dispatcher.start_polling(
-                self.bot,
-                handle_signals=False,
-                close_bot_session=False,
-                allowed_updates=self.allowed_updates or None,
-            ),
+            self._run_polling(),
             name="aiogram_bot_head_polling",
         )
         logger.info("[BOT] Aiogram bot-token head polling started.")
         return self._polling_task
+
+    async def _run_polling(self) -> None:
+        """Own Telegram ingress by removing any stale webhook before polling."""
+        await self.bot.delete_webhook(drop_pending_updates=False)
+        await self.dispatcher.start_polling(
+            self.bot,
+            handle_signals=False,
+            close_bot_session=False,
+            allowed_updates=self.allowed_updates or None,
+        )
 
     async def stop(self) -> None:
         if self.running:

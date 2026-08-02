@@ -62,6 +62,27 @@ async def test_readiness_passes_critical_dependencies(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_readiness_rejects_missing_database_even_on_vm(monkeypatch):
+    monkeypatch.setattr(api_state, "db_instance", None)
+    monkeypatch.setattr(api_state, "user_client", None)
+    mock_amocrm = SimpleNamespace(
+        check_connection=AsyncMock(return_value=True),
+        last_error=None,
+    )
+    monkeypatch.setattr(
+        "src.api.routes.amocrm_integration._get_amocrm_instance",
+        lambda: mock_amocrm,
+    )
+    from src.services.core.agent_runtime import set_runtime_context
+
+    set_runtime_context(runtime_source="vm_service")
+    response = await api_server.production_readiness_probe()
+
+    assert response.status_code == 503
+    assert b"database_not_initialized" in response.body
+
+
+@pytest.mark.asyncio
 async def test_readiness_skips_live_userbot_probe_on_vm_service(monkeypatch):
     monkeypatch.setattr(api_state, "db_instance", _Database())
     user_client = SimpleNamespace(is_user_authorized=AsyncMock(return_value=True))

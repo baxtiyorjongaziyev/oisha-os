@@ -97,7 +97,10 @@ async def liveness_probe():
             checks["db_probe"] = "skipped_runtime_cached"
             db_ok = checks["db_ok"]
     else:
-        checks["db_ok"] = True
+        db_ok = False
+        checks["db_ok"] = False
+        checks["db_backend"] = "uninitialized"
+        problems.append("database_not_initialized")
 
     userbot_authorized = runtime.get("userbot_authorized", False)
     if not control_plane_mode and not userbot_authorized and api_state.user_client:
@@ -195,6 +198,7 @@ async def production_readiness_probe():
             problems.append("database_unavailable")
     else:
         checks["database"] = "no_instance"
+        problems.append("database_not_initialized")
 
     userbot_ok = False
     if control_plane_mode:
