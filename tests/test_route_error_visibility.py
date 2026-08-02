@@ -19,6 +19,8 @@ AUTH = {"Authorization": "Bearer test-secret"}
 @pytest.fixture()
 def client(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", "test-secret")
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", "test-secret", raising=False)
     # `api_state` — global; boshqa testlar unga mock qo'yib ketishi mumkin.
     # Bu yerda ataylab "hech narsa ulanmagan" holatni tekshiramiz.
     monkeypatch.setattr(api_state, "db_instance", None, raising=False)

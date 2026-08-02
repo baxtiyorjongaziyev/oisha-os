@@ -37,7 +37,10 @@ class BusinessCommandRequest(BaseModel):
 
 
 def _authorize(request: Request) -> None:
-    secret = (os.getenv("OISHA_API_SECRET") or "").strip()
+    from src.settings import settings
+
+    expected_secret = getattr(settings, "OISHA_API_SECRET", None)
+    secret = str(getattr(expected_secret, "get_secret_value", lambda: expected_secret)()).strip() if expected_secret else ""
     supplied = request.headers.get("Authorization", "")
     if not secret or not hmac.compare_digest(supplied, f"Bearer {secret}"):
         raise HTTPException(status_code=401, detail="Unauthorized")
