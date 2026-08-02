@@ -1259,7 +1259,9 @@ class HisobchiGsheetStore:
         tx = self._cache_transactions.get(tx_id)
         return tx.get("status") if tx else None
 
-    async def get_monthly_summary(self, period: str) -> dict:
+    async def get_monthly_summary(
+        self, period: str, *, tracking_start_date: str = "2026-08-01"
+    ) -> dict:
         summary = {
             "business": {"income": 0, "expense": 0, "net": 0, "categories": {},
                          "usd_income": 0, "usd_expense": 0},
@@ -1268,7 +1270,7 @@ class HisobchiGsheetStore:
         }
         for tx in self._cache_transactions.values():
             tx_date = str(tx.get("date", ""))
-            if not tx_date.startswith(period):
+            if not tx_date.startswith(period) or tx_date < tracking_start_date:
                 continue
             own = tx.get("ownership", "business")
             if own not in summary:

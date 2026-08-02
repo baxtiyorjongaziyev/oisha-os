@@ -140,3 +140,31 @@ def test_google_sheets_source_raises_when_unavailable_without_cache():
 
     with pytest.raises(FinanceSourceUnavailable):
         asyncio.run(source.get_snapshot())
+
+
+def test_google_sheets_source_counts_only_transactions_from_august_first():
+    store = _Store([
+        {"#": 1, "Yonalish": "Kirim", "Summa": "900", "Sana": "2026-07-31"},
+        {"#": 2, "Yonalish": "Kirim", "Summa": "1000.50", "Sana": "2026-08-01"},
+        {"#": 3, "Yonalish": "Chiqim", "Summa": "250.25", "Sana": "2026-08-02"},
+        {"#": 4, "Yonalish": "Kirim", "Summa": "999", "Sana": "noto'g'ri"},
+    ])
+    source = GoogleSheetsFinanceSource(
+        store, tracking_start_date="2026-08-01"
+    )
+
+    with patch("src.services.core.finance.finance_source.datetime") as clock:
+        clock.now.return_value = datetime(2026, 8, 2, tzinfo=timezone.utc)
+        clock.strptime.side_effect = datetime.strptime
+        clock.min = datetime.min
+        snapshot = asyncio.run(source.get_snapshot())
+
+    assert snapshot.balance == Decimal("750.25")
+    assert snapshot.monthly_income == Decimal("1000.50")
+    assert snapshot.monthly_expense == Decimal("250.25")
+    assert [tx.id for tx in snapshot.transactions] == ["3", "2"]
+
+
+def test_google_sheets_source_rejects_invalid_tracking_start_date():
+    with pytest.raises(ValueError, match="YYYY-MM-DD"):
+        GoogleSheetsFinanceSource(_Store([]), tracking_start_date="01.08.2026")
