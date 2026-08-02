@@ -5,7 +5,8 @@ username = "ubuntu"
 key_filename = r"C:\Users\baxti\.ssh\oracle_free_tier_ed25519"
 
 client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+client.load_system_host_keys()
+client.set_missing_host_key_policy(paramiko.RejectPolicy())
 client.connect(hostname=host, username=username, key_filename=key_filename)
 stdin, stdout, stderr = client.exec_command("/opt/oisha-os/.venv/bin/python3 -u /opt/oisha-os/scripts/telegram_mcp_server.py")
 import json
