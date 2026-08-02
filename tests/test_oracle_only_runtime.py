@@ -52,7 +52,9 @@ def test_oracle_deploy_delegates_bot_ingress_to_cloud_head():
     # Aiogram remains the outbound Bot API adapter, but Oracle must never poll
     # or register @jonairobot's webhook after the cloud head owns ingress.
     assert "TELEGRAM_BOT_RUNTIME_BACKEND=aiogram" in text
-    assert "TELEGRAM_BOT_INGRESS_MODE=disabled" in text
+    assert "vars.TELEGRAM_BOT_INGRESS_MODE || 'polling'" in text
+    assert "TELEGRAM_BOT_INGRESS_MODE=${TELEGRAM_BOT_INGRESS_MODE}" in text
+    assert "TELEGRAM_BOT_INGRESS_MODE=disabled" not in text
     assert "TELEGRAM_ADMIN_AIOGRAM_DISPATCHER_ENABLED=true" in text
 
 

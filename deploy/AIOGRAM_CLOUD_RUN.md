@@ -36,3 +36,14 @@ After deployment, verify `/healthz` returns:
 Rollback: set Oracle `TELEGRAM_BOT_INGRESS_MODE=polling` only after the Cloud
 Run service is disabled and Telegram's webhook is deleted. Never run both
 receivers simultaneously.
+
+## Zero-downtime switch order
+
+1. Merge the code while the repository variable defaults to `polling`.
+2. Deploy Cloud Run and verify `/healthz` reports `webhook_registered: true`.
+3. Set the GitHub Actions repository variable `TELEGRAM_BOT_INGRESS_MODE` to
+   `disabled` and rerun Oracle deploy.
+4. Send one owner-only smoke command and confirm it is processed once.
+
+Until step 3, Oracle remains the receiver. This fail-safe prevents a merge from
+silencing `@jonairobot` before the cloud head is healthy.
