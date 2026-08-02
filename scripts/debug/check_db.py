@@ -7,7 +7,8 @@ password = os.environ.get('SSH_PASSWORD', '')
 
 try:
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
+    ssh.load_system_host_keys()
+    ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
     ssh.connect(hostname, username=username, password=password)
 
     # 1. DB dagi barcha foydalanuvchilarni ko'rish

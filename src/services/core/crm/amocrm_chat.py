@@ -21,7 +21,9 @@ class AmoCRMChatClient:
     def _get_headers(self, method: str, path: str, body_bytes: bytes) -> dict:
         date_str = formatdate(timeval=None, localtime=False, usegmt=True)
         content_type = "application/json"
-        content_md5 = hashlib.md5(body_bytes).hexdigest().lower()
+        # AmoCRM's request-signing protocol requires Content-MD5. This digest
+        # is protocol metadata, not a password hash or security primitive.
+        content_md5 = hashlib.md5(body_bytes, usedforsecurity=False).hexdigest().lower()
         
         signature_string = f"{method}\n{content_md5}\n{content_type}\n{date_str}\n{path}"
         signature = hmac.new(
