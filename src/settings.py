@@ -216,6 +216,7 @@ class AppSettings(BaseSettings):
     HISOBCHI_GSHEET_ID: Optional[str] = None
     HISOBCHI_GSHEET_CREDS_FILE: Optional[str] = None
     HISOBCHI_PNL_WORKSHEET_GID: Optional[int] = None
+    HISOBCHI_TRACKING_START_DATE: str = "2026-08-01"
 
     # Meta Graph API settings (Instagram)
     META_VERIFY_TOKEN: Optional[SecretStr] = None

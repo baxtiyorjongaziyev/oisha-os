@@ -72,7 +72,7 @@ async def openclaw_webhook(request: Request):
         return {"reply": reply, "status": "ok"}
     except Exception as exc:
         logger.error("[OpenClaw] Error: %s", exc)
-        return JSONResponse(status_code=500, content={"error": str(exc)})
+        return JSONResponse(status_code=500, content={"error": "Internal service error"})
 
 
 @router.get("/webhook/openclaw/health")
@@ -125,4 +125,4 @@ async def v1_chat_completions(request: Request):
         }
     except Exception as exc:
         logger.error("[V1] Error: %s", exc)
-        return JSONResponse(status_code=500, content={"error": str(exc)})
+        return JSONResponse(status_code=500, content={"error": "Internal service error"})

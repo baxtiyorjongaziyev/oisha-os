@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
 from dotenv import load_dotenv
 import httpx
+from urllib.parse import urlencode
 from db import init_db, save_token, get_token, delete_token
 
 load_dotenv()
@@ -50,7 +51,7 @@ async def login():
 async def callback(code: str = None, error: str = None):
     """Handle Meta OAuth callback"""
     if error:
-        return RedirectResponse(url=f"{FRONTEND_URL}?error={error}")
+        return RedirectResponse(url=f"{FRONTEND_URL}?{urlencode({'error': error})}")
     
     if not code:
         return RedirectResponse(url=f"{FRONTEND_URL}?error=missing_code")

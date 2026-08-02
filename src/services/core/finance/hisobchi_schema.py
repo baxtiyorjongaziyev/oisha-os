@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 import structlog
 from dataclasses import dataclass
@@ -176,7 +177,12 @@ async def init_hisobchi_gsheets(
     """Initialize Google Sheets backend for hisobchi."""
     from src.services.core.hisobchi_gsheets import HisobchiGsheetStore
 
-    store = HisobchiGsheetStore(spreadsheet_id, credentials_path)
+    # gspread is synchronous and schema/cache discovery can take minutes on a
+    # small production VM. Keep it off the API event loop so health checks and
+    # the watchdog remain responsive while Sheets initializes.
+    store = await asyncio.to_thread(
+        HisobchiGsheetStore, spreadsheet_id, credentials_path
+    )
     await store.init()
     return store
 
@@ -224,7 +230,12 @@ async def run_one_time_reset_and_resync(
 def create_hisobchi_engine(
     db=None,
     gs_store: Any = None,
+    tracking_start_date: str = "2026-08-01",
 ) -> Any:
     """Factory: creates HisobchiEngine with the right backend."""
     from src.services.core.finance.hisobchi_engine import HisobchiEngine
-    return HisobchiEngine(db=db, gs_store=gs_store)
+    return HisobchiEngine(
+        db=db,
+        gs_store=gs_store,
+        tracking_start_date=tracking_start_date,
+    )

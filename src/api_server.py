@@ -602,7 +602,150 @@ async def amocrm_chat_webhook(request: Request):
         return {"status": "ignored"}
     except Exception as e:
         logger.error(f"[AMOCRM CHAT WEBHOOK ERROR] {e}")
-        return {"status": "error", "detail": str(e)}
+        return {"status": "error", "detail": "Webhook processing failed"}
+
+
+@app.post("/webhook/amocrm_notes")
+async def amocrm_notes_webhook(request: Request):
+    """Receive note[add] webhooks from AmoCRM to send Telegram messages natively."""
+    try:
+        form = await request.form()
+        notes = {}
+        for key, value in form.multi_items():
+            if key.startswith("notes[add]["):
+                parts = key.replace("notes[add][", "").split("][")
+                if len(parts) >= 2:
+                    idx = parts[0]
+                    field = parts[-1].rstrip("]")
+                    if idx not in notes:
+                        notes[idx] = {}
+                    notes[idx][field] = value
+                    
+        for idx, note_data in notes.items():
+            text = note_data.get("text", "")
+            lead_id_str = note_data.get("element_id")
+            
+            # Agar menejer "TG: salom" deb yozsa
+            if text.lower().startswith("tg:") and lead_id_str:
+                clean_text = text[3:].strip()
+                lead_id = int(lead_id_str)
+                
+                from src.services.core.crm.amocrm_sync import AmoCRMSync
+                amocrm = AmoCRMSync()
+                phone = amocrm.get_lead_phone(lead_id)
+                
+                if phone:
+                    global outgoing_messages
+                    if outgoing_messages is None:
+                        outgoing_messages = asyncio.Queue()
+                    await outgoing_messages.put({
+                        "chat_id": phone,
+                        "text": clean_text
+                    })
+                    logger.info(f"[NATIVE AMOCRM CHAT] Sent to {phone}: {clean_text}")
+                    
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"[AMOCRM NOTES WEBHOOK ERROR] {e}")
+        return {"status": "error"}
+
+# =====================================================================
+# Telegram Chrome Extension Integratsiyasi
+# =====================================================================
+
+@app.get("/api/telegram/extension/history")
+async def telegram_extension_history(phone: str):
+    """Fetch chat history (via AmoCRM notes) for a given phone number."""
+    try:
+        from src.services.core.crm.amocrm_sync import AmoCRMSync
+        amocrm = AmoCRMSync()
+        
+        # 1. Mijozni topish
+        lead = amocrm.find_active_lead_by_phone(phone)
+        if not lead:
+            # Agar bitim topilmasa, kontakt bo'yicha qidirib ko'ramiz
+            contact = amocrm.get_contact_by_phone(phone)
+            if not contact:
+                return {"success": False, "error": "Mijoz topilmadi"}
+            leads = amocrm.get_active_leads_for_contact(contact["id"])
+            if leads:
+                lead = leads[0]
+            else:
+                return {"success": False, "error": "Mijozning faol bitimi yo'q"}
+                
+        lead_id = lead["id"]
+        
+        # 2. Mijoz izohlarini (Notes) olish
+        notes = await amocrm.get_lead_notes(lead_id)
+        
+        messages = []
+        for note in notes:
+            text = note.get("params", {}).get("text", "")
+            if not text:
+                continue
+                
+            # Biz yuborgan yoki bot yozgan xabarlarni ajratamiz
+            is_outbound = "Menejer:" in text or "TG:" in text or "Oisha:" in text or note.get("created_by") != 0
+            
+            # Matnni tozalash (masalan "TG: " ni olib tashlash)
+            clean_text = text.replace("TG: ", "").replace("Menejer: ", "")
+            
+            messages.append({
+                "text": clean_text,
+                "outbound": is_outbound,
+                "created_at": note.get("created_at")
+            })
+            
+        # Vaqt bo'yicha saralash
+        messages.sort(key=lambda x: x["created_at"])
+        
+        # Telegram Chat ID ni topish (custom field lardan)
+        chat_id = phone # Fallback
+        
+        return {
+            "success": True, 
+            "messages": messages,
+            "chatId": chat_id,
+            "leadId": lead_id
+        }
+    except Exception as e:
+        logger.error(f"[TELEGRAM EXT HISTORY] {e}")
+        return {"success": False, "error": "Telegram history request failed"}
+
+
+@app.post("/api/telegram/extension/send")
+async def telegram_extension_send(request: Request):
+    """Send a message to a client via Telegram and log it in AmoCRM."""
+    try:
+        data = await request.json()
+        chat_id = data.get("chat_id")
+        text = data.get("text")
+        
+        if not chat_id or not text:
+            return {"success": False, "error": "chat_id and text required"}
+            
+        # 1. Telegram orqali yuborish (outgoing_messages queue)
+        global outgoing_messages
+        if outgoing_messages is None:
+            outgoing_messages = asyncio.Queue()
+            
+        await outgoing_messages.put({
+            "chat_id": chat_id, # Agar phone bo'lsa, qanday ishlaydi? telegram_bot_client raqam bo'yicha yubora oladimi?
+            "text": text
+        })
+        
+        # 2. AmoCRM ga Note qilib yozib qo'yish (kelajakdagi tarix uchun)
+        from src.services.core.crm.amocrm_sync import AmoCRMSync
+        amocrm = AmoCRMSync()
+        lead = amocrm.find_active_lead_by_phone(chat_id)
+        if lead:
+            # Menejer yuborganligini bildirish uchun
+            amocrm.add_lead_note(lead["id"], f"TG: {text}")
+            
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"[TELEGRAM EXT SEND] {e}")
+        return {"success": False, "error": "Telegram message send failed"}
 
 # =====================================================================
 # Airtable OAuth 2.0 Integratsiyasi

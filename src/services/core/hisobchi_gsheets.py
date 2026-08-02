@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import hashlib
 import logging
@@ -10,6 +11,8 @@ import re
 from typing import Any, Optional
 
 import gspread
+from gspread.spreadsheet import Spreadsheet
+from gspread.worksheet import Worksheet
 from google.oauth2.service_account import Credentials
 
 logger = logging.getLogger(__name__)
@@ -275,7 +278,33 @@ class HisobchiGsheetStore:
         self._cache_transactions: dict[int, dict[str, Any]] = {}
 
         self._authenticate()
-        self._ensure_worksheets()
+        self._load_existing_worksheets()
+        if self.spreadsheet and any(
+            title not in self._worksheets for title in SHEET_HEADERS
+        ):
+            self._ensure_worksheets()
+
+    def _load_existing_worksheets(self) -> None:
+        """Load the existing workbook schema with one read-only API call.
+
+        Full schema repair and formatting are only needed when a required tab is
+        missing. Re-running them on every boot is slow, mutates the workbook,
+        and can keep a small production VM in a watchdog restart loop.
+        """
+        if not self.spreadsheet:
+            return
+        if all(title in self._worksheets for title in SHEET_HEADERS):
+            return
+        try:
+            existing = {worksheet.title: worksheet for worksheet in self.spreadsheet.worksheets()}
+        except Exception as exc:
+            logger.error("[HISOBCHI-GS] Worksheet list xatosi: %s", exc)
+            return
+        self._worksheets.update(
+            (title, existing[title]) for title in SHEET_HEADERS if title in existing
+        )
+        if SHEET_HISOBOT in existing:
+            self._worksheets[SHEET_HISOBOT] = existing[SHEET_HISOBOT]
 
     def _authenticate(self):
         if not os.path.exists(self.credentials_path):
@@ -290,7 +319,31 @@ class HisobchiGsheetStore:
             )
             self.client = gspread.authorize(creds)
             if self.spreadsheet_id and self.client:
-                self.spreadsheet = self.client.open_by_key(self.spreadsheet_id)
+                metadata = self.client.http_client.fetch_sheet_metadata(
+                    self.spreadsheet_id,
+                    params={
+                        "includeGridData": False,
+                        "fields": "properties,sheets(properties)",
+                    },
+                )
+                spreadsheet = object.__new__(Spreadsheet)
+                spreadsheet.client = self.client.http_client
+                spreadsheet._properties = {
+                    "id": self.spreadsheet_id,
+                    **metadata["properties"],
+                }
+                self.spreadsheet = spreadsheet
+                self._worksheets.update(
+                    {
+                        item["properties"]["title"]: Worksheet(
+                            spreadsheet,
+                            item["properties"],
+                            self.spreadsheet_id,
+                            spreadsheet.client,
+                        )
+                        for item in metadata.get("sheets", ())
+                    }
+                )
                 logger.info(
                     "[HISOBCHI-GS] Spreadsheet ulandi: %s",
                     self.spreadsheet.title,
@@ -848,7 +901,7 @@ class HisobchiGsheetStore:
     # ── PUBLIC API ──────────────────────────────────────────────────────────
 
     async def init(self):
-        self._load_cache()
+        await asyncio.to_thread(self._load_cache)
 
     async def reset_learning_and_transactions(self) -> None:
         """Full reset: clear Pul oqimi, Xotira, Qoidalar (keep headers only),
@@ -1206,7 +1259,9 @@ class HisobchiGsheetStore:
         tx = self._cache_transactions.get(tx_id)
         return tx.get("status") if tx else None
 
-    async def get_monthly_summary(self, period: str) -> dict:
+    async def get_monthly_summary(
+        self, period: str, *, tracking_start_date: str = "2026-08-01"
+    ) -> dict:
         summary = {
             "business": {"income": 0, "expense": 0, "net": 0, "categories": {},
                          "usd_income": 0, "usd_expense": 0},
@@ -1215,7 +1270,7 @@ class HisobchiGsheetStore:
         }
         for tx in self._cache_transactions.values():
             tx_date = str(tx.get("date", ""))
-            if not tx_date.startswith(period):
+            if not tx_date.startswith(period) or tx_date < tracking_start_date:
                 continue
             own = tx.get("ownership", "business")
             if own not in summary:
