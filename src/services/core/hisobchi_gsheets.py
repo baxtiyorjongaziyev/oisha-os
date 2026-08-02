@@ -276,7 +276,31 @@ class HisobchiGsheetStore:
         self._cache_transactions: dict[int, dict[str, Any]] = {}
 
         self._authenticate()
-        self._ensure_worksheets()
+        self._load_existing_worksheets()
+        if self.spreadsheet and any(
+            title not in self._worksheets for title in SHEET_HEADERS
+        ):
+            self._ensure_worksheets()
+
+    def _load_existing_worksheets(self) -> None:
+        """Load the existing workbook schema with one read-only API call.
+
+        Full schema repair and formatting are only needed when a required tab is
+        missing. Re-running them on every boot is slow, mutates the workbook,
+        and can keep a small production VM in a watchdog restart loop.
+        """
+        if not self.spreadsheet:
+            return
+        try:
+            existing = {worksheet.title: worksheet for worksheet in self.spreadsheet.worksheets()}
+        except Exception as exc:
+            logger.error("[HISOBCHI-GS] Worksheet list xatosi: %s", exc)
+            return
+        self._worksheets.update(
+            (title, existing[title]) for title in SHEET_HEADERS if title in existing
+        )
+        if SHEET_HISOBOT in existing:
+            self._worksheets[SHEET_HISOBOT] = existing[SHEET_HISOBOT]
 
     def _authenticate(self):
         if not os.path.exists(self.credentials_path):
