@@ -1,0 +1,426 @@
+# Instincts generated from https://github.com/baxtiyorjongaziyev/oisha-os
+# Generated: 2026-08-02T11:25:53.957Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: oisha-os-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Commit Length
+
+## Action
+
+Write moderate-length commit messages (~53 characters)
+
+## Evidence
+
+- Average commit message length: 53 chars
+- Based on 3 commits
+
+---
+id: oisha-os-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Naming Files
+
+## Action
+
+Use snake_case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: snake_case
+
+---
+id: oisha-os-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: oisha-os-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: oisha-os-arch-type-based
+trigger: "when adding new code"
+confidence: 0.8
+domain: architecture
+source: repo-analysis
+source_repo: https://github.com/baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Arch Type Based
+
+## Action
+
+Place code in the appropriate type folder (components/, services/, utils/, etc.)
+
+## Evidence
+
+- Type-based module organization detected
+- Folders: services, api
+
+---
+id: oisha-os-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: oisha-os-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: oisha-os-workflow-deploy-configuration-update
+trigger: "when doing deploy configuration update"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Workflow Deploy Configuration Update
+
+## Action
+
+Follow the deploy-configuration-update workflow:
+1. Edit deployment workflow YAML in .github/workflows/
+2. Update deployment documentation in deploy/*.md
+3. Modify or add deployment scripts in deploy/ and scripts/
+4. Update or add Dockerfiles and cloud build configs in deploy/
+5. Update service entrypoints or settings in src/
+6. Add or update related tests in tests/
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: .github/workflows/oracle-deploy.yml, deploy/AIOGRAM_CLOUD_RUN.md, deploy/cloud-run-aiogram.Dockerfile
+
+---
+id: oisha-os-instinct-naming-files
+trigger: "When creating or renaming a Python file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Naming Files
+
+## Action
+
+Use snake_case for the filename
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.files
+- Consistent snake_case in src/ and services/
+
+---
+id: oisha-os-instinct-naming-functions
+trigger: "When defining a new function in Python"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Naming Functions
+
+## Action
+
+Use camelCase for the function name
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions
+
+---
+id: oisha-os-instinct-naming-classes
+trigger: "When defining a new class in Python"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Naming Classes
+
+## Action
+
+Use PascalCase for the class name
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes
+
+---
+id: oisha-os-instinct-naming-constants
+trigger: "When defining a constant in Python"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Naming Constants
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for the constant name
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants
+
+---
+id: oisha-os-instinct-import-style
+trigger: "When importing modules in Python"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Import Style
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Pattern in codeStyle.importStyle
+
+---
+id: oisha-os-instinct-export-style
+trigger: "When exporting functions or classes in Python"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle
+
+---
+id: oisha-os-instinct-testing-file-pattern
+trigger: "When creating a new test file"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Testing File Pattern
+
+## Action
+
+Name the file with the pattern *.test.ts
+
+## Evidence
+
+- Pattern in testing.filePattern
+- Examples in tests/
+
+---
+id: oisha-os-instinct-testing-type
+trigger: "When writing tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Testing Type
+
+## Action
+
+Write unit tests
+
+## Evidence
+
+- Pattern in testing.testTypes
+
+---
+id: oisha-os-instinct-testing-location
+trigger: "When adding tests for a feature or service"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Testing Location
+
+## Action
+
+Place test files in the separate tests/ directory
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation
+- Examples: tests/test_aiogram_cloudrun.py
+
+---
+id: oisha-os-instinct-git-commit-prefix
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Git Commit Prefix
+
+## Action
+
+Prefix the message with feat or fix as appropriate
+
+## Evidence
+
+- Pattern in commits.prefixes
+- Examples: feat(telegram): ..., fix(deploy): ...
+
+---
+id: oisha-os-instinct-git-commit-length
+trigger: "When writing a commit message"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Git Commit Length
+
+## Action
+
+Keep the message concise (around 50 characters)
+
+## Evidence
+
+- Pattern in commits.averageLength
+- Examples: averageLength: 53
+
+---
+id: oisha-os-instinct-git-merge-format
+trigger: "When merging branches"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Git Merge Format
+
+## Action
+
+Use the format: Merge branch 'X' into Y
+
+## Evidence
+
+- Example commit: Merge branch 'main' into codex/aiogram-cloudrun-head
+
+---
+id: oisha-os-instinct-workflow-deploy-config-update
+trigger: "When someone wants to change how a service is deployed or split deployment responsibilities"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: baxtiyorjongaziyev/oisha-os
+---
+
+# Oisha Os Instinct Workflow Deploy Config Update
+
+## Action
+
+Follow the deploy-configuration-update workflow: update .github/workflows YAML, deployment docs in deploy/*.md, scripts in deploy/ and scripts/, Dockerfiles/cloud build configs in deploy/, service entrypoints/settings in src/, and related tests in tests/
+
+## Evidence
+
+- Workflow: deploy-configuration-update
+- Commit sequence and file patterns in workflow description
+
