@@ -44,14 +44,16 @@ def test_oracle_deploy_does_not_materialize_google_credentials():
     assert "rm -f service_account.json data/service_account.json" in text
 
 
-def test_oracle_deploy_uses_aiogram_bot_head():
+def test_oracle_deploy_delegates_bot_ingress_to_cloud_head():
     text = (ROOT / ".github" / "workflows" / "oracle-deploy.yml").read_text(
         encoding="utf-8"
     )
 
+    # Aiogram remains the outbound Bot API adapter, but Oracle must never poll
+    # or register @jonairobot's webhook after the cloud head owns ingress.
     assert "TELEGRAM_BOT_RUNTIME_BACKEND=aiogram" in text
+    assert "TELEGRAM_BOT_INGRESS_MODE=disabled" in text
     assert "TELEGRAM_ADMIN_AIOGRAM_DISPATCHER_ENABLED=true" in text
-    assert "TELEGRAM_BOT_RUNTIME_BACKEND=telethon" not in text
 
 
 def test_no_hardcoded_telegram_bot_token_in_reanimate_script():

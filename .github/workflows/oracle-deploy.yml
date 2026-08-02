@@ -172,6 +172,9 @@ jobs:
             USERBOT_DISABLE_PRIVATE_REPLIES=true
             TELEGRAM_BOT_TO_BOT_ENABLED=false
             TELEGRAM_BOT_RUNTIME_BACKEND=aiogram
+            # Oracle owns only the Telethon user-account head. @jonairobot
+            # ingress is delegated to the isolated Google Cloud webhook head.
+            TELEGRAM_BOT_INGRESS_MODE=disabled
             TELEGRAM_ADMIN_AIOGRAM_DISPATCHER_ENABLED=true
             OISHA_COMMAND_CENTER_DIGEST_ENABLED=true
             OISHA_COMMAND_CENTER_DIGEST_HOUR=9

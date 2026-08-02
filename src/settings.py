@@ -56,7 +56,11 @@ class AppSettings(BaseSettings):
     TELEGRAM_BOT_TO_BOT_ENABLED: bool = True
     TELEGRAM_MANAGED_BOTS_ENABLED: bool = False
     TELEGRAM_BOT_RUNTIME_BACKEND: str = "aiogram"
+    # polling: this process receives updates; webhook: dedicated HTTPS head;
+    # disabled: outbound Bot API is allowed but this process never receives.
+    TELEGRAM_BOT_INGRESS_MODE: str = "polling"
     TELEGRAM_ADMIN_AIOGRAM_DISPATCHER_ENABLED: bool = True
+    AIOGRAM_WEBHOOK_BASE_URL: Optional[str] = None
     OISHA_COMMAND_CENTER_DIGEST_ENABLED: bool = False
     OISHA_COMMAND_CENTER_DIGEST_HOUR: int = 9
     OISHA_COMMAND_CENTER_DIGEST_MINUTE: int = 5
@@ -309,6 +313,7 @@ class AppSettings(BaseSettings):
             "ADMIN_BOT_TOKEN",
             "TELEGRAM_MCP_SESSION_STRING",
             "TELEGRAM_WEBHOOK_SECRET",
+            "AIOGRAM_WEBHOOK_BASE_URL",
             "TELEGRAM_MINI_APP_URL",
             "OPENAI_API_KEY",
             "GROQ_API_KEY",
