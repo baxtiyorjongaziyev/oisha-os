@@ -16,6 +16,11 @@ class _Session:
 class _Bot:
     def __init__(self):
         self.session = _Session()
+        self.webhook_deleted = False
+
+    async def delete_webhook(self, *, drop_pending_updates=False):
+        assert drop_pending_updates is False
+        self.webhook_deleted = True
 
 
 class _Dispatcher:
@@ -47,6 +52,7 @@ async def test_aiogram_head_owns_polling_and_shutdown():
 
     assert first is second
     assert head.running is True
+    assert bot.webhook_deleted is True
     assert dispatcher.kwargs == {
         "handle_signals": False,
         "close_bot_session": False,
