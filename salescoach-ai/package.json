@@ -3,11 +3,12 @@
   "private": true,
   "scripts": {
     "dev": "turbo run dev --parallel",
-    "build": "turbo run build",
+    "build": "pnpm run prisma:generate && turbo run build",
     "test": "turbo run test",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
-    "type-check": "turbo run type-check"
+    "type-check": "pnpm run prisma:generate && turbo run type-check",
+    "prisma:generate": "pnpm --filter @salescoach/api exec prisma generate"
   },
   "devDependencies": {
     "eslint": "^10.8.0",
