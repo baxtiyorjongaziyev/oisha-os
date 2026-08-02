@@ -113,6 +113,9 @@ jobs:
           TOPIC_SELLER_2_LEADS_ID: ${{ secrets.TOPIC_SELLER_2_LEADS_ID }}
           HISOBCHI_QARZDORLIK_TOPIC_ID: ${{ secrets.HISOBCHI_QARZDORLIK_TOPIC_ID }}
           HISOBCHI_PNL_WORKSHEET_GID: ${{ secrets.HISOBCHI_PNL_WORKSHEET_GID }}
+          # Fail-safe rollout: keep Oracle polling until the Cloud Run head is
+          # live-verified, then set this repository variable to "disabled".
+          TELEGRAM_BOT_INGRESS_MODE: ${{ vars.TELEGRAM_BOT_INGRESS_MODE || 'polling' }}
         run: |
             set -euo pipefail
             OISHA_DIR="/home/ubuntu/oisha-os"
@@ -172,6 +175,7 @@ jobs:
             USERBOT_DISABLE_PRIVATE_REPLIES=true
             TELEGRAM_BOT_TO_BOT_ENABLED=false
             TELEGRAM_BOT_RUNTIME_BACKEND=aiogram
+            TELEGRAM_BOT_INGRESS_MODE=${TELEGRAM_BOT_INGRESS_MODE}
             TELEGRAM_ADMIN_AIOGRAM_DISPATCHER_ENABLED=true
             OISHA_COMMAND_CENTER_DIGEST_ENABLED=true
             OISHA_COMMAND_CENTER_DIGEST_HOUR=9

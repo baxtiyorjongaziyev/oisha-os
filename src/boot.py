@@ -440,8 +440,19 @@ async def boot_application():
         bot_token=BOT_TOKEN_STR,
         telethon_client=bot_client,
     )
+    bot_ingress_mode = str(
+        getattr(settings, "TELEGRAM_BOT_INGRESS_MODE", "polling") or "polling"
+    ).strip().lower()
+    if bot_ingress_mode not in {"polling", "webhook", "disabled"}:
+        raise RuntimeError(
+            "TELEGRAM_BOT_INGRESS_MODE must be polling, webhook, or disabled"
+        )
     aiogram_bot_head = None
-    logger.info("[BOT] Outbound bot runtime backend=%s", bot_runtime.backend)
+    logger.info(
+        "[BOT] Outbound bot runtime backend=%s ingress=%s",
+        bot_runtime.backend,
+        bot_ingress_mode,
+    )
     if telegram_session_manager is not None:
         async def _notify_userbot_owner(message: str) -> None:
             try:
@@ -708,13 +719,17 @@ async def boot_application():
         api_module.user_client = None
         api_state.user_client = None
         logger.warning("[SESSION] Userbot tayyor emas — bot-token mode da ishlaydi")
-        if BOT_TOKEN_STR and bot_runtime.backend == "telethon":
+        if (
+            BOT_TOKEN_STR
+            and bot_runtime.backend == "telethon"
+            and bot_ingress_mode == "polling"
+        ):
             try:
                 await bot_client.start(bot_token=BOT_TOKEN_STR)
             except Exception as bot_exc:
                 logger.error(f"[AUTH] Bot-token head startup failed: {bot_exc}")
                 bot_client = None
-        if admin_bot and bot_client:
+        if admin_bot and bot_client and bot_ingress_mode == "polling":
             try:
                 admin_bot.user_client = None
                 await admin_bot.start()
@@ -725,6 +740,7 @@ async def boot_application():
             BOT_TOKEN_STR
             and bot_runtime.backend == "aiogram"
             and admin_aiogram_dispatcher is not None
+            and bot_ingress_mode == "polling"
         ):
             from src.services.core.telegram.aiogram_head import AiogramBotHead
             from src.services.core.telegram.telegram_ai_features import (
@@ -758,7 +774,7 @@ async def boot_application():
     # Bot-token head startup
     if BOT_TOKEN_STR and bot_client:
         try:
-            if bot_runtime.backend == "telethon":
+            if bot_runtime.backend == "telethon" and bot_ingress_mode == "polling":
                 await bot_client.start(bot_token=BOT_TOKEN_STR)
 
             from src.services.core.telegram.telegram_ai_features import (
@@ -772,6 +788,7 @@ async def boot_application():
                 webhook_url
                 and webhook_secret
                 and bot_runtime.backend != "aiogram"
+                and bot_ingress_mode == "webhook"
             ):
                 webhook_path = f"{webhook_url.rstrip('/')}/webhook/telegram-ai"
                 logger.info("[BOT API 10] Setting authenticated webhook.")
@@ -780,6 +797,12 @@ async def boot_application():
                     name="telegram_bot_api_webhook_setup",
                 )
                 api_module.set_telegram_ai_ingress_status(mode="webhook", active=True)
+            elif bot_ingress_mode == "disabled":
+                api_module.set_telegram_ai_ingress_status(
+                    mode="disabled",
+                    active=False,
+                )
+                logger.info("[BOT] Bot-token ingress delegated to another runtime.")
             else:
                 enable_raw_long_poll = os.getenv("ENABLE_TELEGRAM_AI_LONG_POLL", "").strip().lower() in {"1", "true", "yes", "on"}
                 if bot_runtime.backend == "aiogram":
@@ -800,10 +823,13 @@ async def boot_application():
                     api_module.set_telegram_ai_ingress_status(mode="telethon", active=True)
                     logger.info("[BOT API 10] Raw long-poll disabled; Telethon bot head owns updates.")
 
-            if admin_bot:
+            if admin_bot and bot_ingress_mode == "polling":
                 admin_bot.user_client = client
                 await admin_bot.start()
-            logger.info("[BOT] Bot-token head and AdminBot handlers started.")
+            logger.info(
+                "[BOT] Bot-token subsystem initialized; ingress=%s.",
+                bot_ingress_mode,
+            )
 
             # OishaBrain
             from src.services.core.agent_brain import OishaBrain
@@ -937,7 +963,7 @@ async def boot_application():
         tracking_start_date=settings.HISOBCHI_TRACKING_START_DATE,
     )
     m._hisobchi_engine = hisobchi_engine
-    if bot_runtime.backend == "aiogram":
+    if bot_runtime.backend == "aiogram" and bot_ingress_mode == "polling":
         from src.services.core.admin_aiogram_dispatcher import (
             register_hisobchi_aiogram_callbacks,
         )
