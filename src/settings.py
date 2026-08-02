@@ -50,6 +50,7 @@ class AppSettings(BaseSettings):
     APP_TIMEZONE: str = "Asia/Tashkent"
     BOT_TOKEN: SecretStr = SecretStr("")
     ADMIN_BOT_TOKEN: Optional[SecretStr] = None
+    OISHA_API_SECRET: Optional[SecretStr] = None
     TELEGRAM_WEBHOOK_SECRET: Optional[SecretStr] = None
     TELEGRAM_AI_GUEST_MODE_ENABLED: bool = True
     TELEGRAM_AI_STREAMING_ENABLED: bool = True

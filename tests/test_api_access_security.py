@@ -189,6 +189,8 @@ def test_session_is_rejected_when_session_secret_is_missing_or_weak():
 def _middleware_test_client(monkeypatch):
     monkeypatch.setenv("OISHA_API_SECRET", STRONG_API_SECRET)
     monkeypatch.delenv("JWT_SECRET", raising=False)
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", STRONG_API_SECRET)
     app = FastAPI()
     app.add_middleware(ApiAccessMiddleware)
 
