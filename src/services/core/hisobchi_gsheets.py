@@ -11,6 +11,8 @@ import re
 from typing import Any, Optional
 
 import gspread
+from gspread.spreadsheet import Spreadsheet
+from gspread.worksheet import Worksheet
 from google.oauth2.service_account import Credentials
 
 logger = logging.getLogger(__name__)
@@ -291,6 +293,8 @@ class HisobchiGsheetStore:
         """
         if not self.spreadsheet:
             return
+        if all(title in self._worksheets for title in SHEET_HEADERS):
+            return
         try:
             existing = {worksheet.title: worksheet for worksheet in self.spreadsheet.worksheets()}
         except Exception as exc:
@@ -315,7 +319,31 @@ class HisobchiGsheetStore:
             )
             self.client = gspread.authorize(creds)
             if self.spreadsheet_id and self.client:
-                self.spreadsheet = self.client.open_by_key(self.spreadsheet_id)
+                metadata = self.client.http_client.fetch_sheet_metadata(
+                    self.spreadsheet_id,
+                    params={
+                        "includeGridData": False,
+                        "fields": "properties,sheets(properties)",
+                    },
+                )
+                spreadsheet = object.__new__(Spreadsheet)
+                spreadsheet.client = self.client.http_client
+                spreadsheet._properties = {
+                    "id": self.spreadsheet_id,
+                    **metadata["properties"],
+                }
+                self.spreadsheet = spreadsheet
+                self._worksheets.update(
+                    {
+                        item["properties"]["title"]: Worksheet(
+                            spreadsheet,
+                            item["properties"],
+                            self.spreadsheet_id,
+                            spreadsheet.client,
+                        )
+                        for item in metadata.get("sheets", ())
+                    }
+                )
                 logger.info(
                     "[HISOBCHI-GS] Spreadsheet ulandi: %s",
                     self.spreadsheet.title,
