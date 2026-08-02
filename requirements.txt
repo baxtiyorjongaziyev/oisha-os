@@ -37,5 +37,5 @@ mss>=10.2.0
 instagrapi>=2.18.12
 pyperclip>=1.11.0
 google-analytics-data>=0.23.0
-mcp>=2.0.0,<3.0.0
+mcp>=1.28.1,<2.0.0
 telegram-mcp @ git+https://github.com/baxtiyorjongaziyev/telegram-mcp.git@f1a2d8e00a7f127bb7702655c58fdfcee7e73a5a
