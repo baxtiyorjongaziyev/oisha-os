@@ -104,6 +104,7 @@ export default function Header() {
           {/* Quick Search Trigger */}
           <button
             onClick={() => setSearchOpen(true)}
+            aria-label="Qidirish"
             className="flex items-center gap-2 rounded-2xl border border-border bg-bg px-3 py-2 text-xs text-text-muted hover:border-brand-hover hover:bg-brand-light/30 active:scale-[0.98] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 w-36 md:w-56"
           >
             <svg aria-hidden="true" className="h-4 w-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

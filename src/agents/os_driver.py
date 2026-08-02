@@ -59,6 +59,8 @@ class _UnavailableMSS:
         ) from self._init_error
 
 
+logger = logging.getLogger(__name__)
+
 try:
     import pyautogui  # noqa: E402
 except Exception as _pyautogui_error:
