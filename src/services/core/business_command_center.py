@@ -129,7 +129,7 @@ class TeamCapacityItem:
 
 
 _PHONE_RE = re.compile(r"\+?998\d{9}")
-_LEAD_ID_RE = re.compile(r"(?:lead|lid|bitim)\s*#?\s*(\d{5,})", re.IGNORECASE)
+_LEAD_ID_RE = re.compile(r"(?:lead|lid|bitim)[ \t]{0,16}#?[ \t]{0,16}(\d{5,})", re.IGNORECASE)
 _TIME_RE = re.compile(r"\b(?:soat\s*)?(\d{1,2})(?::(\d{2}))?\b", re.IGNORECASE)
 CLOSED_LEAD_STATUS_IDS = frozenset({142, 143})
 CLOSED_PROJECT_STAGE_MARKERS = ("done", "completed", "yakunlangan", "topshirildi", "arxiv", "bekor", "cancel")

@@ -38,7 +38,7 @@ async def telegram_status():
         }
     except Exception as e:
         logger.error("Exception handled in %s", __name__, exc_info=True)
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": "Telegram status check failed"}
 
 
 @router.get("/group-access", dependencies=[require_permissions(Permission.TELEGRAM_READ)])
@@ -75,4 +75,4 @@ async def telegram_ai_features():
         }
     except Exception as exc:
         logger.error("Exception handled in %s", __name__, exc_info=True)
-        return {"status": "error", "message": str(exc)}
+        return {"status": "error", "message": "Telegram group access check failed"}

@@ -110,7 +110,8 @@ class ReconnectingSSHBridge:
     def _bridge_loop(self):
         while self.running:
             self.client = paramiko.SSHClient()
-            self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            self.client.load_system_host_keys()
+            self.client.set_missing_host_key_policy(paramiko.RejectPolicy())
             
             sys.stderr.write(f"Connecting to remote Oracle VM ({self.host})...\n")
             sys.stderr.flush()

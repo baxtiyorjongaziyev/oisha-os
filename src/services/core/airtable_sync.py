@@ -369,9 +369,8 @@ class AirtableSync:
                         time.time() + cls.BILLING_COOLDOWN_SECONDS
                     )
                     logger.error(
-                        "[AIRTABLE] Monthly API billing limit exceeded. "
-                        "Pausing Airtable requests for %s seconds.",
-                        cls.BILLING_COOLDOWN_SECONDS,
+                        "[AIRTABLE] Monthly API billing limit exceeded; "
+                        "requests paused for the configured cooldown.",
                     )
                     return response
 
