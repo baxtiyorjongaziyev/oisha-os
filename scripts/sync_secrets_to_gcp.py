@@ -28,17 +28,17 @@ SECRETS_TO_SYNC = {
 
 def sync_secret(name, value):
     if not value:
-        print(f"Skipping {name} - No value found in .env")
+        print("Skipping an unset secret.")
         return
 
-    print(f"Syncing {name}...")
+    print("Syncing configured secret...")
     try:
         # Check if secret exists
         cmd_exists = ["gcloud", "secrets", "describe", name, "--project", PROJECT_ID]
         result = subprocess.run(cmd_exists, capture_output=True, text=True)  # nosec
 
         if result.returncode != 0:
-            print(f"Creating secret {name}...")
+            print("Creating missing secret container...")
             subprocess.run(
                 [
                     "gcloud",
@@ -70,19 +70,19 @@ def sync_secret(name, value):
             stderr=subprocess.PIPE,
             text=True,
         )  # nosec
-        stdout, stderr = process.communicate(input=value)
+        process.communicate(input=value)
 
         if process.returncode == 0:
-            print(f"{name} updated successfully.")
+            print("Secret updated successfully.")
         else:
-            print(f"Failed to update {name}: {stderr}")
+            print("Secret update failed; inspect gcloud audit logs.")
 
-    except Exception as e:
-        print(f"Error syncing {name}: {e}")
+    except Exception:
+        print("Secret sync failed; inspect gcloud audit logs.")
 
 
 if __name__ == "__main__":
-    print(f"Starting Secret Sync to Project: {PROJECT_ID}")
+    print("Starting secret sync.")
     for name, value in SECRETS_TO_SYNC.items():
         sync_secret(name, value)
     print("Sync finished.")
