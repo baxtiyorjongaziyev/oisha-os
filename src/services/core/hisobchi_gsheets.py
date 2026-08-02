@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import hashlib
 import logging
@@ -848,7 +849,7 @@ class HisobchiGsheetStore:
     # ── PUBLIC API ──────────────────────────────────────────────────────────
 
     async def init(self):
-        self._load_cache()
+        await asyncio.to_thread(self._load_cache)
 
     async def reset_learning_and_transactions(self) -> None:
         """Full reset: clear Pul oqimi, Xotira, Qoidalar (keep headers only),
