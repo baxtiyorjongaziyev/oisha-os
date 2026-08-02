@@ -602,7 +602,7 @@ async def amocrm_chat_webhook(request: Request):
         return {"status": "ignored"}
     except Exception as e:
         logger.error(f"[AMOCRM CHAT WEBHOOK ERROR] {e}")
-        return {"status": "error", "detail": str(e)}
+        return {"status": "error", "detail": "Webhook processing failed"}
 
 # =====================================================================
 # Airtable OAuth 2.0 Integratsiyasi
