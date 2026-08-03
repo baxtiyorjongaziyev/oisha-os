@@ -459,8 +459,8 @@ class AmoCRMSync:
             lead_data = [
                 {
                     "name": f"Telegram Lead: {name}",
-                    "status_id": 87608538,
-                    "pipeline_id": 11162542,
+                    "status_id": 87609514,
+                    "pipeline_id": 11162698,
                     "_embedded": {"contacts": [{"id": int(contact_id)}]},
                 }
             ]
@@ -487,8 +487,8 @@ class AmoCRMSync:
         name: str,
         note: str = None,
         price: int = 0,
-        pipeline_id: int = 11162542,
-        status_id: int = 87608538,
+        pipeline_id: int = 11162698,
+        status_id: int = 87609514,
         tags: Optional[List[str]] = None,
         responsible_user_id: Optional[int] = None,
     ) -> Optional[int]:
