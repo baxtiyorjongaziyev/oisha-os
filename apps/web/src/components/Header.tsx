@@ -29,6 +29,7 @@ export default function Header() {
   const [bugText, setBugText] = useState("");
   const [bugSuccess, setBugSuccess] = useState(false);
   const [bugError, setBugError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [businessDropdownOpen, setBusinessDropdownOpen] = useState(false);
   const [avatarDropdownOpen, setAvatarDropdownOpen] = useState(false);
   const [newBusinessModalOpen, setNewBusinessModalOpen] = useState(false);
@@ -49,7 +50,8 @@ export default function Header() {
 
   const handleBugSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!bugText.trim()) return;
+    if (!bugText.trim() || isSubmitting) return;
+    setIsSubmitting(true);
     setBugSuccess(false);
     setBugError("");
     try {
@@ -64,6 +66,8 @@ export default function Header() {
       setBugText("");
     } catch (error) {
       setBugError(error instanceof Error ? error.message : "Xabar yuborilmadi");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -532,16 +536,28 @@ export default function Header() {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setBugReportOpen(false)}
-                  className="rounded-xl px-4 py-2 text-xs font-medium text-text-muted hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                  className="rounded-xl px-4 py-2 text-xs font-medium text-text-muted hover:bg-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Bekor qilish
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Yuborish
+                  {isSubmitting ? (
+                    <>
+                      <svg aria-hidden="true" className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Yuborilmoqda...
+                    </>
+                  ) : (
+                    "Yuborish"
+                  )}
                 </button>
               </div>
             </form>
