@@ -86,3 +86,7 @@
 ## 2026-07-26 - Add Clear Button to Search Input
 **Learning:** Adding a clear ('X') button to search inputs is a common micro-UX improvement, but it's crucial to programmatically return focus to the input field (`ref.current?.focus()`) after clearing to maintain a seamless keyboard navigation flow and ensure the user can immediately type a new query without needing to re-select the input.
 **Action:** When adding actions that reset input states (like clear buttons or 'cancel' triggers within forms), always include a focus management step to return the user's cursor to the primary interaction point.
+
+## 2026-08-03 - Adding loading states to async operations
+**Learning:** Submitting forms (like Bug Reports) without visual loading indicators and disabled states leads to uncertainty for the user and potential duplicate form submissions.
+**Action:** Always add an `isSubmitting` state to disable form actions and display a loading spinner during asynchronous operations to improve feedback and prevent double-clicks.
