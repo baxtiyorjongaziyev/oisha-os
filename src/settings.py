@@ -35,6 +35,13 @@ class AppSettings(BaseSettings):
     OWNER_ID: int = 0
     WHITELIST_IDS: list[int] = Field(default_factory=list)
     ENABLE_AUTO_REPLY: bool = False  # Explicit opt-in; private replies stay blocked by default
+    # DM'dan avtomatik lead ochish qat'iyligi:
+    #   strict   — faqat AI is_lead=true degan xabarlar
+    #   balanced — is_lead, yoki biror intent signali, yoki matnda telefon/email (default)
+    #   all      — har qanday mazmunli DM (personal/non-customer filtrlari baribir amal qiladi)
+    AUTO_LEAD_MODE: str = "balanced"
+    # DM'dagi rasmlarni Gemini Vision orqali tahlil qilish
+    DM_VISION_ENABLED: bool = True
     AUTORUN_MASS_SYNC: bool = True
     ENABLE_CLOUD_USERBOT: bool = False  # Set to True to enable userbot session
     USERBOT_SESSION_STRING: Optional[SecretStr] = None
