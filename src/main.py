@@ -726,6 +726,7 @@ async def handle_new_message(event):
             sender_name=sender_name,
             msg_controller=msg_controller,
             admin_bot=admin_bot,
+            voice_processor=voice_processor,
         )
 
     # 2.5 Tiered Auto-Reply Gate (shadow/vip_only/live + kill-switch)
