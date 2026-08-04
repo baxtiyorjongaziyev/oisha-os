@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import tempfile
 import logging
 from typing import Any, Optional, TYPE_CHECKING
@@ -404,6 +405,65 @@ async def process_hisobchi(
 # 4. Elite Intake — lead extraction va CRM sync
 # ---------------------------------------------------------------------------
 
+_CONTACT_HINT_RE = re.compile(
+    r"(\+998\s?\d{2}\s?\d{3}\s?\d{2}\s?\d{2}"  # +998 XX XXX XX XX
+    r"|\+\d{1,3}\s?\d{6,14}"  # boshqa xalqaro format
+    r"|\b\d{9,12}\b"  # ochiq yozilgan raqam
+    r"|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"  # email
+)
+
+# Ochilmaydigan intent — AI hech qanday biznes signali ko'rmagan holat.
+_NO_SIGNAL_INTENTS = {"NO_SIGNAL", "NONE", "SPAM", "IRRELEVANT"}
+
+
+def should_open_lead(
+    lead_data: Optional[dict],
+    message_text: Optional[str],
+    mode: str = "balanced",
+) -> tuple[bool, str]:
+    """
+    AUTO_LEAD_MODE bo'yicha DM sdelka ochishga arziydimi, hal qilish.
+
+    Qaytaradi: (ochilsinmi, sabab). Sabab log va CRM tegi uchun ishlatiladi.
+
+    Bu funksiya faqat "signal yetarlimi" savoliga javob beradi. Kimni umuman
+    ko'rmaslik kerakligi (oila papkasi, xodim, bot, allaqachon sinxronlangan)
+    chaqiruvchi tomonda hal qilinadi va bu yerda qayta tekshirilmaydi.
+    """
+    normalized = (mode or "balanced").strip().lower()
+    if normalized not in {"strict", "balanced", "all"}:
+        logger.warning(
+            "[LEAD-GATE] Noma'lum AUTO_LEAD_MODE=%r — 'balanced' ishlatiladi", mode
+        )
+        normalized = "balanced"
+
+    data = lead_data or {}
+    is_lead = bool(data.get("is_lead"))
+    intent = str(data.get("intent_category") or "NO_SIGNAL").strip().upper()
+    text = (message_text or "").strip()
+
+    if normalized == "strict":
+        return (is_lead, "is_lead" if is_lead else "strict_no_lead")
+
+    if is_lead:
+        return (True, "is_lead")
+
+    # Mijoz o'zi telefon/email qoldirgan bo'lsa — bu eng kuchli signal,
+    # AI tasnifi nima deganidan qat'i nazar sdelka ochiladi.
+    if text and _CONTACT_HINT_RE.search(text):
+        return (True, "contact_in_message")
+
+    if normalized == "all":
+        # Bo'sh yoki bir belgili xabar (stiker, "ok", emoji) sdelka ochmaydi.
+        return (len(text) >= 2, "all_mode" if len(text) >= 2 else "empty_message")
+
+    # balanced
+    if intent not in _NO_SIGNAL_INTENTS:
+        return (True, f"intent_{intent.lower()}")
+
+    return (False, "no_signal")
+
+
 async def process_elite_intake(
     event,
     *,
@@ -421,21 +481,37 @@ async def process_elite_intake(
     """
     Yangi DM xabarlarini tahlil qilish, lead aniqlash va CRM ga qo'shish.
     """
+    from src.settings import settings as _settings
+
+    lead_mode = getattr(_settings, "AUTO_LEAD_MODE", "balanced")
+
     lead_data = await auto_lead_agent.extract_lead_info(
         message_text, {"id": sender.id, "first_name": sender_name}
     )
 
+    # strict rejimda AI javobisiz davom etmaymiz. balanced/all rejimda AI
+    # ishlamay qolishi (kvota, timeout) mijozni yo'qotish sababi bo'lmasligi
+    # kerak — bo'sh dict bilan davom etamiz va qolgan signallarga tayanamiz.
     if not lead_data:
-        return
+        if str(lead_mode).strip().lower() == "strict":
+            return
+        lead_data = {}
 
     intent = lead_data.get("intent_category", "POTENTIAL")
 
     if folder_manager:
         asyncio.create_task(folder_manager.assign_to_folder(sender.id, intent))
 
-    if lead_data.get("is_lead") and not await msg_controller.db.is_crm_synced(
-        event.sender_id
-    ):
+    open_lead, gate_reason = should_open_lead(lead_data, message_text, lead_mode)
+    if not open_lead:
+        logger.info(
+            "[ELITE INTAKE] Lead ochilmadi: %s mode=%s reason=%s",
+            sender_name,
+            lead_mode,
+            gate_reason,
+        )
+
+    if open_lead and not await msg_controller.db.is_crm_synced(event.sender_id):
         logger.info(
             f"[ELITE INTAKE] Yangi lid aniqlandi: {sender_name} (Intent: {intent})"
         )
@@ -505,11 +581,18 @@ async def process_elite_intake(
         username_str = (
             f"@{username}" if username != "Username yo'q" else username
         )
+        note_lines = [
+            f"AI Tahlil: {lead_data.get('needs')}",
+            f"Intent: {intent}",
+            f"User: {username_str}",
+            f"Telegram ID: {sender.id}",
+            f"Manba: tg_auto ({lead_mode}/{gate_reason})",
+        ]
         crm_sync = await msg_controller.crm.sync_lead(
             user_id=sender.id,
             name=f"DM Lead: {sender_name}",
             phone=phone,
-            note=f"AI Tahlil: {lead_data.get('needs')}\nIntent: {intent}\nUser: {username_str}",
+            note="\n".join(note_lines),
         )
         if crm_sync.get("success"):
             await msg_controller.db.set_crm_synced(event.sender_id)
@@ -654,6 +737,104 @@ async def process_voice(
 # 6. Media/Document — Google Drive upload
 # ---------------------------------------------------------------------------
 
+def _resolve_gemini_client(voice_processor) -> Any:
+    """Vision uchun Gemini client topish — avval voice_processor, keyin yangi client."""
+    client = getattr(voice_processor, "client", None)
+    if client is not None:
+        return client
+
+    try:
+        from src.settings import settings as _s
+        from src.services.utils.voice_processor import VoiceProcessor
+
+        gemini_key = getattr(_s, "GEMINI_API_KEY", None)
+        if not gemini_key:
+            return None
+        key_val = (
+            gemini_key.get_secret_value()
+            if hasattr(gemini_key, "get_secret_value")
+            else str(gemini_key)
+        )
+        if not key_val:
+            return None
+        return VoiceProcessor(api_key=key_val).client
+    except Exception as exc:
+        logger.debug("[DM-VISION] Gemini client olinmadi: %s", exc)
+        return None
+
+
+async def _analyze_dm_photo(
+    media_path: str,
+    *,
+    event,
+    sender_name: str,
+    msg_controller,
+    voice_processor,
+) -> Optional[dict]:
+    """
+    DM rasmini tahlil qilib, natijani CRM notesiga va reply kontekstiga yozish.
+
+    Tahlil qo'shimcha imkoniyat — bu yerdagi hech qanday xato Drive yuklash
+    oqimini to'xtatmasligi kerak, shuning uchun hammasi yutib yuboriladi.
+    """
+    from src.settings import settings as _settings
+
+    if not getattr(_settings, "DM_VISION_ENABLED", True):
+        return None
+
+    gemini_client = _resolve_gemini_client(voice_processor)
+    if not gemini_client:
+        logger.debug("[DM-VISION] Gemini client yo'q — tahlil o'tkazib yuborildi")
+        return None
+
+    from src.services.core.dm_vision import (
+        analyze_dm_image,
+        format_for_ai_context,
+        format_for_crm_note,
+    )
+
+    result = await analyze_dm_image(gemini_client, media_path)
+    if not result:
+        return None
+
+    # 1. AI javob konteksti — process_ai_reply shu yerdan o'qiydi.
+    #    Faqat xotirada saqlanadi; auto_reply_gate hukmiga ta'sir qilmaydi.
+    try:
+        from src.context import app_ctx
+
+        cache = getattr(app_ctx, "dm_vision_context", None)
+        if cache is None:
+            cache = {}
+            app_ctx.dm_vision_context = cache
+        cache[event.chat_id] = {
+            "text": format_for_ai_context(result),
+            "message_id": getattr(event.message, "id", None),
+        }
+    except Exception as exc:
+        logger.debug("[DM-VISION] Kontekst saqlanmadi: %s", exc)
+
+    # 2. AmoCRM notesi — faqat biznesga aloqador rasmlar uchun, aks holda
+    #    shaxsiy fotolar bilan sdelka tarixi ifloslanadi.
+    if result.get("is_business_relevant"):
+        try:
+            note = format_for_crm_note(result, sender_name)
+            phone = None
+            user_info = await msg_controller.db.get_user_info(event.sender_id)
+            if user_info:
+                phone = user_info.get("phone")
+            contact_phone = (result.get("contact") or {}).get("phone")
+            await msg_controller.crm.sync_lead(
+                user_id=event.sender_id,
+                name=f"DM Lead: {sender_name}",
+                phone=phone or contact_phone or "Raqam yo'q",
+                note=note,
+            )
+        except Exception as exc:
+            logger.warning("[DM-VISION] CRM notesi yozilmadi: %s", exc)
+
+    return result
+
+
 async def process_media(
     event,
     *,
@@ -661,12 +842,26 @@ async def process_media(
     sender_name: str,
     msg_controller,
     admin_bot,
+    voice_processor=None,
 ) -> None:
-    """Media/hujjatlarni Google Drive ga yuklash."""
+    """Media/hujjatlarni tahlil qilish va Google Drive ga yuklash."""
     logger.info("📁 [MEDIA] New media from %s...", sender_name)
+    media_path = None
     try:
         media_path = await client.download_media(event.message)
         if media_path:
+            vision_result = None
+            if event.message.photo:
+                try:
+                    vision_result = await _analyze_dm_photo(
+                        media_path,
+                        event=event,
+                        sender_name=sender_name,
+                        msg_controller=msg_controller,
+                        voice_processor=voice_processor,
+                    )
+                except Exception as exc:
+                    logger.warning("[DM-VISION] Tahlil xatosi: %s", exc)
 
             def upload_drive():
                 return msg_controller.google.drive.upload_file(media_path)
@@ -676,20 +871,56 @@ async def process_media(
             if drive_link:
                 if admin_bot:
                     type_str = "Rasm" if event.message.photo else "Hujjat"
-                    await admin_bot.notify_lead(
-                        f"📁 **Yangi {type_str} ({sender_name}):**\n🔗 [Google Drive Link]({drive_link})"
-                    )
-
-            if os.path.exists(media_path):
-                os.remove(media_path)
+                    notify_lines = [
+                        f"📁 **Yangi {type_str} ({sender_name}):**",
+                        f"🔗 [Google Drive Link]({drive_link})",
+                    ]
+                    if vision_result:
+                        notify_lines.append(
+                            f"🖼 **Tahlil:** {vision_result.get('summary', '')}"
+                        )
+                        contact = vision_result.get("contact") or {}
+                        if contact.get("phone"):
+                            notify_lines.append(
+                                f"📞 **Rasmdan raqam:** {contact['phone']}"
+                            )
+                    await admin_bot.notify_lead("\n".join(notify_lines))
 
     except Exception as exc:
         logger.error("[MEDIA] Integration error: %s", exc)
+    finally:
+        if media_path and os.path.exists(media_path):
+            try:
+                os.remove(media_path)
+            except OSError as exc:
+                logger.debug("[MEDIA] Temp fayl o'chmadi: %s", exc)
 
 
 # ---------------------------------------------------------------------------
 # 7. AI Reply — auto-reply gate + surgical + legacy
 # ---------------------------------------------------------------------------
+
+def _pop_vision_context(chat_id: int) -> Optional[str]:
+    """
+    Shu chat uchun saqlangan rasm tahlilini olib, keshdan o'chirish.
+
+    Bir marta ishlatiladi: aks holda bitta rasm keyingi barcha javoblarga
+    ergashib, mavzu allaqachon o'zgargan bo'lsa ham kontekstni buzadi.
+    """
+    try:
+        from src.context import app_ctx
+
+        cache = getattr(app_ctx, "dm_vision_context", None)
+        if not cache:
+            return None
+        entry = cache.pop(chat_id, None)
+        if not entry:
+            return None
+        return entry.get("text") or None
+    except Exception as exc:
+        logger.debug("[DM-VISION] Kontekst o'qilmadi: %s", exc)
+        return None
+
 
 async def process_ai_reply(
     event,
@@ -748,6 +979,11 @@ async def process_ai_reply(
 
         dosye = await scouter.get_user_dosye(sender.id)
 
+        # Shu chatda yaqinda yuborilgan rasm tahlili (process_media yozadi).
+        # Faqat prompt kontekstini boyitadi — gate qarori yuqorida chiqarilgan
+        # va bu yerda o'zgarmaydi, shuning uchun shadow rejimi shadow qoladi.
+        vision_context = _pop_vision_context(chat_id)
+
         await safe_responder.prepare_to_reply(event, client)
 
         ai_raw_response = None
@@ -755,18 +991,21 @@ async def process_ai_reply(
             str(sender.id), message_text or ""
         ):
             try:
+                surgical_context = {
+                    "user_info": {
+                        "first_name": getattr(sender, "first_name", ""),
+                        "last_name": getattr(sender, "last_name", ""),
+                        "username": getattr(sender, "username", ""),
+                    },
+                    "chat_id": chat_id,
+                    "source": "telegram",
+                }
+                if vision_context:
+                    surgical_context["image_context"] = vision_context
                 surgical_result = await surgical_integration.process_message(
                     user_id=str(sender.id),
                     message=message_text or "",
-                    context={
-                        "user_info": {
-                            "first_name": getattr(sender, "first_name", ""),
-                            "last_name": getattr(sender, "last_name", ""),
-                            "username": getattr(sender, "username", ""),
-                        },
-                        "chat_id": chat_id,
-                        "source": "telegram",
-                    },
+                    context=surgical_context,
                 )
                 if surgical_result.get("mode") == "surgical":
                     ai_raw_response = surgical_result.get("response")
@@ -783,15 +1022,18 @@ async def process_ai_reply(
                 logger.warning("[SURGICAL] Fallback to legacy: %s", surg_ex)
 
         if not ai_raw_response:
+            legacy_context = {
+                "chat_id": chat_id,
+                "is_group": not event.is_private,
+                "dosye": dosye,
+            }
+            if vision_context:
+                legacy_context["image_context"] = vision_context
             ai_raw_response = await msg_controller.get_response(
                 user_id=sender.id,
                 user_name=sender_name,
                 message=message_text,
-                context={
-                    "chat_id": chat_id,
-                    "is_group": not event.is_private,
-                    "dosye": dosye,
-                },
+                context=legacy_context,
             )
 
         if ai_raw_response:
