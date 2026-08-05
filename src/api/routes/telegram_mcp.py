@@ -124,22 +124,37 @@ async def send_telegram_message(request: SendMessageRequest):
     if not app_ctx.client:
         raise HTTPException(status_code=503, detail="Telegram client not initialized")
     try:
-        target_id = (
-            int(request.user_id)
-            if request.user_id.lstrip("-").isdigit()
-            else request.user_id
+        from src.services.core.telegram_mcp.store import ApprovalStore
+        from src.services.core.telegram_mcp.approval_ui import TelegramApprovalNotifier
+        from src.settings import settings
+        
+        store = ApprovalStore("data/telegram_mcp_approvals.db")
+        await store.initialize()
+        
+        def _secret(value: object) -> str:
+            getter = getattr(value, "get_secret_value", None)
+            return str(getter() if callable(getter) else value or "").strip()
+            
+        notifier = TelegramApprovalNotifier(_secret(settings.BOT_TOKEN), settings.OWNER_ID)
+        
+        operation = await store.add(
+            "send_telegram_message",
+            {"user_id": request.user_id, "text": request.text},
+            requester="api",
+            ttl_seconds=900,
+            risk="destructive"
         )
-        await app_ctx.client.send_message(target_id, request.text)
-        return {"status": "success", "user_id": request.user_id}
+        await notifier.notify(operation)
+        return {"status": "pending_approval", "operation_id": operation.id}
     except HTTPException:
         raise
     except Exception as exc:
         logger.error(
-            "[MCP API] Failed to send message to %s: %s",
+            "[MCP API] Failed to request approval for message to %s: %s",
             request.user_id,
             type(exc).__name__,
         )
-        raise HTTPException(status_code=500, detail="Telegram send failed") from exc
+        raise HTTPException(status_code=500, detail="Telegram approval request failed") from exc
 
 
 @router.get(
