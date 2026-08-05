@@ -29,6 +29,7 @@ export default function Header() {
   const [bugText, setBugText] = useState("");
   const [bugSuccess, setBugSuccess] = useState(false);
   const [bugError, setBugError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [businessDropdownOpen, setBusinessDropdownOpen] = useState(false);
   const [avatarDropdownOpen, setAvatarDropdownOpen] = useState(false);
   const [newBusinessModalOpen, setNewBusinessModalOpen] = useState(false);
@@ -52,6 +53,7 @@ export default function Header() {
     if (!bugText.trim()) return;
     setBugSuccess(false);
     setBugError("");
+    setIsSubmitting(true);
     try {
       const response = await fetch("/api/oisha/feedback", {
         method: "POST",
@@ -64,6 +66,8 @@ export default function Header() {
       setBugText("");
     } catch (error) {
       setBugError(error instanceof Error ? error.message : "Xabar yuborilmadi");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -539,9 +543,19 @@ export default function Header() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                  disabled={isSubmitting}
+                  aria-disabled={isSubmitting}
+                  aria-busy={isSubmitting}
+                  className="rounded-xl bg-brand px-4 py-2 text-xs font-medium text-white hover:bg-brand-hover shadow-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center min-w-[90px]"
                 >
-                  Yuborish
+                  {isSubmitting ? (
+                    <svg aria-hidden="true" className="h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"></circle>
+                      <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" className="opacity-75"></path>
+                    </svg>
+                  ) : (
+                    "Yuborish"
+                  )}
                 </button>
               </div>
             </form>
