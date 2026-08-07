@@ -2,7 +2,7 @@
 
 ## Muammo
 
-```
+```text
 ❌ Telethon ulana olmadi: The authorization key (session file) was used under
 two different IP addresses simultaneously, and can no longer be used.
 ```
@@ -46,11 +46,21 @@ Xuddi shu sabab ilgari VPS ↔ Oracle to'qnashuvida ham bo'lgan; shu bois
    - `prepare()` — avval atalgan session (`JUMA_SESSION_STRING`,
      `QURBON_SESSION_STRING`, so'ng `TELEGRAM_ONEOFF_SESSION_STRING`), faqat
      ular yo'q bo'lsa prod kaliti;
+   - atalgan env prod kaliti bilan **bir xil** bo'lsa, u ham shared deb
+     qaraladi — ya'ni `TELEGRAM_ONEOFF_SESSION_STRING` ga prod stringni qo'yib
+     guard'ni chetlab o'tib bo'lmaydi;
    - prod kaliti tanlansa, GitHub-hosted runner da ulanish **taqiqlanadi**;
    - `single_flight()` — bitta hostda ikkita one-off skript bir vaqtda
      ulanmaydi;
-   - `guarded_connect()` — kalit kuyganda xom traceback o'rniga tiklash
-     yo'riqnomasi egasiga Telegram orqali yuboriladi.
+   - `guarded_connect()` / `guarded_is_authorized()` — kalit kuyganda xom
+     traceback o'rniga tiklash yo'riqnomasi egasiga Telegram orqali yuboriladi.
+4. **`USERBOT_SESSION_OWNER_HOST` (ixtiyoriy, lekin tavsiya etiladi).**
+   Qo'yilsa, prod kaliti faqat shu hostname da ochiladi; boshqa hostda
+   `SessionConflictError` beriladi. Oracle VM da o'rnating:
+   `USERBOT_SESSION_OWNER_HOST=<vm-hostname>` (`hostname` buyrug'i chiqargan
+   nom). Bu yagona tekshiruv bo'lib, prod kaliti muhitda ko'rinmagan holatda
+   ham ishlaydi — "atalgan env prod bilan bir xilmi" taqqoslashi esa faqat
+   ikkala qiymat ham shu hostda ko'ringandagina aniqlay oladi.
 
 `ALLOW_SHARED_USERBOT_SESSION=1` guard'ni o'chiradi — faqat
 `sudo systemctl stop oisha-os` qilingandan keyin ishlating.

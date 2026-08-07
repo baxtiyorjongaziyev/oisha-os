@@ -141,6 +141,47 @@ def test_missing_session_raises():
         resolve_session(env={}, shared_files=())
 
 
+def test_dedicated_env_equal_to_prod_key_is_flagged_shared():
+    """Operator prod stringni atalgan env ga qo'yib guard'ni chetlab o'tolmaydi."""
+    source = resolve_session(
+        dedicated_env="JUMA_SESSION_STRING",
+        env={"JUMA_SESSION_STRING": "prod", SHARED_PROD_ENV: "prod"},
+        shared_files=(),
+    )
+    assert source.string == "prod"
+    assert source.is_shared_prod is True
+
+
+def test_dedicated_env_equal_to_prod_file_is_flagged_shared(tmp_path):
+    path = tmp_path / "userbot_session_string.txt"
+    path.write_text("prod", encoding="utf-8")
+    source = resolve_session(
+        env={GENERIC_DEDICATED_ENV: "prod"}, shared_files=(str(path),)
+    )
+    assert source.is_shared_prod is True
+
+
+def test_duplicated_dedicated_env_is_blocked_on_hosted_runner():
+    """Asosiy regressiya: bir xil qiymat hosted runner da ham bloklanishi kerak."""
+    source = resolve_session(
+        dedicated_env="JUMA_SESSION_STRING",
+        env={"JUMA_SESSION_STRING": "prod", SHARED_PROD_ENV: "prod"},
+        shared_files=(),
+    )
+    with pytest.raises(SessionConflictError):
+        assert_owner_host(source, env=HOSTED_ENV)
+
+
+def test_genuinely_distinct_dedicated_env_stays_unflagged():
+    source = resolve_session(
+        dedicated_env="JUMA_SESSION_STRING",
+        env={"JUMA_SESSION_STRING": "juma", SHARED_PROD_ENV: "prod"},
+        shared_files=(),
+    )
+    assert source.is_shared_prod is False
+    assert_owner_host(source, env=HOSTED_ENV)
+
+
 # --------------------------------------------------------------------------
 # assert_owner_host — asosiy regressiya
 # --------------------------------------------------------------------------

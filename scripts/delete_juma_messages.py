@@ -3,6 +3,7 @@
 Xavfsizlik: faqat bugun yuborilgan va mos matn bo'lgan xabarlarni o'chiradi.
 """
 import asyncio
+import contextlib
 import os
 import sys
 import time
@@ -57,12 +58,17 @@ async def run() -> None:
     notify("🗑 Juma xabarlarini o'chirish boshlandi...")
     source = prepare(DEDICATED_SESSION_ENV)
     client = TelegramClient(StringSession(source.string), API_ID, API_HASH)
-    await guarded_connect(client, source)
-
-    if not await guarded_is_authorized(client, source):
-        notify("❌ Session eskirgan — o'chirish mumkin emas.")
-        await client.disconnect()
-        return
+    try:
+        await guarded_connect(client, source)
+        if not await guarded_is_authorized(client, source):
+            notify(f"❌ Session eskirgan ({source.origin}) — o'chirish mumkin emas.")
+            await client.disconnect()
+            return
+    except SessionConflictError:
+        # Xabar main() da yuboriladi — bu yerda faqat ulanishni yopamiz.
+        with contextlib.suppress(Exception):
+            await client.disconnect()
+        raise
 
     deleted_chats = 0
     deleted_msgs = 0

@@ -104,7 +104,8 @@ def parse_bool(value: Optional[str]) -> bool:
     """Env qiymatini truthy ga o'giradi (agent_runtime.parse_bool bilan bir xil)."""
     if not value:
         return False
-    return str(value).replace("\ufeff", "").strip().lower() in {"1", "true", "yes", "on"}
+    cleaned = str(value).replace("\ufeff", "").strip().lower()
+    return cleaned in {"1", "true", "yes", "on"}
 
 
 def is_github_hosted_runner(env: Optional[Mapping[str, str]] = None) -> bool:
@@ -133,12 +134,32 @@ def _read_file_session(path: str) -> str:
     return ""
 
 
+def _known_prod_values(
+    env: Mapping[str, str], shared_files: Sequence[str]
+) -> set:
+    """Shu hostda ko'rinadigan prod session qiymatlari.
+
+    Diqqat: bu faqat prod kaliti shu muhitda ko'rinsa ishlaydi. GitHub-hosted
+    runner da `USERBOT_SESSION_STRING` umuman berilmasa, atalgan env prod bilan
+    bir xilligini taqqoslash orqali aniqlab bo'lmaydi — shuning uchun
+    `USERBOT_SESSION_OWNER_HOST` ham qo'yilgani ma'qul.
+    """
+    values = {(env.get(SHARED_PROD_ENV) or "").strip()}
+    for path in shared_files:
+        values.add(_read_file_session(path))
+    return {value for value in values if value}
+
+
 def resolve_session(
     dedicated_env: Optional[str] = None,
     env: Optional[Mapping[str, str]] = None,
     shared_files: Optional[Sequence[str]] = None,
 ) -> SessionSource:
     """Ishlatiladigan session ni tanlaydi: ATALGAN > prod fayl > prod env.
+
+    Atalgan env prod kaliti bilan BIR XIL bo'lsa, u ham ``is_shared_prod=True``
+    deb belgilanadi — aks holda operator `TELEGRAM_ONEOFF_SESSION_STRING` ga
+    prod stringni qo'yib, guard'ni bilmasdan chetlab o'tgan bo'lardi.
 
     Args:
         dedicated_env: Skriptga xos env nomi, masalan ``JUMA_SESSION_STRING``.
@@ -150,18 +171,30 @@ def resolve_session(
     """
     env = os.environ if env is None else env
     shared_files = SHARED_PROD_FILES if shared_files is None else shared_files
+    prod_values = _known_prod_values(env, shared_files)
 
     for name in (dedicated_env, GENERIC_DEDICATED_ENV):
         if not name:
             continue
         value = (env.get(name) or "").strip()
         if value:
-            return SessionSource(string=value, origin=f"env:{name}", is_shared_prod=False)
+            duplicate = value in prod_values
+            if duplicate:
+                logger.warning(
+                    "[GUARD] %s prod kaliti bilan BIR XIL — atalgan session emas, "
+                    "shared deb qaraladi. Alohida session generatsiya qiling.",
+                    name,
+                )
+            return SessionSource(
+                string=value, origin=f"env:{name}", is_shared_prod=duplicate
+            )
 
     for path in shared_files:
         value = _read_file_session(path)
         if value:
-            return SessionSource(string=value, origin=f"file:{path}", is_shared_prod=True)
+            return SessionSource(
+                string=value, origin=f"file:{path}", is_shared_prod=True
+            )
 
     value = (env.get(SHARED_PROD_ENV) or "").strip()
     if value:
@@ -201,8 +234,9 @@ def assert_owner_host(
             "Prod userbot session (%s) GitHub-hosted runner da ochilmaydi.\n"
             "Runner ning IP si Oracle VM dan boshqa — Telegram kalitni "
             "AuthKeyDuplicated qilib butunlay bekor qiladi va prod userbot o'ladi.\n"
-            "Ishni Oracle VM da bajaring (ssh-action yoki [self-hosted, oracle] runner), "
-            "yoki %s ga ALOHIDA session qo'ying." % (source.origin, GENERIC_DEDICATED_ENV)
+            "Ishni Oracle VM da bajaring (ssh-action yoki [self-hosted, oracle] "
+            "runner), yoki %s ga ALOHIDA session qo'ying."
+            % (source.origin, GENERIC_DEDICATED_ENV)
         )
 
     owner_host = (env.get(OWNER_HOST_ENV) or "").strip()
@@ -217,7 +251,8 @@ def assert_owner_host(
 
     logger.warning(
         "[GUARD] Prod userbot session ishlatilmoqda (%s). oisha-os.service "
-        "ayni paytda shu kalitni ushlab turadi — %s ga alohida session qo'yish tavsiya etiladi.",
+        "ayni paytda shu kalitni ushlab turadi — %s ga alohida session "
+        "qo'yish tavsiya etiladi.",
         source.origin,
         GENERIC_DEDICATED_ENV,
     )
@@ -286,7 +321,8 @@ async def guarded_connect(client, source: SessionSource):
     """``client.connect()`` — kuygan kalitni aniq xato bilan xabar qiladi.
 
     Raises:
-        SessionConflictError: kalit AuthKeyDuplicated bo'lsa (tiklash yo'riqnomasi bilan).
+        SessionConflictError: kalit AuthKeyDuplicated bo'lsa (tiklash
+            yo'riqnomasi bilan).
     """
     try:
         await client.connect()

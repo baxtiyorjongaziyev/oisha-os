@@ -122,7 +122,10 @@ async def run() -> None:
     try:
         await guarded_connect(client, source)
         if not await guarded_is_authorized(client, source):
-            send_tg_notification("❌ Session muddati tugagan yoki noto'g'ri. Yangi USERBOT_SESSION_STRING kerak.")
+            send_tg_notification(
+                f"❌ Session muddati tugagan yoki noto'g'ri ({source.origin}). "
+                "Yangi session kerak."
+            )
             await client.disconnect()
             return
     except SessionConflictError:
