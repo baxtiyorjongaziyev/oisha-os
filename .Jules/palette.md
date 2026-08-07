@@ -86,3 +86,7 @@
 ## 2026-07-26 - Add Clear Button to Search Input
 **Learning:** Adding a clear ('X') button to search inputs is a common micro-UX improvement, but it's crucial to programmatically return focus to the input field (`ref.current?.focus()`) after clearing to maintain a seamless keyboard navigation flow and ensure the user can immediately type a new query without needing to re-select the input.
 **Action:** When adding actions that reset input states (like clear buttons or 'cancel' triggers within forms), always include a focus management step to return the user's cursor to the primary interaction point.
+
+## 2024-08-07 - [UX Improvement] isSubmitting state for async form submissions
+**Learning:** Found that the global Bug Report form modal submitted synchronously without setting a loading state, which could lead to multiple accidental clicks or confusing UX while the user waits for the request to process. This interaction pattern is critical for form accessibility.
+**Action:** Always implement an `isSubmitting` state for asynchronous form submissions (like Bug Reports) to disable the submit button and show a loading spinner, preventing duplicate clicks and providing clear user feedback. Also, make sure to add `aria-busy` and `aria-disabled` as well.
