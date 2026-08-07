@@ -4,6 +4,7 @@ Xavfsizlik: faqat bugun yuborilgan va mos matn bo'lgan xabarlarni o'chiradi.
 """
 import asyncio
 import os
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -12,20 +13,24 @@ from datetime import datetime, timezone
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from scripts.telethon_guard import (  # noqa: E402
+    SessionConflictError,
+    SessionMissingError,
+    guarded_connect,
+    guarded_is_authorized,
+    prepare,
+    single_flight,
+)
+
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
 
-SESSION_STRING = os.environ.get("USERBOT_SESSION_STRING", "")
-_session_file = "data/session_output.txt"
-try:
-    if os.path.exists(_session_file):
-        _file_session = open(_session_file).read().strip()
-        if _file_session:
-            SESSION_STRING = _file_session
-except Exception:
-    pass
+# Session tanlash va xavfsizlik tekshiruvi telethon_guard da — prod userbot
+# kaliti hech qachon Oracle VM dan tashqarida ochilmasligi kerak.
+DEDICATED_SESSION_ENV = "JUMA_SESSION_STRING"
 
 # Juma tabrigi matni — faqat shu matn bo'lgan xabarlar o'chiriladi
 GREETING_SNIPPET = "Juma muborak bo'lsin"
@@ -48,12 +53,13 @@ def notify(text: str) -> None:
         print(f"Notification failed: {e}")
 
 
-async def main() -> None:
+async def run() -> None:
     notify("🗑 Juma xabarlarini o'chirish boshlandi...")
-    client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
-    await client.connect()
+    source = prepare(DEDICATED_SESSION_ENV)
+    client = TelegramClient(StringSession(source.string), API_ID, API_HASH)
+    await guarded_connect(client, source)
 
-    if not await client.is_user_authorized():
+    if not await guarded_is_authorized(client, source):
         notify("❌ Session eskirgan — o'chirish mumkin emas.")
         await client.disconnect()
         return
@@ -95,6 +101,17 @@ async def main() -> None:
     notify(summary)
     print(summary)
     await client.disconnect()
+
+
+async def main() -> None:
+    """Bitta hostda faqat bitta userbot skripti ulansin (single-flight)."""
+    try:
+        with single_flight("userbot_oneoff"):
+            await run()
+    except (SessionConflictError, SessionMissingError) as exc:
+        print(f"TO'XTATILDI: {exc}")
+        notify(f"⛔️ Juma xabarlarini o'chirish to'xtatildi\n\n{exc}")
+        raise
 
 
 if __name__ == "__main__":

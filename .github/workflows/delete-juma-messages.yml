@@ -28,7 +28,7 @@ jobs:
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main
             git stash --include-untracked 2>/dev/null || true
-            git checkout origin/main -- scripts/delete_juma_messages.py
+            git checkout origin/main -- scripts/delete_juma_messages.py scripts/telethon_guard.py scripts/__init__.py
 
             if [ -f .env ]; then
               set -o allexport
