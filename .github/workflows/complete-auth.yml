@@ -40,8 +40,14 @@ jobs:
           from telethon.sessions import StringSession
           from telethon.errors import FloodWaitError
 
-          PHONE = os.environ.get("TG_PHONE", "+998336450097")
-          TG_PASSWORD = os.environ.get("TG_PASSWORD", "")
+          # `.get(name, default)` bu yerda ISHLAMAYDI: env bloki TG_PHONE ni
+          # secret'dan oladi, secret yo'q bo'lsa GitHub o'zgaruvchini BO'SH
+          # SATR qilib qo'yadi — kalit mavjud bo'lgani uchun default hech
+          # qachon olinmaydi va Telethon ga None ketadi
+          # ("TypeError: bytes or str expected, not NoneType").
+          # `or` bo'sh satrni ham qamrab oladi.
+          PHONE = (os.environ.get("TG_PHONE") or "+998336450097").strip()
+          TG_PASSWORD = (os.environ.get("TG_PASSWORD") or "").strip()
           GH_TOKEN = os.environ["GH_TOKEN"]
           # Secrets API (unlike Variables) requires admin-level repo permissions
           # that the default GITHUB_TOKEN doesn't have — a separate PAT is
