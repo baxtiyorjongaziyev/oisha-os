@@ -47,7 +47,9 @@ jobs:
           # ("TypeError: bytes or str expected, not NoneType").
           # `or` bo'sh satrni ham qamrab oladi.
           PHONE = (os.environ.get("TG_PHONE") or "+998336450097").strip()
-          TG_PASSWORD = (os.environ.get("TG_PASSWORD") or "").strip()
+          # Parolni TRIM QILMAYMIZ: 2FA parolida boshida/oxirida probel
+          # bo'lishi mumkin, strip uni jimgina buzadi va sign_in yiqiladi.
+          TG_PASSWORD = os.environ.get("TG_PASSWORD", "")
           GH_TOKEN = os.environ["GH_TOKEN"]
           # Secrets API (unlike Variables) requires admin-level repo permissions
           # that the default GITHUB_TOKEN doesn't have — a separate PAT is
