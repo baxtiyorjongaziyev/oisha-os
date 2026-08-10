@@ -64,6 +64,12 @@ MIN_CALL_SECONDS = 180          # 3 daqiqadan qisqa savdo suhbati — yomon belg
 IDEAL_CLIENT_TALK_PCT = 55      # mijoz kamida shuncha gapirishi kerak
 PRIMARY_LANGUAGE = "o'zbek"     # asosiy muloqot tili
 
+# Sukut shundan uzoq cho'zilsa — "keraksiz pauza" deb qayd etiladi.
+# Ataylab saxiy: tabiiy suhbatda 1-3 soniyalik tanaffus normal, va pauza
+# so'z sonidan BAHOLANADI (aniq o'lchov emas — `utils.transcript` ga qarang).
+# Qisqa tanaffusni xato deb ko'rsatish sotuvchini asossiz ayblash bo'ladi.
+MAX_ACCEPTABLE_PAUSE_SECONDS = 4.0
+
 # Muvaffaqiyatli qo'ng'iroq shulardan biri bilan tugashi shart:
 VALID_OUTCOMES = (
     "uchrashuv sanasi belgilandi (offline yoki online)",
@@ -71,6 +77,128 @@ VALID_OUTCOMES = (
     "KP (tijorat taklifi) yuborish kelishildi",
     "to'lov kelishildi",
 )
+
+# ─── Natija taksonomiyasi (konversiya o'lchash uchun) ───
+# `VALID_OUTCOMES` — odam o'qiydigan mezon; quyidagilari mashina o'qiydigan
+# kalitlar. LLM shu kalitlardan BITTASINI qaytaradi, `metasell_conversion`
+# esa shu asosda sotuvchi konversiyasini hisoblaydi. Ikkalasi bir xil
+# haqiqatni ifodalaydi — mezon o'zgarsa, ikkalasi birga o'zgaradi.
+OUTCOME_MEETING = "uchrashuv_kelishildi"
+OUTCOME_MATERIALS = "material_yuborish"
+OUTCOME_PROPOSAL = "kp_yuborish"
+OUTCOME_PAYMENT = "tolov_kelishildi"
+OUTCOME_FOLLOW_UP = "qayta_qongiroq"
+OUTCOME_THINKING = "oylab_koradi"
+OUTCOME_REFUSED = "rad_etdi"
+OUTCOME_UNKNOWN = "aniqlanmadi"
+
+# Konversiya sifatida hisoblanadigan natijalar — playbook'dagi
+# `VALID_OUTCOMES` ning aynan mashina ko'rinishi.
+CONVERTING_OUTCOMES = frozenset(
+    {
+        OUTCOME_MEETING,
+        OUTCOME_MATERIALS,
+        OUTCOME_PROPOSAL,
+        OUTCOME_PAYMENT,
+    }
+)
+
+ALL_OUTCOMES = (
+    OUTCOME_MEETING,
+    OUTCOME_MATERIALS,
+    OUTCOME_PROPOSAL,
+    OUTCOME_PAYMENT,
+    OUTCOME_FOLLOW_UP,
+    OUTCOME_THINKING,
+    OUTCOME_REFUSED,
+    OUTCOME_UNKNOWN,
+)
+
+OUTCOME_LABELS_UZ = {
+    OUTCOME_MEETING: "Uchrashuv kelishildi",
+    OUTCOME_MATERIALS: "Portfolio/keys yuborish kelishildi",
+    OUTCOME_PROPOSAL: "KP yuborish kelishildi",
+    OUTCOME_PAYMENT: "To'lov kelishildi",
+    OUTCOME_FOLLOW_UP: "Qayta qo'ng'iroq belgilandi",
+    OUTCOME_THINKING: "Mijoz o'ylab ko'radi (muddat yo'q)",
+    OUTCOME_REFUSED: "Rad etdi",
+    OUTCOME_UNKNOWN: "Aniqlanmadi",
+}
+
+
+# Eski (inglizcha) lug'atlar. Bitta `call_analyses.outcome` ustuniga bir
+# nechta baholovchi yozadi va ularning lug'ati har xil:
+#   - `services.ai.quality_analyzer` → sale|follow_up|lost|callback|not_sales
+#   - `/api/sales-quality/ingest-analysis` → tashqi tizim yuborgan qiymat
+#   - `services.core.deal_hygiene` → no_interest|wrong_number|spam|invalid
+# Ular tarjima qilinmasa, Telegram yo'lidan kelgan "sale" qatori konversiya
+# sifatida HISOBLANMAY qoladi va sotuvchi konversiyasi past ko'rsatiladi.
+_LEGACY_OUTCOMES = {
+    "sale": OUTCOME_PAYMENT,
+    "won": OUTCOME_PAYMENT,
+    "meeting": OUTCOME_MEETING,
+    "proposal": OUTCOME_PROPOSAL,
+    "follow_up": OUTCOME_FOLLOW_UP,
+    "followup": OUTCOME_FOLLOW_UP,
+    "callback": OUTCOME_FOLLOW_UP,
+    "thinking": OUTCOME_THINKING,
+    "lost": OUTCOME_REFUSED,
+    "no_interest": OUTCOME_REFUSED,
+    "not_interested": OUTCOME_REFUSED,
+    "wrong_number": OUTCOME_REFUSED,
+    "spam": OUTCOME_REFUSED,
+    "invalid": OUTCOME_REFUSED,
+    "not_sales": OUTCOME_UNKNOWN,
+    "unknown": OUTCOME_UNKNOWN,
+}
+
+
+def normalise_outcome(value: object) -> str:
+    """Erkin matnni rasmiy natija kalitiga keltiradi."""
+    text = str(value or "").strip().lower()
+    if not text:
+        return OUTCOME_UNKNOWN
+    if text in ALL_OUTCOMES:
+        return text
+    # Eski lug'atni aniq moslik bo'yicha tarjima qilamiz — substring
+    # qidiruvidan OLDIN, aks holda "lost" hech bir kalitga tushmaydi.
+    legacy = _LEGACY_OUTCOMES.get(text.replace("-", "_").replace(" ", "_"))
+    if legacy:
+        return legacy
+    # LLM ba'zan kalit o'rniga tavsif qaytaradi — kalit so'z bo'yicha topamiz.
+    aliases = (
+        (OUTCOME_PAYMENT, ("to'lov", "tolov", "payment", "shartnoma")),
+        (OUTCOME_PROPOSAL, ("kp", "tijorat taklif", "proposal", "smeta")),
+        (OUTCOME_MEETING, ("uchrashuv", "meeting", "uchrashish")),
+        (OUTCOME_MATERIALS, ("portfolio", "keys", "material", "namuna")),
+        (OUTCOME_REFUSED, ("rad", "yo'q dedi", "refus", "qiziqmadi")),
+        (OUTCOME_THINKING, ("o'ylab", "oylab", "think")),
+        (OUTCOME_FOLLOW_UP, ("qayta", "follow", "keyinroq")),
+    )
+    for key, needles in aliases:
+        if any(needle in text for needle in needles):
+            return key
+    return OUTCOME_UNKNOWN
+
+
+def outcome_converted(outcome: object) -> bool:
+    """Natija playbook bo'yicha konversiya hisoblanadimi?"""
+    return normalise_outcome(outcome) in CONVERTING_OUTCOMES
+
+
+def outcome_prompt_uz() -> str:
+    """Natijani aniqlash uchun LLM promptiga qo'yiladigan matn."""
+    lines = [
+        "QO'NG'IROQ NATIJASI — quyidagi kalitlardan AYNAN BITTASINI tanlang:",
+    ]
+    for key in ALL_OUTCOMES:
+        mark = " ← konversiya" if key in CONVERTING_OUTCOMES else ""
+        lines.append(f"   {key} — {OUTCOME_LABELS_UZ[key]}{mark}")
+    lines.append(
+        "Natija FAQAT suhbatda ANIQ kelishilgan bo'lsa yoziladi. Menejer "
+        "taklif qilgan, lekin mijoz rozi bo'lmagan bo'lsa — konversiya EMAS."
+    )
+    return "\n".join(lines) + "\n"
 
 FORBIDDEN = (
     "Raqobatchilarni yomonlash",
@@ -121,7 +249,10 @@ def rubric_prompt_uz() -> str:
         "   - Mijozni bo'lmasdan tingladimi?\n"
         "   - Asosan o'zbek tilida so'zladimi?\n"
         "   - Gapirish nisbati: mijoz ko'proq gapirgani yaxshi "
-        f"(ideal: mijoz ≥{IDEAL_CLIENT_TALK_PCT}%).\n\n"
+        f"(ideal: mijoz ≥{IDEAL_CLIENT_TALK_PCT}%).\n"
+        f"   - Keraksiz pauza: {MAX_ACCEPTABLE_PAUSE_SECONDS:g} soniyadan uzun sukut "
+        "mijozni sovutadi. Menejer javobni kutib qotib qolganmi yoki "
+        "suhbatni boshqarganmi?\n\n"
         "TAQIQLAR (har biri uchun ball keskin kamaytiriladi va weaknesses'ga yoziladi):\n"
         + "".join(f"   - {rule}\n" for rule in FORBIDDEN)
         + "\n"

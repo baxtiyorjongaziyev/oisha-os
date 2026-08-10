@@ -14,12 +14,26 @@ import requests as _requests
 
 from src.database import Database
 from src.services.core.crm.amocrm_sync import AmoCRMSync
+from src.services.core.call_analyses_schema import ensure_call_analysis_schema
+from src.services.core.call_events import CallEventLog
 from src.services.core.sales_playbook import (
     IDEAL_CLIENT_TALK_PCT,
+    MAX_ACCEPTABLE_PAUSE_SECONDS,
+    OUTCOME_LABELS_UZ,
+    OUTCOME_UNKNOWN,
     STAGE_WEIGHTS,
+    normalise_outcome,
+    outcome_converted,
+    outcome_prompt_uz,
     rubric_prompt_uz,
 )
-from src.services.utils.transcript import speaker_split, talk_ratio_verdict
+from src.services.utils.transcript import (
+    detect_pauses,
+    format_timestamp,
+    speaker_split,
+    strip_timestamps,
+    talk_ratio_verdict,
+)
 from src.time_utils import get_local_now, get_local_timezone
 
 logger = structlog.get_logger()
@@ -139,7 +153,9 @@ def _transcript_impossible_for_duration(transcript: str, duration_seconds: int) 
     """
     if not transcript or not duration_seconds or duration_seconds <= 0:
         return False
-    word_count = len(transcript.split())
+    # Vaqt belgisi ([00:03]) so'z emas — tozalamasak so'z soni shishadi va
+    # haqiqiy transkripsiya "hallucination" deb rad etiladi.
+    word_count = len(strip_timestamps(transcript).split())
     # Juda qisqa matnlarda nisbat shovqinli bo'ladi — 30 so'zgacha tekshirmaymiz
     if word_count <= 30:
         return False
@@ -159,7 +175,8 @@ def _rubric_applies(category: str, transcript: str) -> bool:
     """Jon Branding sotuv rubrikasi shu qo'ng'iroqqa taalluqlimi?"""
     if category != "Mijoz":
         return False
-    return len((transcript or "").split()) >= _RUBRIC_MIN_WORDS
+    # Vaqt belgilarisiz sanaymiz — aks holda qisqa suhbat uzun ko'rinadi.
+    return len(strip_timestamps(transcript or "").split()) >= _RUBRIC_MIN_WORDS
 
 
 def _parse_agreed_datetime(raw: Any, reference_now: Optional[datetime] = None) -> Optional[datetime]:
@@ -200,6 +217,27 @@ def _clip(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return text[: max(0, limit - 20)].rstrip() + "\n...[qisqartirildi]"
+
+
+def _parse_breakdown_time(raw: Any, duration_seconds: int = 0) -> Optional[str]:
+    """LLM qaytargan uzilish vaqtini tekshiradi -> "mm:ss" yoki None.
+
+    Ishonchsiz qiymatni rad etamiz: qo'ng'iroq davomiyligidan tashqaridagi
+    lahza — LLM to'qigan raqam. Noto'g'ri lahzani ko'rsatish rahbarni
+    yozuvning bo'sh joyiga yuboradi va butun funksiyaga ishonchni yo'qotadi.
+    """
+    if raw in (None, "", "null", "N/A"):
+        return None
+    match = re.match(r"^\s*(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s*$", str(raw))
+    if not match:
+        return None
+    hours, minutes, seconds = match.groups()
+    total = int(minutes) * 60 + int(seconds)
+    if hours:
+        total += int(hours) * 3600
+    if duration_seconds and total > duration_seconds + 5:
+        return None
+    return format_timestamp(total)
 
 
 def _extract_amocrm_task_id(result: Any) -> str:
@@ -424,6 +462,25 @@ class CallAnalyzer:
             logger.warning("[CALL] DB processed check failed for %s: %s", call_id, exc)
             return False
 
+    async def _resolve_manager_name(self, responsible_user_id: Optional[int]) -> str:
+        """AmoCRM mas'ul foydalanuvchi ID'sidan menejer ismi.
+
+        Ism bo'lmasa murabbiylik qatlami qo'ng'iroqni hech kimga bog'lay
+        olmaydi — shuning uchun ID bo'lsa ham hech bo'lmasa uni yozamiz.
+        """
+        if not responsible_user_id:
+            return ""
+        try:
+            name = await _maybe_await(
+                self.amocrm.get_user_name(int(responsible_user_id))
+            )
+        except Exception as exc:
+            logger.warning(
+                "[CALL] Menejer ismi olinmadi (user_id=%s): %s", responsible_user_id, exc
+            )
+            return ""
+        return str(name or "").strip()
+
     async def _log_call_analysis(
         self,
         call_id: str,
@@ -436,9 +493,34 @@ class CallAnalyzer:
         audio_url: str,
         caller_phone: str = "",
         task_id: str = "",
+        analysis: Optional[Dict[str, Any]] = None,
+        duration_seconds: int = 0,
+        manager_id: Optional[int] = None,
+        manager_name: str = "",
     ) -> None:
+        """Tahlilni bazaga yozadi — BALLAR bilan birga.
+
+        Ilgari bu yerga faqat matnli ustunlar tushardi; rubrik ballari
+        AmoCRM notasida qolib ketardi va `sales_quality_coach` bo'sh
+        ma'lumot ustida ishlardi. Endi murabbiylik qatlami o'qiydigan
+        barcha ustunlar saqlanadi.
+        """
         if not self.db:
             return
+
+        await ensure_call_analysis_schema(self.db)
+
+        analysis = analysis or {}
+        rubrik = analysis.get("rubrik_baholar") or {}
+        outcome = normalise_outcome(analysis.get("natija"))
+        overall_score = int(analysis.get("sifat_bahosi") or 0)
+
+        def _dump(value: Any) -> str:
+            try:
+                return json.dumps(value or [], ensure_ascii=False)
+            except (TypeError, ValueError):
+                return "[]"
+
         try:
             conn = await self.db.get_connection()
             now = datetime.now(timezone.utc).isoformat()
@@ -449,8 +531,15 @@ class CallAnalyzer:
                     INSERT OR IGNORE INTO call_analyses
                         (call_id, lead_id, category, summary, client_mood,
                          next_steps, transcript, audio_url, caller_phone,
-                         task_id, task_created_at, analyzed_at, created_at, source)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         task_id, task_created_at, analyzed_at, created_at, source,
+                         manager_id, manager_name, duration_seconds, overall_score,
+                         scores, strengths, weaknesses, objections, outcome,
+                         converted, client_interest_level,
+                         breakdown_at, breakdown_reason,
+                         longest_pause_seconds, pauses)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                            ?, ?, ?, ?)
                     """,
                     (
                         call_id,
@@ -467,11 +556,33 @@ class CallAnalyzer:
                         now,
                         now,
                         "amocrm",
+                        int(manager_id) if manager_id else None,
+                        manager_name,
+                        max(int(duration_seconds or 0), 0),
+                        overall_score,
+                        _dump(rubrik) if rubrik else "{}",
+                        _dump(analysis.get("kuchli_tomonlar")),
+                        _dump(analysis.get("zaif_tomonlar")),
+                        _dump(analysis.get("etirozlar")),
+                        outcome,
+                        1 if outcome_converted(outcome) else 0,
+                        int(analysis.get("lead_bahosi") or 0),
+                        analysis.get("uzilish_vaqti"),
+                        str(analysis.get("uzilish_sababi") or ""),
+                        float(analysis.get("eng_uzun_pauza") or 0.0),
+                        _dump(analysis.get("pauzalar")),
                     ),
                 )
             )
             await _maybe_await(conn.commit())
-            logger.info("[CALL] DB log saved: lead_id=%s call_id=%s", lead_id, call_id)
+            logger.info(
+                "[CALL] DB log saved: lead_id=%s call_id=%s ball=%s natija=%s menejer=%s",
+                lead_id,
+                call_id,
+                overall_score,
+                outcome,
+                manager_name or "?",
+            )
         except Exception as exc:
             logger.error("[CALL] DB log failed for %s: %s", call_id, exc)
 
@@ -616,7 +727,10 @@ class CallAnalyzer:
             "- Agar audioda tushunarli inson nutqi bo'lmasa (sukunat, band/chaqiruv "
             "ohangi, faqat shovqin, juda qisqa yoki tushunarsiz ovoz) — hech narsa "
             f"to'qimang, faqat aynan shu so'zni qaytaring: {NO_SPEECH_SENTINEL}\n"
+            "- Har bir gapni qo'ng'iroq boshidan hisoblangan VAQT BELGISI bilan "
+            "boshlang: [mm:ss]. Vaqtni audio'dan aniq oling, taxmin qilmang.\n"
             "- Ikki tomon gaplarini A: va B: qilib ajrating.\n"
+            "- Format aynan shunday: [00:03] A: matn\n"
             "- Ruscha yoki boshqa tilda gapirilgan bo'lsa, mazmunini O'zbek lotiniga tarjima qilib yozing.\n"
             "- Ism, telefon, narx, muddat va vazifalarni aniq saqlang.\n"
             "- Eshitilmagan joylarni [...] deb belgilang.\n"
@@ -725,7 +839,9 @@ class CallAnalyzer:
             logger.error("[CALL] OpenAI STT fallback failed: %s", exc)
             return None
 
-    async def analyze_transcript(self, transcript: str) -> Dict[str, Any]:
+    async def analyze_transcript(
+        self, transcript: str, duration_seconds: int = 0
+    ) -> Dict[str, Any]:
         """Classify, summarize, and extract next steps from a transcript."""
         if not transcript:
             return self._fallback_analysis(transcript)
@@ -756,6 +872,7 @@ class CallAnalyzer:
                 f"{ratio_line}"
                 f"  Ideal: mijoz ≥{IDEAL_CLIENT_TALK_PCT}%.\n\n"
                 f"{rubric_prompt_uz()}\n"
+                f"{outcome_prompt_uz()}\n"
                 "Rubrik faqat Mijoz toifasiga taalluqli. Agar toifa Mijoz emas "
                 "(Shaxsiy, Oila, Jamoa, Boshqa) bo'lsa — rubrik_baholar uchun "
                 "umumiy muloqot sifatiga qarab baholang.\n\n"
@@ -782,6 +899,18 @@ class CallAnalyzer:
                 '  "qaror_qabul_qiluvchi": "Ha|Yoq|Noaniq",\n'
                 '  "joylashuv": "shahar/viloyat yoki N/A",\n'
                 '  "mijoz_malumotlari": ["mijoz haqida muhim ma\'lumot 1", "muhim ma\'lumot 2"],\n'
+                '  "natija": "yuqoridagi natija kalitlaridan bittasi",\n'
+                '  "uzilish_vaqti": "Agar suhbat biror lahzada BUZILGAN bo\'lsa '
+                '(mijoz qiziqishdan qolgan, e\'tiroz javobsiz qolgan, savdo uzilgan) '
+                '— o\'sha gapning vaqt belgisini \"mm:ss\" formatida yozing. '
+                'Suhbat yaxshi ketgan yoki lahzani aniqlab bo\'lmasa — null.",\n'
+                '  "uzilish_sababi": "Uzilish lahzasida AYNAN nima noto\'g\'ri ketdi '
+                '(masalan: \"Ehtiyoj aniqlanmadi\", \"E\'tirozga javob berilmadi\"). '
+                'uzilish_vaqti null bo\'lsa — null.",\n'
+                '  "kuchli_tomonlar": ["menejer aynan nimani YAXSHI qildi (1-3 ta, aniq)"],\n'
+                '  "zaif_tomonlar": ["menejer nimani o\'tkazib yubordi yoki xato qildi '
+                '(1-3 ta, aniq va tuzatib bo\'ladigan)"],\n'
+                '  "etirozlar": ["mijoz bildirgan e\'tirozlar, masalan \'qimmat\'"],\n'
                 '  "rubrik_baholar": {\n'
                 '    "salomlashish": {"ball": <0-100>},\n'
                 '    "ehtiyojlar": {"ball": <0-100>},\n'
@@ -801,21 +930,27 @@ class CallAnalyzer:
                 ),
             )
             data = _extract_json_object(getattr(response, "text", "") or "")
-            return self._normalise_analysis(data, transcript)
+            return self._normalise_analysis(data, transcript, duration_seconds)
         except GeminiQuotaCooldownError:
             logger.info("[CALL] Gemini transcript analysis skipped during quota cooldown.")
-            openai_analysis = await self._analyze_transcript_openai(transcript)
+            openai_analysis = await self._analyze_transcript_openai(
+                transcript, duration_seconds
+            )
             if openai_analysis:
                 return openai_analysis
             return self._fallback_analysis(transcript)
         except Exception as exc:
             logger.error("[CALL] Transcript analysis failed: %s", exc)
-            openai_analysis = await self._analyze_transcript_openai(transcript)
+            openai_analysis = await self._analyze_transcript_openai(
+                transcript, duration_seconds
+            )
             if openai_analysis:
                 return openai_analysis
             return self._fallback_analysis(transcript)
 
-    async def _analyze_transcript_openai(self, transcript: str) -> Optional[Dict[str, Any]]:
+    async def _analyze_transcript_openai(
+        self, transcript: str, duration_seconds: int = 0
+    ) -> Optional[Dict[str, Any]]:
         """Fallback JSON analysis via OpenAI text model."""
         if not self.openai_client:
             return None
@@ -852,13 +987,13 @@ class CallAnalyzer:
             response = await asyncio.to_thread(_create)
             raw = response.choices[0].message.content if response.choices else ""
             data = _extract_json_object(raw or "")
-            return self._normalise_analysis(data, transcript)
+            return self._normalise_analysis(data, transcript, duration_seconds)
         except Exception as exc:
             logger.error("[CALL] OpenAI analysis fallback failed: %s", exc)
             return None
 
     def _normalise_analysis(
-        self, data: Dict[str, Any], transcript: str
+        self, data: Dict[str, Any], transcript: str, duration_seconds: int = 0
     ) -> Dict[str, Any]:
         summary = str(data.get("summary") or "").strip()
         next_steps = str(data.get("next_steps") or "N/A").strip() or "N/A"
@@ -876,6 +1011,39 @@ class CallAnalyzer:
         mijoz_info = data.get("mijoz_malumotlari") or []
         if isinstance(mijoz_info, str):
             mijoz_info = [mijoz_info]
+
+        def _str_list(value: Any, limit: int = 5) -> List[str]:
+            if isinstance(value, str):
+                value = [value] if value.strip() else []
+            if not isinstance(value, list):
+                return []
+            items = [str(item).strip() for item in value if str(item).strip()]
+            return items[:limit]
+
+        # Uzilish lahzasi — "mijoz qaysi soniyada yo'qoldi".
+        breakdown_at = _parse_breakdown_time(
+            data.get("uzilish_vaqti"), duration_seconds
+        )
+        breakdown_reason = str(data.get("uzilish_sababi") or "").strip()
+        if not breakdown_at:
+            # Vaqtsiz sabab rahbarga foydasiz — ikkalasi birga yashaydi.
+            breakdown_reason = ""
+
+        # Pauzalar DETERMINISTIK hisoblanadi (LLM'dan so'ralmaydi): vaqt
+        # belgilari bor, demak buni o'lchash mumkin va LLM to'qishi shart emas.
+        pauses = [
+            {
+                "vaqt": p.timestamp,
+                "davomiyligi": p.gap_seconds,
+                "kimdan_keyin": p.after_speaker,
+            }
+            for p in detect_pauses(transcript, MAX_ACCEPTABLE_PAUSE_SECONDS)
+        ]
+
+        kuchli = _str_list(data.get("kuchli_tomonlar"))
+        zaif = _str_list(data.get("zaif_tomonlar"))
+        etirozlar = _str_list(data.get("etirozlar"))
+        natija = normalise_outcome(data.get("natija"))
 
         # --- Rubrik baholar ---
         rubrik_raw = data.get("rubrik_baholar") or {}
@@ -903,6 +1071,14 @@ class CallAnalyzer:
         if not rubrik_amal_qiladi:
             sifat_bahosi = 0
             rubrik_baholar = dict.fromkeys(rubrik_baholar, 0)
+            # Savdo suhbati emas — konversiya statistikasiga kirmasligi kerak,
+            # aks holda "Jamoa"/"Oila" qo'ng'iroqlari sotuvchi konversiyasini
+            # sun'iy ravishda pasaytiradi.
+            natija = OUTCOME_UNKNOWN
+            # "Mijoz yo'qolgan lahza" — savdo tushunchasi. Savdo suhbati
+            # bo'lmasa mazmunsiz. Pauzalar esa obyektiv o'lchov, qoladi.
+            breakdown_at = None
+            breakdown_reason = ""
 
         return {
             "summary": summary or _clip(transcript, 350),
@@ -929,6 +1105,17 @@ class CallAnalyzer:
             "joylashuv": str(data.get("joylashuv") or "N/A"),
             "mijoz_malumotlari": list(mijoz_info),
             "rubrik_baholar": rubrik_baholar,
+            # Murabbiylik qatlami (sales_quality_coach, metasell_conversion)
+            # aynan shu maydonlarni o'qiydi.
+            "natija": natija,
+            "konversiya": outcome_converted(natija),
+            "uzilish_vaqti": breakdown_at,
+            "uzilish_sababi": breakdown_reason,
+            "pauzalar": pauses,
+            "eng_uzun_pauza": max((p["davomiyligi"] for p in pauses), default=0.0),
+            "kuchli_tomonlar": kuchli,
+            "zaif_tomonlar": zaif,
+            "etirozlar": etirozlar,
         }
 
     def _fallback_analysis(self, transcript: str) -> Dict[str, Any]:
@@ -984,6 +1171,14 @@ class CallAnalyzer:
             category = "Boshqa"
 
         client_pct, agent_pct, attributed = _speaker_split(transcript)
+        fallback_pauses = [
+            {
+                "vaqt": p.timestamp,
+                "davomiyligi": p.gap_seconds,
+                "kimdan_keyin": p.after_speaker,
+            }
+            for p in detect_pauses(transcript, MAX_ACCEPTABLE_PAUSE_SECONDS)
+        ]
         return {
             "summary": _clip(transcript or "Tahlil uchun transkripsiya topilmadi.", 350),
             "category": category,
@@ -1012,6 +1207,19 @@ class CallAnalyzer:
                 "salomlashish": 0, "ehtiyojlar": 0, "qiymat": 0,
                 "etirozlar": 0, "yakunlash": 0, "muloqot_sifati": 0,
             },
+            # Baholanmagan qo'ng'iroq konversiya statistikasiga kirmaydi.
+            "natija": OUTCOME_UNKNOWN,
+            "konversiya": False,
+            "uzilish_vaqti": None,
+            "uzilish_sababi": "",
+            # Pauza LLM'ga bog'liq emas — fallback'da ham o'lchanadi.
+            "pauzalar": fallback_pauses,
+            "eng_uzun_pauza": max(
+                (p["davomiyligi"] for p in fallback_pauses), default=0.0
+            ),
+            "kuchli_tomonlar": [],
+            "zaif_tomonlar": [],
+            "etirozlar": [],
         }
 
     @staticmethod
@@ -1098,6 +1306,42 @@ class CallAnalyzer:
                 f"5. Yakunlash  (×2): {self._score_bar(r_yak)}",
                 f"6. Muloqot sifati:  {self._score_bar(r_mul)}",
             ]
+
+        if rubrik_amal_qiladi:
+            outcome = normalise_outcome(analysis.get("natija"))
+            lines += [
+                "",
+                f"Natija: {OUTCOME_LABELS_UZ.get(outcome, 'Aniqlanmadi')}"
+                + ("  ✅ konversiya" if outcome_converted(outcome) else ""),
+            ]
+
+            breakdown_at = analysis.get("uzilish_vaqti")
+            breakdown_reason = str(analysis.get("uzilish_sababi") or "").strip()
+            if breakdown_at:
+                lines += [
+                    "",
+                    f"🔴 MIJOZ YO'QOLGAN LAHZA: {breakdown_at}"
+                    + (f" — {breakdown_reason}" if breakdown_reason else ""),
+                ]
+
+            pauses = analysis.get("pauzalar") or []
+            if pauses:
+                longest = max(pauses, key=lambda p: p.get("davomiyligi", 0))
+                lines.append(
+                    f"⏸ Keraksiz pauza: {len(pauses)} ta "
+                    f"(eng uzuni {longest.get('vaqt')} da "
+                    f"{longest.get('davomiyligi')}s)"
+                )
+
+            kuchli = [str(x) for x in (analysis.get("kuchli_tomonlar") or [])]
+            zaif = [str(x) for x in (analysis.get("zaif_tomonlar") or [])]
+            if kuchli or zaif:
+                lines.append("")
+                lines.append("──── MURABBIY IZOHI ────")
+                for item in kuchli[:3]:
+                    lines.append(f"✅ {item}")
+                for item in zaif[:3]:
+                    lines.append(f"⚠️ {item}")
 
         lines += [
             "",
@@ -1305,12 +1549,38 @@ class CallAnalyzer:
 
         processed = 0
         attempted = 0
+        # Menejer ismi lead bo'yicha o'zgarmaydi — siklda qayta so'ramaymiz.
+        manager_name = await self._resolve_manager_name(responsible_user_id)
+        event_log = CallEventLog(self.db) if self.db else None
+
         for note in call_notes:
             audio_url = self._find_audio_url(note.get("params") or {})
-            if not audio_url:
-                continue
-
             call_id = self._extract_call_id(note, lead_id, audio_url)
+            duration = self._extract_call_duration_seconds(note)
+
+            # HAR BIR qo'ng'iroq qayd etiladi — javobsizlari ham. Ilgari
+            # yozuvsiz qo'ng'iroq shu yerda tashlanardi va telefon
+            # ko'tarmaydigan sotuvchi statistikada umuman ko'rinmasdi.
+            if write and event_log:
+                params = note.get("params") or {}
+                await event_log.record(
+                    call_id=call_id,
+                    lead_id=lead_id,
+                    duration_seconds=duration,
+                    has_recording=bool(audio_url),
+                    manager_id=responsible_user_id,
+                    manager_name=manager_name,
+                    direction=str(note.get("note_type") or ""),
+                    phone=caller_phone or self._extract_phone_from_note(note),
+                    call_status=(
+                        params.get("call_status") if isinstance(params, dict) else None
+                    ),
+                )
+
+            if not audio_url:
+                # Yozuv yo'q — tahlil qilib bo'lmaydi, lekin hodisa
+                # yuqorida allaqachon qayd etildi.
+                continue
             if self._note_has_analysis_for_call(notes or [], call_id):
                 logger.info("[CALL] Lead note already contains analysis marker: lead_id=%s call_id=%s", lead_id, call_id)
                 continue
@@ -1318,7 +1588,6 @@ class CallAnalyzer:
                 logger.info("[CALL] Already processed: lead_id=%s call_id=%s", lead_id, call_id)
                 continue
 
-            duration = self._extract_call_duration_seconds(note)
             if min_call_duration_seconds and duration and duration < min_call_duration_seconds:
                 logger.info(
                     "[CALL] Skipping short call: lead_id=%s call_id=%s duration=%ss min=%ss",
@@ -1367,7 +1636,7 @@ class CallAnalyzer:
                 )
                 continue
 
-            analysis = await self.analyze_transcript(transcript)
+            analysis = await self.analyze_transcript(transcript, duration)
             category = _normalise_category(analysis.get("category"))
             client_mood = _normalise_mood(analysis.get("client_mood"))
             summary = str(analysis.get("summary") or "").strip() or _clip(transcript, 350)
@@ -1413,6 +1682,10 @@ class CallAnalyzer:
                         audio_url=audio_url,
                         caller_phone=phone,
                         task_id=None,
+                        analysis=analysis,
+                        duration_seconds=duration,
+                        manager_id=responsible_user_id,
+                        manager_name=manager_name,
                     )
 
                     try:
@@ -1475,6 +1748,10 @@ class CallAnalyzer:
                         audio_url=audio_url,
                         caller_phone=phone,
                         task_id=task_id,
+                        analysis=analysis,
+                        duration_seconds=duration,
+                        manager_id=responsible_user_id,
+                        manager_name=manager_name,
                     )
             else:
                 logger.info(
@@ -1486,6 +1763,8 @@ class CallAnalyzer:
                 )
 
             processed += 1
+            if write and event_log:
+                await event_log.mark_analyzed(call_id)
             if one_analysis_per_lead:
                 break
             await asyncio.sleep(0.5)

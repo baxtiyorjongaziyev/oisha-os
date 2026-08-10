@@ -270,9 +270,23 @@ async def test_process_call_recordings_for_lead_success():
     note2_text = amocrm_mock.add_lead_note.call_args_list[1].args[1]
     assert "AI_CALL_ANALYSIS" in note2_text
     assert "ID: call-uniq-777" in note2_text
-    insert_args = db_conn.execute.call_args_list[-1].args
-    assert "INSERT OR IGNORE INTO call_analyses" in insert_args[0]
+    # Tahlil INSERT'ini pozitsiya bo'yicha emas, mazmun bo'yicha topamiz:
+    # undan keyin `call_events.mark_analyzed` ham yoziladi.
+    insert_args = next(
+        call.args
+        for call in db_conn.execute.call_args_list
+        if "INSERT OR IGNORE INTO call_analyses" in call.args[0]
+    )
     assert "555" in insert_args[1]
+
+    # Javob berilgan qo'ng'iroq hodisa jurnaliga ham tushishi kerak.
+    event_sql = [
+        call.args[0]
+        for call in db_conn.execute.call_args_list
+        if "call_events" in call.args[0]
+    ]
+    assert any("INSERT OR IGNORE INTO call_events" in sql for sql in event_sql)
+    assert any("UPDATE call_events SET analyzed" in sql for sql in event_sql)
 
 
 @pytest.mark.asyncio
