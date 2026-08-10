@@ -14,9 +14,15 @@ import requests as _requests
 
 from src.database import Database
 from src.services.core.crm.amocrm_sync import AmoCRMSync
+from src.services.core.call_analyses_schema import ensure_call_analysis_schema
 from src.services.core.sales_playbook import (
     IDEAL_CLIENT_TALK_PCT,
+    OUTCOME_LABELS_UZ,
+    OUTCOME_UNKNOWN,
     STAGE_WEIGHTS,
+    normalise_outcome,
+    outcome_converted,
+    outcome_prompt_uz,
     rubric_prompt_uz,
 )
 from src.services.utils.transcript import speaker_split, talk_ratio_verdict
@@ -424,6 +430,25 @@ class CallAnalyzer:
             logger.warning("[CALL] DB processed check failed for %s: %s", call_id, exc)
             return False
 
+    async def _resolve_manager_name(self, responsible_user_id: Optional[int]) -> str:
+        """AmoCRM mas'ul foydalanuvchi ID'sidan menejer ismi.
+
+        Ism bo'lmasa murabbiylik qatlami qo'ng'iroqni hech kimga bog'lay
+        olmaydi — shuning uchun ID bo'lsa ham hech bo'lmasa uni yozamiz.
+        """
+        if not responsible_user_id:
+            return ""
+        try:
+            name = await _maybe_await(
+                self.amocrm.get_user_name(int(responsible_user_id))
+            )
+        except Exception as exc:
+            logger.warning(
+                "[CALL] Menejer ismi olinmadi (user_id=%s): %s", responsible_user_id, exc
+            )
+            return ""
+        return str(name or "").strip()
+
     async def _log_call_analysis(
         self,
         call_id: str,
@@ -436,9 +461,34 @@ class CallAnalyzer:
         audio_url: str,
         caller_phone: str = "",
         task_id: str = "",
+        analysis: Optional[Dict[str, Any]] = None,
+        duration_seconds: int = 0,
+        manager_id: Optional[int] = None,
+        manager_name: str = "",
     ) -> None:
+        """Tahlilni bazaga yozadi — BALLAR bilan birga.
+
+        Ilgari bu yerga faqat matnli ustunlar tushardi; rubrik ballari
+        AmoCRM notasida qolib ketardi va `sales_quality_coach` bo'sh
+        ma'lumot ustida ishlardi. Endi murabbiylik qatlami o'qiydigan
+        barcha ustunlar saqlanadi.
+        """
         if not self.db:
             return
+
+        await ensure_call_analysis_schema(self.db)
+
+        analysis = analysis or {}
+        rubrik = analysis.get("rubrik_baholar") or {}
+        outcome = normalise_outcome(analysis.get("natija"))
+        overall_score = int(analysis.get("sifat_bahosi") or 0)
+
+        def _dump(value: Any) -> str:
+            try:
+                return json.dumps(value or [], ensure_ascii=False)
+            except (TypeError, ValueError):
+                return "[]"
+
         try:
             conn = await self.db.get_connection()
             now = datetime.now(timezone.utc).isoformat()
@@ -449,8 +499,12 @@ class CallAnalyzer:
                     INSERT OR IGNORE INTO call_analyses
                         (call_id, lead_id, category, summary, client_mood,
                          next_steps, transcript, audio_url, caller_phone,
-                         task_id, task_created_at, analyzed_at, created_at, source)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         task_id, task_created_at, analyzed_at, created_at, source,
+                         manager_id, manager_name, duration_seconds, overall_score,
+                         scores, strengths, weaknesses, objections, outcome,
+                         converted, client_interest_level)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         call_id,
@@ -467,11 +521,29 @@ class CallAnalyzer:
                         now,
                         now,
                         "amocrm",
+                        int(manager_id) if manager_id else None,
+                        manager_name,
+                        max(int(duration_seconds or 0), 0),
+                        overall_score,
+                        _dump(rubrik) if rubrik else "{}",
+                        _dump(analysis.get("kuchli_tomonlar")),
+                        _dump(analysis.get("zaif_tomonlar")),
+                        _dump(analysis.get("etirozlar")),
+                        outcome,
+                        1 if outcome_converted(outcome) else 0,
+                        int(analysis.get("lead_bahosi") or 0),
                     ),
                 )
             )
             await _maybe_await(conn.commit())
-            logger.info("[CALL] DB log saved: lead_id=%s call_id=%s", lead_id, call_id)
+            logger.info(
+                "[CALL] DB log saved: lead_id=%s call_id=%s ball=%s natija=%s menejer=%s",
+                lead_id,
+                call_id,
+                overall_score,
+                outcome,
+                manager_name or "?",
+            )
         except Exception as exc:
             logger.error("[CALL] DB log failed for %s: %s", call_id, exc)
 
@@ -756,6 +828,7 @@ class CallAnalyzer:
                 f"{ratio_line}"
                 f"  Ideal: mijoz ≥{IDEAL_CLIENT_TALK_PCT}%.\n\n"
                 f"{rubric_prompt_uz()}\n"
+                f"{outcome_prompt_uz()}\n"
                 "Rubrik faqat Mijoz toifasiga taalluqli. Agar toifa Mijoz emas "
                 "(Shaxsiy, Oila, Jamoa, Boshqa) bo'lsa — rubrik_baholar uchun "
                 "umumiy muloqot sifatiga qarab baholang.\n\n"
@@ -782,6 +855,11 @@ class CallAnalyzer:
                 '  "qaror_qabul_qiluvchi": "Ha|Yoq|Noaniq",\n'
                 '  "joylashuv": "shahar/viloyat yoki N/A",\n'
                 '  "mijoz_malumotlari": ["mijoz haqida muhim ma\'lumot 1", "muhim ma\'lumot 2"],\n'
+                '  "natija": "yuqoridagi natija kalitlaridan bittasi",\n'
+                '  "kuchli_tomonlar": ["menejer aynan nimani YAXSHI qildi (1-3 ta, aniq)"],\n'
+                '  "zaif_tomonlar": ["menejer nimani o\'tkazib yubordi yoki xato qildi '
+                '(1-3 ta, aniq va tuzatib bo\'ladigan)"],\n'
+                '  "etirozlar": ["mijoz bildirgan e\'tirozlar, masalan \'qimmat\'"],\n'
                 '  "rubrik_baholar": {\n'
                 '    "salomlashish": {"ball": <0-100>},\n'
                 '    "ehtiyojlar": {"ball": <0-100>},\n'
@@ -877,6 +955,19 @@ class CallAnalyzer:
         if isinstance(mijoz_info, str):
             mijoz_info = [mijoz_info]
 
+        def _str_list(value: Any, limit: int = 5) -> List[str]:
+            if isinstance(value, str):
+                value = [value] if value.strip() else []
+            if not isinstance(value, list):
+                return []
+            items = [str(item).strip() for item in value if str(item).strip()]
+            return items[:limit]
+
+        kuchli = _str_list(data.get("kuchli_tomonlar"))
+        zaif = _str_list(data.get("zaif_tomonlar"))
+        etirozlar = _str_list(data.get("etirozlar"))
+        natija = normalise_outcome(data.get("natija"))
+
         # --- Rubrik baholar ---
         rubrik_raw = data.get("rubrik_baholar") or {}
         if rubrik_raw and isinstance(rubrik_raw, dict):
@@ -903,6 +994,10 @@ class CallAnalyzer:
         if not rubrik_amal_qiladi:
             sifat_bahosi = 0
             rubrik_baholar = dict.fromkeys(rubrik_baholar, 0)
+            # Savdo suhbati emas — konversiya statistikasiga kirmasligi kerak,
+            # aks holda "Jamoa"/"Oila" qo'ng'iroqlari sotuvchi konversiyasini
+            # sun'iy ravishda pasaytiradi.
+            natija = OUTCOME_UNKNOWN
 
         return {
             "summary": summary or _clip(transcript, 350),
@@ -929,6 +1024,13 @@ class CallAnalyzer:
             "joylashuv": str(data.get("joylashuv") or "N/A"),
             "mijoz_malumotlari": list(mijoz_info),
             "rubrik_baholar": rubrik_baholar,
+            # Murabbiylik qatlami (sales_quality_coach, metasell_conversion)
+            # aynan shu maydonlarni o'qiydi.
+            "natija": natija,
+            "konversiya": outcome_converted(natija),
+            "kuchli_tomonlar": kuchli,
+            "zaif_tomonlar": zaif,
+            "etirozlar": etirozlar,
         }
 
     def _fallback_analysis(self, transcript: str) -> Dict[str, Any]:
@@ -1012,6 +1114,12 @@ class CallAnalyzer:
                 "salomlashish": 0, "ehtiyojlar": 0, "qiymat": 0,
                 "etirozlar": 0, "yakunlash": 0, "muloqot_sifati": 0,
             },
+            # Baholanmagan qo'ng'iroq konversiya statistikasiga kirmaydi.
+            "natija": OUTCOME_UNKNOWN,
+            "konversiya": False,
+            "kuchli_tomonlar": [],
+            "zaif_tomonlar": [],
+            "etirozlar": [],
         }
 
     @staticmethod
@@ -1098,6 +1206,24 @@ class CallAnalyzer:
                 f"5. Yakunlash  (×2): {self._score_bar(r_yak)}",
                 f"6. Muloqot sifati:  {self._score_bar(r_mul)}",
             ]
+
+        if rubrik_amal_qiladi:
+            outcome = normalise_outcome(analysis.get("natija"))
+            lines += [
+                "",
+                f"Natija: {OUTCOME_LABELS_UZ.get(outcome, 'Aniqlanmadi')}"
+                + ("  ✅ konversiya" if outcome_converted(outcome) else ""),
+            ]
+
+            kuchli = [str(x) for x in (analysis.get("kuchli_tomonlar") or [])]
+            zaif = [str(x) for x in (analysis.get("zaif_tomonlar") or [])]
+            if kuchli or zaif:
+                lines.append("")
+                lines.append("──── MURABBIY IZOHI ────")
+                for item in kuchli[:3]:
+                    lines.append(f"✅ {item}")
+                for item in zaif[:3]:
+                    lines.append(f"⚠️ {item}")
 
         lines += [
             "",
@@ -1372,6 +1498,7 @@ class CallAnalyzer:
             client_mood = _normalise_mood(analysis.get("client_mood"))
             summary = str(analysis.get("summary") or "").strip() or _clip(transcript, 350)
             next_steps = str(analysis.get("next_steps") or "N/A").strip() or "N/A"
+            manager_name = await self._resolve_manager_name(responsible_user_id)
 
             note1 = self._build_amocrm_note(
                 analysis=analysis,
@@ -1413,6 +1540,10 @@ class CallAnalyzer:
                         audio_url=audio_url,
                         caller_phone=phone,
                         task_id=None,
+                        analysis=analysis,
+                        duration_seconds=duration,
+                        manager_id=responsible_user_id,
+                        manager_name=manager_name,
                     )
 
                     try:
@@ -1475,6 +1606,10 @@ class CallAnalyzer:
                         audio_url=audio_url,
                         caller_phone=phone,
                         task_id=task_id,
+                        analysis=analysis,
+                        duration_seconds=duration,
+                        manager_id=responsible_user_id,
+                        manager_name=manager_name,
                     )
             else:
                 logger.info(

@@ -72,6 +72,96 @@ VALID_OUTCOMES = (
     "to'lov kelishildi",
 )
 
+# ─── Natija taksonomiyasi (konversiya o'lchash uchun) ───
+# `VALID_OUTCOMES` — odam o'qiydigan mezon; quyidagilari mashina o'qiydigan
+# kalitlar. LLM shu kalitlardan BITTASINI qaytaradi, `metasell_conversion`
+# esa shu asosda sotuvchi konversiyasini hisoblaydi. Ikkalasi bir xil
+# haqiqatni ifodalaydi — mezon o'zgarsa, ikkalasi birga o'zgaradi.
+OUTCOME_MEETING = "uchrashuv_kelishildi"
+OUTCOME_MATERIALS = "material_yuborish"
+OUTCOME_PROPOSAL = "kp_yuborish"
+OUTCOME_PAYMENT = "tolov_kelishildi"
+OUTCOME_FOLLOW_UP = "qayta_qongiroq"
+OUTCOME_THINKING = "oylab_koradi"
+OUTCOME_REFUSED = "rad_etdi"
+OUTCOME_UNKNOWN = "aniqlanmadi"
+
+# Konversiya sifatida hisoblanadigan natijalar — playbook'dagi
+# `VALID_OUTCOMES` ning aynan mashina ko'rinishi.
+CONVERTING_OUTCOMES = frozenset(
+    {
+        OUTCOME_MEETING,
+        OUTCOME_MATERIALS,
+        OUTCOME_PROPOSAL,
+        OUTCOME_PAYMENT,
+    }
+)
+
+ALL_OUTCOMES = (
+    OUTCOME_MEETING,
+    OUTCOME_MATERIALS,
+    OUTCOME_PROPOSAL,
+    OUTCOME_PAYMENT,
+    OUTCOME_FOLLOW_UP,
+    OUTCOME_THINKING,
+    OUTCOME_REFUSED,
+    OUTCOME_UNKNOWN,
+)
+
+OUTCOME_LABELS_UZ = {
+    OUTCOME_MEETING: "Uchrashuv kelishildi",
+    OUTCOME_MATERIALS: "Portfolio/keys yuborish kelishildi",
+    OUTCOME_PROPOSAL: "KP yuborish kelishildi",
+    OUTCOME_PAYMENT: "To'lov kelishildi",
+    OUTCOME_FOLLOW_UP: "Qayta qo'ng'iroq belgilandi",
+    OUTCOME_THINKING: "Mijoz o'ylab ko'radi (muddat yo'q)",
+    OUTCOME_REFUSED: "Rad etdi",
+    OUTCOME_UNKNOWN: "Aniqlanmadi",
+}
+
+
+def normalise_outcome(value: object) -> str:
+    """Erkin matnni rasmiy natija kalitiga keltiradi."""
+    text = str(value or "").strip().lower()
+    if not text:
+        return OUTCOME_UNKNOWN
+    if text in ALL_OUTCOMES:
+        return text
+    # LLM ba'zan kalit o'rniga tavsif qaytaradi — kalit so'z bo'yicha topamiz.
+    aliases = (
+        (OUTCOME_PAYMENT, ("to'lov", "tolov", "payment", "shartnoma")),
+        (OUTCOME_PROPOSAL, ("kp", "tijorat taklif", "proposal", "smeta")),
+        (OUTCOME_MEETING, ("uchrashuv", "meeting", "uchrashish")),
+        (OUTCOME_MATERIALS, ("portfolio", "keys", "material", "namuna")),
+        (OUTCOME_REFUSED, ("rad", "yo'q dedi", "refus", "qiziqmadi")),
+        (OUTCOME_THINKING, ("o'ylab", "oylab", "think")),
+        (OUTCOME_FOLLOW_UP, ("qayta", "follow", "keyinroq")),
+    )
+    for key, needles in aliases:
+        if any(needle in text for needle in needles):
+            return key
+    return OUTCOME_UNKNOWN
+
+
+def outcome_converted(outcome: object) -> bool:
+    """Natija playbook bo'yicha konversiya hisoblanadimi?"""
+    return normalise_outcome(outcome) in CONVERTING_OUTCOMES
+
+
+def outcome_prompt_uz() -> str:
+    """Natijani aniqlash uchun LLM promptiga qo'yiladigan matn."""
+    lines = [
+        "QO'NG'IROQ NATIJASI — quyidagi kalitlardan AYNAN BITTASINI tanlang:",
+    ]
+    for key in ALL_OUTCOMES:
+        mark = " ← konversiya" if key in CONVERTING_OUTCOMES else ""
+        lines.append(f"   {key} — {OUTCOME_LABELS_UZ[key]}{mark}")
+    lines.append(
+        "Natija FAQAT suhbatda ANIQ kelishilgan bo'lsa yoziladi. Menejer "
+        "taklif qilgan, lekin mijoz rozi bo'lmagan bo'lsa — konversiya EMAS."
+    )
+    return "\n".join(lines) + "\n"
+
 FORBIDDEN = (
     "Raqobatchilarni yomonlash",
     "Sotuv o'sishiga va'da berish ('sotuvingiz 2x oshadi' kabi)",

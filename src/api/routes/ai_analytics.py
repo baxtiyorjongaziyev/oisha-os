@@ -221,6 +221,63 @@ async def coach_playbook_suggestions(request: Request):
         return _fail("coach_playbook_suggestions", exc)
 
 
+@router.get("/conversion/overview")
+async def conversion_overview(request: Request, days: int = 30):
+    """Jamoa konversiyasi + har bir sotuvchining o'sish nuqtasi.
+
+    Ball emas, KONVERSIYA bo'yicha saflaydi: qaysi bosqich aynan shu
+    sotuvchida bitimni yo'qotayotganini konvertirlangan va konvertirlanmagan
+    qo'ng'iroqlar ballarini solishtirib topadi.
+    """
+    if not _secret_check(request):
+        return _unauthorized()
+    if api_state.db_instance is None:
+        return _unavailable("conversion_overview", "db_not_connected")
+    try:
+        from src.services.core.metasell_conversion import MetaSellConversionEngine
+
+        window = max(1, min(int(days or 30), 365))
+        engine = MetaSellConversionEngine(db=api_state.db_instance)
+        return await engine.team_summary(days=window)
+    except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
+        return _fail("conversion_overview", exc)
+
+
+@router.get("/conversion/seller-card")
+async def conversion_seller_card(request: Request, manager: str = "", days: int = 30):
+    """Bitta sotuvchi uchun haftalik o'sish kartochkasi (Telegram matni)."""
+    if not _secret_check(request):
+        return _unauthorized()
+    if api_state.db_instance is None:
+        return _unavailable("conversion_seller_card", "db_not_connected")
+    if not manager.strip():
+        return JSONResponse(
+            status_code=400, content={"error": "manager is required"}
+        )
+    try:
+        from src.services.core.metasell_conversion import MetaSellConversionEngine
+
+        window = max(1, min(int(days or 30), 365))
+        engine = MetaSellConversionEngine(db=api_state.db_instance)
+        cards = await engine.generate_seller_cards(days=window)
+        wanted = manager.strip().casefold()
+        for name, card in cards:
+            if name.casefold() == wanted:
+                return {"manager_name": name, "card": card, "days": window}
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": "manager_not_found",
+                "hint": "Oxirgi davrda shu menejerga bog'langan baholangan qo'ng'iroq yo'q",
+                "available": [name for name, _ in cards],
+            },
+        )
+    except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
+        return _fail("conversion_seller_card", exc)
+
+
 @router.post("/process-call")
 async def ai_process_call(request: Request):
     """Qo'ng'iroqni tahlil qilib, natijasini qaytaradi."""
