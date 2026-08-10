@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
 from fastapi import APIRouter
@@ -325,7 +326,21 @@ async def ingest_sales_quality_analysis(data: SalesQualityAnalysisRequest):
     dependencies=[require_permissions(Permission.DASHBOARD_READ)],
 )
 async def sales_quality_dashboard_html():
-    """Serve a minimal HTML dashboard for sales quality."""
-    html = """<!DOCTYPE html><html><head><title>Sales Quality</title></head>
-    <body><h1>Sales Quality Dashboard</h1><p>Loading...</p></body></html>"""
-    return HTMLResponse(content=html)
+    """Savdo sifati paneli.
+
+    Sahifa `GET /api/ai/conversion/overview` dan o'qiydi — ya'ni panel va
+    Telegram hisoboti AYNAN bir xil manbadan oziqlanadi, ikkita raqam
+    paydo bo'lmaydi. Fayl `src/api/templates/` da; topilmasa 503 qaytadi,
+    chunki bo'sh sahifa "ma'lumot yo'q" degan yolg'on taassurot beradi.
+    """
+    template = (
+        Path(__file__).resolve().parent.parent / "templates"
+        / "sales_quality_dashboard.html"
+    )
+    try:
+        return HTMLResponse(content=template.read_text(encoding="utf-8"))
+    except OSError as exc:
+        logger.error("[SALES QUALITY] Dashboard shabloni o'qilmadi: %s", exc)
+        return HTMLResponse(
+            content="<h1>Panel vaqtincha ishlamayapti</h1>", status_code=503
+        )

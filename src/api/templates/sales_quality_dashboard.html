@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oisha — Savdo sifati</title>
+<style>
+  :root {
+    --bg: #060b16; --panel: #0d1526; --line: #1b2740;
+    --text: #e8eefc; --muted: #8ba0c4; --accent: #2f6bff;
+    --good: #22c55e; --warn: #f59e0b; --bad: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin-bottom: 24px; font-size: 13px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line);
+          border-radius: 14px; padding: 18px; }
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
+             color: var(--muted); margin: 0 0 14px; font-weight: 600; }
+  .big { font-size: 34px; font-weight: 700; line-height: 1; }
+  .unit { font-size: 14px; color: var(--muted); font-weight: 400; }
+  .row { display: flex; justify-content: space-between; padding: 7px 0;
+         border-bottom: 1px solid var(--line); font-size: 14px; }
+  .row:last-child { border-bottom: 0; }
+  .row span:last-child { font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase;
+       letter-spacing: .06em; color: var(--muted); padding: 8px 10px; font-weight: 600; }
+  td { padding: 11px 10px; border-top: 1px solid var(--line); font-size: 14px; }
+  .score { display: inline-block; min-width: 62px; text-align: center;
+           padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 13px; }
+  .s-good { background: rgba(34,197,94,.13); color: var(--good); border: 1px solid rgba(34,197,94,.3); }
+  .s-mid  { background: rgba(245,158,11,.13); color: var(--warn); border: 1px solid rgba(245,158,11,.3); }
+  .s-bad  { background: rgba(239,68,68,.15); color: var(--bad); border: 1px solid rgba(239,68,68,.4); }
+  .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 6px; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+  .flag { margin-top: 16px; padding: 13px 15px; border-radius: 11px; font-size: 14px;
+          background: rgba(239,68,68,.09); border: 1px solid rgba(239,68,68,.28); }
+  .flag b { color: var(--bad); }
+  .flag ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
+  .note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .empty { color: var(--muted); padding: 40px; text-align: center; }
+  .delta-up { color: var(--good); } .delta-down { color: var(--bad); }
+  .wide { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<h1>Savdo sifati va konversiya</h1>
+<div class="sub" id="period">Yuklanmoqda…</div>
+<div id="app"><div class="empty">Yuklanmoqda…</div></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = (n) => (Number(n) || 0).toLocaleString("ru-RU").replace(/,/g, " ") + " so'm";
+const scoreClass = (s) => s >= 75 ? "s-good" : s >= 40 ? "s-mid" : "s-bad";
+
+async function load() {
+  let data;
+  try {
+    const res = await fetch("/api/ai/conversion/overview?days=30", {
+      headers: { "Accept": "application/json" }, credentials: "same-origin",
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    data = await res.json();
+  } catch (err) {
+    // Xatoni yashirmaymiz — bo'sh panel "ma'lumot yo'q" degani emas.
+    $("#app").innerHTML =
+      '<div class="card"><div class="empty">Ma\'lumot olinmadi: ' +
+      esc(err.message) + '</div></div>';
+    $("#period").textContent = "";
+    return;
+  }
+  render(data);
+}
+
+function render(d) {
+  $("#period").textContent = "Oxirgi " + (d.days ?? 30) + " kun";
+  if (!d.has_data) {
+    $("#app").innerHTML =
+      '<div class="card"><div class="empty">Bu davrda baholangan qo\'ng\'iroq yo\'q.</div></div>';
+    return;
+  }
+
+  const vol = d.volume || {};
+  const trend = d.trend || {};
+  const sellers = d.sellers || [];
+  const volBy = {};
+  (d.seller_volume || []).forEach(v => { volBy[v.manager_name] = v; });
+
+  const deltaHtml = trend.reliable
+    ? `<span class="${trend.delta_pp >= 0 ? "delta-up" : "delta-down"}">` +
+      `${trend.delta_pp >= 0 ? "+" : ""}${trend.delta_pp} pp ` +
+      `${trend.delta_pp >= 0 ? "↗" : "↘"}</span>`
+    : `<span class="unit">${esc(trend.reason || "trend yo'q")}</span>`;
+
+  let html = '<div class="grid">';
+
+  html += `<div class="card"><h2>Umumiy samaradorlik</h2>
+    <div class="big">${d.true_efficiency ?? 0}<span class="unit">%</span></div>
+    <div class="bar"><i style="width:${Math.min(100, d.true_efficiency ?? 0)}%"></i></div>
+    <div class="note">Konvertirlangan / JAMI qo'ng'iroq (javobsizlar ham hisobda)</div>
+  </div>`;
+
+  html += `<div class="card"><h2>Qo'ng'iroqlar tahlili</h2>
+    <div class="row"><span>Jami</span><span>${vol.total ?? 0}</span></div>
+    <div class="row"><span>Samarali</span><span>${vol.answered ?? 0}</span></div>
+    <div class="row"><span>O'tkazib yuborilgan</span><span>${vol.missed ?? 0}</span></div>
+    <div class="row"><span>O'rtacha davomiylik</span><span>${esc(vol.avg_duration || "00:00")}</span></div>
+  </div>`;
+
+  html += `<div class="card"><h2>Konversiya</h2>
+    <div class="big">${trend.current_rate ?? d.conversion_rate ?? 0}<span class="unit">%</span></div>
+    <div class="note">${deltaHtml}</div>
+    <div class="row" style="margin-top:12px"><span>Yutilgan</span><span>${money(d.revenue_won)}</span></div>
+    <div class="row"><span>Yutqazilgan</span><span>${money(d.revenue_at_risk)}</span></div>
+  </div>`;
+
+  html += '<div class="card wide"><h2>Sotuvchilar</h2><table><thead><tr>' +
+    '<th>Sotuvchi</th><th>Ball</th><th>Konversiya</th><th>Javob berish</th>' +
+    '<th>O\'sish nuqtasi</th></tr></thead><tbody>';
+  sellers.forEach(s => {
+    const v = volBy[s.manager_name] || {};
+    const ans = v.answer_rate;
+    const ansCell = ans === undefined ? "—"
+      : `<span class="score ${ans >= 80 ? "s-good" : ans >= 50 ? "s-mid" : "s-bad"}">${ans}%</span>`;
+    html += `<tr>
+      <td>${esc(s.manager_name)}</td>
+      <td><span class="score ${scoreClass(s.avg_score)}">${s.avg_score}</span></td>
+      <td>${s.conversion_rate}%</td>
+      <td>${ansCell}</td>
+      <td>${esc(s.growth_stage_label || "—")}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+
+  const lowAnswer = sellers
+    .map(s => [s, volBy[s.manager_name]])
+    .filter(([, v]) => v && v.total >= 5 && v.answer_rate < 80);
+  if (lowAnswer.length) {
+    html += '<div class="flag"><b>📵 Javob berish foizi past</b> — bu qo\'ng\'iroqlar ' +
+      'ballarda umuman ko\'rinmaydi, chunki baholanmagan qo\'ng\'iroq ball olmaydi.<ul>';
+    lowAnswer.forEach(([s, v]) => {
+      html += `<li>${esc(s.manager_name)} — ${v.answer_rate}% (${v.missed} ta javobsiz / ${v.total} ta)</li>`;
+    });
+    html += '</ul></div>';
+  }
+  html += '</div></div>';
+
+  $("#app").innerHTML = html;
+}
+
+load();
+</script>
+</body>
+</html>
