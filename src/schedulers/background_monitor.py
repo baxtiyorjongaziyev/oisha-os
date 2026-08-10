@@ -337,6 +337,75 @@ class BackgroundMonitor:
             logger.error("[COACH][WEEKLY] Error: %s", exc)
         self._mark_sent(key)
 
+    async def _job_conversion_weekly(self, now: datetime) -> None:
+        """Haftalik konversiya tahlili: jamoa hisoboti + sotuvchi kartochkalari.
+
+        Kunlik hisobot BALL bo'yicha saflaydi; bu esa KONVERSIYA bo'yicha va
+        har bir sotuvchiga shu hafta tuzatishi kerak bo'lgan BITTA bosqichni
+        beradi. Kartochkalar rahbarga yuboriladi — sotuvchiga qanday
+        yetkazish rahbar qaroriga qoladi.
+        """
+        key = self._job_key("conversion_weekly", now)
+        if self._already_sent(key):
+            return
+
+        try:
+            from src.services.core.metasell_conversion import MetaSellConversionEngine
+
+            db = self._get_db()
+            if db is None:
+                logger.warning("[METASELL] DB ulanmagan — konversiya tahlili o'tkazildi")
+                return
+
+            # Pul ko'rsatkichlari eskirmasligi uchun AVVAL AmoCRM'dan
+            # bitim narxi va yakunini yangilaymiz — hisobot shundan keyin.
+            amocrm_client = self._get_amocrm_client()
+            if amocrm_client:
+                from src.services.core.metasell_revenue import MetaSellRevenueSync
+
+                try:
+                    sync_result = await MetaSellRevenueSync(
+                        db=db, amocrm=amocrm_client
+                    ).sync(days=90)
+                    logger.info("[METASELL] Daromad sinxroni: %s", sync_result.to_dict())
+                except Exception as exc:
+                    # Pul yangilanmasa ham hisobot chiqishi kerak — eski
+                    # raqamlar hisobotsiz qolishdan yaxshiroq.
+                    logger.error("[METASELL] Daromad sinxroni yiqildi: %s", exc)
+            else:
+                logger.info("[METASELL] AmoCRM ulanmagan — pul yangilanmadi")
+
+            engine = MetaSellConversionEngine(db=db)
+            diagnoses = await engine.diagnose_all(days=30)
+            trend = await engine.conversion_trend(days=30)
+            volumes = await engine.fetch_volumes(days=30)
+
+            team_report = engine.build_team_report(diagnoses, trend, volumes)
+            if team_report:
+                send_kwargs = {}
+                if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
+                    send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID
+                await self._send_to_group_or_admin(team_report, **send_kwargs)
+                logger.info("[METASELL] Jamoa konversiya hisoboti yuborildi.")
+            else:
+                logger.info("[METASELL] Konversiya hisoboti uchun ma'lumot yetarli emas.")
+
+            sent = 0
+            for diagnosis in diagnoses:
+                if not diagnosis.has_diagnosis:
+                    continue
+                await self._notify_admin(
+                    engine.build_seller_card(
+                        diagnosis, volumes.get(diagnosis.manager_name)
+                    )
+                )
+                sent += 1
+            if sent:
+                logger.info("[METASELL] %s ta sotuvchi kartochkasi yuborildi.", sent)
+        except Exception as exc:
+            logger.error("[METASELL][WEEKLY] Error: %s", exc)
+        self._mark_sent(key)
+
     async def _job_heartbeat(self) -> None:
         if self.client:
             try:
@@ -444,6 +513,10 @@ class BackgroundMonitor:
                 # 12. Haftalik: ideal skript + playbook takliflari (dushanba 10:00)
                 if now.weekday() == 0 and now.hour == 10 and now.minute < 5:
                     await self._job_call_quality_weekly(now)
+
+                # 12b. Haftalik konversiya kartochkalari (dushanba 10:05)
+                if now.weekday() == 0 and now.hour == 10 and 5 <= now.minute < 10:
+                    await self._job_conversion_weekly(now)
 
                 # 13. Heartbeat
                 await self._job_heartbeat()
