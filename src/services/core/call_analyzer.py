@@ -15,6 +15,7 @@ import requests as _requests
 from src.database import Database
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.call_analyses_schema import ensure_call_analysis_schema
+from src.services.core.call_events import CallEventLog
 from src.services.core.sales_playbook import (
     IDEAL_CLIENT_TALK_PCT,
     MAX_ACCEPTABLE_PAUSE_SECONDS,
@@ -1548,12 +1549,38 @@ class CallAnalyzer:
 
         processed = 0
         attempted = 0
+        # Menejer ismi lead bo'yicha o'zgarmaydi — siklda qayta so'ramaymiz.
+        manager_name = await self._resolve_manager_name(responsible_user_id)
+        event_log = CallEventLog(self.db) if self.db else None
+
         for note in call_notes:
             audio_url = self._find_audio_url(note.get("params") or {})
-            if not audio_url:
-                continue
-
             call_id = self._extract_call_id(note, lead_id, audio_url)
+            duration = self._extract_call_duration_seconds(note)
+
+            # HAR BIR qo'ng'iroq qayd etiladi — javobsizlari ham. Ilgari
+            # yozuvsiz qo'ng'iroq shu yerda tashlanardi va telefon
+            # ko'tarmaydigan sotuvchi statistikada umuman ko'rinmasdi.
+            if write and event_log:
+                params = note.get("params") or {}
+                await event_log.record(
+                    call_id=call_id,
+                    lead_id=lead_id,
+                    duration_seconds=duration,
+                    has_recording=bool(audio_url),
+                    manager_id=responsible_user_id,
+                    manager_name=manager_name,
+                    direction=str(note.get("note_type") or ""),
+                    phone=caller_phone or self._extract_phone_from_note(note),
+                    call_status=(
+                        params.get("call_status") if isinstance(params, dict) else None
+                    ),
+                )
+
+            if not audio_url:
+                # Yozuv yo'q — tahlil qilib bo'lmaydi, lekin hodisa
+                # yuqorida allaqachon qayd etildi.
+                continue
             if self._note_has_analysis_for_call(notes or [], call_id):
                 logger.info("[CALL] Lead note already contains analysis marker: lead_id=%s call_id=%s", lead_id, call_id)
                 continue
@@ -1561,7 +1588,6 @@ class CallAnalyzer:
                 logger.info("[CALL] Already processed: lead_id=%s call_id=%s", lead_id, call_id)
                 continue
 
-            duration = self._extract_call_duration_seconds(note)
             if min_call_duration_seconds and duration and duration < min_call_duration_seconds:
                 logger.info(
                     "[CALL] Skipping short call: lead_id=%s call_id=%s duration=%ss min=%ss",
@@ -1615,7 +1641,6 @@ class CallAnalyzer:
             client_mood = _normalise_mood(analysis.get("client_mood"))
             summary = str(analysis.get("summary") or "").strip() or _clip(transcript, 350)
             next_steps = str(analysis.get("next_steps") or "N/A").strip() or "N/A"
-            manager_name = await self._resolve_manager_name(responsible_user_id)
 
             note1 = self._build_amocrm_note(
                 analysis=analysis,
@@ -1738,6 +1763,8 @@ class CallAnalyzer:
                 )
 
             processed += 1
+            if write and event_log:
+                await event_log.mark_analyzed(call_id)
             if one_analysis_per_lead:
                 break
             await asyncio.sleep(0.5)

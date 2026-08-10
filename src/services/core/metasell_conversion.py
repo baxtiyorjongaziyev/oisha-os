@@ -34,6 +34,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
+from src.services.core.call_events import CallEventLog, aggregate_volume, team_volume
 from src.services.core.metasell_revenue import aggregate_revenue, format_money
 from src.services.core.sales_playbook import (
     SCORE_GOOD,
@@ -57,6 +58,11 @@ MIN_MEANINGFUL_GAP = 5.0
 # Trend ko'rsatish uchun HAR IKKI davrda shuncha qo'ng'iroq bo'lishi kerak.
 # 2 ta qo'ng'iroqdan "+50%" chiqarish — chalg'ituvchi raqam.
 MIN_CALLS_FOR_TREND = 5
+
+# Javob berish foizi shundan past bo'lsa — alohida ogohlantiriladi.
+# Ko'tarilmagan qo'ng'iroq hech qanday ball olmaydi, shuning uchun u
+# sifat statistikasida ko'rinmaydi; buni alohida aytish kerak.
+MIN_ACCEPTABLE_ANSWER_RATE = 80.0
 
 STAGE_LABELS_UZ = {
     "salomlashish": "Salomlashish va tanishtirish",
@@ -547,6 +553,19 @@ class MetaSellConversionEngine:
         previous = await self.fetch_scored_calls(days, offset_days=days)
         return self.build_trend(current, previous, days)
 
+    @staticmethod
+    def true_efficiency(converted_calls: int, all_calls_including_missed: int) -> float:
+        """Umumiy samaradorlik — javobsiz qo'ng'iroqlarni ham hisobga oladi.
+
+        `conversion_rate` faqat BAHOLANGAN qo'ng'iroqlar ustidan hisoblanadi,
+        ya'ni ko'tarilmagan qo'ng'iroq unga umuman ta'sir qilmaydi. Bu esa
+        telefon ko'tarmaydigan sotuvchini yaxshi ko'rsatadi. Umumiy
+        samaradorlik shu teshikni yopadi: maxraj — JAMI qo'ng'iroqlar.
+        """
+        if all_calls_including_missed <= 0:
+            return 0.0
+        return converted_calls / all_calls_including_missed * 100
+
     async def team_summary(self, days: int = 30) -> Dict[str, Any]:
         """Jamoa bo'yicha konversiya manzarasi (dashboard uchun)."""
         rows = await self.fetch_scored_calls(days)
@@ -556,6 +575,10 @@ class MetaSellConversionEngine:
         scored = [r for r in rows if int(_row_get(r, "overall_score", 0) or 0) > 0]
         converted = [r for r in scored if _is_converted(r)]
         revenue = aggregate_revenue(scored)
+        # Qo'ng'iroq hajmi alohida jadvaldan — javobsizlar bilan birga.
+        events = await CallEventLog(self.db).fetch_recent(days)
+        volume = team_volume(events)
+        by_manager_volume = aggregate_volume(events)
 
         stage_focus: Dict[str, int] = defaultdict(int)
         for item in diagnoses:
@@ -573,6 +596,17 @@ class MetaSellConversionEngine:
                 _mean([float(_row_get(r, "overall_score", 0) or 0) for r in scored]), 1
             ),
             "trend": trend.to_dict(),
+            "volume": {
+                "total": volume.total,
+                "answered": volume.answered,
+                "missed": volume.missed,
+                "answer_rate": round(volume.answer_rate, 1),
+                "avg_duration": volume.avg_duration_label,
+            },
+            "true_efficiency": round(
+                self.true_efficiency(len(converted), volume.total or len(scored)), 1
+            ),
+            "seller_volume": [v.to_dict() for v in by_manager_volume.values()],
             "revenue_won": round(sum(r.revenue_won for r in revenue.values())),
             "revenue_at_risk": round(sum(r.revenue_lost for r in revenue.values())),
             "revenue_open": round(sum(r.revenue_open for r in revenue.values())),
@@ -594,7 +628,9 @@ class MetaSellConversionEngine:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def build_seller_card(diagnosis: SellerDiagnosis) -> str:
+    def build_seller_card(
+        diagnosis: SellerDiagnosis, volume: Optional[Any] = None
+    ) -> str:
         """Bitta sotuvchi uchun haftalik o'sish kartochkasi."""
         lines = [
             f"🎯 KONVERSIYA KARTOCHKASI — {diagnosis.manager_name}",
@@ -604,6 +640,16 @@ class MetaSellConversionEngine:
             f"({diagnosis.converted_calls} ta keyingi qadamga chiqdi)",
             f"O'rtacha ball: {diagnosis.avg_score:.0f}/100",
         ]
+
+        if volume is not None and volume.total:
+            answer_line = (
+                f"Javob berish: {volume.answer_rate:.0f}% "
+                f"({volume.missed} ta javobsiz / {volume.total} ta) · "
+                f"o'rtacha {volume.avg_duration_label}"
+            )
+            if volume.answer_rate < MIN_ACCEPTABLE_ANSWER_RATE:
+                answer_line = "📵 " + answer_line
+            lines.append(answer_line)
 
         if diagnosis.deals_won or diagnosis.deals_lost:
             lines += [
@@ -660,6 +706,7 @@ class MetaSellConversionEngine:
         self,
         diagnoses: Sequence[SellerDiagnosis],
         trend: Optional[ConversionTrend] = None,
+        volumes: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         """Rahbariyat uchun jamoa konversiya hisoboti."""
         ranked = [d for d in diagnoses if d.total_calls >= MIN_CALLS_FOR_DIAGNOSIS]
@@ -672,11 +719,23 @@ class MetaSellConversionEngine:
         revenue_won = sum(d.revenue_won for d in ranked)
         revenue_at_risk = sum(d.revenue_at_risk for d in ranked)
 
-        lines = [
-            "📊 JAMOA KONVERSIYASI (oxirgi 30 kun)",
-            "",
-            f"Qo'ng'iroqlar: {total_calls} ta",
-        ]
+        volumes = volumes or {}
+        team_vol = volumes.get("__team__")
+
+        lines = ["📊 JAMOA KONVERSIYASI (oxirgi 30 kun)", ""]
+        if team_vol is not None and team_vol.total:
+            lines += [
+                f"Qo'ng'iroqlar: {team_vol.total} ta  |  "
+                f"Samarali: {team_vol.answered}  |  "
+                f"O'tkazib yuborilgan: {team_vol.missed}",
+                f"O'rtacha davomiylik: {team_vol.avg_duration_label}  |  "
+                f"Javob berish: {team_vol.answer_rate:.0f}%",
+                f"Umumiy samaradorlik: "
+                f"{self.true_efficiency(total_converted, team_vol.total):.0f}% "
+                f"(javobsizlar ham hisobda)",
+            ]
+        else:
+            lines.append(f"Baholangan qo'ng'iroqlar: {total_calls} ta")
         lines.append(
             trend.headline()
             if trend is not None
@@ -698,6 +757,26 @@ class MetaSellConversionEngine:
             if item.has_diagnosis:
                 stage_label = STAGE_LABELS_UZ.get(item.growth_stage, item.growth_stage)
                 lines.append(f"    O'sish nuqtasi: {stage_label}")
+
+        # Telefon ko'tarmayotganlar — ular sifat statistikasida KO'RINMAYDI,
+        # chunki baholanmagan qo'ng'iroq ball olmaydi. Shuning uchun alohida.
+        low_answer = [
+            (name, vol)
+            for name, vol in volumes.items()
+            if name != "__team__"
+            and vol.total >= 5
+            and vol.answer_rate < MIN_ACCEPTABLE_ANSWER_RATE
+        ]
+        if low_answer:
+            lines += [
+                "",
+                "📵 Javob berish foizi past (bu qo'ng'iroqlar ballarda ko'rinmaydi):",
+            ]
+            lines += [
+                f"  • {name} — {vol.answer_rate:.0f}% "
+                f"({vol.missed} ta javobsiz / {vol.total} ta)"
+                for name, vol in sorted(low_answer, key=lambda item: item[1].answer_rate)
+            ]
 
         # Ballari yuqori, lekin konversiyasi past sotuvchilar — eng qimmat
         # signal: playbook'ni "bajaryapti", lekin bitim yopilmayapti.
@@ -722,9 +801,21 @@ class MetaSellConversionEngine:
     async def generate_seller_cards(self, days: int = 30) -> List[tuple[str, str]]:
         """Har bir sotuvchi uchun (ism, kartochka matni)."""
         diagnoses = await self.diagnose_all(days)
-        return [(d.manager_name, self.build_seller_card(d)) for d in diagnoses]
+        volumes = await self.fetch_volumes(days)
+        return [
+            (d.manager_name, self.build_seller_card(d, volumes.get(d.manager_name)))
+            for d in diagnoses
+        ]
+
+    async def fetch_volumes(self, days: int = 30) -> Dict[str, Any]:
+        """Sotuvchi kesimida hajm + `__team__` kaliti ostida yig'indi."""
+        events = await CallEventLog(self.db).fetch_recent(days)
+        volumes: Dict[str, Any] = dict(aggregate_volume(events))
+        volumes["__team__"] = team_volume(events)
+        return volumes
 
     async def generate_team_report(self, days: int = 30) -> Optional[str]:
         diagnoses = await self.diagnose_all(days)
         trend = await self.conversion_trend(days)
-        return self.build_team_report(diagnoses, trend)
+        volumes = await self.fetch_volumes(days)
+        return self.build_team_report(diagnoses, trend, volumes)

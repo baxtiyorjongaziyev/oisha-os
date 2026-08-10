@@ -447,3 +447,103 @@ def test_team_report_without_trend_still_works():
     report = engine.build_team_report(engine.diagnose_rows(rows))
 
     assert "Konversiya:" in report
+
+
+# ── Qo'ng'iroq hajmi va javob berish foizi ──────────────────────────────
+
+
+from src.services.core.call_events import CallVolume  # noqa: E402
+
+
+def _volume(name, total, answered, talk=200):
+    v = CallVolume(manager_name=name)
+    v.total = total
+    v.answered = answered
+    v.missed = total - answered
+    v.total_talk_seconds = talk * answered
+    return v
+
+
+def test_true_efficiency_counts_missed_calls():
+    """Konversiya faqat baholanganlar ustidan, samaradorlik — jami ustidan."""
+    assert MetaSellConversionEngine.true_efficiency(8, 10) == pytest.approx(80.0)
+    assert MetaSellConversionEngine.true_efficiency(8, 25) == pytest.approx(32.0)
+
+
+def test_true_efficiency_safe_on_zero():
+    assert MetaSellConversionEngine.true_efficiency(0, 0) == 0.0
+
+
+def test_team_report_shows_the_advert_panel():
+    rows = [_call(outcome=OUTCOME_MEETING) for _ in range(8)]
+    engine = MetaSellConversionEngine(db=None)
+    volumes = {"__team__": _volume("", 128, 98, talk=272)}
+
+    report = engine.build_team_report(engine.diagnose_rows(rows), None, volumes)
+
+    assert "Qo'ng'iroqlar: 128" in report
+    assert "Samarali: 98" in report
+    assert "O'tkazib yuborilgan: 30" in report
+    assert "04:32" in report
+    assert "Umumiy samaradorlik" in report
+
+
+def test_team_report_flags_seller_who_does_not_answer():
+    """ENG MUHIM: bu sotuvchi ballar bo'yicha eng yaxshi ko'rinishi mumkin."""
+    rows = [_call(manager="Bek", outcome=OUTCOME_MEETING, score=95) for _ in range(8)]
+    engine = MetaSellConversionEngine(db=None)
+    volumes = {"__team__": _volume("", 30, 6), "Bek": _volume("Bek", 30, 6)}
+
+    report = engine.build_team_report(engine.diagnose_rows(rows), None, volumes)
+
+    assert "Javob berish foizi past" in report
+    assert "Bek" in report.split("Javob berish foizi past")[1]
+    assert "24 ta javobsiz" in report
+
+
+def test_high_answer_rate_not_flagged():
+    rows = [_call(manager="Aziz", outcome=OUTCOME_MEETING) for _ in range(8)]
+    engine = MetaSellConversionEngine(db=None)
+    volumes = {"__team__": _volume("", 20, 19), "Aziz": _volume("Aziz", 20, 19)}
+
+    report = engine.build_team_report(engine.diagnose_rows(rows), None, volumes)
+
+    assert "Javob berish foizi past" not in report
+
+
+def test_tiny_sample_not_flagged_for_answer_rate():
+    """4 ta qo'ng'iroqdan '25% javob berdi' degan xulosa chiqarmaymiz."""
+    rows = [_call(manager="Aziz", outcome=OUTCOME_MEETING) for _ in range(8)]
+    engine = MetaSellConversionEngine(db=None)
+    volumes = {"__team__": _volume("", 4, 1), "Aziz": _volume("Aziz", 4, 1)}
+
+    report = engine.build_team_report(engine.diagnose_rows(rows), None, volumes)
+
+    assert "Javob berish foizi past" not in report
+
+
+def test_report_works_without_volume_data():
+    """Hajm jadvali hali bo'sh bo'lsa ham hisobot chiqishi kerak."""
+    rows = [_call(outcome=OUTCOME_MEETING) for _ in range(8)]
+    engine = MetaSellConversionEngine(db=None)
+
+    report = engine.build_team_report(engine.diagnose_rows(rows))
+
+    assert "Baholangan qo'ng'iroqlar: 8" in report
+
+
+def test_seller_card_shows_answer_rate():
+    rows = [_call(outcome=OUTCOME_MEETING) for _ in range(8)]
+    card = MetaSellConversionEngine.build_seller_card(
+        diagnose_seller("Aziz", rows), _volume("Aziz", 30, 6)
+    )
+
+    assert "📵" in card
+    assert "Javob berish: 20%" in card
+
+
+def test_seller_card_without_volume_is_unchanged():
+    rows = [_call(outcome=OUTCOME_MEETING) for _ in range(8)]
+    card = MetaSellConversionEngine.build_seller_card(diagnose_seller("Aziz", rows))
+
+    assert "Javob berish" not in card

@@ -189,6 +189,87 @@ punktida (pp)** beriladi:
 Har ikki davrda `MIN_CALLS_FOR_TREND = 5` dan kam qo'ng'iroq bo'lsa — trend
 ko'rsatilmaydi, o'rniga sababi yoziladi.
 
+## Ko'r nuqta: javobsiz qo'ng'iroqlar (3-bosqich)
+
+To'rtinchi reklamaning sarlavhasi — *"Qaysi sotuvchingiz pul yo'qotyapti?"* —
+va dashboard'ida `O'tkazib yuborilgan: 30` degan raqam bor. Bizda bu raqam
+chiqmasdi, va sababi bitta qatorda edi:
+
+```python
+if not audio_url:
+    continue
+```
+
+Javobsiz qo'ng'iroqda yozuv bo'lmaydi → qator bazaga umuman tushmasdi.
+
+**Bu shunchaki yetishmayotgan raqam emas, teskari rag'bat edi:**
+
+> Sotuvchi qancha ko'p qo'ng'iroqni ko'tarmasa, uning o'rtacha bali
+> **shuncha yaxshi** ko'rinadi — chunki faqat javob berganlari baholanadi.
+
+Ya'ni sarlavhadagi savolga eng to'g'ri javob ba'zan umuman telefon
+ko'tarmayotgan odam bo'lishi mumkin, va u eski tizimda **eng yaxshi**
+ko'rinardi.
+
+### Nega alohida jadval (`call_events`)
+
+Bu qatorlarni `call_analyses` ga qo'shish xavfli edi — u yerdan o'qiydigan
+bir nechta joy ball bo'yicha **filtrlamaydi**:
+
+| O'quvchi | Nima bo'lardi |
+|---|---|
+| `sales_quality._fetch_call_analysis_rows` | `SELECT *` — javobsiz qo'ng'iroq "0 ball" bo'lib ko'rinardi |
+| `intelligence.get_latest_call_analysis` | oxirgi qator — javobsiz qo'ng'iroq "oxirgi tahlil" bo'lib qolardi |
+
+Shuning uchun **sifat tahlili `call_analyses` da, qo'ng'iroq hajmi
+`call_events` da**.
+
+### Javob berilganini aniqlash
+
+`duration > 0` — gaplashilgan vaqt bo'lsa, javob berilgan. Yozuv borligi
+mezon **emas**: yozuv sozlamalari o'chirilgan bo'lishi mumkin, lekin suhbat
+bo'lgan. AmoCRM `call_status` kodlari provayderga qarab farq qiladi,
+shuning uchun xom holda saqlanadi, lekin mantiq ularga tayanmaydi.
+
+### Umumiy samaradorlik ≠ konversiya
+
+Ikkalasi ham foizda, lekin maxraji boshqa — va farq aynan ko'r nuqtani
+o'lchaydi:
+
+```
+konversiya          = konvertirlangan / BAHOLANGAN qo'ng'iroqlar
+umumiy samaradorlik = konvertirlangan / JAMI qo'ng'iroqlar (javobsizlar ham)
+```
+
+Misol: 25 ta qo'ng'iroq, 10 tasiga javob berilgan, 8 tasi konversiya.
+**Konversiya 80%, umumiy samaradorlik 32%.** Birinchi raqamda 15 ta
+javobsiz qo'ng'iroq umuman ko'rinmaydi.
+
+### Panel
+
+```
+Qo'ng'iroqlar: 128 ta  |  Samarali: 98  |  O'tkazib yuborilgan: 30
+O'rtacha davomiylik: 04:32  |  Javob berish: 77%
+Umumiy samaradorlik: 25% (javobsizlar ham hisobda)
+
+📵 Javob berish foizi past (bu qo'ng'iroqlar ballarda ko'rinmaydi):
+  • Bek Yusupov — 20% (24 ta javobsiz / 30 ta)
+```
+
+O'rtacha davomiylik **faqat javob berilganlar** bo'yicha hisoblanadi —
+javobsizlarni (0 soniya) qo'shsak, ko'rsatkich ikkita boshqa muammoni
+bitta raqamga aralashtirib yuboradi.
+
+## Vizual panel
+
+`GET /dashboard/sales-quality` — ilgari bo'sh zagotovka edi ("Loading…"),
+endi haqiqiy panel. Shablon: `src/api/templates/sales_quality_dashboard.html`.
+
+Panel `GET /api/ai/conversion/overview` dan o'qiydi — ya'ni **panel va
+Telegram hisoboti aynan bir manbadan** oziqlanadi, ikkita har xil raqam
+paydo bo'lmaydi. So'rov yiqilsa xato ochiq ko'rsatiladi: bo'sh panel
+"ma'lumot yo'q" degan yolg'on taassurot beradi.
+
 ## Interfeyslar
 
 | Kanal | Manzil | Vaqt |
@@ -199,6 +280,8 @@ ko'rsatilmaydi, o'rniga sababi yoziladi.
 | API — bitta sotuvchi | `GET /api/ai/conversion/seller-card?manager=<ism>` | — |
 | API — trend | `GET /api/ai/conversion/trend?days=30` | — |
 | API — pulni sinxronlash | `POST /api/ai/conversion/sync-revenue?days=90` | haftalik avtomatik |
+| API — qo'ng'iroq hajmi | `GET /api/ai/conversion/volume?days=30` | — |
+| Vizual panel | `GET /dashboard/sales-quality` | — |
 
 ## Guardrail
 

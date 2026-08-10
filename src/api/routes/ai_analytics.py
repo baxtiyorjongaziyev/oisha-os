@@ -298,6 +298,27 @@ async def conversion_sync_revenue(request: Request, days: int = 90):
         return _fail("conversion_sync_revenue", exc)
 
 
+@router.get("/conversion/volume")
+async def conversion_volume(request: Request, days: int = 30):
+    """Qo'ng'iroq hajmi: jami / samarali / o'tkazib yuborilgan / o'rtacha.
+
+    Javobsiz qo'ng'iroqlar `call_events` jadvalida — ular hech qanday ball
+    olmaydi, shuning uchun sifat statistikasida ko'rinmaydi.
+    """
+    if not _secret_check(request):
+        return _unauthorized()
+    if api_state.db_instance is None:
+        return _unavailable("conversion_volume", "db_not_connected")
+    try:
+        from src.services.core.call_events import CallEventLog
+
+        window = max(1, min(int(days or 30), 365))
+        return await CallEventLog(db=api_state.db_instance).volume_summary(days=window)
+    except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
+        return _fail("conversion_volume", exc)
+
+
 @router.get("/conversion/seller-card")
 async def conversion_seller_card(request: Request, manager: str = "", days: int = 30):
     """Bitta sotuvchi uchun haftalik o'sish kartochkasi (Telegram matni)."""

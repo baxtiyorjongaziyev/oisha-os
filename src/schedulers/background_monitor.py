@@ -378,8 +378,9 @@ class BackgroundMonitor:
             engine = MetaSellConversionEngine(db=db)
             diagnoses = await engine.diagnose_all(days=30)
             trend = await engine.conversion_trend(days=30)
+            volumes = await engine.fetch_volumes(days=30)
 
-            team_report = engine.build_team_report(diagnoses, trend)
+            team_report = engine.build_team_report(diagnoses, trend, volumes)
             if team_report:
                 send_kwargs = {}
                 if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
@@ -393,7 +394,11 @@ class BackgroundMonitor:
             for diagnosis in diagnoses:
                 if not diagnosis.has_diagnosis:
                     continue
-                await self._notify_admin(engine.build_seller_card(diagnosis))
+                await self._notify_admin(
+                    engine.build_seller_card(
+                        diagnosis, volumes.get(diagnosis.manager_name)
+                    )
+                )
                 sent += 1
             if sent:
                 logger.info("[METASELL] %s ta sotuvchi kartochkasi yuborildi.", sent)
