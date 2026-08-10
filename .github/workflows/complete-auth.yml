@@ -115,7 +115,7 @@ jobs:
                   import sys; sys.exit(0)
               code_hash = result.phone_code_hash
               print(f"SMS yuborildi: {PHONE}  hash={code_hash[:8]}...")
-              print(f"data/{CODE_FILE} ni kutmoqda (10 daqiqa)...")
+              print(f"{CODE_FILE} ni kutmoqda (10 daqiqa)...")
 
               code = None
               deadline = time.time() + 600
@@ -136,6 +136,13 @@ jobs:
               try:
                   await client.sign_in(phone=PHONE, code=code, phone_code_hash=code_hash)
               except SessionPasswordNeededError:
+                  if not TG_PASSWORD:
+                      raise RuntimeError(
+                          "Akkauntda 2FA yoqilgan, lekin TG_PASSWORD secret'i "
+                          "qo'yilmagan. Repo Settings > Secrets and variables > "
+                          "Actions da TG_PASSWORD qo'shing va qayta ishga tushiring. "
+                          "(Bo'sh parol bilan Telethon tushunarsiz ValueError beradi.)"
+                      )
                   print("2FA kiritilmoqda...")
                   await client.sign_in(password=TG_PASSWORD)
 
