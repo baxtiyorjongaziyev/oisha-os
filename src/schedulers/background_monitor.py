@@ -357,10 +357,29 @@ class BackgroundMonitor:
                 logger.warning("[METASELL] DB ulanmagan — konversiya tahlili o'tkazildi")
                 return
 
+            # Pul ko'rsatkichlari eskirmasligi uchun AVVAL AmoCRM'dan
+            # bitim narxi va yakunini yangilaymiz — hisobot shundan keyin.
+            amocrm_client = self._get_amocrm_client()
+            if amocrm_client:
+                from src.services.core.metasell_revenue import MetaSellRevenueSync
+
+                try:
+                    sync_result = await MetaSellRevenueSync(
+                        db=db, amocrm=amocrm_client
+                    ).sync(days=90)
+                    logger.info("[METASELL] Daromad sinxroni: %s", sync_result.to_dict())
+                except Exception as exc:
+                    # Pul yangilanmasa ham hisobot chiqishi kerak — eski
+                    # raqamlar hisobotsiz qolishdan yaxshiroq.
+                    logger.error("[METASELL] Daromad sinxroni yiqildi: %s", exc)
+            else:
+                logger.info("[METASELL] AmoCRM ulanmagan — pul yangilanmadi")
+
             engine = MetaSellConversionEngine(db=db)
             diagnoses = await engine.diagnose_all(days=30)
+            trend = await engine.conversion_trend(days=30)
 
-            team_report = engine.build_team_report(diagnoses)
+            team_report = engine.build_team_report(diagnoses, trend)
             if team_report:
                 send_kwargs = {}
                 if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):

@@ -244,6 +244,60 @@ async def conversion_overview(request: Request, days: int = 30):
         return _fail("conversion_overview", exc)
 
 
+@router.get("/conversion/trend")
+async def conversion_trend(request: Request, days: int = 30):
+    """Konversiya trendi — joriy davr oldingi davrga nisbatan.
+
+    Farq FOIZ PUNKTIDA (pp) beriladi: 22% dan 50% ga o'sish = +28 pp.
+    Ma'lumot yetarli bo'lmasa `reliable: false` va sababi qaytadi.
+    """
+    if not _secret_check(request):
+        return _unauthorized()
+    if api_state.db_instance is None:
+        return _unavailable("conversion_trend", "db_not_connected")
+    try:
+        from src.services.core.metasell_conversion import MetaSellConversionEngine
+
+        window = max(1, min(int(days or 30), 365))
+        engine = MetaSellConversionEngine(db=api_state.db_instance)
+        trend = await engine.conversion_trend(days=window)
+        return trend.to_dict()
+    except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
+        return _fail("conversion_trend", exc)
+
+
+@router.post("/conversion/sync-revenue")
+async def conversion_sync_revenue(request: Request, days: int = 90):
+    """AmoCRM'dan bitim narxi va yakunini `call_analyses` ga ko'chiradi.
+
+    Odatda haftalik job avtomatik bajaradi; bu yo'l qo'lda ishga tushirish
+    uchun (masalan birinchi to'ldirishda).
+    """
+    if not _secret_check(request):
+        return _unauthorized()
+    if api_state.db_instance is None:
+        return _unavailable("conversion_sync_revenue", "db_not_connected")
+    try:
+        # AmoCRM klientini mavjud yagona joydan olamiz — bu yerda qayta
+        # qurish ikkinchi token oqimini paydo qiladi.
+        from src.api.routes.amocrm_integration import _get_amocrm_instance
+        from src.services.core.metasell_revenue import MetaSellRevenueSync
+
+        amocrm = _get_amocrm_instance()
+        if amocrm is None:
+            return _unavailable("conversion_sync_revenue", "amocrm_not_connected")
+
+        window = max(1, min(int(days or 90), 365))
+        result = await MetaSellRevenueSync(db=api_state.db_instance, amocrm=amocrm).sync(
+            days=window
+        )
+        return result.to_dict()
+    except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
+        return _fail("conversion_sync_revenue", exc)
+
+
 @router.get("/conversion/seller-card")
 async def conversion_seller_card(request: Request, manager: str = "", days: int = 30):
     """Bitta sotuvchi uchun haftalik o'sish kartochkasi (Telegram matni)."""

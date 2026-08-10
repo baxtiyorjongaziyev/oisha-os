@@ -64,6 +64,12 @@ MIN_CALL_SECONDS = 180          # 3 daqiqadan qisqa savdo suhbati — yomon belg
 IDEAL_CLIENT_TALK_PCT = 55      # mijoz kamida shuncha gapirishi kerak
 PRIMARY_LANGUAGE = "o'zbek"     # asosiy muloqot tili
 
+# Sukut shundan uzoq cho'zilsa — "keraksiz pauza" deb qayd etiladi.
+# Ataylab saxiy: tabiiy suhbatda 1-3 soniyalik tanaffus normal, va pauza
+# so'z sonidan BAHOLANADI (aniq o'lchov emas — `utils.transcript` ga qarang).
+# Qisqa tanaffusni xato deb ko'rsatish sotuvchini asossiz ayblash bo'ladi.
+MAX_ACCEPTABLE_PAUSE_SECONDS = 4.0
+
 # Muvaffaqiyatli qo'ng'iroq shulardan biri bilan tugashi shart:
 VALID_OUTCOMES = (
     "uchrashuv sanasi belgilandi (offline yoki online)",
@@ -243,7 +249,10 @@ def rubric_prompt_uz() -> str:
         "   - Mijozni bo'lmasdan tingladimi?\n"
         "   - Asosan o'zbek tilida so'zladimi?\n"
         "   - Gapirish nisbati: mijoz ko'proq gapirgani yaxshi "
-        f"(ideal: mijoz ≥{IDEAL_CLIENT_TALK_PCT}%).\n\n"
+        f"(ideal: mijoz ≥{IDEAL_CLIENT_TALK_PCT}%).\n"
+        f"   - Keraksiz pauza: {MAX_ACCEPTABLE_PAUSE_SECONDS:g} soniyadan uzun sukut "
+        "mijozni sovutadi. Menejer javobni kutib qotib qolganmi yoki "
+        "suhbatni boshqarganmi?\n\n"
         "TAQIQLAR (har biri uchun ball keskin kamaytiriladi va weaknesses'ga yoziladi):\n"
         + "".join(f"   - {rule}\n" for rule in FORBIDDEN)
         + "\n"

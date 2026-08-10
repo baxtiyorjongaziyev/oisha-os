@@ -47,6 +47,13 @@ CREATE TABLE IF NOT EXISTS call_analyses (
     client_interest_level INTEGER DEFAULT 0,
     outcome TEXT,
     converted INTEGER DEFAULT 0,
+    breakdown_at TEXT,
+    breakdown_reason TEXT,
+    longest_pause_seconds REAL DEFAULT 0,
+    pauses TEXT,
+    lead_price REAL DEFAULT 0,
+    lead_won INTEGER,
+    revenue_synced_at TEXT,
     next_steps TEXT,
     recommended_tasks TEXT,
     transcript TEXT,
@@ -80,6 +87,15 @@ _COLUMN_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("client_interest_level", "INTEGER DEFAULT 0"),
     ("outcome", "TEXT"),
     ("converted", "INTEGER DEFAULT 0"),
+    # Uzilish lahzasi — "mijoz qaysi soniyada yo'qoldi"
+    ("breakdown_at", "TEXT"),
+    ("breakdown_reason", "TEXT"),
+    ("longest_pause_seconds", "REAL DEFAULT 0"),
+    ("pauses", "TEXT"),
+    # Daromad — AmoCRM lead'idan sinxronlanadi (metasell_revenue.py)
+    ("lead_price", "REAL DEFAULT 0"),
+    ("lead_won", "INTEGER"),
+    ("revenue_synced_at", "TEXT"),
     ("next_steps", "TEXT"),
     ("recommended_tasks", "TEXT"),
     ("transcript", "TEXT"),
@@ -95,6 +111,7 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_call_analyses_call_id ON call_analyses(call_id)",
     "CREATE INDEX IF NOT EXISTS idx_call_analyses_created_at ON call_analyses(created_at)",
     "CREATE INDEX IF NOT EXISTS idx_call_analyses_manager ON call_analyses(manager_name)",
+    "CREATE INDEX IF NOT EXISTS idx_call_analyses_lead_id ON call_analyses(lead_id)",
 )
 
 # Har bir jarayonda bir marta bajariladi — `_log_call_analysis` har
@@ -217,4 +234,10 @@ def analysis_row_defaults() -> Dict[str, Any]:
         "client_interest_level": 0,
         "outcome": "unknown",
         "converted": 0,
+        "breakdown_at": None,
+        "breakdown_reason": "",
+        "longest_pause_seconds": 0.0,
+        "pauses": "[]",
+        "lead_price": 0.0,
+        "lead_won": None,
     }

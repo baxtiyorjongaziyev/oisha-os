@@ -118,6 +118,77 @@ Konversiya mezoni `sales_playbook.py` da — baholashning yagona manbasida:
 
 Mezon o'zgarsa — faqat `sales_playbook.py` o'zgaradi.
 
+## Reklamadagi qolgan va'dalar (2026-08-10, 2-bosqich)
+
+Uchta Metasell reklamasidagi va'dalar kod bo'yicha tekshirilib, yopilmagan
+to'rttasi shu bosqichda yopildi.
+
+### 1. Vaqt belgisi — poydevor
+
+STT endi transkripsiyani `[mm:ss] A: matn` ko'rinishida so'raydi. Bu ikkita
+funksiyaning poydevori (uzilish lahzasi va pauza).
+
+**Regressiya xavfi va uning yechimi:** `[01:42]` ICHIDA ikki nuqta bor.
+`speaker_split` yorliqni `line.find(":")` bilan izlaydi — vaqt belgisi olib
+tashlanmasa, `[01` yorliq deb o'qiladi va gapirish nisbati **0% ga tushadi**,
+ya'ni sotuvchi asossiz jazolanadi. Shuning uchun `strip_timestamps` qo'shildi
+va so'z sanaydigan barcha joylarda qo'llanildi:
+
+| Joy | Nima buzilardi |
+|---|---|
+| `speaker_split` | gapirish nisbati 0% |
+| `_transcript_impossible_for_duration` | haqiqiy matn "hallucination" deb rad etilardi |
+| `_rubric_applies` | qisqa suhbat uzun ko'rinardi |
+
+### 2. Uzilish lahzasi — "MIJOZ YO'QOLGAN JOY"
+
+`uzilish_vaqti` + `uzilish_sababi` maydonlari. LLM qaytargan vaqt
+**tekshiriladi**: qo'ng'iroq davomiyligidan tashqaridagi lahza rad etiladi
+(to'qilgan raqam). Vaqtsiz sabab ham tashlanadi — rahbarga foydasiz.
+
+AmoCRM notasida:
+```
+🔴 MIJOZ YO'QOLGAN LAHZA: 00:47 — E'tirozga javob berilmadi
+⏸ Keraksiz pauza: 2 ta (eng uzuni 00:09 da 28.2s)
+```
+
+### 3. Keraksiz pauza
+
+**Deterministik** hisoblanadi — LLM'dan so'ralmaydi, chunki vaqt belgilari
+bor va buni o'lchash mumkin.
+
+**Metodning chegarasi ochiq aytiladi:** bizda gapning boshlanish vaqti bor,
+tugash vaqti yo'q. Shuning uchun gap davomiyligi so'z sonidan baholanadi
+(`WORDS_PER_SECOND = 2.5`) va qolgan bo'shliq pauza deb olinadi. Bu —
+**taxmin, sekundomer emas**. Chegara (`MAX_ACCEPTABLE_PAUSE_SECONDS = 4.0`)
+ataylab saxiy: tabiiy tanaffusni xato deb ko'rsatish sotuvchini asossiz
+ayblash bo'ladi.
+
+### 4. Daromad — `metasell_revenue.py`
+
+AmoCRM bitim narxi va yakuni (142=yutildi, 143=yutqazildi) `call_analyses`
+ga ko'chiriladi.
+
+**Ikki karra sanash xavfi:** bitta bitimga bir nechta qo'ng'iroq bo'ladi.
+Pul qo'ng'iroq bo'yicha yig'ilsa, 3 marta qo'ng'iroq qilingan bitim 3
+barobar ko'p daromad ko'rsatadi. Shuning uchun pul **har doim `lead_id`
+bo'yicha yagonalanadi**. Bitim bir necha menejerga tegishli bo'lsa — eng
+oxirgi qo'ng'iroq qilgani oladi.
+
+Ochiq bitim `lead_won = NULL` bo'lib qoladi — yakunini **taxmin
+qilmaymiz**, keyingi sinxronizatsiyada qayta tekshiriladi.
+
+### 5. Trend — reklamadagi "+28% ↗"
+
+Joriy davr oldingi shuncha kunlik davr bilan solishtiriladi. Farq **foiz
+punktida (pp)** beriladi:
+
+> 22% dan 50% ga o'sish — bu **+28 pp**.
+> Nisbiy "+127%" deb yozish bir xil ma'lumotni kattaroq ko'rsatadi va chalg'itadi.
+
+Har ikki davrda `MIN_CALLS_FOR_TREND = 5` dan kam qo'ng'iroq bo'lsa — trend
+ko'rsatilmaydi, o'rniga sababi yoziladi.
+
 ## Interfeyslar
 
 | Kanal | Manzil | Vaqt |
@@ -126,6 +197,8 @@ Mezon o'zgarsa — faqat `sales_playbook.py` o'zgaradi.
 | Telegram — sotuvchi kartochkalari | shu job, rahbarga | Dushanba 10:05 |
 | API — jamoa manzarasi | `GET /api/ai/conversion/overview?days=30` | — |
 | API — bitta sotuvchi | `GET /api/ai/conversion/seller-card?manager=<ism>` | — |
+| API — trend | `GET /api/ai/conversion/trend?days=30` | — |
+| API — pulni sinxronlash | `POST /api/ai/conversion/sync-revenue?days=90` | haftalik avtomatik |
 
 ## Guardrail
 
@@ -136,6 +209,8 @@ faqat odam qo'li bilan o'zgaradi — mavjud `SalesQualityCoach` qoidasi bilan bi
 
 ```bash
 SKIP_LIVE=1 python -m pytest tests/test_metasell_conversion.py \
+                            tests/test_metasell_revenue.py \
+                            tests/test_call_timestamps_and_pauses.py \
                             tests/test_call_analysis_persistence.py -q
 ```
 

@@ -324,3 +324,126 @@ async def test_team_summary_empty_when_db_read_fails():
 
     assert summary["has_data"] is False
     assert summary["total_calls"] == 0
+
+
+# ── Trend (reklamadagi "+28% ↗") ────────────────────────────────────────
+
+
+from src.services.core.metasell_conversion import (  # noqa: E402
+    MIN_CALLS_FOR_TREND,
+    ConversionTrend,
+)
+
+
+def _rows(n, converted):
+    outcome = OUTCOME_MEETING if converted else OUTCOME_REFUSED
+    return [_call(outcome=outcome) for _ in range(n)]
+
+
+def test_trend_reports_percentage_points_not_relative_percent():
+    """22% -> 50% bu +28 pp. Nisbiy '+127%' deb yozish chalg'itadi."""
+    current = _rows(5, True) + _rows(5, False)
+    previous = _rows(2, True) + _rows(8, False)
+
+    trend = MetaSellConversionEngine.build_trend(current, previous, 30)
+
+    assert trend.current_rate == pytest.approx(50.0)
+    assert trend.previous_rate == pytest.approx(20.0)
+    assert trend.delta_pp == pytest.approx(30.0)
+    assert trend.direction == "o'smoqda"
+    assert "pp" in trend.headline()
+
+
+def test_trend_detects_decline():
+    trend = MetaSellConversionEngine.build_trend(
+        _rows(1, True) + _rows(9, False), _rows(8, True) + _rows(2, False), 30
+    )
+
+    assert trend.direction == "pasaymoqda"
+    assert trend.arrow == "↘"
+
+
+def test_trend_calls_small_change_stable():
+    trend = MetaSellConversionEngine.build_trend(
+        _rows(5, True) + _rows(5, False), _rows(5, True) + _rows(5, False), 30
+    )
+
+    assert trend.direction == "barqaror"
+    assert trend.arrow == "→"
+
+
+def test_trend_unreliable_without_enough_history():
+    """Ikki qo'ng'iroqdan '+50%' chiqarish — chalg'ituvchi raqam."""
+    trend = MetaSellConversionEngine.build_trend(
+        _rows(10, True), _rows(MIN_CALLS_FOR_TREND - 1, False), 30
+    )
+
+    assert trend.reliable is False
+    assert trend.direction == "noaniq"
+    assert "yetarli emas" in trend.reason or "kerak" in trend.reason
+    assert "pp" not in trend.headline()
+
+
+def test_unreliable_trend_still_shows_current_rate():
+    trend = MetaSellConversionEngine.build_trend(_rows(10, True), [], 30)
+
+    assert "100%" in trend.headline()
+
+
+# ── Pul ko'rsatkichlari ─────────────────────────────────────────────────
+
+
+def _paid_call(lead_id, price, won, outcome=OUTCOME_MEETING, close=80):
+    call = _call(outcome=outcome, stages={
+        "salomlashish": 80, "ehtiyojlar": 80, "qiymat": 75,
+        "etirozlar": 75, "yakunlash": close, "muloqot_sifati": 78,
+    })
+    call.update({"lead_id": lead_id, "lead_price": price, "lead_won": won,
+                 "created_at": f"2026-08-{lead_id:02d}"})
+    return call
+
+
+def test_diagnosis_carries_money():
+    rows = [_paid_call(i, 10_000_000, 1) for i in range(1, 5)] + [
+        _paid_call(i, 20_000_000, 0, OUTCOME_THINKING, close=20) for i in range(5, 9)
+    ]
+
+    result = diagnose_seller("Aziz", rows)
+
+    assert result.deals_won == 4
+    assert result.revenue_won == 40_000_000
+    assert result.revenue_at_risk == 80_000_000
+
+
+def test_seller_card_shows_money():
+    rows = [_paid_call(i, 10_000_000, 1) for i in range(1, 5)] + [
+        _paid_call(i, 20_000_000, 0, OUTCOME_THINKING, close=20) for i in range(5, 9)
+    ]
+
+    card = MetaSellConversionEngine.build_seller_card(diagnose_seller("Aziz", rows))
+
+    assert "so'm" in card
+    assert "40 000 000" in card
+
+
+def test_team_report_includes_trend_headline():
+    rows = [_paid_call(i, 5_000_000, 1) for i in range(1, 9)]
+    engine = MetaSellConversionEngine(db=None)
+    trend = ConversionTrend(
+        days=30, current_rate=68.0, previous_rate=40.0,
+        current_calls=20, previous_calls=20, reliable=True,
+    )
+
+    report = engine.build_team_report(engine.diagnose_rows(rows), trend)
+
+    assert "+28 pp" in report
+    assert "↗" in report
+
+
+def test_team_report_without_trend_still_works():
+    rows = [_paid_call(i, 5_000_000, 1) for i in range(1, 9)]
+    engine = MetaSellConversionEngine(db=None)
+
+    report = engine.build_team_report(engine.diagnose_rows(rows))
+
+    assert "Konversiya:" in report
