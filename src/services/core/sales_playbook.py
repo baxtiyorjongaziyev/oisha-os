@@ -120,6 +120,33 @@ OUTCOME_LABELS_UZ = {
 }
 
 
+# Eski (inglizcha) lug'atlar. Bitta `call_analyses.outcome` ustuniga bir
+# nechta baholovchi yozadi va ularning lug'ati har xil:
+#   - `services.ai.quality_analyzer` → sale|follow_up|lost|callback|not_sales
+#   - `/api/sales-quality/ingest-analysis` → tashqi tizim yuborgan qiymat
+#   - `services.core.deal_hygiene` → no_interest|wrong_number|spam|invalid
+# Ular tarjima qilinmasa, Telegram yo'lidan kelgan "sale" qatori konversiya
+# sifatida HISOBLANMAY qoladi va sotuvchi konversiyasi past ko'rsatiladi.
+_LEGACY_OUTCOMES = {
+    "sale": OUTCOME_PAYMENT,
+    "won": OUTCOME_PAYMENT,
+    "meeting": OUTCOME_MEETING,
+    "proposal": OUTCOME_PROPOSAL,
+    "follow_up": OUTCOME_FOLLOW_UP,
+    "followup": OUTCOME_FOLLOW_UP,
+    "callback": OUTCOME_FOLLOW_UP,
+    "thinking": OUTCOME_THINKING,
+    "lost": OUTCOME_REFUSED,
+    "no_interest": OUTCOME_REFUSED,
+    "not_interested": OUTCOME_REFUSED,
+    "wrong_number": OUTCOME_REFUSED,
+    "spam": OUTCOME_REFUSED,
+    "invalid": OUTCOME_REFUSED,
+    "not_sales": OUTCOME_UNKNOWN,
+    "unknown": OUTCOME_UNKNOWN,
+}
+
+
 def normalise_outcome(value: object) -> str:
     """Erkin matnni rasmiy natija kalitiga keltiradi."""
     text = str(value or "").strip().lower()
@@ -127,6 +154,11 @@ def normalise_outcome(value: object) -> str:
         return OUTCOME_UNKNOWN
     if text in ALL_OUTCOMES:
         return text
+    # Eski lug'atni aniq moslik bo'yicha tarjima qilamiz — substring
+    # qidiruvidan OLDIN, aks holda "lost" hech bir kalitga tushmaydi.
+    legacy = _LEGACY_OUTCOMES.get(text.replace("-", "_").replace(" ", "_"))
+    if legacy:
+        return legacy
     # LLM ba'zan kalit o'rniga tavsif qaytaradi — kalit so'z bo'yicha topamiz.
     aliases = (
         (OUTCOME_PAYMENT, ("to'lov", "tolov", "payment", "shartnoma")),

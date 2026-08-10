@@ -77,6 +77,43 @@ def test_normalise_outcome_falls_back_to_unknown():
     assert normalise_outcome("umuman tushunarsiz matn") == "aniqlanmadi"
 
 
+@pytest.mark.parametrize(
+    "legacy,expected_converted",
+    [
+        # `services.ai.quality_analyzer` lug'ati
+        ("sale", True),
+        ("follow_up", False),
+        ("callback", False),
+        ("lost", False),
+        ("not_sales", False),
+        ("unknown", False),
+        # `deal_hygiene` lug'ati
+        ("no_interest", False),
+        ("not_interested", False),
+        ("wrong_number", False),
+        ("spam", False),
+        ("invalid", False),
+    ],
+)
+def test_legacy_english_outcomes_are_translated(legacy, expected_converted):
+    """Bitta ustunga bir nechta baholovchi yozadi — hammasi bir xil
+    tushunilishi shart, aks holda konversiya past ko'rsatiladi."""
+    assert normalise_outcome(legacy) != "aniqlanmadi" or legacy in {
+        "not_sales",
+        "unknown",
+    }
+    assert outcome_converted(legacy) is expected_converted
+
+
+def test_legacy_sale_counts_as_conversion_in_diagnosis():
+    """Regressiya: 'sale' natijali qatorlar konversiyaga kirmay qolgan edi."""
+    rows = [_call(outcome="sale") for _ in range(6)]
+
+    result = diagnose_seller("Aziz", rows)
+
+    assert result.conversion_rate == pytest.approx(100.0)
+
+
 # ── Diagnoz ─────────────────────────────────────────────────────────────
 
 
