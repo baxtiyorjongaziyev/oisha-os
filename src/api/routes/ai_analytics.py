@@ -221,7 +221,7 @@ async def coach_playbook_suggestions(request: Request):
         return _fail("coach_playbook_suggestions", exc)
 
 
-@router.get("/conversion/overview")
+@router.get("/conversion/overview", dependencies=[require_permissions(Permission.FINANCE_READ)])
 async def conversion_overview(request: Request, days: int = 30):
     """Jamoa konversiyasi + har bir sotuvchining o'sish nuqtasi.
 
@@ -267,7 +267,7 @@ async def conversion_trend(request: Request, days: int = 30):
         return _fail("conversion_trend", exc)
 
 
-@router.post("/conversion/sync-revenue")
+@router.post("/conversion/sync-revenue", dependencies=[require_permissions(Permission.FINANCE_READ)])
 async def conversion_sync_revenue(request: Request, days: int = 90):
     """AmoCRM'dan bitim narxi va yakunini `call_analyses` ga ko'chiradi.
 
@@ -319,7 +319,7 @@ async def conversion_volume(request: Request, days: int = 30):
         return _fail("conversion_volume", exc)
 
 
-@router.get("/conversion/seller-card")
+@router.get("/conversion/seller-card", dependencies=[require_permissions(Permission.FINANCE_READ)])
 async def conversion_seller_card(request: Request, manager: str = "", days: int = 30):
     """Bitta sotuvchi uchun haftalik o'sish kartochkasi (Telegram matni)."""
     if not _secret_check(request):
