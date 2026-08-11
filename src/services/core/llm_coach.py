@@ -59,6 +59,9 @@ class SalesCoachLLM:
             elif isinstance(response, str):
                 import json
                 result = json.loads(response)
+            elif hasattr(response, "text"):
+                import json
+                result = json.loads(response.text)
             else:
                 return None
             # Truncate overly long tip strings to 200 characters (test expects).

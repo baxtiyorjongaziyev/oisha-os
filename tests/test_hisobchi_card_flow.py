@@ -341,6 +341,11 @@ async def test_backfill_replays_once_and_deduplicates(monkeypatch, temp_db) -> N
         "resolve_finance_destination",
         lambda _client: _async_value((-1002, None, None)),
     )
+    monkeypatch.setattr(
+        card_bot_handler,
+        "resolve_finance_destination",
+        lambda _client: _async_value((-1002, None, None)),
+    )
 
     first = await backfill_card_bot_messages(client, engine, bot_client=client, max_age_hours=48)
     second = await backfill_card_bot_messages(client, engine, bot_client=client, max_age_hours=48)
