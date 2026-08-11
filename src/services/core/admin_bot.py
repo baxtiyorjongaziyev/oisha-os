@@ -2193,21 +2193,24 @@ class AdminBot:
             await event.respond(text, parse_mode=None, link_preview=False)
 
     async def _send_long_message(self, event, text: str, parse_mode: str = "html"):
-        """Telegram'ning ~4096 belgi chegarasidan uzun xabarlarni qator
-        chegaralari bo'yicha bo'laklarga bo'lib ketma-ket yuboradi."""
+        """Telegram'ning ~4096 belgi chegarasidan uzun xabarlarni bo'laklarga bo'lib yuboradi."""
         limit = 3800
         if len(text) <= limit:
             await self._respond_safe(event, text, parse_mode)
             return
-        lines = text.split("\n")
-        chunk = ""
-        for line in lines:
-            if len(chunk) + len(line) + 1 > limit and chunk:
-                await self._respond_safe(event, chunk, parse_mode)
-                chunk = ""
-            chunk += (line + "\n")
-        if chunk.strip():
-            await self._respond_safe(event, chunk, parse_mode)
+            
+        # Hard chunking if single lines are too long
+        while text:
+            chunk = text[:limit]
+            
+            # Try to break at a newline safely
+            if len(text) > limit:
+                last_newline = chunk.rfind("\n")
+                if last_newline > 0:
+                    chunk = chunk[:last_newline]
+                    
+            await self._respond_safe(event, chunk.strip(), parse_mode)
+            text = text[len(chunk):].lstrip("\n")
 
     async def send_kpi_report(self, event):
         """Jamoa kpi va samaradorlik hisobotini yuborish."""
