@@ -139,7 +139,7 @@ async def test_generate_nps_survey_text_removes_phone_from_lead_name():
 
 
 @pytest.mark.asyncio
-async def test_process_scheduled_touchpoints_via_userbot():
+async def test_process_scheduled_touchpoints_is_blocked_by_owner_policy():
     amocrm_mock = MagicMock()
     userbot_mock = MagicMock()
 
@@ -164,11 +164,12 @@ async def test_process_scheduled_touchpoints_via_userbot():
 
     stats = await manager.process_scheduled_touchpoints()
     
-    assert stats["sent"] == 1
-    assert stats["failed"] == 0
+    assert stats["sent"] == 0
+    assert stats["failed"] == 1
     
     # Assert Telegram message sent
-    userbot_mock.send_message.assert_called_once_with("toshmat_peer_id", "Assalomu alaykum Toshmat aka!")
+    userbot_mock.send_message.assert_not_called()
+    assert mock_conn.execute.call_args_list[-1].args[1][0] == "blocked_policy"
 
 
 @pytest.mark.asyncio

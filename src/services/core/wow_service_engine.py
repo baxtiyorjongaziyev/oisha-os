@@ -5,6 +5,7 @@ from src.database import Database
 from src.services.core.airtable_sync import AirtableSync
 from src.services.core.crm.crm_service import CRMService
 from src.services.core.persona_hub import EXTERNAL_CONCIERGE_PROMPT
+from src.services.core.customer_outbound_policy import automatic_customer_send_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ class WowServiceEngine:
                 f"Biz loyihangizni elita darajada topshirish uchun harakatdamiz! ✨"
             )
 
-            if client_group_id and self.bot_client:
+            if client_group_id and self.bot_client and automatic_customer_send_allowed("project_status"):
                 try:
                     await self.bot_client.send_message(client_group_id, stage_update_msg, parse_mode="html")
                     await self.db.mark_checkpoint_notified(project_id, stage_checkpoint_key, status=stage)

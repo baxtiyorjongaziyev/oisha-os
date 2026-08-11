@@ -214,11 +214,9 @@ async def _ai_autopilot_loop():
             except Exception as call_err:
                 logger.error(f"[AUTOPILOT] Call Analyzer error: {call_err}")
 
-            try:
-                await ambassador_manager.sync_won_leads_to_ambassadors(limit=30)
-                await ambassador_manager.process_scheduled_touchpoints()
-            except Exception as amb_err:
-                logger.error(f"[AUTOPILOT] Ambassador Journey error: {amb_err}")
+            logger.info(
+                "[AUTOPILOT] Ambassador customer outreach disabled by owner policy."
+            )
 
             logger.info("[AUTOPILOT] AI Autopilot cycle completed.")
         except Exception as exc:
@@ -288,15 +286,8 @@ async def _brain_evolution_loop():
 
 
 async def _surgical_send(user_id: int, text: str):
-    from src.main import _userbot_private_replies_disabled
-    if _userbot_private_replies_disabled():
-        logger.info("[SURGICAL] Proactive private send blocked by policy.")
-        return
-    try:
-        if app_ctx.client:
-            await app_ctx.client.send_message(user_id, text)
-    except Exception as exc:
-        logger.warning(f"[SURGICAL] Proactive send failed uid={user_id}: {exc}")
+    logger.info("[SURGICAL] Proactive customer send blocked by owner policy.")
+    return None
 
 
 async def boot_application():
@@ -518,7 +509,7 @@ async def boot_application():
         ).get_surgical_negotiator(
             db=msg_controller.db, amocrm=msg_controller.crm.amocrm, send_fn=_surgical_send,
         )
-        surgical_integration.enabled = getattr(settings, "SURGICAL_MODE", False)
+        surgical_integration.enabled = False
     except Exception as surg_init_exc:
         surgical_integration.negotiator = None
         surgical_integration.enabled = False
