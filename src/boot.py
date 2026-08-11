@@ -493,6 +493,12 @@ async def boot_application():
             instagram_weekly_report_loop(bot_runtime, settings.TEAM_GROUP_ID),
             name="instagram_weekly_report_loop",
         )
+        
+        from src.schedulers.cloud_brain_synthesizer import brain_synthesizer_loop
+        asyncio.create_task(
+            brain_synthesizer_loop(bot_runtime, settings.OWNER_ID),
+            name="cloud_brain_synthesizer_loop"
+        )
 
     # Surgical negotiator
     surgical_integration = get_surgical_integration()
@@ -957,6 +963,7 @@ async def boot_application():
         tracking_start_date=settings.HISOBCHI_TRACKING_START_DATE,
     )
     m._hisobchi_engine = hisobchi_engine
+    app_ctx.hisobchi_engine = hisobchi_engine
     if bot_runtime.backend == "aiogram" and bot_ingress_mode == "polling":
         from src.services.core.admin_aiogram_dispatcher import (
             register_hisobchi_aiogram_callbacks,
@@ -991,11 +998,13 @@ async def boot_application():
     gemini_key_ = api_keys.get("gemini")
     if gemini_key_:
         try:
+            from src.services.utils.voice_processor import VoiceProcessor
+            v_proc = VoiceProcessor(api_key=gemini_key_)
             hisobchi_analyst = HisobchiAnalyst(
-                gemini_key=gemini_key_,
+                gemini_client=v_proc.client,
                 engine=hisobchi_engine,
-                gs_store=hisobchi_gs_store,
             )
+            app_ctx.hisobchi_analyst = hisobchi_analyst
             logger.info("[HISOBCHI] HisobchiAnalyst initialized.")
         except Exception as exc:
             logger.warning("[HISOBCHI] HisobchiAnalyst init failed: %s", exc)
