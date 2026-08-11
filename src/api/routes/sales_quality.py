@@ -322,6 +322,41 @@ async def ingest_sales_quality_analysis(data: SalesQualityAnalysisRequest):
 
 
 @router.get(
+    "/api/sales-quality/conversion-overview",
+    dependencies=[require_permissions(Permission.DASHBOARD_READ)],
+)
+async def sales_quality_conversion_overview(days: int = 30):
+    """Panel uchun konversiya manzarasi — BRAUZER sessiyasi bilan.
+
+    `/api/ai/conversion/overview` bilan bir xil ma'lumot, lekin boshqa
+    avtorizatsiya: u yerdagi router `CALL_READ_ALL` talab qiladi va
+    ustiga `OISHA_API_SECRET` bilan `Authorization: Bearer ...` header
+    ham tekshiriladi. Brauzerdagi sahifa bu sirni bila olmaydi, shuning
+    uchun prod'da panel 401 olardi. Bu yo'l panelning o'zi bilan bir xil
+    huquqni (`DASHBOARD_READ`) talab qiladi.
+
+    Hisoblash mantig'i takrorlanmaydi — o'sha dvigatel chaqiriladi.
+    """
+    if not api_state.db_instance:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "service_unavailable", "reason": "db_not_connected"},
+        )
+    try:
+        from src.services.core.metasell_conversion import MetaSellConversionEngine
+
+        window = max(1, min(int(days or 30), 365))
+        engine = MetaSellConversionEngine(db=api_state.db_instance)
+        return await engine.team_summary(days=window)
+    except Exception as exc:
+        logger.exception("[SALES QUALITY] conversion-overview failed: %s", exc)
+        return JSONResponse(
+            status_code=500,
+            content={"error": "internal_error", "endpoint": "conversion_overview"},
+        )
+
+
+@router.get(
     "/dashboard/sales-quality",
     dependencies=[require_permissions(Permission.DASHBOARD_READ)],
 )
