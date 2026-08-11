@@ -1,4 +1,4 @@
-from src.services.core.finance.hisobchi_handlers import should_process_private_receipt_photo
+from src.services.core.finance.handlers import should_process_private_receipt_photo
 
 
 def test_owner_private_photo_without_finance_marker_is_ignored():

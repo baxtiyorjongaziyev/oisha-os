@@ -37,7 +37,7 @@ except Exception:
     functions = None
     types = None
 
-logger = structlog.get_logger()
+
 
 
 def normalize_phone(phone: Optional[str]) -> str:

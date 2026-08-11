@@ -532,10 +532,11 @@ async def background_monitor_task() -> None:
     monitor = BackgroundMonitor(
         msg_controller=app_ctx.msg_controller,
         client=client,
-        juma_notifier=juma_notifier,
+        juma_notifier=app_ctx.juma_notifier,
         settings=settings,
         get_surgical_integration=get_surgical_integration,
         TN5_GROUP_ID=TN5_GROUP_ID,
+        hisobchi_analyst=app_ctx.hisobchi_analyst,
     )
     await monitor.run()
 

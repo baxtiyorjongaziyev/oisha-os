@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from src.services.core.llm_coach import SalesCoachLLM
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -158,13 +159,10 @@ class SalesCoachSync:
         if not self.enabled:
             return None
         try:
-            response = await self.client.post(
-                "/v1/negotiations/realtime",
-                json={"message": message, "crmStatus": crm_status},
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data if isinstance(data, dict) else None
+            # Use internal LLM wrapper to generate tip
+            llm = SalesCoachLLM()
+            result = await llm.generate_tip(message=message, crm_status=crm_status)
+            return result
         except Exception as exc:
             logger.warning(
                 "[SalesCoach] realtime tip failed: %s",

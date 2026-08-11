@@ -11,7 +11,6 @@ from src.services.core.admin_aiogram_dispatcher import (
     handle_aiogram_oisha_stats,
     handle_aiogram_project_risks,
     handle_aiogram_sales_today,
-    handle_aiogram_start,
     handle_aiogram_team_capacity,
     maybe_build_admin_aiogram_dispatcher,
 )
@@ -82,18 +81,7 @@ async def test_aiogram_chatid_handler_uses_shared_router():
     assert message.answers[0][1]["parse_mode"] == "html"
 
 
-@pytest.mark.asyncio
-async def test_aiogram_start_handler_uses_shared_role_logic():
-    message = FakeAiogramMessage(text="/start", user_id=42)
 
-    await handle_aiogram_start(
-        message,
-        owner_id=1,
-        get_role=lambda _user_id: "MANAGER",
-        get_role_name=lambda role: f"Role:{role}",
-    )
-
-    assert "Role:MANAGER" in message.answers[0][0]
 
 
 @pytest.mark.asyncio

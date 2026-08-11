@@ -28,6 +28,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Finance handlers imports
+from src.services.core.finance.handlers import (
+    handle_card_bot_message,
+    handle_finance_group_reply,
+    is_card_bot_sender,
+)
+
+
 
 # ---------------------------------------------------------------------------
 # 1. Checkpoint
@@ -305,18 +313,17 @@ async def process_hisobchi(
     voice_processor,
     settings,
 ) -> bool:
-    """
-    Hisobchi AI — card bot xabarlarini qayta ishlash.
+    # Show typing indicator while processing Hisobchi messages
+    """Hisobchi AI — card bot xabarlarini qayta ishlash.
     Qaytaradi: True = xabar qayta ishlandi, False = davom etish.
-    """
-    from src.services.core.finance.handlers import (
-        handle_card_bot_message,
-        handle_finance_group_reply,
-        is_card_bot_sender,
-    )
-    from src.services.core.finance.hisobchi_engine import HisobchiEngine
+    """        try:
+            await client.send_chat_action(event.chat_id, 'typing')
+        except Exception:
+            pass
 
-    try:
+        # Imports for Hisobchi processing
+        from src.services.core.finance.hisobchi_engine import HisobchiEngine
+        from src.services.core.finance.handlers import _get_finance_config
         from src.context import app_ctx
 
         # Ignore Saved Messages (chat with self)
@@ -327,11 +334,9 @@ async def process_hisobchi(
 
         _hisobchi_engine = app_ctx.hisobchi_engine or HisobchiEngine(msg_controller.db)
 
+        # Card bot messages handling
         if event.is_private and not event.out and is_card_bot_sender(sender):
-            await handle_card_bot_message(
-                event, client, _hisobchi_engine,
-                bot_client=app_ctx.bot_client,
-            )
+            await handle_card_bot_message(event, client, _hisobchi_engine, bot_client=app_ctx.bot_client)
             return True
 
         if not event.out and event.message.voice and voice_processor:
@@ -354,10 +359,16 @@ async def process_hisobchi(
                 if was_voice_hisobchi:
                     return True
 
-        # Handle manual group logs (text, photos) sent directly in finance group
-        from src.services.core.finance.handlers import _get_finance_config
-        finance_group_id, kirim_topic_id, chiqim_topic_id = _get_finance_config()
-        is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
+        # Handle manual group logger = logging.getLogger(__name__)
+
+# Finance handlers imports
+from src.services.core.finance.handlers import (
+    handle_card_bot_message,
+    handle_finance_group_reply,
+    is_card_bot_sender,
+)
+    finance_group_id, kirim_topic_id, chiqim_topic_id = _get_finance_config()
+    is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
 
         if is_finance_chat and not event.out:
             # 1. Photos (receipts) posted in finance group topics
