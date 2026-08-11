@@ -1787,6 +1787,165 @@ class CallAnalyzer:
 
         return processed
 
+    # ------------------------------------------------------------------
+    # Tarixiy backfill — eski yozuvlarni ham eshitib chiqish
+    # ------------------------------------------------------------------
+
+    _BACKFILL_PAGE_KEY = "call_analyzer:backfill_next_page"
+    _BACKFILL_DONE_KEY = "call_analyzer:backfill_completed_at"
+
+    async def _read_state(self, key: str, default: str = "") -> str:
+        get_state = getattr(self.db, "get_state", None) if self.db else None
+        if not callable(get_state):
+            return default
+        try:
+            return str(await _maybe_await(get_state(key, default)) or default)
+        except Exception as exc:
+            logger.warning("[BACKFILL] '%s' holatini o'qib bo'lmadi: %s", key, exc)
+            return default
+
+    async def _write_state(self, key: str, value: str) -> None:
+        set_state = getattr(self.db, "set_state", None) if self.db else None
+        if not callable(set_state):
+            return
+        try:
+            await _maybe_await(set_state(key, value))
+        except Exception as exc:
+            logger.warning("[BACKFILL] '%s' holatini yozib bo'lmadi: %s", key, exc)
+
+    async def _fetch_leads_page(self, page: int, per_page: int = 250) -> List[Dict[str, Any]]:
+        """Bitimlarning bitta sahifasi.
+
+        `get_leads_detailed` 50 ta bilan cheklangan va sahifalashni
+        qo'llab-quvvatlamaydi — u har doim BIRINCHI sahifani qaytaradi,
+        shuning uchun tarixga chuqur kirish uchun yaramaydi.
+        """
+        url = f"{self.amocrm.base_url}/api/v4/leads"
+        params = {"limit": max(1, min(int(per_page), 250)), "page": int(page), "with": "contacts"}
+        try:
+            response = await _maybe_await(
+                self.amocrm._request_with_auth(
+                    _requests.get, url, params=params, timeout=30
+                )
+            )
+        except Exception as exc:
+            logger.error("[BACKFILL] %s-sahifa so'rovi yiqildi: %s", page, exc)
+            return []
+
+        status = getattr(response, "status_code", 0)
+        if status == 204:
+            return []
+        if status != 200:
+            logger.error("[BACKFILL] %s-sahifa HTTP %s", page, status)
+            return []
+        try:
+            return (response.json().get("_embedded") or {}).get("leads") or []
+        except Exception as exc:
+            logger.error("[BACKFILL] %s-sahifa JSON xatosi: %s", page, exc)
+            return []
+
+    async def backfill_call_recordings(
+        self,
+        limit: int = 50,
+        *,
+        write: bool = True,
+        include_transcript: bool = True,
+        max_pages_per_run: int = 20,
+        min_call_duration_seconds: int = 0,
+    ) -> Dict[str, Any]:
+        """Eski qo'ng'iroq yozuvlarini tahlil qiladi (tarixiy backfill).
+
+        `analyze_recent_calls` faqat eng oxirgi bitimlarni ko'radi. Bu esa
+        tarix bo'ylab SAHIFAMA-SAHIFA yuradi va qayerda to'xtaganini
+        bazada saqlaydi, ya'ni bir necha marta ishga tushirilsa tarixni
+        bosqichma-bosqich yopadi.
+
+        Chegara — Gemini kvotasi: `limit` shu YUGURISHDA tahlil qilinadigan
+        maksimal qo'ng'iroq soni. Kvota tugasa, sikl darhol to'xtaydi va
+        joriy sahifa saqlanadi — keyingi yugurish o'sha yerdan davom etadi.
+
+        Takroriy tahlil bo'lmaydi: `_is_call_processed` va AmoCRM notasidagi
+        marker allaqachon tahlil qilingan qo'ng'iroqni o'tkazib yuboradi.
+        """
+        await self._load_persisted_cooldown()
+        stats: Dict[str, Any] = {
+            "leads_scanned": 0,
+            "calls_processed": 0,
+            "pages_read": 0,
+            "start_page": 1,
+            "next_page": 1,
+            "completed": False,
+            "stopped_reason": "",
+        }
+
+        if self._defer_calls_without_fallback():
+            stats["stopped_reason"] = "gemini_quota_cooldown"
+            logger.info(
+                "[BACKFILL] Gemini kvotasi sovutishda (%ss) — backfill kechiktirildi.",
+                self._gemini_cooldown_remaining(),
+            )
+            return stats
+
+        try:
+            page = max(1, int(await self._read_state(self._BACKFILL_PAGE_KEY, "1") or 1))
+        except (TypeError, ValueError):
+            page = 1
+        stats["start_page"] = page
+        stats["next_page"] = page
+
+        target = max(1, int(limit))
+        for _ in range(max(1, int(max_pages_per_run))):
+            if stats["calls_processed"] >= target:
+                stats["stopped_reason"] = "limit_reached"
+                break
+            if self._defer_calls_without_fallback():
+                stats["stopped_reason"] = "gemini_quota_cooldown"
+                break
+
+            leads = await self._fetch_leads_page(page)
+            stats["pages_read"] += 1
+            if not leads:
+                # Tarix tugadi — keyingi yugurish boshidan boshlanadi va
+                # oradan qo'shilgan yangi bitimlarni ham qamrab oladi.
+                stats["completed"] = True
+                stats["stopped_reason"] = stats["stopped_reason"] or "history_exhausted"
+                page = 1
+                await self._write_state(self._BACKFILL_DONE_KEY, get_local_now().isoformat())
+                break
+
+            for lead in leads:
+                if stats["calls_processed"] >= target:
+                    stats["stopped_reason"] = "limit_reached"
+                    break
+                if self._defer_calls_without_fallback():
+                    stats["stopped_reason"] = "gemini_quota_cooldown"
+                    break
+                lead_id = lead.get("id")
+                if not lead_id:
+                    continue
+                stats["leads_scanned"] += 1
+                try:
+                    stats["calls_processed"] += await self.process_call_recordings_for_lead(
+                        int(lead_id),
+                        caller_phone=self._extract_lead_phone(lead),
+                        responsible_user_id=lead.get("responsible_user_id"),
+                        write=write,
+                        include_transcript=include_transcript,
+                        min_call_duration_seconds=min_call_duration_seconds,
+                    )
+                except Exception as exc:
+                    # Bitta bitim yiqilsa butun backfill to'xtamasligi kerak.
+                    logger.error("[BACKFILL] lead_id=%s yiqildi: %s", lead_id, exc)
+
+            if stats["stopped_reason"] in {"limit_reached", "gemini_quota_cooldown"}:
+                break
+            page += 1
+
+        stats["next_page"] = page
+        await self._write_state(self._BACKFILL_PAGE_KEY, str(page))
+        logger.info("[BACKFILL] Yakun: %s", stats)
+        return stats
+
     async def analyze_recent_contact_calls(
         self,
         limit: int = 50,
