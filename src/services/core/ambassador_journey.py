@@ -9,6 +9,7 @@ and handles Telegram userbot dispatching.
 import asyncio
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -26,6 +27,8 @@ except Exception:
     genai_types = None
 
 logger = structlog.get_logger()
+
+_PHONE_NUMBER_RE = re.compile(r"(?<!\w)\+?\d[\d\s().-]{7,}\d(?!\w)")
 
 
 class AmbassadorJourneyManager:
@@ -130,6 +133,9 @@ class AmbassadorJourneyManager:
         """
         Generate a warm, custom, highly-personalized Uzbek NPS outreach message via Gemini AI.
         """
+        client_name = self._sanitize_customer_facing_name(client_name, "Mijoz")
+        brand_name = self._sanitize_customer_facing_name(brand_name, "Yangi loyiha")
+
         prompt = (
             f"Siz Jon Branding agency AI operatsion tizimi - Oishasiz. "
             f"Mijozimiz '{client_name}' uchun '{brand_name}' loyihasi doirasida '{service_type}' "
@@ -172,8 +178,12 @@ class AmbassadorJourneyManager:
                 log_prefix="[AMBASSADOR]",
             )
             text = (response.text or "").strip()
-            if text:
+            if text and not self._contains_phone_number(text):
                 return text
+            if text:
+                logger.warning(
+                    "[AMBASSADOR] Generated NPS text blocked because it contains a phone number."
+                )
         except Exception as e:
             logger.error(f"[AMBASSADOR] Gemini NPS generation failed: {e}")
 
@@ -214,6 +224,22 @@ class AmbassadorJourneyManager:
             )
 
             logger.info(f"[AMBASSADOR] Dispatching {touchpoint_type} to user {user_id}...")
+
+            if self._contains_phone_number(message_text):
+                logger.warning(
+                    "[AMBASSADOR] Pending touchpoint %s blocked because it contains a phone number.",
+                    log_id,
+                )
+                try:
+                    await conn.execute(
+                        "UPDATE ambassador_journey_logs SET status = ?, sent_at = ? WHERE id = ?",
+                        ("blocked_pii", datetime.now().isoformat(), log_id),
+                    )
+                    await conn.commit()
+                except Exception as e:
+                    logger.error(f"[AMBASSADOR] Failed to block job {log_id}: {e}")
+                failed += 1
+                continue
             
             telegram_sent = False
             # If userbot is available, try to send message via Telegram
@@ -329,3 +355,13 @@ class AmbassadorJourneyManager:
         except Exception:
             logger.debug("[AMBASSADOR] Failed to extract contact name from lead", exc_info=True)
         return ""
+
+    @staticmethod
+    def _contains_phone_number(value: Any) -> bool:
+        return bool(_PHONE_NUMBER_RE.search(str(value or "")))
+
+    @staticmethod
+    def _sanitize_customer_facing_name(value: Any, fallback: str) -> str:
+        sanitized = _PHONE_NUMBER_RE.sub("", str(value or ""))
+        sanitized = re.sub(r"\s+", " ", sanitized).strip(" \t\r\n-–—|,;:")
+        return sanitized or fallback
