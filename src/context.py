@@ -79,6 +79,8 @@ class ApplicationContext:
     bot_token_str: Optional[str] = None
     welcome_manager: Optional[Any] = None
     scouter: Optional[Any] = None
+    hisobchi_engine: Optional[Any] = None
+    hisobchi_analyst: Optional[Any] = None
 
     # Telegram SalesCoach runtime. All fields stay None unless the explicit
     # TELEGRAM_SALESCOACH_ENABLED feature flag is enabled on the Oracle VM.
