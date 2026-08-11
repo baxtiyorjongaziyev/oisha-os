@@ -36,13 +36,14 @@ async def push_vault_to_remote(vault_path: Path) -> None:
         logger.error(f"Git add failed: {err.decode().strip()}")
         return
 
-    rc, _, err = await run("commit", "-m", f"Second Brain digest – {settings.APP_TIMEZONE}")
+    rc, out, err = await run("commit", "-m", f"Second Brain digest – {settings.APP_TIMEZONE}")
     if rc != 0:
         # Nothing to commit is not an error — skip the push quietly.
-        if "nothing to commit" in err.decode().lower():
+        combined = (out + b"\n" + err).decode(errors="replace").lower()
+        if "nothing to commit" in combined:
             logger.info("Vault has no changes to push.")
             return
-        logger.error(f"Git commit failed: {err.decode().strip()}")
+        logger.error(f"Git commit failed: {combined.strip()}")
         return
 
     rc, _, err = await run("push", settings.VAULT_GIT_REMOTE, settings.VAULT_GIT_BRANCH)

@@ -319,9 +319,12 @@ async def process_hisobchi(
     try:
         # Show typing indicator while processing Hisobchi messages
         try:
-            await client.send_chat_action(event.chat_id, 'typing')
-        except Exception:
-            pass
+            from telethon.tl.functions.messages import SetTypingRequest
+            from telethon.tl.types import SendMessageTypingAction
+
+            await client(SetTypingRequest(event.chat_id, SendMessageTypingAction()))
+        except Exception as exc:
+            logger.debug("[HISOBCHI] Failed to show typing indicator: %s", exc)
 
         # Imports for Hisobchi processing
         from src.services.core.finance.hisobchi_engine import HisobchiEngine
