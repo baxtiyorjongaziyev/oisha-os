@@ -382,7 +382,7 @@ async def test_aiogram_vps_status_handler():
     await handle_aiogram_vps_status(admin, is_admin=lambda _uid: True)
 
     assert non_admin.answers == []
-    assert "VPS SERVER HOLATI" in admin.answers[0][0]
+    assert "TIZIM HOLATI" in admin.answers[0][0]
     assert "CPU:" in admin.answers[0][0]
 
 

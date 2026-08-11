@@ -160,8 +160,9 @@ class SalesCoachSync:
             return None
         try:
             # Use internal LLM wrapper to generate tip
-            llm = SalesCoachLLM()
-            result = await llm.generate_tip(message=message, crm_status=crm_status)
+            result = await SalesCoachLLM.generate_tip(
+                transcript=message, context={"crm_status": crm_status}
+            )
             return result
         except Exception as exc:
             logger.warning(

@@ -309,6 +309,9 @@ class _BackfillClient:
     def is_connected(self):
         return True
 
+    async def get_dialogs(self, limit=500):
+        return []
+
     async def get_entity(self, username):
         return SimpleNamespace(username=username.lower().lstrip("@"))
 

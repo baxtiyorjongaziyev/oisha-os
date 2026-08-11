@@ -1627,10 +1627,7 @@ class CallAnalyzer:
                 )
             # ---------------------------------------------
 
-            stt_service = STTService()
-            transcript, _ = await stt_service.transcribe(audio_bytes, mime_type)
-            if not transcript:
-                continue
+            transcript = await self._transcribe_inline(audio_bytes, mime_type)
             if not transcript:
                 continue
 

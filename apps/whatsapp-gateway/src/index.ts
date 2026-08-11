@@ -1,9 +1,12 @@
-import makeWASocket, {
+import {
+  makeWASocket,
   DisconnectReason,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   makeInMemoryStore,
   useMultiFileAuthState,
+  type WASocket,
+  type WAMessage,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import express, { Request, Response } from "express";
@@ -26,7 +29,7 @@ const AUTH_DIR = process.env.WA_AUTH_DIR || path.join(__dirname, "..", "wa_auth_
 // In-memory store (message history uchun)
 const store = makeInMemoryStore({ logger });
 
-let sock: ReturnType<typeof makeWASocket> | null = null;
+let sock: WASocket | null = null;
 let isConnected = false;
 
 async function connectToWhatsApp() {
