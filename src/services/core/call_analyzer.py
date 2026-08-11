@@ -30,6 +30,7 @@ from src.services.core.sales_playbook import (
 from src.services.utils.transcript import (
     detect_pauses,
     format_timestamp,
+    has_timestamps,
     speaker_split,
     strip_timestamps,
     talk_ratio_verdict,
@@ -1021,9 +1022,24 @@ class CallAnalyzer:
             return items[:limit]
 
         # Uzilish lahzasi — "mijoz qaysi soniyada yo'qoldi".
-        breakdown_at = _parse_breakdown_time(
-            data.get("uzilish_vaqti"), duration_seconds
+        #
+        # MUHIM: transkripsiya bepul STT yo'lidan (Groq/Cloudflare) kelgan
+        # bo'lsa, unda vaqt belgisi YO'Q — o'sha router prompt qabul
+        # qilmaydi. Bunday matnda LLM lahzani bilolmaydi, faqat TAXMIN
+        # qiladi. Noto'g'ri "01:42" rahbarni yozuvning bo'sh joyiga
+        # yuboradi va butun funksiyaga ishonchni yo'qotadi — shuning uchun
+        # asos bo'lmasa, umuman ko'rsatmaymiz.
+        transcript_is_timed = has_timestamps(transcript)
+        breakdown_at = (
+            _parse_breakdown_time(data.get("uzilish_vaqti"), duration_seconds)
+            if transcript_is_timed
+            else None
         )
+        if not transcript_is_timed and data.get("uzilish_vaqti"):
+            logger.info(
+                "[CALL] Uzilish lahzasi rad etildi — transkripsiyada vaqt "
+                "belgisi yo'q (bepul STT yo'li)."
+            )
         breakdown_reason = str(data.get("uzilish_sababi") or "").strip()
         if not breakdown_at:
             # Vaqtsiz sabab rahbarga foydasiz — ikkalasi birga yashaydi.
