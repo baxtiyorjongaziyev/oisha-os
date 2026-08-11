@@ -1,6 +1,5 @@
 import hmac
 import logging
-import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -76,12 +75,20 @@ async def get_recent_dialogs(limit: int = Query(10, ge=1, le=50)):
         require_permissions(Permission.MCP_READ),
     ],
 )
-async def get_chat_history(chat_id: str, limit: int = Query(20, ge=1, le=100)):
+async def get_chat_history(
+    chat_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    before_id: int | None = Query(None, ge=1),
+):
     if not app_ctx.client:
         raise HTTPException(status_code=503, detail="Telegram client not initialized")
     try:
         target_id = int(chat_id) if chat_id.lstrip("-").isdigit() else chat_id
-        messages = await app_ctx.client.get_messages(target_id, limit=limit)
+        messages = await app_ctx.client.get_messages(
+            target_id,
+            limit=limit,
+            max_id=before_id or 0,
+        )
         result = []
         for message in messages:
             if not message.text and not getattr(message, "media", None):
