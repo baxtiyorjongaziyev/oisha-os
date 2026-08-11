@@ -106,13 +106,6 @@ def _has_escalation_trigger(text: str) -> Optional[str]:
     return None
 
 
-def _vip_threshold() -> int:
-    try:
-        return int(os.environ.get("VIP_LEAD_SCORE_THRESHOLD", "80"))
-    except ValueError:
-        return 80
-
-
 async def evaluate(
     db: Any,
     *,
@@ -178,54 +171,11 @@ async def evaluate(
             kill_switch_on=kill_on,
         )
 
-    # From here mode is an explicit auto-send tier (vip_only / live / auto).
-    # Mention short-circuits to send (Owner directly called us).
-    if is_mentioned:
-        return Decision(
-            action="send",
-            reason="mention_override",
-            effective_mode=mode,
-            kill_switch_on=kill_on,
-        )
-
-    # Low-confidence always shadows in every auto-send tier (vip_only/live/auto).
-    if confidence is not None and confidence < 0.6 and mode in ("vip_only", "live", "auto"):
-        return Decision(
-            action="shadow",
-            reason=f"low_confidence({confidence:.2f})",
-            effective_mode=mode,
-            kill_switch_on=kill_on,
-        )
-
-    if mode == "vip_only":
-        threshold = _vip_threshold()
-        if lead_score >= threshold:
-            return Decision(
-                action="send",
-                reason=f"vip_lead({lead_score}>={threshold})",
-                effective_mode="vip_only",
-                kill_switch_on=kill_on,
-            )
-        return Decision(
-            action="shadow",
-            reason=f"non_vip({lead_score}<{threshold})",
-            effective_mode="vip_only",
-            kill_switch_on=kill_on,
-        )
-    # live
-    if mode == "live":
-        return Decision(
-            action="send",
-            reason="tier3_live",
-            effective_mode="live",
-            kill_switch_on=kill_on,
-        )
-    # auto — Telegram Chat Automation mode: bot is connected to owner's profile,
-    # replies on behalf of the owner in ALL chats without score threshold.
-    # Only active when user explicitly connects the bot via Telegram settings.
+    # Owner policy: customer replies are always drafts. Runtime/DB flags cannot
+    # enable autonomous customer messaging.
     return Decision(
-        action="send",
-        reason="tier4_auto_chat_automation",
-        effective_mode="auto",
+        action="shadow",
+        reason="owner_policy_draft_only",
+        effective_mode="shadow",
         kill_switch_on=kill_on,
     )

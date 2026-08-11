@@ -6,6 +6,10 @@ from datetime import datetime, time
 from telethon import TelegramClient, functions
 from src.database import Database
 from src.settings import settings
+from src.services.core.customer_outbound_policy import (
+    automatic_customer_send_allowed,
+    build_humanized_juma_greeting,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,37 +23,6 @@ class JumaNotifier:
         self.group_id = group_id  # Default primary group
         self.RUN_WINDOW_START = time(0, 0)  # 00:00 AM
         self.RUN_WINDOW_END = time(23, 59)  # 11:59 PM
-
-        # AI Config
-        from google import genai
-
-        self.genai_client = genai.Client(
-            api_key=settings.GEMINI_API_KEY.get_secret_value()
-        )
-        self.model_name = os.getenv("GEMINI_JUMA_MODEL", settings.GEMINI_CALL_MODEL)
-
-    async def is_juma_greeting(self, text: str) -> bool:
-        """Use Gemini to detect if the text is a Juma greeting."""
-        if not text:
-            return False
-
-        prompt = (
-            "Determine if the following text is a Juma (Friday) greeting/blessing in Uzbek. "
-            "Respond with only 'YES' or 'NO'.\n\n"
-            f"Text: {text}"
-        )
-        try:
-            from src.utils.ai_utils import safe_ai_call
-
-            response = await safe_ai_call(
-                client=self.genai_client, prompt=prompt, model=self.model_name
-            )
-            return "YES" in (response.text or "").upper()
-        except Exception as e:
-            logger.error(f"[JUMA AI] Detection error: {e}")
-            # Fallback to simple keyword check
-            keywords = ["juma", "muborak", "ayyom", "natidja"]
-            return any(k in text.lower() for k in keywords)
 
     async def check_and_send(self):
         """Check if it's Friday morning and we haven't sent greetings yet."""
@@ -66,8 +39,8 @@ class JumaNotifier:
 
         now = datetime.now()
 
-        # 1. Check if it's Friday (ISO weekday 5)
-        if now.weekday() != 4:  # 0=Monday, 4=Friday
+        # Owner-approved sole exception to the automatic-customer-message ban.
+        if not automatic_customer_send_allowed("juma", now=now):
             return
 
         # 2. Check if we are in the time window (8 AM - 11 AM)
@@ -80,26 +53,7 @@ class JumaNotifier:
             logger.info(f"👸 [JUMA] Greetings already sent for {today_str}. Skipping.")
             return
 
-        # 4. SEARCH FOR CHANNEL GREETING (Smarter auto-outreach)
-        logger.info(
-            "👸 [JUMA] Friday Morning! Searching channel for a greeting to forward..."
-        )
-        try:
-            # Check last 3 messages in channel
-            async for msg in self.client.iter_messages("baxtiyorjongaziyev", limit=3):
-                if await self.is_juma_greeting(msg.text):
-                    logger.info(
-                        f"👸 [JUMA] Found greeting in channel (msg {msg.id}). Forwarding..."
-                    )
-                    await self.send_greetings(today_str, source_message=msg)
-                    return
-        except Exception as se:
-            logger.error(f"[JUMA SEARCH ERROR] {se}")
-
-        # 5. FALLBACK: Send default personalized message
-        logger.info(
-            "👸 [JUMA] No channel greeting found. Sending default personalized messages..."
-        )
+        logger.info("[JUMA] Sending this week's short, humanized greeting.")
         await self.send_greetings(today_str)
 
     async def _is_already_sent(self, date_str: str) -> bool:
@@ -198,6 +152,10 @@ class JumaNotifier:
 
     async def send_greetings(self, date_str: str, source_message=None):
         """Perform mass messaging with random delays."""
+        if not automatic_customer_send_allowed("juma"):
+            logger.warning("[JUMA] Direct send blocked outside Friday.")
+            return
+
         classmates = await self.get_tn5_classmates()
 
         if not classmates:
@@ -237,19 +195,8 @@ class JumaNotifier:
                     logger.error("Exception handled in %s", __name__, exc_info=True)
 
                 # 3. SEND
-                if source_message:
-                    # Forward from channel
-                    await self.client.forward_messages(peer["id"], source_message)
-                else:
-                    # Default Template
-                    message = (
-                        f"Assalomu alaykum, qadrli kursdoshim {peer['name']}!\n\n"
-                        "Juma ayyomingiz muborak bo'lsin. Alloh taolo bugungi muborak kunda ishlaringizga baraka, "
-                        "oilangizga xotirjamlik, qalbingizga nur va biznesingizga halol o'sish bersin.\n\n"
-                        "Har birimiz boshlagan ishimizda chiroyli natija, manfaatli hamkorlik va kuchli iymon bilan oldinga yuraylik. "
-                        "Sizga fayzli juma, barakali kun va katta-katta yutuqlar tilayman."
-                    )
-                    await self.client.send_message(peer["id"], message)
+                message = build_humanized_juma_greeting(peer["name"])
+                await self.client.send_message(peer["id"], message)
 
                 # 4. LOG SUCCESS
                 await conn.execute(

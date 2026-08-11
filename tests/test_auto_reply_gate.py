@@ -67,10 +67,11 @@ async def test_kill_switch_overrides_mention(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_live_mode_autosends(monkeypatch):
+async def test_live_mode_is_forced_to_shadow_by_owner_policy(monkeypatch):
     monkeypatch.setenv("AUTO_REPLY_MODE", "live")
     decision = await auto_reply_gate.evaluate(_FakeDB(), message_text="salom")
-    assert decision.action == "send"
+    assert decision.action == "shadow"
+    assert decision.reason == "owner_policy_draft_only"
 
 
 @pytest.mark.asyncio

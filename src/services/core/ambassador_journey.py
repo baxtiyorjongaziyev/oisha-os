@@ -17,6 +17,7 @@ import structlog
 
 from src.settings import settings
 from src.services.utils.gemini_fallback import generate_content_with_fallback
+from src.services.core.customer_outbound_policy import automatic_customer_send_allowed
 
 try:
     from google import genai
@@ -238,6 +239,19 @@ class AmbassadorJourneyManager:
                     await conn.commit()
                 except Exception as e:
                     logger.error(f"[AMBASSADOR] Failed to block job {log_id}: {e}")
+                failed += 1
+                continue
+
+            if not automatic_customer_send_allowed("ambassador"):
+                logger.warning(
+                    "[AMBASSADOR] Touchpoint %s blocked by owner outbound policy.",
+                    log_id,
+                )
+                await conn.execute(
+                    "UPDATE ambassador_journey_logs SET status = ?, sent_at = ? WHERE id = ?",
+                    ("blocked_policy", datetime.now().isoformat(), log_id),
+                )
+                await conn.commit()
                 failed += 1
                 continue
             

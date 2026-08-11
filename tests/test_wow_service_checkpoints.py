@@ -49,7 +49,7 @@ async def test_wow_service_lead_first_hour_wow():
 
 
 @pytest.mark.asyncio
-async def test_wow_service_status_concierge_stage_changed():
+async def test_wow_service_does_not_message_client_group_on_stage_change():
     # Arrange
     mock_db = AsyncMock()
     mock_bot = AsyncMock()
@@ -76,10 +76,6 @@ async def test_wow_service_status_concierge_stage_changed():
     with patch("src.services.core.wow_service_engine.AirtableSync.resolve_pm_handle", return_value="@pm_dilshod"):
         await engine._audit_project_journey(project)
 
-        # Assert
-        mock_bot.send_message.assert_any_call(
-            -1009999,
-            "👸 <b>OISHA: STATUS CONCIERGE</b> 👸\n\n📂 Loyiha: <b>Diyor Web Design</b>\n🔄 Yangi bosqich: <b>DESIGN</b>\n\nBiz loyihangizni elita darajada topshirish uchun harakatdamiz! ✨",
-            parse_mode="html"
-        )
-        mock_db.mark_checkpoint_notified.assert_any_call("proj_11", "project_stage_concierge", status="design")
+        # Customer-facing project groups are never messaged automatically.
+        for call in mock_bot.send_message.call_args_list:
+            assert call.args[0] != -1009999

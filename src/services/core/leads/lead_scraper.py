@@ -6,6 +6,7 @@ import random
 from typing import Dict, Any, Optional
 from telethon import TelegramClient, functions
 from src.settings import settings
+from src.services.core.customer_outbound_policy import automatic_customer_send_allowed
 from google import genai
 
 logger = logging.getLogger(__name__)
@@ -458,7 +459,7 @@ class LeadScraper:
                 # If it's a lead or potential interaction, and Oisha hasn't responded yet, initiate outreach.
                 autonomous_outreach_enabled = os.getenv(
                     "ENABLE_AUTONOMOUS_OUTREACH", ""
-                ).strip().lower() in {"1", "true", "yes", "on"}
+                ).strip().lower() in {"1", "true", "yes", "on"} and automatic_customer_send_allowed("lead_outreach")
                 if (
                     autonomous_outreach_enabled
                     and self.message_controller
