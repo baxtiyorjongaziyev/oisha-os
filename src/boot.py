@@ -479,7 +479,15 @@ async def boot_application():
     if not settings.RUN_USERBOT_ONLY:
         asyncio.create_task(_crm_discipline_loop())
         asyncio.create_task(_crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop")
-        asyncio.create_task(_ai_autopilot_loop())
+        if os.getenv("ENABLE_AI_AUTOPILOT", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            asyncio.create_task(_ai_autopilot_loop(), name="ai_autopilot_loop")
+        else:
+            logger.info("[AUTOPILOT] Disabled by default; analysis remains manual.")
         
         from src.schedulers.frog_scheduler import daily_frog_loop
         # Frog brief is sent from @jonairobot (bot_client), not the userbot.
