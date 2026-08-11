@@ -236,7 +236,7 @@ async def _daily_analytics_loop():
             now = get_local_now()
             if now.hour == 9 and now.minute == 0:
                 logger.info("[GA4] Triggering daily analytics report...")
-                await run_daily_analytics_report()
+                await run_daily_analytics_report(bot_client=app_ctx.bot_runtime)
                 await asyncio.sleep(61)
         except Exception as e:
             logger.error(f"[GA4] Error in daily analytics loop: {e}")
