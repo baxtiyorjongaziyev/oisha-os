@@ -1,3 +1,13 @@
+# Userbot session tekshiruvi.
+#
+# MUHIM: bu workflow ILGARI ubuntu-latest da prod USERBOT_SESSION_STRING bilan
+# ikkinchi Telethon client ochardi. Runner ning IP si Oracle VM dan boshqa, shu
+# sababli Telegram auth key ni "two different IP addresses simultaneously" deb
+# butunlay bekor qilardi (AuthKeyDuplicatedError) — natijada prod userbot ham,
+# Juma tabrigi ham o'lardi.
+#
+# Endi hech qanday yangi Telethon ulanishi ochilmaydi: Oracle VM da ishlab
+# turgan oisha-os.service ning o'z health endpointi so'raladi.
 name: Verify Userbot Session
 
 on:
@@ -11,67 +21,57 @@ permissions:
 
 jobs:
   verify:
-    name: Session Tekshiruv
+    name: Session Tekshiruv (Oracle VM health)
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - name: Check live userbot session on Oracle VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 4m
+          envs: BOT_TOKEN,OWNER_ID
+          script: |
+            set -euo pipefail
 
-      - name: Install Telethon
-        run: pip install telethon==1.36.0
+            HTTP_CODE="$(curl -s -o /tmp/oisha-readyz.json -w "%{http_code}" \
+              --max-time 10 http://127.0.0.1:8080/readyz/ || echo 000)"
+            BODY="$(cat /tmp/oisha-readyz.json 2>/dev/null || echo '{}')"
+            echo "HTTP ${HTTP_CODE}: ${BODY}"
 
-      - name: Verify session and notify
+            USERBOT_STATE="$(python3 -c "
+            import json, sys
+            try:
+                print(json.loads(sys.argv[1]).get('checks', {}).get('userbot', 'unknown'))
+            except Exception:
+                print('unknown')
+            " "${BODY}")"
+
+            if [ "${HTTP_CODE}" = "200" ] && [ "${USERBOT_STATE}" = "authorized" ]; then
+              RESULT="✅ Userbot session ISHLAYAPTI (Oracle /readyz: ${USERBOT_STATE})"
+              STATUS=0
+            else
+              RESULT="❌ Userbot session TEKSHIRUVDAN O'TMADI
+            HTTP: ${HTTP_CODE}
+            userbot: ${USERBOT_STATE}
+
+            Agar AuthKeyDuplicated bo'lsa, prod kaliti boshqa IP dan ochilgan.
+            Yangi session: generate-session.yml → USERBOT_SESSION_STRING yangilang."
+              STATUS=1
+            fi
+
+            echo "${RESULT}"
+            if [ -n "${BOT_TOKEN:-}" ]; then
+              curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+                --data-urlencode "chat_id=${OWNER_ID:-150074828}" \
+                --data-urlencode "text=${RESULT}" >/dev/null || true
+            fi
+            exit "${STATUS}"
         env:
-          API_ID: ${{ secrets.API_ID }}
-          API_HASH: ${{ secrets.API_HASH }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           OWNER_ID: ${{ secrets.OWNER_ID }}
-          USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
-        run: |
-          python3 - <<'PYEOF'
-          import asyncio, os, urllib.parse, urllib.request
-          from telethon import TelegramClient
-          from telethon.sessions import StringSession
-
-          API_ID = int(os.environ["API_ID"])
-          API_HASH = os.environ["API_HASH"]
-          BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-          OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
-
-          SESSION_STRING = os.environ.get("USERBOT_SESSION_STRING", "")
-
-          def notify(text):
-              if not BOT_TOKEN:
-                  return
-              try:
-                  url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                  data = urllib.parse.urlencode({"chat_id": OWNER_ID, "text": text}).encode()
-                  urllib.request.urlopen(url, data=data, timeout=10)
-              except Exception as e:
-                  print(f"Notification failed: {e}")
-
-          async def main():
-              if not SESSION_STRING:
-                  result = "FAIL: SESSION_STRING topilmadi"
-                  notify(f"❌ {result}")
-                  print(result)
-                  raise RuntimeError(result)
-              client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
-              try:
-                  await client.connect()
-                  if not await client.is_user_authorized():
-                      result = "FAIL: Session muddati tugagan yoki noto'g'ri"
-                      notify(f"❌ {result}")
-                      print(result)
-                      raise RuntimeError(result)
-                  me = await client.get_me()
-                  result = f"OK: {me.first_name} (@{me.username}) — session ISHLAYAPTI"
-                  notify(f"✅ Userbot session tekshiruvi muvaffaqiyatli!\nAkkaunt: {me.first_name} (@{me.username})\nBarcha workflow'lar ishga tayyor.")
-                  print(result)
-              finally:
-                  await client.disconnect()
-
-          asyncio.run(main())
-          PYEOF

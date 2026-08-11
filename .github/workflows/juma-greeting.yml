@@ -35,7 +35,7 @@ jobs:
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main
             git stash --include-untracked 2>/dev/null || true
-            git checkout origin/main -- scripts/send_juma_greetings.py
+            git checkout origin/main -- scripts/send_juma_greetings.py scripts/telethon_guard.py scripts/__init__.py
 
             # Load credentials from VM's .env (same session the main service uses)
             if [ -f .env ]; then
