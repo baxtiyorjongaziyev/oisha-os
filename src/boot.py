@@ -361,6 +361,7 @@ async def boot_application():
         await init_hisobchi_tables(db)
         logger.info("[HISOBCHI] Database schema is ready.")
     app_ctx.msg_controller = MessageController(api_keys=api_keys, db=db)
+    msg_controller = app_ctx.msg_controller
 
     cloud_control_plane_only = runtime_mode.control_plane_only
 
@@ -420,18 +421,25 @@ async def boot_application():
                 )
                 logger.info("[SESSION] Keep-alive loop ishga tushdi")
 
+    client = app_ctx.client
+
     # Bot Client init
     BOT_TOKEN = settings.BOT_TOKEN.get_secret_value()
     _bot_session_string = os.environ.get("BOT_SESSION_STRING", "").strip()
     _bot_session = StringSession(_bot_session_string) if _bot_session_string else StringSession()
     app_ctx.bot_client = TelegramClient(_bot_session, settings.API_ID, settings.API_HASH)
     app_ctx.bot_token_str = BOT_TOKEN
+    bot_client = app_ctx.bot_client
+    BOT_TOKEN_STR = app_ctx.bot_token_str
     from src.services.core.telegram.bot_runtime import build_outbound_bot_runtime
     app_ctx.bot_runtime = build_outbound_bot_runtime(
         backend=getattr(settings, "TELEGRAM_BOT_RUNTIME_BACKEND", "telethon"),
         bot_token=app_ctx.bot_token_str,
         telethon_client=app_ctx.bot_client,
     )
+    # Keep a local alias for the rest of this boot transaction. The runtime is
+    # also published through app_ctx for cross-module consumers.
+    bot_runtime = app_ctx.bot_runtime
     bot_ingress_mode = str(
         getattr(settings, "TELEGRAM_BOT_INGRESS_MODE", "polling") or "polling"
     ).strip().lower()
