@@ -40,7 +40,15 @@ jobs:
           from telethon.sessions import StringSession
           from telethon.errors import FloodWaitError
 
-          PHONE = os.environ.get("TG_PHONE", "+998336450097")
+          # `.get(name, default)` bu yerda ISHLAMAYDI: env bloki TG_PHONE ni
+          # secret'dan oladi, secret yo'q bo'lsa GitHub o'zgaruvchini BO'SH
+          # SATR qilib qo'yadi — kalit mavjud bo'lgani uchun default hech
+          # qachon olinmaydi va Telethon ga None ketadi
+          # ("TypeError: bytes or str expected, not NoneType").
+          # `or` bo'sh satrni ham qamrab oladi.
+          PHONE = (os.environ.get("TG_PHONE") or "+998336450097").strip()
+          # Parolni TRIM QILMAYMIZ: 2FA parolida boshida/oxirida probel
+          # bo'lishi mumkin, strip uni jimgina buzadi va sign_in yiqiladi.
           TG_PASSWORD = os.environ.get("TG_PASSWORD", "")
           GH_TOKEN = os.environ["GH_TOKEN"]
           # Secrets API (unlike Variables) requires admin-level repo permissions
@@ -107,7 +115,7 @@ jobs:
                   import sys; sys.exit(0)
               code_hash = result.phone_code_hash
               print(f"SMS yuborildi: {PHONE}  hash={code_hash[:8]}...")
-              print(f"data/{CODE_FILE} ni kutmoqda (10 daqiqa)...")
+              print(f"{CODE_FILE} ni kutmoqda (10 daqiqa)...")
 
               code = None
               deadline = time.time() + 600
@@ -128,6 +136,13 @@ jobs:
               try:
                   await client.sign_in(phone=PHONE, code=code, phone_code_hash=code_hash)
               except SessionPasswordNeededError:
+                  if not TG_PASSWORD:
+                      raise RuntimeError(
+                          "Akkauntda 2FA yoqilgan, lekin TG_PASSWORD secret'i "
+                          "qo'yilmagan. Repo Settings > Secrets and variables > "
+                          "Actions da TG_PASSWORD qo'shing va qayta ishga tushiring. "
+                          "(Bo'sh parol bilan Telethon tushunarsiz ValueError beradi.)"
+                      )
                   print("2FA kiritilmoqda...")
                   await client.sign_in(password=TG_PASSWORD)
 
