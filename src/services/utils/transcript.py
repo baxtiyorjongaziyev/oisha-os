@@ -51,6 +51,19 @@ def _parse_timestamp(line: str) -> tuple[int | None, str]:
     return total, line[match.end():].strip()
 
 
+def has_timestamps(transcript: str) -> bool:
+    """Transkripsiyada haqiqiy vaqt belgilari bormi?
+
+    Bepul STT yo'li (Groq/Cloudflare) vaqt belgisi so'ramaydi — uning
+    `transcribe_audio(audio_bytes, mime_type)` imzosida prompt yo'q.
+    Shuning uchun transkripsiya vaqt belgisiz kelishi MUMKIN, va bunday
+    matnda "mijoz 01:42 da yo'qoldi" degan xulosa asossiz bo'ladi.
+    """
+    return any(
+        _TIMESTAMP_RE.match(line) for line in (transcript or "").splitlines()
+    )
+
+
 def strip_timestamps(transcript: str) -> str:
     """Vaqt belgilarini olib tashlaydi.
 

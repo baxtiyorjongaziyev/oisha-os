@@ -62,7 +62,10 @@ const scoreClass = (s) => s >= 75 ? "s-good" : s >= 40 ? "s-mid" : "s-bad";
 async function load() {
   let data;
   try {
-    const res = await fetch("/api/ai/conversion/overview?days=30", {
+    // DASHBOARD_READ huquqi bilan, brauzer sessiyasi orqali. `/api/ai/...`
+    // yo'li `OISHA_API_SECRET` header'ini talab qiladi — sahifa uni
+    // bilolmaydi, shuning uchun bu yerda panelga mos endpoint ishlatiladi.
+    const res = await fetch("/api/sales-quality/conversion-overview?days=30", {
       headers: { "Accept": "application/json" }, credentials: "same-origin",
     });
     if (!res.ok) throw new Error("HTTP " + res.status);

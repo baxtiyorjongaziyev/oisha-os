@@ -38,6 +38,7 @@ from src.services.core.call_events import CallEventLog, aggregate_volume, team_v
 from src.services.core.metasell_revenue import aggregate_revenue, format_money
 from src.services.core.sales_playbook import (
     SCORE_GOOD,
+    STAGE_METRICS,
     STAGE_WEIGHTS,
     normalise_outcome,
     outcome_converted,
@@ -375,20 +376,79 @@ def diagnose_seller(manager_name: str, rows: Sequence[Any]) -> SellerDiagnosis:
 
 
 def _is_converted(row: Any) -> bool:
-    raw = _row_get(row, "converted", None)
-    if raw not in (None, ""):
-        try:
-            return bool(int(raw))
-        except (TypeError, ValueError):
-            pass
+    """Qo'ng'iroq konversiyaga aylanganmi?
+
+    `converted = 1` — ishonchli "ha". Lekin `0` ni ishonchli "yo'q" deb
+    BO'LMAYDI: `call_analyses.converted` ustuni `DEFAULT 0` bilan
+    yaratilgan va uni faqat `call_analyzer` to'ldiradi. Boshqa
+    yozuvchilar (`ConversationEngine._save_analysis_to_db`,
+    `/api/sales-quality/ingest-analysis`) bu ustunni umuman yozmaydi,
+    ya'ni ularning `outcome = "sale"` qatorlari ham bazada `converted = 0`
+    bo'lib turadi. Nolni yakuniy deb qabul qilsak, o'sha muvaffaqiyatli
+    qo'ng'iroqlar konversiyaga kirmay qoladi va sotuvchi ko'rsatkichi
+    asossiz pasayadi.
+
+    Shuning uchun: 1 bo'lsa — ha; aks holda natijadan aniqlaymiz.
+    `call_analyzer` uchun ikkala signal bir xil, demak xatti-harakat
+    o'zgarmaydi.
+    """
+    try:
+        if int(_row_get(row, "converted", 0) or 0):
+            return True
+    except (TypeError, ValueError):
+        pass
     return outcome_converted(normalise_outcome(_row_get(row, "outcome", "")))
 
 
+def _metric_list_to_stages(items: Sequence[Any]) -> Dict[str, float]:
+    """Metrik ro'yxatini playbook bosqichlariga yig'adi.
+
+    `ConversationEngine` va `/api/sales-quality/ingest-analysis` ballarni
+    bosqich emas, MAYDA METRIK kesimida saqlaydi:
+        [{"metric": "closing", "score": 80}, ...]
+    Qaysi metrik qaysi bosqichga tegishli ekani `sales_playbook.STAGE_METRICS`
+    da — baholashning yagona manbasida. Bir bosqichga bir nechta metrik
+    tushsa, o'rtachasi olinadi.
+    """
+    by_metric: Dict[str, float] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = str(
+            item.get("metric") or item.get("name") or item.get("key") or ""
+        ).strip().lower()
+        if not name:
+            continue
+        raw = item.get("score", item.get("ball", item.get("value")))
+        try:
+            by_metric[name] = float(raw)
+        except (TypeError, ValueError):
+            continue
+
+    stages: Dict[str, float] = {}
+    for stage, metrics in STAGE_METRICS.items():
+        values = [by_metric[m] for m in metrics if m in by_metric]
+        if values:
+            stages[stage] = sum(values) / len(values)
+    return stages
+
+
 def _stage_scores(row: Any) -> Dict[str, float]:
-    scores = _json_obj(_row_get(row, "scores", ""))
+    """Bosqich ballari — ikkala saqlash formatini ham tushunadi."""
+    raw = _row_get(row, "scores", "")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            raw = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            raw = {}
+    if isinstance(raw, list):
+        return _metric_list_to_stages(raw)
+    if not isinstance(raw, dict):
+        return {}
+
     out: Dict[str, float] = {}
     for stage in STAGE_WEIGHTS:
-        value = scores.get(stage)
+        value = raw.get(stage)
         if isinstance(value, dict):
             value = value.get("ball")
         try:
