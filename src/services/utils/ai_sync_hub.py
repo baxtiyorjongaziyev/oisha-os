@@ -13,9 +13,11 @@ _MEMORY_DB_PATH = os.path.join("data", "ai_sync_memory.db")
 
 
 def _memory_conn() -> sqlite3.Connection:
+    # This store needs its dedicated local database: the file path is part of
+    # its isolation contract (see _MEMORY_DB_PATH above). Routing it through
+    # database_pool would send these writes to the canonical Turso DB.
     os.makedirs(os.path.dirname(_MEMORY_DB_PATH), exist_ok=True)
-    from src.database_pool import db_pool
-    conn = db_pool.get_connection()
+    conn = sqlite3.connect(_MEMORY_DB_PATH)
     conn.execute(
         "CREATE TABLE IF NOT EXISTS learned_facts ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, fact TEXT)"

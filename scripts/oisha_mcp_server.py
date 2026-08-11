@@ -86,7 +86,15 @@ def _api_request(url: str, data: Optional[bytes] = None) -> urllib.request.Reque
 
     auth_user = os.environ.get("OISHA_API_USER", "").strip()
     auth_pass = os.environ.get("OISHA_API_PASS", "").strip()
-    if auth_user and auth_pass:
+    secret = (os.environ.get("OISHA_API_SECRET") or "").strip()
+
+    # FastAPI RBAC authenticates trusted service calls with the API secret as
+    # a Bearer token.  The dedicated internal-secret header remains as the
+    # route-level guard.  Without both, /api/internal/mcp returns 401 even
+    # when the Telegram session itself is healthy.
+    if secret:
+        headers["Authorization"] = f"Bearer {secret}"
+    elif auth_user and auth_pass:
         token = base64.b64encode(f"{auth_user}:{auth_pass}".encode()).decode()
         headers["Authorization"] = f"Basic {token}"
     elif auth_user or auth_pass:
@@ -94,7 +102,6 @@ def _api_request(url: str, data: Optional[bytes] = None) -> urllib.request.Reque
             "[MCP] OISHA_API_USER/OISHA_API_PASS to'liq emas — Basic Auth o'tkazib yuborildi"
         )
 
-    secret = (os.environ.get("OISHA_API_SECRET") or "").strip()
     if secret:
         headers["X-Oisha-Internal-Secret"] = secret
     else:

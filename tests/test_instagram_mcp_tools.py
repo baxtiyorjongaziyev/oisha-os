@@ -82,11 +82,11 @@ async def test_mcp_profile_and_latest_post(stub_instagram):
     assert latest["checked_count"] == 2
 
 
-def test_api_request_omits_basic_auth_without_credentials(monkeypatch):
-    """Basic Auth faqat env to'liq bo'lganda qo'shiladi.
+def test_api_request_sets_bearer_auth_from_internal_secret(monkeypatch):
+    """Internal MCP request route guard va RBAC'dan birga o'tadi.
 
-    Ilgari kodda default parol hardcoded edi; endi qiymat yo'q bo'lsa header
-    umuman yuborilmaydi.
+    Secret ikki headerda yuboriladi: Bearer RBAC uchun, internal header esa
+    endpointning alohida route guard'i uchun.
     """
     monkeypatch.delenv("OISHA_API_USER", raising=False)
     monkeypatch.delenv("OISHA_API_PASS", raising=False)
@@ -94,15 +94,26 @@ def test_api_request_omits_basic_auth_without_credentials(monkeypatch):
 
     request = mcp_server._api_request("http://127.0.0.1:8080/api/internal/mcp/dialogs")
 
-    assert "Authorization" not in request.headers
+    assert request.headers["Authorization"] == "Bearer internal-secret"
     assert request.headers.get("X-oisha-internal-secret") == "internal-secret"
 
 
-def test_api_request_sets_basic_auth_from_env(monkeypatch):
+def test_api_request_prefers_bearer_auth_when_secret_exists(monkeypatch):
     monkeypatch.setenv("OISHA_API_USER", "oisha")
     monkeypatch.setenv("OISHA_API_PASS", "from-env")
     monkeypatch.setenv("OISHA_API_SECRET", "internal-secret")
 
     request = mcp_server._api_request("http://127.0.0.1:8080/api/internal/mcp/dialogs")
 
+    assert request.headers["Authorization"] == "Bearer internal-secret"
+
+
+def test_api_request_uses_basic_only_when_internal_secret_is_missing(monkeypatch):
+    monkeypatch.setenv("OISHA_API_USER", "oisha")
+    monkeypatch.setenv("OISHA_API_PASS", "from-env")
+    monkeypatch.delenv("OISHA_API_SECRET", raising=False)
+
+    request = mcp_server._api_request("http://127.0.0.1:8080/healthz")
+
     assert request.headers["Authorization"].startswith("Basic ")
+    assert "X-oisha-internal-secret" not in request.headers

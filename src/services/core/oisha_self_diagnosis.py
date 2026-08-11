@@ -248,7 +248,7 @@ class OishaSelfDiagnosis:
                         severity=severity,
                         title=f"{action_type} xatosi ({count}x)",
                         problem=f"So'nggi 24 soatda {count} marta xato: {error_msg[:200]}",
-                        proposed_solution=self._suggest_error_fix(error_msg),
+                        proposed_solution=await self._get_root_cause_and_solution(error_msg),
                         affected_files=self._guess_files_from_error(error_msg),
                         estimated_effort="30min"
                         if severity == SEVERITY_CRITICAL
@@ -275,6 +275,24 @@ class OishaSelfDiagnosis:
         if "timeout" in error_msg.lower():
             return "API so'rov vaqti tugadi — retry logic qo'shing yoki timeout limitini oshiring."
         return "Xatolik logini ko'rib chiqing va tegishli modulda fix qiling."
+
+    async def _get_root_cause_and_solution(self, error_msg: str) -> str:
+        base_solution = self._suggest_error_fix(error_msg)
+        if not self._gemini_api_key:
+            return base_solution
+            
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=self._gemini_api_key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            prompt = f"Ushbu xatolikning ildiz sababi (root cause) nima bo'lishi mumkin va qanday yechim taklif qilasan? 1-2 ta qisqa gap bilan yozing:\n\n{error_msg[:1000]}"
+            response = await model.generate_content_async(prompt)
+            root_cause = response.text.strip() if response.text else ""
+            if root_cause:
+                return f"🤖 AI Root Cause:\n{root_cause}\n\nStandart tavsiya: {base_solution}"
+        except Exception as e:
+            logger.warning("[SELF-DIAG] Gemini root cause failed: %s", e)
+        return base_solution
 
     def _guess_files_from_error(self, error_msg: str) -> List[str]:
         files = re.findall(r'File "([^"]+)"', error_msg)
@@ -752,7 +770,8 @@ class OishaSelfDiagnosis:
             f"<b>Muammo:</b> {problem}\n\n"
             f"<b>Taklif:</b> {solution}\n\n"
             f"<b>Agent:</b> {agent} · <b>Vaqt:</b> {effort}\n"
-            f"<b>Fayllar:</b> {file_text or 'aniqlanmagan'}"
+            f"<b>Fayllar:</b> {file_text or 'aniqlanmagan'}\n\n"
+            f"<i>⚠️ Tasdiqlansa, tanlangan AI-agent muammoni hal qilishga avtomatik kirishadi.</i>"
         )[:3900]
 
     @staticmethod
