@@ -309,7 +309,7 @@ async def process_hisobchi(
     Hisobchi AI — card bot xabarlarini qayta ishlash.
     Qaytaradi: True = xabar qayta ishlandi, False = davom etish.
     """
-    from src.services.core.finance.hisobchi_handlers import (
+    from src.services.core.finance.handlers import (
         handle_card_bot_message,
         handle_finance_group_reply,
         is_card_bot_sender,
@@ -325,7 +325,7 @@ async def process_hisobchi(
             if event.is_private and event.chat_id == me.id:
                 return False
 
-        _hisobchi_engine = HisobchiEngine(msg_controller.db)
+        _hisobchi_engine = app_ctx.hisobchi_engine or HisobchiEngine(msg_controller.db)
 
         if event.is_private and not event.out and is_card_bot_sender(sender):
             await handle_card_bot_message(
@@ -335,7 +335,7 @@ async def process_hisobchi(
             return True
 
         if not event.out and event.message.voice and voice_processor:
-            from src.services.core.finance.hisobchi_handlers import _get_finance_config
+            from src.services.core.finance.handlers import _get_finance_config
 
             finance_group_id, _, _ = _get_finance_config()
             is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
@@ -346,7 +346,7 @@ async def process_hisobchi(
                 me = await client.get_me()
                 is_auth_user = (sender_id is not None and (sender_id in managers or sender_id == me.id))
             if is_finance_chat or is_auth_user:
-                from src.services.core.finance.hisobchi_handlers import process_finance_voice_message
+                from src.services.core.finance.handlers import process_finance_voice_message
 
                 was_voice_hisobchi = await process_finance_voice_message(
                     event, client, _hisobchi_engine, voice_processor
@@ -355,14 +355,14 @@ async def process_hisobchi(
                     return True
 
         # Handle manual group logs (text, photos) sent directly in finance group
-        from src.services.core.finance.hisobchi_handlers import _get_finance_config
+        from src.services.core.finance.handlers import _get_finance_config
         finance_group_id, kirim_topic_id, chiqim_topic_id = _get_finance_config()
         is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
 
         if is_finance_chat and not event.out:
             # 1. Photos (receipts) posted in finance group topics
             if event.message.photo:
-                from src.services.core.finance.hisobchi_handlers import handle_receipt_photo
+                from src.services.core.finance.handlers import handle_receipt_photo
                 reply_to = getattr(event.message, "reply_to", None)
                 topic_id = getattr(reply_to, "reply_to_msg_id", None) if reply_to else None
                 direction = "in" if topic_id == kirim_topic_id else "out"
@@ -373,7 +373,7 @@ async def process_hisobchi(
 
             # 2. Text commands or plain text posted in finance group topics
             if message_text:
-                from src.services.core.finance.hisobchi_handlers import (
+                from src.services.core.finance.handlers import (
                     handle_kirim_chiqim_text,
                     handle_topic_plain_text,
                 )
@@ -671,9 +671,10 @@ async def process_voice(
                 except Exception as exc:
                     logger.debug("[VOICE] CRM context lookup failed: %s", exc)
 
-            stt_result = await transcribe_and_assess_audio(
-                audio_bytes, mime_type="audio/ogg", crm_status=crm_status
-            )
+            async with client.action(event.chat_id, 'typing'):
+                stt_result = await transcribe_and_assess_audio(
+                    audio_bytes, mime_type="audio/ogg", crm_status=crm_status
+                )
             transcript = stt_result.get("transcript", "")
             assessment = stt_result.get("assessment")
 
@@ -987,67 +988,69 @@ async def process_ai_reply(
         await safe_responder.prepare_to_reply(event, client)
 
         ai_raw_response = None
-        if surgical_integration and surgical_integration.should_use_surgical(
-            str(sender.id), message_text or ""
-        ):
-            try:
-                surgical_context = {
-                    "user_info": {
-                        "first_name": getattr(sender, "first_name", ""),
-                        "last_name": getattr(sender, "last_name", ""),
-                        "username": getattr(sender, "username", ""),
-                    },
+        
+        async with event.client.action(chat_id, 'typing'):
+            if surgical_integration and surgical_integration.should_use_surgical(
+                str(sender.id), message_text or ""
+            ):
+                try:
+                    surgical_context = {
+                        "user_info": {
+                            "first_name": getattr(sender, "first_name", ""),
+                            "last_name": getattr(sender, "last_name", ""),
+                            "username": getattr(sender, "username", ""),
+                        },
+                        "chat_id": chat_id,
+                        "source": "telegram",
+                    }
+                    if vision_context:
+                        surgical_context["image_context"] = vision_context
+                    surgical_result = await surgical_integration.process_message(
+                        user_id=str(sender.id),
+                        message=message_text or "",
+                        context=surgical_context,
+                    )
+                    if surgical_result.get("mode") == "surgical":
+                        ai_raw_response = surgical_result.get("response")
+                        logger.info(
+                            "[SURGICAL] Autonomous response uid=%s "
+                            "stage=%s prob=%s",
+                            sender.id,
+                            surgical_result.get("deal_info", {}).get("stage"),
+                            f"{surgical_result.get('deal_info', {}).get('probability', 0):.0%}",
+                        )
+                        if surgical_result.get("deal_info", {}).get("probability", 1) < 0.2:
+                            ai_raw_response = None
+                except Exception as surg_ex:
+                    logger.warning("[SURGICAL] Fallback to legacy: %s", surg_ex)
+
+            if not ai_raw_response:
+                legacy_context = {
                     "chat_id": chat_id,
-                    "source": "telegram",
+                    "is_group": not event.is_private,
+                    "dosye": dosye,
                 }
                 if vision_context:
-                    surgical_context["image_context"] = vision_context
-                surgical_result = await surgical_integration.process_message(
-                    user_id=str(sender.id),
-                    message=message_text or "",
-                    context=surgical_context,
+                    legacy_context["image_context"] = vision_context
+                ai_raw_response = await msg_controller.get_response(
+                    user_id=sender.id,
+                    user_name=sender_name,
+                    message=message_text,
+                    context=legacy_context,
                 )
-                if surgical_result.get("mode") == "surgical":
-                    ai_raw_response = surgical_result.get("response")
-                    logger.info(
-                        "[SURGICAL] Autonomous response uid=%s "
-                        "stage=%s prob=%s",
-                        sender.id,
-                        surgical_result.get("deal_info", {}).get("stage"),
-                        f"{surgical_result.get('deal_info', {}).get('probability', 0):.0%}",
-                    )
-                    if surgical_result.get("deal_info", {}).get("probability", 1) < 0.2:
-                        ai_raw_response = None
-            except Exception as surg_ex:
-                logger.warning("[SURGICAL] Fallback to legacy: %s", surg_ex)
 
-        if not ai_raw_response:
-            legacy_context = {
-                "chat_id": chat_id,
-                "is_group": not event.is_private,
-                "dosye": dosye,
-            }
-            if vision_context:
-                legacy_context["image_context"] = vision_context
-            ai_raw_response = await msg_controller.get_response(
-                user_id=sender.id,
-                user_name=sender_name,
-                message=message_text,
-                context=legacy_context,
-            )
+            if ai_raw_response:
+                final_text = await action_parser.parse_and_execute(
+                    reply_text=ai_raw_response,
+                    sender_id=sender.id,
+                    sender_name=sender_name,
+                    username=getattr(sender, "username", "yoq"),
+                    saved_phone=None,
+                    context=None,
+                    is_business=False,
+                )
 
-        if ai_raw_response:
-            final_text = await action_parser.parse_and_execute(
-                reply_text=ai_raw_response,
-                sender_id=sender.id,
-                sender_name=sender_name,
-                username=getattr(sender, "username", "yoq"),
-                saved_phone=None,
-                context=None,
-                is_business=False,
-            )
-
-            if final_text:
+        if ai_raw_response and final_text:
                 if decision.action == "shadow":
                     if admin_bot:
                         try:
