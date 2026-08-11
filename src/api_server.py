@@ -374,12 +374,10 @@ async def verify_oauth_for_mcp(request: Request, call_next):
 # Include existing routers
 from src.api import admin, dashboard
 from src.api.live_monitor import router as live_monitor_router
-from src.api.routes.oauth2 import router as oauth2_router
 
 app.include_router(dashboard.router)
 app.include_router(admin.router)
 app.include_router(live_monitor_router)
-app.include_router(oauth2_router)
 
 # Hisobchi MCP router
 try:
