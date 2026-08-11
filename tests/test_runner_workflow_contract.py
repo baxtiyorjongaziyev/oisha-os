@@ -26,7 +26,7 @@ def test_trusted_main_job_is_push_only():
     workflow = load_workflow("test.yml")
     trusted = workflow["jobs"]["trusted-main-tests"]
     assert "github.event_name == 'push'" in trusted["if"]
-    assert trusted["runs-on"] == ["self-hosted", "oracle"]
+    assert trusted["runs-on"] == "ubuntu-latest"
 
 
 def test_runner_diagnostic_has_action_free_github_hosted_probe():

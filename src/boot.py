@@ -500,11 +500,15 @@ async def boot_application():
             name="instagram_weekly_report_loop",
         )
         
-        from src.schedulers.cloud_brain_synthesizer import brain_synthesizer_loop
-        asyncio.create_task(
-            brain_synthesizer_loop(bot_runtime, settings.OWNER_ID),
-            name="cloud_brain_synthesizer_loop"
-        )
+        try:
+            from src.schedulers.cloud_brain_synthesizer import brain_synthesizer_loop
+        except ImportError as exc:
+            logger.warning("[BRAIN] Cloud synthesizer unavailable: %s", exc)
+        else:
+            asyncio.create_task(
+                brain_synthesizer_loop(bot_runtime, settings.OWNER_ID),
+                name="cloud_brain_synthesizer_loop",
+            )
 
     # Surgical negotiator
     surgical_integration = get_surgical_integration()
