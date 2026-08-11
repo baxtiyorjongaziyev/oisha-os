@@ -21,7 +21,9 @@ def test_juma_greeting_is_natural_and_changes_each_week():
     second = build_humanized_juma_greeting("Akbarjon aka", datetime(2026, 8, 21))
 
     assert first != second
-    assert first.startswith("Assalomu alaykum, Akbarjon aka.")
+    assert first.startswith("Assalomu alaykum.")
+    assert "Akbarjon" not in first
+    assert "aka" not in first.lower()
     assert "Juma" in first
     assert "AI" not in first
     assert "Jon Branding jamoasi" not in first

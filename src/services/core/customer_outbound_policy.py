@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from typing import Any
 
@@ -26,10 +25,8 @@ def automatic_customer_send_allowed(kind: str, *, now: datetime | None = None) -
 
 
 def build_humanized_juma_greeting(name: Any, now: datetime | None = None) -> str:
-    """Build a short conversational greeting that rotates every ISO week."""
+    """Build a name-free conversational greeting that rotates every ISO week."""
     current = now or datetime.now()
-    clean_name = re.sub(r"\s+", " ", str(name or "")).strip(" ,.!-")
-    clean_name = clean_name or "aziz inson"
     _, week, _ = current.isocalendar()
     body = _JUMA_TEMPLATES[(week - 1) % len(_JUMA_TEMPLATES)]
-    return f"Assalomu alaykum, {clean_name}. {body}"
+    return f"Assalomu alaykum. {body}"
