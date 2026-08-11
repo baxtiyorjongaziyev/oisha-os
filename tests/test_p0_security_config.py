@@ -20,9 +20,9 @@ def test_pull_requests_never_run_on_production_oracle_runner():
     assert "if: github.event_name == 'pull_request'" in workflow
 
 
-def test_production_runner_job_is_push_only():
+def test_trusted_main_job_is_push_only_and_github_hosted():
     workflow = (REPO_ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
 
     assert "trusted-main-tests:" in workflow
-    assert "runs-on: [self-hosted, oracle]" in workflow
+    assert "runs-on: ubuntu-latest" in workflow
     assert "if: github.event_name == 'push'" in workflow
