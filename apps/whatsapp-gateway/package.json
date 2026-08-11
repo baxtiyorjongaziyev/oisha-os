@@ -2,6 +2,7 @@
   "name": "@oisha/whatsapp-gateway",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Oisha-OS WhatsApp Gateway - Baileys based (free, QR auth)",
   "main": "dist/index.js",
   "scripts": {

@@ -69,7 +69,7 @@ define(['jquery'], function ($) {
                                 currentPhone = phoneField.values[0].value.replace(/\\D/g, "");
                                 loadHistory(currentPhone);
                             } else {
-                                $('#oisha-native-messages').html('<div style="text-align:center; color:red; font-size:12px; margin-top:20px;">Kontaktda telefon raqami yo\\'q.</div>');
+                                $('#oisha-native-messages').html("<div style=\"text-align:center; color:red; font-size:12px; margin-top:20px;\">Kontaktda telefon raqami yo'q.</div>");
                             }
                         }
                     });

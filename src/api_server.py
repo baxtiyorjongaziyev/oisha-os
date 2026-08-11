@@ -354,18 +354,14 @@ async def verify_oauth_for_mcp(request: Request, call_next):
         # Basic secret check
         auth_header = request.headers.get("Authorization")
         expected_token = getattr(settings, "OISHA_API_SECRET", "")
-        
+
         # In Gemini Web / ChatGPT Custom Actions, they send "Bearer <token>"
         is_authorized = False
-        if auth_header and auth_header.startswith("Bearer "):
+        if expected_token and auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]
-            if token and token == expected_token:
+            if token and hmac.compare_digest(token, expected_token):
                 is_authorized = True
-                
-        # Fallback to direct path secret (our previous approach)
-        if not is_authorized and f"/telegram-mcp-{expected_token}" in request.url.path:
-            is_authorized = True
-            
+
         if not is_authorized:
             return JSONResponse({"detail": "Unauthorized. Bearer token missing or invalid."}, status_code=401, headers={"WWW-Authenticate": "Bearer"})
             

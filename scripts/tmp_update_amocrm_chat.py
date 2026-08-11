@@ -10,12 +10,13 @@ def main():
     with open(env_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
-    # Define the new variables
-    new_vars = {
-        "AMOCRM_CHAT_ACCOUNT_ID": "32681154",
-        "AMOCRM_CHAT_CHANNEL_ID": "0d2088fa-d9dc-43d8-9ed9-abe79aff1752",
-        "AMOCRM_CHAT_SECRET": "FA0Ip3JU7sZ7gRijTPPNo3DRb9W9ul61t7XrZBSgCzLVixtrOw8ln8f88dmukODg"
-    }
+    # Define the new variables — pass secrets via env, never hardcode
+    required_env = ("AMOCRM_CHAT_ACCOUNT_ID", "AMOCRM_CHAT_CHANNEL_ID", "AMOCRM_CHAT_SECRET")
+    missing = [k for k in required_env if not os.environ.get(k)]
+    if missing:
+        print(f"Error: missing required env vars: {', '.join(missing)}")
+        sys.exit(1)
+    new_vars = {k: os.environ[k] for k in required_env}
 
     # Filter out existing variables with the same names
     filtered_lines = []

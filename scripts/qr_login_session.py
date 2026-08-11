@@ -78,8 +78,10 @@ async def main():
     # .env ni yangilash
     env_file = ".env"
     set_key(env_file, "USERBOT_SESSION_STRING", session_string)
-    set_key(env_file, "TELEGRAM_MCP_SESSION_STRING", session_string)
-    
+    # NOTE: TELEGRAM_MCP_SESSION_STRING must be a DEDICATED session, never
+    # equal to USERBOT_SESSION_STRING (see CLAUDE.md). Generate it separately
+    # via its own login flow — do not copy this value.
+
     print("🎉 Yangi session string .env fayliga avtomatik tarzda yozildi!")
     await client.disconnect()
 

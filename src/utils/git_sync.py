@@ -19,19 +19,34 @@ async def push_vault_to_remote(vault_path: Path) -> None:
             token_val = str(token)
         if token_val:
             env["GIT_HTTPS_TOKEN"] = token_val
-    cmd = (
-        f'git -C "{vault_path}" add . && '
-        f'git -C "{vault_path}" commit -m "Second Brain digest – {settings.APP_TIMEZONE}" && '
-        f'git -C "{vault_path}" push {settings.VAULT_GIT_REMOTE} {settings.VAULT_GIT_BRANCH}'
-    )
-    proc = await asyncio.create_subprocess_shell(
-        cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        env=env,
-    )
-    out, err = await proc.communicate()
-    if proc.returncode != 0:
+    vault_path_str = str(vault_path)
+
+    async def run(*args: str) -> tuple[int, bytes, bytes]:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "-C", vault_path_str, *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+        )
+        out, err = await proc.communicate()
+        return proc.returncode, out, err
+
+    rc, _, err = await run("add", ".")
+    if rc != 0:
+        logger.error(f"Git add failed: {err.decode().strip()}")
+        return
+
+    rc, _, err = await run("commit", "-m", f"Second Brain digest – {settings.APP_TIMEZONE}")
+    if rc != 0:
+        # Nothing to commit is not an error — skip the push quietly.
+        if "nothing to commit" in err.decode().lower():
+            logger.info("Vault has no changes to push.")
+            return
+        logger.error(f"Git commit failed: {err.decode().strip()}")
+        return
+
+    rc, _, err = await run("push", settings.VAULT_GIT_REMOTE, settings.VAULT_GIT_BRANCH)
+    if rc != 0:
         logger.error(f"Git push failed: {err.decode().strip()}")
     else:
         logger.info("Vault successfully pushed to remote.")

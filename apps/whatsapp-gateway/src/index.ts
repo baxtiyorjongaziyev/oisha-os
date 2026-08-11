@@ -4,15 +4,12 @@ import makeWASocket, {
   makeCacheableSignalKeyStore,
   makeInMemoryStore,
   useMultiFileAuthState,
-  WAMessageContent,
-  proto,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import express, { Request, Response } from "express";
 import axios from "axios";
 import qrcode from "qrcode-terminal";
 import pino from "pino";
-import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 

@@ -1,4 +1,7 @@
+import hmac
 import os
+import secrets
+import time
 import html as html_lib
 from typing import Optional
 from urllib.parse import urlparse
@@ -6,6 +9,9 @@ from fastapi import APIRouter, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 router = APIRouter(prefix="/oauth2", tags=["oauth2"])
+
+_AUTH_CODE_TTL_SECONDS = 300
+_auth_codes: dict[str, tuple[str, float]] = {}  # code -> (client_id, expires_at)
 
 
 def _allowed_redirect_uris() -> set[str]:
@@ -74,10 +80,9 @@ async def authorize_post(
     state: str = Form(...),
 ):
     redirect_uri = _validate_redirect_uri(redirect_uri)
-    # In a real system, we'd generate a temporary auth code and store it.
-    # For this simplified stateless version, we just use a static code.
-    auth_code = "oisha_auth_code_123"
-    
+    auth_code = secrets.token_urlsafe(32)
+    _auth_codes[auth_code] = (client_id, time.time() + _AUTH_CODE_TTL_SECONDS)
+
     # Append code and state to redirect_uri
     if "?" in redirect_uri:
         redirect_url = f"{redirect_uri}&code={auth_code}&state={state}"
@@ -97,15 +102,27 @@ async def token(
 ):
     if grant_type != "authorization_code":
         raise HTTPException(status_code=400, detail="Unsupported grant type")
-        
-    if code != "oisha_auth_code_123":
-        raise HTTPException(status_code=400, detail="Invalid authorization code")
-        
-    # The access token is simply the OISHA_API_SECRET
-    # This way the existing internal mechanisms that expect it might work, 
-    # but the middleware will explicitly check it anyway.
-    access_token = os.environ.get("OISHA_API_SECRET", "default_secret_if_none")
-    
+
+    entry = _auth_codes.pop(code, None) if code else None
+    if entry is None or entry[1] < time.time():
+        raise HTTPException(status_code=400, detail="Invalid or expired authorization code")
+
+    stored_client_id, _ = entry
+    if not client_id or not hmac.compare_digest(client_id, stored_client_id):
+        raise HTTPException(status_code=400, detail="client_id mismatch")
+
+    expected_secret = os.environ.get("OAUTH2_CLIENT_SECRET") or os.environ.get("OISHA_API_SECRET")
+    if not expected_secret:
+        raise HTTPException(status_code=500, detail="OAuth2 not configured")
+    if not client_secret or not hmac.compare_digest(client_secret, expected_secret):
+        raise HTTPException(status_code=401, detail="Invalid client_secret")
+
+    # The access token is the OISHA_API_SECRET so existing internal auth
+    # middleware (which checks it directly) accepts requests made with it.
+    access_token = os.environ.get("OISHA_API_SECRET")
+    if not access_token:
+        raise HTTPException(status_code=500, detail="OAuth2 not configured")
+
     return {
         "access_token": access_token,
         "token_type": "bearer",

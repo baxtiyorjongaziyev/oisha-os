@@ -6,6 +6,8 @@ Route handlers live in src/api/routes/.
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
 import hmac
 import inspect
 import json

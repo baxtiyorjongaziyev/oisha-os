@@ -48,7 +48,8 @@ async def main():
                 raise e
         
         set_key(".env", "USERBOT_SESSION_STRING", client.session.save())
-        set_key(".env", "TELEGRAM_MCP_SESSION_STRING", client.session.save())
+        # NOTE: TELEGRAM_MCP_SESSION_STRING must be a DEDICATED session, never
+        # equal to USERBOT_SESSION_STRING (see CLAUDE.md). Generate it separately.
         me = await client.get_me()
         print(f"MUVAFFAQIYATLI: {me.first_name} (@{me.username})")
 
