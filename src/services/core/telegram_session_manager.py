@@ -276,10 +276,11 @@ class TelegramSessionManager:
                     self._reconnect_count + 1,
                     self._max_reconnect or "forever",
                 )
-                await self._notify_admin_throttled(
-                    "⚠️ USERBOT RECONNECT\n\n"
-                    "Telegram userbot connection tushdi. Oisha avtomatik qayta ulanishga urinmoqda."
-                )
+                if self._reconnect_count >= 2:
+                    await self._notify_admin_throttled(
+                        "⚠️ USERBOT RECONNECT\n\n"
+                        "Telegram userbot connection tushdi. Oisha avtomatik qayta ulanishga urinmoqda."
+                    )
                 await asyncio.sleep(delay)
 
                 # Qayta ulanish
