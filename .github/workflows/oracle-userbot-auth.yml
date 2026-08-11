@@ -1,0 +1,121 @@
+# Userbot session'ni Oracle VM da tiklash.
+#
+# Nega aynan VM da: session EGASI — Oracle dagi oisha-os.service. Kalitni
+# o'sha mashinada yaratsak, u hech qachon boshqa IP dan ochilmaydi va
+# AuthKeyDuplicated xavfi yo'qoladi (qarang
+# docs/operations/telethon-session-ownership.md).
+#
+# complete-auth.yml dan farqi:
+#   - GitHub runner da emas, VM da ishlaydi
+#   - TELEGRAM_PHONE / TELEGRAM_PASSWORD ni VM ning .env idan oladi,
+#     ya'ni GitHub secret shart emas
+#   - session stringni hech qayerda chop etmaydi: to'g'ridan-to'g'ri
+#     data/userbot_session_string.txt ga va .env ga yozadi
+name: Userbot Auth (Oracle VM)
+
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: 'start = kod so‘rash | code = kodni yuborish | status = holat | restart = servisni qayta ishga tushirish'
+        required: true
+        default: 'status'
+        type: choice
+        options: [start, code, status, restart]
+      code:
+        description: '[faqat step=code] Telegram login kodi (faqat raqamlar)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  auth:
+    name: Userbot auth on Oracle VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run auth step on Oracle VM
+        uses: appleboy/ssh-action@v1
+        env:
+          AUTH_STEP: ${{ inputs.step }}
+          # Kod skript matniga EMAS, env orqali uzatiladi — aks holda
+          # workflow input'i remote shell ga inject qilinishi mumkin edi.
+          AUTH_CODE: ${{ inputs.code }}
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 14m
+          envs: AUTH_STEP,AUTH_CODE
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/oisha-os
+            mkdir -p data
+
+            show_status() {
+              if [ -f data/userbot_auth_status.json ]; then
+                echo "STATUS: $(cat data/userbot_auth_status.json)"
+              else
+                echo "STATUS: (hali yo'q)"
+              fi
+            }
+
+            case "$AUTH_STEP" in
+              start)
+                if [ ! -f .env ]; then
+                  echo "XATO: /home/ubuntu/oisha-os/.env topilmadi"; exit 1
+                fi
+                # Parol .env da bormi — qiymatini KO'RSATMAYMIZ, faqat bor-yo'qligini.
+                if grep -qE '^TELEGRAM_PASSWORD=.+' .env; then
+                  echo "TELEGRAM_PASSWORD: .env da bor"
+                else
+                  echo "OGOHLANTIRISH: .env da TELEGRAM_PASSWORD yo'q."
+                  echo "Akkauntda 2FA yoqilgan bo'lsa, skript parolni"
+                  echo "data/userbot_auth_password.txt faylidan kutadi."
+                fi
+                rm -f data/userbot_auth_code.txt data/userbot_auth_status.json
+                nohup ./venv/bin/python scripts/prod/auth_userbot_on_oracle.py \
+                  > data/userbot_auth.log 2>&1 &
+                echo "Auth skript fonda ishga tushdi (PID $!)"
+                sleep 15
+                show_status
+                echo "--- log ---"; tail -n 20 data/userbot_auth.log || true
+                ;;
+
+              code)
+                if ! printf '%s' "$AUTH_CODE" | grep -qE '^[0-9]{4,8}$'; then
+                  echo "XATO: kod faqat 4-8 ta raqamdan iborat bo'lishi kerak"; exit 1
+                fi
+                printf '%s' "$AUTH_CODE" > data/userbot_auth_code.txt
+                chmod 600 data/userbot_auth_code.txt
+                echo "Kod yozildi, skript uni 0.5s ichida oladi."
+                sleep 20
+                show_status
+                echo "--- log ---"; tail -n 30 data/userbot_auth.log || true
+                ;;
+
+              status)
+                show_status
+                echo "--- log ---"; tail -n 30 data/userbot_auth.log || true
+                ;;
+
+              restart)
+                sudo systemctl restart oisha-os
+                echo "oisha-os qayta ishga tushirildi, /readyz kutilmoqda..."
+                for i in $(seq 1 20); do
+                  HTTP_CODE="$(curl -s -o /tmp/readyz.json -w "%{http_code}" \
+                    --max-time 10 http://127.0.0.1:8080/readyz/ || echo 000)"
+                  if [ "$HTTP_CODE" = "200" ]; then
+                    echo "READY: $(cat /tmp/readyz.json)"; exit 0
+                  fi
+                  sleep 15
+                done
+                echo "XATO: /readyz 200 bermadi"
+                echo "OXIRGI JAVOB: $(cat /tmp/readyz.json 2>/dev/null || echo yo-q)"
+                exit 1
+                ;;
+            esac
