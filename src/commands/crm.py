@@ -61,8 +61,8 @@ async def cmd_contacts_audit(event, **ctx):
     client = ctx["client"]
     get_surgical_integration = ctx["get_surgical_integration"]
     import asyncio
-    global _crm_audit_running
-    if _crm_audit_running:
+    from src.context import app_ctx
+    if app_ctx.crm_audit_running:
         await event.respond("⚠️ **Audit allaqachon fonda ishlamoqda!**\nHisobot olish uchun `/contacts_report` yozing.")
         return
 
@@ -83,8 +83,8 @@ async def cmd_contacts_audit(event, **ctx):
     )
 
     async def run_audit_task():
-        global _crm_audit_running
-        _crm_audit_running = True
+        from src.context import app_ctx
+        app_ctx.crm_audit_running = True
         try:
             amocrm_client = None
             if msg_controller and getattr(msg_controller, "crm", None):
@@ -146,7 +146,7 @@ async def cmd_contacts_audit(event, **ctx):
                     exc_info=True,
                 )
         finally:
-            _crm_audit_running = False
+            app_ctx.crm_audit_running = False
 
     asyncio.create_task(run_audit_task())
 

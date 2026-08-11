@@ -85,13 +85,21 @@ class SelfImprovementService:
             return DiagnosisOutcome(skipped=True)
 
         proposals = await self.diagnosis.run_full_diagnosis()
+        
+        # Deduplication: Faqat yangi takliflar haqida xabar berish
+        new_proposals = []
+        for p in proposals:
+            existing = await self.repository.get_proposal(p.id)
+            if not existing:
+                new_proposals.append(p)
+
         await self.repository.save_proposals(proposals)
         if not force:
             await self.db.mark_job_run(DAILY_JOB_NAME, run_date)
 
         notified = False
-        if notify:
-            notified = await self.notify_digest(proposals)
+        if notify and new_proposals:
+            notified = await self.notify_digest(new_proposals)
         logger.info(
             "[SELF-IMPROVEMENT] scan complete: proposals=%d notified=%s force=%s",
             len(proposals),
@@ -195,10 +203,12 @@ class SelfImprovementService:
             buttons = [
                 [
                     Button.inline(
-                        "✅ AI agentga berish", f"improve:accept:{proposal_id}"
-                    ),
-                    Button.inline("⏸ 7 kun", f"improve:defer:{proposal_id}"),
-                    Button.inline("❌ Rad", f"improve:reject:{proposal_id}"),
+                        "✅ AI-agent bajaradi (Tasdiqlash)", f"improve:accept:{proposal_id}"
+                    )
+                ],
+                [
+                    Button.inline("⏸ 7 kunga qoldirish", f"improve:defer:{proposal_id}"),
+                    Button.inline("❌ Rad etish", f"improve:reject:{proposal_id}"),
                 ]
             ]
             await self.bot_client.send_message(
