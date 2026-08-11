@@ -313,10 +313,12 @@ async def process_hisobchi(
     voice_processor,
     settings,
 ) -> bool:
-    # Show typing indicator while processing Hisobchi messages
     """Hisobchi AI — card bot xabarlarini qayta ishlash.
     Qaytaradi: True = xabar qayta ishlandi, False = davom etish.
-    """        try:
+    """
+    try:
+        # Show typing indicator while processing Hisobchi messages
+        try:
             await client.send_chat_action(event.chat_id, 'typing')
         except Exception:
             pass
@@ -340,8 +342,6 @@ async def process_hisobchi(
             return True
 
         if not event.out and event.message.voice and voice_processor:
-            from src.services.core.finance.handlers import _get_finance_config
-
             finance_group_id, _, _ = _get_finance_config()
             is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
             is_auth_user = False
@@ -359,16 +359,9 @@ async def process_hisobchi(
                 if was_voice_hisobchi:
                     return True
 
-        # Handle manual group logger = logging.getLogger(__name__)
-
-# Finance handlers imports
-from src.services.core.finance.handlers import (
-    handle_card_bot_message,
-    handle_finance_group_reply,
-    is_card_bot_sender,
-)
-    finance_group_id, kirim_topic_id, chiqim_topic_id = _get_finance_config()
-    is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
+        # Handle manual group finance commands / plain text
+        finance_group_id, kirim_topic_id, chiqim_topic_id = _get_finance_config()
+        is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
 
         if is_finance_chat and not event.out:
             # 1. Photos (receipts) posted in finance group topics

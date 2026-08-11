@@ -1,9 +1,28 @@
 import os
+import html as html_lib
 from typing import Optional
+from urllib.parse import urlparse
 from fastapi import APIRouter, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 router = APIRouter(prefix="/oauth2", tags=["oauth2"])
+
+
+def _allowed_redirect_uris() -> set[str]:
+    raw = os.environ.get("OAUTH2_ALLOWED_REDIRECT_URIS", "")
+    return {u.strip() for u in raw.split(",") if u.strip()}
+
+
+def _validate_redirect_uri(redirect_uri: str) -> str:
+    allowed = _allowed_redirect_uris()
+    if allowed and redirect_uri not in allowed:
+        raise HTTPException(status_code=400, detail="Invalid redirect_uri")
+    if not allowed:
+        parsed = urlparse(redirect_uri)
+        if parsed.scheme not in ("https", "http") or not parsed.netloc:
+            raise HTTPException(status_code=400, detail="Invalid redirect_uri")
+    return redirect_uri
+
 
 # GET /oauth2/authorize - Shows the consent screen
 @router.get("/authorize", response_class=HTMLResponse)
@@ -14,6 +33,10 @@ async def authorize_get(
     state: str,
     response_type: str = "code",
 ):
+    redirect_uri = _validate_redirect_uri(redirect_uri)
+    safe_client_id = html_lib.escape(client_id)
+    safe_redirect_uri = html_lib.escape(redirect_uri)
+    safe_state = html_lib.escape(state)
     # Simple HTML consent screen
     html = f"""
     <!DOCTYPE html>
@@ -30,11 +53,11 @@ async def authorize_get(
     <body>
         <div class="card">
             <h2>Oisha-OS</h2>
-            <p><strong>{client_id}</strong> is requesting access to your Oisha-OS MCP Server (Telegram & CRM).</p>
+            <p><strong>{safe_client_id}</strong> is requesting access to your Oisha-OS MCP Server (Telegram & CRM).</p>
             <form method="POST" action="/oauth2/authorize">
-                <input type="hidden" name="client_id" value="{client_id}">
-                <input type="hidden" name="redirect_uri" value="{redirect_uri}">
-                <input type="hidden" name="state" value="{state}">
+                <input type="hidden" name="client_id" value="{safe_client_id}">
+                <input type="hidden" name="redirect_uri" value="{safe_redirect_uri}">
+                <input type="hidden" name="state" value="{safe_state}">
                 <button type="submit" class="btn">Allow Access</button>
             </form>
         </div>
@@ -50,6 +73,7 @@ async def authorize_post(
     redirect_uri: str = Form(...),
     state: str = Form(...),
 ):
+    redirect_uri = _validate_redirect_uri(redirect_uri)
     # In a real system, we'd generate a temporary auth code and store it.
     # For this simplified stateless version, we just use a static code.
     auth_code = "oisha_auth_code_123"
