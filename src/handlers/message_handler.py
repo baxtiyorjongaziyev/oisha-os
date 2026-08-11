@@ -309,7 +309,7 @@ async def process_hisobchi(
     Hisobchi AI — card bot xabarlarini qayta ishlash.
     Qaytaradi: True = xabar qayta ishlandi, False = davom etish.
     """
-    from src.services.core.finance.handlers import (
+    from src.services.core.finance.hisobchi_handlers import (
         handle_card_bot_message,
         handle_finance_group_reply,
         is_card_bot_sender,
@@ -335,7 +335,7 @@ async def process_hisobchi(
             return True
 
         if not event.out and event.message.voice and voice_processor:
-            from src.services.core.finance.handlers import _get_finance_config
+            from src.services.core.finance.hisobchi_handlers import _get_finance_config
 
             finance_group_id, _, _ = _get_finance_config()
             is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
@@ -346,7 +346,7 @@ async def process_hisobchi(
                 me = await client.get_me()
                 is_auth_user = (sender_id is not None and (sender_id in managers or sender_id == me.id))
             if is_finance_chat or is_auth_user:
-                from src.services.core.finance.handlers import process_finance_voice_message
+                from src.services.core.finance.hisobchi_handlers import process_finance_voice_message
 
                 was_voice_hisobchi = await process_finance_voice_message(
                     event, client, _hisobchi_engine, voice_processor
@@ -355,14 +355,14 @@ async def process_hisobchi(
                     return True
 
         # Handle manual group logs (text, photos) sent directly in finance group
-        from src.services.core.finance.handlers import _get_finance_config
+        from src.services.core.finance.hisobchi_handlers import _get_finance_config
         finance_group_id, kirim_topic_id, chiqim_topic_id = _get_finance_config()
         is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
 
         if is_finance_chat and not event.out:
             # 1. Photos (receipts) posted in finance group topics
             if event.message.photo:
-                from src.services.core.finance.handlers import handle_receipt_photo
+                from src.services.core.finance.hisobchi_handlers import handle_receipt_photo
                 reply_to = getattr(event.message, "reply_to", None)
                 topic_id = getattr(reply_to, "reply_to_msg_id", None) if reply_to else None
                 direction = "in" if topic_id == kirim_topic_id else "out"
@@ -373,7 +373,7 @@ async def process_hisobchi(
 
             # 2. Text commands or plain text posted in finance group topics
             if message_text:
-                from src.services.core.finance.handlers import (
+                from src.services.core.finance.hisobchi_handlers import (
                     handle_kirim_chiqim_text,
                     handle_topic_plain_text,
                 )
