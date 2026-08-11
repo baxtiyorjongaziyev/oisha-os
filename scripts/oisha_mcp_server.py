@@ -132,9 +132,14 @@ async def get_recent_dialogs(limit: int = 10) -> str:
 
 
 @mcp.tool()
-async def get_chat_history(chat_id: str, limit: int = 20) -> str:
-    """Muayyan Telegram chat yoki foydalanuvchi bo'yicha oxirgi xabarlarni olish."""
-    return _call_api(f"{_API_BASE_URL}/messages/{chat_id}?limit={limit}")
+async def get_chat_history(
+    chat_id: str, limit: int = 20, before_id: int | None = None
+) -> str:
+    """Telegram tarixini o'qish; ``before_id`` eski batchlar uchun checkpoint."""
+    url = f"{_API_BASE_URL}/messages/{chat_id}?limit={limit}"
+    if before_id is not None:
+        url += f"&before_id={before_id}"
+    return _call_api(url)
 
 
 @mcp.tool()
