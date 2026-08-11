@@ -303,13 +303,7 @@ async def _surgical_send(user_id: int, text: str):
 
 async def boot_application():
     """Initialize all services, clients, and background tasks."""
-    global msg_controller, client, bot_client, lead_scraper, action_parser
-    global advisor_agent, auto_lead_agent, safe_responder, activity_monitor, audit_agent
-    global workflow_manager, access_manager, admin_bot, session_manager, chat_bridge, BOT_TOKEN_STR, juma_notifier
-    global surgical_integration, evolution_scheduler
-    global meeting_scheduler
-    global oisha_brain, bot_messenger, agent_orchestrator
-
+    from src.context import app_ctx
     import src.main as m
 
     # [ENTERPRISE] Anti-Local Execution Lock — single source of runtime truth
@@ -368,14 +362,14 @@ async def boot_application():
         api_state.finance_source = None
         await init_hisobchi_tables(db)
         logger.info("[HISOBCHI] Database schema is ready.")
-    msg_controller = MessageController(api_keys=api_keys, db=db)
+    app_ctx.msg_controller = MessageController(api_keys=api_keys, db=db)
 
     cloud_control_plane_only = runtime_mode.control_plane_only
 
     # Telegram Client init — XAVFSIZ SESSION MANAGER
     telegram_session_manager = None  # Default — cloud control plane uchun
     if cloud_control_plane_only:
-        client = TelegramClient(
+        app_ctx.client = TelegramClient(
             StringSession(), settings.API_ID, settings.API_HASH,
             device_model="Oisha Enterprise Control Plane", system_version="Cloud Run",
         )
@@ -383,7 +377,7 @@ async def boot_application():
         import platform
         if platform.system() == "Windows":
             logger.warning("[SESSION] ❌ Windows OS detected! Userbot is FORCED OFF locally to protect the remote session.")
-            client = None
+            app_ctx.client = None
         else:
             from src.services.core.telegram_session_manager import TelegramSessionManager
             from src.services.core.session_keeper import get_best_session_string
@@ -405,10 +399,10 @@ async def boot_application():
                 logger.error("[SESSION] ❌ Userbot session ulanmadi!")
                 logger.error("[SESSION] Admin ga xabar yuborilmoqda...")
                 # Client ni None qilish — bot token mode da ishlaydi
-                client = None
+                app_ctx.client = None
             else:
-                client = telegram_session_manager.client
-                me = await client.get_me()
+                app_ctx.client = telegram_session_manager.client
+                me = await app_ctx.client.get_me()
                 logger.info(f"[TELEGRAM] Userbot client initialized and authorized successfully! ✅ (Username: @{me.username or 'None'})")
                 # Reconnect monitorini ishga tushirish
                 await telegram_session_manager.start_reconnect_monitor()
@@ -419,7 +413,7 @@ async def boot_application():
                 _keepalive_stop = telegram_session_manager._stop_event
                 asyncio.create_task(
                     session_keepalive_loop(
-                        client,
+                        app_ctx.client,
                         interval_secs=int(os.getenv("USERBOT_KEEPALIVE_INTERVAL_SECS", "300")),
                         notify_callback=None,  # Keyin admin_notifier o'rnatilganda yangilanadi
                         stop_event=_keepalive_stop,
@@ -432,13 +426,13 @@ async def boot_application():
     BOT_TOKEN = settings.BOT_TOKEN.get_secret_value()
     _bot_session_string = os.environ.get("BOT_SESSION_STRING", "").strip()
     _bot_session = StringSession(_bot_session_string) if _bot_session_string else StringSession()
-    bot_client = TelegramClient(_bot_session, settings.API_ID, settings.API_HASH)
-    BOT_TOKEN_STR = BOT_TOKEN
+    app_ctx.bot_client = TelegramClient(_bot_session, settings.API_ID, settings.API_HASH)
+    app_ctx.bot_token_str = BOT_TOKEN
     from src.services.core.telegram.bot_runtime import build_outbound_bot_runtime
-    bot_runtime = build_outbound_bot_runtime(
+    app_ctx.bot_runtime = build_outbound_bot_runtime(
         backend=getattr(settings, "TELEGRAM_BOT_RUNTIME_BACKEND", "telethon"),
-        bot_token=BOT_TOKEN_STR,
-        telethon_client=bot_client,
+        bot_token=app_ctx.bot_token_str,
+        telethon_client=app_ctx.bot_client,
     )
     bot_ingress_mode = str(
         getattr(settings, "TELEGRAM_BOT_INGRESS_MODE", "polling") or "polling"
@@ -447,7 +441,7 @@ async def boot_application():
         raise RuntimeError(
             "TELEGRAM_BOT_INGRESS_MODE must be polling, webhook, or disabled"
         )
-    aiogram_bot_head = None
+    app_ctx.aiogram_bot_head = None
     logger.info(
         "[BOT] Outbound bot runtime backend=%s ingress=%s",
         bot_runtime.backend,

@@ -57,11 +57,11 @@ async def test_call_backfill_scheduler_queues_and_records_start(monkeypatch):
     assert result == {"queued": True, "reason": "test", "limit": 7}
     assert api_server._CALL_BACKFILL_LAST_STARTED_KEY in db.state
 
-    task = api_server._call_backfill_task
+    task = api_server.api_state._call_backfill_task
     assert task is not None
     await task
     assert calls == [(db, "test", 7)]
-    api_server._call_backfill_task = None
+    api_server.api_state._call_backfill_task = None
 
 
 @pytest.mark.asyncio
@@ -92,7 +92,7 @@ async def test_call_backfill_scheduler_throttles_recent_run(monkeypatch):
 
 def test_cron_request_accepts_oisha_api_secret(monkeypatch):
     monkeypatch.setattr(api_server.settings, "AMOCRM_CRON_SECRET", None, raising=False)
-    monkeypatch.setenv("OISHA_API_SECRET", "secret-123")
+    monkeypatch.setattr(api_server.settings, "OISHA_API_SECRET", "secret-123", raising=False)
 
     request = SimpleNamespace(headers={"Authorization": "Bearer secret-123"})
 
@@ -101,7 +101,7 @@ def test_cron_request_accepts_oisha_api_secret(monkeypatch):
 
 def test_cron_request_rejects_wrong_secret(monkeypatch):
     monkeypatch.setattr(api_server.settings, "AMOCRM_CRON_SECRET", None, raising=False)
-    monkeypatch.setenv("OISHA_API_SECRET", "secret-123")
+    monkeypatch.setattr(api_server.settings, "OISHA_API_SECRET", "secret-123", raising=False)
 
     request = SimpleNamespace(headers={"Authorization": "Bearer wrong"})
 
@@ -135,9 +135,9 @@ async def test_call_analysis_status_reports_last_run_and_totals(monkeypatch):
 async def test_call_analysis_status_uses_memory_fallback(monkeypatch):
     db = FakeStateDB()
     db.connection = FakeTotalsConnection()
-    monkeypatch.setattr(api_server, "_call_backfill_task", None, raising=False)
+    monkeypatch.setattr(api_server.api_state, "_call_backfill_task", None, raising=False)
     monkeypatch.setattr(
-        api_server,
+        api_server.api_state,
         "_call_backfill_last_status",
         {
             "started_at": "2026-05-25T00:00:00+00:00",

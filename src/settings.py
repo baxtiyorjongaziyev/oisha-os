@@ -156,6 +156,7 @@ class AppSettings(BaseSettings):
     AMOCRM_CALL_TRANSCRIPT_NOTE_CHARS: int = 6000
     MOIZVONKI_EMAIL: Optional[str] = None
     MOIZVONKI_PASSWORD: Optional[SecretStr] = None
+    MOIZVONKI_API_KEY: Optional[SecretStr] = None
     AIRTABLE_API_KEY: Optional[SecretStr] = None
     AIRTABLE_BASE_ID: Optional[str] = None
     # Airtable OAuth 2.0 (API key o'rniga to'g'ridan-to'g'ri OAuth token)

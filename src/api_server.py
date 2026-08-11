@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from src.database import get_db
+from src.context import app_ctx
 from src.services.core.agent_runtime import (
     collect_legacy_runtime_inventory,
     get_runtime_context,
@@ -44,65 +45,9 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger("OishaAPI")
 
 # ---------------------------------------------------------------------------
-# Global Bridges (set by boot.py before server starts)
+# Global Bridges (removed, now using app_ctx and api_state directly)
 # ---------------------------------------------------------------------------
-command_queue: asyncio.Queue = asyncio.Queue()
-outgoing_messages: asyncio.Queue | None = None
-user_client: Any = None
-db_instance: Any = None
-msg_controller: Any = None
-action_parser: Any = None
-business_connections: Dict[str, Any] = {}
-audit_agent: Any = None
-amocrm_instance: Any = None
-
-_userbot_group_access_snapshot: Dict[str, Any] = {
-    "status": "pending",
-    "checked_at": None,
-    "groups": {},
-    "topics": {},
-}
-_telegram_ai_ingress_status: Dict[str, Any] = {
-    "mode": "unconfigured",
-    "active": False,
-}
-
-# Health check cache
-cached_status: Dict[str, Any] = {
-    "status": "initializing",
-    "timestamp": datetime.now(timezone.utc).isoformat(),
-}
-_HEALTH_DB_TIMEOUT_SECONDS: float = 5.0
-_health_db_snapshot_cache: Dict[str, Any] = {
-    "recent_job_runs": [],
-    "storage_counts": {},
-    "updated_at": None,
-}
-
-# Heartbeat
-_last_heartbeat_at: Optional[datetime] = None
-_boot_at: datetime = datetime.now(timezone.utc)
-_heartbeat_stale_seconds: int = 120
-
-# CRM audit cache
-cached_crm_audit: Dict[str, Any] = {
-    "health_score": 98,
-    "summary": "Audit kutilmoqda...",
-    "timestamp": get_local_now().isoformat(),
-}
-system_activities: List[Dict[str, Any]] = [
-    {
-        "timestamp": get_local_now().strftime("%H:%M:%S"),
-        "action": "🚀 System Boot",
-        "details": "Oisha-OS Strategic Intelligence is online and listening.",
-        "type": "success",
-    }
-]
-legacy_runtime_inventory_cache: Optional[List[Dict[str, Any]]] = None
-
 # AmoCRM backfill
-_call_backfill_task: Optional[asyncio.Task] = None
-_call_backfill_last_status: Dict[str, Any] = {}
 
 # AI analytics
 _quality_analyzer: Any = None
@@ -141,7 +86,7 @@ def _secret_setting_text(value: Any) -> str:
 
 
 def set_telegram_ai_ingress_status(*, mode: str, active: bool) -> None:
-    _telegram_ai_ingress_status.update({
+    api_state._telegram_ai_ingress_status.update({
         "mode": mode,
         "active": active,
         "updated_at": get_local_now().isoformat(),
@@ -150,17 +95,16 @@ def set_telegram_ai_ingress_status(*, mode: str, active: bool) -> None:
 
 async def refresh_userbot_group_access_snapshot(client=None) -> Dict[str, Any]:
     """Read group/topic access through the already-connected production userbot."""
-    global _userbot_group_access_snapshot
-    active_client = client or user_client
+    active_client = client or app_ctx.user_client
     checked_at = get_local_now().isoformat()
     if active_client is None:
-        _userbot_group_access_snapshot = {
+        api_state._userbot_group_access_snapshot = {
             "status": "unavailable",
             "checked_at": checked_at,
             "groups": {},
             "topics": {},
         }
-        return dict(_userbot_group_access_snapshot)
+        return dict(api_state._userbot_group_access_snapshot)
 
     groups: Dict[str, Dict[str, Any]] = {}
     resolved_entities: Dict[str, Any] = {}
@@ -262,7 +206,7 @@ async def refresh_userbot_group_access_snapshot(client=None) -> Dict[str, Any]:
 
     required_groups = [e for e in groups.values() if e.get("configured")]
     required_topics = [e for e in topics.values() if e.get("configured")]
-    _userbot_group_access_snapshot = {
+    api_state._userbot_group_access_snapshot = {
         "status": (
             "ok"
             if all(e.get("readable") for e in required_groups + required_topics)
@@ -272,13 +216,12 @@ async def refresh_userbot_group_access_snapshot(client=None) -> Dict[str, Any]:
         "groups": groups,
         "topics": topics,
     }
-    return dict(_userbot_group_access_snapshot)
+    return dict(api_state._userbot_group_access_snapshot)
 
 
 def mark_heartbeat() -> None:
-    global _last_heartbeat_at
     now = datetime.now(timezone.utc)
-    _last_heartbeat_at = now
+    api_state._last_heartbeat_at = now
     api_state._last_heartbeat_at = now
 
 
@@ -291,15 +234,14 @@ def add_activity(action: str, details: str = "", type: str = "info"):
         "details": details,
         "type": type,
     }
-    system_activities.insert(0, activity)
-    if len(system_activities) > 100:
-        system_activities.pop()
+    api_state.system_activities.insert(0, activity)
+    if len(api_state.system_activities) > 100:
+        api_state.system_activities.pop()
     logger.info("[DASHBOARD] %s: %s", action, details)
 
 
 def update_api_status(status: str, message: str):
-    global cached_status
-    cached_status = {
+    api_state.cached_status = {
         "status": status,
         "message": message,
         "timestamp": get_local_now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -307,11 +249,10 @@ def update_api_status(status: str, message: str):
 
 
 def get_legacy_runtime_inventory() -> List[Dict[str, Any]]:
-    global legacy_runtime_inventory_cache
-    if legacy_runtime_inventory_cache is None:
+    if api_state.legacy_runtime_inventory_cache is None:
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        legacy_runtime_inventory_cache = collect_legacy_runtime_inventory(repo_root)
-    return list(legacy_runtime_inventory_cache)
+        api_state.legacy_runtime_inventory_cache = collect_legacy_runtime_inventory(repo_root)
+    return list(api_state.legacy_runtime_inventory_cache)
 
 
 def _timestamp_to_iso(raw: Any) -> Optional[str]:
@@ -340,7 +281,7 @@ def _get_cron_secret_value() -> str:
     cron_secret = _secret_setting_text(getattr(settings, "AMOCRM_CRON_SECRET", None))
     if cron_secret:
         return cron_secret
-    return (os.environ.get("OISHA_API_SECRET") or "").strip()
+    return (getattr(settings, "OISHA_API_SECRET", "") or "").strip()
 
 
 def _is_authorized_cron_request(request: Request) -> bool:
@@ -375,27 +316,25 @@ def _get_call_backfill_interval_seconds() -> int:
 
 
 async def _get_db_instance():
-    global db_instance
-    if db_instance:
-        return db_instance
+    if app_ctx.db_instance:
+        return app_ctx.db_instance
     from src.database import Database
-    db_instance = Database()
-    await db_instance.init_instance()
-    return db_instance
+    app_ctx.db_instance = Database()
+    await app_ctx.db_instance.init_instance()
+    return app_ctx.db_instance
 
 
 def _get_amocrm_instance():
-    global amocrm_instance
-    if amocrm_instance:
-        return amocrm_instance
+    if app_ctx.amocrm_instance:
+        return app_ctx.amocrm_instance
     from src.services.core.crm.amocrm_sync import AmoCRMSync
-    amocrm_instance = AmoCRMSync(
+    app_ctx.amocrm_instance = AmoCRMSync(
         subdomain=_setting_text(settings.AMOCRM_SUBDOMAIN),
         client_id=_setting_text(settings.AMOCRM_CLIENT_ID),
         client_secret=_secret_setting_text(settings.AMOCRM_CLIENT_SECRET),
         redirect_url=_setting_text(settings.AMOCRM_REDIRECT_URL),
     )
-    return amocrm_instance
+    return app_ctx.amocrm_instance
 
 
 # ---------------------------------------------------------------------------
@@ -404,12 +343,43 @@ def _get_amocrm_instance():
 
 app = FastAPI(title="Oisha-OS Enterprise API")
 
+# OAuth2 Middleware for MCP Endpoints
+@app.middleware("http")
+async def verify_oauth_for_mcp(request: Request, call_next):
+    if request.url.path.startswith("/telegram-mcp"):
+        # Allow OPTIONS request for CORS
+        if request.method == "OPTIONS":
+            return await call_next(request)
+            
+        # Basic secret check
+        auth_header = request.headers.get("Authorization")
+        expected_token = getattr(settings, "OISHA_API_SECRET", "")
+        
+        # In Gemini Web / ChatGPT Custom Actions, they send "Bearer <token>"
+        is_authorized = False
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            if token and token == expected_token:
+                is_authorized = True
+                
+        # Fallback to direct path secret (our previous approach)
+        if not is_authorized and f"/telegram-mcp-{expected_token}" in request.url.path:
+            is_authorized = True
+            
+        if not is_authorized:
+            return JSONResponse({"detail": "Unauthorized. Bearer token missing or invalid."}, status_code=401, headers={"WWW-Authenticate": "Bearer"})
+            
+    return await call_next(request)
+
 # Include existing routers
 from src.api import admin, dashboard
 from src.api.live_monitor import router as live_monitor_router
+from src.api.routes.oauth2 import router as oauth2_router
+
 app.include_router(dashboard.router)
 app.include_router(admin.router)
 app.include_router(live_monitor_router)
+app.include_router(oauth2_router)
 
 # Hisobchi MCP router
 try:
@@ -425,7 +395,7 @@ except Exception as exc:
 try:
     import sys
     sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
-    from telegram_mcp_server import mcp as telegram_mcp_instance
+    from oisha_mcp_server import mcp as telegram_mcp_instance
     app.mount("/telegram-mcp", telegram_mcp_instance.sse_app(mount_path="/telegram-mcp"))
     logger.info("[MCP] Telegram SSE MCP server mounted at /telegram-mcp")
 except Exception as exc:
@@ -575,7 +545,6 @@ async def telegram_webhook(request: Request):
 async def amocrm_chat_webhook(request: Request):
     """Receive outgoing messages from AmoCRM Chat and send them to Telegram."""
     try:
-        global outgoing_messages
         body = await request.json()
         logger.info(f"[AMOCRM CHAT WEBHOOK] Received: {body}")
         
@@ -591,9 +560,9 @@ async def amocrm_chat_webhook(request: Request):
         
         if text and client_id:
             telegram_id = int(client_id)
-            if outgoing_messages is None:
-                outgoing_messages = asyncio.Queue()
-            await outgoing_messages.put({
+            if app_ctx.outgoing_messages is None:
+                app_ctx.outgoing_messages = asyncio.Queue()
+            await app_ctx.outgoing_messages.put({
                 "chat_id": telegram_id,
                 "text": text
             })
@@ -635,10 +604,9 @@ async def amocrm_notes_webhook(request: Request):
                 phone = amocrm.get_lead_phone(lead_id)
                 
                 if phone:
-                    global outgoing_messages
-                    if outgoing_messages is None:
-                        outgoing_messages = asyncio.Queue()
-                    await outgoing_messages.put({
+                    if app_ctx.outgoing_messages is None:
+                        app_ctx.outgoing_messages = asyncio.Queue()
+                    await app_ctx.outgoing_messages.put({
                         "chat_id": phone,
                         "text": clean_text
                     })
@@ -724,12 +692,11 @@ async def telegram_extension_send(request: Request):
         if not chat_id or not text:
             return {"success": False, "error": "chat_id and text required"}
             
-        # 1. Telegram orqali yuborish (outgoing_messages queue)
-        global outgoing_messages
-        if outgoing_messages is None:
-            outgoing_messages = asyncio.Queue()
+        # 1. Telegram orqali yuborish (app_ctx.outgoing_messages queue)
+        if app_ctx.outgoing_messages is None:
+            app_ctx.outgoing_messages = asyncio.Queue()
             
-        await outgoing_messages.put({
+        await app_ctx.outgoing_messages.put({
             "chat_id": chat_id, # Agar phone bo'lsa, qanday ishlaydi? telegram_bot_client raqam bo'yicha yubora oladimi?
             "text": text
         })
@@ -802,7 +769,7 @@ async def airtable_callback(code: str = None, state: str = None, error: str = No
         </head>
         <body>
             <div class="card">
-                <h1>✅ Muvaffaqiyatli!</h1>
+                <h1>âœ… Muvaffaqiyatli!</h1>
                 <p>Oisha-OS Airtable bilan to'g'ridan-to'g'ri bog'landi.</p>
                 <p>Ushbu oynani yopishingiz mumkin.</p>
             </div>
@@ -1091,8 +1058,7 @@ async def background_crm_audit_task():
                 continue
             results = await audit.run_full_audit()
             if results and "error" not in results:
-                global cached_crm_audit
-                cached_crm_audit = results
+                api_state.cached_crm_audit = results
                 logger.info("[API] CRM Audit complete. Health: %s%%", results.get("health_score"))
         except Exception as e:
             logger.error("[API] CRM Audit CRASH: %s", e)
@@ -1143,7 +1109,7 @@ def _business_message_skip_reason(message: Dict[str, Any]) -> str:
         return ""
     owner_ids = {int(getattr(settings, "OWNER_ID", 0) or 0)}
     connection_id = str(message.get("business_connection_id") or "")
-    connection = business_connections.get(connection_id) or {}
+    connection = api_state.business_connections.get(connection_id) or {}
     try:
         owner_ids.add(int(connection.get("user_id") or 0))
     except (TypeError, ValueError):
@@ -1168,8 +1134,7 @@ def _business_message_skip_reason(message: Dict[str, Any]) -> str:
 async def _schedule_amocrm_call_backfill(
     db, *, reason: str = "unknown", limit: int = None, force: bool = False
 ):
-    global _call_backfill_task
-    if _call_backfill_task and not _call_backfill_task.done():
+    if api_state._call_backfill_task and not api_state._call_backfill_task.done():
         if not force:
             return {"queued": False, "reason": "already_running"}
 
@@ -1194,7 +1159,7 @@ async def _schedule_amocrm_call_backfill(
             await db.set_state(_CALL_BACKFILL_LAST_STARTED_KEY, str(time.time()))
         except Exception as exc:
             logger.debug("[backfill] failed to set start state: %s", exc)
-    _call_backfill_task = asyncio.create_task(
+    api_state._call_backfill_task = asyncio.create_task(
         _run_amocrm_call_backfill(db, reason=reason, limit=limit)
     )
     return {"queued": True, "reason": reason, "limit": limit}
@@ -1226,9 +1191,9 @@ async def _build_amocrm_call_analysis_status(db) -> dict:
 
     # Memory fallback
     from src.api.routes.state import api_state as _api_state
-    mem = _call_backfill_last_status or {}
+    mem = api_state._call_backfill_last_status or {}
     if not mem:
-        mem = getattr(_api_state, "_call_backfill_last_status", {}) or {}
+        mem = getattr(_api_state, "api_state._call_backfill_last_status", {}) or {}
     if not last_started_raw and mem.get("started_at"):
         last_started_raw = mem["started_at"]
     if not last_finished_raw and mem.get("finished_at"):
@@ -1272,7 +1237,7 @@ async def _build_amocrm_call_analysis_status(db) -> dict:
         except Exception as exc:
             logger.debug("[backfill] totals query failed: %s", exc)
 
-    running = bool(_call_backfill_task and not _call_backfill_task.done())
+    running = bool(api_state._call_backfill_task and not api_state._call_backfill_task.done())
     last_run = {}
     if last_started_raw or last_finished_raw:
         last_run["started_at"] = last_started_raw if isinstance(last_started_raw, str) and "T" in str(last_started_raw) else _timestamp_to_iso(last_started_raw)
@@ -1292,7 +1257,7 @@ async def _build_amocrm_call_analysis_status(db) -> dict:
 
 # Backward-compat re-exports: these symbols are pulled back into the
 # api_server namespace for legacy callers that do `from src.api_server import X`.
-# They are INTENTIONALLY at module end — the router modules import from here, so
+# They are INTENTIONALLY at module end â€” the router modules import from here, so
 # importing them earlier would create circular imports. Do not move to the top.
 from src.api.routes.chat_widget import (  # noqa: F401
     lookup_user_by_phone,

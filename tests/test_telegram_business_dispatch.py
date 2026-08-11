@@ -40,7 +40,7 @@ def test_business_loop_filter_skips_messages_sent_by_business_bot():
 
 def test_business_loop_filter_skips_owner_authored_messages(monkeypatch):
     monkeypatch.setitem(
-        api_server.business_connections,
+        api_server.api_state.business_connections,
         "biz-owner",
         {"user_id": 42, "user_name": "Owner", "can_reply": True},
     )
@@ -58,7 +58,7 @@ def test_business_loop_filter_skips_owner_authored_messages(monkeypatch):
 
 def test_business_loop_filter_allows_incoming_client_messages(monkeypatch):
     monkeypatch.setitem(
-        api_server.business_connections,
+        api_server.api_state.business_connections,
         "biz-client",
         {"user_id": 42, "user_name": "Owner", "can_reply": True},
     )

@@ -97,7 +97,7 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 # Global service placeholders (initialized in main)
 # New code should use app_ctx.* directly.
-msg_controller = None
+app_ctx.msg_controller = None
 client = None
 bot_client = None
 lead_scraper = None
@@ -420,13 +420,12 @@ async def push_block_to_amocrm(user_id: int, phone: str, block_text: str) -> Non
         phone: User's phone number
         block_text: The message block to push to AmoCRM
     """
-    global msg_controller
-    if not msg_controller:
+    if not app_ctx.msg_controller:
         return
     try:
         if not phone:
             # Try to get phone from DB
-            db_user = await msg_controller.db.get_user(user_id)
+            db_user = await app_ctx.msg_controller.db.get_user(user_id)
             if db_user and db_user.get("phone"):
                 phone = db_user.get("phone")
         
@@ -434,14 +433,14 @@ async def push_block_to_amocrm(user_id: int, phone: str, block_text: str) -> Non
             logger.warning(f"[ENTERPRISE SYNC] Cannot push block for {user_id}: No phone number.")
             return
 
-        contact_result = msg_controller.crm.amocrm.get_contact_by_phone(phone)
+        contact_result = app_ctx.msg_controller.crm.amocrm.get_contact_by_phone(phone)
         contact = (
             await contact_result
             if inspect.isawaitable(contact_result)
             else contact_result
         )
         if contact:
-            note_result = msg_controller.crm.amocrm.add_contact_note(
+            note_result = app_ctx.msg_controller.crm.amocrm.add_contact_note(
                 contact["id"], block_text
             )
             if inspect.isawaitable(note_result):
@@ -492,7 +491,7 @@ async def global_phone_lookup(phone: str) -> Optional[Dict[str, Any]]:
             }
 
             # 3. Bazaga saqlab qo'yamiz (Keyingi safar tekin bo'lishi uchun)
-            await msg_controller.db.upsert_user(
+            await app_ctx.msg_controller.db.upsert_user(
                 user_id=user.id,
                 first_name=user.first_name,
                 username=user.username,
@@ -531,7 +530,7 @@ async def background_monitor_task() -> None:
     from src.schedulers.background_monitor import BackgroundMonitor
 
     monitor = BackgroundMonitor(
-        msg_controller=msg_controller,
+        msg_controller=app_ctx.msg_controller,
         client=client,
         juma_notifier=juma_notifier,
         settings=settings,
@@ -569,7 +568,7 @@ async def handle_new_message(event):
 
     # [PHASE 1.6] Advance per-chat checkpoint BEFORE any filtering.
     from src.handlers.message_handler import advance_checkpoint
-    await advance_checkpoint(event, msg_controller)
+    await advance_checkpoint(event, app_ctx.msg_controller)
 
     if _should_block_private_userbot_reply(event):
         logger.info("[USERBOT] Personal DM ignored by policy chat=%s", event.chat_id)
@@ -598,7 +597,7 @@ async def handle_new_message(event):
         event,
         client=client,
         bot_client=bot_client,
-        msg_controller=msg_controller,
+        msg_controller=app_ctx.msg_controller,
         settings=settings,
         meeting_scheduler=meeting_scheduler,
         get_surgical_integration=get_surgical_integration,
@@ -631,7 +630,7 @@ async def handle_new_message(event):
         client=client,
         sender=sender,
         message_text=message_text,
-        msg_controller=msg_controller,
+        msg_controller=app_ctx.msg_controller,
         voice_processor=voice_processor,
         settings=settings,
     ):
@@ -641,7 +640,7 @@ async def handle_new_message(event):
 
     if event.is_private and not event.out and message_text:
         try:
-            await msg_controller.db.log_message(sender.id, message_text, is_ai=False)
+            await app_ctx.msg_controller.db.log_message(sender.id, message_text, is_ai=False)
             
             # [AMOCRM SYNC] Add to SessionManager
             import sys
@@ -689,7 +688,7 @@ async def handle_new_message(event):
             sender=sender,
             message_text=message_text,
             sender_name=sender_name,
-            msg_controller=msg_controller,
+            msg_controller=app_ctx.msg_controller,
             auto_lead_agent=auto_lead_agent,
             folder_manager=folder_manager,
             admin_bot=admin_bot,
@@ -706,7 +705,7 @@ async def handle_new_message(event):
             client=client,
             sender=sender,
             sender_name=sender_name,
-            msg_controller=msg_controller,
+            msg_controller=app_ctx.msg_controller,
             voice_processor=voice_processor,
             admin_bot=admin_bot,
             surgical_integration=surgical_integration,
@@ -724,7 +723,7 @@ async def handle_new_message(event):
             event,
             client=client,
             sender_name=sender_name,
-            msg_controller=msg_controller,
+            msg_controller=app_ctx.msg_controller,
             admin_bot=admin_bot,
             voice_processor=voice_processor,
         )
@@ -738,7 +737,7 @@ async def handle_new_message(event):
         chat_id=chat_id,
         sender_name=sender_name,
         message_text=message_text,
-        msg_controller=msg_controller,
+        msg_controller=app_ctx.msg_controller,
         auto_reply_gate=auto_reply_gate,
         safe_responder=safe_responder,
         scouter=app_ctx.scouter,
@@ -756,7 +755,7 @@ async def sync_single_lead(event):
         event,
         client=client,
         lead_scraper=lead_scraper,
-        msg_controller=msg_controller,
+        msg_controller=app_ctx.msg_controller,
         TN5_GROUP_ID=TN5_GROUP_ID,
     )
 
@@ -828,7 +827,7 @@ async def self_command_handler(event):
     if handler:
         await broadcast_event({"type": "command", "text": f"Buyruq: {cmd}", "chat_id": "saved_messages"})
         ctx = {
-            "msg_controller": msg_controller,
+            "app_ctx.msg_controller": app_ctx.msg_controller,
             "client": client,
             "bot_client": bot_client,
             "settings": settings,
