@@ -118,26 +118,6 @@ async def handle_aiogram_chatid(message: Any) -> None:
     await message.answer(response.text, parse_mode=response.parse_mode)
 
 
-async def handle_aiogram_start(
-    message: Any,
-    *,
-    owner_id: int,
-    get_role: Callable[[int], Optional[str]],
-    get_role_name: Callable[[str], str],
-) -> None:
-    sender = getattr(message, "from_user", None)
-    sender_id = int(getattr(sender, "id", 0) or 0)
-    role = resolve_start_role(
-        sender_id=sender_id,
-        owner_id=owner_id,
-        get_role=get_role,
-    )
-    response = build_start_response(
-        role_name=get_role_name(role),
-        now_text=get_local_now().strftime("%d.%m.%Y %H:%M"),
-    )
-    await message.answer(response.text)
-
 
 async def handle_aiogram_oisha_stats(
     message: Any,
@@ -463,14 +443,6 @@ def build_admin_aiogram_dispatcher(
     async def _chatid(message: Any) -> None:
         await handle_aiogram_chatid(message)
 
-    @dp.message(F.text.regexp(r"(?i)^/start"))
-    async def _start(message: Any) -> None:
-        await handle_aiogram_start(
-            message,
-            owner_id=owner_id,
-            get_role=get_role,
-            get_role_name=get_role_name,
-        )
 
     @dp.message(F.text.regexp(r"(?i)^/oisha_stats"))
     async def _stats(message: Any) -> None:
