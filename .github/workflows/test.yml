@@ -210,7 +210,10 @@ jobs:
 
   trusted-main-tests:
     if: github.event_name == 'push'
-    runs-on: [self-hosted, oracle]
+    # Production Oracle is a 1 GB VM. Running the full Python suite there
+    # starves the live API/userbot and makes the watchdog restart Oisha.
+    # These tests are hermetic (SKIP_LIVE=1), so keep them GitHub-hosted.
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
       SKIP_LIVE: "1"
@@ -219,14 +222,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python virtualenv
-        run: |
-          VENV="$HOME/.cache/oisha-ci-venv"
-          if [ ! -x "$VENV/bin/python" ]; then
-            python3 -m venv "$VENV"
-          fi
-          "$VENV/bin/pip" install -q --upgrade pip
-          echo "$VENV/bin" >> "$GITHUB_PATH"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install dependencies
         run: |
