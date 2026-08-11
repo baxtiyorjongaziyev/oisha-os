@@ -55,12 +55,10 @@ def _negotiation_int(name: str, default: int) -> int:
 
 async def _command_processor():
     """Processes commands from the API Server (e.g. sending messages)."""
-    import src.api_server as api_module
-
     logger.info("[COMMANDS] API Command Processor started.")
     while True:
         try:
-            item = await api_module.command_queue.get()
+            item = await api_state.command_queue.get()
             cmd = item.get("cmd")
             logger.info(f"[COMMANDS] Received: {cmd}")
 
@@ -80,7 +78,7 @@ async def _command_processor():
                     asyncio.create_task(app_ctx.audit_agent.run_full_audit())
                     logger.info("[COMMANDS] Full audit triggered.")
 
-            api_module.command_queue.task_done()
+            api_state.command_queue.task_done()
         except Exception as e:
             logger.error(f"[COMMANDS] Processor error: {e}")
             await asyncio.sleep(1)
