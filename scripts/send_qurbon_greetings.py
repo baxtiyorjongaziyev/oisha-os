@@ -1,7 +1,9 @@
 """Qurbon Hayit tabrigi — Tez natija 2/3/4/5 guruh a'zolariga."""
 import asyncio
+import contextlib
 import os
 import random
+import sys
 import urllib.parse
 import urllib.request
 
@@ -17,21 +19,24 @@ from telethon.errors import (
     UsernameNotOccupiedError,
 )
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from scripts.telethon_guard import (  # noqa: E402
+    SessionConflictError,
+    SessionMissingError,
+    guarded_connect,
+    guarded_is_authorized,
+    prepare,
+    single_flight,
+)
+
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
 
-# Fresh session file has priority over (possibly expired) secret
-SESSION_STRING = os.environ.get("USERBOT_SESSION_STRING", "")
-_session_file = "data/session_output.txt"
-try:
-    if os.path.exists(_session_file):
-        _file_session = open(_session_file).read().strip()
-        if _file_session:
-            SESSION_STRING = _file_session
-except Exception:
-    pass
+# Session tanlash va xavfsizlik tekshiruvi telethon_guard da — prod userbot
+# kaliti hech qachon Oracle VM dan tashqarida ochilmasligi kerak.
+DEDICATED_SESSION_ENV = "QURBON_SESSION_STRING"
 
 import re
 
@@ -110,15 +115,24 @@ async def send_to_member(client: TelegramClient, member: dict) -> None:
     await client.send_message(member["id"], message)
 
 
-async def main() -> None:
+async def run() -> None:
     send_tg_notification("⚙️ Workflow ishga tushdi — Telethon ulanmoqda...")
-    client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+    source = prepare(DEDICATED_SESSION_ENV)
+    client = TelegramClient(StringSession(source.string), API_ID, API_HASH)
     try:
-        await client.connect()
-        if not await client.is_user_authorized():
-            send_tg_notification("❌ Session muddati tugagan yoki noto'g'ri. Yangi USERBOT_SESSION_STRING kerak.")
+        await guarded_connect(client, source)
+        if not await guarded_is_authorized(client, source):
+            send_tg_notification(
+                f"❌ Session muddati tugagan yoki noto'g'ri ({source.origin}). "
+                "Yangi session kerak."
+            )
             await client.disconnect()
             return
+    except SessionConflictError:
+        # Xabar main() da yuboriladi — bu yerda faqat ulanishni yopamiz.
+        with contextlib.suppress(Exception):
+            await client.disconnect()
+        raise
     except Exception as e:
         send_tg_notification(f"❌ Telethon ulana olmadi: {e}")
         raise
@@ -192,6 +206,17 @@ async def main() -> None:
     )
     send_tg_notification(summary)
     print(summary)
+
+
+async def main() -> None:
+    """Bitta hostda faqat bitta userbot skripti ulansin (single-flight)."""
+    try:
+        with single_flight("userbot_oneoff"):
+            await run()
+    except (SessionConflictError, SessionMissingError) as exc:
+        print(f"TO'XTATILDI: {exc}")
+        send_tg_notification(f"⛔️ Qurbon Hayit tabrigi to'xtatildi\n\n{exc}")
+        raise
 
 
 if __name__ == "__main__":
