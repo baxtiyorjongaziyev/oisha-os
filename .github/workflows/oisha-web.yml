@@ -117,10 +117,7 @@ jobs:
           script: |
             set -euo pipefail
 
-            # Buzilgan venv'ni ta'mirlash: BotAccessSettings import xatosi —
-            # python-telegram-bot chala yangilangan
             cd /home/ubuntu/oisha-os
-            ./venv/bin/pip install -q --force-reinstall "python-telegram-bot>=22.8" || true
             # Node runtime (standalone uchun faqat node kerak, pnpm shart emas)
             if ! command -v node >/dev/null 2>&1 || [ "$(node -v | cut -c2-3 | tr -d '.')" -lt 20 ]; then
               curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
@@ -140,6 +137,8 @@ jobs:
             Description=Oisha Admin Web (Next.js standalone)
             After=network-online.target
             Wants=network-online.target
+            StartLimitIntervalSec=60
+            StartLimitBurst=3
 
             [Service]
             Type=simple
@@ -149,6 +148,7 @@ jobs:
             Environment=PORT=3000
             Environment=HOSTNAME=127.0.0.1
             Environment=NODE_OPTIONS=--max-old-space-size=256
+            ExecStartPre=/usr/bin/test -f /home/ubuntu/oisha-web/apps/web/server.js
             ExecStart=/usr/bin/node server.js
             Restart=always
             RestartSec=10
@@ -201,8 +201,7 @@ jobs:
               echo "Caddyfile kutilmagan holatda — routing o'zgartirilmadi"
             fi
 
-            # Buzilgan venv tuzatilgani uchun botni qayta ishga tushiramiz
-            sudo systemctl restart oisha-os
-            sleep 8
-            curl -s -m 8 http://127.0.0.1:8080/healthz/ | head -c 200; echo
+            # Web deploy core Oisha/userbot lifecycle'iga tegmaydi.
+            # Core readiness alohida Oracle deploy workflow'ining mas'uliyati.
+            curl -fsS -m 8 -o /dev/null http://127.0.0.1:3000/
             curl -s -m 8 -o /dev/null -w 'https://oisha.jonbranding.uz -> %{http_code}\n' https://oisha.jonbranding.uz/ || true

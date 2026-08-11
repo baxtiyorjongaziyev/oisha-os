@@ -44,3 +44,13 @@ def test_optional_brain_synthesizer_cannot_abort_core_boot():
 
     assert try_pos != -1
     assert try_pos < import_pos < except_pos
+
+
+def test_web_deploy_is_isolated_from_core_runtime():
+    workflow = (ROOT / ".github" / "workflows" / "oisha-web.yml").read_text(encoding="utf-8")
+
+    assert "sudo systemctl restart oisha-os" not in workflow
+    assert "venv/bin/pip install" not in workflow
+    assert "StartLimitIntervalSec=60" in workflow
+    assert "StartLimitBurst=3" in workflow
+    assert "ExecStartPre=/usr/bin/test -f /home/ubuntu/oisha-web/apps/web/server.js" in workflow
