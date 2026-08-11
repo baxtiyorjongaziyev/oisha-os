@@ -265,21 +265,33 @@ async def handle_aiogram_vps_status(
     sender_id = int(getattr(sender, "id", 0) or 0)
     if not is_admin(sender_id):
         return
+    import os
     import platform
-    from datetime import datetime
+    import time
+    from datetime import datetime, timedelta
     import psutil
 
-    cpu_usage = psutil.cpu_percent()
+    cpu_usage = psutil.cpu_percent(interval=0.1)
     ram = psutil.virtual_memory()
-    disk = psutil.disk_usage("/")
+    
+    is_cloud_run = "K_SERVICE" in os.environ
+    if is_cloud_run:
+        disk_str = "☁️ Serverless (Cloud Run)"
+    else:
+        disk = psutil.disk_usage("/")
+        disk_str = f"`{disk.percent}%` o'rin band"
+
+    uptime_seconds = time.time() - psutil.boot_time()
+    uptime_str = str(timedelta(seconds=int(uptime_seconds)))
+
     status_msg = (
-        "🖥 **VPS SERVER HOLATI**\n"
+        "🖥 **TIZIM HOLATI**\n"
         "──────────────────────\n"
         f"🌐 **OS:** `{platform.system()} {platform.release()}`\n"
         f"⚙️ **CPU:** `{cpu_usage}%`\n"
         f"🧠 **RAM:** `{ram.percent}%` ({ram.used // (1024**2)}MB / {ram.total // (1024**2)}MB)\n"
-        f"💽 **Disk:** `{disk.percent}%` o'rin band\n"
-        f"🛰 **Uptime:** `{datetime.now().strftime('%H:%M:%S')}`\n"
+        f"💽 **Disk:** {disk_str}\n"
+        f"🛰 **Uptime:** `{uptime_str}`\n"
         "──────────────────────\n"
         "🟢 *Oisha-OS barcha resurslardan unumli foydalanmoqda.*"
     )
