@@ -124,7 +124,22 @@ async def test_generate_nps_survey_text_gemini_success():
 
 
 @pytest.mark.asyncio
-async def test_process_scheduled_touchpoints_via_userbot():
+async def test_generate_nps_survey_text_removes_phone_from_lead_name():
+    manager = AmbassadorJourneyManager(
+        amocrm=MagicMock(), db=MagicMock(), gemini_api_key=None
+    )
+
+    survey_text = await manager.generate_nps_survey_text(
+        client_name="Akbarjon aka",
+        brand_name="Akbarjon Rustamov +998916607070",
+    )
+
+    assert "+998916607070" not in survey_text
+    assert "Akbarjon Rustamov" in survey_text
+
+
+@pytest.mark.asyncio
+async def test_process_scheduled_touchpoints_is_blocked_by_owner_policy():
     amocrm_mock = MagicMock()
     userbot_mock = MagicMock()
 
@@ -149,8 +164,29 @@ async def test_process_scheduled_touchpoints_via_userbot():
 
     stats = await manager.process_scheduled_touchpoints()
     
-    assert stats["sent"] == 1
-    assert stats["failed"] == 0
+    assert stats["sent"] == 0
+    assert stats["failed"] == 1
     
     # Assert Telegram message sent
-    userbot_mock.send_message.assert_called_once_with("toshmat_peer_id", "Assalomu alaykum Toshmat aka!")
+    userbot_mock.send_message.assert_not_called()
+    assert mock_conn.execute.call_args_list[-1].args[1][0] == "blocked_policy"
+
+
+@pytest.mark.asyncio
+async def test_process_scheduled_touchpoints_blocks_stale_message_with_phone():
+    pending_row = SmartRow(
+        [42, 111222, 5555, "nps_survey", "Loyiha +998916607070 yakunlandi"],
+        ["id", "user_id", "lead_id", "touchpoint_type", "sent_message"],
+    )
+    db_mock, mock_conn, _ = _mock_db_conn(fetchall_val=[pending_row])
+    userbot_mock = MagicMock()
+    userbot_mock.send_message = AsyncMock()
+    manager = AmbassadorJourneyManager(
+        amocrm=MagicMock(), db=db_mock, user_client=userbot_mock, gemini_api_key=None
+    )
+
+    stats = await manager.process_scheduled_touchpoints()
+
+    assert stats == {"sent": 0, "failed": 1}
+    userbot_mock.send_message.assert_not_called()
+    assert mock_conn.execute.call_args_list[-1].args[1][0] == "blocked_pii"

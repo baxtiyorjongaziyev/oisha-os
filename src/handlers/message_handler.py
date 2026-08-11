@@ -362,7 +362,7 @@ async def process_hisobchi(
                 if was_voice_hisobchi:
                     return True
 
-        # Handle manual group finance commands / plain text
+        # Handle manual group logs (text, photos) sent directly in finance group
         finance_group_id, kirim_topic_id, chiqim_topic_id = _get_finance_config()
         is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
 

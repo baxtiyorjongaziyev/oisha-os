@@ -81,9 +81,6 @@ async def test_aiogram_chatid_handler_uses_shared_router():
     assert message.answers[0][1]["parse_mode"] == "html"
 
 
-
-
-
 @pytest.mark.asyncio
 async def test_aiogram_stats_handler_respects_admin_gate():
     non_admin = FakeAiogramMessage(text="/oisha_stats", user_id=10)

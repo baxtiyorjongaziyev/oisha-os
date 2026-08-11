@@ -214,11 +214,9 @@ async def _ai_autopilot_loop():
             except Exception as call_err:
                 logger.error(f"[AUTOPILOT] Call Analyzer error: {call_err}")
 
-            try:
-                await ambassador_manager.sync_won_leads_to_ambassadors(limit=30)
-                await ambassador_manager.process_scheduled_touchpoints()
-            except Exception as amb_err:
-                logger.error(f"[AUTOPILOT] Ambassador Journey error: {amb_err}")
+            logger.info(
+                "[AUTOPILOT] Ambassador customer outreach disabled by owner policy."
+            )
 
             logger.info("[AUTOPILOT] AI Autopilot cycle completed.")
         except Exception as exc:
@@ -238,7 +236,7 @@ async def _daily_analytics_loop():
             now = get_local_now()
             if now.hour == 9 and now.minute == 0:
                 logger.info("[GA4] Triggering daily analytics report...")
-                await run_daily_analytics_report()
+                await run_daily_analytics_report(bot_client=app_ctx.bot_runtime)
                 await asyncio.sleep(61)
         except Exception as e:
             logger.error(f"[GA4] Error in daily analytics loop: {e}")
@@ -288,15 +286,8 @@ async def _brain_evolution_loop():
 
 
 async def _surgical_send(user_id: int, text: str):
-    from src.main import _userbot_private_replies_disabled
-    if _userbot_private_replies_disabled():
-        logger.info("[SURGICAL] Proactive private send blocked by policy.")
-        return
-    try:
-        if app_ctx.client:
-            await app_ctx.client.send_message(user_id, text)
-    except Exception as exc:
-        logger.warning(f"[SURGICAL] Proactive send failed uid={user_id}: {exc}")
+    logger.info("[SURGICAL] Proactive customer send blocked by owner policy.")
+    return None
 
 
 async def boot_application():
@@ -488,7 +479,15 @@ async def boot_application():
     if not settings.RUN_USERBOT_ONLY:
         asyncio.create_task(_crm_discipline_loop())
         asyncio.create_task(_crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop")
-        asyncio.create_task(_ai_autopilot_loop())
+        if os.getenv("ENABLE_AI_AUTOPILOT", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            asyncio.create_task(_ai_autopilot_loop(), name="ai_autopilot_loop")
+        else:
+            logger.info("[AUTOPILOT] Disabled by default; analysis remains manual.")
         
         from src.schedulers.frog_scheduler import daily_frog_loop
         # Frog brief is sent from @jonairobot (bot_client), not the userbot.
@@ -518,7 +517,7 @@ async def boot_application():
         ).get_surgical_negotiator(
             db=msg_controller.db, amocrm=msg_controller.crm.amocrm, send_fn=_surgical_send,
         )
-        surgical_integration.enabled = getattr(settings, "SURGICAL_MODE", False)
+        surgical_integration.enabled = False
     except Exception as surg_init_exc:
         surgical_integration.negotiator = None
         surgical_integration.enabled = False
