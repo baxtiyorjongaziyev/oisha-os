@@ -577,7 +577,7 @@ async def amocrm_chat_webhook(request: Request):
         return {"status": "ignored"}
     except Exception as e:
         logger.error(f"AmoCRM Notes Webhook error: {e}", exc_info=True)
-        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Internal server error"})
 
 
 @app.post("/webhook/amocrm_lead_created")
@@ -615,7 +615,7 @@ async def amocrm_lead_created_webhook(request: Request, background_tasks: Backgr
         return JSONResponse(content={"status": "ok", "message": "Voice Agent triggered if phone found"})
     except Exception as e:
         logger.error(f"AmoCRM Lead Created Webhook error: {e}", exc_info=True)
-        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Internal server error"})
 
 
 @app.post("/webhook/amocrm_notes")
