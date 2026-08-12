@@ -1,0 +1,106 @@
+# Oracle VM dagi GitHub Actions self-hosted runner'ini qayta ishga tushiradi.
+#
+# Nega alohida workflow: runner o'lganda `runs-on: [self-hosted, oracle]`
+# bo'lgan HAR QANDAY job navbatda qotib qoladi — ya'ni runner'ni runner'ning
+# o'zi bilan tiklab bo'lmaydi. Bu yerda GitHub-hosted runner'dan SSH bilan
+# kiriladi, shuning uchun VM'ning runner agenti o'lik bo'lsa ham ishlaydi.
+#
+# oracle-health.yml dan ATAYLAB ajratilgan: u faqat o'qiydi va shunday
+# qolishi kerak. Bu esa prod mashinasida servisni qayta ishga tushiradi,
+# shuning uchun alohida nom va alohida tasdiq talab qiladi.
+#
+# oisha-os.service GA TEGMAYDI — faqat runner agenti. Ilovani qayta ishga
+# tushirish uchun oracle-userbot-auth.yml → step: restart ishlatiladi.
+name: Oracle Runner Restart
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Tasdiqlash uchun aynan "restart" deb yozing'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  restart:
+    name: Restart self-hosted runner on Oracle VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Tasdiqni VM'ga umuman yubormaymiz — tekshiruv shu yerda tugaydi,
+      # shunda tasodifiy bosish SSH ochilishidan oldin to'xtaydi.
+      - name: Require explicit confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "restart" ]; then
+            echo "TO'XTATILDI: tasdiq maydoniga aynan \"restart\" yozilishi kerak."
+            exit 1
+          fi
+
+      - name: Restart runner service
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 8m
+          script: |
+            set -eu
+
+            # Unit nomi o'rnatishga qarab o'zgaradi
+            # (actions.runner.<owner>-<repo>.<runner-nomi>.service), shuning
+            # uchun qat'iy nom yozmasdan ro'yxatdan qidiramiz.
+            UNITS="$(systemctl list-unit-files --no-legend 'actions.runner.*.service' 2>/dev/null | awk '{print $1}')"
+
+            if [ -z "$UNITS" ]; then
+              echo "XATO: actions.runner.*.service topilmadi."
+              echo "Runner systemd servisi sifatida o'rnatilmagan bo'lishi mumkin."
+              echo "--- topilgan o'xshash unitlar ---"
+              systemctl list-units --all --no-legend | grep -i runner || echo "(yo'q)"
+              exit 1
+            fi
+
+            echo "=== OLDINGI HOLAT ==="
+            for u in $UNITS; do
+              printf '%s: ' "$u"
+              systemctl is-active "$u" || true
+            done
+
+            echo "=== QAYTA ISHGA TUSHIRISH ==="
+            for u in $UNITS; do
+              echo "--- $u ---"
+              sudo systemctl restart "$u"
+            done
+
+            # Runner GitHub'ga ro'yxatdan o'tib, navbatdagi job'ni olishi
+            # uchun bir necha soniya kerak.
+            sleep 20
+
+            echo "=== YANGI HOLAT ==="
+            FAILED=0
+            for u in $UNITS; do
+              STATE="$(systemctl is-active "$u" || true)"
+              printf '%s: %s\n' "$u" "$STATE"
+              [ "$STATE" = "active" ] || FAILED=1
+            done
+
+            echo "=== OXIRGI 30 QATOR JURNAL ==="
+            for u in $UNITS; do
+              echo "--- $u ---"
+              sudo journalctl -u "$u" --no-pager -n 30 2>/dev/null \
+                || journalctl -u "$u" --no-pager -n 30 2>/dev/null \
+                || echo "(jurnal o'qib bo'lmadi)"
+            done
+
+            if [ "$FAILED" != "0" ]; then
+              echo "XATO: runner qayta ishga tushgandan keyin ham active emas."
+              exit 1
+            fi
+
+            echo "TAYYOR: runner active. Navbatdagi job'lar bir necha daqiqada olinishi kerak."
