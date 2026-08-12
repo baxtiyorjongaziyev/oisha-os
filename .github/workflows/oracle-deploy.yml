@@ -116,6 +116,9 @@ jobs:
           # Fail-safe rollout: keep Oracle polling until the Cloud Run head is
           # live-verified, then set this repository variable to "disabled".
           TELEGRAM_BOT_INGRESS_MODE: ${{ vars.TELEGRAM_BOT_INGRESS_MODE || 'polling' }}
+          # Lokal LLM fallback. Standart holat — o'chiq: 954MB li VM da
+          # qwen2.5:3b OOM keltirib chiqargan. "1" qilib yoqiladi.
+          ENABLE_OLLAMA: ${{ vars.ENABLE_OLLAMA || '0' }}
         run: |
             set -euo pipefail
             OISHA_DIR="/home/ubuntu/oisha-os"
@@ -135,8 +138,27 @@ jobs:
             rm -f service_account.json data/service_account.json token.pickle data/token.pickle
 
             ./venv/bin/pip install -q -r requirements.txt
-            chmod +x deploy/bootstrap_ollama.sh
-            OLLAMA_TEXT_MODEL=qwen2.5:3b deploy/bootstrap_ollama.sh
+
+            # Ollama ENDI IXTIYORIY. VM da 954MB RAM bor; qwen2.5:3b
+            # inference paytida bir necha yuz MB dan gigabaytgacha oladi va
+            # 11-avgust kuni OOM killer runner'ni o'ldirdi (dmesg: "python
+            # invoked oom-killer" x3, keyin runner uchun "Failed with result
+            # 'oom-kill'"). Yoqish uchun ENABLE_OLLAMA repository variable'ini
+            # "1" qiling. O'chiq bo'lsa .env ga OLLAMA_BASE_URL yozilmaydi —
+            # free_ai_router.py:118 provayderni butunlay o'tkazib yuboradi,
+            # ya'ni o'lik portga urinish ham bo'lmaydi.
+            if [ "${ENABLE_OLLAMA:-0}" = "1" ]; then
+              chmod +x deploy/bootstrap_ollama.sh
+              OLLAMA_TEXT_MODEL=qwen2.5:3b deploy/bootstrap_ollama.sh
+            else
+              echo "[OLLAMA] ENABLE_OLLAMA yoqilmagan — o'tkazib yuborildi."
+            fi
+
+            if [ "${ENABLE_OLLAMA:-0}" = "1" ]; then
+              OLLAMA_BASE_URL_VALUE="http://127.0.0.1:11434/api"
+            else
+              OLLAMA_BASE_URL_VALUE=""
+            fi
 
             : "${AMOCRM_REDIRECT_URL:=https://localhost}"
             if [ -n "${AMOCRM_TOKEN_JSON:-}" ]; then
@@ -151,7 +173,7 @@ jobs:
             GROQ_API_KEY=${GROQ_API_KEY}
             CLOUDFLARE_AI_API_TOKEN=${CLOUDFLARE_AI_API_TOKEN}
             CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}
-            OLLAMA_BASE_URL=http://127.0.0.1:11434/api
+            OLLAMA_BASE_URL=${OLLAMA_BASE_URL_VALUE}
             OLLAMA_TEXT_MODEL=qwen2.5:3b
             ENABLE_PAID_AI_FALLBACK=false
             AMOCRM_SUBDOMAIN=jonbrandingagency
@@ -217,7 +239,21 @@ jobs:
               fi
             done
             sudo cp deploy/nginx-oisha.conf /etc/nginx/sites-available/oisha
-            sudo nginx -t && sudo systemctl reload nginx || echo "WARN: nginx reload failed, continuing"
+            # `reload` TO'XTAGAN unit'da yiqiladi va xato jim yutilardi —
+            # natijada nginx 12-avgustda "inactive" holatda qolib ketgan edi.
+            # reload-or-restart ikkala holatni ham qamrab oladi. Deploy'ni
+            # yiqitmaymiz (ilova nginx'siz ham ishlaydi), lekin endi jim
+            # emas — xato aniq ko'rinadi.
+            if sudo nginx -t; then
+              if sudo systemctl reload-or-restart nginx; then
+                echo "[NGINX] $(systemctl is-active nginx)"
+              else
+                echo "OGOHLANTIRISH: nginx ishga tushmadi — web UI va MCP proxy ishlamaydi"
+                sudo systemctl status nginx --no-pager -n 20 || true
+              fi
+            else
+              echo "OGOHLANTIRISH: nginx konfiguratsiyasi yaroqsiz, reload qilinmadi"
+            fi
 
             sudo sed -i '/^WatchdogSec=/d' /etc/systemd/system/oisha-os.service || true
             sudo mkdir -p /etc/systemd/system/oisha-os.service.d

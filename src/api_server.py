@@ -192,13 +192,29 @@ async def refresh_userbot_group_access_snapshot(client=None) -> Dict[str, Any]:
                 entry["readable"] = True
                 entry["sample_messages"] = len(messages or [])
             except Exception as exc:
-                logger.error("Exception handled in %s", __name__, exc_info=True)
+                # Topic o'chirilgan yoki ID noto'g'ri bo'lsa Telegram
+                # BadRequestError (TOPIC_ID_INVALID) qaytaradi. Bu KUTILGAN
+                # holat — quyida reason bilan qayd etiladi va snapshot uni
+                # ko'rsatadi. Bu funksiya davriy ishlaydi, shuning uchun
+                # unga to'liq traceback yozish jurnalni bir xil stack'lar
+                # bilan to'ldiradi (prod'da aynan shunday bo'lgan). Faqat
+                # kutilmagan xatolar uchun traceback qoldiramiz.
+                invalid_topic = type(exc).__name__ == "BadRequestError"
+                if invalid_topic:
+                    logger.warning(
+                        "[TELEGRAM PROBE] '%s' topic o'qilmadi "
+                        "(group=%s, topic_id=%s): %s",
+                        label,
+                        group_label,
+                        topic_id,
+                        exc,
+                    )
+                else:
+                    logger.error("Exception handled in %s", __name__, exc_info=True)
                 entry["readable"] = False
                 entry["error"] = type(exc).__name__
                 entry["reason"] = (
-                    "invalid_or_deleted_topic"
-                    if type(exc).__name__ == "BadRequestError"
-                    else "topic_unreadable"
+                    "invalid_or_deleted_topic" if invalid_topic else "topic_unreadable"
                 )
         elif topic_id and not group_entry.get("readable"):
             entry["reason"] = "group_unreadable"
