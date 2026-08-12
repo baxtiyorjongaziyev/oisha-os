@@ -14,6 +14,7 @@ import requests as _requests
 
 from src.database import Database
 from src.services.core.crm.amocrm_sync import AmoCRMSync
+from src.services.core.stt_service import STTService
 from src.services.core.call_analyses_schema import ensure_call_analysis_schema
 from src.services.core.call_events import CallEventLog
 from src.services.core.sales_playbook import (
@@ -136,6 +137,10 @@ def _looks_like_stt_hallucination(text: str) -> bool:
         return True
     normalised = text.strip().strip(".!?").lower()
     if normalised in _STT_HALLUCINATION_PHRASES:
+        return True
+    # Check for Gemini generic hallucinated dialogues
+    cleaned = re.sub(r'\[\d{2}:\d{2}\]|a:|b:', '', normalised).strip()
+    if len(cleaned.split()) < 15 and ('salom' in cleaned or 'qandaysiz' in cleaned or 'yaxshi' in cleaned):
         return True
     # Real ikki tomonlama suhbat deyarli hech qachon bir necha so'zdan
     # qisqa bo'lmaydi.
@@ -662,6 +667,10 @@ class CallAnalyzer:
                     resp = await asyncio.to_thread(_get, {})
 
             if resp.status_code == 200 and resp.content:
+                if len(resp.content) == 60027:
+                    logger.warning("[CALL] Audio fetch returned Moizvonki dummy audio (60027 bytes). Rejecting. url=%s", url)
+                    return None
+                
                 content_type = (resp.headers.get("Content-Type") or "").lower()
                 prefix = resp.content[:64].lstrip()
                 if (
@@ -677,7 +686,7 @@ class CallAnalyzer:
                 mime = _detect_mime(url, resp.headers.get("Content-Type"))
                 return resp.content, mime
 
-            logger.warning("[CALL] Audio fetch failed: http=%s url=%s", resp.status_code, url)
+            logger.warning("[CALL] Audio fetch failed: http=%s url=%s", getattr(resp, 'status_code', 'None'), url)
             return None
         except Exception as exc:
             logger.error("[CALL] Audio fetch exception for %s: %s", url, exc)
@@ -712,83 +721,46 @@ class CallAnalyzer:
                 )
                 raise GeminiQuotaCooldownError(
                     "Gemini quota cooldown started"
-                ) from exc
-            raise
+                )
 
     async def _transcribe_inline(self, audio_bytes: bytes, mime_type: str) -> Optional[str]:
-        """Transcribe and translate the call recording into Uzbek Latin text."""
+        """Transcribe audio using STTService, fallback to Gemini, then OpenAI."""
+        # Removed duplicate import; STTService is imported at module level
         from google.genai import types
 
+        # 1. Try STTService
+        try:
+            stt_service = STTService()
+            result = await stt_service.transcribe(audio_bytes, mime_type)
+            if result and result.transcript:
+                return result.transcript
+        except Exception as exc:
+            logger.warning("[CALL] STTService failed: %s", exc)
+
+        # 2. Try Gemini fallback
         prompt = (
             "Siz professional qo'ng'iroq transkripsiya mutaxassisisiz. "
             "Audio yozuvni eshiting va suhbatni O'zbek lotinida yozing.\n\n"
-            "QOIDALAR (qat'iy rioya qiling):\n"
-            "- Faqat audio faylda HAQIQATDA eshitilgan gaplarni yozing. "
-            "Hech qachon o'zingizdan suhbat, ism, narx yoki tafsilot O'YLAB TOPMANG.\n"
-            "- Agar audioda tushunarli inson nutqi bo'lmasa (sukunat, band/chaqiruv "
-            "ohangi, faqat shovqin, juda qisqa yoki tushunarsiz ovoz) — hech narsa "
-            f"to'qimang, faqat aynan shu so'zni qaytaring: {NO_SPEECH_SENTINEL}\n"
-            "- Har bir gapni qo'ng'iroq boshidan hisoblangan VAQT BELGISI bilan "
-            "boshlang: [mm:ss]. Vaqtni audio'dan aniq oling, taxmin qilmang.\n"
-            "- Ikki tomon gaplarini A: va B: qilib ajrating.\n"
-            "- Format aynan shunday: [00:03] A: matn\n"
-            "- Ruscha yoki boshqa tilda gapirilgan bo'lsa, mazmunini O'zbek lotiniga tarjima qilib yozing.\n"
-            "- Ism, telefon, narx, muddat va vazifalarni aniq saqlang.\n"
-            "- Eshitilmagan joylarni [...] deb belgilang.\n"
-            "- Faqat transkripsiya matnini (yoki yuqoridagi sentinel so'zni) qaytaring."
+            "QOIDALAR:\n"
+            "- Faqat audio faylda HAQIQATDA eshitilgan gaplarni yozing.\n"
+            "- Agar tushunarli nutq bo'lmasa, qaytaring: {NO_SPEECH_SENTINEL}\n"
+            "- Har bir gapni [mm:ss] vaqt belgisi bilan boshlang.\n"
+            "- A: va B: deb ajrating."
         )
-
-        try:
-            routed = await self.free_ai_router.transcribe_audio(audio_bytes, mime_type)
-            if routed and routed.text:
-                if _looks_like_stt_hallucination(routed.text):
-                    # Rad etamiz, lekin return qilmaymiz — heuristikaning
-                    # yolg'on-musbat xatosi butun qo'ng'iroqni tashlab
-                    # yubormasligi uchun quyidagi Gemini yo'liga (sentinel
-                    # prompt bilan) o'tamiz.
-                    logger.info(
-                        "[CALL] %s: shubhali/hallucination-o'xshash natija rad etildi, Gemini'ga o'tilyapti: %r",
-                        routed.provider,
-                        routed.text[:60],
-                    )
-                else:
-                    logger.info(
-                        "[CALL] STT done provider=%s model=%s chars=%s",
-                        routed.provider,
-                        routed.model,
-                        len(routed.text),
-                    )
-                    return routed.text
-        except Exception as exc:
-            logger.warning("[CALL] Free-first STT failed: %s", type(exc).__name__)
-
         try:
             audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
             response = await self._gemini_generate_content(
                 contents=[prompt, audio_part],
-                config=types.GenerateContentConfig(
-                    temperature=0.1,
-                    max_output_tokens=8192,
-                ),
+                config=types.GenerateContentConfig(temperature=0.1, max_output_tokens=8192),
             )
             text = (getattr(response, "text", None) or "").strip()
-            if text and NO_SPEECH_SENTINEL in text:
-                logger.info("[CALL] Gemini: audio'da tushunarli nutq topilmadi — tahlil o'tkazib yuborildi.")
-                return None
-            if text and _looks_like_stt_hallucination(text):
-                logger.info("[CALL] Gemini: shubhali/hallucination-o'xshash natija rad etildi: %r", text[:60])
-                return None
-            if text:
-                logger.info("[CALL] STT done: %s chars", len(text))
+            if text and NO_SPEECH_SENTINEL not in text:
                 return text
-            logger.warning("[CALL] STT returned an empty response")
-            return await self._transcribe_openai(audio_bytes, mime_type)
-        except GeminiQuotaCooldownError:
-            logger.info("[CALL] Gemini STT skipped during quota cooldown.")
-            return await self._transcribe_openai(audio_bytes, mime_type)
         except Exception as exc:
-            logger.error("[CALL] STT failed: %s", exc)
-            return await self._transcribe_openai(audio_bytes, mime_type)
+            logger.error("[CALL] Gemini STT fallback failed: %s", exc)
+
+        # 3. Final fallback to OpenAI
+        return await self._transcribe_openai(audio_bytes, mime_type)
 
     async def _transcribe_openai(
         self, audio_bytes: bytes, mime_type: str
@@ -1633,6 +1605,27 @@ class CallAnalyzer:
                     call_id,
                 )
                 continue
+
+            # --- METASELL SALESCOACH 24/7 AUTOMATION ---
+            try:
+                from src.services.core.salescoach_sync import get_salescoach_sync
+                salescoach = get_salescoach_sync()
+                if salescoach.enabled:
+                    # Asynchronous upload so it doesn't block AmoCRM webhook
+                    asyncio.create_task(
+                        salescoach.upload_voice(
+                            audio_bytes=audio_bytes,
+                            customer_phone=phone,
+                            content_type=mime_type,
+                            ext=mime_type.split("/")[-1] if "/" in mime_type else "ogg",
+                        )
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "[CALL] Failed to queue audio for SalesCoach AI: %s",
+                    exc
+                )
+            # ---------------------------------------------
 
             transcript = await self._transcribe_inline(audio_bytes, mime_type)
             if not transcript:

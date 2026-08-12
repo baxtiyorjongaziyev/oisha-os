@@ -211,7 +211,7 @@ async def run_one_time_reset_and_resync(
 
     from datetime import datetime
     from src.time_utils import get_local_timezone
-    from src.services.core.finance.hisobchi_handlers import resync_since_sequential
+    from src.services.core.finance.handlers import resync_since_sequential
 
     year, month, day = (int(p) for p in since_date.split("-"))
     since = datetime(year, month, day, tzinfo=get_local_timezone())

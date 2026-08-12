@@ -6,10 +6,8 @@ from src.database import Database
 from src.database_pool import SmartRow
 from src.services.core.finance.hisobchi_schema import init_hisobchi_tables
 from src.services.core.finance.hisobchi_engine import HisobchiEngine
-from src.services.core.finance.hisobchi_handlers import (
-    parse_transaction_text_with_llm,
-    process_finance_voice_message,
-)
+from src.services.core.finance.handlers.manual_handler import parse_transaction_text_with_llm
+from src.services.core.finance.handlers.voice_handler import process_finance_voice_message
 
 
 class DatabaseWrapper:
@@ -157,7 +155,7 @@ async def test_parse_transaction_text_with_llm():
     mock_client = MagicMock()
     mock_response = SimpleNamespace(text='{"is_transaction": true, "amount": 25000, "direction": "out", "merchant": "Taksi", "category": "Taksi", "ownership": "personal", "reason": "taksi xarajati"}')
 
-    with patch("src.services.core.finance.hisobchi_handlers.generate_content_with_fallback", AsyncMock(return_value=(mock_response, "model"))) as mock_fallback:
+    with patch("src.services.core.finance.handlers.manual_handler.generate_content_with_fallback", AsyncMock(return_value=(mock_response, "model"))) as mock_fallback:
         result = await parse_transaction_text_with_llm(mock_client, "gemini-1.5-flash", "bugun taksiga 25000 so'm berdim")
         assert result is not None
         assert result["is_transaction"] is True
@@ -188,8 +186,8 @@ async def test_process_voice_message_standalone_business(temp_db, mock_voice_pro
     event.reply = AsyncMock()
 
     # Mock the LLM call and settings
-    with patch("src.services.core.finance.hisobchi_handlers.parse_transaction_text_with_llm", AsyncMock(return_value=mock_parsed)), \
-         patch("src.services.core.finance.hisobchi_handlers._get_finance_config", return_value=(-100123, None, None)):
+    with patch("src.services.core.finance.handlers.voice_handler.parse_transaction_text_with_llm", AsyncMock(return_value=mock_parsed)), \
+         patch("src.services.core.finance.handlers.utils._get_finance_config", return_value=(-100123, None, None)):
 
         processed = await process_finance_voice_message(event, client, engine, mock_voice_processor)
         assert processed is True
@@ -243,8 +241,8 @@ async def test_process_voice_message_reply_categorization(temp_db, mock_voice_pr
     )
     event.reply = AsyncMock()
 
-    with patch("src.services.core.finance.hisobchi_handlers.parse_transaction_text_with_llm", AsyncMock(return_value=mock_parsed)), \
-         patch("src.services.core.finance.hisobchi_handlers._get_finance_config", return_value=(-100123, None, None)):
+    with patch("src.services.core.finance.handlers.voice_handler.parse_transaction_text_with_llm", AsyncMock(return_value=mock_parsed)), \
+         patch("src.services.core.finance.handlers.utils._get_finance_config", return_value=(-100123, None, None)):
 
         processed = await process_finance_voice_message(event, client, engine, mock_voice_processor)
         assert processed is True
