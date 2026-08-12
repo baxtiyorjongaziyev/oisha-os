@@ -81,28 +81,108 @@ jobs:
             echo "=== OLDINGI XOTIRA ==="
             free -m || true
 
-            echo "=== DEV STACK KONTEYNERLARI ==="
-            for c in salescoach-postgres salescoach-redis salescoach-minio; do
-              if ! docker inspect "$c" >/dev/null 2>&1; then
-                echo "$c: (topilmadi, o'tkazib yuborildi)"
-                continue
-              fi
-              echo "--- $c ---"
-              # restart=no MUHIM: aks holda 'unless-stopped' siyosati
-              # konteynerni reboot'dan keyin qaytaradi.
-              docker update --restart=no "$c" >/dev/null 2>&1 \
-                || echo "  OGOHLANTIRISH: restart siyosatini o'zgartirib bo'lmadi"
-              docker stop "$c" >/dev/null 2>&1 \
-                && echo "  to'xtatildi" \
-                || echo "  OGOHLANTIRISH: to'xtatib bo'lmadi"
-            done
+            # Docker bilan umuman gaplasha olamizmi? Birinchi urinishda
+            # `docker inspect ... 2>&1` xatoni yutib yuborardi va natijada
+            # "topilmadi" deb hisobot berardi — ya'ni ruxsat xatosi, osilib
+            # qolgan daemon va haqiqatan yo'q konteyner bir xil ko'rinardi.
+            # Bu eng yomon nosozlik turi: ish bajarilmagan, lekin hisobot
+            # tinch. Har bir chaqiruvda timeout ham bor, chunki mashina
+            # yuk ostida bo'lganda docker CLI 20 soniyagacha osilgan.
+            echo "=== DOCKER MAVJUDMI ==="
+            DOCKER=""
+            if timeout 15 docker ps >/dev/null 2>&1; then
+              DOCKER="docker"
+            elif timeout 15 sudo -n docker ps >/dev/null 2>&1; then
+              DOCKER="sudo -n docker"
+            fi
+
+            # Ish bajarilmasa job YIQILISHI kerak. Bu workflow'ning birinchi
+            # versiyasi hech narsa to'xtatmagan holda yashil tugagan edi —
+            # aynan shuning uchun bu o'zgarish yozilyapti. Bayroqni oxirigacha
+            # olib boramiz va faqat oxirida chiqamiz, aks holda diagnostika
+            # (Ollama, xotira, /readyz) yo'qoladi.
+            CLEANUP_FAILED=0
+
+            if [ -z "$DOCKER" ]; then
+              echo "XATO: docker bilan bog'lanib bo'lmadi — konteynerlar TO'XTATILMADI."
+              echo "--- docker ps ---"
+              timeout 15 docker ps 2>&1 | head -n 5
+              echo "--- sudo -n docker ps ---"
+              timeout 15 sudo -n docker ps 2>&1 | head -n 5
+              CLEANUP_FAILED=1
+            else
+              echo "ishlaydigan chaqiruv: $DOCKER"
+              echo "--- hozir ishlab turgan konteynerlar ---"
+              timeout 20 $DOCKER ps --format '{{.Names}} | {{.Image}} | {{.Status}}' \
+                || echo "(ro'yxat olinmadi)"
+
+              echo "=== DEV STACK KONTEYNERLARINI TO'XTATISH ==="
+              for c in salescoach-postgres salescoach-redis salescoach-minio; do
+                echo "--- $c ---"
+                ERR="$(timeout 20 $DOCKER inspect "$c" 2>&1 >/dev/null)"
+                if [ -n "$ERR" ]; then
+                  # "No such object" — konteyner yo'q, to'xtatadigan narsa
+                  # ham yo'q, bu MUVAFFAQIYAT. Boshqa har qanday javob
+                  # (ruxsat, timeout, daemon) — nosozlik.
+                  if printf '%s' "$ERR" | grep -qi 'No such object'; then
+                    echo "  konteyner mavjud emas — to'xtatish shart emas"
+                  else
+                    echo "  XATO — docker javobi: $ERR"
+                    CLEANUP_FAILED=1
+                  fi
+                  continue
+                fi
+                # restart=no MUHIM: aks holda 'unless-stopped' siyosati
+                # konteynerni reboot'dan keyin qaytaradi.
+                ERR="$(timeout 20 $DOCKER update --restart=no "$c" 2>&1 >/dev/null)"
+                if [ -n "$ERR" ]; then
+                  # Bu jiddiy: konteyner to'xtasa ham, 'unless-stopped'
+                  # qolsa reboot'dan keyin qaytadi.
+                  echo "  XATO: restart siyosati o'zgarmadi: $ERR"
+                  CLEANUP_FAILED=1
+                fi
+                ERR="$(timeout 60 $DOCKER stop "$c" 2>&1 >/dev/null)"
+                if [ -z "$ERR" ]; then
+                  echo "  to'xtatildi"
+                else
+                  echo "  XATO: to'xtatib bo'lmadi: $ERR"
+                  CLEANUP_FAILED=1
+                fi
+              done
+
+              echo "--- to'xtatishdan keyin qolgan konteynerlar ---"
+              timeout 20 $DOCKER ps --format '{{.Names}} | {{.Status}}' \
+                || CLEANUP_FAILED=1
+
+              # Hisobotga emas, holatning o'ziga qaraymiz: nishonlardan
+              # birortasi hali ishlab tursa yoki tekshirib bo'lmasa —
+              # tozalash bajarilmagan.
+              echo "--- YAKUNIY TEKSHIRUV ---"
+              for c in salescoach-postgres salescoach-redis salescoach-minio; do
+                if STILL="$(timeout 20 $DOCKER ps --filter "name=^/${c}\$" \
+                     --format '{{.Names}}' 2>/dev/null)"; then
+                  if [ -n "$STILL" ]; then
+                    echo "  XATO: $c hali ishlayapti"
+                    CLEANUP_FAILED=1
+                  else
+                    echo "  $c: ishlamayapti ✓"
+                  fi
+                else
+                  echo "  XATO: $c holatini tekshirib bo'lmadi"
+                  CLEANUP_FAILED=1
+                fi
+              done
+            fi
 
             if [ "${STOP_OLLAMA:-yes}" = "yes" ]; then
               echo "=== OLLAMA ==="
               if systemctl list-unit-files --no-legend 'ollama.service' 2>/dev/null | grep -q ollama; then
-                sudo systemctl disable --now ollama \
-                  && echo "ollama: to'xtatildi va o'chirildi" \
-                  || echo "OGOHLANTIRISH: ollama to'xtamadi"
+                if sudo systemctl disable --now ollama; then
+                  echo "ollama: to'xtatildi va o'chirildi"
+                else
+                  echo "XATO: ollama to'xtamadi"
+                  CLEANUP_FAILED=1
+                fi
               else
                 echo "ollama: (unit topilmadi)"
               fi
@@ -124,7 +204,14 @@ jobs:
               http://127.0.0.1:8080/readyz/ 2>/dev/null | head -c 2000 \
               || echo "http_code=000 (ulanmadi)"
 
-            echo "=== TUGADI ==="
+            if [ "$CLEANUP_FAILED" -ne 0 ]; then
+              echo "=== YAKUN: TOZALASH BAJARILMADI ==="
+              echo "Yuqoridagi XATO qatorlariga qarang. Job ataylab yiqilyapti —"
+              echo "bajarilmagan ish yashil hisobot bilan yopilmasligi kerak."
+              exit 1
+            fi
+
+            echo "=== TUGADI: tozalash tasdiqlandi ==="
             # Rollback:
             #   docker update --restart=unless-stopped salescoach-postgres \
             #     salescoach-redis salescoach-minio
