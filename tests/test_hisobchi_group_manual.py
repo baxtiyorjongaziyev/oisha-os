@@ -6,7 +6,7 @@ import pytest
 from src.database import Database
 from src.database_pool import SmartRow
 from src.services.core.finance.hisobchi_engine import HisobchiEngine
-from src.services.core.finance.hisobchi_handlers import (
+from src.services.core.finance.handlers import (
     handle_kirim_chiqim_text,
     handle_topic_plain_text,
 )

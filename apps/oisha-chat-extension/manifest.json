@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Oisha Telegram Chat",
+  "version": "1.0",
+  "description": "AmoCRM dagi mijozlar bilan Oisha-OS Telegram orqali yozishish uchun kengaytma.",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.amocrm.ru/*",
+    "https://oisha.jonbranding.uz/*",
+    "http://127.0.0.1:8765/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.amocrm.ru/leads/detail/*"],
+      "css": ["styles.css"],
+      "js": ["content.js"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

@@ -34,6 +34,7 @@ class BackgroundMonitor:
         settings: Any = None,
         get_surgical_integration: Any = None,
         TN5_GROUP_ID: Optional[int] = None,
+        hisobchi_analyst: Any = None,
     ) -> None:
         self.msg_controller = msg_controller
         self.client = client
@@ -41,6 +42,7 @@ class BackgroundMonitor:
         self.settings = settings
         self.get_surgical_integration = get_surgical_integration
         self.TN5_GROUP_ID = TN5_GROUP_ID
+        self.hisobchi_analyst = hisobchi_analyst
 
         self._sent_jobs: Set[str] = set()
         self._lead_os: Any = None
@@ -208,6 +210,28 @@ class BackgroundMonitor:
                     logger.info("[SCHEDULE] CRM Daily reportagram sent.")
             except Exception as exc:
                 logger.error("[SCHEDULE][CRM_REPORT] Error: %s", exc)
+            self._mark_sent(key)
+
+    async def _job_hisobchi_daily_roast(self, now: datetime) -> None:
+        key = self._job_key("hisobchi_daily_roast", now)
+        if not self._already_sent(key):
+            try:
+                if self.hisobchi_analyst:
+                    period = now.strftime("%Y-%m")
+                    roast_text = await self.hisobchi_analyst.analyze_month(period)
+                    
+                    send_kwargs = {}
+                    if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
+                        send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID
+                    
+                    # Alternatively, if there is a finance group, it could be sent there.
+                    # But reports topic is standard for BackgroundMonitor.
+                    await self._send_to_group_or_admin(roast_text, **send_kwargs)
+                    logger.info("[SCHEDULE] Hisobchi daily roast sent.")
+                else:
+                    logger.warning("[SCHEDULE] hisobchi_analyst not available for daily roast.")
+            except Exception as exc:
+                logger.error("[SCHEDULE][HISOBCHI_ROAST] Error: %s", exc)
             self._mark_sent(key)
 
     async def _job_crm_weekly_report(self, now: datetime) -> None:
@@ -483,6 +507,10 @@ class BackgroundMonitor:
                 # 8. CRM daily report (19:30)
                 if now.hour == 19 and now.minute == 30:
                     await self._job_crm_daily_report(now)
+
+                # Hisobchi daily roast (20:30)
+                if now.hour == 20 and now.minute == 30:
+                    await self._job_hisobchi_daily_roast(now)
 
                 # 9. CRM weekly report (configurable)
                 weekly_enabled = os.getenv("CRM_WEEKLY_REPORT_ENABLED", "true").lower() not in {

@@ -1,0 +1,125 @@
+/* styles.css */
+#oisha-chat-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 350px;
+  height: 500px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+  z-index: 999999;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+}
+
+#oisha-chat-header {
+  background: #2AABEE; /* Telegram Blue */
+  color: white;
+  padding: 15px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+#oisha-chat-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#oisha-chat-toggle {
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+#oisha-chat-messages {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+  background: #E5DDD5; /* WhatsApp/TG Web like background */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.oisha-msg {
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+.oisha-msg.outbound {
+  align-self: flex-end;
+  background: #E3FFC3;
+  border-bottom-right-radius: 2px;
+}
+
+.oisha-msg.inbound {
+  align-self: flex-start;
+  background: #FFFFFF;
+  border-bottom-left-radius: 2px;
+}
+
+#oisha-chat-input-area {
+  display: flex;
+  padding: 10px;
+  background: #f0f0f0;
+  border-top: 1px solid #ddd;
+}
+
+#oisha-chat-input {
+  flex: 1;
+  padding: 10px 15px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  outline: none;
+  font-size: 14px;
+  resize: none;
+}
+
+#oisha-chat-send {
+  background: #2AABEE;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  margin-left: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#oisha-chat-send:hover {
+  background: #1c88c2;
+}
+
+#oisha-chat-minimized {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 60px;
+  height: 60px;
+  background: #2AABEE;
+  color: white;
+  border-radius: 50%;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 999999;
+  font-size: 24px;
+  display: none;
+}
