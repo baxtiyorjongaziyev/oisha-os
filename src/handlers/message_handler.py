@@ -326,10 +326,15 @@ async def process_hisobchi(
         except Exception as exc:
             logger.debug("[HISOBCHI] Failed to show typing indicator: %s", exc)
 
-        # Imports for Hisobchi processing
+    try:
         from src.services.core.finance.hisobchi_engine import HisobchiEngine
         from src.services.core.finance.handlers import _get_finance_config
         from src.context import app_ctx
+        from src.services.core.finance.handlers import (
+            handle_card_bot_message,
+            handle_finance_group_reply,
+            is_card_bot_sender,
+        )
 
         # Ignore Saved Messages (chat with self)
         if client:

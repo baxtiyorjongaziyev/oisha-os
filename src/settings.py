@@ -95,6 +95,8 @@ class AppSettings(BaseSettings):
     CLOUDFLARE_WHISPER_MODEL: str = "@cf/openai/whisper-large-v3-turbo"
     OLLAMA_BASE_URL: str = "http://127.0.0.1:11434/api"
     OLLAMA_TEXT_MODEL: str = "qwen2.5:3b"
+    VAPI_API_KEY: Optional[SecretStr] = None
+    VAPI_PHONE_NUMBER_ID: Optional[str] = None
     FREE_AI_PROVIDER_TIMEOUT_SECONDS: int = 45
     ENABLE_PAID_AI_FALLBACK: bool = False
     OPENAI_API_KEY: Optional[SecretStr] = None
@@ -191,6 +193,10 @@ class AppSettings(BaseSettings):
     JONBRANDING_CHANNEL: str = "jonbranding"
     CMS_WEBHOOK_URL: Optional[str] = None
     ENABLE_CASE_PUBLISHER: bool = True
+    
+    # CMS / Sanity Publisher
+    ENABLE_SANITY_PUBLISHER: bool = True
+    AMOCRM_WON_STATUS_ID: int = 142
     SANITY_PROJECT_ID: Optional[str] = None
     SANITY_DATASET: Optional[str] = None
     SANITY_TOKEN: Optional[SecretStr] = None
@@ -340,6 +346,8 @@ class AppSettings(BaseSettings):
             "OPENROUTER_API_KEY",
             "NVIDIA_NIM_API_KEY",
             "TOGETHERAI_API_KEY",
+            "VAPI_API_KEY",
+            "VAPI_PHONE_NUMBER_ID",
             "HUGGINGFACE_API_KEY",
             "CEREBRAS_API_KEY",
             "MISTRAL_API_KEY",

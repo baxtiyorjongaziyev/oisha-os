@@ -26,16 +26,18 @@ class FakeAmoCRM:
 
 
 @pytest.fixture
-async def temp_db():
+def temp_db():
+    # Create a temporary SQLite file
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as fh:
         db_path = fh.name
 
     db = Database(db_path)
-    await db.init_db()
+    import asyncio
+    asyncio.run(db.init_db())
     try:
         yield db
     finally:
-        await db.close()
+        asyncio.run(db.close())
         os.unlink(db_path)
 
 
@@ -93,6 +95,7 @@ async def test_enrich_lead_can_lookup_profile_through_userbot():
             return True
 
         async def __call__(self, request):
+            print(f"DEBUG MOCK CALL: {request.__class__.__name__} {request}")
             if request.__class__.__name__ == "ImportContactsRequest":
                 return SimpleNamespace(
                     users=[

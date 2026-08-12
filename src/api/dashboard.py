@@ -8,6 +8,7 @@ from src.api.rbac import Permission, require_permissions
 from pydantic import BaseModel
 
 from src.api.routes.state import api_state
+from aiocache import cached
 import logging
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,7 @@ async def get_call_analytics(call_id: str):
 
 
 @router.get("/stats")
+@cached(ttl=60)
 async def get_general_stats():
     rows = await _query(
         "SELECT COUNT(*) AS total_calls, AVG(overall_score) AS avg_score "

@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import structlog
 
+logger = structlog.get_logger()
 import requests  # type: ignore
 from src.settings import settings
 from src.services.utils.gemini_fallback import generate_content_with_fallback

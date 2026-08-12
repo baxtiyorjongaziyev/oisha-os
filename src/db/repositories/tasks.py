@@ -28,11 +28,24 @@ class TaskRepository(BaseRepository):
                 source_manager TEXT DEFAULT 'oisha',
                 external_task_id TEXT,
                 is_frog BOOLEAN DEFAULT FALSE,
+                sla_minutes INTEGER,
+                coins_reward INTEGER DEFAULT 0,
                 created_by INTEGER,
                 created_at DATETIME,
                 completed_at DATETIME
             )
         """)
+        
+        # Vilgood OS Migration
+        try:
+            await self._execute("ALTER TABLE tasks ADD COLUMN sla_minutes INTEGER")
+        except Exception:
+            pass
+        try:
+            await self._execute("ALTER TABLE tasks ADD COLUMN coins_reward INTEGER DEFAULT 0")
+        except Exception:
+            pass
+
         await self._execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
 
     async def get_task_count(self) -> int:

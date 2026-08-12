@@ -6,7 +6,7 @@ import asyncio
 
 from src.services.core.finance.hisobchi_engine import HisobchiEngine
 from src.services.core.finance.hisobchi_card_parser import CARD_BOT_USERNAMES, parse_card_notification
-from .utils import (
+from .engine_utils import (
     resolve_finance_destination,
     _pick_topic,
     _as_bot_runtime,

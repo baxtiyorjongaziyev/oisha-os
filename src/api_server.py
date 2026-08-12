@@ -22,6 +22,10 @@ from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from aiocache import Cache
 
 from src.database import get_db
 from src.context import app_ctx
@@ -58,8 +62,11 @@ _conversation_engine: Any = None
 # CRM audit running flag
 crm_audit_running: bool = False
 
-# State and code verifier cache (in-memory for simple auth flow)
-_oauth_sessions: Dict[str, str] = {}
+# State and code verifier cache
+_oauth_sessions = Cache(Cache.MEMORY)
+
+# Rate limiter setup
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ---------------------------------------------------------------------------
@@ -342,6 +349,8 @@ def _get_amocrm_instance():
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="Oisha-OS Enterprise API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # OAuth2 Middleware for MCP Endpoints
 @app.middleware("http")
@@ -359,7 +368,7 @@ async def verify_oauth_for_mcp(request: Request, call_next):
         is_authorized = False
         if expected_token and auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]
-            if token and hmac.compare_digest(token, expected_token):
+            if token and expected_token and hmac.compare_digest(token.encode('utf-8'), expected_token.encode('utf-8')):
                 is_authorized = True
 
         if not is_authorized:
@@ -510,6 +519,7 @@ async def process_telegram_ai_update(update: Dict[str, Any]):
 
 
 @app.post("/webhook/telegram-ai")
+@limiter.limit("60/minute")
 async def telegram_ai_webhook(request: Request):
     """HTTPS ingress for Bot API 10.0 AI updates."""
     expected_secret = _secret_setting_text(settings.TELEGRAM_WEBHOOK_SECRET)
@@ -526,6 +536,7 @@ async def telegram_ai_webhook(request: Request):
 
 
 @app.post("/webhook/telegram")
+@limiter.limit("60/minute")
 async def telegram_webhook(request: Request):
     """Legacy webhook alias."""
     return await telegram_ai_webhook(request)
@@ -536,6 +547,7 @@ async def telegram_webhook(request: Request):
 # =====================================================================
 
 @app.post("/webhook/amocrm_chat")
+@limiter.limit("60/minute")
 async def amocrm_chat_webhook(request: Request):
     """Receive outgoing messages from AmoCRM Chat and send them to Telegram."""
     try:
@@ -564,11 +576,50 @@ async def amocrm_chat_webhook(request: Request):
             return {"status": "ok"}
         return {"status": "ignored"}
     except Exception as e:
-        logger.error(f"[AMOCRM CHAT WEBHOOK ERROR] {e}")
-        return {"status": "error", "detail": "Webhook processing failed"}
+        logger.error(f"AmoCRM Notes Webhook error: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+
+@app.post("/webhook/amocrm_lead_created")
+@limiter.limit("60/minute")
+async def amocrm_lead_created_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Receive lead[add] webhooks from AmoCRM to trigger Voice Agent."""
+    try:
+        from src.services.core.voice_agent import trigger_voice_agent
+        form_data = await request.form()
+        
+        # Parse AmoCRM structure: leads[add][0][name], etc.
+        lead_id = form_data.get("leads[add][0][id]")
+        if not lead_id:
+            return JSONResponse(status_code=400, content={"status": "ignored", "message": "Not a lead addition"})
+            
+        lead_name = form_data.get("leads[add][0][name]", f"Lead {lead_id}")
+        
+        # This is a naive extraction. In reality, we'd need to extract from custom fields (CFs)
+        # However, AmoCRM webhooks usually send custom fields as array indexes. 
+        # For the stub, we just try to find something that looks like a phone.
+        phone_number = None
+        for key, value in form_data.items():
+            if "custom_fields" in key and "values" in key and "value" in key:
+                if str(value).replace("+", "").isdigit() and len(str(value)) > 8:
+                    phone_number = str(value)
+                    break
+                    
+        background_tasks.add_task(
+            trigger_voice_agent,
+            lead_name=lead_name,
+            phone_number=phone_number,
+            context=f"AmoCRM Lead ID: {lead_id}"
+        )
+        
+        return JSONResponse(content={"status": "ok", "message": "Voice Agent triggered if phone found"})
+    except Exception as e:
+        logger.error(f"AmoCRM Lead Created Webhook error: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 
 @app.post("/webhook/amocrm_notes")
+@limiter.limit("60/minute")
 async def amocrm_notes_webhook(request: Request):
     """Receive note[add] webhooks from AmoCRM to send Telegram messages natively."""
     try:
@@ -724,7 +775,7 @@ async def airtable_login():
     state = base64.urlsafe_b64encode(os.urandom(16)).decode('utf-8').rstrip('=')
     
     # Store verifier temporarily to use in callback
-    _oauth_sessions[state] = code_verifier
+    await _oauth_sessions.set(state, code_verifier, ttl=600)
     
     client = AirtableClient()
     url = client.get_authorization_url(state, code_challenge)
@@ -740,7 +791,9 @@ async def airtable_callback(code: str = None, state: str = None, error: str = No
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code or state")
         
-    code_verifier = _oauth_sessions.pop(state, None)
+    code_verifier = await _oauth_sessions.get(state)
+    if code_verifier:
+        await _oauth_sessions.delete(state)
     if not code_verifier:
         raise HTTPException(status_code=400, detail="Invalid or expired state")
         
