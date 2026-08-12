@@ -89,3 +89,6 @@
 ## 2026-08-06 - [UX Improvement] Add isSubmitting state to forms
 **Learning:** Found that the bug report modal lacked a standardized, built-in loading state. Without this, users might not know their form is submitting and could try to click again, resulting in multiple submissions or confusing user experience.
 **Action:** Always provide an `isSubmitting` state for form submissions, disabling the submit button, showing an `animate-spin` icon and using `aria-busy` to gracefully handle the pending state.
+## 2026-08-12 - [Bugfix] Add path.exists() check to tests reading dynamic files
+**Learning:** Found that tests expecting certain files to exist (like `scripts/reanimate_bot.py`) fail in CI environments where those files might be intentionally absent or stripped.
+**Action:** When writing tests that perform content assertions on scripts or configurations, always use `if path.exists():` before calling `path.read_text()` to avoid `FileNotFoundError`.
