@@ -9,6 +9,14 @@
 # qolishi kerak. Bu esa prod mashinasida servisni qayta ishga tushiradi,
 # shuning uchun alohida nom va alohida tasdiq talab qiladi.
 #
+# Ikkita rejim:
+#   restart — faqat servisni qayta ishga tushiradi (standart)
+#   harden  — avval Restart=always drop-in'ini o'rnatadi, keyin qayta
+#             ishga tushiradi. Kerak, chunki 11-avgust kuni runner'ni OOM
+#             killer o'ldirgan va u 24 soatdan ortiq o'lik yotgan: unit'da
+#             qayta ishga tushirish siyosati yo'q edi, ya'ni bitta OOM
+#             butun deploy navbatini to'xtatib qo'yadi.
+#
 # oisha-os.service GA TEGMAYDI — faqat runner agenti. Ilovani qayta ishga
 # tushirish uchun oracle-userbot-auth.yml → step: restart ishlatiladi.
 name: Oracle Runner Restart
@@ -20,6 +28,12 @@ on:
         description: 'Tasdiqlash uchun aynan "restart" deb yozing'
         required: true
         default: ''
+      mode:
+        description: 'restart = faqat qayta ishga tushirish | harden = avval Restart=always siyosatini o‘rnatish, keyin qayta ishga tushirish'
+        required: false
+        default: 'restart'
+        type: choice
+        options: [restart, harden]
 
 permissions:
   contents: read
@@ -43,7 +57,11 @@ jobs:
 
       - name: Restart runner service
         uses: appleboy/ssh-action@v1
+        env:
+          # Rejim skript matniga emas, env orqali uzatiladi.
+          RESTART_MODE: ${{ inputs.mode }}
         with:
+          envs: RESTART_MODE
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
           key: ${{ secrets.ORACLE_SSH_KEY }}
@@ -72,7 +90,39 @@ jobs:
             for u in $UNITS; do
               printf '%s: ' "$u"
               systemctl is-active "$u" || true
+              printf '  Restart siyosati: '
+              systemctl show "$u" -p Restart --value || true
             done
+
+            if [ "${RESTART_MODE:-restart}" = "harden" ]; then
+              # Runner'ni 11-avgust kuni OOM killer o'ldirgan
+              # (status=137, "Failed with result 'oom-kill'") va u 24
+              # soatdan ortiq o'lik yotgan, chunki unit'da qayta ishga
+              # tushirish siyosati yo'q edi. oisha-os.service da bunday
+              # drop-in bor (oracle-deploy.yml o'rnatadi) — runner ham
+              # xuddi shunday himoyalanishi kerak.
+              #
+              # StartLimitIntervalSec=0 — ketma-ket yiqilishlar unit'ni
+              # "failed" holatida qulflab qo'ymasligi uchun.
+              echo "=== RESTART SIYOSATINI O'RNATISH ==="
+              for u in $UNITS; do
+                echo "--- $u ---"
+                sudo mkdir -p "/etc/systemd/system/${u}.d"
+                sudo tee "/etc/systemd/system/${u}.d/10-resilience.conf" >/dev/null <<'UNIT'
+            [Unit]
+            StartLimitIntervalSec=0
+
+            [Service]
+            Restart=always
+            RestartSec=15
+            UNIT
+                sudo cat "/etc/systemd/system/${u}.d/10-resilience.conf"
+              done
+              sudo systemctl daemon-reload
+              for u in $UNITS; do
+                sudo systemctl reset-failed "$u" || true
+              done
+            fi
 
             echo "=== QAYTA ISHGA TUSHIRISH ==="
             for u in $UNITS; do
@@ -88,7 +138,8 @@ jobs:
             FAILED=0
             for u in $UNITS; do
               STATE="$(systemctl is-active "$u" || true)"
-              printf '%s: %s\n' "$u" "$STATE"
+              POLICY="$(systemctl show "$u" -p Restart --value || true)"
+              printf '%s: %s (Restart=%s)\n' "$u" "$STATE" "$POLICY"
               [ "$STATE" = "active" ] || FAILED=1
             done
 
