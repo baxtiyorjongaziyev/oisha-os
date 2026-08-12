@@ -56,8 +56,7 @@ async def trigger_voice_agent(lead_name: str, phone_number: str, context: Option
                 timeout=10.0
             )
             response.raise_for_status()
-            masked_phone = f"...{phone_number[-4:]}" if phone_number and len(phone_number) >= 4 else "***"
-            logger.info(f"Successfully triggered Voice Agent for {lead_name} ({masked_phone})")
+            logger.info(f"Successfully triggered Voice Agent for {lead_name}")
             return True
     except Exception as e:
         logger.error(f"Failed to trigger Voice Agent for {lead_name}: {e}")
