@@ -19,6 +19,7 @@ from src.services.core.admin_command_router import (
 )
 import logging
 logger = logging.getLogger(__name__)
+from src.handlers import callbacks as cb
 
 
 class AiogramCallbackEventAdapter:
@@ -61,18 +62,28 @@ def register_hisobchi_aiogram_callbacks(
     """Route every Hisobchi inline approval callback through Aiogram."""
     from aiogram import F
     from src.services.core.hisobchi_approval import handle_callback
+    from src.services.core.hisobchi_callbacks import register_callbacks
 
     prefixes = ("happrove:", "hedit:", "hskip:", "hcat:", "howner:", "hback:")
 
-    @dispatcher.callback_query(F.data.startswith(prefixes))
-    async def _hisobchi_callback(callback: Any) -> None:
-        data = str(getattr(callback, "data", "") or "")
-        event = AiogramCallbackEventAdapter(callback)
+    register_callbacks(dispatcher, engine=engine)
+
+    # Register additional custom callbacks defined in src.handlers.callbacks
+    @dispatcher.callback_query(F.data.startswith("task_conf:"))
+    async def _task_conf_cb(callback: Any) -> None:
         try:
-            await handle_callback(data, event, engine)
+            await cb.task_conf_callback(callback.update, None, db=engine.db)
         except Exception:
-            logger.error("Exception handled in %s", __name__, exc_info=True)
-            await event.answer("⚠️ Xatolik yuz berdi, qayta urinib ko'ring.")
+            logger.error("task_conf_callback failed", exc_info=True)
+            await callback.answer("Xatolik yuz berdi, qayta urinib ko'ring")
+
+    @dispatcher.callback_query(F.data.startswith("strat_conf:"))
+    async def _strat_conf_cb(callback: Any) -> None:
+        try:
+            await cb.strat_conf_callback(callback.update, None)
+        except Exception:
+            logger.error("strat_conf_callback failed", exc_info=True)
+            await callback.answer("Xatolik yuz berdi, qayta urinib ko'ring")
 
 
 def register_salescoach_aiogram_callbacks(dispatcher: Any, *, context: Any) -> None:

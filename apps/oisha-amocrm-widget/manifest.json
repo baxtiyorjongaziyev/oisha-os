@@ -1,0 +1,29 @@
+{
+    "widget": {
+      "name": {
+        "ru": "Oisha Telegram Chat",
+        "en": "Oisha Telegram Chat"
+      },
+      "description": {
+        "ru": "Telegram orqali to'g'ridan-to'g'ri yozishish uchun vidjet",
+        "en": "Widget for direct Telegram messaging"
+      },
+      "short_description": {
+        "ru": "Oisha Telegram Chat",
+        "en": "Oisha Telegram Chat"
+      },
+      "version": "1.0.0",
+      "support": "jonbranding",
+      "tour_url": "",
+      "dp_key": "oisha_telegram"
+    },
+    "theme": {
+      "color": "#0088cc"
+    },
+    "locations": [
+      "lcard"
+    ],
+    "author": {
+      "name": "Jon Branding"
+    }
+  }

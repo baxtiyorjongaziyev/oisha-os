@@ -948,7 +948,7 @@ async def boot_application():
         create_hisobchi_engine,
         run_one_time_reset_and_resync,
     )
-    from src.services.core.finance.hisobchi_handlers import (
+    from src.services.core.finance.handlers import (
         backfill_card_bot_messages,
         handle_card_bot_message,
         handle_finance_group_reply,

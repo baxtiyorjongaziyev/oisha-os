@@ -1,5 +1,6 @@
 import os
 import structlog
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr, Field, model_validator
 from typing import Optional
@@ -436,6 +437,11 @@ class AppSettings(BaseSettings):
             missing.append("AMOCRM_CLIENT_ID")
         return missing
 
+
+    VAULT_PATH: Path = Path(r"C:/Users/baxti/OneDrive/Документы/Obsidian Vault")
+    VAULT_GIT_REMOTE: str = "origin"
+    VAULT_GIT_BRANCH: str = "master"
+    GITHUB_TOKEN: Optional[SecretStr] = None
 
 settings = AppSettings()
 logger = structlog.get_logger()

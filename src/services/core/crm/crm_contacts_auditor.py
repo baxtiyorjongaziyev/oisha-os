@@ -22,6 +22,8 @@ import requests  # type: ignore
 from src.settings import settings
 from src.services.utils.gemini_fallback import generate_content_with_fallback
 
+logger = structlog.get_logger(__name__)
+
 try:
     from google import genai
     from google.genai import types as genai_types
@@ -37,7 +39,7 @@ except Exception:
     functions = None
     types = None
 
-logger = structlog.get_logger()
+
 
 
 def normalize_phone(phone: Optional[str]) -> str:

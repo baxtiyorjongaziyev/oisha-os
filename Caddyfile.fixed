@@ -1,0 +1,28 @@
+oisha.jonbranding.uz {
+    @public path /healthz /healthz/ /readyz /readyz/
+    handle @public {
+        reverse_proxy 127.0.0.1:8080
+    }
+    @api path /api/* /webhook/* /docs /openapi.json /static/* /dashboard/* /mcp/*
+    @mcp path /telegram-mcp-*
+    handle @mcp {
+        reverse_proxy 127.0.0.1:8080
+    }
+
+    @oauth path /oauth2/* /telegram-mcp/*
+    handle @oauth {
+        reverse_proxy 127.0.0.1:8080
+    }
+    handle @api {
+        reverse_proxy 127.0.0.1:8080
+    }
+    # SalesCoach API (NestJS) deploy qilinmagan — ishlaydigan
+    # sahifa /admin, root'ni o'sha yerga yo'naltiramiz
+    redir / /admin 302
+    handle {
+        reverse_proxy 127.0.0.1:3000
+    }
+}
+n8n.jonbranding.uz {
+    reverse_proxy 127.0.0.1:5678
+}

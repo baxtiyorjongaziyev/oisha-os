@@ -4,6 +4,7 @@ import logging
 from src.database import get_db
 from src.settings import settings
 import google.generativeai as genai
+from src.utils.git_sync import push_vault_to_remote
 
 logger = logging.getLogger(__name__)
 
@@ -55,22 +56,24 @@ async def _generate_insights(data: str) -> str:
     if not data or data == "No recent data found.":
         return "Bugun uchun qolib ketgan va'dalar yo'q."
 
-    gemini_key = settings.GEMINI_API_KEY.get_secret_value() if settings.GEMINI_API_KEY else None
-    if not gemini_key:
-        return "Gemini API kaliti topilmadi."
-
     try:
-        # Avoid blocking the event loop
-        def sync_call():
-            genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel("gemini-2.5-flash")
-            response = model.generate_content(PROMPT.format(data=data))
-            return response.text
-
-        result = await asyncio.to_thread(sync_call)
-        return result
+        import litellm
+        
+        # OpenRouter orqali Llama-3.3 dan foydalanamiz, chunki Groq va Gemini limitlari tugabdi
+        openrouter_key = settings.OPENROUTER_API_KEY.get_secret_value() if settings.OPENROUTER_API_KEY else None
+        
+        if openrouter_key:
+            response = await litellm.acompletion(
+                model="openrouter/meta-llama/llama-3.3-70b-instruct",
+                messages=[{"role": "user", "content": PROMPT.format(data=data)}],
+                api_key=openrouter_key
+            )
+            return response.choices[0].message.content
+        else:
+            return "OpenRouter API kaliti topilmadi."
+            
     except Exception as e:
-        logger.error(f"[BRAIN_SYNTH] Gemini API error: {e}")
+        logger.error(f"[BRAIN_SYNTH] AI API error: {e}")
         return f"Analizda xatolik yuz berdi: {e}"
 
 async def run_brain_synthesizer_cycle(bot_client, target_chat_id: int):
@@ -93,6 +96,8 @@ async def run_brain_synthesizer_cycle(bot_client, target_chat_id: int):
                 parse_mode="HTML"
             )
             logger.info("[BRAIN_SYNTH] Digest sent successfully.")
+            # Sync Obsidian vault to remote after each successful digest
+            await push_vault_to_remote(settings.VAULT_PATH)
     except Exception as e:
         logger.error(f"[BRAIN_SYNTH] Failed to send digest: {e}")
 
