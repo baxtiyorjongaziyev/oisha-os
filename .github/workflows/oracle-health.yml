@@ -1,0 +1,94 @@
+# Oracle VM salomatlik tekshiruvi — FAQAT O'QISH.
+#
+# Nega kerak: prod yiqilganda mavjud workflow'lar sababni ko'rsatmaydi.
+# verify-session.yml faqat /readyz javobini oladi (ulanmasa "000" beradi),
+# runner-diagnostics.yml esa self-hosted runner o'lik bo'lsa navbatda qotib
+# qoladi — ya'ni aynan kerak bo'lgan paytda ishlamaydi. Bu workflow
+# GitHub-hosted runner'dan SSH bilan kiradi va mashinaning holatini o'qiydi.
+#
+# Bu yerda HECH NARSA o'zgartirilmaydi: na servis qayta ishga tushiriladi,
+# na fayl yoziladi, na Telethon ulanishi ochiladi. Faqat o'qish.
+name: Oracle VM Health
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    name: Oracle VM holati (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Collect VM health facts
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          # Host key pinning. Secret qo'yilgan bo'lsa ssh-action serverning
+          # kalitini shu SHA256 bilan solishtiradi va mos kelmasa ulanmaydi;
+          # bo'sh bo'lsa tekshiruvsiz ulanadi (repo'dagi qolgan SSH
+          # workflow'lari hozir shunday ishlaydi). Qiymatni olish:
+          #   ssh-keyscan -t ed25519 <host> | ssh-keygen -lf -
+          fingerprint: ${{ secrets.ORACLE_SSH_FINGERPRINT }}
+          port: 22
+          timeout: 30s
+          command_timeout: 8m
+          script: |
+            # set -e QO'YMAYMIZ: bitta buyruq yiqilsa ham qolganlari
+            # ko'rinishi kerak — diagnostikaning butun maqsadi shu.
+            OISHA_DIR="/home/ubuntu/oisha-os"
+
+            echo "=== UPTIME / LOAD ==="
+            uptime || true
+
+            echo "=== XOTIRA (MB) ==="
+            free -m || true
+
+            echo "=== DISK ==="
+            df -h / "$OISHA_DIR" 2>/dev/null || df -h || true
+            echo "--- eng katta 10 ta katalog ($OISHA_DIR) ---"
+            du -xh --max-depth=2 "$OISHA_DIR" 2>/dev/null | sort -rh | head -n 10 || true
+
+            echo "=== SERVISLAR ==="
+            for unit in oisha-os nginx ollama actions.runner.*; do
+              printf '%s: ' "$unit"
+              systemctl is-active "$unit" 2>/dev/null || echo "(topilmadi)"
+            done
+
+            echo "=== oisha-os restart hisobi ==="
+            systemctl show oisha-os -p NRestarts -p ActiveState -p SubState \
+              -p ExecMainStartTimestamp 2>/dev/null || true
+
+            echo "=== /readyz ==="
+            # Faylga yozmaymiz — bu workflow VM'da hech narsa qoldirmasligi
+            # kerak. Javob va status kodi to'g'ridan-to'g'ri o'qiladi, uzun
+            # javobni head cheklaydi.
+            curl -s --max-time 10 -w '\nhttp_code=%{http_code}\n' \
+              http://127.0.0.1:8080/readyz/ 2>/dev/null | head -c 2000 \
+              || echo "http_code=000 (ulanmadi)"
+            echo
+
+            echo "=== TOP 10 JARAYON (xotira bo'yicha) ==="
+            ps -eo pid,pmem,pcpu,rss,comm --sort=-rss 2>/dev/null | head -n 11 || true
+
+            echo "=== OOM-killer izlari ==="
+            # Xotira tugaganda yadro jarayonni o'ldiradi — sabab shu bo'lsa
+            # aynan shu yerda ko'rinadi.
+            (sudo -n dmesg -T 2>/dev/null || dmesg -T 2>/dev/null) \
+              | grep -iE 'out of memory|oom-kill|killed process' | tail -n 15 \
+              || echo "(OOM izi topilmadi yoki dmesg o'qib bo'lmadi)"
+
+            echo "=== oisha-os JURNALI (oxirgi 60 qator) ==="
+            sudo -n journalctl -u oisha-os --no-pager -n 60 2>/dev/null \
+              || journalctl -u oisha-os --no-pager -n 60 2>/dev/null \
+              || echo "(journalctl o'qib bo'lmadi)"
+
+            echo "=== data/ katalogi ==="
+            ls -la "$OISHA_DIR/data" 2>/dev/null | head -n 25 \
+              || echo "(data/ yo'q)"
+
+            echo "=== TEKSHIRUV TUGADI ==="
