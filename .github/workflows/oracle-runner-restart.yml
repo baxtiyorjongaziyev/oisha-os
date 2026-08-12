@@ -47,6 +47,8 @@ jobs:
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
           key: ${{ secrets.ORACLE_SSH_KEY }}
+          # Host key pinning — qarang oracle-health.yml dagi izoh.
+          fingerprint: ${{ secrets.ORACLE_SSH_FINGERPRINT }}
           port: 22
           timeout: 30s
           command_timeout: 8m

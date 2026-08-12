@@ -28,6 +28,12 @@ jobs:
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
           key: ${{ secrets.ORACLE_SSH_KEY }}
+          # Host key pinning. Secret qo'yilgan bo'lsa ssh-action serverning
+          # kalitini shu SHA256 bilan solishtiradi va mos kelmasa ulanmaydi;
+          # bo'sh bo'lsa tekshiruvsiz ulanadi (repo'dagi qolgan SSH
+          # workflow'lari hozir shunday ishlaydi). Qiymatni olish:
+          #   ssh-keyscan -t ed25519 <host> | ssh-keygen -lf -
+          fingerprint: ${{ secrets.ORACLE_SSH_FINGERPRINT }}
           port: 22
           timeout: 30s
           command_timeout: 8m
@@ -58,9 +64,12 @@ jobs:
               -p ExecMainStartTimestamp 2>/dev/null || true
 
             echo "=== /readyz ==="
-            curl -s -o /tmp/health-readyz.json -w "http_code=%{http_code}\n" \
-              --max-time 10 http://127.0.0.1:8080/readyz/ || echo "http_code=000 (ulanmadi)"
-            head -c 2000 /tmp/health-readyz.json 2>/dev/null || true
+            # Faylga yozmaymiz — bu workflow VM'da hech narsa qoldirmasligi
+            # kerak. Javob va status kodi to'g'ridan-to'g'ri o'qiladi, uzun
+            # javobni head cheklaydi.
+            curl -s --max-time 10 -w '\nhttp_code=%{http_code}\n' \
+              http://127.0.0.1:8080/readyz/ 2>/dev/null | head -c 2000 \
+              || echo "http_code=000 (ulanmadi)"
             echo
 
             echo "=== TOP 10 JARAYON (xotira bo'yicha) ==="
