@@ -1813,12 +1813,22 @@ class CallAnalyzer:
         except Exception as exc:
             logger.warning("[BACKFILL] '%s' holatini yozib bo'lmadi: %s", key, exc)
 
-    async def _fetch_leads_page(self, page: int, per_page: int = 250) -> List[Dict[str, Any]]:
+    async def _fetch_leads_page(
+        self, page: int, per_page: int = 250
+    ) -> Optional[List[Dict[str, Any]]]:
         """Bitimlarning bitta sahifasi.
 
         `get_leads_detailed` 50 ta bilan cheklangan va sahifalashni
         qo'llab-quvvatlamaydi — u har doim BIRINCHI sahifani qaytaradi,
         shuning uchun tarixga chuqur kirish uchun yaramaydi.
+
+        Qaytaradi:
+            `[]`   — sahifa haqiqatan bo'sh, ya'ni TARIX TUGADI;
+            `None` — so'rov YIQILDI (401/429/5xx, tarmoq, buzuq JSON).
+
+        Bu farq muhim: xatoni bo'sh sahifa deb hisoblasak, backfill
+        "tarix tugadi" deb yolg'on xulosa chiqaradi, kursorni 1-sahifaga
+        qaytaradi va tarixning qolgan qismiga hech qachon yetib bormaydi.
         """
         url = f"{self.amocrm.base_url}/api/v4/leads"
         params = {"limit": max(1, min(int(per_page), 250)), "page": int(page), "with": "contacts"}
@@ -1830,19 +1840,19 @@ class CallAnalyzer:
             )
         except Exception as exc:
             logger.error("[BACKFILL] %s-sahifa so'rovi yiqildi: %s", page, exc)
-            return []
+            return None
 
         status = getattr(response, "status_code", 0)
         if status == 204:
             return []
         if status != 200:
             logger.error("[BACKFILL] %s-sahifa HTTP %s", page, status)
-            return []
+            return None
         try:
             return (response.json().get("_embedded") or {}).get("leads") or []
         except Exception as exc:
             logger.error("[BACKFILL] %s-sahifa JSON xatosi: %s", page, exc)
-            return []
+            return None
 
     async def backfill_call_recordings(
         self,
@@ -1851,7 +1861,7 @@ class CallAnalyzer:
         write: bool = True,
         include_transcript: bool = True,
         max_pages_per_run: int = 20,
-        min_call_duration_seconds: int = 0,
+        min_call_duration_seconds: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Eski qo'ng'iroq yozuvlarini tahlil qiladi (tarixiy backfill).
 
@@ -1866,8 +1876,25 @@ class CallAnalyzer:
 
         Takroriy tahlil bo'lmaydi: `_is_call_processed` va AmoCRM notasidagi
         marker allaqachon tahlil qilingan qo'ng'iroqni o'tkazib yuboradi.
+
+        `min_call_duration_seconds=None` (standart) — sozlamadagi
+        `AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS` ishlatiladi, xuddi
+        webhook yo'lidagidek. Aks holda backfill avtojavob, band signali
+        va boshqa qisqa yozuvlarni ham tahlil qilib, uydirma natijalarni
+        bazaga yozib qo'yardi va konversiya raqamlarini buzardi.
+        Ataylab hammasini olish kerak bo'lsa — ochiq `0` beriladi.
         """
         await self._load_persisted_cooldown()
+        if min_call_duration_seconds is None:
+            try:
+                from src.settings import settings as _settings
+
+                min_call_duration_seconds = int(
+                    getattr(_settings, "AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS", 10)
+                )
+            except Exception:
+                min_call_duration_seconds = 10
+        min_call_duration_seconds = max(0, int(min_call_duration_seconds))
         stats: Dict[str, Any] = {
             "leads_scanned": 0,
             "calls_processed": 0,
@@ -1904,6 +1931,13 @@ class CallAnalyzer:
 
             leads = await self._fetch_leads_page(page)
             stats["pages_read"] += 1
+            if leads is None:
+                # So'rov yiqildi — bu TARIX TUGADI degani EMAS. Kursor
+                # joyida qoladi, `completed` yoqilmaydi: keyingi yugurish
+                # aynan shu sahifadan qayta urinadi.
+                stats["stopped_reason"] = "page_fetch_failed"
+                stats["failed_page"] = page
+                break
             if not leads:
                 # Tarix tugadi — keyingi yugurish boshidan boshlanadi va
                 # oradan qo'shilgan yangi bitimlarni ham qamrab oladi.
@@ -1932,12 +1966,20 @@ class CallAnalyzer:
                         write=write,
                         include_transcript=include_transcript,
                         min_call_duration_seconds=min_call_duration_seconds,
+                        # Qolgan kvota — bitta bitimda o'nlab yozuv bo'lishi
+                        # mumkin, cheklovsiz `limit` osonlik bilan oshib
+                        # ketardi va Gemini kvotasini yeb qo'yardi.
+                        max_calls_per_lead=max(1, target - stats["calls_processed"]),
                     )
                 except Exception as exc:
                     # Bitta bitim yiqilsa butun backfill to'xtamasligi kerak.
                     logger.error("[BACKFILL] lead_id=%s yiqildi: %s", lead_id, exc)
 
-            if stats["stopped_reason"] in {"limit_reached", "gemini_quota_cooldown"}:
+            if stats["stopped_reason"] in {
+                "limit_reached",
+                "gemini_quota_cooldown",
+                "page_fetch_failed",
+            }:
                 break
             page += 1
 
