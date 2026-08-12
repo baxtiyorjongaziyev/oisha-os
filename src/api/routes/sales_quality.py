@@ -323,17 +323,29 @@ async def ingest_sales_quality_analysis(data: SalesQualityAnalysisRequest):
 
 @router.get(
     "/api/sales-quality/conversion-overview",
-    dependencies=[require_permissions(Permission.DASHBOARD_READ)],
+    dependencies=[
+        require_permissions(
+            Permission.DASHBOARD_READ,
+            Permission.CALL_READ_ALL,
+            Permission.FINANCE_READ,
+        )
+    ],
 )
 async def sales_quality_conversion_overview(days: int = 30):
     """Panel uchun konversiya manzarasi — BRAUZER sessiyasi bilan.
 
     `/api/ai/conversion/overview` bilan bir xil ma'lumot, lekin boshqa
-    avtorizatsiya: u yerdagi router `CALL_READ_ALL` talab qiladi va
-    ustiga `OISHA_API_SECRET` bilan `Authorization: Bearer ...` header
-    ham tekshiriladi. Brauzerdagi sahifa bu sirni bila olmaydi, shuning
-    uchun prod'da panel 401 olardi. Bu yo'l panelning o'zi bilan bir xil
-    huquqni (`DASHBOARD_READ`) talab qiladi.
+    avtorizatsiya: u yerdagi router `OISHA_API_SECRET` bilan
+    `Authorization: Bearer ...` header ham tekshiradi. Brauzerdagi sahifa
+    bu sirni bila olmaydi, shuning uchun prod'da panel 401 olardi.
+
+    Huquq faqat `DASHBOARD_READ` EMAS: `team_summary()` har bir
+    sotuvchining ko'rsatkichini va jamoaning yutilgan/yo'qotilgan/ochiq
+    pulini qaytaradi. `DASHBOARD_READ` esa SELLER va VIEWER'da ham bor —
+    ular boshqa sotuvchilarning natijasini va moliyaviy summani ko'rib
+    qolardi. Shuning uchun ma'lumotga mos huquqlar talab qilinadi:
+    qo'ng'iroqlar uchun `CALL_READ_ALL`, pul uchun `FINANCE_READ`.
+    Sotuvchi o'z kartochkasini panelda emas, Telegram orqali oladi.
 
     Hisoblash mantig'i takrorlanmaydi — o'sha dvigatel chaqiriladi.
     """
@@ -358,15 +370,26 @@ async def sales_quality_conversion_overview(days: int = 30):
 
 @router.get(
     "/dashboard/sales-quality",
-    dependencies=[require_permissions(Permission.DASHBOARD_READ)],
+    dependencies=[
+        require_permissions(
+            Permission.DASHBOARD_READ,
+            Permission.CALL_READ_ALL,
+            Permission.FINANCE_READ,
+        )
+    ],
 )
 async def sales_quality_dashboard_html():
     """Savdo sifati paneli.
 
-    Sahifa `GET /api/ai/conversion/overview` dan o'qiydi — ya'ni panel va
-    Telegram hisoboti AYNAN bir xil manbadan oziqlanadi, ikkita raqam
-    paydo bo'lmaydi. Fayl `src/api/templates/` da; topilmasa 503 qaytadi,
-    chunki bo'sh sahifa "ma'lumot yo'q" degan yolg'on taassurot beradi.
+    Sahifa `GET /api/sales-quality/conversion-overview` dan o'qiydi —
+    ya'ni panel va Telegram hisoboti AYNAN bir xil manbadan oziqlanadi,
+    ikkita raqam paydo bo'lmaydi. Fayl `src/api/templates/` da; topilmasa
+    503 qaytadi, chunki bo'sh sahifa "ma'lumot yo'q" degan yolg'on
+    taassurot beradi.
+
+    Huquq o'sha endpoint bilan bir xil: aks holda sotuvchi sahifani
+    ochardi-yu, ichidagi har bir so'rov 403 olardi — buzuq panel
+    ochiq rad javobidan yomonroq.
     """
     template = (
         Path(__file__).resolve().parent.parent / "templates"
