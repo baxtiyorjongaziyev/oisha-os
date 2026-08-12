@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,7 +23,17 @@ def test_legacy_gcp_scripts_require_explicit_opt_in():
         ROOT / "scripts" / "sync_secrets_to_gcp.py",
     ]
 
-    for path in guarded_files:
+    # Ba'zi skriptlar tarixdan olib tashlangan (secret tozalash). O'chirilgan
+    # skript GCP'ga umuman kira olmaydi, ya'ni kafolat baribir bajarilgan —
+    # shuning uchun yo'qligi xato emas. Mavjudlari uchun tekshiruv kuchida
+    # qoladi, ya'ni kimdir skriptni qaytarsa opt-in talabi darhol tiklanadi.
+    present = [path for path in guarded_files if path.exists()]
+    assert present, (
+        "guarded_files ro'yxatidagi hech bir fayl topilmadi — ro'yxat "
+        "eskirgan bo'lsa kerak, testni yangilang"
+    )
+
+    for path in present:
         text = path.read_text(encoding="utf-8")
         assert "OISHA_ALLOW_GCP" in text, f"{path} must require explicit GCP opt-in"
 
@@ -59,6 +71,11 @@ def test_oracle_deploy_delegates_bot_ingress_to_cloud_head():
 
 
 def test_no_hardcoded_telegram_bot_token_in_reanimate_script():
-    text = (ROOT / "scripts" / "reanimate_bot.py").read_text(encoding="utf-8")
+    # Skript tarixdan olib tashlangan. Fayl yo'q bo'lsa unda token ham
+    # bo'lishi mumkin emas, ya'ni kafolat bajarilgan. skip qilamiz (fail
+    # emas), shunda skript qaytarilsa tekshiruv o'zi qayta ishlaydi.
+    script = ROOT / "scripts" / "reanimate_bot.py"
+    if not script.exists():
+        pytest.skip("scripts/reanimate_bot.py repo'da yo'q — tekshirish shart emas")
 
-    assert "8343217526:" not in text
+    assert "8343217526:" not in script.read_text(encoding="utf-8")
