@@ -1,0 +1,133 @@
+# Oracle VM da prod uchun keraksiz jarayonlarni to'xtatadi.
+#
+# Nega: VM da atigi 954MB RAM bor va 6GB swap'ning 1.3GB'i ishlatilgan —
+# ya'ni mashina doimiy swap'da yashaydi. 11-avgust kechasi OOM killer
+# kamida uch marta ishga tushdi va oxirida GitHub Actions runner'ini
+# o'ldirdi; runner 24 soatdan ortiq o'lik yotdi va butun deploy navbati
+# qotib qoldi.
+#
+# Nima to'xtatiladi va nega aynan shular:
+#
+#   salescoach-postgres / salescoach-redis / salescoach-minio
+#     docker-compose.yml dagi DEV to'plami. oracle-deploy.yml yozadigan
+#     prod .env da ular uchun bironta o'zgaruvchi yo'q, ya'ni oisha-os
+#     ularga ulana olmaydi — prod Turso'dan foydalanadi. minio esa
+#     VM dagi eng katta jarayon (43MB RSS).
+#
+#   ollama
+#     qwen2.5:3b modeli inference paytida yuzlab MB oladi. Bu OOM'ning
+#     eng ehtimolli qo'zg'atuvchisi. free_ai_router.py:118 provayderni
+#     faqat OLLAMA_BASE_URL bo'sh bo'lmaganda yoqadi, shuning uchun
+#     oracle-deploy.yml (ENABLE_OLLAMA=0 bo'lganda) uni .env dan olib
+#     tashlaydi va router uni jim o'tkazib yuboradi.
+#
+# TEGILMAYDI: oisha-os.service, nginx, actions.runner.*.
+#
+# Qaytarish oson — pastdagi "Rollback" izohiga qarang.
+name: Oracle Free Memory
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Tasdiqlash uchun aynan "free-memory" deb yozing'
+        required: true
+        default: ''
+      stop_ollama:
+        description: 'Ollama ham to‘xtatilsinmi? (ENABLE_OLLAMA repo variable ham "0" bo‘lishi kerak)'
+        required: false
+        default: 'yes'
+        type: choice
+        options: [ 'yes', 'no' ]
+
+permissions:
+  contents: read
+
+jobs:
+  free-memory:
+    name: Stop non-production workloads on Oracle VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Tasdiq GitHub tomonda tekshiriladi — tasodifiy bosish SSH
+      # ochilishidan oldin to'xtaydi.
+      - name: Require explicit confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "free-memory" ]; then
+            echo "TO'XTATILDI: tasdiq maydoniga aynan \"free-memory\" yozilishi kerak."
+            exit 1
+          fi
+
+      - name: Stop non-production workloads
+        uses: appleboy/ssh-action@v1
+        env:
+          STOP_OLLAMA: ${{ inputs.stop_ollama }}
+        with:
+          envs: STOP_OLLAMA
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          # Host key pinning — qarang oracle-health.yml dagi izoh.
+          fingerprint: ${{ secrets.ORACLE_SSH_FINGERPRINT }}
+          port: 22
+          timeout: 30s
+          command_timeout: 8m
+          script: |
+            # set -e YO'Q: bitta konteyner topilmasa ham qolganlari
+            # to'xtatilishi kerak.
+
+            echo "=== OLDINGI XOTIRA ==="
+            free -m || true
+
+            echo "=== DEV STACK KONTEYNERLARI ==="
+            for c in salescoach-postgres salescoach-redis salescoach-minio; do
+              if ! docker inspect "$c" >/dev/null 2>&1; then
+                echo "$c: (topilmadi, o'tkazib yuborildi)"
+                continue
+              fi
+              echo "--- $c ---"
+              # restart=no MUHIM: aks holda 'unless-stopped' siyosati
+              # konteynerni reboot'dan keyin qaytaradi.
+              docker update --restart=no "$c" >/dev/null 2>&1 \
+                || echo "  OGOHLANTIRISH: restart siyosatini o'zgartirib bo'lmadi"
+              docker stop "$c" >/dev/null 2>&1 \
+                && echo "  to'xtatildi" \
+                || echo "  OGOHLANTIRISH: to'xtatib bo'lmadi"
+            done
+
+            if [ "${STOP_OLLAMA:-yes}" = "yes" ]; then
+              echo "=== OLLAMA ==="
+              if systemctl list-unit-files --no-legend 'ollama.service' 2>/dev/null | grep -q ollama; then
+                sudo systemctl disable --now ollama \
+                  && echo "ollama: to'xtatildi va o'chirildi" \
+                  || echo "OGOHLANTIRISH: ollama to'xtamadi"
+              else
+                echo "ollama: (unit topilmadi)"
+              fi
+            else
+              echo "=== OLLAMA: so'ralmagan, tegilmadi ==="
+            fi
+
+            echo "=== TEGILMAGAN SERVISLAR ==="
+            for u in oisha-os nginx; do
+              printf '%s: ' "$u"
+              systemctl is-active "$u" 2>/dev/null || echo "(inactive)"
+            done
+
+            echo "=== KEYINGI XOTIRA ==="
+            free -m || true
+
+            echo "=== /readyz ==="
+            curl -s --max-time 10 -w '\nhttp_code=%{http_code}\n' \
+              http://127.0.0.1:8080/readyz/ 2>/dev/null | head -c 2000 \
+              || echo "http_code=000 (ulanmadi)"
+
+            echo "=== TUGADI ==="
+            # Rollback:
+            #   docker update --restart=unless-stopped salescoach-postgres \
+            #     salescoach-redis salescoach-minio
+            #   docker start salescoach-postgres salescoach-redis salescoach-minio
+            #   sudo systemctl enable --now ollama
+            #   (va ENABLE_OLLAMA repository variable'ini "1" qiling)
