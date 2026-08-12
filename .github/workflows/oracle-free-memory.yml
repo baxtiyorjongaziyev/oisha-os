@@ -81,21 +81,57 @@ jobs:
             echo "=== OLDINGI XOTIRA ==="
             free -m || true
 
-            echo "=== DEV STACK KONTEYNERLARI ==="
-            for c in salescoach-postgres salescoach-redis salescoach-minio; do
-              if ! docker inspect "$c" >/dev/null 2>&1; then
-                echo "$c: (topilmadi, o'tkazib yuborildi)"
-                continue
-              fi
-              echo "--- $c ---"
-              # restart=no MUHIM: aks holda 'unless-stopped' siyosati
-              # konteynerni reboot'dan keyin qaytaradi.
-              docker update --restart=no "$c" >/dev/null 2>&1 \
-                || echo "  OGOHLANTIRISH: restart siyosatini o'zgartirib bo'lmadi"
-              docker stop "$c" >/dev/null 2>&1 \
-                && echo "  to'xtatildi" \
-                || echo "  OGOHLANTIRISH: to'xtatib bo'lmadi"
-            done
+            # Docker bilan umuman gaplasha olamizmi? Birinchi urinishda
+            # `docker inspect ... 2>&1` xatoni yutib yuborardi va natijada
+            # "topilmadi" deb hisobot berardi — ya'ni ruxsat xatosi, osilib
+            # qolgan daemon va haqiqatan yo'q konteyner bir xil ko'rinardi.
+            # Bu eng yomon nosozlik turi: ish bajarilmagan, lekin hisobot
+            # tinch. Har bir chaqiruvda timeout ham bor, chunki mashina
+            # yuk ostida bo'lganda docker CLI 20 soniyagacha osilgan.
+            echo "=== DOCKER MAVJUDMI ==="
+            DOCKER=""
+            if timeout 15 docker ps >/dev/null 2>&1; then
+              DOCKER="docker"
+            elif timeout 15 sudo -n docker ps >/dev/null 2>&1; then
+              DOCKER="sudo -n docker"
+            fi
+
+            if [ -z "$DOCKER" ]; then
+              echo "XATO: docker bilan bog'lanib bo'lmadi — konteynerlar TO'XTATILMADI."
+              echo "--- docker ps ---"
+              timeout 15 docker ps 2>&1 | head -n 5
+              echo "--- sudo -n docker ps ---"
+              timeout 15 sudo -n docker ps 2>&1 | head -n 5
+            else
+              echo "ishlaydigan chaqiruv: $DOCKER"
+              echo "--- hozir ishlab turgan konteynerlar ---"
+              timeout 20 $DOCKER ps --format '{{.Names}} | {{.Image}} | {{.Status}}' \
+                || echo "(ro'yxat olinmadi)"
+
+              echo "=== DEV STACK KONTEYNERLARINI TO'XTATISH ==="
+              for c in salescoach-postgres salescoach-redis salescoach-minio; do
+                echo "--- $c ---"
+                ERR="$(timeout 20 $DOCKER inspect "$c" 2>&1 >/dev/null)"
+                if [ -n "$ERR" ]; then
+                  echo "  o'tkazib yuborildi — docker javobi: $ERR"
+                  continue
+                fi
+                # restart=no MUHIM: aks holda 'unless-stopped' siyosati
+                # konteynerni reboot'dan keyin qaytaradi.
+                ERR="$(timeout 20 $DOCKER update --restart=no "$c" 2>&1 >/dev/null)"
+                [ -z "$ERR" ] || echo "  OGOHLANTIRISH: restart siyosati: $ERR"
+                ERR="$(timeout 60 $DOCKER stop "$c" 2>&1 >/dev/null)"
+                if [ -z "$ERR" ]; then
+                  echo "  to'xtatildi"
+                else
+                  echo "  OGOHLANTIRISH: to'xtatib bo'lmadi: $ERR"
+                fi
+              done
+
+              echo "--- to'xtatishdan keyin qolgan konteynerlar ---"
+              timeout 20 $DOCKER ps --format '{{.Names}} | {{.Status}}' \
+                || echo "(ro'yxat olinmadi)"
+            fi
 
             if [ "${STOP_OLLAMA:-yes}" = "yes" ]; then
               echo "=== OLLAMA ==="
