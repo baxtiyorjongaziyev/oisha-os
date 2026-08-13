@@ -582,21 +582,43 @@ async def amocrm_chat_webhook(request: Request):
 
 @app.post("/webhook/amocrm_lead_created")
 @limiter.limit("60/minute")
-async def amocrm_lead_created_webhook(request: Request, background_tasks: BackgroundTasks):
-    """Receive lead[add] webhooks from AmoCRM to trigger Voice Agent."""
+async def amocrm_lead_created_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    secret: Optional[str] = Query(default=None),
+):
+    """Receive lead[add] webhooks from AmoCRM to trigger Voice Agent.
+
+    Requires a shared secret (AMOCRM_WEBHOOK_SECRET) as a query param since
+    AmoCRM webhooks carry no signature — and stays fully disabled unless
+    ENABLE_VOICE_AGENT=True, regardless of whether VAPI_API_KEY is set.
+    """
+    if not settings.ENABLE_VOICE_AGENT:
+        return JSONResponse(status_code=404, content={"status": "disabled"})
+
+    expected_secret = settings.AMOCRM_WEBHOOK_SECRET.get_secret_value() if settings.AMOCRM_WEBHOOK_SECRET else ""
+    if not expected_secret or not secret or not hmac.compare_digest(secret.encode("utf-8"), expected_secret.encode("utf-8")):
+        return JSONResponse(status_code=401, content={"status": "unauthorized"})
+
     try:
         from src.services.core.voice_agent import trigger_voice_agent
         form_data = await request.form()
-        
+
         # Parse AmoCRM structure: leads[add][0][name], etc.
         lead_id = form_data.get("leads[add][0][id]")
         if not lead_id:
             return JSONResponse(status_code=400, content={"status": "ignored", "message": "Not a lead addition"})
-            
+
+        # Idempotency: skip if this lead_id already triggered a call.
+        idempotency_key = f"voice_call_triggered:{lead_id}"
+        db = get_db()
+        if await db.kv.get_state(idempotency_key):
+            return JSONResponse(content={"status": "ignored", "message": "Already processed"})
+
         lead_name = form_data.get("leads[add][0][name]", f"Lead {lead_id}")
-        
+
         # This is a naive extraction. In reality, we'd need to extract from custom fields (CFs)
-        # However, AmoCRM webhooks usually send custom fields as array indexes. 
+        # However, AmoCRM webhooks usually send custom fields as array indexes.
         # For the stub, we just try to find something that looks like a phone.
         phone_number = None
         for key, value in form_data.items():
@@ -604,14 +626,15 @@ async def amocrm_lead_created_webhook(request: Request, background_tasks: Backgr
                 if str(value).replace("+", "").isdigit() and len(str(value)) > 8:
                     phone_number = str(value)
                     break
-                    
+
+        await db.kv.set_state(idempotency_key, True)
         background_tasks.add_task(
             trigger_voice_agent,
             lead_name=lead_name,
             phone_number=phone_number,
             context=f"AmoCRM Lead ID: {lead_id}"
         )
-        
+
         return JSONResponse(content={"status": "ok", "message": "Voice Agent triggered if phone found"})
     except Exception as e:
         logger.error(f"AmoCRM Lead Created Webhook error: {e}", exc_info=True)

@@ -5,6 +5,7 @@ import logging
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import OneHotEncoder
 from src.database import get_db
+from src.services.utils.db_rows import fetch_rows
 
 logger = logging.getLogger(__name__)
 
@@ -20,23 +21,20 @@ async def train_ltv_model():
     try:
         # Fetch historical data (example query based on a hypothetical 'leads' table)
         db = get_db()
-        conn = await db.get_connection()
-        result = conn.execute("""
-            SELECT industry, contact_role, initial_budget as budget, final_ltv 
-            FROM historical_leads 
+        rows = await fetch_rows(
+            db,
+            """
+            SELECT industry, contact_role, initial_budget as budget, final_ltv
+            FROM historical_leads
             WHERE final_ltv IS NOT NULL AND final_ltv > 0
-        """)
-        
-        if hasattr(result, "__await__"):
-            result = await result
-            
-        rows = getattr(result, "fetchall", lambda: [])()
+            """,
+        )
         if not rows:
             logger.warning("Not enough historical data to train LTV model.")
             return False
 
         # Convert to DataFrame
-        df = pd.DataFrame([dict(row) for row in rows])
+        df = pd.DataFrame(rows)
         
         if len(df) < 10:
             logger.warning("Dataset too small for reliable LTV training. Minimum 10 rows required.")

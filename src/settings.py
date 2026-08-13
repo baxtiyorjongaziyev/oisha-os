@@ -97,6 +97,8 @@ class AppSettings(BaseSettings):
     OLLAMA_TEXT_MODEL: str = "qwen2.5:3b"
     VAPI_API_KEY: Optional[SecretStr] = None
     VAPI_PHONE_NUMBER_ID: Optional[str] = None
+    ENABLE_VOICE_AGENT: bool = False
+    AMOCRM_WEBHOOK_SECRET: Optional[SecretStr] = None
     FREE_AI_PROVIDER_TIMEOUT_SECONDS: int = 45
     ENABLE_PAID_AI_FALLBACK: bool = False
     OPENAI_API_KEY: Optional[SecretStr] = None

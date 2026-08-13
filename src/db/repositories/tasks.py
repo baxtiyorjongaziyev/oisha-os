@@ -37,14 +37,16 @@ class TaskRepository(BaseRepository):
         """)
         
         # Vilgood OS Migration
-        try:
-            await self._execute("ALTER TABLE tasks ADD COLUMN sla_minutes INTEGER")
-        except Exception:
-            pass
-        try:
-            await self._execute("ALTER TABLE tasks ADD COLUMN coins_reward INTEGER DEFAULT 0")
-        except Exception:
-            pass
+        for stmt in (
+            "ALTER TABLE tasks ADD COLUMN sla_minutes INTEGER",
+            "ALTER TABLE tasks ADD COLUMN coins_reward INTEGER DEFAULT 0",
+        ):
+            try:
+                await self._execute(stmt)
+            except Exception as exc:
+                if "duplicate column" not in str(exc).lower() and "already exists" not in str(exc).lower():
+                    logger.error("Failed to run tasks migration", statement=stmt, error=str(exc))
+                    raise
 
         await self._execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
 
