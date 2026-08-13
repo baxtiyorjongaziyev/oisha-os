@@ -627,18 +627,80 @@ async def amocrm_lead_created_webhook(
                     phone_number = str(value)
                     break
 
-        await db.kv.set_state(idempotency_key, True)
-        background_tasks.add_task(
-            trigger_voice_agent,
-            lead_name=lead_name,
-            phone_number=phone_number,
-            context=f"AmoCRM Lead ID: {lead_id}"
-        )
+        if not phone_number:
+            await db.kv.set_state(idempotency_key, True)
+            return JSONResponse(content={"status": "ignored", "message": "No phone number found"})
 
-        return JSONResponse(content={"status": "ok", "message": "Voice Agent triggered if phone found"})
+        # Mark processed now so a retried webhook delivery can't queue a second
+        # approval request for the same lead.
+        await db.kv.set_state(idempotency_key, True)
+
+        # Owner approval gate — do NOT call the Vapi API directly from the
+        # webhook. Stash the pending call and ask the owner to approve it.
+        approval_key = f"voice_call_pending:{lead_id}"
+        await db.kv.set_state(approval_key, {
+            "lead_id": lead_id,
+            "lead_name": lead_name,
+            "phone_number": phone_number,
+        })
+
+        owner_id = int(getattr(settings, "OWNER_ID", 0) or 0)
+        if owner_id:
+            if app_ctx.outgoing_messages is None:
+                app_ctx.outgoing_messages = asyncio.Queue()
+            await app_ctx.outgoing_messages.put({
+                "chat_id": owner_id,
+                "text": (
+                    f"🎙 Voice Agent tasdiq so'raladi\n\n"
+                    f"Lead: {lead_name} (ID: {lead_id})\n"
+                    f"Telefon: {phone_number}\n\n"
+                    f"Tasdiqlash uchun: /voice_approve {lead_id}\n"
+                    f"Rad etish uchun: /voice_reject {lead_id}"
+                ),
+            })
+
+        return JSONResponse(content={"status": "pending_approval", "message": "Awaiting owner approval"})
     except Exception as e:
         logger.error(f"AmoCRM Lead Created Webhook error: {e}", exc_info=True)
         return JSONResponse(status_code=500, content={"status": "error", "message": "Internal server error"})
+
+
+async def approve_voice_call(lead_id: str) -> bool:
+    """Owner tasdiqlagach chaqiriladi (masalan /voice_approve buyrug'idan).
+
+    Pending call yozuvini o'qiydi, mavjud bo'lsa Vapi.ai chaqiruvini navbatga
+    qo'yadi va pending yozuvni tozalaydi. Ikki marta tasdiqlash xavfsiz —
+    yozuv topilmasa False qaytaradi.
+    """
+    if not settings.ENABLE_VOICE_AGENT:
+        return False
+
+    from src.services.core.voice_agent import trigger_voice_agent
+
+    db = get_db()
+    approval_key = f"voice_call_pending:{lead_id}"
+    pending = await db.kv.get_state(approval_key)
+    if not pending:
+        return False
+
+    await db.kv.set_state(approval_key, None)
+    await trigger_voice_agent(
+        lead_name=pending["lead_name"],
+        phone_number=pending["phone_number"],
+        context=f"AmoCRM Lead ID: {lead_id} (owner-approved)",
+    )
+    return True
+
+
+async def reject_voice_call(lead_id: str) -> bool:
+    """Owner rad etganda chaqiriladi. Pending yozuvni tozalaydi."""
+    db = get_db()
+    approval_key = f"voice_call_pending:{lead_id}"
+    pending = await db.kv.get_state(approval_key)
+    if not pending:
+        return False
+    await db.kv.set_state(approval_key, None)
+    return True
 
 
 @app.post("/webhook/amocrm_notes")

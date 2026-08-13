@@ -84,6 +84,34 @@ async def process_admin_commands(
 
     text = event.message.text
 
+    if text.startswith("/voice_approve"):
+        from src.api_server import approve_voice_call
+
+        parts = text.split()
+        if len(parts) != 2:
+            await event.respond("Foydalanish: /voice_approve <lead_id>")
+            return True
+        ok = await approve_voice_call(parts[1])
+        await event.respond(
+            "✅ Voice Agent chaqiruvi tasdiqlandi va navbatga qo'yildi." if ok
+            else "⚠️ Bu lead uchun kutilayotgan chaqiruv topilmadi."
+        )
+        return True
+
+    if text.startswith("/voice_reject"):
+        from src.api_server import reject_voice_call
+
+        parts = text.split()
+        if len(parts) != 2:
+            await event.respond("Foydalanish: /voice_reject <lead_id>")
+            return True
+        ok = await reject_voice_call(parts[1])
+        await event.respond(
+            "🚫 Voice Agent chaqiruvi rad etildi." if ok
+            else "⚠️ Bu lead uchun kutilayotgan chaqiruv topilmadi."
+        )
+        return True
+
     if text == "/sync_backlog":
         await event.respond(
             "👸 Oisha-OS: O'tmishdagi (Backlog) xabarlarni skanerlashni boshladim... 👸🛡️"
