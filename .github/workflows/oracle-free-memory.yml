@@ -8,11 +8,12 @@
 #
 # Nima to'xtatiladi va nega aynan shular:
 #
-#   salescoach-postgres / salescoach-redis / salescoach-minio
-#     docker-compose.yml dagi DEV to'plami. oracle-deploy.yml yozadigan
-#     prod .env da ular uchun bironta o'zgaruvchi yo'q, ya'ni oisha-os
-#     ularga ulana olmaydi — prod Turso'dan foydalanadi. minio esa
-#     VM dagi eng katta jarayon (43MB RSS).
+#   salescoach-ai-postgres-1 / salescoach-ai-redis-1 / salescoach-ai-minio-1
+#     salescoach-ai/ workspace'ining DEV to'plami. oracle-deploy.yml
+#     yozadigan prod .env da ular uchun bironta o'zgaruvchi yo'q, ya'ni
+#     oisha-os ularga ulana olmaydi — prod Turso'dan foydalanadi. Ularni
+#     ishlatadigan SalesCoach ilovasi (api/worker/web) ham VM da ishlamayapti,
+#     ya'ni bular bo'sh turgan ma'lumot bazalari.
 #
 #   ollama
 #     qwen2.5:3b modeli inference paytida yuzlab MB oladi. Bu OOM'ning
@@ -21,7 +22,8 @@
 #     oracle-deploy.yml (ENABLE_OLLAMA=0 bo'lganda) uni .env dan olib
 #     tashlaydi va router uni jim o'tkazib yuboradi.
 #
-# TEGILMAYDI: oisha-os.service, nginx, actions.runner.*.
+# TEGILMAYDI: oisha-os.service, nginx, actions.runner.*, va n8n-n8n-1
+# konteyneri — n8n/workflows/ loyihaning ishlaydigan qismi.
 #
 # Qaytarish oson — pastdagi "Rollback" izohiga qarang.
 name: Oracle Free Memory
@@ -78,6 +80,18 @@ jobs:
             # set -e YO'Q: bitta konteyner topilmasa ham qolganlari
             # to'xtatilishi kerak.
 
+            # Nishonlar. Birinchi versiyada bu yerda ildizdagi
+            # docker-compose.yml ning `container_name:` qiymatlari yozilgan
+            # edi (salescoach-postgres va h.k.) — VM da esa umuman boshqa
+            # to'plam ishlaydi: salescoach-ai/ ichki workspace'ining compose'i,
+            # standart <project>-<service>-<N> nomlash bilan. Natijada
+            # workflow to'g'ri "konteyner mavjud emas" deb yozardi, lekin
+            # hech narsa to'xtatmasdi. Nomlar `docker ps` dan olindi.
+            #
+            # n8n-n8n-1 ATAYLAB ro'yxatda YO'Q: n8n/workflows/ loyihaning
+            # ishlaydigan qismi (lead lifecycle, hisobotlar, gate'lar).
+            TARGETS="salescoach-ai-postgres-1 salescoach-ai-redis-1 salescoach-ai-minio-1"
+
             echo "=== OLDINGI XOTIRA ==="
             free -m || true
 
@@ -117,7 +131,7 @@ jobs:
                 || echo "(ro'yxat olinmadi)"
 
               echo "=== DEV STACK KONTEYNERLARINI TO'XTATISH ==="
-              for c in salescoach-postgres salescoach-redis salescoach-minio; do
+              for c in $TARGETS; do
                 echo "--- $c ---"
                 ERR="$(timeout 20 $DOCKER inspect "$c" 2>&1 >/dev/null)"
                 if [ -n "$ERR" ]; then
@@ -158,7 +172,7 @@ jobs:
               # birortasi hali ishlab tursa yoki tekshirib bo'lmasa —
               # tozalash bajarilmagan.
               echo "--- YAKUNIY TEKSHIRUV ---"
-              for c in salescoach-postgres salescoach-redis salescoach-minio; do
+              for c in $TARGETS; do
                 if STILL="$(timeout 20 $DOCKER ps --filter "name=^/${c}\$" \
                      --format '{{.Names}}' 2>/dev/null)"; then
                   if [ -n "$STILL" ]; then
@@ -213,8 +227,8 @@ jobs:
 
             echo "=== TUGADI: tozalash tasdiqlandi ==="
             # Rollback:
-            #   docker update --restart=unless-stopped salescoach-postgres \
-            #     salescoach-redis salescoach-minio
-            #   docker start salescoach-postgres salescoach-redis salescoach-minio
+            #   docker update --restart=unless-stopped $TARGETS
+            #   docker start $TARGETS
+            #   (TARGETS skript boshida e'lon qilingan)
             #   sudo systemctl enable --now ollama
             #   (va ENABLE_OLLAMA repository variable'ini "1" qiling)
