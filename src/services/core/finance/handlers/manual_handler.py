@@ -24,6 +24,7 @@ async def parse_transaction_text_with_llm(client, model_name: str, text: str) ->
     - category (string): Xarajat/kirim toifasi (masalan: "Taksi", "Tushlik", "Ofis xarajati", "Marketing", "Dizayn xizmati", "Shaxsiy xarajat"). Maksimal 50 ta belgi.
     - ownership (string): 'business' (biznes/agentlik moliyasi bo'lsa) yoki 'personal' (shaxsiy/ro'zg'or moliyasi bo'lsa). Agar matnda "shaxsiy", "o'zimniki", "uyga", "ro'zg'orga", "shaxsiy xarajat", "shaxsiy ehtiyoj" kabi so'zlar bo'lsa yoki shaxsiy moliya ekani aniq aytilgan bo'lsa, 'personal' deb belgilang. Aks holda default: 'business'.
     - reason (string): Tranzaksiyaning batafsil sababi yoki izohi.
+    - confidence (number, 0.0-1.0): Yuqoridagi maydonlarni (ayniqsa amount va direction) qanchalik ishonch bilan aniqlay olganingiz. Matn noaniq, chala, yoki bir nechta talqin mumkin bo'lsa past baho bering (masalan 0.3-0.5). Aniq va bir ma'noli bo'lsa yuqori (0.9+).
 
     Faqat va faqat JSON formatida javob bering, hech qanday markdown formatlashsiz (```json kabi taglarsiz), faqat toza JSON satri bo'lsin.
     """
@@ -186,6 +187,14 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine, bot_
         # not a category/reason comment — prevents misattributing someone else's
         # payment notification to this pending tx's amount.
         if re.search(r"(\$\s?\d[\d\s]*|\b\d[\d\s]*\s*(usd|uzs|so['\"]m)\b|\d[\d\s]*\s*\$)", lower_full_text):
+            await engine.log_ai_gap(
+                kind="rejected",
+                reason="reply matnida summa+valyuta pattern topildi — o'z tranzaksiyasi bo'lishi mumkin, categorize qilinmadi",
+                source="manual_group_reply",
+                raw_text=text,
+                tx_id=tx["id"],
+                chat_id=event.chat_id,
+            )
             await _reply_via_bot(
                 event, bot_client,
                 "⚠️ Bu xabar alohida to'lov/tranzaksiya ko'rinishida — kategoriya sifatida qabul qilinmadi. "

@@ -403,6 +403,34 @@ class HisobchiEngine:
             )
         await self._db.commit()
 
+    async def log_ai_gap(
+        self,
+        kind: str,
+        reason: str,
+        source: str = "",
+        raw_text: str = "",
+        confidence: Optional[float] = None,
+        tx_id: Optional[int] = None,
+        chat_id: Optional[int] = None,
+    ) -> None:
+        """Record a case where the AI couldn't confidently handle a message
+        (low-confidence parse, rejected/deferred input, parse failure).
+        Best-effort — never raises, so a logging hiccup can't break the
+        actual transaction flow. GSheets backend has no gaps sheet, so this
+        is a no-op there.
+        """
+        if self._gs or self._db is None:
+            return
+        try:
+            await self._db.execute(
+                "INSERT INTO hisobchi_ai_gaps (kind, source, raw_text, reason, confidence, tx_id, chat_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [kind, source, raw_text[:2000], reason, confidence, tx_id, chat_id],
+            )
+            await self._db.commit()
+        except Exception:
+            logger.warning("[HISOBCHI] Failed to log AI gap (kind=%s)", kind, exc_info=True)
+
     async def skip(self, tx_id: int) -> None:
         if self._gs:
             return await self._gs.skip(tx_id)
