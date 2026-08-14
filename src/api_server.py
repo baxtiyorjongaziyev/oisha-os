@@ -428,6 +428,7 @@ from src.api.routes.product_suite import router as product_router
 from src.api.routes.business_commands import router as business_commands_router
 from src.api.routes.crm_dashboard import router as crm_dashboard_router
 from src.api.routes.finance_dashboard import router as finance_dashboard_router
+from src.api.routes.finance_ai import router as finance_ai_router
 from src.api.routes.marketing_dashboard import router as marketing_router
 from src.api.routes.callmaster_routes import router as callmaster_router
 
@@ -446,6 +447,7 @@ app.include_router(product_router)
 app.include_router(business_commands_router)
 app.include_router(crm_dashboard_router)
 app.include_router(finance_dashboard_router)
+app.include_router(finance_ai_router)
 app.include_router(marketing_router)
 app.include_router(callmaster_router)
 app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
