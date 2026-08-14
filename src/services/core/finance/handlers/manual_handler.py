@@ -178,9 +178,20 @@ async def handle_finance_group_reply(event, client, engine: HisobchiEngine, bot_
         lower_full_text = text.casefold()
         if any(
             marker in lower_full_text
-            for marker in ("yangi to'lov #", "javob bering yoki", "bu to'lov nima uchun", "bu pul nima uchun")
+            for marker in ("yangi to'lov", "yangi kirim", "yangi chiqim", "javob bering yoki", "bu to'lov nima uchun", "bu pul nima uchun")
         ):
             return False
+
+        # Reject replies that look like their own transaction post (amount + currency),
+        # not a category/reason comment — prevents misattributing a foreign bot's
+        # payment notification to this pending tx's amount.
+        if re.search(r"\b\d[\d\s]*\s*(usd|uzs|so['\"]m|\$)\b", lower_full_text):
+            await _reply_via_bot(
+                event, bot_client,
+                "⚠️ Bu xabar alohida to'lov/tranzaksiya ko'rinishida — kategoriya sifatida qabul qilinmadi. "
+                "Iltimos faqat toifa/sabab yozing (masalan: \"Dizayn xizmati\").",
+            )
+            return True
 
         if text.lower().startswith("/skip"):
             await engine.skip(tx["id"])
