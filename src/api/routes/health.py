@@ -178,7 +178,8 @@ async def production_readiness_probe():
     runtime = get_runtime_context()
     scheduler_mode = runtime.get("scheduler_mode", "persistent")
     runtime_source = runtime.get("runtime_source", "unknown")
-    control_plane_mode = scheduler_mode == "control-plane" or runtime_source == "vm_service"
+    control_plane_mode = scheduler_mode == "control-plane"
+    vm_service_mode = runtime_source == "vm_service"
 
     if api_state.db_instance is not None:
         try:
@@ -203,6 +204,12 @@ async def production_readiness_probe():
     userbot_ok = False
     if control_plane_mode:
         checks["userbot"] = "delegated"
+    elif vm_service_mode:
+        # The Oracle VM owns the only allowed Telethon connection. boot.py
+        # stores its authorization result in the runtime context, so readiness
+        # must use that cached truth instead of opening a second connection.
+        userbot_ok = runtime.get("userbot_authorized") is True
+        checks["userbot"] = "authorized" if userbot_ok else "unauthorized"
     elif api_state.user_client is not None:
         try:
             userbot_ok = await asyncio.wait_for(
