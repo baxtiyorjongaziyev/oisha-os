@@ -13,7 +13,7 @@ class GoogleDriveSync:
     Manages Google Drive uploads for Oisha-OS media synchronization.
     """
 
-    SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+    SCOPES = ["https://www.googleapis.com/auth/drive"]
 
     def __init__(self, creds_file: str):
         self.creds_file = creds_file
@@ -92,4 +92,44 @@ class GoogleDriveSync:
             return results.get("files", [])
         except Exception as e:
             logger.error(f"[GDRIVE] Search error: {e}")
+            return []
+
+    def download_file(self, file_id: str, dest_path: str) -> bool:
+        """
+        Downloads a file from Google Drive to the local filesystem.
+        """
+        try:
+            from googleapiclient.http import MediaIoBaseDownload
+            import io
+            
+            request = self.service.files().get_media(fileId=file_id)
+            with open(dest_path, "wb") as fh:
+                downloader = MediaIoBaseDownload(fh, request)
+                done = False
+                while done is False:
+                    status, done = downloader.next_chunk()
+            
+            logger.info(f"[GDRIVE] Downloaded {file_id} to {dest_path}")
+            return True
+        except Exception as e:
+            logger.error(f"[GDRIVE] Download error: {e}")
+            return False
+
+    def list_recent_files(self, limit: int = 10) -> list:
+        """
+        Lists recent files in Google Drive.
+        """
+        try:
+            results = (
+                self.service.files()
+                .list(
+                    pageSize=limit,
+                    orderBy="modifiedTime desc",
+                    fields="files(id, name, webViewLink, mimeType)",
+                )
+                .execute()
+            )
+            return results.get("files", [])
+        except Exception as e:
+            logger.error(f"[GDRIVE] List recent files error: {e}")
             return []

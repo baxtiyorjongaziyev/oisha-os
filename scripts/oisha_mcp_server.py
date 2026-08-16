@@ -59,7 +59,7 @@ try:  # structlog ixtiyoriy — servis modullari uni ishlatadi
             structlog.processors.JSONRenderer(),
         ],
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(sys.stderr),
+        logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,
     )
 except ImportError:  # pragma: no cover - structlog requirements'da bor

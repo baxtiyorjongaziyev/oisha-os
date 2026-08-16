@@ -19,6 +19,8 @@ from src.settings import settings
 from src.services.utils.gemini_fallback import generate_content_with_fallback
 from src.services.core.customer_outbound_policy import automatic_customer_send_allowed
 
+logger = structlog.get_logger()
+
 try:
     from google import genai
     from google.genai import types as genai_types
@@ -26,8 +28,6 @@ except Exception:
     logger.error("Exception handled in %s", __name__, exc_info=True)
     genai = None
     genai_types = None
-
-logger = structlog.get_logger()
 
 _PHONE_NUMBER_RE = re.compile(r"(?<!\w)\+?\d[\d\s().-]{7,}\d(?!\w)")
 
