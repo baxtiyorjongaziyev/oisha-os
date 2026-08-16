@@ -4,6 +4,7 @@
 !.env.example
 .venv/
 .venv_oi/
+.worktrees/
 env/
 venv/
 ENV/

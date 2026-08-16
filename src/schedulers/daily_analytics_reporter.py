@@ -4,13 +4,20 @@ import json
 import logging
 from datetime import datetime, timedelta
 
-from google.analytics.data_v1beta import BetaAnalyticsDataClient
-from google.analytics.data_v1beta.types import (
-    DateRange,
-    Dimension,
-    Metric,
-    RunReportRequest,
-)
+try:
+    from google.analytics.data_v1beta import BetaAnalyticsDataClient
+    from google.analytics.data_v1beta.types import (
+        DateRange,
+        Dimension,
+        Metric,
+        RunReportRequest,
+    )
+except ImportError:
+    BetaAnalyticsDataClient = None
+    DateRange = None
+    Dimension = None
+    Metric = None
+    RunReportRequest = None
 
 from src.settings import settings
 from src.services.core.agent_brain import OishaBrain
@@ -25,6 +32,10 @@ async def run_daily_analytics_report(bot_client=None):
 
     if not ga_property_id or not ga_creds_json or not admin_chat_id or bot_client is None:
         logger.debug("[GA4] Configuration or bot client missing. Skipping daily analytics.")
+        return
+
+    if BetaAnalyticsDataClient is None:
+        logger.warning("[GA4] google-analytics-data is not installed. Skipping daily analytics.")
         return
 
     try:
