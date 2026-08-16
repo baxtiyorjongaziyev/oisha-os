@@ -243,6 +243,30 @@ async def _daily_analytics_loop():
         await asyncio.sleep(30)
 
 
+async def _hisobchi_gap_report_loop():
+    """Weekly (Monday 09:30) self-report of Hisobchi AI's uncertainty log
+    (hisobchi_ai_gaps) to the finance group — fully automatic, no command."""
+    from src.schedulers.hisobchi_gap_reporter import run_hisobchi_gap_report
+    from src.services.core.finance.handlers.utils import _get_finance_config
+    from src.time_utils import get_local_now
+
+    await asyncio.sleep(90)
+    while True:
+        try:
+            now = get_local_now()
+            if now.weekday() == 0 and now.hour == 9 and now.minute == 30:
+                finance_group_id, _, _ = _get_finance_config()
+                await run_hisobchi_gap_report(
+                    hisobchi_engine=app_ctx.hisobchi_engine,
+                    bot_client=app_ctx.bot_runtime,
+                    finance_group_id=finance_group_id,
+                )
+                await asyncio.sleep(61)
+        except Exception as e:
+            logger.error(f"[HISOBCHI-GAPS] Error in weekly gap report loop: {e}")
+        await asyncio.sleep(30)
+
+
 async def _channel_scout_loop():
     """Scan Telegram business trainer channels 3x daily for leads."""
     from src.services.core.channel_scheduler import daily_channel_scout
@@ -849,6 +873,7 @@ async def boot_application():
             if settings.SURGICAL_MODE:
                 asyncio.create_task(_brain_evolution_loop(), name="oisha_brain_evolution")
                 asyncio.create_task(_daily_analytics_loop(), name="oisha_daily_analytics")
+                asyncio.create_task(_hisobchi_gap_report_loop(), name="oisha_hisobchi_gap_report")
             logger.info("[BRAIN] OishaBrain initialized.")
 
             # BotMessenger

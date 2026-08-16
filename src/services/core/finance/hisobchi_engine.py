@@ -403,6 +403,76 @@ class HisobchiEngine:
             )
         await self._db.commit()
 
+    async def log_ai_gap(
+        self,
+        kind: str,
+        reason: str,
+        source: str = "",
+        raw_text: str = "",
+        confidence: Optional[float] = None,
+        tx_id: Optional[int] = None,
+        chat_id: Optional[int] = None,
+    ) -> None:
+        """Record a case where the AI couldn't confidently handle a message
+        (low-confidence parse, rejected/deferred input, parse failure).
+        Best-effort — never raises, so a logging hiccup can't break the
+        actual transaction flow. GSheets backend has no gaps sheet, so this
+        is a no-op there.
+        """
+        if self._gs or self._db is None:
+            return
+        try:
+            await self._db.execute(
+                "INSERT INTO hisobchi_ai_gaps (kind, source, raw_text, reason, confidence, tx_id, chat_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [kind, source, raw_text[:2000], reason, confidence, tx_id, chat_id],
+            )
+            await self._db.commit()
+        except Exception:
+            logger.warning("[HISOBCHI] Failed to log AI gap (kind=%s)", kind, exc_info=True)
+
+    async def get_ai_gaps_summary(self, since_days: int = 7) -> dict:
+        """Summarize recent hisobchi_ai_gaps entries for reporting: total
+        count and a breakdown by (kind, source). Empty/no-op on GSheets
+        backend, matching log_ai_gap.
+        """
+        empty = {"total": 0, "by_kind_source": [], "since_days": since_days}
+        if self._gs or self._db is None:
+            return empty
+        try:
+            rows = await self._db.execute(
+                "SELECT kind, source, COUNT(*) as cnt FROM hisobchi_ai_gaps "
+                "WHERE created_at >= datetime('now', ?) "
+                "GROUP BY kind, source ORDER BY cnt DESC",
+                [f"-{since_days} days"],
+            )
+        except Exception:
+            logger.warning("[HISOBCHI] Failed to summarize AI gaps", exc_info=True)
+            return empty
+        breakdown = [
+            {"kind": r["kind"], "source": r["source"] or "noma'lum", "count": int(r["cnt"])}
+            for r in rows
+        ]
+        total = sum(item["count"] for item in breakdown)
+        return {"total": total, "by_kind_source": breakdown, "since_days": since_days}
+
+    async def format_ai_gaps_report_uz(self, since_days: int = 7) -> str:
+        """Render get_ai_gaps_summary as a short Uzbek-language report block."""
+        summary = await self.get_ai_gaps_summary(since_days=since_days)
+        if summary["total"] == 0:
+            return f"🧠 Hisobchi AI: so'nggi {since_days} kunda noaniq holat bo'lmadi."
+
+        lines = [f"🧠 Hisobchi AI — so'nggi {since_days} kunda {summary['total']} marta noaniq/rad etilgan holat:"]
+        _kind_labels = {
+            "rejected": "rad etildi",
+            "low_confidence": "ishonch past",
+            "parse_failed": "tushunolmadi",
+        }
+        for item in summary["by_kind_source"]:
+            label = _kind_labels.get(item["kind"], item["kind"])
+            lines.append(f"  • {label} ({item['source']}): {item['count']} marta")
+        return "\n".join(lines)
+
     async def skip(self, tx_id: int) -> None:
         if self._gs:
             return await self._gs.skip(tx_id)

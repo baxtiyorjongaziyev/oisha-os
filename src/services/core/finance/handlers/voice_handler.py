@@ -53,6 +53,19 @@ async def process_finance_voice_message(
         category = parsed.get("category", "Boshqa")
         ownership = parsed.get("ownership", "business")
         reason = parsed.get("reason", "")
+        confidence = parsed.get("confidence")
+
+        _LOW_CONFIDENCE = 0.6
+        low_confidence = isinstance(confidence, (int, float)) and confidence < _LOW_CONFIDENCE
+        if low_confidence:
+            await engine.log_ai_gap(
+                kind="low_confidence",
+                reason=f"LLM ishonch darajasi past ({confidence}) — amount/direction noaniq bo'lishi mumkin",
+                source="voice",
+                raw_text=text_to_parse,
+                confidence=float(confidence),
+                chat_id=event.chat_id,
+            )
 
         reply_to = getattr(msg, "reply_to", None)
         replied_msg_id = getattr(reply_to, "reply_to_msg_id", None) if reply_to else None
@@ -118,13 +131,17 @@ async def process_finance_voice_message(
             direction_icon = "➖ Chiqim" if direction == "out" else "➕ Kirim"
             own_label = "Biznes" if ownership == "business" else "Shaxsiy"
             reason_line = f"\n📝 Izoh: {reason}" if reason else ""
+            confidence_warning = (
+                "\n\n⚠️ Ishonchim past — summani/yo'nalishni tekshirib qo'ying." if low_confidence else ""
+            )
 
             await event.reply(
                 f"🎙️ <b>Ovozli to'lov #{tx_id} kiritildi!</b>\n\n"
                 f"{direction_icon}: <b>{amount_str} UZS</b> ({own_label})\n"
                 f"📍 {html.escape(merchant)}\n"
                 f"🗂 Toifa: <b>{html.escape(category)}</b>"
-                f"{html.escape(reason_line)}",
+                f"{html.escape(reason_line)}"
+                f"{confidence_warning}",
                 parse_mode="html",
             )
             logger.info("[HISOBCHI-VOICE] Manual tx #%s saved as '%s' (%s) from standalone voice", tx_id, category, ownership)
