@@ -191,6 +191,13 @@ class AppSettings(BaseSettings):
     HISOBCHI_BALANCE_TOPIC_ID: Optional[int] = None                      # Balance topic ID
     HISOBCHI_QARZDORLIK_TOPIC_ID: Optional[int] = None                   # Qarzdorlik / Debt topic ID
 
+    # Tez Natija Group IDs
+    TN6_GROUP_ID: Optional[int] = None
+    TN5_GROUP_ID: Optional[int] = None
+    TN4_GROUP_ID: Optional[int] = None
+    TN3_GROUP_ID: Optional[int] = None
+    TN2_GROUP_ID: Optional[int] = None
+
     # Case Publisher & CMS Settings
     JONBRANDING_CHANNEL: str = "jonbranding"
     CMS_WEBHOOK_URL: Optional[str] = None
@@ -421,6 +428,11 @@ class AppSettings(BaseSettings):
             "STAGNATION_GROUP_ID",
             "WOW_SERVICE_GROUP_ID",
             "HISOBCHI_FINANCE_GROUP_ID",
+            "TN6_GROUP_ID",
+            "TN5_GROUP_ID",
+            "TN4_GROUP_ID",
+            "TN3_GROUP_ID",
+            "TN2_GROUP_ID",
         ):
             data[key] = normalize_telegram_chat_id(data.get(key))
         return data
