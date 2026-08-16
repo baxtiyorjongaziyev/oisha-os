@@ -4,7 +4,7 @@ import secrets
 import time
 import html as html_lib
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
 from fastapi import APIRouter, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -13,8 +13,7 @@ router = APIRouter(prefix="/oauth2", tags=["oauth2"])
 _AUTH_CODE_TTL_SECONDS = 300
 _auth_codes: dict[str, tuple[str, float]] = {}  # code -> (client_id, expires_at)
 
-
-DEFAULT_ALLOWED_HOSTS = {"localhost", "127.0.0.1", "jonbranding.uz", "oisha.jonbranding.uz"}
+ALLOWED_HOSTS = {"localhost", "127.0.0.1", "jonbranding.uz", "oisha.jonbranding.uz"}
 
 
 def _allowed_redirect_uris() -> set[str]:
@@ -27,18 +26,18 @@ def _validate_redirect_uri(redirect_uri: str) -> str:
     if parsed.scheme not in ("https", "http") or not parsed.netloc:
         raise HTTPException(status_code=400, detail="Invalid redirect_uri scheme or host")
 
-    allowed = _allowed_redirect_uris()
-    if allowed:
-        if redirect_uri not in allowed:
+    host = parsed.netloc.split(":")[0].lower()
+    allowed_uris = _allowed_redirect_uris()
+
+    if allowed_uris:
+        if redirect_uri not in allowed_uris:
             raise HTTPException(status_code=400, detail="Redirect URI not in allowed list")
         return redirect_uri
 
-    hostname = (parsed.hostname or "").lower()
-    if hostname in DEFAULT_ALLOWED_HOSTS or hostname.endswith(".jonbranding.uz"):
-        return redirect_uri
+    if host not in ALLOWED_HOSTS and not host.endswith(".jonbranding.uz"):
+        raise HTTPException(status_code=400, detail="Untrusted redirect URI host")
 
-    raise HTTPException(status_code=400, detail="Untrusted redirect URI host")
-
+    return redirect_uri
 
 
 # GET /oauth2/authorize - Shows the consent screen
@@ -50,9 +49,9 @@ async def authorize_get(
     state: str,
     response_type: str = "code",
 ):
-    redirect_uri = _validate_redirect_uri(redirect_uri)
+    valid_uri = _validate_redirect_uri(redirect_uri)
     safe_client_id = html_lib.escape(client_id)
-    safe_redirect_uri = html_lib.escape(redirect_uri)
+    safe_redirect_uri = html_lib.escape(valid_uri)
     safe_state = html_lib.escape(state)
     # Simple HTML consent screen
     html = f"""
@@ -90,17 +89,30 @@ async def authorize_post(
     redirect_uri: str = Form(...),
     state: str = Form(...),
 ):
-    redirect_uri = _validate_redirect_uri(redirect_uri)
+    valid_uri = _validate_redirect_uri(redirect_uri)
+    parsed = urlparse(valid_uri)
+
     auth_code = secrets.token_urlsafe(32)
     _auth_codes[auth_code] = (client_id, time.time() + _AUTH_CODE_TTL_SECONDS)
 
-    # Append code and state to redirect_uri
-    if "?" in redirect_uri:
-        redirect_url = f"{redirect_uri}&code={auth_code}&state={state}"
-    else:
-        redirect_url = f"{redirect_uri}?code={auth_code}&state={state}"
-        
-    return RedirectResponse(url=redirect_url, status_code=302)
+    # Parse and safely reconstruct query parameters
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    qs["code"] = [auth_code]
+    qs["state"] = [state]
+    new_query = urlencode(qs, doseq=True)
+
+    # Rebuild URL strictly from parsed components
+    safe_redirect_url = urlunparse((
+        parsed.scheme,
+        parsed.netloc,
+        parsed.path,
+        parsed.params,
+        new_query,
+        parsed.fragment,
+    ))
+
+    return RedirectResponse(url=safe_redirect_url, status_code=302)
+
 
 
 # POST /oauth2/token - Exchanges auth code for access token
