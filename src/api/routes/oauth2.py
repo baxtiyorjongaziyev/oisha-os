@@ -14,20 +14,31 @@ _AUTH_CODE_TTL_SECONDS = 300
 _auth_codes: dict[str, tuple[str, float]] = {}  # code -> (client_id, expires_at)
 
 
+DEFAULT_ALLOWED_HOSTS = {"localhost", "127.0.0.1", "jonbranding.uz", "oisha.jonbranding.uz"}
+
+
 def _allowed_redirect_uris() -> set[str]:
     raw = os.environ.get("OAUTH2_ALLOWED_REDIRECT_URIS", "")
     return {u.strip() for u in raw.split(",") if u.strip()}
 
 
 def _validate_redirect_uri(redirect_uri: str) -> str:
+    parsed = urlparse(redirect_uri)
+    if parsed.scheme not in ("https", "http") or not parsed.netloc:
+        raise HTTPException(status_code=400, detail="Invalid redirect_uri scheme or host")
+
     allowed = _allowed_redirect_uris()
-    if allowed and redirect_uri not in allowed:
-        raise HTTPException(status_code=400, detail="Invalid redirect_uri")
-    if not allowed:
-        parsed = urlparse(redirect_uri)
-        if parsed.scheme not in ("https", "http") or not parsed.netloc:
-            raise HTTPException(status_code=400, detail="Invalid redirect_uri")
-    return redirect_uri
+    if allowed:
+        if redirect_uri not in allowed:
+            raise HTTPException(status_code=400, detail="Redirect URI not in allowed list")
+        return redirect_uri
+
+    hostname = (parsed.hostname or "").lower()
+    if hostname in DEFAULT_ALLOWED_HOSTS or hostname.endswith(".jonbranding.uz"):
+        return redirect_uri
+
+    raise HTTPException(status_code=400, detail="Untrusted redirect URI host")
+
 
 
 # GET /oauth2/authorize - Shows the consent screen
