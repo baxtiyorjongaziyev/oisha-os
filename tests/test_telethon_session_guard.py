@@ -8,6 +8,7 @@ bilan yiqilardi.
 """
 
 import os
+import sys
 
 import pytest
 
@@ -346,6 +347,7 @@ async def test_guarded_is_authorized_reraises_other_errors():
 # --------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(sys.platform == 'win32', reason="fcntl is not available on Windows")
 def test_single_flight_blocks_a_second_holder(tmp_path):
     lock_dir = str(tmp_path / "locks")
     with single_flight("userbot_oneoff", lock_dir=lock_dir):
@@ -354,6 +356,7 @@ def test_single_flight_blocks_a_second_holder(tmp_path):
                 pytest.fail("ikkinchi skript lockni olmasligi kerak edi")
 
 
+@pytest.mark.skipif(sys.platform == 'win32', reason="fcntl is not available on Windows")
 def test_single_flight_releases_after_exit(tmp_path):
     lock_dir = str(tmp_path / "locks")
     with single_flight("userbot_oneoff", lock_dir=lock_dir):
@@ -362,6 +365,7 @@ def test_single_flight_releases_after_exit(tmp_path):
         pass
 
 
+@pytest.mark.skipif(sys.platform == 'win32', reason="fcntl is not available on Windows")
 def test_single_flight_separates_names(tmp_path):
     lock_dir = str(tmp_path / "locks")
     with single_flight("juma", lock_dir=lock_dir):

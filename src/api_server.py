@@ -22,6 +22,10 @@ from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from aiocache import Cache
 
 from src.database import get_db
 from src.context import app_ctx
@@ -58,8 +62,11 @@ _conversation_engine: Any = None
 # CRM audit running flag
 crm_audit_running: bool = False
 
-# State and code verifier cache (in-memory for simple auth flow)
-_oauth_sessions: Dict[str, str] = {}
+# State and code verifier cache
+_oauth_sessions = Cache(Cache.MEMORY)
+
+# Rate limiter setup
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +365,8 @@ def _get_amocrm_instance():
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="Oisha-OS Enterprise API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # OAuth2 Middleware for MCP Endpoints
 @app.middleware("http")
@@ -375,7 +384,7 @@ async def verify_oauth_for_mcp(request: Request, call_next):
         is_authorized = False
         if expected_token and auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]
-            if token and hmac.compare_digest(token, expected_token):
+            if token and expected_token and hmac.compare_digest(token.encode('utf-8'), expected_token.encode('utf-8')):
                 is_authorized = True
 
         if not is_authorized:
@@ -526,6 +535,7 @@ async def process_telegram_ai_update(update: Dict[str, Any]):
 
 
 @app.post("/webhook/telegram-ai")
+@limiter.limit("60/minute")
 async def telegram_ai_webhook(request: Request):
     """HTTPS ingress for Bot API 10.0 AI updates."""
     expected_secret = _secret_setting_text(settings.TELEGRAM_WEBHOOK_SECRET)
@@ -542,6 +552,7 @@ async def telegram_ai_webhook(request: Request):
 
 
 @app.post("/webhook/telegram")
+@limiter.limit("60/minute")
 async def telegram_webhook(request: Request):
     """Legacy webhook alias."""
     return await telegram_ai_webhook(request)
@@ -552,6 +563,7 @@ async def telegram_webhook(request: Request):
 # =====================================================================
 
 @app.post("/webhook/amocrm_chat")
+@limiter.limit("60/minute")
 async def amocrm_chat_webhook(request: Request):
     """Receive outgoing messages from AmoCRM Chat and send them to Telegram."""
     try:
@@ -580,11 +592,135 @@ async def amocrm_chat_webhook(request: Request):
             return {"status": "ok"}
         return {"status": "ignored"}
     except Exception as e:
-        logger.error(f"[AMOCRM CHAT WEBHOOK ERROR] {e}")
-        return {"status": "error", "detail": "Webhook processing failed"}
+        logger.error(f"AmoCRM Notes Webhook error: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Internal server error"})
+
+
+@app.post("/webhook/amocrm_lead_created")
+@limiter.limit("60/minute")
+async def amocrm_lead_created_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    secret: Optional[str] = Query(default=None),
+):
+    """Receive lead[add] webhooks from AmoCRM to trigger Voice Agent.
+
+    Requires a shared secret (AMOCRM_WEBHOOK_SECRET) as a query param since
+    AmoCRM webhooks carry no signature — and stays fully disabled unless
+    ENABLE_VOICE_AGENT=True, regardless of whether VAPI_API_KEY is set.
+    """
+    if not settings.ENABLE_VOICE_AGENT:
+        return JSONResponse(status_code=404, content={"status": "disabled"})
+
+    expected_secret = settings.AMOCRM_WEBHOOK_SECRET.get_secret_value() if settings.AMOCRM_WEBHOOK_SECRET else ""
+    if not expected_secret or not secret or not hmac.compare_digest(secret.encode("utf-8"), expected_secret.encode("utf-8")):
+        return JSONResponse(status_code=401, content={"status": "unauthorized"})
+
+    try:
+        from src.services.core.voice_agent import trigger_voice_agent
+        form_data = await request.form()
+
+        # Parse AmoCRM structure: leads[add][0][name], etc.
+        lead_id = form_data.get("leads[add][0][id]")
+        if not lead_id:
+            return JSONResponse(status_code=400, content={"status": "ignored", "message": "Not a lead addition"})
+
+        # Idempotency: skip if this lead_id already triggered a call.
+        idempotency_key = f"voice_call_triggered:{lead_id}"
+        db = get_db()
+        if await db.kv.get_state(idempotency_key):
+            return JSONResponse(content={"status": "ignored", "message": "Already processed"})
+
+        lead_name = form_data.get("leads[add][0][name]", f"Lead {lead_id}")
+
+        # This is a naive extraction. In reality, we'd need to extract from custom fields (CFs)
+        # However, AmoCRM webhooks usually send custom fields as array indexes.
+        # For the stub, we just try to find something that looks like a phone.
+        phone_number = None
+        for key, value in form_data.items():
+            if "custom_fields" in key and "values" in key and "value" in key:
+                if str(value).replace("+", "").isdigit() and len(str(value)) > 8:
+                    phone_number = str(value)
+                    break
+
+        if not phone_number:
+            await db.kv.set_state(idempotency_key, True)
+            return JSONResponse(content={"status": "ignored", "message": "No phone number found"})
+
+        # Mark processed now so a retried webhook delivery can't queue a second
+        # approval request for the same lead.
+        await db.kv.set_state(idempotency_key, True)
+
+        # Owner approval gate — do NOT call the Vapi API directly from the
+        # webhook. Stash the pending call and ask the owner to approve it.
+        approval_key = f"voice_call_pending:{lead_id}"
+        await db.kv.set_state(approval_key, {
+            "lead_id": lead_id,
+            "lead_name": lead_name,
+            "phone_number": phone_number,
+        })
+
+        owner_id = int(getattr(settings, "OWNER_ID", 0) or 0)
+        if owner_id:
+            if app_ctx.outgoing_messages is None:
+                app_ctx.outgoing_messages = asyncio.Queue()
+            await app_ctx.outgoing_messages.put({
+                "chat_id": owner_id,
+                "text": (
+                    f"🎙 Voice Agent tasdiq so'raladi\n\n"
+                    f"Lead: {lead_name} (ID: {lead_id})\n"
+                    f"Telefon: {phone_number}\n\n"
+                    f"Tasdiqlash uchun: /voice_approve {lead_id}\n"
+                    f"Rad etish uchun: /voice_reject {lead_id}"
+                ),
+            })
+
+        return JSONResponse(content={"status": "pending_approval", "message": "Awaiting owner approval"})
+    except Exception as e:
+        logger.error(f"AmoCRM Lead Created Webhook error: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Internal server error"})
+
+
+async def approve_voice_call(lead_id: str) -> bool:
+    """Owner tasdiqlagach chaqiriladi (masalan /voice_approve buyrug'idan).
+
+    Pending call yozuvini o'qiydi, mavjud bo'lsa Vapi.ai chaqiruvini navbatga
+    qo'yadi va pending yozuvni tozalaydi. Ikki marta tasdiqlash xavfsiz —
+    yozuv topilmasa False qaytaradi.
+    """
+    if not settings.ENABLE_VOICE_AGENT:
+        return False
+
+    from src.services.core.voice_agent import trigger_voice_agent
+
+    db = get_db()
+    approval_key = f"voice_call_pending:{lead_id}"
+    pending = await db.kv.get_state(approval_key)
+    if not pending:
+        return False
+
+    await db.kv.set_state(approval_key, None)
+    await trigger_voice_agent(
+        lead_name=pending["lead_name"],
+        phone_number=pending["phone_number"],
+        context=f"AmoCRM Lead ID: {lead_id} (owner-approved)",
+    )
+    return True
+
+
+async def reject_voice_call(lead_id: str) -> bool:
+    """Owner rad etganda chaqiriladi. Pending yozuvni tozalaydi."""
+    db = get_db()
+    approval_key = f"voice_call_pending:{lead_id}"
+    pending = await db.kv.get_state(approval_key)
+    if not pending:
+        return False
+    await db.kv.set_state(approval_key, None)
+    return True
 
 
 @app.post("/webhook/amocrm_notes")
+@limiter.limit("60/minute")
 async def amocrm_notes_webhook(request: Request):
     """Receive note[add] webhooks from AmoCRM to send Telegram messages natively."""
     try:
@@ -740,7 +876,7 @@ async def airtable_login():
     state = base64.urlsafe_b64encode(os.urandom(16)).decode('utf-8').rstrip('=')
     
     # Store verifier temporarily to use in callback
-    _oauth_sessions[state] = code_verifier
+    await _oauth_sessions.set(state, code_verifier, ttl=600)
     
     client = AirtableClient()
     url = client.get_authorization_url(state, code_challenge)
@@ -756,7 +892,9 @@ async def airtable_callback(code: str = None, state: str = None, error: str = No
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code or state")
         
-    code_verifier = _oauth_sessions.pop(state, None)
+    code_verifier = await _oauth_sessions.get(state)
+    if code_verifier:
+        await _oauth_sessions.delete(state)
     if not code_verifier:
         raise HTTPException(status_code=400, detail="Invalid or expired state")
         

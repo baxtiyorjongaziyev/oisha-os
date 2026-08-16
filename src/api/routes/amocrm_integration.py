@@ -154,6 +154,39 @@ async def _process_amocrm_event(data: Dict[str, Any]):
         if not lead_data:
             return
 
+        # Vilgood OS: Strict Pipeline Check
+        try:
+            from src.services.core.vilgood_engine import VilgoodEngine
+            vilgood = VilgoodEngine(db=runtime_db, amocrm=amocrm)
+            # Find status changes (assuming AmoCRM webhook payload has 'status_id')
+            new_status = None
+            old_status = None
+            for key, val in data.items():
+                if "leads[status][" in key and "[status_id]" in key:
+                    new_status = int(val)
+                elif "leads[status][" in key and "[old_status_id]" in key:
+                    old_status = int(val)
+            
+            if new_status and old_status:
+                is_valid = await vilgood.enforce_pipeline_rules(int(lead_id), old_status, new_status, lead_data)
+                if not is_valid:
+                    # Send alert to owner/admin
+                    await api_state.user_client.send_message(settings.OWNER_ID, f"⚠️ Vilgood Pipeline Violation!\nLead {lead_id} tried to move to status {new_status} without meeting conditions.")
+                    # Optionally, revert status here via amocrm.update_lead()
+
+            # Sanity Publisher: Trigger if lead is marked as Won
+            if new_status and new_status == getattr(settings, "AMOCRM_WON_STATUS_ID", 142) and getattr(settings, "ENABLE_SANITY_PUBLISHER", True):
+                try:
+                    from src.services.core.sanity_publisher import SanityPublisher
+                    sanity = SanityPublisher(amocrm=amocrm)
+                    # Run in background to avoid blocking webhook
+                    asyncio.create_task(sanity.publish_case_from_amocrm(int(lead_id), lead_data))
+                except Exception as pub_exc:
+                    logger.error("[Webhook] Sanity Publisher trigger failed: %s", pub_exc, exc_info=True)
+
+        except Exception as e:
+            logger.error("[Webhook] Vilgood engine error: %s", e)
+
         phone = amocrm.get_lead_phone(int(lead_id))
 
         if getattr(settings, "ENABLE_AMOCRM_LEAD_ENRICHMENT", True):

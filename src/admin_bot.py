@@ -45,6 +45,10 @@ class AdminBot:
                     Button.inline("⚙️ Tizim Holati", b"status"),
                     Button.inline("📁 Oxirgi Lidlar", b"recent_leads"),
                 ],
+                [
+                    Button.inline("🎯 Mening Ishim", b"navbatdagi_ish"),
+                    Button.inline("🪙 Oisha Coins (KPI)", b"kpi"),
+                ],
                 [Button.url("🌐 AmoCRM-ga o'tish", "https://jonbranding.amocrm.ru")],
             ]
             await event.respond(welcome_msg, buttons=buttons)
@@ -64,6 +68,10 @@ class AdminBot:
                 )
             elif data == "recent_leads":
                 await self.send_recent_leads(event)
+            elif data == "navbatdagi_ish":
+                await self.send_next_task(event)
+            elif data == "kpi":
+                await self.send_kpi(event)
 
         @self.client.on(events.NewMessage())
         async def message_handler(event):
@@ -74,6 +82,36 @@ class AdminBot:
                     text.strip().isdigit() and len(text.strip()) > 7
                 ):
                     await self.handle_deep_search(event, text.strip())
+
+    async def send_next_task(self, event):
+        from src.services.core.vilgood_engine import VilgoodDispatcher
+        dispatcher = VilgoodDispatcher(self.db)
+        task = await dispatcher.get_next_best_task(event.sender_id)
+        if not task:
+            await event.respond("✅ Sizda hozircha bajarilmagan muhim vazifa yo'q. Dam oling!")
+            return
+        
+        msg = (
+            "🎯 **NAVBATDAGI ENG MUHIM VAZIFA**\n"
+            "──────────────────────\n"
+            f"📌 **Sarlavha:** {task['title']}\n"
+            f"📝 **Izoh:** {task['description']}\n"
+            f"⏰ **Muddat (SLA):** {task['deadline']}\n"
+            f"💰 **Kutilayotgan Foyda:** ${task['profit_estimate']}\n\n"
+            "⚠️ *Vilgood qoidasi: Faqat shu bitta vazifaga diqqat qiling!*"
+        )
+        await event.respond(msg)
+
+    async def send_kpi(self, event):
+        coins = await self.db.gamification.get_user_coins(event.sender_id)
+        msg = (
+            "🪙 **MENING OISHA COINLARIM (KPI)**\n"
+            "──────────────────────\n"
+            f"Sizning joriy balansingiz: **{coins} Coin**\n\n"
+            "Vazifalarni SLA (muddat) doirasida yopsangiz, Coinlar ko'payadi.\n"
+            "Muddatidan o'tsa, Coinlar jarima sifatida yechiladi. Bosing! 🚀"
+        )
+        await event.respond(msg)
 
     async def send_dashboard(self, event):
         stats = self.db.get_today_stats()

@@ -247,9 +247,11 @@ class _DialogsClient:
 
 @pytest.mark.asyncio
 async def test_finance_group_is_discovered_by_title(monkeypatch) -> None:
-    from src.services.core.finance.handlers import utils as hisobchi_handlers, card_bot_handler, manual_handler
+    from src.context import app_ctx
+    from src.services.core.finance.handlers import engine_utils as hisobchi_handlers, card_bot_handler, manual_handler
 
-    hisobchi_handlers.app_ctx.finance_group_cache = None
+    app_ctx.finance_group_cache = None
+    hisobchi_handlers._topic_cache.clear()
     monkeypatch.setattr(
         hisobchi_handlers,
         "_get_finance_config",
@@ -271,7 +273,7 @@ class _NoFinanceClient:
 @pytest.mark.asyncio
 async def test_finance_data_is_not_sent_to_plain_team_group(monkeypatch) -> None:
     from src.context import app_ctx
-    from src.services.core.finance.handlers import utils as hisobchi_handlers, card_bot_handler, manual_handler
+    from src.services.core.finance.handlers import engine_utils as hisobchi_handlers, card_bot_handler, manual_handler
 
     app_ctx.finance_group_cache = None
     hisobchi_handlers._topic_cache.clear()
@@ -328,7 +330,7 @@ class _BackfillClient:
 @pytest.mark.asyncio
 async def test_backfill_replays_once_and_deduplicates(monkeypatch, temp_db) -> None:
     from src.context import app_ctx
-    from src.services.core.finance.handlers import utils as hisobchi_handlers, card_bot_handler, manual_handler
+    from src.services.core.finance.handlers import engine_utils as hisobchi_handlers, card_bot_handler, manual_handler
 
     app_ctx.finance_group_cache = None
     hisobchi_handlers._topic_cache.clear()
@@ -424,7 +426,7 @@ async def test_bot_sender_reply_is_ignored_in_finance_group(monkeypatch, temp_db
     """A bot's own message (e.g. @jonairobot's question replying to the
     topic root) must never be treated as a human answering the question —
     this was the root cause of transactions self-categorizing as garbage."""
-    from src.services.core.finance.handlers import utils as hisobchi_handlers, card_bot_handler, manual_handler
+    from src.services.core.finance.handlers import engine_utils as hisobchi_handlers, card_bot_handler, manual_handler
 
     monkeypatch.setattr(
         hisobchi_handlers, "resolve_finance_destination",
@@ -454,7 +456,7 @@ async def test_human_reply_quoting_bot_template_is_ignored(monkeypatch, temp_db)
     """Defense in depth: even from a genuine human, text that's just the
     bot's own question template (e.g. accidentally forwarded) must not be
     accepted as a real category."""
-    from src.services.core.finance.handlers import utils as hisobchi_handlers, card_bot_handler, manual_handler
+    from src.services.core.finance.handlers import engine_utils as hisobchi_handlers, card_bot_handler, manual_handler
 
     monkeypatch.setattr(
         hisobchi_handlers, "resolve_finance_destination",
@@ -482,7 +484,7 @@ async def test_human_reply_saves_category_via_bot_client(monkeypatch, temp_db) -
     """The normal, correct path: a real human's category answer is saved
     and the confirmation is sent via bot_client (@jonairobot), never the
     userbot."""
-    from src.services.core.finance.handlers import utils as hisobchi_handlers, card_bot_handler, manual_handler
+    from src.services.core.finance.handlers import engine_utils as hisobchi_handlers, card_bot_handler, manual_handler
 
     monkeypatch.setattr(
         manual_handler, "resolve_finance_destination",
@@ -511,7 +513,7 @@ async def test_human_reply_saves_category_via_bot_client(monkeypatch, temp_db) -
 
 @pytest.mark.asyncio
 async def test_human_reply_saves_category_via_aiogram_runtime(monkeypatch, temp_db) -> None:
-    from src.services.core.finance.handlers import utils as hisobchi_handlers, card_bot_handler, manual_handler
+    from src.services.core.finance.handlers import engine_utils as hisobchi_handlers, card_bot_handler, manual_handler
 
     monkeypatch.setattr(
         manual_handler, "resolve_finance_destination",
@@ -620,7 +622,7 @@ async def test_one_time_reset_resync_runs_only_once(monkeypatch, temp_db) -> Non
 
 @pytest.mark.asyncio
 async def test_resync_sequential_waits_for_answer_before_next(monkeypatch, temp_db) -> None:
-    from src.services.core.finance.handlers import utils as hisobchi_handlers, card_bot_handler, manual_handler
+    from src.services.core.finance.handlers import engine_utils as hisobchi_handlers, card_bot_handler, manual_handler
     from datetime import datetime, timezone
 
     hisobchi_handlers._topic_cache.clear()
@@ -653,7 +655,7 @@ async def test_resync_sequential_waits_for_answer_before_next(monkeypatch, temp_
 
 @pytest.mark.asyncio
 async def test_resync_sequential_times_out_and_moves_on(monkeypatch, temp_db) -> None:
-    from src.services.core.finance.handlers import utils as hisobchi_handlers, card_bot_handler, manual_handler
+    from src.services.core.finance.handlers import engine_utils as hisobchi_handlers, card_bot_handler, manual_handler
     from datetime import datetime, timezone
 
     hisobchi_handlers._topic_cache.clear()

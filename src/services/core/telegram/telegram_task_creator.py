@@ -22,15 +22,16 @@ from src.services.utils.gemini_fallback import (
     is_quota_error,
 )
 
+logger = structlog.get_logger()
+
+# Optional Google Generative AI imports – they may be unavailable in the test env.
 try:
     from google import genai
     from google.genai import types as genai_types
-except Exception:
-    logger.error("Exception handled in %s", __name__, exc_info=True)
+except Exception:  # pragma: no-cover – exercised only when the package is missing.
+    logger.error("Google Generative AI imports failed in %s", __name__, exc_info=True)
     genai = None
     genai_types = None
-
-logger = structlog.get_logger()
 
 
 async def _maybe_await(value: Any) -> Any:

@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/context/ThemeContext";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface NavItem {
   name: string;
@@ -75,10 +76,11 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside
-      className={`relative z-30 flex flex-col border-r border-border bg-bg-card transition-all duration-300 ${
-        sidebarOpen ? "w-64" : "w-20"
-      }`}
+    <motion.aside
+      initial={{ width: sidebarOpen ? 256 : 80 }}
+      animate={{ width: sidebarOpen ? 256 : 80 }}
+      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      className={`relative z-30 flex flex-col border-r border-border bg-bg-card h-full`}
     >
       {/* Brand Header Logo */}
       <div className="flex h-16 items-center px-6">
@@ -86,9 +88,19 @@ export default function Sidebar() {
           <div aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand font-display text-lg font-bold text-white shadow-lg shadow-brand/20">
             M
           </div>
-          <span className={`font-display text-lg font-bold text-text tracking-wide animate-fade-in ${sidebarOpen ? '' : 'sr-only'}`}>
-            Metasell
-          </span>
+          <AnimatePresence>
+            {sidebarOpen && (
+              <motion.span 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2 }}
+                className="font-display text-lg font-bold text-text tracking-wide"
+              >
+                Metasell
+              </motion.span>
+            )}
+          </AnimatePresence>
         </Link>
       </div>
 
@@ -108,7 +120,18 @@ export default function Sidebar() {
                   }`}
                 >
                   <div className="shrink-0">{item.icon}</div>
-                  <span className={`animate-fade-in ${sidebarOpen ? '' : 'sr-only'}`}>{item.name}</span>
+                  <AnimatePresence>
+                    {sidebarOpen && (
+                      <motion.span 
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: "auto" }}
+                        exit={{ opacity: 0, width: 0 }}
+                        className="whitespace-nowrap overflow-hidden"
+                      >
+                        {item.name}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
 
                   {/* Badge count for alerts */}
                   {item.badgeKey && alertsCount > 0 && (
@@ -159,6 +182,6 @@ export default function Sidebar() {
           )}
         </button>
       </div>
-    </aside>
+    </motion.aside>
   );
 }

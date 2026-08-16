@@ -54,6 +54,8 @@ class SalesCoachLLM:
                 variables=variables,
                 json_mode=True,
             )
+            if hasattr(response, "text"):
+                response = response.text
             if isinstance(response, dict):
                 result = response
             elif isinstance(response, str):

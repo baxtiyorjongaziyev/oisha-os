@@ -2,6 +2,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.database_pool import SmartRow
 from src.services.core.ambassador_journey import AmbassadorJourneyManager
+import logging
+logger = logging.getLogger(__name__)
 
 
 class MockCursor:

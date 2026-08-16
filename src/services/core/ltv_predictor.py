@@ -1,243 +1,69 @@
-import structlog
 import os
-import json
-import pickle
-from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime
-from dataclasses import dataclass
+import joblib
+import pandas as pd
+import logging
+from typing import Dict, Any, Optional
 
-from src.settings import settings
+logger = logging.getLogger(__name__)
 
-logger = structlog.get_logger()
-
-
-@dataclass
-class LeadFeatures:
-    """ML model uchun kirish ma'lumotlari."""
-    company_size: float = 0.0
-    price: float = 0.0
-    contact_count: float = 0.0
-    task_count: float = 0.0
-    call_duration_avg: float = 0.0
-    message_count: float = 0.0
-    days_in_pipeline: float = 0.0
-    tag_count: float = 0.0
-    is_repeat_client: float = 0.0
-    industry_encoded: float = 0.0
-
+MODEL_PATH = os.path.join("data", "ltv_model.pkl")
+ENCODER_PATH = os.path.join("data", "ltv_encoder.pkl")
 
 class LTVPredictor:
-    """🔮 Predictive LTV — ML orqali mijozning kelajakdagi qiymatini bashorat qilish.
-
-    Ishlash tartibi:
-    1. AmoCRM dan tarixiy lead ma'lumotlari olinadi
-    2. Feature engineering: lead dan raqamli xususiyatlar chiqariladi
-    3. Scikit-Learn RandomForest modeli train qilinadi
-    4. Yangi lead kelganda LTV bashorat qilinadi
-    5. Agar LTV yuqori bo'lsa → VIP menejer ulanishi
-    """
-
     def __init__(self):
-        self.model_path = settings.LTV_MODEL_PATH
-        self.enabled = settings.ENABLE_LTV_PREDICTION
         self.model = None
+        self.encoder = None
         self._load_model()
-
+        
     def _load_model(self):
-        """Diskdan modelni yuklash."""
-        if os.path.exists(self.model_path):
+        if os.path.exists(MODEL_PATH) and os.path.exists(ENCODER_PATH):
             try:
-                with open(self.model_path, "rb") as f:
-                    # Trusted artifact: only ever written by _save_model() below onto a
-                    # path this app controls (settings.LTV_MODEL_PATH) — never fed
-                    # user-supplied or externally sourced data.
-                    self.model = pickle.load(f)  # nosec B301
-                logger.info("[LTV] Model loaded", path=self.model_path)
+                self.model = joblib.load(MODEL_PATH)
+                self.encoder = joblib.load(ENCODER_PATH)
+                logger.info("LTV Model successfully loaded.")
             except Exception as e:
-                logger.warning("[LTV] Failed to load model", error=str(e))
-                self.model = None
-
-    def _save_model(self):
-        """Modelni diskka saqlash."""
-        os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
-        with open(self.model_path, "wb") as f:
-            pickle.dump(self.model, f)
-        logger.info("[LTV] Model saved", path=self.model_path)
-
-    def extract_features(self, lead: Dict[str, Any]) -> LeadFeatures:
-        """Lead dict dan ML feature larini chiqarish."""
-        features = LeadFeatures()
-
-        features.price = float(lead.get("price", 0) or 0)
-        features.days_in_pipeline = float(lead.get("days_in_pipeline", 0) or 0)
-
-        # Custom fields dan ma'lumot olish
-        for cf in lead.get("custom_fields_values") or []:
-            code = cf.get("field_code", "")
-            values = cf.get("values", [{}])
-            val = values[0].get("value", 0) if values else 0
-
-            if code == "COMPANY_SIZE":
-                features.company_size = float(val) if val else 0.0
-            elif code == "IS_REPEAT":
-                features.is_repeat_client = 1.0 if str(val).lower() in ("yes", "ha", "true") else 0.0
-            elif code == "INDUSTRY":
-                features.industry_encoded = self._encode_industry(str(val))
-
-        # _embedded dan kontakt va vazifalar soni
-        embedded = lead.get("_embedded", {})
-        features.contact_count = float(len(embedded.get("contacts", [])))
-        features.task_count = float(len(embedded.get("tasks", [])))
-
-        # Tag count
-        tags = embedded.get("tags", [])
-        features.tag_count = float(len(tags))
-
-        # Message count (agar ajratilgan bo'lsa)
-        features.message_count = float(lead.get("message_count", 0))
-        features.call_duration_avg = float(lead.get("call_duration_avg", 0))
-
-        return features
-
-    async def predict_ltv(self, lead: Dict[str, Any]) -> Dict[str, Any]:
-        """Yangi lead uchun LTV bashorat qilish.
-
-        Returns:
-            {
-                "ltv": 15000000,       # Bashorat qilingan LTV (so'm)
-                "tier": "vip|standard|low",
-                "confidence": 0.85,    # Ishonchlilik darajasi
-                "should_alert_vip": True  # VIP menejer kerakmi?
-            }
-        """
-        if not self.enabled or self.model is None:
-            return self._rule_based_estimate(lead)
-
-        try:
-            features = self.extract_features(lead)
-            X = [[
-                features.company_size, features.price, features.contact_count,
-                features.task_count, features.call_duration_avg, features.message_count,
-                features.days_in_pipeline, features.tag_count, features.is_repeat_client,
-                features.industry_encoded,
-            ]]
-
-            pred = self.model.predict(X)[0]
-            proba = self.model.predict_proba(X).max() if hasattr(self.model, "predict_proba") else 0.5
-
-            ltv = max(0, float(pred))
-            tier = self._get_tier(ltv)
-            return {
-                "ltv": ltv,
-                "tier": tier,
-                "confidence": round(float(proba), 2),
-                "should_alert_vip": tier == "vip",
-            }
-        except Exception as e:
-            logger.warning("[LTV] ML prediction failed, using rule-based", error=str(e))
-            return self._rule_based_estimate(lead)
-
-    def _rule_based_estimate(self, lead: Dict[str, Any]) -> Dict[str, Any]:
-        """ML model bo'lmaganda, qoidalar asosida LTV bashorati."""
-        price = float(lead.get("price", 0) or 0)
-        is_repeat = False
-        for cf in lead.get("custom_fields_values") or []:
-            if cf.get("field_code") == "IS_REPEAT":
-                vals = cf.get("values", [{}])
-                if vals and str(vals[0].get("value", "")).lower() in ("yes", "ha", "true"):
-                    is_repeat = True
-
-        # Qoidalar:
-        # - Takroriy mijoz: price * 3
-        # - Birinchi mijoz: price * 1.5
-        # - Kichik (0-5M): price * 1.2
-        if is_repeat:
-            ltv = price * 3.0
-        elif price > 10_000_000:
-            ltv = price * 2.0
-        elif price > 5_000_000:
-            ltv = price * 1.5
+                logger.error(f"Failed to load LTV model: {e}")
         else:
-            ltv = price * 1.2
-
-        tier = self._get_tier(ltv)
-        return {
-            "ltv": ltv,
-            "tier": tier,
-            "confidence": 0.5,
-            "should_alert_vip": tier == "vip",
-        }
-
-    async def train_model(self, leads: List[Dict[str, Any]]) -> bool:
-        """Tarixiy lead ma'lumotlari bo'yicha modelni train qilish."""
+            logger.info("LTV Model files not found. Predictor will return baseline predictions.")
+            
+    def predict_ltv(self, lead_data: Dict[str, Any]) -> float:
+        """
+        Predicts Lifetime Value (LTV) for a given lead.
+        lead_data expects keys like: 'industry', 'budget', 'contact_role', 'initial_score'
+        """
+        if not self.model or not self.encoder:
+            # Baseline heuristic if model isn't trained yet
+            budget = float(lead_data.get("budget", 0))
+            return budget * 1.5 if budget > 0 else 500.0
+            
         try:
-            from sklearn.ensemble import RandomForestRegressor
-            from sklearn.model_selection import train_test_split
-
-            X, y = [], []
-            for lead in leads:
-                features = self.extract_features(lead)
-                total_revenue = float(lead.get("total_revenue", lead.get("price", 0)))
-                if total_revenue <= 0:
-                    continue
-                X.append([
-                    features.company_size, features.price, features.contact_count,
-                    features.task_count, features.call_duration_avg, features.message_count,
-                    features.days_in_pipeline, features.tag_count, features.is_repeat_client,
-                    features.industry_encoded,
-                ])
-                y.append(total_revenue)
-
-            if len(X) < 50:
-                logger.warning("[LTV] Not enough data for training", samples=len(X))
-                return False
-
-            model = RandomForestRegressor(
-                n_estimators=100, max_depth=10, random_state=42, n_jobs=-1
-            )
-            model.fit(X, y)
-            self.model = model
-            self._save_model()
-            logger.info("[LTV] Model trained successfully", samples=len(X))
-            return True
-        except ImportError as e:
-            logger.warning("[LTV] Scikit-learn not installed, skipping training", error=str(e))
-            return False
+            # Prepare DataFrame
+            df = pd.DataFrame([lead_data])
+            
+            # Encode categorical features
+            categorical_cols = ['industry', 'contact_role']
+            for col in categorical_cols:
+                if col not in df.columns:
+                    df[col] = "unknown"
+                    
+            encoded_cats = self.encoder.transform(df[categorical_cols])
+            cat_df = pd.DataFrame(encoded_cats, columns=self.encoder.get_feature_names_out(categorical_cols))
+            
+            # Combine with numerical
+            num_df = df.drop(columns=categorical_cols, errors='ignore')
+            num_df = num_df.apply(pd.to_numeric, errors='coerce').fillna(0)
+            
+            X = pd.concat([num_df.reset_index(drop=True), cat_df.reset_index(drop=True)], axis=1)
+            
+            # Predict
+            prediction = self.model.predict(X)[0]
+            return float(prediction)
         except Exception as e:
-            logger.error("[LTV] Training failed", error=str(e))
-            return False
+            logger.error(f"LTV prediction error: {e}")
+            budget = float(lead_data.get("budget", 0))
+            return budget * 1.5 if budget > 0 else 500.0
 
-    def _get_tier(self, ltv: float) -> str:
-        """LTV bo'yicha tier aniqlash."""
-        if ltv >= 20_000_000:
-            return "vip"
-        elif ltv >= 5_000_000:
-            return "standard"
-        return "low"
+predictor = LTVPredictor()
 
-    def _encode_industry(self, industry: str) -> float:
-        """Soha nomini raqamga aylantirish."""
-        mapping = {
-            "meditsina": 1.0, "ta'lim": 2.0, "retail": 3.0,
-            "food": 4.0, "service": 5.0, "qurilish": 6.0,
-            "transport": 7.0, "it": 8.0, "other": 9.0,
-        }
-        return mapping.get(industry.lower(), 9.0)
-
-    async def get_vip_alert_message(self, lead: Dict[str, Any], ltv_result: Dict[str, Any]) -> str:
-        """VIP mijoz uchun ogohlantirish xabari."""
-        name = lead.get("name", "Noma'lum")
-        price = lead.get("price", 0)
-        ltv = ltv_result.get("ltv", 0)
-        tier = ltv_result.get("tier", "low")
-        link = f"https://{settings.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead.get('id')}"
-
-        return (
-            f"🚨 <b>VIP MIJOZ ANIQLANDI!</b>\n\n"
-            f"👤 <b>{name}</b>\n"
-            f"💰 Bitim summasi: {price:,.0f} so'm\n"
-            f"🔮 Bashorat qilingan LTV: <b>{ltv:,.0f} so'm</b> ({tier.upper()})\n"
-            f"📊 Ishonchlilik: {ltv_result.get('confidence', 0)*100:.0f}%\n\n"
-            f"🔗 <a href='{link}'>AmoCRM da ochish</a>\n\n"
-            f"👑 Iltimos, VIP menejer mijoz bilan bog'lansin!"
-        )
+def predict_lead_ltv(lead_data: Dict[str, Any]) -> float:
+    return predictor.predict_ltv(lead_data)

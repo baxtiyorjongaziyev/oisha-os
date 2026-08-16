@@ -1,181 +1,130 @@
 import asyncio
-import datetime
-import structlog
-import httpx
+import logging
+import os
 import json
-from typing import Dict, Any, List, Optional
+import httpx
+from typing import Dict, Any, Optional
+
 from src.settings import settings
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 
 class SanityPublisher:
-    """📰 Avtomatlashtirilgan Case-Study Publisher.
+    """Service to automatically generate and publish case studies to CMS when AmoCRM projects are completed."""
 
-    AmoCRM'da loyiha 'Muvaffaqiyatli yakunlandi' bosqichiga o'tganda:
-    1. Oisha loyiha tafsilotlarini oladi
-    2. Gemini orqali professional SEO maqola yozadi
-    3. Sanity CMS API orqali jonbranding.uz/cases/ ga chop etadi
-    """
+    def __init__(self, amocrm=None, genai_client=None):
+        self.amocrm = amocrm
+        self.genai_client = genai_client
 
-    def __init__(self):
-        self.project_id = settings.SANITY_PROJECT_ID
-        self.dataset = settings.SANITY_DATASET
-        token = settings.SANITY_TOKEN.get_secret_value() if settings.SANITY_TOKEN else None
-        self.token = token
-        self.api_version = "2024-04-14"
-        self.base_url = f"https://{self.project_id}.api.sanity.io/v{self.api_version}"
-        self.cdn_url = f"https://{self.project_id}.apicdn.sanity.io/v{self.api_version}"
-        self.enabled = bool(self.project_id and self.token)
+        if self.genai_client is None:
+            api_key = (settings.GEMINI_API_KEY.get_secret_value() or "").strip()
+            if api_key:
+                try:
+                    from google import genai
+                    self.genai_client = genai.Client(api_key=api_key)
+                except Exception as exc:
+                    logger.warning("[SANITY_PUBLISHER] Gemini client init skipped: %s", exc)
+            else:
+                logger.warning("[SANITY_PUBLISHER] GEMINI_API_KEY missing.")
+        
+        self.model_name = os.getenv("GEMINI_CASE_PUBLISHER_MODEL", settings.GEMINI_CALL_MODEL)
 
-    async def publish_case(self, lead_data: Dict[str, Any]) -> bool:
-        """AmoCRM lead ma'lumotlaridan case study yaratish va Sanity ga publish."""
-        if not self.enabled:
-            logger.warning("[SANITY] Sanity not configured, skipping publish")
-            return False
+    async def generate_case_study(self, lead_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate a structured portfolio case study using Gemini based on AmoCRM lead data."""
+        lead_name = lead_data.get("name", "N/A")
+        price = lead_data.get("price", 0)
+        custom_fields = lead_data.get("custom_fields_values", [])
+        
+        # Serialize lead data to a readable string for the prompt
+        lead_context = f"Lead Name: {lead_name}\nPrice/Budget: {price}\n"
+        if custom_fields:
+            for field in custom_fields:
+                field_name = field.get("field_name")
+                values = [v.get("value") for v in field.get("values", [])]
+                lead_context += f"{field_name}: {', '.join(map(str, values))}\n"
 
-        lead_id = lead_data.get("id")
-        lead_name = lead_data.get("name", "Nomsiz Loyiha")
+        prompt = (
+            "You are a professional copywriter for Jon Branding agency. "
+            "A project has just been marked as 'Won' (Yakunlandi) in AmoCRM. "
+            "Based on the following CRM lead data, write a short, professional portfolio case study in Uzbek. "
+            "Ensure the output is valid JSON, strictly complying with the following structure:\n"
+            "{\n"
+            '  "title": "A short, descriptive case title in Uzbek",\n'
+            '  "client": "Client name (infer from lead name or fields)",\n'
+            '  "short_description": "A 1-2 sentence hook / summary in Uzbek",\n'
+            '  "challenge": "What was the presumed problem or request based on this data? (in Uzbek)",\n'
+            '  "solution": "What was Jon Branding\'s solution? (in Uzbek)",\n'
+            '  "results": "What is the final result? (in Uzbek)",\n'
+            '  "tags": ["branding", "design", "portfolio"]\n'
+            "}\n\n"
+            f"AmoCRM Lead Data:\n{lead_context}"
+        )
 
-        # 1. AI orqali case study matnini yaratish
-        case_content = await self._generate_case_content(lead_data)
-        if not case_content:
-            logger.error("[SANITY] AI case generation failed", lead=lead_name)
-            return False
-
-        # 2. Sanity document yaratish
-        doc = {
-            "_type": "portfolio",
-            "title": case_content.get("title", lead_name),
-            "slug": {"_type": "slug", "current": self._make_slug(lead_name)},
-            "client": case_content.get("client", lead_data.get("contact_name", "")),
-            "category": case_content.get("category", "brand-strategy"),
-            "tags": case_content.get("tags", ["brending"]),
-            "description": case_content.get("description", ""),
-            "body": self._build_body_blocks(case_content),
-            "results": case_content.get("results", []),
-            "publishedAt": datetime.datetime.now().isoformat(),
-        }
-
-        success = await self._sanity_upsert(doc)
-        if success:
-            logger.info("[SANITY] Case published successfully", lead=lead_name, title=doc["title"])
-        else:
-            logger.error("[SANITY] Failed to publish case", lead=lead_name)
-        return success
-
-    async def _generate_case_content(self, lead: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Gemini yordamida case study matnini yaratish."""
         try:
-            from src.services.utils.gemini_fallback import generate_content_with_fallback
-            from src.services.core.agent_brain import get_genai_client
-
-            client = get_genai_client()
-            if not client:
-                logger.warning("[SANITY] No genai client available")
-                return self._fallback_content(lead)
-
             from google.genai import types
-
-            prompt = (
-                "Sen professional copywritersan. Jon Branding agentligi uchun portfolio case study yoz.\n\n"
-                f"Lead ma'lumotlari:\n"
-                f"- Nomi: {lead.get('name', 'N/A')}\n"
-                f"- Mijoz: {lead.get('contact_name', lead.get('name', 'N/A'))}\n"
-                f"- Narx: {lead.get('price', 0)} so'm\n"
-                f"- Status: {lead.get('status_name', 'Yakunlangan')}\n\n"
-                "Quyidagi JSON formatda faqat valid JSON qaytar (boshqa matn yo'q):\n"
-                "{\n"
-                '  "title": "Case study sarlavhasi (30-50 belgi)",\n'
-                '  "client": "Mijoz nomi",\n'
-                '  "category": "brand-strategy|logo-design|brandbook|corporate-style|packaging|naming",\n'
-                '  "description": "Qisqa tavsif (1-2 gap)",\n'
-                '  "tags": ["brending", "logotip"],\n'
-                '  "challenge": "Muammo tavsifi (2-3 gap)",\n'
-                '  "solution": "Yechim tavsifi (3-5 gap)",\n'
-                '  "results": [{"metric": "Ko\'rsatkich", "value": "Qiymat"}]\n'
-                "}"
-            )
+            from src.services.utils.gemini_fallback import generate_content_with_fallback
 
             response, _ = await generate_content_with_fallback(
-                client,
-                primary_model=settings.GEMINI_CALL_MODEL,
+                self.genai_client,
+                primary_model=self.model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    temperature=0.3,
+                    temperature=0.4,
                 ),
-                log_prefix="[SANITY]",
+                env_name="GEMINI_CASE_PUBLISHER_FALLBACK_MODELS",
+                log_prefix="[SANITY_PUBLISHER]",
             )
-            raw = (response.text or "").strip()
-            raw = raw.replace("```json", "").replace("```", "").strip()
-            return json.loads(raw)
+            raw_text = (response.text or "").strip()
+            return json.loads(raw_text)
         except Exception as e:
-            logger.error("[SANITY] AI content generation error", error=str(e))
-            return self._fallback_content(lead)
+            logger.error(f"[SANITY_PUBLISHER] Case generation error: {e}")
+            return {
+                "title": f"Loyiha: {lead_name}",
+                "client": lead_name,
+                "short_description": "Loyiha muvaffaqiyatli yakunlandi.",
+                "challenge": "N/A",
+                "solution": "N/A",
+                "results": "Loyiha tugatildi va topshirildi.",
+                "tags": ["amo-crm-import"],
+            }
 
-    def _fallback_content(self, lead: Dict[str, Any]) -> Dict[str, Any]:
-        """AI ishlamasa, oddiy kontent."""
-        name = lead.get("name", "Loyiha")
-        return {
-            "title": f"Jon Branding: {name}",
-            "client": lead.get("contact_name", "Mijoz"),
-            "category": "brand-strategy",
-            "description": f"{name} loyihasi uchun Jon Branding tomonidan professional brending xizmatlari ko'rsatildi.",
-            "tags": ["brending"],
-            "challenge": "Mijozning brendini yangi bosqichga olib chiqish vazifasi qo'yilgan edi.",
-            "solution": "Jon Branding jamoasi tomonidan to'liq brend-strategiya ishlab chiqildi.",
-            "results": [{"metric": "Loyiha qiymati", "value": f"{lead.get('price', 0):,} so'm"}],
+    async def publish_case_from_amocrm(self, lead_id: int, lead_data: Dict[str, Any]) -> bool:
+        """Main orchestrator: Called when AmoCRM webhook fires a 'Won' status."""
+        logger.info(f"🚀 [SANITY_PUBLISHER] Processing completed project from AmoCRM lead {lead_id}...")
+        
+        # 1. Generate Case Study Content
+        case_data = await self.generate_case_study(lead_data)
+        case_data["amocrm_lead_id"] = lead_id
+
+        # 2. Publish to CMS Webhook
+        webhook_url = os.environ.get("CMS_WEBHOOK_URL") or settings.CMS_WEBHOOK_URL
+        if not webhook_url:
+            logger.warning("[SANITY_PUBLISHER] CMS_WEBHOOK_URL is not set. Case generated but not published. Data: %s", case_data)
+            return False
+
+        payload = {
+            "source": "amocrm_completed_project",
+            "case": case_data,
+            "images": []  # AmoCRM usually doesn't provide case images directly via webhook
         }
 
-    def _build_body_blocks(self, content: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Sanity Portable Text formatida body yaratish."""
-        blocks = []
-        for section, text in [("Muammo", content.get("challenge", "")),
-                              ("Yechim", content.get("solution", ""))]:
-            if not text:
-                continue
-            blocks.append({
-                "_type": "block",
-                "style": "h2",
-                "children": [{"_type": "span", "text": section}],
-            })
-            blocks.append({
-                "_type": "block",
-                "style": "normal",
-                "children": [{"_type": "span", "text": text}],
-            })
-        return blocks
-
-    async def _sanity_upsert(self, doc: Dict[str, Any]) -> bool:
-        """Sanity CMS ga document yaratish yoki yangilash."""
-        if not self.enabled:
-            return False
-        url = f"{self.base_url}/data/mutate/{self.dataset}"
-        mutations = {"mutations": [{"createOrReplace": doc}]}
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(
-                    url,
-                    json=mutations,
-                    headers={
-                        "Authorization": f"Bearer {self.token}",
-                        "Content-Type": "application/json",
-                    },
+            async with httpx.AsyncClient(timeout=30.0) as http_client:
+                response = await http_client.post(
+                    webhook_url,
+                    json=payload,
+                    headers={"Content-Type": "application/json"}
                 )
-                if resp.status_code == 200:
+                if response.status_code in (200, 201, 202):
+                    logger.info(f"✅ [SANITY_PUBLISHER] Successfully published case '{case_data.get('title')}' to CMS.")
                     return True
-                logger.warning("[SANITY] API error", status=resp.status_code, body=resp.text)
-                return False
+                else:
+                    logger.error(
+                        f"❌ [SANITY_PUBLISHER] CMS Webhook returned error code {response.status_code}: {response.text}"
+                    )
         except Exception as e:
-            logger.error("[SANITY] API request failed", error=str(e))
-            return False
+            logger.error(f"❌ [SANITY_PUBLISHER] Failed to dispatch webhook to CMS: {e}")
 
-    def _make_slug(self, text: str) -> str:
-        """URL slug yaratish."""
-        import re
-        text = text.lower().strip()
-        text = re.sub(r"[^\w\s-]", "", text)
-        text = re.sub(r"[\s_]+", "-", text)
-        text = re.sub(r"-+", "-", text)
-        return text[:80]
+        return False
