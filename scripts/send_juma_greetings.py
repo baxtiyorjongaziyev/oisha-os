@@ -49,7 +49,18 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
 # kaliti hech qachon Oracle VM dan tashqarida ochilmasligi kerak.
 DEDICATED_SESSION_ENV = "JUMA_SESSION_STRING"
 
-TARGET_GROUPS = ["Tez natija 2", "Tez natija 3", "Tez natija 4", "Tez natija 5"]
+TARGET_GROUPS = [
+    "Tez natija 2", "Tez natija 3", "Tez natija 4", "Tez natija 5", "Tez natija 6",
+    '"TEZ NATIJA 2" UMUMIY', '"TEZ NATIJA 3" UMUMIY', '"TEZ NATIJA 4" UMUMIY', '"TEZ NATIJA 5" UMUMIY', '"TEZ NATIJA 6" UMUMIY',
+    "TN2 Gr", "TN3 Gr", "TN4 Gr", "TN5 Gr", "TN6 Gr",
+]
+TARGET_GROUP_IDS = [
+    int(os.environ.get("TN6_GROUP_ID", "-1003496493814")),
+    int(os.environ.get("TN5_GROUP_ID", "-1003820339529")),
+    int(os.environ.get("TN4_GROUP_ID", "-1003149184518")),
+    int(os.environ.get("TN3_GROUP_ID", "-1002849105320")),
+    int(os.environ.get("TN2_GROUP_ID", "-1002440481294")),
+]
 
 MESSAGE = (
     "Assalomu alaykum \U0001f44b\n\n"
@@ -76,13 +87,18 @@ async def collect_members(client: TelegramClient) -> list[dict]:
     seen_ids: set[int] = set()
     members: list[dict] = []
     found_groups: list[str] = []
+    found_dialog_ids: set[int] = set()
+    all_dialogs = [d async for d in client.iter_dialogs()]
 
-    async for dialog in client.iter_dialogs():
+    for dialog in all_dialogs:
         title = (dialog.title or "").strip()
-        if not any(title.lower() == g.lower() for g in TARGET_GROUPS):
+        is_name_match = any(title.lower() == g.lower() for g in TARGET_GROUPS)
+        is_id_match = dialog.id in TARGET_GROUP_IDS
+        if not (is_name_match or is_id_match):
             continue
-        found_groups.append(title)
-        print(f"Guruh topildi: {title}")
+        found_dialog_ids.add(dialog.id)
+        found_groups.append(f"{title} ({dialog.id})")
+        print(f"Guruh topildi: {title} (ID: {dialog.id})")
         try:
             async for user in client.iter_participants(dialog):
                 if user.bot or user.deleted or user.id in seen_ids:
@@ -94,9 +110,9 @@ async def collect_members(client: TelegramClient) -> list[dict]:
         except Exception as e:
             print(f"  SKIP {title}: {e}")
 
-    missing = [g for g in TARGET_GROUPS if not any(f.lower() == g.lower() for f in found_groups)]
-    if missing:
-        msg = f"OGOHLANTIRISH: {len(missing)} guruh topilmadi: {missing}"
+    missing_ids = [gid for gid in TARGET_GROUP_IDS if gid not in found_dialog_ids]
+    if missing_ids:
+        msg = f"OGOHLANTIRISH: {len(missing_ids)} guruh topilmadi (ID: {missing_ids})"
         print(msg)
         send_tg_notification(msg)
 
