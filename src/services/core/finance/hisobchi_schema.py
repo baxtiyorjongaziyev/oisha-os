@@ -90,7 +90,26 @@ CREATE TABLE IF NOT EXISTS hisobchi_category_rules (
 )
 """
 
-_MIGRATIONS = [_CREATE_TRANSACTIONS, _CREATE_MERCHANT_MEMORY, _CREATE_CATEGORY_RULES]
+# Self-reported gaps: every time the AI has low confidence in a parse, or
+# rejects/defers a message it couldn't safely handle (e.g. a standalone
+# transaction post arriving where a category reply was expected), it logs
+# the reason here instead of silently guessing. Reviewed periodically to
+# see recurring failure shapes and improve the parser/guards.
+_CREATE_AI_GAPS = """
+CREATE TABLE IF NOT EXISTS hisobchi_ai_gaps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,          -- 'low_confidence' | 'rejected' | 'parse_failed'
+    source TEXT,                 -- which handler flagged it (manual/voice/card)
+    raw_text TEXT,
+    reason TEXT,                 -- why the AI flagged it
+    confidence REAL,
+    tx_id INTEGER,
+    chat_id INTEGER,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
+_MIGRATIONS = [_CREATE_TRANSACTIONS, _CREATE_MERCHANT_MEMORY, _CREATE_CATEGORY_RULES, _CREATE_AI_GAPS]
 
 _COLUMN_MIGRATIONS = (
     "ALTER TABLE hisobchi_transactions ADD COLUMN ownership TEXT DEFAULT 'business'",
