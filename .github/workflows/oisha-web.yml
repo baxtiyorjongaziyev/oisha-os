@@ -80,11 +80,10 @@ jobs:
           corepack prepare pnpm@10 --activate || npm i -g pnpm
           pnpm install --no-frozen-lockfile --filter @salescoach/web...
           pnpm --filter @salescoach/web run build
-          cd apps/web
-          # standalone bundle: server.js + kerakli node_modules
-          cp -r .next/static .next/standalone/apps/web/.next/static
-          [ -d public ] && cp -r public .next/standalone/apps/web/public || true
-          tar -czf /tmp/oisha-web-bundle.tar.gz -C .next/standalone .
+          mkdir -p apps/web/.next/standalone/apps/web/.next/static
+          cp -r apps/web/.next/static/* apps/web/.next/standalone/apps/web/.next/static/
+          [ -d apps/web/public ] && cp -r apps/web/public apps/web/.next/standalone/apps/web/public || true
+          tar -czf /tmp/oisha-web-bundle.tar.gz -C apps/web/.next/standalone .
           ls -lh /tmp/oisha-web-bundle.tar.gz
 
       - name: Copy bundle to server
