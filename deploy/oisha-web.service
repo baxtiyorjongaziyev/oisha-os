@@ -1,5 +1,5 @@
 [Unit]
-Description=Oisha Admin Web (Next.js)
+Description=Oisha Admin Web (Next.js Standalone)
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=60
@@ -8,14 +8,14 @@ StartLimitBurst=3
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/oisha-os/salescoach-ai/apps/web
+WorkingDirectory=/home/ubuntu/oisha-web/apps/web
 Environment=NODE_ENV=production
 Environment=PORT=3000
-# jon-free-micro: 1GB RAM — Node heap'ini cheklaymiz
+Environment=HOSTNAME=127.0.0.1
 Environment=NODE_OPTIONS=--max-old-space-size=256
 Environment=NEXT_TELEMETRY_DISABLED=1
-ExecStartPre=/usr/bin/test -f /home/ubuntu/oisha-os/salescoach-ai/apps/web/.next/BUILD_ID
-ExecStart=/usr/local/bin/pnpm start
+ExecStartPre=/usr/bin/test -f /home/ubuntu/oisha-web/apps/web/server.js
+ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=10
 StandardOutput=journal

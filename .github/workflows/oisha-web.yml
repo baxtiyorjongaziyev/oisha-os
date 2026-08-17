@@ -17,6 +17,7 @@ on:
       - "ops/web-deploy"
     paths:
       - "apps/web/**"
+      - "deploy/**"
       - ".github/workflows/oisha-web.yml"
 
 concurrency:
@@ -91,84 +92,8 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts
 
-          # Copy bundle
-          scp /tmp/oisha-web-bundle.tar.gz ubuntu@$ORACLE_HOST:/home/ubuntu/
+          # Copy bundle and deployment scripts
+          scp /tmp/oisha-web-bundle.tar.gz deploy/oisha-web.service deploy/Caddyfile deploy/install_web.sh ubuntu@$ORACLE_HOST:/home/ubuntu/
 
-          # Remote install and start
-          ssh ubuntu@$ORACLE_HOST 'bash -s' <<'EOF'
-            set -euo pipefail
-
-            # Node runtime check
-            if ! command -v node >/dev/null 2>&1 || [ "$(node -v | cut -c2-3 | tr -d '.')" -lt 20 ]; then
-              curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-              sudo apt-get install -y -qq nodejs
-            fi
-
-            # Bundle unpack
-            sudo systemctl stop oisha-web 2>/dev/null || true
-            rm -rf /home/ubuntu/oisha-web
-            mkdir -p /home/ubuntu/oisha-web
-            tar -xzf /home/ubuntu/oisha-web-bundle.tar.gz -C /home/ubuntu/oisha-web
-            rm -f /home/ubuntu/oisha-web-bundle.tar.gz
-
-            # systemd unit
-            sudo tee /etc/systemd/system/oisha-web.service > /dev/null <<'UNIT'
-            [Unit]
-            Description=Oisha Admin Web (Next.js standalone)
-            After=network-online.target
-            Wants=network-online.target
-            StartLimitIntervalSec=60
-            StartLimitBurst=3
-
-            [Service]
-            Type=simple
-            User=ubuntu
-            WorkingDirectory=/home/ubuntu/oisha-web/apps/web
-            Environment=NODE_ENV=production
-            Environment=PORT=3000
-            Environment=HOSTNAME=127.0.0.1
-            Environment=NODE_OPTIONS=--max-old-space-size=256
-            ExecStartPre=/usr/bin/test -f /home/ubuntu/oisha-web/apps/web/server.js
-            ExecStart=/usr/bin/node server.js
-            Restart=always
-            RestartSec=10
-            StandardOutput=journal
-            StandardError=journal
-            SyslogIdentifier=oisha-web
-
-            [Install]
-            WantedBy=multi-user.target
-            UNIT
-
-            sudo systemctl daemon-reload
-            sudo systemctl enable oisha-web
-            sudo systemctl restart oisha-web
-            sleep 6
-            sudo systemctl status oisha-web --no-pager | head -8
-            curl -s -m 8 -o /dev/null -w 'localhost:3000 -> %{http_code}\n' http://127.0.0.1:3000/
-
-            # Caddy routing: / -> web (:3000), /api va servis yo'llari -> API (:8080)
-            sudo tee /etc/caddy/Caddyfile > /dev/null <<'CADDY'
-            oisha.jonbranding.uz {
-                @public path /healthz /healthz/ /readyz /readyz/
-                handle @public {
-                    reverse_proxy 127.0.0.1:8080
-                }
-                @api path /api/* /webhook/* /docs /openapi.json /static/* /dashboard/* /mcp/* /telegram-mcp-* /oauth2/*
-                handle @api {
-                    reverse_proxy 127.0.0.1:8080
-                }
-                handle {
-                    reverse_proxy 127.0.0.1:3000
-                }
-            }
-            n8n.jonbranding.uz {
-                reverse_proxy 127.0.0.1:5678
-            }
-            CADDY
-            sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
-
-            # Web readiness verification
-            sleep 3
-            curl -s -m 8 -o /dev/null -w 'https://oisha.jonbranding.uz -> %{http_code}\n' https://oisha.jonbranding.uz/ || true
-          EOF
+          # Remote execution
+          ssh ubuntu@$ORACLE_HOST "chmod +x /home/ubuntu/install_web.sh && bash /home/ubuntu/install_web.sh"
