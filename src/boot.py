@@ -978,7 +978,6 @@ async def boot_application():
     # Register event handlers on client
     from src.services.core.finance.hisobchi_schema import (
         create_hisobchi_engine,
-        run_one_time_reset_and_resync,
     )
     from src.services.core.finance.handlers import (
         backfill_card_bot_messages,
@@ -1175,17 +1174,11 @@ async def boot_application():
     logger.info("[EVENTS] Safe userbot handlers registered.")
 
     async def _hisobchi_startup_sync():
-        # One-time (guarded, never repeats): full reset + resync since
-        # 2026-06-01, so the owner re-teaches categorization from scratch.
         try:
-            await run_one_time_reset_and_resync(
-                db=msg_controller.db, engine=hisobchi_engine,
-                client=client, bot_client=bot_runtime,
-            )
+            # Routine short-window catch-up
+            await backfill_card_bot_messages(client, hisobchi_engine, bot_client=bot_runtime)
         except Exception as exc:
-            logger.error("[HISOBCHI] One-time reset+resync failed: %s", exc, exc_info=True)
-        # Routine short-window catch-up — runs every boot, as before.
-        await backfill_card_bot_messages(client, hisobchi_engine, bot_client=bot_runtime)
+            logger.error("[HISOBCHI] Card bot backfill failed: %s", exc, exc_info=True)
 
     asyncio.create_task(_hisobchi_startup_sync(), name="hisobchi_card_backfill")
 
