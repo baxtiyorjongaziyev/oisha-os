@@ -149,13 +149,58 @@ async def register_pending(
     }
 
 
+async def _get_or_load_pending(tx_id: int, engine: Any) -> Optional[Dict[str, Any]]:
+    """Pending ob'ektini xotiradan yoki ma'lumotlar bazasidan oladi."""
+    for key, val in list(_pending.items()):
+        if val.get("tx_id") == tx_id:
+            return val
+
+    # DB dan yuklash
+    tx_row = None
+    try:
+        if hasattr(engine, "get_transaction"):
+            tx_row = await engine.get_transaction(tx_id)
+        elif hasattr(engine, "_db") and engine._db:
+            rows = await engine._db.execute("SELECT * FROM hisobchi_transactions WHERE id=?", [tx_id])
+            if rows:
+                tx_row = dict(rows[0])
+    except Exception as exc:
+        logger.warning("[HISOBCHI] Failed to load transaction #%s from DB: %s", tx_id, exc)
+
+    if tx_row:
+        from types import SimpleNamespace
+        tx = SimpleNamespace(
+            source_bot=tx_row.get("source_bot") or "uzcard",
+            direction=tx_row.get("direction") or "out",
+            amount=int(tx_row.get("amount") or 0),
+            merchant=tx_row.get("merchant") or "",
+            card_suffix=tx_row.get("card_suffix") or "",
+            tx_time=tx_row.get("tx_time") or "",
+            balance=tx_row.get("balance"),
+        )
+        ownership = tx_row.get("ownership") or "business"
+        category = tx_row.get("category")
+        key = _approval_key(tx_id, ownership)
+        entry = {
+            "tx_id": tx_id,
+            "tx": tx,
+            "ownership": ownership,
+            "category": category,
+            "created_at": tx_row.get("created_at") or datetime.now(timezone.utc).isoformat(),
+        }
+        _pending[key] = entry
+        return entry
+
+    return None
+
+
 async def handle_callback(
     callback_data: str,
     event: Any,
     engine: Any,
 ) -> bool:
     """
-    Callback handler — Telethon callback event'dan chaqiriladi.
+    Callback handler — Telethon callback event yoki Aiogram CallbackQuery'dan chaqiriladi.
 
     Returns True if handled.
     """
@@ -170,19 +215,17 @@ async def handle_callback(
         except (ValueError, IndexError):
             return False
 
-        # Update pending entry
-        for key, val in list(_pending.items()):
-            if val.get("tx_id") == tx_id:
-                val["ownership"] = new_owner
-                # Rebuild keyboard with new ownership
-                kb = build_approval_keyboard(tx_id, new_owner)
-                if kb:
-                    try:
-                        await event.edit(buttons=kb)
-                    except Exception as exc:
-                        logger.debug("[HISOBCHI] Edit ownership button: %s", exc)
-                await event.answer(f"📊 {'🏢 Biznes' if new_owner == 'business' else '🏠 Shaxsiy'} tanlandi")
-                return True
+        pending = await _get_or_load_pending(tx_id, engine)
+        if pending:
+            pending["ownership"] = new_owner
+            kb = build_approval_keyboard(tx_id, new_owner)
+            if kb:
+                try:
+                    await event.edit(buttons=kb)
+                except Exception as exc:
+                    logger.debug("[HISOBCHI] Edit ownership button: %s", exc)
+            await event.answer(f"📊 {'🏢 Biznes' if new_owner == 'business' else '🏠 Shaxsiy'} tanlandi")
+            return True
 
         await event.answer("⚠️ Topilmadi")
         return False
@@ -198,14 +241,7 @@ async def handle_callback(
         except (ValueError, IndexError):
             return False
 
-        pending = _pending.get(callback_data)
-        if not pending:
-            # Try to find by tx_id
-            for key, val in list(_pending.items()):
-                if val.get("tx_id") == tx_id:
-                    pending = val
-                    break
-
+        pending = await _get_or_load_pending(tx_id, engine)
         if not pending:
             await event.answer("⚠️ Topilmadi yoki allaqachon tasdiqlangan")
             return False
@@ -218,24 +254,26 @@ async def handle_callback(
             await engine.categorize(tx_id, category, ownership)
             if tx:
                 await engine.learn_rule(
-                    merchant=tx.merchant,
-                    card_suffix=tx.card_suffix,
-                    direction=tx.direction,
-                    amount=tx.amount,
+                    merchant=getattr(tx, "merchant", ""),
+                    card_suffix=getattr(tx, "card_suffix", ""),
+                    direction=getattr(tx, "direction", "out"),
+                    amount=getattr(tx, "amount", 0),
                     category=category,
                     ownership=ownership,
                 )
-                await engine.learn_category(tx.merchant, category)
+                await engine.learn_category(getattr(tx, "merchant", ""), category)
         except Exception as exc:
             logger.error("[HISOBCHI] Approve xatolik: %s", exc)
 
         # Edit message to show approved status
         try:
-            dir_icon = "➖" if tx.direction == "out" else "➕" if tx else "💳"
+            dir_icon = "➖" if getattr(tx, "direction", "out") == "out" else "➕"
             owner_label = "🏢 Biznes" if ownership == "business" else "🏠 Shaxsiy"
+            amt_val = getattr(tx, "amount", None)
+            amt_str = _fmt_money(amt_val) if amt_val is not None else "?"
             approved_text = (
                 f"✅ <b>Tasdiqlandi</b>\n\n"
-                f"{dir_icon} {_fmt_money(tx.amount) if tx else '?'} UZS\n"
+                f"{dir_icon} {amt_str} UZS\n"
                 f"🗂 {html.escape(category)}\n"
                 f"📊 {owner_label}"
             )
@@ -261,6 +299,7 @@ async def handle_callback(
         except (ValueError, IndexError):
             return False
 
+        await _get_or_load_pending(tx_id, engine)
         kb = build_category_keyboard(tx_id)
         if kb:
             try:
@@ -286,25 +325,22 @@ async def handle_callback(
         except (ValueError, IndexError):
             return False
 
-        # Update pending with selected category
-        for key, val in list(_pending.items()):
-            if val.get("tx_id") == tx_id:
-                val["category"] = category
-                ownership = val.get("ownership", "business")
+        pending = await _get_or_load_pending(tx_id, engine)
+        if pending:
+            pending["category"] = category
+            ownership = pending.get("ownership", "business")
 
-                # Show back to approval with selected category
-                try:
-                    tx = val.get("tx")
-                    if tx:
-                        msg = build_approval_message(tx, tx_id, ownership)
-                        # Prepend category info
-                        msg = f"🗂 <b>Kategoriya:</b> {html.escape(category)}\n\n" + msg
-                        kb = build_approval_keyboard(tx_id, ownership)
-                        if kb:
-                            await event.edit(msg, parse_mode="html", buttons=kb)
-                except Exception as exc:
-                    logger.debug("[HISOBCHI] Edit category selection: %s", exc)
-                break
+            # Show back to approval with selected category
+            try:
+                tx = pending.get("tx")
+                if tx:
+                    msg = build_approval_message(tx, tx_id, ownership)
+                    msg = f"🗂 <b>Kategoriya:</b> {html.escape(category)}\n\n" + msg
+                    kb = build_approval_keyboard(tx_id, ownership)
+                    if kb:
+                        await event.edit(msg, parse_mode="html", buttons=kb)
+            except Exception as exc:
+                logger.debug("[HISOBCHI] Edit category selection: %s", exc)
 
         await event.answer(f"🗂 {category} tanlandi")
         return True
@@ -348,19 +384,21 @@ async def handle_callback(
         except (ValueError, IndexError):
             return False
 
-        for key, val in list(_pending.items()):
-            if val.get("tx_id") == tx_id:
-                tx = val.get("tx")
-                ownership = val.get("ownership", "business")
-                if tx:
-                    msg = build_approval_message(tx, tx_id, ownership)
-                    kb = build_approval_keyboard(tx_id, ownership)
-                    if kb:
-                        try:
-                            await event.edit(msg, parse_mode="html", buttons=kb)
-                        except Exception as exc:
-                            logger.debug("[HISOBCHI] Edit back to approval: %s", exc)
-                break
+        pending = await _get_or_load_pending(tx_id, engine)
+        if pending:
+            tx = pending.get("tx")
+            ownership = pending.get("ownership", "business")
+            category = pending.get("category")
+            if tx:
+                msg = build_approval_message(tx, tx_id, ownership)
+                if category:
+                    msg = f"🗂 <b>Kategoriya:</b> {html.escape(category)}\n\n" + msg
+                kb = build_approval_keyboard(tx_id, ownership)
+                if kb:
+                    try:
+                        await event.edit(msg, parse_mode="html", buttons=kb)
+                    except Exception as exc:
+                        logger.debug("[HISOBCHI] Edit back to approval: %s", exc)
 
         await event.answer("🔙 Ortga")
         return True

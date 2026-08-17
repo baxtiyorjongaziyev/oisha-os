@@ -674,3 +674,69 @@ async def test_resync_sequential_times_out_and_moves_on(monkeypatch, temp_db) ->
 
     assert stats["created"] == 2
     assert stats["timed_out"] == 2  # neither ever answered — still moved on
+
+
+@pytest.mark.asyncio
+async def test_hisobchi_approval_callbacks_across_restart(temp_db) -> None:
+    from src.services.core.hisobchi_approval import handle_callback, _pending
+    from src.services.core.finance.hisobchi_card_parser import parse_card_notification
+
+    engine = HisobchiEngine(temp_db)
+    parsed = parse_card_notification("CardXabarBot", UZCARD_SAMPLE)
+    tx_id, _ = await engine.save_transaction_once(
+        source_bot=parsed.source_bot,
+        direction=parsed.direction,
+        amount=parsed.amount,
+        merchant=parsed.merchant,
+        card_suffix=parsed.card_suffix,
+        tx_time=parsed.tx_time,
+        balance=parsed.balance,
+        raw_text=UZCARD_SAMPLE,
+    )
+
+    # Simulate server restart by clearing in-memory cache
+    _pending.clear()
+
+    class _MockEvent:
+        def __init__(self):
+            self.answers = []
+            self.edits = []
+
+        async def answer(self, text=""):
+            self.answers.append(text)
+
+        async def edit(self, text=None, *, parse_mode=None, buttons=None):
+            self.edits.append((text, parse_mode, buttons))
+
+    # 1. Toggle ownership on fresh restart
+    event1 = _MockEvent()
+    handled = await handle_callback(f"howner:{tx_id}:personal", event1, engine)
+    assert handled is True
+    assert "Shaxsiy" in event1.answers[0]
+    assert len(event1.edits) == 1
+
+    # 2. Edit category
+    event2 = _MockEvent()
+    handled = await handle_callback(f"hedit:{tx_id}", event2, engine)
+    assert handled is True
+    assert "Kategoriyani tanlang" in event2.answers[0]
+
+    # 3. Select category
+    event3 = _MockEvent()
+    handled = await handle_callback(f"hcat:{tx_id}:🚕 Taksi", event3, engine)
+    assert handled is True
+    assert "Taksi" in event3.answers[0]
+
+    # 4. Approve
+    event4 = _MockEvent()
+    handled = await handle_callback(f"happrove:{tx_id}:personal", event4, engine)
+    assert handled is True
+    assert "Tasdiqlandi" in event4.answers[0]
+
+    # Verify status in database
+    status = await engine.get_transaction_status(tx_id)
+    assert status == "categorized"
+    tx_row = await engine.get_transaction(tx_id)
+    assert tx_row["ownership"] == "personal"
+    assert tx_row["category"] == "🚕 Taksi"
+
