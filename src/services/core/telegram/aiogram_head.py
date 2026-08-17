@@ -36,9 +36,12 @@ class AiogramBotHead:
         raw_update_handler = self.raw_update_handler
 
         async def _raw_update_middleware(handler, event, data):
-            payload = event.model_dump(exclude_none=True)
-            if "guest_message" in payload:
-                return await raw_update_handler(payload)
+            try:
+                payload = event.model_dump(exclude_none=True)
+                if "guest_message" in payload and raw_update_handler is not None:
+                    return await raw_update_handler(payload)
+            except Exception as exc:
+                logger.debug("[BOT] Raw update middleware dump skipped: %s", exc)
             return await handler(event, data)
 
         self.dispatcher.update.outer_middleware.register(_raw_update_middleware)
@@ -59,12 +62,29 @@ class AiogramBotHead:
 
     async def _run_polling(self) -> None:
         """Own Telegram ingress by removing any stale webhook before polling."""
-        await self.bot.delete_webhook(drop_pending_updates=False)
+        try:
+            await self.bot.delete_webhook(drop_pending_updates=False)
+        except Exception as exc:
+            logger.warning("[BOT] Failed to delete webhook: %s", exc)
+
+        valid_updates = None
+        if self.allowed_updates:
+            valid_set = {
+                "message", "edited_message", "channel_post", "edited_channel_post",
+                "inline_query", "chosen_inline_result", "callback_query",
+                "shipping_query", "pre_checkout_query", "poll", "poll_answer",
+                "my_chat_member", "chat_member", "chat_join_request", "chat_boost",
+                "removed_chat_boost", "business_connection", "business_message",
+                "edited_business_message", "deleted_business_messages",
+                "message_reaction", "message_reaction_count", "purchased_paid_media",
+            }
+            valid_updates = [u for u in self.allowed_updates if u in valid_set]
+
         await self.dispatcher.start_polling(
             self.bot,
             handle_signals=False,
             close_bot_session=False,
-            allowed_updates=self.allowed_updates or None,
+            allowed_updates=valid_updates or None,
         )
 
     async def stop(self) -> None:

@@ -486,31 +486,43 @@ class HisobchiEngine:
         self, finance_chat_id: int, finance_msg_id: int
     ) -> Optional[dict]:
         if self._gs:
-            return await self._gs.get_pending_by_finance_msg(finance_chat_id, finance_msg_id)
-        rows = await self._db.execute(
-            """
-            SELECT * FROM hisobchi_transactions
-            WHERE finance_chat_id=? AND finance_msg_id=? AND status='pending'
-            """,
-            [finance_chat_id, finance_msg_id],
-        )
-        return dict(rows[0]) if rows else None
+            res = await self._gs.get_pending_by_finance_msg(finance_chat_id, finance_msg_id)
+            if res:
+                return res
+        if self._db:
+            rows = await self._db.execute(
+                """
+                SELECT * FROM hisobchi_transactions
+                WHERE finance_chat_id=? AND finance_msg_id=? AND status='pending'
+                """,
+                [finance_chat_id, finance_msg_id],
+            )
+            return dict(rows[0]) if rows else None
+        return None
 
     async def get_transaction(self, tx_id: int) -> Optional[dict]:
         if self._gs:
-            return await self._gs.get_transaction(tx_id)
-        rows = await self._db.execute(
-            "SELECT * FROM hisobchi_transactions WHERE id=?", [tx_id]
-        )
-        return dict(rows[0]) if rows else None
+            res = await self._gs.get_transaction(tx_id)
+            if res:
+                return res
+        if self._db:
+            rows = await self._db.execute(
+                "SELECT * FROM hisobchi_transactions WHERE id=?", [tx_id]
+            )
+            return dict(rows[0]) if rows else None
+        return None
 
     async def get_transaction_status(self, tx_id: int) -> Optional[str]:
         if self._gs:
-            return await self._gs.get_transaction_status(tx_id)
-        rows = await self._db.execute(
-            "SELECT status FROM hisobchi_transactions WHERE id=?", [tx_id]
-        )
-        return rows[0]["status"] if rows else None
+            status = await self._gs.get_transaction_status(tx_id)
+            if status:
+                return status
+        if self._db:
+            rows = await self._db.execute(
+                "SELECT status FROM hisobchi_transactions WHERE id=?", [tx_id]
+            )
+            return rows[0]["status"] if rows else None
+        return None
 
     async def get_monthly_summary(self, period: str) -> dict:
         """period = 'YYYY-MM'"""
