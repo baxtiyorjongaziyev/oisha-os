@@ -131,45 +131,45 @@ export default function CallsPage() {
   };
 
   return (
-    <div className="space-y-7 pb-12">
+    <div className="space-y-6 pb-12">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#0b57d0] dark:text-[#a8c7fa] bg-[#d3e3fd] dark:bg-[#004a77] px-2.5 py-0.5 rounded-full">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent-primary)] bg-[var(--accent-primary-light)] px-2.5 py-0.5 rounded-full">
               SALESCOACH AI • WHISPER ASR
             </span>
-            <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">• Audio Tahlil & Skoring</span>
+            <span className="text-xs text-[var(--text-secondary)]">• Audio Tahlil & Skoring</span>
           </div>
-          <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-[var(--md-sys-color-on-surface)]">
+          <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
             Qo&apos;ng&apos;iroqlar Sifati & Tahlili
           </h1>
-          <p className="mt-0.5 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
             Sun&apos;iy intellekt orqali transkripsiya, e&apos;tirozlarni yopish va A1-E3 mezonlari bo&apos;yicha baholash.
           </p>
           {loadError && (
-            <p className="mt-1 text-[11px] text-[#b06000] dark:text-[#fdd663]">{loadError}</p>
+            <p className="mt-1 text-[11px] text-[#d97706] dark:text-[#fbbf24]">{loadError}</p>
           )}
         </div>
 
         <div className="flex items-center gap-2.5">
-          <button className="rounded-full bg-[#0b57d0] dark:bg-[#a8c7fa] dark:text-[#041e49] text-white px-5 py-2.5 text-xs font-bold shadow-sm hover:opacity-90 transition-all active:scale-[0.98]">
+          <button className="rounded-xl bg-[var(--accent-primary)] text-white px-5 py-2 text-xs font-bold shadow-xs hover:opacity-90 transition-all active:scale-[0.98]">
             🎙 Yangi Audio Yuklash
           </button>
         </div>
       </div>
 
-      {/* Filter Panel (Google Pill Selects) */}
-      <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-5 shadow-sm space-y-4">
-        <h3 className="text-xs font-bold text-[var(--md-sys-color-on-surface)] uppercase tracking-wider">Filtrlar</h3>
+      {/* Filter Panel */}
+      <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-xs space-y-3">
+        <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">Filtrlar</h3>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <div>
-            <label className="text-[10px] font-bold text-[var(--md-sys-color-on-surface-variant)] uppercase block">Holati</label>
+            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase block">Holati</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full rounded-2xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container)] p-2.5 text-xs text-[var(--md-sys-color-on-surface)] focus:outline-none focus:border-[#0b57d0] mt-1"
+              className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] p-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)] mt-1"
             >
               <option value="Barchasi">Barchasi</option>
               <option value="Bog'langan">Bog&apos;langan</option>
@@ -179,11 +179,11 @@ export default function CallsPage() {
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-[var(--md-sys-color-on-surface-variant)] uppercase block">Yo&apos;nalishi</label>
+            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase block">Yo&apos;nalishi</label>
             <select
               value={directionFilter}
               onChange={(e) => setDirectionFilter(e.target.value)}
-              className="w-full rounded-2xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container)] p-2.5 text-xs text-[var(--md-sys-color-on-surface)] focus:outline-none focus:border-[#0b57d0] mt-1"
+              className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] p-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)] mt-1"
             >
               <option value="Barchasi">Barchasi</option>
               <option value="Kiruvchi">Kiruvchi</option>
@@ -192,11 +192,11 @@ export default function CallsPage() {
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-[var(--md-sys-color-on-surface-variant)] uppercase block">Xizmat turi</label>
+            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase block">Xizmat turi</label>
             <select
               value={serviceFilter}
               onChange={(e) => setServiceFilter(e.target.value)}
-              className="w-full rounded-2xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container)] p-2.5 text-xs text-[var(--md-sys-color-on-surface)] focus:outline-none focus:border-[#0b57d0] mt-1"
+              className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] p-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)] mt-1"
             >
               <option value="Barchasi">Barchasi</option>
               <option value="Apex">Apex Logistics</option>
@@ -207,11 +207,11 @@ export default function CallsPage() {
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-[var(--md-sys-color-on-surface-variant)] uppercase block">Menejer</label>
+            <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase block">Menejer</label>
             <select
               value={managerFilter}
               onChange={(e) => setManagerFilter(e.target.value)}
-              className="w-full rounded-2xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container)] p-2.5 text-xs text-[var(--md-sys-color-on-surface)] focus:outline-none focus:border-[#0b57d0] mt-1"
+              className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] p-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)] mt-1"
             >
               <option value="Barchasi">Barchasi</option>
               <option value="Baxtiyorjon Gaziyev">Baxtiyorjon Gaziyev</option>
@@ -222,59 +222,59 @@ export default function CallsPage() {
       </div>
 
       {/* Calls Table Container */}
-      <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] shadow-sm overflow-hidden">
-        <div className="border-b border-[var(--md-sys-color-outline)] px-6 py-4 flex items-center justify-between">
-          <h2 className="font-bold text-base text-[var(--md-sys-color-on-surface)]">
+      <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-xs overflow-hidden">
+        <div className="border-b border-[var(--border-default)] px-5 py-3.5 flex items-center justify-between">
+          <h2 className="font-bold text-sm text-[var(--text-primary)]">
             Tahlil Qilingan Suhbatlar Jurnali
           </h2>
-          <span className="text-xs text-[var(--md-sys-color-on-surface-variant)] font-mono">
+          <span className="text-xs text-[var(--text-secondary)] font-mono">
             {sortedCalls.length} ta suhbat
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-[var(--md-sys-color-surface-container-low)] text-[10px] uppercase text-[var(--md-sys-color-on-surface-variant)] font-bold tracking-wider border-b border-[var(--md-sys-color-outline)]">
+            <thead className="bg-[var(--bg-surface-subtle)] text-[10px] uppercase text-[var(--text-secondary)] font-bold tracking-wider border-b border-[var(--border-default)]">
               <tr>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-[#0b57d0]" onClick={() => handleSort("date")}>Sana</th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-[#0b57d0]" onClick={() => handleSort("manager")}>Menejer</th>
-                <th className="py-3.5 px-4">Yo&apos;nalish</th>
-                <th className="py-3.5 px-4">Davomiylik</th>
-                <th className="py-3.5 px-4">Holat</th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-[#0b57d0]" onClick={() => handleSort("score")}>Suhbat Sifati</th>
-                <th className="py-3.5 px-4">Mijoz & Kategoriya</th>
-                <th className="py-3.5 px-4 text-right">Amallar</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[var(--accent-primary)]" onClick={() => handleSort("date")}>Sana</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[var(--accent-primary)]" onClick={() => handleSort("manager")}>Menejer</th>
+                <th className="py-3 px-4">Yo&apos;nalish</th>
+                <th className="py-3 px-4">Davomiylik</th>
+                <th className="py-3 px-4">Holat</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[var(--accent-primary)]" onClick={() => handleSort("score")}>Suhbat Sifati</th>
+                <th className="py-3 px-4">Mijoz & Kategoriya</th>
+                <th className="py-3 px-4 text-right">Amallar</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--md-sys-color-outline-variant)]">
+            <tbody className="divide-y divide-[var(--border-subtle)]">
               {sortedCalls.map((call) => (
-                <tr key={call.id} className="hover:bg-[var(--md-sys-color-surface-container-low)] transition-colors">
-                  <td className="py-4 px-4 font-semibold text-[var(--md-sys-color-on-surface)]">{call.date}</td>
-                  <td className="py-4 px-4 font-medium text-[var(--md-sys-color-on-surface)]">{call.manager}</td>
-                  <td className="py-4 px-4">
-                    <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                <tr key={call.id} className="hover:bg-[var(--bg-surface-subtle)] transition-colors">
+                  <td className="py-3.5 px-4 font-semibold text-[var(--text-primary)]">{call.date}</td>
+                  <td className="py-3.5 px-4 font-medium text-[var(--text-primary)]">{call.manager}</td>
+                  <td className="py-3.5 px-4">
+                    <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
                       call.direction === "Kiruvchi"
-                        ? "bg-[#c4eed0] text-[#0f5223] dark:bg-[#0f5223] dark:text-[#6dd58c]"
-                        : "bg-[#d3e3fd] text-[#041e49] dark:bg-[#004a77] dark:text-[#c2e7ff]"
+                        ? "bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]"
+                        : "bg-[var(--accent-primary-light)] text-[var(--accent-primary-on-light)]"
                     }`}>
                       {call.direction}
                     </span>
                   </td>
-                  <td className="py-4 px-4 text-[var(--md-sys-color-on-surface-variant)] font-mono">{call.duration}</td>
-                  <td className="py-4 px-4">
-                    <span className="rounded-full bg-[#c4eed0] text-[#0f5223] dark:bg-[#0f5223] dark:text-[#6dd58c] px-2.5 py-0.5 text-[10px] font-bold">
+                  <td className="py-3.5 px-4 text-[var(--text-secondary)] font-mono">{call.duration}</td>
+                  <td className="py-3.5 px-4">
+                    <span className="rounded-md bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399] px-2 py-0.5 text-[10px] font-bold">
                       {call.status}
                     </span>
                   </td>
-                  <td className="py-4 px-4 font-black text-sm text-[#0b57d0] dark:text-[#a8c7fa]">{call.score}</td>
-                  <td className="py-4 px-4">
-                    <div className="font-bold text-[var(--md-sys-color-on-surface)]">{call.service}</div>
-                    <div className="text-[10px] text-[var(--md-sys-color-on-surface-variant)] mt-0.5">{call.family}</div>
+                  <td className="py-3.5 px-4 font-bold font-mono text-sm text-[var(--accent-primary)]">{call.score}</td>
+                  <td className="py-3.5 px-4">
+                    <div className="font-bold text-[var(--text-primary)]">{call.service}</div>
+                    <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">{call.family}</div>
                   </td>
-                  <td className="py-4 px-4 text-right">
+                  <td className="py-3.5 px-4 text-right">
                     <Link
                       href={`/calls/${call.id}`}
-                      className="rounded-full bg-[var(--md-sys-color-surface-container)] border border-[var(--md-sys-color-outline)] px-3.5 py-1.5 text-xs font-semibold text-[#0b57d0] dark:text-[#a8c7fa] hover:bg-[var(--md-sys-color-surface-container-high)] transition-colors"
+                      className="rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-default)] px-3 py-1 text-xs font-semibold text-[var(--accent-primary)] hover:bg-[var(--bg-surface-active)] transition-colors"
                     >
                       👁 Tahlil
                     </Link>

@@ -86,137 +86,137 @@ export default async function FinanceDashboard() {
     : defaultTransactions;
 
   return (
-    <div className="space-y-7 pb-12">
+    <div className="space-y-6 pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#137333] dark:text-[#6dd58c] bg-[#c4eed0] dark:bg-[#0f5223] px-2.5 py-0.5 rounded-full">
-              HISOBCHI AI • REAL-TIME
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#059669] dark:text-[#34d399] bg-[#d1fae5] dark:bg-[#064e3b] px-2.5 py-0.5 rounded-full">
+              STRIPE-GRADE FINANCIAL LEDGER
             </span>
-            <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">• Google Sheets & SMS Sync</span>
+            <span className="text-xs text-[var(--text-secondary)]">• Hisobchi AI (24/7 Sinxron)</span>
           </div>
-          <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-[var(--md-sys-color-on-surface)]">
+          <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
             Moliya & Kassa Boshqaruvi
           </h1>
-          <p className="mt-0.5 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
             Telegram bot (@jonairobot), SMS bank bildirishnomalari va hisob-kitoblar avtomatlashgan.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
-          <button className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container)] text-[#b3261e] dark:text-[#f28b82] px-4 py-2.5 text-xs font-bold hover:bg-[var(--md-sys-color-surface-container-high)] transition-all active:scale-[0.98]">
+          <button className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] text-[#dc2626] dark:text-[#f87171] px-4 py-2 text-xs font-bold hover:bg-[var(--bg-surface-active)] transition-all active:scale-[0.98]">
             - Chiqim kiritish
           </button>
-          <button className="rounded-full bg-[#137333] dark:bg-[#6dd58c] dark:text-[#041e49] text-white px-5 py-2.5 text-xs font-bold shadow-sm hover:opacity-90 transition-all active:scale-[0.98]">
+          <button className="rounded-xl bg-[#059669] text-white px-5 py-2 text-xs font-bold shadow-xs hover:opacity-90 transition-all active:scale-[0.98]">
             + Kirim kiritish
           </button>
         </div>
       </div>
 
       {/* 4 Financial Tonal Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
             Jami Kassa Balansi
           </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-[var(--md-sys-color-on-surface)]">
+          <div className="mt-2 text-3xl font-black tracking-tight text-[var(--text-primary)]">
             ${balance.toLocaleString()}
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
             <span>Bank: <strong>$12,300</strong></span>
             <span>Naqd: <strong>$6,150</strong></span>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
             Oylik Kirim (Tushum)
           </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-[#137333] dark:text-[#6dd58c]">
+          <div className="mt-2 text-3xl font-black tracking-tight text-[#059669] dark:text-[#34d399]">
             +${income.toLocaleString()}
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
             <span>O&apos;sish sur&apos;ati:</span>
-            <strong className="text-[#137333] dark:text-[#6dd58c]">+18% o&apos;tgan oydan</strong>
+            <strong className="text-[#059669] dark:text-[#34d399]">+18% o&apos;tgan oydan</strong>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
             Oylik Chiqim (Xarajat)
           </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-[#b3261e] dark:text-[#f28b82]">
+          <div className="mt-2 text-3xl font-black tracking-tight text-[#dc2626] dark:text-[#f87171]">
             -${expense.toLocaleString()}
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
             <span>Byudjet chegarasi:</span>
-            <strong className="text-[var(--md-sys-color-on-surface)]">$8,000 gacha</strong>
+            <strong className="text-[var(--text-primary)]">$8,000 gacha</strong>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
             Sof Foyda (Net Profit)
           </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-[#0b57d0] dark:text-[#a8c7fa]">
+          <div className="mt-2 text-3xl font-black tracking-tight text-[var(--accent-primary)]">
             +${netProfit.toLocaleString()}
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
             <span>Rentabellik marjasi:</span>
-            <strong className="text-[#0b57d0] dark:text-[#a8c7fa]">{profitMargin}%</strong>
+            <strong className="text-[var(--accent-primary)]">{profitMargin}%</strong>
           </div>
         </div>
       </div>
 
-      {/* Cashflow Ratio Visualizer */}
-      <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm space-y-4">
+      {/* Stripe Cashflow Ratio Visualizer */}
+      <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-bold text-[var(--md-sys-color-on-surface)]">
-              Kirim va Chiqim Oqimi (Cashflow Balance)
+            <h3 className="text-sm font-bold text-[var(--text-primary)]">
+              Kirim va Chiqim Nisbati (Stripe Cashflow Metric)
             </h3>
-            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+            <p className="text-xs text-[var(--text-secondary)]">
               Agentlik moliyaviy barqarorlik va oylik likvidlik darajasi
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs font-bold">
-            <span className="flex items-center gap-1.5 text-[#137333] dark:text-[#6dd58c]">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#137333] dark:bg-[#6dd58c]"></span> Kirim ({Math.round((income / (income + expense)) * 100)}%)
+            <span className="flex items-center gap-1.5 text-[#059669] dark:text-[#34d399]">
+              <span className="h-2 w-2 rounded-full bg-[#059669]"></span> Kirim ({Math.round((income / (income + expense)) * 100)}%)
             </span>
-            <span className="flex items-center gap-1.5 text-[#b3261e] dark:text-[#f28b82]">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#b3261e] dark:bg-[#f28b82]"></span> Chiqim ({Math.round((expense / (income + expense)) * 100)}%)
+            <span className="flex items-center gap-1.5 text-[#dc2626] dark:text-[#f87171]">
+              <span className="h-2 w-2 rounded-full bg-[#dc2626]"></span> Chiqim ({Math.round((expense / (income + expense)) * 100)}%)
             </span>
           </div>
         </div>
 
-        <div className="h-3.5 w-full overflow-hidden rounded-full bg-[#b3261e] dark:bg-[#f28b82] flex">
+        <div className="h-3 w-full overflow-hidden rounded-full bg-[#dc2626] flex">
           <div
             style={{ width: `${Math.round((income / (income + expense)) * 100)}%` }}
-            className="h-full bg-[#137333] dark:bg-[#6dd58c] transition-all duration-500"
+            className="h-full bg-[#059669] transition-all duration-500"
           ></div>
         </div>
       </div>
 
       {/* Transactions Table */}
-      <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] shadow-sm overflow-hidden">
-        <div className="border-b border-[var(--md-sys-color-outline)] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-xs overflow-hidden">
+        <div className="border-b border-[var(--border-default)] px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="font-bold text-base text-[var(--md-sys-color-on-surface)]">
+            <h2 className="font-bold text-sm text-[var(--text-primary)]">
               Oxirgi Tranzaksiyalar Jurnali
             </h2>
-            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+            <p className="text-xs text-[var(--text-secondary)]">
               Hisobchi AI va Telegram orqali ro&apos;yxatga olingan real operatsiyalar
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="rounded-full bg-[#d3e3fd] dark:bg-[#004a77] text-[#041e49] dark:text-[#c2e7ff] px-3.5 py-1.5 text-xs font-bold">
+            <button className="rounded-xl bg-[var(--accent-primary-light)] text-[var(--accent-primary-on-light)] px-3 py-1 text-xs font-bold">
               Barchasi
             </button>
-            <button className="rounded-full px-3.5 py-1.5 text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container)]">
+            <button className="rounded-xl px-3 py-1 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-surface-subtle)]">
               Kirimlar
             </button>
-            <button className="rounded-full px-3.5 py-1.5 text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container)]">
+            <button className="rounded-xl px-3 py-1 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-surface-subtle)]">
               Chiqimlar
             </button>
           </div>
@@ -224,47 +224,47 @@ export default async function FinanceDashboard() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-[var(--md-sys-color-surface-container-low)] text-[10px] uppercase text-[var(--md-sys-color-on-surface-variant)] font-bold tracking-wider border-b border-[var(--md-sys-color-outline)]">
+            <thead className="bg-[var(--bg-surface-subtle)] text-[10px] uppercase text-[var(--text-secondary)] font-bold tracking-wider border-b border-[var(--border-default)]">
               <tr>
-                <th className="px-6 py-3.5">Turi</th>
-                <th className="px-6 py-3.5">Kategoriya</th>
-                <th className="px-6 py-3.5">Tavsif / Mijoz</th>
-                <th className="px-6 py-3.5">To&apos;lov Usuli</th>
-                <th className="px-6 py-3.5">Summa</th>
-                <th className="px-6 py-3.5 text-right">Sana</th>
+                <th className="px-5 py-3">Turi</th>
+                <th className="px-5 py-3">Kategoriya</th>
+                <th className="px-5 py-3">Tavsif / Mijoz</th>
+                <th className="px-5 py-3">To&apos;lov Usuli</th>
+                <th className="px-5 py-3">Summa</th>
+                <th className="px-5 py-3 text-right">Sana</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--md-sys-color-outline-variant)]">
+            <tbody className="divide-y divide-[var(--border-subtle)]">
               {transactions.map((tx) => (
-                <tr key={tx.id} className="hover:bg-[var(--md-sys-color-surface-container-low)] transition-colors">
-                  <td className="px-6 py-4">
+                <tr key={tx.id} className="hover:bg-[var(--bg-surface-subtle)] transition-colors">
+                  <td className="px-5 py-3.5">
                     <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                      className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${
                         tx.type === 'Kirim'
-                          ? 'bg-[#c4eed0] text-[#0f5223] dark:bg-[#0f5223] dark:text-[#6dd58c]'
-                          : 'bg-[#ffdad6] text-[#601410] dark:bg-[#601410] dark:text-[#f28b82]'
+                          ? 'bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]'
+                          : 'bg-[#fee2e2] text-[#991b1b] dark:bg-[#7f1d1d]/30 dark:text-[#f87171]'
                       }`}
                     >
                       {tx.type === 'Kirim' ? '↓ Kirim' : '↑ Chiqim'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 font-semibold text-[var(--md-sys-color-on-surface)]">
+                  <td className="px-5 py-3.5 font-semibold text-[var(--text-primary)]">
                     {tx.category || 'Xizmat'}
                   </td>
-                  <td className="px-6 py-4 font-medium text-[var(--md-sys-color-on-surface)] max-w-xs truncate">
+                  <td className="px-5 py-3.5 font-medium text-[var(--text-primary)] max-w-xs truncate">
                     {tx.description}
                   </td>
-                  <td className="px-6 py-4 text-[var(--md-sys-color-on-surface-variant)]">
+                  <td className="px-5 py-3.5 text-[var(--text-secondary)]">
                     {tx.source || 'Bank / Karta'}
                   </td>
                   <td
-                    className={`px-6 py-4 font-black text-sm ${
-                      tx.type === 'Kirim' ? 'text-[#137333] dark:text-[#6dd58c]' : 'text-[#b3261e] dark:text-[#f28b82]'
+                    className={`px-5 py-3.5 font-bold font-mono text-sm ${
+                      tx.type === 'Kirim' ? 'text-[#059669] dark:text-[#34d399]' : 'text-[#dc2626] dark:text-[#f87171]'
                     }`}
                   >
                     {tx.amount}
                   </td>
-                  <td className="px-6 py-4 text-right text-[var(--md-sys-color-on-surface-variant)] font-mono">
+                  <td className="px-5 py-3.5 text-right text-[var(--text-secondary)] font-mono">
                     {tx.date}
                   </td>
                 </tr>
