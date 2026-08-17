@@ -3,18 +3,29 @@
  * 100% Real ma'lumotlar bilan ishlash uchun sozlangan.
  */
 
-const API_BASE_URL = 
-  process.env.INTERNAL_API_URL || 
-  process.env.NEXT_PUBLIC_API_URL || 
-  'http://127.0.0.1:8080';
+function getCleanBaseUrl(): string {
+  let raw = (
+    process.env.INTERNAL_API_URL || 
+    process.env.NEXT_PUBLIC_API_URL || 
+    'http://127.0.0.1:8080'
+  ).trim();
+  
+  // Strip trailing slashes
+  raw = raw.replace(/\/+$/, '');
+  // If raw ends with /api/v1 or /api, strip it so `${baseUrl}${endpoint}` with `/api/...` works cleanly
+  raw = raw.replace(/\/api\/v1$/, '').replace(/\/api$/, '');
+  return raw;
+}
 
-const API_SECRET = process.env.OISHA_API_SECRET || process.env.NEXT_SERVER_API_KEY || '';
+const API_BASE_URL = getCleanBaseUrl();
+const API_SECRET = (process.env.OISHA_API_SECRET || process.env.NEXT_SERVER_API_KEY || '').trim();
 
 /**
  * Helper fetch function with standard options and automatic bearer authorization
  */
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${API_BASE_URL}${cleanEndpoint}`;
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
