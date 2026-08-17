@@ -65,9 +65,10 @@ async def _command_processor():
             if cmd == "send_message":
                 u_id = item.get("user_id")
                 txt = item.get("text")
-                if app_ctx.client:
+                target_client = app_ctx.bot_client or app_ctx.client
+                if target_client:
                     try:
-                        await app_ctx.client.send_message(u_id, txt)
+                        await target_client.send_message(u_id, txt)
                         logger.info(f"[COMMANDS] Message sent to {u_id}")
                         await app_ctx.msg_controller.db.log_message(u_id, txt, is_ai=True)
                     except Exception as e:

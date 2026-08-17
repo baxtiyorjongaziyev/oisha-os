@@ -79,17 +79,9 @@ class BackgroundMonitor:
                 await self.bot_client.send_message(admin_id, message, **kwargs)
                 return
             except Exception as exc:
-                logger.warning("[NOTIFY BOT WARNING] %s; attempting fallback", exc)
-        if self.client:
-            try:
-                kwargs = {}
-                if parse_mode:
-                    kwargs["parse_mode"] = parse_mode
-                await self.client.send_message("me", message, **kwargs)
-            except Exception as exc:
-                logger.error("[NOTIFY ERROR] %s", exc)
+                logger.warning("[NOTIFY BOT WARNING] %s; bot send failed", exc)
         else:
-            logger.warning("[NOTIFY ERROR] No client available to notify admin")
+            logger.warning("[NOTIFY ERROR] bot_client not available to notify admin")
 
     async def _send_to_group_or_admin(self, text: str, **kwargs) -> None:
         target_group = (
@@ -106,16 +98,9 @@ class BackgroundMonitor:
                     await self.bot_client.send_message(target_group, text, **send_kwargs)
                     return
                 except Exception as exc:
-                    logger.warning(
-                        "[SEND GROUP BOT WARNING] %s; attempting userbot/admin fallback",
-                        exc,
-                    )
-            if self.client:
-                try:
-                    await self.client.send_message(target_group, text, **kwargs)
-                    return
-                except Exception as exc:
-                    logger.error("[SEND GROUP ERROR] %s", exc)
+                    logger.warning("[SEND GROUP BOT WARNING] %s; bot send failed", exc)
+            logger.warning("[SEND GROUP ERROR] bot_client not available for group send")
+            return
         await self._notify_admin(text, parse_mode=kwargs.get("parse_mode"))
 
     def _get_amocrm_client(self) -> Any:
@@ -232,7 +217,6 @@ class BackgroundMonitor:
                             send_kwargs = {"parse_mode": "html"}
                             if pnl_topic:
                                 send_kwargs["reply_to"] = pnl_topic
-                            delivered = False
                             if self.bot_client:
                                 try:
                                     bot_kwargs = {"parse_mode": "html"}
@@ -243,9 +227,8 @@ class BackgroundMonitor:
                                     logger.info("[SCHEDULE] Daily EnterpriseReport sent via bot.")
                                 except Exception as b_exc:
                                     logger.warning("[SCHEDULE][REPORT] bot_client failed: %s", b_exc)
-                            if not delivered and self.client:
-                                await self.client.send_message(fin_group, report_html, **send_kwargs)
-                                logger.info("[SCHEDULE] Daily EnterpriseReport sent via client.")
+                            if not delivered:
+                                await self._notify_admin(report_html, parse_mode="html")
                         else:
                             await self._notify_admin(report_html, parse_mode="html")
                             logger.info("[SCHEDULE] Daily EnterpriseReport sent to admin.")
@@ -345,7 +328,6 @@ class BackgroundMonitor:
                         target_group = self.settings.STAGNATION_GROUP_ID if self.settings else None
                         target_topic = self.settings.STAGNATION_TOPIC_ID if self.settings else None
                         if target_group:
-                            delivered = False
                             if self.bot_client:
                                 try:
                                     bot_kwargs = {}
@@ -356,9 +338,8 @@ class BackgroundMonitor:
                                     logger.info("[SCHEDULE] Stagnation alert sent to group %s via bot.", target_group)
                                 except Exception as b_exc:
                                     logger.warning("[SCHEDULE][STAGNATION] bot_client failed: %s", b_exc)
-                            if not delivered and self.client:
-                                await self.client.send_message(target_group, alert, reply_to=target_topic)
-                                logger.info("[SCHEDULE] Stagnation alert sent to group %s via client.", target_group)
+                            if not delivered:
+                                await self._notify_admin(alert)
                         else:
                             await self._notify_admin(alert)
                             logger.info("[SCHEDULE] Stagnation alert sent to admin.")

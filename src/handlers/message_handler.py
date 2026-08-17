@@ -1108,63 +1108,18 @@ async def process_ai_reply(
                         )
                     logger.info("[USERBOT] Shadow preview queued for chat %s", chat_id)
                 else:
-                    if event.is_private:
-                        logger.info(
-                            "[USERBOT] Private DM autoreply blocked for chat %s (%s)",
-                            chat_id,
-                            sender_name,
+                    # STRICT OWNER POLICY: Never send outbound AI replies from personal userbot account (@baxtiyorjon_gaziyev)
+                    logger.info(
+                        "[USERBOT] Outbound AI reply from userbot account is strictly disabled for chat %s (%s)",
+                        chat_id,
+                        sender_name,
+                    )
+                    try:
+                        await msg_controller.db.log_message(
+                            sender.id, final_text, is_ai=True
                         )
-                    else:
-                        limited, rl_reason = safe_responder.is_rate_limited(chat_id)
-                        if limited:
-                            logger.warning(
-                                "[USERBOT] Rate-limit skip chat=%s reason=%s",
-                                chat_id,
-                                rl_reason,
-                            )
-                            if admin_bot:
-                                try:
-                                    await admin_bot.notify_lead(
-                                        f"⏱ **RATE-LIMIT skip** chat=`{chat_id}` reason=`{rl_reason}`\n"
-                                        f"Matn tayyor edi, yuborilmadi (flood oldini olish)."
-                                    )
-                                except Exception as exc:
-                                    logger.debug("[RATE-LIMIT] Admin notify failed: %s", exc)
-                        else:
-                            await event.respond(final_text)
-                            try:
-                                await msg_controller.db.log_message(
-                                    sender.id, final_text, is_ai=True
-                                )
-                                import sys
-                                if 'src.main' in sys.modules and hasattr(sys.modules['src.main'], 'session_manager'):
-                                    phone = getattr(sender, 'phone', None)
-                                    sys.modules['src.main'].session_manager.add_message(
-                                        sender.id, "Oisha-OS (AI)", final_text, phone
-                                    )
-                                    
-                                # [WAZZUP ALTERNATIVE] Push AI reply to AmoCRM Native Chat
-                                if getattr(settings, 'AMOCRM_CHAT_SECRET', None):
-                                    from src.services.core.crm.amocrm_chat import AmoCRMChatClient
-                                    chat_client = AmoCRMChatClient(
-                                        amocrm_account_id=settings.AMOCRM_CHAT_ACCOUNT_ID,
-                                        channel_id=settings.AMOCRM_CHAT_CHANNEL_ID,
-                                        channel_secret=settings.AMOCRM_CHAT_SECRET
-                                    )
-                                    import asyncio
-                                    asyncio.create_task(
-                                        chat_client.send_message_to_amocrm(
-                                            user_id=sender.id,
-                                            chat_id=chat_id,
-                                            text=final_text,
-                                            sender_name="Oisha-OS (AI)",
-                                            phone=getattr(sender, 'phone', None)
-                                        )
-                                    )
-                            except Exception as log_ex:
-                                logger.error("[USERBOT] Failed to log AI reply: %s", log_ex)
-                            safe_responder.update_rate_limit(chat_id)
-                            logger.info("[USERBOT] Replied successfully to %s", chat_id)
+                    except Exception as log_ex:
+                        logger.error("[USERBOT] Failed to log AI reply: %s", log_ex)
 
     except Exception as exc:
         logger.error("[USERBOT] Error while handling message: %s", exc)
