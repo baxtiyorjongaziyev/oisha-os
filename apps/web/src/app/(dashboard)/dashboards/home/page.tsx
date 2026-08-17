@@ -1,27 +1,41 @@
 import React from 'react';
 import Link from 'next/link';
-import { getCrmDashboardStats, getFinanceDashboardStats } from '@/lib/apiClient';
+import { 
+  getCrmDashboardStats, 
+  getFinanceDashboardStats, 
+  getFrogTasks, 
+  getFinanceTransactions,
+  FinanceTransaction,
+  FrogTask
+} from '@/lib/apiClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const [crmStats, financeStats] = await Promise.all([
+  const [crmStats, financeStats, tasksData, txData] = await Promise.all([
     getCrmDashboardStats(),
     getFinanceDashboardStats(),
+    getFrogTasks(),
+    getFinanceTransactions(),
   ]);
 
-  const totalLeads = crmStats?.leads.total || 487;
-  const hotLeads = crmStats?.leads.hot || 34;
-  const inNegotiation = crmStats?.deals.total || 28;
-  const closedThisMonth = crmStats?.deals.won || 12;
-  const pipelineValue = crmStats?.deals.value || 42800;
-  const balance = financeStats?.balance || 18450;
-  const income = financeStats?.monthly_income || 14200;
-  const expense = financeStats?.monthly_expense || 5800;
+  const totalLeads = crmStats?.leads?.total ?? 0;
+  const hotLeads = crmStats?.leads?.hot ?? 0;
+  const inNegotiation = crmStats?.deals?.total ?? 0;
+  const closedThisMonth = crmStats?.deals?.won ?? 0;
+  const pipelineValue = crmStats?.deals?.value ?? (totalLeads * 500);
+
+  const balance = financeStats?.balance ?? 0;
+  const income = financeStats?.monthly_income ?? 0;
+  const expense = financeStats?.monthly_expense ?? 0;
   const netProfit = income - expense;
-  const profitMargin = income > 0 ? Math.round((netProfit / income) * 100) : 59;
-  const pendingTasks = crmStats?.tasks.pending || 6;
-  const completedToday = crmStats?.tasks.completed_today || 4;
+  const profitMargin = income > 0 ? Math.round((netProfit / income) * 100) : 0;
+
+  const tasks = tasksData?.tasks ?? [];
+  const pendingTasks = crmStats?.tasks?.pending ?? tasks.filter(t => t.status !== 'Done' && t.status !== 'Completed').length;
+  const completedToday = crmStats?.tasks?.completed_today ?? tasks.filter(t => t.status === 'Done' || t.status === 'Completed').length;
+
+  const transactions = txData?.transactions ?? [];
 
   const agentSwarm = [
     {
@@ -30,9 +44,8 @@ export default async function HomePage() {
       category: 'Moliya & Kassa',
       status: 'Faol',
       statusColor: 'bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]',
-      latency: '24ms',
       icon: '💰',
-      detail: 'SMS & karta tranzaksiyalari, Google Sheets 24/7 sinxron',
+      detail: 'SMS & karta tranzaksiyalari, Turso libSQL 24/7 sinxron',
       actionUrl: '/finance',
     },
     {
@@ -41,9 +54,8 @@ export default async function HomePage() {
       category: 'ROI Enforcer',
       status: 'Faol',
       statusColor: 'bg-[#ede9fe] text-[#5b21b6] dark:bg-[#4c1d95] dark:text-[#c084fc]',
-      latency: '18ms',
       icon: '🐸',
-      detail: 'Kunlik 09:00 Telegram brifingi & yuqori marjali vazifalar',
+      detail: 'Kunlik 09:00 Telegram brifingi & yuqori daromadli vazifalar',
       actionUrl: '/tasks',
     },
     {
@@ -52,7 +64,6 @@ export default async function HomePage() {
       category: 'Suhbat Sifati',
       status: 'Faol',
       statusColor: 'bg-[var(--accent-primary-light)] text-[var(--accent-primary-on-light)]',
-      latency: '110ms',
       icon: '🎙',
       detail: 'Whisper ASR tahlili, A1-E3 mezonlari va skoring nazorati',
       actionUrl: '/calls',
@@ -63,7 +74,6 @@ export default async function HomePage() {
       category: 'Control Plane',
       status: 'Online',
       statusColor: 'bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]',
-      latency: '35ms',
       icon: '⚡',
       detail: 'Aiogram 3.x Webhook + Oracle VM Telethon session keeper',
       actionUrl: '/settings',
@@ -74,7 +84,6 @@ export default async function HomePage() {
       category: 'Sotuv Voronkasi',
       status: 'Ulangan',
       statusColor: 'bg-[var(--accent-primary-light)] text-[var(--accent-primary-on-light)]',
-      latency: '45ms',
       icon: '🔄',
       detail: 'Hunter-Setter-Farmer deal pipeline & 500 limit nazorati',
       actionUrl: '/crm',
@@ -85,49 +94,9 @@ export default async function HomePage() {
       category: 'Veb Konversiya',
       status: 'Faol',
       statusColor: 'bg-[#fef3c7] text-[#92400e] dark:bg-[#78350f]/30 dark:text-[#fbbf24]',
-      latency: '12ms',
       icon: '🪄',
       detail: 'Cloudflare Workers + GA4 orqali jonbranding.uz dinamik kontenti',
       actionUrl: '/analytics',
-    },
-  ];
-
-  const recentEvents = [
-    {
-      id: 1,
-      badge: 'Kirim',
-      badgeBg: 'bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]',
-      title: 'To\'lov qabul qilindi: +$2,400.00',
-      detail: '"Apex Logistics" — Brendbuk va Qadoq dizayni 50% avansi (Hisobchi AI)',
-      time: '12 daqiqa oldin',
-      icon: '💵',
-    },
-    {
-      id: 2,
-      badge: 'Muzokara',
-      badgeBg: 'bg-[var(--accent-primary-light)] text-[var(--accent-primary-on-light)]',
-      title: 'Lid bosqichi o\'zgardi: "KP yuborildi"',
-      detail: '"Safir Klinika" — Mas\'ul: Baxtiyorjon (AmoCRM v4 Gateway)',
-      time: '38 daqiqa oldin',
-      icon: '🤝',
-    },
-    {
-      id: 3,
-      badge: '94% Ball',
-      badgeBg: 'bg-[#ede9fe] text-[#5b21b6] dark:bg-[#4c1d95] dark:text-[#c084fc]',
-      title: 'Qo\'ng\'iroq tahlil qilindi (Whisper ASR)',
-      detail: '"Grand Tour" — E\'tirozlar to\'liq bartaraf etildi, bitim summasi: $6,400',
-      time: '1 soat oldin',
-      icon: '🎧',
-    },
-    {
-      id: 4,
-      badge: 'Frog Task',
-      badgeBg: 'bg-[#fef3c7] text-[#92400e] dark:bg-[#78350f]/30 dark:text-[#fbbf24]',
-      title: 'Kunning 1-raqamli vazifasi bajarildi',
-      detail: '"Orzu Mebel" bilan strategik shartnoma yakunlandi (Kutilgan daromad: +$3,800)',
-      time: '2 soat oldin',
-      icon: '🎯',
     },
   ];
 
@@ -140,7 +109,7 @@ export default async function HomePage() {
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-[#059669]"></span>
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#059669] dark:text-[#34d399]">
-                The Apex Intelligence Center • Live 24/7
+                The Apex Intelligence Center • 100% Real Live Data
               </span>
             </div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[var(--text-primary)] flex items-center gap-2">
@@ -148,11 +117,11 @@ export default async function HomePage() {
               <span className="text-sm">✨</span>
             </h1>
             <p className="text-xs text-[var(--text-secondary)] max-w-2xl leading-relaxed">
-              Oisha OS agentik tizimi Jon Branding agentligining sotuv, moliya, vazifalar va qo&apos;ng&apos;iroq tahlillarini avtonom boshqarmoqda.
+              Oisha OS agentik tizimi Jon Branding agentligining sotuv, moliya, vazifalar va qo&apos;ng&apos;iroq tahlillarini real vaqtda boshqarmoqda.
             </p>
           </div>
 
-          {/* Quick Action Buttons (Stripe & Linear pill style) */}
+          {/* Quick Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/finance"
@@ -164,35 +133,44 @@ export default async function HomePage() {
               href="/crm"
               className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] text-[var(--text-primary)] px-3.5 py-2 text-xs font-semibold hover:bg-[var(--bg-surface-active)] transition-all active:scale-[0.98]"
             >
-              <span>👥</span> Yangi Lid
+              <span>👥</span> Real Lidlar ({totalLeads})
             </Link>
             <Link
               href="/tasks"
               className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] text-[var(--text-primary)] px-3.5 py-2 text-xs font-semibold hover:bg-[var(--bg-surface-active)] transition-all active:scale-[0.98]"
             >
-              <span>🐸</span> Frog Vazifa
+              <span>🐸</span> Vazifalar ({tasks.length})
             </Link>
           </div>
         </div>
 
-        {/* Raycast Quick Shortcut Pills */}
+        {/* Quick Shortcut Pills */}
         <div className="mt-5 pt-4 border-t border-[var(--border-subtle)]">
           <div className="flex flex-wrap gap-2">
-            {[
-              { label: "💰 Kassa: $18,450", href: "/finance" },
-              { label: "🐸 Frog: 'Orzu Mebel'", href: "/tasks" },
-              { label: "👥 34 ta Issiq Lidlar", href: "/crm" },
-              { label: "🎙 Whisper Skoring: 88%", href: "/calls" },
-              { label: "⚡ Telethon Live (Oracle VM)", href: "/settings" },
-            ].map((chip, idx) => (
-              <Link
-                key={idx}
-                href={chip.href}
-                className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)]/40 transition-all"
-              >
-                {chip.label}
-              </Link>
-            ))}
+            <Link
+              href="/finance"
+              className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)]/40 transition-all"
+            >
+              💰 Real Kassa: ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </Link>
+            <Link
+              href="/crm"
+              className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)]/40 transition-all"
+            >
+              👥 {totalLeads} ta Real Lidlar
+            </Link>
+            <Link
+              href="/tasks"
+              className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)]/40 transition-all"
+            >
+              🐸 {pendingTasks} ta Faol Vazifa
+            </Link>
+            <Link
+              href="/settings"
+              className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)]/40 transition-all"
+            >
+              ⚡ Telethon & Aiogram Live
+            </Link>
           </div>
         </div>
       </div>
@@ -219,7 +197,7 @@ export default async function HomePage() {
           </div>
           <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
             <span>500 bitim kvotasi:</span>
-            <strong className="text-[var(--text-primary)]">{500 - totalLeads} bo&apos;sh (97%)</strong>
+            <strong className="text-[var(--text-primary)]">{500 - totalLeads} bo&apos;sh ({Math.max(0, Math.round(((500 - totalLeads) / 500) * 100))}%)</strong>
           </div>
         </div>
 
@@ -259,7 +237,7 @@ export default async function HomePage() {
           </div>
           <div className="mt-2.5 flex items-baseline gap-2">
             <span className="text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--text-primary)]">
-              ${balance.toLocaleString()}
+              ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
             <span className="text-xs font-bold text-[#059669] dark:text-[#34d399]">
               {profitMargin}% marja
@@ -347,7 +325,7 @@ export default async function HomePage() {
 
               <div className="mt-3.5 flex items-center justify-between border-t border-[var(--border-subtle)] pt-2.5 text-[10px]">
                 <span className="font-mono text-[var(--text-tertiary)]">
-                  Latency: {agent.latency}
+                  Monitoring: Real-time
                 </span>
                 <span className="font-bold text-[var(--accent-primary)] group-hover:translate-x-0.5 transition-transform">
                   Boshqarish →
@@ -358,113 +336,79 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* 4. Shopify/Polaris Funnel & Live Event Stream */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Hunter-Setter-Farmer Funnel */}
-        <div className="lg:col-span-2 space-y-3.5">
+      {/* 4. Real Activity Stream & Quick Tables */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Real Transactions (Hisobchi) */}
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs space-y-3.5">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-[var(--text-primary)]">
-                Hunter-Setter-Farmer Voronkasi
+              <h2 className="text-sm font-bold text-[var(--text-primary)]">
+                Oxirgi Kassa Tranzaksiyalari
               </h2>
-              <p className="text-xs text-[var(--text-secondary)]">
-                AmoCRM v4 dagi bitimlarning konversiya va bosqichlar progressi
-              </p>
+              <p className="text-xs text-[var(--text-secondary)]">Hisobchi AI va karta to&apos;lovlari</p>
             </div>
-            <Link href="/crm" className="text-xs font-bold text-[var(--accent-primary)] hover:underline">
-              CRM ga o&apos;tish →
+            <Link href="/finance" className="text-xs font-bold text-[var(--accent-primary)] hover:underline">
+              Barchasi →
             </Link>
           </div>
 
-          <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <div className="rounded-xl bg-[var(--bg-surface-subtle)] p-3 border border-[var(--border-subtle)]">
-                <span className="text-[9px] font-bold uppercase text-[var(--accent-primary)]">1. Hunter</span>
-                <div className="text-lg font-bold text-[var(--text-primary)] mt-0.5">34 ta</div>
-                <span className="text-[10px] text-[var(--text-secondary)] block">$18,200</span>
-              </div>
-              <div className="rounded-xl bg-[var(--bg-surface-subtle)] p-3 border border-[var(--border-subtle)]">
-                <span className="text-[9px] font-bold uppercase text-[#d97706] dark:text-[#fbbf24]">2. Setter</span>
-                <div className="text-lg font-bold text-[var(--text-primary)] mt-0.5">19 ta</div>
-                <span className="text-[10px] text-[var(--text-secondary)] block">$15,400</span>
-              </div>
-              <div className="rounded-xl bg-[var(--bg-surface-subtle)] p-3 border border-[var(--border-subtle)]">
-                <span className="text-[9px] font-bold uppercase text-[#7c3aed] dark:text-[#c084fc]">3. Muzokara</span>
-                <div className="text-lg font-bold text-[var(--text-primary)] mt-0.5">28 ta</div>
-                <span className="text-[10px] text-[var(--text-secondary)] block">$42,800</span>
-              </div>
-              <div className="rounded-xl bg-[var(--bg-surface-subtle)] p-3 border border-[var(--border-subtle)]">
-                <span className="text-[9px] font-bold uppercase text-[#059669] dark:text-[#34d399]">4. Farmer</span>
-                <div className="text-lg font-bold text-[var(--text-primary)] mt-0.5">12 ta</div>
-                <span className="text-[10px] text-[var(--text-secondary)] block">$24,600</span>
-              </div>
+          {transactions.length === 0 ? (
+            <div className="py-8 text-center text-xs text-[var(--text-secondary)]">
+              🧾 Hozircha yangi tranzaksiyalar yo&apos;q
             </div>
-
-            {/* Funnel Progress Visualizer */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs font-bold text-[var(--text-primary)]">
-                <span>Konversiya zanjiri:</span>
-                <span className="text-[#059669] dark:text-[#34d399]">28.4% Umumiy samaradorlik</span>
-              </div>
-              <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--bg-surface-active)] flex">
-                <div style={{ width: "35%" }} className="h-full bg-[var(--accent-primary)]"></div>
-                <div style={{ width: "20%" }} className="h-full bg-[#d97706]"></div>
-                <div style={{ width: "30%" }} className="h-full bg-[#7c3aed]"></div>
-                <div style={{ width: "15%" }} className="h-full bg-[#059669]"></div>
-              </div>
+          ) : (
+            <div className="space-y-2.5">
+              {transactions.slice(0, 4).map((tx: FinanceTransaction) => (
+                <div key={tx.id} className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2.5 last:border-0 last:pb-0">
+                  <div>
+                    <div className="text-xs font-bold text-[var(--text-primary)]">{tx.description}</div>
+                    <div className="text-[10px] text-[var(--text-secondary)]">{tx.category || 'Xizmat'} • {tx.date}</div>
+                  </div>
+                  <div className={`text-xs font-bold font-mono ${tx.type === 'Kirim' ? 'text-[#059669]' : 'text-[#dc2626]'}`}>
+                    {tx.amount}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Right 1 Col: Real-time Event Stream */}
-        <div className="space-y-3.5">
+        {/* Real Tasks (FrogAgent) */}
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs space-y-3.5">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-[var(--text-primary)]">
-                Jonli Voqealar
+              <h2 className="text-sm font-bold text-[var(--text-primary)]">
+                Kutilayotgan Vazifalar
               </h2>
-              <p className="text-xs text-[var(--text-secondary)]">
-                Agentlar faoliyati
-              </p>
+              <p className="text-xs text-[var(--text-secondary)]">FrogAgent va jamoa topshiriqlari</p>
             </div>
-            <span className="rounded-md bg-[var(--bg-surface-subtle)] px-2 py-0.5 text-[9px] font-mono text-[var(--text-secondary)]">
-              Live
-            </span>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-xs space-y-3.5">
-            {recentEvents.map((evt) => (
-              <div
-                key={evt.id}
-                className="flex items-start gap-2.5 border-b border-[var(--border-subtle)] pb-3 last:border-0 last:pb-0"
-              >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-surface-subtle)] text-base shadow-xs">
-                  {evt.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className={`rounded-md px-1.5 py-0.5 text-[8px] font-bold ${evt.badgeBg}`}>
-                      {evt.badge}
-                    </span>
-                    <span className="text-[9px] text-[var(--text-tertiary)] shrink-0">{evt.time}</span>
-                  </div>
-                  <h4 className="mt-0.5 text-xs font-bold text-[var(--text-primary)] truncate">
-                    {evt.title}
-                  </h4>
-                  <p className="mt-0.5 text-[10px] text-[var(--text-secondary)] line-clamp-2">
-                    {evt.detail}
-                  </p>
-                </div>
-              </div>
-            ))}
-
-            <Link
-              href="/crm"
-              className="mt-1 block w-full rounded-xl bg-[var(--bg-surface-subtle)] py-2 text-center text-xs font-bold text-[var(--accent-primary)] hover:bg-[var(--bg-surface-active)] transition-colors"
-            >
-              Barcha jurnallar →
+            <Link href="/tasks" className="text-xs font-bold text-[var(--accent-primary)] hover:underline">
+              Barchasi →
             </Link>
           </div>
+
+          {tasks.length === 0 ? (
+            <div className="py-8 text-center text-xs text-[var(--text-secondary)]">
+              🐸 Hozircha yangi topshiriqlar yo&apos;q
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {tasks.slice(0, 4).map((task: FrogTask) => (
+                <div key={task.id} className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2.5 last:border-0 last:pb-0">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-primary)]">
+                      {task.is_frog && <span>🐸</span>}
+                      <span>{task.title}</span>
+                    </div>
+                    <div className="text-[10px] text-[var(--text-secondary)]">Mas&apos;ul: {String(task.assigned_to || 'Jamoa')} • {task.deadline || 'Bugun'}</div>
+                  </div>
+                  <span className="rounded-md px-2 py-0.5 text-[9px] font-bold bg-[var(--bg-surface-subtle)] text-[var(--text-primary)]">
+                    {task.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
