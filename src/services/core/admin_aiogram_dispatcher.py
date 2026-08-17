@@ -440,6 +440,103 @@ async def handle_aiogram_set_mode(
         await message.answer(f"❌ Xato: {e}")
 
 
+async def handle_aiogram_crm_report(
+    message: Any,
+    *,
+    is_admin: Callable[[int], bool],
+    get_amocrm_client: Optional[Callable[[], Any]] = None,
+) -> None:
+    sender = getattr(message, "from_user", None)
+    sender_id = int(getattr(sender, "id", 0) or 0)
+    if not is_admin(sender_id):
+        return
+    await message.answer("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
+    try:
+        from src.services.core.crm.crm_daily_report import CRMDailyReporter
+
+        amocrm_client = get_amocrm_client() if get_amocrm_client else None
+        if not amocrm_client:
+            from src.controllers.surgical_integration import get_surgical_integration
+            surg = get_surgical_integration()
+            if surg:
+                amocrm_client = getattr(surg, "amocrm", None)
+
+        reporter = CRMDailyReporter(amocrm=amocrm_client)
+        stats = await reporter.fetch_stats()
+        prev = reporter._load_prev_stats()
+        report_text = reporter.format_report(stats, prev)
+        await message.answer(report_text)
+    except Exception as e:
+        logger.error("Aiogram crm_report failed", exc_info=True)
+        await message.answer(f"❌ Hisobot tayyorlashda xatolik: {e}")
+
+
+async def handle_aiogram_crm_stats(
+    message: Any,
+    *,
+    is_admin: Callable[[int], bool],
+    get_amocrm_client: Optional[Callable[[], Any]] = None,
+) -> None:
+    sender = getattr(message, "from_user", None)
+    sender_id = int(getattr(sender, "id", 0) or 0)
+    if not is_admin(sender_id):
+        return
+    await message.answer("⏳ Joriy statistika olinmoqda...")
+    try:
+        from src.services.core.crm.crm_daily_report import CRMDailyReporter
+
+        amocrm_client = get_amocrm_client() if get_amocrm_client else None
+        if not amocrm_client:
+            from src.controllers.surgical_integration import get_surgical_integration
+            surg = get_surgical_integration()
+            if surg:
+                amocrm_client = getattr(surg, "amocrm", None)
+
+        reporter = CRMDailyReporter(amocrm=amocrm_client)
+        stats = await reporter.fetch_stats()
+        text = (
+            f"📊 **Bugungi holat ({stats.date_label})**\n"
+            f"Tushgan: {stats.total_leads} lead\n"
+            f"Gaplashilgan: {stats.contacted} lead\n"
+            f"Sifatli: {stats.qualified} lead\n"
+            f"Muvaffaqiyatli (Won): {stats.won}\n"
+            f"Daromad: ${stats.revenue:,.0f}\n"
+            f"Pipeline qiymati: ${stats.pipeline_value:,.0f}"
+        )
+        await message.answer(text, parse_mode="markdown")
+    except Exception as e:
+        logger.error("Aiogram crm_stats failed", exc_info=True)
+        await message.answer(f"❌ Statistika olishda xatolik: {e}")
+
+
+async def handle_aiogram_crm_history(
+    message: Any,
+    *,
+    is_admin: Callable[[int], bool],
+) -> None:
+    sender = getattr(message, "from_user", None)
+    sender_id = int(getattr(sender, "id", 0) or 0)
+    if not is_admin(sender_id):
+        return
+    try:
+        from src.services.core.crm.crm_daily_report import CRMDailyReporter
+
+        reporter = CRMDailyReporter(amocrm=None)
+        history = reporter.get_history(7)
+        if not history:
+            await message.answer("📅 Tarix topilmadi. Hisobotlar hali keshga yozilmagan.")
+            return
+        lines = ["📅 **So'nggi 7 kunlik hisobotlar tarixi:**"]
+        for s in history:
+            lines.append(
+                f"• {s.date_label}: {s.total_leads} lead | {s.won} won | ${s.revenue:,.0f}"
+            )
+        await message.answer("\n".join(lines), parse_mode="markdown")
+    except Exception as e:
+        logger.error("Aiogram crm_history failed", exc_info=True)
+        await message.answer(f"❌ Tarixni olishda xatolik: {e}")
+
+
 def build_admin_aiogram_dispatcher(
     *,
     owner_id: int,
@@ -453,6 +550,7 @@ def build_admin_aiogram_dispatcher(
     get_finance_project_risks: Optional[Callable[[], Any]] = None,
     get_team_capacity: Optional[Callable[[], Any]] = None,
     get_command_center: Optional[Callable[[], Any]] = None,
+    get_amocrm_client: Optional[Callable[[], Any]] = None,
     db: Any = None,
 ) -> Any:
     from aiogram import Dispatcher, F
@@ -533,6 +631,29 @@ def build_admin_aiogram_dispatcher(
     async def _set_mode(message: Any) -> None:
         await handle_aiogram_set_mode(message, is_admin=is_admin, db=db)
 
+    @dp.message(F.text.regexp(r"(?i)^/(report|crm_report|kunlik_hisobot)$"))
+    async def _crm_report(message: Any) -> None:
+        await handle_aiogram_crm_report(
+            message,
+            is_admin=is_admin,
+            get_amocrm_client=get_amocrm_client,
+        )
+
+    @dp.message(F.text.regexp(r"(?i)^/(stats|statistika)$"))
+    async def _crm_stats(message: Any) -> None:
+        await handle_aiogram_crm_stats(
+            message,
+            is_admin=is_admin,
+            get_amocrm_client=get_amocrm_client,
+        )
+
+    @dp.message(F.text.regexp(r"(?i)^/(history|tarix)$"))
+    async def _crm_history(message: Any) -> None:
+        await handle_aiogram_crm_history(
+            message,
+            is_admin=is_admin,
+        )
+
     return dp
 
 
@@ -550,6 +671,7 @@ def maybe_build_admin_aiogram_dispatcher(
     get_finance_project_risks: Optional[Callable[[], Any]] = None,
     get_team_capacity: Optional[Callable[[], Any]] = None,
     get_command_center: Optional[Callable[[], Any]] = None,
+    get_amocrm_client: Optional[Callable[[], Any]] = None,
     db: Any = None,
 ) -> Any:
     if not enabled:
@@ -566,6 +688,7 @@ def maybe_build_admin_aiogram_dispatcher(
         get_finance_project_risks=get_finance_project_risks,
         get_team_capacity=get_team_capacity,
         get_command_center=get_command_center,
+        get_amocrm_client=get_amocrm_client,
         db=db,
     )
 

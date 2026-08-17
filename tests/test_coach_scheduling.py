@@ -140,3 +140,88 @@ def test_scheduler_loop_registers_both_jobs():
     assert "_job_call_quality_weekly" in src
     assert "now.hour == 20" in src  # kunlik 20:00
     assert "now.weekday() == 0" in src  # haftalik dushanba
+
+
+@pytest.mark.asyncio
+async def test_send_to_group_uses_bot_client_when_available():
+    bot_client = SimpleNamespace(send_message=AsyncMock())
+    user_client = SimpleNamespace(send_message=AsyncMock())
+    mon = BackgroundMonitor(
+        msg_controller=SimpleNamespace(db=SimpleNamespace()),
+        client=user_client,
+        bot_client=bot_client,
+        TN5_GROUP_ID=-100999,
+        settings=SimpleNamespace(OWNER_ID=150074828, TOPIC_REPORTS_ID=7),
+    )
+
+    await mon._send_to_group_or_admin("Test message", reply_to=7)
+
+    bot_client.send_message.assert_awaited_once_with(
+        -100999, "Test message", message_thread_id=7
+    )
+    user_client.send_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_notify_admin_uses_bot_client_when_available():
+    bot_client = SimpleNamespace(send_message=AsyncMock())
+    user_client = SimpleNamespace(send_message=AsyncMock())
+    mon = BackgroundMonitor(
+        msg_controller=SimpleNamespace(db=SimpleNamespace()),
+        client=user_client,
+        bot_client=bot_client,
+        settings=SimpleNamespace(OWNER_ID=150074828),
+    )
+
+    await mon._notify_admin("Admin alert")
+
+    bot_client.send_message.assert_awaited_once_with(
+        150074828, "Admin alert"
+    )
+    user_client.send_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_crm_daily_report_dispatches_via_bot_client(monkeypatch):
+    bot_client = SimpleNamespace(send_message=AsyncMock())
+    user_client = SimpleNamespace(send_message=AsyncMock())
+    mon = BackgroundMonitor(
+        msg_controller=SimpleNamespace(db=SimpleNamespace(), crm=SimpleNamespace(amocrm=SimpleNamespace())),
+        client=user_client,
+        bot_client=bot_client,
+        TN5_GROUP_ID=-100888,
+        settings=SimpleNamespace(OWNER_ID=150074828, TOPIC_REPORTS_ID=12),
+    )
+
+    class FakeStats:
+        date_label = "Aug 17, 2026"
+        total_leads = 5
+        contacted = 3
+        qualified = 2
+        won = 1
+        revenue = 500
+        incoming_calls = 0
+        avg_response_sec = 0
+        top_manager = None
+        pipeline_value = 1000
+
+    class FakeReporter:
+        def __init__(self, amocrm=None):
+            pass
+        async def fetch_stats(self):
+            return FakeStats()
+        def _load_prev_stats(self):
+            return None
+        def format_report(self, stats, prev):
+            return f"AmoCRM Kunlik Hisobot | 📅 {stats.date_label}\nSent via Oisha-OS"
+
+    monkeypatch.setattr("src.services.core.crm.crm_daily_report.CRMDailyReporter", FakeReporter)
+
+    await mon._job_crm_daily_report(datetime(2026, 8, 17, 19, 30))
+
+    bot_client.send_message.assert_awaited_once()
+    sent_args = bot_client.send_message.call_args
+    assert sent_args[0][0] == -100888
+    assert "AmoCRM Kunlik Hisobot" in sent_args[0][1]
+    assert sent_args[1]["message_thread_id"] == 12
+    user_client.send_message.assert_not_awaited()

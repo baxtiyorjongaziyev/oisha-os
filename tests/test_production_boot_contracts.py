@@ -31,7 +31,7 @@ def test_source_web_service_limits_restart_storm_and_requires_build():
 
     assert "StartLimitIntervalSec=60" in unit
     assert "StartLimitBurst=3" in unit
-    assert "ExecStartPre=/usr/bin/test -f /home/ubuntu/oisha-os/salescoach-ai/apps/web/.next/BUILD_ID" in unit
+    assert "ExecStartPre=/usr/bin/test -f /home/ubuntu/oisha-web/apps/web/server.js" in unit
 
 
 def test_optional_brain_synthesizer_cannot_abort_core_boot():
@@ -51,6 +51,4 @@ def test_web_deploy_is_isolated_from_core_runtime():
 
     assert "sudo systemctl restart oisha-os" not in workflow
     assert "venv/bin/pip install" not in workflow
-    assert "StartLimitIntervalSec=60" in workflow
-    assert "StartLimitBurst=3" in workflow
-    assert "ExecStartPre=/usr/bin/test -f /home/ubuntu/oisha-web/apps/web/server.js" in workflow
+    assert "deploy/oisha-web.service" in workflow

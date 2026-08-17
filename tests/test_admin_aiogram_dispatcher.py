@@ -424,3 +424,53 @@ async def test_aiogram_auto_status_and_control_handlers():
     assert "shadow" in mode_msg.answers[0][0]
     assert db.state.get("auto_reply_mode") == "shadow"
 
+
+@pytest.mark.asyncio
+async def test_aiogram_crm_report_handlers(monkeypatch):
+    from src.services.core.admin_aiogram_dispatcher import (
+        handle_aiogram_crm_report,
+        handle_aiogram_crm_stats,
+        handle_aiogram_crm_history,
+    )
+
+    class FakeStats:
+        date_label = "Aug 17, 2026"
+        total_leads = 8
+        contacted = 5
+        qualified = 4
+        won = 2
+        revenue = 2500
+        pipeline_value = 15000
+
+    class FakeReporter:
+        def __init__(self, amocrm=None):
+            pass
+        async def fetch_stats(self):
+            return FakeStats()
+        def _load_prev_stats(self):
+            return None
+        def format_report(self, stats, prev):
+            return f"AmoCRM Kunlik Hisobot | 📅 {stats.date_label}\nTushgan Leadlar: {stats.total_leads}\nSent via Oisha-OS"
+        def get_history(self, days):
+            return [FakeStats()]
+
+    monkeypatch.setattr("src.services.core.crm.crm_daily_report.CRMDailyReporter", FakeReporter)
+
+    admin = FakeAiogramMessage(text="/report", user_id=11)
+    await handle_aiogram_crm_report(admin, is_admin=lambda _uid: True)
+    assert len(admin.answers) == 2
+    assert "AmoCRM Kunlik Hisobot" in admin.answers[1][0]
+    assert "Tushgan Leadlar: 8" in admin.answers[1][0]
+
+    stats_msg = FakeAiogramMessage(text="/stats", user_id=11)
+    await handle_aiogram_crm_stats(stats_msg, is_admin=lambda _uid: True)
+    assert len(stats_msg.answers) == 2
+    assert "Bugungi holat" in stats_msg.answers[1][0]
+    assert "Tushgan: 8 lead" in stats_msg.answers[1][0]
+
+    hist_msg = FakeAiogramMessage(text="/history", user_id=11)
+    await handle_aiogram_crm_history(hist_msg, is_admin=lambda _uid: True)
+    assert len(hist_msg.answers) == 1
+    assert "So'nggi 7 kunlik hisobotlar tarixi" in hist_msg.answers[0][0]
+
+

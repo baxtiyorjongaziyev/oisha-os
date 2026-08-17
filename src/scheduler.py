@@ -206,25 +206,36 @@ async def background_monitor_task() -> None:
                                 pnl_topic = settings.HISOBCHI_PNL_TOPIC_ID
                                 report_html = f"📊 <b>KUNLIK HISOBOT</b>\n\n{report}"
                                 delivered = False
-                                if fin_group and m.client:
-                                    try:
-                                        await m.client.send_message(
-                                            fin_group,
-                                            report_html,
-                                            parse_mode="html",
-                                            reply_to=pnl_topic,
-                                        )
-                                        delivered = True
-                                    except Exception as send_exc:
-                                        logger.error(
-                                            "[SCHEDULE][REPORT] Finance group delivery failed: %s",
-                                            send_exc,
-                                        )
-                                if not delivered and m.client:
-                                    # Fallback to owner DM (HTML so tags render correctly)
-                                    await m.client.send_message(
-                                        "me", report_html, parse_mode="html"
-                                    )
+                                bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
+                                if fin_group:
+                                    if bot_rt:
+                                        try:
+                                            bot_kwargs = {"parse_mode": "html"}
+                                            if pnl_topic:
+                                                bot_kwargs["message_thread_id"] = pnl_topic
+                                            await bot_rt.send_message(fin_group, report_html, **bot_kwargs)
+                                            delivered = True
+                                        except Exception as send_exc:
+                                            logger.warning("[SCHEDULE][REPORT] Bot runtime send failed: %s", send_exc)
+                                    if not delivered and m.client:
+                                        try:
+                                            await m.client.send_message(
+                                                fin_group,
+                                                report_html,
+                                                parse_mode="html",
+                                                reply_to=pnl_topic,
+                                            )
+                                            delivered = True
+                                        except Exception as send_exc:
+                                            logger.error(
+                                                "[SCHEDULE][REPORT] Finance group delivery failed: %s",
+                                                send_exc,
+                                            )
+                                if not delivered:
+                                    if bot_rt and getattr(settings, "OWNER_ID", None):
+                                        await bot_rt.send_message(settings.OWNER_ID, report_html, parse_mode="html")
+                                    elif m.client:
+                                        await m.client.send_message("me", report_html, parse_mode="html")
                                 logger.info("[SCHEDULE] Daily EnterpriseReport sent.")
                     except Exception as rep_exc:
                         logger.error(f"[SCHEDULE][REPORT] Error: {rep_exc}")
@@ -254,16 +265,32 @@ async def background_monitor_task() -> None:
                             report_text = reporter.format_report(stats, prev)
                             
                             # Send to m.TN5_GROUP_ID (or configured CRM_GROUP_ID)
-                            if m.TN5_GROUP_ID and m.client:
-                                send_kwargs = {}
-                                if settings.TOPIC_REPORTS_ID:
-                                    send_kwargs["reply_to"] = settings.TOPIC_REPORTS_ID
-                                await m.client.send_message(
-                                    m.TN5_GROUP_ID,
-                                    report_text,
-                                    **send_kwargs,
-                                )
-                                logger.info(f"[SCHEDULE] CRM Daily reportagram sent to group {m.TN5_GROUP_ID}.")
+                            target_group = m.TN5_GROUP_ID or getattr(settings, "CRM_GROUP_ID", None)
+                            delivered = False
+                            bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
+                            if target_group:
+                                if bot_rt:
+                                    try:
+                                        send_kwargs = {}
+                                        if settings.TOPIC_REPORTS_ID:
+                                            send_kwargs["message_thread_id"] = settings.TOPIC_REPORTS_ID
+                                        await bot_rt.send_message(target_group, report_text, **send_kwargs)
+                                        delivered = True
+                                        logger.info(f"[SCHEDULE] CRM Daily reportagram sent via bot to {target_group}.")
+                                    except Exception as b_exc:
+                                        logger.warning("[SCHEDULE][CRM_REPORT] bot_rt send failed: %s", b_exc)
+                                if not delivered and m.client:
+                                    send_kwargs = {}
+                                    if settings.TOPIC_REPORTS_ID:
+                                        send_kwargs["reply_to"] = settings.TOPIC_REPORTS_ID
+                                    await m.client.send_message(
+                                        target_group,
+                                        report_text,
+                                        **send_kwargs,
+                                    )
+                                    logger.info(f"[SCHEDULE] CRM Daily reportagram sent to group {target_group}.")
+                            elif bot_rt and getattr(settings, "OWNER_ID", None):
+                                await bot_rt.send_message(settings.OWNER_ID, report_text)
                             elif m.client:
                                 await m.notify_admin(report_text, m.client)
                     except Exception as rep_exc:
@@ -356,12 +383,32 @@ async def background_monitor_task() -> None:
                             if settings.TOPIC_REPORTS_ID:
                                 send_kwargs["reply_to"] = settings.TOPIC_REPORTS_ID
 
-                            if m.TN5_GROUP_ID and m.client:
-                                await m.client.send_message(
-                                    m.TN5_GROUP_ID,
-                                    report_text,
-                                    **send_kwargs,
-                                )
+                            target_group = m.TN5_GROUP_ID or getattr(settings, "CRM_GROUP_ID", None)
+                            delivered = False
+                            bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
+                            if target_group:
+                                if bot_rt:
+                                    try:
+                                        send_kwargs_bot = {}
+                                        if settings.TOPIC_REPORTS_ID:
+                                            send_kwargs_bot["message_thread_id"] = settings.TOPIC_REPORTS_ID
+                                        await bot_rt.send_message(
+                                            target_group,
+                                            report_text,
+                                            **send_kwargs_bot,
+                                        )
+                                        delivered = True
+                                        logger.info(f"[SCHEDULE] CRM weekly report sent via bot to {target_group}.")
+                                    except Exception as b_exc:
+                                        logger.warning("[SCHEDULE][CRM_WEEKLY_REPORT] bot_rt send failed: %s", b_exc)
+                                if not delivered and m.client:
+                                    await m.client.send_message(
+                                        target_group,
+                                        report_text,
+                                        **send_kwargs,
+                                    )
+                            elif bot_rt and getattr(settings, "OWNER_ID", None):
+                                await bot_rt.send_message(settings.OWNER_ID, report_text)
                             elif m.client:
                                 await m.notify_admin(report_text, m.client)
 
