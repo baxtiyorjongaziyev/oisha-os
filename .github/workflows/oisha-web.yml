@@ -30,15 +30,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Server diagnostics (read-only)
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ubuntu
-          key: ${{ secrets.ORACLE_SSH_KEY }}
-          port: 22
-          timeout: 30s
-          command_timeout: 8m
-          script: |
+        env:
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$ORACLE_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts
+          ssh -o ConnectTimeout=15 ubuntu@$ORACLE_HOST 'bash -s' <<'EOF'
             set -u
             echo "=== SYSTEM ==="; uname -n; free -h | head -2; df -h / | tail -1
             echo "=== SERVICES ==="
@@ -49,16 +49,11 @@ jobs:
             sudo cat /etc/caddy/Caddyfile 2>/dev/null || echo "Caddyfile yo'q"
             echo "=== NODE ==="
             node -v 2>/dev/null || echo "node yo'q"; command -v pnpm >/dev/null && pnpm -v || echo "pnpm yo'q"
-            echo "=== REPO ==="
-            cd /home/ubuntu/oisha-os 2>/dev/null && git log --oneline -2 && git branch --show-current || echo "repo yo'q"
-            echo "=== ENV KEYS (faqat nomlar) ==="
-            cut -d= -f1 /home/ubuntu/oisha-os/.env 2>/dev/null | sort | tr '\n' ' '; echo
             echo "=== HEALTH ==="
             curl -s -m 5 http://127.0.0.1:8080/healthz/ | head -c 300; echo
             curl -s -m 8 http://127.0.0.1:8080/readyz/ | head -c 600; echo
             curl -s -m 5 -o /dev/null -w 'localhost:3000 -> %{http_code}\n' http://127.0.0.1:3000/ || echo "localhost:3000 -> ulanib bo'lmadi"
-            echo "=== OISHA-OS LOGS (DB/xato) ==="
-            sudo journalctl -u oisha-os -n 400 --no-pager 2>/dev/null | grep -iE 'turso|libsql|auth|token|error|traceback' | tail -25 || true
+          EOF
 
   deploy:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'deploy')
@@ -86,36 +81,30 @@ jobs:
           tar -czf /tmp/oisha-web-bundle.tar.gz -C apps/web/.next/standalone .
           ls -lh /tmp/oisha-web-bundle.tar.gz
 
-      - name: Copy bundle to server
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ubuntu
-          key: ${{ secrets.ORACLE_SSH_KEY }}
-          port: 22
-          source: /tmp/oisha-web-bundle.tar.gz
-          target: /home/ubuntu/
-          strip_components: 1
+      - name: Deploy bundle to Oracle VM via Native SSH
+        env:
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$ORACLE_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts
 
-      - name: Install and start on server
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ubuntu
-          key: ${{ secrets.ORACLE_SSH_KEY }}
-          port: 22
-          timeout: 30s
-          command_timeout: 15m
-          script: |
+          # Copy bundle
+          scp /tmp/oisha-web-bundle.tar.gz ubuntu@$ORACLE_HOST:/home/ubuntu/
+
+          # Remote install and start
+          ssh ubuntu@$ORACLE_HOST 'bash -s' <<'EOF'
             set -euo pipefail
 
-            # Node runtime (standalone uchun faqat node kerak, pnpm shart emas)
+            # Node runtime check
             if ! command -v node >/dev/null 2>&1 || [ "$(node -v | cut -c2-3 | tr -d '.')" -lt 20 ]; then
               curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
               sudo apt-get install -y -qq nodejs
             fi
 
-            # Bundle'ni joylash
+            # Bundle unpack
             sudo systemctl stop oisha-web 2>/dev/null || true
             rm -rf /home/ubuntu/oisha-web
             mkdir -p /home/ubuntu/oisha-web
@@ -182,3 +171,4 @@ jobs:
             # Web readiness verification
             sleep 3
             curl -s -m 8 -o /dev/null -w 'https://oisha.jonbranding.uz -> %{http_code}\n' https://oisha.jonbranding.uz/ || true
+          EOF
