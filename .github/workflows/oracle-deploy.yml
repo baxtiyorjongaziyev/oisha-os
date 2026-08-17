@@ -244,15 +244,11 @@ jobs:
             # reload-or-restart ikkala holatni ham qamrab oladi. Deploy'ni
             # yiqitmaymiz (ilova nginx'siz ham ishlaydi), lekin endi jim
             # emas — xato aniq ko'rinadi.
-            if sudo nginx -t; then
-              if sudo systemctl reload-or-restart nginx; then
-                echo "[NGINX] $(systemctl is-active nginx)"
-              else
-                echo "OGOHLANTIRISH: nginx ishga tushmadi — web UI va MCP proxy ishlamaydi"
-                sudo systemctl status nginx --no-pager -n 20 || true
-              fi
-            else
-              echo "OGOHLANTIRISH: nginx konfiguratsiyasi yaroqsiz, reload qilinmadi"
+            if systemctl is-active --quiet caddy; then
+              echo "[WEB] Caddy is active, reloading Caddyfile"
+              sudo systemctl reload caddy || true
+            elif sudo nginx -t 2>/dev/null; then
+              sudo systemctl reload-or-restart nginx || echo "Nginx reload skipped"
             fi
 
             sudo sed -i '/^WatchdogSec=/d' /etc/systemd/system/oisha-os.service || true
