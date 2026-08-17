@@ -194,3 +194,86 @@ class GoogleSheetsFinanceSource:
             source_status="fresh",
             fetched_at=fetched_at,
         )
+
+
+class DatabaseFinanceSource:
+    """FinanceSource backed by Turso libSQL / SQLite hisobchi_transactions table."""
+
+    def __init__(
+        self,
+        db: Any,
+        *,
+        tracking_start_date: str = DEFAULT_TRACKING_START_DATE,
+    ) -> None:
+        self._db = db
+        self._tracking_start_date = parse_tracking_start_date(tracking_start_date)
+
+    async def get_snapshot(self) -> FinanceSnapshot:
+        fetched_at = datetime.now(timezone.utc)
+        month = fetched_at.strftime("%Y-%m")
+        
+        income = Decimal("0")
+        expense = Decimal("0")
+        transactions: list[FinanceTransaction] = []
+
+        try:
+            conn = await self._db.get_connection() if hasattr(self._db, "get_connection") else None
+            if conn:
+                res = await conn.execute(
+                    "SELECT id, direction, amount, merchant, card_suffix, tx_time, balance, raw_text, category, currency, reason FROM hisobchi_transactions ORDER BY id DESC LIMIT 100"
+                )
+                rows = await res.fetchall() if hasattr(res, "fetchall") else res.fetchall()
+                for r in rows:
+                    tx_id = str(r[0])
+                    direction = str(r[1] or "").strip()
+                    amount = _decimal(r[2])
+                    merchant = str(r[3] or "").strip()
+                    tx_time = str(r[5] or "").strip()
+                    category = str(r[8] or "").strip()
+                    currency = str(r[9] or "UZS").strip().upper() or "UZS"
+                    reason = str(r[10] or "").strip()
+
+                    desc = reason or merchant or category or "Tranzaksiya"
+                    parsed_tx_time = _parse_time(tx_time)
+                    if not is_on_or_after_start(parsed_tx_time, self._tracking_start_date):
+                        continue
+
+                    normalized_direction = direction.casefold()
+                    is_income = normalized_direction in {"kirim", "in"}
+                    
+                    is_current_month = (
+                        tx_time.startswith(month)
+                        or (parsed_tx_time.year == fetched_at.year and parsed_tx_time.month == fetched_at.month)
+                    )
+                    if is_current_month:
+                        if is_income:
+                            income += amount
+                        else:
+                            expense += amount
+
+                    transactions.append(
+                        FinanceTransaction(
+                            id=tx_id,
+                            direction="Kirim" if is_income else "Chiqim",
+                            amount=amount,
+                            currency=currency,
+                            description=desc,
+                            occurred_at=tx_time or fetched_at.strftime("%Y-%m-%d"),
+                        )
+                    )
+        except Exception as exc:
+            logger.warning("[DatabaseFinanceSource] Error querying hisobchi_transactions: %s", exc)
+
+        all_income = sum((tx.amount for tx in transactions if tx.direction == "Kirim"), Decimal("0"))
+        all_expense = sum((tx.amount for tx in transactions if tx.direction == "Chiqim"), Decimal("0"))
+
+        return FinanceSnapshot(
+            balance=all_income - all_expense,
+            monthly_income=income,
+            monthly_expense=expense,
+            transactions=tuple(transactions),
+            source="hisobchi_turso_db",
+            source_status="fresh",
+            fetched_at=fetched_at,
+        )
+

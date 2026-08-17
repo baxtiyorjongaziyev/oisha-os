@@ -373,9 +373,13 @@ async def boot_application():
         logger.info("[HISOBCHI] Google Sheets backend is ready (spreadsheet: %s)", hisobchi_gs_id)
     else:
         hisobchi_gs_store = None
-        api_state.finance_source = None
+        from src.services.core.finance.finance_source import DatabaseFinanceSource
+        api_state.finance_source = DatabaseFinanceSource(
+            db,
+            tracking_start_date=settings.HISOBCHI_TRACKING_START_DATE,
+        )
         await init_hisobchi_tables(db)
-        logger.info("[HISOBCHI] Database schema is ready.")
+        logger.info("[HISOBCHI] Database schema is ready & DatabaseFinanceSource is active.")
     app_ctx.msg_controller = MessageController(api_keys=api_keys, db=db)
     msg_controller = app_ctx.msg_controller
 
