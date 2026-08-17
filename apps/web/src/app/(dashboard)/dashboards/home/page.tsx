@@ -29,10 +29,10 @@ export default async function HomePage() {
       name: 'Hisobchi AI',
       category: 'Moliya & Kassa',
       status: 'Faol',
-      statusColor: 'bg-[#137333] text-[#c4eed0] dark:bg-[#0f5223] dark:text-[#6dd58c]',
+      statusColor: 'bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]',
       latency: '24ms',
       icon: '💰',
-      detail: 'SMS, Karta tranzaksiyalari & Google Sheets 24/7 sinxron',
+      detail: 'SMS & karta tranzaksiyalari, Google Sheets 24/7 sinxron',
       actionUrl: '/finance',
     },
     {
@@ -40,10 +40,10 @@ export default async function HomePage() {
       name: 'FrogAgent',
       category: 'ROI Enforcer',
       status: 'Faol',
-      statusColor: 'bg-[#7c3aed] text-[#ede9fe] dark:bg-[#4a287a] dark:text-[#d0bcff]',
+      statusColor: 'bg-[#ede9fe] text-[#5b21b6] dark:bg-[#4c1d95] dark:text-[#c084fc]',
       latency: '18ms',
       icon: '🐸',
-      detail: 'Kunlik 09:00 Telegram brifingi & eng yuqori marjali vazifalar',
+      detail: 'Kunlik 09:00 Telegram brifingi & yuqori marjali vazifalar',
       actionUrl: '/tasks',
     },
     {
@@ -51,7 +51,7 @@ export default async function HomePage() {
       name: 'SalesCoach AI',
       category: 'Suhbat Sifati',
       status: 'Faol',
-      statusColor: 'bg-[#0b57d0] text-[#d3e3fd] dark:bg-[#004a77] dark:text-[#c2e7ff]',
+      statusColor: 'bg-[var(--accent-primary-light)] text-[var(--accent-primary-on-light)]',
       latency: '110ms',
       icon: '🎙',
       detail: 'Whisper ASR tahlili, A1-E3 mezonlari va skoring nazorati',
@@ -62,7 +62,7 @@ export default async function HomePage() {
       name: 'Telegram Dual-Head',
       category: 'Control Plane',
       status: 'Online',
-      statusColor: 'bg-[#137333] text-[#c4eed0] dark:bg-[#0f5223] dark:text-[#6dd58c]',
+      statusColor: 'bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]',
       latency: '35ms',
       icon: '⚡',
       detail: 'Aiogram 3.x Webhook + Oracle VM Telethon session keeper',
@@ -73,7 +73,7 @@ export default async function HomePage() {
       name: 'AmoCRM v4 Gateway',
       category: 'Sotuv Voronkasi',
       status: 'Ulangan',
-      statusColor: 'bg-[#0b57d0] text-[#d3e3fd] dark:bg-[#004a77] dark:text-[#c2e7ff]',
+      statusColor: 'bg-[var(--accent-primary-light)] text-[var(--accent-primary-on-light)]',
       latency: '45ms',
       icon: '🔄',
       detail: 'Hunter-Setter-Farmer deal pipeline & 500 limit nazorati',
@@ -84,7 +84,7 @@ export default async function HomePage() {
       name: 'Edge AI Personalizer',
       category: 'Veb Konversiya',
       status: 'Faol',
-      statusColor: 'bg-[#b06000] text-[#feeed2] dark:bg-[#4c3200] dark:text-[#fdd663]',
+      statusColor: 'bg-[#fef3c7] text-[#92400e] dark:bg-[#78350f]/30 dark:text-[#fbbf24]',
       latency: '12ms',
       icon: '🪄',
       detail: 'Cloudflare Workers + GA4 orqali jonbranding.uz dinamik kontenti',
@@ -95,9 +95,8 @@ export default async function HomePage() {
   const recentEvents = [
     {
       id: 1,
-      type: 'finance',
       badge: 'Kirim',
-      badgeBg: 'bg-[#c4eed0] text-[#0f5223] dark:bg-[#0f5223] dark:text-[#6dd58c]',
+      badgeBg: 'bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]',
       title: 'To\'lov qabul qilindi: +$2,400.00',
       detail: '"Apex Logistics" — Brendbuk va Qadoq dizayni 50% avansi (Hisobchi AI)',
       time: '12 daqiqa oldin',
@@ -105,9 +104,8 @@ export default async function HomePage() {
     },
     {
       id: 2,
-      type: 'crm',
       badge: 'Muzokara',
-      badgeBg: 'bg-[#d3e3fd] text-[#041e49] dark:bg-[#004a77] dark:text-[#c2e7ff]',
+      badgeBg: 'bg-[var(--accent-primary-light)] text-[var(--accent-primary-on-light)]',
       title: 'Lid bosqichi o\'zgardi: "KP yuborildi"',
       detail: '"Safir Klinika" — Mas\'ul: Baxtiyorjon (AmoCRM v4 Gateway)',
       time: '38 daqiqa oldin',
@@ -115,9 +113,8 @@ export default async function HomePage() {
     },
     {
       id: 3,
-      type: 'call',
       badge: '94% Ball',
-      badgeBg: 'bg-[#ede9fe] text-[#4a287a] dark:bg-[#4a287a] dark:text-[#d0bcff]',
+      badgeBg: 'bg-[#ede9fe] text-[#5b21b6] dark:bg-[#4c1d95] dark:text-[#c084fc]',
       title: 'Qo\'ng\'iroq tahlil qilindi (Whisper ASR)',
       detail: '"Grand Tour" — E\'tirozlar to\'liq bartaraf etildi, bitim summasi: $6,400',
       time: '1 soat oldin',
@@ -125,9 +122,8 @@ export default async function HomePage() {
     },
     {
       id: 4,
-      type: 'frog',
       badge: 'Frog Task',
-      badgeBg: 'bg-[#feeed2] text-[#4c3200] dark:bg-[#4c3200] dark:text-[#fdd663]',
+      badgeBg: 'bg-[#fef3c7] text-[#92400e] dark:bg-[#78350f]/30 dark:text-[#fbbf24]',
       title: 'Kunning 1-raqamli vazifasi bajarildi',
       detail: '"Orzu Mebel" bilan strategik shartnoma yakunlandi (Kutilgan daromad: +$3,800)',
       time: '2 soat oldin',
@@ -136,66 +132,63 @@ export default async function HomePage() {
   ];
 
   return (
-    <div className="space-y-7 pb-12">
-      {/* 1. Google Gemini Studio AI Omnibar Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 md:p-8 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="space-y-2">
+    <div className="space-y-6 pb-12">
+      {/* 1. Linear / Raycast Omnibar Hero Banner */}
+      <div className="relative overflow-hidden rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-6 md:p-7 shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="flex h-2.5 w-2.5 rounded-full bg-[#137333] dark:bg-[#6dd58c]"></span>
-              <span className="text-xs font-bold uppercase tracking-wider text-[#137333] dark:text-[#6dd58c]">
-                Google-Grade Agentic Intelligence • Live 24/7
+              <span className="flex h-2 w-2 rounded-full bg-[#059669]"></span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#059669] dark:text-[#34d399]">
+                The Apex Intelligence Center • Live 24/7
               </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--md-sys-color-on-surface)] flex items-center gap-2.5">
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[var(--text-primary)] flex items-center gap-2">
               <span>Assalomu alaykum, Baxtiyorjon</span>
-              <span className="inline-block animate-pulse">✨</span>
+              <span className="text-sm">✨</span>
             </h1>
-            <p className="text-xs md:text-sm text-[var(--md-sys-color-on-surface-variant)] max-w-2xl leading-relaxed">
-              Oisha OS barcha agentlik jarayonlarini — CRM sotuv voronkasi, kassa hisob-kitoblari va audio tahlillarni avtonom boshqarmoqda.
+            <p className="text-xs text-[var(--text-secondary)] max-w-2xl leading-relaxed">
+              Oisha OS agentik tizimi Jon Branding agentligining sotuv, moliya, vazifalar va qo&apos;ng&apos;iroq tahlillarini avtonom boshqarmoqda.
             </p>
           </div>
 
-          {/* Quick Action Pill Chips (Google Material 3 style) */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          {/* Quick Action Buttons (Stripe & Linear pill style) */}
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/finance"
-              className="inline-flex items-center gap-2 rounded-full bg-[#0b57d0] dark:bg-[#a8c7fa] dark:text-[#041e49] text-white px-4 py-2.5 text-xs font-bold shadow-sm hover:opacity-90 transition-all active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--accent-primary)] text-white px-3.5 py-2 text-xs font-bold shadow-xs hover:opacity-90 transition-all active:scale-[0.98]"
             >
               <span>+</span> Kirim / Chiqim
             </Link>
             <Link
               href="/crm"
-              className="inline-flex items-center gap-2 rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] px-4 py-2.5 text-xs font-bold hover:bg-[var(--md-sys-color-surface-container-high)] transition-all active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] text-[var(--text-primary)] px-3.5 py-2 text-xs font-semibold hover:bg-[var(--bg-surface-active)] transition-all active:scale-[0.98]"
             >
               <span>👥</span> Yangi Lid
             </Link>
             <Link
               href="/tasks"
-              className="inline-flex items-center gap-2 rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] px-4 py-2.5 text-xs font-bold hover:bg-[var(--md-sys-color-surface-container-high)] transition-all active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] text-[var(--text-primary)] px-3.5 py-2 text-xs font-semibold hover:bg-[var(--bg-surface-active)] transition-all active:scale-[0.98]"
             >
               <span>🐸</span> Frog Vazifa
             </Link>
           </div>
         </div>
 
-        {/* Gemini AI Prompt Shortcut Bar */}
-        <div className="mt-6 pt-5 border-t border-[var(--md-sys-color-outline-variant)]">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)] mb-2">
-            <span>✨ Tezkor AI buyruqlari:</span>
-          </div>
+        {/* Raycast Quick Shortcut Pills */}
+        <div className="mt-5 pt-4 border-t border-[var(--border-subtle)]">
           <div className="flex flex-wrap gap-2">
             {[
-              { label: "💰 Kassa Balansi: $18,450", href: "/finance" },
-              { label: "🐸 Bugungi Frog: 'Orzu Mebel'", href: "/tasks" },
+              { label: "💰 Kassa: $18,450", href: "/finance" },
+              { label: "🐸 Frog: 'Orzu Mebel'", href: "/tasks" },
               { label: "👥 34 ta Issiq Lidlar", href: "/crm" },
-              { label: "🎙 Whisper Suhbat Skoring: 88%", href: "/calls" },
-              { label: "⚡ Oracle VM: Telethon Live", href: "/settings" },
+              { label: "🎙 Whisper Skoring: 88%", href: "/calls" },
+              { label: "⚡ Telethon Live (Oracle VM)", href: "/settings" },
             ].map((chip, idx) => (
               <Link
                 key={idx}
                 href={chip.href}
-                className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3.5 py-1.5 text-[11px] font-semibold text-[var(--md-sys-color-on-surface)] hover:bg-[var(--md-sys-color-surface-container)] transition-all shadow-sm"
+                className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)]/40 transition-all"
               >
                 {chip.label}
               </Link>
@@ -204,159 +197,159 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* 2. Google Cloud Style Tonal Metric Cards (4 Cards) */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 2. Stripe Financial & Business Metric Cards (4 Cards) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: CRM Leads */}
-        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm hover:border-[#0b57d0]/40 transition-all">
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs hover:border-[var(--accent-primary)]/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
               AmoCRM Faol Lidlar
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-[#d3e3fd] text-[#041e49] dark:bg-[#004a77] dark:text-[#c2e7ff] text-sm font-bold">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--accent-primary-light)] text-[var(--accent-primary-on-light)] text-xs font-bold">
               👥
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black tracking-tight text-[var(--md-sys-color-on-surface)]">
+          <div className="mt-2.5 flex items-baseline gap-2">
+            <span className="text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--text-primary)]">
               {totalLeads}
             </span>
-            <span className="rounded-full bg-[#c4eed0] dark:bg-[#0f5223] px-2 py-0.5 text-[10px] font-bold text-[#0f5223] dark:text-[#6dd58c]">
+            <span className="rounded-md bg-[#d1fae5] dark:bg-[#064e3b] px-1.5 py-0.5 text-[10px] font-bold text-[#065f46] dark:text-[#34d399]">
               {hotLeads} ta Issiq 🔥
             </span>
           </div>
-          <div className="mt-4 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
             <span>500 bitim kvotasi:</span>
-            <strong className="text-[var(--md-sys-color-on-surface)]">{500 - totalLeads} bo&apos;sh joy (97%)</strong>
+            <strong className="text-[var(--text-primary)]">{500 - totalLeads} bo&apos;sh (97%)</strong>
           </div>
         </div>
 
-        {/* Card 2: Active Pipeline & Deals */}
-        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm hover:border-[#0b57d0]/40 transition-all">
+        {/* Card 2: Active Deals */}
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs hover:border-[var(--accent-primary)]/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
               Muzokaralar Voronkasi
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-[#c4eed0] text-[#0f5223] dark:bg-[#0f5223] dark:text-[#6dd58c] text-sm font-bold">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399] text-xs font-bold">
               💼
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black tracking-tight text-[#137333] dark:text-[#6dd58c]">
+          <div className="mt-2.5 flex items-baseline gap-2">
+            <span className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#059669] dark:text-[#34d399]">
               {inNegotiation}
             </span>
-            <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-              (Yopilgan: <strong className="text-[var(--md-sys-color-on-surface)]">{closedThisMonth}</strong>)
+            <span className="text-xs text-[var(--text-secondary)]">
+              (Yopilgan: <strong className="text-[var(--text-primary)]">{closedThisMonth}</strong>)
             </span>
           </div>
-          <div className="mt-4 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
             <span>Voronka qiymati:</span>
-            <strong className="text-[#137333] dark:text-[#6dd58c]">${pipelineValue.toLocaleString()}</strong>
+            <strong className="text-[#059669] dark:text-[#34d399]">${pipelineValue.toLocaleString()}</strong>
           </div>
         </div>
 
-        {/* Card 3: Finance / Hisobchi AI */}
-        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm hover:border-[#0b57d0]/40 transition-all">
+        {/* Card 3: Finance / Hisobchi */}
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs hover:border-[var(--accent-primary)]/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
               Kassa & Sof Foyda
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-[#feeed2] text-[#4c3200] dark:bg-[#4c3200] dark:text-[#fdd663] text-sm font-bold">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#fef3c7] text-[#92400e] dark:bg-[#78350f]/30 dark:text-[#fbbf24] text-xs font-bold">
               💰
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black tracking-tight text-[var(--md-sys-color-on-surface)]">
+          <div className="mt-2.5 flex items-baseline gap-2">
+            <span className="text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--text-primary)]">
               ${balance.toLocaleString()}
             </span>
-            <span className="text-xs font-bold text-[#137333] dark:text-[#6dd58c]">
+            <span className="text-xs font-bold text-[#059669] dark:text-[#34d399]">
               {profitMargin}% marja
             </span>
           </div>
-          <div className="mt-4 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
-            <span className="text-[#137333] dark:text-[#6dd58c] font-semibold">+${income.toLocaleString()}</span>
-            <span className="text-[#b3261e] dark:text-[#f28b82] font-semibold">-${expense.toLocaleString()}</span>
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
+            <span className="text-[#059669] dark:text-[#34d399] font-semibold">+${income.toLocaleString()}</span>
+            <span className="text-[#dc2626] dark:text-[#f87171] font-semibold">-${expense.toLocaleString()}</span>
           </div>
         </div>
 
-        {/* Card 4: FrogAgent Priority Tasks */}
-        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm hover:border-[#0b57d0]/40 transition-all">
+        {/* Card 4: Frog ROI Tasks */}
+        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs hover:border-[var(--accent-primary)]/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
               Frog ROI Intizomi
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-[#ede9fe] text-[#4a287a] dark:bg-[#4a287a] dark:text-[#d0bcff] text-sm font-bold">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#ede9fe] text-[#5b21b6] dark:bg-[#4c1d95] dark:text-[#c084fc] text-xs font-bold">
               🐸
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black tracking-tight text-[#7c3aed] dark:text-[#d0bcff]">
+          <div className="mt-2.5 flex items-baseline gap-2">
+            <span className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#7c3aed] dark:text-[#c084fc]">
               {pendingTasks}
             </span>
-            <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+            <span className="text-xs text-[var(--text-secondary)]">
               vazifa kutilmoqda
             </span>
           </div>
-          <div className="mt-4 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
             <span>Bugun bajarildi:</span>
-            <strong className="text-[#7c3aed] dark:text-[#d0bcff]">{completedToday} ta topshiriq</strong>
+            <strong className="text-[#7c3aed] dark:text-[#c084fc]">{completedToday} ta topshiriq</strong>
           </div>
         </div>
       </div>
 
-      {/* 3. Autonomous AI Swarm Telemetry Hub */}
-      <div className="space-y-4">
+      {/* 3. Apple HIG Fluid Swarm Telemetry Hub */}
+      <div className="space-y-3.5">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-[var(--md-sys-color-on-surface)]">
+            <h2 className="text-base font-bold text-[var(--text-primary)]">
               AI Agentlar Tizimi (Swarm Telemetry)
             </h2>
-            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+            <p className="text-xs text-[var(--text-secondary)]">
               Barcha 6 ta avtonom modul real vaqtda bir-biri bilan integratsiyalashgan.
             </p>
           </div>
-          <span className="rounded-full bg-[#c4eed0] text-[#0f5223] dark:bg-[#0f5223] dark:text-[#6dd58c] px-3 py-1 text-xs font-bold flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-[#137333] dark:bg-[#6dd58c] animate-ping"></span>
-            6 / 6 Operatsion Faol
+          <span className="rounded-full bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399] px-2.5 py-0.5 text-xs font-bold flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#059669] animate-ping"></span>
+            6 / 6 Faol
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {agentSwarm.map((agent) => (
             <Link
               key={agent.id}
               href={agent.actionUrl}
-              className="group flex flex-col justify-between rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-5 shadow-sm hover:border-[#0b57d0] hover:shadow-md transition-all active:scale-[0.99]"
+              className="group flex flex-col justify-between rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-xs hover:border-[var(--accent-primary)] transition-all active:scale-[0.99]"
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--md-sys-color-surface-container)] text-xl shadow-inner">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--bg-surface-subtle)] text-lg shadow-xs">
                       {agent.icon}
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-[var(--md-sys-color-on-surface)] group-hover:text-[#0b57d0] dark:group-hover:text-[#a8c7fa] transition-colors">
+                      <h3 className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[var(--accent-primary)] transition-colors">
                         {agent.name}
                       </h3>
-                      <span className="text-[10px] text-[var(--md-sys-color-on-surface-variant)] font-semibold">
+                      <span className="text-[10px] text-[var(--text-secondary)] font-medium">
                         {agent.category}
                       </span>
                     </div>
                   </div>
-                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${agent.statusColor}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${agent.statusColor}`}>
                     {agent.status}
                   </span>
                 </div>
 
-                <p className="mt-3 text-xs text-[var(--md-sys-color-on-surface-variant)] line-clamp-2 leading-relaxed">
+                <p className="mt-2.5 text-[11px] text-[var(--text-secondary)] line-clamp-2 leading-relaxed">
                   {agent.detail}
                 </p>
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-[var(--md-sys-color-outline-variant)] pt-3 text-[11px]">
-                <span className="font-mono text-[10px] text-[var(--md-sys-color-on-surface-variant)]">
+              <div className="mt-3.5 flex items-center justify-between border-t border-[var(--border-subtle)] pt-2.5 text-[10px]">
+                <span className="font-mono text-[var(--text-tertiary)]">
                   Latency: {agent.latency}
                 </span>
-                <span className="font-bold text-[#0b57d0] dark:text-[#a8c7fa] group-hover:translate-x-1 transition-transform">
+                <span className="font-bold text-[var(--accent-primary)] group-hover:translate-x-0.5 transition-transform">
                   Boshqarish →
                 </span>
               </div>
@@ -365,100 +358,100 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* 4. Hunter-Setter-Farmer Funnel & Live Activity Feed Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-7">
-        {/* Left 2 Cols: Hunter-Setter-Farmer Pipeline Stages */}
-        <div className="lg:col-span-2 space-y-4">
+      {/* 4. Shopify/Polaris Funnel & Live Event Stream */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left 2 Cols: Hunter-Setter-Farmer Funnel */}
+        <div className="lg:col-span-2 space-y-3.5">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-[var(--md-sys-color-on-surface)]">
+              <h2 className="text-base font-bold text-[var(--text-primary)]">
                 Hunter-Setter-Farmer Voronkasi
               </h2>
-              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+              <p className="text-xs text-[var(--text-secondary)]">
                 AmoCRM v4 dagi bitimlarning konversiya va bosqichlar progressi
               </p>
             </div>
-            <Link href="/crm" className="text-xs font-bold text-[#0b57d0] dark:text-[#a8c7fa] hover:underline">
+            <Link href="/crm" className="text-xs font-bold text-[var(--accent-primary)] hover:underline">
               CRM ga o&apos;tish →
             </Link>
           </div>
 
-          <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm space-y-5">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="rounded-2xl bg-[var(--md-sys-color-surface-container-low)] p-4 border border-[var(--md-sys-color-outline-variant)]">
-                <span className="text-[10px] font-bold uppercase text-[#0b57d0] dark:text-[#a8c7fa]">1. Hunter (Yangi)</span>
-                <div className="text-xl font-extrabold text-[var(--md-sys-color-on-surface)] mt-1">34 ta</div>
-                <span className="text-[11px] text-[var(--md-sys-color-on-surface-variant)] mt-0.5 block">$18,200</span>
+          <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="rounded-xl bg-[var(--bg-surface-subtle)] p-3 border border-[var(--border-subtle)]">
+                <span className="text-[9px] font-bold uppercase text-[var(--accent-primary)]">1. Hunter</span>
+                <div className="text-lg font-bold text-[var(--text-primary)] mt-0.5">34 ta</div>
+                <span className="text-[10px] text-[var(--text-secondary)] block">$18,200</span>
               </div>
-              <div className="rounded-2xl bg-[var(--md-sys-color-surface-container-low)] p-4 border border-[var(--md-sys-color-outline-variant)]">
-                <span className="text-[10px] font-bold uppercase text-[#b06000] dark:text-[#fdd663]">2. Setter (Brif)</span>
-                <div className="text-xl font-extrabold text-[var(--md-sys-color-on-surface)] mt-1">19 ta</div>
-                <span className="text-[11px] text-[var(--md-sys-color-on-surface-variant)] mt-0.5 block">$15,400</span>
+              <div className="rounded-xl bg-[var(--bg-surface-subtle)] p-3 border border-[var(--border-subtle)]">
+                <span className="text-[9px] font-bold uppercase text-[#d97706] dark:text-[#fbbf24]">2. Setter</span>
+                <div className="text-lg font-bold text-[var(--text-primary)] mt-0.5">19 ta</div>
+                <span className="text-[10px] text-[var(--text-secondary)] block">$15,400</span>
               </div>
-              <div className="rounded-2xl bg-[var(--md-sys-color-surface-container-low)] p-4 border border-[var(--md-sys-color-outline-variant)]">
-                <span className="text-[10px] font-bold uppercase text-[#7c3aed] dark:text-[#d0bcff]">3. Muzokara & KP</span>
-                <div className="text-xl font-extrabold text-[var(--md-sys-color-on-surface)] mt-1">28 ta</div>
-                <span className="text-[11px] text-[var(--md-sys-color-on-surface-variant)] mt-0.5 block">$42,800</span>
+              <div className="rounded-xl bg-[var(--bg-surface-subtle)] p-3 border border-[var(--border-subtle)]">
+                <span className="text-[9px] font-bold uppercase text-[#7c3aed] dark:text-[#c084fc]">3. Muzokara</span>
+                <div className="text-lg font-bold text-[var(--text-primary)] mt-0.5">28 ta</div>
+                <span className="text-[10px] text-[var(--text-secondary)] block">$42,800</span>
               </div>
-              <div className="rounded-2xl bg-[var(--md-sys-color-surface-container-low)] p-4 border border-[var(--md-sys-color-outline-variant)]">
-                <span className="text-[10px] font-bold uppercase text-[#137333] dark:text-[#6dd58c]">4. Farmer (Yopildi)</span>
-                <div className="text-xl font-extrabold text-[var(--md-sys-color-on-surface)] mt-1">12 ta</div>
-                <span className="text-[11px] text-[var(--md-sys-color-on-surface-variant)] mt-0.5 block">$24,600</span>
+              <div className="rounded-xl bg-[var(--bg-surface-subtle)] p-3 border border-[var(--border-subtle)]">
+                <span className="text-[9px] font-bold uppercase text-[#059669] dark:text-[#34d399]">4. Farmer</span>
+                <div className="text-lg font-bold text-[var(--text-primary)] mt-0.5">12 ta</div>
+                <span className="text-[10px] text-[var(--text-secondary)] block">$24,600</span>
               </div>
             </div>
 
             {/* Funnel Progress Visualizer */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs font-bold text-[var(--md-sys-color-on-surface)]">
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs font-bold text-[var(--text-primary)]">
                 <span>Konversiya zanjiri:</span>
-                <span className="text-[#137333] dark:text-[#6dd58c]">28.4% Umumiy samaradorlik</span>
+                <span className="text-[#059669] dark:text-[#34d399]">28.4% Umumiy samaradorlik</span>
               </div>
-              <div className="h-3.5 w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container-highest)] flex">
-                <div style={{ width: "35%" }} className="h-full bg-[#0b57d0] title='Hunter'"></div>
-                <div style={{ width: "20%" }} className="h-full bg-[#b06000] title='Setter'"></div>
-                <div style={{ width: "30%" }} className="h-full bg-[#7c3aed] title='Muzokara'"></div>
-                <div style={{ width: "15%" }} className="h-full bg-[#137333] title='Yopildi'"></div>
+              <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--bg-surface-active)] flex">
+                <div style={{ width: "35%" }} className="h-full bg-[var(--accent-primary)]"></div>
+                <div style={{ width: "20%" }} className="h-full bg-[#d97706]"></div>
+                <div style={{ width: "30%" }} className="h-full bg-[#7c3aed]"></div>
+                <div style={{ width: "15%" }} className="h-full bg-[#059669]"></div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Right 1 Col: Real-time Event Stream */}
-        <div className="space-y-4">
+        <div className="space-y-3.5">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-[var(--md-sys-color-on-surface)]">
-                Jonli Voqealar Oqimi
+              <h2 className="text-base font-bold text-[var(--text-primary)]">
+                Jonli Voqealar
               </h2>
-              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                Agentlar faoliyati jurnali
+              <p className="text-xs text-[var(--text-secondary)]">
+                Agentlar faoliyati
               </p>
             </div>
-            <span className="rounded-full bg-[var(--md-sys-color-surface-container)] px-2.5 py-0.5 text-[10px] font-mono text-[var(--md-sys-color-on-surface-variant)]">
+            <span className="rounded-md bg-[var(--bg-surface-subtle)] px-2 py-0.5 text-[9px] font-mono text-[var(--text-secondary)]">
               Live
             </span>
           </div>
 
-          <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-5 shadow-sm space-y-4">
+          <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-xs space-y-3.5">
             {recentEvents.map((evt) => (
               <div
                 key={evt.id}
-                className="flex items-start gap-3 border-b border-[var(--md-sys-color-outline-variant)] pb-3.5 last:border-0 last:pb-0"
+                className="flex items-start gap-2.5 border-b border-[var(--border-subtle)] pb-3 last:border-0 last:pb-0"
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[var(--md-sys-color-surface-container)] text-lg shadow-inner">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-surface-subtle)] text-base shadow-xs">
                   {evt.icon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${evt.badgeBg}`}>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className={`rounded-md px-1.5 py-0.5 text-[8px] font-bold ${evt.badgeBg}`}>
                       {evt.badge}
                     </span>
-                    <span className="text-[10px] text-[var(--md-sys-color-on-surface-variant)] shrink-0">{evt.time}</span>
+                    <span className="text-[9px] text-[var(--text-tertiary)] shrink-0">{evt.time}</span>
                   </div>
-                  <h4 className="mt-1 text-xs font-bold text-[var(--md-sys-color-on-surface)] truncate">
+                  <h4 className="mt-0.5 text-xs font-bold text-[var(--text-primary)] truncate">
                     {evt.title}
                   </h4>
-                  <p className="mt-0.5 text-[11px] text-[var(--md-sys-color-on-surface-variant)] line-clamp-2">
+                  <p className="mt-0.5 text-[10px] text-[var(--text-secondary)] line-clamp-2">
                     {evt.detail}
                   </p>
                 </div>
@@ -467,9 +460,9 @@ export default async function HomePage() {
 
             <Link
               href="/crm"
-              className="mt-2 block w-full rounded-2xl bg-[var(--md-sys-color-surface-container)] py-2.5 text-center text-xs font-bold text-[#0b57d0] dark:text-[#a8c7fa] hover:bg-[var(--md-sys-color-surface-container-high)] transition-colors"
+              className="mt-1 block w-full rounded-xl bg-[var(--bg-surface-subtle)] py-2 text-center text-xs font-bold text-[var(--accent-primary)] hover:bg-[var(--bg-surface-active)] transition-colors"
             >
-              Barcha jurnallarni ochish →
+              Barcha jurnallar →
             </Link>
           </div>
         </div>

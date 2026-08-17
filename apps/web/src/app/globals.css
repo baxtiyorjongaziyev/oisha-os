@@ -6,132 +6,155 @@
 :root {
   color-scheme: light;
 
-  /* Google Material Design 3 — Light Theme Tokens */
-  --md-sys-color-background: #f8fafd;
-  --md-sys-color-surface: #ffffff;
-  --md-sys-color-surface-container-low: #f3f6fb;
-  --md-sys-color-surface-container: #edf2f9;
-  --md-sys-color-surface-container-high: #e5ecf5;
-  --md-sys-color-surface-container-highest: #dbe4f0;
+  /* The Apex Design System Tokens: Cohesive Blend of Google MD3, Linear, Apple HIG & Stripe */
 
-  --md-sys-color-on-surface: #191c20;
-  --md-sys-color-on-surface-variant: #43474e;
-  --md-sys-color-outline: rgba(0, 0, 0, 0.08);
-  --md-sys-color-outline-variant: rgba(0, 0, 0, 0.05);
+  /* Surface & Background Hierarchy (Google MD3 + Apple HIG) */
+  --bg-app: #f6f8fa;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #ffffff;
+  --bg-surface-subtle: #f0f3f6;
+  --bg-surface-active: #e8ecf1;
+  --bg-glass: rgba(255, 255, 255, 0.85);
 
-  /* Google Brand Colors */
-  --brand: #0b57d0;
-  --brand-hover: #0842a0;
-  --brand-light: #d3e3fd;
-  --brand-on-light: #041e49;
+  /* Typography Colors (Linear High-Contrast & Muted) */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-brand: #0284c7;
 
-  --google-blue: #0b57d0;
-  --google-green: #137333;
-  --google-green-light: #c4eed0;
-  --google-amber: #b06000;
-  --google-amber-light: #feeed2;
-  --google-red: #b3261e;
-  --google-red-light: #f9dedc;
-  --google-purple: #7c3aed;
-  --google-purple-light: #ede9fe;
+  /* Borders & Dividers (Linear 1px Crisp Borders) */
+  --border-subtle: rgba(15, 23, 42, 0.06);
+  --border-default: rgba(15, 23, 42, 0.1);
+  --border-focus: #0284c7;
 
-  /* Legacy variable mappings for backward compatibility */
-  --bg-app: var(--md-sys-color-background);
-  --bg-card: var(--md-sys-color-surface);
-  --bg-popover: var(--md-sys-color-surface);
-  --text-main: var(--md-sys-color-on-surface);
-  --text-muted: var(--md-sys-color-on-surface-variant);
-  --border-color: var(--md-sys-color-outline);
+  /* Brand Accents (Stripe FinTech Blue & Emerald) */
+  --accent-primary: #0284c7;
+  --accent-primary-hover: #0369a1;
+  --accent-primary-light: #e0f2fe;
+  --accent-primary-on-light: #0369a1;
+
+  --accent-success: #059669;
+  --accent-success-light: #d1fae5;
+  --accent-warning: #d97706;
+  --accent-warning-light: #fef3c7;
+  --accent-danger: #dc2626;
+  --accent-danger-light: #fee2e2;
+  --accent-purple: #7c3aed;
+  --accent-purple-light: #ede9fe;
+
+  /* Backward compatibility tokens */
+  --brand: var(--accent-primary);
+  --brand-hover: var(--accent-primary-hover);
+  --brand-light: var(--accent-primary-light);
+  --md-sys-color-background: var(--bg-app);
+  --md-sys-color-surface: var(--bg-surface);
+  --md-sys-color-surface-container: var(--bg-surface-subtle);
+  --md-sys-color-surface-container-high: var(--bg-surface-active);
+  --md-sys-color-surface-container-low: var(--bg-app);
+  --md-sys-color-on-surface: var(--text-primary);
+  --md-sys-color-on-surface-variant: var(--text-secondary);
+  --md-sys-color-outline: var(--border-default);
+  --md-sys-color-outline-variant: var(--border-subtle);
 }
 
 .dark {
   color-scheme: dark;
 
-  /* Google Material Design 3 — Dark Theme Tokens (Gemini Studio aesthetic) */
-  --md-sys-color-background: #131314;
-  --md-sys-color-surface: #1e1f20;
-  --md-sys-color-surface-container-low: #18191a;
-  --md-sys-color-surface-container: #282a2c;
-  --md-sys-color-surface-container-high: #333538;
-  --md-sys-color-surface-container-highest: #3e4043;
+  /* Dark Mode: Linear Monoxrom Elegance + Gemini Dark Studio */
+  --bg-app: #0b0d11;
+  --bg-surface: #12151c;
+  --bg-surface-elevated: #181c26;
+  --bg-surface-subtle: #1e2330;
+  --bg-surface-active: #262c3d;
+  --bg-glass: rgba(18, 21, 28, 0.85);
 
-  --md-sys-color-on-surface: #e3e3e3;
-  --md-sys-color-on-surface-variant: #c4c7c5;
-  --md-sys-color-outline: rgba(255, 255, 255, 0.08);
-  --md-sys-color-outline-variant: rgba(255, 255, 255, 0.04);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --text-brand: #38bdf8;
 
-  /* Google Brand Colors Dark */
-  --brand: #a8c7fa;
-  --brand-hover: #c2e7ff;
-  --brand-light: #004a77;
-  --brand-on-light: #c2e7ff;
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-default: rgba(255, 255, 255, 0.09);
+  --border-focus: #38bdf8;
 
-  --google-blue: #a8c7fa;
-  --google-green: #6dd58c;
-  --google-green-light: #0f5223;
-  --google-amber: #fdd663;
-  --google-amber-light: #4c3200;
-  --google-red: #f28b82;
-  --google-red-light: #601410;
-  --google-purple: #d0bcff;
-  --google-purple-light: #4a287a;
+  --accent-primary: #38bdf8;
+  --accent-primary-hover: #7dd3fc;
+  --accent-primary-light: rgba(56, 189, 248, 0.15);
+  --accent-primary-on-light: #38bdf8;
 
-  --bg-app: var(--md-sys-color-background);
-  --bg-card: var(--md-sys-color-surface);
-  --bg-popover: var(--md-sys-color-surface-container);
-  --text-main: var(--md-sys-color-on-surface);
-  --text-muted: var(--md-sys-color-on-surface-variant);
-  --border-color: var(--md-sys-color-outline);
+  --accent-success: #34d399;
+  --accent-success-light: rgba(52, 211, 153, 0.15);
+  --accent-warning: #fbbf24;
+  --accent-warning-light: rgba(251, 191, 36, 0.15);
+  --accent-danger: #f87171;
+  --accent-danger-light: rgba(248, 113, 113, 0.15);
+  --accent-purple: #c084fc;
+  --accent-purple-light: rgba(192, 132, 252, 0.15);
+
+  --brand: var(--accent-primary);
+  --brand-hover: var(--accent-primary-hover);
+  --brand-light: var(--accent-primary-light);
+  --md-sys-color-background: var(--bg-app);
+  --md-sys-color-surface: var(--bg-surface);
+  --md-sys-color-surface-container: var(--bg-surface-subtle);
+  --md-sys-color-surface-container-high: var(--bg-surface-active);
+  --md-sys-color-surface-container-low: var(--bg-app);
+  --md-sys-color-on-surface: var(--text-primary);
+  --md-sys-color-on-surface-variant: var(--text-secondary);
+  --md-sys-color-outline: var(--border-default);
+  --md-sys-color-outline-variant: var(--border-subtle);
 }
 
-/* Material 3 Card Elevation and Hover States */
-.md-elevation-1 {
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+/* Linear & Apple Card Elevations */
+.apex-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 3px 1px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.md-elevation-2 {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+.apex-card:hover {
+  border-color: rgba(2, 132, 199, 0.3);
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.05);
 }
 
-.md-elevation-3 {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+.dark .apex-card:hover {
+  border-color: rgba(56, 189, 248, 0.25);
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.3);
 }
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--md-sys-color-outline);
+  background: var(--border-default);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--md-sys-color-on-surface-variant);
+  background: var(--text-tertiary);
 }
 
 body {
-  background-color: var(--md-sys-color-background);
-  color: var(--md-sys-color-on-surface);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
   min-height: 100vh;
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   transition: background-color 0.2s ease, color 0.2s ease;
+  overflow-x: hidden;
 }
 
-/* Google-style animation utilities */
-@keyframes mdFadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+/* Snappy Animations */
+@keyframes apexFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
-  animation: mdFadeIn 0.25s cubic-bezier(0.2, 0, 0, 1) forwards;
-}
-
-/* Google Sparkle Gradient */
-.gemini-sparkle-bg {
-  background: linear-gradient(135deg, #7c3aed 0%, #0b57d0 50%, #00875a 100%);
+  animation: apexFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
