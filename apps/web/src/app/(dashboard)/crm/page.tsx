@@ -66,139 +66,141 @@ export default async function CRMDashboard() {
   ];
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-7 pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-0.5 rounded-full">
-              AMOCRM V4 PIPELINE
+            <span className="text-xs font-bold uppercase tracking-wider text-[#0b57d0] dark:text-[#a8c7fa] bg-[#d3e3fd] dark:bg-[#004a77] px-2.5 py-0.5 rounded-full">
+              AMOCRM V4 • HUNTER-SETTER-FARMER
             </span>
-            <span className="text-xs text-text-muted">• Hunter-Setter-Farmer</span>
+            <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">• 500 Bitim Limiti Nazoratda</span>
           </div>
-          <h1 className="mt-1 text-2xl md:text-3xl font-extrabold tracking-tight text-text">
+          <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-[var(--md-sys-color-on-surface)]">
             Sotuv Voronkasi & Lidlar
           </h1>
-          <p className="mt-0.5 text-xs text-text-muted">
-            500 ta bitim limiti qat&apos;iy nazoratda: Hozirda <strong>{totalLeads} / 500</strong> ta faol bitim mavjud.
+          <p className="mt-0.5 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+            Hozirda <strong>{totalLeads} / 500</strong> ta faol bitim mavjud (97.4% bandlik).
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button className="rounded-2xl border border-border bg-bg-card px-4 py-2.5 text-xs font-bold text-text hover:bg-bg transition-all active:scale-[0.98]">
+        <div className="flex items-center gap-2.5">
+          <button className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container)] px-4 py-2.5 text-xs font-bold text-[var(--md-sys-color-on-surface)] hover:bg-[var(--md-sys-color-surface-container-high)] transition-all active:scale-[0.98]">
             🔄 Sinxronlash
           </button>
-          <button className="rounded-2xl bg-brand text-white px-4 py-2.5 text-xs font-bold hover:bg-brand-hover shadow-md shadow-brand/20 transition-all active:scale-[0.98]">
+          <button className="rounded-full bg-[#0b57d0] dark:bg-[#a8c7fa] dark:text-[#041e49] text-white px-5 py-2.5 text-xs font-bold shadow-sm hover:opacity-90 transition-all active:scale-[0.98]">
             + Yangi Lid qo&apos;shish
           </button>
         </div>
       </div>
 
-      {/* 4 Pipeline Metric Cards */}
+      {/* 4 Pipeline Tonal Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="rounded-3xl border border-border bg-bg-card p-6 shadow-sm">
-          <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
+        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
             Jami Faol Lidlar
           </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-text">
+          <div className="mt-2 text-3xl font-black tracking-tight text-[var(--md-sys-color-on-surface)]">
             {totalLeads}
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-text-muted border-t border-border/50 pt-3">
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
             <span>AmoCRM sig&apos;imi:</span>
-            <span className="font-bold text-emerald-600">97.4% band</span>
+            <strong className="text-[#137333] dark:text-[#6dd58c]">97.4% band</strong>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-border bg-bg-card p-6 shadow-sm">
-          <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
+        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
             Hunter (Yangi so&apos;rovlar)
           </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-blue-600 dark:text-blue-400">
+          <div className="mt-2 text-3xl font-black tracking-tight text-[#0b57d0] dark:text-[#a8c7fa]">
             {newLeads}
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-text-muted border-t border-border/50 pt-3">
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
             <span>Saralash tezligi:</span>
-            <span className="font-semibold text-text">&lt; 15 daqiqa</span>
+            <strong className="text-[var(--md-sys-color-on-surface)]">&lt; 15 daqiqa</strong>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-border bg-bg-card p-6 shadow-sm">
-          <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
+        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
             Setter (Muzokarada)
           </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-purple-600 dark:text-purple-400">
+          <div className="mt-2 text-3xl font-black tracking-tight text-[#7c3aed] dark:text-[#d0bcff]">
             {inNegotiation}
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-text-muted border-t border-border/50 pt-3">
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
             <span>Kutilayotgan summa:</span>
-            <span className="font-bold text-purple-600">$42,800</span>
+            <strong className="text-[#7c3aed] dark:text-[#d0bcff]">$42,800</strong>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-border bg-bg-card p-6 shadow-sm">
-          <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
+        <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--md-sys-color-on-surface-variant)]">
             Farmer (Yopilgan & LTV)
           </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
+          <div className="mt-2 text-3xl font-black tracking-tight text-[#137333] dark:text-[#6dd58c]">
             {closedThisMonth}
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-text-muted border-t border-border/50 pt-3">
+          <div className="mt-3 flex items-center justify-between text-xs text-[var(--md-sys-color-on-surface-variant)] border-t border-[var(--md-sys-color-outline-variant)] pt-3">
             <span>Konversiya darajasi:</span>
-            <span className="font-bold text-emerald-600">28.4%</span>
+            <strong className="text-[#137333] dark:text-[#6dd58c]">28.4%</strong>
           </div>
         </div>
       </div>
 
       {/* Pipeline Stage Bar */}
-      <div className="rounded-3xl border border-border bg-bg-card p-6 shadow-sm space-y-4">
+      <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-text">Sotuv Voronkasi Bosqichlari</h3>
-          <span className="text-xs text-text-muted font-mono">DeepSales AI Enriched</span>
+          <h3 className="text-sm font-bold text-[var(--md-sys-color-on-surface)]">
+            Sotuv Voronkasi Bosqichlari (DeepSales AI Enriched)
+          </h3>
+          <span className="text-xs text-[var(--md-sys-color-on-surface-variant)] font-mono">Live Matrix</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <div className="rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 p-4">
-            <span className="text-[10px] font-bold uppercase text-blue-600">1. Yangi Lid</span>
-            <div className="text-xl font-extrabold text-text mt-1">34 ta</div>
-            <span className="text-[11px] text-text-muted mt-0.5 block">$18,200</span>
+          <div className="rounded-2xl bg-[var(--md-sys-color-surface-container-low)] p-4 border border-[var(--md-sys-color-outline-variant)]">
+            <span className="text-[10px] font-bold uppercase text-[#0b57d0] dark:text-[#a8c7fa]">1. Yangi Lid</span>
+            <div className="text-xl font-extrabold text-[var(--md-sys-color-on-surface)] mt-1">34 ta</div>
+            <span className="text-[11px] text-[var(--md-sys-color-on-surface-variant)] mt-0.5 block">$18,200</span>
           </div>
-          <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 p-4">
-            <span className="text-[10px] font-bold uppercase text-amber-600">2. Brif & Malakalash</span>
-            <div className="text-xl font-extrabold text-text mt-1">19 ta</div>
-            <span className="text-[11px] text-text-muted mt-0.5 block">$15,400</span>
+          <div className="rounded-2xl bg-[var(--md-sys-color-surface-container-low)] p-4 border border-[var(--md-sys-color-outline-variant)]">
+            <span className="text-[10px] font-bold uppercase text-[#b06000] dark:text-[#fdd663]">2. Brif & Malakalash</span>
+            <div className="text-xl font-extrabold text-[var(--md-sys-color-on-surface)] mt-1">19 ta</div>
+            <span className="text-[11px] text-[var(--md-sys-color-on-surface-variant)] mt-0.5 block">$15,400</span>
           </div>
-          <div className="rounded-2xl bg-purple-50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40 p-4">
-            <span className="text-[10px] font-bold uppercase text-purple-600">3. KP & Muzokara</span>
-            <div className="text-xl font-extrabold text-text mt-1">28 ta</div>
-            <span className="text-[11px] text-text-muted mt-0.5 block">$42,800</span>
+          <div className="rounded-2xl bg-[var(--md-sys-color-surface-container-low)] p-4 border border-[var(--md-sys-color-outline-variant)]">
+            <span className="text-[10px] font-bold uppercase text-[#7c3aed] dark:text-[#d0bcff]">3. KP & Muzokara</span>
+            <div className="text-xl font-extrabold text-[var(--md-sys-color-on-surface)] mt-1">28 ta</div>
+            <span className="text-[11px] text-[var(--md-sys-color-on-surface-variant)] mt-0.5 block">$42,800</span>
           </div>
-          <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 p-4">
-            <span className="text-[10px] font-bold uppercase text-emerald-600">4. Shartnoma & Yopildi</span>
-            <div className="text-xl font-extrabold text-text mt-1">12 ta</div>
-            <span className="text-[11px] text-text-muted mt-0.5 block">$24,600</span>
+          <div className="rounded-2xl bg-[var(--md-sys-color-surface-container-low)] p-4 border border-[var(--md-sys-color-outline-variant)]">
+            <span className="text-[10px] font-bold uppercase text-[#137333] dark:text-[#6dd58c]">4. Shartnoma & Yopildi</span>
+            <div className="text-xl font-extrabold text-[var(--md-sys-color-on-surface)] mt-1">12 ta</div>
+            <span className="text-[11px] text-[var(--md-sys-color-on-surface-variant)] mt-0.5 block">$24,600</span>
           </div>
         </div>
       </div>
 
       {/* Leads Table */}
-      <div className="rounded-3xl border border-border bg-bg-card shadow-sm overflow-hidden">
-        <div className="border-b border-border px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="rounded-3xl border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface)] shadow-sm overflow-hidden">
+        <div className="border-b border-[var(--md-sys-color-outline)] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="font-bold text-base text-text">Faol Lidlar Ro&apos;yxati</h2>
-            <p className="text-xs text-text-muted">AmoCRM va Telegram orqali tushgan eng so&apos;nggi muzokaralar</p>
+            <h2 className="font-bold text-base text-[var(--md-sys-color-on-surface)]">Faol Lidlar Ro&apos;yxati</h2>
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">AmoCRM va Telegram orqali tushgan eng so&apos;nggi muzokaralar</p>
           </div>
           <div className="flex items-center gap-2">
             <input
               type="text"
               placeholder="Lid yoki kompaniya qidirish..."
-              className="rounded-xl border border-border bg-bg px-3 py-1.5 text-xs text-text focus:outline-none focus:border-brand w-48"
+              className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container)] px-4 py-1.5 text-xs text-[var(--md-sys-color-on-surface)] focus:outline-none focus:border-[#0b57d0] w-52"
             />
           </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-bg text-[10px] uppercase text-text-muted font-bold tracking-wider border-b border-border">
+            <thead className="bg-[var(--md-sys-color-surface-container-low)] text-[10px] uppercase text-[var(--md-sys-color-on-surface-variant)] font-bold tracking-wider border-b border-[var(--md-sys-color-outline)]">
               <tr>
                 <th className="px-6 py-3.5">Mijoz / Kompaniya</th>
                 <th className="px-6 py-3.5">Sektor / Xizmat</th>
@@ -208,42 +210,42 @@ export default async function CRMDashboard() {
                 <th className="px-6 py-3.5 text-right">Amallar</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/60">
+            <tbody className="divide-y divide-[var(--md-sys-color-outline-variant)]">
               {leads.map((lead: any) => (
-                <tr key={lead.user_id} className="hover:bg-bg/50 transition-colors">
+                <tr key={lead.user_id} className="hover:bg-[var(--md-sys-color-surface-container-low)] transition-colors">
                   <td className="px-6 py-4">
-                    <div className="font-bold text-text">{lead.name}</div>
-                    <div className="text-[11px] text-text-muted">{lead.company || lead.phone}</div>
+                    <div className="font-bold text-[var(--md-sys-color-on-surface)]">{lead.name}</div>
+                    <div className="text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{lead.company || lead.phone}</div>
                   </td>
-                  <td className="px-6 py-4 font-medium text-text">
+                  <td className="px-6 py-4 font-medium text-[var(--md-sys-color-on-surface)]">
                     {lead.business_type || 'Brending & Naming'}
                   </td>
                   <td className="px-6 py-4">
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
                         lead.intent === 'Closed'
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
+                          ? 'bg-[#c4eed0] text-[#0f5223] dark:bg-[#0f5223] dark:text-[#6dd58c]'
                           : lead.intent === 'Negotiation'
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400'
-                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400'
+                          ? 'bg-[#d3e3fd] text-[#041e49] dark:bg-[#004a77] dark:text-[#c2e7ff]'
+                          : 'bg-[#feeed2] text-[#4c3200] dark:bg-[#4c3200] dark:text-[#fdd663]'
                       }`}
                     >
                       {lead.stage || lead.intent}
                     </span>
                   </td>
-                  <td className="px-6 py-4 font-extrabold text-brand text-sm">
+                  <td className="px-6 py-4 font-black text-[#0b57d0] dark:text-[#a8c7fa] text-sm">
                     {lead.budget || '$3,000'}
                   </td>
-                  <td className="px-6 py-4 text-text-muted">
+                  <td className="px-6 py-4 text-[var(--md-sys-color-on-surface-variant)]">
                     <div className="flex items-center gap-1.5">
-                      <span className="h-5 w-5 rounded-full bg-brand-light text-brand flex items-center justify-center text-[10px] font-bold">
+                      <span className="h-5 w-5 rounded-full bg-[#d3e3fd] text-[#041e49] dark:bg-[#004a77] dark:text-[#c2e7ff] flex items-center justify-center text-[10px] font-bold">
                         {(lead.manager || 'B').charAt(0)}
                       </span>
                       <span>{lead.manager || 'Baxtiyorjon'}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="rounded-xl bg-bg border border-border px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand-light transition-colors">
+                    <button className="rounded-full bg-[var(--md-sys-color-surface-container)] border border-[var(--md-sys-color-outline)] px-3.5 py-1.5 text-xs font-semibold text-[#0b57d0] dark:text-[#a8c7fa] hover:bg-[var(--md-sys-color-surface-container-high)] transition-colors">
                       Muzokara →
                     </button>
                   </td>

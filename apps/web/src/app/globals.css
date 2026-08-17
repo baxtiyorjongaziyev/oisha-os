@@ -5,118 +5,96 @@
 
 :root {
   color-scheme: light;
-  
-  /* Layout Colors */
-  --bg-app: #f8f3ea;
-  --bg-card: #ffffff;
-  --bg-popover: #ffffff;
-  
-  /* Text & Border Colors */
-  --text-main: #111827;
-  --text-muted: #4b5563;
-  --border-color: rgba(17, 24, 39, 0.08);
-  
-  /* Default Palette (Sage) */
-  --brand: #275344;
-  --brand-hover: #1b3c31;
-  --brand-light: #eef4ef;
+
+  /* Google Material Design 3 — Light Theme Tokens */
+  --md-sys-color-background: #f8fafd;
+  --md-sys-color-surface: #ffffff;
+  --md-sys-color-surface-container-low: #f3f6fb;
+  --md-sys-color-surface-container: #edf2f9;
+  --md-sys-color-surface-container-high: #e5ecf5;
+  --md-sys-color-surface-container-highest: #dbe4f0;
+
+  --md-sys-color-on-surface: #191c20;
+  --md-sys-color-on-surface-variant: #43474e;
+  --md-sys-color-outline: rgba(0, 0, 0, 0.08);
+  --md-sys-color-outline-variant: rgba(0, 0, 0, 0.05);
+
+  /* Google Brand Colors */
+  --brand: #0b57d0;
+  --brand-hover: #0842a0;
+  --brand-light: #d3e3fd;
+  --brand-on-light: #041e49;
+
+  --google-blue: #0b57d0;
+  --google-green: #137333;
+  --google-green-light: #c4eed0;
+  --google-amber: #b06000;
+  --google-amber-light: #feeed2;
+  --google-red: #b3261e;
+  --google-red-light: #f9dedc;
+  --google-purple: #7c3aed;
+  --google-purple-light: #ede9fe;
+
+  /* Legacy variable mappings for backward compatibility */
+  --bg-app: var(--md-sys-color-background);
+  --bg-card: var(--md-sys-color-surface);
+  --bg-popover: var(--md-sys-color-surface);
+  --text-main: var(--md-sys-color-on-surface);
+  --text-muted: var(--md-sys-color-on-surface-variant);
+  --border-color: var(--md-sys-color-outline);
 }
 
 .dark {
   color-scheme: dark;
-  
-  /* Layout Colors */
-  --bg-app: #0b0f17;
-  --bg-card: #131924;
-  --bg-popover: #1a2233;
-  
-  /* Text & Border Colors */
-  --text-main: #f9fafb;
-  --text-muted: #9ca3af;
-  --border-color: rgba(249, 250, 251, 0.08);
-  
-  /* Default Palette (Sage Dark) */
-  --brand: #3d7a64;
-  --brand-hover: #4e947b;
-  --brand-light: rgba(61, 122, 100, 0.15);
+
+  /* Google Material Design 3 — Dark Theme Tokens (Gemini Studio aesthetic) */
+  --md-sys-color-background: #131314;
+  --md-sys-color-surface: #1e1f20;
+  --md-sys-color-surface-container-low: #18191a;
+  --md-sys-color-surface-container: #282a2c;
+  --md-sys-color-surface-container-high: #333538;
+  --md-sys-color-surface-container-highest: #3e4043;
+
+  --md-sys-color-on-surface: #e3e3e3;
+  --md-sys-color-on-surface-variant: #c4c7c5;
+  --md-sys-color-outline: rgba(255, 255, 255, 0.08);
+  --md-sys-color-outline-variant: rgba(255, 255, 255, 0.04);
+
+  /* Google Brand Colors Dark */
+  --brand: #a8c7fa;
+  --brand-hover: #c2e7ff;
+  --brand-light: #004a77;
+  --brand-on-light: #c2e7ff;
+
+  --google-blue: #a8c7fa;
+  --google-green: #6dd58c;
+  --google-green-light: #0f5223;
+  --google-amber: #fdd663;
+  --google-amber-light: #4c3200;
+  --google-red: #f28b82;
+  --google-red-light: #601410;
+  --google-purple: #d0bcff;
+  --google-purple-light: #4a287a;
+
+  --bg-app: var(--md-sys-color-background);
+  --bg-card: var(--md-sys-color-surface);
+  --bg-popover: var(--md-sys-color-surface-container);
+  --text-main: var(--md-sys-color-on-surface);
+  --text-muted: var(--md-sys-color-on-surface-variant);
+  --border-color: var(--md-sys-color-outline);
 }
 
-/* 7 Dynamic Color Palettes */
-.palette-sage {
-  --brand: #275344;
-  --brand-hover: #1b3c31;
-  --brand-light: #eef4ef;
-}
-.dark .palette-sage {
-  --brand: #3d7a64;
-  --brand-hover: #4e947b;
-  --brand-light: rgba(61, 122, 100, 0.15);
+/* Material 3 Card Elevation and Hover States */
+.md-elevation-1 {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
 }
 
-.palette-indigo {
-  --brand: #4f46e5;
-  --brand-hover: #4338ca;
-  --brand-light: #eef2ff;
-}
-.dark .palette-indigo {
-  --brand: #6366f1;
-  --brand-hover: #818cf8;
-  --brand-light: rgba(99, 102, 241, 0.15);
+.md-elevation-2 {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
 }
 
-.palette-rose {
-  --brand: #e11d48;
-  --brand-hover: #be123c;
-  --brand-light: #fff1f2;
-}
-.dark .palette-rose {
-  --brand: #f43f5e;
-  --brand-hover: #fb7185;
-  --brand-light: rgba(244, 63, 94, 0.15);
-}
-
-.palette-amber {
-  --brand: #d97706;
-  --brand-hover: #b45309;
-  --brand-light: #fef3c7;
-}
-.dark .palette-amber {
-  --brand: #f59e0b;
-  --brand-hover: #fbbf24;
-  --brand-light: rgba(245, 158, 11, 0.15);
-}
-
-.palette-teal {
-  --brand: #0d9488;
-  --brand-hover: #0f766e;
-  --brand-light: #f0fdfa;
-}
-.dark .palette-teal {
-  --brand: #14b8a6;
-  --brand-hover: #2dd4bf;
-  --brand-light: rgba(20, 184, 166, 0.15);
-}
-
-.palette-violet {
-  --brand: #7c3aed;
-  --brand-hover: #6d28d9;
-  --brand-light: #f5f3ff;
-}
-.dark .palette-violet {
-  --brand: #8b5cf6;
-  --brand-hover: #a78bfa;
-  --brand-light: rgba(139, 92, 246, 0.15);
-}
-
-.palette-emerald {
-  --brand: #059669;
-  --brand-hover: #047857;
-  --brand-light: #ecfdf5;
-}
-.dark .palette-emerald {
-  --brand: #10b981;
-  --brand-hover: #34d399;
-  --brand-light: rgba(16, 185, 129, 0.15);
+.md-elevation-3 {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
 }
 
 /* Custom Scrollbars */
@@ -128,55 +106,32 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 4px;
+  background: var(--md-sys-color-outline);
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background: var(--md-sys-color-on-surface-variant);
 }
 
 body {
-  background-color: var(--bg-app);
-  color: var(--text-main);
+  background-color: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-surface);
   min-height: 100vh;
-  font-family: var(--font-body);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Background Gradients */
-.bg-gradient-mesh {
-  background:
-    radial-gradient(circle at top left, rgba(217, 146, 46, 0.08), transparent 40rem),
-    radial-gradient(circle at 80% 20%, rgba(39, 83, 68, 0.05), transparent 45rem),
-    var(--bg-app);
-}
-
-.dark .bg-gradient-mesh {
-  background:
-    radial-gradient(circle at top left, rgba(217, 146, 46, 0.04), transparent 40rem),
-    radial-gradient(circle at 80% 20%, rgba(61, 122, 100, 0.03), transparent 45rem),
-    var(--bg-app);
-}
-
-/* Glassmorphism */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(17, 24, 39, 0.05);
-}
-
-.dark .glass-panel {
-  background: rgba(19, 25, 36, 0.6);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(249, 250, 251, 0.04);
-}
-
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
+/* Google-style animation utilities */
+@keyframes mdFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: mdFadeIn 0.25s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+/* Google Sparkle Gradient */
+.gemini-sparkle-bg {
+  background: linear-gradient(135deg, #7c3aed 0%, #0b57d0 50%, #00875a 100%);
 }
