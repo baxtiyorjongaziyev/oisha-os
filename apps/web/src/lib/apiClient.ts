@@ -1,20 +1,33 @@
 /**
  * Base API Client for connecting Next.js Server & Client components to the FastAPI backend.
+ * 100% Real ma'lumotlar bilan ishlash uchun sozlangan.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const API_BASE_URL = 
+  process.env.INTERNAL_API_URL || 
+  process.env.NEXT_PUBLIC_API_URL || 
+  'http://127.0.0.1:8080';
+
+const API_SECRET = process.env.OISHA_API_SECRET || process.env.NEXT_SERVER_API_KEY || '';
 
 /**
- * Helper fetch function with standard options
+ * Helper fetch function with standard options and automatic bearer authorization
  */
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
-  // Set default cache behavior to prevent stale data for dynamic dashboard pages
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (API_SECRET) {
+    headers['Authorization'] = `Bearer ${API_SECRET}`;
+  }
+
   const defaultOptions: RequestInit = {
-    cache: 'no-store', // Always fetch fresh data for dashboard
+    cache: 'no-store', // Always fetch fresh data for real-time dashboard
     headers: {
-      'Content-Type': 'application/json',
+      ...headers,
       ...options?.headers,
     },
     ...options,
@@ -29,14 +42,19 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
     return data as T;
   } catch (error) {
     console.error(`[fetchApi] Error fetching ${endpoint}:`, error);
-    // Throw error so pages can handle them using error boundaries or default states
     throw error;
   }
 }
 
 /**
- * Domain specific fetchers
+ * CRM Domain Types & Fetchers
  */
+export interface PipelineStage {
+  id: string;
+  name: string;
+  count: number;
+  value: number;
+}
 
 export interface CrmDashboardStats {
   timestamp: string;
@@ -45,6 +63,7 @@ export interface CrmDashboardStats {
   deals: { total: number; value: number; won: number; lost: number };
   tasks: { pending: number; overdue: number; completed_today: number };
   contacts: { total: number; new_today: number };
+  pipeline_stages?: PipelineStage[];
 }
 
 export async function getCrmDashboardStats(): Promise<CrmDashboardStats | null> {
@@ -62,6 +81,7 @@ export interface CrmLead {
   region: string;
   business_type: string;
   created_at: string;
+  assigned_to?: string;
 }
 
 export async function getCrmLeads(): Promise<{ leads: CrmLead[]; total: number } | null> {
@@ -72,10 +92,40 @@ export async function getCrmLeads(): Promise<{ leads: CrmLead[]; total: number }
   }
 }
 
+/**
+ * Tasks / FrogAgent Types & Fetchers
+ */
+export interface FrogTask {
+  id: number | string;
+  title: string;
+  description?: string;
+  assigned_to?: string | number;
+  deadline?: string;
+  priority?: string;
+  status: string;
+  profit_estimate?: number;
+  is_frog?: boolean;
+  created_at?: string;
+}
+
+export async function getFrogTasks(): Promise<{ tasks: FrogTask[]; total: number } | null> {
+  try {
+    return await fetchApi<{ tasks: FrogTask[]; total: number }>('/api/crm/tasks');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Finance Domain Types & Fetchers
+ */
 export interface FinanceDashboardStats {
   balance: number;
   monthly_income: number;
   monthly_expense: number;
+  source?: string;
+  source_status?: string;
+  fetched_at?: string;
 }
 
 export async function getFinanceDashboardStats(): Promise<FinanceDashboardStats | null> {
@@ -92,11 +142,34 @@ export interface FinanceTransaction {
   amount: string;
   description: string;
   date: string;
+  category?: string;
+  source?: string;
 }
 
 export async function getFinanceTransactions(): Promise<{ transactions: FinanceTransaction[] } | null> {
   try {
     return await fetchApi<{ transactions: FinanceTransaction[] }>('/api/finance/transactions');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sales Quality & Audio Intelligence Types & Fetchers
+ */
+export interface CallQualityRecord {
+  id: string | number;
+  manager_name: string;
+  duration_seconds: number;
+  final_score: number;
+  created_at: string;
+  category?: string;
+  client_name?: string;
+}
+
+export async function getCallQualityRecords(): Promise<{ calls: CallQualityRecord[]; total: number } | null> {
+  try {
+    return await fetchApi<{ calls: CallQualityRecord[]; total: number }>('/api/oisha/sales-quality');
   } catch {
     return null;
   }
