@@ -51,7 +51,7 @@ class HisobchiEngine:
     ) -> None:
         self._gs = gs_store
         self._tracking_start_date = parse_tracking_start_date(tracking_start_date)
-        self._db = None if gs_store else ensure_hisobchi_db(
+        self._db = ensure_hisobchi_db(
             db if db is not None else db_pool
         )
 
@@ -59,32 +59,40 @@ class HisobchiEngine:
 
     async def get_known_category(self, merchant: str) -> Optional[str]:
         if self._gs:
-            return await self._gs.get_known_category(merchant)
-        normalized = _normalize_merchant(merchant)
-        rows = await self._db.execute(
-            "SELECT category FROM hisobchi_merchant_memory WHERE merchant_pattern = ?",
-            [normalized],
-        )
-        return rows[0]["category"] if rows else None
+            res = await self._gs.get_known_category(merchant)
+            if res:
+                return res
+        if self._db:
+            normalized = _normalize_merchant(merchant)
+            rows = await self._db.execute(
+                "SELECT category FROM hisobchi_merchant_memory WHERE merchant_pattern = ?",
+                [normalized],
+            )
+            return rows[0]["category"] if rows else None
+        return None
 
     async def learn_category(self, merchant: str, category: str) -> None:
         if self._gs:
-            return await self._gs.learn_category(merchant, category)
-        normalized = _normalize_merchant(merchant)
-        await self._db.execute(
-            """
-            INSERT INTO hisobchi_merchant_memory
-                (merchant_pattern, category, use_count, updated_at)
-            VALUES (?, ?, 1, CURRENT_TIMESTAMP)
-            ON CONFLICT(merchant_pattern) DO UPDATE SET
-                category = excluded.category,
-                use_count = use_count + 1,
-                updated_at = excluded.updated_at
-            """,
-            [normalized, category],
-        )
-        await self._db.commit()
-        logger.info("[HISOBCHI] Learned: %s → %s", normalized, category)
+            try:
+                await self._gs.learn_category(merchant, category)
+            except Exception as exc:
+                logger.warning("[HISOBCHI] GSheets learn_category failed: %s", exc)
+        if self._db:
+            normalized = _normalize_merchant(merchant)
+            await self._db.execute(
+                """
+                INSERT INTO hisobchi_merchant_memory
+                    (merchant_pattern, category, use_count, updated_at)
+                VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+                ON CONFLICT(merchant_pattern) DO UPDATE SET
+                    category = excluded.category,
+                    use_count = use_count + 1,
+                    updated_at = excluded.updated_at
+                """,
+                [normalized, category],
+            )
+            await self._db.commit()
+            logger.info("[HISOBCHI] Learned: %s → %s", normalized, category)
 
     async def get_known_rule(
         self,
@@ -94,27 +102,29 @@ class HisobchiEngine:
         amount: int,
     ) -> Optional[dict]:
         if self._gs:
-            return await self._gs.get_known_rule(merchant, card_suffix, direction, amount)
-        rows = await self._db.execute(
-            """
-            SELECT category, ownership
-            FROM hisobchi_category_rules
-            WHERE merchant_pattern=? AND card_suffix=? AND direction=? AND amount=?
-              AND active=1 AND conflicts=0 AND confirmations>=1
-            """,
-            [
-                _normalize_merchant(merchant),
-                _normalize_card_suffix(card_suffix),
-                direction,
-                amount,
-            ],
-        )
-        if not rows:
-            return None
-        return {
-            "category": rows[0]["category"],
-            "ownership": rows[0]["ownership"] or "business",
-        }
+            res = await self._gs.get_known_rule(merchant, card_suffix, direction, amount)
+            if res:
+                return res
+        if self._db:
+            rows = await self._db.execute(
+                """
+                SELECT category, ownership
+                FROM hisobchi_category_rules
+                WHERE merchant_pattern=? AND card_suffix=? AND direction=? AND amount=?
+                  AND active=1 AND conflicts=0 AND confirmations>=1
+                """,
+                [
+                    _normalize_merchant(merchant),
+                    _normalize_card_suffix(card_suffix),
+                    direction,
+                    amount,
+                ],
+            )
+            return {
+                "category": rows[0]["category"],
+                "ownership": rows[0]["ownership"] or "business",
+            } if rows else None
+        return None
 
     async def learn_rule(
         self,
@@ -314,15 +324,19 @@ class HisobchiEngine:
         source_message_id: Optional[int] = None,
     ) -> tuple[int, bool]:
         if self._gs:
-            return await self._gs.save_transaction_once(
-                source_bot=source_bot, direction=direction, amount=amount,
-                merchant=merchant, card_suffix=card_suffix, tx_time=tx_time,
-                balance=balance, raw_text=raw_text, category=category,
-                ownership=ownership, currency=currency,
-                finance_msg_id=finance_msg_id,
-                finance_chat_id=finance_chat_id, status=status,
-                reason=reason, source_message_id=source_message_id,
-            )
+            try:
+                await self._gs.save_transaction_once(
+                    source_bot=source_bot, direction=direction, amount=amount,
+                    merchant=merchant, card_suffix=card_suffix, tx_time=tx_time,
+                    balance=balance, raw_text=raw_text, category=category,
+                    ownership=ownership, currency=currency,
+                    finance_msg_id=finance_msg_id,
+                    finance_chat_id=finance_chat_id, status=status,
+                    reason=reason, source_message_id=source_message_id,
+                )
+            except Exception as exc:
+                logger.warning("[HISOBCHI] GSheets save_transaction_once failed: %s", exc)
+
         fingerprint = self.transaction_fingerprint(
             source_bot=source_bot,
             direction=direction,
@@ -363,14 +377,18 @@ class HisobchiEngine:
         self, tx_id: int, finance_msg_id: int, finance_chat_id: int
     ) -> None:
         if self._gs:
-            return await self._gs.update_finance_msg(tx_id, finance_msg_id, finance_chat_id)
-        await self._db.execute(
-            """UPDATE hisobchi_transactions
-               SET finance_msg_id=?, finance_chat_id=?
-               WHERE id=?""",
-            [finance_msg_id, finance_chat_id, tx_id],
-        )
-        await self._db.commit()
+            try:
+                await self._gs.update_finance_msg(tx_id, finance_msg_id, finance_chat_id)
+            except Exception as exc:
+                logger.warning("[HISOBCHI] GSheets update_finance_msg failed: %s", exc)
+        if self._db:
+            await self._db.execute(
+                """UPDATE hisobchi_transactions
+                   SET finance_msg_id=?, finance_chat_id=?
+                   WHERE id=?""",
+                [finance_msg_id, finance_chat_id, tx_id],
+            )
+            await self._db.commit()
 
     async def categorize(
         self,
@@ -380,28 +398,32 @@ class HisobchiEngine:
         reason: Optional[str] = None,
     ) -> None:
         if self._gs:
-            return await self._gs.categorize(tx_id, category, ownership, reason)
-        if ownership and reason:
-            await self._db.execute(
-                "UPDATE hisobchi_transactions SET category=?, ownership=?, reason=?, status='categorized' WHERE id=?",
-                [category, ownership, reason, tx_id],
-            )
-        elif ownership:
-            await self._db.execute(
-                "UPDATE hisobchi_transactions SET category=?, ownership=?, status='categorized' WHERE id=?",
-                [category, ownership, tx_id],
-            )
-        elif reason:
-            await self._db.execute(
-                "UPDATE hisobchi_transactions SET category=?, reason=?, status='categorized' WHERE id=?",
-                [category, reason, tx_id],
-            )
-        else:
-            await self._db.execute(
-                "UPDATE hisobchi_transactions SET category=?, status='categorized' WHERE id=?",
-                [category, tx_id],
-            )
-        await self._db.commit()
+            try:
+                await self._gs.categorize(tx_id, category, ownership, reason)
+            except Exception as exc:
+                logger.warning("[HISOBCHI] GSheets categorize failed: %s", exc)
+        if self._db:
+            if ownership and reason:
+                await self._db.execute(
+                    "UPDATE hisobchi_transactions SET category=?, ownership=?, reason=?, status='categorized' WHERE id=?",
+                    [category, ownership, reason, tx_id],
+                )
+            elif ownership:
+                await self._db.execute(
+                    "UPDATE hisobchi_transactions SET category=?, ownership=?, status='categorized' WHERE id=?",
+                    [category, ownership, tx_id],
+                )
+            elif reason:
+                await self._db.execute(
+                    "UPDATE hisobchi_transactions SET category=?, reason=?, status='categorized' WHERE id=?",
+                    [category, reason, tx_id],
+                )
+            else:
+                await self._db.execute(
+                    "UPDATE hisobchi_transactions SET category=?, status='categorized' WHERE id=?",
+                    [category, tx_id],
+                )
+            await self._db.commit()
 
     async def log_ai_gap(
         self,
@@ -475,12 +497,16 @@ class HisobchiEngine:
 
     async def skip(self, tx_id: int) -> None:
         if self._gs:
-            return await self._gs.skip(tx_id)
-        await self._db.execute(
-            "UPDATE hisobchi_transactions SET status='skipped' WHERE id=?",
-            [tx_id],
-        )
-        await self._db.commit()
+            try:
+                await self._gs.skip(tx_id)
+            except Exception as exc:
+                logger.warning("[HISOBCHI] GSheets skip failed: %s", exc)
+        if self._db:
+            await self._db.execute(
+                "UPDATE hisobchi_transactions SET status='skipped' WHERE id=?",
+                [tx_id],
+            )
+            await self._db.commit()
 
     async def get_pending_by_finance_msg(
         self, finance_chat_id: int, finance_msg_id: int
