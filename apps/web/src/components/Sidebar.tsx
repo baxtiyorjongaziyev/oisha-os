@@ -28,16 +28,7 @@ export default function Sidebar() {
       )
     },
     {
-      name: "Qo'ng'iroqlar",
-      href: "/calls",
-      icon: (
-        <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-        </svg>
-      )
-    },
-    {
-      name: "CRM (Lidlar)",
+      name: "CRM & Lidlar",
       href: "/crm",
       icon: (
         <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -55,11 +46,29 @@ export default function Sidebar() {
       )
     },
     {
-      name: "Vazifalar (Airtable)",
+      name: "Qo'ng'iroqlar (AI)",
+      href: "/calls",
+      icon: (
+        <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+        </svg>
+      )
+    },
+    {
+      name: "Vazifalar (Frog)",
       href: "/tasks",
       icon: (
         <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      )
+    },
+    {
+      name: "Analitika",
+      href: "/analytics",
+      icon: (
+        <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       )
     },
@@ -83,22 +92,28 @@ export default function Sidebar() {
       className={`relative z-30 flex flex-col border-r border-border bg-bg-card h-full`}
     >
       {/* Brand Header Logo */}
-      <div className="flex h-16 items-center px-6">
-        <Link href="/dashboards/home" className="flex items-center gap-2.5">
-          <div aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand font-display text-lg font-bold text-white shadow-lg shadow-brand/20">
-            M
+      <div className="flex h-16 items-center px-5 border-b border-border/50">
+        <Link href="/dashboards/home" className="flex items-center gap-3">
+          <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-brand to-emerald-600 font-display text-xl font-bold text-white shadow-md shadow-brand/20">
+            👸
           </div>
           <AnimatePresence>
             {sidebarOpen && (
-              <motion.span 
+              <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.2 }}
-                className="font-display text-lg font-bold text-text tracking-wide"
+                className="flex flex-col"
               >
-                Metasell
-              </motion.span>
+                <span className="font-display text-base font-bold text-text tracking-tight flex items-center gap-1.5">
+                  Oisha OS
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                </span>
+                <span className="text-[10px] text-text-muted font-medium tracking-wide uppercase">
+                  Agency COO
+                </span>
+              </motion.div>
             )}
           </AnimatePresence>
         </Link>
