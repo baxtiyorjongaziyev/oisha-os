@@ -60,29 +60,10 @@ async def handle_card_bot_message(event, client, engine: HisobchiEngine, bot_cli
 
         from src.services.core.hisobchi_approval import (
             build_approval_keyboard,
-            build_approval_message,
             register_pending,
         )
 
         await register_pending(tx_id, tx, ownership, category)
-
-        owner_id = None
-        try:
-            from src.settings import settings
-            owner_id = getattr(settings, "OWNER_ID", None)
-        except Exception as exc:
-            logger.debug("[HISOBCHI] OWNER_ID from settings: %s", exc)
-
-        if owner_id:
-            try:
-                msg = build_approval_message(tx, tx_id, ownership)
-                kb = build_approval_keyboard(tx_id, ownership)
-                if category:
-                    msg = f"🗂 <b>Avto-kategoriya:</b> {html.escape(category)}\n\n" + msg
-                await client.send_message(int(owner_id), msg, parse_mode="html", buttons=kb)
-                logger.info("[HISOBCHI] Sent approval request to owner #%s for tx #%s", owner_id, tx_id)
-            except Exception as exc:
-                logger.error("Error occurred: %s", exc, exc_info=True)
 
         if finance_group_id:
             bot_runtime = _as_bot_runtime(bot_client)
