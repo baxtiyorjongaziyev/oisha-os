@@ -5,18 +5,21 @@ import {
   getFinanceDashboardStats, 
   getFrogTasks, 
   getFinanceTransactions,
+  getSystemSignals,
   FinanceTransaction,
-  FrogTask
+  FrogTask,
+  SystemSignal
 } from '@/lib/apiClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const [crmStats, financeStats, tasksData, txData] = await Promise.all([
+  const [crmStats, financeStats, tasksData, txData, signalsReport] = await Promise.all([
     getCrmDashboardStats(),
     getFinanceDashboardStats(),
     getFrogTasks(),
     getFinanceTransactions(),
+    getSystemSignals(),
   ]);
 
   const totalLeads = crmStats?.leads?.total ?? 0;
@@ -36,69 +39,8 @@ export default async function HomePage() {
   const completedToday = crmStats?.tasks?.completed_today ?? tasks.filter(t => t.status === 'Done' || t.status === 'Completed').length;
 
   const transactions = txData?.transactions ?? [];
-
-  const agentSwarm = [
-    {
-      id: 'hisobchi',
-      name: 'Hisobchi AI',
-      category: 'Moliya & Kassa',
-      status: 'Faol',
-      statusColor: 'bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]',
-      icon: '💰',
-      detail: 'SMS & karta tranzaksiyalari, Turso libSQL 24/7 sinxron',
-      actionUrl: '/finance',
-    },
-    {
-      id: 'frog',
-      name: 'FrogAgent',
-      category: 'ROI Enforcer',
-      status: 'Faol',
-      statusColor: 'bg-[#ede9fe] text-[#5b21b6] dark:bg-[#4c1d95] dark:text-[#c084fc]',
-      icon: '🐸',
-      detail: 'Kunlik 09:00 Telegram brifingi & yuqori daromadli vazifalar',
-      actionUrl: '/tasks',
-    },
-    {
-      id: 'coach',
-      name: 'SalesCoach AI',
-      category: 'Suhbat Sifati',
-      status: 'Faol',
-      statusColor: 'bg-[var(--accent-primary-light)] text-[var(--accent-primary-on-light)]',
-      icon: '🎙',
-      detail: 'Whisper ASR tahlili, A1-E3 mezonlari va skoring nazorati',
-      actionUrl: '/calls',
-    },
-    {
-      id: 'telegram',
-      name: 'Telegram Dual-Head',
-      category: 'Control Plane',
-      status: 'Online',
-      statusColor: 'bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]',
-      icon: '⚡',
-      detail: 'Aiogram 3.x Webhook + Oracle VM Telethon session keeper',
-      actionUrl: '/settings',
-    },
-    {
-      id: 'amocrm',
-      name: 'AmoCRM v4 Gateway',
-      category: 'Sotuv Voronkasi',
-      status: 'Ulangan',
-      statusColor: 'bg-[var(--accent-primary-light)] text-[var(--accent-primary-on-light)]',
-      icon: '🔄',
-      detail: 'Hunter-Setter-Farmer deal pipeline & 500 limit nazorati',
-      actionUrl: '/crm',
-    },
-    {
-      id: 'edge',
-      name: 'Edge AI Personalizer',
-      category: 'Veb Konversiya',
-      status: 'Faol',
-      statusColor: 'bg-[#fef3c7] text-[#92400e] dark:bg-[#78350f]/30 dark:text-[#fbbf24]',
-      icon: '🪄',
-      detail: 'Cloudflare Workers + GA4 orqali jonbranding.uz dinamik kontenti',
-      actionUrl: '/analytics',
-    },
-  ];
+  const signals = signalsReport?.signals ?? [];
+  const healthScore = signalsReport?.health_score ?? 100;
 
   return (
     <div className="space-y-6 pb-12">
@@ -169,13 +111,99 @@ export default async function HomePage() {
               href="/settings"
               className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)]/40 transition-all"
             >
-              ⚡ Telethon & Aiogram Live
+              ⚡ Tizim Barqarorligi: {healthScore}%
             </Link>
           </div>
         </div>
       </div>
 
-      {/* 2. Stripe Financial & Business Metric Cards (4 Cards) */}
+      {/* 2. REAL-TIME DATA PIPELINE SIGNALS & GAP RADAR */}
+      <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 md:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-[var(--border-subtle)] pb-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className={`flex h-8 w-8 items-center justify-center rounded-xl text-base ${
+              healthScore >= 90 ? 'bg-[#d1fae5] text-[#065f46]' : 'bg-[#fef3c7] text-[#92400e]'
+            }`}>
+              📡
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                <span>Ma&apos;lumotlar Oqimi & Uzilishlar Radari</span>
+                <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-extrabold ${
+                  healthScore >= 90 
+                    ? 'bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]' 
+                    : 'bg-[#fef3c7] text-[#92400e] dark:bg-[#78350f]/30 dark:text-[#fbbf24]'
+                }`}>
+                  {healthScore}% Sog&apos;lom
+                </span>
+              </h2>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Qaysi tizimdan real ma&apos;lumot kelayotgani va qayerda to&apos;xtalish bo&apos;layotganining jonli diagnostikasi
+              </p>
+            </div>
+          </div>
+
+          <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
+            Auto-Diagnostic Live
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {signals.map((sig: SystemSignal, idx: number) => {
+            const isOk = sig.status === 'healthy';
+            const isWarn = sig.status === 'warning';
+            const isCrit = sig.status === 'degraded' || sig.status === 'disconnected';
+            
+            return (
+              <div
+                key={idx}
+                className={`rounded-xl border p-3.5 flex flex-col justify-between space-y-2.5 transition-all ${
+                  isOk 
+                    ? 'border-[#d1fae5] bg-[#d1fae5]/10 dark:border-[#064e3b]/50 dark:bg-[#064e3b]/10' 
+                    : isWarn
+                    ? 'border-[#fef3c7] bg-[#fef3c7]/20 dark:border-[#78350f]/50 dark:bg-[#78350f]/10'
+                    : 'border-[#fee2e2] bg-[#fee2e2]/20 dark:border-[#7f1d1d]/50 dark:bg-[#7f1d1d]/10'
+                }`}
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[var(--text-primary)]">
+                      {sig.name}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                      isOk 
+                        ? 'bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399]' 
+                        : isWarn
+                        ? 'bg-[#fef3c7] text-[#92400e] dark:bg-[#78350f] dark:text-[#fbbf24]'
+                        : 'bg-[#fee2e2] text-[#991b1b] dark:bg-[#7f1d1d] dark:text-[#f87171]'
+                    }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${isOk ? 'bg-[#059669]' : isWarn ? 'bg-[#d97706]' : 'bg-[#dc2626]'}`}></span>
+                      {isOk ? 'OK • Real' : isWarn ? 'Kutilmoqda' : 'Uzilgan'}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                    {sig.message}
+                  </p>
+                </div>
+
+                {sig.action ? (
+                  <div className="border-t border-[var(--border-subtle)] pt-2 text-[10px] text-[var(--accent-primary)] font-semibold flex items-center gap-1">
+                    <span>💡 Yechim:</span>
+                    <span>{sig.action}</span>
+                  </div>
+                ) : (
+                  <div className="border-t border-[var(--border-subtle)] pt-2 text-[10px] text-[#059669] dark:text-[#34d399] font-medium">
+                    ✓ Barcha signallar normal
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. Stripe Financial & Business Metric Cards (4 Cards) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: CRM Leads */}
         <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs hover:border-[var(--accent-primary)]/40 transition-all">
@@ -274,68 +302,6 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* 3. Apple HIG Fluid Swarm Telemetry Hub */}
-      <div className="space-y-3.5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-bold text-[var(--text-primary)]">
-              AI Agentlar Tizimi (Swarm Telemetry)
-            </h2>
-            <p className="text-xs text-[var(--text-secondary)]">
-              Barcha 6 ta avtonom modul real vaqtda bir-biri bilan integratsiyalashgan.
-            </p>
-          </div>
-          <span className="rounded-full bg-[#d1fae5] text-[#065f46] dark:bg-[#064e3b] dark:text-[#34d399] px-2.5 py-0.5 text-xs font-bold flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#059669] animate-ping"></span>
-            6 / 6 Faol
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          {agentSwarm.map((agent) => (
-            <Link
-              key={agent.id}
-              href={agent.actionUrl}
-              className="group flex flex-col justify-between rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 shadow-xs hover:border-[var(--accent-primary)] transition-all active:scale-[0.99]"
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--bg-surface-subtle)] text-lg shadow-xs">
-                      {agent.icon}
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[var(--accent-primary)] transition-colors">
-                        {agent.name}
-                      </h3>
-                      <span className="text-[10px] text-[var(--text-secondary)] font-medium">
-                        {agent.category}
-                      </span>
-                    </div>
-                  </div>
-                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${agent.statusColor}`}>
-                    {agent.status}
-                  </span>
-                </div>
-
-                <p className="mt-2.5 text-[11px] text-[var(--text-secondary)] line-clamp-2 leading-relaxed">
-                  {agent.detail}
-                </p>
-              </div>
-
-              <div className="mt-3.5 flex items-center justify-between border-t border-[var(--border-subtle)] pt-2.5 text-[10px]">
-                <span className="font-mono text-[var(--text-tertiary)]">
-                  Monitoring: Real-time
-                </span>
-                <span className="font-bold text-[var(--accent-primary)] group-hover:translate-x-0.5 transition-transform">
-                  Boshqarish →
-                </span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-
       {/* 4. Real Activity Stream & Quick Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Real Transactions (Hisobchi) */}
@@ -354,7 +320,7 @@ export default async function HomePage() {
 
           {transactions.length === 0 ? (
             <div className="py-8 text-center text-xs text-[var(--text-secondary)]">
-              🧾 Hozircha yangi tranzaksiyalar yo&apos;q
+              🧾 Hozircha yangi tranzaksiyalar yo&apos;q (Hisobchi kutilmoqda)
             </div>
           ) : (
             <div className="space-y-2.5">

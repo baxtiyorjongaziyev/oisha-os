@@ -199,3 +199,180 @@ async def run_system_audit():
         return {"status": "error", "message": "CRM audit failed"}
     finally:
         api_state.crm_audit_running = False
+
+
+@router.get("/signals", dependencies=[require_permissions(Permission.SYSTEM_READ)])
+async def get_system_signals():
+    """Real vaqtdagi barcha ma'lumot oqimlari diagnostikasi va uzilish signallari."""
+    from src.services.core.agent_runtime import get_runtime_context
+
+    runtime = get_runtime_context()
+    signals: List[Dict[str, Any]] = []
+    
+    # 1. Telegram Dual-Head Control Plane
+    userbot_auth = runtime.get("userbot_authorized", False)
+    bot_token_set = bool(getattr(settings, "BOT_TOKEN", None))
+    if userbot_auth and bot_token_set:
+        signals.append({
+            "pipeline": "telegram_dual_head",
+            "name": "Telegram Control Plane (@jonairobot + Telethon)",
+            "status": "healthy",
+            "severity": "info",
+            "message": "Userbot va Bot API to'liq ulangan, 24/7 jonli rejimda.",
+            "action": None,
+        })
+    else:
+        signals.append({
+            "pipeline": "telegram_dual_head",
+            "name": "Telegram Control Plane",
+            "status": "degraded",
+            "severity": "critical",
+            "message": "Userbot sessiyasi yoki Bot Token uzilgan.",
+            "action": "Oracle VM'da session keeper va BOT_TOKEN'ni tekshirish.",
+        })
+
+    # 2. AmoCRM v4 Pipeline
+    amocrm_conf = bool(getattr(settings, "AMOCRM_SUBDOMAIN", None))
+    leads_count = 0
+    if api_state.db_instance:
+        try:
+            conn = await api_state.db_instance.get_connection()
+            r = await conn.execute("SELECT COUNT(*) FROM users")
+            row = await r.fetchone() if hasattr(r, "fetchone") else r.fetchone()
+            leads_count = row[0] if row else 0
+        except Exception:
+            pass
+
+    if amocrm_conf and leads_count > 0:
+        signals.append({
+            "pipeline": "amocrm_crm",
+            "name": "AmoCRM v4 & Lidlar Voronkasi",
+            "status": "healthy",
+            "severity": "info",
+            "message": f"AmoCRM ulangan ({leads_count} ta lid bazada mavjud, 500 limit nazoratda).",
+            "action": None,
+        })
+    elif amocrm_conf and leads_count == 0:
+        signals.append({
+            "pipeline": "amocrm_crm",
+            "name": "AmoCRM v4 & Lidlar Voronkasi",
+            "status": "warning",
+            "severity": "warning",
+            "message": "AmoCRM sozlangan, ammo bazada 0 ta faol lid mavjud (Webhook yoki sinxron kutilyapti).",
+            "action": "AmoCRM dan /crm_sync yoki yangi so'rov yuborish.",
+        })
+    else:
+        signals.append({
+            "pipeline": "amocrm_crm",
+            "name": "AmoCRM v4 & Lidlar Voronkasi",
+            "status": "disconnected",
+            "severity": "critical",
+            "message": "AMOCRM_SUBDOMAIN yoki token sozlanmagan.",
+            "action": "Sozlamalardan AmoCRM v4 integratsiyasini ulash.",
+        })
+
+    # 3. Moliya & Kassa (Hisobchi AI)
+    has_finance_source = api_state.finance_source is not None
+    tx_count = 0
+    if api_state.db_instance:
+        try:
+            conn = await api_state.db_instance.get_connection()
+            r = await conn.execute("SELECT COUNT(*) FROM hisobchi_transactions")
+            row = await r.fetchone() if hasattr(r, "fetchone") else r.fetchone()
+            tx_count = row[0] if row else 0
+        except Exception:
+            pass
+
+    if has_finance_source or tx_count > 0:
+        signals.append({
+            "pipeline": "hisobchi_finance",
+            "name": "Hisobchi AI & Moliya Oqimi",
+            "status": "healthy",
+            "severity": "info",
+            "message": f"Moliya manbasi ulangan ({tx_count} ta tranzaksiya ro'yxatda).",
+            "action": None,
+        })
+    else:
+        signals.append({
+            "pipeline": "hisobchi_finance",
+            "name": "Hisobchi AI & Moliya Oqimi",
+            "status": "warning",
+            "severity": "warning",
+            "message": "Google Sheets yoki Karta SMS gatewaydan yangi to'lovlar kutilmoqda (0 ta tranzaksiya).",
+            "action": "Telegramda /kirim yoki /chiqim kiritish, yoki Karta SMS botini tekshirish.",
+        })
+
+    # 4. FrogAgent (Kunlik ROI Vazifalari)
+    task_count = 0
+    if api_state.db_instance:
+        try:
+            conn = await api_state.db_instance.get_connection()
+            r = await conn.execute("SELECT COUNT(*) FROM tasks WHERE status NOT IN ('Done', 'Completed')")
+            row = await r.fetchone() if hasattr(r, "fetchone") else r.fetchone()
+            task_count = row[0] if row else 0
+        except Exception:
+            pass
+
+    if task_count > 0:
+        signals.append({
+            "pipeline": "frog_agent",
+            "name": "FrogAgent ROI Vazifalar",
+            "status": "healthy",
+            "severity": "info",
+            "message": f"Kunlik {task_count} ta operatsion vazifa faol ijroda.",
+            "action": None,
+        })
+    else:
+        signals.append({
+            "pipeline": "frog_agent",
+            "name": "FrogAgent ROI Vazifalar",
+            "status": "warning",
+            "severity": "warning",
+            "message": "Hozirda ijro etilayotgan faol Frog vazifalari mavjud emas.",
+            "action": "Telegramda /frog orqali bugungi 1-raqamli vazifani belgilang.",
+        })
+
+    # 5. SalesCoach AI (Audio Skoring)
+    calls_count = 0
+    if api_state.db_instance:
+        try:
+            conn = await api_state.db_instance.get_connection()
+            r = await conn.execute("SELECT COUNT(*) FROM call_analyses")
+            row = await r.fetchone() if hasattr(r, "fetchone") else r.fetchone()
+            calls_count = row[0] if row else 0
+        except Exception:
+            pass
+
+    if calls_count > 0:
+        signals.append({
+            "pipeline": "salescoach_audio",
+            "name": "SalesCoach AI (Audio Skoring)",
+            "status": "healthy",
+            "severity": "info",
+            "message": f"{calls_count} ta qo'ng'iroq tahlili bazada saqlangan.",
+            "action": None,
+        })
+    else:
+        signals.append({
+            "pipeline": "salescoach_audio",
+            "name": "SalesCoach AI (Audio Skoring)",
+            "status": "idle",
+            "severity": "info",
+            "message": "Audio yozuvlar navbati bo'sh (yangi qo'ng'iroq audio fayli kutilmoqda).",
+            "action": "Audio yozuv yuklash yoki Fireflies.ai integratsiyasini ulash.",
+        })
+
+    # Overall system health score
+    healthy_count = sum(1 for s in signals if s["status"] == "healthy")
+    health_percentage = int((healthy_count / len(signals)) * 100) if signals else 100
+
+    return {
+        "timestamp": get_local_now().isoformat(),
+        "health_score": health_percentage,
+        "total_pipelines": len(signals),
+        "healthy_count": healthy_count,
+        "has_critical": any(s["severity"] == "critical" for s in signals),
+        "has_warning": any(s["severity"] == "warning" for s in signals),
+        "signals": signals,
+    }
+

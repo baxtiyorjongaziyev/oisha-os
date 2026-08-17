@@ -174,3 +174,34 @@ export async function getCallQualityRecords(): Promise<{ calls: CallQualityRecor
     return null;
   }
 }
+
+/**
+ * System Pipeline Signals & Gap Detector
+ */
+export interface SystemSignal {
+  pipeline: string;
+  name: string;
+  status: 'healthy' | 'warning' | 'degraded' | 'disconnected' | 'idle';
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+  action?: string | null;
+}
+
+export interface SystemSignalsReport {
+  timestamp: string;
+  health_score: number;
+  total_pipelines: number;
+  healthy_count: number;
+  has_critical: boolean;
+  has_warning: boolean;
+  signals: SystemSignal[];
+}
+
+export async function getSystemSignals(): Promise<SystemSignalsReport | null> {
+  try {
+    return await fetchApi<SystemSignalsReport>('/api/system/signals');
+  } catch {
+    return null;
+  }
+}
+
