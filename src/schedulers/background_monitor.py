@@ -30,6 +30,7 @@ class BackgroundMonitor:
         *,
         msg_controller: Any,
         client: Any,
+        bot_client: Any = None,
         juma_notifier: Any = None,
         settings: Any = None,
         get_surgical_integration: Any = None,
@@ -38,6 +39,7 @@ class BackgroundMonitor:
     ) -> None:
         self.msg_controller = msg_controller
         self.client = client
+        self.bot_client = bot_client
         self.juma_notifier = juma_notifier
         self.settings = settings
         self.get_surgical_integration = get_surgical_integration
@@ -65,17 +67,56 @@ class BackgroundMonitor:
     def _mark_sent(self, key: str) -> None:
         self._sent_jobs.add(key)
 
-    async def _notify_admin(self, message: str) -> None:
-        try:
-            await self.client.send_message("me", message)
-        except Exception as exc:
-            logger.error("[NOTIFY ERROR] %s", exc)
+    async def _notify_admin(self, message: str, parse_mode: Optional[str] = None) -> None:
+        admin_id = getattr(self.settings, "OWNER_ID", None) or getattr(
+            self.settings, "TELEGRAM_ADMIN_CHAT_ID", None
+        )
+        if self.bot_client and admin_id:
+            try:
+                kwargs = {}
+                if parse_mode:
+                    kwargs["parse_mode"] = parse_mode
+                await self.bot_client.send_message(admin_id, message, **kwargs)
+                return
+            except Exception as exc:
+                logger.warning("[NOTIFY BOT WARNING] %s; attempting fallback", exc)
+        if self.client:
+            try:
+                kwargs = {}
+                if parse_mode:
+                    kwargs["parse_mode"] = parse_mode
+                await self.client.send_message("me", message, **kwargs)
+            except Exception as exc:
+                logger.error("[NOTIFY ERROR] %s", exc)
+        else:
+            logger.warning("[NOTIFY ERROR] No client available to notify admin")
 
     async def _send_to_group_or_admin(self, text: str, **kwargs) -> None:
-        if self.TN5_GROUP_ID:
-            await self.client.send_message(self.TN5_GROUP_ID, text, **kwargs)
-        else:
-            await self._notify_admin(text)
+        target_group = (
+            self.TN5_GROUP_ID
+            or getattr(self.settings, "CRM_GROUP_ID", None)
+            or getattr(self.settings, "TEAM_GROUP_ID", None)
+        )
+        if target_group:
+            if self.bot_client:
+                try:
+                    send_kwargs = dict(kwargs)
+                    if "reply_to" in send_kwargs and "message_thread_id" not in send_kwargs:
+                        send_kwargs["message_thread_id"] = send_kwargs.pop("reply_to")
+                    await self.bot_client.send_message(target_group, text, **send_kwargs)
+                    return
+                except Exception as exc:
+                    logger.warning(
+                        "[SEND GROUP BOT WARNING] %s; attempting userbot/admin fallback",
+                        exc,
+                    )
+            if self.client:
+                try:
+                    await self.client.send_message(target_group, text, **kwargs)
+                    return
+                except Exception as exc:
+                    logger.error("[SEND GROUP ERROR] %s", exc)
+        await self._notify_admin(text, parse_mode=kwargs.get("parse_mode"))
 
     def _get_amocrm_client(self) -> Any:
         if self.msg_controller and getattr(self.msg_controller, "crm", None):
@@ -184,8 +225,30 @@ class BackgroundMonitor:
                 if self.msg_controller:
                     report = await self.msg_controller.enterprise_reporter.get_daily_efficiency_report()
                     if report:
-                        await self._notify_admin(f"📊 **KUNLIK HISOBOT**\n\n{report}")
-                        logger.info("[SCHEDULE] Daily EnterpriseReport sent.")
+                        report_html = f"📊 <b>KUNLIK HISOBOT</b>\n\n{report}"
+                        fin_group = getattr(self.settings, "HISOBCHI_FINANCE_GROUP_ID", None) if self.settings else None
+                        pnl_topic = getattr(self.settings, "HISOBCHI_PNL_TOPIC_ID", None) if self.settings else None
+                        if fin_group:
+                            send_kwargs = {"parse_mode": "html"}
+                            if pnl_topic:
+                                send_kwargs["reply_to"] = pnl_topic
+                            delivered = False
+                            if self.bot_client:
+                                try:
+                                    bot_kwargs = {"parse_mode": "html"}
+                                    if pnl_topic:
+                                        bot_kwargs["message_thread_id"] = pnl_topic
+                                    await self.bot_client.send_message(fin_group, report_html, **bot_kwargs)
+                                    delivered = True
+                                    logger.info("[SCHEDULE] Daily EnterpriseReport sent via bot.")
+                                except Exception as b_exc:
+                                    logger.warning("[SCHEDULE][REPORT] bot_client failed: %s", b_exc)
+                            if not delivered and self.client:
+                                await self.client.send_message(fin_group, report_html, **send_kwargs)
+                                logger.info("[SCHEDULE] Daily EnterpriseReport sent via client.")
+                        else:
+                            await self._notify_admin(report_html, parse_mode="html")
+                            logger.info("[SCHEDULE] Daily EnterpriseReport sent to admin.")
             except Exception as exc:
                 logger.error("[SCHEDULE][REPORT] Error: %s", exc)
             self._mark_sent(key)
@@ -204,7 +267,7 @@ class BackgroundMonitor:
                     report_text = reporter.format_report(stats, prev)
 
                     send_kwargs = {}
-                    if self.settings and self.settings.TOPIC_REPORTS_ID:
+                    if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
                         send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID
                     await self._send_to_group_or_admin(report_text, **send_kwargs)
                     logger.info("[SCHEDULE] CRM Daily reportagram sent.")
@@ -259,7 +322,7 @@ class BackgroundMonitor:
                 report_text = reporter.format_weekly_report_uz(stats)
 
                 send_kwargs = {}
-                if self.settings and self.settings.TOPIC_REPORTS_ID:
+                if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
                     send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID
                 await self._send_to_group_or_admin(report_text, **send_kwargs)
 
@@ -282,8 +345,20 @@ class BackgroundMonitor:
                         target_group = self.settings.STAGNATION_GROUP_ID if self.settings else None
                         target_topic = self.settings.STAGNATION_TOPIC_ID if self.settings else None
                         if target_group:
-                            await self.client.send_message(target_group, alert, reply_to=target_topic)
-                            logger.info("[SCHEDULE] Stagnation alert sent to group %s.", target_group)
+                            delivered = False
+                            if self.bot_client:
+                                try:
+                                    bot_kwargs = {}
+                                    if target_topic:
+                                        bot_kwargs["message_thread_id"] = target_topic
+                                    await self.bot_client.send_message(target_group, alert, **bot_kwargs)
+                                    delivered = True
+                                    logger.info("[SCHEDULE] Stagnation alert sent to group %s via bot.", target_group)
+                                except Exception as b_exc:
+                                    logger.warning("[SCHEDULE][STAGNATION] bot_client failed: %s", b_exc)
+                            if not delivered and self.client:
+                                await self.client.send_message(target_group, alert, reply_to=target_topic)
+                                logger.info("[SCHEDULE] Stagnation alert sent to group %s via client.", target_group)
                         else:
                             await self._notify_admin(alert)
                             logger.info("[SCHEDULE] Stagnation alert sent to admin.")

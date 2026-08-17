@@ -600,6 +600,11 @@ async def boot_application():
             limit=3,
         )
 
+    def _get_amocrm_client():
+        if msg_controller and getattr(msg_controller, "crm", None):
+            return getattr(msg_controller.crm, "amocrm", None)
+        return None
+
     admin_aiogram_dispatcher = maybe_build_admin_aiogram_dispatcher(
         enabled=(
             bot_runtime.backend == "aiogram"
@@ -620,6 +625,8 @@ async def boot_application():
         get_finance_project_risks=_get_finance_project_risks,
         get_team_capacity=_get_team_capacity,
         get_command_center=_get_command_center,
+        get_amocrm_client=_get_amocrm_client,
+        db=msg_controller.db,
     )
     if admin_aiogram_dispatcher is not None:
         logger.info("[BOT] Aiogram admin dispatcher prepared in manual mode.")
