@@ -140,6 +140,8 @@ export interface FinanceTransaction {
   id: string | number;
   type: string;
   amount: string;
+  raw_amount: number;
+  currency: string;
   description: string;
   date: string;
   category?: string;
@@ -148,8 +150,50 @@ export interface FinanceTransaction {
 
 export async function getFinanceTransactions(): Promise<{ transactions: FinanceTransaction[] } | null> {
   try {
-    return await fetchApi<{ transactions: FinanceTransaction[] }>('/api/finance/transactions');
-  } catch {
+    const raw = await fetchApi<{
+      transactions?: Array<{
+        id: string | number;
+        direction?: string;
+        type?: string;
+        amount: number | string;
+        currency?: string;
+        description?: string;
+        occurred_at?: string;
+        date?: string;
+        category?: string;
+        source?: string;
+      }>;
+    }>('/api/finance/transactions');
+
+    if (!raw || !Array.isArray(raw.transactions)) {
+      return { transactions: [] };
+    }
+
+    const transactions: FinanceTransaction[] = raw.transactions.map((t) => {
+      const isIncome = (t.direction || t.type || '').toLowerCase().includes('kirim') || (t.direction || t.type || '').toLowerCase().includes('in');
+      const cur = (t.currency || 'UZS').toUpperCase();
+      const numAmount = typeof t.amount === 'number' ? t.amount : parseFloat(String(t.amount || 0).replace(/[^0-9.-]+/g, '')) || 0;
+      
+      const formattedAmount = cur === 'USD' 
+        ? `${isIncome ? '+' : '-'}$${numAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+        : `${isIncome ? '+' : '-'}${numAmount.toLocaleString()} ${cur}`;
+
+      return {
+        id: t.id,
+        type: isIncome ? 'Kirim' : 'Chiqim',
+        raw_amount: numAmount,
+        currency: cur,
+        amount: formattedAmount,
+        description: t.description || 'Tranzaksiya',
+        date: t.occurred_at || t.date || 'Bugun',
+        category: t.category || 'Asosiy faoliyat',
+        source: t.source || 'Hisobchi AI',
+      };
+    });
+
+    return { transactions };
+  } catch (error) {
+    console.error('[getFinanceTransactions] Error:', error);
     return null;
   }
 }

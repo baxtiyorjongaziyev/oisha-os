@@ -127,15 +127,20 @@ class GoogleSheetsFinanceSource:
             ).strip()
             amount = _decimal(_row_value(row, "Summa", "amount"))
             occurred_at = str(_row_value(row, "Sana", "date")).strip()
+            parsed_tx_time = _parse_time(occurred_at)
             if not is_on_or_after_start(
-                _parse_time(occurred_at), self._tracking_start_date
+                parsed_tx_time, self._tracking_start_date
             ):
                 continue
             normalized_direction = direction.casefold()
             currency = str(
                 _row_value(row, "Valyuta", "currency", default="UZS")
             ).strip().upper() or "UZS"
-            if occurred_at.startswith(month) and currency == "UZS":
+            is_current_month = (
+                occurred_at.startswith(month)
+                or (parsed_tx_time.year == fetched_at.year and parsed_tx_time.month == fetched_at.month)
+            )
+            if is_current_month and currency == "UZS":
                 if normalized_direction in {"kirim", "in"}:
                     income += amount
                 elif normalized_direction in {"chiqim", "out"}:
