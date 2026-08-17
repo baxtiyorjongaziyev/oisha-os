@@ -66,6 +66,7 @@
   kiritildi.
 
 ### Done (yangi)
+- Shaxsiy Userbot akkauntidan (@baxtiyorjon_gaziyev) AI/avtomat xabarlar yuborilishi butunlay to'xtatildi: `message_handler.py` dagi avto-javoblar bloklandi, `scheduler.py` va `background_monitor.py` dagi barcha userbot `client.send_message` fallbacklari olib tashlanib, faqat rasmiy bot `@jonairobot` orqali yuborilishi kafolatlandi (Antigravity).
 - Karta to'lovlari (Uzcard/Humo) to'g'ridan-to'g'ri Moliya guruhiga yo'naltirildi: `src/services/core/finance/handlers/card_bot_handler.py` dan Saved Messages ga yuborish olib tashlandi, yangi to'lovlar faqat moliya guruhining tegishli mavzusiga (topic) yuboriladi (Antigravity).
 - Hisobchi to'lov xabarlarini qayta-qayta yuborish muammosi hal qilindi: `src/boot.py` dagi har startup/restartda tranzaksiyalar bazasini tozalab yuboruvchi eskirgan `run_one_time_reset_and_resync` chaqiruvi olib tashlandi. Endi faqat `backfill_card_bot_messages` ishlaydi va bazada mavjud to'lovlar qayta yuborilmaydi (Antigravity).
 - AmoCRM kunlik va haftalik hisobotlar, Enterprise daily report va stagnation ogohlantirishlari Telethon Userbot o'rniga `@jonairobot` (Aiogram/BotRuntime) orqali yuborilishi ta'minlandi (`BackgroundMonitor` va `scheduler.py` yangilandi, `bot_client` orqali guruh va adminga yetkazish yo'lga qo'yildi). Admin Aiogram dispetcheriga `/report`, `/crm_report`, `/stats`, `/history` komandalari qo'shildi. Testlar: 1447 passed, 17 skipped; Bandit: no issues (Antigravity).

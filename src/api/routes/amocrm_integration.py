@@ -170,8 +170,10 @@ async def _process_amocrm_event(data: Dict[str, Any]):
             if new_status and old_status:
                 is_valid = await vilgood.enforce_pipeline_rules(int(lead_id), old_status, new_status, lead_data)
                 if not is_valid:
-                    # Send alert to owner/admin
-                    await api_state.user_client.send_message(settings.OWNER_ID, f"⚠️ Vilgood Pipeline Violation!\nLead {lead_id} tried to move to status {new_status} without meeting conditions.")
+                    if getattr(api_state, "bot_client", None):
+                        await api_state.bot_client.send_message(settings.OWNER_ID, f"⚠️ Vilgood Pipeline Violation!\nLead {lead_id} tried to move to status {new_status} without meeting conditions.")
+                    elif getattr(api_state, "admin_bot", None):
+                        await api_state.admin_bot.notify_lead(f"⚠️ Vilgood Pipeline Violation!\nLead {lead_id} tried to move to status {new_status} without meeting conditions.")
                     # Optionally, revert status here via amocrm.update_lead()
 
             # Sanity Publisher: Trigger if lead is marked as Won
