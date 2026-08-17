@@ -1259,24 +1259,35 @@ class HisobchiGsheetStore:
         tx = self._cache_transactions.get(tx_id)
         if not tx:
             return None
+        sheet = SHEET_SHAXSIY if str(_get(SHEET_SHAXSIY, tx, "ownership", "")).lower() == "personal" or "shaxsiy" in str(tx).lower() else SHEET_PUL_OQIMI
+        direction_raw = str(_get(sheet, tx, "direction", "") or tx.get("direction", "")).lower()
+        direction = "in" if ("kirim" in direction_raw or direction_raw == "in") else "out"
+        amount_raw = _get(sheet, tx, "amount", 0) or tx.get("amount", 0)
+        try:
+            amount = int(str(amount_raw).replace(" ", "").replace(",", "").replace(".", "")) if amount_raw else 0
+        except (ValueError, TypeError):
+            amount = 0
         return {
-            "id": tx.get("id", tx_id),
-            "merchant": tx.get("merchant", ""),
-            "card_suffix": tx.get("card_suffix", ""),
-            "direction": "out" if tx.get("direction") == "Chiqim" else "in",
-            "amount": tx.get("amount", 0),
-            "ownership": tx.get("ownership", "business"),
-            "category": tx.get("category", ""),
-            "reason": tx.get("reason", ""),
-            "status": tx.get("status", "pending"),
-            "source_bot": tx.get("source_bot", "uzcard"),
-            "tx_time": tx.get("tx_time", ""),
-            "balance": tx.get("balance"),
+            "id": tx_id,
+            "merchant": _get(sheet, tx, "merchant", "") or tx.get("merchant", ""),
+            "card_suffix": _get(sheet, tx, "card_suffix", "") or tx.get("card_suffix", ""),
+            "direction": direction,
+            "amount": amount,
+            "ownership": "personal" if sheet == SHEET_SHAXSIY else "business",
+            "category": _get(sheet, tx, "category", "") or tx.get("category", ""),
+            "reason": _get(sheet, tx, "reason", "") or tx.get("reason", ""),
+            "status": _get(sheet, tx, "status", "pending") or tx.get("status", "pending"),
+            "source_bot": _get(sheet, tx, "source_bot", "uzcard") or tx.get("source_bot", "uzcard"),
+            "tx_time": _get(sheet, tx, "tx_time", "") or tx.get("tx_time", ""),
+            "balance": _get(sheet, tx, "balance") or tx.get("balance"),
         }
 
     async def get_transaction_status(self, tx_id: int) -> Optional[str]:
         tx = self._cache_transactions.get(tx_id)
-        return tx.get("status") if tx else None
+        if not tx:
+            return None
+        sheet = SHEET_SHAXSIY if str(_get(SHEET_SHAXSIY, tx, "ownership", "")).lower() == "personal" or "shaxsiy" in str(tx).lower() else SHEET_PUL_OQIMI
+        return _get(sheet, tx, "status", None) or tx.get("status")
 
     async def get_monthly_summary(
         self, period: str, *, tracking_start_date: str = "2026-08-01"
