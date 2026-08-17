@@ -1,7 +1,17 @@
 import React from 'react';
-import { getFinanceDashboardStats, getFinanceTransactions } from '@/lib/apiClient';
+import { getFinanceDashboardStats, getFinanceTransactions, FinanceTransaction } from '@/lib/apiClient';
 
 export const dynamic = 'force-dynamic';
+
+interface DisplayTransaction {
+  id: string | number;
+  type: string;
+  amount: string;
+  description: string;
+  date: string;
+  category?: string;
+  source?: string;
+}
 
 export default async function FinanceDashboard() {
   const [stats, txData] = await Promise.all([
@@ -15,7 +25,7 @@ export default async function FinanceDashboard() {
   const netProfit = income - expense;
   const profitMargin = income > 0 ? Math.round((netProfit / income) * 100) : 59;
 
-  const transactions = txData?.transactions && txData.transactions.length > 0 ? txData.transactions : [
+  const defaultTransactions: DisplayTransaction[] = [
     {
       id: 'tx-1',
       type: 'Kirim',
@@ -62,6 +72,18 @@ export default async function FinanceDashboard() {
       source: 'Bank o\'tkazmasi',
     },
   ];
+
+  const transactions: DisplayTransaction[] = (txData?.transactions && txData.transactions.length > 0)
+    ? txData.transactions.map((tx: FinanceTransaction) => ({
+        id: tx.id,
+        type: tx.type,
+        amount: tx.amount,
+        description: tx.description,
+        date: tx.date,
+        category: 'Xizmat haqi',
+        source: 'Bank / Karta',
+      }))
+    : defaultTransactions;
 
   return (
     <div className="space-y-7 pb-12">
@@ -213,7 +235,7 @@ export default async function FinanceDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--md-sys-color-outline-variant)]">
-              {transactions.map((tx: any) => (
+              {transactions.map((tx) => (
                 <tr key={tx.id} className="hover:bg-[var(--md-sys-color-surface-container-low)] transition-colors">
                   <td className="px-6 py-4">
                     <span

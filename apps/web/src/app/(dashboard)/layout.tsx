@@ -3,11 +3,8 @@
 import React from "react";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
-import { useTheme } from "@/context/ThemeContext";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { sidebarOpen } = useTheme();
-
   return (
     <div className="flex h-screen w-screen overflow-hidden">
       {/* Sidebar - left */}
