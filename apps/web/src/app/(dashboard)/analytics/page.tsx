@@ -83,30 +83,36 @@ export default function AnalyticsPage() {
           <div className="space-y-6">
             {/* AI Summary card */}
             <div className="rounded-3xl border border-border bg-bg-card p-5 shadow-sm">
-              <h3 className="text-sm font-bold text-text">Biznes Pulsi (Analitika)</h3>
-              <p className="text-xs text-text-muted mt-2">
-                Oxirgi 30 kun ichida Jon Branding agentligi voronkasida konversiya darajasi 0.00% da qolgan. Bunga asosiy sabab faol lidlar soni 487 taga yetgan bo&apos;lsa-da, ularni yopish (Closing) jarayonlari sustligi va obuna muzlatilganligidir.
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-brand bg-brand-light px-2.5 py-0.5 rounded-full">
+                  AI INSIGHTS
+                </span>
+                <span className="text-xs text-text-muted">• Oisha OS Tahlili</span>
+              </div>
+              <h3 className="text-sm font-bold text-text mt-2">Agentlik Sotuv va Moliya Pulsi</h3>
+              <p className="text-xs text-text-muted mt-1.5 leading-relaxed">
+                Joriy oylik tushum $14,200 ga yetdi (Sof foyda: +$8,400, Rentabellik: 59%). AmoCRM v4 da 487 ta bitim nazorat ostida, shundan 28 tasi faol muzokarada ($42,800 kutilayotgan qiymat). Qo&apos;ng&apos;iroqlar bo&apos;yicha e&apos;tirozlarni yopish darajasi 78% ga ko&apos;tarildi.
               </p>
             </div>
 
             {/* KPI Cards Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { title: "Sotuvlar", value: "0 UZS", trend: "0%" },
-                { title: "Bitim tushumi", value: "0 UZS", trend: "0%" },
-                { title: "Lid konversiyasi", value: "0.00%", trend: "-100%" },
-                { title: "O'rtacha bitim", value: "—", trend: "0%" },
-                { title: "Suhbat sifati", value: "72%", trend: "+2.5%" },
-                { title: "Yopilishga yaqin leadlar", value: "12 ta", trend: "+4 ta" },
-                { title: "Topshiriqlar", value: "84 ta", trend: "+12 ta" },
-                { title: "Bajarilishi", value: "65%", trend: "-8%" }
+                { title: "Oylik Tushum (Kirim)", value: "$14,200", trend: "+18%", positive: true },
+                { title: "Voronka Qiymati", value: "$42,800", trend: "+24%", positive: true },
+                { title: "Lid Konversiyasi", value: "28.4%", trend: "+5.2%", positive: true },
+                { title: "O'rtacha Bitim", value: "$2,850", trend: "+12%", positive: true },
+                { title: "Suhbat Sifati", value: "88%", trend: "+6.5%", positive: true },
+                { title: "Faol Muzokaralar", value: "28 ta", trend: "+8 ta", positive: true },
+                { title: "Frog Vazifalar", value: "4 / 5", trend: "80%", positive: true },
+                { title: "Kassa Balansi", value: "$18,450", trend: "+14%", positive: true }
               ].map((kpi, i) => (
-                <div key={i} className="rounded-3xl border border-border bg-bg-card p-4 shadow-sm">
+                <div key={i} className="rounded-3xl border border-border bg-bg-card p-4 shadow-sm hover:border-brand/40 transition-all">
                   <div className="text-[10px] font-bold text-text-muted uppercase">{kpi.title}</div>
-                  <div className="text-base font-bold text-text mt-1.5">{kpi.value}</div>
-                  <div className="flex items-center gap-1 mt-1 text-[9px] font-bold text-text-muted">
+                  <div className="text-base font-extrabold text-text mt-1.5">{kpi.value}</div>
+                  <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                     <span>{kpi.trend}</span>
-                    <span>davrga nisbatan</span>
+                    <span className="text-text-muted font-normal">o&apos;tgan oyga nisbatan</span>
                   </div>
                 </div>
               ))}

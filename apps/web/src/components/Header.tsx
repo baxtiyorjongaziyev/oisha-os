@@ -92,10 +92,12 @@ export default function Header() {
           </button>
 
           <div className="hidden sm:block">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
-              METASELL
-            </span>
-            <h2 className="text-sm font-semibold text-text mt-[-2px]">Sotuv Tahlil Tizimi</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand bg-brand-light px-2 py-0.5 rounded-full">
+                OISHA OS
+              </span>
+              <span className="text-xs text-text-muted font-medium">• Agentic Command Center</span>
+            </div>
           </div>
         </div>
 
