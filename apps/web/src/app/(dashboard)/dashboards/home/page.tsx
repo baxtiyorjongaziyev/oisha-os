@@ -37,10 +37,23 @@ export default async function HomePage() {
   const tasks = tasksData?.tasks ?? [];
   const pendingTasks = crmStats?.tasks?.pending ?? tasks.filter(t => t.status !== 'Done' && t.status !== 'Completed').length;
   const completedToday = crmStats?.tasks?.completed_today ?? tasks.filter(t => t.status === 'Done' || t.status === 'Completed').length;
-
   const transactions = txData?.transactions ?? [];
-  const signals = signalsReport?.signals ?? [];
-  const healthScore = signalsReport?.health_score ?? 100;
+
+  const fallbackSignals: SystemSignal[] = [
+    {
+      pipeline: 'api_gateway',
+      name: "FastAPI Backend & Ma'lumotlar Bazasiga Ulanish",
+      status: 'disconnected',
+      severity: 'critical',
+      message: "Next.js server API bilan bog'lana olmadi (INTERNAL_API_URL yoki OISHA_API_SECRET tekshirilmoqda).",
+      action: "Oracle VM'da servislar holati va .env kalitlarini tekshirish",
+    },
+  ];
+
+  const signals = signalsReport?.signals && signalsReport.signals.length > 0 
+    ? signalsReport.signals 
+    : fallbackSignals;
+  const healthScore = signalsReport ? signalsReport.health_score : 0;
 
   return (
     <div className="space-y-6 pb-12">

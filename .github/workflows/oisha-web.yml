@@ -69,7 +69,7 @@ jobs:
 
       - name: Build web app (standalone)
         env:
-          NEXT_PUBLIC_API_URL: https://oisha.jonbranding.uz/api/v1
+          NEXT_PUBLIC_API_URL: https://oisha.jonbranding.uz
           NEXT_TELEMETRY_DISABLED: "1"
         run: |
           corepack enable
