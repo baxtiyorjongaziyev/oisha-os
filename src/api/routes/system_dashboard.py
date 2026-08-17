@@ -274,7 +274,16 @@ async def get_system_signals():
     # 3. Moliya & Kassa (Hisobchi AI)
     has_finance_source = api_state.finance_source is not None
     tx_count = 0
-    if api_state.db_instance:
+    source_name = "Turso DB"
+    if has_finance_source:
+        try:
+            snap = await api_state.finance_source.get_snapshot()
+            tx_count = len(snap.transactions)
+            source_name = "Google Sheets (Pul oqimi)" if "sheet" in str(snap.source) else str(snap.source)
+        except Exception:
+            pass
+
+    if tx_count == 0 and api_state.db_instance:
         try:
             conn = await api_state.db_instance.get_connection()
             r = await conn.execute("SELECT COUNT(*) FROM hisobchi_transactions")
@@ -289,7 +298,7 @@ async def get_system_signals():
             "name": "Hisobchi AI & Moliya Oqimi",
             "status": "healthy",
             "severity": "info",
-            "message": f"Moliya manbasi ulangan ({tx_count} ta tranzaksiya ro'yxatda).",
+            "message": f"Moliya manbasi ulangan ({tx_count} ta real tranzaksiya mavjud • {source_name}).",
             "action": None,
         })
     else:

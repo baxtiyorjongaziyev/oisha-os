@@ -9,9 +9,11 @@ StartLimitBurst=3
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/oisha-web/apps/web
+EnvironmentFile=-/home/ubuntu/oisha-os/.env
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOSTNAME=127.0.0.1
+Environment=INTERNAL_API_URL=http://127.0.0.1:8080
 Environment=NODE_OPTIONS=--max-old-space-size=256
 Environment=NEXT_TELEMETRY_DISABLED=1
 ExecStartPre=/usr/bin/test -f /home/ubuntu/oisha-web/apps/web/server.js
