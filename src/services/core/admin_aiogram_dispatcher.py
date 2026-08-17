@@ -30,7 +30,10 @@ class AiogramCallbackEventAdapter:
         self.data = getattr(callback, "data", None)
 
     async def answer(self, text: str = "") -> None:
-        await self.callback.answer(text)
+        try:
+            await self.callback.answer(text)
+        except Exception as exc:
+            logger.debug("[HISOBCHI] Callback answer failed: %s", exc)
 
     async def edit(
         self,
@@ -42,16 +45,30 @@ class AiogramCallbackEventAdapter:
         message = getattr(self.callback, "message", None)
         if message is None:
             return
-        kwargs: dict[str, Any] = {}
-        if parse_mode:
-            kwargs["parse_mode"] = parse_mode.upper()
-        if buttons is not None:
-            from src.services.core.telegram.bot_runtime import (
-                _coerce_aiogram_inline_keyboard,
-            )
+        from src.services.core.telegram.bot_runtime import (
+            _coerce_aiogram_inline_keyboard,
+        )
+        try:
+            if text is None:
+                if buttons is not None:
+                    reply_markup = _coerce_aiogram_inline_keyboard(buttons)
+                    await message.edit_reply_markup(reply_markup=reply_markup)
+                return
 
-            kwargs["reply_markup"] = _coerce_aiogram_inline_keyboard(buttons)
-        await message.edit_text(text or getattr(message, "text", "") or "", **kwargs)
+            kwargs: dict[str, Any] = {}
+            if parse_mode:
+                kwargs["parse_mode"] = parse_mode.upper()
+            if buttons is not None:
+                kwargs["reply_markup"] = _coerce_aiogram_inline_keyboard(buttons)
+            else:
+                kwargs["reply_markup"] = None
+            await message.edit_text(text, **kwargs)
+        except Exception as exc:
+            err_msg = str(exc).lower()
+            if "message is not modified" in err_msg:
+                logger.debug("[HISOBCHI] edit ignored message not modified: %s", exc)
+                return
+            logger.warning("[HISOBCHI] edit message failed: %s", exc)
 
 
 def register_hisobchi_aiogram_callbacks(

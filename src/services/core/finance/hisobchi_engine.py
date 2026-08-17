@@ -496,6 +496,14 @@ class HisobchiEngine:
         )
         return dict(rows[0]) if rows else None
 
+    async def get_transaction(self, tx_id: int) -> Optional[dict]:
+        if self._gs:
+            return await self._gs.get_transaction(tx_id)
+        rows = await self._db.execute(
+            "SELECT * FROM hisobchi_transactions WHERE id=?", [tx_id]
+        )
+        return dict(rows[0]) if rows else None
+
     async def get_transaction_status(self, tx_id: int) -> Optional[str]:
         if self._gs:
             return await self._gs.get_transaction_status(tx_id)

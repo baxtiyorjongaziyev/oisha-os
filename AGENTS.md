@@ -66,6 +66,7 @@
   kiritildi.
 
 ### Done (yangi)
+- Hisobchi inline tasdiqlash tugmalari (Biznes/Shaxsiy, Tasdiqlash, Tahrirlash, Rad etish) to'liq ishga tushirildi: Aiogram 3.x callback event adapteridagi `edit_reply_markup` muammosi bartaraf etildi, restartdan keyin xotira tozalanganda tranzaksiyalarni avtomatik SQLite/Turso bazadan tiklash (`_get_or_load_pending`) tizimi qo'shildi (Antigravity).
 - Shaxsiy Userbot akkauntidan (@baxtiyorjon_gaziyev) AI/avtomat xabarlar yuborilishi butunlay to'xtatildi: `message_handler.py` dagi avto-javoblar bloklandi, `scheduler.py` va `background_monitor.py` dagi barcha userbot `client.send_message` fallbacklari olib tashlanib, faqat rasmiy bot `@jonairobot` orqali yuborilishi kafolatlandi (Antigravity).
 - Karta to'lovlari (Uzcard/Humo) to'g'ridan-to'g'ri Moliya guruhiga yo'naltirildi: `src/services/core/finance/handlers/card_bot_handler.py` dan Saved Messages ga yuborish olib tashlandi, yangi to'lovlar faqat moliya guruhining tegishli mavzusiga (topic) yuboriladi (Antigravity).
 - Hisobchi to'lov xabarlarini qayta-qayta yuborish muammosi hal qilindi: `src/boot.py` dagi har startup/restartda tranzaksiyalar bazasini tozalab yuboruvchi eskirgan `run_one_time_reset_and_resync` chaqiruvi olib tashlandi. Endi faqat `backfill_card_bot_messages` ishlaydi va bazada mavjud to'lovlar qayta yuborilmaydi (Antigravity).

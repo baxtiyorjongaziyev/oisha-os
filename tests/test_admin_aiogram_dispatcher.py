@@ -21,9 +21,13 @@ class _EditableMessage:
 
     def __init__(self):
         self.edits = []
+        self.markup_edits = []
 
     async def edit_text(self, text, **kwargs):
         self.edits.append((text, kwargs))
+
+    async def edit_reply_markup(self, reply_markup=None):
+        self.markup_edits.append(reply_markup)
 
 
 class _Callback:
@@ -46,7 +50,11 @@ async def test_aiogram_callback_adapter_supports_hisobchi_surface():
 
     assert event.data == "happrove:1:business"
     assert callback.answers == ["OK"]
-    assert callback.message.edits == [("Updated", {"parse_mode": "HTML"})]
+    assert callback.message.edits == [("Updated", {"parse_mode": "HTML", "reply_markup": None})]
+
+    # Test editing buttons only
+    await event.edit(buttons=[[{"text": "Btn", "data": "test_data"}]])
+    assert len(callback.message.markup_edits) == 1
 
 
 class FakeAiogramMessage:

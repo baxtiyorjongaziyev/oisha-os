@@ -1255,6 +1255,25 @@ class HisobchiGsheetStore:
                 }
         return None
 
+    async def get_transaction(self, tx_id: int) -> Optional[dict]:
+        tx = self._cache_transactions.get(tx_id)
+        if not tx:
+            return None
+        return {
+            "id": tx.get("id", tx_id),
+            "merchant": tx.get("merchant", ""),
+            "card_suffix": tx.get("card_suffix", ""),
+            "direction": "out" if tx.get("direction") == "Chiqim" else "in",
+            "amount": tx.get("amount", 0),
+            "ownership": tx.get("ownership", "business"),
+            "category": tx.get("category", ""),
+            "reason": tx.get("reason", ""),
+            "status": tx.get("status", "pending"),
+            "source_bot": tx.get("source_bot", "uzcard"),
+            "tx_time": tx.get("tx_time", ""),
+            "balance": tx.get("balance"),
+        }
+
     async def get_transaction_status(self, tx_id: int) -> Optional[str]:
         tx = self._cache_transactions.get(tx_id)
         return tx.get("status") if tx else None
