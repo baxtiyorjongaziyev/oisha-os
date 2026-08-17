@@ -18,7 +18,6 @@ export default function Header() {
     setBugReportOpen,
     notificationsOpen,
     setNotificationsOpen,
-    alerts,
     alertsCount,
   } = useTheme();
 
@@ -305,6 +304,12 @@ export default function Header() {
               {bugSuccess && (
                 <div className="rounded-2xl bg-[#c4eed0] p-2.5 text-center text-xs font-bold text-[#0f5223]">
                   ✓ Buyruq Oisha-OS agentlariga yuborildi!
+                </div>
+              )}
+
+              {bugError && (
+                <div className="rounded-2xl bg-[#ffdad6] p-2.5 text-center text-xs font-bold text-[#b3261e]">
+                  {bugError}
                 </div>
               )}
 

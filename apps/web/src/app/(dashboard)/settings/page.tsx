@@ -27,7 +27,6 @@ function SettingsPageContent() {
     language,
     setLanguage,
     currentBusiness,
-    setCurrentBusiness
   } = useTheme();
 
   // Aktiv tab URL'dan hosil qilinadi — dublikat state emas.
@@ -48,14 +47,6 @@ function SettingsPageContent() {
     e.preventDefault();
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 2000);
-  };
-
-  // Schedule working days
-  const [workDays, setWorkDays] = useState({
-    Du: true, Se: true, Ch: true, Pa: true, Ju: true, Sh: false, Ya: false
-  });
-  const toggleDay = (day: keyof typeof workDays) => {
-    setWorkDays({ ...workDays, [day]: !workDays[day] });
   };
 
   // General tab states

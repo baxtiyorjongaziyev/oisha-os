@@ -25,7 +25,6 @@ export default function CallsPage() {
   
   const [sortKey, setSortKey] = useState<keyof CallData>("date");
   const [sortAsc, setSortAsc] = useState(false);
-  const [activeActionsMenu, setActiveActionsMenu] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/oisha/sales-quality")
@@ -148,6 +147,9 @@ export default function CallsPage() {
           <p className="mt-0.5 text-xs text-[var(--md-sys-color-on-surface-variant)]">
             Sun&apos;iy intellekt orqali transkripsiya, e&apos;tirozlarni yopish va A1-E3 mezonlari bo&apos;yicha baholash.
           </p>
+          {loadError && (
+            <p className="mt-1 text-[11px] text-[#b06000] dark:text-[#fdd663]">{loadError}</p>
+          )}
         </div>
 
         <div className="flex items-center gap-2.5">

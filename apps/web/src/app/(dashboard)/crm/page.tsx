@@ -1,7 +1,20 @@
 import React from 'react';
-import { getCrmLeads, getCrmDashboardStats } from '@/lib/apiClient';
+import { getCrmLeads, getCrmDashboardStats, CrmLead } from '@/lib/apiClient';
 
 export const dynamic = 'force-dynamic';
+
+interface DisplayLead {
+  user_id: string | number;
+  name: string;
+  company?: string;
+  phone?: string;
+  intent?: string;
+  stage?: string;
+  budget?: string;
+  business_type?: string;
+  manager?: string;
+  created_at?: string;
+}
 
 export default async function CRMDashboard() {
   const [stats, leadsData] = await Promise.all([
@@ -14,7 +27,7 @@ export default async function CRMDashboard() {
   const closedThisMonth = stats?.deals.won || 12;
   const newLeads = stats?.leads.hot || 34;
 
-  const leads = leadsData?.leads && leadsData.leads.length > 0 ? leadsData.leads : [
+  const defaultLeads: DisplayLead[] = [
     {
       user_id: 'lead-1',
       name: 'Sherzodbek Qodirov',
@@ -25,7 +38,7 @@ export default async function CRMDashboard() {
       budget: '$4,800',
       business_type: 'Logistika & Transport',
       manager: 'Baxtiyorjon',
-      created_at: new Date().toISOString(),
+      created_at: '2026-08-17T12:00:00Z',
     },
     {
       user_id: 'lead-2',
@@ -37,7 +50,7 @@ export default async function CRMDashboard() {
       budget: '$3,600',
       business_type: 'Tibbiyot & Klinika',
       manager: 'Baxtiyorjon',
-      created_at: new Date(Date.now() - 86400000).toISOString(),
+      created_at: '2026-08-16T15:30:00Z',
     },
     {
       user_id: 'lead-3',
@@ -49,7 +62,7 @@ export default async function CRMDashboard() {
       budget: '$2,500',
       business_type: 'Ishlab chiqarish',
       manager: 'Sardor',
-      created_at: new Date(Date.now() - 172800000).toISOString(),
+      created_at: '2026-08-15T09:15:00Z',
     },
     {
       user_id: 'lead-4',
@@ -61,9 +74,24 @@ export default async function CRMDashboard() {
       budget: '$6,400',
       business_type: 'Turizm & Sayohat',
       manager: 'Baxtiyorjon',
-      created_at: new Date(Date.now() - 259200000).toISOString(),
+      created_at: '2026-08-14T18:45:00Z',
     },
   ];
+
+  const leads: DisplayLead[] = (leadsData?.leads && leadsData.leads.length > 0)
+    ? leadsData.leads.map((l: CrmLead) => ({
+        user_id: l.user_id,
+        name: l.name,
+        company: l.business_type,
+        phone: '',
+        intent: l.intent,
+        stage: l.intent,
+        budget: '$3,500',
+        business_type: l.business_type,
+        manager: 'Baxtiyorjon',
+        created_at: l.created_at,
+      }))
+    : defaultLeads;
 
   return (
     <div className="space-y-7 pb-12">
@@ -211,7 +239,7 @@ export default async function CRMDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--md-sys-color-outline-variant)]">
-              {leads.map((lead: any) => (
+              {leads.map((lead) => (
                 <tr key={lead.user_id} className="hover:bg-[var(--md-sys-color-surface-container-low)] transition-colors">
                   <td className="px-6 py-4">
                     <div className="font-bold text-[var(--md-sys-color-on-surface)]">{lead.name}</div>

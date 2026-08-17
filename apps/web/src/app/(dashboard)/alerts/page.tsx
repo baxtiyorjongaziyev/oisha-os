@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useTheme, Alert } from "@/context/ThemeContext";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function AlertsPage() {
   const { alerts, setAlerts } = useTheme();
