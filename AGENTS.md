@@ -66,6 +66,7 @@
   kiritildi.
 
 ### Done (yangi)
+- Hisobchi "Topilmadi" (Not found) muammosi va tranzaksiyalarni qidirish tizimi to'liq tuzatildi: `HisobchiEngine` da Google Sheets ulangan taqdirda ham `self._db` (Turso/SQLite) doimiy va birlamchi saqlovchi sifatida ishga tushirildi. `save_transaction_once`, `categorize`, `skip` va `update_finance_msg` amallari DB va GSheets'ga parallel, ishonchli yozilishi ta'minlandi. `_get_or_load_pending` funksiyasiga multi-layer fallback va in-memory avtomatik tiklash qo'shildi, natijada tugmalar hech qachon qotib qolmaydi va xatoliksiz ishlaydi (Antigravity).
 - Hisobchi inline tasdiqlash tugmalari (Biznes/Shaxsiy, Tasdiqlash, Tahrirlash, Rad etish) to'liq ishga tushirildi: Aiogram 3.x callback event adapteridagi `edit_reply_markup` muammosi bartaraf etildi, restartdan keyin xotira tozalanganda tranzaksiyalarni avtomatik SQLite/Turso bazadan tiklash (`_get_or_load_pending`) tizimi qo'shildi (Antigravity).
 - Shaxsiy Userbot akkauntidan (@baxtiyorjon_gaziyev) AI/avtomat xabarlar yuborilishi butunlay to'xtatildi: `message_handler.py` dagi avto-javoblar bloklandi, `scheduler.py` va `background_monitor.py` dagi barcha userbot `client.send_message` fallbacklari olib tashlanib, faqat rasmiy bot `@jonairobot` orqali yuborilishi kafolatlandi (Antigravity).
 - Karta to'lovlari (Uzcard/Humo) to'g'ridan-to'g'ri Moliya guruhiga yo'naltirildi: `src/services/core/finance/handlers/card_bot_handler.py` dan Saved Messages ga yuborish olib tashlandi, yangi to'lovlar faqat moliya guruhining tegishli mavzusiga (topic) yuboriladi (Antigravity).
