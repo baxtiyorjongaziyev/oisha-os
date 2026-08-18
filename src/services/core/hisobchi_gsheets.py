@@ -1256,7 +1256,15 @@ class HisobchiGsheetStore:
         return None
 
     async def get_transaction(self, tx_id: int) -> Optional[dict]:
+        # Direct lookup by transaction ID in cache
         tx = self._cache_transactions.get(tx_id)
+        # Fallback: some rows may store the ID under different header names (e.g., "ID" or "id")
+        if not tx:
+            for cand in self._cache_transactions.values():
+                cand_id = cand.get("ID") or cand.get("id")
+                if cand_id is not None and str(cand_id) == str(tx_id):
+                    tx = cand
+                    break
         if not tx:
             return None
         sheet = SHEET_SHAXSIY if str(_get(SHEET_SHAXSIY, tx, "ownership", "")).lower() == "personal" or "shaxsiy" in str(tx).lower() else SHEET_PUL_OQIMI
@@ -1281,6 +1289,7 @@ class HisobchiGsheetStore:
             "tx_time": _get(sheet, tx, "tx_time", "") or tx.get("tx_time", ""),
             "balance": _get(sheet, tx, "balance") or tx.get("balance"),
         }
+
 
     async def get_transaction_status(self, tx_id: int) -> Optional[str]:
         tx = self._cache_transactions.get(tx_id)

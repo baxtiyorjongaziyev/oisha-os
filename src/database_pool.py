@@ -3,10 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, List, Optional
 
-try:
-    import libsql  # type: ignore[import]
-except ImportError:
-    import libsql_experimental as libsql  # type: ignore[import,no-redef]
+import libsql  # type: ignore[import]
 
 from src.settings import settings
 from src.db_helpers import normalize_turso_url, setting_text as _setting_text

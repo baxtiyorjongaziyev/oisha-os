@@ -292,7 +292,7 @@ async def get_system_signals():
         except Exception:
             pass
 
-    if has_finance_source or tx_count > 0:
+    if has_finance_source and tx_count > 0:
         signals.append({
             "pipeline": "hisobchi_finance",
             "name": "Hisobchi AI & Moliya Oqimi",
