@@ -912,19 +912,27 @@ class CallAnalyzer:
             return self._normalise_analysis(data, transcript, duration_seconds)
         except GeminiQuotaCooldownError:
             logger.info("[CALL] Gemini transcript analysis skipped during quota cooldown.")
-            openai_analysis = await self._analyze_transcript_openai(
+            fallback_analysis = await self._analyze_transcript_openai(
                 transcript, duration_seconds
             )
-            if openai_analysis:
-                return openai_analysis
+            if not fallback_analysis:
+                fallback_analysis = await self._analyze_transcript_free_ai(
+                    transcript, duration_seconds
+                )
+            if fallback_analysis:
+                return fallback_analysis
             return self._fallback_analysis(transcript)
         except Exception as exc:
             logger.error("[CALL] Transcript analysis failed: %s", exc)
-            openai_analysis = await self._analyze_transcript_openai(
+            fallback_analysis = await self._analyze_transcript_openai(
                 transcript, duration_seconds
             )
-            if openai_analysis:
-                return openai_analysis
+            if not fallback_analysis:
+                fallback_analysis = await self._analyze_transcript_free_ai(
+                    transcript, duration_seconds
+                )
+            if fallback_analysis:
+                return fallback_analysis
             return self._fallback_analysis(transcript)
 
     async def _analyze_transcript_openai(
@@ -969,6 +977,37 @@ class CallAnalyzer:
             return self._normalise_analysis(data, transcript, duration_seconds)
         except Exception as exc:
             logger.error("[CALL] OpenAI analysis fallback failed: %s", exc)
+            return None
+
+    async def _analyze_transcript_free_ai(
+        self, transcript: str, duration_seconds: int = 0
+    ) -> Optional[Dict[str, Any]]:
+        """Fallback JSON analysis via free_ai_router (Groq/Cloudflare text models)."""
+        system = (
+            "Siz O'zbek tilida ishlaydigan amoCRM qo'ng'iroq tahlilchisisiz. "
+            "Faqat JSON qaytaring, boshqa matn yozmang."
+        )
+        now_local = get_local_now()
+        prompt = (
+            "Telefon suhbati transkripsiyasini tahlil qiling.\n"
+            f"Hozirgi sana va vaqt (Toshkent): {now_local.strftime('%Y-%m-%d %H:%M')}\n"
+            "Toifalar: Shaxsiy, Oila, Jamoa, Mijoz, Boshqa.\n"
+            "Kayfiyat: Ijobiy, Neytral, Salbiy, Noaniq.\n"
+            "JSON schema: summary, category, client_mood, next_steps, "
+            "kelishilgan_vaqt (suhbatda aniq kun/soat kelishilgan bo'lsa "
+            "\"YYYY-MM-DD HH:MM\" formatida, aks holda null).\n\n"
+            f"Transkripsiya:\n{transcript}"
+        )
+        try:
+            result = await self.free_ai_router.generate_text(
+                prompt, system=system, max_tokens=1024, temperature=0.2
+            )
+            data = _extract_json_object(result.text if result else "")
+            if not data:
+                return None
+            return self._normalise_analysis(data, transcript, duration_seconds)
+        except Exception as exc:
+            logger.error("[CALL] free_ai_router analysis fallback failed: %s", exc)
             return None
 
     def _normalise_analysis(
