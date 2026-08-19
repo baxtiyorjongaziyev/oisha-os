@@ -176,6 +176,7 @@ jobs:
             OLLAMA_BASE_URL=${OLLAMA_BASE_URL_VALUE}
             OLLAMA_TEXT_MODEL=qwen2.5:3b
             ENABLE_PAID_AI_FALLBACK=false
+            ENABLE_AI_AUTOPILOT=true
             AMOCRM_SUBDOMAIN=jonbrandingagency
             AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID}
             AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET}
