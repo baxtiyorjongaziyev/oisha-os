@@ -28,6 +28,7 @@ from src.services.core.audit_agent import AuditAgent
 from src.services.core.sales_coach import SalesCoach
 from src.services.core.crm.crm_guard import CRMGuard
 from src.services.core.admin_bot import AdminBot
+from src.services.core.amocrm_alert_forwarder import AmoCrmAlertForwarder
 from src.services.utils.access_manager import AccessManager
 from src.services.core.telegram.session_manager import SessionManager
 from src.services.core.meeting_scheduler import TelegramMeetingScheduler
@@ -568,6 +569,8 @@ async def boot_application():
 
     workflow_manager = WorkflowManager(crm=msg_controller.crm, db=msg_controller.db, client=client)
     access_manager = AccessManager(owner_id=src_config.OWNER_ID)
+
+    AmoCrmAlertForwarder(user_client=client).setup_handlers()
 
     # Admin Bot
     admin_bot = AdminBot(
