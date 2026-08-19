@@ -1260,9 +1260,9 @@ async def boot_application():
             logger.info("[SHUTDOWN] Userbot client disconnected.")
         except Exception as e:
             logger.warning(f"[SHUTDOWN] Userbot disconnect error: {e}")
-        if aiogram_bot_head is not None:
+        if app_ctx.aiogram_bot_head is not None:
             try:
-                await aiogram_bot_head.stop()
+                await app_ctx.aiogram_bot_head.stop()
             except Exception as e:
                 logger.warning(f"[SHUTDOWN] Aiogram bot head stop error: {e}")
         elif bot_client is not None:

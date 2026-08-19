@@ -11,6 +11,7 @@ import { SharesModule } from './shares/shares.module';
 import { NegotiationsModule } from './negotiations/negotiations.module';
 import { CoachingModule } from './coaching/coaching.module';
 import { CallIntelModule } from './integrations/call-intel/call-intel.module';
+import { MetaSellModule } from './integrations/metasell/metasell.module';
 import { PrismaModule } from './common/prisma.module';
 import { QueueModule } from './common/queue.module';
 
@@ -30,6 +31,7 @@ import { QueueModule } from './common/queue.module';
     NegotiationsModule,
     CoachingModule,
     CallIntelModule,
+    MetaSellModule,
   ],
 })
 export class AppModule {}

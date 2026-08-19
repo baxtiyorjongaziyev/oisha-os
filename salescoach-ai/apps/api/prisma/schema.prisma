@@ -39,6 +39,10 @@ enum SubscriptionPlan {
   ENTERPRISE
 }
 
+enum ExternalCallSource {
+  METASELL
+}
+
 model Organization {
   id               String           @id @default(uuid())
   name             String
@@ -47,22 +51,23 @@ model Organization {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  users     User[]
-  calls     Call[]
-  shareLinks ShareLink[]
+  users                  User[]
+  calls                  Call[]
+  shareLinks             ShareLink[]
+  externalScoreSnapshots ExternalScoreSnapshot[]
 }
 
 model User {
-  id           String    @id @default(uuid())
+  id           String   @id @default(uuid())
   orgId        String
-  email        String    @unique
+  email        String   @unique
   passwordHash String?
-  googleId     String?   @unique
-  telegramId   String?   @unique
-  role         UserRole  @default(MANAGER)
-  locale       String    @default("uz")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  googleId     String?  @unique
+  telegramId   String?  @unique
+  role         UserRole @default(MANAGER)
+  locale       String   @default("uz")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   org           Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   calls         Call[]
@@ -71,11 +76,11 @@ model User {
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   revokedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -96,15 +101,15 @@ model Call {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  manager    User         @relation(fields: [managerId], references: [id])
+  org        Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  manager    User                @relation(fields: [managerId], references: [id])
   transcript TranscriptSegment[]
   scorecard  Scorecard?
   shareLinks ShareLink[]
 }
 
 model TranscriptSegment {
-  id      String  @id @default(uuid())
+  id      String @id @default(uuid())
   callId  String
   speaker String
   start   Float
@@ -118,38 +123,66 @@ model TranscriptSegment {
 }
 
 model Scorecard {
-  id                 String   @id @default(uuid())
-  callId             String   @unique
-  overallScore       Float
-  stageScores        Json
-  voiceAnalytics     Json
-  summary            String
-  goodPoints         String[]
-  improvementPoints  String[]
-  recommendedPhrase  String
+  id                  String   @id @default(uuid())
+  callId              String   @unique
+  overallScore        Float
+  stageScores         Json
+  voiceAnalytics      Json
+  summary             String
+  goodPoints          String[]
+  improvementPoints   String[]
+  recommendedPhrase   String
   nextStepCommitments Json
-  riskFlags          String[]
-  leadQualityScore   Float
-  predictedOutcome   String?
-  createdAt          DateTime @default(now())
+  riskFlags           String[]
+  leadQualityScore    Float
+  predictedOutcome    String?
+  createdAt           DateTime @default(now())
 
   call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
 }
 
 model ShareLink {
-  id          String    @id @default(uuid())
-  callId      String
-  orgId       String
-  createdBy   String
-  tokenHash   String    @unique
-  expiresAt   DateTime
-  revokedAt   DateTime?
-  passwordHash String?
-  accessCount Int       @default(0)
-  maskCustomerName Boolean @default(false)
-  createdAt   DateTime  @default(now())
+  id               String    @id @default(uuid())
+  callId           String
+  orgId            String
+  createdBy        String
+  tokenHash        String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  passwordHash     String?
+  accessCount      Int       @default(0)
+  maskCustomerName Boolean   @default(false)
+  createdAt        DateTime  @default(now())
 
   call Call         @relation(fields: [callId], references: [id], onDelete: Cascade)
   org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   user User         @relation(fields: [createdBy], references: [id])
+}
+
+model ExternalScoreSnapshot {
+  id               String             @id @default(uuid())
+  orgId            String
+  source           ExternalCallSource @default(METASELL)
+  periodDays       Int
+  managerName      String
+  totalCalls       Int
+  convertedCalls   Int
+  conversionRate   Float
+  avgScore         Float
+  growthStage      String?
+  growthStageLabel String?
+  revenueWon       Float?
+  revenueAtRisk    Float?
+  dealsWon         Int?
+  dealsLost        Int?
+  topWeaknesses    Json?
+  topObjections    Json?
+  raw              Json
+  fetchedAt        DateTime           @default(now())
+  createdAt        DateTime           @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, source, periodDays, fetchedAt])
+  @@index([orgId, managerName])
 }
