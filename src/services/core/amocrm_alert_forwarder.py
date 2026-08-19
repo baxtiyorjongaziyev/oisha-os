@@ -34,9 +34,12 @@ class AmoCrmAlertForwarder:
         )
         async def _forward_amocrm_alert(event):
             try:
-                await self.user_client.forward_messages(
+                # forward_messages() has no topic/reply_to support; send_message()
+                # accepts a Message object (forwards it, keeping the "Forwarded
+                # from" header) and does support reply_to for forum topics.
+                await self.user_client.send_message(
                     entity=self.group_id,
-                    messages=event.message,
+                    message=event.message,
                     reply_to=self.topic_id,
                 )
                 logger.info(
