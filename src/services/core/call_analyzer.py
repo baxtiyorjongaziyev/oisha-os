@@ -397,7 +397,13 @@ class CallAnalyzer:
         return is_quota_error(error)
 
     def _defer_calls_without_fallback(self) -> bool:
-        return self._gemini_cooling_down() and not self.openai_client
+        if not self._gemini_cooling_down():
+            return False
+        if self.openai_client:
+            return False
+        if self.free_ai_router.available("groq") or self.free_ai_router.available("cloudflare"):
+            return False
+        return True
 
     async def _load_persisted_cooldown(self) -> None:
         if self._cooldown_loaded:
