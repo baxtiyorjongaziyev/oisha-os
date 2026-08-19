@@ -179,7 +179,15 @@ class FreeAIProviderRouter:
                 return await self._cloudflare_whisper(audio_bytes)
             except Exception as exc:
                 self._pause(provider, exc)
-                logger.warning("[FREE_AI_STT] provider=%s failed: %s", provider, type(exc).__name__)
+                detail = str(exc)
+                if isinstance(exc, httpx.HTTPStatusError):
+                    detail = f"{exc.response.status_code} {exc.response.text[:200]}"
+                logger.warning(
+                    "[FREE_AI_STT] provider=%s failed: %s: %s",
+                    provider,
+                    type(exc).__name__,
+                    detail,
+                )
         return None
 
     async def _groq_text(
