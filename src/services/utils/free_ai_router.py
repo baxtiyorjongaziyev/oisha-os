@@ -256,13 +256,27 @@ class FreeAIProviderRouter:
             int(usage.get("completion_tokens") or 0),
         )
 
+    _GROQ_EXTENSIONS = {
+        "audio/mpeg": "mp3",
+        "audio/mp3": "mp3",
+        "audio/mp4": "m4a",
+        "audio/x-m4a": "m4a",
+        "audio/ogg": "ogg",
+        "audio/opus": "opus",
+        "audio/wav": "wav",
+        "audio/x-wav": "wav",
+        "audio/flac": "flac",
+        "audio/webm": "webm",
+    }
+
     async def _groq_whisper(self, audio_bytes: bytes, mime_type: str) -> ProviderResult:
         model = self.settings.GROQ_WHISPER_MODEL
+        extension = self._GROQ_EXTENSIONS.get(mime_type, "ogg")
         response = await self._request(
             "POST",
             "https://api.groq.com/openai/v1/audio/transcriptions",
             headers={"Authorization": f"Bearer {_text(self.settings.GROQ_API_KEY)}"},
-            files={"file": ("amocrm-call", audio_bytes, mime_type)},
+            files={"file": (f"amocrm-call.{extension}", audio_bytes, mime_type)},
             data={"model": model, "response_format": "json"},
         )
         return ProviderResult(str(response.json().get("text") or "").strip(), "groq", model)
