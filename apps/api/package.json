@@ -13,7 +13,7 @@
     "prisma:migrate": "echo \"Prisma migrations start in Prompt 2\""
   },
   "dependencies": {
-    "@nestjs/common": "^11.1.28",
+    "@nestjs/common": "^11.2.1",
     "@nestjs/core": "^11.1.28",
     "@nestjs/platform-express": "^11.1.28",
     "@salescoach/shared-types": "workspace:*",
