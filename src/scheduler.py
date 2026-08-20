@@ -489,6 +489,42 @@ async def background_monitor_task() -> None:
             except Exception as brain_exc:
                 logger.error(f"[SCHEDULE][BRAIN] Error in Second Brain autopilot: {brain_exc}")
 
+            # ─────────────────────────────────────────────────────────
+            # 12. [ASSISTANT_ADVISOR] Telegram Audit & Shahnoza Tavsiyalari
+            # ─────────────────────────────────────────────────────────
+            try:
+                from src.services.core.assistant.telegram_assistant_advisor import (
+                    TelegramAssistantAdvisor,
+                    SHAHNOZA_USER_ID,
+                )
+                if not hasattr(background_monitor_task, "_assistant_advisor"):
+                    background_monitor_task._assistant_advisor = TelegramAssistantAdvisor()
+
+                advisor = background_monitor_task._assistant_advisor
+                if m.msg_controller and getattr(m.msg_controller, "db", None):
+                    # Fetch recent active messages/chats if db supports it
+                    get_chats_fn = getattr(m.msg_controller.db, "get_recent_telegram_chats", None)
+                    if callable(get_chats_fn):
+                        recent_chats = await get_chats_fn(limit=8)
+                        new_tasks = []
+                        for c in (recent_chats or []):
+                            task = advisor.analyze_chat_for_assistant(
+                                chat_id=c.get("chat_id", 0),
+                                chat_title=c.get("title", "Mijoz"),
+                                messages=c.get("recent_messages", []),
+                                owner_id=150074828,
+                            )
+                            if task:
+                                new_tasks.append(task)
+                                bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
+                                if bot_rt:
+                                    alert_html = advisor.format_telegram_alert(task)
+                                    await bot_rt.send_message(SHAHNOZA_USER_ID, alert_html, parse_mode="html")
+                        if new_tasks:
+                            advisor.record_in_obsidian(new_tasks)
+            except Exception as adv_exc:
+                logger.debug(f"[SCHEDULE][ASSISTANT_ADVISOR] Non-blocking audit: {adv_exc}")
+
             # 5. [ALWAYS ONLINE] Keep-alive pulse
             if m.client:
                 try:
