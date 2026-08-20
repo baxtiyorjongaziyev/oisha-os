@@ -25,10 +25,13 @@ async def main() -> None:
 
     phone = sys.argv[1]
 
-    async with TelegramClient(StringSession(), API_ID, API_HASH) as client:
-        await client.start(phone=phone)
+    client = TelegramClient(StringSession(), API_ID, API_HASH)
+    await client.start(phone=phone)
+    try:
         me = await client.get_me()
         session_str = client.session.save()
+    finally:
+        await client.disconnect()
 
     print("\n" + "=" * 60)
     print("Login muvaffaqiyatli:", me.first_name, f"(@{me.username})")
