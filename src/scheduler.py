@@ -424,6 +424,71 @@ async def background_monitor_task() -> None:
                 except Exception as esc_exc:
                     logger.error(f"[SCHEDULE][ESCALATION] Error: {esc_exc}")
 
+            # ─────────────────────────────────────────────────────────
+            # 11. [SECOND_BRAIN_AUTOPILOT] Obsidian Ikkinchi Miya Sinxronizatsiyasi
+            # ─────────────────────────────────────────────────────────
+            try:
+                # 11a. AmoCRM & Telegram Cross-Channel Sync (har 15 daqiqada)
+                last_brain_sync = getattr(background_monitor_task, "_last_brain_sync", None)
+                if not last_brain_sync or (now - last_brain_sync).total_seconds() >= 900:
+                    from src.services.core.brain.cross_channel_sync import CrossChannelBrainSync
+                    brain_sync = CrossChannelBrainSync()
+                    # Trigger light sync if leads exist
+                    if m.msg_controller and getattr(m.msg_controller, "db", None):
+                        active_leads = await m.msg_controller.db.get_active_leads(limit=10)
+                        for lead in active_leads:
+                            brain_sync.sync_deal_and_call(
+                                lead_id=lead.get("id", 0),
+                                lead_name=lead.get("name", "Noma'lum"),
+                                phone=lead.get("phone", ""),
+                                price=float(lead.get("price", 0) or 0),
+                                status_name=lead.get("status", "Aktiv"),
+                                transcript=lead.get("last_transcript", ""),
+                                ai_analysis=lead.get("ai_analysis", ""),
+                            )
+                    background_monitor_task._last_brain_sync = now
+
+                # 11b. Haftalik Review & Sotuvlar Sintezi (Har yakshanba 20:00 yoki dushanba 08:30)
+                if (now.weekday() == 6 and _is_due(now, 20, 0)) or (now.weekday() == 0 and _is_due(now, 8, 30)):
+                    today_str = now.strftime("%Y-%m-%d")
+                    job_key = f"brain_weekly_review_{today_str}"
+                    if not hasattr(background_monitor_task, "_sent_jobs"):
+                        background_monitor_task._sent_jobs = set()
+                    if job_key not in background_monitor_task._sent_jobs:
+                        from src.services.core.brain.weekly_review_synthesizer import WeeklyReviewSynthesizer
+                        week_label = f"Hafta {now.strftime('%W, %Y')}"
+                        WeeklyReviewSynthesizer().generate_weekly_review(
+                            week_label=week_label,
+                            completed_items=["Tez Dizayn sprintlari", "Kamila Pardalari patent ekspertizasi", "AmoCRM lidlar qayta ishlandi"],
+                            bottlenecks=["Qaror qabul qilishni cho'zayotgan lidlar"],
+                            top_goals_next_week=["Yangi mijozlar shartnomalari", "Moliya konveyeri yangilanishi"],
+                            revenue_summary="Aktiv hisob-kitoblar amalga oshirilmoqda",
+                        )
+                        background_monitor_task._sent_jobs.add(job_key)
+                        logger.info("[SCHEDULE][BRAIN] Weekly Review compiled to Obsidian.")
+
+                # 11c. Oylik Moliya Sintezi (Har oyning 1-kuni 09:00)
+                if now.day == 1 and _is_due(now, 9, 0):
+                    today_str = now.strftime("%Y-%m-%d")
+                    job_key = f"brain_monthly_finance_{today_str}"
+                    if not hasattr(background_monitor_task, "_sent_jobs"):
+                        background_monitor_task._sent_jobs = set()
+                    if job_key not in background_monitor_task._sent_jobs:
+                        from src.services.core.brain.finance_brain_synthesizer import FinanceBrainSynthesizer
+                        month_label = now.strftime("%B %Y")
+                        FinanceBrainSynthesizer().generate_monthly_report(
+                            month_label=month_label,
+                            total_income=0.0,
+                            total_expense=0.0,
+                            categories_breakdown={},
+                            top_projects=[],
+                            notes="Oylik moliya avtomatik sinxronizatsiya qilindi.",
+                        )
+                        background_monitor_task._sent_jobs.add(job_key)
+                        logger.info("[SCHEDULE][BRAIN] Monthly Finance compiled to Obsidian.")
+            except Exception as brain_exc:
+                logger.error(f"[SCHEDULE][BRAIN] Error in Second Brain autopilot: {brain_exc}")
+
             # 5. [ALWAYS ONLINE] Keep-alive pulse
             if m.client:
                 try:

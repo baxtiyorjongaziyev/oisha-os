@@ -5,11 +5,10 @@ import base64
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
-auth = base64.b64encode(b'oisha:oisha_safe_123').decode()
+secret = os.environ.get('OISHA_API_SECRET', '').strip()
 headers = {
-    'Authorization': f'Basic {auth}',
-    'X-Oisha-Internal-Secret': os.environ.get('OISHA_API_SECRET', '').strip()
+    'Authorization': f'Bearer {secret}',
+    'X-Oisha-Internal-Secret': secret
 }
 req = urllib.request.Request('https://oisha.jonbranding.uz/api/internal/mcp/analyze_private_chats', headers=headers)
 try:
