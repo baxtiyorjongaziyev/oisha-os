@@ -186,15 +186,20 @@ def _coerce_aiogram_inline_keyboard(buttons: Any) -> Any:
         for button in source_row:
             text = None
             data = None
+            url = None
             if isinstance(button, dict):
                 text = button.get("text")
                 data = button.get("callback_data") or button.get("data")
+                url = button.get("url")
             else:
                 text = getattr(button, "text", None)
                 data = getattr(button, "callback_data", None) or getattr(button, "data", None)
+                url = getattr(button, "url", None)
             if isinstance(data, bytes):
                 data = data.decode("utf-8")
-            if text and data:
+            if text and url:
+                converted_row.append(InlineKeyboardButton(text=str(text), url=str(url)))
+            elif text and data:
                 converted_row.append(
                     InlineKeyboardButton(text=str(text), callback_data=str(data))
                 )

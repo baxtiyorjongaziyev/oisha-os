@@ -570,7 +570,7 @@ async def boot_application():
     workflow_manager = WorkflowManager(crm=msg_controller.crm, db=msg_controller.db, client=client)
     access_manager = AccessManager(owner_id=src_config.OWNER_ID)
 
-    AmoCrmAlertForwarder(user_client=client).setup_handlers()
+    AmoCrmAlertForwarder(user_client=client, bot_runtime=bot_runtime).setup_handlers()
 
     # Admin Bot
     admin_bot = AdminBot(
