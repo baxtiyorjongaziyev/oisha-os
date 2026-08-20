@@ -163,8 +163,11 @@ class FreeAIProviderRouter:
                     )
             except Exception as exc:
                 self._pause(provider, exc)
-                errors.append(f"{provider}:{type(exc).__name__}")
-                logger.warning("[FREE_AI] provider=%s failed: %s", provider, type(exc).__name__)
+                detail = str(exc)
+                if isinstance(exc, httpx.HTTPStatusError):
+                    detail = f"{exc.response.status_code} {exc.response.text[:200]}"
+                errors.append(f"{provider}:{detail}")
+                logger.warning("[FREE_AI] provider=%s failed: %s", provider, detail)
         raise AllProvidersUnavailableError(", ".join(errors) or "no provider configured")
 
     async def transcribe_audio(
