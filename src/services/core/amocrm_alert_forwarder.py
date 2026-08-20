@@ -4,13 +4,27 @@ owner's personal Telegram DM straight into the sales team group/topic.
 """
 import logging
 
-from telethon import TelegramClient, events
+from telethon import Button, TelegramClient, events
+from telethon.tl.types import KeyboardButtonUrl
 
 from src.settings import settings
 
 logger = logging.getLogger("AmoCrmAlertForwarder")
 
 AMOCRM_BOT_USERNAME = "amocrm_amobot"
+
+
+def _extract_crm_url(message) -> str | None:
+    """Pull the "Перейти в amoCRM"-style URL button off the bot's own
+    message, if present — Telethon does not carry reply_markup across a
+    plain forward/send_message, so it has to be rebuilt manually."""
+    markup = getattr(message, "reply_markup", None)
+    rows = getattr(markup, "rows", None) or []
+    for row in rows:
+        for button in getattr(row, "buttons", None) or []:
+            if isinstance(button, KeyboardButtonUrl) and button.url:
+                return button.url
+    return None
 
 
 class AmoCrmAlertForwarder:
@@ -37,13 +51,21 @@ class AmoCrmAlertForwarder:
                 # forward_messages() has no topic/reply_to support; send_message()
                 # accepts a Message object (forwards it, keeping the "Forwarded
                 # from" header) and does support reply_to for forum topics.
+                # It does NOT carry reply_markup across, though — the original
+                # "Перейти в amoCRM" button is lost — so rebuild it as a
+                # Telethon userbot-compatible Button.url if one was present.
+                crm_url = _extract_crm_url(event.message)
+                buttons = [[Button.url("🌐 Перейти в amoCRM", crm_url)]] if crm_url else None
+
                 await self.user_client.send_message(
                     entity=self.group_id,
                     message=event.message,
                     reply_to=self.topic_id,
+                    buttons=buttons,
                 )
                 logger.info(
                     f"[AMOCRM_ALERT] Forwarded alert from @{AMOCRM_BOT_USERNAME} to {self.group_id}"
+                    + (" (with CRM link)" if crm_url else " (no CRM link found)")
                 )
             except Exception as e:
                 logger.error(f"[AMOCRM_ALERT] Forward failed: {e}")
