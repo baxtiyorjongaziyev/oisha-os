@@ -1045,8 +1045,12 @@ class CallAnalyzer:
             f"Transkripsiya:\n{transcript}"
         )
         try:
+            # Groq's current default text models (e.g. openai/gpt-oss-120b)
+            # are reasoning models: a chunk of max_tokens is consumed by an
+            # internal "reasoning" field before any JSON lands in `content`.
+            # Too low a budget truncates before the real answer appears.
             result = await self.free_ai_router.generate_text(
-                prompt, system=system, max_tokens=1536, temperature=0.2
+                prompt, system=system, max_tokens=3000, temperature=0.2
             )
             data = _extract_json_object(result.text if result else "")
             if not data:
