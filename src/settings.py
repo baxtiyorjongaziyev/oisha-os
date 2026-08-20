@@ -87,7 +87,7 @@ class AppSettings(BaseSettings):
     GEMINI_VISION_MODEL: str = "gemini-2.0-flash"
     FREE_AI_GEMINI_MODEL: str = "gemini-2.5-flash-lite"
     GROQ_API_KEY: Optional[SecretStr] = None
-    GROQ_TEXT_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_TEXT_MODEL: str = "openai/gpt-oss-120b"
     GROQ_WHISPER_MODEL: str = "whisper-large-v3-turbo"
     CLOUDFLARE_ACCOUNT_ID: Optional[str] = None
     CLOUDFLARE_AI_API_TOKEN: Optional[SecretStr] = None
