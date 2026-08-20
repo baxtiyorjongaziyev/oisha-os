@@ -1,5 +1,5 @@
 fastapi>=0.141.1
-slowapi>=0.1.9
+slowapi>=0.1.10
 aiocache>=0.12.3
 uvicorn>=0.52.2
 gunicorn>=26.0.0
