@@ -129,6 +129,17 @@ _STT_HALLUCINATION_PHRASES = {
     "rahmat", "xayr",
 }
 
+# Whisper's training data is saturated with YouTube — on silence/noise it
+# regularly hallucinates subtitle-credit boilerplate instead of erroring.
+# These substrings are specific enough that a real Uzbek/Russian sales call
+# transcript would essentially never contain them.
+_STT_HALLUCINATION_SUBSTRINGS = (
+    "субтитры",
+    "subtitles by",
+    "amara.org",
+    "dimatorzok",
+)
+
 
 def _looks_like_stt_hallucination(text: str) -> bool:
     """Juda qisqa yoki ma'lum hallucination iboralariga mos matnni
@@ -137,6 +148,8 @@ def _looks_like_stt_hallucination(text: str) -> bool:
         return True
     normalised = text.strip().strip(".!?").lower()
     if normalised in _STT_HALLUCINATION_PHRASES:
+        return True
+    if any(marker in normalised for marker in _STT_HALLUCINATION_SUBSTRINGS):
         return True
     # Check for Gemini generic hallucinated dialogues
     cleaned = re.sub(r'\[\d{2}:\d{2}\]|a:|b:', '', normalised).strip()
@@ -739,7 +752,14 @@ class CallAnalyzer:
             stt_service = STTService()
             result = await stt_service.transcribe(audio_bytes, mime_type)
             if result and result.transcript:
-                return result.transcript
+                if _looks_like_stt_hallucination(result.transcript):
+                    logger.info(
+                        "[CALL] STTService transcript rejected as likely "
+                        "hallucination: %r",
+                        result.transcript[:80],
+                    )
+                else:
+                    return result.transcript
         except Exception as exc:
             logger.warning("[CALL] STTService failed: %s", exc)
 

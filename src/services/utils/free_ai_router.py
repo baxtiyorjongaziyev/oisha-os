@@ -277,7 +277,11 @@ class FreeAIProviderRouter:
             "https://api.groq.com/openai/v1/audio/transcriptions",
             headers={"Authorization": f"Bearer {_text(self.settings.GROQ_API_KEY)}"},
             files={"file": (f"amocrm-call.{extension}", audio_bytes, mime_type)},
-            data={"model": model, "response_format": "json"},
+            # language pinned: without it Whisper free-guesses the language on
+            # short/noisy AmoCRM call clips and drifts into Kazakh/Russian or
+            # emits classic training-data hallucinations ("Thank you for
+            # watching", "Subtitles by ...") instead of failing loudly.
+            data={"model": model, "response_format": "json", "language": "uz"},
         )
         return ProviderResult(str(response.json().get("text") or "").strip(), "groq", model)
 
