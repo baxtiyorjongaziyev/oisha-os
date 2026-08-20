@@ -60,7 +60,14 @@ class AmoCrmAlertForwarder:
         )
         async def _relay_amocrm_alert(event):
             try:
-                text = (event.message.text or event.message.message or "").strip()
+                # event.message.text re-renders formatting entities as
+                # Telethon's own markdown dialect (** for bold, not Telegram
+                # Bot API's single-* Markdown or MarkdownV2 escaping rules),
+                # so relaying it with a matching parse_mode would need exact
+                # dialect parity we can't guarantee. raw_text is the
+                # unformatted original — safe to send as plain text, no
+                # literal "**" markers leaking into the relayed message.
+                text = (event.message.raw_text or event.message.message or "").strip()
                 if not text:
                     return
                 crm_url = _extract_crm_url(event.message)
