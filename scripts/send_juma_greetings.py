@@ -28,6 +28,16 @@ from telethon.errors import (
 #: yiqildi, chunki oisha-os.service o'sha paytda bir xil session'ni tutgan edi).
 MAX_CONSECUTIVE_DISCONNECTS = 3
 
+#: Telegram userbot (oddiy foydalanuvchi akkaunti, Bot API emas) ko'pchilikka
+#: BIR XIL matnni ketma-ket yuborishni klassik spam signali deb hisoblaydi —
+#: bu aynan 2026-08-21 kuni akkauntning BARCHA qurilmalardan chiqarib
+#: yuborilishiga olib kelgan xatti-harakat. Xavfsiz qayta ishga tushirish
+#: uchun bir martalik yuborishlar soni va oralig'i ataylab konservativ
+#: (env orqali moslashtiriladi — akkaunt "ishonchni tiklagach" asta oshiring).
+MAX_MESSAGES_PER_RUN = int(os.environ.get("JUMA_MAX_PER_RUN", "50"))
+DELAY_MIN_SEC = float(os.environ.get("JUMA_DELAY_MIN_SEC", "20"))
+DELAY_MAX_SEC = float(os.environ.get("JUMA_DELAY_MAX_SEC", "35"))
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.telethon_guard import (  # noqa: E402
     SessionConflictError,
@@ -164,16 +174,20 @@ async def run() -> None:
         await client.disconnect()
         return
 
+    run_target = min(total, MAX_MESSAGES_PER_RUN)
+    avg_delay = (DELAY_MIN_SEC + DELAY_MAX_SEC) / 2
     send_tg_notification(
         f"Juma tabrigi boshlandi\n"
-        f"{total} kishi roʻyxatda\n"
-        f"~{total * 10 // 60} daqiqa ketadi"
+        f"{total} kishi roʻyxatda, bu safar {run_target} tasiga yuboriladi "
+        f"(Telegram xavfsizligi uchun bir martalik limit: {MAX_MESSAGES_PER_RUN})\n"
+        f"~{int(run_target * avg_delay // 60)} daqiqa ketadi"
     )
 
     sent = 0
     failed = 0
     consecutive_disconnects = 0
     aborted_reason = None
+    hit_run_cap = False
 
     def _is_disconnected(exc: BaseException) -> bool:
         return isinstance(exc, ConnectionError) or "disconnected" in str(exc).lower()
@@ -258,8 +272,31 @@ async def run() -> None:
                     f"Jarayon: {i+1}/{total}\n{sent} yuborildi, {failed} xato"
                 )
 
-            await asyncio.sleep(random.uniform(8, 12))
+            if sent >= MAX_MESSAGES_PER_RUN:
+                hit_run_cap = True
+                print(
+                    f"LIMIT: bir martalik {MAX_MESSAGES_PER_RUN} yuborish "
+                    f"chegarasiga yetdi — Telegram xavfsizligi uchun to'xtatildi."
+                )
+                break
 
+            await asyncio.sleep(random.uniform(DELAY_MIN_SEC, DELAY_MAX_SEC))
+
+        if hit_run_cap:
+            # DIQQAT: skript hozircha kimga allaqachon yuborilganini saqlamaydi —
+            # keyingi ishga tushirishda ro'yxat BOSHIDAN qayta boshlanadi. Demak
+            # {total - MAX_MESSAGES_PER_RUN} kishi bu limit turgan ekan hech
+            # qachon tabrik olmaydi, faqat JUMA_MAX_PER_RUN oshirilmasa yoki
+            # davomiylik (cursor) logikasi qo'shilmasa.
+            send_tg_notification(
+                "⏸ Juma tabrigi bir martalik limitga yetdi va TO'XTATILDI "
+                f"(Telegram xavfsizligi uchun ataylab: {MAX_MESSAGES_PER_RUN} ta).\n\n"
+                f"Yuborildi: {sent}/{total}\n"
+                "DIQQAT: skript kimga yuborilganini eslab qolmaydi — keyingi safar "
+                "ro'yxat boshidan boshlanadi. Qolgan "
+                f"{total - sent} kishi tabrik olishi uchun JUMA_MAX_PER_RUN ni "
+                "oshiring yoki avval navbat (cursor) logikasini qo'shishni so'rang."
+            )
         if aborted_reason:
             send_tg_notification(aborted_reason)
     finally:
