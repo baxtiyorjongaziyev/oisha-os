@@ -15,11 +15,18 @@ from telethon.errors import (
     ChatAdminRequiredError,
     FloodWaitError,
     InputUserDeactivatedError,
+    PeerFloodError,
     PeerIdInvalidError,
     UserNotMutualContactError,
     UsernameInvalidError,
     UsernameNotOccupiedError,
 )
+
+#: Ketma-ket shuncha "disconnected" xatosidan keyin broadcast to'xtatiladi —
+#: session boshqa jarayon bilan bahslashayotganini bildiradi, qayta-qayta
+#: urinish foydasiz (2026-08-21 hodisasi: 94 yuborilgach barchasi shu bilan
+#: yiqildi, chunki oisha-os.service o'sha paytda bir xil session'ni tutgan edi).
+MAX_CONSECUTIVE_DISCONNECTS = 3
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.telethon_guard import (  # noqa: E402
@@ -166,6 +173,11 @@ async def run() -> None:
 
     sent = 0
     failed = 0
+    consecutive_disconnects = 0
+    aborted_reason = None
+
+    def _is_disconnected(exc: BaseException) -> bool:
+        return isinstance(exc, ConnectionError) or "disconnected" in str(exc).lower()
 
     try:
         for i, member in enumerate(members):
@@ -173,7 +185,21 @@ async def run() -> None:
             try:
                 await send_to_member(client, member)
                 sent += 1
+                consecutive_disconnects = 0
                 print(f"OK {label}")
+            except PeerFloodError as e:
+                # Telegram bu yerda "juda ko'p odamga yozyapsiz" deb hisobladi —
+                # davom etish faqat cheklovni uzaytiradi. Darhol to'xtaymiz.
+                aborted_reason = (
+                    "🛑 Juma tabrigi TO'XTATILDI: PeerFloodError\n\n"
+                    "Telegram ushbu akkauntni ommaviy DM uchun cheklab qo'ydi. "
+                    "Davom etish cheklovni uzaytiradi — akkaunt bir necha soat/kun "
+                    "tinch turishi kerak, keyin qayta urinib ko'ring.\n\n"
+                    f"To'xtagan joy: {label}\n"
+                    f"Shu paytgacha: {sent} yuborildi, {failed} xato"
+                )
+                print(aborted_reason)
+                break
             except FloodWaitError as e:
                 wait_sec = e.seconds + 5
                 print(f"FloodWait {wait_sec}s — {label}")
@@ -181,6 +207,7 @@ async def run() -> None:
                 try:
                     await send_to_member(client, member)
                     sent += 1
+                    consecutive_disconnects = 0
                     print(f"OK (retry) {label}")
                 except Exception as retry_err:
                     failed += 1
@@ -194,9 +221,37 @@ async def run() -> None:
                 UsernameInvalidError,
             ) as e:
                 failed += 1
+                consecutive_disconnects = 0
                 print(f"SKIP {label}: {type(e).__name__}")
             except Exception as e:
+                if _is_disconnected(e):
+                    consecutive_disconnects += 1
+                    print(
+                        f"DISCONNECTED ({consecutive_disconnects}/"
+                        f"{MAX_CONSECUTIVE_DISCONNECTS}) {label}: {e}"
+                    )
+                    with contextlib.suppress(Exception):
+                        await client.connect()
+                    if consecutive_disconnects >= MAX_CONSECUTIVE_DISCONNECTS:
+                        aborted_reason = (
+                            "🛑 Juma tabrigi TO'XTATILDI: ulanish uzilishi "
+                            f"({consecutive_disconnects} marta ketma-ket)\n\n"
+                            "Odatda sababi: boshqa jarayon (masalan "
+                            "oisha-os.service) bir xil session'ni ayni paytda "
+                            "ushlab turibdi. Qayta urinish foydasiz — avval "
+                            f"{DEDICATED_SESSION_ENV} ga alohida session "
+                            "qo'yib qayta ishga tushiring.\n\n"
+                            f"To'xtagan joy: {label}\n"
+                            f"Shu paytgacha: {sent} yuborildi, {failed} xato"
+                        )
+                        failed += 1
+                        print(aborted_reason)
+                        break
+                    failed += 1
+                    print(f"FAIL {label}: {e}")
+                    continue
                 failed += 1
+                consecutive_disconnects = 0
                 print(f"FAIL {label}: {e}")
 
             if (i + 1) % 50 == 0:
@@ -205,6 +260,9 @@ async def run() -> None:
                 )
 
             await asyncio.sleep(random.uniform(8, 12))
+
+        if aborted_reason:
+            send_tg_notification(aborted_reason)
     finally:
         await client.disconnect()
 
