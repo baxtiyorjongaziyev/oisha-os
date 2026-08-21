@@ -70,11 +70,10 @@ TARGET_GROUP_IDS = [
 ]
 
 MESSAGE = (
-    "Assalomu alaykum \U0001f44b\n\n"
-    "Juma muborak bo’lsin! \U0001f319\n"
-    "Bu muborak kunda barcha niyatlaringiz ro‘yobga chiqsin,\n"
-    "rizqingiz mo‘l, umringiz barakali bo’lsin. \U0001f932\n\n"
-    "— Jon Branding Academy"
+    "Assalomu alaykum!\n\n"
+    "Juma muborak bo’lsin!\n"
+    "Bu muborak kunda barcha niyatlaringiz ro‘yobga chiqsin, "
+    "rizqingiz mo‘l, umringiz barakali bo’lsin."
 )
 
 
