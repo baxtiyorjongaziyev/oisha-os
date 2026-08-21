@@ -6,7 +6,7 @@ import random
 import sys
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from telethon import TelegramClient
@@ -31,12 +31,54 @@ MAX_CONSECUTIVE_DISCONNECTS = 3
 #: Telegram userbot (oddiy foydalanuvchi akkaunti, Bot API emas) ko'pchilikka
 #: BIR XIL matnni ketma-ket yuborishni klassik spam signali deb hisoblaydi —
 #: bu aynan 2026-08-21 kuni akkauntning BARCHA qurilmalardan chiqarib
-#: yuborilishiga olib kelgan xatti-harakat. Xavfsiz qayta ishga tushirish
-#: uchun bir martalik yuborishlar soni va oralig'i ataylab konservativ
-#: (env orqali moslashtiriladi — akkaunt "ishonchni tiklagach" asta oshiring).
-MAX_MESSAGES_PER_RUN = int(os.environ.get("JUMA_MAX_PER_RUN", "50"))
+#: yuborilishiga olib kelgan xatti-harakat. Xavfsiz pauza (env orqali
+#: moslashtiriladi) — Payshanba Shomidan Juma Shomigacha ~24 soatlik oyna
+#: bunga yetarli vaqt beradi, shuning uchun qattiq son-limiti endi shart
+#: emas: asosiy himoya — DEADLINE (pastda) va pauza o'zi.
 DELAY_MIN_SEC = float(os.environ.get("JUMA_DELAY_MIN_SEC", "20"))
 DELAY_MAX_SEC = float(os.environ.get("JUMA_DELAY_MAX_SEC", "35"))
+
+#: Ixtiyoriy qo'shimcha xavfsizlik zanjiri — sozlanmasa cheklov yo'q (DEADLINE
+#: asosiy himoya bo'ladi).
+_max_per_run_raw = os.environ.get("JUMA_MAX_PER_RUN", "").strip()
+MAX_MESSAGES_PER_RUN = int(_max_per_run_raw) if _max_per_run_raw else None
+
+#: Taxminiy Shom vaqti (Toshkent) — mavsumga qarab qo'lda yangilang. Broadcast
+#: Payshanba Shomidan boshlanadi (workflow shu vaqtga rejalashtirilgan) va
+#: Juma Shomigacha (shu vaqt + 1 kun) tugashi kerak — shundan keyin darhol
+#: to'xtaydi, qolganlar keyingi haftaga qoladi.
+SHOM_HOUR = int(os.environ.get("JUMA_SHOM_HOUR", "19"))
+SHOM_MINUTE = int(os.environ.get("JUMA_SHOM_MINUTE", "30"))
+
+#: Guruhlar ustuvorlik tartibida: avval Tez Natija 6, keyin 5, 4, 3, 2.
+#: Har biri kamida bittasi mos kelsa yetarli (nom yoki ID orqali).
+GROUP_PRIORITY = [
+    {
+        "label": "Tez Natija 6",
+        "names": ["Tez natija 6", '"TEZ NATIJA 6" UMUMIY', "TN6 Gr"],
+        "id": int(os.environ.get("TN6_GROUP_ID", "-1003496493814")),
+    },
+    {
+        "label": "Tez Natija 5",
+        "names": ["Tez natija 5", '"TEZ NATIJA 5" UMUMIY', "TN5 Gr"],
+        "id": int(os.environ.get("TN5_GROUP_ID", "-1003820339529")),
+    },
+    {
+        "label": "Tez Natija 4",
+        "names": ["Tez natija 4", '"TEZ NATIJA 4" UMUMIY', "TN4 Gr"],
+        "id": int(os.environ.get("TN4_GROUP_ID", "-1003149184518")),
+    },
+    {
+        "label": "Tez Natija 3",
+        "names": ["Tez natija 3", '"TEZ NATIJA 3" UMUMIY', "TN3 Gr"],
+        "id": int(os.environ.get("TN3_GROUP_ID", "-1002849105320")),
+    },
+    {
+        "label": "Tez Natija 2",
+        "names": ["Tez natija 2", '"TEZ NATIJA 2" UMUMIY', "TN2 Gr"],
+        "id": int(os.environ.get("TN2_GROUP_ID", "-1002440481294")),
+    },
+]
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.telethon_guard import (  # noqa: E402
@@ -50,12 +92,21 @@ from scripts.telethon_guard import (  # noqa: E402
 
 TASHKENT_TZ = ZoneInfo("Asia/Tashkent")
 _now_tashkent = datetime.now(TASHKENT_TZ)
-if _now_tashkent.weekday() != 4:  # 4 = Juma (Friday)
+# Broadcast Payshanba (Thursday) Shomidan boshlanadi (workflow shu vaqtga
+# rejalashtirilgan) va Juma Shomigacha davom etadi — DEADLINE pastda.
+if _now_tashkent.weekday() != 3:  # 3 = Payshanba (Thursday)
     day_name = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"][_now_tashkent.weekday()]
-    print(f"Bugun {day_name} — Juma kuni emas. Yuborilmadi.")
+    print(f"Bugun {day_name} — Payshanba emas, boshlanish kuni emas. Yuborilmadi.")
     sys.exit(0)
 
-print(f"Juma tasdiqlandi: {_now_tashkent.strftime('%Y-%m-%d %H:%M')} Toshkent vaqti")
+DEADLINE_TASHKENT = _now_tashkent.replace(
+    hour=SHOM_HOUR, minute=SHOM_MINUTE, second=0, microsecond=0
+) + timedelta(days=1)
+
+print(
+    f"Payshanba tasdiqlandi: {_now_tashkent.strftime('%Y-%m-%d %H:%M')} Toshkent vaqti. "
+    f"Deadline (Juma Shomi): {DEADLINE_TASHKENT.strftime('%Y-%m-%d %H:%M')}"
+)
 
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
@@ -65,19 +116,6 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
 # Session tanlash va xavfsizlik tekshiruvi telethon_guard da — prod userbot
 # kaliti hech qachon Oracle VM dan tashqarida ochilmasligi kerak.
 DEDICATED_SESSION_ENV = "JUMA_SESSION_STRING"
-
-TARGET_GROUPS = [
-    "Tez natija 2", "Tez natija 3", "Tez natija 4", "Tez natija 5", "Tez natija 6",
-    '"TEZ NATIJA 2" UMUMIY', '"TEZ NATIJA 3" UMUMIY', '"TEZ NATIJA 4" UMUMIY', '"TEZ NATIJA 5" UMUMIY', '"TEZ NATIJA 6" UMUMIY',
-    "TN2 Gr", "TN3 Gr", "TN4 Gr", "TN5 Gr", "TN6 Gr",
-]
-TARGET_GROUP_IDS = [
-    int(os.environ.get("TN6_GROUP_ID", "-1003496493814")),
-    int(os.environ.get("TN5_GROUP_ID", "-1003820339529")),
-    int(os.environ.get("TN4_GROUP_ID", "-1003149184518")),
-    int(os.environ.get("TN3_GROUP_ID", "-1002849105320")),
-    int(os.environ.get("TN2_GROUP_ID", "-1002440481294")),
-]
 
 MESSAGE = (
     "Assalomu alaykum!\n\n"
@@ -100,37 +138,40 @@ def send_tg_notification(text: str) -> None:
 
 
 async def collect_members(client: TelegramClient) -> list[dict]:
+    """A'zolarni GROUP_PRIORITY tartibida yig'adi: avval Tez Natija 6,
+    keyin 5, 4, 3, 2. Bir necha guruhda bo'lgan kishi faqat BIRINCHI
+    (eng ustuvor) guruhda hisoblanadi, boshqalarida qayta yuborilmaydi."""
     seen_ids: set[int] = set()
     members: list[dict] = []
-    found_groups: list[str] = []
-    found_dialog_ids: set[int] = set()
     all_dialogs = [d async for d in client.iter_dialogs()]
 
-    for dialog in all_dialogs:
-        title = (dialog.title or "").strip()
-        is_name_match = any(title.lower() == g.lower() for g in TARGET_GROUPS)
-        is_id_match = dialog.id in TARGET_GROUP_IDS
-        if not (is_name_match or is_id_match):
+    for group in GROUP_PRIORITY:
+        names_lower = {n.lower() for n in group["names"]}
+        matching_dialogs = [
+            d for d in all_dialogs
+            if d.id == group["id"] or (d.title or "").strip().lower() in names_lower
+        ]
+        if not matching_dialogs:
+            print(f"OGOHLANTIRISH: {group['label']} guruhi topilmadi (ID: {group['id']})")
+            send_tg_notification(f"OGOHLANTIRISH: {group['label']} guruhi topilmadi")
             continue
-        found_dialog_ids.add(dialog.id)
-        found_groups.append(f"{title} ({dialog.id})")
-        print(f"Guruh topildi: {title} (ID: {dialog.id})")
-        try:
-            async for user in client.iter_participants(dialog):
-                if user.bot or user.deleted or user.id in seen_ids:
-                    continue
-                seen_ids.add(user.id)
-                members.append({"id": user.id})
-        except ChatAdminRequiredError:
-            print(f"  SKIP {title}: admin huquqi kerak")
-        except Exception as e:
-            print(f"  SKIP {title}: {e}")
 
-    missing_ids = [gid for gid in TARGET_GROUP_IDS if gid not in found_dialog_ids]
-    if missing_ids:
-        msg = f"OGOHLANTIRISH: {len(missing_ids)} guruh topilmadi (ID: {missing_ids})"
-        print(msg)
-        send_tg_notification(msg)
+        group_added = 0
+        for dialog in matching_dialogs:
+            title = (dialog.title or "").strip()
+            print(f"Guruh topildi [{group['label']}]: {title} (ID: {dialog.id})")
+            try:
+                async for user in client.iter_participants(dialog):
+                    if user.bot or user.deleted or user.id in seen_ids:
+                        continue
+                    seen_ids.add(user.id)
+                    members.append({"id": user.id, "group": group["label"]})
+                    group_added += 1
+            except ChatAdminRequiredError:
+                print(f"  SKIP {title}: admin huquqi kerak")
+            except Exception as e:
+                print(f"  SKIP {title}: {e}")
+        print(f"  {group['label']}: {group_added} yangi a'zo qo'shildi")
 
     return members
 
@@ -174,13 +215,16 @@ async def run() -> None:
         await client.disconnect()
         return
 
-    run_target = min(total, MAX_MESSAGES_PER_RUN)
+    run_target = min(total, MAX_MESSAGES_PER_RUN) if MAX_MESSAGES_PER_RUN else total
     avg_delay = (DELAY_MIN_SEC + DELAY_MAX_SEC) / 2
+    limit_note = (
+        f"(bir martalik limit: {MAX_MESSAGES_PER_RUN})" if MAX_MESSAGES_PER_RUN
+        else f"(deadline: {DEADLINE_TASHKENT.strftime('%a %H:%M')} — Juma Shomi)"
+    )
     send_tg_notification(
-        f"Juma tabrigi boshlandi\n"
-        f"{total} kishi roʻyxatda, bu safar {run_target} tasiga yuboriladi "
-        f"(Telegram xavfsizligi uchun bir martalik limit: {MAX_MESSAGES_PER_RUN})\n"
-        f"~{int(run_target * avg_delay // 60)} daqiqa ketadi"
+        f"Juma tabrigi boshlandi (guruh tartibi: 6→5→4→3→2)\n"
+        f"{total} kishi roʻyxatda {limit_note}\n"
+        f"~{int(run_target * avg_delay // 60)} daqiqa ketadi (agar to'xtovsiz borsa)"
     )
 
     sent = 0
@@ -188,6 +232,7 @@ async def run() -> None:
     consecutive_disconnects = 0
     aborted_reason = None
     hit_run_cap = False
+    hit_deadline = False
 
     def _is_disconnected(exc: BaseException) -> bool:
         return isinstance(exc, ConnectionError) or "disconnected" in str(exc).lower()
@@ -272,7 +317,7 @@ async def run() -> None:
                     f"Jarayon: {i+1}/{total}\n{sent} yuborildi, {failed} xato"
                 )
 
-            if sent >= MAX_MESSAGES_PER_RUN:
+            if MAX_MESSAGES_PER_RUN and sent >= MAX_MESSAGES_PER_RUN:
                 hit_run_cap = True
                 print(
                     f"LIMIT: bir martalik {MAX_MESSAGES_PER_RUN} yuborish "
@@ -280,8 +325,24 @@ async def run() -> None:
                 )
                 break
 
+            if datetime.now(TASHKENT_TZ) >= DEADLINE_TASHKENT:
+                hit_deadline = True
+                print(
+                    f"DEADLINE: Juma Shomi ({DEADLINE_TASHKENT.strftime('%H:%M')}) "
+                    "yetdi — to'xtatildi, qolganlar keyingi haftaga qoladi."
+                )
+                break
+
             await asyncio.sleep(random.uniform(DELAY_MIN_SEC, DELAY_MAX_SEC))
 
+        if hit_deadline:
+            send_tg_notification(
+                "⏰ Juma tabrigi DEADLINE (Juma Shomi) ga yetdi va TO'XTATILDI.\n\n"
+                f"Yuborildi: {sent}/{total}\n"
+                f"Qolgan {total - sent} kishi (pastroq ustuvorlikdagi guruhlar) "
+                "bu safar tabrik olmadi — keyingi Payshanba avtomatik qayta "
+                "boshlanadi (lekin yana ro'yxat BOSHIDAN, ya'ni Tez Natija 6 dan)."
+            )
         if hit_run_cap:
             # DIQQAT: skript hozircha kimga allaqachon yuborilganini saqlamaydi —
             # keyingi ishga tushirishda ro'yxat BOSHIDAN qayta boshlanadi. Demak
