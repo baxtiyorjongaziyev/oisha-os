@@ -92,7 +92,7 @@ class AppSettings(BaseSettings):
     CLOUDFLARE_ACCOUNT_ID: Optional[str] = None
     CLOUDFLARE_AI_API_TOKEN: Optional[SecretStr] = None
     CLOUDFLARE_TEXT_MODEL: str = "@cf/meta/llama-3.1-8b-instruct"
-    CLOUDFLARE_WHISPER_MODEL: str = "@cf/openai/whisper-large-v3-turbo"
+    CLOUDFLARE_WHISPER_MODEL: str = "@cf/openai/whisper"
     OLLAMA_BASE_URL: str = "http://127.0.0.1:11434/api"
     OLLAMA_TEXT_MODEL: str = "qwen2.5:3b"
     VAPI_API_KEY: Optional[SecretStr] = None
