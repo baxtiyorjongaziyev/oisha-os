@@ -353,3 +353,36 @@ def build_command_center_response(payload: dict) -> AdminCommandResponse:
 
     lines.append("Soxta data qo'shilmadi; har bo'lim o'z real manba statusini saqlaydi.")
     return AdminCommandResponse(text="\n".join(lines))
+
+
+def build_psychological_coach_response(
+    query_text: str,
+    *,
+    role: str = "sales",
+    client_name: Optional[str] = None,
+    context: Optional[dict] = None,
+) -> AdminCommandResponse:
+    from src.services.core.psychological_coach import PsychologicalCoach
+    breakthrough = PsychologicalCoach.deconstruct_fear(
+        query_text,
+        role=role,
+        client_name=client_name,
+        context=context,
+    )
+    formatted = PsychologicalCoach.format_telegram_breakthrough(breakthrough)
+    return AdminCommandResponse(text=formatted, parse_mode="markdown")
+
+
+def build_sparring_response(
+    scenario: str,
+    *,
+    role: str = "sales",
+    user_reply: Optional[str] = None,
+) -> AdminCommandResponse:
+    from src.services.core.psychological_coach import PsychologicalCoach
+    formatted = PsychologicalCoach.roleplay_sparring(
+        role=role,
+        scenario=scenario,
+        user_reply=user_reply,
+    )
+    return AdminCommandResponse(text=formatted, parse_mode="markdown")

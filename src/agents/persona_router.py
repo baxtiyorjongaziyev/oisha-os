@@ -21,6 +21,9 @@ class PersonaRouter:
 
     # (pattern, persona_key) — first match wins
     DOMAIN_MAP = [
+        # PSYCHOLOGY & MINDSET COACHING (SALES & PM)
+        (r"telefon qilishga qo.rq|qo.ng.iroq qilishga qo.rq|rad etsa|yo.q desa|narx aytishga qo.rq|ikkilan|uyalyapman|telefon qilolmay|qilsam nima bo.ladi|call reluctance|call anxiety|rejection qo.rquv|sotuvchi qo.rquv", "sales-psychology-coach"),
+        (r"kechikishni aytish|kechikdik nima deyman|asabiy mijoz|jahli chiqqan mijoz|scope creep|qo.shimcha pul so.rash|qoldiq to.lov so.rash|pm qo.rquv|pm stress|burnout", "pm-mindset-coach"),
         # SALES — deal qualification / MEDDPICC
         (r"narx|qancha|taklif|shartnoma|chegirma|deal|bitim|to.lov|payment|invoice|qiymat|budget", "sales-deal-strategist"),
         (r"qo.ng.iroq|discovery|suhbat tahlil|ehtiyoj nima|muammo nima|pain|nima kerak|nima xohlaydi", "sales-discovery-coach"),

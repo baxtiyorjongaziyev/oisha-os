@@ -482,3 +482,42 @@ async def test_aiogram_crm_report_handlers(monkeypatch):
     assert "So'nggi 7 kunlik hisobotlar tarixi" in hist_msg.answers[0][0]
 
 
+@pytest.mark.asyncio
+async def test_aiogram_psychological_coach_and_sparring_handlers():
+    from src.services.core.admin_aiogram_dispatcher import (
+        handle_aiogram_psychological_coach,
+        handle_aiogram_sparring,
+        handle_aiogram_fear_message,
+    )
+
+    non_admin = FakeAiogramMessage(text="/coach telefon qilishga qo'rqyapman", user_id=10)
+    admin = FakeAiogramMessage(text="/coach telefon qilishga qo'rqyapman", user_id=11)
+
+    await handle_aiogram_psychological_coach(non_admin, is_admin=lambda _uid: False)
+    await handle_aiogram_psychological_coach(admin, is_admin=lambda _uid: True)
+
+    assert non_admin.answers == []
+    assert len(admin.answers) == 1
+    assert "OISHA PSIXOLOGIK KOUCHING" in admin.answers[0][0]
+    assert "ENG YOMON STSENARIY" in admin.answers[0][0]
+
+    # PM coach
+    pm_msg = FakeAiogramMessage(text="/pm_coach dizaynerlar kechikmoqda", user_id=11)
+    await handle_aiogram_psychological_coach(pm_msg, is_admin=lambda _uid: True)
+    assert len(pm_msg.answers) == 1
+    assert "Muddat kechikishi" in pm_msg.answers[0][0]
+
+    # Sparring
+    sparring_msg = FakeAiogramMessage(text="/sparring Qimmat deyapti", user_id=11)
+    await handle_aiogram_sparring(sparring_msg, is_admin=lambda _uid: True)
+    assert len(sparring_msg.answers) == 1
+    assert "SPARRING PARTNER" in sparring_msg.answers[0][0]
+
+    # Natural fear trigger message
+    fear_msg = FakeAiogramMessage(text="hozir telefon qilsam nima bo'ladi?", user_id=11)
+    await handle_aiogram_fear_message(fear_msg, is_admin=lambda _uid: True)
+    assert len(fear_msg.answers) == 1
+    assert "OISHA PSIXOLOGIK KOUCHING" in fear_msg.answers[0][0]
+
+
+

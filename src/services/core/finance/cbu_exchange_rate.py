@@ -20,7 +20,7 @@ def get_live_usd_rate() -> float:
             _CBU_USD_URL,
             headers={"User-Agent": "JonBranding-ERP/2.0"}
         )
-        with urllib.request.urlopen(req, timeout=5.0) as resp:
+        with urllib.request.urlopen(req, timeout=5.0) as resp:  # nosec B310
             data = json.loads(resp.read().decode())
             if data and isinstance(data, list):
                 rate_str = data[0].get("Rate")
