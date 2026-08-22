@@ -1,21 +1,29 @@
 # Oisha-OS: Juma Greeting Automation
 # Runs directly on Oracle VM using the live Telethon session —
 # no StringSession expiry, no manual token renewal needed.
+#
+# Payshanba Shomidan (taxminan 19:30 Toshkent) boshlab Juma Shomigacha davom
+# etadigan ~24 soatlik oynada, guruh tartibida (6→5→4→3→2) tarqatiladi —
+# skriptning o'zi DEADLINE'ni ushlaydi. GitHub-hosted runner'lar 6 soatdan
+# uzoq ishlay olmaydi, shuning uchun jarayon Oracle VM'da FON rejimida
+# (nohup) ishga tushiriladi — GH Actions job faqat ishga tushganini
+# tasdiqlab, darhol tugaydi; skriptning o'zi Telegram orqali progress
+# xabarlarini yuboradi (send_tg_notification).
 name: Juma Tabrigi — Tez Natija guruhlar
 
 on:
   workflow_dispatch:
   schedule:
-    # Har Juma kuni 09:00 Toshkent vaqti = 04:00 UTC
-    - cron: '0 4 * * 5'
+    # Har Payshanba 19:30 Toshkent vaqti (taxminiy Shom) = 14:30 UTC
+    - cron: '30 14 * * 4'
 
 jobs:
   send-greetings:
     name: Tez Natija Juma Tabrigi (Oracle VM)
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 10
     steps:
-      - name: Send Juma greetings on Oracle VM
+      - name: Send Juma greetings on Oracle VM (fon rejimida)
         uses: appleboy/ssh-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -25,7 +33,7 @@ jobs:
           key: ${{ secrets.ORACLE_SSH_KEY }}
           port: 22
           timeout: 30s
-          command_timeout: 115m
+          command_timeout: 5m
           envs: GITHUB_TOKEN
           script: |
             set -euo pipefail
@@ -44,4 +52,19 @@ jobs:
               set +o allexport
             fi
 
-            ./venv/bin/python scripts/send_juma_greetings.py
+            # Fon rejimida ishga tushirish: SSH ulanish/GH Actions job yopilsa
+            # ham jarayon Oracle VM'da davom etaveradi (~24 soatlik oyna kerak,
+            # GH-hosted runner esa 6 soatdan uzoq ushlab turolmaydi).
+            mkdir -p data/logs
+            LOG_FILE="data/logs/juma_$(date +%Y%m%d_%H%M%S).log"
+            nohup ./venv/bin/python scripts/send_juma_greetings.py > "$LOG_FILE" 2>&1 < /dev/null &
+            disown
+            PID=$!
+            sleep 5
+            if kill -0 "$PID" 2>/dev/null; then
+              echo "Juma tabrigi fon rejimida ishga tushdi (PID $PID), log: $LOG_FILE"
+            else
+              echo "OGOHLANTIRISH: jarayon darhol to'xtadi. Log:"
+              cat "$LOG_FILE" || true
+              exit 1
+            fi

@@ -5,6 +5,37 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-08-21 | Claude Sessiyasi — Telegram userbot: akkaunt to'liq chiqarib yuborildi
+
+**Nima bo'ldi:** `scripts/send_juma_greetings.py` (Juma tabrigi, 1606 kishilik guruh)
+ishga tushirilganda, 94-xabardan keyin userbot session uzila boshladi (sabab:
+skript ATALGAN session (`JUMA_SESSION_STRING`) o'rniga SHARED PROD session'ga
+tushib qoldi, `oisha-os.service` ayni paytda shu kalitni ushlab turgan edi —
+`telethon_guard.py` buni oldindan ogohlantirgan edi). Workflow qo'lda
+to'xtatildi, lekin shundan keyin Telegram foydalanuvchining BARCHA
+qurilmalaridan chiqarib yubordi — `/healthz` va `/readyz` 503 qaytara boshladi.
+
+**QOIDA (doimiy eslab qolinsin):** Telegram **userbot** (Bot API emas, oddiy
+foydalanuvchi akkaunti) orqali ko'p odamga BIR XIL matnni tez ketma-ketlikda
+yuborish — klassik spam signali. Bunday broadcast'lar:
+1. **Har doim** ATALGAN, prod'dan ALOHIDA session bilan ishlashi kerak
+   (`JUMA_SESSION_STRING` / `TELEGRAM_ONEOFF_SESSION_STRING`) — hech qachon
+   `oisha-os.service` bilan bir session'ni bo'lishmasin.
+2. Xabarlar orasida sekin pauza (endi standart 20-35s, `JUMA_DELAY_*_SEC`).
+3. Bir martalik ishga tushirishda qat'iy son limiti bo'lsin (endi standart
+   50, `JUMA_MAX_PER_RUN`) — akkaunt "ishonch"ni asta tiklaguncha kichik
+   tutish kerak.
+4. `PeerFloodError` va uzilish (`ConnectionError`) alohida ushlansin va
+   broadcast DARHOL to'xtatilsin — qayta-qayta urinish cheklovni uzaytiradi.
+
+**Tuzatildi**: `scripts/send_juma_greetings.py` (PR — `fix/juma-greeting-disconnect-guard`
+branch) — yuqoridagi 2-3-4 band kod darajasida amalga oshirildi. 1-band
+(ATALGAN session generatsiyasi) hali FOYDALANUVCHI tomonidan bajarilishi
+kerak: Telegram'ga qaytadan kirish → `generate-session.yml` orqali yangi
+session → `USERBOT_SESSION_STRING` yangilash → `oisha-os.service` restart.
+
+---
+
 ## 2026-05-13 16:48 UTC | ⚠️ main `561c19a`
 
 **Commit**: fix(deploy): Oracle VM uses file-based session, not StringSession
