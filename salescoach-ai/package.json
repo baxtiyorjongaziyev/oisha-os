@@ -24,6 +24,7 @@
   "pnpm": {
     "overrides": {
       "brace-expansion": "^5.0.8",
+      "deepmerge-ts": "^8.0.0",
       "fast-uri": "^3.1.5",
       "file-type": "^21.3.1",
       "hono": "^4.12.34",

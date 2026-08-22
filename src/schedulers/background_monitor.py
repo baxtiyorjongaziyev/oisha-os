@@ -515,6 +515,82 @@ class BackgroundMonitor:
         except Exception as exc:
             logger.error("[SMART_TASKS] Error: %s", exc)
 
+    async def _job_psychological_mindset_boost(self, now: datetime) -> None:
+        """Ertalabki 09:15 jamoaviy psixologik impuls."""
+        key = self._job_key("psych_mindset_boost", now)
+        if self._already_sent(key):
+            return
+
+        try:
+            from src.services.core.psychological_automation import PsychologicalAutomationService
+
+            service = PsychologicalAutomationService(bot_client=self.bot_client)
+            boost_text = service.generate_morning_boost()
+            send_kwargs = {}
+            if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
+                send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID
+            await self._send_to_group_or_admin(boost_text, **send_kwargs)
+            logger.info("[PSYCH_AUTO] Morning mindset boost sent.")
+        except Exception as exc:
+            logger.error("[PSYCH_AUTO][MINDSET] Error: %s", exc)
+        self._mark_sent(key)
+
+    async def _job_sales_reluctance_automation(self, now: datetime) -> None:
+        """Sotuvchilarning qo'ng'iroqdan qochishini avtomatik aniqlash va kouching (11:30, 15:30)."""
+        key = self._job_key("sales_reluctance_auto", now, suffix=str(now.hour))
+        if self._already_sent(key):
+            return
+
+        try:
+            from src.services.core.psychological_automation import PsychologicalAutomationService
+
+            amocrm_client = self._get_amocrm_client()
+            service = PsychologicalAutomationService(
+                db=self._get_db(),
+                amocrm=amocrm_client,
+                bot_client=self.bot_client,
+            )
+            interventions = await service.scan_and_generate_sales_reluctance_interventions(limit=3)
+            if interventions:
+                target_group = (
+                    getattr(self.settings, "CRM_GROUP_ID", None)
+                    or getattr(self.settings, "TEAM_GROUP_ID", None)
+                    or self.TN5_GROUP_ID
+                )
+                topic_id = getattr(self.settings, "TOPIC_CRM_ID", None)
+                sent = await service.deliver_interventions(interventions, target_group, topic_id=topic_id)
+                logger.info("[PSYCH_AUTO] Sent %d sales reluctance interventions.", sent)
+        except Exception as exc:
+            logger.error("[PSYCH_AUTO][SALES] Error: %s", exc)
+        self._mark_sent(key)
+
+    async def _job_pm_conflict_automation(self, now: datetime) -> None:
+        """PM loyiha kechikishi va konflikt himoyasi (11:45, 16:30)."""
+        key = self._job_key("pm_conflict_auto", now, suffix=str(now.hour))
+        if self._already_sent(key):
+            return
+
+        try:
+            from src.services.core.psychological_automation import PsychologicalAutomationService
+
+            service = PsychologicalAutomationService(
+                db=self._get_db(),
+                bot_client=self.bot_client,
+            )
+            interventions = await service.scan_and_generate_pm_interventions(limit=3)
+            if interventions:
+                target_group = (
+                    getattr(self.settings, "TEAM_GROUP_ID", None)
+                    or getattr(self.settings, "CRM_GROUP_ID", None)
+                    or self.TN5_GROUP_ID
+                )
+                topic_id = getattr(self.settings, "TOPIC_REPORTS_ID", None)
+                sent = await service.deliver_interventions(interventions, target_group, topic_id=topic_id)
+                logger.info("[PSYCH_AUTO] Sent %d PM conflict interventions.", sent)
+        except Exception as exc:
+            logger.error("[PSYCH_AUTO][PM] Error: %s", exc)
+        self._mark_sent(key)
+
     # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
@@ -552,9 +628,21 @@ class BackgroundMonitor:
                 if now.weekday() == 4 and now.hour == 9 and now.minute == 0:
                     await self._job_juma_notifier(now)
 
+                # 5b. Morning Mindset Boost (09:15)
+                if now.hour == 9 and 10 <= now.minute < 20:
+                    await self._job_psychological_mindset_boost(now)
+
                 # 6. Surgical missions (09:30)
                 if now.hour == 9 and now.minute == 30:
                     await self._job_surgical_missions(now)
+
+                # 6b. Sales Reluctance Automation Sweep (11:30, 15:30)
+                if now.hour in [11, 15] and 25 <= now.minute < 35:
+                    await self._job_sales_reluctance_automation(now)
+
+                # 6c. PM Conflict & Delay Automation Sweep (11:45, 16:30)
+                if (now.hour == 11 and 40 <= now.minute < 50) or (now.hour == 16 and 25 <= now.minute < 35):
+                    await self._job_pm_conflict_automation(now)
 
                 # 7. Daily report (18:00)
                 if now.hour == 18 and now.minute == 0:
