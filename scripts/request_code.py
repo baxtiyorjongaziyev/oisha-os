@@ -13,7 +13,7 @@ async def main():
     client = TelegramClient(StringSession(), int(api_id), api_hash)
     await client.connect()
     # Request code for our target phone
-    result = await client.send_code_request("+998336450097")
+    result = await client.send_code_request(os.environ["TELEGRAM_PHONE"])
     print(f"PHONE_CODE_HASH:{result.phone_code_hash}")
     print("CODE_SENT")
     await client.disconnect()

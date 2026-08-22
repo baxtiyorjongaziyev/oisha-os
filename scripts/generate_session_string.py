@@ -30,7 +30,7 @@ async def main() -> None:
     if phone_args:
         phone = phone_args[0]
     
-    password = os.environ.get("TELEGRAM_PASSWORD", "Tg0097")
+    password = os.environ.get("TELEGRAM_PASSWORD", "")
     
     print(f"[*] API_ID: {API_ID}")
     print(f"[*] So'rov yuborilmoqda: {phone} (force_sms={force_sms})...")
