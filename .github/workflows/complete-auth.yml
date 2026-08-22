@@ -46,7 +46,12 @@ jobs:
           # qachon olinmaydi va Telethon ga None ketadi
           # ("TypeError: bytes or str expected, not NoneType").
           # `or` bo'sh satrni ham qamrab oladi.
-          PHONE = (os.environ.get("TG_PHONE") or "+998336450097").strip()
+          PHONE = (os.environ.get("TG_PHONE") or "").strip()
+          if not PHONE:
+              raise RuntimeError(
+                  "TG_PHONE secret o'rnatilmagan. Repo Settings > Secrets and "
+                  "variables > Actions da TG_PHONE qo'shing."
+              )
           # Parolni TRIM QILMAYMIZ: 2FA parolida boshida/oxirida probel
           # bo'lishi mumkin, strip uni jimgina buzadi va sign_in yiqiladi.
           TG_PASSWORD = os.environ.get("TG_PASSWORD", "")
