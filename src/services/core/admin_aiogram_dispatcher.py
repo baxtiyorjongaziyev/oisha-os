@@ -14,7 +14,9 @@ from src.services.core.admin_command_router import (
     build_finance_risks_response,
     build_oisha_stats_response,
     build_project_risks_response,
+    build_psychological_coach_response,
     build_sales_priorities_response,
+    build_sparring_response,
     build_team_capacity_response,
 )
 import logging
@@ -554,7 +556,53 @@ async def handle_aiogram_crm_history(
         await message.answer("\n".join(lines), parse_mode="markdown")
     except Exception as e:
         logger.error("Aiogram crm_history failed", exc_info=True)
-        await message.answer(f"❌ Tarixni olishda xatolik: {e}")
+async def handle_aiogram_psychological_coach(
+    message: Any,
+    *,
+    is_admin: Callable[[int], bool],
+    role_default: str = "sales",
+) -> None:
+    sender = getattr(message, "from_user", None)
+    sender_id = int(getattr(sender, "id", 0) or 0)
+    if not is_admin(sender_id):
+        return
+    text = (getattr(message, "text", "") or "").strip()
+    parts = text.split(maxsplit=1)
+    query = parts[1] if len(parts) > 1 else "telefon qilishga ikkilanyapman"
+    role = "pm" if "/pm" in text.lower() else role_default
+    response = build_psychological_coach_response(query, role=role)
+    await message.answer(response.text, parse_mode=response.parse_mode)
+
+
+async def handle_aiogram_sparring(
+    message: Any,
+    *,
+    is_admin: Callable[[int], bool],
+) -> None:
+    sender = getattr(message, "from_user", None)
+    sender_id = int(getattr(sender, "id", 0) or 0)
+    if not is_admin(sender_id):
+        return
+    text = (getattr(message, "text", "") or "").strip()
+    parts = text.split(maxsplit=1)
+    scenario = parts[1] if len(parts) > 1 else "Mijoz qimmat deyapti"
+    role = "pm" if "pm" in text.lower() else "sales"
+    response = build_sparring_response(scenario, role=role)
+    await message.answer(response.text, parse_mode=response.parse_mode)
+
+
+async def handle_aiogram_fear_message(
+    message: Any,
+    *,
+    is_admin: Callable[[int], bool],
+) -> None:
+    sender = getattr(message, "from_user", None)
+    sender_id = int(getattr(sender, "id", 0) or 0)
+    if not is_admin(sender_id):
+        return
+    text = (getattr(message, "text", "") or "").strip()
+    response = build_psychological_coach_response(text)
+    await message.answer(response.text, parse_mode=response.parse_mode)
 
 
 def build_admin_aiogram_dispatcher(
@@ -670,6 +718,27 @@ def build_admin_aiogram_dispatcher(
     @dp.message(F.text.regexp(r"(?i)^/(history|tarix)$"))
     async def _crm_history(message: Any) -> None:
         await handle_aiogram_crm_history(
+            message,
+            is_admin=is_admin,
+        )
+
+    @dp.message(F.text.regexp(r"(?i)^/(coach|psixolog|ruhiyat|qorquv|call_prep|pm_coach)"))
+    async def _coach_cmd(message: Any) -> None:
+        await handle_aiogram_psychological_coach(
+            message,
+            is_admin=is_admin,
+        )
+
+    @dp.message(F.text.regexp(r"(?i)^/sparring"))
+    async def _sparring_cmd(message: Any) -> None:
+        await handle_aiogram_sparring(
+            message,
+            is_admin=is_admin,
+        )
+
+    @dp.message(F.text.regexp(r"(?i)(telefon qilishga qo.rq|qilsam nima bo.ladi|telefon qilolmay|rad etsa nima|kechikishni qanday ayt|uyalyapman)"))
+    async def _fear_trigger(message: Any) -> None:
+        await handle_aiogram_fear_message(
             message,
             is_admin=is_admin,
         )

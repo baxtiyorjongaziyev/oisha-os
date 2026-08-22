@@ -125,6 +125,8 @@ async def test_recent_calls_deferred_during_quota_cooldown_without_openai():
         gemini_client=MagicMock(),
     )
     analyzer.openai_client = None
+    analyzer.free_ai_router = MagicMock()
+    analyzer.free_ai_router.available.return_value = False
     analyzer._pause_gemini_for_quota()
 
     result = await analyzer.analyze_recent_calls()
@@ -146,6 +148,8 @@ async def test_persisted_call_cooldown_defers_scan_after_restart():
         gemini_client=MagicMock(),
     )
     analyzer.openai_client = None
+    analyzer.free_ai_router = MagicMock()
+    analyzer.free_ai_router.available.return_value = False
 
     result = await analyzer.analyze_recent_calls()
 

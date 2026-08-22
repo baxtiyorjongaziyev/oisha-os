@@ -1,8 +1,12 @@
 import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
-from google import genai
-from google.genai import types
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None
+    types = None
 
 from src.settings import settings
 
