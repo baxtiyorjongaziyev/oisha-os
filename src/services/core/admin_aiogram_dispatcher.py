@@ -85,6 +85,9 @@ def register_hisobchi_aiogram_callbacks(
 
     register_callbacks(dispatcher, engine=engine)
 
+    from src.services.core.airtable_approval_callbacks import register_airtable_approval_callbacks
+    register_airtable_approval_callbacks(dispatcher)
+
     # Register additional custom callbacks defined in src.handlers.callbacks
     @dispatcher.callback_query(F.data.startswith("task_conf:"))
     async def _task_conf_cb(callback: Any) -> None:
