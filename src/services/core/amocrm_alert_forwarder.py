@@ -51,6 +51,11 @@ class AmoCrmAlertForwarder:
                 "[AMOCRM_ALERT] bot_runtime mavjud emas — forwarder o'chirilgan."
             )
             return
+        if not self.user_client:
+            logger.warning(
+                "[AMOCRM_ALERT] user_client mavjud emas (userbot session ulanmagan) — forwarder o'chirilgan."
+            )
+            return
 
         @self.user_client.on(
             events.NewMessage(
