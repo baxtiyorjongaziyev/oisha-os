@@ -133,6 +133,22 @@ class BackgroundMonitor:
         if now.hour in [10, 15] and now.minute < 5:
             await check_airtable_deadlines()
 
+    async def _job_check_amocrm_due_tasks(self) -> None:
+        """AmoCRM da muddati kelgan va kechikkan vazifalarni guruh follow-up mavzusiga yo'llash."""
+        try:
+            from src.services.core.amocrm_task_notifier import AmoCrmTaskNotifier
+
+            amocrm_client = self._get_amocrm_client()
+            if amocrm_client and self.bot_client:
+                notifier = AmoCrmTaskNotifier(
+                    amocrm=amocrm_client,
+                    db=self._get_db(),
+                    bot_runtime=self.bot_client,
+                )
+                await notifier.check_and_notify_due_tasks()
+        except Exception as exc:
+            logger.error("[TASK_NOTIFIER] Error checking due tasks: %s", exc)
+
     async def _job_lead_os_cycle(self, now: datetime) -> None:
         from src.services.core.leads.lead_operating_system import LeadOperatingSystem
 
@@ -612,6 +628,9 @@ class BackgroundMonitor:
 
                 # 1. Stagnatsiya va Deadline tekshirish
                 await self._job_check_stagnation_and_deadlines()
+
+                # 1b. AmoCRM task deadlines and overdue task notifications (Follow-up topic)
+                await self._job_check_amocrm_due_tasks()
 
                 # 2. Lead OS cycle
                 await self._job_lead_os_cycle(now)

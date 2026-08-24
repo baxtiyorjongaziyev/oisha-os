@@ -116,6 +116,8 @@ async def get_amocrm_call_analysis_status(request: Request):
     return await _build_amocrm_call_analysis_status(runtime_db)
 
 
+@router.post("/api/amocrm/tasks/webhook")
+@router.post("/webhook/amocrm/tasks")
 @router.post("/webhook/amocrm")
 async def amocrm_webhook(request: Request):
     try:
@@ -136,6 +138,24 @@ async def amocrm_webhook(request: Request):
 
 async def _process_amocrm_event(data: Dict[str, Any]):
     try:
+        # Check for task events in webhook payload
+        from src.services.core.amocrm_task_notifier import (
+            AmoCrmTaskNotifier,
+            parse_amocrm_task_webhook_data,
+        )
+        from src.context import app_ctx
+
+        webhook_tasks = parse_amocrm_task_webhook_data(data)
+        if webhook_tasks:
+            runtime_db = api_state.db_instance or await _get_db_instance()
+            amocrm = _get_amocrm_instance()
+            bot_rt = getattr(app_ctx, "bot_runtime", None) or getattr(api_state, "bot_client", None)
+            notifier = AmoCrmTaskNotifier(amocrm=amocrm, db=runtime_db, bot_runtime=bot_rt)
+            for t in webhook_tasks:
+                event_type = t.get("_event_type", "due")
+                alert_type = "overdue" if event_type == "status" and t.get("status") == "overdue" else "due"
+                await notifier.send_task_alert(t, alert_type=alert_type)
+
         lead_id = None
         for key in data.keys():
             if "leads[" in key and "][id]" in key:
