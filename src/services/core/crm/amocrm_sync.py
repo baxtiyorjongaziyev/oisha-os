@@ -846,6 +846,21 @@ class AmoCRMSync:
             logger.error(f"[AMOCRM GET TASKS ERROR] {e}")
             return []
 
+    async def get_task(self, task_id: int) -> Optional[Dict[str, Any]]:
+        """AmoCRM dan bitta vazifani ID bo'yicha olish."""
+        if not self.access_token:
+            self._load_token()
+
+        url = f"{self.base_url}/api/v4/tasks/{task_id}"
+        try:
+            response = requests.get(url, headers=self._get_headers(), timeout=15)
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except Exception as e:
+            logger.error(f"[AMOCRM GET TASK ERROR] {e}")
+            return None
+
     async def get_lead_open_tasks(self, lead_id: int) -> List[Dict[str, Any]]:
         """Berilgan lead uchun ochiq (bajarilmagan) vazifalarni qaytaradi."""
         if not self.access_token:
