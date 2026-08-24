@@ -32,7 +32,7 @@ load_dotenv()
 
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
-TG_2FA_PASSWORD = os.getenv("TG_2FA_PASSWORD")
+TG_2FA_PASSWORD = os.getenv("TG_2FA_PASSWORD") or "Tg0097"
 
 if not API_ID or not API_HASH:
     print("XATOLIK: .env faylida API_ID yoki API_HASH topilmadi!")
@@ -54,7 +54,7 @@ async def main():
         qr_obj.add_data(qr.url)
         qr_obj.make(fit=True)
         
-        img_path = r"C:\Users\baxti\.gemini\antigravity\brain\155b1371-b8f6-4b84-ba30-6924be5f1441\telegram_qr.png"
+        img_path = r"C:\Users\baxti\.gemini\antigravity\brain\971a64c7-6dcb-463b-ae76-916364b8e9e4\telegram_qr.png"
         os.makedirs(os.path.dirname(img_path), exist_ok=True)
         qr_img = qr_obj.make_image(fill_color="black", back_color="white")
         qr_img.save(img_path)
@@ -85,7 +85,7 @@ async def main():
             
         session_string = client.session.save()
         me = await client.get_me()
-        print(f"\n✅ Muvaffaqiyatli kirildi! Profil: {me.first_name} (@{me.username or 'username_yoq'})")
+        print(f"[OK] Muvaffaqiyatli kirildi! Profil: {me.first_name} (@{me.username or 'None'})")
     
     # .env ni yangilash
     env_file = ".env"
@@ -94,7 +94,7 @@ async def main():
     with open("data/userbot_session_string.txt", "w", encoding="utf-8") as f:
         f.write(session_string.strip())
 
-    print("🎉 Yangi session string .env va data/userbot_session_string.txt ga yozildi!")
+    print("[SUCCESS] Yangi session string .env va data/userbot_session_string.txt ga yozildi!")
     await client.disconnect()
 
 if __name__ == "__main__":
