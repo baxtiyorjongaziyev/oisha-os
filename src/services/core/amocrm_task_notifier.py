@@ -175,6 +175,28 @@ class AmoCrmTaskNotifier:
             logger.warning("[TASK_NOTIFIER] Target group_id not configured.")
             return False
 
+        # If webhook provided partial task data, fetch complete task details from AmoCRM API
+        if self.amocrm and (not task.get("text") or (not task.get("entity_id") and not task.get("element_id"))):
+            try:
+                if hasattr(self.amocrm, "get_task"):
+                    full_task = await self.amocrm.get_task(int(task_id))
+                    if full_task and isinstance(full_task, dict):
+                        task = {**full_task, **task}
+            except Exception as e:
+                logger.debug(f"[TASK_NOTIFIER] Could not auto-fetch full task {task_id}: {e}")
+
+        # Guard: If alert_type is 'due', but complete_till is in the future (> 15 min from now), skip false alert
+        complete_till = task.get("complete_till")
+        now_ts = time.time()
+        if alert_type == "due" and complete_till and int(complete_till) > (now_ts + 900):
+            logger.debug(f"[TASK_NOTIFIER] Task {task_id} deadline is in the future ({complete_till}). Skipping due alert.")
+            return False
+
+        # If task has no entity attached and no text, skip empty invalid alerts
+        if not task.get("text") and not task.get("entity_id") and not task.get("element_id"):
+            logger.debug(f"[TASK_NOTIFIER] Task {task_id} has no entity or text. Skipping empty alert.")
+            return False
+
         # Resolve entity & user info
         entity_type = task.get("entity_type") or "leads"
         entity_id = task.get("entity_id") or task.get("element_id")
