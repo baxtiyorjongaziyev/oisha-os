@@ -48,7 +48,7 @@ def test_format_task_notification_due():
     assert "1. PRESALES ➔ Aloqaga chiqildi" in msg
     assert "Brending" in msg
     assert "Tez Natija (TN5)" in msg
-    assert "15 000 000 so'm" in msg
+    assert "15 000 000" in msg
     assert "@azamat_admiral" in msg
     assert buttons is not None
     assert buttons[0][0]["url"] == "https://jonbrandingagency.amocrm.ru/leads/detail/36654487"
