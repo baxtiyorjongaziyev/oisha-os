@@ -610,21 +610,66 @@ class AirtableSync:
             if self._get_field(project.get("fields", {}), "stage") == stage_name
         ]
 
-    def get_finance_records(self):
-        """Kirim va Chiqim jadvallaridan barcha tranzaksiyalarni olish."""
-        records = []
-        for table_name, record_type in [("Kirim", "income"), ("Chiqim", "expense")]:
-            original_table = self.table_name
-            self.table_name = table_name
+    # Finance V2: barcha pul harakati shu jadvalda
+    TRANSACTIONS_TABLE = "Tranzaksiyalar"
+
+    def get_transactions(self, force_refresh: bool = False):
+        """Tranzaksiyalar jadvalidan barcha yozuvlarni olish (xom holda)."""
+        original_table = self.table_name
+        self.table_name = self.TRANSACTIONS_TABLE
+        self._refresh_endpoint()
+        try:
+            return self.get_projects(force_refresh=force_refresh)
+        finally:
+            self.table_name = original_table
             self._refresh_endpoint()
-            try:
-                table_records = self.get_projects()
-                for record in table_records:
-                    record["_record_type"] = record_type
-                records.extend(table_records)
-            finally:
-                self.table_name = original_table
-                self._refresh_endpoint()
+
+    def get_finance_records(self):
+        """Barcha kirim/chiqimlarni olish - Finance V2 (Tranzaksiyalar) jadvalidan.
+
+        Eski Kirim/Chiqim jadvallari 2026-avgustda Tranzaksiyalarga kochirilgan.
+        Chiqish formati eski holicha qoldirilgan (``_record_type`` + eski maydon
+        nomlari), shuning uchun mavjud istemolchilarni ozgartirish shart emas.
+        """
+        records = []
+
+        for record in self.get_transactions():
+            fields = record.get("fields", {}) or {}
+
+            turi = fields.get("Turi")
+            if isinstance(turi, dict):
+                turi = turi.get("name")
+            turi = (turi or "").strip()
+
+            # Transfer - hisoblar orasidagi kochirish, daromad ham xarajat ham emas
+            if turi not in ("Kirim", "Chiqim"):
+                continue
+
+            holat = fields.get("Holat")
+            if isinstance(holat, dict):
+                holat = holat.get("name")
+            if (holat or "").strip() == "Bekor qilingan":
+                continue
+
+            summa_uzs = fields.get("Summa UZS") or 0
+            sana = fields.get("Sana")
+
+            # Eski maydon nomlarini ham toldiramiz - eski kod buzilmasin
+            if turi == "Kirim":
+                record["_record_type"] = "income"
+                fields.setdefault("To'lov miqdori", summa_uzs)
+                fields.setdefault("To'lov sanasi", sana)
+                fields.setdefault("UZS ekvivalenti", summa_uzs)
+            else:
+                record["_record_type"] = "expense"
+                fields.setdefault("Chiqim miqdori", summa_uzs)
+                fields.setdefault("Chiqim sanasi", sana)
+                fields.setdefault("Chiqim (uzs)", summa_uzs)
+
+            fields.setdefault("Summa", summa_uzs)
+            record["fields"] = fields
+            records.append(record)
+
         return records
 
     def update_project_fields(self, record_id: str, fields: dict):

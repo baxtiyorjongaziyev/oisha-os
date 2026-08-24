@@ -44,6 +44,11 @@ _PUBLIC_PATHS = frozenset(
         # Meta must reach this exact verification/event endpoint. The route
         # validates the verify token (GET) and x-hub-signature-256 (POST).
         "/api/instagram/webhook",
+        # AmoCRM webhook endpoints
+        "/api/amocrm/tasks/webhook",
+        "/api/amocrm/webhook",
+        "/webhook/amocrm",
+        "/webhook/amocrm/tasks",
     }
 )
 
