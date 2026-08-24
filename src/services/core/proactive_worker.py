@@ -2088,7 +2088,7 @@ async def check_airtable_stagnation():
         grouped.setdefault(project["manager"], []).append(project)
 
     lines = [
-        "ðŸ— <b>PM Stage Push</b>",
+        "🏗 <b>PM Stage Push</b>",
         f"Qimirlamay qolgan loyiha: <b>{len(stalled_projects)}</b> ta",
         "Talab: bugun status yangilanadi yoki keyingi etapga o'tish sanasi qo'yiladi.",
         "",
@@ -2115,7 +2115,7 @@ async def check_airtable_stagnation():
                 f"<b>{escape(project['name'])}</b> — {escape(project['stage'])}, {risk_text}. "
                 f"Keyingi stage: <b>{escape(project['next_stage'])}</b>."
             )
-            lines.append(f"  ðŸ“Œ Bugungi qadam: {escape(project['action'])}")
+            lines.append(f"  📌 Bugungi qadam: {escape(project['action'])}")
         lines.append("")
 
     message = "\n".join(lines).strip()
@@ -2126,7 +2126,7 @@ async def check_airtable_stagnation():
             {
                 "user_id": pm_user["user_id"],
                 "text": (
-                    "ðŸ— <b>PM Stage Push</b>\n"
+                    "🏗 <b>PM Stage Push</b>\n"
                     "Airtable'da qimirlamay qolgan loyihalar bo'yicha report guruhga yuborildi.\n"
                     "Bugun har bir loyiha uchun keyingi stage yoki blocker yozilsin."
                 ),
