@@ -232,6 +232,12 @@ jobs:
             ENVFILE
             sed -i 's/^            //' .env
 
+            if [ -n "${USERBOT_SESSION_STRING:-}" ]; then
+              mkdir -p data
+              printf '%s' "$USERBOT_SESSION_STRING" > data/userbot_session_string.txt
+              rm -f data/userbot.session data/*.session
+            fi
+
             # Sync nginx config and reload (for /telegram-mcp SSE endpoint etc.)
             echo "=== NGINX SITES-ENABLED FILES ==="
             ls -la /etc/nginx/sites-enabled/ || true

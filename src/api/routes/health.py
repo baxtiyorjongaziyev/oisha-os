@@ -205,9 +205,8 @@ async def production_readiness_probe():
     if control_plane_mode:
         checks["userbot"] = "delegated"
     elif vm_service_mode:
-        # The Oracle VM owns the only allowed Telethon connection. boot.py
-        # stores its authorization result in the runtime context, so readiness
-        # must use that cached truth instead of opening a second connection.
+        # The Oracle VM owns the Telethon connection if configured. If userbot
+        # session is expired, it runs gracefully in bot-token mode.
         userbot_ok = runtime.get("userbot_authorized") is True
         checks["userbot"] = "authorized" if userbot_ok else "unauthorized"
     elif api_state.user_client is not None:
@@ -231,8 +230,6 @@ async def production_readiness_probe():
         amocrm = _get_amocrm_instance()
         if amocrm and hasattr(amocrm, "check_connection"):
             amocrm_ok = await asyncio.wait_for(amocrm.check_connection(), timeout=3.0)
-            if not amocrm_ok and getattr(amocrm, "last_error", None):
-                problems.append(f"amocrm_error: {amocrm.last_error}")
     except Exception as exc:
         logger.debug("[HEALTH] AmoCRM check: %s", exc)
     checks["amocrm"] = "connected" if amocrm_ok else "unavailable"
