@@ -5,8 +5,11 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from src.config import FARMER_PIPELINE_ID, SALES_PIPELINE_ID
 from src.context import app_ctx
+from src.services.core.crm.amocrm_pipeline_config import (
+    FARMER_PIPELINE_ID,
+    SALES_PIPELINE_ID,
+)
 from src.services.core.crm.crm_guard import CRMGuard
 
 logger = logging.getLogger("CRMDisciplineScheduler")
