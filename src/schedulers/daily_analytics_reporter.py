@@ -97,3 +97,20 @@ async def run_daily_analytics_report(bot_client=None):
 
     except Exception as e:
         logger.error(f"[GA4] Error generating daily analytics report: {e}")
+
+
+async def daily_analytics_loop(bot_client=None) -> None:
+    """Daily 09:00 automated GA4 analytics broadcast loop."""
+    from src.time_utils import get_local_now
+
+    await asyncio.sleep(60)
+    while True:
+        try:
+            now = get_local_now()
+            if now.hour == 9 and now.minute == 0:
+                logger.info("[GA4] Triggering daily analytics report...")
+                await run_daily_analytics_report(bot_client=bot_client)
+                await asyncio.sleep(61)
+        except Exception as e:
+            logger.error("[GA4] Error in daily analytics loop: %s", e)
+        await asyncio.sleep(30)

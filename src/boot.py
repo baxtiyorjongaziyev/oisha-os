@@ -86,231 +86,6 @@ async def _command_processor():
             await asyncio.sleep(1)
 
 
-async def _crm_discipline_loop():
-    while True:
-        try:
-            crm_guard = CRMGuard(
-                amo=app_ctx.msg_controller.crm.amocrm,
-                db=app_ctx.msg_controller.db,
-                bot=None,
-            )
-            await crm_guard.check_discipline(pipeline_id=SALES_PIPELINE_ID)
-            await crm_guard.check_discipline(pipeline_id=FARMER_PIPELINE_ID)
-        except Exception as e:
-            logger.error(f"[CRM_GUARD_LOOP] Error: {e}")
-        await asyncio.sleep(7200)
-
-
-async def _crm_capacity_archiver_loop():
-    await asyncio.sleep(60)
-    while True:
-        try:
-            logger.info("[ARCHIVER_LOOP] Active AmoCRM capacity check starting...")
-            from src.services.core.crm.crm_archiver import CRMArchiver
-
-            archiver = CRMArchiver(
-                amocrm=app_ctx.msg_controller.crm.amocrm,
-                db=app_ctx.msg_controller.db,
-            )
-            await archiver.init_tables()
-            active_leads = await archiver.fetch_all_active_leads()
-            active_count = len(active_leads)
-            logger.info(f"[ARCHIVER_LOOP] Active sdelkas: {active_count} / 500 limit")
-
-            if active_count >= 480:
-                logger.warning(
-                    f"[ARCHIVER_LOOP] Active sdelkas count {active_count} exceeds threshold of 480! Autocleaning..."
-                )
-                stagnant = await archiver.get_stagnant_leads(max_stagnant_days=21)
-                if stagnant:
-                    targets = stagnant[:30]
-                    processed = 0
-                    for lead in targets:
-                        try:
-                            res = await archiver.archive_lead(lead, dry_run=False)
-                            if res.get("success"):
-                                processed += 1
-                        except Exception as ex:
-                            logger.error(f"[ARCHIVER_LOOP] Error archiving lead {lead.get('id')}: {ex}")
-                    logger.info(f"[ARCHIVER_LOOP] Autocleanup complete. Archived {processed} leads.")
-                else:
-                    logger.info("[ARCHIVER_LOOP] No stagnant leads found.")
-        except Exception as e:
-            logger.error(f"[ARCHIVER_LOOP] Error in capacity archiver loop: {e}")
-        await asyncio.sleep(21600)
-
-
-async def _ai_autopilot_loop():
-    await asyncio.sleep(15)
-    from src.services.core.telegram.telegram_task_creator import TelegramTaskCreator
-    from src.services.core.call_analyzer import CallAnalyzer
-    from src.services.core.ambassador_journey import AmbassadorJourneyManager
-    from src.services.utils.voice_processor import VoiceProcessor
-
-    gemini_key = None
-    if app_ctx.msg_controller:
-        gemini_key = getattr(app_ctx.msg_controller, "api_keys", {}).get("gemini")
-    if not gemini_key:
-        logger.warning("[AUTOPILOT] Gemini key missing — AI Autopilot loop disabled.")
-        return
-
-    voice_proc = VoiceProcessor(api_key=gemini_key)
-    task_creator = TelegramTaskCreator(
-        amocrm=app_ctx.msg_controller.crm.amocrm,
-        db=app_ctx.msg_controller.db,
-        user_client=app_ctx.client,
-        voice_processor=voice_proc,
-        gemini_api_key=gemini_key,
-    )
-    call_analyzer = CallAnalyzer(
-        amocrm=app_ctx.msg_controller.crm.amocrm,
-        db=app_ctx.msg_controller.db,
-    )
-    ambassador_manager = AmbassadorJourneyManager(
-        amocrm=app_ctx.msg_controller.crm.amocrm,
-        db=app_ctx.msg_controller.db,
-        user_client=app_ctx.client,
-        gemini_api_key=gemini_key,
-    )
-
-    logger.info("[AUTOPILOT] AI Autopilot loop started.")
-    while True:
-        try:
-            logger.info("[AUTOPILOT] Running periodic AI Autopilot cycle...")
-            try:
-                leads = await app_ctx.msg_controller.crm.amocrm.get_leads_detailed(limit=30)
-                if leads and isinstance(leads, list):
-                    for lead in leads:
-                        if task_creator.blocks_dialogue_analysis():
-                            break
-                        lead_id = lead.get("id")
-                        if not lead_id:
-                            continue
-                        phone = None
-                        contacts = lead.get("_embedded", {}).get("contacts", []) or lead.get("contacts", [])
-                        for contact in contacts:
-                            fields = contact.get("custom_fields_values") or []
-                            for field in fields:
-                                if str(field.get("field_code", "")).upper() == "PHONE":
-                                    vals = field.get("values") or []
-                                    if vals:
-                                        phone = str(vals[0].get("value", ""))
-                                        break
-                            if phone:
-                                break
-                        phone_getter = getattr(app_ctx.msg_controller.crm.amocrm, "get_primary_contact_phone", None)
-                        if not phone and callable(phone_getter):
-                            phone = await phone_getter(lead)
-                        if phone:
-                            await task_creator.create_amocrm_tasks_from_chat(
-                                phone_or_username=phone, lead_id=int(lead_id), limit=15
-                            )
-            except Exception as tg_err:
-                logger.error(f"[AUTOPILOT] Telegram Task Creator error: {tg_err}")
-
-            try:
-                await call_analyzer.analyze_recent_calls(
-                    limit=30,
-                    min_call_duration_seconds=settings.AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS,
-                )
-            except Exception as call_err:
-                logger.error(f"[AUTOPILOT] Call Analyzer error: {call_err}")
-
-            logger.info(
-                "[AUTOPILOT] Ambassador customer outreach disabled by owner policy."
-            )
-
-            logger.info("[AUTOPILOT] AI Autopilot cycle completed.")
-        except Exception as exc:
-            logger.error(f"[AUTOPILOT] Critical error in autopilot loop: {exc}")
-        
-        interval = getattr(settings, "AUTOPILOT_INTERVAL_SECONDS", 180)
-        await asyncio.sleep(interval)
-
-
-async def _daily_analytics_loop():
-    from src.schedulers.daily_analytics_reporter import run_daily_analytics_report
-    from src.time_utils import get_local_now
-
-    await asyncio.sleep(60)
-    while True:
-        try:
-            now = get_local_now()
-            if now.hour == 9 and now.minute == 0:
-                logger.info("[GA4] Triggering daily analytics report...")
-                await run_daily_analytics_report(bot_client=app_ctx.bot_runtime)
-                await asyncio.sleep(61)
-        except Exception as e:
-            logger.error(f"[GA4] Error in daily analytics loop: {e}")
-        await asyncio.sleep(30)
-
-
-async def _hisobchi_gap_report_loop():
-    """Weekly (Monday 09:30) self-report of Hisobchi AI's uncertainty log
-    (hisobchi_ai_gaps) to the finance group — fully automatic, no command."""
-    from src.schedulers.hisobchi_gap_reporter import run_hisobchi_gap_report
-    from src.services.core.finance.handlers.utils import _get_finance_config
-    from src.time_utils import get_local_now
-
-    await asyncio.sleep(90)
-    while True:
-        try:
-            now = get_local_now()
-            if now.weekday() == 0 and now.hour == 9 and now.minute == 30:
-                finance_group_id, _, _ = _get_finance_config()
-                await run_hisobchi_gap_report(
-                    hisobchi_engine=app_ctx.hisobchi_engine,
-                    bot_client=app_ctx.bot_runtime,
-                    finance_group_id=finance_group_id,
-                )
-                await asyncio.sleep(61)
-        except Exception as e:
-            logger.error(f"[HISOBCHI-GAPS] Error in weekly gap report loop: {e}")
-        await asyncio.sleep(30)
-
-
-async def _channel_scout_loop():
-    """Scan Telegram business trainer channels 3x daily for leads."""
-    from src.services.core.channel_scheduler import daily_channel_scout
-    from src.time_utils import get_local_now
-
-    await asyncio.sleep(120)
-    scan_times = [10, 14, 18]  # 10:00, 14:00, 18:00 Tashkent
-
-    while True:
-        try:
-            now = get_local_now()
-            if now.hour in scan_times and now.minute == 0:
-                logger.info("[CHANNEL-SCOUT] Starting daily scan...")
-                result = await daily_channel_scout(
-                    client=app_ctx.client,
-                    amocrm=app_ctx.amocrm,
-                    db=app_ctx.db,
-                )
-                logger.info(f"[CHANNEL-SCOUT] Scan complete: {result.get('status')} ({result.get('total_leads_extracted', 0)} leads)")
-                await asyncio.sleep(61)
-        except Exception as e:
-            logger.error(f"[CHANNEL-SCOUT] Error in channel scout loop: {e}")
-        await asyncio.sleep(30)
-
-
-
-
-async def _brain_evolution_loop():
-    await asyncio.sleep(300)
-    while True:
-        try:
-            if app_ctx.oisha_brain:
-                result = await app_ctx.oisha_brain.evolve(task="routine_health_check")
-                logger.info(
-                    f"[BRAIN] Evolution cycle done: priority={result.get('priority')} "
-                    f"component={result.get('affected_component')}"
-                )
-        except Exception as exc:
-            logger.error(f"[BRAIN] Evolution loop error: {exc}")
-        await asyncio.sleep(21600)
-
-
 async def _surgical_send(user_id: int, text: str):
     logger.info("[SURGICAL] Proactive customer send blocked by owner policy.")
     return None
@@ -507,22 +282,25 @@ async def boot_application():
 
     # Background discipline loop
     if not settings.RUN_USERBOT_ONLY:
-        asyncio.create_task(_crm_discipline_loop())
-        asyncio.create_task(_crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop")
+        from src.schedulers.crm_discipline_scheduler import crm_capacity_archiver_loop, crm_discipline_loop
+        asyncio.create_task(crm_discipline_loop(), name="crm_discipline_loop")
+        asyncio.create_task(crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop")
         if os.getenv("ENABLE_AI_AUTOPILOT", "").strip().lower() in {
             "1",
             "true",
             "yes",
             "on",
         }:
-            asyncio.create_task(_ai_autopilot_loop(), name="ai_autopilot_loop")
+            from src.schedulers.ai_autopilot_scheduler import ai_autopilot_loop
+            asyncio.create_task(ai_autopilot_loop(), name="ai_autopilot_loop")
         else:
             logger.info("[AUTOPILOT] Disabled by default; analysis remains manual.")
         
         from src.schedulers.frog_scheduler import daily_frog_loop
         # Frog brief is sent from @jonairobot (bot_client), not the userbot.
         asyncio.create_task(daily_frog_loop(bot_runtime, settings.TEAM_GROUP_ID), name="daily_frog_loop")
-        asyncio.create_task(_channel_scout_loop(), name="channel_scout_loop")
+        from src.schedulers.channel_scout_scheduler import channel_scout_loop
+        asyncio.create_task(channel_scout_loop(), name="channel_scout_loop")
         from src.schedulers.instagram_weekly_reporter import instagram_weekly_report_loop
         asyncio.create_task(
             instagram_weekly_report_loop(bot_runtime, settings.TEAM_GROUP_ID),
@@ -886,9 +664,12 @@ async def boot_application():
                 bot_token=BOT_TOKEN_STR, owner_id=getattr(src_config, "OWNER_ID", None),
             )
             if settings.SURGICAL_MODE:
-                asyncio.create_task(_brain_evolution_loop(), name="oisha_brain_evolution")
-                asyncio.create_task(_daily_analytics_loop(), name="oisha_daily_analytics")
-                asyncio.create_task(_hisobchi_gap_report_loop(), name="oisha_hisobchi_gap_report")
+                from src.schedulers.brain_evolution import brain_evolution_loop
+                from src.schedulers.daily_analytics_reporter import daily_analytics_loop
+                from src.schedulers.hisobchi_gap_reporter import hisobchi_gap_report_loop
+                asyncio.create_task(brain_evolution_loop(oisha_brain), name="oisha_brain_evolution")
+                asyncio.create_task(daily_analytics_loop(bot_runtime), name="oisha_daily_analytics")
+                asyncio.create_task(hisobchi_gap_report_loop(app_ctx.hisobchi_engine, bot_runtime), name="oisha_hisobchi_gap_report")
             logger.info("[BRAIN] OishaBrain initialized.")
 
             # BotMessenger
