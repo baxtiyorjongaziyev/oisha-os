@@ -146,7 +146,7 @@ class AppSettings(BaseSettings):
     AMOCRM_ENRICHMENT_MESSAGE_LIMIT: int = 20
     AMOCRM_ENRICHMENT_REFRESH_HOURS: int = 24
     ENABLE_AMOCRM_CALL_ANALYSIS: bool = True
-    AMOCRM_CALL_ANALYSIS_ON_WEBHOOK: bool = False
+    AMOCRM_CALL_ANALYSIS_ON_WEBHOOK: bool = True
     ENABLE_AMOCRM_CALL_TASKS: bool = True
     AMOCRM_CALL_TASK_DUE_HOURS: int = 24
     AMOCRM_CALL_ANALYSIS_LIMIT: int = 20
@@ -159,6 +159,10 @@ class AppSettings(BaseSettings):
     AMOCRM_CALL_BACKFILL_LIMIT: int = 50
     AMOCRM_CALL_MAX_AUDIO_MB: int = 19
     AMOCRM_CALL_TRANSCRIPT_NOTE_CHARS: int = 6000
+    ENABLE_FIREFLIES_SYNC: bool = True
+    FIREFLIES_API_KEY: Optional[SecretStr] = None
+    FIREFLIES_WEBHOOK_SECRET: Optional[SecretStr] = None
+    FIREFLIES_MANAGER_NAME: Optional[str] = None
     MOIZVONKI_EMAIL: Optional[str] = None
     MOIZVONKI_PASSWORD: Optional[SecretStr] = None
     MOIZVONKI_API_KEY: Optional[SecretStr] = None

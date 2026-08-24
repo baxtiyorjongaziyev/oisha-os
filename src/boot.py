@@ -1228,6 +1228,10 @@ async def boot_application():
 
     asyncio.create_task(calendar_autoscan_loop(), name="calendar_autoscan_loop")
 
+    # Moliya hisobotlari (Airtable Finance V2 -> Telegram topiklari)
+    from src.schedulers.moliya_hisobotlari import moliya_hisobotlari_loop
+    asyncio.create_task(moliya_hisobotlari_loop(), name="oisha_moliya_hisobotlari")
+
     # Graceful shutdown
     _shutdown_event = asyncio.Event()
 

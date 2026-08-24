@@ -50,16 +50,28 @@ async def main():
         qr = await client.qr_login()
         
         # QR kodni rasm sifatida saqlash
-        qr_img = qrcode.make(qr.url)
-        img_path = r"C:\Users\baxti\.gemini\antigravity\brain\358b12b0-fe93-4921-865a-e1952af1a02f\qr.png"
+        qr_obj = qrcode.QRCode(border=2)
+        qr_obj.add_data(qr.url)
+        qr_obj.make(fit=True)
+        
+        img_path = r"C:\Users\baxti\.gemini\antigravity\brain\155b1371-b8f6-4b84-ba30-6924be5f1441\telegram_qr.png"
+        os.makedirs(os.path.dirname(img_path), exist_ok=True)
+        qr_img = qr_obj.make_image(fill_color="black", back_color="white")
         qr_img.save(img_path)
         
-        print(f"QR kod saqlandi: {img_path}")
+        print(f"QR kod rasm sifatida saqlandi: {img_path}")
+        print("\n" + "="*50)
+        print("TELEGRAM QR KOD:")
+        try:
+            qr_obj.print_ascii(invert=True)
+        except Exception:
+            pass
+        print("="*50 + "\n")
         print("QR_READY")
         
-        # Tasdiqlanishini kutish
+        # Tasdiqlanishini kutish (180 soniya)
         try:
-            await qr.wait(timeout=120)
+            await qr.wait(timeout=180)
         except asyncio.TimeoutError:
             print("QR kod muddati tugadi!")
             return
@@ -68,21 +80,21 @@ async def main():
                 print("2FA parol orqali ulanmoqda...")
                 await client.sign_in(password=TG_2FA_PASSWORD)
             else:
-                print("XATOLIK: 2FA parol kerak, lekin TG_2FA_PASSWORD berilmagan!")
-                return
+                pwd = input("2FA Parolingizni kiriting: ").strip()
+                await client.sign_in(password=pwd)
             
         session_string = client.session.save()
         me = await client.get_me()
-        print(f"\n✅ Muvaffaqiyatli kirildi! Profil: {me.first_name} (@{me.username})")
+        print(f"\n✅ Muvaffaqiyatli kirildi! Profil: {me.first_name} (@{me.username or 'username_yoq'})")
     
     # .env ni yangilash
     env_file = ".env"
     set_key(env_file, "USERBOT_SESSION_STRING", session_string)
-    # NOTE: TELEGRAM_MCP_SESSION_STRING must be a DEDICATED session, never
-    # equal to USERBOT_SESSION_STRING (see CLAUDE.md). Generate it separately
-    # via its own login flow — do not copy this value.
+    os.makedirs("data", exist_ok=True)
+    with open("data/userbot_session_string.txt", "w", encoding="utf-8") as f:
+        f.write(session_string.strip())
 
-    print("🎉 Yangi session string .env fayliga avtomatik tarzda yozildi!")
+    print("🎉 Yangi session string .env va data/userbot_session_string.txt ga yozildi!")
     await client.disconnect()
 
 if __name__ == "__main__":
