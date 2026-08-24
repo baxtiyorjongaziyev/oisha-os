@@ -627,60 +627,23 @@ class CallAnalyzer:
         task_id: Optional[str] = None,
     ) -> None:
         """Sotuv/CRM guruhiga yangi tahlil qilingan qo'ng'iroq hisobotini yuborish."""
-        try:
-            from src.context import app_ctx
-            from src.settings import settings
+        from src.services.core.calls.call_notifier import send_call_analysis_telegram_alert
 
-            bot_client = getattr(app_ctx, "bot_runtime", None) or getattr(app_ctx, "bot_client", None)
-            if not bot_client:
-                return
-
-            target_chat_id = getattr(settings, "AMOCRM_ALERT_FORWARD_GROUP_ID", None) or getattr(settings, "CRM_GROUP_ID", None)
-            topic_id = getattr(settings, "AMOCRM_ALERT_FORWARD_TOPIC_ID", None)
-            if not target_chat_id:
-                return
-
-            dur_m = int(duration_seconds or 0) // 60
-            dur_s = int(duration_seconds or 0) % 60
-            subdomain = getattr(self.amocrm, "subdomain", "jonbranding")
-            lead_url = f"https://{subdomain}.amocrm.ru/leads/detail/{lead_id}"
-
-            outcome = analysis.get("natija") or analysis.get("outcome") or ""
-            score = analysis.get("sifat_bahosi") or analysis.get("overall_score") or ""
-            objections = analysis.get("etirozlar") or analysis.get("objections") or []
-            if isinstance(objections, list):
-                objections = ", ".join(str(o) for o in objections if str(o).strip())
-
-            msg_text = (
-                f"🎙 <b>AI Qo'ng'iroq Tahlili (Call Intelligence)</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 <b>Lid:</b> <a href=\"{lead_url}\">AmoCRM Lead #{lead_id}</a>\n"
-                f"📞 <b>Telefon:</b> <code>{caller_phone or 'N/A'}</code>\n"
-                f"🧑‍💼 <b>Menejer:</b> {manager_name or 'Aniqlanmadi'}\n"
-                f"⏱ <b>Davomiyligi:</b> {dur_m}m {dur_s}s\n"
-                f"🎭 <b>Kayfiyat:</b> {client_mood} | <b>Toifa:</b> {category}\n"
-            )
-            if score:
-                msg_text += f"⭐️ <b>Sifat Bahosi:</b> {score}/100\n"
-            if outcome:
-                msg_text += f"📊 <b>Natija:</b> {outcome}\n"
-            if objections:
-                msg_text += f"💡 <b>E'tirozlar:</b> {objections}\n"
-            msg_text += (
-                f"📝 <b>Xulosa:</b> {summary}\n"
-                f"🎯 <b>Keyingi qadam:</b> {next_steps}\n"
-            )
-            if task_id:
-                msg_text += f"✅ <b>AmoCRM Vazifasi:</b> Biriktirildi (Task #{task_id})\n"
-
-            kwargs: Dict[str, Any] = {"parse_mode": "HTML", "disable_web_page_preview": True}
-            if topic_id:
-                kwargs["reply_to_message_id"] = topic_id
-
-            if hasattr(bot_client, "send_message"):
-                await bot_client.send_message(chat_id=target_chat_id, text=msg_text, **kwargs)
-        except Exception as exc:
-            logger.warning("[CALL] Failed to notify Telegram for call %s: %s", call_id, exc)
+        subdomain = getattr(self.amocrm, "subdomain", "jonbranding") if self.amocrm else "jonbranding"
+        await send_call_analysis_telegram_alert(
+            lead_id=lead_id,
+            call_id=call_id,
+            category=category,
+            summary=summary,
+            client_mood=client_mood,
+            next_steps=next_steps,
+            duration_seconds=duration_seconds,
+            manager_name=manager_name,
+            caller_phone=caller_phone,
+            analysis=analysis,
+            task_id=task_id,
+            subdomain=subdomain,
+        )
 
     def _login_moizvonki(self):
         email = getattr(self._settings, "MOIZVONKI_EMAIL", None)

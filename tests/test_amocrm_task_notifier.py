@@ -14,13 +14,27 @@ def test_format_task_notification_due():
         "id": 12345,
         "entity_id": 36654487,
         "entity_type": "leads",
+        "task_type_id": 1,
         "text": "Aloqaga chiqib uchrashuv belgilash",
         "complete_till": 1758617300,
     }
-    lead = {"name": "Azamat Aka Admiral"}
+    lead = {
+        "name": "Azamat Aka Admiral",
+        "pipeline_id": 11162698,
+        "status_id": 87609518,
+        "price": 15000000,
+        "custom_fields_values": [
+            {"field_id": 1034671, "values": [{"value": "Brending"}]},
+            {"field_id": 1034663, "values": [{"value": "Tez Natija (TN5)"}]},
+            {"field_id": 1037937, "values": [{"value": "@azamat_admiral"}]},
+        ]
+    }
+    contact = {"name": "Azamat Aka", "phone": "+998901234567"}
+
     msg, buttons = format_task_notification(
         task=task,
         lead_or_contact=lead,
+        contact_details=contact,
         phone="+998901234567",
         responsible_name="Baxtiyorjon Gaziyev",
         alert_type="due",
@@ -31,6 +45,11 @@ def test_format_task_notification_due():
     assert "+998901234567" in msg
     assert "Baxtiyorjon Gaziyev" in msg
     assert "Aloqaga chiqib uchrashuv belgilash" in msg
+    assert "1. PRESALES ➔ Aloqaga chiqildi" in msg
+    assert "Brending" in msg
+    assert "Tez Natija (TN5)" in msg
+    assert "15 000 000 so'm" in msg
+    assert "@azamat_admiral" in msg
     assert buttons is not None
     assert buttons[0][0]["url"] == "https://jonbrandingagency.amocrm.ru/leads/detail/36654487"
 
@@ -40,10 +59,11 @@ def test_format_task_notification_overdue():
         "id": 12346,
         "entity_id": 112233,
         "entity_type": "contacts",
+        "task_type_id": 4061818,
         "text": "Qayta aloqa",
         "complete_till": 1758610000,
     }
-    contact = {"name": "Nilufar opa"}
+    contact = {"name": "Nilufar opa", "phone": "+998775073030"}
     msg, buttons = format_task_notification(
         task=task,
         lead_or_contact=contact,
@@ -53,6 +73,7 @@ def test_format_task_notification_overdue():
     assert "Просроченная задача" in msg
     assert "Nilufar opa" in msg
     assert "Oydin" in msg
+    assert "+998775073030" in msg
     assert buttons[0][0]["url"] == "https://jonbrandingagency.amocrm.ru/contacts/detail/112233"
 
 
@@ -91,6 +112,7 @@ async def test_send_task_alert_and_deduplication():
     mock_amocrm.get_user_name.return_value = "Baxtiyorjon Gaziyev"
     mock_amocrm.get_lead = AsyncMock(return_value={"name": "Test Lead"})
     mock_amocrm.get_lead_phone.return_value = "+998901112233"
+    mock_amocrm.get_contact_details_async = AsyncMock(return_value=None)
 
     notifier = AmoCrmTaskNotifier(amocrm=mock_amocrm, bot_runtime=mock_bot)
 
@@ -124,6 +146,7 @@ async def test_check_and_notify_due_tasks():
     mock_amocrm.get_user_name.return_value = "Baxtiyorjon"
     mock_amocrm.get_lead = AsyncMock(return_value={"name": "Due Lead"})
     mock_amocrm.get_lead_phone.return_value = None
+    mock_amocrm.get_contact_details_async = AsyncMock(return_value=None)
 
     # Return 1 due task, 1 overdue task, 1 future task
     mock_amocrm.get_tasks = AsyncMock(return_value=[
