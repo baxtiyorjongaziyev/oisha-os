@@ -73,6 +73,14 @@ def register_airtable_approval_callbacks(dispatcher: Any) -> None:
         if action == "at_app":
             success = await update_airtable_transaction_status(record_id, "Tasdiqlangan")
             if success:
+                # Trigger real-time P&L recalculation
+                try:
+                    from src.services.core.finance.pnl_sync import sync_monthly_pnl
+                    import asyncio
+                    asyncio.create_task(sync_monthly_pnl())
+                except Exception as exc:
+                    logger.warning("P&L sync background task warning: %s", exc)
+
                 await callback.answer("✅ Airtable'da 'Tasdiqlangan' holatiga o'tkazildi!", show_alert=True)
                 msg = getattr(callback, "message", None)
                 if msg:
