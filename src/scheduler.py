@@ -87,6 +87,26 @@ async def background_monitor_task() -> None:
             if now.hour in [10, 15] and now.minute < 5:
                 await check_airtable_deadlines()
 
+            # AmoCRM task due/overdue alert dispatch (Follow-up topic)
+            try:
+                from src.services.core.amocrm_task_notifier import AmoCrmTaskNotifier
+                from src.context import app_ctx
+
+                amocrm_client = None
+                if m.msg_controller and getattr(m.msg_controller, "crm", None):
+                    amocrm_client = getattr(m.msg_controller.crm, "amocrm", None)
+                if not amocrm_client and get_surgical_integration:
+                    amocrm_client = get_surgical_integration().amocrm
+
+                bot_rt = getattr(app_ctx, "bot_runtime", None) or getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
+                db_inst = getattr(m.msg_controller, "db", None) if m.msg_controller else None
+
+                if amocrm_client and bot_rt:
+                    notifier = AmoCrmTaskNotifier(amocrm=amocrm_client, db=db_inst, bot_runtime=bot_rt)
+                    await notifier.check_and_notify_due_tasks()
+            except Exception as task_exc:
+                logger.error("[TASK_NOTIFIER] Scheduler task check failed: %s", task_exc)
+
             if m.msg_controller:
                 if not hasattr(background_monitor_task, "_lead_os"):
                     background_monitor_task._lead_os = LeadOperatingSystem(
