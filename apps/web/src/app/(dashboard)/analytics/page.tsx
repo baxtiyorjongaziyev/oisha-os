@@ -1,12 +1,60 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
+
+interface DashboardOverview {
+  finance: {
+    available: boolean;
+    revenue?: number;
+    net_profit?: number;
+    cash_flow_status?: string;
+    outstanding_invoices?: number;
+    outstanding_amount?: number;
+  };
+  pipeline: {
+    available: boolean;
+    leads_total?: number;
+    pipeline_value?: number;
+    avg_deal_value?: number;
+  };
+  quality: {
+    available: boolean;
+    calls_total?: number;
+    quality_score?: number;
+  };
+}
+
+function fmtUzs(n: number): string {
+  return `${n.toLocaleString("en-US")} so'm`;
+}
 
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "quality" | "training" | "customer" | "activity" | "leads">("overview");
   const [timeFilter, setTimeFilter] = useState<"today" | "3days" | "week" | "month" | "custom">("month");
-  
+
+  const [overview, setOverview] = useState<DashboardOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setOverviewLoading(true);
+    fetch("/api/oisha/dashboard-overview")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setOverview(data);
+      })
+      .catch(() => {
+        if (!cancelled) setOverview(null);
+      })
+      .finally(() => {
+        if (!cancelled) setOverviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Dynamic AI advice state for training tab
   const [aiRefreshing, setAiRefreshing] = useState(false);
   const [aiAdviceText, setAiAdviceText] = useState(
@@ -91,29 +139,68 @@ export default function AnalyticsPage() {
               </div>
               <h3 className="text-sm font-bold text-text mt-2">Agentlik Sotuv va Moliya Pulsi</h3>
               <p className="text-xs text-text-muted mt-1.5 leading-relaxed">
-                Joriy oylik tushum $14,200 ga yetdi (Sof foyda: +$8,400, Rentabellik: 59%). AmoCRM v4 da 487 ta bitim nazorat ostida, shundan 28 tasi faol muzokarada ($42,800 kutilayotgan qiymat). Qo&apos;ng&apos;iroqlar bo&apos;yicha e&apos;tirozlarni yopish darajasi 78% ga ko&apos;tarildi.
+                {overviewLoading
+                  ? "Yuklanmoqda..."
+                  : overview?.finance.available || overview?.pipeline.available
+                    ? `Joriy oylik ${overview.finance.available ? `daromad ${fmtUzs(overview.finance.revenue ?? 0)} (sof foyda: ${fmtUzs(overview.finance.net_profit ?? 0)})` : "moliya ma'lumoti mavjud emas"}. ${
+                        overview.pipeline.available
+                          ? `AmoCRM'da ${overview.pipeline.leads_total} ta bitim nazorat ostida, umumiy voronka qiymati ${fmtUzs(overview.pipeline.pipeline_value ?? 0)}.`
+                          : "AmoCRM ulanmagan."
+                      } ${overview.quality.available ? `Suhbat sifati: ${overview.quality.quality_score}%.` : ""}`
+                    : "Ma'lumot manbalari (Hisobchi/AmoCRM) hozircha ulanmagan."}
               </p>
             </div>
 
             {/* KPI Cards Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { title: "Oylik Tushum (Kirim)", value: "$14,200", trend: "+18%", positive: true },
-                { title: "Voronka Qiymati", value: "$42,800", trend: "+24%", positive: true },
-                { title: "Lid Konversiyasi", value: "28.4%", trend: "+5.2%", positive: true },
-                { title: "O'rtacha Bitim", value: "$2,850", trend: "+12%", positive: true },
-                { title: "Suhbat Sifati", value: "88%", trend: "+6.5%", positive: true },
-                { title: "Faol Muzokaralar", value: "28 ta", trend: "+8 ta", positive: true },
-                { title: "Frog Vazifalar", value: "4 / 5", trend: "80%", positive: true },
-                { title: "Kassa Balansi", value: "$18,450", trend: "+14%", positive: true }
+                {
+                  title: "Oylik Tushum (Kirim)",
+                  value: overview?.finance.available ? fmtUzs(overview.finance.revenue ?? 0) : "—",
+                  available: overview?.finance.available ?? false
+                },
+                {
+                  title: "Voronka Qiymati",
+                  value: overview?.pipeline.available ? fmtUzs(overview.pipeline.pipeline_value ?? 0) : "—",
+                  available: overview?.pipeline.available ?? false
+                },
+                {
+                  title: "Faol Bitimlar",
+                  value: overview?.pipeline.available ? `${overview.pipeline.leads_total} ta` : "—",
+                  available: overview?.pipeline.available ?? false
+                },
+                {
+                  title: "O'rtacha Bitim",
+                  value: overview?.pipeline.available ? fmtUzs(overview.pipeline.avg_deal_value ?? 0) : "—",
+                  available: overview?.pipeline.available ?? false
+                },
+                {
+                  title: "Suhbat Sifati",
+                  value: overview?.quality.available ? `${overview.quality.quality_score}%` : "—",
+                  available: overview?.quality.available ?? false
+                },
+                {
+                  title: "Baholangan Qo'ng'iroqlar",
+                  value: overview?.quality.available ? `${overview.quality.calls_total} ta` : "—",
+                  available: overview?.quality.available ?? false
+                },
+                {
+                  title: "Kutilayotgan To'lovlar",
+                  value: overview?.finance.available ? `${overview.finance.outstanding_invoices} ta` : "—",
+                  available: overview?.finance.available ?? false
+                },
+                {
+                  title: "Naqd Pul Holati",
+                  value: overview?.finance.available ? (overview.finance.cash_flow_status ?? "—") : "—",
+                  available: overview?.finance.available ?? false
+                }
               ].map((kpi, i) => (
                 <div key={i} className="rounded-3xl border border-border bg-bg-card p-4 shadow-sm hover:border-brand/40 transition-all">
                   <div className="text-[10px] font-bold text-text-muted uppercase">{kpi.title}</div>
-                  <div className="text-base font-extrabold text-text mt-1.5">{kpi.value}</div>
-                  <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                    <span>{kpi.trend}</span>
-                    <span className="text-text-muted font-normal">o&apos;tgan oyga nisbatan</span>
-                  </div>
+                  <div className="text-base font-extrabold text-text mt-1.5">{overviewLoading ? "..." : kpi.value}</div>
+                  {!kpi.available && !overviewLoading && (
+                    <div className="mt-1 text-[10px] font-semibold text-text-muted">manba ulanmagan</div>
+                  )}
                 </div>
               ))}
             </div>
