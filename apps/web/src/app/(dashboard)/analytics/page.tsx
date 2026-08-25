@@ -38,7 +38,6 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setOverviewLoading(true);
     fetch("/api/oisha/dashboard-overview")
       .then((res) => res.json())
       .then((data) => {
