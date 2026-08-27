@@ -73,6 +73,12 @@ class ChannelLeadExtractor:
             except Exception as exc:
                 logger.warning(f"[LEAD-EXTRACTOR] DB save failed: {exc}")
 
+        # Proactively send alert card to Sotuv bo'limi topic
+        try:
+            await self._notify_telegram_new_lead(lead_data)
+        except Exception as exc:
+            logger.debug(f"[LEAD-EXTRACTOR] Telegram notify failed: {exc}")
+
         self.extracted_leads.append(lead_data)
         return lead_data
 
@@ -168,6 +174,63 @@ class ChannelLeadExtractor:
             await self.db.commit()
         except Exception as exc:
             logger.error(f"[LEAD-EXTRACTOR] DB error: {exc}")
+
+    async def _notify_telegram_new_lead(self, lead_data: dict) -> None:
+        """Send rich Telegram notification card to Sales group 'Yangi leadlar' topic."""
+        try:
+            from src.context import app_ctx
+            from src.settings import settings
+
+            bot_client = getattr(app_ctx, "bot_runtime", None) or getattr(app_ctx, "bot_client", None)
+            if not bot_client:
+                return
+
+            target_chat_id = (
+                getattr(settings, "CRM_GROUP_ID", None)
+                or getattr(settings, "AMOCRM_ALERT_FORWARD_GROUP_ID", None)
+            )
+            topic_id = (
+                getattr(settings, "TOPIC_SELLER_1_LEADS_ID", None)
+                or getattr(settings, "TOPIC_CRM_ID", None)
+                or getattr(settings, "AMOCRM_ALERT_FORWARD_TOPIC_ID", None)
+            )
+            if not target_chat_id:
+                return
+
+            name = lead_data.get("name") or "Noma'lum"
+            username = lead_data.get("custom_fields", {}).get("telegram_username") or lead_data.get("username")
+            user_link = f"@{username}" if username else f"ID: {lead_data.get('telegram_id')}"
+            source = lead_data.get("custom_fields", {}).get("source_channel") or lead_data.get("source_channel") or "Telegram"
+            preview = (lead_data.get("custom_fields", {}).get("message_preview") or lead_data.get("message_preview") or "").strip()
+            phone = lead_data.get("phone") or "Noma'lum"
+            category = lead_data.get("custom_fields", {}).get("category") or "B2B Potentsial Mijoz"
+
+            card = (
+                f"🔥 <b>YANGI SIFATLI LEAD (Telegram Hunter)</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 <b>Mijoz:</b> {name} ({user_link})\n"
+                f"📞 <b>Telefon:</b> <code>{phone}</code>\n"
+                f"📍 <b>Manba:</b> @{source}\n"
+                f"🎯 <b>Toifa:</b> {category}\n"
+                f"💬 <b>Fikr / Ehtiyoj:</b> <i>\"{preview}\"</i>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"👉 <i>Sotuv bo'limi: Mijoz bilan darhol bog'laning!</i>"
+            )
+
+            kwargs = {}
+            if topic_id:
+                kwargs["message_thread_id"] = int(topic_id)
+
+            if hasattr(bot_client, "send_message"):
+                await bot_client.send_message(
+                    chat_id=int(target_chat_id),
+                    text=card,
+                    parse_mode="HTML",
+                    **kwargs,
+                )
+                logger.info(f"[LEAD-EXTRACTOR] Sent lead card to Sales topic: {name}")
+        except Exception as exc:
+            logger.warning(f"[LEAD-EXTRACTOR] Telegram notify error: {exc}")
 
     async def get_recent_leads(self, limit: int = 20) -> list:
         """Get recently discovered leads."""
