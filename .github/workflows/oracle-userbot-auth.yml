@@ -65,11 +65,18 @@ jobs:
             }
 
             # .env ni export qilish — fonda ishlaydigan jarayon ham env larni olsin
-            if [ -f .env ]; then
-              set -o allexport
-              source .env
-              set +o allexport
-            fi
+            # Diagnostika: .env da TELEGRAM_PHONE bormi?
+            echo "=== .env diagnostika ==="
+            grep -c 'TELEGRAM_PHONE' .env && echo "TELEGRAM_PHONE .env da BOR" || echo "TELEGRAM_PHONE .env da YO'Q"
+            grep -n 'PHONE' .env | sed 's/=.*/=***/' || true
+            echo "=== .env source boshlandi ==="
+            # set -eu ni vaqtincha o'chiramiz — .env da bo'sh qiymatlar/izohlar source ni buzishi mumkin
+            set +eu
+            set -o allexport
+            source .env
+            set +o allexport
+            set -eu
+            echo "=== .env source tugadi, TELEGRAM_PHONE=${TELEGRAM_PHONE:+(mavjud)} ==="
 
             case "$AUTH_STEP" in
               start)
