@@ -1,0 +1,73 @@
+name: "Juma Oneoff — Test yoki TN6 Broadcast"
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "test-user yoki broadcast"
+        required: true
+        default: "test-user"
+        type: choice
+        options:
+          - test-user
+          - broadcast
+      username:
+        description: "Test uchun Telegram username (faqat test-user rejimida)"
+        required: false
+        default: "BoymatovJurabek"
+
+jobs:
+  send:
+    name: Juma Oneoff (Oracle VM)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Run oneoff script on Oracle VM
+        uses: appleboy/ssh-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 55m
+          envs: GITHUB_TOKEN
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/oisha-os
+
+            # Pull latest
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+            git fetch origin main
+            git stash --include-untracked 2>/dev/null || true
+            git checkout origin/main -- scripts/send_juma_oneoff.py scripts/telethon_guard.py scripts/__init__.py
+
+            # Load credentials
+            if [ -f .env ]; then
+              set -o allexport
+              source .env
+              set +o allexport
+            fi
+
+            MODE="${{ github.event.inputs.mode }}"
+            USERNAME="${{ github.event.inputs.username }}"
+
+            if [ "$MODE" = "test-user" ]; then
+              ./venv/bin/python scripts/send_juma_oneoff.py --test-user "$USERNAME"
+            else
+              mkdir -p data/logs
+              LOG_FILE="data/logs/juma_oneoff_$(date +%Y%m%d_%H%M%S).log"
+              nohup ./venv/bin/python scripts/send_juma_oneoff.py --broadcast > "$LOG_FILE" 2>&1 < /dev/null &
+              disown
+              PID=$!
+              sleep 5
+              if kill -0 "$PID" 2>/dev/null; then
+                echo "Broadcast fon rejimida ishga tushdi (PID $PID), log: $LOG_FILE"
+              else
+                echo "XATO: jarayon darhol to'xtadi. Log:"
+                cat "$LOG_FILE" || true
+                exit 1
+              fi
+            fi
