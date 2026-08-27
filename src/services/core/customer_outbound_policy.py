@@ -7,14 +7,9 @@ from typing import Any
 
 
 _JUMA_TEMPLATES = (
-    "Juma muborak bo'lsin. Bugungi kuningiz xayrli, ishlaringiz unumli o'tsin.",
-    "Juma ayyomingiz muborak. Oilangizga tinchlik, ishlaringizga baraka tilayman.",
-    "Juma muborak. Ko'nglingiz xotirjam, kuningiz fayzli o'tsin.",
-    "Juma ayyomi muborak bo'lsin. Yaxshi niyatlaringiz amalga oshsin.",
-    "Juma muborak bo'lsin. Bugun sizga sokinlik, fayz va yaxshi xabarlar tilayman.",
-    "Juma ayyomingiz muborak. Mehnatingizga unum, xonadoningizga baraka tilayman.",
-    "Juma muborak. Kuningiz mazmunli va yaqinlaringiz davrasida fayzli o'tsin.",
-    "Juma ayyomi muborak bo'lsin. Sog'lik, xotirjamlik va halol rizq tilayman.",
+    "Juma muborak bo‘lsin 🤲 Alloh xonadoningizga baraka, ishlaringizga rivoj bersin. Bugungi qilgan duolaringiz qabul bo‘lib, ko‘nglingiz doim xotirjam bo‘lsin.",
+    "Juma muborak bo‘lsin! 🤲 Alloh kuningizni xayrli, ishlaringizni barakali qilsin. Yaxshi niyatlaringizga yetkazsin.",
+    "Juma muborak bo‘lsin! 🤲 Alloh rizqingizga baraka bersin, ko‘nglingizni xotirjam qilsin. Niyat qilgan yaxshi ishlaringizga yetkazib, duolaringizni qabul qilsin.",
 )
 
 
