@@ -128,6 +128,8 @@ class AppSettings(BaseSettings):
     AMOCRM_CLIENT_ID: str = ""
     AMOCRM_CLIENT_SECRET: Optional[SecretStr] = None
     AMOCRM_REDIRECT_URL: str = "https://localhost"
+    AMOCRM_CHAT_CHANNEL_ID: str = "55b0a7d7-d898-4f9c-819d-1982e83fab8a"
+    AMOCRM_CHAT_CHANNEL_SECRET: Optional[SecretStr] = None
     AIRTABLE_CLIENT_ID: str = ""
     AIRTABLE_CLIENT_SECRET: Optional[SecretStr] = None
     AIRTABLE_REDIRECT_URI: str = "https://localhost"
