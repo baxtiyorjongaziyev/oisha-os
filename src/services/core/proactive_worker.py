@@ -746,7 +746,13 @@ async def check_airtable_deadlines():
     """Airtable 24 soatlik deadline monitoringi.
 
     Kuniga faqat 2 marta (10:00 va 15:00 Toshkent) yuboriladi.
-    Uch qavatli dedup: 1) soat filtri, 2) in-memory set, 3) DB.
+    Dedup uch qavatli va **yuborishdan oldin** band qilinadi:
+      1) soat filtri, 2) in-memory set, 3) DB'da atomik claim.
+    Claim yuborishdan oldin olinadi — shuning uchun parallel scheduler'lar
+    (src/scheduler.py va src/schedulers/background_monitor.py) yoki qayta
+    ishga tushgan process bir xil xabarni takrorlay olmaydi. Yuborish
+    muvaffaqiyatsiz bo'lsa, claim bekor qilinadi va keyingi urinishda qayta
+    tekshiriladi.
     """
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
     import src.config as config
@@ -766,36 +772,51 @@ async def check_airtable_deadlines():
     if mem_key in _deadline_sent_keys:
         return
 
-    # 3) DB dedup (survives restarts)
+    # 3) DB claim (atomik, restart va parallel loop'lardan himoya qiladi)
+    db = None
+    claimed_in_db = False
     try:
         db = Database()
-        if await db.is_job_run(job_key, today):
-            _deadline_sent_keys.add(mem_key)  # sync memory with DB
+        claimed_in_db = await db.claim_job_run(job_key, today)
+        if not claimed_in_db:
+            # Boshqa process allaqachon band qilgan / yuborgan
+            _deadline_sent_keys.add(mem_key)
             return
     except Exception as e:
-        logger.warning(f"[PROACTIVE] DB dedup check failed: {e}")
+        logger.warning(f"[PROACTIVE] DB claim failed: {e}")
+        db = None
+
+    # Claim olindi — memory'ni ham darhol belgilaymiz (yuborishdan OLDIN),
+    # aks holda xatolik yuz bersa loop har iteratsiyada qayta yuboradi.
+    _deadline_sent_keys.add(mem_key)
 
     logger.info("Project deadline check started...")
+
+    async def _release() -> None:
+        """Qayta urinish uchun claim'ni bo'shatish."""
+        _deadline_sent_keys.discard(mem_key)
+        if db is not None and claimed_in_db:
+            try:
+                await db.release_job_run(job_key, today)
+            except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
 
     try:
         sync = AirtableSync()
         upcoming = sync.get_upcoming_deadlines(hours=24)
     except Exception as e:
         logger.error(f"[PROACTIVE] Airtable fetch failed: {e}")
+        await _release()
         return
 
     if not upcoming:
-        # No deadlines — still mark as run to avoid re-checks
-        _deadline_sent_keys.add(mem_key)
-        try:
-            await db.mark_job_run(job_key, today)
-        except Exception:
-            logger.error("Exception handled in %s", __name__, exc_info=True)
+        # No deadlines — claim saqlanadi, bugun qayta tekshirilmaydi
         return
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
     group_id = getattr(config, "PROJECTS_GROUP_ID", None)
     if not (bot_token and group_id):
+        await _release()
         return
 
     bot = Bot(token=bot_token)
@@ -816,12 +837,10 @@ async def check_airtable_deadlines():
             parse_mode="Markdown",
             allow_userbot_fallback=False,
         )
-        # Mark as sent in BOTH dedup layers
-        _deadline_sent_keys.add(mem_key)
-        await db.mark_job_run(job_key, today)
         logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
     except Exception as e:
         logger.error(f"[XATO] Airtable deadline alert: {e}")
+        await _release()
 
 
 
