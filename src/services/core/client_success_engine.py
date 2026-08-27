@@ -119,7 +119,7 @@ async def generate_weekly_budget_report() -> str:
         budgets = b_resp.json().get("records", []) if b_resp.status_code == 200 else []
 
         # 2. Fetch P&L
-        pnl_resp = await client.get(f"{AIRTABLE_API_BASE}/{base_id}/tblUgfwoxSn2fS4wJ?pageSize=50", headers=headers)
+        pnl_resp = await client.get(f"{AIRTABLE_API_BASE}/{base_id}/tblAgVaGlVory2yAW?pageSize=50", headers=headers)
         pnl_records = pnl_resp.json().get("records", []) if pnl_resp.status_code == 200 else []
         current_pnl = next((r["fields"] for r in pnl_records if r["fields"].get("Oy nomi", "").startswith(current_month_str)), {})
 
