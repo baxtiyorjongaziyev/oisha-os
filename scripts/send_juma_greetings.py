@@ -117,12 +117,25 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
 # kaliti hech qachon Oracle VM dan tashqarida ochilmasligi kerak.
 DEDICATED_SESSION_ENV = "JUMA_SESSION_STRING"
 
-MESSAGE = (
-    "Assalomu alaykum!\n\n"
-    "Juma muborak bo’lsin!\n"
-    "Bu muborak kunda barcha niyatlaringiz ro‘yobga chiqsin, "
-    "rizqingiz mo‘l, umringiz barakali bo’lsin."
-)
+JUMA_TEMPLATES = [
+    (
+        "Assalomu alaykum! Juma muborak bo‘lsin 🤲\n\n"
+        "Alloh xonadoningizga baraka, ishlaringizga rivoj bersin. "
+        "Bugungi qilgan duolaringiz qabul bo‘lib, ko‘nglingiz doim xotirjam bo‘lsin."
+    ),
+    (
+        "Assalomu alaykum! Juma muborak bo‘lsin! 🤲\n\n"
+        "Alloh kuningizni xayrli, ishlaringizni barakali qilsin. "
+        "Yaxshi niyatlaringizga yetkazsin."
+    ),
+    (
+        "Assalomu alaykum! Juma muborak bo‘lsin! 🤲\n\n"
+        "Alloh rizqingizga baraka bersin, ko‘nglingizni xotirjam qilsin. "
+        "Niyat qilgan yaxshi ishlaringizga yetkazib, duolaringizni qabul qilsin."
+    ),
+]
+
+MESSAGE = JUMA_TEMPLATES[0]
 
 
 def send_tg_notification(text: str) -> None:
@@ -177,7 +190,8 @@ async def collect_members(client: TelegramClient) -> list[dict]:
 
 
 async def send_to_member(client: TelegramClient, member: dict) -> None:
-    await client.send_message(member["id"], MESSAGE)
+    text = random.choice(JUMA_TEMPLATES)
+    await client.send_message(member["id"], text)
 
 
 async def run() -> None:
