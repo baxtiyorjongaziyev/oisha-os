@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 AIRTABLE_API_BASE = "https://api.airtable.com/v0"
 DEFAULT_BASE_ID = "app8xoyx1XCumYFXV"
 TRX_TABLE_ID = "tblrqxqIzyrvg7XpQ"
-PNL_TABLE_ID = "tblUgfwoxSn2fS4wJ"
+PNL_TABLE_ID = "tblAgVaGlVory2yAW"
 CAT_TABLE_ID = "tblRt6aiU6Vy2yLCD"
 
 UZBEK_MONTHS = {
