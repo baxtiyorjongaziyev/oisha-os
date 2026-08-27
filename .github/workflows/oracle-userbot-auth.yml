@@ -64,6 +64,13 @@ jobs:
               fi
             }
 
+            # .env ni export qilish — fonda ishlaydigan jarayon ham env larni olsin
+            if [ -f .env ]; then
+              set -o allexport
+              source .env
+              set +o allexport
+            fi
+
             case "$AUTH_STEP" in
               start)
                 if [ ! -f .env ]; then
@@ -77,6 +84,13 @@ jobs:
                   echo "Akkauntda 2FA yoqilgan bo'lsa, skript parolni"
                   echo "data/userbot_auth_password.txt faylidan kutadi."
                 fi
+                # TELEGRAM_PHONE borligini tekshir
+                if [ -z "${TELEGRAM_PHONE:-}" ]; then
+                  echo "XATO: .env da TELEGRAM_PHONE yo'q yoki bo'sh"
+                  echo "TELEGRAM_PHONE=+998XXXXXXXXX formatida .env ga qo'shing"
+                  exit 1
+                fi
+                echo "TELEGRAM_PHONE: .env da bor (oxirgi 4 raqam: ...${TELEGRAM_PHONE: -4})"
                 rm -f data/userbot_auth_code.txt data/userbot_auth_status.json
                 nohup ./venv/bin/python scripts/prod/auth_userbot_on_oracle.py \
                   > data/userbot_auth.log 2>&1 &
