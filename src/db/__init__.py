@@ -175,6 +175,12 @@ class Database:
     async def mark_job_run(self, job_name, date_str) -> None:
         await self.reports.mark_job_run(job_name, date_str)
 
+    async def claim_job_run(self, job_name, date_str) -> bool:
+        return await self.reports.claim_job_run(job_name, date_str)
+
+    async def release_job_run(self, job_name, date_str) -> None:
+        await self.reports.release_job_run(job_name, date_str)
+
     async def get_recent_job_runs(self, limit: int = 10) -> List[Dict[str, Any]]:
         return await self.reports.get_recent_job_runs(limit)
 

@@ -741,12 +741,62 @@ async def _legacy_check_amocrm_stagnation_direct():
 # In-memory dedup set — survives across scheduler iterations within same process
 _deadline_sent_keys: set = set()
 
+# Fayl-claim katalogi: process qayta ishga tushganda (watchdog restart) va Turso
+# yetib bo'lmaganda ham bitta hostda takroriy yuborishni to'sadi.
+_DEADLINE_CLAIM_DIR = "data/job_claims"
+
+
+def _prune_stale_claims(max_age_days: int = 2) -> None:
+    """Eski lock fayllarni tozalash — katalog cheksiz o'smasligi uchun."""
+    import time
+
+    cutoff = time.time() - max_age_days * 86400
+    try:
+        for name in os.listdir(_DEADLINE_CLAIM_DIR):
+            path = os.path.join(_DEADLINE_CLAIM_DIR, name)
+            if os.path.getmtime(path) < cutoff:
+                os.remove(path)
+    except OSError:
+        return
+
+
+def _claim_on_disk(claim_key: str) -> bool:
+    """Hostda atomik claim: O_CREAT|O_EXCL faqat bitta process'ga tegadi."""
+    try:
+        os.makedirs(_DEADLINE_CLAIM_DIR, exist_ok=True)
+        _prune_stale_claims()
+        path = os.path.join(_DEADLINE_CLAIM_DIR, f"{claim_key}.lock")
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        os.close(fd)
+        return True
+    except FileExistsError:
+        return False
+    except OSError as e:
+        # Fayl tizimi yozib bo'lmasa — bu qatlamni o'tkazib yuboramiz
+        logger.warning(f"[PROACTIVE] Disk claim failed: {e}")
+        return True
+
+
+def _release_on_disk(claim_key: str) -> None:
+    try:
+        os.remove(os.path.join(_DEADLINE_CLAIM_DIR, f"{claim_key}.lock"))
+    except FileNotFoundError:
+        return
+    except OSError:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
+
 
 async def check_airtable_deadlines():
     """Airtable 24 soatlik deadline monitoringi.
 
     Kuniga faqat 2 marta (10:00 va 15:00 Toshkent) yuboriladi.
-    Uch qavatli dedup: 1) soat filtri, 2) in-memory set, 3) DB.
+    Dedup uch qavatli va **yuborishdan oldin** band qilinadi:
+      1) soat filtri, 2) in-memory set, 3) DB'da atomik claim.
+    Claim yuborishdan oldin olinadi — shuning uchun parallel scheduler'lar
+    (src/scheduler.py va src/schedulers/background_monitor.py) yoki qayta
+    ishga tushgan process bir xil xabarni takrorlay olmaydi. Yuborish
+    muvaffaqiyatsiz bo'lsa, claim bekor qilinadi va keyingi urinishda qayta
+    tekshiriladi.
     """
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
     import src.config as config
@@ -766,36 +816,57 @@ async def check_airtable_deadlines():
     if mem_key in _deadline_sent_keys:
         return
 
-    # 3) DB dedup (survives restarts)
+    # 3) Disk claim — bitta hostdagi restartlar uchun (DB ishlamasa ham himoya)
+    if not _claim_on_disk(mem_key):
+        _deadline_sent_keys.add(mem_key)
+        return
+
+    # 4) DB claim (atomik, ko'p host / parallel loop'lardan himoya qiladi)
+    db = None
+    claimed_in_db = False
     try:
         db = Database()
-        if await db.is_job_run(job_key, today):
-            _deadline_sent_keys.add(mem_key)  # sync memory with DB
+        claimed_in_db = await db.claim_job_run(job_key, today)
+        if not claimed_in_db:
+            # Boshqa process allaqachon band qilgan / yuborgan
+            _deadline_sent_keys.add(mem_key)
             return
     except Exception as e:
-        logger.warning(f"[PROACTIVE] DB dedup check failed: {e}")
+        logger.warning(f"[PROACTIVE] DB claim failed: {e}")
+        db = None
+
+    # Claim olindi — memory'ni ham darhol belgilaymiz (yuborishdan OLDIN),
+    # aks holda xatolik yuz bersa loop har iteratsiyada qayta yuboradi.
+    _deadline_sent_keys.add(mem_key)
 
     logger.info("Project deadline check started...")
+
+    async def _release() -> None:
+        """Qayta urinish uchun claim'ni bo'shatish."""
+        _deadline_sent_keys.discard(mem_key)
+        _release_on_disk(mem_key)
+        if db is not None and claimed_in_db:
+            try:
+                await db.release_job_run(job_key, today)
+            except Exception:
+                logger.error("Exception handled in %s", __name__, exc_info=True)
 
     try:
         sync = AirtableSync()
         upcoming = sync.get_upcoming_deadlines(hours=24)
     except Exception as e:
         logger.error(f"[PROACTIVE] Airtable fetch failed: {e}")
+        await _release()
         return
 
     if not upcoming:
-        # No deadlines — still mark as run to avoid re-checks
-        _deadline_sent_keys.add(mem_key)
-        try:
-            await db.mark_job_run(job_key, today)
-        except Exception:
-            logger.error("Exception handled in %s", __name__, exc_info=True)
+        # No deadlines — claim saqlanadi, bugun qayta tekshirilmaydi
         return
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
     group_id = getattr(config, "PROJECTS_GROUP_ID", None)
     if not (bot_token and group_id):
+        await _release()
         return
 
     bot = Bot(token=bot_token)
@@ -816,12 +887,10 @@ async def check_airtable_deadlines():
             parse_mode="Markdown",
             allow_userbot_fallback=False,
         )
-        # Mark as sent in BOTH dedup layers
-        _deadline_sent_keys.add(mem_key)
-        await db.mark_job_run(job_key, today)
         logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
     except Exception as e:
         logger.error(f"[XATO] Airtable deadline alert: {e}")
+        await _release()
 
 
 

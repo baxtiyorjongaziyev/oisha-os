@@ -81,6 +81,43 @@ class ReportsRepository(BaseRepository):
         )
         await conn.commit()
 
+    async def claim_job_run(self, job_name: str, date_str: str) -> bool:
+        """Atomically claim a job slot BEFORE doing its work.
+
+        Returns True only for the caller that actually inserted the row, so
+        parallel schedulers / restarted processes cannot run the same job twice.
+        The claim is written with a unique token; ownership is verified by
+        reading the row back (rowcount is unreliable across sqlite/libsql).
+        """
+        import datetime
+        import uuid
+
+        token = f"{datetime.datetime.now().isoformat()}#{uuid.uuid4().hex}"
+        conn = await self._get_conn()
+        await conn.execute(
+            "INSERT OR IGNORE INTO scheduled_jobs (job_name, run_date, created_at) VALUES (?, ?, ?)",
+            (job_name, date_str, token),
+        )
+        await conn.commit()
+        async with conn.execute(
+            "SELECT created_at FROM scheduled_jobs WHERE job_name = ? AND run_date = ?",
+            (job_name, date_str),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return False
+        stored = row["created_at"] if isinstance(row, dict) else row[0]
+        return stored == token
+
+    async def release_job_run(self, job_name: str, date_str: str) -> None:
+        """Drop a claim so the job can be retried (e.g. the send failed)."""
+        conn = await self._get_conn()
+        await conn.execute(
+            "DELETE FROM scheduled_jobs WHERE job_name = ? AND run_date = ?",
+            (job_name, date_str),
+        )
+        await conn.commit()
+
     async def get_recent_job_runs(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get recent job runs."""
         conn = await self._get_conn()
