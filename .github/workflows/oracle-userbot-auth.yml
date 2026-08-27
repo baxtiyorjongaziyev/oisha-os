@@ -40,9 +40,9 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           AUTH_STEP: ${{ inputs.step }}
-          # Kod skript matniga EMAS, env orqali uzatiladi — aks holda
-          # workflow input'i remote shell ga inject qilinishi mumkin edi.
           AUTH_CODE: ${{ inputs.code }}
+          TG_PHONE: ${{ secrets.TELEGRAM_PHONE }}
+          TG_PASSWORD: ${{ secrets.TELEGRAM_PASSWORD }}
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
@@ -50,11 +50,21 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 14m
-          envs: AUTH_STEP,AUTH_CODE
+          envs: AUTH_STEP,AUTH_CODE,TG_PHONE,TG_PASSWORD
           script: |
             set -euo pipefail
             cd /home/ubuntu/oisha-os
             mkdir -p data
+
+            # GitHub secrets dan .env ga qo'shish (agar yo'q bo'lsa)
+            if [ -n "${TG_PHONE:-}" ] && ! grep -q '^TELEGRAM_PHONE=' .env 2>/dev/null; then
+              echo "TELEGRAM_PHONE=${TG_PHONE}" >> .env
+              echo ".env ga TELEGRAM_PHONE qo'shildi"
+            fi
+            if [ -n "${TG_PASSWORD:-}" ] && ! grep -q '^TELEGRAM_PASSWORD=' .env 2>/dev/null; then
+              echo "TELEGRAM_PASSWORD=${TG_PASSWORD}" >> .env
+              echo ".env ga TELEGRAM_PASSWORD qo'shildi"
+            fi
 
             show_status() {
               if [ -f data/userbot_auth_status.json ]; then
@@ -64,19 +74,12 @@ jobs:
               fi
             }
 
-            # .env ni export qilish — fonda ishlaydigan jarayon ham env larni olsin
-            # Diagnostika: .env da TELEGRAM_PHONE bormi?
-            echo "=== .env diagnostika ==="
-            grep -c 'TELEGRAM_PHONE' .env && echo "TELEGRAM_PHONE .env da BOR" || echo "TELEGRAM_PHONE .env da YO'Q"
-            grep -n 'PHONE' .env | sed 's/=.*/=***/' || true
-            echo "=== .env source boshlandi ==="
-            # set -eu ni vaqtincha o'chiramiz — .env da bo'sh qiymatlar/izohlar source ni buzishi mumkin
+            # .env ni export qilish
             set +eu
             set -o allexport
             source .env
             set +o allexport
             set -eu
-            echo "=== .env source tugadi, TELEGRAM_PHONE=${TELEGRAM_PHONE:+(mavjud)} ==="
 
             case "$AUTH_STEP" in
               start)
