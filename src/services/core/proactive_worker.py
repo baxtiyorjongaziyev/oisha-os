@@ -741,6 +741,50 @@ async def _legacy_check_amocrm_stagnation_direct():
 # In-memory dedup set — survives across scheduler iterations within same process
 _deadline_sent_keys: set = set()
 
+# Fayl-claim katalogi: process qayta ishga tushganda (watchdog restart) va Turso
+# yetib bo'lmaganda ham bitta hostda takroriy yuborishni to'sadi.
+_DEADLINE_CLAIM_DIR = "data/job_claims"
+
+
+def _prune_stale_claims(max_age_days: int = 2) -> None:
+    """Eski lock fayllarni tozalash — katalog cheksiz o'smasligi uchun."""
+    import time
+
+    cutoff = time.time() - max_age_days * 86400
+    try:
+        for name in os.listdir(_DEADLINE_CLAIM_DIR):
+            path = os.path.join(_DEADLINE_CLAIM_DIR, name)
+            if os.path.getmtime(path) < cutoff:
+                os.remove(path)
+    except OSError:
+        return
+
+
+def _claim_on_disk(claim_key: str) -> bool:
+    """Hostda atomik claim: O_CREAT|O_EXCL faqat bitta process'ga tegadi."""
+    try:
+        os.makedirs(_DEADLINE_CLAIM_DIR, exist_ok=True)
+        _prune_stale_claims()
+        path = os.path.join(_DEADLINE_CLAIM_DIR, f"{claim_key}.lock")
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        os.close(fd)
+        return True
+    except FileExistsError:
+        return False
+    except OSError as e:
+        # Fayl tizimi yozib bo'lmasa — bu qatlamni o'tkazib yuboramiz
+        logger.warning(f"[PROACTIVE] Disk claim failed: {e}")
+        return True
+
+
+def _release_on_disk(claim_key: str) -> None:
+    try:
+        os.remove(os.path.join(_DEADLINE_CLAIM_DIR, f"{claim_key}.lock"))
+    except FileNotFoundError:
+        return
+    except OSError:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
+
 
 async def check_airtable_deadlines():
     """Airtable 24 soatlik deadline monitoringi.
@@ -772,7 +816,12 @@ async def check_airtable_deadlines():
     if mem_key in _deadline_sent_keys:
         return
 
-    # 3) DB claim (atomik, restart va parallel loop'lardan himoya qiladi)
+    # 3) Disk claim — bitta hostdagi restartlar uchun (DB ishlamasa ham himoya)
+    if not _claim_on_disk(mem_key):
+        _deadline_sent_keys.add(mem_key)
+        return
+
+    # 4) DB claim (atomik, ko'p host / parallel loop'lardan himoya qiladi)
     db = None
     claimed_in_db = False
     try:
@@ -795,6 +844,7 @@ async def check_airtable_deadlines():
     async def _release() -> None:
         """Qayta urinish uchun claim'ni bo'shatish."""
         _deadline_sent_keys.discard(mem_key)
+        _release_on_disk(mem_key)
         if db is not None and claimed_in_db:
             try:
                 await db.release_job_run(job_key, today)
