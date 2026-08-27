@@ -49,6 +49,7 @@ _PUBLIC_PATHS = frozenset(
         "/api/amocrm/webhook",
         "/webhook/amocrm",
         "/webhook/amocrm/tasks",
+        "/webhook/amocrm/chats",
     }
 )
 

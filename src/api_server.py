@@ -429,6 +429,7 @@ from src.api.routes.system_dashboard import router as system_router
 from src.api.routes.sales_quality import router as sales_quality_router
 from src.api.routes.chat_widget import router as chat_router
 from src.api.routes.amocrm_integration import router as amocrm_router
+from src.api.routes.amocrm_chats import router as amocrm_chats_router
 from src.api.routes.openclaw_gateway import router as openclaw_router
 from src.api.routes.ai_analytics import router as ai_router
 from src.api.routes.erp_routes import router as erp_router
@@ -448,6 +449,7 @@ app.include_router(system_router)
 app.include_router(sales_quality_router)
 app.include_router(chat_router)
 app.include_router(amocrm_router)
+app.include_router(amocrm_chats_router)
 app.include_router(openclaw_router)
 app.include_router(ai_router)
 app.include_router(erp_router)
