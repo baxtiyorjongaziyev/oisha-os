@@ -1,0 +1,36 @@
+name: AmoCRM Task Redistribution
+
+on:
+  workflow_dispatch:
+
+jobs:
+  redistribute:
+    name: Redistribute overdue + today tasks (25/day)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Run redistribution on Oracle VM
+        uses: appleboy/ssh-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 8m
+          envs: GITHUB_TOKEN
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/oisha-os
+
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+            git fetch origin main
+            git stash --include-untracked 2>/dev/null || true
+            git checkout origin/main -- scripts/redistribute_tasks_today.py
+
+            # Token yangilash (agar kerak bo'lsa)
+            ./venv/bin/python scripts/refresh_crm_token.py || true
+
+            ./venv/bin/python scripts/redistribute_tasks_today.py
