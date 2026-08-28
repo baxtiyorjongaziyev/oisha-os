@@ -1,0 +1,93 @@
+name: Oracle VM Diagnose
+
+# Deadline-alert spam tekshiruvi uchun qo'lda ishga tushiriladigan workflow.
+# oracle-deploy.yml bilan bir xil self-hosted runner'da ishlaydi, ya'ni
+# buyruqlar to'g'ridan-to'g'ri Oracle VM da bajariladi.
+#
+# Standart rejim (diagnose) FAQAT o'qiydi — hech qanday process to'xtatilmaydi.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "diagnose = faqat o'qish; stop-service = oisha-os servisini to'xtatish"
+        required: true
+        default: diagnose
+        type: choice
+        options:
+          - diagnose
+          - stop-service
+
+concurrency:
+  group: oracle-diagnose
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Oracle VM diagnose
+    runs-on: [self-hosted, oracle]
+    timeout-minutes: 5
+    steps:
+      - name: Collect runtime state
+        run: |
+          set +e
+          echo "=== 1. Vaqt va zona ==="
+          date; timedatectl 2>/dev/null | head -5
+
+          echo
+          echo "=== 2. Ishlab turgan Oisha process'lari (START = qachon ko'tarilgan) ==="
+          ps -eo pid,ppid,lstart,etimes,cmd | grep -E "python3?.*(src/main|oisha)" | grep -v grep
+
+          echo
+          echo "=== 3. Oisha bilan bog'liq systemd unitlari ==="
+          systemctl list-units --type=service --all --no-pager | grep -i oisha
+
+          echo
+          echo "=== 4. oisha-os.service holati ==="
+          systemctl status oisha-os --no-pager 2>&1 | head -25
+
+          echo
+          echo "=== 5. Deploy katalogidagi kod versiyasi ==="
+          cd /home/ubuntu/oisha-os 2>/dev/null && git log -1 --format='%h %ci %s' && git status --short | head
+
+          echo
+          echo "=== 6. Diskda proactive_worker.py ning BARCHA nusxalari ==="
+          find /home /opt /srv /root -maxdepth 6 -name proactive_worker.py 2>/dev/null
+
+          echo
+          echo "=== 7. Har bir nusxada soat filtri bormi? (yo'q = spam manbai) ==="
+          for f in $(find /home /opt /srv /root -maxdepth 6 -name proactive_worker.py 2>/dev/null); do
+            if grep -q "target_hours" "$f"; then
+              echo "BOR      : $f"
+            else
+              echo "YO'Q  <<<: $f   ← ESKI KOD"
+            fi
+            grep -c "claim_job_run" "$f" | xargs echo "         claim_job_run soni:"
+          done
+
+          echo
+          echo "=== 8. Cron va timer'lar ==="
+          crontab -l 2>/dev/null | grep -vE '^\s*#' | grep -v '^$'
+          sudo -n crontab -l 2>/dev/null | grep -vE '^\s*#' | grep -v '^$'
+          systemctl list-timers --all --no-pager 2>/dev/null | head -15
+
+          echo
+          echo "=== 9. Oxirgi deadline alert loglari ==="
+          journalctl -u oisha-os --since "6 hours ago" --no-pager 2>/dev/null | grep -i "deadline" | tail -20
+
+          exit 0
+
+      - name: Stop oisha-os service
+        if: inputs.mode == 'stop-service'
+        run: |
+          set +e
+          echo "oisha-os servisi to'xtatilmoqda..."
+          sudo systemctl stop oisha-os
+          sleep 5
+          systemctl is-active oisha-os
+          echo "--- to'xtatishdan keyin qolgan process'lar ---"
+          ps -eo pid,lstart,cmd | grep -E "python3?.*(src/main|oisha)" | grep -v grep
+          exit 0
