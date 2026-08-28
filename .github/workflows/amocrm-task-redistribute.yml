@@ -13,6 +13,8 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AMOCRM_TOKEN_JSON: ${{ secrets.AMOCRM_TOKEN_JSON }}
+          AMOCRM_REFRESH_TOKEN: ${{ secrets.AMOCRM_REFRESH_TOKEN }}
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
@@ -20,7 +22,7 @@ jobs:
           port: 22
           timeout: 30s
           command_timeout: 8m
-          envs: GITHUB_TOKEN
+          envs: GITHUB_TOKEN,AMOCRM_TOKEN_JSON,AMOCRM_REFRESH_TOKEN
           script: |
             set -euo pipefail
             cd /home/ubuntu/oisha-os
@@ -28,36 +30,34 @@ jobs:
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main
             git stash --include-untracked 2>/dev/null || true
-            git checkout origin/main -- scripts/redistribute_tasks_today.py scripts/refresh_crm_token.py
+            git checkout origin/main -- scripts/redistribute_tasks_today.py scripts/refresh_crm_token.py scripts/restore_amocrm_token.py
 
-            # .env yuklab, AMOCRM settings borligini tekshirish
+            # .env yuklash
             set +eu
             set -o allexport
             source .env 2>/dev/null
             set +o allexport
             set -eu
 
-            # Token diagnostika
+            # 1. Token tiklash (refresh_token yo'q bo'lsa env'dan)
+            echo "=== Token tiklash ==="
+            ./venv/bin/python scripts/restore_amocrm_token.py
+
+            # 2. Token yangilash (refresh_token bilan yangi access_token olish)
+            echo "=== Token refresh ==="
+            ./venv/bin/python scripts/refresh_crm_token.py || echo "Refresh FAILED"
+
+            # 3. Diagnostika
             echo "=== Token diagnostika ==="
-            if [ -f data/amocrm_token.json ]; then
-              python3 -c "
+            python3 -c "
 import json
 t = json.load(open('data/amocrm_token.json'))
-print('Kalitlar:', list(t.keys()))
 at = t.get('access_token','')
 rt = t.get('refresh_token','')
 print(f'access_token: ...{at[-10:]}' if at else 'access_token: YO_Q')
 print(f'refresh_token: ...{rt[-10:]}' if rt else 'refresh_token: YO_Q')
 "
-            else
-              echo "XATO: data/amocrm_token.json TOPILMADI"
-              exit 1
-            fi
 
-            # Token yangilash
-            echo "=== Token refresh ==="
-            ./venv/bin/python scripts/refresh_crm_token.py || echo "Refresh FAILED — davom etamiz mavjud token bilan"
-
-            # Redistribution
+            # 4. Redistribution
             echo "=== Redistribution ==="
             ./venv/bin/python scripts/redistribute_tasks_today.py
