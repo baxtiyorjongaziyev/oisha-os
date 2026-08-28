@@ -20,14 +20,10 @@ logger = logging.getLogger(__name__)
 def record_with_gemini(text: str, output_path: str) -> bool:
     """Record voice message using Google Gemini TTS."""
     try:
-        import google.generativeai as genai
-
         gemini_key = settings.GEMINI_API_KEY.get_secret_value() if settings.GEMINI_API_KEY else None
         if not gemini_key:
             logger.error("GEMINI_API_KEY not set")
             return False
-
-        genai.configure(api_key=gemini_key)
 
         # For now, placeholder - Gemini doesn't have direct TTS
         # We'll use a different service

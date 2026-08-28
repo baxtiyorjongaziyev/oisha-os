@@ -24,12 +24,33 @@ class _Database:
 async def test_readiness_requires_userbot_and_amocrm(monkeypatch):
     monkeypatch.setattr(api_state, "db_instance", _Database())
     monkeypatch.setattr(api_state, "user_client", None)
-    # userbot_unauthorized is exempt when runtime_source=="vm_service" (Oracle
-    # VM re-auth is treated as non-fatal there). This test is about the
-    # generic unauthorized-userbot path, not runtime detection, so pin a
-    # non-exempt runtime explicitly — CI runners set SYSTEMD_EXEC_PID, which
-    # would otherwise make detect_runtime_source() resolve to "vm_service"
-    # and silently suppress the very problem this test asserts on.
+    # A dead userbot session (e.g. AUTH_KEY_DUPLICATED) is a soft dependency by
+    # default: Oisha keeps serving on the bot-token path, so /readyz reports it
+    # as "degraded" (still 200) rather than failing the whole deploy gate.
+    # Pin a non-exempt-from-detection runtime explicitly — CI runners set
+    # SYSTEMD_EXEC_PID, which would otherwise make detect_runtime_source()
+    # resolve to "vm_service" on its own.
+    from src.services.core.agent_runtime import set_runtime_context
+
+    set_runtime_context(runtime_source="cloud_run")
+
+    response = await api_server.production_readiness_probe()
+
+    assert response.status_code == 200
+    body = response.body.decode()
+    assert '"status":"degraded"' in body
+    assert "userbot_unauthorized" in body
+    # AmoCRM is unmocked here too, so it degrades alongside the userbot.
+    assert '"degraded":["userbot_unauthorized","amocrm_unavailable"]' in body
+    assert '"blocking":[]' in body
+
+
+@pytest.mark.asyncio
+async def test_readiness_strict_mode_still_blocks_on_userbot(monkeypatch):
+    """READYZ_STRICT_DEPS=1 restores the old all-or-nothing gate."""
+    monkeypatch.setenv("READYZ_STRICT_DEPS", "1")
+    monkeypatch.setattr(api_state, "db_instance", _Database())
+    monkeypatch.setattr(api_state, "user_client", None)
     from src.services.core.agent_runtime import set_runtime_context
 
     set_runtime_context(runtime_source="cloud_run")
@@ -129,7 +150,11 @@ async def test_readiness_rejects_cached_unauthorized_userbot_on_vm_service(monke
 
     response = await api_server.production_readiness_probe()
 
-    assert response.status_code == 503
+    # A cached-unauthorized userbot on the Oracle VM is exactly the
+    # AUTH_KEY_DUPLICATED scenario: Oisha keeps serving in bot-token mode, so
+    # this must degrade rather than fail the whole oracle-deploy health gate.
+    assert response.status_code == 200
+    assert b'"status":"degraded"' in response.body
     assert b'"userbot":"unauthorized"' in response.body
     assert b'"userbot_unauthorized"' in response.body
     user_client.is_user_authorized.assert_not_called()

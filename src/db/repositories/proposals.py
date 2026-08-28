@@ -91,17 +91,52 @@ class ProposalRepository(BaseRepository):
             """
         )
 
-        # Safe, idempotent migration for the earlier draft schema.
+        # Safe, idempotent migration for the earlier draft schema. CREATE TABLE
+        # IF NOT EXISTS is a no-op on an existing table, so a legacy table keeps
+        # its old columns and the indexes below fail with "no such column".
+        # NOT NULL columns are added nullable here and backfilled after — SQLite
+        # rejects ALTER TABLE ADD COLUMN ... NOT NULL without a default.
+        existing_columns = await self._get_table_columns("improvement_proposals")
         for column, column_type in (
             ("fingerprint", "TEXT"),
+            ("category", "TEXT"),
+            ("severity", "TEXT"),
+            ("title", "TEXT"),
+            ("problem", "TEXT"),
+            ("proposed_solution", "TEXT"),
+            ("affected_files", "TEXT"),
+            ("estimated_effort", "TEXT"),
+            ("suggested_agent", "TEXT"),
+            ("evidence", "TEXT"),
+            ("status", "TEXT DEFAULT 'proposed'"),
+            ("created_at", "TEXT"),
             ("first_seen_at", "TEXT"),
             ("last_seen_at", "TEXT"),
             ("occurrence_count", "INTEGER DEFAULT 1"),
             ("deferred_until", "TEXT"),
+            ("resolved_at", "TEXT"),
+            ("resolved_by", "TEXT"),
+            ("rejection_reason", "TEXT"),
         ):
+            if column in existing_columns:
+                continue
             await self._add_column_if_missing(
                 "improvement_proposals", column, column_type
             )
+
+        await conn.execute(
+            """
+            UPDATE improvement_proposals
+            SET category = COALESCE(category, 'unknown'),
+                severity = COALESCE(severity, 'medium'),
+                title = COALESCE(title, 'Untitled proposal'),
+                status = COALESCE(status, 'proposed')
+            WHERE category IS NULL
+               OR severity IS NULL
+               OR title IS NULL
+               OR status IS NULL
+            """
+        )
 
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_proposals_status "
