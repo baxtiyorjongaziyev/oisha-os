@@ -1,0 +1,62 @@
+name: AmoCRM Token Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Check amoCRM token status
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check token on Oracle VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 2m
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/oisha-os
+
+            echo "=== Token fayl holati ==="
+            if [ -f data/amocrm_token.json ]; then
+              echo "Fayl mavjud"
+              # Faqat kalitlarni ko'rsatamiz, qiymatlarni EMAS
+              python3 -c "
+import json
+t = json.load(open('data/amocrm_token.json'))
+print('Kalitlar:', list(t.keys()))
+at = t.get('access_token','')
+rt = t.get('refresh_token','')
+print(f'access_token: ...{at[-10:]}' if at else 'access_token: YO_Q')
+print(f'refresh_token: ...{rt[-10:]}' if rt else 'refresh_token: YO_Q')
+print(f'expires_in: {t.get(\"expires_in\", \"?\")}')
+print(f'token_type: {t.get(\"token_type\", \"?\")}')
+"
+            else
+              echo "XATO: data/amocrm_token.json TOPILMADI"
+            fi
+
+            echo ""
+            echo "=== API test ==="
+            TOKEN=$(python3 -c "import json; print(json.load(open('data/amocrm_token.json')).get('access_token',''))" 2>/dev/null || echo "")
+            if [ -n "$TOKEN" ]; then
+              HTTP=$(curl -s -o /tmp/amo_test.json -w "%{http_code}" \
+                -H "Authorization: Bearer $TOKEN" \
+                "https://jonbrandingagency.amocrm.ru/api/v4/account" 2>/dev/null)
+              echo "GET /api/v4/account: HTTP $HTTP"
+              if [ "$HTTP" != "200" ]; then
+                cat /tmp/amo_test.json 2>/dev/null | head -c 200 || true
+              fi
+            fi
+
+            echo ""
+            echo "=== Refresh urinish ==="
+            set +e
+            source .env 2>/dev/null
+            set -e
+            ./venv/bin/python scripts/refresh_crm_token.py 2>&1 || true
