@@ -14,6 +14,7 @@ logger = logging.getLogger("AIAutopilotScheduler")
 async def ai_autopilot_loop() -> None:
     """Periodically scan recent leads, dialogs and call recordings for AI automation."""
     await asyncio.sleep(15)
+    from src.services.core.amocrm_alert_forwarder import AmoCrmAlertForwarder
     from src.services.core.call_analyzer import CallAnalyzer
     from src.services.core.telegram.telegram_task_creator import TelegramTaskCreator
     from src.services.utils.voice_processor import VoiceProcessor
@@ -34,6 +35,12 @@ async def ai_autopilot_loop() -> None:
         gemini_api_key=gemini_key,
     )
     call_analyzer = CallAnalyzer(
+        amocrm=app_ctx.msg_controller.crm.amocrm,
+        db=app_ctx.msg_controller.db,
+    )
+    alert_forwarder = AmoCrmAlertForwarder(
+        user_client=None,
+        bot_runtime=app_ctx.bot_runtime,
         amocrm=app_ctx.msg_controller.crm.amocrm,
         db=app_ctx.msg_controller.db,
     )
@@ -85,6 +92,11 @@ async def ai_autopilot_loop() -> None:
                 )
             except Exception as call_err:
                 logger.error("[AUTOPILOT] Call Analyzer error: %s", call_err)
+
+            try:
+                await alert_forwarder.poll_overdue_tasks()
+            except Exception as alert_err:
+                logger.error("[AUTOPILOT] AmoCRM overdue-task poll error: %s", alert_err)
 
             logger.info("[AUTOPILOT] AI Autopilot cycle completed.")
         except Exception as exc:
