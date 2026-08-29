@@ -103,14 +103,17 @@ class AmoCRMSync:
                         if data.get("access_token")
                         else None
                     )
-                    return
+                    if self.token_data.get("refresh_token"):
+                        return
+                    # No usable refresh_token in this payload — keep falling
+                    # through so step 3 below can still recover one.
             except Exception as e:
                 self.last_error = "token_env_parse_failed"
                 logger.error(f"[AMOCRM] Env token parse xatosi: {type(e).__name__}")
 
         # 2. File token backup. Prefer the full token JSON over raw refresh
         # because AmoCRM rotates refresh tokens and needs the matching payload.
-        if os.path.exists(self.token_file) and not self.token_data:
+        if os.path.exists(self.token_file) and not self.token_data.get("refresh_token"):
             for encoding in ("utf-8-sig", "utf-16"):
                 try:
                     with open(self.token_file, "r", encoding=encoding) as f:
@@ -122,7 +125,11 @@ class AmoCRMSync:
                             if data.get("access_token")
                             else None
                         )
-                        return
+                        if self.token_data.get("refresh_token"):
+                            return
+                        # File loaded but still no usable refresh_token — fall
+                        # through to step 3 instead of leaving it unusable.
+                        break
                 except UnicodeError:
                     continue
                 except Exception as e:
@@ -130,12 +137,22 @@ class AmoCRMSync:
                     logger.error(f"[AMOCRM] Token yuklashda xato: {type(e).__name__}")
                     return
 
-        # 3. Raw Refresh Token fallback (for first deploy)
+        # 3. Raw Refresh Token fallback (for first deploy, or recovery when the
+        # persisted token file exists but is missing/lost its refresh_token —
+        # e.g. an env/file parse that only captured an access_token, or an
+        # empty `{}` file. Gating this on `not self.token_data` alone meant a
+        # loaded-but-unusable token_data permanently skipped this fallback
+        # even though a good AMOCRM_REFRESH_TOKEN secret was sitting right
+        # there in the environment, causing a persistent "refresh token
+        # topilmadi" lockout that only a manual re-authorization could clear.
         raw_refresh = os.environ.get("AMOCRM_REFRESH_TOKEN")
-        if raw_refresh and not self.token_data:
+        if raw_refresh and not self.token_data.get("refresh_token"):
             logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
             self.token_data = {"refresh_token": raw_refresh}
-            # Note: access_token is still None, so it will trigger refresh on first use
+            # Any access_token loaded above is paired with a missing/unusable
+            # refresh_token, so it cannot be renewed — discard it too and let
+            # refresh_token() mint a fresh pair on first use.
+            self.access_token = None
 
     def _save_token(self, token_data):
         """Tokenni faylga saqlash."""

@@ -3,7 +3,6 @@ import asyncio
 import logging
 from src.database import get_db
 from src.settings import settings
-import google.generativeai as genai
 from src.utils.git_sync import push_vault_to_remote
 
 logger = logging.getLogger(__name__)

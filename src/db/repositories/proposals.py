@@ -35,6 +35,9 @@ ALLOWED_TRANSITIONS = {
 }
 
 
+_LEGACY_AGENT_TABLE_MARKERS = frozenset({"area", "gap", "proposal"})
+
+
 class ProposalRepository(BaseRepository):
     """Deduplicated proposal storage with auditable status transitions."""
 
@@ -49,8 +52,53 @@ class ProposalRepository(BaseRepository):
         if database is not None:
             self.set_connection_factory(database.get_connection)
 
+    async def _rename_away_incompatible_legacy_table(self, conn) -> None:
+        """Move aside a same-named table from the older SelfImprovementAgent.
+
+        Before this repository existed, `SelfImprovementAgent.ensure_tables()`
+        (src/services/core/self_improvement_agent.py) already owned an
+        `improvement_proposals` table with an incompatible schema:
+        `id INTEGER PRIMARY KEY AUTOINCREMENT` plus NOT NULL `area`/`gap`/
+        `proposal` columns. ALTER TABLE ADD COLUMN cannot fix that — this
+        repository's TEXT ids fail a datatype-mismatch insert against an
+        INTEGER PRIMARY KEY column, and the legacy NOT NULL columns have no
+        default. That agent now writes to `agent_improvement_proposals`
+        instead, but an install that ever ran the old code still has the
+        colliding table under the old name. Move it aside (data preserved,
+        never dropped) so the current schema can be created fresh.
+        """
+        existing_columns = await self._get_table_columns("improvement_proposals")
+        if not existing_columns:
+            return
+        if "category" in existing_columns:
+            return  # already the current schema
+        if not _LEGACY_AGENT_TABLE_MARKERS.issubset(existing_columns):
+            return  # unrecognized shape — leave it for the column migration below
+        for suffix in range(10):
+            legacy_name = "agent_improvement_proposals_legacy" + (
+                f"_{suffix}" if suffix else ""
+            )
+            if not await self._get_table_columns(legacy_name):
+                break
+        else:
+            logger.error(
+                "[DB] Could not find a free name to rename the legacy "
+                "improvement_proposals table aside; leaving it in place"
+            )
+            return
+        logger.warning(
+            "[DB] improvement_proposals has the legacy SelfImprovementAgent "
+            "schema (area/gap/proposal, INTEGER PK) — renaming it to %s "
+            "so the current schema can be created",
+            legacy_name,
+        )
+        await self._execute(
+            f"ALTER TABLE improvement_proposals RENAME TO {legacy_name}"
+        )
+
     async def init_table(self) -> None:
         conn = await self._get_conn()
+        await self._rename_away_incompatible_legacy_table(conn)
         await conn.execute(
             """
             CREATE TABLE IF NOT EXISTS improvement_proposals (
@@ -91,17 +139,52 @@ class ProposalRepository(BaseRepository):
             """
         )
 
-        # Safe, idempotent migration for the earlier draft schema.
+        # Safe, idempotent migration for the earlier draft schema. CREATE TABLE
+        # IF NOT EXISTS is a no-op on an existing table, so a legacy table keeps
+        # its old columns and the indexes below fail with "no such column".
+        # NOT NULL columns are added nullable here and backfilled after — SQLite
+        # rejects ALTER TABLE ADD COLUMN ... NOT NULL without a default.
+        existing_columns = await self._get_table_columns("improvement_proposals")
         for column, column_type in (
             ("fingerprint", "TEXT"),
+            ("category", "TEXT"),
+            ("severity", "TEXT"),
+            ("title", "TEXT"),
+            ("problem", "TEXT"),
+            ("proposed_solution", "TEXT"),
+            ("affected_files", "TEXT"),
+            ("estimated_effort", "TEXT"),
+            ("suggested_agent", "TEXT"),
+            ("evidence", "TEXT"),
+            ("status", "TEXT DEFAULT 'proposed'"),
+            ("created_at", "TEXT"),
             ("first_seen_at", "TEXT"),
             ("last_seen_at", "TEXT"),
             ("occurrence_count", "INTEGER DEFAULT 1"),
             ("deferred_until", "TEXT"),
+            ("resolved_at", "TEXT"),
+            ("resolved_by", "TEXT"),
+            ("rejection_reason", "TEXT"),
         ):
+            if column in existing_columns:
+                continue
             await self._add_column_if_missing(
                 "improvement_proposals", column, column_type
             )
+
+        await conn.execute(
+            """
+            UPDATE improvement_proposals
+            SET category = COALESCE(category, 'unknown'),
+                severity = COALESCE(severity, 'medium'),
+                title = COALESCE(title, 'Untitled proposal'),
+                status = COALESCE(status, 'proposed')
+            WHERE category IS NULL
+               OR severity IS NULL
+               OR title IS NULL
+               OR status IS NULL
+            """
+        )
 
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_proposals_status "

@@ -282,11 +282,12 @@ class OishaSelfDiagnosis:
             return base_solution
             
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=self._gemini_api_key)
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            from google import genai
+            client = genai.Client(api_key=self._gemini_api_key)
             prompt = f"Ushbu xatolikning ildiz sababi (root cause) nima bo'lishi mumkin va qanday yechim taklif qilasan? 1-2 ta qisqa gap bilan yozing:\n\n{error_msg[:1000]}"
-            response = await model.generate_content_async(prompt)
+            response = await client.aio.models.generate_content(
+                model="gemini-2.5-flash", contents=prompt
+            )
             root_cause = response.text.strip() if response.text else ""
             if root_cause:
                 return f"🤖 AI Root Cause:\n{root_cause}\n\nStandart tavsiya: {base_solution}"

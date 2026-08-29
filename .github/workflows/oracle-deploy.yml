@@ -316,14 +316,38 @@ jobs:
               exit 1
             fi
 
-            echo "SUCCESS: Oisha Oracle production sog'lom."
+            # /readyz returns 200 with status "degraded" when a soft dependency
+            # (userbot session, AmoCRM token) is down: Oisha still serves, so the
+            # rollout is not blocked — but the owner must still hear about it.
+            DEGRADED="$(python3 -c "
+            import json
+            try:
+                data = json.load(open('/tmp/oisha-health.json'))
+            except Exception:
+                raise SystemExit(0)
+            items = list(data.get('degraded') or [])
+            detail = (data.get('checks') or {}).get('amocrm_detail')
+            if detail and 'amocrm_unavailable' in items:
+                items[items.index('amocrm_unavailable')] = f'amocrm_unavailable({detail})'
+            print(','.join(items))
+            " 2>/dev/null || echo "")"
+            echo "degraded=${DEGRADED}" >> "$GITHUB_OUTPUT"
+
+            if [ -n "$DEGRADED" ]; then
+              echo "OGOHLANTIRISH: Oisha degraded rejimda ishlayapti: ${DEGRADED}"
+            else
+              echo "SUCCESS: Oisha Oracle production sog'lom."
+            fi
             cat /tmp/oisha-health.json
 
       - name: Notify Telegram
         if: always() && !cancelled()
         run: |
           STATUS="${{ steps.oracle.outcome }}"
-          if [ "$STATUS" = "success" ]; then
+          DEGRADED="${{ steps.oracle.outputs.degraded }}"
+          if [ "$STATUS" = "success" ] && [ -n "$DEGRADED" ]; then
+            MSG="Oisha deploy: success (degraded)%0ACommit: ${{ github.sha }}%0AProduction: Oracle VM serving%0ADegraded: ${DEGRADED}%0AKerak: credential yangilang (userbot session / AmoCRM token)"
+          elif [ "$STATUS" = "success" ]; then
             MSG="Oisha deploy: success%0ACommit: ${{ github.sha }}%0AProduction: Oracle VM healthy"
           else
             MSG="Oisha deploy: failure%0ACommit: ${{ github.sha }}%0AReason: Oracle VM health check failed"
