@@ -323,7 +323,11 @@ jobs:
                 data = json.load(open('/tmp/oisha-health.json'))
             except Exception:
                 raise SystemExit(0)
-            print(','.join(data.get('degraded') or []))
+            items = list(data.get('degraded') or [])
+            detail = (data.get('checks') or {}).get('amocrm_detail')
+            if detail and 'amocrm_unavailable' in items:
+                items[items.index('amocrm_unavailable')] = f'amocrm_unavailable({detail})'
+            print(','.join(items))
             " 2>/dev/null || echo "")"
             echo "degraded=${DEGRADED}" >> "$GITHUB_OUTPUT"
 

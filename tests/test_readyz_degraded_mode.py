@@ -80,6 +80,30 @@ async def test_amocrm_outage_is_degraded_not_blocking(vm_runtime):
 
 
 @pytest.mark.asyncio
+async def test_amocrm_outage_surfaces_last_error_detail(vm_runtime, monkeypatch):
+    """The reason (e.g. a dead refresh token) must reach the deploy notification —
+    "unavailable" alone hides whether this is a transient blip or something that
+    needs a human to re-authorize."""
+    vm_runtime(True)
+
+    class _FakeAmoCRM:
+        last_error = "oauth_reauthorization_required_http_401"
+
+        async def check_connection(self):
+            return False
+
+    monkeypatch.setattr(
+        "src.api.routes.amocrm_integration._get_amocrm_instance",
+        lambda: _FakeAmoCRM(),
+    )
+
+    response = await health.production_readiness_probe()
+    body = _body(response)
+
+    assert body["checks"]["amocrm_detail"] == "oauth_reauthorization_required_http_401"
+
+
+@pytest.mark.asyncio
 async def test_strict_mode_restores_blocking_userbot(vm_runtime, monkeypatch):
     vm_runtime(False)
     monkeypatch.setenv("READYZ_STRICT_DEPS", "1")

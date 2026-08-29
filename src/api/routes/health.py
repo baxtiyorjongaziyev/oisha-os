@@ -243,6 +243,7 @@ async def production_readiness_probe():
         problems.append("userbot_unauthorized")
 
     amocrm_ok = False
+    amocrm = None
     try:
         from src.api.routes.amocrm_integration import _get_amocrm_instance
         amocrm = _get_amocrm_instance()
@@ -251,8 +252,16 @@ async def production_readiness_probe():
     except Exception as exc:
         logger.debug("[HEALTH] AmoCRM check: %s", exc)
     checks["amocrm"] = "connected" if amocrm_ok else "unavailable"
-    if not amocrm_ok and not control_plane_mode:
-        problems.append("amocrm_unavailable")
+    if not amocrm_ok:
+        # Surface *why* — "unavailable" alone hides the difference between a
+        # transient network blip and a dead refresh token that needs a human
+        # to re-authorize. This reaches the owner via the deploy notification's
+        # degraded-checks summary.
+        detail = getattr(amocrm, "last_error", None) if amocrm else None
+        if detail:
+            checks["amocrm_detail"] = detail
+        if not control_plane_mode:
+            problems.append("amocrm_unavailable")
     checks["runtime"] = runtime_source
 
     soft = (
