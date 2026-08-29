@@ -80,6 +80,45 @@ jobs:
 
           exit 0
 
+      - name: Deep check — spam manbai va watchdog
+        run: |
+          set +e
+          echo "=== A. Bugun 'Project deadline check started' necha marta ==="
+          journalctl --since today --no-pager 2>/dev/null | grep -c "Project deadline check started"
+          echo "--- vaqtlari ---"
+          journalctl --since today --no-pager 2>/dev/null | grep "Project deadline check started"
+
+          echo
+          echo "=== B. Bugun necha ta deadline xabari yuborilgan (loyiha soni logi) ==="
+          journalctl --since today --no-pager 2>/dev/null | grep "loyiha deadline'i yaqin"
+
+          echo
+          echo "=== C. Watchdog nima qiladi ==="
+          systemctl cat watchdog.service --no-pager 2>/dev/null | head -30
+          echo "--- watchdog skripti ichida main.py ishga tushirish bormi ---"
+          for f in /home/ubuntu/oisha-os/ops/*.sh /home/ubuntu/oisha-os/scripts/*watchdog* /opt/oisha-os/ops/*.sh; do
+            [ -f "$f" ] || continue
+            if grep -lE "main\.py|systemctl (start|restart)" "$f" >/dev/null 2>&1; then
+              echo "### $f"
+              grep -nE "main\.py|systemctl (start|restart)|cd /" "$f" | head -15
+            fi
+          done
+
+          echo
+          echo "=== D. /opt/oisha-os uchun systemd unit bormi ==="
+          grep -rl "/opt/oisha-os" /etc/systemd/system/ 2>/dev/null
+          echo "--- /opt katalogidagi kod versiyasi ---"
+          cd /opt/oisha-os 2>/dev/null && git log -1 --format='%h %ci %s' 2>/dev/null || echo "git repo emas"
+
+          echo
+          echo "=== E. Barcha python process'lari (to'liq) ==="
+          ps -eo pid,lstart,cmd | grep -E "python" | grep -v grep | head -20
+
+          echo
+          echo "=== F. Job claim jadvali ishlayaptimi (yangi fix) ==="
+          ls -la /home/ubuntu/oisha-os/data/job_claims/ 2>/dev/null || echo "job_claims katalogi hali yaratilmagan"
+          exit 0
+
       - name: Stop oisha-os service
         if: inputs.mode == 'stop-service'
         run: |
