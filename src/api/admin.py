@@ -225,7 +225,9 @@ async def get_deadlines(airtable=Depends(get_airtable_instance)):
                 due_date=due_str,
                 days_until_due=days,
                 status=status,
-                manager=_coerce_text(AirtableSync._get_field(fields, "manager")),
+                manager=AirtableSync.resolve_pm_name(
+                    AirtableSync._get_field(fields, "manager")
+                ),
                 stage=stage,
                 project_url=project_url,
                 notes=_coerce_text(AirtableSync._get_field(fields, "summary")),

@@ -10,6 +10,10 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 import httpx
 
+from src.services.core.airtable_config import (
+    airtable_records_page,
+    airtable_request_headers,
+)
 from src.settings import settings
 from src.time_utils import get_local_now
 
@@ -27,16 +31,7 @@ TOPIC_INCOME = 2
 
 
 def _get_headers() -> dict[str, str]:
-    api_key = (
-        getattr(settings, "AIRTABLE_API_KEY", None)
-        or "patADXBB0784iii3w.7c1e4380a9736b30f1dd2cb539f6ac49ac097e3452f84f319dc2060834569fdb"
-    )
-    if hasattr(api_key, "get_secret_value"):
-        api_key = api_key.get_secret_value()
-    return {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+    return airtable_request_headers()
 
 
 def generate_onboarding_message(project_name: str, client_name: str, service: str, pm_name: str, start_date: str, end_date: str) -> str:
@@ -111,16 +106,16 @@ async def generate_weekly_budget_report() -> str:
     async with httpx.AsyncClient(timeout=20.0) as client:
         # 0. Fetch categories lookup
         cat_resp = await client.get(f"{AIRTABLE_API_BASE}/{base_id}/tblRt6aiU6Vy2yLCD?pageSize=50", headers=headers)
-        cats = cat_resp.json().get("records", []) if cat_resp.status_code == 200 else []
+        cats, _ = airtable_records_page(cat_resp, resource="budget categories")
         cat_names = {c["id"]: c["fields"].get("Kategoriya", "Kategoriya") for c in cats}
 
         # 1. Fetch budget table
         b_resp = await client.get(f"{AIRTABLE_API_BASE}/{base_id}/{BUDJET_TABLE_ID}?pageSize=50", headers=headers)
-        budgets = b_resp.json().get("records", []) if b_resp.status_code == 200 else []
+        budgets, _ = airtable_records_page(b_resp, resource="budgets")
 
         # 2. Fetch P&L
         pnl_resp = await client.get(f"{AIRTABLE_API_BASE}/{base_id}/tblAgVaGlVory2yAW?pageSize=50", headers=headers)
-        pnl_records = pnl_resp.json().get("records", []) if pnl_resp.status_code == 200 else []
+        pnl_records, _ = airtable_records_page(pnl_resp, resource="weekly P&L")
         current_pnl = next((r["fields"] for r in pnl_records if r["fields"].get("Oy nomi", "").startswith(current_month_str)), {})
 
     kirim = current_pnl.get("Jami Kirim (UZS)", 0) or 0

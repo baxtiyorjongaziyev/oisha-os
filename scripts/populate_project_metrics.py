@@ -1,11 +1,14 @@
 """Populate realistic hours and revisions on active projects to activate metrics."""
 import json
+import os
 import urllib.request
 import sys
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-API_KEY = "patADXBB0784iii3w.7c1e4380a9736b30f1dd2cb539f6ac49ac097e3452f84f319dc2060834569fdb"
+API_KEY = os.environ.get("AIRTABLE_API_KEY", "").strip()
+if not API_KEY:
+    raise RuntimeError("AIRTABLE_API_KEY is required in the runtime secret configuration")
 BASE_ID = "app8xoyx1XCumYFXV"
 TABLE_ID = "tblJbUobSlygSwYAI"
 

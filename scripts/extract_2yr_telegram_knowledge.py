@@ -12,12 +12,18 @@ headers = {
     "X-Oisha-Internal-Secret": secret,
     "Authorization": f"Bearer {secret}"
 }
-base_url = "http://127.0.0.1:8080/api/internal/mcp"
+port = os.getenv("PORT", os.getenv("API_PORT", "8080"))
+base_url = f"http://127.0.0.1:{port}/api/internal/mcp"
 
 # Target key business chats
 TARGET_CHATS = [
     {"id": "-1002566480563", "name": "Jon Branding Team", "type": "team"},
     {"id": "-1002060253445", "name": "Tez Dizayn - work group", "type": "design"},
+    {"id": "-1003496493814", "name": "TEZ NATIJA 6", "type": "sales_batch"},
+    {"id": "-1003820339529", "name": "TEZ NATIJA 5", "type": "sales_batch"},
+    {"id": "-1003149348132", "name": "TEZ NATIJA 4", "type": "sales_batch"},
+    {"id": "-1002849105320", "name": "TEZ NATIJA 3", "type": "sales_batch"},
+    {"id": "-1002440481294", "name": "TEZ NATIJA 2", "type": "sales_batch"},
     {"id": "-1003803487986", "name": "Kamila Pardalari | Jon Branding | Patent", "type": "patent_client"},
     {"id": "-5337201825", "name": "Ledir | Jon Branding", "type": "branding_client"},
     {"id": "8802892610", "name": "Shahnoza Business Assistant", "type": "sales_assistant"},

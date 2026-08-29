@@ -149,7 +149,10 @@ def _get_gemini_client():
         return app_ctx.gemini_client
 
     try:
-        from google import genai  # pyright: ignore[reportMissingImports]
+        try:
+            from google import genai
+        except Exception:
+            genai = None  # fallback when google-generativeai not available
     except ImportError:
         logger.error(
             "[AI_ROUTER] google-genai not installed. Run: pip install google-genai"

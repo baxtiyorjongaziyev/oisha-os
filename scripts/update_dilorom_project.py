@@ -1,8 +1,11 @@
 """Update Dilorom project with correct deposit / agreed price."""
 import json
+import os
 import urllib.request
 
-API_KEY = "patADXBB0784iii3w.7c1e4380a9736b30f1dd2cb539f6ac49ac097e3452f84f319dc2060834569fdb"
+API_KEY = os.environ.get("AIRTABLE_API_KEY", "").strip()
+if not API_KEY:
+    raise RuntimeError("AIRTABLE_API_KEY is required in the runtime secret configuration")
 BASE_ID = "app8xoyx1XCumYFXV"
 TABLE_ID = "tblJbUobSlygSwYAI"
 RECORD_ID = "rec9sh4UvqTWwbokh"

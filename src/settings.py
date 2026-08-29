@@ -4,6 +4,10 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr, Field, model_validator
 from typing import Optional
+from dotenv import load_dotenv
+
+# Load environment variables from .env if present
+load_dotenv()
 
 # Simplified Structured Logging Setup
 structlog.configure(
@@ -130,6 +134,7 @@ class AppSettings(BaseSettings):
     AMOCRM_REDIRECT_URL: str = "https://localhost"
     AMOCRM_CHAT_CHANNEL_ID: str = "55b0a7d7-d898-4f9c-819d-1982e83fab8a"
     AMOCRM_CHAT_CHANNEL_SECRET: Optional[SecretStr] = None
+    AMOCRM_ACCESS_TOKEN: Optional[SecretStr] = None
     AIRTABLE_CLIENT_ID: str = ""
     AIRTABLE_CLIENT_SECRET: Optional[SecretStr] = None
     AIRTABLE_REDIRECT_URI: str = "https://localhost"
@@ -236,6 +241,7 @@ class AppSettings(BaseSettings):
     AMOCRM_CHAT_CHANNEL_ID: Optional[str] = None
     AMOCRM_CHAT_SECRET: Optional[str] = None
     CRM_TOPIC_ID: Optional[int] = 1
+    PROJECTS_TOPIC_ID: Optional[int] = None
     TOPIC_CRM_ID: Optional[int] = None
     TOPIC_REPORTS_ID: Optional[int] = None
     TOPIC_TASKS_ID: Optional[int] = None
@@ -394,6 +400,7 @@ class AppSettings(BaseSettings):
             "HISOBCHI_CASHFLOW_TOPIC_ID",
             "HISOBCHI_BALANCE_TOPIC_ID",
             "CRM_TOPIC_ID",
+            "PROJECTS_TOPIC_ID",
             "TOPIC_CRM_ID",
             "TOPIC_REPORTS_ID",
             "TOPIC_TASKS_ID",
@@ -467,7 +474,22 @@ class AppSettings(BaseSettings):
             missing.append("AMOCRM_SUBDOMAIN")
         if not self.AMOCRM_CLIENT_ID.strip():
             missing.append("AMOCRM_CLIENT_ID")
+        # Additional credentials required for current deployment
+        if not self.USERBOT_SESSION_STRING:
+            missing.append("USERBOT_SESSION_STRING")
+        if not self.OPENROUTER_API_KEY:
+            missing.append("OPENROUTER_API_KEY")
+        if not self.AMOCRM_ACCESS_TOKEN:
+            missing.append("AMOCRM_ACCESS_TOKEN")
         return missing
+
+    def validate_credentials(self) -> None:
+        """Validate that all required credentials are present.
+        Raises MissingCredentialError for the first missing credential.
+        """
+        for name in self.missing_runtime_settings():
+            from .exceptions import MissingCredentialError
+            raise MissingCredentialError(name)
 
 
     VAULT_PATH: Path = Path(r"C:/Users/baxti/OneDrive/Документы/Obsidian Vault")
@@ -476,4 +498,6 @@ class AppSettings(BaseSettings):
     GITHUB_TOKEN: Optional[SecretStr] = None
 
 settings = AppSettings()
+if os.getenv("RUN_CREDENTIAL_VALIDATION", "0") == "1":
+    settings.validate_credentials()
 logger = structlog.get_logger()

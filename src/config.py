@@ -62,6 +62,8 @@ def __getattr__(name: str):
         return settings.CRM_GROUP_ID
     if name == "PROJECTS_GROUP_ID":
         return settings.PROJECTS_GROUP_ID or settings.CRM_GROUP_ID
+    if name == "PROJECTS_TOPIC_ID":
+        return settings.PROJECTS_TOPIC_ID
     if name == "TASKS_GROUP_ID":
         return settings.TASKS_GROUP_ID or settings.CRM_GROUP_ID or settings.PROJECTS_GROUP_ID
     if name == "STAGNATION_GROUP_ID":
@@ -75,12 +77,12 @@ def __getattr__(name: str):
     if name == "WOW_SERVICE_GROUP_ID":
         return (
             settings.WOW_SERVICE_GROUP_ID
+            or settings.PROJECTS_GROUP_ID
             or settings.TEAM_GROUP_ID
             or settings.CRM_GROUP_ID
-            or settings.PROJECTS_GROUP_ID
         )
     if name == "WOW_SERVICE_TOPIC_ID":
-        return settings.WOW_SERVICE_TOPIC_ID
+        return settings.WOW_SERVICE_TOPIC_ID or settings.PROJECTS_TOPIC_ID
     if name == "CRM_TOPIC_ID":
         return settings.CRM_TOPIC_ID
     if name == "TOPIC_CRM_ID":
@@ -134,6 +136,7 @@ __all__ = [
     "AIRTABLE_BASE_ID",
     "CRM_GROUP_ID",
     "PROJECTS_GROUP_ID",
+    "PROJECTS_TOPIC_ID",
     "TASKS_GROUP_ID",
     "STAGNATION_GROUP_ID",
     "STAGNATION_TOPIC_ID",

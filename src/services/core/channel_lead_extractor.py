@@ -15,6 +15,7 @@ class ChannelLeadExtractor:
         self.amocrm = amocrm_adapter
         self.db = db
         self.extracted_leads = []
+        self.seen_hashes: set[str] = set()
 
     async def process_lead(
         self,
@@ -27,9 +28,16 @@ class ChannelLeadExtractor:
         category: str = "Business Trainer",
     ) -> dict:
         """Process a single lead and push to AmoCRM."""
+        # Duplicate detection
+        lead_hash = f"{username}|{source_channel}"
+        if lead_hash in self.seen_hashes:
+            logger.debug(f"[LEAD-EXTRACTOR] Duplicate lead skipped: {lead_hash}")
+            return None
+        self.seen_hashes.add(lead_hash)
+
         lead_data = {
             "name": f"{first_name} {last_name}".strip() or username,
-            "phone": None,  # Extract from message if available
+            "phone": None,
             "email": None,
             "custom_fields": {
                 "telegram_username": username,
@@ -152,7 +160,7 @@ class ChannelLeadExtractor:
             # Insert lead
             await self.db.execute(
                 """
-                INSERT INTO channel_discovered_leads
+                INSERT OR IGNORE INTO channel_discovered_leads
                 (crm_id, name, telegram_username, telegram_id, phone, email,
                  source_channel, message_preview, category, discovered_at, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

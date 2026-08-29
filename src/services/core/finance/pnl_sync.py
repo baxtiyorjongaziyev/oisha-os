@@ -6,6 +6,10 @@ import logging
 from typing import Any
 import httpx
 
+from src.services.core.airtable_config import (
+    airtable_records_page,
+    airtable_request_headers,
+)
 from src.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -24,16 +28,7 @@ UZBEK_MONTHS = {
 
 
 def _get_headers() -> dict[str, str]:
-    api_key = (
-        getattr(settings, "AIRTABLE_API_KEY", None)
-        or "patADXBB0784iii3w.7c1e4380a9736b30f1dd2cb539f6ac49ac097e3452f84f319dc2060834569fdb"
-    )
-    if hasattr(api_key, "get_secret_value"):
-        api_key = api_key.get_secret_value()
-    return {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+    return airtable_request_headers()
 
 
 async def sync_monthly_pnl() -> dict[str, Any]:
@@ -44,7 +39,7 @@ async def sync_monthly_pnl() -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=30.0) as client:
         # 1. Fetch P&L records
         pnl_resp = await client.get(f"{AIRTABLE_API_BASE}/{base_id}/{PNL_TABLE_ID}?pageSize=100", headers=headers)
-        pnl_records = pnl_resp.json().get("records", []) if pnl_resp.status_code == 200 else []
+        pnl_records, _ = airtable_records_page(pnl_resp, resource="P&L")
         pnl_map = {}
         for r in pnl_records:
             code = r["fields"].get("Oy nomi", "")[:7]
@@ -53,7 +48,7 @@ async def sync_monthly_pnl() -> dict[str, Any]:
 
         # 2. Fetch categories
         cat_resp = await client.get(f"{AIRTABLE_API_BASE}/{base_id}/{CAT_TABLE_ID}?pageSize=100", headers=headers)
-        cats = cat_resp.json().get("records", []) if cat_resp.status_code == 200 else []
+        cats, _ = airtable_records_page(cat_resp, resource="categories")
         cat_lookup = {c["id"]: c["fields"] for c in cats}
 
         # 3. Fetch all transactions
@@ -64,11 +59,11 @@ async def sync_monthly_pnl() -> dict[str, Any]:
             if offset:
                 url += f"&offset={offset}"
             resp = await client.get(url, headers=headers)
-            if resp.status_code != 200:
-                break
-            d = resp.json()
-            trx_records.extend(d.get("records", []))
-            offset = d.get("offset")
+            page_records, offset = airtable_records_page(
+                resp,
+                resource="transactions",
+            )
+            trx_records.extend(page_records)
             if not offset:
                 break
 
@@ -112,11 +107,12 @@ async def sync_monthly_pnl() -> dict[str, Any]:
         # 5. Patch missing transaction links in batches of 10
         for i in range(0, len(trx_to_link), 10):
             chunk = trx_to_link[i:i+10]
-            await client.patch(
+            response = await client.patch(
                 f"{AIRTABLE_API_BASE}/{base_id}/{TRX_TABLE_ID}",
                 headers=headers,
                 json={"records": chunk}
             )
+            response.raise_for_status()
 
         # 6. Update P&L table rows
         pnl_updates = []
@@ -142,11 +138,12 @@ async def sync_monthly_pnl() -> dict[str, Any]:
 
         for i in range(0, len(pnl_updates), 10):
             chunk = pnl_updates[i:i+10]
-            await client.patch(
+            response = await client.patch(
                 f"{AIRTABLE_API_BASE}/{base_id}/{PNL_TABLE_ID}",
                 headers=headers,
                 json={"records": chunk}
             )
+            response.raise_for_status()
 
         logger.info("[PNL_SYNC] Successfully synced %d months and %d transactions", len(pnl_updates), len(trx_to_link))
         return {"status": "ok", "months_updated": len(pnl_updates), "transactions_linked": len(trx_to_link)}
