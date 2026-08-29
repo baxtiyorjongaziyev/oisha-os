@@ -12,7 +12,7 @@ Loop:
      muvaffaqiyatsiz harakatlar, retry navbati, past sifat metrikalari,
      o'rganish jurnalidagi bo'shliqlar
   2. analyze_gaps() — Gemini orqali kamchiliklarni tahlil qiladi
-  3. save_proposals() — takliflarni improvement_proposals jadvaliga yozadi
+  3. save_proposals() — takliflarni agent_improvement_proposals jadvaliga yozadi
   4. Owner'ga Telegram orqali hisobot yuboriladi (EvolutionScheduler orqali)
 
 Xavfsizlik:
@@ -82,7 +82,7 @@ class SelfImprovementAgent:
     async def ensure_tables(self):
         async with await self.db.get_connection() as conn:
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS improvement_proposals (
+                CREATE TABLE IF NOT EXISTS agent_improvement_proposals (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     area TEXT NOT NULL,
                     gap TEXT NOT NULL,
@@ -97,8 +97,8 @@ class SelfImprovementAgent:
                 )
             """)
             await conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_proposals_status "
-                "ON improvement_proposals(status)"
+                "CREATE INDEX IF NOT EXISTS idx_agent_proposals_status "
+                "ON agent_improvement_proposals(status)"
             )
             await conn.commit()
 
@@ -264,7 +264,7 @@ class SelfImprovementAgent:
         async with await self.db.get_connection() as conn:
             for p in proposals:
                 cursor = await conn.execute(
-                    """SELECT COUNT(*) FROM improvement_proposals
+                    """SELECT COUNT(*) FROM agent_improvement_proposals
                        WHERE area = ? AND status = 'proposed'""",
                     (p["area"],),
                 )
@@ -273,7 +273,7 @@ class SelfImprovementAgent:
                     continue
 
                 await conn.execute(
-                    """INSERT INTO improvement_proposals
+                    """INSERT INTO agent_improvement_proposals
                        (area, gap, proposal, ai_agent_help, priority, impact,
                         status, signals_json, created_at, updated_at)
                        VALUES (?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?)""",
@@ -292,7 +292,7 @@ class SelfImprovementAgent:
         async with await self.db.get_connection() as conn:
             cursor = await conn.execute(
                 """SELECT id, area, gap, proposal, ai_agent_help, priority, impact, created_at
-                   FROM improvement_proposals WHERE status = 'proposed'
+                   FROM agent_improvement_proposals WHERE status = 'proposed'
                    ORDER BY CASE priority
                        WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
                        created_at DESC
@@ -315,7 +315,7 @@ class SelfImprovementAgent:
             return False
         async with await self.db.get_connection() as conn:
             await conn.execute(
-                """UPDATE improvement_proposals
+                """UPDATE agent_improvement_proposals
                    SET status = ?, updated_at = ? WHERE id = ?""",
                 (status, get_local_now().isoformat(), proposal_id),
             )

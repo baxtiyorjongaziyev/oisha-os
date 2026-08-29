@@ -16,6 +16,24 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["health"])
 
+# Dependencies that leave Oisha *degraded* rather than *unready*. A dead
+# Telegram userbot session or an expired AmoCRM token disables those features,
+# but the service keeps serving on the bot-token path — failing readiness on
+# them means one stale credential blocks every later deploy too.
+# Set READYZ_STRICT_DEPS=1 to restore the old gate, which blocked on the
+# userbot; AmoCRM has never blocked readiness and stays soft in both modes.
+SOFT_DEPENDENCY_PROBLEMS = frozenset({"userbot_unauthorized", "amocrm_unavailable"})
+STRICT_SOFT_DEPENDENCY_PROBLEMS = frozenset({"amocrm_unavailable"})
+
+
+def _strict_dependencies() -> bool:
+    return os.getenv("READYZ_STRICT_DEPS", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
 
 @router.get("/health")
 @router.get("/healthz")
@@ -225,6 +243,7 @@ async def production_readiness_probe():
         problems.append("userbot_unauthorized")
 
     amocrm_ok = False
+    amocrm = None
     try:
         from src.api.routes.amocrm_integration import _get_amocrm_instance
         amocrm = _get_amocrm_instance()
@@ -233,14 +252,41 @@ async def production_readiness_probe():
     except Exception as exc:
         logger.debug("[HEALTH] AmoCRM check: %s", exc)
     checks["amocrm"] = "connected" if amocrm_ok else "unavailable"
+    if not amocrm_ok:
+        # Surface *why* — "unavailable" alone hides the difference between a
+        # transient network blip and a dead refresh token that needs a human
+        # to re-authorize. This reaches the owner via the deploy notification's
+        # degraded-checks summary.
+        detail = getattr(amocrm, "last_error", None) if amocrm else None
+        if detail:
+            checks["amocrm_detail"] = detail
+        if not control_plane_mode:
+            problems.append("amocrm_unavailable")
     checks["runtime"] = runtime_source
 
-    ready = len(problems) == 0
+    soft = (
+        STRICT_SOFT_DEPENDENCY_PROBLEMS
+        if _strict_dependencies()
+        else SOFT_DEPENDENCY_PROBLEMS
+    )
+    blocking = [p for p in problems if p not in soft]
+    degraded = [p for p in problems if p in soft]
+
+    serving = len(blocking) == 0
+    if not serving:
+        status = "not_ready"
+    elif degraded:
+        status = "degraded"
+    else:
+        status = "ready"
+
     result = {
-        "ready": ready,
-        "status": "ready" if ready else "not_ready",
+        "ready": serving,
+        "status": status,
         "checks": checks,
         "problems": problems,
+        "blocking": blocking,
+        "degraded": degraded,
         "timestamp": now.isoformat(),
     }
-    return JSONResponse(content=result, status_code=200 if ready else 503)
+    return JSONResponse(content=result, status_code=200 if serving else 503)

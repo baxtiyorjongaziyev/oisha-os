@@ -2,7 +2,7 @@ import os
 import json
 import sqlite3
 import datetime
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 
 # Konfiguratsiya
@@ -47,11 +47,13 @@ def generate_insights(data):
     if not GEMINI_API_KEY:
         return "- **Xato**: GEMINI_API_KEY topilmadi."
         
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.5-flash")
-    
+    client = genai.Client(api_key=GEMINI_API_KEY)
+
     try:
-        response = model.generate_content(PROMPT.format(data=data))
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=PROMPT.format(data=data),
+        )
         return response.text
     except Exception as e:
         return f"- **API Xatosi**: {e}"

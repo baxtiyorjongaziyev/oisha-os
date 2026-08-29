@@ -45,16 +45,19 @@ logger = logging.getLogger("crm_cleaner")
 # -------- AI provider plumbing ----------
 
 async def _gemini_call(prompt: str) -> str:
-    import google.generativeai as genai  # type: ignore
+    from google import genai  # type: ignore
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY environment variable yo'q")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        os.getenv("GEMINI_CALL_MODEL", "gemini-2.5-flash")
-    )
+    client = genai.Client(api_key=api_key)
+    model_name = os.getenv("GEMINI_CALL_MODEL", "gemini-2.5-flash")
+    if model_name.startswith("models/"):
+        model_name = model_name.replace("models/", "", 1)
     loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(None, lambda: model.generate_content(prompt))
+    response = await loop.run_in_executor(
+        None,
+        lambda: client.models.generate_content(model=model_name, contents=prompt),
+    )
     return getattr(response, "text", "") or ""
 
 

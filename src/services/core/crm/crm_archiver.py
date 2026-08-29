@@ -253,8 +253,6 @@ class CRMArchiver:
 
     async def generate_outreach_campaign(self, lead: Dict[str, Any], phone: str, contact_name: str, notes: List[Dict[str, Any]]) -> Dict[str, str]:
         """Gemini yordamida 3 bosqichli outreach xabarlarini yaratish."""
-        import google.generativeai as genai
-
         # Prepare context for the prompt
         lead_name = lead.get("name", "Noma'lum")
         price = lead.get("price", 0)
