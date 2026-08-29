@@ -11,10 +11,11 @@ headers = {
     "Authorization": f"Bearer {secret}"
 }
 
-print(f"[*] Testing GET /api/internal/mcp/dialogs?limit=10 ...")
+port = os.getenv("PORT", os.getenv("API_PORT", "8000"))
+print(f"[*] Testing GET http://127.0.0.1:{port}/api/internal/mcp/dialogs?limit=10 ...")
 t0 = time.time()
 try:
-    resp = requests.get("http://127.0.0.1:8080/api/internal/mcp/dialogs?limit=10", headers=headers, timeout=60)
+    resp = requests.get(f"http://127.0.0.1:{port}/api/internal/mcp/dialogs?limit=10", headers=headers, timeout=60)
     print(f"[+] Status: {resp.status_code}, Latency: {time.time()-t0:.2f}s")
     if resp.status_code == 200:
         data = resp.json()

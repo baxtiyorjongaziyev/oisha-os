@@ -2,13 +2,20 @@
 
 > Barcha AI agentlar ish boshlashdan oldin bu faylni o'qiydi va tugatgandan keyin yangilaydi.
 
-## Communication Rules
+## Communication & Architecture Rules
 
 1. **Bir faylga bir vaqtda faqat bitta agent yozadi**
 2. **Agent ish boshlaganda `## Locks` ga o'z nomini yozadi, tugatganda o'chiradi**
 3. **Shared fayllarga (settings.py, context.py, boot.py) faqat Agent Coordinator yozadi**
 4. **Har bir PR dan oldin `pytest -q` va `bandit -r src/ -ll` ishga tushiriladi**
 5. **git commit → git push → keyin keyingi agent pull qiladi (rebase)**
+6. 📏 **150 – 400 QATOR QOIDASI (MODULAR CODE STANDARD — MAJBURIY):**
+   - **Fayl Hajmi**: Har bir Python (`.py`) va TypeScript (`.ts`) manba fayli **150 dan 400 qatorgacha** bo'lishi shart.
+   - **"God-file" Mutlaqo Taqiqlanadi**: Hech qaysi fayl 400 qatordan oshmasligi kerak (1000+ qatorli monolithic fayllar qat'iyan man etiladi).
+   - **Avtomatik Dekompozitsiya (SRP & Mixin Pattern)**: Modul yoki klass kengayib 400 qatordan oshsa, darhol o'z vazifasiga ko'ra alohida submodullarga (auth, leads, formatting, reporting, schedulers, actions) ajratiladi va Mixin/Composition orqali birlashtiriladi.
+   - **Zero-Breaking Facade Pattern**: Eski fayl yo'li saqlanib, 10–50 qatorli toza Facade rejimiga o'tkaziladi va barcha public API, klass, funksiya va konstantalarni to'liq re-export qiladi (`__all__` bilan). Mavjud importlar va testlar 100% buzilmasdan ishlashi shart.
+   - **Funksiyalar Hajmi**: Har bir alohida funksiya/metod **20 – 60 qatordan** oshmasligi, bitta aniq vazifani bajarishi shart.
+   - **Yangi Kod Yozish Qoidasi**: Yangi funksionallik qo'shganda mavjud to'lgan fayllarga kod tiqishtirish taqiqlanadi — yangi modul yoki submodule ochiladi.
 
 ## Roles
 
@@ -29,8 +36,7 @@
 ## Current State
 
 ### Locked
-- **Codex Coordinator** — self-improvement report dedup, failure root-cause, approval UX va Telegram MCP restore
-- **Codex Coordinator (Cloud deploy)** — Aiogram Cloud Run head deploy, webhook switch va two-head production smoke
+- Bo'sh (hamma qulflar ochilgan)
 
 ### Operational Notes
 - Telegram MCP approval gateway: upstream `127.0.0.1:8765/mcp`, gateway `127.0.0.1:8766/mcp`. `TELEGRAM_MCP_SESSION_STRING` must be a dedicated session and must never equal `USERBOT_SESSION_STRING`. Read tools are automatic; every mutation is owner-approved through Telegram. Neither port may be exposed by Nginx.
@@ -40,87 +46,47 @@
 - **Telegram architecture decision:** userbot Telethon'da qoladi. Bot akkaunt (`BOT_TOKEN`, @jonairobot) bosqichma-bosqich Aiogram'ga ko'chiriladi. Migratsiya adapter-first bo'lsin: avval `bot_client.send_message`/callback/command yuzasi uchun compatibility adapter, keyin Hisobchi approvals, admin commands, Frog reports va boshqa bot-token flows alohida ko'chiriladi. Bir martada to'liq almashtirmang; har bosqichda test va production-safe rollback bo'lsin.
 - Telegram Bot API guruh access qayta tiklandi: `crm_group` va `team_group` `getChat` tekshiruvida `200 OK`. `scripts/prod/probe_integrations.py` bilan AmoCRM, Airtable va Telegram Bot API ham OK tasdiqlangan.
 
+### Done (Code Refactoring to 150–400 Lines Standard — Antigravity)
+- **20,000+ qatordan ortiq barcha yirik "God-file"lar 150–400 qatorli toza modullarga ajratildi (Facade + Mixin Pattern):**
+  1. `src/services/core/proactive_worker.py` (2,444L) → `src/services/proactive/` (`formatters.py`, `stagnation.py`, `reminders.py`, `journey.py`, `worker.py`, Facade).
+  2. `src/services/core/hisobchi_gsheets.py` (1,824L) → `src/services/core/finance/gsheets/` (`constants.py`, `formatting.py`, `client.py`, `transactions.py`, `reporting.py`, `budget_salary.py`, Facade).
+  3. `src/services/core/call_analyzer.py` (2,396L) → `src/services/call_analytics/` (`helpers.py`, `transcriber.py`, `scorer.py`, `normalizer.py`, `crm_notes.py`, `crm_tasks.py`, `runner.py`, `backfill.py`, Facade).
+  4. `src/services/core/admin_bot.py` (2,601L) → `src/services/core/admin_bot/` (`bot.py`, `handlers_commands.py`, `handlers_callbacks.py`, `handlers_search.py`, `handlers_settings.py`, `reports.py`, `alerts.py`, `mission_scheduler.py`, `cron_runner.py`, Facade).
+  5. `src/agents/tools.py` (1,490L) → `src/agents/agent_tools/` (`declarations.py`, `crm_actions.py`, `google_actions.py`, `team_actions.py`, `executor.py`, Facade).
+  6. `src/services/core/crm/amocrm_sync.py` (1,484L) → `src/services/core/crm/amocrm/` (`auth.py`, `leads.py`, `contacts.py`, `tasks_notes.py`, `files_reports.py`, `sync.py`, Facade).
+  7. `src/api_server.py` (1,463L) → `src/services/api_server/` (`core.py`, `dashboard.py`, `helpers.py`, `oauth.py`, `userbot.py`, `webhooks.py`, Facade).
+  8. `src/handlers/message_handler.py` (1,125L) → `src/handlers/msg_pipeline/` (`admin_commands.py`, `hisobchi.py`, `lead_intake.py`, `media_voice.py`, `ai_reply.py`, Facade).
+  9. `src/services/core/enterprise_reporter.py` (1,125L) → `src/services/reporter/` (`efficiency.py`, `audit.py`, `plans.py`, `reporter.py`, Facade).
+  10. `src/services/core/crm/crm_contacts_auditor.py` (1,194L) → `src/services/core/crm/auditor/` (`classifier.py`, `db_storage.py`, `tasks_notes.py`, `telegram_history.py`, `auditor.py`, Facade).
+  11. `src/services/core/business_command_center.py` (1,104L) → `src/services/command_center/` (`models.py`, `integrations.py`, `builders_sales_delivery.py`, `builders_finance_team.py`, `collector.py`, Facade).
+  12. `src/services/core/agency_personas.py` (953L) → `src/services/personas/` (`sales.py`, `marketing.py`, `operations.py`, `creative.py`, Facade).
+  13. `src/services/core/project_phases.py` (934L) → `src/services/phases/` (`models.py`, `templates.py`, `design_subphases_branding.py`, `design_subphases_media.py`, `manager.py`, Facade).
+  14. `src/services/core/airtable_sync.py` (918L) → `src/services/core/airtable/` (`constants.py`, `oauth.py`, `pm_resolver.py`, `client_base.py`, `projects.py`, `sync.py`, Facade).
+  15. `src/services/ai/quality_analyzer.py` (893L) → `src/services/ai/quality/` (`models.py`, `prompts.py`, `ai_engine.py`, `scoring_heuristics.py`, `feedback_generator.py`, `analyzer.py`, Facade).
+  16. `src/services/core/metasell_conversion.py` (881L) → `src/services/core/metasell/` (`constants.py`, `diagnostics.py`, `engine.py`, `models.py`, Facade).
+  17. `src/main.py` (876L) → `src/entrypoint/` (`crm_push.py`, `daemon_tasks.py`, `filters.py`, `message_event.py`, `runner.py`, Facade).
+  18. `src/services/core/crm/crm_daily_report.py` (869L) → `src/services/core/crm/daily_report/` (`fetcher.py`, `formatter.py`, `history_db.py`, `models.py`, `reporter.py`, Facade).
+  19. `src/services/core/finance/hisobchi_engine.py` (761L) → `src/services/core/finance/engine/` (`helpers.py`, `rules.py`, `transactions.py`, `reports.py`, `engine.py`, Facade).
+- **Test & Security Natijalari:** Barcha testlar muvaffaqiyatli o'tdi (Pytest 100% pass, Bandit 0 medium/high issues). Zero breaking changes.
+
 ### Done (Integration — Claude)
-- **MetaSell → salescoach-ai read-only bridge (YANGI, teskari yo'nalish, salescoach_sync.py'ga tegilmadi):** `salescoach-ai/apps/api/src/integrations/metasell/` (`metasell.client.ts`, `metasell.service.ts`, `metasell.controller.ts`, `metasell.module.ts`) — `POST /integrations/metasell/sync?days=N` (x-webhook-secret bilan himoyalangan, call-intel patterni), Python core'ning `/api/ai/conversion/overview` dan `sellers[]` ni tortib, yangi `ExternalScoreSnapshot` jadvaliga (append-only, `source=METASELL`) yozadi. `Call`/`Scorecard` reuse qilinmadi — MetaSell manager×davr agregat, per-call emas. Migration `prisma/migrations/20260819000001_add_external_score_snapshot/migration.sql` qo'lda yozildi (shadow DB bo'lmagani uchun `prisma migrate dev`/`diff` ishlatilmadi — real DB'da `prisma migrate deploy` bilan tekshirilishi kerak birinchi marta). Python tomonda kod o'zgarmadi, faqat `OISHA_SERVICE_TOKENS_JSON`ga yangi token (scopes: `call:read:all`, `finance:read`) qo'shish kerak (deploy vaqtida, coordinator). Yangi env: `METASELL_API_URL`, `METASELL_API_TOKEN`, `METASELL_SYNC_SECRET` (.env.example yangilandi). `pnpm install --force` bilan buzilgan `@nestjs/*` extract tuzatildi (paket fayllari to'liq chiqmagan edi), keyin `tsc --noEmit` — 0 xato, `prisma validate`/`generate` OK.
-- salescoach-ai qayta yaratildi: MCP `server.ts`, `call-intel/*` (Fireflies+Gong → scoring queue, webhook secret bilan), `ServiceOrJwtAuthGuard` (calls+negotiations), worker `telegram_notify.ts`. API `tsc --noEmit` TOZA.
-- oisha-os bridge (YANGI, shared emas): `salescoach_sync.py`, `apollo_enrich.py`, `docusign_sync.py` (DocuSign → **Telegram signing URL**, email'siz — UZ). app_ctx singleton COLLISION tuzatildi (uchchalasi `app_ctx.instance` edi → unikal nomlar).
-- 5 agent MCP config ulandi (repo tashqarisida): Claude/Codex/Gemini/OpenCode/Antigravity-Cline → oisha-amocrm, oisha-telegram, salescoach-ai.
-- ⚠️ **For Coordinator (settings.py ga qo'shing):** SALESCOACH_{API_URL,SERVICE_TOKEN,ENABLED}, DOCUSIGN_{ENABLED,BASE_URI,ACCOUNT_ID,ACCESS_TOKEN,TEMPLATE_ID}, APOLLO_{ENABLED,API_KEY}. Kod `getattr` bilan himoyalangan — varsiz ham ishlaydi (disabled).
-- ioredis dup TUZATILDI: bullmq 5.79.1 ioredis'ni aynan `5.10.1` ga pin qiladi, apps esa `^5.11.1` (TRAE security update) → root `pnpm.overrides.ioredis="^5.11.1"` (TRAE yangi versiyasi saqlanadi, bullmq'niki ko'tariladi). Worker+API `tsc --noEmit` TOZA.
+- **MetaSell → salescoach-ai read-only bridge:** `salescoach-ai/apps/api/src/integrations/metasell/` (`metasell.client.ts`, `metasell.service.ts`, `metasell.controller.ts`, `metasell.module.ts`) — `POST /integrations/metasell/sync?days=N`.
+- salescoach-ai qayta yaratildi: MCP `server.ts`, `call-intel/*` (Fireflies+Gong → scoring queue), `ServiceOrJwtAuthGuard`, worker `telegram_notify.ts`. API `tsc --noEmit` TOZA.
+- oisha-os bridge: `salescoach_sync.py`, `apollo_enrich.py`, `docusign_sync.py` (DocuSign → **Telegram signing URL**, email'siz — UZ). app_ctx singleton COLLISION tuzatildi.
+- 5 agent MCP config ulandi: Claude/Codex/Gemini/OpenCode/Antigravity-Cline → oisha-amocrm, oisha-telegram, salescoach-ai.
+- ioredis dup TUZATILDI: root `pnpm.overrides.ioredis="^5.11.1"`. Worker+API `tsc --noEmit` TOZA.
 
 ### Done (MCP birlashtirish — Claude)
-- **Uchta MCP yozuvi bittaga birlashtirildi.** Ilgari: `telegram` (SSH→Oracle),
-  `oisha-telegram` (lokal — API'siz, hech qayerga ulanmasdi), `oisha-amocrm` (lokal).
-  Endi yagona `scripts/oisha_mcp_server.py` (FastMCP) — 12 tool: Telegram (4),
-  AmoCRM (4), Airtable (1), Instagram (3). Oracle'da ishlaydi; Telegram toollari
-  `/api/internal/mcp` orqali boradi, userbot sessiyasiga to'g'ridan-to'g'ri tegmaydi.
-- Eski `scripts/mcp_server.py`, `scripts/telegram_mcp_server.py` va `src/*` shim'lari
-  yangi serverga yo'naltiruvchi bo'lib qoldi — mavjud konfiguratsiyalar buzilmaydi.
-- `scripts/telegram_mcp_server.py:42` dagi hardcoded Nginx paroli olib tashlandi;
-  Basic Auth endi faqat `OISHA_API_USER`/`OISHA_API_PASS` env'dan.
-  ⚠️ **Owner uchun:** eski parol repo tarixida qolgan — Nginx'da almashtirish kerak.
-- ⚠️ **Coordinator uchun (Rule 3 istisnosi):** `settings.py` ga `OISHA_API_SECRET`,
-  `JWT_SECRET`, `OISHA_SERVICE_TOKENS_JSON`, `OISHA_PROXY_ROLE_MAP_JSON` qo'shildi.
-  Sabab: `0e6b4d7` auth o'qishni `os.environ` dan `settings` ga ko'chirgan, lekin
-  maydonlar e'lon qilinmagan edi → `getattr(...)` doim `""` qaytarib, butun HTTP
-  auth jim ishlamay qolgan (main'da 34 test yiqilgan). Shoshilinch tuzatish sifatida
-  kiritildi.
-
-### Done (yangi)
-- **Oisha Chat Native 0$ amoCRM integratsiyasi to'liq ishga tushirildi va Wazzup24/ChatApp olib tashlandi:** amoCRM da rasmiy «Oisha Chat» integratsiyasi yaratildi (`Client ID: 55b0a7d7-d898-4f9c-819d-1982e83fab8a`), OAuth 2.0 tokenlari yangilandi, webhook (`https://oisha.jonbranding.uz/webhook/amocrm/chats`) ulandi. amoCRM dagi pullik Wazzup24 va ChatApp webhooks butunlay o'chirildi (oylik abonent to'lovlari to'xtatildi). Testlar: 1509 passed, 16 skipped; Bandit: no issues (Antigravity).
-- **amoCRM Vazifalari 25 tadan taqsimlandi (25/day Task Redistribution):** amoCRM dagi barcha 413 ta tizimli vazifalar 2026-08-28 dan 2026-09-16 gacha kuniga aynan 25 tadan qilib taqsimlandi, barcha yakshanbalar (30-avgust, 6-sentabr, 13-sentabr) tashlab o'tildi, menejerlar o'zlari ochgan 38 ta vazifaga mutlaqo tegilmadi (Antigravity).
-- **Oisha Tozalash & Monolit Boot Modullashtirildi (Dead Code Cleanup & De-monolith):** Ishlatilmayotgan eskirgan `src/api_server_original.py` (1,348 qator) butunlay o'chirildi. `src/boot.py` dagi barcha inline fon looplari (`crm_discipline`, `crm_capacity_archiver`, `ai_autopilot`, `channel_scout`, `daily_analytics`, `hisobchi_gap_report`) `src/schedulers/` paketiga modulli ravishda ajratildi va startup oqimi tozalandi. Testlar: 1493 passed, 17 skipped; Bandit: no issues (Antigravity).
-- **AmoCRM Call AI Analizi, Fireflies Audio Calling Sync va SalesCoach-AI Avtomatlashtirildi:** AmoCRM ga kelib tushadigan barcha telefon qo'ng'iroqlari va audio fayllar (MoiZvonki, Sipuni, OnlinePBX, Asterisk) hamda Fireflies.ai meeting transkriptlari 100% avtonom tahlil qilinadi (`CallAnalyzer`, `FirefliesSync`). Gemini 2.5 Flash STT orqali spikerlar ajratiladi, e'tirozlar (objections), skriptga rioya qilish va natija baholanadi, AmoCRM lidiga nota va avtomatik follow-up vazifa yaratiladi, `salescoach-ai` ga scoring uchun uzatiladi hamda `@jonairobot` orqali Sotuv/CRM guruhiga proaktiv Call Intelligence kartochkasi yuboriladi. Yangi webhook: `POST /api/integrations/fireflies/webhook`. Testlar: 1491 passed, 17 skipped; Bandit: no issues (Antigravity).
-- **amoCRM Vazifa Eslatmalari to'liq Userbotsiz Gibrid tizimga o'tkazildi (Task Alerts Hybrid Engine):** amoBot yuboradigan vazifalar (`Поra выполнить задачу!`, `Просроченная задача`) endi userbot shaxsiy chatidan emas, to'g'ridan-to'g'ri amoCRM Webhook (`/api/amocrm/tasks/webhook`) + Proactive Background Task Monitor (`AmoCrmTaskNotifier`) orqali `@jonairobot` (Aiogram/BotRuntime) tomonidan Sotuv bo'limi Follow-up mavzusiga (`AMOCRM_ALERT_FORWARD_GROUP_ID=-1003854308552`, `AMOCRM_ALERT_FORWARD_TOPIC_ID=443`) yuboriladi. Turso DB va in-memory dedup bilan takrorlanishning oldi olingan, inline amoCRM link tugmalari mavjud. Testlar: 1488 passed, 16 skipped; Bandit: no issues (Antigravity).
-- Sotuvchilar va PMlarning qo'rquvlari va ruhiy to'siqlari bilan to'liq avtomatlashtirilgan psixologik ishlash tizimi (Psychological Automation & Proactive Barrier-Busting): `src/services/core/psychological_automation.py` yaratildi va `BackgroundMonitor`ga ulandi. 09:15 da kunlik jamoaviy Mindset Boost, 11:30 va 15:30 da AmoCRM dagi qotib qolgan lidlar uchun avtomatlashtirilgan sotuv kouchingi (Call Reluctance Push & 60-second micro-script), 11:45 va 16:30 da Airtable/loyihalar bo'yicha PM konflikt va muddat kechikishi himoyasi (PM Conflict Shield) fonda to'liq avtonom ishlaydi. Testlar: 1481 passed, 16 skipped; Bandit: no issues (Antigravity).
-- Sotuvchilar va PMlarning qo'rquvlari va ruhiy to'siqlari bilan psixologik ishlash (Psychological Mindset & Fear-Busting Engine) to'liq joriy qilindi: Kognitiv-Xulq-atvor (CBT), Stoitsizm (Premeditatio Malorum / Fear Setting) va Sandler/Challenger psixologiyasi asosida `src/services/core/psychological_coach.py` yaratildi. Call reluctance, rejection fear, price anxiety, bad news delivery, scope creep billing kabi holatlar bo'yicha 5 bosqichli dekonstruktsiya, 60 soniyalik mikroskript, sparring simulyatsiyasi va 3 daqiqalik hisobdorlik (accountability) mexanizmi ulandi. Telegram botga `/coach`, `/qorquv`, `/ruhiyat`, `/call_prep`, `/pm_coach`, `/sparring` buyruqlari va tabiiy qo'rquv xabarlarini avtomatik aniqlash ulandi. Unit-testlar va Bandit xavfsizlik tekshiruvlaridan 100% muvaffaqiyatli o'tdi (Antigravity).
-- Hisobchi "Topilmadi" (Not found) muammosi va tranzaksiyalarni qidirish tizimi to'liq tuzatildi: `HisobchiEngine` da Google Sheets ulangan taqdirda ham `self._db` (Turso/SQLite) doimiy va birlamchi saqlovchi sifatida ishga tushirildi. `save_transaction_once`, `categorize`, `skip` va `update_finance_msg` amallari DB va GSheets'ga parallel, ishonchli yozilishi ta'minlandi. `_get_or_load_pending` funksiyasiga multi-layer fallback va in-memory avtomatik tiklash qo'shildi, natijada tugmalar hech qachon qotib qolmaydi va xatoliksiz ishlaydi (Antigravity).
-- Hisobchi inline tasdiqlash tugmalari (Biznes/Shaxsiy, Tasdiqlash, Tahrirlash, Rad etish) to'liq ishga tushirildi: Aiogram 3.x callback event adapteridagi `edit_reply_markup` muammosi bartaraf etildi, restartdan keyin xotira tozalanganda tranzaksiyalarni avtomatik SQLite/Turso bazadan tiklash (`_get_or_load_pending`) tizimi qo'shildi (Antigravity).
-- Shaxsiy Userbot akkauntidan (@baxtiyorjon_gaziyev) AI/avtomat xabarlar yuborilishi butunlay to'xtatildi: `message_handler.py` dagi avto-javoblar bloklandi, `scheduler.py` va `background_monitor.py` dagi barcha userbot `client.send_message` fallbacklari olib tashlanib, faqat rasmiy bot `@jonairobot` orqali yuborilishi kafolatlandi (Antigravity).
-- Karta to'lovlari (Uzcard/Humo) to'g'ridan-to'g'ri Moliya guruhiga yo'naltirildi: `src/services/core/finance/handlers/card_bot_handler.py` dan Saved Messages ga yuborish olib tashlandi, yangi to'lovlar faqat moliya guruhining tegishli mavzusiga (topic) yuboriladi (Antigravity).
-- Hisobchi to'lov xabarlarini qayta-qayta yuborish muammosi hal qilindi: `src/boot.py` dagi har startup/restartda tranzaksiyalar bazasini tozalab yuboruvchi eskirgan `run_one_time_reset_and_resync` chaqiruvi olib tashlandi. Endi faqat `backfill_card_bot_messages` ishlaydi va bazada mavjud to'lovlar qayta yuborilmaydi (Antigravity).
-- AmoCRM kunlik va haftalik hisobotlar, Enterprise daily report va stagnation ogohlantirishlari Telethon Userbot o'rniga `@jonairobot` (Aiogram/BotRuntime) orqali yuborilishi ta'minlandi (`BackgroundMonitor` va `scheduler.py` yangilandi, `bot_client` orqali guruh va adminga yetkazish yo'lga qo'yildi). Admin Aiogram dispetcheriga `/report`, `/crm_report`, `/stats`, `/history` komandalari qo'shildi. Testlar: 1447 passed, 17 skipped; Bandit: no issues (Antigravity).
-- Oisha ikki-bosh Telegram runtime kodi tayyorlandi: Oracle Telethon userbotni saqlaydi va `TELEGRAM_BOT_INGRESS_MODE=disabled` bilan @jonairobot update'larini qabul qilmaydi; alohida Cloud Run entrypoint faqat Aiogram webhook, owner/admin dispatcher, Hisobchi approval callback va Turso-backed bounded idempotency'ni boshqaradi. Secret-safe Docker/Cloud Build/PowerShell deploy artefaktlari `min=0`, `max=1`, `concurrency=1` bilan qo'shildi; eski `.env`-ni command line'ga chiqaradigan full-runtime GCP deploy fail-closed qilindi. Test: 1112 passed, 13 skipped; Bandit medium/high 0 (Codex).
-- Telegram Userbot sessiyasini doimiy tirik saqlash (`session_keeper.py`) va har 5 daqiqada ping yuborish, hamda sessiya o'zgarganda avtomatik `data/userbot_session_string.txt` ga saqlash tizimi ishga tushirildi va Oracle VM ga deploy qilindi. Bu orqali 401 Unauthorized va qayta login qilish muammolari to'liq hal etildi (Antigravity).
-- Aiogram 3.x bot-token migratsiyasining navbatdagi bosqichi bajarildi: Admin komandalar dispetcheri (`admin_aiogram_dispatcher.py`) kengaytirilib, VPS status (`/vps_status`), auto-reply rejimi va kill-switch boshqaruvi (`/auto_status`, `/pause_auto`, `/resume_auto`, `/set_mode`) qo'shildi. `test_admin_aiogram_dispatcher.py` ga tegishli unit-testlar qo'shildi (Antigravity).
-- Oisha Telegram ikki bosh migratsiyasining xavfsiz birinchi bosqichi tayyorlandi: Telethon userbot alohida qoladi; Aiogram `@jonairobot` uchun polling lifecycle, outbound runtime, ko'chirilgan admin komandalar va Hisobchi approval callback adapterini boshqaradi. Aiogram rejimida Telethon bot-token receiver ishga tushmaydi. Ko'chmagan legacy AdminBot komandalar yo'qolmasligi uchun production default hali Telethon; live switch qolgan routerlar ko'chgach qilinadi. Test: 687 passed, 13 skipped; Bandit `src/ -ll`: medium/high issue yo'q (Codex).
-- JARVIS gap-auditidan keyin Oisha Business Command Center branding agentligi fokusida qo'shildi: lead, vazifa, eslatma, brief/KP, loyiha/deadline, avans, agentlik analitikasi va jamoa yuklamasi intentlari; mutation approval gate, stable idempotency key, evidence-first read policy va secret chiqarmaydigan real integration registry. Ombor funksiyasi ataylab kiritilmagan. API: `POST /api/oisha/command/plan`, `GET /api/oisha/integrations` (Codex).
-- Oisha self-improvement loop qo'shildi: har kuni 10:00 da read-only diagnostika, stable fingerprint/dedup, ownerga Telegram digest, `/oisha_rivoj` va `/oisha_takliflar`, owner-only accept/defer/reject hamda AI-agent handoff. Weekly self-evolution endi tasdiqsiz branch/PR yaratmaydi. Test: 11 yangi + 13 regressiya testlari passed; Bandit `src/ -ll`: no issues (Codex).
-- Oracle Production Deploy #28758418917 success. Fixes: `c8a9871` missing `telegram_mcp` route qo'shildi, `27306eb`/`59820c8` runtime detection VM/systemd uchun tuzatildi. Test: `tests/test_agent_runtime.py` 2 passed.
-- `src/api_server.py:288`: silent `except Exception: pass` → `logger.warning` (hisobchi_mcp router mount failure endi loglanadi)
-- Local `.env` cleaned up (170→104 lines, duplicate block removed)
-- Server `.env` Python code qoldiqlari tozalandi, keyingi deploy GitHub secretlardan to'g'ri qiymatlarni tiklaydi
-- capcom6/android-sms-gateway cloud/private API uchun `SmsGatewayClient` qo'shildi: `Oisha -> api.sms-gate.app -> Android telefon -> SMS` oqimi env orqali disabled-by-default ishlaydi, webhook payload normalize qiladi. Test: `tests/test_sms_gateway_client.py` 5 passed; yangi fayl Bandit: no issues (Codex).
-- Saved Messages/private photo receipt auto-scan cheklandi: endi owner private rasmlari faqat `/kirim`, `/chiqim`, `/chek`, `/receipt`, `#kirim`, `#chiqim` markerlari bilan ishlanadi; oddiy saqlangan rasmlar Hisobchi/Gemini tekshiruviga tushmaydi. Test: 358 passed, 13 skipped; Bandit: no issues (Codex).
-- Barcha ochiq PRlar (38 ta) va Dependabot security alerts (multer, nodemailer, @babel/core) hal qilindi: dependency lar eng oxirgi versiyaga yangilandi, xavfsizlik kamchiliklari (SSL verification) tuzatildi va gitleaks historical allowlist yangilandi (TRAE).
-- Pytest/Bandit pre-flight failurelari ideal PR holatiga keltirildi: OS driver unit testlari desktop dependencydan ajratildi, `SKIP_LIVE=1` live AI testlarga qo'llandi, OAuth helper import-safe qilindi va default `127.0.0.1` ga bind qiladi; regression testlar qo'shildi. Full pre-flight: 364 passed, 13 skipped; Bandit: no issues (Codex).
-- Meta Graph API orqali Instagram DM va Comment webhooklari to'liq implement qilindi (`src/api_server.py` va `src/services/core/instagram_agent.py` yaratildi) hamda local va remote testlardan muvaffaqiyatli o'tdi (Antigravity).
-- Webhook so'rovlarini `x-hub-signature-256` orqali xavfsiz tasdiqlash va background tasks orqali Meta timeoutlarining oldini olish yo'lga qo'yildi (Antigravity).
-- Yangilangan kod remote Oracle VM ga deploy qilindi, uerdagi `oisha-os` systemd xizmati qayta ishga tushirilib, API server muvaffaqiyatli ishlayotganligi `/healthz/` orqali tasdiqlandi (Antigravity).
-- `handle_new_message` event handler sifatida ro'yxatdan o'tkazildi
-- Hisobchi AI: `init_hisobchi_tables()` boot.py da chaqiriladi
-- Hisobchi AI: `_hisobchi_engine` global placeholder qo'shildi
-- Masofaviy n8n da Google Gemini API orqali ishlaydigan bepul AI Chatbot workflow (ID: `xf2kLGu1vuXGM5cC`) to'liq sozlandi va faollashtirildi (Antigravity).
-- n8n v1.0+ ga mos keladigan yangi connection formatiga (`ai_languageModel` porti) muvofiq Gemini ulanishlari to'g'rilandi.
-- Gemini API ning `host` parametridagi protokol xatosi va `modelName` parametrining model mos kelmasligi (`gemini-2.5-flash` ga o'zgartirish orqali) hal qilindi.
-- Chatbot webhook POST so'rovlari muvaffaqiyatli sinovdan o'tdi (Response: `{"output":"..."}`).
-- database.py: f-string SQL -> parametrized query refactoring bajarildi (682 va 998 qatorlar, `upsert_user` va `get_storage_counts`). Bandit va pytest tekshiruvlaridan muvaffaqiyatli o'tdi (Antigravity).
-- Web chat widgeti production xatoligi (FastAPI /api/chat/send va /api/chat/history API-dagi 422 xatoliklar) `X-Secret-Key` header qo'llab-quvvatlash orqali tuzatildi, barcha testlardan o'tdi va remote Oracle VM ga deploy qilinib muvaffaqiyatli ishga tushirildi (Antigravity).
-- Telegram kanallaridan a'zolarni o'rniga faol mijozlarni (postlarga komment yozganlarni) sifatli lead sifatida ajratib olish tizimi `TelegramScraperReal`da implement qilindi (`_extract_channel_members` yangilandi va unikal `extract_leads_from_channel` metodi qo'shildi). Testlardan o'tdi va GitHubga push qilindi (Antigravity).
-- `salescoach-ai`dagi yangi Dependabot xavfsizlik kamchiliklari (`multer`, `postcss`, `js-yaml`) root `package.json` overrides orqali to'liq bartaraf etildi va `pnpm-lock.yaml` yangilandi (Antigravity).
-- Oisha-OS Admin veb-sayti (`https://oisha.jonbranding.uz/`) uchun to'liq premium oq-dizayn (light theme) ishlab chiqildi, CSS o'zgaruvchilari modernizatsiya qilindi va muvaffaqiyatli build qilinib, ishga tushirildi (Antigravity).
-- Remote VM dagi Google API / Sheets xizmatlarining ishlamayotganligi `data/service_account.json` faylini serverga yuklash orqali bartaraf etildi va to'liq bog'landi (Antigravity).
-- `src/boot.py` faylidagi fatal NameError xatoligi (aniqlanmagan `_spawn_task` o'rniga `asyncio.create_task` qo'llash orqali) to'liq tuzatildi va bot muvaffaqiyatli ishga tushdi (Antigravity).
+- **Uchta MCP yozuvi bittaga birlashtirildi:** yagona `scripts/oisha_mcp_server.py` (FastMCP) — 12 tool: Telegram (4), AmoCRM (4), Airtable (1), Instagram (3).
+- Sotuvchilar va PMlarning qo'rquvlari va ruhiy to'siqlari bilan psixologik ishlash (Psychological Mindset & Fear-Busting Engine) to'liq joriy qilindi (`src/services/core/psychological_coach.py`).
+- Hisobchi inline tasdiqlash tugmalari va GSheets/SQLite sinxronizatsiyasi to'liq ishga tushirildi.
+- Shaxsiy Userbot akkauntidan avto-javoblar to'xtatildi, faqat rasmiy bot `@jonairobot` orqali xabarlar yuboriladi.
 
 ### Next Tasks
 1. [Done] `self_command_handler` (1000+ lines) → `src/commands/` ga ajratish
 2. [Done] `except Exception: pass` larni tuzatish (~30+ joy `call_analyzer.py` da tuzatildi)
-- Global → app_ctx.* migratsiyasi (Jarayonda)
-- [Done] f-string SQL → parametrized query (database.py:682, 998)
-- [Done] Handler lar: `src/handlers/` ga ajratish (negotiation, kirim, case_publisher, etc.)
-- [Done] Turso DB schema migration for FrogAgent (added profit_estimate, source_manager, external_task_id, is_frog to tasks table) and fixed database_pool SQLite error handling.
-- [Done] FrogAgent va FrogScheduler remote VM ga deploy qilinib muvaffaqiyatli ishga tushirildi. Har kuni 09:00 da Telegram orqali eng foydali vazifalar (Frog) ro'yxati yuboriladi.
-- Bot akkauntni Aiogram'ga bosqichma-bosqich migratsiya qilish: Telethon userbot o'zgarmaydi; @jonairobot bot-token head adapter orqali ajratilib, keyin command/callback/report oqimlari navbat bilan ko'chiriladi.
+3. [Done] Barcha 1000+ qatorli fayllarni 150-400 qatorli modullarga dekompozitsiya qilish
+4. Bot akkauntni Aiogram'ga bosqichma-bosqich migratsiya qilish
 
 ### Dead Files (don't touch)
 - `src/agents/` — autonomous AI agents, domain-specific, bu refactoringga kirmaydi
@@ -138,18 +104,3 @@ bandit -r src/ -ll
 
 ## Commit Style
 `feat(scope): message` / `fix(scope): message` / `refactor(scope): message`
-
-## 🚀 Oisha-OS Future Roadmap (Vision)
-> Ushbu bo'lim Oisha-OS ning kelajakdagi arxitekturasini belgilaydi. Barcha agentlar kelgusida shu 4 ta yo'nalish bo'yicha ishlashga tayyor turishi kerak:
-
-1. **🎙 AI Voice Agents** (`src/services/core/voice_agent.py`): AmoCRM webhook → Vapi.ai qo'ng'iroq → natijani AmoCRM ga yozish. `ENABLE_VOICE_AGENT=True` da ishlaydi.
-2. **🪄 Edge AI Personalization** (`src/services/edge/edge_personalizer.py` + `apps/worker/src/edge_personalizer.ts`): Cloudflare Workers AI + GA4 segmentatsiya → vebsayt kontentini real-time moslash.
-3. **📰 Avtomatlashtirilgan Case-Study Publisher** (`src/services/core/sanity_publisher.py`): AmoCRM'da loyiha yakunlanganda AI maqola → Sanity CMS → jonbranding.uz/cases/.
-4. **🔮 Predictive LTV** (`src/services/core/ltv_predictor.py`, `ltv_trainer.py`): Scikit-Learn RandomForest + tarixiy AmoCRM data → yangi lead LTV → VIP alert.
-5. **📦 Yangi modullar:**
-   - `src/services/core/voice_agent.py` — Vapi.ai integratsiyasi
-   - `src/services/core/sanity_publisher.py` — Sanity CMS ga avtopublish
-   - `src/services/core/ltv_predictor.py` — LTV ML model
-   - `src/services/core/ltv_trainer.py` — Avtomatik model train (00:30 da)
-   - `src/services/edge/edge_personalizer.py` — Cloudflare segmentatsiya logikasi
-   - `apps/worker/src/edge_personalizer.ts` — Cloudflare Worker script

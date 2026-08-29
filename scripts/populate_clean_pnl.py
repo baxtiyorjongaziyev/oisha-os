@@ -1,9 +1,12 @@
 """Populate all months and link all transactions to the new clean Oylik P&L table (tblAgVaGlVory2yAW)."""
+import os
 import urllib.request, json, sys, time
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-API_KEY = "patADXBB0784iii3w.7c1e4380a9736b30f1dd2cb539f6ac49ac097e3452f84f319dc2060834569fdb"
+API_KEY = os.environ.get("AIRTABLE_API_KEY", "").strip()
+if not API_KEY:
+    raise RuntimeError("AIRTABLE_API_KEY is required in the runtime secret configuration")
 BASE_ID = "app8xoyx1XCumYFXV"
 NEW_PNL_ID = "tblAgVaGlVory2yAW"
 TRX_TABLE_ID = "tblrqxqIzyrvg7XpQ"

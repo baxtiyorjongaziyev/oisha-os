@@ -116,9 +116,9 @@ class WorkflowOrchestrator:
                 self._stage_sync_cache[str(lead_id)] = current_stage
 
                 if current_stage == self.AIRTABLE_DONE_STAGE:
-                    manager_name = (
-                        self.airtable._get_field(fields, "manager")
-                        or "PM tayinlanmagan"
+                    manager_name = AirtableSync.resolve_pm_name(
+                        self.airtable._get_field(fields, "manager"),
+                        default="PM tayinlanmagan",
                     )
                     await self._notify(
                         f"🥳 **Muvaffaqiyat!**\n\n"
@@ -137,8 +137,9 @@ class WorkflowOrchestrator:
             project_name = (
                 self.airtable._get_field(fields, "project_name") or "Nomsiz loyiha"
             )
-            manager_name = (
-                self.airtable._get_field(fields, "manager") or "PM tayinlanmagan"
+            manager_name = AirtableSync.resolve_pm_name(
+                self.airtable._get_field(fields, "manager"),
+                default="PM tayinlanmagan",
             )
             logger.warning(f"⏰ [ALERT] Loyiha muddati yaqin: {project_name}")
             await self._notify(

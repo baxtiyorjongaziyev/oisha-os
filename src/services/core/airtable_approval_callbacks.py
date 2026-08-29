@@ -3,6 +3,7 @@ Handles:
   at_app:<record_id> -> Updates Airtable Tranzaksiyalar record Holat="Tasdiqlangan"
   at_rej:<record_id> -> Updates Airtable Tranzaksiyalar record Holat="Bekor qilingan"
 """
+import asyncio
 import html
 import logging
 from datetime import datetime
@@ -10,6 +11,7 @@ from typing import Any
 import httpx
 from aiogram import F
 
+from src.services.core.airtable_config import airtable_request_headers
 from src.settings import settings
 from src.time_utils import get_local_now
 
@@ -21,24 +23,15 @@ DEFAULT_TABLE_ID = "tblrqxqIzyrvg7XpQ"  # Tranzaksiyalar table
 
 
 def _get_airtable_headers() -> dict[str, str]:
-    api_key = (
-        getattr(settings, "AIRTABLE_API_KEY", None)
-        or "patADXBB0784iii3w.7c1e4380a9736b30f1dd2cb539f6ac49ac097e3452f84f319dc2060834569fdb"
-    )
-    if hasattr(api_key, "get_secret_value"):
-        api_key = api_key.get_secret_value()
-    return {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+    return airtable_request_headers()
 
 
 async def update_airtable_transaction_status(record_id: str, new_status: str) -> bool:
     base_id = getattr(settings, "AIRTABLE_BASE_ID", None) or DEFAULT_BASE_ID
     url = f"{AIRTABLE_API_BASE}/{base_id}/{DEFAULT_TABLE_ID}/{record_id}"
-    headers = _get_airtable_headers()
-    payload = {"fields": {"Holat": new_status}}
     try:
+        headers = _get_airtable_headers()
+        payload = {"fields": {"Holat": new_status}}
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.patch(url, headers=headers, json=payload)
             if resp.status_code in (200, 201):
@@ -50,6 +43,15 @@ async def update_airtable_transaction_status(record_id: str, new_status: str) ->
     except Exception as exc:
         logger.error("[AIRTABLE] Exception updating %s: %s", record_id, exc)
         return False
+
+
+def _report_pnl_sync_result(task: asyncio.Task[dict[str, Any]]) -> None:
+    try:
+        task.result()
+    except asyncio.CancelledError:
+        logger.warning("[PNL_SYNC] Background sync was cancelled")
+    except Exception:
+        logger.exception("[PNL_SYNC] Background sync failed")
 
 
 def register_airtable_approval_callbacks(dispatcher: Any) -> None:
@@ -76,8 +78,9 @@ def register_airtable_approval_callbacks(dispatcher: Any) -> None:
                 # Trigger real-time P&L recalculation
                 try:
                     from src.services.core.finance.pnl_sync import sync_monthly_pnl
-                    import asyncio
-                    asyncio.create_task(sync_monthly_pnl())
+
+                    task = asyncio.create_task(sync_monthly_pnl())
+                    task.add_done_callback(_report_pnl_sync_result)
                 except Exception as exc:
                     logger.warning("P&L sync background task warning: %s", exc)
 

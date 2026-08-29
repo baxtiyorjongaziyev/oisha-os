@@ -7,44 +7,61 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Target business trainer channels (REAL Uzbek B2B leads)
+# Target business trainer & entrepreneur channels (Global & Regional B2B leads)
 TARGET_CHANNELS = {
-    # === TOP BUSINESS TRAINERS (UZBEKISTAN) ===
+    # === UZBEKISTAN B2B & BUSINESS LEADERS ===
     "IbrahimGulyamov": {"category": "Business Coach", "region": "UZ", "priority": 1},
     "alisherisaev_blog": {"category": "Business Advisor", "region": "UZ", "priority": 1},
     "MFaktoruz": {"category": "Business Education", "region": "UZ", "priority": 1},
-    "mylifeplanner_uz": {"category": "Personal Development", "region": "UZ", "priority": 1},
-    "KozimkhonTorayev": {"category": "Business Mentor", "region": "UZ", "priority": 1},
-    "TopBrains_uz": {"category": "Startup Hub", "region": "UZ", "priority": 1},
-    "biz_masofadan": {"category": "Remote Business", "region": "UZ", "priority": 2},
-    "UmidjoniUZ": {"category": "Business Training", "region": "UZ", "priority": 1},
-    "MFaktor_school": {"category": "Business School", "region": "UZ", "priority": 1},
-    "IkhtiyarDosmetov": {"category": "Life Coach", "region": "UZ", "priority": 2},
-    "AlisherAvazov_blog": {"category": "Business Blog", "region": "UZ", "priority": 1},
-    "mufeedmoliya": {"category": "Finance", "region": "UZ", "priority": 2},
-    "MastersClubUZ": {"category": "Exclusive Club", "region": "UZ", "priority": 2},
-    "najot_nur": {"category": "Tech Education", "region": "UZ", "priority": 2},
-    "jahongir_polatov": {"category": "Advice Channel", "region": "UZ", "priority": 2},
+    "zafar_khashimov": {"category": "Retail & Business", "region": "UZ", "priority": 1},
+    "murod_nazarov": {"category": "Real Estate & Business", "region": "UZ", "priority": 1},
+    "sanjar_maksudov": {"category": "HoReCa & Business", "region": "UZ", "priority": 1},
     "boburmusa_official": {"category": "Business Coach", "region": "UZ", "priority": 1},
-    "AzizAxtamov": {"category": "Entrepreneur", "region": "UZ", "priority": 2},
-    "biznesrivoj": {"category": "Business Growth", "region": "UZ", "priority": 1},
     "sarvar_sales_blog": {"category": "Sales Training", "region": "UZ", "priority": 1},
-    "hikmatkundi": {"category": "Wisdom Daily", "region": "UZ", "priority": 2},
-    "sardor_valixanov": {"category": "Sales Coach", "region": "UZ", "priority": 1},
-    "mehriniso_nur": {"category": "Finance Advisor", "region": "UZ", "priority": 2},
-    "foydali_moliya": {"category": "Money Tips", "region": "UZ", "priority": 2},
     "SherzodMustafaev": {"category": "Business Coach", "region": "UZ", "priority": 1},
     "SherzodTursunov": {"category": "Business Strategy", "region": "UZ", "priority": 1},
-    "alisher_avazov_blog": {"category": "Business Blog", "region": "UZ", "priority": 1},
-    "azizjon_gapparov": {"category": "Entrepreneur", "region": "UZ", "priority": 2},
-    "sanjar_maksudov": {"category": "Business Coach", "region": "UZ", "priority": 1},
     "akmal_nasridinov_sales": {"category": "Sales Trainer", "region": "UZ", "priority": 1},
-    "zafar_khashimov": {"category": "Businessman", "region": "UZ", "priority": 2},
+    "AlisherAvazov_blog": {"category": "Business Blog", "region": "UZ", "priority": 1},
+    "biznesrivoj": {"category": "Business Growth", "region": "UZ", "priority": 1},
+    "TopBrains_uz": {"category": "Startup Hub", "region": "UZ", "priority": 1},
+    "KozimkhonTorayev": {"category": "Business Mentor", "region": "UZ", "priority": 1},
+    "UmidjoniUZ": {"category": "Business Training", "region": "UZ", "priority": 1},
+    "paiziev24": {"category": "Business Founder", "region": "UZ", "priority": 1},
     "MountainBranding": {"category": "Marketing Agency", "region": "UZ", "priority": 2},
-    "murod_nazarov": {"category": "Business Mentor", "region": "UZ", "priority": 2},
-    "laziz_adhamov": {"category": "Coach", "region": "UZ", "priority": 2},
-    "Perfect_Media_official": {"category": "Marketing", "region": "UZ", "priority": 2},
-    "paiziev24": {"category": "Business", "region": "UZ", "priority": 2},
+    "MastersClubUZ": {"category": "Exclusive Club", "region": "UZ", "priority": 2},
+    "biz_masofadan": {"category": "Remote Business", "region": "UZ", "priority": 2},
+
+    # === UAE / DUBAI & MIDDLE EAST (HIGH-TICKET B2B LEADS) ===
+    "dubai_business_club": {"category": "UAE Business", "region": "UAE", "priority": 1},
+    "dubai_entrepreneurs": {"category": "UAE Startups", "region": "UAE", "priority": 1},
+    "dubaibusiness": {"category": "UAE Investments", "region": "UAE", "priority": 1},
+    "uae_startups": {"category": "Gulf Business", "region": "UAE", "priority": 1},
+    "dubai_real_estate_business": {"category": "Real Estate UAE", "region": "UAE", "priority": 2},
+
+    # === GLOBAL / US / UK & INTERNATIONAL TECH & STARTUPS ===
+    "startups": {"category": "Global Startups", "region": "GLOBAL", "priority": 1},
+    "producthunt": {"category": "Product Launch", "region": "GLOBAL", "priority": 1},
+    "indiehackers": {"category": "Founders Hub", "region": "GLOBAL", "priority": 1},
+    "techstartups": {"category": "Tech Ventures", "region": "GLOBAL", "priority": 1},
+    "entrepreneurs_hub": {"category": "Global Entrepreneurs", "region": "GLOBAL", "priority": 1},
+    "saasgrowth": {"category": "SaaS & Tech", "region": "GLOBAL", "priority": 2},
+    "venturecapital": {"category": "VC & Funding", "region": "GLOBAL", "priority": 2},
+
+    # === CIS & CENTRAL ASIA (KAZAKHSTAN, KYRGYZSTAN, CIS B2B) ===
+    "astanahub": {"category": "Tech & Startup Hub", "region": "KZ", "priority": 1},
+    "forbeskz": {"category": "Business Forbes", "region": "KZ", "priority": 1},
+    "mosthub": {"category": "Venture Hub", "region": "KZ", "priority": 1},
+    "thesteppe": {"category": "Business & Lifestyle", "region": "KZ", "priority": 2},
+    "vcru": {"category": "Business & Tech Media", "region": "CIS", "priority": 1},
+    "tabor_vc": {"category": "Venture & Startups", "region": "CIS", "priority": 1},
+    "temno": {"category": "Marketing & Strategy", "region": "CIS", "priority": 1},
+    "secretsfirm": {"category": "Business Secrets", "region": "CIS", "priority": 2},
+    "forbes_russia": {"category": "Business Media", "region": "CIS", "priority": 2},
+    "setters_me": {"category": "Creative Agency Hub", "region": "CIS", "priority": 2},
+
+    # === TURKEY & EUROPE COMMERCE ===
+    "turkey_business": {"category": "Import/Export", "region": "TR", "priority": 1},
+    "istanbul_entrepreneurs": {"category": "Business Hub", "region": "TR", "priority": 2},
 }
 
 class ChannelScout:

@@ -180,3 +180,43 @@ def test_billing_limit_uses_persistent_stale_cache(monkeypatch, tmp_path):
     )
 
     assert sync.get_projects(force_refresh=True) == cached
+
+
+def test_resolve_pm_name_single_and_multiple():
+    assert AirtableSync.resolve_pm_name("recoKLD3kbbVnDW2s") == "Inomjon Ibrohimjonov"
+    assert AirtableSync.resolve_pm_name("recPi9SROzJNK8SX7") == "Hasanboy Gaziyev"
+    assert AirtableSync.resolve_pm_name("reccXjZIGIcRezKgB") == "Baxtiyorjon Gaziyev"
+    assert (
+        AirtableSync.resolve_pm_name("recQr0v0WoemFL2j4", include_role=True)
+        == "Feruzbek Norchayev (Dizayner)"
+    )
+    assert (
+        AirtableSync.resolve_pm_name("recPi9SROzJNK8SX7", include_role=True)
+        == "Hasanboy Gaziyev (PM)"
+    )
+    assert (
+        AirtableSync.resolve_pm_name(["recPi9SROzJNK8SX7", "recQr0v0WoemFL2j4"])
+        == "Hasanboy Gaziyev, Feruzbek Norchayev"
+    )
+    assert (
+        AirtableSync.resolve_pm_name("['recoKLD3kbbVnDW2s']")
+        == "Inomjon Ibrohimjonov"
+    )
+    assert AirtableSync.resolve_pm_name("Inomjon aka") == "Inomjon aka"
+    assert AirtableSync.resolve_pm_name(None) == "Mas'ul belgilanmagan"
+
+
+def test_resolve_pm_handle_single_and_multiple():
+    assert AirtableSync.resolve_pm_handle("reccXjZIGIcRezKgB") == "@Baxtiyorjon_Gaziyev"
+    assert AirtableSync.resolve_pm_handle("recPi9SROzJNK8SX7") == "@jonbranding_pm"
+    assert AirtableSync.resolve_pm_handle("recoKLD3kbbVnDW2s") == "@Inomjon_JonBranding"
+    assert (
+        AirtableSync.resolve_pm_handle(["recPi9SROzJNK8SX7", "recQr0v0WoemFL2j4"])
+        == "@jonbranding_pm, @feruzbek207"
+    )
+    assert (
+        AirtableSync.resolve_pm_handle("['recQr0v0WoemFL2j4']")
+        == "@feruzbek207"
+    )
+    assert AirtableSync.resolve_pm_handle(None) == "@Inomjon_JonBranding"
+

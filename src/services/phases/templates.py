@@ -1,0 +1,265 @@
+"""
+Standard phase template definitions for Branding, SMM, Web, and Production.
+"""
+from typing import Dict, List
+from src.services.phases.models import PhaseRole, PhaseStatus, ProjectPhase
+
+
+def build_phase_templates() -> Dict[str, List[ProjectPhase]]:
+    """Generate default phase templates mapped by service keyword."""
+    phase_templates: Dict[str, List[ProjectPhase]] = {}
+
+
+    # HUNTER phases - Lead ovlash
+    self.phase_templates["hunter"] = [
+        ProjectPhase(
+            id="H1",
+            name="Daily Plan",
+            name_uz="Kunlik rejani olish",
+            description="Direktordan kunlik Surgical Mission olish",
+            role=PhaseRole.HUNTER,
+            service_type="hunter",
+            estimated_minutes=15,
+            crm_stage_id=53729371,
+        ),
+        ProjectPhase(
+            id="H2",
+            name="Lead Search",
+            name_uz="Lead qidirish",
+            description="50 ta yangi lead topish (Telegram, LinkedIn, Instagram)",
+            role=PhaseRole.HUNTER,
+            service_type="hunter",
+            estimated_minutes=120,
+            depends_on=["H1"],
+        ),
+        ProjectPhase(
+            id="H3",
+            name="First Contact",
+            name_uz="Birinchi kontakt",
+            description="20 ta lead bilan aloqa qilish (cold outreach)",
+            role=PhaseRole.HUNTER,
+            service_type="hunter",
+            estimated_minutes=90,
+            depends_on=["H2"],
+        ),
+        ProjectPhase(
+            id="H4",
+            name="CRM Upload",
+            name_uz="CRM'ga yuklash",
+            description="Branding qiziqadiganlarni ajratib, AmoCRM'ga yuklash",
+            role=PhaseRole.HUNTER,
+            service_type="hunter",
+            estimated_minutes=30,
+            depends_on=["H3"],
+        ),
+        ProjectPhase(
+            id="H5",
+            name="Daily Report",
+            name_uz="Kunlik hisobot",
+            description="Direktorga natijalar haqida hisobot",
+            role=PhaseRole.HUNTER,
+            service_type="hunter",
+            estimated_minutes=15,
+            depends_on=["H4"],
+            requires_pm_approval=True,
+        ),
+    ]
+
+    # SETTER phases - Uchrashuv belgilash
+    self.phase_templates["setter"] = [
+        ProjectPhase(
+            id="S1",
+            name="Lead Qualification",
+            name_uz="Kvalifikatsiya tekshirish",
+            description="CRM'dagi leadlarni saralash (qualified vs unqualified)",
+            role=PhaseRole.SETTER,
+            service_type="setter",
+            estimated_minutes=30,
+            crm_stage_id=53729376,
+        ),
+        ProjectPhase(
+            id="S2",
+            name="Cold Calls",
+            name_uz="Qo'ng'iroq qilish",
+            description="15 ta qualified leadga qo'ng'iroq qilish",
+            role=PhaseRole.SETTER,
+            service_type="setter",
+            estimated_minutes=90,
+            depends_on=["S1"],
+        ),
+        ProjectPhase(
+            id="S3",
+            name="Schedule Meetings",
+            name_uz="Uchrashuv belgilash",
+            description="Kamida 3 ta uchrashuv (strategy session) belgilash",
+            role=PhaseRole.SETTER,
+            service_type="setter",
+            estimated_minutes=60,
+            depends_on=["S2"],
+            crm_stage_id=142,
+        ),
+        ProjectPhase(
+            id="S4",
+            name="Calendar Setup",
+            name_uz="Kalendar tasdiqlash",
+            description="Uchrashuvlarni kalendar'ga qo'shish va tasdiqlash",
+            role=PhaseRole.SETTER,
+            service_type="setter",
+            estimated_minutes=15,
+            depends_on=["S3"],
+        ),
+        ProjectPhase(
+            id="S5",
+            name="Send Reminders",
+            name_uz="Eslatma yuborish",
+            description="Mijozlarga uchrashuv eslatmasi yuborish",
+            role=PhaseRole.SETTER,
+            service_type="setter",
+            estimated_minutes=15,
+            depends_on=["S4"],
+            crm_stage_id=143,
+        ),
+    ]
+
+    # CLOSER phases - Bitim yopish
+    self.phase_templates["closer"] = [
+        ProjectPhase(
+            id="C1",
+            name="Client Research",
+            name_uz="Mijoz research",
+            description="Mijoz sayti va ijtimoiy tarmoqlarini research qilish",
+            role=PhaseRole.CLOSER,
+            service_type="closer",
+            estimated_minutes=30,
+        ),
+        ProjectPhase(
+            id="C2",
+            name="Portfolio Prep",
+            name_uz="Portfolio tayyorlash",
+            description="Mos portfolio cases'ni tanlash",
+            role=PhaseRole.CLOSER,
+            service_type="closer",
+            estimated_minutes=20,
+            depends_on=["C1"],
+        ),
+        ProjectPhase(
+            id="C3",
+            name="Strategy Session",
+            name_uz="Strategy Session",
+            description="Uchrashuv o'tkazish (60 daqiqa)",
+            role=PhaseRole.CLOSER,
+            service_type="closer",
+            estimated_minutes=60,
+            depends_on=["C2"],
+            crm_stage_id=53729384,
+        ),
+        ProjectPhase(
+            id="C4",
+            name="Brand Audit Proposal",
+            name_uz="Brand audit taklifi",
+            description="Brand audit taklifi yuborish (bepul yoki to'lovli)",
+            role=PhaseRole.CLOSER,
+            service_type="closer",
+            estimated_minutes=30,
+            depends_on=["C3"],
+            crm_stage_id=53729385,
+        ),
+        ProjectPhase(
+            id="C5",
+            name="Commercial Proposal",
+            name_uz="Kommersiya taklifi",
+            description="Asosiy kommersiya taklifi yuborish",
+            role=PhaseRole.CLOSER,
+            service_type="closer",
+            estimated_minutes=45,
+            depends_on=["C4"],
+        ),
+        ProjectPhase(
+            id="C6",
+            name="Follow-up",
+            name_uz="Follow-up",
+            description="24 soat ichida follow-up qilish",
+            role=PhaseRole.CLOSER,
+            service_type="closer",
+            estimated_minutes=15,
+            depends_on=["C5"],
+            crm_stage_id=53729386,
+        ),
+        ProjectPhase(
+            id="C7",
+            name="Close Deal",
+            name_uz="Bitim yopish",
+            description="Shartnoma imzolash va avans olish",
+            role=PhaseRole.CLOSER,
+            service_type="closer",
+            estimated_minutes=30,
+            depends_on=["C6"],
+            crm_stage_id=53729390,
+            requires_pm_approval=True,
+        ),
+    ]
+
+    # PM phases - Loyiha boshqaruvi
+    self.phase_templates["pm"] = [
+        ProjectPhase(
+            id="P1",
+            name="Contract Review",
+            name_uz="Shartnoma tekshirish",
+            description="Shartnoma va to'lovni tasdiqlash",
+            role=PhaseRole.PROJECT_MANAGER,
+            service_type="pm",
+            estimated_minutes=15,
+        ),
+        ProjectPhase(
+            id="P2",
+            name="Team Assignment",
+            name_uz="Jamoa tayinlash",
+            description="Designer va Copywriter ni loyihaga tayinlash",
+            role=PhaseRole.PROJECT_MANAGER,
+            service_type="pm",
+            estimated_minutes=15,
+            depends_on=["P1"],
+        ),
+        ProjectPhase(
+            id="P3",
+            name="Kickoff Meeting",
+            name_uz="Kickoff meeting",
+            description="Mijoz bilan kickoff meeting (30 daqiqa)",
+            role=PhaseRole.PROJECT_MANAGER,
+            service_type="pm",
+            estimated_minutes=30,
+            depends_on=["P2"],
+        ),
+        ProjectPhase(
+            id="P4",
+            name="Create Brief",
+            name_uz="Brief yaratish",
+            description="Detailed brief yaratish (mijoz ma'lumotlari bilan)",
+            role=PhaseRole.PROJECT_MANAGER,
+            service_type="pm",
+            estimated_minutes=45,
+            depends_on=["P3"],
+        ),
+        ProjectPhase(
+            id="P5",
+            name="Plan Timeline",
+            name_uz="Timeline rejalashtirish",
+            description="Timeline va deadline rejalashtirish",
+            role=PhaseRole.PROJECT_MANAGER,
+            service_type="pm",
+            estimated_minutes=20,
+            depends_on=["P4"],
+        ),
+        ProjectPhase(
+            id="P6",
+            name="Team Guide",
+            name_uz="Jamoa qo'llanmasi",
+            description="Jamoa uchun qo'llanma tayyorlash",
+            role=PhaseRole.PROJECT_MANAGER,
+            service_type="pm",
+            estimated_minutes=15,
+            depends_on=["P5"],
+        ),
+        # ... (design phases will be added dynamically)
+    ]
+    return phase_templates

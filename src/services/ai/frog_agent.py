@@ -17,7 +17,14 @@ class TaskPriorityAnalysis(BaseModel):
 
 class FrogAgent:
     def __init__(self, api_key: str = None):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            try:
+                from src.settings import settings
+                self.api_key = settings.GEMINI_API_KEY.get_secret_value() or os.getenv("GEMINI_API_KEY")
+            except Exception:
+                self.api_key = os.getenv("GEMINI_API_KEY")
+        else:
+            self.api_key = api_key
         self.client = genai.Client(api_key=self.api_key)
         
     async def identify_frog(self, tasks: List[Dict[str, Any]]) -> TaskPriorityAnalysis:
