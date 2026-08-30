@@ -11,6 +11,17 @@ from src.services.core.tool_adapters import send_group_message_with_fallback
 logger = logging.getLogger(__name__)
 
 
+def _parse_pipe_fields(raw: str) -> dict:
+    """Parses a `key=value|key2=value2` tag body into a dict."""
+    data = {}
+    for part in str(raw or "").split("|"):
+        if "=" in part:
+            k_v = part.split("=", 1)
+            if len(k_v) == 2:
+                data[k_v[0].strip()] = k_v[1].strip()
+    return data
+
+
 class ActionParser:
     """Parses and executes [TAG:...] actions from AI responses."""
 
@@ -47,32 +58,43 @@ class ActionParser:
     ) -> str:
         """Parses all tags and executes their specific side-effects. Returns cleaned text."""
 
-        # 1. Lead Quality Analysis
-        lead_quality = None
-        lead_match = re.search(
-            r"\[LEAD_REPORT:\s*QUALITY\s*=\s*(.*?)\]", reply_text, re.IGNORECASE
+        reply_text = self._handle_lead_report(reply_text)
+        reply_text = self._handle_contact_info(reply_text)
+        reply_text = self._handle_save_info(reply_text, sender_id, sender_name, username)
+        reply_text = await self._handle_calendar_event(
+            reply_text, sender_id, sender_name, username, context
         )
-        if lead_match:
-            lead_quality = str(lead_match.group(1)).strip().lower()
+        reply_text = await self._handle_sell_stars(reply_text, sender_id, context)
+        reply_text = await self._handle_generate_invoice(
+            reply_text, sender_id, sender_name, is_business, msg_business_connection_id, context
+        )
+        reply_text = self._handle_amo_lead(
+            reply_text, sender_name, saved_phone, context
+        )
+        reply_text = self._handle_sync_leads(reply_text)
+        reply_text = await self._handle_task(reply_text, sender_id)
 
-        closing_phrase = "Baxtiyorjon tez orada siz bilan bog'lanadi"
-        if closing_phrase in reply_text and not lead_quality:
-            lead_quality = "sifatli"
+        # Final Clean-up
+        reply_text = re.sub(
+            r"\[LEAD_REPORT:.*?\]", "", reply_text, flags=re.IGNORECASE
+        ).strip()
+        reply_text = re.sub(r"\n{3,}", "\n\n", reply_text).strip()
 
-        # 2. CONTACT_INFO
+        return reply_text
+
+    def _handle_lead_report(self, reply_text: str) -> str:
+        """1. Lead Quality Analysis — currently a no-op parse (quality itself is unused
+        downstream; the tag is stripped in the final clean-up), kept for compatibility."""
+        return reply_text
+
+    def _handle_contact_info(self, reply_text: str) -> str:
+        """2. CONTACT_INFO"""
         contact_match = re.search(
             r"\[CONTACT_INFO:\s*(.*?)\]", reply_text, re.IGNORECASE
         )
         if contact_match:
             try:
-                contact_raw = str(contact_match.group(1) or "")
-                c_data = {}
-                for part in contact_raw.split("|"):
-                    if "=" in part:
-                        k_v = part.split("=", 1)
-                        if len(k_v) == 2:
-                            c_data[k_v[0].strip()] = k_v[1].strip()
-
+                c_data = _parse_pipe_fields(contact_match.group(1))
                 if c_data.get("name") or c_data.get("phone"):
                     self.gcontacts.create_contact(
                         first_name=c_data.get("name", "Noma'lum"),
@@ -82,8 +104,12 @@ class ActionParser:
             except Exception as ce:
                 logger.error(f"[ACTION_PARSER] Contact parsing error: {ce}")
             reply_text = re.sub(r"\[CONTACT_INFO:.*?\]", "", reply_text).strip()
+        return reply_text
 
-        # 3. SAVE_INFO
+    def _handle_save_info(
+        self, reply_text: str, sender_id: int, sender_name: str, username: str
+    ) -> str:
+        """3. SAVE_INFO"""
         save_info_matches = re.finditer(
             r"\[SAVE_INFO:\s*(.*?)\]", reply_text, re.IGNORECASE
         )
@@ -108,32 +134,32 @@ class ActionParser:
             reply_text = re.sub(
                 r"\[SAVE_INFO:.*?\]", "", reply_text, flags=re.IGNORECASE
             ).strip()
+        return reply_text
 
-        # 4. CALENDAR_EVENT
+    async def _handle_calendar_event(
+        self, reply_text: str, sender_id: int, sender_name: str, username: str, context
+    ) -> str:
+        """4. CALENDAR_EVENT"""
         calendar_match = re.search(
             r"\[CALENDAR_EVENT:\s*(.*?)\]", reply_text, re.IGNORECASE
         )
         if calendar_match:
             try:
-                cal_raw = str(calendar_match.group(1) or "")
-                cal_data = {}
-                for part in cal_raw.split("|"):
-                    if "=" in part:
-                        k_v = part.split("=", 1)
-                        if len(k_v) == 2:
-                            cal_data[k_v[0].strip()] = k_v[1].strip()
+                cal_data = _parse_pipe_fields(calendar_match.group(1))
 
                 if cal_data.get("summary") and cal_data.get("start"):
                     start_str = cal_data.get("start")
                     end_str = cal_data.get("end")
                     if not end_str:
                         try:
-                            import datetime as dt_mod
-
-                            start_dt = dt_mod.datetime.fromisoformat(str(start_str))
-                            end_str = (start_dt + dt_mod.timedelta(hours=1)).isoformat()
-                        except:
-                            logger.error("Exception handled in %s", __name__, exc_info=True)
+                            start_dt = datetime.datetime.fromisoformat(str(start_str))
+                            end_str = (
+                                start_dt + datetime.timedelta(hours=1)
+                            ).isoformat()
+                        except Exception:
+                            logger.error(
+                                "Exception handled in %s", __name__, exc_info=True
+                            )
                             end_str = start_str
 
                     self.gcalendar.create_event(
@@ -167,18 +193,14 @@ class ActionParser:
             except Exception as e:
                 logger.error(f"[ACTION_PARSER] Calendar parsing error: {e}")
             reply_text = re.sub(r"\[CALENDAR_EVENT:.*?\]", "", reply_text).strip()
+        return reply_text
 
-        # 5. SELL_STARS
+    async def _handle_sell_stars(self, reply_text: str, sender_id: int, context) -> str:
+        """5. SELL_STARS"""
         stars_match = re.search(r"\[SELL_STARS:\s*(.*?)\]", reply_text, re.IGNORECASE)
         if stars_match:
             try:
-                stars_raw = str(stars_match.group(1) or "")
-                s_data = {}
-                for part in stars_raw.split("|"):
-                    if "=" in part:
-                        k_v = part.split("=", 1)
-                        if len(k_v) == 2:
-                            s_data[k_v[0].strip()] = k_v[1].strip()
+                s_data = _parse_pipe_fields(stars_match.group(1))
 
                 p_id = s_data.get("id")
                 p_title = str(s_data.get("title", "Raqamli mahsulot"))
@@ -198,8 +220,18 @@ class ActionParser:
             except Exception as e:
                 logger.error(f"[ACTION_PARSER] Stars parsing error: {e}")
             reply_text = re.sub(r"\[SELL_STARS:.*?\]", "", reply_text).strip()
+        return reply_text
 
-        # 6. GENERATE_INVOICE
+    async def _handle_generate_invoice(
+        self,
+        reply_text: str,
+        sender_id: int,
+        sender_name: str,
+        is_business: bool,
+        msg_business_connection_id: Optional[str],
+        context,
+    ) -> str:
+        """6. GENERATE_INVOICE"""
         invoice_match = re.search(
             r"\[GENERATE_INVOICE:\s*(.*?)\|?(.*?)?\]", reply_text, re.IGNORECASE
         )
@@ -236,57 +268,61 @@ class ActionParser:
             except Exception as e:
                 logger.error(f"[ACTION_PARSER] Invoice parsing error: {e}")
             reply_text = re.sub(r"\[GENERATE_INVOICE:.*?\]", "", reply_text).strip()
+        return reply_text
 
-        # 7. AMO_LEAD (Lead creation/sync)
+    def _handle_amo_lead(
+        self, reply_text: str, sender_name: str, saved_phone: str, context
+    ) -> str:
+        """7. AMO_LEAD (Lead creation/sync)"""
         amo_lead_match = re.search(r"\[AMO_LEAD:\s*(.*?)\]", reply_text, re.IGNORECASE)
         if amo_lead_match:
             try:
-                amo_raw = str(amo_lead_match.group(1) or "")
-                amo_data = {}
-                for part in amo_raw.split("|"):
-                    if "=" in part:
-                        k_v = part.split("=", 1)
-                        if len(k_v) == 2:
-                            amo_data[k_v[0].strip().lower()] = k_v[1].strip()
+                amo_data = {
+                    k.lower(): v
+                    for k, v in _parse_pipe_fields(amo_lead_match.group(1)).items()
+                }
 
                 lead_name = amo_data.get("name") or sender_name
                 lead_phone = amo_data.get("phone") or saved_phone
                 lead_note = amo_data.get("note", "Telegram orqali avtomatik lead")
 
                 if lead_phone and lead_phone != "Raqam yo'q":
-                    # Run lead creation in background
-                    async def run_amo_sync():
-                        l_id = await self.amocrm.ensure_lead(
-                            lead_name, lead_phone, lead_note
-                        )
-                        if l_id and self.config.CRM_GROUP_ID:
-                            # Notify CRM Group
-                            crm_msg = (
-                                f"🔥 <b>YANGI LEAD AMOCRM-GA TUSHDI!</b>\n"
-                                f"━━━━━━━━━━━━━━━━━━━━\n"
-                                f"👤 <b>Mijoz:</b> {lead_name}\n"
-                                f"📞 <b>Tel:</b> <code>{lead_phone}</code>\n"
-                                f"📝 <b>Izoh:</b> {lead_note}\n"
-                                f"🔗 <a href='https://{self.config.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{l_id}'>Bitimni ko'rish</a>"
-                            )
-                            await send_group_message_with_fallback(
-                                context.bot,
-                                chat_id=self.config.CRM_GROUP_ID,
-                                text=crm_msg,
-                                parse_mode="HTML",
-                                thread_id=getattr(self.config, "TOPIC_CRM_ID", None)
-                                or getattr(self.config, "CRM_TOPIC_ID", None),
-                                allow_userbot_fallback=False,
-                            )
-
-                    asyncio.create_task(run_amo_sync())
+                    asyncio.create_task(
+                        self._run_amo_sync(lead_name, lead_phone, lead_note, context)
+                    )
             except Exception as e:
                 logger.error(f"[ACTION_PARSER] AMO_LEAD parsing error: {e}")
             reply_text = re.sub(
                 r"\[AMO_LEAD:.*?\]", "", reply_text, flags=re.IGNORECASE
             ).strip()
+        return reply_text
 
-        # 8. SYNC_LEADS
+    async def _run_amo_sync(
+        self, lead_name: str, lead_phone: str, lead_note: str, context
+    ) -> None:
+        """Background task: create/sync the AmoCRM lead and notify the CRM group."""
+        l_id = await self.amocrm.ensure_lead(lead_name, lead_phone, lead_note)
+        if l_id and self.config.CRM_GROUP_ID:
+            crm_msg = (
+                f"🔥 <b>YANGI LEAD AMOCRM-GA TUSHDI!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 <b>Mijoz:</b> {lead_name}\n"
+                f"📞 <b>Tel:</b> <code>{lead_phone}</code>\n"
+                f"📝 <b>Izoh:</b> {lead_note}\n"
+                f"🔗 <a href='https://{self.config.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{l_id}'>Bitimni ko'rish</a>"
+            )
+            await send_group_message_with_fallback(
+                context.bot,
+                chat_id=self.config.CRM_GROUP_ID,
+                text=crm_msg,
+                parse_mode="HTML",
+                thread_id=getattr(self.config, "TOPIC_CRM_ID", None)
+                or getattr(self.config, "CRM_TOPIC_ID", None),
+                allow_userbot_fallback=False,
+            )
+
+    def _handle_sync_leads(self, reply_text: str) -> str:
+        """8. SYNC_LEADS"""
         sync_match = re.search(
             r"\[SYNC_LEADS:\s*topic=(\d+)\|?(limit=(\d+))?\]", reply_text, re.IGNORECASE
         )
@@ -310,18 +346,17 @@ class ActionParser:
             except Exception as e:
                 logger.error(f"[ACTION_PARSER] Sync leads error: {e}")
             reply_text = re.sub(r"\[SYNC_LEADS:.*?\]", "", reply_text).strip()
+        return reply_text
 
-        # 9. TASK (Autonomous task creation)
+    async def _handle_task(self, reply_text: str, sender_id: int) -> str:
+        """9. TASK (Autonomous task creation)"""
         task_match = re.search(r"\[TASK:\s*(.*?)\]", reply_text, re.IGNORECASE)
         if task_match:
             try:
-                task_raw = str(task_match.group(1) or "")
-                task_data = {}
-                for part in task_raw.split("|"):
-                    if "=" in part:
-                        k_v = part.split("=", 1)
-                        if len(k_v) == 2:
-                            task_data[k_v[0].strip().lower()] = k_v[1].strip()
+                task_data = {
+                    k.lower(): v
+                    for k, v in _parse_pipe_fields(task_match.group(1)).items()
+                }
 
                 title = task_data.get("title")
                 desc = task_data.get("desc") or task_data.get("description", "")
@@ -329,12 +364,6 @@ class ActionParser:
                 deadline = task_data.get("deadline")
 
                 if title:
-                    # Resolve assigned_to (could be username or mention)
-                    if assigned_to:
-                        # Simple username to ID resolution pattern
-                        # We might need a database method for this
-                        pass
-
                     conn = await self.db.get_connection()
                     await conn.execute(
                         "INSERT INTO tasks (title, description, assigned_to, deadline, status, created_by, created_at) VALUES (?, ?, ?, ?, 'Pending', ?, ?)",
@@ -354,11 +383,4 @@ class ActionParser:
             reply_text = re.sub(
                 r"\[TASK:.*?\]", "", reply_text, flags=re.IGNORECASE
             ).strip()
-
-        # Final Clean-up
-        reply_text = re.sub(
-            r"\[LEAD_REPORT:.*?\]", "", reply_text, flags=re.IGNORECASE
-        ).strip()
-        reply_text = re.sub(r"\n{3,}", "\n\n", reply_text).strip()
-
         return reply_text

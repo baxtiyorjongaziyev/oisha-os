@@ -300,7 +300,7 @@ class AdminAlertsMixin:
                 analysis_text = await self.msg_controller.db.analyze_text_with_ai(
                     analysis_prompt
                 )
-            except:
+            except Exception:
                 logger.error("Exception handled in %s", __name__, exc_info=True)
                 analysis_text = "⚠️ AI tahlilida texnik xatolik, lekin guruhlardagi faollik aniqlandi."
 
