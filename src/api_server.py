@@ -2,6 +2,11 @@
 Facade for Oisha-OS Enterprise API Server.
 Delegates to modular subpackage in src.services.api_server.
 """
+import logging
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 from src.settings import settings
 from src.api.routes.state import api_state
 from src.services.core.agent_runtime import (
@@ -57,9 +62,36 @@ from src.services.api_server import (
     telegram_extension_history,
     telegram_extension_send,
     telegram_login,
-    telegram_webhook,
     update_api_status,
     verify_oauth_for_mcp,
+    lookup_user_by_phone,
+    get_chat_history,
+    send_chat_message,
+    SendMessageRequest,
+    CreateLeadRequest,
+    oisha_product_suite,
+    get_sales_quality_overview,
+    _build_sales_quality_payload,
+    _build_empty_sales_quality,
+    _safe_json_list,
+    _row_to_dict,
+    _score_to_risk,
+    _format_duration,
+    _avatar,
+    build_health_snapshot,
+    liveness_probe,
+    production_readiness_probe,
+    openclaw_webhook,
+    openclaw_health,
+    v1_models,
+    v1_chat_completions,
+    _run_amocrm_call_backfill,
+    process_amocrm_event,
+    _CALL_BACKFILL_LAST_STARTED_KEY,
+    _CALL_BACKFILL_LAST_FINISHED_KEY,
+    _CALL_BACKFILL_LAST_RESULT_KEY,
+    _CALL_BACKFILL_LAST_ERROR_KEY,
+    AutonomousSalesAgent,
 )
 
 __all__ = [
@@ -117,4 +149,32 @@ __all__ = [
     "_schedule_amocrm_call_backfill",
     "_build_amocrm_call_analysis_status",
     "run_api",
+    "lookup_user_by_phone",
+    "get_chat_history",
+    "send_chat_message",
+    "SendMessageRequest",
+    "CreateLeadRequest",
+    "oisha_product_suite",
+    "get_sales_quality_overview",
+    "_build_sales_quality_payload",
+    "_build_empty_sales_quality",
+    "_safe_json_list",
+    "_row_to_dict",
+    "_score_to_risk",
+    "_format_duration",
+    "_avatar",
+    "build_health_snapshot",
+    "liveness_probe",
+    "production_readiness_probe",
+    "openclaw_webhook",
+    "openclaw_health",
+    "v1_models",
+    "v1_chat_completions",
+    "_run_amocrm_call_backfill",
+    "process_amocrm_event",
+    "_CALL_BACKFILL_LAST_STARTED_KEY",
+    "_CALL_BACKFILL_LAST_FINISHED_KEY",
+    "_CALL_BACKFILL_LAST_RESULT_KEY",
+    "_CALL_BACKFILL_LAST_ERROR_KEY",
+    "AutonomousSalesAgent",
 ]

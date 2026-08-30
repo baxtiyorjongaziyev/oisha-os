@@ -13,6 +13,7 @@ import hmac
 import json
 import logging
 import time
+from email.utils import parsedate_to_datetime
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response
@@ -26,6 +27,10 @@ logger = logging.getLogger("AmoCRMChatsRouter")
 
 router = APIRouter(prefix="/webhook/amocrm/chats", tags=["amocrm_chats"])
 
+_MAX_BODY_BYTES = 64 * 1024
+_MAX_CLOCK_SKEW_SECONDS = 300
+_MAX_TEXT_LENGTH = 4096
+
 
 def _verify_amojo_signature(
     body_bytes: bytes,
@@ -36,22 +41,30 @@ def _verify_amojo_signature(
     path: str = "/webhook/amocrm/chats",
     method: str = "POST",
 ) -> bool:
-    """Verify amoJo HMAC-SHA1 signature if channel_secret is configured."""
+    """Verify an amoJo request without ever accepting an unsigned fallback."""
     if not channel_secret:
-        return True
+        return False
 
-    if not signature_header:
-        logger.warning("[AMOCRM CHAT] Missing X-Signature header.")
+    if not signature_header or not date_header or not content_md5_header:
+        logger.warning("[AMOCRM CHAT] Required signature headers are missing.")
         return False
 
     calculated_md5 = hashlib.md5(body_bytes, usedforsecurity=False).hexdigest().lower()
-    if content_md5_header and content_md5_header.lower() != calculated_md5:
+    if not hmac.compare_digest(content_md5_header.lower(), calculated_md5):
         logger.warning("[AMOCRM CHAT] Content-MD5 mismatch.")
         return False
 
-    date_str = date_header or ""
+    try:
+        request_time = parsedate_to_datetime(date_header).timestamp()
+    except (TypeError, ValueError, OverflowError):
+        logger.warning("[AMOCRM CHAT] Invalid Date header.")
+        return False
+    if abs(time.time() - request_time) > _MAX_CLOCK_SKEW_SECONDS:
+        logger.warning("[AMOCRM CHAT] Stale Date header.")
+        return False
+
     content_type = "application/json"
-    signature_string = f"{method}\n{calculated_md5}\n{content_type}\n{date_str}\n{path}"
+    signature_string = f"{method}\n{calculated_md5}\n{content_type}\n{date_header}\n{path}"
 
     expected_sig = hmac.new(
         channel_secret.encode("utf-8"),
@@ -75,28 +88,46 @@ async def handle_amocrm_chat_outbound(
     Dispatches the message to Telegram/WhatsApp.
     """
     body_bytes = await request.body()
-    channel_secret = (
-        getattr(settings, "AMOCRM_CHAT_CHANNEL_SECRET", "")
-        or getattr(settings, "AMOCRM_CLIENT_SECRET", "")
-    )
+    if len(body_bytes) > _MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="Payload too large")
+
+    channel_secret = getattr(settings, "AMOCRM_CHAT_CHANNEL_SECRET", "")
     if hasattr(channel_secret, "get_secret_value"):
         channel_secret = channel_secret.get_secret_value()
     channel_secret = str(channel_secret or "")
 
+    if not channel_secret:
+        logger.error("[AMOCRM CHAT] AMOCRM_CHAT_CHANNEL_SECRET is not configured.")
+        raise HTTPException(status_code=503, detail="Chat webhook is not configured")
+    if not _verify_amojo_signature(
+        body_bytes,
+        x_signature,
+        date,
+        content_md5,
+        channel_secret,
+    ):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
     # Parse payload
     try:
         data = json.loads(body_bytes.decode("utf-8"))
-    except Exception as e:
-        logger.error(f"[AMOCRM CHAT] Invalid JSON payload: {e}")
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        logger.warning("[AMOCRM CHAT] Invalid JSON payload.")
         return JSONResponse(status_code=400, content={"error": "invalid_json"})
 
-    logger.info(f"[AMOCRM CHAT] Received outbound message from amoCRM: {data}")
+    if not isinstance(data, dict):
+        return JSONResponse(status_code=400, content={"error": "invalid_payload"})
 
     message = data.get("message", {})
     text = message.get("text", "")
-    msg_type = message.get("type", "text")
+    if not isinstance(message, dict) or not isinstance(text, str):
+        return JSONResponse(status_code=400, content={"error": "invalid_message"})
+    if not text or len(text) > _MAX_TEXT_LENGTH:
+        return JSONResponse(status_code=400, content={"error": "invalid_text"})
     receiver = message.get("receiver", {})
     conversation = message.get("conversation", {})
+    if not isinstance(receiver, dict) or not isinstance(conversation, dict):
+        return JSONResponse(status_code=400, content={"error": "invalid_recipient"})
     client_id = conversation.get("client_id") or receiver.get("id")
 
     if not client_id:
@@ -105,19 +136,25 @@ async def handle_amocrm_chat_outbound(
 
     # Send to Telegram via BotRuntime
     bot_runtime = getattr(app_ctx, "bot_runtime", None)
+    if not bot_runtime:
+        raise HTTPException(status_code=503, detail="Message runtime unavailable")
     if bot_runtime and text:
         try:
             tg_user_id = int(client_id)
+            if tg_user_id <= 0:
+                raise ValueError("Telegram user id must be positive")
             await bot_runtime.send_message(
                 chat_id=tg_user_id,
                 text=text,
-                parse_mode="HTML",
+                parse_mode=None,
             )
-            logger.info(f"[AMOCRM CHAT] Successfully dispatched message to Telegram user {tg_user_id}")
+            logger.info("[AMOCRM CHAT] Dispatched signed outbound message.")
             return JSONResponse(content={"status": "ok", "msg_id": message.get("msg_id")})
         except ValueError:
-            logger.warning(f"[AMOCRM CHAT] Client ID {client_id} is not numeric Telegram user_id. Phone/WhatsApp routing.")
+            logger.warning("[AMOCRM CHAT] Recipient is not a valid Telegram user id.")
+            return JSONResponse(status_code=400, content={"error": "invalid_recipient"})
         except Exception as e:
-            logger.error(f"[AMOCRM CHAT] Failed to dispatch message to Telegram: {e}")
+            logger.error("[AMOCRM CHAT] Dispatch failed: %s", type(e).__name__)
+            raise HTTPException(status_code=502, detail="Message dispatch failed") from None
 
-    return JSONResponse(content={"status": "ok"})
+    raise HTTPException(status_code=500, detail="Unexpected chat dispatch state")

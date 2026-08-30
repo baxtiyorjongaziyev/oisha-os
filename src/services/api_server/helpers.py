@@ -19,16 +19,25 @@ async def _maybe_await(val: Any) -> Any:
     return val
 
 
-def _setting_text(key: str, default: str = "") -> str:
-    val = getattr(settings, key, default)
+def _setting_text(key_or_val: Any, default: str = "") -> str:
+    if isinstance(key_or_val, str) and hasattr(settings, key_or_val):
+        val = getattr(settings, key_or_val, default)
+    else:
+        val = key_or_val
     if val is None:
         return default
+    if hasattr(val, "get_secret_value"):
+        try:
+            return str(val.get_secret_value()).strip()
+        except Exception:
+            pass
     val_str = str(val).strip()
     return val_str if val_str else default
 
 
-def _secret_setting_text(key: str, default: str = "") -> str:
-    return _setting_text(key, default)
+def _secret_setting_text(key_or_val: Any, default: str = "") -> str:
+    return _setting_text(key_or_val, default)
+
 
 
 def set_telegram_ai_ingress_status(enabled: bool, reason: str = "") -> None:
@@ -97,19 +106,36 @@ def _parse_state_json(state_str: Optional[str]) -> Dict[str, Any]:
 
 def _get_cron_secret_value() -> str:
     return (
-        getattr(settings, "CRON_SECRET", "")
+        getattr(settings, "AMOCRM_CRON_SECRET", "")
+        or getattr(settings, "CRON_SECRET", "")
         or getattr(settings, "OISHA_API_SECRET", "")
         or ""
     ).strip()
 
 
-def _is_authorized_cron_request(provided: Optional[str]) -> bool:
+def _is_authorized_cron_request(provided: Any) -> bool:
     secret = _get_cron_secret_value()
     if not secret:
         return True
     if not provided:
         return False
-    return hmac.compare_digest(provided.strip(), secret)
+    
+    token = None
+    if isinstance(provided, str):
+        token = provided.strip()
+    elif hasattr(provided, "headers"):
+        auth_header = provided.headers.get("Authorization") or provided.headers.get("authorization") or ""
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+        elif auth_header:
+            token = auth_header.strip()
+        if not token and hasattr(provided, "query_params"):
+            token = provided.query_params.get("secret")
+    
+    if not token:
+        return False
+    return hmac.compare_digest(token, secret)
+
 
 
 def _get_call_backfill_limit(request_limit: Optional[int] = None) -> int:

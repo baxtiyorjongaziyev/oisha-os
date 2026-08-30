@@ -1,4 +1,4 @@
-﻿"""
+"""
 Facade for AmoCRMSync.
 Delegates to modular implementations in src.services.core.crm.amocrm.
 """

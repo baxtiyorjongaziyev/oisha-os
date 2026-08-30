@@ -16,31 +16,14 @@ from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.stt_service import STTService
 from src.services.core.call_events import CallEventLog
 from src.services.core.call_analyses_schema import ensure_call_analysis_schema
-from src.services.core.sales_playbook import (
-    IDEAL_CLIENT_TALK_PCT,
-    MAX_ACCEPTABLE_PAUSE_SECONDS,
-    OUTCOME_LABELS_UZ,
-    OUTCOME_UNKNOWN,
-    STAGE_WEIGHTS,
-    normalise_outcome,
-    outcome_converted,
-    outcome_prompt_uz,
-    rubric_prompt_uz,
-)
-from src.services.utils.transcript import (
-    detect_pauses,
-    format_timestamp,
-    has_timestamps,
-    speaker_split,
-    strip_timestamps,
-    talk_ratio_verdict,
-)
-from src.time_utils import get_local_now, get_local_timezone
 from src.services.call_analytics.helpers import *
 
 logger = structlog.get_logger()
 
-class CallRunnerMixin:
+from src.services.call_analytics.note_extractor import NoteExtractorMixin
+
+
+class CallRunnerMixin(NoteExtractorMixin):
     def __init__(
         self,
         amocrm: AmoCRMSync,
@@ -400,76 +383,3 @@ class CallRunnerMixin:
             await asyncio.sleep(0.5)
 
         return processed
-
-    @staticmethod
-    def _lead_has_analysis(notes: List[Dict[str, Any]]) -> bool:
-        return any(ANALYSIS_MARKER in str((note.get("params") or {}).get("text") or "") for note in notes)
-
-    @staticmethod
-    def _note_has_analysis_for_call(notes: List[Dict[str, Any]], call_id: str) -> bool:
-        if not call_id:
-            return False
-        return any(
-            ANALYSIS_MARKER in str((note.get("params") or {}).get("text") or "")
-            and f"Call ID: {call_id}" in str((note.get("params") or {}).get("text") or "")
-            for note in notes
-        )
-
-    def _looks_like_call_note(self, note: Dict[str, Any]) -> bool:
-        note_type = str(note.get("note_type") or "").lower()
-        if note_type in _CALL_NOTE_TYPES:
-            return True
-        return self._find_audio_url(note.get("params") or {}, strict=True) is not None
-
-    def _extract_call_id(self, note: Dict[str, Any], lead_id: int, audio_url: str) -> str:
-        params = note.get("params") or {}
-        for key in ("uniq", "call_id", "record_id", "recording_id", "phone_call_id"):
-            value = params.get(key) if isinstance(params, dict) else None
-            if value:
-                return str(value)
-        if note.get("id"):
-            return str(note["id"])
-        digest = hashlib.sha1(
-            f"{lead_id}:{audio_url}".encode("utf-8"),
-            usedforsecurity=False,
-        ).hexdigest()[:16]
-        return f"lead-{lead_id}-{digest}"
-
-    @staticmethod
-    def _extract_call_duration_seconds(note: Dict[str, Any]) -> int:
-        params = note.get("params") or {}
-        if not isinstance(params, dict):
-            return 0
-        for key in ("duration", "duration_seconds", "duration_sec", "call_duration"):
-            value = params.get(key)
-            if value is None:
-                continue
-            try:
-                return max(0, int(float(value)))
-            except (TypeError, ValueError):
-                continue
-        return 0
-
-    def _extract_phone_from_note(self, note: Dict[str, Any]) -> str:
-        params = note.get("params") or {}
-        if not isinstance(params, dict):
-            return ""
-        for key in ("phone", "caller_phone", "source_phone", "from", "to"):
-            value = params.get(key)
-            if value:
-                return str(value)
-        return ""
-
-    @staticmethod
-    def _extract_lead_phone(lead: Dict[str, Any]) -> str:
-        try:
-            contacts = lead.get("_embedded", {}).get("contacts", []) or lead.get("contacts", [])
-            for contact in contacts:
-                for field in contact.get("custom_fields_values") or []:
-                    if str(field.get("field_code", "")).upper() == "PHONE":
-                        values = field.get("values") or []
-                        if values:
-                            return str(values[0].get("value", ""))
-        except Exception as exc:
-            logger.error("[CALL] Failed to extract lead phone: %s", exc)
-        return ""
