@@ -1,177 +1,47 @@
+"""
+Proactive stagnation worker for AmoCRM and Airtable projects.
+"""
+from __future__ import annotations
+
 import datetime
-import os
 import json
 import logging
+import os
 from typing import Any, Dict, List, Optional
+
 from aiogram import Bot
-from src.time_utils import get_local_now
+from src import config
 from src.database import Database
+from src.services.core.agent_loop import AgentTask
 from src.services.core.airtable_sync import AirtableSync
 from src.services.core.tool_adapters import (
     build_default_tool_registry,
     send_group_message_with_fallback,
 )
-from src.services.core.agent_loop import AgentTask
+from src.services.proactive.airtable_deadlines import (
+    _DEADLINE_CLAIM_DIR,
+    _claim_on_disk,
+    _deadline_sent_keys,
+    _prune_stale_claims,
+    _release_on_disk,
+    _resolve,
+    check_airtable_deadlines,
+)
 from src.services.proactive.formatters import (
-    _safe_text,
-    _mention,
-    _lead_idle_hours,
     _format_idle_text,
+    _lead_idle_hours,
+    _mention,
+    _project_age_days,
+    _project_stage_recommendation,
+    _run_notification_agent,
+    _safe_text,
     _sales_action_for_lead,
     _sales_manager_playbook,
-    _project_stage_recommendation,
-    _project_age_days,
-    _run_notification_agent,
 )
 from src.services.proactive.reminders import _execute_telegram_notification
-from src import config
+from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
-
-_deadline_sent_keys: set = set()
-_DEADLINE_CLAIM_DIR = "data/job_claims"
-
-def _resolve(attr_name, default_val):
-    import sys
-    pw = sys.modules.get("src.services.core.proactive_worker")
-    if pw is not None:
-        return getattr(pw, attr_name, default_val)
-    return default_val
-
-
-def _prune_stale_claims(max_age_days: int = 2) -> None:
-    """Eski lock fayllarni tozalash — katalog cheksiz o'smasligi uchun."""
-    import time
-
-    claim_dir = _resolve("_DEADLINE_CLAIM_DIR", _DEADLINE_CLAIM_DIR)
-    cutoff = time.time() - max_age_days * 86400
-    try:
-        for name in os.listdir(claim_dir):
-            path = os.path.join(claim_dir, name)
-            if os.path.getmtime(path) < cutoff:
-                os.remove(path)
-    except OSError:
-        return
-
-
-def _claim_on_disk(claim_key: str) -> bool:
-    """Hostda atomik claim: O_CREAT|O_EXCL faqat bitta process'ga tegadi."""
-    claim_dir = _resolve("_DEADLINE_CLAIM_DIR", _DEADLINE_CLAIM_DIR)
-    try:
-        os.makedirs(claim_dir, exist_ok=True)
-        _prune_stale_claims()
-        path = os.path.join(claim_dir, f"{claim_key}.lock")
-        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        os.close(fd)
-        return True
-    except FileExistsError:
-        return False
-    except OSError as e:
-        logger.warning(f"[PROACTIVE] Disk claim failed: {e}")
-        return True
-
-
-def _release_on_disk(claim_key: str) -> None:
-    claim_dir = _resolve("_DEADLINE_CLAIM_DIR", _DEADLINE_CLAIM_DIR)
-    try:
-        os.remove(os.path.join(claim_dir, f"{claim_key}.lock"))
-    except FileNotFoundError:
-        return
-    except OSError:
-        logger.error("Exception handled in %s", __name__, exc_info=True)
-
-
-async def check_airtable_deadlines(bot_client=None):
-    from src.services.core.airtable_sync import AirtableSync
-    import src.config as config
-
-    now_fn = _resolve("get_local_now", get_local_now)
-    now = now_fn()
-    today = now.strftime("%Y-%m-%d")
-    target_hours = [10, 15]
-
-    if now.hour not in target_hours or now.minute > 10:
-        return
-
-    job_key = f"airtable_deadline_alert_{now.hour}"
-    mem_key = f"{job_key}_{today}"
-    sent_keys = _resolve("_deadline_sent_keys", _deadline_sent_keys)
-    if mem_key in sent_keys:
-        return
-
-    if not _claim_on_disk(mem_key):
-        sent_keys.add(mem_key)
-        return
-
-    db_cls = _resolve("Database", Database)
-    db = None
-    claimed_in_db = False
-    try:
-        db = db_cls()
-        claimed_in_db = await db.claim_job_run(job_key, today)
-        if not claimed_in_db:
-            sent_keys.add(mem_key)
-            return
-    except Exception as e:
-        logger.warning(f"[PROACTIVE] DB claim failed: {e}")
-        db = None
-
-    sent_keys.add(mem_key)
-    logger.info("Project deadline check started...")
-
-    async def _release() -> None:
-        sent_keys.discard(mem_key)
-        _release_on_disk(mem_key)
-        if db is not None and claimed_in_db:
-            try:
-                await db.release_job_run(job_key, today)
-            except Exception:
-                logger.error("Exception handled in %s", __name__, exc_info=True)
-
-    try:
-        sync = AirtableSync()
-        upcoming = sync.get_upcoming_deadlines(hours=24)
-    except Exception as e:
-        logger.error(f"[PROACTIVE] Airtable fetch failed: {e}")
-        await _release()
-        return
-
-    if not upcoming:
-        return
-
-    bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-    group_id = getattr(config, "PROJECTS_GROUP_ID", None)
-    thread_id = getattr(config, "PROJECTS_TOPIC_ID", None) or getattr(config, "TOPIC_TASKS_ID", None)
-    if not (bot_token and group_id):
-        await _release()
-        return
-
-    bot_cls = _resolve("Bot", Bot)
-    bot = bot_cls(token=bot_token)
-
-    msg = "🚨 **URGENT PROJECT DEADLINE (24h)**\n\nQuyidagi topshiriqlar muddati tugashiga 1 kun qoldi:\n"
-    for p in upcoming[:5]:
-        fields = p.get("fields", {})
-        p_name = AirtableSync._get_field(fields, "project_name") or "Nomsiz"
-        stage = AirtableSync._get_field(fields, "stage") or "—"
-        deadline = AirtableSync._get_field(fields, "deadline") or "—"
-        msg += f"- {p_name} (Bosqich: {stage}, Muddat: {deadline})\n"
-
-    try:
-        send_fn = _resolve("send_group_message_with_fallback", send_group_message_with_fallback)
-        await send_fn(
-            bot,
-            chat_id=group_id,
-            text=msg,
-            thread_id=thread_id,
-            parse_mode="Markdown",
-            allow_userbot_fallback=False,
-        )
-        logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
-    except Exception as e:
-        logger.error(f"[XATO] Airtable deadline alert: {e}")
-        await _release()
-
 
 
 async def check_amocrm_stagnation():
@@ -179,10 +49,10 @@ async def check_amocrm_stagnation():
     import src.config as config
     from src.services.core.crm.amocrm_sync import AmoCRMSync
 
-    db_cls = _resolve("Database", Database)
+    db_cls = _resolve('Database', Database)
     db = db_cls()
-    now_fn = _resolve("get_local_now", get_local_now)
-    now = now_fn()
+    get_now_fn = _resolve('get_local_now', get_local_now)
+    now = get_now_fn()
     today = now.strftime("%Y-%m-%d")
     target_hours = [12, 16]
 
@@ -209,8 +79,8 @@ async def check_amocrm_stagnation():
         config.AMOCRM_CLIENT_SECRET,
         config.AMOCRM_REDIRECT_URL,
     )
-    reg_fn = _resolve("build_default_tool_registry", build_default_tool_registry)
-    registry = reg_fn(bot_token=bot_token, amocrm=amo)
+    registry_fn = _resolve('build_default_tool_registry', build_default_tool_registry)
+    registry = registry_fn(bot_token=bot_token, amocrm=amo)
     amocrm_tool = registry.get("amocrm_leads")
     stagnated = await amocrm_tool.fetch_stagnated_leads(hours=24)
     if not stagnated:
@@ -224,7 +94,7 @@ async def check_amocrm_stagnation():
                 "⚠️ <b>AmoCRM ulanishi ishlamayapti</b>\n\n"
                 "Oisha hozir CRMdan leadlarni ishonchli torta olmadi, shuning uchun "
                 "<b>pipeline bo'sh</b> deb xulosa chiqarmaydi.\n"
-                f"Sabab: <code>{str(last_error)}</code>\n\n"
+                f"Sabab: <code>{escape(str(last_error))}</code>\n\n"
                 "Kerakli ish: AmoCRM OAuth'ni qayta avtorizatsiya qiling; token yangilangach "
                 "Oisha qotib qolgan leadlar uchun task/note yaratishni davom ettiradi."
             )
@@ -246,8 +116,7 @@ async def check_amocrm_stagnation():
             )
 
             async def auth_executor(agent_task: AgentTask) -> Dict[str, Any]:
-                exec_fn = _resolve("_execute_telegram_notification", _execute_telegram_notification)
-                return await exec_fn(
+                return await _resolve('_execute_telegram_notification', _execute_telegram_notification)(
                     registry,
                     group_id=group_id,
                     message=message,
@@ -255,8 +124,7 @@ async def check_amocrm_stagnation():
                     disable_web_page_preview=True,
                 )
 
-            run_agent_fn = _resolve("_run_notification_agent", _run_notification_agent)
-            result = await run_agent_fn(db, task, auth_executor)
+            result = await _resolve('_run_notification_agent', _run_notification_agent)(db, task, auth_executor)
             if result.success:
                 await db.mark_job_run(job_key, today)
         return
@@ -271,34 +139,29 @@ async def check_amocrm_stagnation():
     reporter = EnterpriseReporter(db, crm_service)
     message = await reporter.get_stagnant_leads_alert(limit=50)
 
-    # Leadlarni menejer bo'yicha guruhlash
-    by_manager: Dict[int, List[Dict[str, Any]]] = {}
-    for lead in stagnated:
-        m_id = int(lead.get("responsible_user_id") or 0)
-        by_manager.setdefault(m_id, []).append(lead)
-
-    direct_messages = []
-    manager_targets = getattr(config, "SALES_MANAGER_IDS", []) or []
-    for manager_id in manager_targets:
-        m_leads = by_manager.get(manager_id, [])
-        if not m_leads:
-            continue
-        playbook = _sales_manager_playbook(m_leads)
-        dm_text = (
-            f"⚠️ <b>Qotib qolgan leadlar nazorati</b>\n\n"
-            f"Sizda <b>{len(m_leads)} ta</b> lead 24+ soatdan beri harakatsiz.\n"
-            f"🎯 <b>Bugungi algoritm:</b> {playbook}\n\n"
-            "Iltimos, har bir lead bo'yicha statusni yangilang yoki izoh qoldiring."
-        )
-        direct_messages.append({"user_id": manager_id, "message": dm_text})
-
+    if not message:
+        return
+    manager_ids = list(getattr(config, "SALES_MANAGER_IDS", []) or [])
+    direct_messages = [
+        {
+            "user_id": manager_id,
+            "text": (
+                "ðŸš¨ <b>Sales Conversion Push</b>\n"
+                "CRMda qotib qolgan leadlar bo'yicha guruhga report tashlandi.\n"
+                "Bugun har bir lead uchun: 1) kontakt, 2) sabab, 3) next step sanasi yozilsin."
+            ),
+            "parse_mode": "HTML",
+        }
+        for manager_id in manager_ids
+    ]
     task = AgentTask(
         task_id=f"{job_key}:{today}",
-        kind="stagnation_conversion_push",
-        goal="Qotib qolgan leadlar bo'yicha CRM guruhiga push va menejerlarga individual eslatma yuborish",
+        kind="sales_conversion_push",
+        goal="CRMdagi qotib qolgan leadlarni conversionga qaytarish",
         payload={
             "group_id": group_id,
             "thread_id": thread_id,
+            "manager_ids": manager_ids,
             "lead_count": len(stagnated),
             "risk_sum": total_value,
         },
@@ -341,8 +204,7 @@ async def check_amocrm_stagnation():
             note_result = await amocrm_tool.add_lead_note(lead_id, note_text[:1000])
             tool_results.extend([task_result.to_payload(), note_result.to_payload()])
 
-        exec_fn = _resolve("_execute_telegram_notification", _execute_telegram_notification)
-        execution = await exec_fn(
+        execution = await _resolve('_execute_telegram_notification', _execute_telegram_notification)(
             registry,
             group_id=group_id,
             message=message,
@@ -364,8 +226,7 @@ async def check_amocrm_stagnation():
             execution["failed_action_count"] = len(failed_actions)
         return execution
 
-    run_agent_fn = _resolve("_run_notification_agent", _run_notification_agent)
-    result = await run_agent_fn(db, task, executor)
+    result = await _resolve('_run_notification_agent', _run_notification_agent)(db, task, executor)
     if not result.success:
         logger.error(
             f"[STAGNATION] Conversion push delivery failed: {result.verification}"
@@ -373,10 +234,9 @@ async def check_amocrm_stagnation():
         return
 
     await db.mark_job_run(job_key, today)
-    logger.info(
-        f"[STAGNATION] Conversion push yuborildi: {len(stagnated)} ta lead, "
-        f"jami qiymat: {total_value:,.0f} UZS"
-    )
+    logger.info(f"[STAGNATION] Conversion push sent for hour {now.hour}.")
+
+
 
 async def check_airtable_stagnation():
     """Qimirlamay qolgan loyihalarni topib, PMga keyingi stage bo'yicha push yuborish."""
@@ -384,8 +244,10 @@ async def check_airtable_stagnation():
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
     import src.config as config
 
-    db = Database()
-    now = get_local_now()
+    db_cls = _resolve('Database', Database)
+    db = db_cls()
+    get_now_fn = _resolve('get_local_now', get_local_now)
+    now = get_now_fn()
     today = now.strftime("%Y-%m-%d")
     target_hours = [11, 15, 18]
 
@@ -411,7 +273,8 @@ async def check_airtable_stagnation():
         return
 
     sync = AirtableSync()
-    registry = build_default_tool_registry(bot_token=bot_token, airtable=sync)
+    registry_fn = _resolve('build_default_tool_registry', build_default_tool_registry)
+    registry = registry_fn(bot_token=bot_token, airtable=sync)
     airtable_tool = registry.get("airtable_projects")
     projects = await airtable_tool.fetch_projects()
     stalled_projects: List[Dict[str, Any]] = []
@@ -532,7 +395,7 @@ async def check_airtable_stagnation():
     )
 
     async def executor(agent_task: AgentTask) -> Dict[str, Any]:
-        execution = await _execute_telegram_notification(
+        execution = await _resolve('_execute_telegram_notification', _execute_telegram_notification)(
             registry,
             group_id=group_id,
             message=message,
@@ -542,7 +405,7 @@ async def check_airtable_stagnation():
         execution.update({"project_count": agent_task.payload.get("project_count")})
         return execution
 
-    result = await _run_notification_agent(db, task, executor)
+    result = await _resolve('_run_notification_agent', _run_notification_agent)(db, task, executor)
     if not result.success:
         logger.error(
             f"[AIRTABLE STAGNATION] Project stage push delivery failed: {result.verification}"
@@ -551,3 +414,5 @@ async def check_airtable_stagnation():
 
     await db.mark_job_run(job_key, today)
     logger.info(f"[AIRTABLE STAGNATION] Project stage push sent for hour {now.hour}.")
+
+

@@ -99,35 +99,11 @@ async def telegram_webhook(request: Request):
 @router.post("/webhook/amocrm_chat")
 @limiter.limit("60/minute")
 async def amocrm_chat_webhook(request: Request):
-    """Receive outgoing messages from AmoCRM Chat and send them to Telegram."""
-    try:
-        body = await request.json()
-        logger.info(f"[AMOCRM CHAT WEBHOOK] Received: {body}")
-        
-        # We need to extract the target Telegram ID and message text
-        # AmoCRM sends payload depending on the action (e.g. new message)
-        # Assuming format: {"message": {"text": "...", "receiver": {"id": "..."}}} 
-        # or conversation client_id
-        
-        # Typically AmoCRM sends a webhook payload array or dict.
-        msg_data = body.get("message", {})
-        text = msg_data.get("text")
-        client_id = msg_data.get("conversation", {}).get("client_id")
-        
-        if text and client_id:
-            telegram_id = int(client_id)
-            if app_ctx.outgoing_messages is None:
-                app_ctx.outgoing_messages = asyncio.Queue()
-            await app_ctx.outgoing_messages.put({
-                "chat_id": telegram_id,
-                "text": text
-            })
-            logger.info(f"[AMOCRM CHAT] Queued message to {telegram_id}")
-            return {"status": "ok"}
-        return {"status": "ignored"}
-    except Exception as e:
-        logger.error(f"AmoCRM Notes Webhook error: {e}", exc_info=True)
-        return JSONResponse(status_code=500, content={"status": "error", "message": "Internal server error"})
+    """Retired unsigned alias; the canonical amoJo route verifies HMAC."""
+    return JSONResponse(
+        status_code=410,
+        content={"status": "retired", "endpoint": "/webhook/amocrm/chats"},
+    )
 
 
 @router.post("/webhook/amocrm_lead_created")

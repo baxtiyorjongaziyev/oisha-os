@@ -98,6 +98,8 @@ data/*.tar
 
 # Temp & Artifacts
 tmp/
+amocrm_*.png
+desktop_screen.png
 scratch/
 backups/
 *.zip

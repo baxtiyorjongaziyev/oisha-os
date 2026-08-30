@@ -4,6 +4,7 @@ import time
 import json
 import logging
 import requests  # type: ignore
+import tempfile
 from typing import Optional, Dict, Any, List
 from functools import wraps
 
@@ -96,31 +97,58 @@ class AmoCRMAuthMixin:
                             if data.get("access_token")
                             else None
                         )
-                        return
+                        break
                 except UnicodeError:
                     continue
                 except Exception as e:
                     self.last_error = "token_file_load_failed"
                     logger.error(f"[AMOCRM] Token yuklashda xato: {type(e).__name__}")
-                    return
+                    break
 
-        # 3. Raw Refresh Token fallback (for first deploy)
+        # 3. Raw Refresh Token fallback (for first deploy or if loaded token lacks refresh_token)
         raw_refresh = os.environ.get("AMOCRM_REFRESH_TOKEN")
-        if raw_refresh and not self.token_data:
+        if raw_refresh and (not self.token_data or not self.token_data.get("refresh_token")):
             logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
             self.token_data = {"refresh_token": raw_refresh}
+            self.access_token = None
 
     def _save_token(self, token_data):
-        """Tokenni faylga saqlash."""
+        """Atomically save OAuth tokens with owner-only file permissions."""
+        token_path = os.path.abspath(self.token_file)
+        token_dir = os.path.dirname(token_path)
+        temp_path = None
         try:
-            with open(self.token_file, "w") as f:
-                json.dump(token_data, f)
+            os.makedirs(token_dir, mode=0o700, exist_ok=True)
+            fd, temp_path = tempfile.mkstemp(prefix=".amocrm-token-", dir=token_dir)
+            try:
+                os.chmod(temp_path, 0o600)
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(token_data, f, separators=(",", ":"))
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(temp_path, token_path)
+                temp_path = None
+                os.chmod(token_path, 0o600)
+            except Exception:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+                raise
             self.token_data = token_data
             self.access_token = token_data.get("access_token")
             self.auth_blocked_until = 0.0
             self.auth_block_reason = None
         except Exception as e:
-            logger.error(f"[AMOCRM] Token saqlashda xato: {e}")
+            self.last_error = "token_file_save_failed"
+            logger.error("[AMOCRM] Token saqlashda xato: %s", type(e).__name__)
+            raise
+        finally:
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
 
     def _mark_auth_blocked(self, reason: str, seconds: int = 3600) -> None:
         self.auth_block_reason = reason
@@ -213,11 +241,13 @@ class AmoCRMAuthMixin:
                 self._save_token(resp_data)
                 logger.info("[AMOCRM OK] Dastlabki avtorizatsiya muvaffaqiyatli.")
                 return True
-            else:
-                logger.error(f"[AMOCRM ERROR] Avtorizatsiyada xato: {response.text}")
-                return False
+            self.last_error = f"authorize_initial_http_{response.status_code}"
+            logger.error("[AMOCRM ERROR] Initial authorization HTTP %s", response.status_code)
+            return False
         except Exception as e:
-            logger.error(f"[AMOCRM ERROR] Request yuborishda xato: {e}")
+            if not self.last_error:
+                self.last_error = "authorize_initial_request_failed"
+            logger.error("[AMOCRM ERROR] Initial authorization failed: %s", type(e).__name__)
             return False
 
     async def get_account_status(self):

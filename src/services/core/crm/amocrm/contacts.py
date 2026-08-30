@@ -12,53 +12,10 @@ import structlog
 logger = structlog.get_logger()
 
 
-def retry_with_backoff(
-    max_retries=3,
-    initial_delay=1,
-    backoff_factor=2,
-    exceptions=(requests.RequestException,),
-):
-    """Decorator to retry API calls with exponential backoff."""
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            delay = initial_delay
-            last_exception = None
-
-            for attempt in range(max_retries):
-                try:
-                    return func(*args, **kwargs)
-                except exceptions as e:
-                    last_exception = e
-                    logger.warning(
-                        f"[AMOCRM RETRY] {func.__name__} attempt {attempt + 1}/{max_retries} failed: {e}"
-                    )
-                    if attempt < max_retries - 1:
-                        time.sleep(delay)
-                        delay *= backoff_factor
-
-            logger.error(
-                f"[AMOCRM RETRY] {func.__name__} failed after {max_retries} attempts: {last_exception}"
-            )
-            raise last_exception
-
-        return wrapper
-
-    return decorator
-
-
-def _plain_secret(value: Any) -> Any:
-    """Pydantic SecretStr'ni oddiy matnga aylantiradi.
-
-    OAuth so'rovlari client_secret'ni JSON yoki form body'da yuboradi.
-    SecretStr obyekti JSON-serializable emas, form-encoding'da esa
-    '**********' ko'rinishida maskalanadi — ikkala holatda ham auth jim
-    yiqiladi. Chaqiruvchilarning bir qismi settings'dan xom SecretStr uzatadi,
-    shuning uchun normallashtirishni shu yerda, bitta joyda qilamiz.
-    """
-    getter = getattr(value, "get_secret_value", None)
-    return getter() if callable(getter) else value
+from src.services.core.crm.amocrm.auth import (
+    _plain_secret,
+    retry_with_backoff,
+)
 
 
 

@@ -36,7 +36,7 @@
 ## Current State
 
 ### Locked
-- Bo'sh (hamma qulflar ochilgan)
+- Codex — AmoCRM chat integration scripts, API/webhook verification, focused tests
 
 ### Operational Notes
 - Telegram MCP approval gateway: upstream `127.0.0.1:8765/mcp`, gateway `127.0.0.1:8766/mcp`. `TELEGRAM_MCP_SESSION_STRING` must be a dedicated session and must never equal `USERBOT_SESSION_STRING`. Read tools are automatic; every mutation is owner-approved through Telegram. Neither port may be exposed by Nginx.

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Facade for Oisha Self Diagnosis.
 Delegates to modular subpackage in src.services.core.diagnosis.
 """

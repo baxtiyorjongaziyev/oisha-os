@@ -3,11 +3,15 @@ Oisha-OS Main Entry Point.
 Modular entrypoint facade delegating to src.entrypoint.
 """
 import asyncio
+import logging
 import os
 import sys
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 # Global variables mirrored to app_ctx for legacy backward compatibility
 from src.context import app_ctx

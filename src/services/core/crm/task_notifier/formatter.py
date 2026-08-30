@@ -10,6 +10,45 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger('AmoCRMTaskNotifier')
 
+DEFAULT_FORWARD_GROUP_ID = -1003854308552
+DEFAULT_FORWARD_TOPIC_ID = 443
+DEFAULT_SUBDOMAIN = "jonbrandingagency"
+
+PIPELINE_MAP = {
+    11162698: "1. PRESALES",
+    11162702: "2. CLOSER",
+    10123318: "Farmer",
+    10427390: "Sifat Nazorati",
+    10947042: "Reactivation",
+    10947046: "Partnership",
+}
+
+STATUS_MAP = {
+    87609510: "Неразобранное",
+    87609514: "Yangi so'rov",
+    87609518: "Aloqaga chiqildi",
+    87609522: "Kvalifikatsiya",
+    87609526: "Uchrashuv belgilandi",
+    87609534: "Uchrashuv o'tdi",
+    87609538: "KP / Taklif",
+    87609542: "Muzokara",
+    87609546: "Shartnoma tayyorlanmoqda",
+    87609550: "Avans kutilmoqda",
+    142: "Успешно реализовано",
+    143: "Закрыто и не реализовано",
+}
+
+TASK_TYPE_MAP = {
+    1: "📞 Qo'ng'iroq",
+    2: "🤝 Uchrashuv",
+    3: "✉️ Xat",
+    4061818: "⏰ Eslatma",
+    4082430: "💳 To'lov olish",
+    4266998: "📂 Portfolio Send",
+    4267854: "📝 Vazifa",
+}
+
+
 def _format_timestamp(ts: Optional[int | float]) -> str:
     """Format unix timestamp into Tashkent local time string."""
     if not ts:
