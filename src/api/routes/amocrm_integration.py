@@ -156,16 +156,40 @@ async def _process_amocrm_event(data: Dict[str, Any]):
                 alert_type = "overdue" if event_type == "status" and t.get("status") == "overdue" else "due"
                 await notifier.send_task_alert(t, alert_type=alert_type)
 
-        lead_id = None
-        for key in data.keys():
-            if "leads[" in key and "][id]" in key:
-                lead_id = data[key]
-                break
-        if not lead_id:
-            return
-
         amocrm = _get_amocrm_instance()
         runtime_db = api_state.db_instance or await _get_db_instance()
+
+        lead_id = None
+        for key, val in data.items():
+            if "leads[" in key and "][id]" in key and not lead_id:
+                try:
+                    lead_id = int(val)
+                except (ValueError, TypeError):
+                    pass
+            elif "notes[" in key and "][element_id]" in key and not lead_id:
+                element_type = data.get(key.replace("][element_id]", "][element_type]"))
+                if str(element_type) in {"2", "lead", "leads"}:
+                    try:
+                        lead_id = int(val)
+                    except (ValueError, TypeError):
+                        pass
+                elif str(element_type) in {"1", "contact", "contacts"}:
+                    try:
+                        getter = getattr(amocrm, "get_contact_linked_leads", None)
+                        if callable(getter):
+                            linked = await getter(int(val)) if asyncio.iscoroutinefunction(getter) else getter(int(val))
+                            if linked and isinstance(linked, list):
+                                lead_id = int(linked[0].get("id"))
+                    except Exception as exc:
+                        logger.debug("[Webhook] Contact linked lead lookup skipped: %s", exc)
+            elif "talks[" in key and "][lead_id]" in key and not lead_id:
+                try:
+                    lead_id = int(val)
+                except (ValueError, TypeError):
+                    pass
+
+        if not lead_id:
+            return
 
         from src.agents.autonomous_sales_agent import AutonomousSalesAgent
         agent = AutonomousSalesAgent(db=runtime_db)

@@ -195,6 +195,8 @@ class AppSettings(BaseSettings):
     HISOBCHI_CASHFLOW_TOPIC_ID: Optional[int] = None                     # Cashflow topic ID
     HISOBCHI_BALANCE_TOPIC_ID: Optional[int] = None                      # Balance topic ID
     HISOBCHI_QARZDORLIK_TOPIC_ID: Optional[int] = None                   # Qarzdorlik / Debt topic ID
+    MARKETING_GROUP_ID: Optional[int] = None                             # Marketing guruh ID
+    MARKETING_TOPIC_ID: Optional[int] = None                             # Marketing topic ID
 
     # @amocrm_amobot eslatmalarini forward qilish (Просроченная задача va h.k.)
     AMOCRM_ALERT_FORWARD_GROUP_ID: Optional[int] = None

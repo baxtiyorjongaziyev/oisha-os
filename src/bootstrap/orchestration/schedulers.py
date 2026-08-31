@@ -40,6 +40,12 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     )
 
     try:
+        from src.schedulers.call_analysis_scheduler import call_analysis_loop
+        asyncio.create_task(call_analysis_loop(), name="call_analysis_loop")
+    except ImportError as exc:
+        logger.warning("[CALL-SCHEDULER] Call analysis loop unavailable: %s", exc)
+
+    try:
         from src.schedulers.cloud_brain_synthesizer import brain_synthesizer_loop
         asyncio.create_task(
             brain_synthesizer_loop(bot_runtime, settings.OWNER_ID),

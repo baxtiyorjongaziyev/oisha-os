@@ -84,6 +84,7 @@ class CallScorerMixin:
                 '  "category": "Shaxsiy|Oila|Jamoa|Mijoz|Boshqa",\n'
                 '  "client_mood": "Ijobiy|Neytral|Salbiy|Noaniq",\n'
                 '  "next_steps": "Keyingi aniq qadamlar yoki N/A",\n'
+                '  "keyingi_kelishuv": "Mijoz bilan aynan nima haqida kelishildi (masalan: \'Ertaga soat 15:00 da taklif yuborish va qayta qo\'ng\'iroq qilish\')",\n'
                 '  "kelishilgan_vaqt": "Agar suhbatda aniq kun/soat kelishilgan bo\'lsa '
                 '(masalan \'ertaga soat 15da\', \'dushanba peshin\'), uni YYYY-MM-DD HH:MM '
                 'formatida yozing (hozirgi sanaga nisbatan hisoblab). Aniq vaqt aytilmagan '
@@ -112,6 +113,7 @@ class CallScorerMixin:
                 '  "kuchli_tomonlar": ["menejer aynan nimani YAXSHI qildi (1-3 ta, aniq)"],\n'
                 '  "zaif_tomonlar": ["menejer nimani o\'tkazib yubordi yoki xato qildi '
                 '(1-3 ta, aniq va tuzatib bo\'ladigan)"],\n'
+                '  "konversiya_tavsiyalari": ["sotuvchiga bitimni yutish va konversiyani oshirish bo\'yicha 1-3 ta aniq amaliy taktik maslahat"],\n'
                 '  "etirozlar": ["mijoz bildirgan e\'tirozlar, masalan \'qimmat\'"],\n'
                 '  "rubrik_baholar": {\n'
                 '    "salomlashish": {"ball": <0-100>},\n'
@@ -176,7 +178,8 @@ class CallScorerMixin:
             f"Hozirgi sana va vaqt (Toshkent): {now_local.strftime('%Y-%m-%d %H:%M')}\n"
             "Toifalar: Shaxsiy, Oila, Jamoa, Mijoz, Boshqa.\n"
             "Kayfiyat: Ijobiy, Neytral, Salbiy, Noaniq.\n"
-            "JSON schema: summary, category, client_mood, next_steps, "
+            "JSON schema: summary, category, client_mood, next_steps, keyingi_kelishuv, "
+            "konversiya_tavsiyalari (array of 1-3 actionable advice), "
             "kelishilgan_vaqt (suhbatda aniq kun/soat kelishilgan bo'lsa "
             "\"YYYY-MM-DD HH:MM\" formatida, aks holda null).\n\n"
             f"Transkripsiya:\n{transcript}"
@@ -231,10 +234,12 @@ class CallScorerMixin:
             '  "category": "Shaxsiy|Oila|Jamoa|Mijoz|Boshqa",\n'
             '  "client_mood": "Ijobiy|Neytral|Salbiy|Noaniq",\n'
             '  "next_steps": "Keyingi aniq qadamlar yoki N/A",\n'
+            '  "keyingi_kelishuv": "Kelishilgan aniq qadam",\n'
             '  "kelishilgan_vaqt": "Aniq kun/soat kelishilgan bo\'lsa YYYY-MM-DD HH:MM, aks holda null",\n'
             '  "natija": "yuqoridagi natija kalitlaridan bittasi",\n'
             '  "kuchli_tomonlar": ["menejer aynan nimani YAXSHI qildi (1-3 ta)"],\n'
             '  "zaif_tomonlar": ["menejer nimani o\'tkazib yubordi (1-3 ta)"],\n'
+            '  "konversiya_tavsiyalari": ["konversiyani oshirish va savdoni yopish bo\'yicha 1-3 ta tavsiya"],\n'
             '  "etirozlar": ["mijoz bildirgan e\'tirozlar"],\n'
             '  "rubrik_baholar": {\n'
             '    "salomlashish": {"ball": <0-100>},\n'

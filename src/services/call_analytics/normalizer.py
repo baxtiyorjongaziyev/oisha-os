@@ -107,6 +107,8 @@ class CallNormalizerMixin:
         kuchli = _str_list(data.get("kuchli_tomonlar"))
         zaif = _str_list(data.get("zaif_tomonlar"))
         etirozlar = _str_list(data.get("etirozlar"))
+        tavsiyalar = _str_list(data.get("konversiya_tavsiyalari") or data.get("tavsiyalar") or [])
+        keyingi_kelishuv = str(data.get("keyingi_kelishuv") or "").strip()
         natija = normalise_outcome(data.get("natija"))
 
         # --- Rubrik baholar ---
@@ -149,6 +151,7 @@ class CallNormalizerMixin:
             "category": category,
             "client_mood": _normalise_mood(data.get("client_mood")),
             "next_steps": next_steps,
+            "keyingi_kelishuv": keyingi_kelishuv,
             "kelishilgan_vaqt": agreed_datetime,
             "client_talk_pct": client_pct,
             "agent_talk_pct": agent_pct,
@@ -179,6 +182,7 @@ class CallNormalizerMixin:
             "eng_uzun_pauza": max((p["davomiyligi"] for p in pauses), default=0.0),
             "kuchli_tomonlar": kuchli,
             "zaif_tomonlar": zaif,
+            "konversiya_tavsiyalari": tavsiyalar,
             "etirozlar": etirozlar,
         }
 

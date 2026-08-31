@@ -25,6 +25,8 @@ from src.services.core.audit_agent import AuditAgent
 from src.services.core.safe_responder import SafeResponder
 from src.services.core.telegram.session_manager import SessionManager
 from src.services.core.workflow_manager import WorkflowManager
+from src.services.core.juma_notifier import JumaNotifier
+from src.entrypoint.crm_push import push_block_to_amocrm
 from src.settings import settings
 
 logger = logging.getLogger("OishaBootstrap")
@@ -38,7 +40,7 @@ def init_domain_agents(
     bot_runtime: Any,
     m: Any,
 ) -> Dict[str, Any]:
-    juma_notifier = m.JumaNotifier(client=client, db=msg_controller.db)
+    juma_notifier = JumaNotifier(client=client, db=msg_controller.db)
     lead_scraper = LeadScraper(
         google_service=msg_controller.google, db=msg_controller.db,
         client=client, amocrm=msg_controller.crm.amocrm,
@@ -113,8 +115,9 @@ def init_domain_agents(
         advisor_agent=advisor_agent,
     )
 
-    session_manager = SessionManager(sync_callback=m.push_block_to_amocrm)
-    m.session_manager = session_manager
+    session_manager = SessionManager(sync_callback=push_block_to_amocrm)
+    if hasattr(m, "session_manager"):
+        m.session_manager = session_manager
     asyncio.create_task(session_manager.monitor_sessions())
 
     return {

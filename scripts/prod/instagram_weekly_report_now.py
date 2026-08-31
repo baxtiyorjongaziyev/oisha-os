@@ -22,10 +22,13 @@ from src.settings import settings
 
 async def _send_via_bot_api(text: str) -> None:
     token = settings.BOT_TOKEN.get_secret_value() if settings.BOT_TOKEN else ""
-    chat_id = settings.TEAM_GROUP_ID
+    chat_id = getattr(settings, "MARKETING_GROUP_ID", None) or settings.TEAM_GROUP_ID
+    topic_id = getattr(settings, "MARKETING_TOPIC_ID", None)
     if not token or not chat_id:
-        raise RuntimeError("BOT_TOKEN or TEAM_GROUP_ID missing")
+        raise RuntimeError("BOT_TOKEN or target chat missing")
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    if topic_id:
+        payload["message_thread_id"] = topic_id
     async with httpx.AsyncClient(timeout=20) as client:
         response = await client.post(f"https://api.telegram.org/bot{token}/sendMessage", json=payload)
         response.raise_for_status()
