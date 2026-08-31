@@ -1,9 +1,15 @@
 import os
 import logging
-from google.oauth2.service_account import Credentials as ServiceAccountCredentials
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
 import pickle
+
+try:
+    from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+    from google.auth.transport.requests import Request
+    from googleapiclient.discovery import build
+except ImportError:
+    ServiceAccountCredentials = None
+    Request = None
+    build = None
 
 logger = logging.getLogger(__name__)
 
