@@ -9,12 +9,19 @@ from src.services.core.instagram_weekly_report import InstagramWeeklyReportAgent
 logger = logging.getLogger(__name__)
 
 
-async def send_instagram_weekly_report(bot_client=None, team_group_id=None) -> str | None:
+async def send_instagram_weekly_report(bot_client=None, team_group_id=None, topic_id=None) -> str | None:
+    from src.settings import settings
+
     result = await InstagramWeeklyReportAgent().run()
     report = result["report"]
-    if bot_client and team_group_id:
+    target_group = team_group_id or getattr(settings, "MARKETING_GROUP_ID", None) or getattr(settings, "INSTAGRAM_REPORT_GROUP_ID", None) or settings.TEAM_GROUP_ID
+    target_topic = topic_id or getattr(settings, "MARKETING_TOPIC_ID", None) or getattr(settings, "INSTAGRAM_REPORT_TOPIC_ID", None)
+    if bot_client and target_group:
         try:
-            await bot_client.send_message(team_group_id, report, parse_mode="html")
+            kwargs = {"parse_mode": "html"}
+            if target_topic:
+                kwargs["message_thread_id"] = target_topic
+            await bot_client.send_message(target_group, report, **kwargs)
         except Exception as exc:
             logger.error("[IG-WEEKLY] Telegram send failed: %s", exc)
     return report

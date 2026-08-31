@@ -97,7 +97,7 @@
 33. `src/agents/agent_tools/crm_actions.py` (465L) → `crm_actions.py` (321L) + `crm_lead_qualify.py` (161L).
 34. `src/services/proactive/stagnation.py` (553L) → `stagnation.py` (245L) + `airtable_deadlines.py` (209L) + `airtable_stagnation.py` (205L).
 
-- **Status:** 773 ta Python faylidan 0 ta qoidabuzarlik (>400L: 0 ta, 100% compliant). Funksiyalar bo'yicha: 3,710 ta funksiyaning 90.2% qismi $\le 50$ qatordan iborat (72.5% ideal $\le 25$ qator). 100% Pytest Syntax Guard pass (773/773) & Bandit 0 issues.
+- **Status:** 767 ta Python faylidan 0 ta qoidabuzarlik (>400L: 0 ta, 100% compliant). Funksiyalar bo'yicha: 3,710 ta funksiyaning 90.0% qismi $\le 50$ qatordan iborat (72.4% ideal $\le 25$ qator). 100% Pytest Syntax Guard pass (767/767) & Bandit 0 issues.
 
 ## Pre-flight Checklist (har bir PR dan oldin)
 ```powershell

@@ -218,9 +218,18 @@ class CallCrmTasksMixin:
             subdomain=subdomain,
         )
 
-    def _should_create_task(self, next_steps: str) -> bool:
+    def _should_create_task(
+        self,
+        next_steps: str,
+        agreed_datetime: Optional[datetime] = None,
+        conversion_advice: Optional[List[str]] = None,
+    ) -> bool:
         if not self.create_tasks:
             return False
+        if agreed_datetime is not None:
+            return True
+        if conversion_advice:
+            return True
         text = (next_steps or "").strip()
         if not text:
             return False
@@ -242,18 +251,18 @@ class CallCrmTasksMixin:
         client_mood: str,
         next_steps: str,
         agreed_datetime: Optional[datetime] = None,
+        conversion_advice: Optional[List[str]] = None,
     ) -> str:
-        text = f"Oisha follow-up: {next_steps}\n\n"
+        action = next_steps if next_steps and next_steps.lower() not in {"n/a", "na", "-"} else "Mijoz bilan follow-up"
+        lines = [f"🎯 VAZIFA: {action}"]
         if agreed_datetime is not None:
-            text += (
-                f"⏰ Kelishilgan vaqt: {agreed_datetime.strftime('%d.%m.%Y %H:%M')} "
-                f"({_WEEKDAY_UZ[agreed_datetime.weekday()]})\n\n"
-            )
-        text += (
-            f"Qo'ng'iroq xulosasi: {summary}\n"
-            f"Toifa: {category}. Kayfiyat: {client_mood}."
-        )
-        return _clip(text, 900)
+            weekday = _WEEKDAY_UZ[agreed_datetime.weekday()] if 0 <= agreed_datetime.weekday() < len(_WEEKDAY_UZ) else ""
+            lines.append(f"⏰ Kelishilgan vaqt: {agreed_datetime.strftime('%d.%m.%Y %H:%M')} ({weekday})")
+        if conversion_advice:
+            lines.append(f"💡 Konversiya tavsiyasi: {conversion_advice[0]}")
+        lines.append(f"📝 Suhbat xulosasi: {summary}")
+        lines.append(f"Toifa: {category} | Kayfiyat: {client_mood}")
+        return _clip("\n".join(lines), 900)
 
     async def _create_follow_up_task(
         self,
@@ -264,8 +273,9 @@ class CallCrmTasksMixin:
         next_steps: str,
         responsible_user_id: Optional[int] = None,
         agreed_datetime: Optional[datetime] = None,
+        conversion_advice: Optional[List[str]] = None,
     ) -> str:
-        if not self._should_create_task(next_steps):
+        if not self._should_create_task(next_steps, agreed_datetime, conversion_advice):
             return ""
 
         create_task = getattr(self.amocrm, "create_task", None)
@@ -289,6 +299,7 @@ class CallCrmTasksMixin:
             client_mood=client_mood,
             next_steps=next_steps,
             agreed_datetime=agreed_datetime,
+            conversion_advice=conversion_advice,
         )
 
         try:

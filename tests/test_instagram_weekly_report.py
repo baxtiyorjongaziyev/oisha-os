@@ -107,10 +107,13 @@ async def test_send_instagram_weekly_report_uses_bot_client(monkeypatch):
     monkeypatch.setattr(weekly_reporter, "InstagramWeeklyReportAgent", _FakeAgent)
     bot = _Bot()
 
-    report = await weekly_reporter.send_instagram_weekly_report(bot_client=bot, team_group_id=-100123)
+    report = await weekly_reporter.send_instagram_weekly_report(
+        bot_client=bot, team_group_id=-100123, topic_id=42
+    )
 
     assert report == "📊 <b>Report</b>"
-    assert bot.sent == [(-100123, "📊 <b>Report</b>", {"parse_mode": "html"})]
+    assert bot.sent == [(-100123, "📊 <b>Report</b>", {"parse_mode": "html", "message_thread_id": 42})]
+
 
 
 @pytest.mark.asyncio

@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from src.context import app_ctx
+from src.entrypoint.daemon_tasks import _is_shutdown_daemon_task, stop_health_check_api
 
 logger = logging.getLogger("OishaBootstrap")
 
@@ -17,13 +18,13 @@ async def graceful_drain(
     bot_client: Any,
     msg_controller: Any,
     health_api_task: Any,
-    m: Any,
+    m: Any = None,
 ) -> None:
     drain_deadline = 25.0
     logger.info(f"[SHUTDOWN] Draining in-flight tasks for up to {drain_deadline}s...")
     current = asyncio.current_task()
     pending = [t for t in asyncio.all_tasks(loop=asyncio.get_running_loop()) if t is not current and not t.done()]
-    drainable = [t for t in pending if not m._is_shutdown_daemon_task(t)]
+    drainable = [t for t in pending if not _is_shutdown_daemon_task(t)]
     if drainable:
         logger.info(f"[SHUTDOWN] Waiting on {len(drainable)} in-flight handler task(s).")
         done, still_pending = await asyncio.wait(drainable, timeout=drain_deadline)
@@ -51,5 +52,5 @@ async def graceful_drain(
         logger.info("[SHUTDOWN] DB closed.")
     except Exception as e:
         logger.warning(f"[SHUTDOWN] DB close error: {e}")
-    await m.stop_health_check_api(health_api_task)
+    await stop_health_check_api(health_api_task)
     logger.info("[SHUTDOWN] API server stopped.")

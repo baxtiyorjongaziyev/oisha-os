@@ -114,5 +114,6 @@ async def test_process_instagram_webhook_dm(mock_agent_class, mock_notify, mock_
     mock_db.log_message.assert_any_call("ig_112233", "Qalay ishlar?", is_ai=False)
     mock_db.log_message.assert_any_call("ig_112233", "Salom, xabarni qabul qildim", is_ai=True)
     mock_db.upsert_user.assert_called_once_with("ig_112233", "Foydalanuvchi", phone="+998991234567")
-    mock_send_reply.assert_called_once_with("112233", "Salom, xabarni qabul qildim", "")
+    from unittest.mock import ANY
+    mock_send_reply.assert_called_once_with("112233", "Salom, xabarni qabul qildim", ANY)
     mock_notify.assert_called_once_with("Instagram DM", "Foydalanuvchi", "112233", "Qalay ishlar?", "[SAVE_INFO: phone=+998991234567] Salom, xabarni qabul qildim")

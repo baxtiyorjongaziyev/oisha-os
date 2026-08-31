@@ -232,7 +232,7 @@ async def reject_voice_call(lead_id: str) -> bool:
 @router.post("/webhook/amocrm_notes")
 @limiter.limit("60/minute")
 async def amocrm_notes_webhook(request: Request):
-    """Receive note[add] webhooks from AmoCRM to send Telegram messages natively."""
+    """Receive note[add] webhooks from AmoCRM to send Telegram messages natively and trigger call analysis."""
     try:
         form = await request.form()
         notes = {}
@@ -249,6 +249,7 @@ async def amocrm_notes_webhook(request: Request):
         for idx, note_data in notes.items():
             text = note_data.get("text", "")
             lead_id_str = note_data.get("element_id")
+            note_type = str(note_data.get("note_type") or "").lower()
             
             # Agar menejer "TG: salom" deb yozsa
             if text.lower().startswith("tg:") and lead_id_str:
@@ -267,6 +268,24 @@ async def amocrm_notes_webhook(request: Request):
                         "text": clean_text
                     })
                     logger.info(f"[NATIVE AMOCRM CHAT] Sent to {phone}: {clean_text}")
+
+            # Agar yangi qo'ng'iroq yoki audio yozuv kelgan bo'lsa
+            if lead_id_str and (note_type in {"call_in", "call_out", "call", "service_message"} or "http" in text):
+                try:
+                    lead_id = int(lead_id_str)
+                    from src.services.core.call_analyzer import CallAnalyzer
+                    amocrm = _get_amocrm_instance()
+                    runtime_db = await _get_db_instance()
+                    analyzer = CallAnalyzer(amocrm=amocrm, db=runtime_db)
+                    asyncio.create_task(
+                        analyzer.process_call_recordings_for_lead(
+                            lead_id=lead_id,
+                            min_call_duration_seconds=getattr(settings, "AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS", 10),
+                            call_notes_override=[note_data],
+                        )
+                    )
+                except Exception as call_exc:
+                    logger.warning("[AMOCRM NOTES WEBHOOK] Call analysis queue failed: %s", call_exc)
                     
         return {"status": "ok"}
     except Exception as e:

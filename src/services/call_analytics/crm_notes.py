@@ -154,13 +154,20 @@ class CallCrmNotesMixin:
 
             kuchli = [str(x) for x in (analysis.get("kuchli_tomonlar") or [])]
             zaif = [str(x) for x in (analysis.get("zaif_tomonlar") or [])]
-            if kuchli or zaif:
+            tavsiyalar = [str(x) for x in (analysis.get("konversiya_tavsiyalari") or analysis.get("tavsiyalar") or [])]
+            if kuchli or zaif or tavsiyalar:
                 lines.append("")
-                lines.append("──── MURABBIY IZOHI ────")
+                lines.append("──── MURABBIY IZOHI VA KONVERSIYA ────")
                 for item in kuchli[:3]:
                     lines.append(f"✅ {item}")
                 for item in zaif[:3]:
                     lines.append(f"⚠️ {item}")
+                for item in tavsiyalar[:3]:
+                    lines.append(f"💡 Tavsiya: {item}")
+
+        agreed_dt = analysis.get("kelishilgan_vaqt")
+        if agreed_dt and hasattr(agreed_dt, "strftime"):
+            lines.append(f"⏰ Kelishilgan vaqt: {agreed_dt.strftime('%d.%m.%Y %H:%M')}")
 
         lines += [
             "",

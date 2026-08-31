@@ -28,6 +28,13 @@ from src.services.core.finance.handlers import (
     should_process_private_receipt_photo,
 )
 from src.settings import settings
+from src.handlers.kirim import kirim_topic_handler
+from src.handlers.case_publisher import case_publisher_handler
+from src.handlers.negotiation import negotiation_agent_handler
+from src.handlers.shadow_advisor import shadow_advisor_handler
+from src.handlers.monitoring import activity_monitor_handler
+from src.handlers.meeting import meeting_scheduler_handler
+from src.entrypoint.message_event import handle_new_message, self_command_handler
 
 logger = logging.getLogger("OishaBootstrap")
 
@@ -100,19 +107,19 @@ def register_event_handlers(
 
         if settings.TEAM_GROUP_ID and settings.TOPIC_KIRIM_ID:
             client.add_event_handler(
-                m.kirim_topic_handler,
+                kirim_topic_handler,
                 events.NewMessage(chats=settings.TEAM_GROUP_ID),
             )
             logger.info(f"[KIRIM] Listener active team={settings.TEAM_GROUP_ID} topic={settings.TOPIC_KIRIM_ID}")
 
-        client.add_event_handler(m.case_publisher_handler, events.NewMessage(incoming=True))
-        client.add_event_handler(m.negotiation_agent_handler, events.NewMessage(incoming=True))
-        client.add_event_handler(m.shadow_advisor_handler, events.NewMessage(incoming=True))
-        client.add_event_handler(m.activity_monitor_handler, events.NewMessage(outgoing=True))
-        client.add_event_handler(m.meeting_scheduler_handler, events.NewMessage(incoming=True))
-        client.add_event_handler(m.meeting_scheduler_handler, events.NewMessage(outgoing=True))
-        client.add_event_handler(m.self_command_handler, events.NewMessage(chats="me"))
-        client.add_event_handler(m.handle_new_message, events.NewMessage(incoming=True))
+        client.add_event_handler(case_publisher_handler, events.NewMessage(incoming=True))
+        client.add_event_handler(negotiation_agent_handler, events.NewMessage(incoming=True))
+        client.add_event_handler(shadow_advisor_handler, events.NewMessage(incoming=True))
+        client.add_event_handler(activity_monitor_handler, events.NewMessage(outgoing=True))
+        client.add_event_handler(meeting_scheduler_handler, events.NewMessage(incoming=True))
+        client.add_event_handler(meeting_scheduler_handler, events.NewMessage(outgoing=True))
+        client.add_event_handler(self_command_handler, events.NewMessage(chats="me"))
+        client.add_event_handler(handle_new_message, events.NewMessage(incoming=True))
 
     async def _hisobchi_callback_handler(event):
         try:

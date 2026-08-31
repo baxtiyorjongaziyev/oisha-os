@@ -176,6 +176,7 @@ class CallRunnerMixin(NoteExtractorMixin):
             lead_id=lead_id, category=category, summary=summary, client_mood=client_mood,
             next_steps=next_steps, responsible_user_id=responsible_user_id,
             agreed_datetime=analysis.get("kelishilgan_vaqt"),
+            conversion_advice=analysis.get("konversiya_tavsiyalari"),
         )
         try:
             await self.approval_service.send_for_approval(
@@ -206,6 +207,7 @@ class CallRunnerMixin(NoteExtractorMixin):
             lead_id=lead_id, category=category, summary=summary, client_mood=client_mood,
             next_steps=next_steps, responsible_user_id=responsible_user_id,
             agreed_datetime=analysis.get("kelishilgan_vaqt"),
+            conversion_advice=analysis.get("konversiya_tavsiyalari"),
         )
         await self._log_call_analysis(
             call_id=call_id, lead_id=lead_id, category=category, summary=summary,
@@ -225,7 +227,7 @@ class CallRunnerMixin(NoteExtractorMixin):
         write: bool, include_transcript: bool, min_call_duration_seconds: int, event_log: Any,
     ) -> bool:
         params = note.get("params") or {}
-        audio_url = self._find_audio_url(params)
+        audio_url = self._find_audio_url(note) or self._find_audio_url(params)
         call_id = self._extract_call_id(note, lead_id, audio_url)
         duration = self._extract_call_duration_seconds(note)
         phone = caller_phone or self._extract_phone_from_note(note)

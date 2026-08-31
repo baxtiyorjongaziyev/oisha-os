@@ -140,9 +140,16 @@ _STT_HALLUCINATION_PHRASES = {
 # transcript would essentially never contain them.
 _STT_HALLUCINATION_SUBSTRINGS = (
     "субтитры",
+    "subtitles",
+    "subtitr",
     "subtitles by",
     "amara.org",
     "dimatorzok",
+    "translated by",
+    "opensubtitles",
+    "thanks for watching",
+    "thank you for watching",
+    "like and subscribe",
 )
 
 
@@ -152,17 +159,15 @@ def _looks_like_stt_hallucination(text: str) -> bool:
     if not text:
         return True
     normalised = text.strip().strip(".!?").lower()
+    if not normalised or len(normalised) < 4:
+        return True
     if normalised in _STT_HALLUCINATION_PHRASES:
         return True
     if any(marker in normalised for marker in _STT_HALLUCINATION_SUBSTRINGS):
         return True
-    # Check for Gemini generic hallucinated dialogues
-    cleaned = re.sub(r'\[\d{2}:\d{2}\]|a:|b:', '', normalised).strip()
-    if len(cleaned.split()) < 15 and ('salom' in cleaned or 'qandaysiz' in cleaned or 'yaxshi' in cleaned):
-        return True
-    # Real ikki tomonlama suhbat deyarli hech qachon bir necha so'zdan
-    # qisqa bo'lmaydi.
-    if len(normalised) < 12:
+    # Repetitive single word hallucination loop check (e.g. "ha ha ha ha ha")
+    words = normalised.split()
+    if len(words) >= 4 and len(set(words)) == 1:
         return True
     return False
 
