@@ -26,6 +26,10 @@ async def init_core_services() -> Tuple[Dict[str, Any], Database, Any, MessageCo
     }
     db = Database()
     await db.init_instance()
+    api_state.db_instance = db
+    from src.context import app_ctx
+    app_ctx.db_instance = db
+    app_ctx.db = db
     from src.services.core.finance.hisobchi_schema import init_hisobchi_tables
 
     hisobchi_gs_id = getattr(settings, "HISOBCHI_GSHEET_ID", None)
