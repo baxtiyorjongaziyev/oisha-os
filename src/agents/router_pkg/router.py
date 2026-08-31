@@ -59,14 +59,14 @@ async def route(
     system_prompt: Optional[str] = None,
     max_tokens: int = 1024,
     temperature: float = 0.7,
-    use_cache: bool = True,
+    bypass_cache: bool = False,
     preferred_tier: Optional[str] = None,
 ) -> Dict[str, Any]:
     start_time = time.time()
     ctx = context or {}
 
     prompt_hash = hashlib.sha256(f"{task_type}:{prompt}:{system_prompt}".encode()).hexdigest()
-    if use_cache:
+    if not bypass_cache:
         cached = _cache_get(prompt_hash)
         if cached:
             cached_copy = dict(cached)
@@ -104,7 +104,7 @@ async def route(
                 "error": None,
             }
 
-            if use_cache and result["text"]:
+            if result["text"]:
                 _cache_put(prompt_hash, result)
 
             asyncio.create_task(

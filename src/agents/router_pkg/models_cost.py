@@ -45,25 +45,25 @@ TIER_COST_PER_1K: Dict[str, Dict[str, float]] = {
 DAILY_COST_LIMIT_USD: float = float(os.getenv("AI_DAILY_COST_LIMIT_USD", "5.0"))
 CACHE_TTL_SECONDS: int = int(os.getenv("AI_ROUTER_CACHE_TTL_SECONDS", "3600"))
 
-_response_cache: Dict[str, tuple[float, Dict[str, Any]]] = {}
+_cache: Dict[str, tuple[float, Dict[str, Any]]] = {}
 _gemini_client = None
 
 
 def _cache_get(prompt_hash: str) -> Optional[Dict[str, Any]]:
-    if prompt_hash in _response_cache:
-        ts, data = _response_cache[prompt_hash]
+    if prompt_hash in _cache:
+        ts, data = _cache[prompt_hash]
         if time.time() - ts < CACHE_TTL_SECONDS:
             return data
-        del _response_cache[prompt_hash]
+        del _cache[prompt_hash]
     return None
 
 
 def _cache_put(prompt_hash: str, result: Dict[str, Any]) -> None:
     now = time.time()
-    for k in list(_response_cache.keys()):
-        if now - _response_cache[k][0] > CACHE_TTL_SECONDS:
-            del _response_cache[k]
-    _response_cache[prompt_hash] = (now, result)
+    for k in list(_cache.keys()):
+        if now - _cache[k][0] > CACHE_TTL_SECONDS:
+            del _cache[k]
+    _cache[prompt_hash] = (now, result)
 
 
 def _get_gemini_client():

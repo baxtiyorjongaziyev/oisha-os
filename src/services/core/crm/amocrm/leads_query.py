@@ -41,20 +41,18 @@ class AmoCRMLeadsQueryMixin:
             return []
 
     async def get_lead(self, lead_id: int) -> Optional[Dict[str, Any]]:
-        self._load_token()
+        if not self.access_token:
+            self._load_token()
         url = f"{self.base_url}/api/v4/leads/{lead_id}"
-        params = {"with": "contacts,loss_reason"}
-
         try:
-            response = await asyncio.to_thread(
-                requests.get,
-                url,
-                headers=self._get_headers(),
-                params=params,
-                timeout=30,
-            )
+            response = await self._request_with_auth(requests.get, url, timeout=30)
+            if response.status_code == 401 and await asyncio.to_thread(self.refresh_token):
+                response = await self._request_with_auth(requests.get, url, timeout=30)
             if response.status_code == 200:
                 return response.json()
+            logger.warning(
+                f"[AMOCRM GET LEAD] {lead_id} -> HTTP {response.status_code}"
+            )
             return None
         except Exception as e:
             logger.error(f"[AMOCRM GET LEAD ERROR] ID {lead_id}: {e}")
