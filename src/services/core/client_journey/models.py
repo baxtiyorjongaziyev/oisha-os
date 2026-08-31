@@ -138,7 +138,7 @@ def _humanize_owner_hint(value: Any) -> str:
         return ", ".join(labels) if labels else "Mas'ul aniqlansin"
 
     text = str(value).strip() if value is not None else ""
-    if not text:
+    if not text or text in ("None", "null", "[]"):
         return "Mas'ul aniqlansin"
 
     if text in OWNER_LABELS:
@@ -148,16 +148,25 @@ def _humanize_owner_hint(value: Any) -> str:
         return text
 
     if _looks_like_airtable_id(text):
-        return AirtableSync.resolve_pm_handle(text)
+        handle = AirtableSync.resolve_pm_handle(text)
+        if handle and handle != "Mas'ul belgilanmagan":
+            return handle
+        name = AirtableSync.resolve_pm_name(text)
+        if name and name != "Mas'ul belgilanmagan":
+            return name
 
     record_ids = re.findall(r"rec[a-zA-Z0-9]{10,}", text)
     if record_ids:
         handles: List[str] = []
         for record_id in record_ids:
             handle = AirtableSync.resolve_pm_handle(record_id)
-            if handle and handle not in handles:
+            if handle and handle not in handles and handle != "Mas'ul belgilanmagan":
                 handles.append(handle)
         return ", ".join(handles) if handles else "Mas'ul aniqlansin"
+
+    handle = AirtableSync.resolve_pm_handle(text)
+    if handle and handle != "Mas'ul belgilanmagan":
+        return handle
 
     return OWNER_LABELS.get(text, text)
 
@@ -168,12 +177,16 @@ def _humanize_stage(stage: Any) -> str:
 
 
 def _render_owner_html(signal: JourneySignal, airtable: Optional[AirtableSync]) -> str:
-    raw_owner = signal.meta.get("manager_ref", signal.owner_hint)
+    raw_owner = signal.meta.get("manager_ref") or signal.owner_hint
 
     if isinstance(raw_owner, list):
+        seen: set[str] = set()
         parts: List[str] = []
         for item in raw_owner:
             label = _humanize_owner_hint(item)
+            if not label or label in seen or label == "Mas'ul aniqlansin":
+                continue
+            seen.add(label)
             url = (
                 airtable.get_record_url(item)
                 if airtable and _looks_like_airtable_id(str(item))

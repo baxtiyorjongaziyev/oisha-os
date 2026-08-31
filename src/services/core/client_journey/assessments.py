@@ -127,8 +127,32 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
     for project in projects:
         fields = project.get("fields", {})
         stage = _safe_text(AirtableSync._get_field(fields, "stage"), "")
-        name = _safe_text(AirtableSync._get_field(fields, "project_name")) or _safe_text(fields.get("Loyiha ID") or fields.get("AmoCRM_ID") or project.get("id"), "Nomsiz loyiha")
+        raw_name = AirtableSync._get_field(fields, "project_name")
+        if not raw_name or str(raw_name).strip() in ("", "Noma'lum", "None", "null", "[]"):
+            raw_name = (
+                fields.get("Loyiha nomi")
+                or fields.get("Mijoz")
+                or fields.get("Client")
+                or fields.get("Name")
+                or fields.get("Title")
+                or fields.get("Loyiha")
+                or fields.get("Loyiha ID")
+                or fields.get("AmoCRM_ID")
+            )
+        if not raw_name or str(raw_name).strip() in ("", "Noma'lum", "None", "null", "[]"):
+            pid_str = str(project.get("id") or "")
+            raw_name = f"Loyiha ({pid_str[-6:]})" if pid_str else "Loyiha"
+        name = _safe_text(raw_name, "Loyiha")
         raw_mgr = AirtableSync._get_field(fields, "manager")
+        if not raw_mgr or str(raw_mgr).strip() in ("", "None", "null", "[]"):
+            raw_mgr = (
+                fields.get("PM")
+                or fields.get("Mas'ul")
+                or fields.get("Masul")
+                or fields.get("Responsible")
+                or fields.get("Dizayner")
+                or fields.get("Designer")
+            )
         mgr = _humanize_owner_hint(raw_mgr)
         payment_status = _safe_text(AirtableSync._get_field(fields, "payment_status"), "")
         paid = _to_number(AirtableSync._get_field(fields, "paid_usd"))
