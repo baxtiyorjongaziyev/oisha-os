@@ -47,7 +47,6 @@ async def boot_application():
     health_api_task = None
     if not settings.RUN_USERBOT_ONLY:
         health_api_task = asyncio.create_task(m.run_health_check_api(), name="health_check_api")
-    asyncio.create_task(_command_processor(), name="command_processor")
     m._restore_cloud_artifacts()
 
     # 1. Core Services & DB
