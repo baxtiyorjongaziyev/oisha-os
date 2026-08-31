@@ -1,48 +1,67 @@
 """Task and Note writer service for SalesCoach recommendations."""
 from __future__ import annotations
 
-import datetime
+import inspect
+from datetime import datetime, timedelta
 from typing import Any, Mapping, Literal, Optional
-from zoneinfo import ZoneInfo
 
 from src.services.core.crm.salescoach_writer.models import (
+    TASHKENT,
     TASK_RULES,
     TaskRule,
-    TaskWriteAudit,
     TaskWriteResult,
     _analysis_value,
     _extract_id,
     _normalized_text,
     task_idempotency_key,
 )
+from src.services.core.salescoach_store import TaskWriteAudit
 
 
 class SalesCoachTaskWriter:
     """SalesCoach tavsiyalarini AmoCRM ga xavfsiz yozish."""
 
-    def __init__(self, amocrm: Any, store: Any, notifier: Any | None = None, timezone: str = "Asia/Tashkent") -> None:
+    def __init__(
+        self,
+        amocrm: Any,
+        store: Any,
+        admin_notifier: Any = None,
+        now_provider: Any = None,
+        notifier: Any = None,
+    ) -> None:
         self.amocrm = amocrm
         self.store = store
-        self.notifier = notifier
-        self.tz = ZoneInfo(timezone)
+        self.notifier = admin_notifier or notifier
+        self.now_provider = now_provider or (lambda: datetime.now(TASHKENT))
 
-    def _now(self) -> datetime.datetime:
-        return datetime.datetime.now(self.tz)
+    def _now(self) -> datetime:
+        value = self.now_provider()
+        if value.tzinfo is None:
+            return value.replace(tzinfo=TASHKENT)
+        return value.astimezone(TASHKENT)
 
     def _deadline(self, rule: TaskRule) -> int:
-        target = self._now() + datetime.timedelta(hours=rule.deadline_hours)
-        if target.hour >= 20:
-            target = target.replace(hour=20, minute=0, second=0, microsecond=0)
-        elif target.hour < 9:
-            target = target.replace(hour=9, minute=0, second=0, microsecond=0)
+        now = self._now()
+        if isinstance(rule.delay, timedelta):
+            return int((now + rule.delay).timestamp())
+        target = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        if now < target and target.weekday() < 5:
+            return int(target.timestamp())
+        target = (now + timedelta(days=1)).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        )
+        while target.weekday() >= 5:
+            target += timedelta(days=1)
         return int(target.timestamp())
 
     async def _notify_failure(self, **payload: Any) -> None:
         if self.notifier is None:
             return
-        notify = getattr(self.notifier, "notify_task_write_failure", None)
+        notify = getattr(self.notifier, "notify_write_failure", None)
         if callable(notify):
-            await notify(payload)
+            result = notify(**payload)
+            if inspect.isawaitable(result):
+                await result
 
     async def _ensure_note(self, *, lead_id: int, conversation_fingerprint: str, analysis: Mapping[str, Any]) -> tuple[int | None, bool]:
         key = task_idempotency_key(lead_id, "note", conversation_fingerprint)

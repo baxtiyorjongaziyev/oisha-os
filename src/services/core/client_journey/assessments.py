@@ -159,6 +159,61 @@ def assess_project_portfolio(projects: Iterable[Dict[str, Any]]) -> List[Journey
 
 
 def assess_sales_pipeline(leads: Iterable[Dict[str, Any]]) -> List[JourneySignal]:
+    """Scan active leads and return prioritized client-journey signals."""
+    signals: List[JourneySignal] = []
+    now = datetime.datetime.now(ZoneInfo("Asia/Tashkent"))
+    for lead in leads:
+        name = _safe_text(lead.get("name"), "Lid")
+        price = _to_number(lead.get("price"))
+        updated_at = lead.get("updated_at")
+        idle_hours = 0
+        if updated_at:
+            try:
+                updated = datetime.datetime.fromtimestamp(
+                    float(updated_at), tz=datetime.timezone.utc
+                ).astimezone(ZoneInfo("Asia/Tashkent"))
+                idle_hours = max(0, int((now - updated).total_seconds() // 3600))
+            except (TypeError, ValueError, OSError):
+                idle_hours = 0
+
+        manager = _humanize_owner_hint(
+            lead.get("responsible_user_id") or "Sotuv"
+        )
+        if price >= 5_000_000 and idle_hours >= 12:
+            stage = "VIP rescue"
+            urgency = "critical" if idle_hours >= 24 else "high"
+            risk = "Katta qiymatli lid harakatsiz turibdi, mijoz boshqa variantlarni ko'rib chiqishi mumkin."
+            action = "30 daqiqa ichida shaxsiy audio/video yoki maxsus taklif bilan aloqaga chiqing."
+        elif idle_hours >= 24:
+            stage, urgency = "Recovery follow-up", "high"
+            risk = "Lid bilan aloqa uzildi, qiziqish so'nib bormoqda."
+            action = "Bugun yangi qiymat beruvchi savol yoki case study bilan qayta bog'laning."
+        elif idle_hours >= 2:
+            stage, urgency = "Speed-to-lead", "medium"
+            risk = "Birinchi javob tezligi mijoz qaroriga bevosita ta'sir qiladi."
+            action = "Lidga darhol birinchi samimiy xabar va qisqa brifing savolini yo'llang."
+        else:
+            continue
+
+        signals.append(JourneySignal(
+            department="sales", client_name=name, stage=stage,
+            urgency=urgency, owner_hint=manager, risk=risk,
+            owner_action=action,
+            wow_action="Mijoz kontekstiga mos foydali va shaxsiy javob bering.",
+            proof_of_done="CRMda keyingi harakat va follow-up statusi ko'rinsin.",
+            meta={"lead_id": lead.get("id"), "price": price, "idle_hours": idle_hours},
+        ))
+
+    signals.sort(
+        key=lambda signal: (
+            _urgency_rank(signal.urgency),
+            -int(signal.meta.get("idle_hours") or 0),
+        )
+    )
+    return signals
+
+
+def assess_sales_pipeline(leads: Iterable[Dict[str, Any]]) -> List[JourneySignal]:
     """Sotuv voronkasini skanlab, JourneySignal ro'yxatini qaytarish."""
     signals: List[JourneySignal] = []
     now = datetime.datetime.now(ZoneInfo("Asia/Tashkent"))
