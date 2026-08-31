@@ -3,15 +3,19 @@ Data models, stage thresholds, and formatting helpers for client journey playboo
 """
 from __future__ import annotations
 
-import html
+import datetime
 import logging
 import re
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from html import escape
 from typing import Any, Dict, List, Optional, Tuple
+
+from src.services.core.airtable_sync import AirtableSync
+from src.time_utils import get_local_now
 
 logger = logging.getLogger("ClientJourneyPlaybook")
 
+@dataclass
 class JourneySignal:
     department: str
     client_name: str

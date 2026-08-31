@@ -2,15 +2,15 @@
 from __future__ import annotations
 
 import datetime as _dt
-import logging
 import os
-import time
 from typing import Any, Dict, List, Optional
 import structlog
-from google import genai
 
 from src.settings import settings
-from src.services.core.telegram.task_creator.analyzer import TaskAnalyzerMixin
+from src.services.core.telegram.task_creator.analyzer import (
+    TaskAnalyzerMixin,
+    genai,
+)
 from src.services.core.telegram.task_creator.cooldowns import CooldownMixin
 from src.services.core.telegram.task_creator.dialogs import DialogResolverMixin
 
@@ -32,6 +32,7 @@ class TelegramTaskCreator(CooldownMixin, TaskAnalyzerMixin, DialogResolverMixin)
         self.db = db
         self.user_client = user_client
         self.voice_processor = voice_processor
+        self.gemini_api_key = gemini_api_key
         self.gemini_model = os.getenv("GEMINI_TELEGRAM_TASK_MODEL") or settings.GEMINI_CALL_MODEL
         self.gemini_cooldown_seconds = int(os.getenv("GEMINI_TASK_COOLDOWN_SECONDS", "21600"))
         self.telegram_flood_cooldown_seconds = int(os.getenv("TELEGRAM_ENTITY_COOLDOWN_SECONDS", "10800"))

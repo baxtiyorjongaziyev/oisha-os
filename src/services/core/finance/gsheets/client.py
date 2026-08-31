@@ -4,7 +4,10 @@ import logging
 import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 import gspread
-from google.oauth2.service_account import Credentials
+try:
+    from google.oauth2.service_account import Credentials
+except ImportError:
+    Credentials = None
 from src.services.core.finance.gsheets.constants import *
 
 logger = logging.getLogger(__name__)

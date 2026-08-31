@@ -16,6 +16,7 @@ openai>=3.1.0
 anthropic>=0.122.0
 google-genai>=2.18.1
 google-auth>=2.35.0
+google-auth-httplib2>=0.2.0
 google-auth-oauthlib>=1.4.0
 google-api-python-client>=2.198.0
 gspread>=6.2.1
@@ -42,4 +43,3 @@ pyperclip>=1.11.0
 google-analytics-data>=0.23.0
 mcp>=1.28.1,<2.0.0
 telegram-mcp @ git+https://github.com/baxtiyorjongaziyev/telegram-mcp.git@f1a2d8e00a7f127bb7702655c58fdfcee7e73a5a
-litellm>=1.41.0

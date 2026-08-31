@@ -1,9 +1,9 @@
 """Task and Note writer service for SalesCoach recommendations."""
 from __future__ import annotations
 
-import datetime
 import inspect
-from typing import Any, Callable, Mapping, Literal, Optional
+from datetime import datetime, timedelta
+from typing import Any, Mapping, Literal, Optional
 
 from src.services.core.crm.salescoach_writer.models import (
     TASHKENT,
@@ -12,11 +12,10 @@ from src.services.core.crm.salescoach_writer.models import (
     TaskWriteResult,
     _analysis_value,
     _extract_id,
-    _next_business_day,
     _normalized_text,
     task_idempotency_key,
 )
-from src.services.core.salescoach_store.models import TaskWriteAudit
+from src.services.core.salescoach_store import TaskWriteAudit
 
 
 class SalesCoachTaskWriter:
@@ -27,14 +26,15 @@ class SalesCoachTaskWriter:
         amocrm: Any,
         store: Any,
         admin_notifier: Any = None,
-        now_provider: Optional[Callable[[], datetime.datetime]] = None,
+        now_provider: Any = None,
+        notifier: Any = None,
     ) -> None:
         self.amocrm = amocrm
         self.store = store
-        self.admin_notifier = admin_notifier
-        self.now_provider = now_provider or (lambda: datetime.datetime.now(TASHKENT))
+        self.notifier = admin_notifier or notifier
+        self.now_provider = now_provider or (lambda: datetime.now(TASHKENT))
 
-    def _now(self) -> datetime.datetime:
+    def _now(self) -> datetime:
         value = self.now_provider()
         if value.tzinfo is None:
             return value.replace(tzinfo=TASHKENT)
@@ -42,27 +42,24 @@ class SalesCoachTaskWriter:
 
     def _deadline(self, rule: TaskRule) -> int:
         now = self._now()
-        if isinstance(rule.delay, datetime.timedelta):
+        if isinstance(rule.delay, timedelta):
             return int((now + rule.delay).timestamp())
-
-        today_at_18 = now.replace(hour=18, minute=0, second=0, microsecond=0)
-        if now < today_at_18 and today_at_18.weekday() < 5:
-            return int(today_at_18.timestamp())
-
-        next_day = _next_business_day(
-            (now + datetime.timedelta(days=1)).replace(
-                hour=10,
-                minute=0,
-                second=0,
-                microsecond=0,
-            )
+        target = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        if now < target and target.weekday() < 5:
+            return int(target.timestamp())
+        target = (now + timedelta(days=1)).replace(
+            hour=10, minute=0, second=0, microsecond=0
         )
-        return int(next_day.timestamp())
+        while target.weekday() >= 5:
+            target += timedelta(days=1)
+        return int(target.timestamp())
 
     async def _notify_failure(self, **payload: Any) -> None:
-        notifier = getattr(self.admin_notifier, "notify_write_failure", None)
-        if callable(notifier):
-            result = notifier(**payload)
+        if self.notifier is None:
+            return
+        notify = getattr(self.notifier, "notify_write_failure", None)
+        if callable(notify):
+            result = notify(**payload)
             if inspect.isawaitable(result):
                 await result
 
