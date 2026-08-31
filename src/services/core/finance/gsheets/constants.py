@@ -13,7 +13,10 @@ from typing import Any, Optional
 import gspread
 from gspread.spreadsheet import Spreadsheet
 from gspread.worksheet import Worksheet
-from google.oauth2.service_account import Credentials
+try:
+    from google.oauth2.service_account import Credentials
+except ImportError:
+    Credentials = None
 
 logger = logging.getLogger(__name__)
 

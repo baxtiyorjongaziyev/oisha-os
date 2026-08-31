@@ -40,116 +40,11 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-def register_settings_handlers(self):
-        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/sync_stats"))
-        async def sync_stats_handler(event):
-            if not self.access_manager.is_admin(event.sender_id):
-                return
 
-            wait_msg = await event.respond(
-                "📊 **Sinxronizatsiya hisoboti tayyorlanmoqda...**\nIltimos, kuting. 👸🛡️"
-            )
+from src.services.core.admin_bot.handlers_sync_stats import _register_sync_and_positions_handlers
 
-            try:
-                # 1. Telegram kontaktlar sonini olish
-                tg_contacts = await self.user_client(
-                    functions.contacts.GetContactsRequest(hash=0)
-                )
-                tg_count = len(tg_contacts.users)
 
-                # 2. Google (Bazadagi) kontaktlar sonini olish
-                google_count = await self.db.get_synced_contacts_count()
-
-                res_msg = (
-                    f"📊 **Oisha Sync Hisoboti**\n\n"
-                    f"🔹 **Telegram Kontaktlar:** `{tg_count}` ta\n"
-                    f"🔸 **Google Contacts (Synced):** `{google_count}` ta\n\n"
-                    f"💡 *Ma'lumot:* Google Contacts'ga faqat telefon raqami bor mijozlar sinxronlanadi. 🤴🛡️"
-                )
-                await wait_msg.edit(res_msg)
-            except Exception as e:
-                logger.error(f"❌ [SYNC STATS ERROR] {e}")
-                await wait_msg.edit(
-                    f"⚠️ **Xatolik:** Hisobot tayyorlashda xato yuz berdi: `{e}`"
-                )
-
-        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/sync_contacts_tg"))
-        async def sync_contacts_tg_handler(event):
-            sender_id = event.sender_id
-            if not self.access_manager.is_admin(sender_id):
-                return
-
-            wait_msg = await event.respond(
-                "🔍 **Google Contacts sinxronizatsiyasi boshlandi...**\n"
-                "Iltimos, kuting. Oisha barcha kontaktlarni yuklamoqda va Telegram akkauntlari bilan taqqoslamoqda. 👸🛡️"
-            )
-
-            # Run as a background task to prevent blocking the main Telegram thread
-            asyncio.create_task(self._run_gcontacts_telegram_sync(event, wait_msg))
-
-        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/set_position"))
-        async def set_position_handler(event):
-            """Xodimga rasmiy pozitsiya biriktirish: /set_position @username PM"""
-            if not self.access_manager.is_admin(event.sender_id):
-                return
-
-            args = event.message.text.split()
-            target_user = None
-            position = None
-
-            # 1. Reply orqali bo'lsa
-            if event.is_reply:
-                reply_msg = await event.get_reply_message()
-                target_user = await reply_msg.get_sender()
-                position = " ".join(args[1:]) if len(args) > 1 else None
-            # 2. Argumentlar orqali bo'lsa (@username position)
-            elif len(args) >= 3:
-                # Username orqali qidirish (Userbot orqali)
-                target_username = args[1].replace("@", "")
-                try:
-                    target_user = await self.user_client.get_entity(target_username)
-                    position = " ".join(args[2:])
-                except Exception as e:
-                    logger.error("Exception handled in %s", __name__, exc_info=True)
-                    await event.respond(f"❌ User topilmadi: {e}")
-                    return
-
-            if not target_user or not position:
-                await event.respond(
-                    "⚠️ **Xato qo'llanildi!**\n\nTo'g'ri ko'rinishi:\n1. Reply qilib: `/set_position PM`\n2. Mention bilan: `/set_position @username PM`"
-                )
-                return
-
-            from src.services.utils.team_hub import TeamHub
-
-            TeamHub.set_position(target_user.id, position)
-
-            # Username-ni ham DB-da yangilab qo'yamiz (Accountability uchun kerak)
-            await self.db.upsert_user(
-                target_user.id,
-                first_name=target_user.first_name,
-                username=target_user.username,
-                position=position,
-            )
-
-            await event.respond(
-                f"✅ **Muvaffaqiyatli!**\n👤 {target_user.first_name} endi rasman **{position}** pozitsiyasida.\nOisha uni har kuni 9:00 va 18:00da nazorat qiladi. 👸🛡️"
-            )
-
-        @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/topic_info"))
-        async def topic_info_handler(event):
-            """Guruhdagi Topic ID raqamini aniqlash uchun."""
-            chat_id = event.chat_id
-            thread_id = event.message.reply_to_msg_id
-
-            msg = (
-                f"👸 **Mavzu ma'lumotlari:**\n\n"
-                f"🔹 **Group ID:** `{chat_id}`\n"
-                f"🔸 **Topic ID (Thread):** `{thread_id or 'General (Asosiy)'}`\n\n"
-                f"💡 Ushbu Topic ID-ni `.env` faylida sozlash uchun foydalaning."
-            )
-            await event.respond(msg)
-
+def _register_distribution_and_managers_handlers(self):
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/set_distribution"))
         async def set_distribution_handler(event):
             """Lidlarni taqsimlash rejimini o'zgartirish: /set_distribution CLAIM yoki ROUND_ROBIN"""
@@ -245,6 +140,9 @@ def register_settings_handlers(self):
 
             await event.respond(msg)
 
+
+
+def _register_automation_control_handlers(self):
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/night_shift"))
         async def night_shift_handler(event):
             """CRM tozalash rejimini qo'lda ishga tushirish."""
@@ -307,6 +205,9 @@ def register_settings_handlers(self):
                 logger.error("Exception handled in %s", __name__, exc_info=True)
                 await event.respond(f"❌ Xato: {e}")
 
+
+
+def _register_mode_and_juma_handlers(self):
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/auto_status"))
         async def auto_status_handler(event):
             """Auto-reply rejimi, kill-switch va VIP threshold ko'rsatish."""
@@ -392,3 +293,10 @@ def register_settings_handlers(self):
             logger.info(
                 f"🕌 [ADMIN_BOT] Juma outreach triggered manually by {event.sender_id}"
             )
+
+
+def register_settings_handlers(self):
+    _register_sync_and_positions_handlers(self)
+    _register_distribution_and_managers_handlers(self)
+    _register_automation_control_handlers(self)
+    _register_mode_and_juma_handlers(self)

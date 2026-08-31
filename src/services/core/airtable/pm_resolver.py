@@ -59,10 +59,18 @@ class PMResolverMixin:
     @staticmethod
     def _get_field(fields: dict, key: str, default=None):
         """Get field value by trying multiple possible field names."""
+        if not isinstance(fields, dict):
+            return default
         for name in FIELD_MAP.get(key, [key]):
             val = fields.get(name)
-            if val is not None:
+            if val is not None and str(val).strip() not in ("", "[]", "None", "null"):
                 return val
+        if key == "project_name":
+            for k, v in fields.items():
+                if any(sub in k.lower() for sub in ["nom", "name", "loyiha", "client", "mijoz", "title"]):
+                    if v is not None and str(v).strip() not in ("", "[]", "None", "null"):
+                        return v
+            return fields.get("Loyiha ID") or fields.get("AmoCRM_ID") or default
         return default
 
     @classmethod
@@ -86,6 +94,10 @@ class PMResolverMixin:
                     results.append(f"{info['name']} ({info['role']})")
                 else:
                     results.append(info["name"])
+            elif clean.lower() in _NAME_TO_HANDLE:
+                results.append(clean)
+            elif clean.startswith("rec") and len(clean) == 17:
+                results.append("PM")
             else:
                 results.append(clean)
 
@@ -110,6 +122,8 @@ class PMResolverMixin:
                 results.append(_PM_NAME_DATA[clean]["handle"])
             elif clean.lower() in _NAME_TO_HANDLE:
                 results.append(_NAME_TO_HANDLE[clean.lower()])
+            elif clean.startswith("rec") and len(clean) == 17:
+                results.append("@Inomjon_JonBranding")
             elif clean.startswith("@"):
                 results.append(clean)
             else:

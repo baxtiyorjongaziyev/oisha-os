@@ -41,15 +41,12 @@ async def check_client_journey_excellence() -> bool:
     group_id = (
         getattr(config, "PROJECTS_GROUP_ID", None)
         or getattr(config, "WOW_SERVICE_GROUP_ID", None)
-        or getattr(config, "TEAM_GROUP_ID", None)
-        or getattr(config, "CRM_GROUP_ID", None)
+        or -1003114662117
     )
     thread_id = (
         getattr(config, "PROJECTS_TOPIC_ID", None)
         or getattr(config, "WOW_SERVICE_TOPIC_ID", None)
-        or getattr(config, "TOPIC_TASKS_ID", None)
-        or getattr(config, "TOPIC_GENERAL_ID", None)
-        or getattr(config, "TOPIC_REPORTS_ID", None)
+        or 1
     )
     if not (bot_token and group_id):
         return False

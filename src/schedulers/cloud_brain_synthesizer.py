@@ -1,6 +1,9 @@
 """Scheduler for AI Promises Tracker (24/7 Cloud Brain Synthesizer)."""
 import asyncio
 import logging
+
+from openai import AsyncOpenAI
+
 from src.database import get_db
 from src.settings import settings
 from src.utils.git_sync import push_vault_to_remote
@@ -56,18 +59,18 @@ async def _generate_insights(data: str) -> str:
         return "Bugun uchun qolib ketgan va'dalar yo'q."
 
     try:
-        import litellm
-        
-        # OpenRouter orqali Llama-3.3 dan foydalanamiz, chunki Groq va Gemini limitlari tugabdi
         openrouter_key = settings.OPENROUTER_API_KEY.get_secret_value() if settings.OPENROUTER_API_KEY else None
         
         if openrouter_key:
-            response = await litellm.acompletion(
-                model="openrouter/meta-llama/llama-3.3-70b-instruct",
-                messages=[{"role": "user", "content": PROMPT.format(data=data)}],
-                api_key=openrouter_key
+            client = AsyncOpenAI(
+                api_key=openrouter_key,
+                base_url="https://openrouter.ai/api/v1",
             )
-            return response.choices[0].message.content
+            response = await client.chat.completions.create(
+                model="meta-llama/llama-3.3-70b-instruct",
+                messages=[{"role": "user", "content": PROMPT.format(data=data)}],
+            )
+            return response.choices[0].message.content or ""
         else:
             return "OpenRouter API kaliti topilmadi."
             

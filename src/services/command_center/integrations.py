@@ -13,6 +13,7 @@ from src.services.command_center.models import (
     TelegramMigrationCheck,
     TelegramMigrationStatus,
     _configured,
+    _env_bool,
 )
 
 def list_integration_capabilities() -> list[dict[str, Any]]:

@@ -16,7 +16,7 @@ from src.services.core.telegram.task_creator.dialogs import _maybe_await
 logger = structlog.get_logger()
 
 
-class CooldownManagerMixin:
+class CooldownMixin:
     """Tracks and persists Gemini and Telegram resolution cooldowns."""
 
     _gemini_blocked_until = 0.0

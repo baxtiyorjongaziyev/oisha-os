@@ -11,6 +11,7 @@ secret = os.getenv("OISHA_API_SECRET", "")
 headers = {
     "X-Oisha-Internal-Secret": secret,
     "Authorization": f"Bearer {secret}"
+}
 port = os.getenv("PORT", os.getenv("API_PORT", "8000"))
 base_url = f"http://127.0.0.1:{port}/api/internal/mcp"
 

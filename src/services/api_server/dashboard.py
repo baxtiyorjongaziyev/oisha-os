@@ -4,6 +4,7 @@ Client dashboard view, background audit, and server runner.
 import asyncio
 import logging
 import os
+import time
 from typing import Any, Dict, Optional
 import uvicorn
 from fastapi import APIRouter, Request, HTTPException
@@ -11,12 +12,22 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from src.context import app_ctx
 from src.settings import settings
+from src.api.routes.state import api_state
 from src.services.api_server.helpers import (
     _get_amocrm_instance,
     _get_db_instance,
     _get_call_backfill_interval_seconds,
     _get_call_backfill_limit,
     _is_authorized_cron_request,
+    _parse_state_json,
+    _timestamp_to_iso,
+)
+from src.api.routes.amocrm_integration import (
+    _run_amocrm_call_backfill,
+    _CALL_BACKFILL_LAST_STARTED_KEY,
+    _CALL_BACKFILL_LAST_FINISHED_KEY,
+    _CALL_BACKFILL_LAST_RESULT_KEY,
+    _CALL_BACKFILL_LAST_ERROR_KEY,
 )
 
 logger = logging.getLogger(__name__)
@@ -215,8 +226,13 @@ async def _schedule_amocrm_call_backfill(
             await db.set_state(_CALL_BACKFILL_LAST_STARTED_KEY, str(time.time()))
         except Exception as exc:
             logger.debug("[backfill] failed to set start state: %s", exc)
+    
+    import sys
+    api_srv = sys.modules.get("src.api_server")
+    runner = getattr(api_srv, "_run_amocrm_call_backfill", _run_amocrm_call_backfill) if api_srv else _run_amocrm_call_backfill
+
     api_state._call_backfill_task = asyncio.create_task(
-        _run_amocrm_call_backfill(db, reason=reason, limit=limit)
+        runner(db, reason=reason, limit=limit)
     )
     return {"queued": True, "reason": reason, "limit": limit}
 
@@ -259,7 +275,12 @@ async def _build_amocrm_call_analysis_status(db) -> dict:
     if not last_error and mem.get("error"):
         last_error = mem["error"]
 
-    last_result = _parse_state_json(last_result_raw) if last_result_raw else {}
+    if isinstance(last_result_raw, dict):
+        last_result = last_result_raw
+    elif last_result_raw:
+        last_result = _parse_state_json(last_result_raw)
+    else:
+        last_result = {}
 
     # Totals
     totals = {}
@@ -353,7 +374,10 @@ from src.api.routes.amocrm_integration import (  # noqa: F401
     _CALL_BACKFILL_LAST_RESULT_KEY,
     _CALL_BACKFILL_LAST_ERROR_KEY,
 )
-from src.agents.autonomous_sales_agent import AutonomousSalesAgent  # noqa: F401
+try:
+    from src.agents.autonomous_sales_agent import AutonomousSalesAgent  # noqa: F401
+except Exception:
+    AutonomousSalesAgent = None  # type: ignore
 
 # ---------------------------------------------------------------------------
 # Entry Points
