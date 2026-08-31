@@ -57,11 +57,15 @@ class APIState:
     business_connections: Dict[str, Any] = field(default_factory=dict)
     _userbot_group_access_snapshot: Dict[str, Any] = field(default_factory=dict)
     _telegram_ai_ingress_status: Dict[str, Any] = field(default_factory=dict)
+    telegram_ai_ingress_enabled: bool = True
+    telegram_ai_ingress_reason: str = "enabled"
 
     # Health / caching
     cached_status: Dict[str, Any] = field(default_factory=dict)
     _health_db_snapshot_cache: Dict[str, Any] = field(default_factory=dict)
     _HEALTH_DB_TIMEOUT_SECONDS: float = 5.0
+    last_heartbeat: Dict[str, Any] = field(default_factory=dict)
+    recent_activity: Any = field(default_factory=list)
 
     # Heartbeat
     _last_heartbeat_at: Any = None

@@ -50,7 +50,11 @@ def set_telegram_ai_ingress_status(enabled: bool, reason: str = "") -> None:
 
 def mark_heartbeat(component: str = "api") -> None:
     from src.api.routes.health import api_state
-    api_state.last_heartbeat[component] = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    api_state._last_heartbeat_at = now
+    if not hasattr(api_state, "last_heartbeat") or not isinstance(api_state.last_heartbeat, dict):
+        api_state.last_heartbeat = {}
+    api_state.last_heartbeat[component] = now.isoformat()
 
 
 def add_activity(
@@ -59,6 +63,8 @@ def add_activity(
     detail: Optional[Dict[str, Any]] = None,
 ) -> None:
     from src.api.routes.health import api_state
+    if not hasattr(api_state, "recent_activity") or not isinstance(api_state.recent_activity, list):
+        api_state.recent_activity = []
     api_state.recent_activity.append(
         {
             "action": action,
