@@ -88,11 +88,13 @@ async def get_seller_card(seller_id: int, days: int = 30):
 
 @router.get("/deal-hygiene")
 async def get_deal_hygiene(dry_run: bool = True):
+    from src.context import app_ctx
+    if not getattr(app_ctx, "amocrm", None):
+        return _unavailable("/api/ai/deal-hygiene", "amocrm_uninitialized")
     try:
-        from src.context import app_ctx
         from src.services.core.crm.crm_cleaner import CRMCleaner
 
-        cleaner = CRMCleaner(amocrm=getattr(app_ctx, "amocrm", None))
+        cleaner = CRMCleaner(amocrm=app_ctx.amocrm)
         result = await cleaner.audit_hygiene(
             pipeline_ids=_deal_hygiene_pipeline_ids(),
             dry_run=dry_run,

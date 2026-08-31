@@ -111,3 +111,16 @@ class PersonaRouter:
                 if persona_key in AGENCY_PERSONAS:
                     return persona_key
         return cls.AGENT_DEFAULTS.get(agent_id)
+
+    @classmethod
+    def select_persona(cls, assessment: Any) -> str:
+        """Select persona based on negotiation assessment."""
+        intent = getattr(assessment, "intent", "")
+        objection = getattr(assessment, "objection", "")
+        return cls.route_key(f"{intent} {objection}", intent=intent) or "sales-deal-strategist"
+
+    @classmethod
+    def build_system_prompt(cls, persona: str, assessment: Any) -> str:
+        """Build full persona prompt for AI completions."""
+        base = AGENCY_PERSONAS.get(persona, "")
+        return f"Siz Jon Branding agentligi sotuv bo'yicha mutaxassisisiz.\nPersona: {persona}\n{base}"

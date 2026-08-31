@@ -1,51 +1,52 @@
 """
-Coach, conversation analysis and call processing routes.
+Sales Coaching, Ideal Scripts and Conversation Quality Analysis API endpoints.
 """
 from __future__ import annotations
 
-import logging
 from dataclasses import asdict
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 
-from src.api.rbac import Permission, require_permissions
 from src.api.routes.ai_analytics_pkg.helpers import (
     _ensure_quality_analyzer,
     _fail,
     _unavailable,
 )
-from src.api.routes.state import api_state
-
-logger = logging.getLogger(__name__)
+from src.context import app_ctx
 
 router = APIRouter()
 
 
 @router.post("/analyze-conversation")
 async def analyze_conversation(request: Request):
-    analyzer = _ensure_quality_analyzer()
-    if analyzer is None:
-        return _unavailable("/api/ai/analyze-conversation", "quality_analyzer_uninitialized")
     try:
         body = await request.json()
-        transcript = body.get("transcript", "")
-        if not transcript.strip():
-            return JSONResponse(status_code=400, content={"error": "transcript_empty"})
-        analysis = await analyzer.analyze_conversation(
-            transcript=transcript,
-            manager_name=body.get("manager_name", "Noma'lum"),
-            client_name=body.get("client_name", "Noma'lum"),
-            context=body.get("context", {}),
+    except Exception:
+        body = {}
+    if not body or not body.get("conversation_text"):
+        return JSONResponse(status_code=400, content={"error": "conversation_text_required"})
+    from src.services.ai.quality_analyzer import QualityAnalyzer
+    analyzer = QualityAnalyzer()
+    try:
+        res = analyzer.analyze_conversation(
+            body.get("conversation_text", ""),
+            conversation_id=body.get("conversation_id", "test-1"),
+            manager_name=body.get("manager_name", ""),
         )
-        return {"success": True, "analysis": asdict(analysis) if hasattr(analysis, "__dataclass_fields__") else analysis}
+        import inspect
+        analysis = await res if inspect.isawaitable(res) else res
+        data = analysis.to_dict() if hasattr(analysis, "to_dict") else (asdict(analysis) if hasattr(analysis, "__dataclass_fields__") else analysis)
+        return JSONResponse(status_code=200, content=data)
     except Exception as exc:
         return _fail("/api/ai/analyze-conversation", exc)
 
 
 @router.get("/metasell-dashboard")
 async def get_metasell_dashboard():
+    if not getattr(app_ctx, "amocrm", None):
+        return _unavailable("/api/ai/metasell-dashboard", "amocrm_uninitialized")
     analyzer = _ensure_quality_analyzer()
     if analyzer is None:
         return _unavailable("/api/ai/metasell-dashboard", "quality_analyzer_uninitialized")
@@ -58,10 +59,11 @@ async def get_metasell_dashboard():
 
 @router.get("/coach/daily-report")
 async def get_coach_daily_report(manager_name: Optional[str] = None):
+    if not getattr(app_ctx, "db", None):
+        return _unavailable("/api/ai/coach/daily-report", "db_not_connected")
     try:
         from src.services.ai.sales_coach import SalesCoach
-
-        coach = SalesCoach()
+        coach = SalesCoach(db=app_ctx.db)
         report = await coach.generate_daily_coaching_report(manager_name=manager_name)
         return {"success": True, "report": report}
     except Exception as exc:
@@ -69,11 +71,12 @@ async def get_coach_daily_report(manager_name: Optional[str] = None):
 
 
 @router.get("/coach/ideal-script")
-async def get_ideal_script(scenario: str = "general"):
+async def get_ideal_script(scenario: Optional[str] = None):
+    if not getattr(app_ctx, "db", None):
+        return _unavailable("/api/ai/coach/ideal-script", "db_not_connected")
     try:
         from src.services.ai.sales_coach import SalesCoach
-
-        coach = SalesCoach()
+        coach = SalesCoach(db=app_ctx.db)
         script = await coach.get_ideal_script(scenario=scenario)
         return {"success": True, "script": script}
     except Exception as exc:
@@ -81,59 +84,13 @@ async def get_ideal_script(scenario: str = "general"):
 
 
 @router.get("/coach/playbook-suggestions")
-async def get_playbook_suggestions(topic: str = "general"):
+async def get_playbook_suggestions(topic: Optional[str] = None):
+    if not getattr(app_ctx, "db", None):
+        return _unavailable("/api/ai/coach/playbook-suggestions", "db_not_connected")
     try:
         from src.services.ai.sales_coach import SalesCoach
-
-        coach = SalesCoach()
+        coach = SalesCoach(db=app_ctx.db)
         suggestions = await coach.get_playbook_suggestions(topic=topic)
         return {"success": True, "suggestions": suggestions}
     except Exception as exc:
         return _fail("/api/ai/coach/playbook-suggestions", exc)
-
-
-@router.post("/process-call")
-async def process_call(request: Request):
-    try:
-        body = await request.json()
-        lead_id = body.get("lead_id")
-        audio_url = body.get("audio_url")
-        if not lead_id or not audio_url:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "lead_id and audio_url required"},
-            )
-        from src.context import app_ctx
-
-        runner = getattr(app_ctx, "call_analytics_runner", None)
-        if runner is None:
-            return _unavailable("/api/ai/process-call", "call_analytics_runner_uninitialized")
-        result = await runner.process_call_recording(
-            lead_id=int(lead_id),
-            audio_url=str(audio_url),
-            duration_sec=int(body.get("duration_sec", 0)),
-            phone=body.get("phone", ""),
-        )
-        return {"success": True, "result": result}
-    except Exception as exc:
-        return _fail("/api/ai/process-call", exc)
-
-
-@router.post("/lead-classifier/tag")
-async def tag_lead(request: Request):
-    try:
-        body = await request.json()
-        lead_id = body.get("lead_id")
-        text = body.get("text", "")
-        if not lead_id or not text:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "lead_id and text required"},
-            )
-        from src.services.ai.lead_classifier import LeadClassifier
-
-        classifier = LeadClassifier()
-        result = await classifier.classify_and_tag(lead_id=int(lead_id), text=str(text))
-        return {"success": True, "result": result}
-    except Exception as exc:
-        return _fail("/api/ai/lead-classifier/tag", exc)

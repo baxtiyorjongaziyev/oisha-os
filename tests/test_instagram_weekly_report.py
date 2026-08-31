@@ -111,3 +111,45 @@ async def test_send_instagram_weekly_report_uses_bot_client(monkeypatch):
 
     assert report == "📊 <b>Report</b>"
     assert bot.sent == [(-100123, "📊 <b>Report</b>", {"parse_mode": "html"})]
+
+
+@pytest.mark.asyncio
+async def test_instagram_weekly_report_loop_skips_unconfigured(monkeypatch):
+    import asyncio
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    class _UnconfiguredAgent:
+        def credential_status(self):
+            return {"META_INSTAGRAM_USER_ID": False, "META_PAGE_ACCESS_TOKEN": False}
+
+    class _Bot:
+        def __init__(self):
+            self.sent = []
+
+        async def send_message(self, chat_id, text, **kwargs):
+            self.sent.append((chat_id, text, kwargs))
+
+    # Mock get_local_now to return Monday 09:30
+    monday_930 = datetime(2026, 8, 31, 9, 30, 0, tzinfo=ZoneInfo("Asia/Tashkent"))
+    monkeypatch.setattr("src.time_utils.get_local_now", lambda: monday_930)
+    monkeypatch.setattr(weekly_reporter, "InstagramWeeklyReportAgent", _UnconfiguredAgent)
+
+    # Short-circuit asyncio.sleep so loop doesn't hang
+    sleep_calls = 0
+
+    async def _mock_sleep(seconds):
+        nonlocal sleep_calls
+        sleep_calls += 1
+        if sleep_calls >= 2:
+            raise asyncio.CancelledError()
+
+    monkeypatch.setattr(asyncio, "sleep", _mock_sleep)
+
+    bot = _Bot()
+    with pytest.raises(asyncio.CancelledError):
+        await weekly_reporter.instagram_weekly_report_loop(bot, -100123)
+
+    # Bot should NOT have sent any message since credentials were not configured
+    assert bot.sent == []
+

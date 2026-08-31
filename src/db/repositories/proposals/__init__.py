@@ -1,6 +1,5 @@
 """
-Facade for ProposalRepository.
-Delegates to modular subpackage in src.db.repositories.proposals.
+ProposalRepository package.
 """
 from src.db.repositories.proposals.constants import (
     VALID_STATUSES,

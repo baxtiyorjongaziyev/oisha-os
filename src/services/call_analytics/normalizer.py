@@ -285,3 +285,6 @@ class CallNormalizerMixin:
             "zaif_tomonlar": [],
             "etirozlar": [],
         }
+
+
+CallAnalyzerNormalizerMixin = CallNormalizerMixin

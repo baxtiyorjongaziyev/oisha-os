@@ -245,16 +245,12 @@ class ConversationReportingMixin:
 ⚠️ *Asosiy E'tirozlar:*
 """
         for obj in metrics.top_objections[:3]:
-            report += f"• {obj['type']}: {obj['count']} ta
-"
+            report += f"\n• {obj['type']}: {obj['count']} ta"
 
         if metrics.weak_areas:
-            report += "
-🔍 *Rivojlantirish Kerak Bo'lgan Sohalar:*
-"
+            report += "\n\n🔍 *Rivojlantirish Kerak Bo'lgan Sohalar:*"
             for area in metrics.weak_areas:
-                report += f"• {area}
-"
+                report += f"\n• {area}"
 
         return report.strip()
 

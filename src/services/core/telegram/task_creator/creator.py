@@ -1,56 +1,30 @@
-"""
-TelegramTaskCreator main class composing cooldown, analyzer, and dialog mixins.
-"""
+"""Telegram Task Creator pipeline and AmoCRM bridge."""
 from __future__ import annotations
 
-import asyncio
+import datetime as _dt
 import logging
 import os
 import time
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 import structlog
+from google import genai
 
-from src.settings import settings
-from src.services.core.telegram.task_creator.cooldowns import CooldownManagerMixin
-from src.services.core.telegram.task_creator.analyzer import TaskAnalyzerMixin, genai, genai_types
-from src.services.core.telegram.task_creator.dialogs import (
-    DialogResolverMixin,
-    _maybe_await,
-)
+from src.services.core.telegram.task_creator.cooldowns import CooldownMixin
+from src.services.core.telegram.task_creator.models import _normalize_phone
+from src.services.core.telegram.task_creator.transcription import TranscriptionMixin
 
 logger = structlog.get_logger()
 
 
-class TelegramTaskCreator(CooldownManagerMixin, TaskAnalyzerMixin, DialogResolverMixin):
-    """
-    Scans Telegram dialogues (text + voice), transcribes audios inline,
-    analyzes the overall conversation logic for promises, commitments, and deadlines,
-    and registers them automatically in AmoCRM as active Tasks.
-    """
+class TelegramTaskCreator(CooldownMixin, TranscriptionMixin):
+    """Telegram chat tahlili orqali AmoCRM da avtomatik vazifalar yaratish."""
 
-    def __init__(
-        self,
-        amocrm: Any,
-        db: Any,
-        user_client: Optional[Any] = None,
-        voice_processor: Optional[Any] = None,
-        gemini_api_key: Optional[str] = None,
-    ):
-        self.amocrm = amocrm
-        self.db = db
+    def __init__(self, user_client: Any, amocrm: Any, gemini_api_key: Optional[str] = None) -> None:
         self.user_client = user_client
-        self.voice_processor = voice_processor
-        self.gemini_api_key = gemini_api_key
-        self.gemini_model = (
-            os.getenv("GEMINI_TELEGRAM_TASK_MODEL") or settings.GEMINI_CALL_MODEL
-        )
-        self.gemini_cooldown_seconds = int(
-            os.getenv("GEMINI_TASK_COOLDOWN_SECONDS", "21600")
-        )
-        self.telegram_flood_cooldown_seconds = int(
-            os.getenv("TELEGRAM_ENTITY_COOLDOWN_SECONDS", "10800")
-        )
+        self.amocrm = amocrm
+        self.cooldowns: Dict[str, float] = {}
+        self.telegram_cooldown_file = os.getenv("TELEGRAM_ENTITY_COOLDOWNS_PATH", "data/telegram_entity_cooldowns.json")
+        self.telegram_flood_cooldown_seconds = int(os.getenv("TELEGRAM_ENTITY_COOLDOWN_SECONDS", "10800"))
         self._cooldowns_loaded = False
 
         self.genai_client = None
@@ -60,177 +34,89 @@ class TelegramTaskCreator(CooldownManagerMixin, TaskAnalyzerMixin, DialogResolve
             except Exception as e:
                 logger.error(f"[TELEGRAM_TASK] Gemini Client failed to init: {e}")
 
-    async def create_amocrm_tasks_from_chat(
-        self, phone_or_username: str, lead_id: int, limit: int = 20
-    ) -> List[Dict[str, Any]]:
-        """
-        Main pipeline: Fetches recent Telegram dialogue, handles voice transcriptions,
-        runs Gemini task tahlili, and inserts the tasks into AmoCRM deal.
-        """
-        logger.info(f"[TELEGRAM_TASK] Starting dialogue analysis for {phone_or_username} (lead {lead_id})...")
+    async def _pull_dialog_messages(self, phone_or_username: str, lead_id: int, limit: int) -> List[Any]:
         await self._load_persisted_cooldowns()
         if not self.user_client:
-            logger.warning("[TELEGRAM_TASK] Telegram client not set. Cannot pull chat history.")
             return []
-        temporary_contact_id = None
+        temp_contact_id = None
         try:
-            entity, temporary_contact_id = await self._resolve_dialog_entity(
-                phone_or_username
-            )
+            entity, temp_contact_id = await self._resolve_dialog_entity(phone_or_username)
             if entity is None:
-                logger.info(
-                    "[TELEGRAM_TASK] Telegram account not resolved for lead %s.",
-                    lead_id,
-                )
                 return []
             messages = await self.user_client.get_messages(entity, limit=limit)
         except Exception as e:
-            error_text = str(e)
-            if "flood" in error_text.lower() or "GetContactsRequest" in error_text:
-                cooldown_seconds = self._pause_telegram_resolution(e)
+            if "flood" in str(e).lower() or "GetContactsRequest" in str(e):
+                self._pause_telegram_resolution(e)
                 await self._persist_cooldowns()
-                logger.error(
-                    "[TELEGRAM_TASK] Telegram entity lookup flood wait; pausing lookup for %ss.",
-                    cooldown_seconds,
-                )
-            else:
-                logger.info(
-                    "[TELEGRAM_TASK] Telegram dialogue unavailable for lead %s: %s",
-                    lead_id,
-                    type(e).__name__,
-                )
             return []
         finally:
-            await self._delete_temporary_contact(temporary_contact_id)
+            await self._delete_temporary_contact(temp_contact_id)
 
         if not messages:
-            logger.warning("[TELEGRAM_TASK] No messages retrieved.")
             return []
 
-        # Detect client's user_id from private chat messages for group scan
-        client_user_id: Optional[int] = None
-        for m in messages:
-            if not m.out:
-                fid = getattr(m, "from_id", None)
-                uid = getattr(fid, "user_id", None)
-                if uid:
-                    client_user_id = uid
-                    break
+        client_uid = next((getattr(getattr(m, "from_id", None), "user_id", None) for m in messages if not m.out), None)
+        if client_uid:
+            grp_msgs = await self._fetch_shared_group_messages(client_uid, limit=limit)
+            if grp_msgs:
+                messages = list(messages) + grp_msgs
+        return messages
 
-        # Also collect messages from shared group chats
-        if client_user_id:
-            group_messages = await self._fetch_shared_group_messages(client_user_id, limit=limit)
-            if group_messages:
-                logger.info(
-                    "[TELEGRAM_TASK] Adding %d group message(s) to analysis context.",
-                    len(group_messages),
-                )
-                messages = list(messages) + group_messages
-
-        # Parse and build chat logs (oldest first)
-        import datetime as _dt
+    async def _build_chat_transcript(self, messages: List[Any]) -> str:
         def _msg_date(m: Any) -> Any:
             d = getattr(m, "date", None)
             return d if isinstance(d, (_dt.datetime, _dt.date)) else _dt.datetime.min
-        messages = sorted(messages, key=_msg_date)
-        chat_lines = []
 
-        for msg in messages:
-            if msg.out:
-                sender = "Menejer"
-            else:
-                sender_name = None
-                sender_obj = getattr(msg, "sender", None)
-                if sender_obj:
-                    first = getattr(sender_obj, "first_name", None) or ""
-                    last = getattr(sender_obj, "last_name", None) or ""
-                    sender_name = (first + " " + last).strip() or None
-                sender = sender_name or "Mijoz"
-
-            # 1. Handle Voice / Audio Notes
+        lines = []
+        for msg in sorted(messages, key=_msg_date):
+            sender = "Menejer" if msg.out else ((getattr(getattr(msg, "sender", None), "first_name", "") + " " + getattr(getattr(msg, "sender", None), "last_name", "")).strip() or "Mijoz")
             if msg.voice or msg.audio:
                 voice_text = await self.download_and_transcribe_voice(msg)
                 if voice_text:
-                    chat_lines.append(f"{sender} (Ovozli xabar): {voice_text}")
-            # 2. Handle standard text
+                    lines.append(f"{sender} (Ovozli xabar): {voice_text}")
             elif msg.message:
-                chat_lines.append(f"{sender}: {msg.message.strip()}")
+                lines.append(f"{sender}: {msg.message.strip()}")
+        return "\n".join(lines)
 
-        full_chat_text = "\n".join(chat_lines)
-        if not full_chat_text.strip():
-            logger.info("[TELEGRAM_TASK] Conversation is empty (no text/voice parsed).")
-            return []
-
-        logger.info(f"[TELEGRAM_TASK] Building chat context ({len(chat_lines)} lines). Extracting tasks...")
-        extracted_tasks = await self.analyze_text_for_tasks(full_chat_text)
-
-        if not extracted_tasks:
-            logger.info("[TELEGRAM_TASK] No actionable tasks found in conversation.")
-            return []
-
-        logger.info(f"[TELEGRAM_TASK] Found {len(extracted_tasks)} task(s). Creating in AmoCRM...")
-        created_tasks = []
-        now_ts = int(time.time())
-
-        # Fetch existing open tasks for this lead to avoid duplicates
-        existing_task_texts: set[str] = set()
+    async def _insert_deduped_tasks(self, lead_id: int, extracted_tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        existing: set[str] = set()
         try:
-            open_tasks = await self.amocrm.get_lead_open_tasks(lead_id)
-            for ot in open_tasks:
-                raw = (ot.get("text") or "").strip().lower()
-                # Strip common prefix added by this pipeline
-                normalized = raw.removeprefix("telegram suhbatidan: ")
-                if normalized:
-                    existing_task_texts.add(normalized)
-            if existing_task_texts:
-                logger.info(
-                    "[TELEGRAM_TASK] Lead %s already has %d open task(s); will skip duplicates.",
-                    lead_id,
-                    len(existing_task_texts),
-                )
+            for ot in await self.amocrm.get_lead_open_tasks(lead_id):
+                norm = (ot.get("text") or "").strip().lower().removeprefix("telegram suhbatidan: ")
+                if norm:
+                    existing.add(norm)
         except Exception as exc:
             logger.warning("[TELEGRAM_TASK] Could not fetch existing tasks for dedup: %s", exc)
 
+        from src.utils.task_scheduler import task_deadline
+        created = []
         for t in extracted_tasks:
             task_text = t.get("text", "").strip()
             due_hours = t.get("due_in_hours", 24)
             if not task_text:
                 continue
-
-            # Dedup: skip if a very similar task already exists (80%+ word overlap)
-            task_lower = task_text.lower().removeprefix("telegram suhbatidan: ")
-            task_words = set(task_lower.split())
-            is_duplicate = False
-            for existing in existing_task_texts:
-                existing_words = set(existing.split())
-                if not existing_words:
-                    continue
-                overlap = len(task_words & existing_words) / max(len(task_words), len(existing_words))
-                if overlap >= 0.8:
-                    logger.info(
-                        "[TELEGRAM_TASK] Skipping duplicate task (%.0f%% overlap with existing): '%s'",
-                        overlap * 100,
-                        task_text[:80],
-                    )
-                    is_duplicate = True
-                    break
-            if is_duplicate:
+            task_words = set(task_text.lower().removeprefix("telegram suhbatidan: ").split())
+            if any(len(task_words & set(e.split())) / max(len(task_words), len(e.split())) >= 0.8 for e in existing if e.split()):
                 continue
-
-            # Ish vaqtini hisobga olgan holda deadline
-            from src.utils.task_scheduler import task_deadline
-            complete_till = task_deadline(due_in_hours=due_hours)
             try:
-                res = await self.amocrm.create_task(
-                    element_id=lead_id,
-                    text=task_text,
-                    complete_till=complete_till,
-                )
+                res = await self.amocrm.create_task(element_id=lead_id, text=task_text, complete_till=task_deadline(due_in_hours=due_hours))
                 if res:
-                    logger.info(f"✅ [TELEGRAM_TASK] AmoCRM Task created: '{task_text}' (Due in {due_hours}h, working hours).")
-                    created_tasks.append({"text": task_text, "due_in_hours": due_hours})
-                    existing_task_texts.add(task_lower)
+                    created.append({"text": task_text, "due_in_hours": due_hours})
+                    existing.add(task_text.lower().removeprefix("telegram suhbatidan: "))
             except Exception as exc:
                 logger.error(f"[TELEGRAM_TASK] Failed to create AmoCRM task for '{task_text}': {exc}")
+        return created
 
-        return created_tasks
+    async def create_amocrm_tasks_from_chat(self, phone_or_username: str, lead_id: int, limit: int = 20) -> List[Dict[str, Any]]:
+        """Main pipeline: Fetches recent Telegram dialogue, runs AI task analyzer and creates AmoCRM tasks."""
+        logger.info(f"[TELEGRAM_TASK] Starting dialogue analysis for {phone_or_username} (lead {lead_id})...")
+        messages = await self._pull_dialog_messages(phone_or_username, lead_id, limit)
+        if not messages:
+            return []
+        chat_text = await self._build_chat_transcript(messages)
+        if not chat_text.strip():
+            return []
+        extracted = await self.analyze_text_for_tasks(chat_text)
+        if not extracted:
+            return []
+        return await self._insert_deduped_tasks(lead_id, extracted)

@@ -61,11 +61,11 @@ def __getattr__(name: str):
     if name == "CRM_GROUP_ID":
         return settings.CRM_GROUP_ID
     if name == "PROJECTS_GROUP_ID":
-        return settings.PROJECTS_GROUP_ID or settings.CRM_GROUP_ID
+        return settings.PROJECTS_GROUP_ID or -1003114662117
     if name == "PROJECTS_TOPIC_ID":
-        return settings.PROJECTS_TOPIC_ID
+        return settings.PROJECTS_TOPIC_ID if settings.PROJECTS_TOPIC_ID is not None else 1
     if name == "TASKS_GROUP_ID":
-        return settings.TASKS_GROUP_ID or settings.CRM_GROUP_ID or settings.PROJECTS_GROUP_ID
+        return settings.TASKS_GROUP_ID or settings.PROJECTS_GROUP_ID or -1003114662117
     if name == "STAGNATION_GROUP_ID":
         return settings.STAGNATION_GROUP_ID or settings.CRM_GROUP_ID
     if name == "STAGNATION_TOPIC_ID":
@@ -75,14 +75,9 @@ def __getattr__(name: str):
             else settings.TOPIC_CRM_ID
         )
     if name == "WOW_SERVICE_GROUP_ID":
-        return (
-            settings.WOW_SERVICE_GROUP_ID
-            or settings.PROJECTS_GROUP_ID
-            or settings.TEAM_GROUP_ID
-            or settings.CRM_GROUP_ID
-        )
+        return settings.WOW_SERVICE_GROUP_ID or settings.PROJECTS_GROUP_ID or -1003114662117
     if name == "WOW_SERVICE_TOPIC_ID":
-        return settings.WOW_SERVICE_TOPIC_ID or settings.PROJECTS_TOPIC_ID
+        return settings.WOW_SERVICE_TOPIC_ID if settings.WOW_SERVICE_TOPIC_ID is not None else 1
     if name == "CRM_TOPIC_ID":
         return settings.CRM_TOPIC_ID
     if name == "TOPIC_CRM_ID":

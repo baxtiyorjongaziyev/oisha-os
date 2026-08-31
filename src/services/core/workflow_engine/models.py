@@ -19,6 +19,7 @@ class Role(Enum):
     CLOSER = "closer"  # Bitimni yopish
     FARMER = "farmer"  # Mijozni saqlash
     PROJECT_MANAGER = "pm"  # Loyiha boshqaruvchi
+    PM = "pm"  # Loyiha boshqaruvchi (alias)
     DESIGNER = "designer"  # Dizayner
     DEVELOPER = "developer"  # Dasturchi
     COPYWRITER = "copywriter"  # Matn yozuvchi
