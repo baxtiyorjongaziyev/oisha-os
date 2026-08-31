@@ -15,10 +15,16 @@ from src.services.call_analytics.helpers import (
     _normalise_mood,
 )
 from src.services.call_analytics.analyzer import CallAnalyzer
+from src.services.call_analytics.omnichannel_context import (
+    OmnichannelContext,
+    OmnichannelContextFetcher,
+)
 
 __all__ = [
     "GeminiQuotaCooldownError",
     "CallAnalyzer",
+    "OmnichannelContext",
+    "OmnichannelContextFetcher",
     "_maybe_await",
     "_detect_mime",
     "_compute_talk_ratio",

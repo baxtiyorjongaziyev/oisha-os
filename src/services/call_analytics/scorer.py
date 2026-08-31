@@ -42,9 +42,12 @@ logger = structlog.get_logger()
 
 class CallScorerMixin:
     async def analyze_transcript(
-        self, transcript: str, duration_seconds: int = 0
+        self,
+        transcript: str,
+        duration_seconds: int = 0,
+        omnichannel_context: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """Classify, summarize, and extract next steps from a transcript."""
+        """Classify, summarize, and extract next steps from transcript + CRM & Telegram context."""
         if not transcript:
             return self._fallback_analysis(transcript)
 
@@ -58,12 +61,25 @@ class CallScorerMixin:
                 else "  Aniqlanmadi — transkripsiyada rollar belgilanmagan.\n"
             )
             now_local = get_local_now()
+
+            crm_block = ""
+            if omnichannel_context and hasattr(omnichannel_context, "format_crm_prompt_block"):
+                crm_block = f"\nAMOCRM LID VA KONTAKT MAYDONLARI:\n{omnichannel_context.format_crm_prompt_block()}\n"
+
+            tg_block = ""
+            if omnichannel_context and hasattr(omnichannel_context, "format_telegram_prompt_block"):
+                tg_block = f"\nTELEGRAM YOZISHMALAR TARIXI (Ushbu mijoz bilan oxirgi xabarlar):\n{omnichannel_context.format_telegram_prompt_block()}\n"
+
             prompt = (
-                "Quyidagi telefon suhbati transkripsiyasini professional savdo tahlilchisi sifatida tahlil qiling.\n\n"
+                "Quyidagi telefon suhbati transkripsiyasini va unga biriktirilgan mijoz kontekstini "
+                "(AmoCRM kartochka maydonlari hamda Telegram yozishmalari) professional savdo tahlilchisi sifatida "
+                "birlashtirgan holda 360-darajali to'liq tahlil qiling.\n\n"
                 f"HOZIRGI SANA VA VAQT (Toshkent): {now_local.strftime('%Y-%m-%d %H:%M')} "
                 f"({_WEEKDAY_UZ[now_local.weekday()]})\n"
                 "Transkripsiyada nisbiy vaqt aytilsa (\"ertaga\", \"peshin\", \"kelasi hafta\", "
-                "\"dushanba\"), shu hozirgi sanaga nisbatan hisoblang.\n\n"
+                "\"dushanba\"), shu hozirgi sanaga nisbatan hisoblang.\n"
+                f"{crm_block}"
+                f"{tg_block}\n"
                 "TOIFALAR (faqat bittasini tanlang):\n"
                 "- Shaxsiy: shaxsiy, biznesga aloqasi yo'q suhbat.\n"
                 "- Oila: oila a'zolari, uy ishlari, bolalar yoki qarindoshlar haqida.\n"
@@ -80,7 +96,7 @@ class CallScorerMixin:
                 "umumiy muloqot sifatiga qarab baholang.\n\n"
                 "Javobni faqat JSON formatida qaytaring:\n"
                 "{\n"
-                '  "summary": "2-4 gapda O\'zbekcha xulosa",\n'
+                '  "summary": "2-4 gapda O\'zbekcha yaxlit 360° xulosa (telefon suhbati, Telegramdagi avvalgi yozishmalar va CRM maydonlarini bir-biriga bog\'lagan holda)",\n'
                 '  "category": "Shaxsiy|Oila|Jamoa|Mijoz|Boshqa",\n'
                 '  "client_mood": "Ijobiy|Neytral|Salbiy|Noaniq",\n'
                 '  "next_steps": "Keyingi aniq qadamlar yoki N/A",\n'
@@ -134,15 +150,18 @@ class CallScorerMixin:
                 ),
             )
             data = _extract_json_object(getattr(response, "text", "") or "")
-            return self._normalise_analysis(data, transcript, duration_seconds)
+            res = self._normalise_analysis(data, transcript, duration_seconds)
+            if omnichannel_context:
+                res["omnichannel_context"] = omnichannel_context
+            return res
         except GeminiQuotaCooldownError:
             logger.info("[CALL] Gemini transcript analysis skipped during quota cooldown.")
             fallback_analysis = await self._analyze_transcript_openai(
-                transcript, duration_seconds
+                transcript, duration_seconds, omnichannel_context
             )
             if not fallback_analysis:
                 fallback_analysis = await self._analyze_transcript_free_ai(
-                    transcript, duration_seconds
+                    transcript, duration_seconds, omnichannel_context
                 )
             if fallback_analysis:
                 return fallback_analysis
@@ -150,18 +169,21 @@ class CallScorerMixin:
         except Exception as exc:
             logger.error("[CALL] Transcript analysis failed: %s", exc)
             fallback_analysis = await self._analyze_transcript_openai(
-                transcript, duration_seconds
+                transcript, duration_seconds, omnichannel_context
             )
             if not fallback_analysis:
                 fallback_analysis = await self._analyze_transcript_free_ai(
-                    transcript, duration_seconds
+                    transcript, duration_seconds, omnichannel_context
                 )
             if fallback_analysis:
                 return fallback_analysis
             return self._fallback_analysis(transcript)
 
     async def _analyze_transcript_openai(
-        self, transcript: str, duration_seconds: int = 0
+        self,
+        transcript: str,
+        duration_seconds: int = 0,
+        omnichannel_context: Optional[Any] = None,
     ) -> Optional[Dict[str, Any]]:
         """Fallback JSON analysis via OpenAI text model."""
         if not self.openai_client:
@@ -169,13 +191,24 @@ class CallScorerMixin:
 
         model = getattr(self._settings, "OPENAI_TEXT_MODEL", "gpt-4o-mini")
         system = (
-            "Siz O'zbek tilida ishlaydigan amoCRM qo'ng'iroq tahlilchisisiz. "
+            "Siz O'zbek tilida ishlaydigan amoCRM qo'ng'iroq va omnichannel tahlilchisisiz. "
             "Faqat JSON qaytaring."
         )
         now_local = get_local_now()
+
+        crm_block = ""
+        if omnichannel_context and hasattr(omnichannel_context, "format_crm_prompt_block"):
+            crm_block = f"\nCRM Maydonlari:\n{omnichannel_context.format_crm_prompt_block()}\n"
+
+        tg_block = ""
+        if omnichannel_context and hasattr(omnichannel_context, "format_telegram_prompt_block"):
+            tg_block = f"\nTelegram Tarixi:\n{omnichannel_context.format_telegram_prompt_block()}\n"
+
         user = (
-            "Telefon suhbati transkripsiyasini tahlil qiling.\n"
+            "Telefon suhbati transkripsiyasini va mijozning CRM hamda Telegram kontekstini tahlil qiling.\n"
             f"Hozirgi sana va vaqt (Toshkent): {now_local.strftime('%Y-%m-%d %H:%M')}\n"
+            f"{crm_block}"
+            f"{tg_block}\n"
             "Toifalar: Shaxsiy, Oila, Jamoa, Mijoz, Boshqa.\n"
             "Kayfiyat: Ijobiy, Neytral, Salbiy, Noaniq.\n"
             "JSON schema: summary, category, client_mood, next_steps, keyingi_kelishuv, "
@@ -200,28 +233,41 @@ class CallScorerMixin:
             response = await asyncio.to_thread(_create)
             raw = response.choices[0].message.content if response.choices else ""
             data = _extract_json_object(raw or "")
-            return self._normalise_analysis(data, transcript, duration_seconds)
+            res = self._normalise_analysis(data, transcript, duration_seconds)
+            if omnichannel_context:
+                res["omnichannel_context"] = omnichannel_context
+            return res
         except Exception as exc:
             logger.error("[CALL] OpenAI analysis fallback failed: %s", exc)
             return None
 
     async def _analyze_transcript_free_ai(
-        self, transcript: str, duration_seconds: int = 0
+        self,
+        transcript: str,
+        duration_seconds: int = 0,
+        omnichannel_context: Optional[Any] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Fallback JSON analysis via free_ai_router (Groq/Cloudflare text models).
-
-        Mirrors the Gemini rubric schema (not the slimmer OpenAI fallback one)
-        so MetaSell scoring/conversion diagnostics keep working during a
-        Gemini cooldown instead of silently landing at overall_score=0.
-        """
+        """Fallback JSON analysis via free_ai_router (Groq/Cloudflare text models)."""
         system = (
-            "Siz O'zbek tilida ishlaydigan amoCRM qo'ng'iroq tahlilchisisiz. "
+            "Siz O'zbek tilida ishlaydigan amoCRM qo'ng'iroq va omnichannel tahlilchisisiz. "
             "Faqat JSON qaytaring, boshqa matn yozmang."
         )
         now_local = get_local_now()
+
+        crm_block = ""
+        if omnichannel_context and hasattr(omnichannel_context, "format_crm_prompt_block"):
+            crm_block = f"\nCRM Maydonlari:\n{omnichannel_context.format_crm_prompt_block()}\n"
+
+        tg_block = ""
+        if omnichannel_context and hasattr(omnichannel_context, "format_telegram_prompt_block"):
+            tg_block = f"\nTelegram Tarixi:\n{omnichannel_context.format_telegram_prompt_block()}\n"
+
         prompt = (
-            "Quyidagi telefon suhbati transkripsiyasini professional savdo tahlilchisi sifatida tahlil qiling.\n\n"
-            f"HOZIRGI SANA VA VAQT (Toshkent): {now_local.strftime('%Y-%m-%d %H:%M')}\n\n"
+            "Quyidagi telefon suhbati transkripsiyasini va unga biriktirilgan mijoz kontekstini "
+            "professional savdo tahlilchisi sifatida yaxlit 360-darajali tahlil qiling.\n\n"
+            f"HOZIRGI SANA VA VAQT (Toshkent): {now_local.strftime('%Y-%m-%d %H:%M')}\n"
+            f"{crm_block}"
+            f"{tg_block}\n"
             "TOIFALAR (faqat bittasini tanlang): Shaxsiy, Oila, Jamoa, Mijoz, Boshqa.\n"
             "Mijoz = brending, dizayn, SMM, sayt, loyiha, narx, savdo yoki mijoz muzokarasi.\n\n"
             f"{rubric_prompt_uz()}\n"
@@ -230,7 +276,7 @@ class CallScorerMixin:
             "rubrik_baholar uchun umumiy muloqot sifatiga qarab baholang.\n\n"
             "Javobni faqat JSON formatida qaytaring:\n"
             "{\n"
-            '  "summary": "2-4 gapda O\'zbekcha xulosa",\n'
+            '  "summary": "2-4 gapda O\'zbekcha yaxlit 360° xulosa",\n'
             '  "category": "Shaxsiy|Oila|Jamoa|Mijoz|Boshqa",\n'
             '  "client_mood": "Ijobiy|Neytral|Salbiy|Noaniq",\n'
             '  "next_steps": "Keyingi aniq qadamlar yoki N/A",\n'
@@ -248,25 +294,21 @@ class CallScorerMixin:
             '    "etirozlar": {"ball": <0-100>},\n'
             '    "yakunlash": {"ball": <0-100>},\n'
             '    "muloqot_sifati": {"ball": <0-100>}\n'
-            "  }\n"
+            '  }\n'
             "}\n\n"
             f"Transkripsiya:\n{transcript}"
         )
         try:
-            # Groq's current default text models (e.g. openai/gpt-oss-120b)
-            # are reasoning models: a chunk of max_tokens is consumed by an
-            # internal "reasoning" field before any JSON lands in `content`.
-            # Too low a budget truncates before the real answer appears, but
-            # too high one burns through Groq's 8000 TPM free-tier limit in
-            # a single call and forces a 900s _pause() — 1800 is the
-            # observed sweet spot for this prompt's reasoning length.
             result = await self.free_ai_router.generate_text(
                 prompt, system=system, max_tokens=1800, temperature=0.2
             )
             data = _extract_json_object(result.text if result else "")
             if not data:
                 return None
-            return self._normalise_analysis(data, transcript, duration_seconds)
+            res = self._normalise_analysis(data, transcript, duration_seconds)
+            if omnichannel_context:
+                res["omnichannel_context"] = omnichannel_context
+            return res
         except Exception as exc:
             logger.error("[CALL] free_ai_router analysis fallback failed: %s", exc)
             return None
