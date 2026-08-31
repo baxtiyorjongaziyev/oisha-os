@@ -1,5 +1,8 @@
 import gspread
-from google.oauth2.service_account import Credentials
+try:
+    from google.oauth2.service_account import Credentials
+except ImportError:
+    Credentials = None
 import os
 import logging
 import datetime

@@ -1,9 +1,15 @@
 import os
 import logging
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-from google.oauth2 import service_account
 from typing import Optional
+
+try:
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+    from google.oauth2 import service_account
+except ImportError:
+    build = None
+    MediaFileUpload = None
+    service_account = None
 
 logger = logging.getLogger(__name__)
 
