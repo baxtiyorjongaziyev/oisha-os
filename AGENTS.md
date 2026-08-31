@@ -36,7 +36,7 @@
 ## Current State
 
 ### Locked
-- Bo'sh (hamma qulflar ochilgan)
+- Codex Coordinator: client journey, SalesCoach writer, Telegram task creator, dependency contracts
 
 ### Operational Notes
 - Telegram MCP approval gateway: upstream `127.0.0.1:8765/mcp`, gateway `127.0.0.1:8766/mcp`. `TELEGRAM_MCP_SESSION_STRING` must be a dedicated session and must never equal `USERBOT_SESSION_STRING`. Read tools are automatic; every mutation is owner-approved through Telegram. Neither port may be exposed by Nginx.
@@ -97,7 +97,7 @@
 33. `src/agents/agent_tools/crm_actions.py` (465L) → `crm_actions.py` (321L) + `crm_lead_qualify.py` (161L).
 34. `src/services/proactive/stagnation.py` (553L) → `stagnation.py` (245L) + `airtable_deadlines.py` (209L) + `airtable_stagnation.py` (205L).
 
-- **Status:** 772 ta Python faylidan 0 ta qoidabuzarlik (>400L: 0 ta, 100% compliant). Funksiyalar bo'yicha: 3,708 ta funksiyaning 90.2% qismi $\le 50$ qatordan iborat (72.6% ideal $\le 25$ qator). 100% Pytest Syntax Guard pass & Bandit 0 issues.
+- **Status:** 773 ta Python faylidan 0 ta qoidabuzarlik (>400L: 0 ta, 100% compliant). Funksiyalar bo'yicha: 3,710 ta funksiyaning 90.2% qismi $\le 50$ qatordan iborat (72.5% ideal $\le 25$ qator). 100% Pytest Syntax Guard pass (773/773) & Bandit 0 issues.
 
 ## Pre-flight Checklist (har bir PR dan oldin)
 ```powershell
