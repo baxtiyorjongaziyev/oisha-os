@@ -52,6 +52,10 @@ async def boot_application():
     # 1. Core Services & DB
     api_keys, db, hisobchi_gs_store, msg_controller = await init_core_services()
     app_ctx.msg_controller = msg_controller
+    api_state.db_instance = db
+    api_state.msg_controller = msg_controller
+    api_module.db_instance = db
+    api_module.msg_controller = msg_controller
 
     cloud_control_plane_only = runtime_mode.control_plane_only
 
