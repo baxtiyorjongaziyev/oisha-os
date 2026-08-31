@@ -127,6 +127,29 @@ async def run_call_analysis_scan(
                     exc_info=True,
                 )
 
+        # 2. Process contact-level call recordings automatically
+        try:
+            if hasattr(analyzer, "analyze_recent_contact_calls"):
+                c_stats = await analyzer.analyze_recent_contact_calls(
+                    limit=20,
+                    min_call_duration_seconds=min_dur,
+                )
+                result.processed_calls += int(c_stats.get("contact_calls_processed") or 0)
+        except Exception as c_exc:
+            logger.debug("[CALL-SCHEDULER] Contact calls sweep skipped: %s", c_exc)
+
+        # 3. Continuous automatic historical backfill (catches any downtime recordings)
+        try:
+            if hasattr(analyzer, "backfill_call_recordings"):
+                b_stats = await analyzer.backfill_call_recordings(
+                    limit=15,
+                    max_pages_per_run=3,
+                    min_call_duration_seconds=min_dur,
+                )
+                result.processed_calls += int(b_stats.get("calls_processed") or 0)
+        except Exception as b_exc:
+            logger.debug("[CALL-SCHEDULER] Automatic backfill sweep skipped: %s", b_exc)
+
         logger.info(
             "[CALL-SCHEDULER] Sweep complete: %d leads scanned, %d calls processed, %d errors in %.2fs",
             result.scanned_leads,
