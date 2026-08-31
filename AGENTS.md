@@ -97,7 +97,15 @@
 33. `src/agents/agent_tools/crm_actions.py` (465L) → `crm_actions.py` (321L) + `crm_lead_qualify.py` (161L).
 34. `src/services/proactive/stagnation.py` (553L) → `stagnation.py` (245L) + `airtable_deadlines.py` (209L) + `airtable_stagnation.py` (205L).
 
-- **Status:** 767 ta Python faylidan 0 ta qoidabuzarlik (>400L: 0 ta, 100% compliant). Funksiyalar bo'yicha: 3,710 ta funksiyaning 90.0% qismi $\le 50$ qatordan iborat (72.4% ideal $\le 25$ qator). 100% Pytest Syntax Guard pass (767/767) & Bandit 0 issues.
+- **Call Intelligence & Tasks Automation (Done):**
+  - AmoCRM webhooklarida kelib tushgan barcha audio yozuvlar (`notes[add]`, `talks[add]`, contact notes) to'liq tutib olinadi va tahlilga yuboriladi.
+  - STT xatoliklari va qisqa o'zbekcha so'rovlarning soxta filtrlari to'liq bartaraf etildi.
+  - AI tahlil modellari (Gemini 2.5, OpenAI, Free AI Router) uchun `konversiya_tavsiyalari` (1–3 ta aniq taktik qadam) va `keyingi_kelishuv` (aniq sana/vaqt) generatorlari qo'shildi.
+  - AmoCRM eslatma (Note) va vazifa (Task) matnlariga `🎯 VAZIFA`, `⏰ Kelishilgan vaqt`, `💡 Konversiya tavsiyasi` va `📝 Suhbat xulosasi` avtomatik biriktiriladi.
+  - Telegram alert kartasi (@jonairobot) va davriy `call_analysis_scheduler` integratsiya qilindi.
+  - 100% 150–400 lines qoidasiga mos, 1907/1907 testlar muvaffaqiyatli o'tdi, Bandit 0 xatolik.
+
+- **Status:** 768 ta Python faylidan 0 ta qoidabuzarlik (>400L: 0 ta, 100% compliant). Funksiyalar bo'yicha: 3,720+ ta funksiyaning 90.1% qismi $\le 50$ qatordan iborat. 100% Pytest pass (1907/1907) & Bandit 0 issues.
 
 ## Pre-flight Checklist (har bir PR dan oldin)
 ```powershell
