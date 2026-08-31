@@ -11,17 +11,13 @@ from src.services.core.telegram.task_creator.analyzer import (
     TaskAnalyzerMixin,
     genai,
 )
-from src.services.core.telegram.task_creator.cooldowns import CooldownManagerMixin
+from src.services.core.telegram.task_creator.cooldowns import CooldownMixin
 from src.services.core.telegram.task_creator.dialogs import DialogResolverMixin
 
 logger = structlog.get_logger()
 
 
-class TelegramTaskCreator(
-    CooldownManagerMixin,
-    TaskAnalyzerMixin,
-    DialogResolverMixin,
-):
+class TelegramTaskCreator(CooldownMixin, TaskAnalyzerMixin, DialogResolverMixin):
     """Telegram chat tahlili orqali AmoCRM da avtomatik vazifalar yaratish."""
 
     def __init__(
@@ -32,19 +28,13 @@ class TelegramTaskCreator(
         voice_processor: Optional[Any] = None,
         gemini_api_key: Optional[str] = None,
     ) -> None:
-        self.user_client = user_client
         self.amocrm = amocrm
         self.db = db
+        self.user_client = user_client
         self.voice_processor = voice_processor
         self.gemini_api_key = gemini_api_key
-        self.gemini_model = (
-            os.getenv("GEMINI_TELEGRAM_TASK_MODEL") or settings.GEMINI_CALL_MODEL
-        )
-        self.gemini_cooldown_seconds = int(
-            os.getenv("GEMINI_TASK_COOLDOWN_SECONDS", "21600")
-        )
-        self.cooldowns: Dict[str, float] = {}
-        self.telegram_cooldown_file = os.getenv("TELEGRAM_ENTITY_COOLDOWNS_PATH", "data/telegram_entity_cooldowns.json")
+        self.gemini_model = os.getenv("GEMINI_TELEGRAM_TASK_MODEL") or settings.GEMINI_CALL_MODEL
+        self.gemini_cooldown_seconds = int(os.getenv("GEMINI_TASK_COOLDOWN_SECONDS", "21600"))
         self.telegram_flood_cooldown_seconds = int(os.getenv("TELEGRAM_ENTITY_COOLDOWN_SECONDS", "10800"))
         self._cooldowns_loaded = False
 

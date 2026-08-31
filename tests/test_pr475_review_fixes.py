@@ -66,8 +66,17 @@ def test_money_bearing_ai_conversion_routes_require_finance_read():
         "/conversion/sync-revenue",
         "/conversion/seller-card",
     }
-    for route in router.routes:
-        if route.path not in money_paths:
+
+    def _iter_routes(r):
+        for route in r.routes:
+            original_router = getattr(route, "original_router", None)
+            if original_router is not None:
+                yield from _iter_routes(original_router)
+            else:
+                yield route
+
+    for route in _iter_routes(router):
+        if getattr(route, "path", None) not in money_paths:
             continue
         required = set()
         for dep in route.dependencies:

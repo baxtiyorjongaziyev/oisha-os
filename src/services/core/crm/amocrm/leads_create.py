@@ -49,6 +49,10 @@ class AmoCRMLeadsCreateMixin:
             response = requests.post(
                 url, headers=self._get_headers(), json=[lead_data], timeout=30
             )
+            if response.status_code == 401 and self.refresh_token():
+                response = requests.post(
+                    url, headers=self._get_headers(), json=[lead_data], timeout=30
+                )
             if response.status_code in [200, 201]:
                 lead_id = (
                     response.json()
