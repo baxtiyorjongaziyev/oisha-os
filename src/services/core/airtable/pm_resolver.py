@@ -63,14 +63,19 @@ class PMResolverMixin:
             return default
         for name in FIELD_MAP.get(key, [key]):
             val = fields.get(name)
-            if val is not None and str(val).strip() not in ("", "[]", "None", "null"):
+            if val is not None and str(val).strip() not in ("", "[]", "None", "null", "Noma'lum"):
                 return val
         if key == "project_name":
             for k, v in fields.items():
                 if any(sub in k.lower() for sub in ["nom", "name", "loyiha", "client", "mijoz", "title"]):
-                    if v is not None and str(v).strip() not in ("", "[]", "None", "null"):
+                    if v is not None and str(v).strip() not in ("", "[]", "None", "null", "Noma'lum"):
                         return v
             return fields.get("Loyiha ID") or fields.get("AmoCRM_ID") or default
+        if key == "manager":
+            for k, v in fields.items():
+                if any(sub in k.lower() for sub in ["pm", "mas'ul", "masul", "manager", "responsib", "dizayn", "design"]):
+                    if v is not None and str(v).strip() not in ("", "[]", "None", "null"):
+                        return v
         return default
 
     @classmethod
