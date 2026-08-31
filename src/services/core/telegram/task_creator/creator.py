@@ -9,14 +9,14 @@ from typing import Any, Dict, List, Optional
 import structlog
 from google import genai
 
+from src.services.core.telegram.task_creator.analyzer import TaskAnalyzerMixin
 from src.services.core.telegram.task_creator.cooldowns import CooldownMixin
-from src.services.core.telegram.task_creator.models import _normalize_phone
-from src.services.core.telegram.task_creator.transcription import TranscriptionMixin
+from src.services.core.telegram.task_creator.dialogs import DialogResolverMixin
 
 logger = structlog.get_logger()
 
 
-class TelegramTaskCreator(CooldownMixin, TranscriptionMixin):
+class TelegramTaskCreator(CooldownMixin, TaskAnalyzerMixin, DialogResolverMixin):
     """Telegram chat tahlili orqali AmoCRM da avtomatik vazifalar yaratish."""
 
     def __init__(self, user_client: Any, amocrm: Any, gemini_api_key: Optional[str] = None) -> None:
