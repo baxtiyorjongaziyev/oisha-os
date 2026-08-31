@@ -30,12 +30,25 @@ async def check_client_journey_excellence() -> bool:
     today = now.strftime("%Y-%m-%d")
     target_hours = [11, 17]
 
-    if now.hour not in target_hours or now.minute > 10:
+    if now.hour not in target_hours:
         return False
 
-    job_key = f"client_journey_excellence_{now.hour}"
+    # Kunlik kalit (soat emas). Ilgari "_{now.hour}" edi — 11 va 17 = kuniga
+    # 2 marta Wow-Service Audit. Kuniga bitta yetarli.
+    job_key = f"client_journey_excellence_{today}"
     if await db.is_job_run(job_key, today):
         return False
+    # Atomik claim yuborishdan OLDIN — 11:00–11:10 oynasida ikki scheduler
+    # parallel yubormasin (mark_job_run agent tugagach yozilardi).
+    _claimed = False
+    if hasattr(db, "claim_job_run"):
+        _claimed = await db.claim_job_run(job_key, today)
+        if not _claimed:
+            return False
+
+    async def _unclaim() -> None:
+        if _claimed and hasattr(db, "release_job_run"):
+            await db.release_job_run(job_key, today)
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
     group_id = (
@@ -49,6 +62,7 @@ async def check_client_journey_excellence() -> bool:
         or 1
     )
     if not (bot_token and group_id):
+        await _unclaim()
         return False
 
     amo = AmoCRMSync(
@@ -83,6 +97,7 @@ async def check_client_journey_excellence() -> bool:
     )
     project_signals = assess_project_portfolio(projects)
     if not sales_signals and not project_signals:
+        await _unclaim()
         return False
 
     team_members = await db.get_team_roles()
@@ -131,6 +146,7 @@ async def check_client_journey_excellence() -> bool:
     if result.success:
         await db.mark_job_run(job_key, today)
         return True
+    await _unclaim()
     return False
 
 

@@ -27,10 +27,10 @@ class JobsCrmMixin:
         await check_airtable_stagnation()
         await check_client_journey_excellence()
         
-        from src.time_utils import get_local_now
-        now = get_local_now()
-        if now.hour in [10, 15] and now.minute < 5:
-            await check_airtable_deadlines()
+        # Filtr funksiya ichida (soat + atomik DB claim). Tashqi minute oynasi
+        # olib tashlandi — u main_loop scheduler bilan birga takror yuborishga
+        # yo'l ochardi. check_airtable_deadlines() o'zi kuniga bir marta ishlaydi.
+        await check_airtable_deadlines()
 
     async def _job_check_amocrm_due_tasks(self) -> None:
         """AmoCRM da muddati kelgan va kechikkan vazifalarni guruh follow-up mavzusiga yo'llash."""
