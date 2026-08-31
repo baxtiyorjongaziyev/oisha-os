@@ -86,3 +86,5 @@ class SalesAnalytics(
                 thread_id=thread_id,
                 allow_userbot_fallback=True,
             )
+
+SalesAnalyticsService = SalesAnalytics

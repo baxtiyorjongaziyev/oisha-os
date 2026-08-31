@@ -71,3 +71,12 @@ for legacy_name, target_path in _ALIASES.items():
     module_key = f"{__name__}.{legacy_name}"
     if module_key not in sys.modules:
         sys.modules[module_key] = _AliasModule(module_key, target_path)
+
+
+def __getattr__(name: str):
+    if name == "proactive":
+        return import_module("src.services.proactive")
+    if name in _ALIASES:
+        return import_module(_ALIASES[name])
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+

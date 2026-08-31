@@ -40,7 +40,8 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-def register_command_handlers(self):
+
+def _register_audit_commands(self):
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/oisha_audit"))
         async def oisha_audit_handler(event):
             """Tizimning oxirgi 5 ta amalini ko'rish."""
@@ -132,6 +133,9 @@ def register_command_handlers(self):
                 logger.error(f"❌ [JUNK_AUDIT ERROR] {e}")
                 await event.respond(f"❌ Audit davomida xato yuz berdi: {e}")
 
+
+
+def _register_plan_commands(self):
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/oisha_plan"))
         async def oisha_plan_handler(event):
             """Manual Morning Plan trigger."""
@@ -194,6 +198,9 @@ def register_command_handlers(self):
             )
             await event.respond(response.text, parse_mode=response.parse_mode)
 
+
+
+def _register_command_center_commands(self):
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/(sales_today|bugun_sotuv|kimga_qongiroq)"))
         async def sales_priorities_handler(event):
             """Show today's seller outreach priorities from AmoCRM evidence."""
@@ -254,6 +261,9 @@ def register_command_handlers(self):
             response = build_command_center_response(payload)
             await event.respond(response.text, parse_mode=response.parse_mode)
 
+
+
+def _register_basic_commands(self):
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/chatid"))
         async def chatid_handler(event):
             """Guruh yoki chat ID sini qaytaradi (Hisobchi sozlash uchun)."""
@@ -342,3 +352,10 @@ def register_command_handlers(self):
         async def logs_handler(event):
             if self.access_manager.is_admin(event.sender_id):
                 await self.send_recent_logs(event)
+
+
+def register_command_handlers(self):
+    _register_audit_commands(self)
+    _register_plan_commands(self)
+    _register_command_center_commands(self)
+    _register_basic_commands(self)

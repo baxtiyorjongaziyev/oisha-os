@@ -40,7 +40,8 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-def register_settings_handlers(self):
+
+def _register_sync_and_positions_handlers(self):
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/sync_stats"))
         async def sync_stats_handler(event):
             if not self.access_manager.is_admin(event.sender_id):
@@ -150,6 +151,9 @@ def register_settings_handlers(self):
             )
             await event.respond(msg)
 
+
+
+def _register_distribution_and_managers_handlers(self):
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/set_distribution"))
         async def set_distribution_handler(event):
             """Lidlarni taqsimlash rejimini o'zgartirish: /set_distribution CLAIM yoki ROUND_ROBIN"""
@@ -245,6 +249,9 @@ def register_settings_handlers(self):
 
             await event.respond(msg)
 
+
+
+def _register_automation_control_handlers(self):
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/night_shift"))
         async def night_shift_handler(event):
             """CRM tozalash rejimini qo'lda ishga tushirish."""
@@ -307,6 +314,9 @@ def register_settings_handlers(self):
                 logger.error("Exception handled in %s", __name__, exc_info=True)
                 await event.respond(f"❌ Xato: {e}")
 
+
+
+def _register_mode_and_juma_handlers(self):
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/auto_status"))
         async def auto_status_handler(event):
             """Auto-reply rejimi, kill-switch va VIP threshold ko'rsatish."""
@@ -392,3 +402,10 @@ def register_settings_handlers(self):
             logger.info(
                 f"🕌 [ADMIN_BOT] Juma outreach triggered manually by {event.sender_id}"
             )
+
+
+def register_settings_handlers(self):
+    _register_sync_and_positions_handlers(self)
+    _register_distribution_and_managers_handlers(self)
+    _register_automation_control_handlers(self)
+    _register_mode_and_juma_handlers(self)

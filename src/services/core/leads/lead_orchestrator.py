@@ -1,22 +1,27 @@
-import logging
+"""
+Oisha-OS Lead Orchestrator — Unifies Telethon, AI Qualification, amoCRM, Airtable, and AdminBot.
+"""
+from __future__ import annotations
+
 import asyncio
-from typing import Any
-from src.services.core.crm.amocrm_sync import AmoCRMSync
-from src.services.core.airtable_sync import AirtableSync
-from src.services.core.auto_lead_agent import AutoLeadAgent
-from src.services.core.admin_bot import AdminBot
+import logging
+from typing import Any, Dict, Optional, Tuple
+from telethon import Button
+
 from src.api_server import add_activity
+from src.services.core.airtable_sync import AirtableSync
+from src.services.core.admin_bot import AdminBot
+from src.services.core.auto_lead_agent import AutoLeadAgent
+from src.services.core.crm.amocrm_sync import AmoCRMSync
+from src.services.core.folder_manager import FolderManager
+from src.settings import settings
+from src.utils.task_scheduler import task_deadline
 
 logger = logging.getLogger(__name__)
 
-from src.services.core.folder_manager import FolderManager
-
 
 class LeadOrchestrator:
-    """
-    Oisha-OS v4.6 Lead Orchestrator.
-    Unifies Telethon, AI Qualification, amoCRM, Airtable, and AdminBot.
-    """
+    """Oisha-OS Lead Orchestrator."""
 
     def __init__(
         self,
@@ -25,7 +30,7 @@ class LeadOrchestrator:
         auto_lead: AutoLeadAgent,
         admin_bot: AdminBot,
         db: Any = None,
-        folder_manager: FolderManager = None,
+        folder_manager: Optional[FolderManager] = None,
     ):
         self.amocrm = amocrm
         self.airtable = airtable
@@ -34,270 +39,151 @@ class LeadOrchestrator:
         self.db = db
         self.folder_manager = folder_manager
 
-    async def process_new_lead(
-        self,
-        chat_text: str,
-        user_id: int,
-        name: str,
-        username: str = None,
-        phone: str = None,
-        source: str = "Telegram DM",
-    ):
-        """
-        The 'Golden Path' v4.6 for a new lead (amoCRM Only).
-        """
-        from src.settings import settings
-
-        logger.info(f"👸 [ORCHESTRATOR] Processing lead: {name} (Source: {source})")
-
-        # 1. AI Qualification
-        add_activity(
-            "Lidni Skanerlash",
-            f"{name} murojaati AI orqali tahlil qilinmoqda...",
-            "thinking",
-        )
+    async def _qualify_incoming_lead(self, chat_text: str, name: str) -> Tuple[bool, Dict[str, Any]]:
+        add_activity("Lidni Skanerlash", f"{name} murojaati AI orqali tahlil qilinmoqda...", "thinking")
         is_lead, lead_details = await self.auto_lead.qualify_chat(chat_text)
         if not is_lead:
             logger.info(f"👸 [ORCHESTRATOR] Not a qualified lead: {name}")
-            add_activity(
-                "Lid Rad Etildi",
-                f"{name} murojaati biznes uchun mos emas deb topildi.",
-                "info",
-            )
-            return False
+            add_activity("Lid Rad Etildi", f"{name} murojaati biznes uchun mos emas deb topildi.", "info")
+            return False, {}
 
-        add_activity(
-            "Lid Tasdiqlandi",
-            f"{name} 'LEAD' deb klasifikatsiya qilindi. Intent: {lead_details.get('intent', 'WARM')}",
-            "success",
-        )
+        add_activity("Lid Tasdiqlandi", f"{name} 'LEAD' deb klasifikatsiya qilindi. Intent: {lead_details.get('intent', 'WARM')}", "success")
+        return True, lead_details
 
+    async def _sync_with_amocrm(
+        self, name: str, phone: Optional[str], user_id: int, username: Optional[str],
+        source: str, lead_details: Dict[str, Any]
+    ) -> Tuple[Optional[int], bool]:
         intent = lead_details.get("intent", "WARM")
         summary = lead_details.get("summary", "No summary provided")
         extracted_phone = lead_details.get("phone") or phone
-
-        # 2. Telegram Chat Link Generation
-        # Construct a link that allows direct messaging from amoCRM
         tg_link = f"https://t.me/{username}" if username else f"tg://user?id={user_id}"
 
         extra_fields = {}
         if settings.AMOCRM_TG_CHAT_FIELD_ID:
             extra_fields[settings.AMOCRM_TG_CHAT_FIELD_ID] = tg_link
 
-        # 3. amoCRM Integration (Deduplication & Enrichment)
-        add_activity(
-            "CRM Synching",
-            f"amoCRM'dan {name} uchun mavjud kontakt qidirilmoqda...",
-            "thinking",
-        )
-        existing_contact = (
-            await self.amocrm.get_contact_by_phone(extracted_phone)
-            if extracted_phone and extracted_phone != "Raqam yo'q"
-            else None
-        )
-
         note_content = f"👸 Oisha AI Tahlili (v5.0):\n──────────────────────\n🎯 Intent: {intent}\n📝 Xulosa: {summary}\n📲 Chat: {tg_link}\n📅 Manba: {source}"
+        existing = await self.amocrm.get_contact_by_phone(extracted_phone) if (extracted_phone and extracted_phone != "Raqam yo'q") else None
 
-        lead_id = None
-        is_repeat = False
-
-        if existing_contact:
-            contact_id = existing_contact["id"]
+        if existing:
+            lead_id = await self._handle_existing_crm_contact(existing["id"], name, extra_fields, note_content)
             is_repeat = True
-            add_activity(
-                "Takroriy Mijoz", f"{name} tizimda bor. Bitimlar yangilanmoqda.", "info"
-            )
-            logger.info(
-                f"👸 [ORCHESTRATOR] Existing contact found: {contact_id}. Searching for active leads..."
-            )
-
-            # Find active leads
-            active_leads = await self.amocrm.get_active_leads_for_contact(contact_id)
-
-            if active_leads:
-                # Use the most recent active lead
-                lead_id = active_leads[0]["id"]
-                logger.info(
-                    f"👸 [ORCHESTRATOR] Consolidating into active lead: {lead_id}"
-                )
-                await self.amocrm.add_lead_note(lead_id, note_content)
-                await self.amocrm.add_lead_tag(lead_id, "TAKRORIY_MUROJAAT")
-            else:
-                # No active lead, create a new one for THIS contact
-                logger.info(
-                    f"👸 [ORCHESTRATOR] Existing contact but no active leads. Creating new lead for contact {contact_id}"
-                )
-                lead_id = await self.amocrm.create_lead_for_contact(
-                    contact_id=contact_id,
-                    name=f"{name} (Yangilangan)",
-                    price=0,
-                    extra_fields=extra_fields,
-                )
-                if lead_id:
-                    await self.amocrm.add_lead_note(lead_id, note_content)
-                    await self.amocrm.add_lead_tag(lead_id, "ESKI_MIJOZ_RE_ENGAGEMENT")
         else:
-            # New contact, new lead
-            logger.info(
-                f"👸 [ORCHESTRATOR] No existing contact for {name}. Creating new lead..."
-            )
-            add_activity(
-                "CRM Creation",
-                f"Yangi kontakt va bitim yaratilmoqda: {name}",
-                "thinking",
-            )
             lead_id = await self.amocrm.create_lead(
-                name=f"{name} ({intent})",
-                price=0,
-                phone=extracted_phone or "Raqam yo'q",
-                note=note_content,
-                extra_fields=extra_fields,
+                name=f"{name} ({intent})", price=0, phone=extracted_phone or "Raqam yo'q",
+                note=note_content, extra_fields=extra_fields,
             )
-            add_activity(
-                "CRM Synced",
-                f"{name} amoCRM bilan muvaffaqiyatli sinxronlandi.",
-                "success",
-            )
+            is_repeat = False
 
-        # Create a fallback task if a lead was created or found
         if lead_id and isinstance(lead_id, int):
-            from src.utils.task_scheduler import task_deadline
-
-            # Tezkor vazifa — ish vaqti ichida 15 daqiqada
-            complete_till = task_deadline(due_in_hours=1)  # 1 soat ichida
             await self.amocrm.create_task(
                 element_id=lead_id,
                 text=f"Yangi {intent} murojaat! {'(Mavjud mijoz)' if is_repeat else ''} Bog'laning: {name}",
-                complete_till=complete_till,
+                complete_till=task_deadline(due_in_hours=1),
             )
+        return lead_id, is_repeat
 
-        # 4. AdminBot Team Notification & Distribution
-        from telethon import Button
+    async def _handle_existing_crm_contact(
+        self, contact_id: int, name: str, extra_fields: Dict[str, Any], note_content: str
+    ) -> Optional[int]:
+        active_leads = await self.amocrm.get_active_leads_for_contact(contact_id)
+        if active_leads:
+            lead_id = active_leads[0]["id"]
+            await self.amocrm.add_lead_note(lead_id, note_content)
+            await self.amocrm.add_lead_tag(lead_id, "TAKRORIY_MUROJAAT")
+            return lead_id
+        lead_id = await self.amocrm.create_lead_for_contact(contact_id=contact_id, name=f"{name} (Yangilangan)", price=0, extra_fields=extra_fields)
+        if lead_id:
+            await self.amocrm.add_lead_note(lead_id, note_content)
+            await self.amocrm.add_lead_tag(lead_id, "ESKI_MIJOZ_RE_ENGAGEMENT")
+        return lead_id
 
-        if self.admin_bot.team_group_id:
-            status_icon = "🔥" if intent == "HOT" else "📋"
+    async def _resolve_assigned_manager(self) -> Tuple[Optional[int], str]:
+        managers = settings.SALES_MANAGER_IDS
+        if not managers and self.db:
+            db_mgrs = await self.db.get_state("sales_managers", "")
+            if db_mgrs:
+                managers = [int(i) for i in db_mgrs.split(",") if i]
 
-            # --- Lead Distribution Logic ---
-            assigned_manager_id = None
-            distribution_text = ""
+        dist_mode = await self.db.get_state("lead_distribution_mode", settings.LEAD_DISTRIBUTION_MODE) if self.db else "MANUAL"
+        assigned_mgr_id = None
+        dist_text = ""
 
-            # Fetch active managers from DB or Settings
-            managers = settings.SALES_MANAGER_IDS
-            if not managers:
-                db_managers = await self.db.get_state("sales_managers", "")
-                if db_managers:
-                    managers = [int(i) for i in db_managers.split(",") if i]
+        if dist_mode == "ROUND_ROBIN" and managers:
+            last_idx = int(await self.db.get_state("last_manager_idx", -1))
+            new_idx = (last_idx + 1) % len(managers)
+            assigned_mgr_id = managers[new_idx]
+            await self.db.set_state("last_manager_idx", new_idx)
+            dist_text = f"🔄 *Taqsimot:* Round Robin -> Menejer ID: `{assigned_mgr_id}`"
+        elif dist_mode == "LOAD_BALANCED" and managers:
+            dist_text = "⚖️ *Taqsimot:* Load Balanced"
+        return assigned_mgr_id, dist_text
 
-            dist_mode = await self.db.get_state(
-                "lead_distribution_mode", settings.LEAD_DISTRIBUTION_MODE
-            )
+    async def _notify_team_and_escalate(
+        self, name: str, username: Optional[str], user_id: int, phone: Optional[str],
+        source: str, lead_details: Dict[str, Any], lead_id: Optional[int], is_repeat: bool,
+        assigned_manager_id: Optional[int], distribution_text: str
+    ) -> None:
+        if not self.admin_bot.team_group_id:
+            return
 
-            if dist_mode == "ROUND_ROBIN" and managers:
-                # Oxirgi menejer indeksini bazadan olamiz
-                last_idx = int(await self.db.get_state("last_manager_idx", -1))
-                new_idx = (last_idx + 1) % len(managers)
-                assigned_manager_id = managers[new_idx]
-                await self.db.set_state("last_manager_idx", new_idx)
+        intent = lead_details.get("intent", "WARM")
+        status_icon = "🔥" if intent == "HOT" else "📋"
+        buttons = []
 
-                distribution_text = f"\n🎯 **Mas'ul xodim:** <a href='tg://user?id={assigned_manager_id}'>Menejer</a> (Round-Robin)"
-            elif dist_mode == "CLAIM":
-                distribution_text = "\n🔓 **Holat:** Ochiq (Claim kutilmoqda)"
-            # -------------------------------
+        if assigned_manager_id:
+            buttons.append([Button.inline("🤝 Qabul qildim", data=f"accept_lead:{lead_id}:{user_id}:{assigned_manager_id}")])
+        else:
+            buttons.append([Button.inline("🙋‍♂️ Men olaman", data=f"claim_lead:{lead_id}:{user_id}")])
 
-            outcome_text = "✅ AmoCRM-da bitim yaratildi."
-            if is_repeat:
-                outcome_text = (
-                    "✨ Mavjud mijoz: Ma'lumotlar ochiq bitimga/kontaktga qo'shildi."
+        phone_label = phone or "Noma'lum"
+        card = (
+            f"{status_icon} <b>YANGI LID ANIQLANDI!</b>\n━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 <b>Mijoz:</b> {name} (@{username or 'yoq'})\n"
+            f"📞 <b>Tel:</b> {phone_label}\n"
+            f"🎯 <b>Niyat:</b> {intent}\n"
+            f"📍 <b>Manba:</b> {source}\n"
+            f"📝 <b>Xulosa:</b> {lead_details.get('summary', 'Yoq')}\n"
+        )
+        if distribution_text:
+            card += f"{distribution_text}\n"
+
+        sent_msg = await self.admin_bot.bot_client.send_message(
+            self.admin_bot.team_group_id, card, buttons=buttons, parse_mode="html",
+        )
+        if assigned_manager_id:
+            asyncio.create_task(self._start_escalation_timer(lead_id, assigned_manager_id, sent_msg.id))
+
+    async def _start_escalation_timer(self, lead_id: Optional[int], manager_id: int, msg_id: int) -> None:
+        await asyncio.sleep(900)  # 15 min escalation
+        if self.db:
+            claimed = await self.db.get_state(f"lead_claimed_{lead_id}", "false")
+            if claimed == "false":
+                await self.admin_bot.bot_client.send_message(
+                    self.admin_bot.team_group_id,
+                    f"⚠️ <b>DIQQAT ESKALATSIYA!</b>\nLid #{lead_id} 15 daqiqadan beri qabul qilinmadi!",
+                    reply_to=msg_id, parse_mode="html",
                 )
 
-            title = "YANGI LID" if not is_repeat else "TAKRORIY MUROJAAT"
-            msg = (
-                f"👸 **OISHA INTELLIGENCE: {title}**\n"
-                f"──────────────────────\n"
-                f"👤 **Mijoz:** {name} (@{username or 'yoq'})\n"
-                f"🎯 **Intent:** {status_icon} {intent}\n"
-                f"📞 **Tel:** `{extracted_phone or 'TOPILMADI'}`\n"
-                f"📲 **Chat:** [Telegram-da ochish]({tg_link})\n"
-                f"📝 **Xulosa:** _{summary}_\n"
-                f"──────────────────────\n"
-                f"{outcome_text}{distribution_text}"
-            )
+    async def process_new_lead(
+        self,
+        chat_text: str,
+        user_id: int,
+        name: str,
+        username: Optional[str] = None,
+        phone: Optional[str] = None,
+        source: str = "Telegram DM",
+    ) -> bool:
+        """The 'Golden Path' for processing incoming leads."""
+        logger.info(f"👸 [ORCHESTRATOR] Processing lead: {name} (Source: {source})")
+        is_lead, lead_details = await self._qualify_incoming_lead(chat_text, name)
+        if not is_lead:
+            return False
 
-            # Interactive buttons for the team
-            amo_url = (
-                f"https://{settings.AMOCRM_SUBDOMAIN}.amocrm.ru/leads/detail/{lead_id}"
-                if isinstance(lead_id, int)
-                else f"https://{settings.AMOCRM_SUBDOMAIN}.amocrm.ru/contacts/list/?query={extracted_phone}"
-            )
-
-            buttons = [[Button.url("🌐 AmoCRM-da ko'rish", amo_url)]]
-
-            # [CRITICAL UPDATE] Personal DM for assigned manager
-            if assigned_manager_id:
-                buttons.append(
-                    [
-                        Button.inline(
-                            "✅ Qabul qildim",
-                            f"accept_lead:{lead_id}:{user_id}:{assigned_manager_id}",
-                        )
-                    ]
-                )
-
-                personal_msg = (
-                    f"📥 **YANGI LID BIRIKTIRILDI!**\n\n"
-                    f"👤 Mijoz: {name}\n"
-                    f"🎯 Intent: {intent}\n"
-                    f"📝 Xulosa: {summary}\n\n"
-                    f"⚡ **Vazifa:** Mijozga darhol javob bering! 15 daqiqa ichida javob berilmasa, tizim eskalatsiya qiladi."
-                )
-
-                try:
-                    # Send direct message to the manager
-                    await self.admin_bot.bot_client.send_message(
-                        assigned_manager_id,
-                        personal_msg,
-                        buttons=[[Button.url("💬 Chatni ochish", amo_url)]],
-                    )
-                    logger.info(
-                        f"👸 [ORCHESTRATOR] Personal DM sent to manager {assigned_manager_id}"
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"Could not notify manager {assigned_manager_id} directly: {e}"
-                    )
-
-                # [ESCALATION] Start a background task to check if manager responds
-                async def check_escalation(mgr_id, lid_id, cust_name):
-                    await asyncio.sleep(900)  # 15 minutes
-                    is_claimed = await self.db.get_state(
-                        f"lead_claimed_{lid_id}", "false"
-                    )
-                    if is_claimed == "false":
-                        esc_msg = f"🚨 **DIQQAT! ESCALATION!**\n\nMenejer <a href='tg://user?id={mgr_id}'>Menejer</a> 15 daqiqadan beri yangi lidga ({cust_name}) javob bermadi! @jonbranding_pm ko'rib chiqing."
-                        await self.admin_bot.notify_team(
-                            esc_msg, topic_id=settings.CRM_TOPIC_ID, parse_mode="html"
-                        )
-
-                asyncio.create_task(
-                    check_escalation(assigned_manager_id, lead_id, name)
-                )
-            else:
-                buttons.append(
-                    [
-                        Button.inline(
-                            "🚀 Men shug'ullanaman (Claim)",
-                            f"claim_lead:{lead_id}:{user_id}",
-                        )
-                    ]
-                )
-
-            await self.admin_bot.notify_team(
-                msg, buttons=buttons, topic_id=settings.CRM_TOPIC_ID, parse_mode="html"
-            )
-
-        # 5. [GOD MODE] Folder Management
-        if self.folder_manager:
-            # Shift folder assignment based on intent
-            asyncio.create_task(self.folder_manager.assign_to_folder(user_id, intent))
-
+        lead_id, is_repeat = await self._sync_with_amocrm(name, phone, user_id, username, source, lead_details)
+        mgr_id, dist_text = await self._resolve_assigned_manager()
+        await self._notify_team_and_escalate(
+            name, username, user_id, phone, source, lead_details, lead_id, is_repeat, mgr_id, dist_text
+        )
         return True
