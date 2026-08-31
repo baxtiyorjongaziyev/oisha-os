@@ -370,6 +370,8 @@ class PlansMixin:
 
         report.append("\n📊 *Davom ettirish uchun @baxtiyorjong_gaziyev nazoratida* 👑")
 
+        return "\n".join(report)
+
     async def build_reportagram_report(self) -> str:
         """Reportagram.com uslubida kunlik AmoCRM hisoboti.
 
