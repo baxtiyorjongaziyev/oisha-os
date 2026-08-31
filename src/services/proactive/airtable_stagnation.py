@@ -39,7 +39,19 @@ def _filter_stalled_projects(projects: List[Dict[str, Any]], now: datetime.datet
             continue
         deadline = AirtableSync._get_field(fields, "deadline")
         mgr_raw = AirtableSync._get_field(fields, "manager")
-        mgr_name = AirtableSync.resolve_pm_name(mgr_raw) if mgr_raw else "PM"
+        if not mgr_raw or str(mgr_raw).strip() in ("", "None", "null", "[]"):
+            mgr_raw = (
+                fields.get("PM")
+                or fields.get("Mas'ul")
+                or fields.get("Masul")
+                or fields.get("Responsible")
+                or fields.get("Dizayner")
+                or fields.get("Designer")
+            )
+        mgr_name = AirtableSync.resolve_pm_handle(mgr_raw) if mgr_raw else "@Inomjon_JonBranding"
+        if not mgr_name or mgr_name == "Mas'ul belgilanmagan":
+            mgr_name = "@Inomjon_JonBranding"
+
         age = _project_age_days(project)
         is_overdue = False
         if deadline:
@@ -49,16 +61,29 @@ def _filter_stalled_projects(projects: List[Dict[str, Any]], now: datetime.datet
                 pass
         if age >= 3 or is_overdue:
             next_stg, action = _project_stage_recommendation(stage)
-            p_name = _safe_text(AirtableSync._get_field(fields, "project_name"))
-            if not p_name or p_name == "Noma'lum":
-                p_name = _safe_text(
-                    fields.get("Loyiha ID")
+            raw_p_name = AirtableSync._get_field(fields, "project_name")
+            if not raw_p_name or str(raw_p_name).strip() in ("", "Noma'lum", "None", "null", "[]"):
+                raw_p_name = (
+                    fields.get("Loyihani nomi?")
+                    or fields.get("Loyiha nomi")
+                    or fields.get("Project Name")
+                    or fields.get("Name")
+                    or fields.get("Mijoz")
+                    or fields.get("Mijoz nomi")
+                    or fields.get("Client")
+                    or fields.get("Client Name")
+                    or fields.get("Title")
+                    or fields.get("Loyiha")
+                    or fields.get("Loyiha ID")
                     or fields.get("AmoCRM_ID")
-                    or project.get("id"),
-                    "Nomsiz loyiha",
                 )
+            if not raw_p_name or str(raw_p_name).strip() in ("", "Noma'lum", "None", "null", "[]"):
+                pid_str = str(project.get("id") or "")
+                raw_p_name = f"Loyiha #{pid_str[-6:]}" if pid_str else "Loyiha"
+            p_name = _safe_text(raw_p_name, "Loyiha")
+
             stalled.append({
-                "name": p_name, "stage": stage or "Noma'lum", "manager": mgr_name,
+                "name": p_name, "stage": stage or "Jarayonda", "manager": mgr_name,
                 "deadline": deadline or "Belgilanmagan", "age_days": age,
                 "is_overdue": is_overdue, "next_stage": next_stg, "action": action,
             })
@@ -99,16 +124,8 @@ async def check_airtable_stagnation():
         return
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
-    group_id = (
-        getattr(config, "PROJECTS_GROUP_ID", None)
-        or getattr(config, "WOW_SERVICE_GROUP_ID", None)
-        or -1003114662117
-    )
-    thread_id = (
-        getattr(config, "PROJECTS_TOPIC_ID", None)
-        or getattr(config, "WOW_SERVICE_TOPIC_ID", None)
-        or 1
-    )
+    group_id = -1003114662117
+    thread_id = 1
     if not (bot_token and group_id):
         return
 

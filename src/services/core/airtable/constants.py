@@ -41,7 +41,7 @@ FIELD_MAP = {
     "start_date": ["Start sana", "Created", "Start Date"],
     "budget": ["Kelishgan narx", "Jami loyiha narxi (UZS)", "Budget"],
     "budget_usd": ["Jami loyiha narxi (USD)"],
-    "manager": ["PM", "Manager"],
+    "manager": ["PM", "Mas'ul", "Masul", "Manager", "Responsible", "Dizayner", "Designer", "Loyiha boshqaruvchisi"],
     "payment_status": ["To'lov statusi", "To'lovlar holati"],
     "paid_usd": ["Jami to'langan USD"],
     "remaining_usd": ["Qoldiq to'lov $"],
