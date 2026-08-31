@@ -8,13 +8,13 @@ from zoneinfo import ZoneInfo
 from src.services.core.crm.salescoach_writer.models import (
     TASK_RULES,
     TaskRule,
-    TaskWriteAudit,
     TaskWriteResult,
     _analysis_value,
     _extract_id,
     _normalized_text,
     task_idempotency_key,
 )
+from src.services.core.salescoach_store.models import TaskWriteAudit
 
 
 class SalesCoachTaskWriter:
