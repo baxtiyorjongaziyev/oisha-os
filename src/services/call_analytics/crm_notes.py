@@ -91,11 +91,16 @@ class CallCrmNotesMixin:
         attributed = bool(analysis.get("talk_ratio_attributed", True))
 
         lines = [
-            f"[{ANALYSIS_MARKER}] Oisha AI tahlil natijasi",
+            f"[{ANALYSIS_MARKER}] Oisha AI 360° tahlil natijasi",
             "",
             _summary,
             "",
         ]
+
+        omni = analysis.get("omnichannel_context")
+        if omni and hasattr(omni, "format_crm_note_block"):
+            lines.append(omni.format_crm_note_block())
+            lines.append("")
 
         if rubrik_amal_qiladi:
             lines += [

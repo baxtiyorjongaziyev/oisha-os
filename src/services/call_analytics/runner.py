@@ -128,7 +128,26 @@ class CallRunnerMixin(NoteExtractorMixin):
         if not transcript or _transcript_impossible_for_duration(transcript, duration):
             return None, None
 
-        analysis = await self.analyze_transcript(transcript, duration)
+        omnichannel_context = None
+        try:
+            from src.services.call_analytics.omnichannel_context import OmnichannelContextFetcher
+            fetcher = OmnichannelContextFetcher(
+                amocrm=self.amocrm,
+                tg_client=getattr(self, "tg_client", None),
+                db=self.db,
+            )
+            omnichannel_context = await fetcher.fetch_lead_omnichannel_context(
+                lead_id=lead_id,
+                caller_phone=phone,
+            )
+        except Exception as exc:
+            logger.debug("[CALL] Omnichannel context fetch error for lead %s: %s", lead_id, exc)
+
+        analysis = await self.analyze_transcript(
+            transcript=transcript,
+            duration_seconds=duration,
+            omnichannel_context=omnichannel_context,
+        )
         return transcript, analysis
 
     def _queue_salescoach_voice(self, audio_bytes: bytes, phone: str, mime_type: str) -> None:
