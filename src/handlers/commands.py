@@ -235,7 +235,7 @@ async def broadcast_command(
             await context.bot.send_message(chat_id=u_id, text=text)
             count += 1
             await asyncio.sleep(0.05)
-        except:
+        except Exception:
             logger.error("Exception handled in %s", __name__, exc_info=True)
             continue
     await update.message.reply_text(f"✅ {count} ta foydalanuvchiga yuborildi.")

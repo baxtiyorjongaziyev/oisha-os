@@ -191,7 +191,7 @@ class JumaNotifier:
                             add_phone_privacy_exception=True,
                         )
                     )
-                except:
+                except Exception:
                     logger.error("Exception handled in %s", __name__, exc_info=True)
 
                 # 3. SEND
