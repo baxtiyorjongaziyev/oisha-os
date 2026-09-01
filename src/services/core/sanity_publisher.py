@@ -98,7 +98,14 @@ class SanityPublisher:
         case_data = await self.generate_case_study(lead_data)
         case_data["amocrm_lead_id"] = lead_id
 
-        # 2. Publish to CMS Webhook
+        # 2. Save to Second Brain (10-Projects/)
+        try:
+            from src.services.core.second_brain_sync import save_won_case
+            await save_won_case(case_data, lead_data)
+        except Exception as exc:
+            logger.debug("[SANITY_PUBLISHER] Second Brain case saving skipped: %s", exc)
+
+        # 3. Publish to CMS Webhook
         webhook_url = os.environ.get("CMS_WEBHOOK_URL") or settings.CMS_WEBHOOK_URL
         if not webhook_url:
             logger.warning("[SANITY_PUBLISHER] CMS_WEBHOOK_URL is not set. Case generated but not published. Data: %s", case_data)

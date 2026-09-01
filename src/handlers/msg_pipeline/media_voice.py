@@ -69,6 +69,19 @@ async def process_voice(
                 if admin_bot:
                     await admin_bot.notify_lead(admin_note)
 
+                # Save to Second Brain (00-Inbox/ & 50-Daily/)
+                try:
+                    from src.services.core.second_brain_sync import save_voice_note
+                    asyncio.create_task(
+                        save_voice_note(
+                            text=transcript,
+                            sender_name=sender_name,
+                            sender_id=getattr(event, "sender_id", None),
+                        )
+                    )
+                except Exception as sb_err:
+                    logger.debug("[VOICE] Second Brain save skipped: %s", sb_err)
+
                 if (
                     surgical_integration
                     and surgical_integration.should_use_surgical(
