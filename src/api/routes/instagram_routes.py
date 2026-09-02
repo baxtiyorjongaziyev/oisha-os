@@ -32,8 +32,10 @@ async def instagram_webhook_verify(
 @router.post("/webhook")
 async def instagram_webhook(request: Request):
     """Meta webhook events (POST)."""
+    raw_body = await request.body()
     try:
-        body = await request.json()
+        import json
+        body = json.loads(raw_body)
     except Exception:
         logger.error("Exception handled in %s", __name__, exc_info=True)
         return {"status": "error", "message": "Invalid JSON"}
@@ -42,7 +44,7 @@ async def instagram_webhook(request: Request):
 
     try:
         from src.services.core.instagram_agent import verify_signature, process_instagram_webhook
-        if not verify_signature(body, signature):
+        if not verify_signature(raw_body, signature):
             return {"status": "error", "message": "Invalid signature"}
 
         asyncio.create_task(process_instagram_webhook(body))
