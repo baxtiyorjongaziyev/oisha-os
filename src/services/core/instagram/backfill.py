@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
 import requests
 import structlog
 
@@ -30,7 +29,7 @@ def _fetch_media_comments(media_id: str, access_token: str) -> list:
     """Returns top-level comments on a post, following pagination."""
     url = f"https://graph.facebook.com/v19.0/{media_id}/comments"
     params = {
-        "fields": "id,text,from,timestamp,like_count",
+        "fields": "id,text,from,timestamp,like_count,replies{id,from,text}",
         "limit": 50,
         "access_token": access_token,
     }
@@ -53,7 +52,7 @@ def _fetch_media_comments(media_id: str, access_token: str) -> list:
 async def backfill_unanswered_comments(
     db=None,
     *,
-    media_limit: int = 25,
+    media_limit: int = 15,
     max_replies: int = 200,
     dry_run: bool = False,
     generate_reply_fn=None,
@@ -110,8 +109,17 @@ async def backfill_unanswered_comments(
                 summary["skipped"] += 1
                 continue
 
-            replies = _fetch_comment_replies(comment_id, token)
-            already = any((r.get("from") or {}).get("id") == own_id for r in replies)
+            replies_data = (comment.get("replies") or {}).get("data")
+            if replies_data is not None:
+                replies = replies_data
+            else:
+                replies = _fetch_comment_replies(comment_id, token)
+
+            already = any(
+                (r.get("from") or {}).get("id") == own_id
+                or (r.get("from") or {}).get("username") == "baxtiyorjongaziyev"
+                for r in replies
+            )
             if already:
                 summary["skipped"] += 1
                 continue
