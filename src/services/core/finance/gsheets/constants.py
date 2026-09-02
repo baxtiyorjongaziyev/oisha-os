@@ -2,17 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
-import datetime
 import hashlib
 import logging
-import os
 import re
 from typing import Any, Optional
 
-import gspread
-from gspread.spreadsheet import Spreadsheet
-from gspread.worksheet import Worksheet
 try:
     from google.oauth2.service_account import Credentials
 except ImportError:
@@ -35,6 +29,8 @@ SHEET_QARZ = "Qarz"
 SHEET_BYUDJET = "Byudjet"
 SHEET_MAOSH = "Maosh"
 SHEET_HISOBOT = "Hisobot"
+SHEET_HISOBOT_OYLIK = "Oylik hisobot"
+SHEET_SHARTNOMALAR = "Shartnomalar"
 SHEET_VALYUTA = "Valyuta"
 SHEET_XODIMLAR = "Xodimlar"
 SHEET_KASSA = "Kassa"
