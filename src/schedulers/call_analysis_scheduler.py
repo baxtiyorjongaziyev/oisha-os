@@ -92,7 +92,8 @@ async def run_call_analysis_scan(
         from src.services.core.call_analyzer import CallAnalyzer
 
         client = amocrm or _get_amocrm_instance()
-        database = db or await _get_db_instance()
+        raw_db = db or _get_db_instance()
+        database = await raw_db if asyncio.iscoroutine(raw_db) else raw_db
         analyzer = CallAnalyzer(amocrm=client, db=database)
 
         candidates = await _fetch_scan_candidates(client, limit=limit)

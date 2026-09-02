@@ -50,13 +50,13 @@ jobs:
             # 3. Diagnostika
             echo "=== Token diagnostika ==="
             python3 -c "
-import json
-t = json.load(open('data/amocrm_token.json'))
-at = t.get('access_token','')
-rt = t.get('refresh_token','')
-print(f'access_token: ...{at[-10:]}' if at else 'access_token: YO_Q')
-print(f'refresh_token: ...{rt[-10:]}' if rt else 'refresh_token: YO_Q')
-"
+              import json
+              t = json.load(open('data/amocrm_token.json'))
+              at = t.get('access_token','')
+              rt = t.get('refresh_token','')
+              print(f'access_token: ...{at[-10:]}' if at else 'access_token: YO_Q')
+              print(f'refresh_token: ...{rt[-10:]}' if rt else 'refresh_token: YO_Q')
+              "
 
             # 4. Redistribution
             echo "=== Redistribution ==="

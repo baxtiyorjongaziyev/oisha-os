@@ -35,6 +35,7 @@ def vm_runtime(monkeypatch):
     """Oracle VM service mode with a working DB and no AmoCRM instance."""
     monkeypatch.setattr(api_state, "db_instance", _FakeDatabase())
     monkeypatch.setattr(api_state, "user_client", None)
+    monkeypatch.setattr("src.api.routes.amocrm_integration._get_amocrm_instance", lambda: None)
     monkeypatch.delenv("READYZ_STRICT_DEPS", raising=False)
 
     def _runtime(authorized):

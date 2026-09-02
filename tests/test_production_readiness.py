@@ -24,6 +24,7 @@ class _Database:
 async def test_readiness_requires_userbot_and_amocrm(monkeypatch):
     monkeypatch.setattr(api_state, "db_instance", _Database())
     monkeypatch.setattr(api_state, "user_client", None)
+    monkeypatch.setattr("src.api.routes.amocrm_integration._get_amocrm_instance", lambda: None)
     # A dead userbot session (e.g. AUTH_KEY_DUPLICATED) is a soft dependency by
     # default: Oisha keeps serving on the bot-token path, so /readyz reports it
     # as "degraded" (still 200) rather than failing the whole deploy gate.
