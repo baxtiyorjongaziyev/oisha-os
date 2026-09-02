@@ -388,7 +388,8 @@ def test_generate_initial_dm_message():
     msg = generate_initial_dm_message("Sardor", "nom", "Fast-food post")
     assert "Sardor" in msg
     assert "Baxtiyor Gaziyev" in msg
-    assert "menejerlari Oishaman" in msg
+    assert "Oishaman" not in msg          # 1st person, not "menejer / Oisha"
+    assert "menejer" not in msg
     assert "Jon Branding" not in msg
     assert "nomlash" in msg
 
