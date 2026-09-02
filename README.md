@@ -7,7 +7,7 @@
 [![CI Build](https://img.shields.io/github/actions/workflow/status/baxtiyorjongaziyev/oisha-os/test.yml?branch=main&label=CI%20Build&logo=github&style=for-the-badge)](https://github.com/baxtiyorjongaziyev/oisha-os/actions/workflows/test.yml)
 [![CodeQL Security](https://img.shields.io/github/actions/workflow/status/baxtiyorjongaziyev/oisha-os/codeql.yml?branch=main&label=CodeQL%20Security&logo=github&style=for-the-badge)](https://github.com/baxtiyorjongaziyev/oisha-os/actions/workflows/codeql.yml)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB.svg?logo=python&logoColor=white&style=for-the-badge)](https://www.python.org/)
-[![Next.js 15](https://img.shields.io/badge/Next.js-15-black?logo=next.js&style=for-the-badge)](https://nextjs.org/)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js&style=for-the-badge)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white&style=for-the-badge)](https://fastapi.tiangolo.com/)
 [![Turso](https://img.shields.io/badge/Turso-libSQL-00E599?logo=sqlite&logoColor=black&style=for-the-badge)](https://turso.tech/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
@@ -22,13 +22,13 @@
 
 **Oisha OS** is an enterprise-grade, autonomous multi-agent operating system designed to orchestrate end-to-end agency business operations. It combines conversational intelligence, CRM pipeline automation, financial ledger tracking, voice agents, and real-time sales coaching into a unified platform.
 
-Built with **Python 3.12**, **FastAPI**, **Aiogram 3.x / Telethon**, **FastMCP**, **Turso (libSQL)**, and a **Next.js 15 + NestJS** monorepo workspace.
+Built with **Python 3.12**, **FastAPI**, **Aiogram 3.x / Telethon**, **FastMCP**, **Turso (libSQL)**, and a **Next.js 16 + NestJS** monorepo workspace.
 
 ```mermaid
 graph TD
     subgraph Clients["🌐 Client Ingress & Interfaces"]
         TG[Telegram Users / Groups]
-        WEB[Next.js 15 Web Dashboard]
+        WEB[Next.js 16 Web Dashboard]
         API_IN[Meta / AmoCRM / Voice Webhooks]
     end
 
@@ -87,7 +87,7 @@ graph TD
 * **FastMCP Tool Registry**: 12 integrated MCP tools exposing Telegram history, AmoCRM pipeline mutations, Airtable project lookups, and Instagram Graph APIs with **Owner Approval Gates**.
 
 ### 4. 💼 SalesCoach AI Workspace (`salescoach-ai/`)
-* **Full-Stack Monorepo**: Next.js 15 App Router web dashboard, NestJS REST API, BullMQ background audio processing queues, and PostgreSQL/Prisma persistence.
+* **Full-Stack Monorepo**: Next.js 16 App Router web dashboard, NestJS REST API, BullMQ background audio processing queues, and PostgreSQL/Prisma persistence.
 * **Interactive Coaching Player**: Synchronized audio playback with speaker diarization, automated scorecard evaluation, and sharable feedback URLs.
 
 ---
@@ -97,7 +97,7 @@ graph TD
 ```
 oisha-os/
 ├── apps/                         # Monorepo Web Applications
-│   ├── web/                      # Next.js 15 Tailwind Frontend
+│   ├── web/                      # Next.js 16 Tailwind Frontend
 │   ├── api/                      # NestJS REST & WebSocket API
 │   ├── worker/                   # BullMQ Transcription & Scoring Worker
 │   └── whatsapp-gateway/         # Baileys WhatsApp Bridge

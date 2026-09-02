@@ -7,10 +7,10 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Header, Request
-from src.api.rbac import Permission, require_permissions
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
+from src.api.rbac import Permission, require_permissions
 from src.api.routes.state import api_state
 from src.settings import settings
 
@@ -35,11 +35,33 @@ class SendMessageRequest(BaseModel):
     model: Optional[str] = getattr(settings, "GEMINI_CALL_MODEL", None)
 
 
-def _check_secret(secret_key: Optional[str] = None, x_secret_key: Optional[str] = None) -> bool:
+def _check_secret(
+    secret_key: Optional[str] = None,
+    x_secret_key: Optional[str] = None,
+    authorization: Optional[str] = None,
+) -> bool:
     expected = os.environ.get("OISHA_API_SECRET")
-    actual = x_secret_key if isinstance(x_secret_key, str) else None
-    actual = actual or secret_key
+    actual = None
+    if isinstance(x_secret_key, str) and x_secret_key:
+        actual = x_secret_key
+    elif isinstance(authorization, str) and authorization.startswith("Bearer "):
+        actual = authorization[7:].strip()
+    elif isinstance(secret_key, str) and secret_key:
+        actual = secret_key
     return bool(expected and actual and hmac.compare_digest(actual, expected))
+
+
+def _require_secret(
+    secret_key: Optional[str] = None,
+    x_secret_key: Optional[str] = None,
+    authorization: Optional[str] = None,
+) -> None:
+    if not _check_secret(secret_key=secret_key, x_secret_key=x_secret_key, authorization=authorization):
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 @router.get("/api/chat/lookup/{phone}")
@@ -47,9 +69,9 @@ async def lookup_user_by_phone(
     phone: str,
     secret_key: Optional[str] = None,
     x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key"),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
 ):
-    if not _check_secret(secret_key, x_secret_key):
-        return {"error": "Unauthorized"}
+    _require_secret(secret_key=secret_key, x_secret_key=x_secret_key, authorization=authorization)
     if not api_state.db_instance:
         return {"error": "Database not connected"}
 
@@ -64,9 +86,9 @@ async def get_chat_history(
     user_id: str,
     secret_key: Optional[str] = None,
     x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key"),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
 ):
-    if not _check_secret(secret_key, x_secret_key):
-        return {"error": "Unauthorized"}
+    _require_secret(secret_key=secret_key, x_secret_key=x_secret_key, authorization=authorization)
     if not api_state.db_instance:
         return {"error": "Database not connected"}
 
@@ -83,9 +105,13 @@ async def get_chat_history(
 async def send_chat_message(
     request: SendMessageRequest,
     x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key"),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
 ):
-    if not _check_secret(request.secret_key, x_secret_key):
-        return {"error": "Unauthorized"}
+    _require_secret(
+        secret_key=request.secret_key,
+        x_secret_key=x_secret_key,
+        authorization=authorization,
+    )
 
     user_id_str = str(request.user_id)
 
@@ -135,9 +161,13 @@ async def send_chat_message(
 async def create_amo_lead(
     request: CreateLeadRequest,
     x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key"),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
 ):
-    if not _check_secret(request.secret_key, x_secret_key):
-        return {"error": "Unauthorized"}
+    _require_secret(
+        secret_key=request.secret_key,
+        x_secret_key=x_secret_key,
+        authorization=authorization,
+    )
 
     from src.services.core.crm.amocrm_sync import AmoCRMSync
     from src.time_utils import get_local_now

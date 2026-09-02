@@ -9,8 +9,8 @@
 3. **Shared fayllarga (settings.py, context.py, boot.py) faqat Agent Coordinator yozadi**
 4. **Har bir PR dan oldin `pytest -q` va `bandit -r src/ -ll` ishga tushiriladi**
 5. **git commit → git push → keyin keyingi agent pull qiladi (rebase)**
-6. 📏 **150 – 400 QATOR QOIDASI (MODULAR CODE STANDARD — MAJBURIY):**
-   - **Fayl Hajmi**: Har bir Python (`.py`) va TypeScript (`.ts`) manba fayli **150 dan 400 qatorgacha** bo'lishi shart.
+6. 📏 **400 QATOR CHEGARASI (MODULAR CODE STANDARD — MAJBURIY):**
+   - **Fayl Hajmi**: Production Python (`src/**/*.py`) va TypeScript (`apps/**/*.ts`) implementatsiya fayllari **400 qatordan oshmasligi** shart. Facade, `__init__`, schema/type, migration, test va bir martalik operator skriptlarida sun'iy 150-qator minimum yo'q; ular SRP va xavfsizlik talablariga baribir rioya qiladi.
    - **"God-file" Mutlaqo Taqiqlanadi**: Hech qaysi fayl 400 qatordan oshmasligi kerak (1000+ qatorli monolithic fayllar qat'iyan man etiladi).
    - **Avtomatik Dekompozitsiya (SRP & Mixin Pattern)**: Modul yoki klass kengayib 400 qatordan oshsa, darhol o'z vazifasiga ko'ra alohida submodullarga (auth, leads, formatting, reporting, schedulers, actions) ajratiladi va Mixin/Composition orqali birlashtiriladi.
    - **Zero-Breaking Facade Pattern**: Eski fayl yo'li saqlanib, 10–50 qatorli toza Facade rejimiga o'tkaziladi va barcha public API, klass, funksiya va konstantalarni to'liq re-export qiladi (`__all__` bilan). Mavjud importlar va testlar 100% buzilmasdan ishlashi shart.
@@ -18,8 +18,14 @@
    - **Yangi Kod Yozish Qoidasi**: Yangi funksionallik qo'shganda mavjud to'lgan fayllarga kod tiqishtirish taqiqlanadi — yangi modul yoki submodule ochiladi.
 7. **Claude Antigravity handoff (majburiy):** Har bir agent tugatgan yoki to'xtatgan ishini shu fayldagi `## Agent Handoff Log` bo'limiga yozadi: sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili va qolgan ish/bloker. Sirlar, tokenlar va session stringlar jurnalga yozilmaydi.
 
-## Agent Handoff Log
-
+- **2026-09-02 — Antigravity — Security Hardening & Remediation (Audit Follow-up):**
+  1. O'chirilgan xavfli workflowlar: `.github/workflows/generate-session.yml` va `.github/workflows/complete-auth.yml` (Actions loglariga session/parol chiqishi va repo orqali SMS kod polling qilish xavfi to'liq bartaraf etildi; auth faqat Oracle VM SSH `oracle-userbot-auth.yml` orqali saqlandi).
+  2. Gitleaks qayta yoqildi: `.github/workflows/gitleaks.yml` dagi `if: false` olib tashlandi, PR va scheduled scanning faollashtirildi.
+  3. Marketing OS backend hardening: `marketing-os/backend/main.py` va `db.py` da OAuth `state` (CSRF himoyasi) generatsiya va TTL tekshiruvi qo'shildi; CORS faqat ruxsat etilgan domenlarga cheklandi; `/api/auth/logout` `POST` ga o'tkazildi; `.github/workflows/test.yml` ga `marketing-backend` job qo'shildi.
+  4. Python versiya standartlashuvi: PR CI va `Dockerfile` Python 3.12 ga keltirildi; Dockerfile'da xavfsiz `appuser` (non-root) qo'shildi; prod `requirements.txt` dan `pytest` test kutubxonalari tozalandi.
+  5. API Security: `src/api/routes/chat_widget.py` da ruxsatsiz so'rovlar HTTP 401 `HTTPException` qaytaradigan qilindi, `Authorization: Bearer` qo'llab-quvvatlandi, widget.html URL secretlarni darhol session storage'ga olib tozalaydigan qilindi.
+  6. README: Next.js 16.3.2 ga yangilandi. Dalil: `bandit -r src/ -ll` 0 issue; `tests/test_api_server_security.py` 15/15 passed; pytest suite pass.
+- **2026-09-02 — Codex Coordinator — full repository code review:** `main` va `HEAD` bir xil (`03c722f`); tracked branch diff yo'q, 25 ta untracked fayl alohida tekshirildi va butun repo regression/security auditdan o'tkazildi. Dalil: `SKIP_LIVE=1` pytest `1919 passed, 18 skipped`; `bandit -r src -ll` 0 medium/high; `compileall` pass. Failure gates: Ruff `2869` issue/`518` fayl; scripts Bandit `156` medium; 150–400 qator standartida `939` tracked Python/TypeScript fayl mos emas. Asosiy P1: `gen_session.py` session sirini terminalga chiqaradi va lokal userbot session yaratadi; `sitecustomize.py`/`google/*` real Google SDK importini process-wide hijack qiladi; Airtable field-delete va AmoCRM bulk mutation skriptlarida dry-run/approval/idempotency yetishmaydi; Instagram webhook APP_SECRET yo'q bo'lsa fail-open va raw request body o'rniga qayta serializatsiyalangan JSONni tekshiradi; Instagram oqimi AmoCRM lead yozmay turib Telegramda lead deb ko'rsatadi. Hech qanday product kodi tuzatilmadi; faqat review/handoff qaydi yangilandi.
 - **2026-09-02 — Codex Coordinator — Meta/Instagram sozlamasi:** Chrome'dagi Meta Graph API Explorer'da `Oisha Social Readonly` ilovasi va kerakli `instagram_manage_comments`, `instagram_basic`, `instagram_manage_messages`, `pages_read_engagement` ruxsatlari tanlanganini tekshirdi. `.env`da `META_PAGE_ACCESS_TOKEN` bo'sh emasligi va `INSTAGRAM_VERIFY_TOKEN` kerakli qiymat bilan mavjudligi sirlarni chiqarmasdan tasdiqlandi. Yangi Page token yaratish/almashtirish, Meta Webhook verify tokenini yuborish, production restart/deploy va real comment E2E testi hali bajarilmadi; persistent credential yaratish va Meta'ga verify token yuborish uchun owner action-time tasdig'i kutilmoqda. O'zgargan fayl: `AGENTS.md`. Tekshiruv: lokal env presence/exactness tekshiruvi va Explorer UI holati.
 
 ## Roles
