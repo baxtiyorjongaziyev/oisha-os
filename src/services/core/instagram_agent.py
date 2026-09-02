@@ -270,9 +270,13 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
         except Exception:
             db = None
 
-    access_token = settings.META_PAGE_ACCESS_TOKEN.get_secret_value() if settings.META_PAGE_ACCESS_TOKEN else ""
+    access_token = (
+        os.environ.get("META_PAGE_ACCESS_TOKEN", "").strip()
+        or (settings.META_PAGE_ACCESS_TOKEN.get_secret_value() if settings.META_PAGE_ACCESS_TOKEN else "")
+    )
     my_ig_id = (
-        getattr(settings, "META_INSTAGRAM_USER_ID", None)
+        os.environ.get("META_INSTAGRAM_USER_ID", "").strip()
+        or getattr(settings, "META_INSTAGRAM_USER_ID", None)
         or getattr(settings, "META_INSTAGRAM_ACCOUNT_ID", None)
         or ""
     )
@@ -372,7 +376,7 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
         changes = entry.get("changes", [])
         for change in changes:
             field = change.get("field")
-            if field and field not in {"comments", "mentions", "mention"}:
+            if field and field not in {"feed", "comments", "mentions", "mention"}:
                 continue
 
             value = change.get("value", {})
