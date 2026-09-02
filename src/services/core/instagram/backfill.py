@@ -171,6 +171,8 @@ async def backfill_unanswered_comments(
                         if db:
                             dm_uid = f"ig_{commenter_id}"
                             await db.log_message(dm_uid, initial_dm, is_ai=True)
+                    # Throttle between replies to respect rate limits
+                    await asyncio.sleep(4)
                 else:
                     summary["errors"] += 1
             except Exception as exc:

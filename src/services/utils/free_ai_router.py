@@ -83,7 +83,7 @@ _OPENAI_COMPATIBLE: dict[str, dict[str, str]] = {
     },
 }
 
-# Default free-first fallback order: unlimited/fast providers first, hosted
+# Default free-first fallback order: Gemini first (1M TPM), fast hardware next, hosted
 # free tiers next, local Ollama last.
 DEFAULT_TEXT_PROVIDERS: tuple[str, ...] = (
     "gemini",
