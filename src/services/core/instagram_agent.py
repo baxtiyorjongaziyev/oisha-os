@@ -14,31 +14,33 @@ from src.settings import settings
 from src.agents.autonomous_sales_agent import AutonomousSalesAgent
 from src.services.core.instagram.graph_client import InstagramGraphClient
 from src.services.core.instagram.backfill import backfill_unanswered_comments
+from src.services.core.instagram.lead_qualifier import (
+    should_trigger_dm,
+    generate_initial_dm_message,
+    generate_qualifying_dm_response,
+)
 
 logger = structlog.get_logger("InstagramAgent")
 
 COMMENT_REPLY_SYSTEM = (
-    "Sen Oisha — Baxtiyorjon Gaziyevning shaxsiy Instagram sahifasini yurituvchi "
-    "community manager. Baxtiyorjon — branding bo'yicha ekspert va art-direktor, "
-    "shaxsiy brendini rivojlantirmoqda. Sahifa mazmuni: branding, dizayn, "
-    "art-direksiya, ijodiy jarayon, keyslar.\n"
-    "Vazifang: kelgan izohni MAZMUNAN tushunib, aniq va tabiiy javob yozish.\n"
+    "Sen Oisha — Jon Branding agentligi va art-direktor Baxtiyorjon Gaziyevning "
+    "shaxsiy Instagram sahifasini yurituvchi aqlli hamrohisiz. Sahifa mazmuni: "
+    "brending, nomlash (naming), logo dizayn, keyslar va ijodiy strategiya.\n"
     "Qoidalar:\n"
-    "- 1-shaxsdan yozma — Baxtiyorjon nomidan, uning ovozida (ishonchli, iliq, "
-    "ortiqcha rasmiyatsiz) javob ber.\n"
-    "- Izoh nima haqida bo'lsa, o'shanga javob ber. Savolga — javob, maqtovga — "
-    "samimiy minnatdorchilik, tanqidga — xushmuomala va konstruktiv javob, "
-    "branding/dizayn savoliga — qisqa ekspert fikr.\n"
-    "- O'zbekcha, 1-2 gap. Emoji 0-1 ta.\n"
-    "- Shablon javob YOZMA ('Rahmat! Tez orada javob beramiz' kabi taqiqlangan).\n"
-    "- Hamkorlik/xizmat/narx so'ralsa: qisqa javob ber va DM'ga taklif qil.\n"
-    "- Spam yoki ma'nosiz izohga faqat qisqa emoji bilan javob ber."
+    "- 1-shaxsdan yozma — Baxtiyorjon ovozida (iliq, ishonchli, samimiy) javob ber.\n"
+    "- BIR XIL NOMNI HAMMAGA BERMA: Agar foydalanuvchi nom/g'oya so'rasa, har biriga "
+    "alohida, o'ziga xos, zamonaviy va jarangdor yangi nom taklif qil.\n"
+    "- Agar izohda 'nom', 'brend', 'logo', 'narx', 'xizmat' yoki videoda aytilgan kalit so'z bo'lsa, "
+    "izohga qisqa ijodiy javob berib: 'Batafsil ma'lumot va savollarni Direct (DM)ingizga yubordim 📩' deb qo'sh.\n"
+    "- O'zbekcha, 1-2 gap. Emoji 1 ta.\n"
+    "- Shablon javob YOZMA ('Rahmat! Tez orada javob beramiz' taqiqlanadi)."
 )
 
 __all__ = [
     "InstagramGraphClient",
     "verify_signature",
     "send_ig_reply",
+    "send_ig_private_reply",
     "like_comment",
     "reply_to_comment",
     "fetch_media_caption",
@@ -106,6 +108,32 @@ def send_ig_reply(recipient_id: str, text: str, access_token: str) -> bool:
             return False
     except Exception as exc:
         logger.error("[META] Exception in send_ig_reply", error=str(exc))
+        return False
+
+
+def send_ig_private_reply(comment_id: str, text: str, access_token: str) -> bool:
+    """Sends a Private Direct Message in response to an Instagram comment."""
+    if not access_token or not comment_id:
+        logger.warning("[META] access_token or comment_id missing for private reply")
+        return False
+
+    url = "https://graph.facebook.com/v19.0/me/messages"
+    payload = {
+        "recipient": {"comment_id": comment_id},
+        "message": {"text": text}
+    }
+    headers = {"Content-Type": "application/json"}
+    params = {"access_token": access_token}
+
+    try:
+        resp = requests.post(url, json=payload, headers=headers, params=params, timeout=15)
+        if resp.status_code == 200:
+            logger.info("[META] Private DM reply sent successfully", comment_id=comment_id)
+            return True
+        logger.error("[META] Failed to send private DM reply", status_code=resp.status_code, body=resp.text)
+        return False
+    except Exception as exc:
+        logger.error("[META] Exception in send_ig_private_reply", error=str(exc))
         return False
 
 
@@ -358,4 +386,14 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                     await db.log_message(user_id_str, clean_reply, is_ai=True)
 
                 reply_to_comment(comment_id, clean_reply, access_token)
+                
+                # Check for Lead Keyword triggers and initiate Direct Message
+                is_trigger, kw = should_trigger_dm(comment_text, post_caption)
+                if is_trigger:
+                    initial_dm = generate_initial_dm_message(commenter_name, kw, post_caption)
+                    send_ig_private_reply(comment_id, initial_dm, access_token)
+                    if db:
+                        dm_uid = f"ig_{commenter_id}"
+                        await db.log_message(dm_uid, initial_dm, is_ai=True)
+
                 notify_crm("Instagram Comment", commenter_name, commenter_id, comment_text, ai_reply)

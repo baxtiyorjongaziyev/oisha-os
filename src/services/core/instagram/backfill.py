@@ -149,6 +149,19 @@ async def backfill_unanswered_comments(
                         user_id_str = f"ig_comment_{commenter_id}"
                         await db.log_message(user_id_str, f"COMMENT: {text}", is_ai=False)
                         await db.log_message(user_id_str, clean, is_ai=True)
+
+                    from src.services.core.instagram.lead_qualifier import (
+                        should_trigger_dm,
+                        generate_initial_dm_message,
+                    )
+                    is_trig, kw = should_trigger_dm(text, caption)
+                    if is_trig:
+                        from src.services.core.instagram_agent import send_ig_private_reply
+                        initial_dm = generate_initial_dm_message(commenter_name, kw, caption)
+                        send_ig_private_reply(comment_id, initial_dm, token)
+                        if db:
+                            dm_uid = f"ig_{commenter_id}"
+                            await db.log_message(dm_uid, initial_dm, is_ai=True)
                 else:
                     summary["errors"] += 1
             except Exception as exc:
