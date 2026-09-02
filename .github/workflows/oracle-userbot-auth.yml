@@ -5,8 +5,8 @@
 # AuthKeyDuplicated xavfi yo'qoladi (qarang
 # docs/operations/telethon-session-ownership.md).
 #
-# complete-auth.yml dan farqi:
-#   - GitHub runner da emas, VM da ishlaydi
+# Xavfsizlik afzalliklari:
+#   - GitHub runner da emas, to'g'ridan-to'g'ri Oracle VM da ishlaydi
 #   - TELEGRAM_PHONE / TELEGRAM_PASSWORD ni VM ning .env idan oladi,
 #     ya'ni GitHub secret shart emas
 #   - session stringni hech qayerda chop etmaydi: to'g'ridan-to'g'ri

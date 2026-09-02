@@ -1,13 +1,23 @@
 import os
+import secrets
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Any
-from dotenv import load_dotenv
-import httpx
+from typing import Any, Dict, Optional
 from urllib.parse import urlencode
-from db import init_db, save_token, get_token, delete_token
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
+import httpx
+
+from db import (
+    delete_token,
+    get_token,
+    init_db,
+    save_oauth_state,
+    save_token,
+    verify_and_consume_oauth_state,
+)
 
 load_dotenv()
 
@@ -17,42 +27,62 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 REDIRECT_URI = f"{BACKEND_URL}/api/auth/callback"
 
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "ALLOWED_ORIGINS",
+        f"{FRONTEND_URL},http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     yield
 
+
 app = FastAPI(title="Marketing OS API", lifespan=lifespan)
 
-# Allow CORS for frontend
+# Allow CORS for trusted frontend origins only
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
+
 @app.get("/api/auth/login")
 async def login():
-    """Redirect to Meta OAuth page"""
+    """Redirect to Meta OAuth page with CSRF state protection"""
     if not META_APP_ID:
         return {"error": "META_APP_ID is not configured in .env"}
-        
+
+    state = secrets.token_urlsafe(32)
+    save_oauth_state(state, ttl_seconds=600)
+
     oauth_url = (
         f"https://www.facebook.com/v19.0/dialog/oauth?"
         f"client_id={META_APP_ID}&"
         f"redirect_uri={REDIRECT_URI}&"
+        f"state={state}&"
         f"scope=instagram_basic,instagram_manage_insights,pages_show_list,ads_read,business_management"
     )
     return RedirectResponse(url=oauth_url)
 
+
 @app.get("/api/auth/callback")
-async def callback(code: str = None, error: str = None):
-    """Handle Meta OAuth callback"""
+async def callback(code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None):
+    """Handle Meta OAuth callback and verify CSRF state"""
     if error:
         return RedirectResponse(url=f"{FRONTEND_URL}?{urlencode({'error': error})}")
-    
+
+    if not state or not verify_and_consume_oauth_state(state):
+        return RedirectResponse(url=f"{FRONTEND_URL}?error=invalid_or_expired_state")
+
     if not code:
         return RedirectResponse(url=f"{FRONTEND_URL}?error=missing_code")
 
@@ -63,11 +93,11 @@ async def callback(code: str = None, error: str = None):
             "client_id": META_APP_ID,
             "redirect_uri": REDIRECT_URI,
             "client_secret": META_APP_SECRET,
-            "code": code
+            "code": code,
         }
         res = await client.get(token_url, params=params)
         data = res.json()
-        
+
         access_token = data.get("access_token")
         if access_token:
             save_token(access_token)
@@ -75,13 +105,21 @@ async def callback(code: str = None, error: str = None):
         else:
             return RedirectResponse(url=f"{FRONTEND_URL}?error=token_exchange_failed")
 
+
 @app.get("/api/auth/status")
 async def auth_status():
     token = get_token()
     return {"connected": bool(token)}
 
-@app.get("/api/auth/logout")
+
+@app.post("/api/auth/logout")
 async def logout():
+    delete_token()
+    return {"success": True}
+
+
+@app.get("/api/auth/logout")
+async def logout_get():
     delete_token()
     return {"success": True}
 

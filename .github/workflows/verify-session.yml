@@ -61,7 +61,7 @@ jobs:
             userbot: ${USERBOT_STATE}
 
             Agar AuthKeyDuplicated bo'lsa, prod kaliti boshqa IP dan ochilgan.
-            Yangi session: generate-session.yml → USERBOT_SESSION_STRING yangilang."
+            Yangi session: oracle-userbot-auth.yml (Oracle VM da xavfsiz tiklash)."
               STATUS=1
             fi
 

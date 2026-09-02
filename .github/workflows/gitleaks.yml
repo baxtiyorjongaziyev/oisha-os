@@ -15,7 +15,6 @@ permissions:
 jobs:
   gitleaks:
     name: gitleaks
-    if: false
     # GitHub-hosted runner: the Oracle self-hosted runner is a 1GB free-tier
     # VM that also runs the production oisha-os stack (userbot, minio, n8n,
     # docker). A full-history gitleaks scan competing with that for memory
