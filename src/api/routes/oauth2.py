@@ -3,7 +3,6 @@ import os
 import secrets
 import time
 import html as html_lib
-from typing import Optional
 from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
 from fastapi import APIRouter, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse

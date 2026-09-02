@@ -6,7 +6,6 @@ Handles:
 import asyncio
 import html
 import logging
-from datetime import datetime
 from typing import Any
 import httpx
 from aiogram import F

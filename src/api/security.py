@@ -40,7 +40,11 @@ _PUBLIC_PATHS = frozenset(
     {
         "/api/auth/telegram/login",
         "/api/auth/telegram/callback",
+        "/api/auth/airtable/login",
         "/api/auth/airtable/callback",
+        # Web chat widget guest tokens and messaging
+        "/api/chat/token",
+        "/api/chat/send",
         # Meta must reach this exact verification/event endpoint. The route
         # validates the verify token (GET) and x-hub-signature-256 (POST).
         "/api/instagram/webhook",

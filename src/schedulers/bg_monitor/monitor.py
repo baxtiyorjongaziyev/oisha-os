@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Optional, Set
+import os
+from datetime import datetime
+from typing import Any, Optional, Set
 
 from src.schedulers.bg_monitor.helpers import (
     BaseMonitorHelpersMixin,
-    _env_enabled,
 )
 from src.schedulers.bg_monitor.jobs_crm import JobsCrmMixin
 from src.schedulers.bg_monitor.jobs_analytics import JobsAnalyticsMixin

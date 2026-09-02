@@ -3,12 +3,10 @@ CRM stagnation, deadline checking, task alerts, and lead OS cycle execution.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Any
 
-from src.settings import settings
 import src.main as m
 from src.schedulers.main_loop.helpers import _is_due
 

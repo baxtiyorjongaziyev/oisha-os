@@ -5,10 +5,9 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Optional, Set
+from datetime import datetime
+from typing import Any, Optional
 
-from src.settings import settings
 
 logger = logging.getLogger("BackgroundMonitor")
 

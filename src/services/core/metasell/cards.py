@@ -3,7 +3,7 @@ Telegram card and team report formatting for MetaSell conversion engine.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 from src.services.core.metasell.constants import (
     MIN_ACCEPTABLE_ANSWER_RATE,

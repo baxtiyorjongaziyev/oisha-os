@@ -6,8 +6,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, List, Optional, Set
 
 logger = logging.getLogger("AmoCRMDealHygiene")
 

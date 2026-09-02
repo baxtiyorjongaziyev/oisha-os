@@ -110,3 +110,35 @@ def decode_session_jwt(token: str, secret: str) -> Optional[Dict[str, Any]]:
     except Exception:
         logger.error("Exception handled in %s", __name__, exc_info=True)
         return None
+
+
+def issue_widget_jwt(
+    *,
+    session_id: str,
+    secret: str,
+    ttl_seconds: int = 86400,
+) -> str:
+    """Issue a scoped short-lived JWT for web chat widget visitors (chat scope only)."""
+    clean_secret = _strong_session_secret(secret)
+    now = int(time.time())
+    payload = {
+        "sub": f"widget_{session_id}",
+        "session_id": str(session_id),
+        "role": "widget_guest",
+        "scopes": ["chat:read", "chat:write"],
+        "iat": now,
+        "exp": now + max(60, int(ttl_seconds)),
+    }
+    return jwt.encode(payload, clean_secret, algorithm="HS256")
+
+
+def decode_widget_jwt(token: str, secret: str) -> Optional[Dict[str, Any]]:
+    """Verify and decode a widget chat JWT."""
+    try:
+        clean_secret = _strong_session_secret(secret)
+        payload = jwt.decode(token, clean_secret, algorithms=["HS256"])
+        if "chat:write" in payload.get("scopes", []) or payload.get("role") == "widget_guest":
+            return payload
+        return None
+    except Exception:
+        return None

@@ -3,25 +3,15 @@ Airtable deadlines monitor and notifications.
 """
 from __future__ import annotations
 
-import datetime
 import logging
 import os
-from typing import Any, Dict, List, Optional
 
 from aiogram import Bot
 import src.config as config
 from src.database import Database
-from src.services.core.agent_loop import AgentTask
 from src.services.core.tool_adapters import (
-    build_default_tool_registry,
     send_group_message_with_fallback,
 )
-from src.services.proactive.formatters import (
-    _mention,
-    _run_notification_agent,
-    _safe_text,
-)
-from src.services.proactive.reminders import _execute_telegram_notification
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
@@ -92,7 +82,6 @@ async def check_airtable_deadlines():
     tekshiriladi.
     """
     from src.services.core.airtable_sync import AirtableSync  # type: ignore
-    import src.config as config
 
     get_now_fn = _resolve('get_local_now', get_local_now)
     now = get_now_fn()

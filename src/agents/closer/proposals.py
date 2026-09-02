@@ -3,7 +3,7 @@ Dynamic Proposal generator and pricing engine for Autonomous Closer.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Dict, List
 from src.agents.closer.models import DealProposal
 
 

@@ -1,11 +1,20 @@
 """
 CRM lead task extraction, deduplication, and call note analysis mixin.
 """
+import inspect
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Tuple
+import requests
 
 logger = logging.getLogger(__name__)
+
+
+async def _maybe_await(val: Any) -> Any:
+    if inspect.isawaitable(val):
+        return await val
+    return val
 
 
 class TasksNotesMixin:

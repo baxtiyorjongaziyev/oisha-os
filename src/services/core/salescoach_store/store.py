@@ -4,7 +4,7 @@ TelegramSalesCoachStore main class composing schema and analysis operations mixi
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from src.database_pool import db_pool
 from src.services.core.salescoach_store.schema import SchemaMixin

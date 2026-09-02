@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import structlog
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from src.context import app_ctx
 from src.settings import settings

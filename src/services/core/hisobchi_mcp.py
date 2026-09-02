@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 from src.settings import settings
 from src.services.core.hisobchi_gsheets import HisobchiGsheetStore
@@ -285,7 +285,6 @@ except ImportError:
 
 
 if __name__ == "__main__":
-    import os
     import uvicorn
     from fastapi import FastAPI
 

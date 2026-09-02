@@ -6,7 +6,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-from src.agents.contracts.models import ContractTemplate
 from src.agents.contracts.templates import load_contract_templates
 
 

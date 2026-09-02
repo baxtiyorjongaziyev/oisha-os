@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Optional
 
 from src.database_pool import db_pool

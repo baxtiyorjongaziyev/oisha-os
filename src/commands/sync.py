@@ -64,7 +64,6 @@ async def cmd_sync_cases(event, **ctx):
 
 @register_command("/sync_archive")
 async def cmd_sync_archive(event, **ctx):
-    import asyncio
 
     parts = event.message.text.lower().strip().split()
     limit = 30

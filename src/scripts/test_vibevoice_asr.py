@@ -47,7 +47,7 @@ def main():
         
     print(f"[+] Model yuklandi! ({time.time() - start_time:.2f} soniya)")
     
-    print(f"[*] Audio qayta ishlanmoqda (STT + Timestamps + Speaker)...")
+    print("[*] Audio qayta ishlanmoqda (STT + Timestamps + Speaker)...")
     start_time = time.time()
     
     result = asr_pipeline(

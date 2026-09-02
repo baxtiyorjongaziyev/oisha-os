@@ -75,11 +75,20 @@ def add_activity(
     )
 
 
-def update_api_status(status_update: Dict[str, Any]) -> None:
+def update_api_status(
+    status_or_update: Any, detail: Optional[str] = None
+) -> None:
     from src.api.routes.health import api_state
-    for k, v in status_update.items():
-        if hasattr(api_state, k):
-            setattr(api_state, k, v)
+
+    if isinstance(status_or_update, dict):
+        for k, v in status_or_update.items():
+            if hasattr(api_state, k):
+                setattr(api_state, k, v)
+    elif isinstance(status_or_update, str):
+        if hasattr(api_state, "cached_status") and isinstance(api_state.cached_status, dict):
+            api_state.cached_status["status"] = status_or_update
+            if detail:
+                api_state.cached_status["detail"] = detail
 
 
 def get_legacy_runtime_inventory() -> Dict[str, Any]:

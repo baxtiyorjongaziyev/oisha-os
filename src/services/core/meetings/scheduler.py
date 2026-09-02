@@ -3,20 +3,13 @@ TelegramMeetingScheduler main orchestrator for message events and dialog scans.
 """
 from __future__ import annotations
 
-import asyncio
 import os
-import re
-from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 import structlog
 
-from src.settings import settings
 from src.services.core.meetings.models import (
-    CONFIRMATION_TERMS,
-    LEAD_TERMS,
-    LOCATION_HINTS,
-    MEETING_TERMS,
     TZ,
     ContextMessage,
     MeetingCandidate,

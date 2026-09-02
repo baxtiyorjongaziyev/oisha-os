@@ -1,11 +1,6 @@
-import asyncio
-import os
 import time
-import json
-import logging
 import requests  # type: ignore
 from typing import Optional, Dict, Any, List
-from functools import wraps
 
 import structlog
 
@@ -13,7 +8,6 @@ logger = structlog.get_logger()
 
 
 from src.services.core.crm.amocrm.auth import (
-    _plain_secret,
     retry_with_backoff,
 )
 

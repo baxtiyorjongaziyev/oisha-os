@@ -7,7 +7,6 @@ import json
 import logging
 import re
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from src.time_utils import get_local_now

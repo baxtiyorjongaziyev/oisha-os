@@ -4,8 +4,9 @@ OishaSelfDiagnosis main engine orchestrating full audit passes across all submod
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from src.services.core.diagnosis.error_diagnosis import ErrorDiagnosisMixin
 from src.services.core.diagnosis.health_quality import HealthQualityMixin

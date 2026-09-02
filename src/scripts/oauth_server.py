@@ -4,7 +4,6 @@ VPS da ishga tushiring: python oauth_server.py
 Brauzerda oching: http://109.199.100.137:9999/auth
 """
 import http.server
-import json
 import os
 import urllib.parse
 import sys

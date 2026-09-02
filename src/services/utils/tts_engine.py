@@ -1,7 +1,6 @@
 import edge_tts  # type: ignore
 import os
 import re
-import logging
 import structlog
 import config  # type: ignore
 

@@ -2,7 +2,6 @@ import logging
 from typing import Any, Dict, Optional
 
 from .core import BaseAgent
-from .persona_router import PersonaRouter
 
 logger = logging.getLogger(__name__)
 

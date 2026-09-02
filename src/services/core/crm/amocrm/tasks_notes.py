@@ -1,8 +1,5 @@
 import asyncio
-import os
 import time
-import json
-import logging
 import requests  # type: ignore
 from typing import Optional, Dict, Any, List
 from functools import wraps

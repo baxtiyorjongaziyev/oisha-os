@@ -11,7 +11,7 @@ Usage:
 from __future__ import annotations
 
 import re
-from typing import Optional
+from typing import Any, Optional
 
 from src.services.core.agency_personas import AGENCY_PERSONAS
 

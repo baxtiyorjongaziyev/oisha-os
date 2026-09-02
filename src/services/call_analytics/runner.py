@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.services.call_analytics.helpers import (
     ANALYSIS_MARKER,
@@ -16,14 +16,9 @@ from src.services.call_analytics.helpers import (
 )
 from src.services.call_analytics.note_extractor import NoteExtractorMixin
 from src.services.call_analytics.normalizer import (
-    CallNormalizerMixin,
     _normalise_category,
     _normalise_mood,
 )
-from src.services.call_analytics.crm_notes import CallCrmNotesMixin
-from src.services.call_analytics.crm_tasks import CallCrmTasksMixin
-from src.services.call_analytics.scorer import CallScorerMixin
-from src.services.call_analytics.transcriber import CallTranscriberMixin
 from src.services.core.call_events import CallEventLog
 
 logger = logging.getLogger(__name__)

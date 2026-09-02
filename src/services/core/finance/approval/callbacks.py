@@ -3,19 +3,11 @@ Callback queries and text reply handlers for financial approval inline flows.
 """
 from __future__ import annotations
 
-import asyncio
 import html
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 from src.services.core.finance.approval.keyboards import (
-    QUICK_CATEGORIES,
-    _approval_key,
-    _category_key,
-    _change_owner_key,
-    _edit_key,
-    _skip_key,
     build_approval_keyboard,
     build_approval_message,
     build_category_keyboard,
@@ -24,7 +16,6 @@ from src.services.core.finance.approval.state import (
     _get_or_load_pending,
     _pending,
     _pending_edit,
-    register_pending,
 )
 
 logger = logging.getLogger("HisobchiApproval")

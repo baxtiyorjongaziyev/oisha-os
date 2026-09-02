@@ -3,10 +3,10 @@ Telegram contact lookup, direct chat history, and shared group discovery mixin.
 """
 import asyncio
 import logging
+import random
 import re
-import time
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional, Set, Tuple
+from datetime import datetime, timezone
+from typing import Any, List, Optional, Tuple
 from telethon import functions, types
 from src.services.core.crm.auditor.db_storage import normalize_phone
 

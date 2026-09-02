@@ -4,7 +4,6 @@ AI Router models catalog, cost tracking, caching, and usage logging.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import os
 import time

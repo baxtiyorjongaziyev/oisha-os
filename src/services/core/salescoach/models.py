@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import inspect
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Iterable, Literal, Mapping, Optional
+from typing import Any, Iterable, Literal, Mapping, Optional
 
-from src.services.core.telegram_salescoach_store import ConversationAnalysisRecord
 
 
 logger = logging.getLogger("TelegramSalesCoach")

@@ -8,7 +8,6 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from src.services.core.airtable_sync import AirtableSync
-from src.services.core.tool_registry import ToolResult
 
 logger = logging.getLogger(__name__)
 

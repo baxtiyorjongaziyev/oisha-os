@@ -3,12 +3,10 @@ Main CRMContactsAuditor class composed of modular mixins.
 """
 import logging
 import os
-from typing import Any, Optional
+from typing import Optional
 
 from src.services.core.crm.auditor.db_storage import (
     DatabaseStorageMixin,
-    normalize_phone,
-    _maybe_await,
 )
 from src.services.core.crm.auditor.telegram_history import TelegramHistoryMixin
 from src.services.core.crm.auditor.tasks_notes import TasksNotesMixin

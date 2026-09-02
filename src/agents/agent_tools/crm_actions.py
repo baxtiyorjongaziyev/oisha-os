@@ -1,13 +1,7 @@
-import os
-import io
-import time
-import json
 import logging
 import asyncio
-import inspect
 from datetime import datetime
-from typing import Any, Optional, Dict, List, Tuple
-from src.agents.agent_tools.declarations import TOOL_DECLARATIONS
+from typing import Any, Optional, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +217,7 @@ class CrmActionsMixin(CrmLeadQualifyMixin):
         Working hours: 10:00-17:00 (Toshkent), Dushanba-Shanba.
         Vazifalar ish vaqti ichida tarqatiladi.
         """
-        from src.utils.task_scheduler import task_deadline, next_work_slot
+        from src.utils.task_scheduler import task_deadline
 
         lead_context = await self._resolve_lead_context(
             user_id=user_id, lead_id=lead_id

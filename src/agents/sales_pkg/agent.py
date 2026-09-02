@@ -3,22 +3,16 @@ SalesAgent core agent implementation.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from src.agents.core import BaseAgent
 from src.agents.negotiation_engine import NegotiationEngine
 from src.agents.negotiation_verifier import NegotiationOutcomeVerifier
 from src.agents.persona_router import PersonaRouter
 from src.agents.sales_pkg.actions import SalesActionsMixin
-from src.agents.sales_pkg.helpers import (
-    ESCALATION_CLOSE_PROB_THRESHOLD,
-    ESCALATION_RISK_FLAGS,
-    ESCALATION_TRIGGERS,
-)
 
 logger = logging.getLogger(__name__)
 

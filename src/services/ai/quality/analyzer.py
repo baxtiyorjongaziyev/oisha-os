@@ -4,22 +4,12 @@ QualityAnalyzer main service composing AI, heuristic scoring, and feedback mixin
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from src.services.core.sales_playbook import metric_weights
 from src.services.ai.quality.models import (
-    ConversationAnalysis,
     QualityMetric,
-    ScoreBreakdown,
-    _as_str_list,
-    _clamp_score,
-    _parse_llm_scores,
-    SCORING_METHOD_AI,
-    SCORING_METHOD_HEURISTIC,
-    OUTCOME_NOT_SALES,
-    CATEGORY_NOT_SALES,
 )
-from src.services.ai.quality.prompts import _build_scoring_prompt
 from src.services.ai.quality.ai_engine import AIEngineMixin
 from src.services.ai.quality.scoring_heuristics import ScoringHeuristicsMixin
 from src.services.ai.quality.feedback_generator import FeedbackGeneratorMixin

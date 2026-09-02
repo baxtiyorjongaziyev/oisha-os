@@ -5,8 +5,7 @@ from __future__ import annotations
 
 import html
 import logging
-from typing import Any, Dict, List, Optional
-from telethon import Button
+from typing import Any
 
 logger = logging.getLogger("HisobchiApproval")
 

@@ -1,7 +1,6 @@
 """Uzbek Entrepreneurs Integration Handlers - AmoCRM and Telegram integration."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Optional

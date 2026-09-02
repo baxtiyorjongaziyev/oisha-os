@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import ContextTypes
+
+from src.context import app_ctx
 
 logger = logging.getLogger(__name__)
 

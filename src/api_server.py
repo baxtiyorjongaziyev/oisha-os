@@ -19,8 +19,8 @@ from src.api.routes.telegram_routes import telegram_group_access
 from src.services.api_server import (
     BOT2BOT_COOLDOWN_SEC,
     BOT2BOT_MAX_ROUNDS,
-    _bot2bot_tracker,
     _bot2bot_allowed,
+    _bot2bot_tracker,
     _bot2bot_skip_reason,
     _build_amocrm_call_analysis_status,
     _business_message_skip_reason,

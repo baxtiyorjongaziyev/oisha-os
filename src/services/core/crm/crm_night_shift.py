@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 from datetime import datetime
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.leads.lead_classifier import LeadClassifier

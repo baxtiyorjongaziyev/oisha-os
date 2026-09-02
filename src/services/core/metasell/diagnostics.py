@@ -8,10 +8,8 @@ import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Sequence
 
-from src.services.core.call_events import CallEventLog, aggregate_volume, team_volume
-from src.services.core.metasell_revenue import aggregate_revenue, format_money
+from src.services.core.metasell_revenue import aggregate_revenue
 from src.services.core.sales_playbook import (
-    SCORE_GOOD,
     STAGE_METRICS,
     STAGE_WEIGHTS,
     normalise_outcome,
@@ -21,15 +19,11 @@ from src.services.core.metasell.constants import (
     MIN_CALLS_FOR_DIAGNOSIS,
     MIN_CALLS_PER_GROUP,
     MIN_MEANINGFUL_GAP,
-    STAGE_LABELS_UZ,
-    STAGE_DRILLS_UZ,
 )
 from src.services.core.metasell.models import (
     StageGap,
-    ConversionTrend,
     SellerDiagnosis,
     _row_get,
-    _json_obj,
     _json_list,
     _mean,
 )

@@ -7,7 +7,6 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from src.services.ai.analytics.aggregations import CallAnalyticsAggregationsMixin
-from src.services.ai.analytics.models import DailyStats, LostClientAnalysis, ManagerPerformance
 from src.services.ai.quality_analyzer import ConversationAnalysis
 
 logger = logging.getLogger(__name__)

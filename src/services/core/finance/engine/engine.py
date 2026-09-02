@@ -4,18 +4,13 @@ HisobchiEngine main class composing rules, transactions, and reports mixins.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.database_pool import db_pool
 from src.services.core.finance.hisobchi_schema import ensure_hisobchi_db
 from src.services.core.finance.accounting_period import (
     DEFAULT_TRACKING_START_DATE,
     parse_tracking_start_date,
-)
-from src.services.core.finance.engine.helpers import (
-    _fmt_money,
-    _normalize_card_suffix,
-    _normalize_merchant,
 )
 from src.services.core.finance.engine.rules import RulesLearningMixin
 from src.services.core.finance.engine.transactions import TransactionsMixin

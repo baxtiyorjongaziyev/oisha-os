@@ -3,18 +3,14 @@ Finance risk and team capacity snapshot builders for Command Center.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import date, datetime, timezone
+from typing import Any
 from src.services.command_center.models import (
     FinanceRiskItem,
     TeamCapacityItem,
     CLOSED_PROJECT_STAGE_MARKERS,
-    _age_days,
-    _age_hours,
     _field_text,
-    _has_overdue_task,
     _int_or_zero,
-    _lead_contacts,
     _money_value,
     _parse_date,
 )

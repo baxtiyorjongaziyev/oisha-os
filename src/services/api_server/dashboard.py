@@ -3,22 +3,15 @@ Client dashboard view, background audit, and server runner.
 """
 import asyncio
 import logging
-import os
 import time
-from typing import Any, Dict, Optional
 import uvicorn
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 
-from src.context import app_ctx
-from src.settings import settings
 from src.api.routes.state import api_state
 from src.services.api_server.helpers import (
-    _get_amocrm_instance,
-    _get_db_instance,
     _get_call_backfill_interval_seconds,
     _get_call_backfill_limit,
-    _is_authorized_cron_request,
     _parse_state_json,
     _timestamp_to_iso,
 )
@@ -367,12 +360,7 @@ from src.api.routes.openclaw_gateway import (  # noqa: F401
     v1_chat_completions,
 )
 from src.api.routes.amocrm_integration import (  # noqa: F401
-    _run_amocrm_call_backfill,
     _process_amocrm_event as process_amocrm_event,
-    _CALL_BACKFILL_LAST_STARTED_KEY,
-    _CALL_BACKFILL_LAST_FINISHED_KEY,
-    _CALL_BACKFILL_LAST_RESULT_KEY,
-    _CALL_BACKFILL_LAST_ERROR_KEY,
 )
 try:
     from src.agents.autonomous_sales_agent import AutonomousSalesAgent  # noqa: F401
@@ -384,5 +372,6 @@ except Exception:
 # ---------------------------------------------------------------------------
 
 def run_api(host: str = "0.0.0.0", port: int = 8080):  # nosec
+    from src.services.api_server.core import app
     uvicorn.run(app, host=host, port=port)
 

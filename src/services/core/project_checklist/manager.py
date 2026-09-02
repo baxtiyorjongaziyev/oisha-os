@@ -6,12 +6,13 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from src.services.core.project_checklist.models import ClientProject
+from src.context import app_ctx
+from src.services.core.project_checklist.models import ClientProject, ServiceType
 from src.services.core.project_checklist.phases_ops import PhaseOperationsMixin
 from src.services.core.project_checklist.reporting_ops import ReportingOperationsMixin
-from src.services.core.project_phases import (
-    get_project_phase_manager,
-)
+from src.services.core.project_checklist.service_config import get_service_configurator
+from src.services.core.project_phases import get_project_phase_manager
+from src.services.core.workflow_engine import get_mandatory_workflow
 
 logger = logging.getLogger("ClientProjectChecklist")
 

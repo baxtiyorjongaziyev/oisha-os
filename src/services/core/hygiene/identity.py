@@ -4,10 +4,8 @@ Identity extraction, telegram profile cross-referencing, and note text parsing m
 from __future__ import annotations
 
 from collections import defaultdict
-import json
 import logging
-import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from src.services.core.hygiene.models import (
     LeadIdentity,

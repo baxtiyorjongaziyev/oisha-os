@@ -3,12 +3,11 @@ Telegram message history retrieval and phone lookup mixin.
 """
 from __future__ import annotations
 
-import inspect
 import json
 import logging
 import random
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Optional
 
 from telethon import functions, types
 

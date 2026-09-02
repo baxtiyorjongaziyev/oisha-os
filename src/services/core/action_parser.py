@@ -6,9 +6,8 @@ from __future__ import annotations
 import asyncio
 import datetime
 import logging
-import random
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from telegram import LabeledPrice
 
 from src.services.core.tool_adapters import send_group_message_with_fallback

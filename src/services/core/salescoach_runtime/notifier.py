@@ -3,15 +3,11 @@ Telegram notification dispatch and interactive callback action execution.
 """
 from __future__ import annotations
 
-import asyncio
-import inspect
-import json
 import logging
 import os
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Iterable, Mapping
 
 from src.services.core.salescoach_runtime.adapters import (
-    _maybe_await,
     _parse_id_list,
 )
 

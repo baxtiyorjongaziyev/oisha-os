@@ -4,7 +4,7 @@ Lead update and mutation operations for AmoCRM.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import requests
 import structlog

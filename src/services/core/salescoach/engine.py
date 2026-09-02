@@ -4,12 +4,9 @@ TelegramSalesCoach orchestrator for monitoring private dialogues and triggering 
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import inspect
-import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Iterable, List, Literal, Mapping, Optional, Sequence, Tuple
+from datetime import timezone
+from typing import Any, Callable, Iterable, Mapping, Optional
 
 from src.services.core.salescoach.models import (
     CrmMatch,
@@ -18,7 +15,6 @@ from src.services.core.salescoach.models import (
     _hash_value,
     _maybe_await,
     _normalize_message,
-    _parse_datetime,
     conversation_fingerprint,
 )
 from src.services.core.telegram_salescoach_store import ConversationAnalysisRecord

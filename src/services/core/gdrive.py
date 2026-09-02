@@ -106,7 +106,6 @@ class GoogleDriveSync:
         """
         try:
             from googleapiclient.http import MediaIoBaseDownload
-            import io
             
             request = self.service.files().get_media(fileId=file_id)
             with open(dest_path, "wb") as fh:

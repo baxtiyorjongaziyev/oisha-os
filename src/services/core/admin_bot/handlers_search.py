@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 import structlog
 from telethon import Button, events
 from telethon.tl.types import InputBotInlineMessageMediaContact, InputBotInlineResult
@@ -48,7 +48,7 @@ async def _handle_inline_phone(self, event: Any, query: str) -> None:
         if user_data:
             first_name = user_data.get("first_name") or first_name
             last_name = user_data.get("last_name") or ""
-    except Exception as exc:
+    except Exception:
         logger.debug("[ADMIN_BOT] inline_search: global lookup failed for %s", normalized, exc_info=True)
 
     contact_result = InputBotInlineResult(

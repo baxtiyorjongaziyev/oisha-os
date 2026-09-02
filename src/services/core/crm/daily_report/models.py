@@ -1,10 +1,9 @@
 """
 Data classes and time range utilities for CRM daily and weekly reporting.
 """
-from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta, date
-from typing import Any, Dict, List, Optional, Tuple
-from src.time_utils import get_local_now
+from dataclasses import dataclass
+from datetime import datetime, timedelta, date
+from typing import Any, Dict, Optional, Tuple
 
 def _ts_today() -> Tuple[int, int]:
     """Bugungi kunning Unix timestamp [from, to]."""

@@ -5,9 +5,15 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List
 
-from src.services.core.crm.enrichment.models import _clip, _secret_to_text, maybe_await
+try:
+    from google.genai import types as genai_types
+except ImportError:
+    genai_types = None
+
+from src.services.core.crm.enrichment.models import _clip, maybe_await
+from src.services.utils.gemini_fallback import generate_content_with_fallback
 
 logger = logging.getLogger("AmoCRMLeadEnrichment")
 

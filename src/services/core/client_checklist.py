@@ -5,10 +5,9 @@ ClientChecklist — Mijoz hayot sikli bo'yicha jamoa cheklisti.
 Oisha bu checklist asosida jamoani nazorat qiladi va baholaydi.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

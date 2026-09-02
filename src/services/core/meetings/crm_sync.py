@@ -4,18 +4,11 @@ CRM lead lookup, task creation, note syncing, and admin notification mixin.
 from __future__ import annotations
 
 import os
-import re
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-from zoneinfo import ZoneInfo
+from typing import Any, List, Optional
 import structlog
 
 from src.services.core.meetings.models import (
-    CONFIRMATION_TERMS,
     LEAD_TERMS,
-    LOCATION_HINTS,
-    MEETING_TERMS,
-    TZ,
     ContextMessage,
     MeetingCandidate,
 )

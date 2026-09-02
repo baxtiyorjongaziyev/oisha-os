@@ -1,19 +1,6 @@
-import os
-import io
-import time
-import json
-import logging
 import structlog
-import asyncio
-import psutil
-import platform
-from datetime import datetime
-from telethon import events, Button, functions, types
-from src.database import Database
-from src.controllers.message_controller import MessageController
-from src.time_utils import get_local_now, is_quiet_hours
-from src.services.core.mission_control import MissionControl, MissionControlFetchError
-from src.services.core.crm.crm_night_shift import CRMNightShift
+from telethon import events, Button
+from src.time_utils import get_local_now
 from src.services.core.admin_command_router import (
     build_chatid_response,
     build_command_center_response,
@@ -32,11 +19,10 @@ from src.services.core.business_command_center import (
     collect_sales_today_priorities,
     collect_team_capacity_snapshot,
 )
-from src.services.core.telegram.bot_runtime import BotRuntimePort, TelethonBotRuntime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.services.utils.access_manager import AccessManager
+    pass
 
 logger = structlog.get_logger()
 

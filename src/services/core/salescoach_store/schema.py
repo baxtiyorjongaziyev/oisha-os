@@ -4,7 +4,7 @@ Database initialization and execution primitives for SalesCoach store.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from src.services.core.salescoach_store.models import _maybe_await
 

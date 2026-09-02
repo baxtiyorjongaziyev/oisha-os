@@ -4,7 +4,6 @@ Autonomous Scheduler Runner Mixin for Admin Bot.
 from __future__ import annotations
 
 import asyncio
-import logging
 
 import structlog
 from src.services.core.admin_bot.cron_jobs import (

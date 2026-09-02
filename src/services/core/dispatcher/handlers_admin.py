@@ -5,12 +5,8 @@ from __future__ import annotations
 
 import logging
 import os
-import re
-from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from src.settings import settings
-from src.context import app_ctx
 from src.services.core.admin_command_router import (
     build_chatid_response,
     build_command_center_response,
@@ -190,10 +186,9 @@ async def handle_aiogram_vps_status(
     sender_id = int(getattr(sender, "id", 0) or 0)
     if not is_admin(sender_id):
         return
-    import os
     import platform
     import time
-    from datetime import datetime, timedelta
+    from datetime import timedelta
     import psutil
 
     cpu_usage = psutil.cpu_percent(interval=0.1)
@@ -229,7 +224,6 @@ async def handle_aiogram_auto_status(
     is_admin: Callable[[int], bool],
     db: Any = None,
 ) -> None:
-    import os
     sender = getattr(message, "from_user", None)
     sender_id = int(getattr(sender, "id", 0) or 0)
     if not is_admin(sender_id):
@@ -296,7 +290,6 @@ async def handle_aiogram_resume_auto(
     is_admin: Callable[[int], bool],
     db: Any = None,
 ) -> None:
-    import os
     sender = getattr(message, "from_user", None)
     sender_id = int(getattr(sender, "id", 0) or 0)
     if not is_admin(sender_id):

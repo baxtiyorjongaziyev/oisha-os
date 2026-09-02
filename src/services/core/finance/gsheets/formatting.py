@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List
-import gspread
 
 from src.services.core.finance.gsheets.constants import (
     SHEET_HEADERS,
+    SHEET_HISOBOT_OYLIK,
     SHEET_PUL_OQIMI,
-    SHEET_SHAXSIY,
     SHEET_QARZ,
+    SHEET_SHARTNOMALAR,
+    SHEET_SHAXSIY,
 )
 
 logger = logging.getLogger(__name__)

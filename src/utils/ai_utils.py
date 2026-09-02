@@ -14,7 +14,6 @@ from src.services.utils.gemini_fallback import (
     _get_setting,
     _call_openai_compatible,
     _call_cloudflare,
-    _extract_messages_from_contents,
     _provider_cooling_down,
     _FallbackResponse,
 )

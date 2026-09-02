@@ -29,37 +29,54 @@ def test_verify_signature():
 
     assert verify_signature(payload, expected_sig, secret) is True
     assert verify_signature(payload, "invalid_sig", secret) is False
-    assert verify_signature(payload, expected_sig, "") is True
+    assert verify_signature(payload, expected_sig, "") is False
     assert verify_signature("test_payload", expected_sig, secret) is True
     assert verify_signature({"key": "value"}, "invalid_sig", secret) is False
 
 
-@patch.dict("os.environ", {"INSTAGRAM_VERIFY_TOKEN": "correct_token"})
+@patch.dict("os.environ", {"META_VERIFY_TOKEN": "", "INSTAGRAM_VERIFY_TOKEN": "correct_token"})
 def test_webhook_verification_success():
-    response = client.get(
-        "/api/instagram/webhook",
-        params={
-            "hub_mode": "subscribe",
-            "hub_verify_token": "correct_token",
-            "hub_challenge": "12345challenge"
-        }
-    )
+    with patch("src.api.routes.instagram_routes.settings.META_VERIFY_TOKEN", None):
+        response = client.get(
+            "/api/instagram/webhook",
+            params={
+                "hub_mode": "subscribe",
+                "hub_verify_token": "correct_token",
+                "hub_challenge": "12345challenge"
+            }
+        )
     assert response.status_code == 200
     assert response.text == "12345challenge"
 
 
-@patch.dict("os.environ", {"INSTAGRAM_VERIFY_TOKEN": "correct_token"})
+@patch.dict("os.environ", {"META_VERIFY_TOKEN": "", "INSTAGRAM_VERIFY_TOKEN": "correct_token"})
 def test_webhook_verification_failure():
-    response = client.get(
-        "/api/instagram/webhook",
-        params={
-            "hub_mode": "subscribe",
-            "hub_verify_token": "wrong_token",
-            "hub_challenge": "12345challenge"
-        }
-    )
+    with patch("src.api.routes.instagram_routes.settings.META_VERIFY_TOKEN", None):
+        response = client.get(
+            "/api/instagram/webhook",
+            params={
+                "hub_mode": "subscribe",
+                "hub_verify_token": "wrong_token",
+                "hub_challenge": "12345challenge"
+            }
+        )
     assert response.status_code == 403
     assert "Verification token mismatch" in response.text
+
+
+@patch.dict("os.environ", {"META_VERIFY_TOKEN": "canonical_token"}, clear=False)
+def test_webhook_verification_accepts_canonical_meta_token():
+    with patch("src.api.routes.instagram_routes.settings.META_VERIFY_TOKEN", None):
+        response = client.get(
+            "/api/instagram/webhook",
+            params={
+                "hub_mode": "subscribe",
+                "hub_verify_token": "canonical_token",
+                "hub_challenge": "challenge",
+            },
+        )
+    assert response.status_code == 200
+    assert response.text == "challenge"
 
 
 @patch("src.services.core.instagram_agent.requests.post")

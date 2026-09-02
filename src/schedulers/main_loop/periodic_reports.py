@@ -3,7 +3,6 @@ Daily and weekly scheduled reporting jobs (CRM report, hisobchi roast, stagnatio
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Any

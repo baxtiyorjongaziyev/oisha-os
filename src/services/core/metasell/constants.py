@@ -1,7 +1,6 @@
 """
 Constants, SQL queries, and Uzbek localization labels for MetaSell.
 """
-from typing import Dict, Tuple
 
 # bo'lsa — bitta omadli/omadsiz qo'ng'iroq butun tavsiyani buzadi.
 MIN_CALLS_FOR_DIAGNOSIS = 6

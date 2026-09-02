@@ -7,9 +7,8 @@ import asyncio
 import inspect
 import logging
 import os
-import re
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Mapping, Optional
 
 from src.services.core.telegram_salescoach import (
     CrmMatch,

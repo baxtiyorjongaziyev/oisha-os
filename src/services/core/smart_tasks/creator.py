@@ -4,7 +4,7 @@ SmartTaskCreator main engine class and factory helpers.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 from src.context import app_ctx
 from src.services.core.smart_tasks.analyzer import TaskAnalyzerMixin

@@ -5,16 +5,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.services.core.telegram.ai_features.bot_api_client import (
     TelegramBotAPI10Client,
+    TelegramBotAPIError,
 )
 from src.services.core.telegram.ai_features.models import (
     BOT_API_10_ALLOWED_UPDATES,
     BotApiUpdateHandler,
     classify_update,
-    extract_guest_message_context,
 )
 
 logger = logging.getLogger("TelegramBotAPILongPoller")

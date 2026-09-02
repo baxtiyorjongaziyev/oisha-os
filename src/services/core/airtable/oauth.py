@@ -3,12 +3,9 @@ Airtable OAuth2 token manager and refresh lifecycle.
 """
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import os
-import time
-from typing import Any, Dict, Optional
 import requests
 
 logger = logging.getLogger("AirtableOAuth")

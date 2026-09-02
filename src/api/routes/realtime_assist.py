@@ -1,4 +1,3 @@
-import json
 from fastapi import APIRouter, HTTPException, Request
 from src.services.core.llm_coach import SalesCoachLLM
 

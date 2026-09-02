@@ -4,9 +4,9 @@ Data models and helper functions for client project checklist.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from dataclasses import field
+from datetime import datetime
+from typing import Dict, List, Optional
 
 logger = logging.getLogger("ClientProjectChecklist")
 

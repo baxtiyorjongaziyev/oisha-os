@@ -3,12 +3,10 @@ Lifecycle hooks, CRM sync, and proactive actions mixin for SurgicalNegotiator.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any, Dict, Optional
-from datetime import datetime
 
-from src.agents.deal_lifecycle_manager import DealStage, DealPriority
+from src.agents.deal_lifecycle_manager import DealStage
 
 logger = logging.getLogger(__name__)
 

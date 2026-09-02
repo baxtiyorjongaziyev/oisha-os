@@ -1,7 +1,7 @@
 """
 Constants, helpers, and keys for CRM note approval.
 """
-from typing import Any, Dict
+from typing import Any
 
 MOOD_EMOJI = {
     "Ijobiy": "😊",

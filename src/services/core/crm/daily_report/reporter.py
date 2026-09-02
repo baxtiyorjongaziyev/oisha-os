@@ -4,18 +4,9 @@ CRMDailyReporter and ReportBot orchestration classes.
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta
+from typing import Any, Optional
 
-from src.settings import settings
-from src.services.core.crm.daily_report.models import (
-    CRMStats,
-    CRMWeeklyStats,
-    _ts_today,
-    _ts_yesterday,
-    _delta,
-    _fmt_duration,
-    previous_week_range,
-)
 from src.services.core.crm.daily_report.history_db import HistoryDBMixin
 from src.services.core.crm.daily_report.fetcher import AmoFetcherMixin
 from src.services.core.crm.daily_report.formatter import FormatMixin

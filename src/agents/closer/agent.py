@@ -3,17 +3,14 @@ AutonomousSalesAgent core service implementation.
 """
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime
-import json
 import logging
 from typing import Any, Dict, List, Optional
 
 from src.agents.closer.decisions import AutonomousDecisionsMixin
-from src.agents.closer.models import ConversationState, DealProposal
-from src.agents.closer.proposals import PricingEngine, ProposalEngine
+from src.agents.closer.models import ConversationState
+from src.agents.closer.proposals import PricingEngine
 from src.agents.core import BaseAgent
-from src.agents.negotiation_engine import NegotiationAssessment, NegotiationEngine
+from src.agents.negotiation_engine import NegotiationEngine
 
 logger = logging.getLogger(__name__)
 

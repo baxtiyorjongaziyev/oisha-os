@@ -6,19 +6,15 @@ from __future__ import annotations
 import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List
 
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.hygiene.classifier import ClassifierMixin
 from src.services.core.hygiene.identity import IdentityMixin
 from src.services.core.hygiene.models import (
     SYSTEM_TAGS,
     DealHygieneFinding,
-    DealSignal,
-    DuplicateDealFinding,
     LeadIdentity,
-    extract_phones,
-    extract_usernames,
-    normalize_phone,
 )
 
 logger = logging.getLogger("AmoCRMDealHygiene")

@@ -4,9 +4,7 @@ Bootstrap helper functions for surgical commands and message processing.
 from __future__ import annotations
 
 import logging
-import os
-import re
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("OishaBootstrap")
 

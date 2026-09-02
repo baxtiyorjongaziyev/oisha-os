@@ -5,38 +5,32 @@ from __future__ import annotations
 
 import datetime
 import html
-import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src import config
 from src.database import Database
 from src.services.core.agent_loop import AgentTask
-from src.services.core.airtable_sync import AirtableSync
 from src.services.core.tool_adapters import (
     build_default_tool_registry,
-    send_group_message_with_fallback,
 )
 from src.services.proactive.airtable_deadlines import (
-    _DEADLINE_CLAIM_DIR,
-    _claim_on_disk,
-    _deadline_sent_keys,
-    _prune_stale_claims,
-    _release_on_disk,
     _resolve,
     check_airtable_deadlines,
+    _prune_stale_claims,
+    _claim_on_disk,
+    _release_on_disk,
+    _deadline_sent_keys,
+    _DEADLINE_CLAIM_DIR,
+)
+from src.services.proactive.airtable_stagnation import (
+    check_airtable_stagnation,
 )
 from src.services.proactive.formatters import (
-    _format_idle_text,
     _lead_idle_hours,
-    _mention,
-    _project_age_days,
-    _project_stage_recommendation,
     _run_notification_agent,
-    _safe_text,
     _sales_action_for_lead,
-    _sales_manager_playbook,
 )
 from src.services.proactive.reminders import _execute_telegram_notification
 from src.time_utils import get_local_now
@@ -89,7 +83,6 @@ async def _process_stagnated_leads(
 
 async def check_amocrm_stagnation():
     """Qotib qolgan leadlarni topib, menejerlarga conversion push yuborish."""
-    import src.config as config
     from src.services.core.crm.amocrm_sync import AmoCRMSync
 
     db = _resolve('Database', Database)()

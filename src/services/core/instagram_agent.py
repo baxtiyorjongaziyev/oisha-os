@@ -61,8 +61,8 @@ def verify_signature(payload: Any, signature: str, app_secret: Optional[str] = N
         secret = settings.META_APP_SECRET.get_secret_value() if settings.META_APP_SECRET else ""
 
     if not secret:
-        logger.warning("[META] APP_SECRET not set, signature verification skipped")
-        return True
+        logger.error("[META] APP_SECRET not set, rejecting webhook")
+        return False
 
     if not signature:
         logger.warning("[META] Signature header missing")
@@ -372,7 +372,7 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
         changes = entry.get("changes", [])
         for change in changes:
             field = change.get("field")
-            if field and field != "comments":
+            if field and field not in {"comments", "mentions", "mention"}:
                 continue
 
             value = change.get("value", {})
@@ -428,4 +428,5 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                         dm_uid = f"ig_{commenter_id}"
                         await db.log_message(dm_uid, initial_dm, is_ai=True)
 
-                notify_crm("Instagram Comment", commenter_name, commenter_id, comment_text, ai_reply)
+                source = "Instagram Mention" if field in {"mentions", "mention"} else "Instagram Comment"
+                notify_crm(source, commenter_name, commenter_id, comment_text, ai_reply)

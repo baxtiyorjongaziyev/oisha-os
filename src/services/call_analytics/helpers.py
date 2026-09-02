@@ -1,33 +1,11 @@
-import asyncio
-import hashlib
-import io
 import inspect
 import json
 import structlog
-import os
 import re
-import time
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
 
-import requests as _requests
 
-from src.database import Database
-from src.services.core.crm.amocrm_sync import AmoCRMSync
-from src.services.core.stt_service import STTService
-from src.services.core.call_analyses_schema import ensure_call_analysis_schema
-from src.services.core.call_events import CallEventLog
-from src.services.core.sales_playbook import (
-    IDEAL_CLIENT_TALK_PCT,
-    MAX_ACCEPTABLE_PAUSE_SECONDS,
-    OUTCOME_LABELS_UZ,
-    OUTCOME_UNKNOWN,
-    STAGE_WEIGHTS,
-    normalise_outcome,
-    outcome_converted,
-    outcome_prompt_uz,
-    rubric_prompt_uz,
-)
 from src.services.utils.transcript import (
     detect_pauses,
     format_timestamp,

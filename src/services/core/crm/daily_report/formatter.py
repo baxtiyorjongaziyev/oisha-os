@@ -4,8 +4,8 @@ Report formatting in Uzbek Markdown and Telegram delivery mixin.
 import asyncio
 import logging
 import os
-from datetime import date, datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import date
+from typing import Any, Dict, Optional
 
 from src.services.core.crm.daily_report.models import (
     CRMStats,
@@ -13,7 +13,6 @@ from src.services.core.crm.daily_report.models import (
     _delta,
     _fmt_duration,
 )
-from src.services.core.tool_adapters import send_group_message_with_fallback
 
 logger = logging.getLogger(__name__)
 

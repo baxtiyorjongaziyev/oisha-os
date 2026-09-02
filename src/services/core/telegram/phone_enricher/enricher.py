@@ -4,25 +4,19 @@ TelegramPhoneEnricher main class for searching usernames and patching contacts.
 from __future__ import annotations
 
 import asyncio
-import logging
-import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 import structlog
 import requests
 
 from src.services.core.telegram.phone_enricher.models import (
     ENRICHMENT_TAG,
     NO_PHONE_TAG,
-    PHONE_RE,
-    TME_RE,
-    USERNAME_RE,
     EnrichmentReport,
     EnrichmentResult,
     extract_existing_phones,
     extract_usernames,
     normalize_phone,
-    report_to_dict,
 )
 
 logger = structlog.get_logger()

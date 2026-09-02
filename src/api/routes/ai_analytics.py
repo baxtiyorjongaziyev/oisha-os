@@ -4,7 +4,6 @@ Delegates to modular subpackage in src.api.routes.ai_analytics_pkg.
 """
 from fastapi import APIRouter
 
-from src.api.rbac import Permission, require_permissions
 from src.api.routes.ai_analytics_pkg.coach import router as coach_router
 from src.api.routes.ai_analytics_pkg.conversion import router as conversion_router
 from src.api.routes.ai_analytics_pkg.calls import router as calls_router

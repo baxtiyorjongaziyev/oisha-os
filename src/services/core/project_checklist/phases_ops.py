@@ -3,12 +3,12 @@ Project creation, checklist query, and phase completion operations mixin.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from src.services.core.project_checklist.models import ClientProject
-from src.services.core.project_phases import ProjectPhase
+from src.services.core.project_checklist.models import ClientProject, ServiceType
 
 logger = logging.getLogger("ClientProjectChecklist")
 

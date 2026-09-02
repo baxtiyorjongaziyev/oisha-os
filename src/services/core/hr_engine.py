@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
 from typing import Optional
 
 from src.database_pool import DatabasePool, db_pool

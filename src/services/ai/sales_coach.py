@@ -2,7 +2,7 @@
 AI Sales Coach service for daily coaching reports and playbooks.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 class SalesCoach:
     """Sales Coach for API endpoints."""

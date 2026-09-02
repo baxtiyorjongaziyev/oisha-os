@@ -7,7 +7,6 @@ delivers notifications via @jonairobot, and records recommendations in the Obsid
 from __future__ import annotations
 
 import os
-import re
 import logging
 from datetime import datetime, timezone
 from pathlib import Path

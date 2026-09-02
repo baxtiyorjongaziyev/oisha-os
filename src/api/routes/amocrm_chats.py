@@ -14,13 +14,12 @@ import json
 import logging
 import time
 from email.utils import parsedate_to_datetime
-from typing import Any, Dict, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from src.context import app_ctx
-from src.services.core.crm.amocrm_chat import AmoCRMChatClient
 from src.settings import settings
 
 logger = logging.getLogger("AmoCRMChatsRouter")

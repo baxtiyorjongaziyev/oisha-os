@@ -5,7 +5,6 @@ import hmac
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Any, Dict
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,8 +16,6 @@ from slowapi.util import get_remote_address
 
 from src.settings import settings
 from src.services.api_server.helpers import (
-    _get_amocrm_instance,
-    _get_db_instance,
     mark_heartbeat,
     add_activity,
 )

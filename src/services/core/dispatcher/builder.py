@@ -4,16 +4,8 @@ Aiogram dispatcher builder and factory functions.
 from __future__ import annotations
 
 import logging
-import os
-from typing import Any, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from src.settings import settings
-from src.context import app_ctx
-from src.services.core.dispatcher.adapter import AiogramCallbackEventAdapter
-from src.services.core.dispatcher.callbacks import (
-    register_hisobchi_aiogram_callbacks,
-    register_salescoach_aiogram_callbacks,
-)
 from src.services.core.dispatcher.handlers_admin import (
     handle_aiogram_auto_status,
     handle_aiogram_chatid,

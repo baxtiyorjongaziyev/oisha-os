@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import asdict, dataclass
-from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import uuid4
 
-import httpx
 
 logger = logging.getLogger(__name__)
 

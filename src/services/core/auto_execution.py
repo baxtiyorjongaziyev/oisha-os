@@ -8,7 +8,7 @@ and invoice drafting using browser (Playwright web_driver) or API.
 
 import logging
 import os
-from typing import Dict, Any, Optional
+from typing import Optional
 from src.database import Database
 from src.services.core.airtable_sync import AirtableSync
 from src.agents.web_driver import OishaWebDriver

@@ -8,19 +8,9 @@ import logging
 import os
 import time
 from copy import deepcopy
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import datetime
 from urllib.parse import quote
 import requests
-from src.settings import settings
-from src.services.core.airtable.constants import (
-    FIELD_MAP,
-    PROJECT_ALLOWED_FIELDS,
-    PROJECT_WRITE_ALIASES,
-    READ_RETRIES,
-    REQUEST_TIMEOUT_SECONDS,
-    BILLING_COOLDOWN_SECONDS,
-)
 
 logger = logging.getLogger("AirtableSync")
 

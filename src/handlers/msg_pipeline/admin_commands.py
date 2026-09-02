@@ -5,11 +5,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from src.settings import settings
-from src.context import app_ctx
 
 logger = logging.getLogger("OishaMsgPipeline")
 

@@ -57,6 +57,17 @@ def _get_groq_key():
         return ""
 
 
+def _get_groq_model():
+    model = os.getenv("GROQ_TEXT_MODEL")
+    if model:
+        return model
+    try:
+        from src.settings import settings
+        return settings.GROQ_TEXT_MODEL
+    except Exception:
+        return "groq/compound"
+
+
 def test_groq_live():
     pytest.importorskip("openai")
     api_key = _get_groq_key()
@@ -66,7 +77,7 @@ def test_groq_live():
     import openai
     client = openai.OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model=_get_groq_model(),
         messages=[{"role": "user", "content": "Say hello in 3 words."}],
         max_tokens=50,
     )

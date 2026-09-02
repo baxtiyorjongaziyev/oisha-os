@@ -70,7 +70,8 @@ async def handle_guest_message(
     update.message.text    — the user's @mention message
     update.message.from    — the sender
     """
-    import os, aiohttp
+    import os
+    import aiohttp
 
     try:
         guest_query_id = getattr(update, "guest_query_id", None)

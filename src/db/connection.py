@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import aiosqlite
-import sqlite3
 import asyncio
 import structlog
 import os

@@ -1,14 +1,11 @@
-"""
-AmoCRM block push, global phone lookup, admin notifications, and single lead sync.
-"""
-import asyncio
+import inspect
 import logging
-import os
+import random
 from typing import Any, Dict, Optional
-from telethon import TelegramClient
+from telethon import TelegramClient, functions, types
 
-from src.settings import settings
 from src.context import app_ctx
+from src.settings import settings
 
 logger = logging.getLogger("OishaCRMPush")
 
@@ -58,9 +55,13 @@ async def push_block_to_amocrm(user_id: int, phone: str, block_text: str) -> Non
 last_deep_search_time = 0
 
 
-async def global_phone_lookup(phone: str) -> Optional[Dict[str, Any]]:
+async def global_phone_lookup(phone: str, client: Optional[TelegramClient] = None) -> Optional[Dict[str, Any]]:
     """Butun Telegramdan raqam orqali qidirib topish (Xavfsiz rejimda)."""
     # Raqamni tozalash
+    client = client or getattr(app_ctx, "client", None)
+    if not client:
+        return None
+
     clean_phone = phone.replace("+", "").replace(" ", "").replace("-", "")
     if not clean_phone.startswith("998"):
         # Agar O'zbekiston raqami bo'lsa va + bo'lmasa, qo'shib qo'yamiz
@@ -91,13 +92,14 @@ async def global_phone_lookup(phone: str) -> Optional[Dict[str, Any]]:
             }
 
             # 3. Bazaga saqlab qo'yamiz (Keyingi safar tekin bo'lishi uchun)
-            await app_ctx.msg_controller.db.upsert_user(
-                user_id=user.id,
-                first_name=user.first_name,
-                username=user.username,
-                phone=clean_phone,
-                last_name=user.last_name,
-            )
+            if app_ctx.msg_controller:
+                await app_ctx.msg_controller.db.upsert_user(
+                    user_id=user.id,
+                    first_name=user.first_name,
+                    username=user.username,
+                    phone=clean_phone,
+                    last_name=user.last_name,
+                )
 
             # 4. Kontaktni darhol o'chirib tashlaymiz
             try:
@@ -130,10 +132,10 @@ async def sync_single_lead(event):
     from src.handlers.lead_sync import sync_single_lead as _impl
     await _impl(
         event,
-        client=client,
-        lead_scraper=lead_scraper,
+        client=getattr(app_ctx, "client", None),
+        lead_scraper=getattr(app_ctx, "lead_scraper", None),
         msg_controller=app_ctx.msg_controller,
-        TN5_GROUP_ID=TN5_GROUP_ID,
+        TN5_GROUP_ID=getattr(settings, "TN5_GROUP_ID", None),
     )
 
 
@@ -144,9 +146,9 @@ async def run_autonomous_advice(chat_id, sender_name, message_text):
         chat_id,
         sender_name,
         message_text,
-        advisor_agent=advisor_agent,
-        client=client,
-        action_parser=action_parser,
-        evolution_scheduler=evolution_scheduler,
+        advisor_agent=getattr(app_ctx, "advisor_agent", None),
+        client=getattr(app_ctx, "client", None),
+        action_parser=getattr(app_ctx, "action_parser", None),
+        evolution_scheduler=getattr(app_ctx, "evolution_scheduler", None),
     )
 

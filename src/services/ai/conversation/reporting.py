@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from src.services.ai.conversation.models import CallRecord, DashboardMetrics
+from src.services.ai.conversation.models import DashboardMetrics
 from src.services.ai.quality_analyzer import ConversationAnalysis
 
 
