@@ -41,6 +41,11 @@ def _text(value: Any) -> str:
 # the API key and default model. They all speak the OpenAI wire format, so a
 # single helper (`_openai_compatible_text`) serves them.
 _OPENAI_COMPATIBLE: dict[str, dict[str, str]] = {
+    "gemini": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        "key": "GEMINI_API_KEY",
+        "model": "FREE_AI_GEMINI_MODEL",
+    },
     "cerebras": {
         "url": "https://api.cerebras.ai/v1/chat/completions",
         "key": "CEREBRAS_API_KEY",
@@ -81,6 +86,7 @@ _OPENAI_COMPATIBLE: dict[str, dict[str, str]] = {
 # Default free-first fallback order: unlimited/fast providers first, hosted
 # free tiers next, local Ollama last.
 DEFAULT_TEXT_PROVIDERS: tuple[str, ...] = (
+    "gemini",
     "groq",
     "cerebras",
     "sambanova",

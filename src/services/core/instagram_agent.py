@@ -190,15 +190,27 @@ async def generate_comment_reply(comment_text: str, post_caption: str = "", comm
         result = await get_free_ai_router().generate_text(
             prompt,
             system=COMMENT_REPLY_SYSTEM,
-            max_tokens=200,
-            temperature=0.6,
+            max_tokens=140,
+            temperature=0.7,
         )
         reply = (result.text or "").strip().strip('"')
         if reply:
+            logger.info("[META] Comment reply generated", provider=result.provider)
             return reply
     except Exception as exc:
         logger.warning("[META] generate_comment_reply fallback: %s", exc)
-    return "Izohingiz uchun rahmat! 🙌"
+
+    # Every provider was unavailable — send a short varied acknowledgement
+    # rather than a fixed template (Meta flags repeated identical replies).
+    import random
+    return random.choice(
+        [
+            "Izohingiz uchun rahmat! 🙌",
+            "Fikringiz uchun tashakkur 🙏",
+            "Diqqatingiz uchun rahmat 🤍",
+            "Yozganingizdan xursandman, rahmat! ✨",
+        ]
+    )
 
 
 def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: str) -> None:

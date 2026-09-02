@@ -403,7 +403,7 @@ def test_send_ig_private_reply(mock_post):
 @patch("src.services.core.instagram_agent.generate_comment_reply")
 @patch("src.services.core.instagram_agent.send_ig_private_reply")
 async def test_process_instagram_webhook_with_dm_trigger(
-    mock_priv_reply, mock_gen_reply, mock_reply_comm, mock_like_comm
+    mock_priv_reply, mock_gen_reply, mock_reply_comm
 ):
     from src.services.core.instagram_agent import process_instagram_webhook
     mock_db = AsyncMock()

@@ -1,6 +1,8 @@
 """Instagram comments backfill operations."""
 from __future__ import annotations
 
+import asyncio
+import os
 import re
 import requests
 import structlog
@@ -9,6 +11,10 @@ from src.settings import settings
 from src.services.core.instagram.graph_client import InstagramGraphClient
 
 logger = structlog.get_logger("InstagramBackfill")
+
+# Seconds to wait between two outgoing replies so we do not burst the free-AI
+# providers (Groq caps ~8k tokens/min) or Meta's write rate limits.
+_REPLY_THROTTLE_SEC = float(os.getenv("IG_BACKFILL_REPLY_THROTTLE_SEC", "5"))
 
 
 def _fetch_comment_replies(comment_id: str, access_token: str) -> list:
@@ -170,6 +176,10 @@ async def backfill_unanswered_comments(
             except Exception as exc:
                 logger.error("[META] Backfill reply failed", comment_id=comment_id, error=str(exc))
                 summary["errors"] += 1
+
+            # Space out real sends so we never burst the AI providers / Meta.
+            if not dry_run and _REPLY_THROTTLE_SEC > 0:
+                await asyncio.sleep(_REPLY_THROTTLE_SEC)
 
     logger.info("[META] Backfill complete", **summary)
     return {"ok": True, **summary}
