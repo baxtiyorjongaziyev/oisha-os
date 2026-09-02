@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import re
 from typing import Any, Optional
 import requests
