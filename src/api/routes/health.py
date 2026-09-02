@@ -41,7 +41,6 @@ def _strict_dependencies() -> bool:
 async def liveness_probe():
     """Cloud Run liveness probe."""
     from src.services.core.agent_runtime import get_runtime_context
-    from src.settings import settings
 
     now = datetime.now(timezone.utc)
     boot_age = (now - api_state._boot_at).total_seconds()
@@ -170,7 +169,7 @@ async def liveness_probe():
 
     overall = "healthy"
     if problems:
-        overall = "degraded" if db_ok and telegram_bot_ok else "unhealthy"
+        overall = "degraded" if db_ok else "unhealthy"
 
     status_code = 200 if overall != "unhealthy" else 503
     result = {
