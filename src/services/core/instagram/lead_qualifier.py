@@ -69,26 +69,72 @@ def extract_caption_keywords(caption: str) -> List[str]:
     return list(keywords)
 
 
+_DISQUALIFIED_REACTIONS = {
+    "zo'r", "zor", "gap yo'q", "gap yoq", "raxmat", "rahmat", "super",
+    "klass", "alo", "a'lo", "omad", "molodets", "malades", "tasanno",
+    "ofarin", "salom", "assalomu alaykum", "va alaykum assalom"
+}
+
+_CYRILLIC_MAP = str.maketrans({
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "yo",
+    "ж": "j", "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m",
+    "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
+    "ф": "f", "х": "x", "ц": "s", "ч": "ch", "ш": "sh", "щ": "sh", "ъ": "",
+    "ы": "i", "ь": "", "э": "e", "ю": "yu", "я": "ya",
+    "ў": "o", "қ": "q", "ғ": "g", "ҳ": "h",
+})
+
+
+def _to_latin(text: str) -> str:
+    for ch in ("ʻ", "ʼ", "‘", "’", "`"):
+        text = text.replace(ch, "'")
+    return text.translate(_CYRILLIC_MAP)
+
+
+QUESTION_MARKERS = {
+    "qanday", "qanaqa", "qanaqasiga", "qachon", "necha", "nechta",
+    "bormi", "bo'ladimi", "boladimi", "mumkinmi", "kerakmi", "qilasizmi",
+    "qilasizlarmi", "beresizmi", "ishlaysizmi", "kim", "qayer", "qayerda",
+    "nima", "nimaga", "chi", "narxi", "qancha"
+}
+
+
 def should_trigger_dm(comment_text: str, caption: str = "") -> Tuple[bool, str]:
     """
-    Checks if a comment contains trigger keywords or matches the post's call-to-action.
-    Returns (True, matched_keyword) or (False, '').
+    Checks if a comment contains trigger keywords, question markers, or represents
+    a meaningful communicative lead message rather than pure praise/emoji.
     """
     if not comment_text:
         return False, ""
     
-    clean_text = comment_text.lower().strip()
-    words = set(re.findall(r"[\wўқғҳ']+", clean_text))
+    clean_text = _to_latin(comment_text.lower().strip())
+    word_tokens = re.findall(r"[\w']+", clean_text)
+    words = set(word_tokens)
     
+    if not word_tokens:
+        return False, ""
+        
+    if len(word_tokens) == 1 and (clean_text in _DISQUALIFIED_REACTIONS or word_tokens[0] in _DISQUALIFIED_REACTIONS):
+        return False, ""
+        
     caption_kws = extract_caption_keywords(caption)
     for kw in caption_kws:
-        if kw in clean_text or kw in words:
+        kw_lat = _to_latin(kw)
+        if kw_lat in clean_text or kw_lat in words:
             return True, kw
 
     for kw in DEFAULT_TRIGGER_KEYWORDS:
-        if kw in words or kw in clean_text:
+        kw_lat = _to_latin(kw)
+        if kw_lat in words or kw_lat in clean_text:
             return True, kw
-            
+
+    for qm in QUESTION_MARKERS:
+        if qm in words or qm in clean_text:
+            return True, qm
+
+    if len(word_tokens) >= 2 and clean_text not in _DISQUALIFIED_REACTIONS:
+        return True, word_tokens[0]
+
     return False, ""
 
 
