@@ -141,11 +141,6 @@ async def backfill_unanswered_comments(
                     from src.services.core.instagram_agent import generate_comment_reply
                     ai_reply = await generate_comment_reply(text, caption, commenter_name)
                 clean = re.sub(r"\[.*?\]", "", ai_reply).strip()
-                if like_comment_fn:
-                    like_comment_fn(comment_id, token)
-                else:
-                    from src.services.core.instagram_agent import like_comment
-                    like_comment(comment_id, token)
                 if reply_to_comment_fn:
                     ok = reply_to_comment_fn(comment_id, clean, token)
                 else:

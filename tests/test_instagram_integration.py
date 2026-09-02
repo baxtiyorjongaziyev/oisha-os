@@ -203,12 +203,11 @@ async def test_process_instagram_webhook_dm(mock_agent_class, mock_notify, mock_
 
 
 @pytest.mark.asyncio
-@patch("src.services.core.instagram_agent.like_comment")
 @patch("src.services.core.instagram_agent.reply_to_comment")
 @patch("src.services.core.instagram_agent.generate_comment_reply", return_value="Rahmat sharhingiz uchun! Narxlarimiz...")
 @patch("src.services.core.instagram_agent.notify_crm")
 async def test_process_instagram_webhook_comment_flow(
-    mock_notify, mock_gen_reply, mock_reply_comment, mock_like_comment
+    mock_notify, mock_gen_reply, mock_reply_comment
 ):
     mock_db = AsyncMock()
     mock_db.log_message = AsyncMock()
@@ -239,9 +238,7 @@ async def test_process_instagram_webhook_comment_flow(
     from unittest.mock import ANY
     await process_instagram_webhook(payload, mock_db)
 
-    # 1. Like comment called
-    mock_like_comment.assert_called_once_with("comm_999", ANY)
-    # 2. Incoming log
+    # 1. Incoming log
     mock_db.log_message.assert_any_call("ig_comment_user_888", "COMMENT: Narxi qancha?", is_ai=False)
     # 3. Outgoing log
     mock_db.log_message.assert_any_call("ig_comment_user_888", "Rahmat sharhingiz uchun! Narxlarimiz...", is_ai=True)
@@ -252,11 +249,10 @@ async def test_process_instagram_webhook_comment_flow(
 
 
 @pytest.mark.asyncio
-@patch("src.services.core.instagram_agent.like_comment")
 @patch("src.services.core.instagram_agent.reply_to_comment")
 @patch("src.services.core.instagram_agent.generate_comment_reply")
 async def test_process_instagram_webhook_comment_loop_protection(
-    mock_gen_reply, mock_reply_comment, mock_like_comment
+    mock_gen_reply, mock_reply_comment
 ):
     mock_db = AsyncMock()
 
@@ -290,17 +286,15 @@ async def test_process_instagram_webhook_comment_loop_protection(
         await process_instagram_webhook(payload, mock_db)
 
         # Should be skipped due to loop protection
-        mock_like_comment.assert_not_called()
         mock_reply_comment.assert_not_called()
         mock_gen_reply.assert_not_called()
 
 
 @pytest.mark.asyncio
-@patch("src.services.core.instagram_agent.like_comment")
 @patch("src.services.core.instagram_agent.reply_to_comment")
 @patch("src.services.core.instagram_agent.generate_comment_reply")
 async def test_process_instagram_webhook_comment_filters(
-    mock_gen_reply, mock_reply_comment, mock_like_comment
+    mock_gen_reply, mock_reply_comment
 ):
     mock_db = AsyncMock()
 
@@ -325,7 +319,6 @@ async def test_process_instagram_webhook_comment_filters(
         ]
     }
     await process_instagram_webhook(payload_verb, mock_db)
-    mock_like_comment.assert_not_called()
     mock_reply_comment.assert_not_called()
 
     # 2. Field is not "comments" (e.g. "feed", "mentions")
@@ -349,7 +342,6 @@ async def test_process_instagram_webhook_comment_filters(
         ]
     }
     await process_instagram_webhook(payload_field, mock_db)
-    mock_like_comment.assert_not_called()
     mock_reply_comment.assert_not_called()
 
 
@@ -407,7 +399,6 @@ def test_send_ig_private_reply(mock_post):
 
 
 @pytest.mark.asyncio
-@patch("src.services.core.instagram_agent.like_comment")
 @patch("src.services.core.instagram_agent.reply_to_comment")
 @patch("src.services.core.instagram_agent.generate_comment_reply")
 @patch("src.services.core.instagram_agent.send_ig_private_reply")

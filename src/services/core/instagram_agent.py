@@ -354,8 +354,6 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 user_id_str = f"ig_comment_{commenter_id}"
                 logger.info("[META] Received Instagram Comment", commenter=commenter_name, text=comment_text[:50])
 
-                like_comment(comment_id, access_token)
-
                 if db:
                     await db.log_message(user_id_str, f"COMMENT: {comment_text}", is_ai=False)
 
