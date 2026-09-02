@@ -21,16 +21,21 @@ def _secret_text(value) -> str:
 
 
 @router.get("/webhook")
-async def instagram_webhook_verify(
-    hub_mode: str = "",
-    hub_verify_token: str = "",
-    hub_challenge: str = "",
-):
+async def instagram_webhook_verify(request: Request):
     """Meta webhook verification (GET)."""
+    hub_mode = request.query_params.get("hub.mode", "") or request.query_params.get("hub_mode", "")
+    hub_verify_token = (
+        request.query_params.get("hub.verify_token", "")
+        or request.query_params.get("hub_verify_token", "")
+    )
+    hub_challenge = (
+        request.query_params.get("hub.challenge", "")
+        or request.query_params.get("hub_challenge", "")
+    )
     expected = (
-        _secret_text(getattr(settings, "META_VERIFY_TOKEN", None))
-        or os.environ.get("META_VERIFY_TOKEN", "").strip()
+        os.environ.get("META_VERIFY_TOKEN", "").strip()
         or os.environ.get("INSTAGRAM_VERIFY_TOKEN", "").strip()
+        or _secret_text(getattr(settings, "META_VERIFY_TOKEN", None))
     )
     if expected and hub_mode == "subscribe" and hub_verify_token == expected:
         return PlainTextResponse(content=hub_challenge)
