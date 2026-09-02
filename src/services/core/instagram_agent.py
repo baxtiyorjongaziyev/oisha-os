@@ -3,8 +3,8 @@ Instagram / Meta Webhook Event Processor & Agent Core Service
 """
 from __future__ import annotations
 
-import hmac
 import hashlib
+import hmac
 import re
 from typing import Any, Dict, Optional
 import requests
@@ -13,6 +13,7 @@ import structlog
 from src.settings import settings
 from src.agents.autonomous_sales_agent import AutonomousSalesAgent
 from src.services.core.instagram.graph_client import InstagramGraphClient
+from src.services.core.instagram.backfill import backfill_unanswered_comments
 
 logger = structlog.get_logger("InstagramAgent")
 
@@ -195,141 +196,6 @@ async def generate_comment_reply(comment_text: str, post_caption: str = "", comm
     return "Izohingiz uchun rahmat! 🙌"
 
 
-def _fetch_comment_replies(comment_id: str, access_token: str) -> list:
-    """Returns the reply objects on a comment (id, text, from)."""
-    url = f"https://graph.facebook.com/v19.0/{comment_id}/replies"
-    params = {"fields": "id,text,from,timestamp", "access_token": access_token}
-    try:
-        resp = requests.get(url, params=params, timeout=15)
-        if resp.status_code == 200:
-            return resp.json().get("data", []) or []
-        logger.warning("[META] Failed to fetch comment replies", status_code=resp.status_code)
-    except Exception as exc:
-        logger.error("[META] Exception in _fetch_comment_replies", error=str(exc))
-    return []
-
-
-def _fetch_media_comments(media_id: str, access_token: str) -> list:
-    """Returns top-level comments on a post, following pagination."""
-    url = f"https://graph.facebook.com/v19.0/{media_id}/comments"
-    params = {
-        "fields": "id,text,from,timestamp,like_count",
-        "limit": 50,
-        "access_token": access_token,
-    }
-    out: list = []
-    try:
-        while url:
-            resp = requests.get(url, params=params, timeout=15)
-            if resp.status_code != 200:
-                logger.warning("[META] Failed to fetch media comments", status_code=resp.status_code)
-                break
-            body = resp.json()
-            out.extend(body.get("data", []) or [])
-            url = (body.get("paging") or {}).get("next", "")
-            params = {}  # `next` is a fully-formed URL
-    except Exception as exc:
-        logger.error("[META] Exception in _fetch_media_comments", error=str(exc))
-    return out
-
-
-async def backfill_unanswered_comments(
-    db=None,
-    *,
-    media_limit: int = 25,
-    max_replies: int = 200,
-    dry_run: bool = False,
-) -> dict:
-    """Scan recent posts, find comments with no reply from us, like + reply to them.
-
-    Returns {ok, scanned_media, scanned_comments, answered, skipped, errors}.
-    """
-    client = InstagramGraphClient()
-    if not getattr(client, "configured", False):
-        return {"ok": False, "error": "instagram_not_configured"}
-
-    token = client.access_token
-    own_id = str(
-        getattr(client, "instagram_account_id", "")
-        or getattr(settings, "META_INSTAGRAM_USER_ID", "")
-        or ""
-    )
-    summary = {
-        "scanned_media": 0,
-        "scanned_comments": 0,
-        "answered": 0,
-        "skipped": 0,
-        "errors": 0,
-        "dry_run": dry_run,
-    }
-
-    media_res = client.list_media(limit=media_limit)
-    if not media_res.get("ok"):
-        return {"ok": False, "error": media_res.get("error", "media_fetch_failed")}
-
-    for media in media_res.get("data", []):
-        media_id = str(media.get("id") or "")
-        if not media_id:
-            continue
-        summary["scanned_media"] += 1
-        caption = media.get("caption", "") or ""
-
-        for comment in _fetch_media_comments(media_id, token):
-            if summary["answered"] >= max_replies:
-                logger.info("[META] Backfill hit max_replies cap", cap=max_replies)
-                return {"ok": True, **summary}
-
-            comment_id = str(comment.get("id") or "")
-            text = (comment.get("text") or "").strip()
-            frm = comment.get("from") or {}
-            commenter_id = str(frm.get("id") or "")
-            commenter_name = frm.get("username") or frm.get("name") or "Foydalanuvchi"
-
-            if not comment_id or not text:
-                continue
-            summary["scanned_comments"] += 1
-
-            if own_id and commenter_id == own_id:
-                summary["skipped"] += 1
-                continue
-
-            replies = _fetch_comment_replies(comment_id, token)
-            already = any((r.get("from") or {}).get("id") == own_id for r in replies)
-            if already:
-                summary["skipped"] += 1
-                continue
-
-            if dry_run:
-                logger.info(
-                    "[META] Backfill would answer",
-                    comment_id=comment_id,
-                    commenter=commenter_name,
-                    text=text[:60],
-                )
-                summary["answered"] += 1
-                continue
-
-            try:
-                ai_reply = await generate_comment_reply(text, caption, commenter_name)
-                clean = re.sub(r"\[.*?\]", "", ai_reply).strip()
-                like_comment(comment_id, token)
-                ok = reply_to_comment(comment_id, clean, token)
-                if ok:
-                    summary["answered"] += 1
-                    if db:
-                        user_id_str = f"ig_comment_{commenter_id}"
-                        await db.log_message(user_id_str, f"COMMENT: {text}", is_ai=False)
-                        await db.log_message(user_id_str, clean, is_ai=True)
-                else:
-                    summary["errors"] += 1
-            except Exception as exc:
-                logger.error("[META] Backfill reply failed", comment_id=comment_id, error=str(exc))
-                summary["errors"] += 1
-
-    logger.info("[META] Backfill complete", **summary)
-    return {"ok": True, **summary}
-
-
 def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: str) -> None:
     """Sends a notification message to the Telegram CRM group."""
     crm_group_id = settings.CRM_GROUP_ID
@@ -339,7 +205,6 @@ def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: s
         logger.warning("[CRM] CRM_GROUP_ID or BOT_TOKEN not configured, notification skipped")
         return
 
-    # Analyze lead quality from tags
     quality = "Oddiy ✅"
     if "quality=sifatli" in reply.lower():
         quality = "Sifatli 💎"
@@ -404,7 +269,6 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
             message = event.get("message", {})
             text = message.get("text", "")
 
-            # Loop protection for DMs
             if my_ig_id and sender_id == str(my_ig_id):
                 logger.info("[META] Skipping own DM (loop protection)", sender_id=sender_id)
                 continue
@@ -413,11 +277,9 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 user_id_str = f"ig_{sender_id}"
                 logger.info("[META] Received Instagram DM", sender_id=sender_id, text=text[:50])
 
-                # Log incoming message to DB
                 if db:
                     await db.log_message(user_id_str, text, is_ai=False)
 
-                # Query AI Agent
                 agent = AutonomousSalesAgent(db=db)
                 agent_result = await agent.handle_incoming(
                     user_id=user_id_str,
@@ -426,7 +288,6 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 )
                 ai_reply = agent_result.get("response", "Assalomu alaykum! Tez orada siz bilan bog'lanamiz. 😊")
 
-                # Parse and save info tags
                 info_updates = {}
                 for m in re.finditer(r"\[SAVE_INFO:\s*(.*?)\]", ai_reply, re.IGNORECASE):
                     try:
@@ -439,17 +300,12 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 if info_updates and db:
                     await db.upsert_user(user_id_str, "Foydalanuvchi", **info_updates)
 
-                # Clean reply tag decorators
                 clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
 
-                # Log outgoing AI reply
                 if db:
                     await db.log_message(user_id_str, clean_reply, is_ai=True)
 
-                # Send reply via Graph API
                 send_ig_reply(sender_id, clean_reply, access_token)
-
-                # Notify CRM Telegram Channel
                 notify_crm("Instagram DM", "Foydalanuvchi", sender_id, text, ai_reply)
 
         # Comment / Page Feed Change Handling
@@ -470,7 +326,6 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
             comment_text = value.get("text") or value.get("message") or ""
             comment_id = str(value.get("id") or value.get("comment_id") or "")
 
-            # Loop protection: ignore comments from our own account
             if my_ig_id and commenter_id == str(my_ig_id):
                 logger.info("[META] Skipping own comment (loop protection)", commenter_id=commenter_id)
                 continue
@@ -483,14 +338,11 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 user_id_str = f"ig_comment_{commenter_id}"
                 logger.info("[META] Received Instagram Comment", commenter=commenter_name, text=comment_text[:50])
 
-                # 1. Auto-like incoming comment
                 like_comment(comment_id, access_token)
 
-                # 2. Log incoming comment
                 if db:
                     await db.log_message(user_id_str, f"COMMENT: {comment_text}", is_ai=False)
 
-                # 3. Pull post caption for context and generate personal brand reply
                 media_id = str((value.get("media") or {}).get("id") or "")
                 post_caption = fetch_media_caption(media_id, access_token) if media_id else ""
 
@@ -500,15 +352,10 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                     commenter_name=commenter_name,
                 )
 
-                # Clean reply tag decorators
                 clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
 
-                # 4. Log outgoing comment reply
                 if db:
                     await db.log_message(user_id_str, clean_reply, is_ai=True)
 
-                # 5. Reply to comment via Graph API
                 reply_to_comment(comment_id, clean_reply, access_token)
-
-                # 6. Notify CRM Telegram Channel
                 notify_crm("Instagram Comment", commenter_name, commenter_id, comment_text, ai_reply)
