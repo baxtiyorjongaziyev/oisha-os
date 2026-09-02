@@ -6,7 +6,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 import requests
 import structlog
 
@@ -17,7 +17,6 @@ from src.services.core.instagram.backfill import backfill_unanswered_comments
 from src.services.core.instagram.lead_qualifier import (
     should_trigger_dm,
     generate_initial_dm_message,
-    generate_qualifying_dm_response,
 )
 
 logger = structlog.get_logger("InstagramAgent")
@@ -82,59 +81,36 @@ def verify_signature(payload: Any, signature: str, app_secret: Optional[str] = N
     return hmac.compare_digest(expected, signature)
 
 
-def send_ig_reply(recipient_id: str, text: str, access_token: str) -> bool:
-    """Sends a Direct Message to the user using the Meta Graph API."""
-    if not access_token:
-        logger.warning("[META] PAGE_ACCESS_TOKEN not set, reply not sent")
+def _send_ig_message(recipient_payload: dict, text: str, access_token: str, log_tag: str) -> bool:
+    if not access_token or not recipient_payload:
+        logger.warning("[META] %s skipped: access_token or recipient missing", log_tag)
         return False
-
     url = "https://graph.facebook.com/v19.0/me/messages"
-    payload = {
-        "recipient": {"id": recipient_id},
-        "message": {"text": text}
-    }
-    headers = {"Content-Type": "application/json"}
-    params = {"access_token": access_token}
-
     try:
         resp = requests.post(
-            url, json=payload, headers=headers, params=params, timeout=10
+            url,
+            json={"recipient": recipient_payload, "message": {"text": text}},
+            headers={"Content-Type": "application/json"},
+            params={"access_token": access_token},
+            timeout=15,
         )
         if resp.status_code == 200:
-            logger.info("[META] DM reply sent successfully", recipient_id=recipient_id)
+            logger.info("[META] %s sent successfully", log_tag)
             return True
-        else:
-            logger.error("[META] Failed to send DM reply", status_code=resp.status_code, body=resp.text)
-            return False
+        logger.error("[META] %s failed", log_tag, status_code=resp.status_code, body=resp.text)
     except Exception as exc:
-        logger.error("[META] Exception in send_ig_reply", error=str(exc))
-        return False
+        logger.error("[META] %s exception", log_tag, error=str(exc))
+    return False
+
+
+def send_ig_reply(recipient_id: str, text: str, access_token: str) -> bool:
+    """Sends a Direct Message to the user using the Meta Graph API."""
+    return _send_ig_message({"id": recipient_id}, text, access_token, f"DM to {recipient_id}")
 
 
 def send_ig_private_reply(comment_id: str, text: str, access_token: str) -> bool:
     """Sends a Private Direct Message in response to an Instagram comment."""
-    if not access_token or not comment_id:
-        logger.warning("[META] access_token or comment_id missing for private reply")
-        return False
-
-    url = "https://graph.facebook.com/v19.0/me/messages"
-    payload = {
-        "recipient": {"comment_id": comment_id},
-        "message": {"text": text}
-    }
-    headers = {"Content-Type": "application/json"}
-    params = {"access_token": access_token}
-
-    try:
-        resp = requests.post(url, json=payload, headers=headers, params=params, timeout=15)
-        if resp.status_code == 200:
-            logger.info("[META] Private DM reply sent successfully", comment_id=comment_id)
-            return True
-        logger.error("[META] Failed to send private DM reply", status_code=resp.status_code, body=resp.text)
-        return False
-    except Exception as exc:
-        logger.error("[META] Exception in send_ig_private_reply", error=str(exc))
-        return False
+    return _send_ig_message({"comment_id": comment_id}, text, access_token, f"Private DM on comment {comment_id}")
 
 
 def like_comment(comment_id: str, access_token: str) -> bool:
@@ -327,6 +303,17 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
 
                 if info_updates and db:
                     await db.upsert_user(user_id_str, "Foydalanuvchi", **info_updates)
+
+                # Automatic Lead Creation in AmoCRM for Qualified leads
+                phone_num = info_updates.get("phone", "")
+                if phone_num or "quality=sifatli" in ai_reply.lower():
+                    from src.services.core.instagram.lead_qualifier import sync_lead_to_amocrm
+                    sync_lead_to_amocrm(
+                        name=info_updates.get("name", "Instagram Mijoz"),
+                        phone=phone_num,
+                        lead_name=f"Instagram DM: {info_updates.get('name', sender_id)}",
+                        details=f"Mijoz: {text}\nOisha: {clean_reply}",
+                    )
 
                 clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
 

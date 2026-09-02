@@ -6,7 +6,7 @@ and 3-step DM qualification funnel.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 import structlog
 
 from src.settings import settings
@@ -139,3 +139,50 @@ async def generate_qualifying_dm_response(
         "Qiziqishingiz uchun rahmat! Biznesingiz haqida qisqacha ma'lumot bersangiz, "
         "sizga eng mos taklif va namunalarni taqdim etamiz 😊"
     )
+
+
+def sync_lead_to_amocrm(
+    name: str,
+    phone: str = "",
+    lead_name: str = "",
+    details: str = "",
+    source: str = "Instagram",
+) -> Optional[int]:
+    """Creates or updates a contact and deal in AmoCRM for qualified Instagram leads."""
+    try:
+        from src.services.core.crm.amocrm.sync import AmoCRMSync
+
+        amocrm = AmoCRMSync(
+            subdomain=settings.AMOCRM_SUBDOMAIN,
+            client_id=settings.AMOCRM_CLIENT_ID.get_secret_value() if settings.AMOCRM_CLIENT_ID else "",
+            client_secret=settings.AMOCRM_CLIENT_SECRET.get_secret_value() if settings.AMOCRM_CLIENT_SECRET else "",
+            redirect_uri=settings.AMOCRM_REDIRECT_URI,
+            refresh_token=settings.AMOCRM_REFRESH_TOKEN.get_secret_value() if settings.AMOCRM_REFRESH_TOKEN else "",
+        )
+        contact_name = name or "Instagram Mijoz"
+        contact_id = amocrm.create_contact(
+            name=contact_name,
+            phone=phone,
+            custom_fields=None,
+        )
+        if contact_id:
+            deal_title = lead_name or f"Instagram: {contact_name}"
+            lead_id = amocrm.create_lead_for_contact(
+                contact_id=contact_id,
+                lead_name=deal_title,
+            )
+            if lead_id and details:
+                amocrm.add_note_to_lead(
+                    lead_id=lead_id,
+                    text=f"📥 Instagram Lead Tafsilotlari:\n{details}",
+                )
+            logger.info(
+                "[AMOCRM] Lead synced successfully from Instagram",
+                lead_id=lead_id,
+                contact_id=contact_id,
+            )
+            return lead_id
+    except Exception as exc:
+        logger.warning("[AMOCRM] sync_lead_to_amocrm error: %s", exc)
+    return None
+
