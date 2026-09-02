@@ -5,7 +5,7 @@ import hmac
 import hashlib
 import json
 from email.utils import formatdate
-from typing import Dict, Any, Optional
+from typing import Optional
 from datetime import datetime
 
 logger = logging.getLogger("AmoCRMChatClient")

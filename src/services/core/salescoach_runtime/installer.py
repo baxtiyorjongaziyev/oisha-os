@@ -3,10 +3,11 @@ Runtime installation, message interception hookup, and background worker setup.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Optional
+
+from telethon import events
 
 from src.services.core.salescoach_runtime.adapters import (
     AmoCRMConversationMatcher,
@@ -18,8 +19,11 @@ from src.services.core.salescoach_runtime.adapters import (
 )
 from src.services.core.salescoach_runtime.notifier import (
     TelegramSalesCoachNotifier,
-    handle_salescoach_callback,
 )
+from src.services.core.telegram_salescoach import TelegramSalesCoach
+from src.services.core.telegram_salescoach_store import TelegramSalesCoachStore
+from src.services.core.crm.salescoach_task_writer import SalesCoachTaskWriter
+from src.services.core.salescoach_sync import get_salescoach_sync
 
 logger = logging.getLogger("TelegramSalesCoachRuntime")
 

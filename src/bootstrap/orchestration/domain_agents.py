@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 import src.config as src_config
 from src.services.core.advisor_agent import AdvisorAgent

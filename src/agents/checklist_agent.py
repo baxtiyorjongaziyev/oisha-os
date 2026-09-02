@@ -1,7 +1,6 @@
 """ChecklistAgent — Mijoz cheklisti monitoring va jamoa baholash agenti."""
 
-import re
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 import structlog
 
@@ -143,7 +142,7 @@ class ChecklistAgent(BaseAgent):
         if any(w in msg for w in ["ball", "baho", "reyting", "score"]):
             if svc:
                 # Try to find manager name in message (simple heuristic)
-                lines = [f"📊 <b>Haftalik baholash</b>\n"]
+                lines = ["📊 <b>Haftalik baholash</b>\n"]
                 # Fallback: score for the requesting user
                 score = await svc.score_manager(user_id, since_days=7)
                 lines.append(svc.format_score_text(score, context.get("user_name", "Siz") if context else "Siz"))

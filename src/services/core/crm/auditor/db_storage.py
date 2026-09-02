@@ -3,8 +3,9 @@ Database storage and recent lead fetching mixin for CRM Contacts Auditor.
 """
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-import aiosqlite
+import requests
 
 logger = logging.getLogger(__name__)
 

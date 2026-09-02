@@ -4,12 +4,10 @@ Data models and helper functions for AmoCRM lead enrichment.
 from __future__ import annotations
 
 import inspect
-import json
 import logging
 import re
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("AmoCRMLeadEnrichment")
 

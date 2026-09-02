@@ -5,14 +5,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from telethon import functions, types
-from telethon.tl.types import ChannelParticipantsRecent
 
-from src.settings import settings
 
 logger = logging.getLogger("LeadScraper")
 

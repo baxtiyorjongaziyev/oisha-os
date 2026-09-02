@@ -3,15 +3,11 @@ Telegram dialog entity resolution and temporary contact cleanup mixin.
 """
 from __future__ import annotations
 
-import asyncio
 import inspect
-import logging
 import random
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 import structlog
-from telethon.tl.functions.contacts import DeleteContactsRequest, ImportContactsRequest
-from telethon.tl.types import InputPhoneContact
 
 logger = structlog.get_logger()
 

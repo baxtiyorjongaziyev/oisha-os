@@ -7,17 +7,15 @@ import datetime
 import html
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src.database import Database
 from src.services.core.agent_loop import AgentTask
 from src.services.core.airtable_sync import AirtableSync
 from src.services.core.tool_adapters import (
     build_default_tool_registry,
-    send_group_message_with_fallback,
 )
 from src.services.proactive.formatters import (
-    _mention,
     _project_age_days,
     _project_stage_recommendation,
     _run_notification_agent,

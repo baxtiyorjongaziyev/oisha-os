@@ -3,11 +3,9 @@ AirtableSync main client class composed of modular mixins.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from src.settings import settings
 from src.services.core.airtable.constants import (

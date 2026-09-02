@@ -5,8 +5,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 import logging
-import re
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.services.core.hygiene.models import (
@@ -17,7 +15,6 @@ from src.services.core.hygiene.models import (
     DealSignal,
     DuplicateDealFinding,
     LeadIdentity,
-    _safe_ts,
     _to_float,
 )
 

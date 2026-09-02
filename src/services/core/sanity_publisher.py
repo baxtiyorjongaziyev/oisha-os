@@ -1,9 +1,8 @@
-import asyncio
 import logging
 import os
 import json
 import httpx
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from src.settings import settings
 

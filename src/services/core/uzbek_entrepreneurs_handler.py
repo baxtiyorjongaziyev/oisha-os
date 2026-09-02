@@ -1,7 +1,6 @@
 """Uzbek Entrepreneurs Main Handler - Orchestrates the full system."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Optional
 

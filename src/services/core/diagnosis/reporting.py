@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import html
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src.services.core.diagnosis.models import (
     SEVERITY_CRITICAL,

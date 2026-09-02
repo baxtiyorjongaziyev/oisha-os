@@ -3,12 +3,9 @@ Health metrics, code quality auditing, feature gaps, and performance bottlenecks
 """
 from __future__ import annotations
 
-import ast
 import logging
 import os
-import re
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src.services.core.diagnosis.models import (
     CATEGORY_CODE,
@@ -17,7 +14,6 @@ from src.services.core.diagnosis.models import (
     CATEGORY_PERF,
     SEVERITY_CRITICAL,
     SEVERITY_HIGH,
-    SEVERITY_LOW,
     SEVERITY_MEDIUM,
     ImprovementProposal,
 )

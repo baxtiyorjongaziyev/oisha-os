@@ -1,26 +1,43 @@
-"""
-OAuth authentication and Telegram Chrome Extension endpoints.
-"""
+import asyncio
 import base64
 import hashlib
-import json
 import logging
 import os
-import secrets
 import time
-from typing import Any, Dict, Optional
-import httpx
-from fastapi import APIRouter, Request, HTTPException, Query
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from typing import Dict, Optional
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from src.context import app_ctx
-from src.settings import settings
-from src.services.api_server.helpers import _get_db_instance
+from src.database import get_db
+from src.services.core.airtable_client import AirtableClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["oauth"])
 
-_oauth_sessions: Dict[str, Dict[str, Any]] = {}
+
+class _OAuthSessionStore:
+    def __init__(self) -> None:
+        self._data: Dict[str, tuple[str, float]] = {}
+
+    async def set(self, key: str, value: str, ttl: int = 600) -> None:
+        self._data[key] = (value, time.time() + ttl)
+
+    async def get(self, key: str) -> Optional[str]:
+        item = self._data.get(key)
+        if not item:
+            return None
+        val, expires = item
+        if time.time() > expires:
+            self._data.pop(key, None)
+            return None
+        return val
+
+    async def delete(self, key: str) -> None:
+        self._data.pop(key, None)
+
+
+_oauth_sessions = _OAuthSessionStore()
 
 async def telegram_extension_history(phone: str):
     """Fetch chat history (via AmoCRM notes) for a given phone number."""

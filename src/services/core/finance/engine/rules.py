@@ -4,7 +4,7 @@ Rules learning, category resolution, AI gap tracking, and categorization mixin.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 from src.services.core.finance.engine.helpers import (
     _normalize_card_suffix,

@@ -7,7 +7,6 @@ import time
 from typing import Any, Dict, List, Optional
 import httpx
 
-from src.settings import settings
 
 logger = logging.getLogger("SmartTaskCreator")
 
@@ -48,6 +47,7 @@ class TaskAnalyzerMixin:
     async def _generate_task_decision(self, lead: Dict[str, Any], data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         from src.utils.ai_utils import _try_all_providers
 
+        status_name = self.get_status_name(lead.get("status_id", 0))
         context = self.format_lead_context(data)
         prompt = (
             "Sen Oisha AI sotuv kuzatuvchisisen. Quyidagi CRM lead malumotini tahlil qil va smart task yarat.\n\n"

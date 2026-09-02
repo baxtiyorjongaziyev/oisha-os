@@ -4,7 +4,7 @@ import logging
 import os
 import mimetypes
 import httpx
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from telethon import TelegramClient
 from src.settings import settings
 

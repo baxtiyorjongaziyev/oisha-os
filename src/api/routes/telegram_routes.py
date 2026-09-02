@@ -1,18 +1,14 @@
 """Telegram integration + webhook routes."""
 from __future__ import annotations
 
-import asyncio
-import hmac
 import logging
 import os
-from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter
 from src.api.rbac import Permission, require_permissions
 
 from src.api.routes.state import api_state
 from src.settings import settings
-from src.time_utils import get_local_now
 
 router = APIRouter(prefix="/api/telegram", tags=["telegram"])
 logger = logging.getLogger(__name__)
@@ -36,7 +32,7 @@ async def telegram_status():
             "webhook": webhook_info,
             "api_10_ready": True,
         }
-    except Exception as e:
+    except Exception:
         logger.error("Exception handled in %s", __name__, exc_info=True)
         return {"status": "error", "message": "Telegram status check failed"}
 
@@ -73,6 +69,6 @@ async def telegram_ai_features():
             "status": "offline",
             "features": build_offline_feature_status(),
         }
-    except Exception as exc:
+    except Exception:
         logger.error("Exception handled in %s", __name__, exc_info=True)
         return {"status": "error", "message": "Telegram group access check failed"}

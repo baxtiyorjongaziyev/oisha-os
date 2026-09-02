@@ -3,14 +3,12 @@ Admin Bot Callback Query handlers for interactive buttons.
 """
 from __future__ import annotations
 
-import datetime
-import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
-from telethon import events, Button
+from typing import TYPE_CHECKING, Any
+from telethon import events
 import structlog
 
 if TYPE_CHECKING:
-    from src.services.utils.access_manager import AccessManager
+    pass
 
 logger = structlog.get_logger()
 

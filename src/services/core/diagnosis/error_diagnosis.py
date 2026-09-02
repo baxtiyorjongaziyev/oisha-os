@@ -7,14 +7,12 @@ import hashlib
 import json
 import logging
 import re
-import sqlite3
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List
 
 from src.services.core.diagnosis.models import (
     CATEGORY_ERROR,
     SEVERITY_CRITICAL,
     SEVERITY_HIGH,
-    SEVERITY_LOW,
     SEVERITY_MEDIUM,
     _SECRET_PATTERNS,
     ImprovementProposal,

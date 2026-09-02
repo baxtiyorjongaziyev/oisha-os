@@ -3,17 +3,11 @@ Voice transcription, Gemini task analysis, and keyword fallback extraction mixin
 """
 from __future__ import annotations
 
-import asyncio
 import json
-import logging
 import os
-import re
-import tempfile
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 import structlog
 
-from src.settings import settings
 from src.services.utils.gemini_fallback import (
     generate_content_with_fallback,
     is_quota_error,
@@ -50,7 +44,7 @@ class TaskAnalyzerMixin:
                 return ""
 
             # Transcribe via Gemini
-            logger.info(f"[TELEGRAM_TASK] Transcribing downloaded Telegram voice note...")
+            logger.info("[TELEGRAM_TASK] Transcribing downloaded Telegram voice note...")
             transcript = await self.voice_processor.transcribe(temp_path, mode="voice")
             
             # Transcription format cleanup (Matn: ... | Maqsad: ...)

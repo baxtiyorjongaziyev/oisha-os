@@ -1,10 +1,12 @@
 """Unit tests for Call Intelligence conversion recommendations and task generation."""
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+from src.time_utils import get_local_now
 
 from src.services.call_analytics.crm_notes import CallCrmNotesMixin
 from src.services.call_analytics.crm_tasks import CallCrmTasksMixin
@@ -110,7 +112,7 @@ class TestCallConversionAndTasks:
                 "Oldingi keyslar va vizual taqdimotni yuboring",
                 "To'lovni 2 qismga bo'lib to'lash imkoniyatini eslating",
             ],
-            "kelishilgan_vaqt": "2026-09-02T15:00:00",
+            "kelishilgan_vaqt": (get_local_now() + timedelta(days=3)).strftime("%Y-%m-%dT15:00:00"),
             "sifat_bahosi": 88,
         }
         normalized = analyzer._normalise_analysis(raw_analysis, "Qisqa audio")

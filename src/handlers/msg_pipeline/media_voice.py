@@ -1,14 +1,11 @@
-"""
-Voice transcription and image/document vision analysis pipeline handler.
-"""
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
-import tempfile
 from typing import Any, Dict, Optional
+from telethon import TelegramClient
 
-from src.settings import settings
-from src.context import app_ctx
 
 logger = logging.getLogger("OishaMediaVoice")
 

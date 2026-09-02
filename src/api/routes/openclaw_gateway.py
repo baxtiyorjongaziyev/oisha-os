@@ -1,19 +1,17 @@
 """OpenClaw gateway + OpenAI-compatible routes."""
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from src.api.routes.state import api_state
 from src.time_utils import get_local_now
 
 router = APIRouter(tags=["openclaw"])

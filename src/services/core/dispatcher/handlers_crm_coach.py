@@ -6,8 +6,6 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Optional
 
-from src.settings import settings
-from src.context import app_ctx
 from src.services.core.admin_command_router import (
     build_psychological_coach_response,
     build_sparring_response,
@@ -107,7 +105,7 @@ async def handle_aiogram_crm_history(
                 f"• {s.date_label}: {s.total_leads} lead | {s.won} won | ${s.revenue:,.0f}"
             )
         await message.answer("\n".join(lines), parse_mode="markdown")
-    except Exception as e:
+    except Exception:
         logger.error("Aiogram crm_history failed", exc_info=True)
 async def handle_aiogram_psychological_coach(
     message: Any,

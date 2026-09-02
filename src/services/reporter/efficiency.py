@@ -3,10 +3,8 @@ Daily and team sales efficiency reporting mixin for Enterprise Reporter.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import List
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)

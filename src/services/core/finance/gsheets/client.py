@@ -1,8 +1,7 @@
 import os
-import json
 import logging
 import asyncio
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 import gspread
 try:
     from google.oauth2.service_account import Credentials

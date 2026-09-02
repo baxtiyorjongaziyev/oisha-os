@@ -4,7 +4,6 @@ Normalization and formatting helpers for Hisobchi engine.
 from __future__ import annotations
 
 import re
-from typing import Any, Optional
 
 
 def _normalize_merchant(merchant: str) -> str:

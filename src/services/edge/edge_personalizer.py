@@ -1,5 +1,5 @@
 import structlog
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from src.settings import settings
 
 logger = structlog.get_logger()

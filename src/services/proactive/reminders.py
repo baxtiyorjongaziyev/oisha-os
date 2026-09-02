@@ -1,8 +1,5 @@
-import datetime
 import os
-import json
 import logging
-from html import escape
 from typing import Any, Dict, List, Optional
 from src.time_utils import get_local_now
 from src.database import Database
@@ -13,8 +10,6 @@ from src.services.core.tool_adapters import (
 from src.services.core.agent_loop import AgentTask
 from src.services.proactive.formatters import (
     DAILY_PLAN_PHASES,
-    generate_ai_message,
-    _safe_text,
     _mention,
     _run_notification_agent,
 )
@@ -231,7 +226,7 @@ async def send_morning_briefing(bot_client=None):
     if await db.is_job_run(job_key, today):
         return
 
-    msg = f"☀️ <b>Xayrli tong, Jon Branding jamoasi!</b>\n\nBugungi kun barchamiz uchun samarali va unumli o'tsin! 🚀"
+    msg = "☀️ <b>Xayrli tong, Jon Branding jamoasi!</b>\n\nBugungi kun barchamiz uchun samarali va unumli o'tsin! 🚀"
     await _execute_telegram_notification(bot_client, config.TEAM_CHAT_ID, msg)
     await db.mark_job_run(job_key, today)
 

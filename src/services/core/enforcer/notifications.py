@@ -4,7 +4,7 @@ Notification delivery, director alerts, and manual force-checks mixin.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("DailyEnforcer")
 

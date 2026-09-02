@@ -3,7 +3,6 @@ Scheduled job execution helpers for Admin Bot.
 """
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import structlog

@@ -5,14 +5,13 @@ from __future__ import annotations
 
 import json
 import logging
-import re
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-import requests
+import os
+import time
+from typing import Optional
+import httpx
 
-from src.settings import settings
 
+STATUS_IDS = {"won": 142, "lost": 143}
 logger = logging.getLogger("SmartTaskCreator")
 
 
@@ -21,7 +20,6 @@ class ContextBuilderMixin:
 
     def _load_token(self) -> Optional[str]:
         """Token ni fayldan yuklash."""
-        import os
 
         if not os.path.exists(self.token_file):
             return None

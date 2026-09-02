@@ -17,12 +17,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime
 
 from src.services.core.psychological_coach import (
     PsychologicalCoach,
-    PsychologicalRole,
-    FearCategory,
 )
 
 logger = logging.getLogger("PsychologicalAutomation")

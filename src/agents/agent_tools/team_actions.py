@@ -1,13 +1,7 @@
 import os
-import io
-import time
-import json
 import logging
 import asyncio
-import inspect
-from datetime import datetime
-from typing import Any, Optional, Dict, List, Tuple
-from src.agents.agent_tools.declarations import TOOL_DECLARATIONS
+from typing import Any, Optional, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +187,6 @@ class TeamActionsMixin:
     async def _sherlock_user_profile(self, user_id: int) -> Dict[str, Any]:
         """Mijozning profilini Scouter orqali tahlil qilish."""
         from src.services.utils.scouter import Scouter
-        import os
 
         if not self._scouter:
             # Session path logic

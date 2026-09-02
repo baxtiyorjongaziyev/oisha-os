@@ -3,7 +3,6 @@ Event handler setup and message pipeline registration.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
@@ -12,7 +11,6 @@ from telethon import events
 import src.config as src_config
 from src.context import app_ctx
 from src.services.core.finance.handlers import (
-    backfill_card_bot_messages,
     handle_card_bot_message,
     handle_finance_group_reply,
     handle_hisobchi_command,

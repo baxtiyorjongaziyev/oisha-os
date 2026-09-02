@@ -267,15 +267,7 @@
     <script>
         const API_BASE = window.location.origin;
         const urlParams = new URLSearchParams(window.location.search);
-        let secretFromUrl = urlParams.get('secret_key');
-        if (secretFromUrl) {
-            window.sessionStorage.setItem('oisha_widget_secret', secretFromUrl);
-            urlParams.delete('secret_key');
-            const cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
-            window.history.replaceState({}, document.title, cleanUrl);
-        }
-        const SECRET = window.OISHA_WIDGET_SECRET || window.sessionStorage.getItem('oisha_widget_secret') || '';
-        const authHeaders = SECRET ? {'X-Secret-Key': SECRET} : {};
+        let WIDGET_TOKEN = window.OISHA_WIDGET_TOKEN || window.sessionStorage.getItem('oisha_widget_token') || '';
         let currentUserId = null;
         let isTyping = false;
 
@@ -287,12 +279,24 @@
         const sendBtn = document.getElementById('send-btn');
         const modelSelect = document.getElementById('model-select');
 
-        async function initChat() {
-            if (!SECRET) {
-                chatWindow.innerHTML = '<div class="error-msg">Widget autentifikatsiyasi sozlanmagan.</div>';
-                document.getElementById('user-name').innerText = "Xatolik";
-                return;
+        async function getAuthHeaders() {
+            if (!WIDGET_TOKEN) {
+                try {
+                    const res = await fetch(`${API_BASE}/api/chat/token`, { method: 'POST' });
+                    if (res.ok) {
+                        const data = await res.json();
+                        WIDGET_TOKEN = data.token;
+                        window.sessionStorage.setItem('oisha_widget_token', WIDGET_TOKEN);
+                    }
+                } catch (e) {
+                    console.error('Failed to get widget token', e);
+                }
             }
+            return WIDGET_TOKEN ? {'Authorization': `Bearer ${WIDGET_TOKEN}`} : {};
+        }
+
+        async function initChat() {
+            const authHeaders = await getAuthHeaders();
             if (!userPhone) {
                 chatWindow.innerHTML = '<div class="error-msg">Telefon raqami topilmadi. Widgetni AmoCRM orqali oching.</div>';
                 document.getElementById('user-name').innerText = "Xatolik";
@@ -316,7 +320,7 @@
                             <div style="font-size: 13px; max-width: 200px;">Ushbu raqam bilan hali muloqot qilinmagan. Birinchi xabarni yuboring.</div>
                         </div>`;
                     document.getElementById('user-name').innerText = "Yangi suhbat";
-                    currentUserId = userPhone; // Fallback to phone as ID for first message
+                    currentUserId = userPhone;
                 }
             } catch (err) {
                 chatWindow.innerHTML = '<div class="error-msg">Server bilan bog\'lanib bo\'lmadi.</div>';
@@ -326,6 +330,7 @@
         async function loadHistory() {
             if (!currentUserId || isTyping) return;
             try {
+                const authHeaders = await getAuthHeaders();
                 const res = await fetch(`${API_BASE}/api/chat/history/${currentUserId}`, {headers: authHeaders});
                 const data = await res.json();
                 
@@ -368,6 +373,7 @@
             chatWindow.scrollTop = chatWindow.scrollHeight;
 
             try {
+                const authHeaders = await getAuthHeaders();
                 await fetch(`${API_BASE}/api/chat/send`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json', ...authHeaders},

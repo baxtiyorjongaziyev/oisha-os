@@ -9,7 +9,6 @@ TursoAdapter is kept here for backward compatibility.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from src.db import Database, get_db, db  # noqa: F401 — re-export
 from src.db.turso import TursoAdapter  # noqa: F401 — backward compat

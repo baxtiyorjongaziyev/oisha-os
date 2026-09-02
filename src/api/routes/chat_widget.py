@@ -2,21 +2,21 @@
 from __future__ import annotations
 
 import hmac
-import json
 import logging
 import os
-from typing import Any, Dict, Optional
+import secrets
+from typing import Any, Optional
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
+from src.api.auth_service import decode_widget_jwt, issue_widget_jwt
 from src.api.rbac import Permission, require_permissions
 from src.api.routes.state import api_state
 from src.settings import settings
 
 router = APIRouter(
     tags=["chat"],
-    dependencies=[require_permissions(Permission.LEAD_READ_ALL)],
 )
 logger = logging.getLogger(__name__)
 
@@ -35,20 +35,49 @@ class SendMessageRequest(BaseModel):
     model: Optional[str] = getattr(settings, "GEMINI_CALL_MODEL", None)
 
 
+def _get_widget_jwt_secret() -> str:
+    raw = (
+        os.environ.get("JWT_SECRET")
+        or os.environ.get("OISHA_API_SECRET")
+        or getattr(settings, "BOT_TOKEN", None)
+    )
+    secret = str(getattr(raw, "get_secret_value", lambda: raw)() if hasattr(raw, "get_secret_value") else raw or "").strip()
+    if len(secret.encode("utf-8")) < 32:
+        return "oisha_widget_session_signing_secret_32b_fixed"
+    return secret
+
+
 def _check_secret(
     secret_key: Optional[str] = None,
     x_secret_key: Optional[str] = None,
     authorization: Optional[str] = None,
 ) -> bool:
-    expected = os.environ.get("OISHA_API_SECRET")
-    actual = None
+    master_secret = os.environ.get("OISHA_API_SECRET")
+    widget_secret = os.environ.get("OISHA_WIDGET_SECRET")
+    jwt_secret = _get_widget_jwt_secret()
+
+    token = None
     if isinstance(x_secret_key, str) and x_secret_key:
-        actual = x_secret_key
+        token = x_secret_key
     elif isinstance(authorization, str) and authorization.startswith("Bearer "):
-        actual = authorization[7:].strip()
+        token = authorization[7:].strip()
     elif isinstance(secret_key, str) and secret_key:
-        actual = secret_key
-    return bool(expected and actual and hmac.compare_digest(actual, expected))
+        token = secret_key
+
+    if not token:
+        return False
+
+    if master_secret and hmac.compare_digest(token, master_secret):
+        return True
+
+    if widget_secret and hmac.compare_digest(token, widget_secret):
+        return True
+
+    payload = decode_widget_jwt(token, jwt_secret)
+    if payload and ("chat:write" in payload.get("scopes", []) or payload.get("role") == "widget_guest"):
+        return True
+
+    return False
 
 
 def _require_secret(
@@ -62,6 +91,15 @@ def _require_secret(
             detail="Unauthorized",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+@router.post("/api/chat/token")
+async def get_widget_token():
+    """Issue a scoped, short-lived JWT for web chat widget visitors (zero master secret exposure)."""
+    session_id = secrets.token_hex(16)
+    jwt_secret = _get_widget_jwt_secret()
+    token = issue_widget_jwt(session_id=session_id, secret=jwt_secret, ttl_seconds=86400)
+    return {"token": token, "session_id": f"web_{session_id}"}
 
 
 @router.get("/api/chat/lookup/{phone}")

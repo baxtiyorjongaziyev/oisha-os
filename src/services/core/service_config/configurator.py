@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src.context import app_ctx
 from src.services.core.service_config.models import ServiceModule, ServiceType

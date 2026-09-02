@@ -49,7 +49,7 @@ class TestAPISecurity:
             widget_content = f.read()
         assert 'oisha_safe_123' not in widget_content
         assert '?secret_key=' not in widget_content
-        assert "'X-Secret-Key': SECRET" in widget_content
+        assert "api/chat/token" in widget_content or "Authorization" in widget_content
 
         amocrm_widget = os.path.join(
             os.path.dirname(__file__), '..', 'src', 'widgets', 'amocrm', 'script.js'

@@ -1,4 +1,3 @@
-import logging
 import asyncio
 from typing import Optional
 import structlog

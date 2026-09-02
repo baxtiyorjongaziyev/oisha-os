@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 try:
     import mss
     import mss.tools
-except ImportError as e:
+except ImportError:
     # mss yo'q bo'lsa kutubxonani shim qilamiz
     mss = None
 

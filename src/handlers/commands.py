@@ -1,6 +1,7 @@
-import logging
+import asyncio
 import json
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, LabeledPrice
 from telegram.ext import ContextTypes
 from settings import settings as config
 

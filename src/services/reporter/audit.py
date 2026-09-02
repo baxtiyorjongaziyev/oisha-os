@@ -3,11 +3,9 @@ Real numbers CRM pipeline audit and junk/stagnant lead identification mixin.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 import requests
 
 from src.time_utils import get_local_now

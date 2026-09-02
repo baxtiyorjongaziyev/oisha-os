@@ -4,15 +4,12 @@ AmoCRM stats fetching and aggregation mixin.
 import asyncio
 import logging
 import requests
-from datetime import date, datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
 
-from src.time_utils import get_local_now
 from src.services.core.crm.daily_report.models import (
     CRMStats,
     CRMWeeklyStats,
-    _ts_today,
-    _ts_yesterday,
     previous_week_range,
 )
 

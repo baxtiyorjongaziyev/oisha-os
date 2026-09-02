@@ -1,10 +1,8 @@
 """
 Morning plan generation, plan-fact reporting, and weekly Uzbek markdown digests.
 """
-import asyncio
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)

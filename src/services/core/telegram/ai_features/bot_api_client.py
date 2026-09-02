@@ -3,16 +3,13 @@ TelegramBotAPI10Client implementation for Telegram Bot API 10 features.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional
-from uuid import uuid4
+from typing import Any, Dict, Iterable, List, Optional
 import httpx
 
 from src.services.core.telegram.ai_features.models import (
     BOT_API_10_ALLOWED_UPDATES,
     BotApiTransport,
-    GuestMessageContext,
     TelegramBotAPIError,
     clean_payload,
 )

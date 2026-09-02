@@ -5,11 +5,10 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from src.context import app_ctx
 from src.services.ai.call_analytics import CallAnalytics
-from src.services.ai.conversation.models import CallRecord, DashboardMetrics
+from src.services.ai.conversation.models import CallRecord
 from src.services.ai.conversation.reporting import ConversationReportingMixin
 from src.services.ai.quality_analyzer import ConversationAnalysis, QualityAnalyzer
 from src.services.ai.task_manager import AITaskManager

@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import tempfile
 from typing import Any, Optional
 
-from google.genai import types
 from src.settings import settings
 from src.services.utils.gemini_fallback import generate_content_with_fallback
 

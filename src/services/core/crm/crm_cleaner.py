@@ -2,7 +2,7 @@
 CRM Cleaner and Hygiene audit helper.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 class CRMCleaner:
     """CRMCleaner for pipeline hygiene and data quality."""

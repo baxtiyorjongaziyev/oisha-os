@@ -114,7 +114,6 @@ class DatabasePool:
             return [SmartRow(row, columns) for row in rows]
 
         # Use wait_for with retries to handle intermittent Turso connection drops
-        import time
         for attempt in range(5):
             try:
                 return await asyncio.wait_for(asyncio.to_thread(_run), timeout=45.0)

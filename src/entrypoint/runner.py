@@ -1,15 +1,12 @@
 """
 User client connection and main entrypoint runner.
 """
-import asyncio
 import logging
 import os
+import sys
 from telethon import TelegramClient
 
-from src.settings import settings
-from src.context import app_ctx
 from src.boot import boot_application
-from src.entrypoint.daemon_tasks import _restore_cloud_artifacts
 
 logger = logging.getLogger("OishaRunner")
 
@@ -92,6 +89,5 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
 
 async def main():
     """Botlarni ishga tushirish (Userbot + Admin Bot)."""
-    from src.boot import boot_application
     await boot_application()
 

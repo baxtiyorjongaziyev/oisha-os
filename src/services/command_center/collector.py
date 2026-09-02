@@ -4,26 +4,20 @@ Data collection and command planning functions for Business Command Center.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-
 import hashlib
+import logging
+from datetime import datetime, timezone
+from typing import Any
+
 from src.services.command_center.models import (
     CommandPlan,
-    FinanceRiskItem,
-    ProjectRiskItem,
-    SalesPriorityLead,
-    TeamCapacityItem,
-    _env_bool,
     _PHONE_RE,
     _LEAD_ID_RE,
     _TIME_RE,
+    _int_or_zero,
 )
-from src.services.command_center.integrations import (
-    branding_erp_roadmap,
-    list_integration_capabilities,
-    telegram_bot_migration_status,
-)
+
+logger = logging.getLogger(__name__)
 from src.services.command_center.builders import (
     build_finance_project_risks,
     build_project_delivery_risks,

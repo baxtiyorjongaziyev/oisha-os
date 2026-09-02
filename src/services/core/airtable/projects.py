@@ -3,16 +3,9 @@ Projects, deadlines, transactions, and CRM stage synchronization mixin.
 """
 from __future__ import annotations
 
-import json
 import logging
-import os
-from copy import deepcopy
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
-from urllib.parse import quote
+from datetime import datetime, timedelta
 
-from src.time_utils import get_local_now
-from src.services.core.airtable.constants import DONE_STAGES
 
 logger = logging.getLogger("AirtableSync")
 
@@ -199,7 +192,6 @@ class ProjectsMixin:
 
     def get_upcoming_deadlines(self, hours=72):
         """Yaqin 72 soat ichida muddati tugaydigan loyihalarni topish."""
-        from datetime import timedelta
 
         projects = self.get_projects()
         upcoming = []

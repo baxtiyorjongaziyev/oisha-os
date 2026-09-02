@@ -1,9 +1,7 @@
 import os
 import sys
 import csv
-import json
 import time
-import asyncio
 import requests
 import logging
 import re

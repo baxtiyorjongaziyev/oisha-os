@@ -4,10 +4,8 @@ Lead qualification, opening criteria, and elite intake pipeline handler.
 import asyncio
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import Optional
 
-from src.settings import settings
-from src.context import app_ctx
 
 logger = logging.getLogger("OishaLeadIntake")
 

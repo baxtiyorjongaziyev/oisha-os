@@ -5,12 +5,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
+import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from telethon import TelegramClient
 
-from telethon import types
-
+from src.services.core.customer_outbound_policy import automatic_customer_send_allowed
 from src.settings import settings
 
 logger = logging.getLogger("LeadScraper")
@@ -190,7 +189,6 @@ class DialogSyncMixin:
         limit: int = 500,
     ):
         """2026-yildagi barcha shaxsiy yozishmalarni skanerlash va sifatli leadlarni Team CRM topicga yuborish."""
-        from datetime import datetime, timezone
         from src.services.core.auto_lead_agent import AutoLeadAgent
 
         logger.info("[HUNT 2026] Shaxsiy chatlarni skanerlash boshlandi...")

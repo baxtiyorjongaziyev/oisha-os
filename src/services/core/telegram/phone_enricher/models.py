@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
 
 USERNAME_RE = re.compile(r"(?<![A-Za-z0-9_])@?([A-Za-z][A-Za-z0-9_]{4,31})")
