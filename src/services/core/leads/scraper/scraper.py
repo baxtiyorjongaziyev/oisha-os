@@ -3,9 +3,13 @@ LeadScraper main engine composing group, dialog, and base scraping mixins.
 """
 from __future__ import annotations
 
+import os
 import logging
 from typing import Any, Dict, List, Optional, Set
 
+from google import genai
+
+from src.settings import settings
 from src.services.core.leads.scraper.base import BaseScraperMixin
 from src.services.core.leads.scraper.dialog_sync import DialogSyncMixin
 from src.services.core.leads.scraper.group_sync import GroupSyncMixin
