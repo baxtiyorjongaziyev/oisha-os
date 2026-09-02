@@ -161,12 +161,14 @@ async def backfill_unanswered_comments(
 
                     from src.services.core.instagram.lead_qualifier import (
                         should_trigger_dm,
-                        generate_initial_dm_message,
+                        generate_initial_dm_message_ai,
                     )
                     is_trig, kw = should_trigger_dm(text, caption)
                     if is_trig:
                         from src.services.core.instagram_agent import send_ig_private_reply
-                        initial_dm = generate_initial_dm_message(commenter_name, kw, caption)
+                        initial_dm = await generate_initial_dm_message_ai(
+                            commenter_name, text, kw, caption
+                        )
                         send_ig_private_reply(comment_id, initial_dm, token)
                         if db:
                             dm_uid = f"ig_{commenter_id}"

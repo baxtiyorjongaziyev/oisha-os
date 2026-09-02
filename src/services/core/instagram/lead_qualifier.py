@@ -123,47 +123,82 @@ def should_trigger_dm(comment_text: str, caption: str = "") -> Tuple[bool, str]:
     for kw in caption_kws:
         kw_lat = _to_latin(kw)
         if kw_lat in clean_text or kw_lat in words:
-            return True, kw
+            return True, kw_lat
 
     for kw in DEFAULT_TRIGGER_KEYWORDS:
         kw_lat = _to_latin(kw)
         if kw_lat in words or kw_lat in clean_text:
-            return True, kw
+            return True, kw_lat
 
     for qm in QUESTION_MARKERS:
-        if qm in words or qm in clean_text:
-            return True, qm
+        qm_lat = _to_latin(qm)
+        if qm_lat in words or qm_lat in clean_text:
+            return True, "savol"
 
     if len(word_tokens) >= 2 and clean_text not in _DISQUALIFIED_REACTIONS:
-        return True, word_tokens[0]
+        return True, "aloqa"
 
     return False, ""
 
 
 def generate_initial_dm_message(commenter_name: str, keyword: str = "", caption: str = "") -> str:
-    """Generates the warm, initial qualifying DM outreach message."""
-    name_greeting = f", {commenter_name}" if commenter_name and commenter_name != "Foydalanuvchi" else ""
-    
+    """Static fallback opener (used when the AI router is unavailable)."""
+    name_greeting = f" {commenter_name}" if commenter_name and commenter_name != "Foydalanuvchi" else ""
     kw_lower = keyword.lower()
     if kw_lower in {"nom", "naming", "nomlash"}:
-        topic = "nomlash (naming) va brending"
+        topic = "nomlash bo'yicha"
     elif kw_lower in {"logo", "dizayn", "identika"}:
-        topic = "logo va vizual identifikatsiya"
+        topic = "logo yoki vizual uslub bo'yicha"
     elif kw_lower in {"rebrending"}:
-        topic = "rebrending loyihangiz"
+        topic = "rebrending bo'yicha"
     elif kw_lower in {"narx", "narxi", "qancha"}:
-        topic = "xizmat narxlari va loyihangiz"
-    elif kw_lower == "savol":
-        topic = "savolingiz va loyihangiz"
+        topic = "narxlar bo'yicha"
     else:
-        topic = "brending va loyihangiz"
-
+        topic = "brending bo'yicha"
     return (
-        f"Assalomu alaykum{name_greeting}! Bu — Baxtiyor Gaziyev 😊\n\n"
-        f"Izohingizni ko'rib, siz bilan shaxsan bog'lanmoqchi bo'ldim. "
-        f"Sizga aynan qaysi yo'nalishda {topic} bo'yicha yechim kerak edi? "
-        f"Biznesingiz qanday sohada?"
+        f"Salom{name_greeting}! Bu Baxtiyor 🙂 Izohingizni ko'rib qoldim, "
+        f"o'zim yozay dedim. {topic} nima rejalashtiryapsiz, qaysi sohada ish qilasiz?"
     )
+
+
+_DM_OPENER_SYSTEM = (
+    "Sen — Baxtiyor Gaziyevning O'ZISAN. Branding eksperti va art-direktor. "
+    "Instagram sahifangga izoh yozgan odamga Direct (DM)da BIRINCHI xabarni "
+    "yozyapsan.\n"
+    "Yozish uslubi:\n"
+    "- TIRIK ODAM kabi yoz. Robot, shablon, rasmiy 'murojaat' ohangi TAQIQLANADI.\n"
+    "- Do'stona, iliq, tabiiy. Xuddi tanish odamга yozayotgandek.\n"
+    "- 1-shaxs: 'men', 'o'zim yozdim'. O'zingni 'menejer' yoki 'Oisha' dema.\n"
+    "- Qisqa: 1-2 gap, 25 so'zdan kam. Salomlashув + izohига ishora + bittа "
+    "ochiq savol (qaysi soha / qanday loyiha).\n"
+    "- Emoji 0-1 ta, tabiiy joyда.\n"
+    "- 'Jon Branding' so'zini ishlatма.\n"
+    "- Har odamга boshqаcha yoz, shablon takrorlama."
+)
+
+
+async def generate_initial_dm_message_ai(
+    commenter_name: str, comment_text: str, keyword: str = "", caption: str = ""
+) -> str:
+    """Human-sounding first DM, tailored to what the person actually commented."""
+    name = commenter_name if commenter_name and commenter_name != "Foydalanuvchi" else ""
+    cap = f'\nPost mavzusi: "{caption[:200]}"' if caption else ""
+    prompt = (
+        f"{cap}\n"
+        f'{name or "Bir odam"} sahifangга shu izohni yozdi: "{comment_text}"\n\n'
+        f"Shu odamга Direct'да yozadigan birinchi, samimiy xabaringni yoz:"
+    )
+    try:
+        from src.services.utils.free_ai_router import get_free_ai_router
+        result = await get_free_ai_router().generate_text(
+            prompt, system=_DM_OPENER_SYSTEM, max_tokens=120, temperature=0.85
+        )
+        text = (result.text or "").strip().strip('"')
+        if text:
+            return text
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[META] DM opener AI fallback: %s", exc)
+    return generate_initial_dm_message(commenter_name, keyword, caption)
 
 
 async def generate_qualifying_dm_response(

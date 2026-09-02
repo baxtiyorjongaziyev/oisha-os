@@ -387,11 +387,22 @@ def test_generate_initial_dm_message():
     from src.services.core.instagram.lead_qualifier import generate_initial_dm_message
     msg = generate_initial_dm_message("Sardor", "nom", "Fast-food post")
     assert "Sardor" in msg
-    assert "Baxtiyor Gaziyev" in msg
+    assert "Baxtiyor" in msg
     assert "Oishaman" not in msg          # 1st person, not "menejer / Oisha"
     assert "menejer" not in msg
     assert "Jon Branding" not in msg
     assert "nomlash" in msg
+
+
+@pytest.mark.asyncio
+async def test_generate_initial_dm_message_ai_falls_back():
+    from src.services.core.instagram.lead_qualifier import generate_initial_dm_message_ai
+    with patch("src.services.utils.free_ai_router.get_free_ai_router") as mock_router:
+        mock_router.side_effect = RuntimeError("no provider")
+        msg = await generate_initial_dm_message_ai("Sardor", "Nom kerak", "nom", "")
+    assert "Sardor" in msg
+    assert "menejer" not in msg
+    assert "Oishaman" not in msg
 
 
 @patch("requests.post")
