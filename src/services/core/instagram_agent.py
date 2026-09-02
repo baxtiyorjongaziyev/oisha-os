@@ -304,6 +304,11 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 if info_updates and db:
                     await db.upsert_user(user_id_str, "Foydalanuvchi", **info_updates)
 
+                clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
+
+                if db:
+                    await db.log_message(user_id_str, clean_reply, is_ai=True)
+
                 # Automatic Lead Creation in AmoCRM for Qualified leads
                 phone_num = info_updates.get("phone", "")
                 if phone_num or "quality=sifatli" in ai_reply.lower():
@@ -314,11 +319,6 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                         lead_name=f"Instagram DM: {info_updates.get('name', sender_id)}",
                         details=f"Mijoz: {text}\nOisha: {clean_reply}",
                     )
-
-                clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
-
-                if db:
-                    await db.log_message(user_id_str, clean_reply, is_ai=True)
 
                 send_ig_reply(sender_id, clean_reply, access_token)
                 notify_crm("Instagram DM", "Foydalanuvchi", sender_id, text, ai_reply)
