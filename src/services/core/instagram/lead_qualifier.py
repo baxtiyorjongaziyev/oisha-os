@@ -29,19 +29,21 @@ DEFAULT_TRIGGER_KEYWORDS = {
 }
 
 QUALIFICATION_SYSTEM_PROMPT = (
-    "Sen Oisha — Baxtiyor Gaziyevning menejerisan. Baxtiyor Gaziyevning "
-    "shaxsiy brendi va jamoasi nomidan Direct (DM)da muloqot qilasan.\n"
-    "MUHIM QOIDA: Shaxsiy DMda 'Jon Branding' nomini MUTLAQO ISHLATMA! O'zingni doimo "
-    "'Baxtiyor Gaziyevning menejerlari Oishaman' deb tanishtirasan.\n"
+    "Sen — Baxtiyor Gaziyevning O'ZISAN. Branding bo'yicha ekspert va art-direktor, "
+    "shaxsiy Instagram sahifangdan kelgan izohlarga javoban Direct (DM)da "
+    "mijozlar bilan 1-shaxsda, o'z nomingdan muloqot qilasan.\n"
+    "MUHIM QOIDA: O'zingni menejer yoki 'Oisha' deb tanishtirma. Doimo 'men', "
+    "'o'zim' deb, Baxtiyor Gaziyev sifatida gapir. 'Jon Branding' nomini SHAXSIY "
+    "DMda MUTLAQO ISHLATMA.\n"
     "Maqsading: Mijoz bilan samimiy, do'stona va professional tarzda suhbatlashib, "
     "lidni sifatli (kvalifikatsiyalangan) holatga keltirish.\n\n"
     "Bosqichlar (Ketma-ket 1 tadan savol ber):\n"
     "1. SOHA & LOYIHA: Biznes qaysi sohada va qanday loyiha rejalashtirilgan?\n"
     "2. XIZMAT TURI: Noldan to'liq brendingmi, nomlash (naming), logo dizaynmi yoki rebrending?\n"
     "3. BOSQICH & ALOQA: Yangi boshlanyaptimi yoki faoliyatdagi biznesmi? "
-    "Baxtiyor Gaziyev yoki jamoamiz siz bilan bog'lanishi uchun telefon raqamingizni qoldiring.\n\n"
+    "Bog'lanishim uchun telefon raqamingizni qoldiring.\n\n"
     "Qoidalar:\n"
-    "- 'Jon Branding' deb yozma, faqat 'Baxtiyor Gaziyev' yoki 'Baxtiyor Gaziyev jamoasi' deb gapir.\n"
+    "- 'Jon Branding' deb yozma. O'zingni 'Baxtiyor Gaziyev' deb, 1-shaxsda gapir.\n"
     "- HECH QACHON bir xil nomlarni hammaga takrorlama! Agar nom so'ralsa, loyihaga mos "
     "kamida 2-3 ta mutlaqo yangi, jarangdor va zamonaviy nom variantlarini ber.\n"
     "- O'zbek tilida, iliq, samimiy va ishonchli ohangda yoz.\n"
@@ -143,20 +145,24 @@ def generate_initial_dm_message(commenter_name: str, keyword: str = "", caption:
     name_greeting = f", {commenter_name}" if commenter_name and commenter_name != "Foydalanuvchi" else ""
     
     kw_lower = keyword.lower()
-    if kw_lower in {"nom", "naming"}:
+    if kw_lower in {"nom", "naming", "nomlash"}:
         topic = "nomlash (naming) va brending"
-    elif kw_lower in {"logo", "dizayn"}:
+    elif kw_lower in {"logo", "dizayn", "identika"}:
         topic = "logo va vizual identifikatsiya"
     elif kw_lower in {"rebrending"}:
         topic = "rebrending loyihangiz"
+    elif kw_lower in {"narx", "narxi", "qancha"}:
+        topic = "xizmat narxlari va loyihangiz"
+    elif kw_lower == "savol":
+        topic = "savolingiz va loyihangiz"
     else:
         topic = "brending va loyihangiz"
 
     return (
-        f"Assalomu alaykum{name_greeting}! Baxtiyor Gaziyevning "
-        f"menejerlari Oishaman 😊\n\n"
-        f"Izohingizni ko'rib, sizga yordam berish uchun yozdim. Sizga aynan qaysi yo'nalishda {topic} "
-        f"bo'yicha yechim kerak edi? Biznesingiz qanday sohada?"
+        f"Assalomu alaykum{name_greeting}! Bu — Baxtiyor Gaziyev 😊\n\n"
+        f"Izohingizni ko'rib, siz bilan shaxsan bog'lanmoqchi bo'ldim. "
+        f"Sizga aynan qaysi yo'nalishda {topic} bo'yicha yechim kerak edi? "
+        f"Biznesingiz qanday sohada?"
     )
 
 
