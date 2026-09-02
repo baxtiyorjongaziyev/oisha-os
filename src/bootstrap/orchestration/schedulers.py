@@ -38,6 +38,17 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         instagram_weekly_report_loop(bot_runtime, settings.TEAM_GROUP_ID),
         name="instagram_weekly_report_loop",
     )
+    try:
+        from src.schedulers.instagram_comment_backfill_scheduler import (
+            instagram_comment_backfill_loop,
+        )
+        _ig_db = getattr(bot_runtime, "db", None) or getattr(bot_runtime, "db_instance", None)
+        asyncio.create_task(
+            instagram_comment_backfill_loop(_ig_db),
+            name="instagram_comment_backfill_loop",
+        )
+    except ImportError as exc:
+        logger.warning("[IG-BACKFILL] Comment backfill loop unavailable: %s", exc)
 
     try:
         from src.schedulers.call_analysis_scheduler import call_analysis_loop
