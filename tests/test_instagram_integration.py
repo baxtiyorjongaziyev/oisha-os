@@ -372,9 +372,15 @@ def test_should_trigger_dm():
     assert trig3 is True
     assert kw3 == "start"
 
-    # Non-trigger
-    trig4, _ = should_trigger_dm("Zo'r rasm ekan", "Oddiy post")
-    assert trig4 is False
+    # Any real message reaches out (DM-everyone policy)
+    trig4, kw4 = should_trigger_dm("Zo'r rasm ekan", "Oddiy post")
+    assert trig4 is True
+
+    # Emoji-only / lone praise / punctuation is NOT a lead
+    assert should_trigger_dm("🔥🔥🔥", "") == (False, "")
+    assert should_trigger_dm("👍", "") == (False, "")
+    assert should_trigger_dm("!!!", "") == (False, "")
+    assert should_trigger_dm("Zo'r", "") == (False, "")
 
 
 def test_generate_initial_dm_message():
