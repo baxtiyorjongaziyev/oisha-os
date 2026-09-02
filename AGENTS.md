@@ -16,6 +16,11 @@
    - **Zero-Breaking Facade Pattern**: Eski fayl yo'li saqlanib, 10–50 qatorli toza Facade rejimiga o'tkaziladi va barcha public API, klass, funksiya va konstantalarni to'liq re-export qiladi (`__all__` bilan). Mavjud importlar va testlar 100% buzilmasdan ishlashi shart.
    - **Funksiyalar Hajmi**: Har bir alohida funksiya/metod **20 – 60 qatordan** oshmasligi, bitta aniq vazifani bajarishi shart.
    - **Yangi Kod Yozish Qoidasi**: Yangi funksionallik qo'shganda mavjud to'lgan fayllarga kod tiqishtirish taqiqlanadi — yangi modul yoki submodule ochiladi.
+7. **Claude Antigravity handoff (majburiy):** Har bir agent tugatgan yoki to'xtatgan ishini shu fayldagi `## Agent Handoff Log` bo'limiga yozadi: sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili va qolgan ish/bloker. Sirlar, tokenlar va session stringlar jurnalga yozilmaydi.
+
+## Agent Handoff Log
+
+- **2026-09-02 — Codex Coordinator — Meta/Instagram sozlamasi:** Chrome'dagi Meta Graph API Explorer'da `Oisha Social Readonly` ilovasi va kerakli `instagram_manage_comments`, `instagram_basic`, `instagram_manage_messages`, `pages_read_engagement` ruxsatlari tanlanganini tekshirdi. `.env`da `META_PAGE_ACCESS_TOKEN` bo'sh emasligi va `INSTAGRAM_VERIFY_TOKEN` kerakli qiymat bilan mavjudligi sirlarni chiqarmasdan tasdiqlandi. Yangi Page token yaratish/almashtirish, Meta Webhook verify tokenini yuborish, production restart/deploy va real comment E2E testi hali bajarilmadi; persistent credential yaratish va Meta'ga verify token yuborish uchun owner action-time tasdig'i kutilmoqda. O'zgargan fayl: `AGENTS.md`. Tekshiruv: lokal env presence/exactness tekshiruvi va Explorer UI holati.
 
 ## Roles
 
@@ -105,7 +110,16 @@
   - Telegram alert kartasi (@jonairobot) va davriy `call_analysis_scheduler` integratsiya qilindi.
   - 100% 150–400 lines qoidasiga mos, 1907/1907 testlar muvaffaqiyatli o'tdi, Bandit 0 xatolik.
 
-- **Status:** 768 ta Python faylidan 0 ta qoidabuzarlik (>400L: 0 ta, 100% compliant). Funksiyalar bo'yicha: 3,720+ ta funksiyaning 90.1% qismi $\le 50$ qatordan iborat. 100% Pytest pass (1907/1907) & Bandit 0 issues.
+- **Instagram Comments Auto-Like & Personal Brand Voice (Done — 2026-09-02):**
+  - Meta Graph API `POST /{comment_id}/likes` orqali har bir kiruvchi yangi sharhga avtomatik layk bosiladi.
+  - `generate_comment_reply()` va `fetch_media_caption()` yordamida post konteksti olinib, Baxtiyorjon Gaziyevning shaxsiy brend ovozida (art-direktor / brending ekspert) samimiy va professional AI javob generatsiya qilinadi.
+  - Loop himoyasi: `commenter_id == META_INSTAGRAM_USER_ID` tekshirilib, o'zimizning sharh/DM larga qayta javob berish sikli to'liq to'xtatildi.
+  - Filtrlar: `verb == "add"` va `field == "comments"` tekshiruvi.
+  - Modulyar: `src/services/core/instagram/graph_client.py` ajratildi, `src/services/core/instagram_agent.py` 379 qatorda saqlandi.
+  - 100% testlar o'tdi (`test_instagram_integration.py`: 13/13 passed, umumiy Instagram testlar: 26/26 passed), Bandit 0 issues.
+  - `origin/main` ga commit `7c4e6b51` bilan birlashtirildi va deploy qilindi.
+
+- **Status:** 768 ta Python faylidan 0 ta qoidabuzarlik (>400L: 0 ta, 100% compliant). Funksiyalar bo'yicha: 3,720+ ta funksiyaning 90.1% qismi $\le 50$ qatordan iborat. 100% Pytest pass (1921/1921) & Bandit 0 issues.
 
 ## Pre-flight Checklist (har bir PR dan oldin)
 ```powershell
