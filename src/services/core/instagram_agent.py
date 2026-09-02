@@ -177,6 +177,14 @@ def fetch_media_caption(media_id: str, access_token: str) -> str:
     return ""
 
 
+FALLBACK_COMMENT_REPLIES = [
+    "Fikringiz va e'tiboringiz uchun katta rahmat! 🙌",
+    "Izohingiz uchun tashakkur! Savollaringiz bo'lsa, yordam berishdan xursand bo'lamiz 😊",
+    "Fikringiz biz uchun juda muhim, rahmat! ✨",
+    "Qiziqishingiz va samimiy munosabatingiz uchun rahmat! 🤝",
+]
+
+
 async def generate_comment_reply(comment_text: str, post_caption: str = "", commenter_name: str = "") -> str:
     """Context-aware reply to an Instagram comment using the free-AI router."""
     caption_block = f'\nPost matni: "{post_caption[:500]}"' if post_caption else ""
@@ -190,8 +198,8 @@ async def generate_comment_reply(comment_text: str, post_caption: str = "", comm
         result = await get_free_ai_router().generate_text(
             prompt,
             system=COMMENT_REPLY_SYSTEM,
-            max_tokens=140,
-            temperature=0.7,
+            max_tokens=150,
+            temperature=0.6,
         )
         reply = (result.text or "").strip().strip('"')
         if reply:
@@ -200,17 +208,8 @@ async def generate_comment_reply(comment_text: str, post_caption: str = "", comm
     except Exception as exc:
         logger.warning("[META] generate_comment_reply fallback: %s", exc)
 
-    # Every provider was unavailable — send a short varied acknowledgement
-    # rather than a fixed template (Meta flags repeated identical replies).
     import random
-    return random.choice(
-        [
-            "Izohingiz uchun rahmat! 🙌",
-            "Fikringiz uchun tashakkur 🙏",
-            "Diqqatingiz uchun rahmat 🤍",
-            "Yozganingizdan xursandman, rahmat! ✨",
-        ]
-    )
+    return random.choice(FALLBACK_COMMENT_REPLIES)
 
 
 def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: str) -> None:
