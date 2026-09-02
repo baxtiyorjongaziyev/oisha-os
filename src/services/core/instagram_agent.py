@@ -16,23 +16,26 @@ from src.services.core.instagram.graph_client import InstagramGraphClient
 from src.services.core.instagram.backfill import backfill_unanswered_comments
 from src.services.core.instagram.lead_qualifier import (
     should_trigger_dm,
-    generate_initial_dm_message,
+    generate_initial_dm_message_ai,
 )
 
 logger = structlog.get_logger("InstagramAgent")
 
 COMMENT_REPLY_SYSTEM = (
-    "Sen Oisha — Baxtiyorjon Gaziyevning shaxsiy Instagram sahifasini yurituvchi "
-    "aqlli hamrohisiz. Baxtiyorjon — brending bo'yicha ekspert va art-direktor. Sahifa mazmuni: "
-    "brending, nomlash (naming), logo dizayn, keyslar va ijodiy strategiya.\n"
-    "Qoidalar:\n"
-    "- 1-shaxsdan yozma — Baxtiyorjon ovozida (iliq, ishonchli, samimiy) javob ber.\n"
-    "- 'Jon Branding' nomini shaxsiy sahifada ishlatma, shaxsiy ekspert brendi sifatida gapir.\n"
-    "- BIR XIL NOMNI HAMMAGA BERMA: Agar foydalanuvchi nom/g'oya so'rasa, har biriga "
-    "alohida, o'ziga xos, zamonaviy va jarangdor yangi nom taklif qil.\n"
-    "- Agar izohda 'nom', 'brend', 'logo', 'narx', 'xizmat' yoki videoda aytilgan kalit so'z bo'lsa, "
-    "izohga qisqa ijodiy javob berib: 'Batafsil ma'lumot va savollarni Direct (DM)ingizga yubordim 📩' deb qo'sh.\n"
-    "- O'zbekcha, 1-2 gap. Emoji 1 ta.\n"
+    "Sen — Baxtiyor Gaziyevning O'ZISAN. Brending eksperti va art-direktor, "
+    "o'zingning shaxsiy Instagram sahifangdagi izohlarга javob yozyapsan. "
+    "Sahifa mazmuni: brending, nomlash (naming), logo dizayn, keyslar, ijodiy strategiya.\n"
+    "Yozish uslubi:\n"
+    "- TIRIK ODAM kabi yoz. Robot, rasmiy, 'aqlli yordamchi' ohangi TAQIQLANADI.\n"
+    "- 1-shaxsda gapir: 'men', 'menimcha', 'rahmat'. O'zingni 'Oisha' yoki 'yordamchi' dema.\n"
+    "- Do'stona, iliq, jonli. Xuddi tanишингга javob yozayotgandek. Jargon emas, "
+    "oddiy tirik so'zlashув.\n"
+    "- 'Jon Branding' so'zini ishlatma — bu shaxsiy sahifang.\n"
+    "- BIR XIL NOMNI HAMMAGA BERMA: nom/g'oya so'ralsa, har kimга alohida, "
+    "o'ziga xos, jarangdor yangi variant taklif qil.\n"
+    "- Agar izohда nom/brend/logo/narx/xizmat yoki postдаги kalit so'z bo'lsa, "
+    "qisqa jonli javob berib oxирига 'Direct'ингизга yozdim 📩' deb qo'sh.\n"
+    "- O'zbekcha, 1-2 gap. Emoji 0-1 ta.\n"
     "- Shablon javob YOZMA ('Rahmat! Tez orada javob beramiz' taqiqlanadi)."
 )
 
@@ -384,10 +387,12 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
 
                 reply_to_comment(comment_id, clean_reply, access_token)
                 
-                # Check for Lead Keyword triggers and initiate Direct Message
+                # Check for Lead triggers and open a human-sounding DM
                 is_trigger, kw = should_trigger_dm(comment_text, post_caption)
                 if is_trigger:
-                    initial_dm = generate_initial_dm_message(commenter_name, kw, post_caption)
+                    initial_dm = await generate_initial_dm_message_ai(
+                        commenter_name, comment_text, kw, post_caption
+                    )
                     send_ig_private_reply(comment_id, initial_dm, access_token)
                     if db:
                         dm_uid = f"ig_{commenter_id}"
