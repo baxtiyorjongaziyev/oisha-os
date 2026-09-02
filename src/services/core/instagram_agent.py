@@ -280,63 +280,93 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
     for entry in payload.get("entry", []):
         entry_id = str(entry.get("id") or "")
 
-        # Direct Message Handling
-        messaging = entry.get("messaging", [])
-        if messaging:
-            event = messaging[0]
-            sender_id = str(event.get("sender", {}).get("id") or "")
-            message = event.get("message", {})
-            text = message.get("text", "")
+        # --- Direct Message handling -----------------------------------------
+        # Meta delivers IG DMs in two shapes depending on the product config:
+        #   1) entry[].messaging[]            (Messenger-style)
+        #   2) entry[].changes[] field=messages, value.message(s)  (IG Graph)
+        dm_events: list[tuple[str, str]] = []  # (sender_id, text)
 
+        for event in entry.get("messaging", []) or []:
+            s = str(event.get("sender", {}).get("id") or "")
+            t = (event.get("message", {}) or {}).get("text", "") or ""
+            if s and t:
+                dm_events.append((s, t))
+
+        for change in entry.get("changes", []) or []:
+            if change.get("field") not in ("messages", "message"):
+                continue
+            val = change.get("value", {}) or {}
+            msgs = val.get("messages") or ([val] if val.get("message") or val.get("text") else [])
+            for m in msgs:
+                s = str(
+                    (m.get("from") or {}).get("id")
+                    or m.get("sender_id")
+                    or val.get("sender", {}).get("id")
+                    or ""
+                )
+                body = m.get("message") or m.get("text") or ""
+                if isinstance(body, dict):
+                    body = body.get("text", "")
+                if s and body:
+                    dm_events.append((s, body))
+
+        for sender_id, text in dm_events:
             if my_ig_id and sender_id == str(my_ig_id):
                 logger.info("[META] Skipping own DM (loop protection)", sender_id=sender_id)
                 continue
 
-            if text and sender_id:
-                user_id_str = f"ig_{sender_id}"
-                logger.info("[META] Received Instagram DM", sender_id=sender_id, text=text[:50])
+            user_id_str = f"ig_{sender_id}"
+            logger.info("[META] Received Instagram DM", sender_id=sender_id, text=text[:50])
+            if db:
+                await db.log_message(user_id_str, text, is_ai=False)
 
-                if db:
-                    await db.log_message(user_id_str, text, is_ai=False)
+            # Conversation history so the qualification funnel has context.
+            history: list[dict] = []
+            if db:
+                try:
+                    rows = await db.get_recent_messages(user_id_str, limit=12)
+                    for r in (rows or []):
+                        role = "assistant" if r.get("role") == "model" else "user"
+                        parts = r.get("parts") or []
+                        content = parts[0].get("text", "") if parts else r.get("content", "")
+                        if content:
+                            history.append({"role": role, "content": content})
+                except Exception:  # noqa: BLE001 - history is best-effort
+                    history = []
 
-                agent = AutonomousSalesAgent(db=db)
-                agent_result = await agent.handle_incoming(
-                    user_id=user_id_str,
-                    message=text,
-                    autonomy_level="full"
+            from src.services.core.instagram.lead_qualifier import (
+                generate_qualifying_dm_response,
+                sync_lead_to_amocrm,
+            )
+            ai_reply = await generate_qualifying_dm_response(
+                user_message=text,
+                history=history,
+                commenter_name="",
+            )
+
+            info_updates: dict[str, str] = {}
+            for m in re.finditer(r"\[SAVE_INFO:\s*(.*?)\]", ai_reply, re.IGNORECASE):
+                parts = m.group(1).split("=", 1)
+                if len(parts) == 2:
+                    info_updates[parts[0].strip().lower()] = parts[1].strip()
+            if info_updates and db:
+                await db.upsert_user(user_id_str, "Foydalanuvchi", **info_updates)
+
+            clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
+            if db:
+                await db.log_message(user_id_str, clean_reply, is_ai=True)
+
+            phone_num = info_updates.get("phone", "")
+            if phone_num or "quality=sifatli" in ai_reply.lower():
+                sync_lead_to_amocrm(
+                    name=info_updates.get("name", "Instagram Mijoz"),
+                    phone=phone_num,
+                    lead_name=f"Instagram DM: {info_updates.get('name', sender_id)}",
+                    details=f"Mijoz: {text}\nBaxtiyor: {clean_reply}",
                 )
-                ai_reply = agent_result.get("response", "Assalomu alaykum! Tez orada siz bilan bog'lanamiz. 😊")
 
-                info_updates = {}
-                for m in re.finditer(r"\[SAVE_INFO:\s*(.*?)\]", ai_reply, re.IGNORECASE):
-                    try:
-                        parts = m.group(1).split("=", 1)
-                        if len(parts) == 2:
-                            info_updates[parts[0].strip().lower()] = parts[1].strip()
-                    except Exception as exc:
-                        logger.debug("[META] Parse SAVE_INFO tag: %s", exc)
-
-                if info_updates and db:
-                    await db.upsert_user(user_id_str, "Foydalanuvchi", **info_updates)
-
-                clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
-
-                if db:
-                    await db.log_message(user_id_str, clean_reply, is_ai=True)
-
-                # Automatic Lead Creation in AmoCRM for Qualified leads
-                phone_num = info_updates.get("phone", "")
-                if phone_num or "quality=sifatli" in ai_reply.lower():
-                    from src.services.core.instagram.lead_qualifier import sync_lead_to_amocrm
-                    sync_lead_to_amocrm(
-                        name=info_updates.get("name", "Instagram Mijoz"),
-                        phone=phone_num,
-                        lead_name=f"Instagram DM: {info_updates.get('name', sender_id)}",
-                        details=f"Mijoz: {text}\nOisha: {clean_reply}",
-                    )
-
-                send_ig_reply(sender_id, clean_reply, access_token)
-                notify_crm("Instagram DM", "Foydalanuvchi", sender_id, text, ai_reply)
+            send_ig_reply(sender_id, clean_reply, access_token)
+            notify_crm("Instagram DM", "Foydalanuvchi", sender_id, text, ai_reply)
 
         # Comment / Page Feed Change Handling
         changes = entry.get("changes", [])
