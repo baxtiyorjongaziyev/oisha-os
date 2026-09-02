@@ -16,12 +16,32 @@ from src.services.core.instagram.graph_client import InstagramGraphClient
 
 logger = structlog.get_logger("InstagramAgent")
 
+COMMENT_REPLY_SYSTEM = (
+    "Sen Oisha — Baxtiyorjon Gaziyevning shaxsiy Instagram sahifasini yurituvchi "
+    "community manager. Baxtiyorjon — branding bo'yicha ekspert va art-direktor, "
+    "shaxsiy brendini rivojlantirmoqda. Sahifa mazmuni: branding, dizayn, "
+    "art-direksiya, ijodiy jarayon, keyslar.\n"
+    "Vazifang: kelgan izohni MAZMUNAN tushunib, aniq va tabiiy javob yozish.\n"
+    "Qoidalar:\n"
+    "- 1-shaxsdan yozma — Baxtiyorjon nomidan, uning ovozida (ishonchli, iliq, "
+    "ortiqcha rasmiyatsiz) javob ber.\n"
+    "- Izoh nima haqida bo'lsa, o'shanga javob ber. Savolga — javob, maqtovga — "
+    "samimiy minnatdorchilik, tanqidga — xushmuomala va konstruktiv javob, "
+    "branding/dizayn savoliga — qisqa ekspert fikr.\n"
+    "- O'zbekcha, 1-2 gap. Emoji 0-1 ta.\n"
+    "- Shablon javob YOZMA ('Rahmat! Tez orada javob beramiz' kabi taqiqlangan).\n"
+    "- Hamkorlik/xizmat/narx so'ralsa: qisqa javob ber va DM'ga taklif qil.\n"
+    "- Spam yoki ma'nosiz izohga faqat qisqa emoji bilan javob ber."
+)
+
 __all__ = [
     "InstagramGraphClient",
     "verify_signature",
     "send_ig_reply",
     "like_comment",
     "reply_to_comment",
+    "fetch_media_caption",
+    "generate_comment_reply",
     "notify_crm",
     "process_instagram_webhook",
 ]
@@ -132,6 +152,46 @@ def reply_to_comment(comment_id: str, text: str, access_token: str) -> bool:
     except Exception as exc:
         logger.error("[META] Exception in reply_to_comment", error=str(exc))
         return False
+
+
+def fetch_media_caption(media_id: str, access_token: str) -> str:
+    """Fetches the caption of the post a comment belongs to (for reply context)."""
+    if not media_id or not access_token:
+        return ""
+    url = f"https://graph.facebook.com/v19.0/{media_id}"
+    params = {"fields": "caption", "access_token": access_token}
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        if resp.status_code == 200:
+            return resp.json().get("caption", "") or ""
+        logger.warning("[META] Failed to fetch media caption", status_code=resp.status_code)
+    except Exception as exc:
+        logger.error("[META] Exception in fetch_media_caption", error=str(exc))
+    return ""
+
+
+async def generate_comment_reply(comment_text: str, post_caption: str = "", commenter_name: str = "") -> str:
+    """Context-aware reply to an Instagram comment using the free-AI router."""
+    caption_block = f'\nPost matni: "{post_caption[:500]}"' if post_caption else ""
+    prompt = (
+        f"{caption_block}\n"
+        f'{commenter_name} yozgan izoh: "{comment_text}"\n\n'
+        f"Shu izohga Oisha nomidan javob yoz:"
+    )
+    try:
+        from src.services.utils.free_ai_router import get_free_ai_router
+        result = await get_free_ai_router().generate_text(
+            prompt,
+            system=COMMENT_REPLY_SYSTEM,
+            max_tokens=200,
+            temperature=0.6,
+        )
+        reply = (result.text or "").strip().strip('"')
+        if reply:
+            return reply
+    except Exception as exc:
+        logger.warning("[META] generate_comment_reply fallback: %s", exc)
+    return "Izohingiz uchun rahmat! 🙌"
 
 
 def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: str) -> None:
@@ -294,14 +354,15 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 if db:
                     await db.log_message(user_id_str, f"COMMENT: {comment_text}", is_ai=False)
 
-                # 3. Query AI Agent
-                agent = AutonomousSalesAgent(db=db)
-                agent_result = await agent.handle_incoming(
-                    user_id=user_id_str,
-                    message=f"Sharh yozdi: {comment_text}",
-                    autonomy_level="full"
+                # 3. Pull post caption for context and generate personal brand reply
+                media_id = str((value.get("media") or {}).get("id") or "")
+                post_caption = fetch_media_caption(media_id, access_token) if media_id else ""
+
+                ai_reply = await generate_comment_reply(
+                    comment_text=comment_text,
+                    post_caption=post_caption,
+                    commenter_name=commenter_name,
                 )
-                ai_reply = agent_result.get("response", "Rahmat! Tez orada javob beramiz. 😊")
 
                 # Clean reply tag decorators
                 clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()

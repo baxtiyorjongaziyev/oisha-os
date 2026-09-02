@@ -14,6 +14,8 @@ from src.services.core.instagram_agent import (
     like_comment,
     reply_to_comment,
     send_ig_reply,
+    fetch_media_caption,
+    generate_comment_reply,
     process_instagram_webhook,
 )
 
@@ -90,6 +92,31 @@ def test_reply_to_comment(mock_post):
     mock_post.return_value.status_code = 400
     mock_post.return_value.text = "Error"
     assert reply_to_comment("comment_123", "Hello!", "valid_token") is False
+
+
+@patch("src.services.core.instagram_agent.requests.get")
+def test_fetch_media_caption(mock_get):
+    mock_get.return_value.status_code = 200
+    mock_get.return_value.json.return_value = {"caption": "Post haqida ma'lumot"}
+    assert fetch_media_caption("media_123", "valid_token") == "Post haqida ma'lumot"
+
+    # No token
+    assert fetch_media_caption("media_123", "") == ""
+
+    # Failure
+    mock_get.return_value.status_code = 400
+    assert fetch_media_caption("media_123", "valid_token") == ""
+
+
+@pytest.mark.asyncio
+async def test_generate_comment_reply():
+    with patch("src.services.utils.free_ai_router.get_free_ai_router") as mock_router:
+        mock_instance = MagicMock()
+        mock_instance.generate_text = AsyncMock(return_value=MagicMock(text="Branding haqida zo'r fikr!"))
+        mock_router.return_value = mock_instance
+
+        reply = await generate_comment_reply("Qoyilmaqom dizayn!", "Yangi loyiha", "Ali")
+        assert "Branding" in reply
 
 
 @patch("src.services.core.instagram_agent.requests.post")
@@ -178,19 +205,13 @@ async def test_process_instagram_webhook_dm(mock_agent_class, mock_notify, mock_
 @pytest.mark.asyncio
 @patch("src.services.core.instagram_agent.like_comment")
 @patch("src.services.core.instagram_agent.reply_to_comment")
+@patch("src.services.core.instagram_agent.generate_comment_reply", return_value="Rahmat sharhingiz uchun! Narxlarimiz...")
 @patch("src.services.core.instagram_agent.notify_crm")
-@patch("src.services.core.instagram_agent.AutonomousSalesAgent")
 async def test_process_instagram_webhook_comment_flow(
-    mock_agent_class, mock_notify, mock_reply_comment, mock_like_comment
+    mock_notify, mock_gen_reply, mock_reply_comment, mock_like_comment
 ):
     mock_db = AsyncMock()
     mock_db.log_message = AsyncMock()
-
-    mock_agent_instance = MagicMock()
-    mock_agent_instance.handle_incoming = AsyncMock(return_value={
-        "response": "Rahmat sharhingiz uchun! Narxlarimiz..."
-    })
-    mock_agent_class.return_value = mock_agent_instance
 
     payload = {
         "object": "instagram",
@@ -233,9 +254,9 @@ async def test_process_instagram_webhook_comment_flow(
 @pytest.mark.asyncio
 @patch("src.services.core.instagram_agent.like_comment")
 @patch("src.services.core.instagram_agent.reply_to_comment")
-@patch("src.services.core.instagram_agent.AutonomousSalesAgent")
+@patch("src.services.core.instagram_agent.generate_comment_reply")
 async def test_process_instagram_webhook_comment_loop_protection(
-    mock_agent_class, mock_reply_comment, mock_like_comment
+    mock_gen_reply, mock_reply_comment, mock_like_comment
 ):
     mock_db = AsyncMock()
 
@@ -271,15 +292,15 @@ async def test_process_instagram_webhook_comment_loop_protection(
         # Should be skipped due to loop protection
         mock_like_comment.assert_not_called()
         mock_reply_comment.assert_not_called()
-        mock_agent_class.assert_not_called()
+        mock_gen_reply.assert_not_called()
 
 
 @pytest.mark.asyncio
 @patch("src.services.core.instagram_agent.like_comment")
 @patch("src.services.core.instagram_agent.reply_to_comment")
-@patch("src.services.core.instagram_agent.AutonomousSalesAgent")
+@patch("src.services.core.instagram_agent.generate_comment_reply")
 async def test_process_instagram_webhook_comment_filters(
-    mock_agent_class, mock_reply_comment, mock_like_comment
+    mock_gen_reply, mock_reply_comment, mock_like_comment
 ):
     mock_db = AsyncMock()
 
