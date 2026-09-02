@@ -8,7 +8,14 @@ from unittest.mock import patch, AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 
 from src.api_server import app
-from src.services.core.instagram_agent import verify_signature, notify_crm
+from src.services.core.instagram_agent import (
+    verify_signature,
+    notify_crm,
+    like_comment,
+    reply_to_comment,
+    send_ig_reply,
+    process_instagram_webhook,
+)
 
 client = TestClient(app)
 
@@ -21,6 +28,8 @@ def test_verify_signature():
     assert verify_signature(payload, expected_sig, secret) is True
     assert verify_signature(payload, "invalid_sig", secret) is False
     assert verify_signature(payload, expected_sig, "") is True
+    assert verify_signature("test_payload", expected_sig, secret) is True
+    assert verify_signature({"key": "value"}, "invalid_sig", secret) is False
 
 
 @patch.dict("os.environ", {"INSTAGRAM_VERIFY_TOKEN": "correct_token"})
@@ -49,6 +58,54 @@ def test_webhook_verification_failure():
     )
     assert response.status_code == 403
     assert "Verification token mismatch" in response.text
+
+
+@patch("src.services.core.instagram_agent.requests.post")
+def test_like_comment(mock_post):
+    mock_post.return_value.status_code = 200
+    assert like_comment("comment_123", "valid_token") is True
+    mock_post.assert_called_once()
+    assert "comment_123/likes" in mock_post.call_args[0][0]
+
+    # No token
+    assert like_comment("comment_123", "") is False
+
+    # Failure
+    mock_post.return_value.status_code = 400
+    mock_post.return_value.text = "Error"
+    assert like_comment("comment_123", "valid_token") is False
+
+
+@patch("src.services.core.instagram_agent.requests.post")
+def test_reply_to_comment(mock_post):
+    mock_post.return_value.status_code = 200
+    assert reply_to_comment("comment_123", "Hello!", "valid_token") is True
+    mock_post.assert_called_once()
+    assert "comment_123/replies" in mock_post.call_args[0][0]
+
+    # No token
+    assert reply_to_comment("comment_123", "Hello!", "") is False
+
+    # Failure
+    mock_post.return_value.status_code = 400
+    mock_post.return_value.text = "Error"
+    assert reply_to_comment("comment_123", "Hello!", "valid_token") is False
+
+
+@patch("src.services.core.instagram_agent.requests.post")
+def test_send_ig_reply(mock_post):
+    mock_post.return_value.status_code = 200
+    assert send_ig_reply("user_123", "Hello DM!", "valid_token") is True
+    mock_post.assert_called_once()
+    assert "me/messages" in mock_post.call_args[0][0]
+
+    # No token
+    assert send_ig_reply("user_123", "Hello DM!", "") is False
+
+    # Failure
+    mock_post.return_value.status_code = 400
+    mock_post.return_value.text = "Error"
+    assert send_ig_reply("user_123", "Hello DM!", "valid_token") is False
 
 
 @pytest.mark.asyncio
@@ -108,7 +165,6 @@ async def test_process_instagram_webhook_dm(mock_agent_class, mock_notify, mock_
         ]
     }
 
-    from src.services.core.instagram_agent import process_instagram_webhook
     await process_instagram_webhook(payload, mock_db)
 
     mock_db.log_message.assert_any_call("ig_112233", "Qalay ishlar?", is_ai=False)
@@ -117,3 +173,160 @@ async def test_process_instagram_webhook_dm(mock_agent_class, mock_notify, mock_
     from unittest.mock import ANY
     mock_send_reply.assert_called_once_with("112233", "Salom, xabarni qabul qildim", ANY)
     mock_notify.assert_called_once_with("Instagram DM", "Foydalanuvchi", "112233", "Qalay ishlar?", "[SAVE_INFO: phone=+998991234567] Salom, xabarni qabul qildim")
+
+
+@pytest.mark.asyncio
+@patch("src.services.core.instagram_agent.like_comment")
+@patch("src.services.core.instagram_agent.reply_to_comment")
+@patch("src.services.core.instagram_agent.notify_crm")
+@patch("src.services.core.instagram_agent.AutonomousSalesAgent")
+async def test_process_instagram_webhook_comment_flow(
+    mock_agent_class, mock_notify, mock_reply_comment, mock_like_comment
+):
+    mock_db = AsyncMock()
+    mock_db.log_message = AsyncMock()
+
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.handle_incoming = AsyncMock(return_value={
+        "response": "Rahmat sharhingiz uchun! Narxlarimiz..."
+    })
+    mock_agent_class.return_value = mock_agent_instance
+
+    payload = {
+        "object": "instagram",
+        "entry": [
+            {
+                "id": "page_ig_id",
+                "changes": [
+                    {
+                        "field": "comments",
+                        "value": {
+                            "id": "comm_999",
+                            "text": "Narxi qancha?",
+                            "verb": "add",
+                            "from": {
+                                "id": "user_888",
+                                "username": "anvar_brand"
+                            }
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    from unittest.mock import ANY
+    await process_instagram_webhook(payload, mock_db)
+
+    # 1. Like comment called
+    mock_like_comment.assert_called_once_with("comm_999", ANY)
+    # 2. Incoming log
+    mock_db.log_message.assert_any_call("ig_comment_user_888", "COMMENT: Narxi qancha?", is_ai=False)
+    # 3. Outgoing log
+    mock_db.log_message.assert_any_call("ig_comment_user_888", "Rahmat sharhingiz uchun! Narxlarimiz...", is_ai=True)
+    # 4. Reply to comment called
+    mock_reply_comment.assert_called_once_with("comm_999", "Rahmat sharhingiz uchun! Narxlarimiz...", ANY)
+    # 5. Notify CRM called
+    mock_notify.assert_called_once_with("Instagram Comment", "anvar_brand", "user_888", "Narxi qancha?", "Rahmat sharhingiz uchun! Narxlarimiz...")
+
+
+@pytest.mark.asyncio
+@patch("src.services.core.instagram_agent.like_comment")
+@patch("src.services.core.instagram_agent.reply_to_comment")
+@patch("src.services.core.instagram_agent.AutonomousSalesAgent")
+async def test_process_instagram_webhook_comment_loop_protection(
+    mock_agent_class, mock_reply_comment, mock_like_comment
+):
+    mock_db = AsyncMock()
+
+    with patch("src.services.core.instagram_agent.settings") as mock_settings:
+        mock_settings.META_INSTAGRAM_USER_ID = "my_business_id"
+        mock_settings.META_PAGE_ACCESS_TOKEN.get_secret_value.return_value = "token"
+
+        payload = {
+            "object": "instagram",
+            "entry": [
+                {
+                    "id": "my_business_id",
+                    "changes": [
+                        {
+                            "field": "comments",
+                            "value": {
+                                "id": "comm_111",
+                                "text": "Bizning o'z javobimiz",
+                                "verb": "add",
+                                "from": {
+                                    "id": "my_business_id",
+                                    "username": "our_account"
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        await process_instagram_webhook(payload, mock_db)
+
+        # Should be skipped due to loop protection
+        mock_like_comment.assert_not_called()
+        mock_reply_comment.assert_not_called()
+        mock_agent_class.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("src.services.core.instagram_agent.like_comment")
+@patch("src.services.core.instagram_agent.reply_to_comment")
+@patch("src.services.core.instagram_agent.AutonomousSalesAgent")
+async def test_process_instagram_webhook_comment_filters(
+    mock_agent_class, mock_reply_comment, mock_like_comment
+):
+    mock_db = AsyncMock()
+
+    # 1. Verb is not "add" (e.g. "remove" or "edited")
+    payload_verb = {
+        "object": "instagram",
+        "entry": [
+            {
+                "id": "page_id",
+                "changes": [
+                    {
+                        "field": "comments",
+                        "value": {
+                            "id": "comm_222",
+                            "text": "Deleted comment",
+                            "verb": "remove",
+                            "from": {"id": "user_333", "username": "some_user"}
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    await process_instagram_webhook(payload_verb, mock_db)
+    mock_like_comment.assert_not_called()
+    mock_reply_comment.assert_not_called()
+
+    # 2. Field is not "comments" (e.g. "feed", "mentions")
+    payload_field = {
+        "object": "instagram",
+        "entry": [
+            {
+                "id": "page_id",
+                "changes": [
+                    {
+                        "field": "live_comments",
+                        "value": {
+                            "id": "comm_444",
+                            "text": "Other event",
+                            "verb": "add",
+                            "from": {"id": "user_555", "username": "other_user"}
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    await process_instagram_webhook(payload_field, mock_db)
+    mock_like_comment.assert_not_called()
+    mock_reply_comment.assert_not_called()
