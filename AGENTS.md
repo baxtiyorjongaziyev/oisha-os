@@ -18,6 +18,12 @@
    - **Yangi Kod Yozish Qoidasi**: Yangi funksionallik qo'shganda mavjud to'lgan fayllarga kod tiqishtirish taqiqlanadi — yangi modul yoki submodule ochiladi.
 7. **Claude Antigravity handoff (majburiy):** Har bir agent tugatgan yoki to'xtatgan ishini shu fayldagi `## Agent Handoff Log` bo'limiga yozadi: sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili va qolgan ish/bloker. Sirlar, tokenlar va session stringlar jurnalga yozilmaydi.
 
+- **2026-09-02 — Antigravity — Instagram Comment-to-DM Lead Qualification Funnel:**
+  1. **Comment Diversity & Anti-Repetition**: `COMMENT_REPLY_SYSTEM` yangilandi — bir xil nomlarni barcha izoh qoldiruvchilarga qaytarish qat'iyan to'xtatildi, har bir loyiha va soha uchun alohida, zamonaviy va jarangdor kreativ nomlar beriladi.
+  2. **Keyword & Caption Detection**: `src/services/core/instagram/lead_qualifier.py` (141L) yaratildi. Statik kalit so'zlar (`nom`, `brand`, `brend`, `logo`, `branding`, `narx`, `rebrending` va h.k.) hamda video sarlavhasidagi chaqiriqlar (`izohda '...' deb yozing`) avtomatik aniqlanadi.
+  3. **Private Reply (Comment -> Direct Message Outreach)**: Meta Graph API `POST /v19.0/me/messages` (`recipient: {comment_id: comment_id}`) integratsiyasi qo'shildi (`send_ig_private_reply`). Trigger so'z yozgan foydalanuvchining Direct'iga avtomatik kirib, 3 bosqichli kvalifikatsiya boshlanadi.
+  4. **Lead Qualification Funnel (Hunter-Setter)**: Direct'da biznes sohasi, xizmat turi va loyiha bosqichi so'raladi, telefon raqam olinib, sifatli lid deb baholanganda AmoCRM va Telegram CRM ga uzatiladi.
+  5. **Qoidalar & Testlar**: 18/18 Instagram integratsiya testlari o'tdi, Bandit 0 issues, barcha fayllar 400 qator qoidasiga mos (`instagram_agent.py`: 399L, `lead_qualifier.py`: 141L, `backfill.py`: 172L).
 - **2026-09-02 — Antigravity — Security Hardening & Remediation (Audit Follow-up):**
   1. O'chirilgan xavfli workflowlar: `.github/workflows/generate-session.yml` va `.github/workflows/complete-auth.yml` (Actions loglariga session/parol chiqishi va repo orqali SMS kod polling qilish xavfi to'liq bartaraf etildi; auth faqat Oracle VM SSH `oracle-userbot-auth.yml` orqali saqlandi).
   2. Gitleaks qayta yoqildi: `.github/workflows/gitleaks.yml` dagi `if: false` olib tashlandi, PR va scheduled scanning faollashtirildi.

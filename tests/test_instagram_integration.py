@@ -351,3 +351,93 @@ async def test_process_instagram_webhook_comment_filters(
     await process_instagram_webhook(payload_field, mock_db)
     mock_like_comment.assert_not_called()
     mock_reply_comment.assert_not_called()
+
+
+def test_extract_caption_keywords():
+    from src.services.core.instagram.lead_qualifier import extract_caption_keywords
+    cap1 = "Yangi fast-food loyihamiz! Izohda 'NOM' deb yozing, nomlarni yuboramiz."
+    assert "nom" in extract_caption_keywords(cap1)
+
+    cap2 = "Brendingizni rivojlantiring. Kommentlarda 'BREND' deb qoldiring!"
+    assert "brend" in extract_caption_keywords(cap2)
+
+    cap3 = "Oddiy post matni, hech qanday kalit so'zsiz."
+    assert extract_caption_keywords(cap3) == []
+
+
+def test_should_trigger_dm():
+    from src.services.core.instagram.lead_qualifier import should_trigger_dm
+    # Static keyword
+    trig1, kw1 = should_trigger_dm("Menga yangi nom kerak", "")
+    assert trig1 is True
+    assert kw1 == "nom"
+
+    trig2, kw2 = should_trigger_dm("Logo dizayn narxi qancha?", "")
+    assert trig1 is True
+
+    # Caption keyword match
+    trig3, kw3 = should_trigger_dm("START", "Izohda 'START' deb yozing")
+    assert trig3 is True
+    assert kw3 == "start"
+
+    # Non-trigger
+    trig4, _ = should_trigger_dm("Zo'r rasm ekan", "Oddiy post")
+    assert trig4 is False
+
+
+def test_generate_initial_dm_message():
+    from src.services.core.instagram.lead_qualifier import generate_initial_dm_message
+    msg = generate_initial_dm_message("Sardor", "nom", "Fast-food post")
+    assert "Sardor" in msg
+    assert "Baxtiyorjon Gaziyev" in msg
+    assert "nomlash" in msg
+
+
+@patch("requests.post")
+def test_send_ig_private_reply(mock_post):
+    from src.services.core.instagram_agent import send_ig_private_reply
+    mock_post.return_value.status_code = 200
+    res = send_ig_private_reply("comm_123", "Salom Direct!", "fake_token")
+    assert res is True
+    assert mock_post.called
+    call_kwargs = mock_post.call_args[1]
+    assert call_kwargs["json"]["recipient"]["comment_id"] == "comm_123"
+
+
+@pytest.mark.asyncio
+@patch("src.services.core.instagram_agent.like_comment")
+@patch("src.services.core.instagram_agent.reply_to_comment")
+@patch("src.services.core.instagram_agent.generate_comment_reply")
+@patch("src.services.core.instagram_agent.send_ig_private_reply")
+async def test_process_instagram_webhook_with_dm_trigger(
+    mock_priv_reply, mock_gen_reply, mock_reply_comm, mock_like_comm
+):
+    from src.services.core.instagram_agent import process_instagram_webhook
+    mock_db = AsyncMock()
+    mock_gen_reply.return_value = "Izohingiz uchun rahmat! Directga yozdim."
+
+    payload = {
+        "object": "instagram",
+        "entry": [
+            {
+                "id": "page_id",
+                "changes": [
+                    {
+                        "field": "comments",
+                        "value": {
+                            "id": "comm_999",
+                            "text": "Menga fast-food uchun nom kerak",
+                            "verb": "add",
+                            "from": {"id": "user_888", "username": "tadbirkor_ali"}
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    await process_instagram_webhook(payload, mock_db)
+    mock_reply_comm.assert_called_once()
+    mock_priv_reply.assert_called_once()
+    assert mock_priv_reply.call_args[0][0] == "comm_999"
+
