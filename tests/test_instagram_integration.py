@@ -389,8 +389,8 @@ def test_generate_initial_dm_message():
     from src.services.core.instagram.lead_qualifier import generate_initial_dm_message
     msg = generate_initial_dm_message("Sardor", "nom", "Fast-food post")
     assert "Sardor" in msg
-    assert "Baxtiyorjon Gaziyev" in msg
-    assert "menejerlaridan biri Oishaman" in msg
+    assert "Baxtiyor Gaziyev" in msg
+    assert "menejerlari Oishaman" in msg
     assert "Jon Branding" not in msg
     assert "nomlash" in msg
 
