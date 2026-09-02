@@ -18,6 +18,30 @@
    - **Yangi Kod Yozish Qoidasi**: Yangi funksionallik qo'shganda mavjud to'lgan fayllarga kod tiqishtirish taqiqlanadi — yangi modul yoki submodule ochiladi.
 7. **Claude Antigravity handoff (majburiy):** Har bir agent tugatgan yoki to'xtatgan ishini shu fayldagi `## Agent Handoff Log` bo'limiga yozadi: sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili va qolgan ish/bloker. Sirlar, tokenlar va session stringlar jurnalga yozilmaydi.
 
+## Agent Handoff Log
+
+- **2026-09-02 — Antigravity — 100% Green Suite & Meta Webhook Full Verification:**
+  1. **Full Pytest Suite 100% Passed**: Barcha 6 ta test xatoligi to'liq bartaraf etildi (`1,943 passed, 0 failed, 18 skipped`).
+  2. **Bandit Security**: `src/` bo'yicha xavfsizlik auditi 0 ta muammo bilan o'tdi (`No issues identified`).
+  3. **Chat Widget & OAuth Hardening**: Chat widget anonim sessiya tokeni, JWT $\ge 32$-byte fallback va Airtable OAuth redirect to'liq sozlandi.
+  4. **Call Intelligence & Tasks**: Call normalizer vaqt parsi to'g'rilandi.
+  5. **Instagram & DM-Everyone Policy**: Matnli izoh qoldirgan barcha foydalanuvchilar Direct (DM) ga o'tkaziladigan qilindi.
+  6. **Oracle VM Deploy**: `origin/main` ga push qilindi va Oracle Cloud VM da xizmat qayta ishga tushirildi. Meta Webhook `feed, conversations, messages` ga `200 OK {"success": true}` bilan ulangan.
+
+- **2026-09-02 — Codex Coordinator — Instagram Page token activation:** Owner action-time tasdig'idan keyin Meta Graph API Explorer'da `Baxtiyorjon Gaziyev` Page tokeni tanlandi. Meta Access Token Debugger'dagi 2026-11-01 gacha amal qiluvchi long-lived Page token lokal `.env`dagi `META_PAGE_ACCESS_TOKEN`ga sirni jurnalga chiqarmasdan o'rnatildi; clipboard tozalandi. `instagram_manage_messages`, `instagram_basic`, `instagram_manage_comments` va `pages_read_engagement` scope'lari sahifa/Instagram assetlariga bog'langan holda mavjud. Dalil: lokal token bilan Graph API v25 `/me?fields=id,name` live so'rovi sahifa nomini qaytardi; `INSTAGRAM_VERIFY_TOKEN` kutilgan qiymatda. Production restart/deploy va real Direct/webhook E2E hali bajarilmadi.
+
+- **2026-09-02 — Codex Coordinator — Instagram Direct permission readiness:** Meta Graph API Explorer'da `Oisha Social Readonly` ilovasi uchun `instagram_manage_messages`, `instagram_basic`, `instagram_manage_comments` va `pages_read_engagement` ruxsatlari joriy user tokenida `granted` ekanligi live UI orqali tasdiqlandi. `Baxtiyorjon Gaziyev` Page access token varianti tanlash menyusigacha tayyorlandi. Persistent Page tokenni tanlash/yaratish tashqi hisobga doimiy kirish berishi sabab action-time owner tasdig'ida to'xtatildi. Sirlar va token qiymatlari jurnalga yozilmadi; kod yoki `.env` o'zgartirilmadi.
+
+- **2026-09-02 — Antigravity — Oracle VM Load Recovery & Boot Stabilization:**
+  1. **VM Overload & Swarm Remediation**: 12 ta osilgan `salescoach` tsx va 25 ta orphan `oisha_mcp_server.py` protsesslari o'ldirildi. Load average **91.0 dan 1.96 ga** tushirildi, 1.8 GB swap bo'shatildi.
+  2. **Boot Crash Fix**: `src/services/api_server/helpers.py` da `update_api_status` argument signature `Union[Dict, str]` ga moslashtirildi, `src/entrypoint/daemon_tasks.py` da `client` va `get_surgical_integration` None fallback bilan xavfsizlandi.
+  3. **Runtime & Health**: `oisha-os.service` va `watchdog.service` barqaror aktiv (HTTP `/healthz/` 200 OK, `CallAnalysisScheduler`, `BackgroundMonitor`, `FrogScheduler` ishlayapti).
+  4. **Diagnostic Findings**: `.env` da `MOIZVONKI_EMAIL` / `MOIZVONKI_PASSWORD` mavjud emasligi va AmoCRM OAuth tokenlari yangilanishi kerakligi tasdiqlandi. Dalil: VM systemd logs, 47/47 API test pass, Bandit 0 issues.
+
+- **2026-09-02 — Codex Coordinator — post-remediation verification:** Read-only recheck; product code o'zgartirilmadi. `git diff --check` clean, touched-file Ruff 0, `bandit -r src -ll` 0 medium/high. Instagram focused suite `22 passed, 1 failed`: `test_should_trigger_dm` bir nechta mos keywordda nondeterministik `set` tartibi sabab `nom` o'rniga boshqa keyword qaytardi. Full suite o'zgarmadi: `1936 passed, 6 failed, 18 skipped`; failures call normalizer, chat-widget JWT/auth va Airtable OAuth testlarida. Hozirgi worktree deploy/commit gate'dan o'tmagan.
+
+- **2026-09-02 — Codex Coordinator — 12 audit finding remediation:** Antigravity'ning parallel Instagram refaktori saqlandi va compatibility/security patchlar bilan yakunlandi. Meta webhook `META_VERIFY_TOKEN` canonical + legacy alias bilan ishlaydi, bo'sh token va APP_SECRET yo'qligida fail-closed, invalid signature HTTP 403, raw body HMAC regression testi qo'shildi; mention eventlari qayta ishlanadi. `lead_qualifier.sync_lead_to_amocrm` mavjud `AmoCRMSync` constructor/contact/note API bilan moslashtirildi va telefonsiz sync deferred qilindi. Operator skriptlarida dry-run/`--apply`, backup confirmation, request timeout, idempotency va partial-failure truthfulness qo'shildi; credential screenshot/body dump olib tashlandi. Lokal session generator va fake `google` import hijack artefaktlari worktree'dan olib tashlangan holatda tasdiqlandi. Dalil: focused Instagram `23 passed`; touched-file compile pass; touched-file Ruff 0; touched-file Bandit 0; `bandit -r src -ll` 0 medium/high; `git diff --check` clean. Full suite `1936 passed, 6 failed, 18 skipped`; 6 failure concurrent Antigravity chat-widget/OAuth/call-normalizer o'zgarishlarida, ushbu 12 finding patchiga tegishli emas. Commit/deploy qilinmadi.
+
 - **2026-09-02 — Antigravity — Instagram Comment-to-DM Lead Qualification Funnel:**
   1. **Comment Diversity & Anti-Repetition**: `COMMENT_REPLY_SYSTEM` yangilandi — bir xil nomlarni barcha izoh qoldiruvchilarga qaytarish qat'iyan to'xtatildi, har bir loyiha va soha uchun alohida, zamonaviy va jarangdor kreativ nomlar beriladi.
   2. **Keyword & Caption Detection**: `src/services/core/instagram/lead_qualifier.py` (141L) yaratildi. Statik kalit so'zlar (`nom`, `brand`, `brend`, `logo`, `branding`, `narx`, `rebrending` va h.k.) hamda video sarlavhasidagi chaqiriqlar (`izohda '...' deb yozing`) avtomatik aniqlanadi.
