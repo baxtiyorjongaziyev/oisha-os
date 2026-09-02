@@ -165,17 +165,17 @@ async def test_notify_crm(mock_post):
 @pytest.mark.asyncio
 @patch("src.services.core.instagram_agent.send_ig_reply")
 @patch("src.services.core.instagram_agent.notify_crm")
-@patch("src.services.core.instagram_agent.AutonomousSalesAgent")
-async def test_process_instagram_webhook_dm(mock_agent_class, mock_notify, mock_send_reply):
+@patch(
+    "src.services.core.instagram.lead_qualifier.generate_qualifying_dm_response",
+    new_callable=AsyncMock,
+    return_value="[SAVE_INFO: phone=+998991234567] Salom, xabarni qabul qildim",
+)
+@patch("src.services.core.instagram.lead_qualifier.sync_lead_to_amocrm")
+async def test_process_instagram_webhook_dm(mock_sync, mock_qual, mock_notify, mock_send_reply):
     mock_db = AsyncMock()
     mock_db.log_message = AsyncMock()
     mock_db.upsert_user = AsyncMock()
-
-    mock_agent_instance = MagicMock()
-    mock_agent_instance.handle_incoming = AsyncMock(return_value={
-        "response": "[SAVE_INFO: phone=+998991234567] Salom, xabarni qabul qildim"
-    })
-    mock_agent_class.return_value = mock_agent_instance
+    mock_db.get_recent_messages = AsyncMock(return_value=[])
 
     payload = {
         "object": "instagram",
@@ -194,12 +194,51 @@ async def test_process_instagram_webhook_dm(mock_agent_class, mock_notify, mock_
 
     await process_instagram_webhook(payload, mock_db)
 
+    mock_qual.assert_awaited_once()               # qualification funnel, not sales agent
     mock_db.log_message.assert_any_call("ig_112233", "Qalay ishlar?", is_ai=False)
     mock_db.log_message.assert_any_call("ig_112233", "Salom, xabarni qabul qildim", is_ai=True)
     mock_db.upsert_user.assert_called_once_with("ig_112233", "Foydalanuvchi", phone="+998991234567")
     from unittest.mock import ANY
     mock_send_reply.assert_called_once_with("112233", "Salom, xabarni qabul qildim", ANY)
-    mock_notify.assert_called_once_with("Instagram DM", "Foydalanuvchi", "112233", "Qalay ishlar?", "[SAVE_INFO: phone=+998991234567] Salom, xabarni qabul qildim")
+    mock_sync.assert_called_once()                # phone present -> AmoCRM lead
+
+
+@pytest.mark.asyncio
+@patch("src.services.core.instagram_agent.send_ig_reply")
+@patch("src.services.core.instagram_agent.notify_crm")
+@patch(
+    "src.services.core.instagram.lead_qualifier.generate_qualifying_dm_response",
+    new_callable=AsyncMock,
+    return_value="Rahmat, qaysi sohada ishlaysiz?",
+)
+async def test_process_instagram_webhook_dm_changes_format(mock_qual, mock_notify, mock_send_reply):
+    """IG Graph delivers DMs via changes[] field=messages, not messaging[]."""
+    mock_db = AsyncMock()
+    mock_db.get_recent_messages = AsyncMock(return_value=[])
+
+    payload = {
+        "object": "instagram",
+        "entry": [
+            {
+                "id": "entry_1",
+                "changes": [
+                    {
+                        "field": "messages",
+                        "value": {
+                            "sender": {"id": "998877"},
+                            "message": "Salom, narx qancha?",
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+    await process_instagram_webhook(payload, mock_db)
+
+    mock_qual.assert_awaited_once()
+    from unittest.mock import ANY
+    mock_send_reply.assert_called_once_with("998877", "Rahmat, qaysi sohada ishlaysiz?", ANY)
 
 
 @pytest.mark.asyncio
