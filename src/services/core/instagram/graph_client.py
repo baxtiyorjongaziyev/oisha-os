@@ -29,17 +29,25 @@ class InstagramGraphClient:
     def __init__(self, settings_obj=None):
         self.settings = settings_obj or settings
         self.instagram_account_id = (
-            getattr(self.settings, "META_INSTAGRAM_USER_ID", None)
+            os.environ.get("META_INSTAGRAM_USER_ID", "").strip()
+            or getattr(self.settings, "META_INSTAGRAM_USER_ID", None)
             or getattr(self.settings, "META_INSTAGRAM_ACCOUNT_ID", None)
             or ""
         )
-        self.page_id = getattr(self.settings, "META_PAGE_ID", None) or ""
+        self.page_id = (
+            os.environ.get("META_PAGE_ID", "").strip()
+            or getattr(self.settings, "META_PAGE_ID", None)
+            or ""
+        )
         self.api_version = (
             os.environ.get("META_GRAPH_API_VERSION", "").strip() or "v19.0"
         )
 
     @property
     def access_token(self) -> str:
+        env_token = os.environ.get("META_PAGE_ACCESS_TOKEN", "").strip()
+        if env_token:
+            return env_token
         token = getattr(self.settings, "META_PAGE_ACCESS_TOKEN", None)
         if token is None:
             return ""
