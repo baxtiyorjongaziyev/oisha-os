@@ -341,7 +341,6 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
 
             from src.services.core.instagram.lead_qualifier import (
                 generate_qualifying_dm_response,
-                sync_lead_to_amocrm,
             )
             ai_reply = await generate_qualifying_dm_response(
                 user_message=text,
@@ -361,16 +360,9 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
             if db:
                 await db.log_message(user_id_str, clean_reply, is_ai=True)
 
-            phone_num = info_updates.get("phone", "").strip()
-            if phone_num:
-                contact_name = info_updates.get("name") or "Instagram Mijoz"
-                sync_lead_to_amocrm(
-                    name=contact_name,
-                    phone=phone_num,
-                    lead_name=f"Instagram: {contact_name}",
-                    details=f"Mijoz: {text}\nBaxtiyor: {clean_reply}",
-                )
-
+            # NOTE: AmoCRM already ingests Instagram DMs via its own native
+            # integration and opens the deal itself. Do NOT create a second
+            # deal here — it produces junk "Instagram DM: <id>" duplicates.
             send_ig_reply(sender_id, clean_reply, access_token)
             notify_crm("Instagram DM", "Foydalanuvchi", sender_id, text, ai_reply)
 
