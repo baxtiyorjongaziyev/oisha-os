@@ -193,6 +193,8 @@ async def test_process_instagram_webhook_dm(mock_sync, mock_qual, mock_notify, m
     mock_db.log_message = AsyncMock()
     mock_db.upsert_user = AsyncMock()
     mock_db.get_recent_messages = AsyncMock(return_value=[])
+    # AmoCRM ingests IG DMs via its own native integration; we must NOT
+    # create a duplicate deal from the webhook handler.
 
     payload = {
         "object": "instagram",
@@ -217,7 +219,7 @@ async def test_process_instagram_webhook_dm(mock_sync, mock_qual, mock_notify, m
     mock_db.upsert_user.assert_called_once_with("ig_112233", "Foydalanuvchi", phone="+998991234567")
     from unittest.mock import ANY
     mock_send_reply.assert_called_once_with("112233", "Salom, xabarni qabul qildim", ANY)
-    mock_sync.assert_called_once()                # phone present -> AmoCRM lead
+    mock_sync.assert_not_called()                 # AmoCRM opens the deal natively — no duplicate
 
 
 @pytest.mark.asyncio
