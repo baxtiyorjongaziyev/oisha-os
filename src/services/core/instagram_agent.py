@@ -361,12 +361,13 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
             if db:
                 await db.log_message(user_id_str, clean_reply, is_ai=True)
 
-            phone_num = info_updates.get("phone", "")
-            if phone_num or "quality=sifatli" in ai_reply.lower():
+            phone_num = info_updates.get("phone", "").strip()
+            if phone_num:
+                contact_name = info_updates.get("name") or "Instagram Mijoz"
                 sync_lead_to_amocrm(
-                    name=info_updates.get("name", "Instagram Mijoz"),
+                    name=contact_name,
                     phone=phone_num,
-                    lead_name=f"Instagram DM: {info_updates.get('name', sender_id)}",
+                    lead_name=f"Instagram: {contact_name}",
                     details=f"Mijoz: {text}\nBaxtiyor: {clean_reply}",
                 )
 
