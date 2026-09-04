@@ -115,13 +115,28 @@ class Customer360ObsidianSyncer:
     async def sync_profile(self, profile: Customer360Profile) -> str:
         """Write profile to all local vaults and git push."""
         content = self.format_markdown(profile)
-        filename = f"{self._sanitize_filename(profile.name)}.md"
+        safe_name = self._sanitize_filename(profile.name)
+        filename = f"{safe_name} — Mijoz 360.md"
         written_paths = []
 
         for vault in self.vault_paths:
-            folder = os.path.join(vault, "70-Mijozlar")
-            os.makedirs(folder, exist_ok=True)
-            filepath = os.path.join(folder, filename)
+            c20 = os.path.join(vault, "20-CLIENTS")
+            m70 = os.path.join(vault, "70-Mijozlar")
+            if os.path.exists(m70) and not os.path.exists(c20):
+                filename = f"{safe_name}.md"
+                os.makedirs(m70, exist_ok=True)
+                filepath = os.path.join(m70, filename)
+            else:
+                filename = f"{safe_name} — Mijoz 360.md"
+                target_dir = os.path.join(c20, safe_name)
+                if os.path.exists(c20) and not os.path.exists(target_dir):
+                    for existing in os.listdir(c20):
+                        if safe_name.lower() in existing.lower():
+                            target_dir = os.path.join(c20, existing)
+                            break
+                os.makedirs(target_dir, exist_ok=True)
+                filepath = os.path.join(target_dir, filename)
+
             try:
                 await asyncio.to_thread(self._write_file, filepath, content)
                 written_paths.append(filepath)
@@ -146,7 +161,7 @@ class Customer360ObsidianSyncer:
 
         def _do_git():
             try:
-                subprocess.run(["git", "-C", primary_vault, "add", "70-Mijozlar/"], capture_output=True)
+                subprocess.run(["git", "-C", primary_vault, "add", "20-CLIENTS/"], capture_output=True)
                 subprocess.run(["git", "-C", primary_vault, "commit", "-m", "docs(c360): sync customer profile"], capture_output=True)
                 subprocess.run(["git", "-C", primary_vault, "push", "origin", "master"], capture_output=True, timeout=15)
                 logger.info("[C360] Pushed customer 360 updates to GitHub.")

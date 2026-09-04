@@ -77,8 +77,8 @@ async def test_obsidian_syncer_file_write(sample_profile: Customer360Profile):
         filepath = await syncer.sync_profile(sample_profile)
 
         assert os.path.exists(filepath)
-        assert "70-Mijozlar" in filepath
-        assert "Kamila Pardalari.md" in filepath
+        assert ("20-CLIENTS" in filepath or "70-Mijozlar" in filepath)
+        assert "Kamila Pardalari" in filepath
 
         with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()

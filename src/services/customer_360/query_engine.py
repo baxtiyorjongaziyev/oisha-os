@@ -48,22 +48,38 @@ class Customer360QueryEngine:
         self.gemini_api_key = gemini_api_key or os.getenv("GEMINI_API_KEY")
 
     def _find_obsidian_card(self, client_query: str) -> Optional[str]:
-        """Search for existing Obsidian customer card in 70-Mijozlar."""
+        """Search for existing Obsidian customer card in 20-CLIENTS and 70-Mijozlar."""
         clean = client_query.strip().lower()
         for vault in self.vault_paths:
+            # 1. Search in 20-CLIENTS
+            c20 = os.path.join(vault, "20-CLIENTS")
+            if os.path.exists(c20):
+                for root, _, files in os.walk(c20):
+                    for f in files:
+                        if f.endswith(".md"):
+                            f_low = f.lower()
+                            folder_low = os.path.basename(root).lower()
+                            if clean in f_low or clean in folder_low:
+                                filepath = os.path.join(root, f)
+                                try:
+                                    with open(filepath, "r", encoding="utf-8", errors="ignore") as fp:
+                                        return fp.read()
+                                except Exception as e:
+                                    logger.debug(f"[C360] Read error {filepath}: {e}")
+
+            # 2. Fallback in 70-Mijozlar
             folder = os.path.join(vault, "70-Mijozlar")
-            if not os.path.exists(folder):
-                continue
-            for f in os.listdir(folder):
-                if f.endswith(".md"):
-                    name_part = f[:-3].lower()
-                    if clean in name_part or name_part in clean:
-                        filepath = os.path.join(folder, f)
-                        try:
-                            with open(filepath, "r", encoding="utf-8", errors="ignore") as fp:
-                                return fp.read()
-                        except Exception as e:
-                            logger.debug(f"[C360] Read error {filepath}: {e}")
+            if os.path.exists(folder):
+                for f in os.listdir(folder):
+                    if f.endswith(".md"):
+                        name_part = f[:-3].lower()
+                        if clean in name_part or name_part in clean:
+                            filepath = os.path.join(folder, f)
+                            try:
+                                with open(filepath, "r", encoding="utf-8", errors="ignore") as fp:
+                                    return fp.read()
+                            except Exception as e:
+                                logger.debug(f"[C360] Read error {filepath}: {e}")
         return None
 
     async def answer_query(self, query: str, client_name_or_phone: Optional[str] = None) -> str:
