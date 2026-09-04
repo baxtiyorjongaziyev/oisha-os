@@ -247,7 +247,9 @@ async def _fetch_manager_card_rows() -> list:
         raise RuntimeError("database_not_connected")
     conn = await api_state.db_instance.get_connection()
     result = conn.execute(
-        f"SELECT {', '.join(_MANAGER_CARD_COLUMNS)} FROM call_analyses "
+        "SELECT call_id, lead_id, manager_id, manager_name, client_name, "
+        "duration_seconds, overall_score, scores, converted, lead_won, "
+        "lead_price, audio_url, outcome, analyzed_at FROM call_analyses "
         "ORDER BY created_at DESC LIMIT 500"
     )
     if hasattr(result, "__await__"):
