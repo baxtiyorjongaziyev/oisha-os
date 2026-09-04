@@ -20,6 +20,12 @@
 
 ## Agent Handoff Log
 
+- **2026-09-04 — Antigravity — YouTube Integration Merge & Test Drift Resolution:**
+  1. **YouTube Integration Merged**: `8ab18b98` (`scripts/youtube_oauth_setup.py`) `origin/main` ga to'liq fast-forward merge qilindi va push etildi.
+  2. **Instagram Test Drift Fixed**: `tests/test_instagram_graph_client.py` dagi patch yo'li `src.services.core.instagram.graph_client.requests.get` ga yo'naltirildi, `InstagramGraphClient` da explicit `settings_obj` ustuvorligi ta'minlandi.
+  3. **Verification**: 29/29 barcha Instagram testlari 100% yashil o'tdi (`29 passed in 12.01s`). Bandit auditi toza (`No issues identified`).
+  4. **Next**: Google Cloud Console'dan `YOUTUBE_CLIENT_ID` va `YOUTUBE_CLIENT_SECRET` kiritilib, `python scripts/youtube_oauth_setup.py` orqali refresh token olinishi kutilmoqda.
+
 - **2026-09-02 — Antigravity — 100% Green Suite & Meta Webhook Full Verification:**
   1. **Full Pytest Suite 100% Passed**: Barcha 6 ta test xatoligi to'liq bartaraf etildi (`1,943 passed, 0 failed, 18 skipped`).
   2. **Bandit Security**: `src/` bo'yicha xavfsizlik auditi 0 ta muammo bilan o'tdi (`No issues identified`).
