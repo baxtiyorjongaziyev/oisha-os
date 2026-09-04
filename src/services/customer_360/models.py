@@ -75,6 +75,10 @@ class Customer360Profile:
     airtable_deadline: str = ""
     calls: List[CallInteraction] = field(default_factory=list)
     telegram_messages: List[str] = field(default_factory=list)
+    telegram_group_id: Optional[int] = None
+    telegram_group_title: str = ""
+    telegram_group_link: str = ""
+    telegram_group_messages: List[str] = field(default_factory=list)
     instagram_interactions: List[str] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
     updated_at: str = field(
@@ -101,6 +105,10 @@ class Customer360Profile:
             "airtable_deadline": self.airtable_deadline,
             "calls": [c.to_dict() for c in self.calls],
             "telegram_messages": self.telegram_messages,
+            "telegram_group_id": self.telegram_group_id,
+            "telegram_group_title": self.telegram_group_title,
+            "telegram_group_link": self.telegram_group_link,
+            "telegram_group_messages": self.telegram_group_messages,
             "instagram_interactions": self.instagram_interactions,
             "notes": self.notes,
             "updated_at": self.updated_at,
