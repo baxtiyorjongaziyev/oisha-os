@@ -51,6 +51,17 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         logger.warning("[IG-BACKFILL] Comment backfill loop unavailable: %s", exc)
 
     try:
+        from src.schedulers.youtube_comment_backfill_scheduler import (
+            youtube_comment_backfill_loop,
+        )
+        asyncio.create_task(
+            youtube_comment_backfill_loop(),
+            name="youtube_comment_backfill_loop",
+        )
+    except ImportError as exc:
+        logger.warning("[YT-BACKFILL] YouTube comment loop unavailable: %s", exc)
+
+    try:
         from src.schedulers.call_analysis_scheduler import call_analysis_loop
         asyncio.create_task(call_analysis_loop(), name="call_analysis_loop")
     except ImportError as exc:
