@@ -47,7 +47,8 @@ async def ask_about_client(payload: ClientQuestionRequest):
             phone=payload.phone,
         )
     except ClientQAError as exc:
-        return JSONResponse(status_code=400, content={"error": str(exc)})
+        logger.warning("[CLIENT_QA] ask_about_client rejected: %s", exc)
+        return JSONResponse(status_code=400, content={"error": "client_qa_failed"})
     except Exception as exc:
         logger.exception("[CLIENT_QA] ask_about_client failed: %s", exc)
         return JSONResponse(status_code=500, content={"error": "internal_error"})
