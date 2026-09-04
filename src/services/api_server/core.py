@@ -120,6 +120,7 @@ from src.api.routes.finance_dashboard import router as finance_dashboard_router
 from src.api.routes.marketing_dashboard import router as marketing_router
 from src.api.routes.callmaster_routes import router as callmaster_router
 from src.api.routes.dashboard_overview import router as dashboard_overview_router
+from src.api.routes.client_qa import router as client_qa_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
@@ -140,6 +141,7 @@ app.include_router(finance_dashboard_router)
 app.include_router(marketing_router)
 app.include_router(callmaster_router)
 app.include_router(dashboard_overview_router)
+app.include_router(client_qa_router)
 
 app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
 app.add_api_route("/healthz", liveness_probe, methods=["GET"], include_in_schema=False)
