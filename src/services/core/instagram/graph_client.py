@@ -28,23 +28,37 @@ class InstagramGraphClient:
 
     def __init__(self, settings_obj=None):
         self.settings = settings_obj or settings
-        self.instagram_account_id = (
-            os.environ.get("META_INSTAGRAM_USER_ID", "").strip()
-            or getattr(self.settings, "META_INSTAGRAM_USER_ID", None)
-            or getattr(self.settings, "META_INSTAGRAM_ACCOUNT_ID", None)
-            or ""
-        )
-        self.page_id = (
-            os.environ.get("META_PAGE_ID", "").strip()
-            or getattr(self.settings, "META_PAGE_ID", None)
-            or ""
-        )
+        if settings_obj is not None:
+            self.instagram_account_id = (
+                getattr(settings_obj, "META_INSTAGRAM_USER_ID", None)
+                or getattr(settings_obj, "META_INSTAGRAM_ACCOUNT_ID", None)
+                or ""
+            )
+            self.page_id = getattr(settings_obj, "META_PAGE_ID", None) or ""
+        else:
+            self.instagram_account_id = (
+                os.environ.get("META_INSTAGRAM_USER_ID", "").strip()
+                or getattr(self.settings, "META_INSTAGRAM_USER_ID", None)
+                or getattr(self.settings, "META_INSTAGRAM_ACCOUNT_ID", None)
+                or ""
+            )
+            self.page_id = (
+                os.environ.get("META_PAGE_ID", "").strip()
+                or getattr(self.settings, "META_PAGE_ID", None)
+                or ""
+            )
         self.api_version = (
             os.environ.get("META_GRAPH_API_VERSION", "").strip() or "v19.0"
         )
 
     @property
     def access_token(self) -> str:
+        if self.settings is not settings and hasattr(self.settings, "META_PAGE_ACCESS_TOKEN"):
+            token = getattr(self.settings, "META_PAGE_ACCESS_TOKEN", None)
+            if token is None:
+                return ""
+            getter = getattr(token, "get_secret_value", None)
+            return getter() if callable(getter) else str(token)
         env_token = os.environ.get("META_PAGE_ACCESS_TOKEN", "").strip()
         if env_token:
             return env_token
