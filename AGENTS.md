@@ -20,6 +20,13 @@
 
 ## Agent Handoff Log
 
+- **2026-09-04 — Antigravity — Omnichannel Customer 360 Ecosystem & Obsidian Sync:**
+  1. **Yangi Modul**: `src/services/customer_360/` yaratildi (`models.py`, `collector.py`, `obsidian_syncer.py`, `query_engine.py`, `__init__.py`). Barcha fayllar 400 qator standartiga mos (18-224L).
+  2. **Call Analytics Integratsiyasi**: `src/services/call_analytics/runner.py` ga `_sync_call_to_customer_360` ulandi. Qo'ng'iroq STT tahlili tugashi bilan xulosa AmoCRM bilan bir qatorda Obsidian mijoz kartasiga (`70-Mijozlar/`) avtomatik yoziladi.
+  3. **Admin Bot `/client`**: `src/services/core/admin_bot/handlers_search.py` ga `/client <ism/telefon>` buyrug'i qo'shildi, barcha tizimlardan (AmoCRM, Airtable, Calls, TG, IG) 360 dosye beradi.
+  4. **Initial Sync & Verification**: `scripts/sync_customer_360_obsidian.py` orqali ilk 7 ta mijoz Obsidian kartalari yaratildi va GitHub'ga push qilindi. Testlar: 4/4 Customer 360 va 27/27 Call Analytics testlari 100% yashil (`pytest`), Bandit 0 issues.
+
+
 - **2026-09-04 — Antigravity — YouTube Integration Merge & Test Drift Resolution:**
   1. **YouTube Integration Merged**: `8ab18b98` (`scripts/youtube_oauth_setup.py`) `origin/main` ga to'liq fast-forward merge qilindi va push etildi.
   2. **Instagram Test Drift Fixed**: `tests/test_instagram_graph_client.py` dagi patch yo'li `src.services.core.instagram.graph_client.requests.get` ga yo'naltirildi, `InstagramGraphClient` da explicit `settings_obj` ustuvorligi ta'minlandi.
