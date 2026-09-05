@@ -90,11 +90,14 @@ def test_restart_does_not_resend():
     assert send.await_count == 1
 
 
-def test_two_daily_slots_still_fire():
+def test_only_once_per_day_across_both_slots():
+    """Kuniga BITTA deadline hisoboti. 10:00 va 15:00 oynalari bitta kunlik
+    kalitni bo'lishadi — ikkinchi oyna qayta yubormaydi. (Ilgari kuniga 2
+    marta edi; ikki oynali kalit + 2 scheduler spam manbai edi.)"""
     send = AsyncMock()
     times = [datetime.datetime(2026, 8, 27, 10, 0), datetime.datetime(2026, 8, 27, 15, 0)]
     _run_checks(times, send, DEADLINES)
-    assert send.await_count == 2
+    assert send.await_count == 1
 
 
 def test_failed_send_releases_claim_for_retry():
@@ -102,7 +105,23 @@ def test_failed_send_releases_claim_for_retry():
     times = [datetime.datetime(2026, 8, 27, 10, 0), datetime.datetime(2026, 8, 27, 10, 5)]
     _run_checks(times, send, DEADLINES)
     assert send.await_count == 2
-    assert ("airtable_deadline_alert_10", "2026-08-27") in FakeDB.claims
+    # Kunlik kalit — yuborish muvaffaqiyatidan keyin claim saqlanadi.
+    assert ("airtable_deadline_alert_2026-08-27", "2026-08-27") in FakeDB.claims
+
+
+def test_success_then_next_window_does_not_resend():
+    """Regressiya: 27.08 dagi 12 martalik spam. Muvaffaqiyatli yuborishdan
+    keyin claim RELEASE QILINMAYDI — keyingi 5-daqiqalik loop qayta yubormaydi."""
+    send = AsyncMock()
+    times = [datetime.datetime(2026, 8, 27, 17, m) for m in (2, 7, 12, 17, 22, 58)]
+    # 17:xx oynadan tashqari — umuman yubormasligi kerak.
+    _run_checks(times, send, DEADLINES)
+    assert send.await_count == 0
+
+    send2 = AsyncMock()
+    times2 = [datetime.datetime(2026, 8, 27, 10, m) for m in (0, 5, 10)]
+    _run_checks(times2, send2, DEADLINES)
+    assert send2.await_count == 1
 
 
 def test_restart_without_db_does_not_resend():
@@ -139,7 +158,7 @@ def test_stale_claim_files_are_pruned():
     os.makedirs(pw._DEADLINE_CLAIM_DIR, exist_ok=True)
     open(old_file, "w").close()
     os.utime(old_file, (0, 0))  # 1970 — juda eski
-    assert pw._claim_on_disk("airtable_deadline_alert_10_2026-08-27") is True
+    assert pw._claim_on_disk("airtable_deadline_alert_2026-08-27_2026-08-27") is True
     assert not os.path.exists(old_file)
 
 

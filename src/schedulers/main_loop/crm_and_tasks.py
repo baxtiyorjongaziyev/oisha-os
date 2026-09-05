@@ -28,8 +28,10 @@ async def run_stagnation_and_tasks(now: datetime, monitor_fn: Any) -> None:
     await check_airtable_stagnation()
     await check_client_journey_excellence()
     
-    if now.hour in [10, 15] and now.minute < 5:
-        await check_airtable_deadlines()
+    # Filtr funksiya ichida (soat + atomik DB claim). Tashqi minute oynasi
+    # olib tashlandi — u ikkinchi scheduler bilan birga takror yuborishga
+    # yo'l ochardi. check_airtable_deadlines() o'zi kuniga bir marta ishlaydi.
+    await check_airtable_deadlines()
 
     # AmoCRM task due/overdue alert dispatch (Follow-up topic)
     try:

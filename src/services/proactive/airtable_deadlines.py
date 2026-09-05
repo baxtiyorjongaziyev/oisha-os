@@ -88,11 +88,16 @@ async def check_airtable_deadlines():
     today = now.strftime("%Y-%m-%d")
     target_hours = [10, 15]
 
-    # 1) Strict hour + minute filter
-    if now.hour not in target_hours or now.minute > 10:
+    # 1) Strict hour filter. Minute oynasi OLIB TASHLANDI: agar loop 10:00–10:10
+    # orasida bir necha marta ishlasa, oyna har run'da qayta yuborishга ruxsat
+    # berardi. Endi butun soat davomida bitta claim yetarli.
+    if now.hour not in target_hours:
         return  # Silent skip — no log spam
 
-    job_key = f"airtable_deadline_alert_{now.hour}"
+    # Bitta kunlik kalit (soat emas). 10:00 va 15:00 ni ajratmaymiz — kuniga
+    # bitta deadline hisoboti kifoya. Ikki oynali kalit ("_{now.hour}") ikki
+    # scheduler + restart bilan birga takror yuborishning asosiy sababi edi.
+    job_key = f"airtable_deadline_alert_{today}"
 
     # 2) In-memory dedup (fastest, no I/O)
     mem_key = f"{job_key}_{today}"
@@ -104,12 +109,18 @@ async def check_airtable_deadlines():
         _resolve('_deadline_sent_keys', _deadline_sent_keys).add(mem_key)
         return
 
-    # 4) DB claim (atomik, ko'p host / parallel loop'lardan himoya qiladi)
+    # 4) DB claim (atomik, ko'p host / parallel loop'lardan himoya qiladi).
+    # Bu YAGONA ishonchli qatlam — mem set va disk lock Cloud Run'da har
+    # instance uchun alohida, shuning uchun ko'p-instance holatida himoya qilmaydi.
     db = None
     claimed_in_db = False
     try:
         db_cls = _resolve('Database', Database)
         db = db_cls()
+        # Oldindan tekshir: agar bugun allaqachon yuborilgan bo'lsa, umuman kirmaymiz.
+        if hasattr(db, "is_job_run") and await db.is_job_run(job_key, today):
+            _resolve('_deadline_sent_keys', _deadline_sent_keys).add(mem_key)
+            return
         claimed_in_db = await db.claim_job_run(job_key, today)
         if not claimed_in_db:
             # Boshqa process allaqachon band qilgan / yuborgan
@@ -126,7 +137,13 @@ async def check_airtable_deadlines():
     logger.info("Project deadline check started...")
 
     async def _release() -> None:
-        """Qayta urinish uchun claim'ni bo'shatish."""
+        """Qayta urinish uchun claim'ni bo'shatish.
+
+        DIQQAT: faqat xabar HALI YUBORILMAGAN bo'lsa chaqirilsin (Airtable
+        fetch xatosi, token yo'q, va h.k.). Xabar yuborilgandan keyin
+        release qilish 5-daqiqalik loop'da takror yuborishga olib keladi —
+        27.08 dagi 12 martalik spam aynan shundan edi.
+        """
         _resolve('_deadline_sent_keys', _deadline_sent_keys).discard(mem_key)
         _release_on_disk(mem_key)
         if db is not None and claimed_in_db:
@@ -175,10 +192,10 @@ async def check_airtable_deadlines():
         deadline = AirtableSync._get_field(fields, "deadline") or "—"
         msg += f"- {p_name} (Bosqich: {stage}, Muddat: {deadline})\n"
 
+    _send_fn = _resolve(
+        "send_group_message_with_fallback", send_group_message_with_fallback
+    )
     try:
-        _send_fn = _resolve(
-            "send_group_message_with_fallback", send_group_message_with_fallback
-        )
         res = _send_fn(
             bot,
             chat_id=group_id,
@@ -189,10 +206,20 @@ async def check_airtable_deadlines():
         )
         if hasattr(res, "__await__"):
             await res
-        logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin.")
     except Exception as e:
-        logger.error(f"[XATO] Airtable deadline alert: {e}")
+        # Yuborish HAQIQATAN muvaffaqiyatsiz — claim'ni bo'shatib, keyingi
+        # oynada qayta urinishga ruxsat beramiz.
+        logger.error(f"[XATO] Airtable deadline alert (yuborilmadi): {e}")
         await _release()
+        return
+
+    # Bu yerga yetdik = xabar yuborildi. Claim MULOZIM SAQLANADI.
+    # Yuborishdan keyingi hech qanday xatolik (log, formatlash, va h.k.)
+    # release'ga sabab bo'lmasin.
+    try:
+        logger.info(f"[PROACTIVE] {len(upcoming)} ta loyiha deadline'i yaqin — xabar yuborildi.")
+    except Exception:
+        pass
 
 
 
