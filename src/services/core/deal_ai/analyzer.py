@@ -8,7 +8,7 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List
 
 from src.services.core.deal_ai.identity import fetch_telegram_messages, gather_identity
 from src.services.core.deal_ai.models import (

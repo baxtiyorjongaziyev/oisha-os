@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import hmac
-import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -14,7 +13,6 @@ from fastapi.responses import JSONResponse
 
 from src.api.routes.state import api_state
 from src.settings import settings
-from src.time_utils import get_local_now
 
 router = APIRouter(tags=["amocrm"])
 logger = logging.getLogger(__name__)
@@ -264,7 +262,7 @@ async def _process_amocrm_event(data: Dict[str, Any]):
 
 
 async def _run_amocrm_call_backfill(runtime_db, *, reason: str = "unknown", limit: int = None):
-    from src.api_server import _get_call_backfill_limit, _timestamp_to_iso
+    from src.api_server import _get_call_backfill_limit
     limit = _get_call_backfill_limit(limit)
     started_at = datetime.now(timezone.utc)
     api_state._call_backfill_last_status = {"started_at": started_at.isoformat(), "reason": reason, "limit": limit}
@@ -309,7 +307,7 @@ async def _schedule_amocrm_call_backfill(runtime_db, *, reason: str = "unknown",
 
 
 async def _build_amocrm_call_analysis_status(runtime_db) -> dict:
-    from src.api_server import _parse_state_json, _timestamp_to_iso
+    from src.api_server import _timestamp_to_iso
 
     last_started_raw = None
     last_finished_raw = None

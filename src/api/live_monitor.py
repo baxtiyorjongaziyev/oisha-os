@@ -13,13 +13,12 @@ Usage:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
 from collections import deque
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Set
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from src.api.rbac import Permission, require_permissions

@@ -4,10 +4,8 @@ Call quality, psychological coaching, and heartbeat jobs mixin for background mo
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import datetime
 
-from src.schedulers.bg_monitor.helpers import _env_enabled
 
 logger = logging.getLogger("BackgroundMonitor")
 

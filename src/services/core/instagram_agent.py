@@ -3,138 +3,67 @@ Instagram / Meta Webhook Event Processor & Agent Core Service
 """
 from __future__ import annotations
 
-import hmac
 import hashlib
+import hmac
 import os
 import re
+from typing import Any, Optional
 import requests
 import structlog
-from typing import Dict, Any, Optional
 
 from src.settings import settings
 from src.agents.autonomous_sales_agent import AutonomousSalesAgent
+from src.services.core.instagram.graph_client import InstagramGraphClient
+from src.services.core.instagram.backfill import backfill_unanswered_comments
+from src.services.core.instagram.lead_qualifier import (
+    should_trigger_dm,
+    generate_initial_dm_message_ai,
+)
 
 logger = structlog.get_logger("InstagramAgent")
 
+COMMENT_REPLY_SYSTEM = (
+    "Sen — Baxtiyor Gaziyevning O'ZISAN. Brending eksperti va art-direktor, "
+    "o'zingning shaxsiy Instagram sahifangdagi izohlarга javob yozyapsan. "
+    "Sahifa mazmuni: brending, nomlash (naming), logo dizayn, keyslar, ijodiy strategiya.\n"
+    "Yozish uslubi:\n"
+    "- TIRIK ODAM kabi yoz. Robot, rasmiy, 'aqlli yordamchi' ohangi TAQIQLANADI.\n"
+    "- 1-shaxsda gapir: 'men', 'menimcha', 'rahmat'. O'zingni 'Oisha' yoki 'yordamchi' dema.\n"
+    "- Do'stona, iliq, jonli. Xuddi tanишингга javob yozayotgandek. Jargon emas, "
+    "oddiy tirik so'zlashув.\n"
+    "- 'Jon Branding' so'zini ishlatma — bu shaxsiy sahifang.\n"
+    "- BIR XIL NOMNI HAMMAGA BERMA: nom/g'oya so'ralsa, har kimга alohida, "
+    "o'ziga xos, jarangdor yangi variant taklif qil.\n"
+    "- Agar izohда nom/brend/logo/narx/xizmat yoki postдаги kalit so'z bo'lsa, "
+    "qisqa jonli javob berib oxирига 'Direct'ингизга yozdim 📩' deb qo'sh.\n"
+    "- O'zbekcha, 1-2 gap. Emoji 0-1 ta.\n"
+    "- Shablon javob YOZMA ('Rahmat! Tez orada javob beramiz' taqiqlanadi)."
+)
 
-class InstagramGraphClient:
-    """Read-only Meta Graph client for the connected Instagram professional account."""
-
-    PROFILE_FIELDS = (
-        "id,username,name,biography,website,followers_count,"
-        "follows_count,media_count,profile_picture_url"
-    )
-    MEDIA_FIELDS = (
-        "id,caption,media_type,media_product_type,permalink,"
-        "thumbnail_url,timestamp,username,like_count,comments_count"
-    )
-
-    def __init__(self, settings_obj=None):
-        self.settings = settings_obj or settings
-        self.instagram_account_id = (
-            getattr(self.settings, "META_INSTAGRAM_USER_ID", None)
-            or getattr(self.settings, "META_INSTAGRAM_ACCOUNT_ID", None)
-            or ""
-        )
-        self.page_id = getattr(self.settings, "META_PAGE_ID", None) or ""
-        self.api_version = (
-            os.environ.get("META_GRAPH_API_VERSION", "").strip() or "v19.0"
-        )
-
-    @property
-    def access_token(self) -> str:
-        token = getattr(self.settings, "META_PAGE_ACCESS_TOKEN", None)
-        if token is None:
-            return ""
-        getter = getattr(token, "get_secret_value", None)
-        return getter() if callable(getter) else str(token)
-
-    @property
-    def configured(self) -> bool:
-        return bool(self.instagram_account_id and self.access_token)
-
-    def _get_json(
-        self, path: str, *, params: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Call one read endpoint without logging or returning the access token."""
-        if not self.configured:
-            return {
-                "ok": False,
-                "error": "instagram_not_configured",
-                "missing": [
-                    name
-                    for name, present in (
-                        ("META_INSTAGRAM_USER_ID", bool(self.instagram_account_id)),
-                        ("META_PAGE_ACCESS_TOKEN", bool(self.access_token)),
-                    )
-                    if not present
-                ],
-            }
-
-        request_params = dict(params or {})
-        request_params["access_token"] = self.access_token
-        url = f"https://graph.facebook.com/{self.api_version}/{path.lstrip('/')}"
-        try:
-            response = requests.get(url, params=request_params, timeout=15)
-            payload = response.json()
-        except requests.RequestException as exc:
-            logger.warning(
-                "[META] Read request failed",
-                endpoint=path,
-                error=type(exc).__name__,
-            )
-            return {"ok": False, "error": "meta_graph_unreachable"}
-        except ValueError:
-            return {
-                "ok": False,
-                "error": "invalid_meta_response",
-                "status_code": response.status_code,
-            }
-
-        if response.status_code >= 400 or payload.get("error"):
-            error = payload.get("error") or {}
-            return {
-                "ok": False,
-                "error": error.get("message") or "meta_graph_error",
-                "error_type": error.get("type"),
-                "error_code": error.get("code"),
-                "status_code": response.status_code,
-            }
-
-        payload["ok"] = True
-        return payload
-
-    def get_profile(self) -> Dict[str, Any]:
-        """Return the connected Creator/Business account profile."""
-        return self._get_json(
-            self.instagram_account_id,
-            params={"fields": self.PROFILE_FIELDS},
-        )
-
-    def list_media(self, limit: int = 10) -> Dict[str, Any]:
-        """Return recent media for the connected account, newest first."""
-        safe_limit = max(1, min(int(limit), 25))
-        return self._get_json(
-            f"{self.instagram_account_id}/media",
-            params={"fields": self.MEDIA_FIELDS, "limit": safe_limit},
-        )
-
-    def get_account_insights(self) -> Dict[str, Any]:
-        """Return a small read-only account insight set for diagnostics."""
-        return self._get_json(
-            f"{self.instagram_account_id}/insights",
-            params={
-                "metric": "reach,profile_views,website_clicks",
-                "period": "day",
-            },
-        )
+__all__ = [
+    "InstagramGraphClient",
+    "verify_signature",
+    "send_ig_reply",
+    "send_ig_private_reply",
+    "like_comment",
+    "reply_to_comment",
+    "fetch_media_caption",
+    "generate_comment_reply",
+    "backfill_unanswered_comments",
+    "notify_crm",
+    "process_instagram_webhook",
+]
 
 
-def verify_signature(payload: bytes, signature: str, app_secret: str) -> bool:
+def verify_signature(payload: Any, signature: str, app_secret: Optional[str] = None) -> bool:
     """Verifies the SHA256 signature from Meta webhook requests."""
-    if not app_secret:
-        logger.warning("[META] APP_SECRET not set, signature verification skipped")
-        return True
+    secret = app_secret
+    if secret is None:
+        secret = settings.META_APP_SECRET.get_secret_value() if settings.META_APP_SECRET else ""
+
+    if not secret:
+        logger.error("[META] APP_SECRET not set, rejecting webhook")
+        return False
 
     if not signature:
         logger.warning("[META] Signature header missing")
@@ -143,38 +72,71 @@ def verify_signature(payload: bytes, signature: str, app_secret: str) -> bool:
     if signature.startswith("sha256="):
         signature = signature[7:]
 
+    if isinstance(payload, bytes):
+        payload_bytes = payload
+    elif isinstance(payload, str):
+        payload_bytes = payload.encode("utf-8")
+    else:
+        import json
+        payload_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
     expected = hmac.new(
-        app_secret.encode("utf-8"), payload, hashlib.sha256
+        secret.encode("utf-8"), payload_bytes, hashlib.sha256
     ).hexdigest()
     return hmac.compare_digest(expected, signature)
 
 
+def _send_ig_message(recipient_payload: dict, text: str, access_token: str, log_tag: str) -> bool:
+    if not access_token or not recipient_payload:
+        logger.warning("[META] %s skipped: access_token or recipient missing", log_tag)
+        return False
+    url = "https://graph.facebook.com/v19.0/me/messages"
+    try:
+        resp = requests.post(
+            url,
+            json={"recipient": recipient_payload, "message": {"text": text}},
+            headers={"Content-Type": "application/json"},
+            params={"access_token": access_token},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            logger.info("[META] %s sent successfully", log_tag)
+            return True
+        logger.error("[META] %s failed", log_tag, status_code=resp.status_code, body=resp.text)
+    except Exception as exc:
+        logger.error("[META] %s exception", log_tag, error=str(exc))
+    return False
+
+
 def send_ig_reply(recipient_id: str, text: str, access_token: str) -> bool:
     """Sends a Direct Message to the user using the Meta Graph API."""
+    return _send_ig_message({"id": recipient_id}, text, access_token, f"DM to {recipient_id}")
+
+
+def send_ig_private_reply(comment_id: str, text: str, access_token: str) -> bool:
+    """Sends a Private Direct Message in response to an Instagram comment."""
+    return _send_ig_message({"comment_id": comment_id}, text, access_token, f"Private DM on comment {comment_id}")
+
+
+def like_comment(comment_id: str, access_token: str) -> bool:
+    """Likes a comment on Instagram via Graph API."""
     if not access_token:
-        logger.warning("[META] PAGE_ACCESS_TOKEN not set, reply not sent")
+        logger.warning("[META] PAGE_ACCESS_TOKEN not set, comment like not sent")
         return False
 
-    url = "https://graph.facebook.com/v19.0/me/messages"
-    payload = {
-        "recipient": {"id": recipient_id},
-        "message": {"text": text}
-    }
-    headers = {"Content-Type": "application/json"}
+    url = f"https://graph.facebook.com/v19.0/{comment_id}/likes"
     params = {"access_token": access_token}
 
     try:
-        resp = requests.post(
-            url, json=payload, headers=headers, params=params, timeout=10
-        )
+        resp = requests.post(url, params=params, timeout=10)
         if resp.status_code == 200:
-            logger.info("[META] DM reply sent successfully", recipient_id=recipient_id)
+            logger.info("[META] Comment liked successfully", comment_id=comment_id)
             return True
         else:
-            logger.error("[META] Failed to send DM reply", status_code=resp.status_code, body=resp.text)
+            logger.error("[META] Failed to like comment", status_code=resp.status_code, body=resp.text)
             return False
     except Exception as exc:
-        logger.error("[META] Exception in send_ig_reply", error=str(exc))
+        logger.error("[META] Exception in like_comment", error=str(exc))
         return False
 
 
@@ -203,6 +165,57 @@ def reply_to_comment(comment_id: str, text: str, access_token: str) -> bool:
         return False
 
 
+def fetch_media_caption(media_id: str, access_token: str) -> str:
+    """Fetches the caption of the post a comment belongs to (for reply context)."""
+    if not media_id or not access_token:
+        return ""
+    url = f"https://graph.facebook.com/v19.0/{media_id}"
+    params = {"fields": "caption", "access_token": access_token}
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        if resp.status_code == 200:
+            return resp.json().get("caption", "") or ""
+        logger.warning("[META] Failed to fetch media caption", status_code=resp.status_code)
+    except Exception as exc:
+        logger.error("[META] Exception in fetch_media_caption", error=str(exc))
+    return ""
+
+
+FALLBACK_COMMENT_REPLIES = [
+    "Fikringiz va e'tiboringiz uchun katta rahmat! 🙌",
+    "Izohingiz uchun tashakkur! Savollaringiz bo'lsa, yordam berishdan xursand bo'lamiz 😊",
+    "Fikringiz biz uchun juda muhim, rahmat! ✨",
+    "Qiziqishingiz va samimiy munosabatingiz uchun rahmat! 🤝",
+]
+
+
+async def generate_comment_reply(comment_text: str, post_caption: str = "", commenter_name: str = "") -> str:
+    """Context-aware reply to an Instagram comment using the free-AI router."""
+    caption_block = f'\nPost matni: "{post_caption[:500]}"' if post_caption else ""
+    prompt = (
+        f"{caption_block}\n"
+        f'{commenter_name} yozgan izoh: "{comment_text}"\n\n'
+        f"Shu izohga Oisha nomidan javob yoz:"
+    )
+    try:
+        from src.services.utils.free_ai_router import get_free_ai_router
+        result = await get_free_ai_router().generate_text(
+            prompt,
+            system=COMMENT_REPLY_SYSTEM,
+            max_tokens=150,
+            temperature=0.6,
+        )
+        reply = (result.text or "").strip().strip('"')
+        if reply:
+            logger.info("[META] Comment reply generated", provider=result.provider)
+            return reply
+    except Exception as exc:
+        logger.warning("[META] generate_comment_reply fallback: %s", exc)
+
+    import random
+    return random.choice(FALLBACK_COMMENT_REPLIES)
+
+
 def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: str) -> None:
     """Sends a notification message to the Telegram CRM group."""
     crm_group_id = settings.CRM_GROUP_ID
@@ -212,7 +225,6 @@ def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: s
         logger.warning("[CRM] CRM_GROUP_ID or BOT_TOKEN not configured, notification skipped")
         return
 
-    # Analyze lead quality from tags
     quality = "Oddiy ✅"
     if "quality=sifatli" in reply.lower():
         quality = "Sifatli 💎"
@@ -247,98 +259,172 @@ def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: s
         logger.error("[CRM] Exception in notify_crm", error=str(exc))
 
 
-async def process_instagram_webhook(payload: dict, db) -> None:
+async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> None:
     """Asynchronously processes entry events from Meta webhook payload."""
     if not payload:
         return
 
-    access_token = settings.META_PAGE_ACCESS_TOKEN.get_secret_value() if settings.META_PAGE_ACCESS_TOKEN else ""
+    if db is None:
+        try:
+            from src.api.routes.state import api_state
+            db = api_state.db_instance
+        except Exception:
+            db = None
+
+    access_token = (
+        os.environ.get("META_PAGE_ACCESS_TOKEN", "").strip()
+        or (settings.META_PAGE_ACCESS_TOKEN.get_secret_value() if settings.META_PAGE_ACCESS_TOKEN else "")
+    )
+    my_ig_id = (
+        os.environ.get("META_INSTAGRAM_USER_ID", "").strip()
+        or getattr(settings, "META_INSTAGRAM_USER_ID", None)
+        or getattr(settings, "META_INSTAGRAM_ACCOUNT_ID", None)
+        or ""
+    )
 
     for entry in payload.get("entry", []):
-        # Direct Message Handling
-        messaging = entry.get("messaging", [])
-        if messaging:
-            event = messaging[0]
-            sender_id = event.get("sender", {}).get("id")
-            message = event.get("message", {})
-            text = message.get("text", "")
+        entry_id = str(entry.get("id") or "")
 
-            if text and sender_id:
-                user_id_str = f"ig_{sender_id}"
-                logger.info("[META] Received Instagram DM", sender_id=sender_id, text=text[:50])
+        # --- Direct Message handling -----------------------------------------
+        # Meta delivers IG DMs in two shapes depending on the product config:
+        #   1) entry[].messaging[]            (Messenger-style)
+        #   2) entry[].changes[] field=messages, value.message(s)  (IG Graph)
+        dm_events: list[tuple[str, str]] = []  # (sender_id, text)
 
-                # Log incoming message to DB
+        for event in entry.get("messaging", []) or []:
+            s = str(event.get("sender", {}).get("id") or "")
+            t = (event.get("message", {}) or {}).get("text", "") or ""
+            if s and t:
+                dm_events.append((s, t))
+
+        for change in entry.get("changes", []) or []:
+            if change.get("field") not in ("messages", "message"):
+                continue
+            val = change.get("value", {}) or {}
+            msgs = val.get("messages") or ([val] if val.get("message") or val.get("text") else [])
+            for m in msgs:
+                s = str(
+                    (m.get("from") or {}).get("id")
+                    or m.get("sender_id")
+                    or val.get("sender", {}).get("id")
+                    or ""
+                )
+                body = m.get("message") or m.get("text") or ""
+                if isinstance(body, dict):
+                    body = body.get("text", "")
+                if s and body:
+                    dm_events.append((s, body))
+
+        for sender_id, text in dm_events:
+            if my_ig_id and sender_id == str(my_ig_id):
+                logger.info("[META] Skipping own DM (loop protection)", sender_id=sender_id)
+                continue
+
+            user_id_str = f"ig_{sender_id}"
+            logger.info("[META] Received Instagram DM", sender_id=sender_id, text=text[:50])
+            if db:
                 await db.log_message(user_id_str, text, is_ai=False)
 
-                # Query AI Agent
-                agent = AutonomousSalesAgent(db=db)
-                agent_result = await agent.handle_incoming(
-                    user_id=user_id_str,
-                    message=text,
-                    autonomy_level="full"
-                )
-                ai_reply = agent_result.get("response", "Assalomu alaykum! Tez orada siz bilan bog'lanamiz. 😊")
+            # Conversation history so the qualification funnel has context.
+            history: list[dict] = []
+            if db:
+                try:
+                    rows = await db.get_recent_messages(user_id_str, limit=12)
+                    for r in (rows or []):
+                        role = "assistant" if r.get("role") == "model" else "user"
+                        parts = r.get("parts") or []
+                        content = parts[0].get("text", "") if parts else r.get("content", "")
+                        if content:
+                            history.append({"role": role, "content": content})
+                except Exception:  # noqa: BLE001 - history is best-effort
+                    history = []
 
-                # Parse and save info tags
-                info_updates = {}
-                for m in re.finditer(r"\[SAVE_INFO:\s*(.*?)\]", ai_reply, re.IGNORECASE):
-                    try:
-                        parts = m.group(1).split("=", 1)
-                        if len(parts) == 2:
-                            info_updates[parts[0].strip().lower()] = parts[1].strip()
-                    except Exception as exc:
-                        logger.debug("[META] Parse SAVE_INFO tag: %s", exc)
+            from src.services.core.instagram.lead_qualifier import (
+                generate_qualifying_dm_response,
+            )
+            ai_reply = await generate_qualifying_dm_response(
+                user_message=text,
+                history=history,
+                commenter_name="",
+            )
 
-                if info_updates:
-                    await db.upsert_user(user_id_str, "Foydalanuvchi", **info_updates)
+            info_updates: dict[str, str] = {}
+            for m in re.finditer(r"\[SAVE_INFO:\s*(.*?)\]", ai_reply, re.IGNORECASE):
+                parts = m.group(1).split("=", 1)
+                if len(parts) == 2:
+                    info_updates[parts[0].strip().lower()] = parts[1].strip()
+            if info_updates and db:
+                await db.upsert_user(user_id_str, "Foydalanuvchi", **info_updates)
 
-                # Clean reply tag decorators
-                clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
-
-                # Log outgoing AI reply
+            clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
+            if db:
                 await db.log_message(user_id_str, clean_reply, is_ai=True)
 
-                # Send reply via Graph API
-                send_ig_reply(sender_id, clean_reply, access_token)
-
-                # Notify CRM Telegram Channel
-                notify_crm("Instagram DM", "Foydalanuvchi", sender_id, text, ai_reply)
+            # NOTE: AmoCRM already ingests Instagram DMs via its own native
+            # integration and opens the deal itself. Do NOT create a second
+            # deal here — it produces junk "Instagram DM: <id>" duplicates.
+            send_ig_reply(sender_id, clean_reply, access_token)
+            notify_crm("Instagram DM", "Foydalanuvchi", sender_id, text, ai_reply)
 
         # Comment / Page Feed Change Handling
         changes = entry.get("changes", [])
         for change in changes:
-            value = change.get("value", {})
-            comment_text = value.get("text", "")
-            comment_id = value.get("id", "")
-            from_obj = value.get("from", {})
-            commenter_name = from_obj.get("name") or from_obj.get("username") or "Foydalanuvchi"
-            commenter_id = from_obj.get("id", "")
+            field = change.get("field")
+            if field and field not in {"feed", "comments", "mentions", "mention"}:
+                continue
 
-            # Ignore webhook events triggered by our own replies to prevent infinite loops
+            value = change.get("value", {})
+            verb = value.get("verb")
+            if verb and verb != "add":
+                continue
+
+            from_obj = value.get("from", {})
+            commenter_id = str(from_obj.get("id") or "")
+            commenter_name = from_obj.get("name") or from_obj.get("username") or "Foydalanuvchi"
+            comment_text = value.get("text") or value.get("message") or ""
+            comment_id = str(value.get("id") or value.get("comment_id") or "")
+
+            if my_ig_id and commenter_id == str(my_ig_id):
+                logger.info("[META] Skipping own comment (loop protection)", commenter_id=commenter_id)
+                continue
+
+            if entry_id and commenter_id == entry_id:
+                logger.info("[META] Skipping page own comment (loop protection)", commenter_id=commenter_id)
+                continue
+
             if comment_text and comment_id and commenter_id:
                 user_id_str = f"ig_comment_{commenter_id}"
                 logger.info("[META] Received Instagram Comment", commenter=commenter_name, text=comment_text[:50])
 
-                # Log incoming comment
-                await db.log_message(user_id_str, f"COMMENT: {comment_text}", is_ai=False)
+                if db:
+                    await db.log_message(user_id_str, f"COMMENT: {comment_text}", is_ai=False)
 
-                # Query AI Agent
-                agent = AutonomousSalesAgent(db=db)
-                agent_result = await agent.handle_incoming(
-                    user_id=user_id_str,
-                    message=f"Sharh yozdi: {comment_text}",
-                    autonomy_level="full"
+                media_id = str((value.get("media") or {}).get("id") or "")
+                post_caption = fetch_media_caption(media_id, access_token) if media_id else ""
+
+                ai_reply = await generate_comment_reply(
+                    comment_text=comment_text,
+                    post_caption=post_caption,
+                    commenter_name=commenter_name,
                 )
-                ai_reply = agent_result.get("response", "Rahmat! Tez orada javob beramiz. 😊")
 
-                # Clean reply tag decorators
                 clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
 
-                # Log outgoing comment reply
-                await db.log_message(user_id_str, clean_reply, is_ai=True)
+                if db:
+                    await db.log_message(user_id_str, clean_reply, is_ai=True)
 
-                # Reply to comment via Graph API
                 reply_to_comment(comment_id, clean_reply, access_token)
+                
+                # Check for Lead triggers and open a human-sounding DM
+                is_trigger, kw = should_trigger_dm(comment_text, post_caption)
+                if is_trigger:
+                    initial_dm = await generate_initial_dm_message_ai(
+                        commenter_name, comment_text, kw, post_caption
+                    )
+                    send_ig_private_reply(comment_id, initial_dm, access_token)
+                    if db:
+                        dm_uid = f"ig_{commenter_id}"
+                        await db.log_message(dm_uid, initial_dm, is_ai=True)
 
-                # Notify CRM Telegram Channel
-                notify_crm("Instagram Comment", commenter_name, commenter_id, comment_text, ai_reply)
+                source = "Instagram Mention" if field in {"mentions", "mention"} else "Instagram Comment"
+                notify_crm(source, commenter_name, commenter_id, comment_text, ai_reply)

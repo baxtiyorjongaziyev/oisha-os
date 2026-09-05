@@ -4,8 +4,8 @@ Task filtering, agency dashboard collation, and daily reporting operations mixin
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List
 
 from src.services.core.project_phases import PhaseStatus
 

@@ -4,9 +4,9 @@ Sales Coaching, Ideal Scripts and Conversation Quality Analysis API endpoints.
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any, Dict, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from src.api.routes.ai_analytics_pkg.helpers import (

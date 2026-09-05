@@ -18,9 +18,13 @@ class AirtableClient:
     API_BASE = "https://api.airtable.com/v0"
 
     def __init__(self):
-        self.client_id = settings.AIRTABLE_CLIENT_ID
-        self.client_secret = settings.AIRTABLE_CLIENT_SECRET.get_secret_value() if settings.AIRTABLE_CLIENT_SECRET else ""
-        self.redirect_uri = settings.AIRTABLE_REDIRECT_URI
+        import os
+        self.client_id = os.environ.get("AIRTABLE_CLIENT_ID") or getattr(settings, "AIRTABLE_CLIENT_ID", "")
+        raw_secret = getattr(settings, "AIRTABLE_CLIENT_SECRET", None)
+        self.client_secret = os.environ.get("AIRTABLE_CLIENT_SECRET") or (
+            raw_secret.get_secret_value() if hasattr(raw_secret, "get_secret_value") else str(raw_secret or "")
+        )
+        self.redirect_uri = os.environ.get("AIRTABLE_REDIRECT_URI") or getattr(settings, "AIRTABLE_REDIRECT_URI", "")
 
     def get_authorization_url(self, state: str, code_challenge: str) -> str:
         """Generate the URL to redirect the user for OAuth."""

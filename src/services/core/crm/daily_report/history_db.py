@@ -3,10 +3,9 @@ SQLite persistence mixin for CRM daily stats history.
 """
 import json
 import logging
-import sqlite3
 from contextlib import contextmanager
-from datetime import date
-from typing import Any, Dict, List, Optional
+from datetime import date, timedelta
+from typing import List, Optional
 from src.services.core.crm.daily_report.models import CRMStats
 
 logger = logging.getLogger(__name__)

@@ -72,8 +72,8 @@ Xuddi shu sabab ilgari VPS ↔ Oracle to'qnashuvida ham bo'lgan; shu bois
 sudo systemctl stop oisha-os
 
 # 2. Yangi session
-#    GitHub: Actions → "Generate Session" (generate-session.yml)
-#    yoki VM da: ./venv/bin/python scripts/generate_session_string.py
+#    GitHub: Actions → "Userbot Auth (Oracle VM)" (oracle-userbot-auth.yml)
+#    yoki VM da: ./venv/bin/python scripts/prod/auth_userbot_on_oracle.py
 
 # 3. Yangi stringni ikkala joyga yozish
 #    - GitHub secret: USERBOT_SESSION_STRING

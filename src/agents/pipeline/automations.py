@@ -4,10 +4,10 @@ Automation rules and lifecycle actions mixin.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List
 from datetime import datetime
 
-from src.agents.pipeline.models import Deal, DealPriority, DealStage
+from src.agents.pipeline.models import Deal, DealStage
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.services.call_analytics.helpers import (
     ANALYSIS_MARKER,
@@ -16,14 +16,9 @@ from src.services.call_analytics.helpers import (
 )
 from src.services.call_analytics.note_extractor import NoteExtractorMixin
 from src.services.call_analytics.normalizer import (
-    CallNormalizerMixin,
     _normalise_category,
     _normalise_mood,
 )
-from src.services.call_analytics.crm_notes import CallCrmNotesMixin
-from src.services.call_analytics.crm_tasks import CallCrmTasksMixin
-from src.services.call_analytics.scorer import CallScorerMixin
-from src.services.call_analytics.transcriber import CallTranscriberMixin
 from src.services.core.call_events import CallEventLog
 
 logger = logging.getLogger(__name__)
@@ -239,6 +234,48 @@ class CallRunnerMixin(NoteExtractorMixin):
             client_mood=client_mood, next_steps=next_steps, duration_seconds=duration,
             manager_name=manager_name, caller_phone=phone, analysis=analysis, task_id=task_id,
         )
+        await self._sync_call_to_customer_360(
+            lead_id=lead_id, phone=phone, call_id=call_id, duration=duration,
+            manager_name=manager_name, category=category, summary=summary,
+            client_mood=client_mood, transcript=transcript, analysis=analysis,
+        )
+
+    async def _sync_call_to_customer_360(
+        self, lead_id: int, phone: str, call_id: str, duration: int,
+        manager_name: str, category: str, summary: str, client_mood: str,
+        transcript: str, analysis: Dict[str, Any],
+    ) -> None:
+        try:
+            from src.services.customer_360 import Customer360Collector, Customer360ObsidianSyncer
+            collector = Customer360Collector(amocrm=self.amocrm, db=self.db)
+            syncer = Customer360ObsidianSyncer()
+            call_event = {
+                "call_id": call_id,
+                "duration_seconds": duration,
+                "caller_phone": phone,
+                "manager_name": manager_name,
+                "category": category,
+                "summary": summary,
+                "client_mood": client_mood,
+                "client_talk_pct": analysis.get("client_talk_pct", 50),
+                "manager_talk_pct": analysis.get("manager_talk_pct", 50),
+                "seller_score": analysis.get("seller_score"),
+                "client_score": analysis.get("client_score"),
+                "agreed_datetime": analysis.get("kelishilgan_vaqt"),
+                "conversion_advice": analysis.get("konversiya_tavsiyalari"),
+                "transcript": transcript,
+            }
+            profile = await collector.collect_profile(
+                identifier=phone or str(lead_id),
+                lead_id=lead_id,
+                phone=phone,
+                call_event=call_event,
+            )
+            await syncer.sync_profile(profile)
+            logger.info(f"[CALL->C360] Customer 360 card synced for {profile.name} (#{lead_id})")
+        except Exception as ex:
+            logger.warning(f"[CALL->C360] Customer 360 sync error: {ex}")
+
 
     async def _process_single_call_note(
         self, note: Dict[str, Any], lead_id: int, notes: List[Dict[str, Any]],

@@ -3,11 +3,9 @@ AmoCRMLeadEnricher main coordinator.
 """
 from __future__ import annotations
 
-import inspect
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Optional
 
 try:
     from google import genai
@@ -19,7 +17,6 @@ from src.services.core.crm.enrichment.ai_synthesizer import AiSynthesizerMixin
 from src.services.core.crm.enrichment.history_collector import HistoryCollectorMixin
 from src.services.core.crm.enrichment.models import (
     LeadEnrichmentResult,
-    _clip,
     _secret_to_text,
     maybe_await,
     normalize_phone,

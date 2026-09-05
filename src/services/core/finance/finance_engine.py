@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 from src.database_pool import DatabasePool, db_pool
 

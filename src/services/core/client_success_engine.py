@@ -6,8 +6,6 @@ Covers:
 4. Weekly Budget & Financial Overrun Telegram Alerts
 """
 import logging
-from datetime import datetime, timedelta
-from typing import Any, Optional
 import httpx
 
 from src.services.core.airtable_config import (

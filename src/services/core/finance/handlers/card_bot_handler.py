@@ -1,7 +1,6 @@
 import logging
 from typing import Optional
 from datetime import datetime, timedelta, timezone
-import html
 import asyncio
 
 from src.services.core.finance.hisobchi_engine import HisobchiEngine

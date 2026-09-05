@@ -13,18 +13,22 @@ from src.api.routes.state import api_state
 
 class TestAPISecurity:
     def test_api_secret_required_from_env(self):
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {"OISHA_API_SECRET": ""}):
             from src.api_server import lookup_user_by_phone
+            from fastapi import HTTPException
             import asyncio
-            result = asyncio.run(lookup_user_by_phone("+1234567890", "any_secret"))
-            assert result == {"error": "Unauthorized"}
+            with pytest.raises(HTTPException) as exc_info:
+                asyncio.run(lookup_user_by_phone("+1234567890", "any_secret"))
+            assert exc_info.value.status_code == 401
 
     def test_api_secret_mismatch_blocks_access(self):
         with patch.dict(os.environ, {"OISHA_API_SECRET": "correct_secret"}):
             from src.api_server import lookup_user_by_phone
+            from fastapi import HTTPException
             import asyncio
-            result = asyncio.run(lookup_user_by_phone("+1234567890", "wrong_secret"))
-            assert result == {"error": "Unauthorized"}
+            with pytest.raises(HTTPException) as exc_info:
+                asyncio.run(lookup_user_by_phone("+1234567890", "wrong_secret"))
+            assert exc_info.value.status_code == 401
 
     def test_api_secret_match_allows_access(self):
         with patch.dict(os.environ, {"OISHA_API_SECRET": "correct_secret"}):
@@ -45,7 +49,7 @@ class TestAPISecurity:
             widget_content = f.read()
         assert 'oisha_safe_123' not in widget_content
         assert '?secret_key=' not in widget_content
-        assert "'X-Secret-Key': SECRET" in widget_content
+        assert "api/chat/token" in widget_content or "Authorization" in widget_content
 
         amocrm_widget = os.path.join(
             os.path.dirname(__file__), '..', 'src', 'widgets', 'amocrm', 'script.js'

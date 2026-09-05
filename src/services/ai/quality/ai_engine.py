@@ -3,23 +3,11 @@ Gemini and LLM analytical scoring engine mixin.
 """
 from __future__ import annotations
 
-import json
 import logging
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from src.settings import settings
 from src.services.ai.quality.models import (
-    CATEGORY_NOT_SALES,
-    ConversationAnalysis,
-    OUTCOME_NOT_SALES,
-    QualityMetric,
-    SCORING_METHOD_AI,
-    SCORING_METHOD_HEURISTIC,
-    ScoreBreakdown,
     _GEMINI_MODEL,
-    _as_str_list,
-    _clamp_score,
     _parse_llm_scores,
 )
 from src.services.ai.quality.prompts import _build_scoring_prompt

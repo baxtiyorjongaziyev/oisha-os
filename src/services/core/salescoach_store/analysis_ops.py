@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.services.core.salescoach_store.models import (
     ConversationAnalysisRecord,
@@ -16,7 +16,6 @@ from src.services.core.salescoach_store.models import (
     _maybe_await,
     _now_iso,
     _privacy_safe_analysis,
-    _row_to_dict,
 )
 
 logger = logging.getLogger("TelegramSalesCoachStore")

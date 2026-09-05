@@ -2,19 +2,14 @@
 LLM classification, contact categorization, and comprehensive lead audit logic.
 """
 import asyncio
-import inspect
 import json
-import logging
-import os
-import random
 import re
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import structlog
 logger = structlog.get_logger(__name__)
 
-from src.settings import settings
+from src.services.core.crm.auditor.db_storage import _maybe_await
 from src.services.utils.gemini_fallback import generate_content_with_fallback
 
 try:

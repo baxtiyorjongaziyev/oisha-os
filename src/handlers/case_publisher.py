@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 import asyncio
 
-from src.context import app_ctx
 from src.settings import settings
 
 logger = logging.getLogger(__name__)

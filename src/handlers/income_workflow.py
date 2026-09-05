@@ -7,7 +7,6 @@ import asyncio
 import structlog
 from typing import Any, Dict, Optional
 
-from src.context import app_ctx
 from src.settings import settings
 from src import config
 

@@ -1,15 +1,26 @@
 """
 Telegram folder and private message filtering utilities.
 """
+import asyncio
 import logging
+import os
 import time
-from typing import Any, Dict, Optional, Set, Tuple
-from src.settings import settings
+from typing import Any, Dict, Optional
+from telethon import functions
+
 from src.context import app_ctx
 
 logger = logging.getLogger("OishaFilters")
 
 _EXCLUDED_FOLDER_USER_CACHE: Dict[str, Any] = {"expires_at": 0.0, "user_ids": set()}
+_EXCLUDED_FOLDER_CACHE_LOCK = asyncio.Lock()
+
+
+def _negotiation_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
 
 def _userbot_private_replies_disabled() -> bool:
     return True
@@ -59,23 +70,25 @@ async def _excluded_folder_user_ids() -> set[int]:
             return set(_EXCLUDED_FOLDER_USER_CACHE["user_ids"])
 
         user_ids: set[int] = set()
-        try:
-            raw_filters = await client(functions.messages.GetDialogFiltersRequest())
-            filters = getattr(raw_filters, "filters", raw_filters)
-            keywords = _excluded_folder_keywords()
-            for dialog_filter in filters or []:
-                title = _dialog_filter_title(dialog_filter).lower()
-                if not title or not any(keyword in title for keyword in keywords):
-                    continue
-                for attr in ("include_peers", "pinned_peers"):
-                    for peer in getattr(dialog_filter, attr, []) or []:
-                        user_id = _peer_user_id(peer)
-                        if user_id:
-                            user_ids.add(int(user_id))
-        except Exception as exc:
-            logger.warning(
-                f"[FOLDER_GUARD] Could not inspect Telegram folders: {type(exc).__name__}"
-            )
+        client = getattr(app_ctx, "client", None)
+        if client:
+            try:
+                raw_filters = await client(functions.messages.GetDialogFiltersRequest())
+                filters = getattr(raw_filters, "filters", raw_filters)
+                keywords = _excluded_folder_keywords()
+                for dialog_filter in filters or []:
+                    title = _dialog_filter_title(dialog_filter).lower()
+                    if not title or not any(keyword in title for keyword in keywords):
+                        continue
+                    for attr in ("include_peers", "pinned_peers"):
+                        for peer in getattr(dialog_filter, attr, []) or []:
+                            user_id = _peer_user_id(peer)
+                            if user_id:
+                                user_ids.add(int(user_id))
+            except Exception as exc:
+                logger.warning(
+                    f"[FOLDER_GUARD] Could not inspect Telegram folders: {type(exc).__name__}"
+                )
 
         ttl = _negotiation_int("PERSONAL_FOLDER_CACHE_SECS", 600)
         _EXCLUDED_FOLDER_USER_CACHE["expires_at"] = now + ttl

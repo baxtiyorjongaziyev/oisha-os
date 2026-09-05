@@ -5,21 +5,13 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.settings import settings
-from src.time_utils import get_local_now
 
 from src.services.core.crm.task_notifier.formatter import (
-    _format_timestamp,
-    _format_price,
-    _extract_custom_field_value,
     format_task_notification,
     DEFAULT_SUBDOMAIN,
-    PIPELINE_MAP,
-    STATUS_MAP,
-    TASK_TYPE_MAP,
 )
 
 logger = logging.getLogger('AmoCRMTaskNotifier')

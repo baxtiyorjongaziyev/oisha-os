@@ -2,7 +2,6 @@
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta
 
 try:
     from google.analytics.data_v1beta import BetaAnalyticsDataClient

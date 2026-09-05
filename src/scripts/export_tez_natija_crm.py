@@ -14,12 +14,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from telethon import TelegramClient, errors
-from telethon.tl.types import Channel, Chat, User
 
 logger = logging.getLogger(__name__)
 

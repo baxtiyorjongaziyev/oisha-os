@@ -27,16 +27,16 @@ jobs:
               echo "Fayl mavjud"
               # Faqat kalitlarni ko'rsatamiz, qiymatlarni EMAS
               python3 -c "
-import json
-t = json.load(open('data/amocrm_token.json'))
-print('Kalitlar:', list(t.keys()))
-at = t.get('access_token','')
-rt = t.get('refresh_token','')
-print(f'access_token: ...{at[-10:]}' if at else 'access_token: YO_Q')
-print(f'refresh_token: ...{rt[-10:]}' if rt else 'refresh_token: YO_Q')
-print(f'expires_in: {t.get(\"expires_in\", \"?\")}')
-print(f'token_type: {t.get(\"token_type\", \"?\")}')
-"
+              import json
+              t = json.load(open('data/amocrm_token.json'))
+              print('Kalitlar:', list(t.keys()))
+              at = t.get('access_token','')
+              rt = t.get('refresh_token','')
+              print(f'access_token: ...{at[-10:]}' if at else 'access_token: YO_Q')
+              print(f'refresh_token: ...{rt[-10:]}' if rt else 'refresh_token: YO_Q')
+              print(f'expires_in: {t.get(\"expires_in\", \"?\")}')
+              print(f'token_type: {t.get(\"token_type\", \"?\")}')
+              "
             else
               echo "XATO: data/amocrm_token.json TOPILMADI"
             fi

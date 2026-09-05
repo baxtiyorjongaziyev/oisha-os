@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 import structlog
 from telethon import Button, events
 from telethon.tl.types import InputBotInlineMessageMediaContact, InputBotInlineResult
@@ -48,7 +48,7 @@ async def _handle_inline_phone(self, event: Any, query: str) -> None:
         if user_data:
             first_name = user_data.get("first_name") or first_name
             last_name = user_data.get("last_name") or ""
-    except Exception as exc:
+    except Exception:
         logger.debug("[ADMIN_BOT] inline_search: global lookup failed for %s", normalized, exc_info=True)
 
     contact_result = InputBotInlineResult(
@@ -119,6 +119,26 @@ def register_search_handlers(self):
             await event.respond("🔍 **Qidiruv rejimiga xush kelibsiz!**\n\nQidirmoqchi bo'lgan **telefon nomeringizni** yozing (masalan: `+998991234567`).\nOisha Telegram tarmog'idan ushbu mijozni topib beradi. 👸🛡️")
             return
         await _handle_phone_search(self, event, match_arg.strip())
+
+    @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/client(?:\s+(.+))?"))
+    async def client_360_command_handler(event):
+        sender_id = event.sender_id
+        if not self.access_manager.is_admin(sender_id):
+            return
+        query = (event.pattern_match.group(1) or "").strip()
+        if not query:
+            await event.respond("🏢 **Customer 360 AI Qidiruv**\n\nMijoz nomi yoki telefon raqamini kiriting:\nMasalan: `/client Kamila Pardalari` yoki `/client +998901234567`")
+            return
+        wait_msg = await event.respond(f"🔍 **{query}** bo'yicha barcha tizimlardan 360° dosye yig'ilmoqda...")
+        try:
+            from src.services.customer_360 import Customer360QueryEngine
+            engine = Customer360QueryEngine()
+            answer = await engine.answer_query(query)
+            await wait_msg.edit(answer)
+        except Exception as e:
+            logger.error(f"[C360 BOT ERROR] {e}")
+            await wait_msg.edit(f"⚠️ Dosye shakllantirishda xatolik: {e}")
+
 
     @self.bot_client.on(events.InlineQuery())
     async def inline_search_handler(event):

@@ -1,13 +1,9 @@
-"""
-Context pop and autonomous AI conversational reply pipeline handler.
-"""
-import asyncio
-import logging
-from typing import Any, Dict, Optional
+from __future__ import annotations
 
-from src.settings import settings
-from src.context import app_ctx
-from src.handlers.msg_pipeline.media_voice import _vision_cache
+import logging
+from typing import Optional
+from telethon import TelegramClient
+
 
 logger = logging.getLogger("OishaAiReply")
 

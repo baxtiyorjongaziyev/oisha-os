@@ -5,8 +5,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 import os
-from typing import Any, Dict, List
-from src.settings import settings
+from typing import Any
 from src.services.command_center.models import (
     BrandingERPPhase,
     IntegrationCapability,

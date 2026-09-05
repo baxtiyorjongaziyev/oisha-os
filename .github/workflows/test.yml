@@ -19,7 +19,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'turbo.json'
       - 'deploy/**'
-      - 'marketing-os/frontend/**'
+      - 'marketing-os/**'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [ main, master ]
@@ -35,7 +35,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'turbo.json'
       - 'deploy/**'
-      - 'marketing-os/frontend/**'
+      - 'marketing-os/**'
       - '.github/workflows/test.yml'
 
 concurrency:
@@ -52,7 +52,8 @@ jobs:
     outputs:
       typescript: ${{ steps.filter.outputs.typescript }}
       salescoach: ${{ steps.filter.outputs.salescoach }}
-      marketing: ${{ steps.filter.outputs.marketing }}
+      marketing_frontend: ${{ steps.filter.outputs.marketing_frontend }}
+      marketing_backend: ${{ steps.filter.outputs.marketing_backend }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -73,8 +74,11 @@ jobs:
             salescoach:
               - 'salescoach-ai/**'
               - '.github/workflows/test.yml'
-            marketing:
+            marketing_frontend:
               - 'marketing-os/frontend/**'
+              - '.github/workflows/test.yml'
+            marketing_backend:
+              - 'marketing-os/backend/**'
               - '.github/workflows/test.yml'
 
   pull-request-tests:
@@ -91,7 +95,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: '3.12'
           cache: 'pip'
 
       - name: Install Python dependencies
@@ -183,7 +187,7 @@ jobs:
   marketing-frontend:
     name: Marketing frontend checks
     needs: changes
-    if: needs.changes.outputs.marketing == 'true'
+    if: needs.changes.outputs.marketing_frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -207,6 +211,31 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-workspace
       - run: pnpm audit --audit-level high --ignore-workspace
       - run: pnpm run build
+
+  marketing-backend:
+    name: Marketing backend checks
+    needs: changes
+    if: needs.changes.outputs.marketing_backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install fastapi httpx python-dotenv uvicorn
+
+      - name: Syntax & verification
+        run: |
+          python -m py_compile marketing-os/backend/main.py marketing-os/backend/db.py
 
   trusted-main-tests:
     if: github.event_name == 'push'

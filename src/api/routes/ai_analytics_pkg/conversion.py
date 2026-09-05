@@ -4,10 +4,8 @@ Conversion, seller cards, and deal hygiene API routes.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
 
 from src.api.rbac import Permission, require_permissions
 from src.api.routes.ai_analytics_pkg.helpers import (
@@ -15,7 +13,6 @@ from src.api.routes.ai_analytics_pkg.helpers import (
     _fail,
     _unavailable,
 )
-from src.api.routes.state import api_state
 
 logger = logging.getLogger(__name__)
 

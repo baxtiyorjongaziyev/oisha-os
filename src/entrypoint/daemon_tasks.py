@@ -2,10 +2,10 @@
 Daemon tasks, health checks, cloud artifact restoration, and task spawn utilities.
 """
 import asyncio
+import base64
 import logging
 import os
-import shutil
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional
 
 from src.settings import settings
 from src.context import app_ctx
@@ -153,11 +153,11 @@ async def background_monitor_task() -> None:
 
     monitor = BackgroundMonitor(
         msg_controller=app_ctx.msg_controller,
-        client=client,
+        client=getattr(app_ctx, "client", None),
         bot_client=app_ctx.bot_runtime or app_ctx.bot_client,
         juma_notifier=app_ctx.juma_notifier,
         settings=settings,
-        get_surgical_integration=get_surgical_integration,
+        get_surgical_integration=getattr(app_ctx, "get_surgical_integration", None),
         TN5_GROUP_ID=TN5_GROUP_ID,
         hisobchi_analyst=app_ctx.hisobchi_analyst,
     )
@@ -181,5 +181,5 @@ async def stop_health_check_api(
 async def _brain_evolution_loop():
     """Runs OishaBrain.evolve() every 6 hours to self-diagnose agent failures."""
     from src.schedulers.brain_evolution import brain_evolution_loop as _impl
-    await _impl(oisha_brain=oisha_brain)
+    await _impl(oisha_brain=getattr(app_ctx, "oisha_brain", None))
 

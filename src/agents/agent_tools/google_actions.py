@@ -1,13 +1,8 @@
 import os
-import io
-import time
-import json
 import logging
 import asyncio
-import inspect
 from datetime import datetime
-from typing import Any, Optional, Dict, List, Tuple
-from src.agents.agent_tools.declarations import TOOL_DECLARATIONS
+from typing import Any, Optional, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +80,6 @@ class GoogleActionsMixin:
         self, query: str, extension: Optional[str] = None
     ) -> Dict[str, Any]:
         """Lokal fayl tizimidan qidirish."""
-        import os
         import glob
 
         results = []

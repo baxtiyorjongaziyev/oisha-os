@@ -2,10 +2,9 @@ import asyncio
 import os
 import time
 import json
-import logging
 import requests  # type: ignore
 import tempfile
-from typing import Optional, Dict, Any, List
+from typing import Any
 from functools import wraps
 
 import structlog

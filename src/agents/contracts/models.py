@@ -4,7 +4,7 @@ Data models for Contract Generation and Legal Automation.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Dict, List
 
 
 @dataclass

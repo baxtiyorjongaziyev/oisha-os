@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import structlog
-from typing import Any, Optional
+from typing import Any
 
 from src.db.repositories.base import BaseRepository
 

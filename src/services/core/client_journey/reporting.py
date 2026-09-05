@@ -3,12 +3,18 @@ Telegram excellence reports and department-level direct message builders.
 """
 from __future__ import annotations
 
-import html
+from html import escape
 import logging
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from src.services.core.client_journey.models import JourneySignal
+from src.services.core.airtable_sync import AirtableSync
+from src.services.core.client_journey.models import (
+    JourneySignal,
+    _humanize_stage,
+    _normalize_copy,
+    _render_airtable_card_line,
+    _render_owner_html,
+)
 
 logger = logging.getLogger("ClientJourneyPlaybook")
 

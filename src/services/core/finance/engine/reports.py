@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import html
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 from src.services.core.finance.engine.helpers import _fmt_money
 

@@ -3,14 +3,10 @@ Prompt construction and sales playbook criteria builders for Quality Analyzer.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
 from src.services.core.sales_playbook import (
-    category_for_score,
-    metric_weights,
     rubric_prompt_uz,
 )
 from src.services.ai.quality.models import (
-    QualityMetric,
     _LLM_METRICS,
 )
 

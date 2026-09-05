@@ -1,20 +1,15 @@
 from __future__ import annotations
 from src.context import app_ctx
 
-import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
 from telegram import Bot
 
-from src.services.core.airtable_sync import AirtableSync
-from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.telegram.telegram_ai_features import (
     TelegramBotAPI10Client,
-    build_input_rich_message,
-    build_text_article_result,
 )
-from src.services.core.tool_registry import ToolRegistry, ToolResult
+from src.services.core.tool_registry import ToolResult
 
 logger = logging.getLogger(__name__)
 

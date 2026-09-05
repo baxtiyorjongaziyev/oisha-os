@@ -1,41 +1,16 @@
-import os
-import re
-import io
-import time
-import json
-import logging
-import asyncio
-import hashlib
-import inspect
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List
 import structlog
-import requests as _requests
-from src.database import Database
-from src.services.core.crm.amocrm_sync import AmoCRMSync
-from src.services.core.stt_service import STTService
-from src.services.core.call_events import CallEventLog
-from src.services.core.call_analyses_schema import ensure_call_analysis_schema
 from src.services.core.sales_playbook import (
-    IDEAL_CLIENT_TALK_PCT,
     MAX_ACCEPTABLE_PAUSE_SECONDS,
-    OUTCOME_LABELS_UZ,
     OUTCOME_UNKNOWN,
     STAGE_WEIGHTS,
     normalise_outcome,
     outcome_converted,
-    outcome_prompt_uz,
-    rubric_prompt_uz,
 )
 from src.services.utils.transcript import (
     detect_pauses,
-    format_timestamp,
     has_timestamps,
-    speaker_split,
-    strip_timestamps,
-    talk_ratio_verdict,
 )
-from src.time_utils import get_local_now, get_local_timezone
 from src.services.call_analytics.helpers import *
 
 logger = structlog.get_logger()

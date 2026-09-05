@@ -2,26 +2,28 @@
 Webhook endpoints for AmoCRM and Telegram in Oisha-OS API.
 """
 import asyncio
-import json
+import hmac
 import logging
+import os
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Request, HTTPException, Query, Header, BackgroundTasks
+from fastapi import APIRouter, Request, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src.context import app_ctx
+from src.database import get_db
 from src.settings import settings
 from src.services.api_server.helpers import (
     _get_amocrm_instance,
     _get_db_instance,
-    mark_heartbeat,
-    add_activity,
+    _secret_setting_text,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["webhooks"])
 limiter = Limiter(key_func=get_remote_address)
+
 
 async def process_telegram_ai_update(update: Dict[str, Any]):
     """Central dispatcher for Bot API 10.0 AI updates."""
@@ -40,7 +42,7 @@ async def process_telegram_ai_update(update: Dict[str, Any]):
         if not guest_ctx:
             return {"handled": False, "reason": "no_guest_context"}
 
-        token = os.environ.get("BOT_TOKEN") or settings.BOT_TOKEN.get_secret_value()
+        token = os.environ.get("BOT_TOKEN") or (settings.BOT_TOKEN.get_secret_value() if settings.BOT_TOKEN else "")
         response_text = ""
         try:
             from src.openclaw_bridge import handle_openclaw_message
@@ -127,7 +129,6 @@ async def amocrm_lead_created_webhook(
         return JSONResponse(status_code=401, content={"status": "unauthorized"})
 
     try:
-        from src.services.core.voice_agent import trigger_voice_agent
         form_data = await request.form()
 
         # Parse AmoCRM structure: leads[add][0][name], etc.
@@ -143,9 +144,6 @@ async def amocrm_lead_created_webhook(
 
         lead_name = form_data.get("leads[add][0][name]", f"Lead {lead_id}")
 
-        # This is a naive extraction. In reality, we'd need to extract from custom fields (CFs)
-        # However, AmoCRM webhooks usually send custom fields as array indexes.
-        # For the stub, we just try to find something that looks like a phone.
         phone_number = None
         for key, value in form_data.items():
             if "custom_fields" in key and "values" in key and "value" in key:
@@ -157,12 +155,8 @@ async def amocrm_lead_created_webhook(
             await db.kv.set_state(idempotency_key, True)
             return JSONResponse(content={"status": "ignored", "message": "No phone number found"})
 
-        # Mark processed now so a retried webhook delivery can't queue a second
-        # approval request for the same lead.
         await db.kv.set_state(idempotency_key, True)
 
-        # Owner approval gate — do NOT call the Vapi API directly from the
-        # webhook. Stash the pending call and ask the owner to approve it.
         approval_key = f"voice_call_pending:{lead_id}"
         await db.kv.set_state(approval_key, {
             "lead_id": lead_id,
@@ -192,12 +186,7 @@ async def amocrm_lead_created_webhook(
 
 
 async def approve_voice_call(lead_id: str) -> bool:
-    """Owner tasdiqlagach chaqiriladi (masalan /voice_approve buyrug'idan).
-
-    Pending call yozuvini o'qiydi, mavjud bo'lsa Vapi.ai chaqiruvini navbatga
-    qo'yadi va pending yozuvni tozalaydi. Ikki marta tasdiqlash xavfsiz —
-    yozuv topilmasa False qaytaradi.
-    """
+    """Owner tasdiqlagach chaqiriladi (masalan /voice_approve buyrug'idan)."""
     if not settings.ENABLE_VOICE_AGENT:
         return False
 

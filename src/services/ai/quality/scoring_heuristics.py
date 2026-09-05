@@ -4,19 +4,16 @@ Heuristic scoring, talk ratio computation, and conversation analysis assembly mi
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from src.services.core.sales_playbook import (
     category_for_score,
-    metric_weights,
 )
 from src.services.utils.transcript import speaker_split
 from src.services.ai.quality.models import (
     ConversationAnalysis,
     QualityMetric,
     ScoreBreakdown,
-    _clamp_score,
     SCORING_METHOD_AI,
     SCORING_METHOD_HEURISTIC,
     OUTCOME_NOT_SALES,

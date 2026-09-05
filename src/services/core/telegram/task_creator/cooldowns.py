@@ -3,12 +3,9 @@ Cooldown management, persistence, and throttle state tracking mixin.
 """
 from __future__ import annotations
 
-import json
-import logging
-import os
 import re
 import time
-from typing import Any, Dict, Optional
+from typing import Optional
 import structlog
 
 from src.services.core.telegram.task_creator.dialogs import _maybe_await

@@ -8,7 +8,7 @@ import logging
 import re
 from dataclasses import dataclass
 from html import escape
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from src.services.core.airtable_sync import AirtableSync
 from src.time_utils import get_local_now

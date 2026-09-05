@@ -3,8 +3,8 @@ Sales priority and project delivery risk builders for Command Center.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import date, datetime, timezone
+from typing import Any
 from src.services.command_center.models import (
     ProjectRiskItem,
     SalesPriorityLead,
@@ -16,7 +16,6 @@ from src.services.command_center.models import (
     _has_overdue_task,
     _int_or_zero,
     _lead_contacts,
-    _money_value,
     _parse_date,
 )
 

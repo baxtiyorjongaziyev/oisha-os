@@ -3,7 +3,7 @@ Settings normalization and validation helpers.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 
 def normalize_telegram_chat_id(value: Any) -> Any:

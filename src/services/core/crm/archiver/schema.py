@@ -4,7 +4,6 @@ Database schema and persistence for CRM archiver.
 from __future__ import annotations
 
 import datetime
-import json
 import logging
 from typing import Any, Dict
 

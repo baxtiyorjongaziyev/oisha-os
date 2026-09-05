@@ -1,12 +1,14 @@
-"""
-Hisobchi transaction processing pipeline handler.
-"""
-import asyncio
-import logging
-from typing import Any, Dict, Optional
+from __future__ import annotations
 
-from src.settings import settings
-from src.context import app_ctx
+import logging
+from typing import TYPE_CHECKING
+from telethon import TelegramClient
+
+from src.services.core.finance.handlers import (
+    handle_card_bot_message,
+    handle_finance_group_reply,
+    is_card_bot_sender,
+)
 
 logger = logging.getLogger("OishaHisobchiHandler")
 

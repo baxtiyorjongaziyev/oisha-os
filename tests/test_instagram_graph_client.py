@@ -34,7 +34,7 @@ def test_profile_request_is_read_only_and_does_not_return_token(monkeypatch):
         seen.update(url=url, params=params, timeout=timeout)
         return _Response({"id": "ig_123", "username": "baxtiyorjongaziyev"})
 
-    monkeypatch.setattr("src.services.core.instagram_agent.requests.get", fake_get)
+    monkeypatch.setattr("src.services.core.instagram.graph_client.requests.get", fake_get)
     client = InstagramGraphClient(_settings())
 
     result = client.get_profile()
@@ -53,7 +53,7 @@ def test_list_media_bounds_limit(monkeypatch):
         seen.update(url=url, params=params, timeout=timeout)
         return _Response({"data": []})
 
-    monkeypatch.setattr("src.services.core.instagram_agent.requests.get", fake_get)
+    monkeypatch.setattr("src.services.core.instagram.graph_client.requests.get", fake_get)
     client = InstagramGraphClient(_settings())
 
     result = client.list_media(limit=1000)
@@ -67,7 +67,7 @@ def test_missing_config_fails_closed_without_network(monkeypatch):
     def fail_get(*args, **kwargs):
         raise AssertionError("network must not be called")
 
-    monkeypatch.setattr("src.services.core.instagram_agent.requests.get", fail_get)
+    monkeypatch.setattr("src.services.core.instagram.graph_client.requests.get", fail_get)
     client = InstagramGraphClient(
         _settings(
             META_INSTAGRAM_USER_ID=None,
@@ -99,7 +99,7 @@ def test_graph_error_is_structured_and_token_safe(monkeypatch):
             status_code=400,
         )
 
-    monkeypatch.setattr("src.services.core.instagram_agent.requests.get", fake_get)
+    monkeypatch.setattr("src.services.core.instagram.graph_client.requests.get", fake_get)
     result = InstagramGraphClient(_settings()).get_profile()
 
     assert result == {

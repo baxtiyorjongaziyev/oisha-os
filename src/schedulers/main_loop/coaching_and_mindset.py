@@ -3,13 +3,11 @@ Call quality analytics, psychological coaching, and keep-alive pulse jobs.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Any
 from telethon import functions
 
-from src.settings import settings
 import src.main as m
 from src.schedulers.main_loop.helpers import _is_due
 

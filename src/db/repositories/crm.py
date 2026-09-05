@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import datetime
 import structlog
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src.db.repositories.base import BaseRepository
 

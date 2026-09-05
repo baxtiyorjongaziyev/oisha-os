@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 class PsychologicalRole(str, Enum):
@@ -67,7 +67,7 @@ def _build_sales_rejection_and_price(cat: FearCategory, role: PsychologicalRole,
         worst_case_analysis=f"Hozir {client} 'Yo'q' desa — bu ham aniqlik! Vaqting tejaladi.",
         inaction_cost="Soxta umid bilan kun o'tib ketadi.",
         mindset_shift="Rad javobi shaxsingga emas, ayni damdagi vaziyatga berilgan.",
-        micro_script=f"Agar hozir vaqti bo'lmasa, qaysi oyda qayta bog'lansak qulay bo'ladi?",
+        micro_script="Agar hozir vaqti bo'lmasa, qaysi oyda qayta bog'lansak qulay bo'ladi?",
         action_challenge="Rad javobini yengish uchun darhol keyingi lidga o't!",
     )
 
@@ -146,10 +146,10 @@ class PsychologicalCoach:
     def roleplay_sparring(cls, role: str = "sales", scenario: str = "", user_reply: Optional[str] = None) -> str:
         if not user_reply:
             return (
-                f"🥊 **OISHA SPARRING PARTNER** 🛡️\n"
-                f"Siz bilan rolli sparring mashqi boshlandi!\n\n"
-                f"Mijoz e'tirozi: 'Sizning taklifingiz va narxingiz juda qimmat, boshqalar arzonroq qilib beradi.'\n"
-                f"Mijozga qanday javob berasiz? Javobingizni yozing."
+                "🥊 **OISHA SPARRING PARTNER** 🛡️\n"
+                "Siz bilan rolli sparring mashqi boshlandi!\n\n"
+                "Mijoz e'tirozi: 'Sizning taklifingiz va narxingiz juda qimmat, boshqalar arzonroq qilib beradi.'\n"
+                "Mijozga qanday javob berasiz? Javobingizni yozing."
             )
         return (
             f"🥊 **SPARRING TAHLILI VA FEEDBACK** 🛡️\n"

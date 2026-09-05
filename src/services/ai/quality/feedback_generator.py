@@ -4,18 +4,13 @@ Quality feedback, improvement tips, task generation, and manager ratings mixin.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from src.services.ai.quality.models import (
     CATEGORY_NOT_SALES,
     ConversationAnalysis,
-    OUTCOME_NOT_SALES,
     QualityMetric,
-    SCORING_METHOD_AI,
     SCORING_METHOD_HEURISTIC,
-    ScoreBreakdown,
-    _clamp_score,
 )
 
 logger = logging.getLogger("QualityAnalyzer")

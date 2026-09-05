@@ -2,7 +2,6 @@ import asyncio
 import datetime
 import logging
 from src.database import Database
-from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.crm.crm_service import CRMService
 from src.settings import settings
 from src.services.core.enterprise_reporter import EnterpriseReporter

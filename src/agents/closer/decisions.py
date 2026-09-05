@@ -3,14 +3,11 @@ Decision making and AI generation mixin for Autonomous Sales Closer.
 """
 from __future__ import annotations
 
-import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from src.agents.closer.models import ConversationState
-from src.agents.closer.proposals import ProposalEngine
 from src.services.utils.gemini_fallback import generate_content_with_fallback
-from src.settings import settings
 
 logger = logging.getLogger(__name__)
 

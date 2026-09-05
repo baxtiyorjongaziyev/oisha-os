@@ -4,8 +4,9 @@ User command handlers for workflow telegram bot (/start, /mytasks, /status, /hel
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
 from datetime import datetime
+
+from src.services.core.workflow_engine.models import Role, TaskStatus
 
 logger = logging.getLogger("WorkflowTelegramBot")
 
