@@ -45,6 +45,20 @@
   .empty { color: var(--muted); padding: 40px; text-align: center; }
   .delta-up { color: var(--good); } .delta-down { color: var(--bad); }
   .wide { grid-column: 1 / -1; }
+  .mgr-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: 12px; }
+  .mgr-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  .mgr-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .mgr-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent);
+                display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex: 0 0 auto; }
+  .mgr-name { font-weight: 700; font-size: 15px; }
+  .mgr-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-bottom: 14px; }
+  .mgr-stat b { display: block; font-size: 19px; }
+  .mgr-stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .radar-wrap { display: flex; justify-content: center; margin: 6px 0; }
+  .audio-link { display: inline-block; margin-top: 10px; padding: 8px 12px; border-radius: 9px;
+                background: rgba(47,107,255,.14); border: 1px solid rgba(47,107,255,.35);
+                color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; }
+  .audio-link.disabled { opacity: .4; pointer-events: none; border-color: var(--line); color: var(--muted); }
 </style>
 </head>
 <body>
@@ -52,12 +66,99 @@
 <div class="sub" id="period">Yuklanmoqda…</div>
 <div id="app"><div class="empty">Yuklanmoqda…</div></div>
 
+<h1 style="margin-top:32px">Sotuvchilar bo'yicha kartochkalar</h1>
+<div class="sub" id="mgr-sub"></div>
+<div id="mgr-app"><div class="empty">Yuklanmoqda…</div></div>
+
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money = (n) => (Number(n) || 0).toLocaleString("ru-RU").replace(/,/g, " ") + " so'm";
 const scoreClass = (s) => s >= 75 ? "s-good" : s >= 40 ? "s-mid" : "s-bad";
+
+function radarSvg(axes) {
+  const n = axes.length;
+  const cx = 100, cy = 100, R = 78;
+  const pt = (i, r) => {
+    const a = (Math.PI * 2 * i) / n - Math.PI / 2;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+  let rings = "";
+  [0.25, 0.5, 0.75, 1].forEach(f => {
+    const pts = axes.map((_, i) => pt(i, R * f).join(",")).join(" ");
+    rings += `<polygon points="${pts}" fill="none" stroke="#1b2740" stroke-width="1"/>`;
+  });
+  let spokes = "";
+  let labels = "";
+  axes.forEach((ax, i) => {
+    const [x, y] = pt(i, R);
+    spokes += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#1b2740" stroke-width="1"/>`;
+    const [lx, ly] = pt(i, R + 16);
+    labels += `<text x="${lx}" y="${ly}" fill="#8ba0c4" font-size="10" text-anchor="middle" dominant-baseline="middle">${esc(ax.label)}</text>`;
+  });
+  const dataPts = axes.map((ax, i) => pt(i, R * ((ax.score ?? 0) / 100)).join(",")).join(" ");
+  return `<svg width="220" height="220" viewBox="0 0 200 200">
+    ${rings}${spokes}
+    <polygon points="${dataPts}" fill="rgba(47,107,255,.35)" stroke="#2f6bff" stroke-width="2"/>
+    ${labels}
+  </svg>`;
+}
+
+async function loadManagerCards() {
+  let data;
+  try {
+    const res = await fetch("/api/sales-quality/manager-cards", {
+      headers: { "Accept": "application/json" }, credentials: "same-origin",
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    data = await res.json();
+  } catch (err) {
+    $("#mgr-app").innerHTML =
+      '<div class="card"><div class="empty">Ma\'lumot olinmadi: ' + esc(err.message) + '</div></div>';
+    return;
+  }
+  renderManagerCards(data);
+}
+
+function renderManagerCards(d) {
+  const managers = d.managers || [];
+  if (!d.real_data || !managers.length) {
+    $("#mgr-sub").textContent = "";
+    $("#mgr-app").innerHTML =
+      '<div class="card"><div class="empty">Hali baholangan real qo\'ng\'iroq yo\'q — kartochkalar shu yerda paydo bo\'ladi.</div></div>';
+    return;
+  }
+  $("#mgr-sub").textContent = managers.length + " ta sotuvchi";
+
+  let html = '<div class="mgr-grid">';
+  managers.forEach(m => {
+    const lastCall = (m.recent_calls || [])[0];
+    const audioHref = lastCall && lastCall.audio_url ? lastCall.audio_url : null;
+    html += `<div class="mgr-card">
+      <div class="mgr-head">
+        <div class="mgr-avatar">${esc(m.avatar)}</div>
+        <div class="mgr-name">${esc(m.name)}</div>
+      </div>
+      <div class="mgr-stats">
+        <div class="mgr-stat"><b>${m.qualified_leads}</b><span>Qual lid</span></div>
+        <div class="mgr-stat"><b>${m.conversion_rate}%</b><span>Konv</span></div>
+        <div class="mgr-stat"><b>${m.sales_count}</b><span>Sotuv</span></div>
+        <div class="mgr-stat"><b>${money(m.total_sum)}</b><span>Summa</span></div>
+      </div>
+      ${m.has_radar_data
+        ? `<div class="radar-wrap">${radarSvg(m.radar)}</div>`
+        : '<div class="empty" style="padding:16px">Mezonlar bo\'yicha tahlil hali yo\'q</div>'}
+      ${audioHref
+        ? `<a class="audio-link" href="${esc(audioHref)}" target="_blank" rel="noopener">🎧 Tahlil audio</a>`
+        : '<span class="audio-link disabled">🎧 Audio yo\'q</span>'}
+    </div>`;
+  });
+  html += '</div>';
+  $("#mgr-app").innerHTML = html;
+}
+
+loadManagerCards();
 
 async function load() {
   let data;
