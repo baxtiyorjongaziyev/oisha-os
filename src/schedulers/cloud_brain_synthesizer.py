@@ -1,10 +1,10 @@
 """Scheduler for AI Promises Tracker (24/7 Cloud Brain Synthesizer)."""
 import asyncio
 import logging
-
-from openai import AsyncOpenAI
+from typing import Optional
 
 from src.database import get_db
+from src.services.utils.free_ai_router import FreeAIProviderRouter
 from src.settings import settings
 from src.utils.git_sync import push_vault_to_remote
 
@@ -38,58 +38,59 @@ Data:
 {data}
 """
 
-async def _fetch_recent_data():
+
+async def _fetch_recent_data() -> str:
     try:
         db = get_db()
         conn = await db.get_connection()
-        # Fetch recent pending tasks from DB
         cursor = await conn.execute(
             "SELECT title, description FROM tasks WHERE status='Pending' ORDER BY created_at DESC LIMIT 20"
         )
         rows = await cursor.fetchall()
-        
-        data = "\n".join([f"Task: {r[0]} - {r[1]}" for r in rows])
-        return data if data else "No recent data found."
+        data = "\n".join([f"Task: {r[0]} - {r[1]}" for r in rows if r[0] or r[1]])
+        return data.strip()
     except Exception as e:
         logger.error(f"[BRAIN_SYNTH] Error fetching data: {e}")
         return ""
 
-async def _generate_insights(data: str) -> str:
-    if not data or data == "No recent data found.":
-        return "Bugun uchun qolib ketgan va'dalar yo'q."
+
+async def _generate_insights(data: str) -> Optional[str]:
+    if not data:
+        return None
 
     try:
-        openrouter_key = settings.OPENROUTER_API_KEY.get_secret_value() if settings.OPENROUTER_API_KEY else None
-        
-        if openrouter_key:
-            client = AsyncOpenAI(
-                api_key=openrouter_key,
-                base_url="https://openrouter.ai/api/v1",
-            )
-            response = await client.chat.completions.create(
-                model="meta-llama/llama-3.3-70b-instruct",
-                messages=[{"role": "user", "content": PROMPT.format(data=data)}],
-            )
-            return response.choices[0].message.content or ""
-        else:
-            return "OpenRouter API kaliti topilmadi."
-            
+        router = FreeAIProviderRouter()
+        result = await router.generate_text(
+            prompt=PROMPT.format(data=data),
+            max_tokens=1500,
+            temperature=0.3,
+        )
+        content = (result.text or "").strip()
+        return content if content else None
     except Exception as e:
-        logger.error(f"[BRAIN_SYNTH] AI API error: {e}")
-        return f"Analizda xatolik yuz berdi: {e}"
+        logger.warning(f"[BRAIN_SYNTH] AI synthesis failed: {e}")
+        return None
+
 
 async def run_brain_synthesizer_cycle(bot_client, target_chat_id: int):
-    """Fetches data, runs analysis, and sends digest to Telegram."""
+    """Fetches data, runs analysis, and sends digest to Telegram (fail-closed)."""
     logger.info("[BRAIN_SYNTH] Starting synthesis cycle...")
     data = await _fetch_recent_data()
+    if not data:
+        logger.info("[BRAIN_SYNTH] No pending tasks to synthesize. Skipping digest.")
+        return
+
     insights = await _generate_insights(data)
-    
+    if not insights:
+        logger.info("[BRAIN_SYNTH] No insights generated (providers unavailable or empty). Skipping digest.")
+        return
+
     if "Ma'lumot yo'q" in insights and insights.count("Ma'lumot yo'q") >= 4:
-        logger.info("[BRAIN_SYNTH] No significant new insights found across pillars.")
+        logger.info("[BRAIN_SYNTH] Insufficient new insights across pillars. Skipping digest.")
         return
 
     message = f"🧠 <b>Second Brain Evolution Digest</b>\n\n{insights}"
-    
+
     try:
         if hasattr(bot_client, "send_message"):
             await bot_client.send_message(
@@ -98,21 +99,22 @@ async def run_brain_synthesizer_cycle(bot_client, target_chat_id: int):
                 parse_mode="HTML"
             )
             logger.info("[BRAIN_SYNTH] Digest sent successfully.")
-            # Sync Obsidian vault to remote after each successful digest
-            await push_vault_to_remote(settings.VAULT_PATH)
+            if getattr(settings, "VAULT_PATH", None):
+                await push_vault_to_remote(settings.VAULT_PATH)
     except Exception as e:
         logger.error(f"[BRAIN_SYNTH] Failed to send digest: {e}")
 
+
 async def brain_synthesizer_loop(bot_client, target_chat_id: int):
     """Async loop that runs every 6 hours to synthesize data."""
-    await asyncio.sleep(180) # Boot delay
+    await asyncio.sleep(180)  # Boot delay
     logger.info("[BRAIN_SYNTH] 24/7 Synthesizer loop started.")
-    
+
     while True:
         try:
             await run_brain_synthesizer_cycle(bot_client, target_chat_id)
         except Exception as e:
             logger.error(f"[BRAIN_SYNTH] Error in loop: {e}")
-        
+
         # Har 6 soatda aylanadi (21600 soniya)
         await asyncio.sleep(21600)
