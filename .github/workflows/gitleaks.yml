@@ -42,14 +42,15 @@ jobs:
           echo "$RUNNER_TEMP/gitleaks-bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/gitleaks-bin/gitleaks" version
 
-      # Scan only the history reachable from this checkout's HEAD. gitleaks'
-      # default git log invocation uses `--all`, which walks every ref
-      # actions/checkout fetched — and checkout fetches every branch on the
-      # remote (+refs/heads/*:refs/remotes/origin/*), not just this PR's.
-      # main and this branch have been scrubbed with git-filter-repo, but
-      # dozens of other stale branches on this repo still carry the old
-      # leaked session commits; `--all` would flag those on every PR
-      # regardless of what changed. `--log-opts=HEAD` scopes the scan to
-      # what's actually being reviewed.
+      # On pull_request: scan only the commits introduced by this PR (origin/${{ github.base_ref }}...HEAD).
+      # On schedule / workflow_dispatch: scan history reachable from HEAD.
+      # Historical repository findings are tracked in .gitleaksignore.
       - name: Scan git history for secrets
-        run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose --exit-code 1 --log-opts=HEAD
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ -n "${{ github.base_ref }}" ]; then
+            echo "[GITLEAKS] Scanning PR commits: origin/${{ github.base_ref }}...HEAD"
+            gitleaks detect --source . --config .gitleaks.toml --redact --verbose --exit-code 1 --log-opts="origin/${{ github.base_ref }}...HEAD"
+          else
+            echo "[GITLEAKS] Scanning history reachable from HEAD"
+            gitleaks detect --source . --config .gitleaks.toml --redact --verbose --exit-code 1 --log-opts=HEAD
+          fi
