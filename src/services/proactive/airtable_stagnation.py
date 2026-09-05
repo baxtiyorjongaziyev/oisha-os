@@ -114,17 +114,29 @@ async def check_airtable_stagnation():
     db = _resolve('Database', Database)()
     now = _resolve('get_local_now', get_local_now)()
     today = now.strftime("%Y-%m-%d")
-    if now.hour not in [11, 15, 18] or now.minute > 10:
+    if now.hour not in [11, 15, 18]:
         return
 
-    job_key = f"project_stage_push_{now.hour}"
+    # Kunlik kalit (soat emas). Ilgari "_{now.hour}" edi — 11/15/18 = kuniga
+    # 3 marta PM Stage Push. Endi kuniga bitta yetarli.
+    job_key = f"project_stage_push_{today}"
     if await db.is_job_run(job_key, today):
         return
+    # Atomik claim: yuborishdan OLDIN band qilamiz. Aks holda 11:00–11:10
+    # oynasida ikki loop (bg_monitor + main_loop) parallel yuboradi —
+    # mark_job_run faqat agent tugagach yozilardi, oradagi run'lar spam qilardi.
+    _claimed = False
+    if hasattr(db, "claim_job_run"):
+        _claimed = await db.claim_job_run(job_key, today)
+        if not _claimed:
+            return
 
     bot_token = os.environ.get("BOT_TOKEN") or getattr(config, "BOT_TOKEN", None)
     group_id = -1003114662117
     thread_id = 1
     if not (bot_token and group_id):
+        if _claimed and hasattr(db, "release_job_run"):
+            await db.release_job_run(job_key, today)
         return
 
     sync = AirtableSync()
@@ -132,6 +144,10 @@ async def check_airtable_stagnation():
     projects = await registry.get("airtable_projects").fetch_projects()
     stalled = _filter_stalled_projects(projects, now)
     if not stalled:
+        # Yuboriladigan narsa yo'q — claim'ni bo'shatamiz, keyingi oynada
+        # (masalan 15:00) qayta tekshirilsin.
+        if _claimed and hasattr(db, "release_job_run"):
+            await db.release_job_run(job_key, today)
         return
 
     message = _format_stalled_report(stalled)
@@ -152,3 +168,6 @@ async def check_airtable_stagnation():
     result = await _resolve('_run_notification_agent', _run_notification_agent)(db, task, executor)
     if result.success:
         await db.mark_job_run(job_key, today)
+    elif _claimed and hasattr(db, "release_job_run"):
+        # Yuborilmadi — claim'ni bo'shatamiz, keyingi oynada qayta urinsin.
+        await db.release_job_run(job_key, today)
