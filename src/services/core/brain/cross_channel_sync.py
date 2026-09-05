@@ -60,6 +60,8 @@ class CrossChannelBrainSync:
         transcript: str = "",
         ai_analysis: str = "",
         telegram_messages: Optional[List[Dict[str, Any]]] = None,
+        airtable_projects: Optional[List[Dict[str, Any]]] = None,
+        instagram_profile: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Creates or updates a unified client intelligence note in 60-Wiki/pages/."""
         if not self.vault_path:
@@ -87,6 +89,28 @@ class CrossChannelBrainSync:
             tg_section = "\n".join(tg_lines)
         else:
             tg_section = "_Telegram yozishmalari mavjud emas yoki hali ulanmagan._"
+
+        airtable_section = "_Mos Airtable loyihasi topilmadi._"
+        if airtable_projects:
+            rows = ["| Loyiha | Bosqich | Muddat |", "| :--- | :--- | :--- |"]
+            for record in airtable_projects[:5]:
+                fields = record.get("fields", {}) if isinstance(record, dict) else {}
+                proj_name = sanitize_text(str(fields.get("Name") or fields.get("Loyiha nomi") or record.get("id", "")))
+                stage = sanitize_text(str(fields.get("Stage") or fields.get("Bosqich") or "N/A"))
+                deadline = str(fields.get("Deadline") or fields.get("Muddat") or "N/A")
+                rows.append(f"| {proj_name} | {stage} | {deadline} |")
+            airtable_section = "\n".join(rows)
+
+        instagram_section = "_Instagram profili ulanmagan yoki topilmadi._"
+        if instagram_profile and instagram_profile.get("ok"):
+            ig_username = instagram_profile.get("username", "")
+            ig_followers = instagram_profile.get("followers_count", "N/A")
+            instagram_section = (
+                f"**Akkaunt:** @{ig_username}  \n"
+                f"**Followers:** {ig_followers}  \n"
+                "_Eslatma: hozircha faqat kompaniya akkaunt profili ko'rsatiladi, "
+                "shaxsiy DM tarixi arxivlanmaydi._"
+            )
 
         note_content = f"""---
 title: "{clean_name}"
@@ -124,6 +148,16 @@ sources:
 
 ## 💬 Telegram Yozishmalari Tarixi (Cross-Channel)
 {tg_section}
+
+---
+
+## 📁 Airtable Loyihalari
+{airtable_section}
+
+---
+
+## 📸 Instagram
+{instagram_section}
 
 ---
 
