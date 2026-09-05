@@ -104,6 +104,51 @@ async def _handle_audit_and_extra(event: Any, text: str, audit_agent: Any, auto_
     return False
 
 
+async def _handle_client_qa(event: Any, text: str, client: Any, msg_controller: Any, get_surgical_integration: Any) -> bool:
+    if not text.startswith("/mijoz"):
+        return False
+    query = text[len("/mijoz"):].strip()
+    if not query:
+        await event.respond(
+            "ℹ️ **Foydalanish:** `/mijoz <ism yoki telefon> | <savol>`\n"
+            "Masalan: `/mijoz Aziz Karimov | oxirgi qo'ng'iroqda nima kelishildi?`"
+        )
+        return True
+
+    if "|" in query:
+        client_ref, question = (p.strip() for p in query.split("|", 1))
+    else:
+        parts = query.split(" ", 1)
+        client_ref, question = (parts[0], parts[1] if len(parts) > 1 else "Bu mijoz haqida umumiy holatni ayting.")
+
+    if not client_ref or not question:
+        await event.respond("❌ Iltimos, mijoz nomi/telefoni VA savolni kiriting: `/mijoz <mijoz> | <savol>`")
+        return True
+
+    await event.respond("🧠 Oisha barcha manbalardan (AmoCRM, Telegram, Airtable, Instagram) ma'lumot yig'moqda...")
+    try:
+        amocrm = getattr(msg_controller.crm, "amocrm", None) if (msg_controller and getattr(msg_controller, "crm", None)) else get_surgical_integration().amocrm
+        from src.services.core.brain.client_qa import ClientQAError, answer_client_question
+
+        lead_id = int(client_ref) if client_ref.isdigit() else None
+        answer = await answer_client_question(
+            question,
+            amocrm=amocrm,
+            db=getattr(msg_controller, "db", None),
+            tg_client=client,
+            lead_id=lead_id,
+            name="" if lead_id else client_ref,
+            phone=client_ref if client_ref.replace("+", "").isdigit() else "",
+        )
+        await event.respond(answer)
+    except ClientQAError as exc:
+        await event.respond(f"⚠️ {exc}")
+    except Exception as exc:
+        logger.error("[ADMIN_CMD] /mijoz error: %s", exc, exc_info=True)
+        await event.respond(f"❌ Xatolik: {exc}")
+    return True
+
+
 async def process_admin_commands(
     event,
     *,
@@ -132,5 +177,7 @@ async def process_admin_commands(
     if await _handle_reports(event, text, msg_controller, get_surgical_integration):
         return True
     if await _handle_audit_and_extra(event, text, audit_agent, auto_lead_agent, meeting_scheduler):
+        return True
+    if await _handle_client_qa(event, text, client, msg_controller, get_surgical_integration):
         return True
     return False

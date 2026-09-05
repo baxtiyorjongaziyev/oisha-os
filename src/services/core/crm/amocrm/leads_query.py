@@ -58,6 +58,25 @@ class AmoCRMLeadsQueryMixin:
             logger.error(f"[AMOCRM GET LEAD ERROR] ID {lead_id}: {e}")
             return None
 
+    async def search_leads(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Search leads by client name, phone, email, etc. (AmoCRM v4 free-text query)."""
+        if not query or not query.strip():
+            return []
+        self._load_token()
+        url = f"{self.base_url}/api/v4/leads"
+        params = {"query": query.strip(), "limit": limit, "with": "contacts"}
+
+        try:
+            response = await self._request_with_auth(requests.get, url, params=params, timeout=30)
+            if response.status_code == 401 and await asyncio.to_thread(self.refresh_token):
+                response = await self._request_with_auth(requests.get, url, params=params, timeout=30)
+            if response.status_code == 200:
+                return response.json().get("_embedded", {}).get("leads", [])
+            return []
+        except Exception as e:
+            logger.error(f"[AMOCRM SEARCH LEADS ERROR] query={query!r}: {e}")
+            return []
+
     def get_all_leads(self, limit: int = 250) -> List[Dict[str, Any]]:
         self._load_token()
         url = f"{self.base_url}/api/v4/leads"
