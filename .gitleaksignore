@@ -23,3 +23,36 @@ c20c5a60916c49f4c9aeef0024115cfcd045158d:scripts/generate_session_string.py:gene
 a727952cdc268c1a1d3de3b91b93d54274d5abf6:README.md:sidekiq-secret:42
 a727952cdc268c1a1d3de3b91b93d54274d5abf6:README.md:aws-access-token:221
 a727952cdc268c1a1d3de3b91b93d54274d5abf6:README.md:aws-access-token:223
+
+# AmoCRM chat channel secret — tarixiy commitda ochiq qolgan,
+# hozirgi versiyada GitHub Secrets (AMOCRM_CHAT_CHANNEL_SECRET) ga o'tkazildi.
+7af66912297f1b51124143b47c2cba4b5be86175:.github/workflows/oracle-deploy.yml:generic-api-key:228
+
+# Tarixiy Airtable PAT va Oisha secret fingerprint'lar (2026-08-22 - 2026-08-27).
+# Hozirgi barcha skriptlar va runtime AIRTABLE_API_KEY / OISHA_API_SECRET env'dan o'qiydi.
+2c588197e4763a6af0017ddc01230b26f08b23df:scripts/build_native_rollups.py:generic-api-key:8
+2c588197e4763a6af0017ddc01230b26f08b23df:scripts/update_native_pnl_formulas.py:generic-api-key:6
+58f675f6d916d3bc3c27480f30d3fcd21bb39c58:scripts/populate_clean_pnl.py:generic-api-key:6
+2c588197e4763a6af0017ddc01230b26f08b23df:scripts/cleanup_pnl_fields.py:generic-api-key:6
+58f675f6d916d3bc3c27480f30d3fcd21bb39c58:scripts/recreate_pristine_pnl.py:generic-api-key:6
+2c588197e4763a6af0017ddc01230b26f08b23df:scripts/setup_client_success_fields.py:generic-api-key:12
+e2540e2d694d750421a75262e6e16c56052ab112:scripts/connect_pnl_engine.py:generic-api-key:6
+91df52d0778b94bd513c80b1542fc28f79f46aa7:scripts/inspect_pnl_links.py:generic-api-key:5
+91df52d0778b94bd513c80b1542fc28f79f46aa7:scripts/quick_audit.py:generic-api-key:3
+ebe5783f9b125636b6cd68fd8d57cd0eb14836a8:scripts/audit_pnl_vs_reality.py:generic-api-key:5
+ebe5783f9b125636b6cd68fd8d57cd0eb14836a8:scripts/audit_zombie_payments.py:generic-api-key:8
+ebe5783f9b125636b6cd68fd8d57cd0eb14836a8:scripts/create_monthly_pnl_table.py:generic-api-key:10
+ebe5783f9b125636b6cd68fd8d57cd0eb14836a8:scripts/populate_project_metrics.py:generic-api-key:8
+ebe5783f9b125636b6cd68fd8d57cd0eb14836a8:scripts/deep_reality_check.py:generic-api-key:5
+ebe5783f9b125636b6cd68fd8d57cd0eb14836a8:scripts/create_pnl_step_by_step.py:generic-api-key:8
+ebe5783f9b125636b6cd68fd8d57cd0eb14836a8:scripts/fix_financial_terminology.py:generic-api-key:10
+ebe5783f9b125636b6cd68fd8d57cd0eb14836a8:scripts/update_dilorom_project.py:generic-api-key:5
+ebe5783f9b125636b6cd68fd8d57cd0eb14836a8:scripts/setup_fixed_project_costing.py:generic-api-key:8
+ebe5783f9b125636b6cd68fd8d57cd0eb14836a8:scripts/setup_three_tier_pnl.py:generic-api-key:12
+ebe5783f9b125636b6cd68fd8d57cd0eb14836a8:scripts/setup_world_class_agency_engine.py:generic-api-key:10
+aa48008afbf0da506c6ae9fe7d4f51d2d25adcf4:scripts/clean_and_organize_projects.py:generic-api-key:6
+aa48008afbf0da506c6ae9fe7d4f51d2d25adcf4:scripts/add_project_fields.py:generic-api-key:5
+aa48008afbf0da506c6ae9fe7d4f51d2d25adcf4:scripts/setup_brief_smart_fields.py:generic-api-key:5
+aa48008afbf0da506c6ae9fe7d4f51d2d25adcf4:scripts/test_dialogs_endpoint.py:generic-api-key:6
+aa48008afbf0da506c6ae9fe7d4f51d2d25adcf4:scripts/run_live_assistant_audit.py:generic-api-key:21
+aa48008afbf0da506c6ae9fe7d4f51d2d25adcf4:scripts/setup_budget_table.py:generic-api-key:6

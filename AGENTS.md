@@ -20,6 +20,29 @@
 
 ## Agent Handoff Log
 
+- **2026-09-05 — Antigravity — Gitleaks PR Scoping & Secret Remediation:**
+  1. **PR-Scoped Gitleaks**: `.github/workflows/gitleaks.yml` da PR skaneri faqat PR commitlariga (`origin/${{ github.base_ref }}...HEAD`) cheklandi, scheduled/dispatch runlar uchun to'liq tarix saqlandi. Barcha ochiq va yangi PR'lar tarixiy o'tmish sababli sun'iy bloklanishi bartaraf etildi.
+  2. **Workflow Secret Sanitization**: `.github/workflows/oracle-deploy.yml` da ochiq matnda qolib ketgan `AMOCRM_CHAT_CHANNEL_SECRET` va `AMOCRM_CHAT_CHANNEL_ID` GitHub Secrets'ga (`gh secret set`) kiritildi va workflow env o'zgaruvchisiga bog'landi.
+  3. **Historical Fingerprints Tracking**: `.gitleaksignore` ga tarixiy skriptlar va o'tmishdagi deploy commitidagi 27 ta fingerprint izohlar bilan kiritildi.
+  4. **Syntax & BOM Fix**: `src/schedulers/cloud_brain_synthesizer.py` dagi UTF-8 BOM belgisi tozalandi (`tests/test_syntax_guard.py` 781/781 passed). Bandit auditi: 0 issues.
+
+- **2026-09-05 — Codex Coordinator — Telegram notification quality guard:** Owner requested suppression of unknown/example reports. Added `src/services/core/notification_quality.py` and outbound fail-closed validation in `src/services/proactive/reminders.py`; invalid report batches cannot send group or accompanying DMs. `src/schedulers/frog_scheduler.py` excludes Buyurtmachi A examples and renders the selected source title instead of ungrounded generated motivation. Local `airtable_stagnation.py` no longer invents project names or defaults missing managers to Inomjon. Added regression tests and bounded installer `scripts/prod/install_notification_guard.py`. Local and production service-venv checks: 15 passed each; focused Bandit 0 issues; focused Ruff clean; touched-code diff check clean. Deployed only guard/reminders/frog changes to Oracle with backups in `/home/ubuntu/oisha-os/backups/notification-guard-20260905`; restarted service, confirmed active/running, NRestarts=0 and `/healthz/` healthy with no problems at 06:48 UTC. Startup initially returned 503 then recovered. No Telegram test messages sent. Local stagnation cleanup remains undeployed; no commit/push or unrelated working-tree changes deployed. Brain tools unavailable; source-attributed vault note captured via filesystem.
+
+
+- **2026-09-04 — Antigravity — Oisha OS Live Knowledge Bridge (Google Drive + Gemini):**
+  1. **Canonical Master & Live Bridge Architecture**: "Knowledge bizniki. AI almashtiriladi" tamoyili tasdiqlandi. Obsidian (`00-SYSTEM/`) canonical master, Google Drive (`G:\My Drive\Oisha OS`) live knowledge bridge, Gemini API/plugins esa shunchaki adapter etib belgilandi. Brain decision yozildi.
+  2. **Sync Automation**: `scripts/sync_oisha_drive.py` (201L, 400-qator qoidasiga to'liq mos) yaratildi. One-shot va real-time `--watch` rejimlari qo'llab-quvvatlanadi.
+  3. **Obsidian Native Integration**: `C:\Users\baxti\OneDrive\Документы\Obsidian Vault\00-SYSTEM\Oisha-OS-Export.ps1` yangilandi, Obsidian'dan bitta buyruq bilan avtomatik `G:\My Drive\Oisha OS` ga eksport qilinadi.
+  4. **Verification**: 7 ta core fayl, `OISHA-OS-BUNDLE.md`, `NOW-BLOCK.txt` va `README.md` Google Drive'da yaratildi va test sinxronizatsiyasi muvaffaqiyatli o'tdi.
+
+
+- **2026-09-04 — Antigravity — Omnichannel Customer 360 Ecosystem & Obsidian Sync:**
+  1. **Yangi Modul**: `src/services/customer_360/` yaratildi (`models.py`, `collector.py`, `obsidian_syncer.py`, `query_engine.py`, `__init__.py`). Barcha fayllar 400 qator standartiga mos (18-224L).
+  2. **Call Analytics Integratsiyasi**: `src/services/call_analytics/runner.py` ga `_sync_call_to_customer_360` ulandi. Qo'ng'iroq STT tahlili tugashi bilan xulosa AmoCRM bilan bir qatorda Obsidian mijoz kartasiga (`70-Mijozlar/`) avtomatik yoziladi.
+  3. **Admin Bot `/client`**: `src/services/core/admin_bot/handlers_search.py` ga `/client <ism/telefon>` buyrug'i qo'shildi, barcha tizimlardan (AmoCRM, Airtable, Calls, TG, IG) 360 dosye beradi.
+  4. **Initial Sync & Verification**: `scripts/sync_customer_360_obsidian.py` orqali ilk 7 ta mijoz Obsidian kartalari yaratildi va GitHub'ga push qilindi. Testlar: 4/4 Customer 360 va 27/27 Call Analytics testlari 100% yashil (`pytest`), Bandit 0 issues.
+
+
 - **2026-09-04 — Antigravity — YouTube Integration Merge & Test Drift Resolution:**
   1. **YouTube Integration Merged**: `8ab18b98` (`scripts/youtube_oauth_setup.py`) `origin/main` ga to'liq fast-forward merge qilindi va push etildi.
   2. **Instagram Test Drift Fixed**: `tests/test_instagram_graph_client.py` dagi patch yo'li `src.services.core.instagram.graph_client.requests.get` ga yo'naltirildi, `InstagramGraphClient` da explicit `settings_obj` ustuvorligi ta'minlandi.
@@ -174,3 +197,6 @@ bandit -r src/ -ll
 
 ## Commit Style
 `feat(scope): message` / `fix(scope): message` / `refactor(scope): message`
+
+## Agent Handoff Log — 2026-09-05 Airtable audit
+- Codex Coordinator: Read-only live Finance V2 audit; 200 archive income rows and 336 transactions inspected. Two Sadiyya receipts totaling UZS 11925000 absent from transactions; old forms/dashboard links remain; USD555 new income lacks project/P&L link; approval formulas inconsistent with descriptions. No finance/code mutations or PR. Evidence captured in Obsidian 00-Inbox/2026-09-05-Airtable-migration-audit.md. Remaining: reconcile receipts/accounts, migrate operational interfaces, verify P&L linkage and approval controls. Brain tools unavailable.
