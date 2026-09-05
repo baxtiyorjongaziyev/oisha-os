@@ -15,8 +15,10 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from src.api.rbac import Permission, Principal, require_permissions
 from src.services.sales_quality.helpers import (
     _build_empty_sales_quality,
+    _build_manager_cards_payload,
     _build_sales_quality_payload,
     _fetch_call_analysis_rows,
+    _fetch_manager_card_rows,
 )
 from src.services.sales_quality.schemas import SalesQualityAnalysisRequest
 from src.api.routes.state import api_state
@@ -42,6 +44,27 @@ async def get_sales_quality_overview(
             ),
         )
     return _build_sales_quality_payload(rows, principal=principal)
+
+
+@router.get("/api/sales-quality/manager-cards")
+async def get_sales_quality_manager_cards(
+    principal: Principal = require_permissions(Permission.DASHBOARD_READ),
+):
+    try:
+        rows = await _fetch_manager_card_rows()
+    except Exception as exc:
+        logger.error("[SALES QUALITY] Manager-card read failed: %s", exc)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "timestamp": get_local_now().isoformat(),
+                "source": "real_call_analytics",
+                "real_data": False,
+                "managers": [],
+                "reason": f"Real call analytics o'qishda xato: {type(exc).__name__}",
+            },
+        )
+    return _build_manager_cards_payload(rows, principal=principal)
 
 
 @router.post(
