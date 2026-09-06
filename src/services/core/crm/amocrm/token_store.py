@@ -28,7 +28,7 @@ fayl/env fallback baribir ishlayveradi.
 from __future__ import annotations
 
 import asyncio
-import json
+import os
 import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
@@ -38,6 +38,23 @@ import structlog
 logger = structlog.get_logger()
 
 SERVICE_NAME = "amocrm"
+
+
+def _db_persist_enabled() -> bool:
+    """DB persistence yoqilganmi.
+
+    Default: yoqilgan. ``AMOCRM_TOKEN_DB_PERSIST=0`` bilan o'chiriladi —
+    test muhitida (``SKIP_LIVE=1`` bo'lganda avtomatik o'chadi), chunki
+    bir nechta test bir xil Turso DB'ni bo'lishishi mumkin va determinism
+    buziladi.
+    """
+    raw = os.environ.get("AMOCRM_TOKEN_DB_PERSIST", "").strip().lower()
+    if raw in {"0", "false", "no"}:
+        return False
+    if raw in {"1", "true", "yes"}:
+        return True
+    # Aniq belgilanmagan — test muhitida o'chiq
+    return os.environ.get("SKIP_LIVE", "").strip() not in {"1", "true", "yes"}
 
 
 def _run_coro_blocking(coro) -> Any:
@@ -132,6 +149,8 @@ async def _save_async(token_data: Dict[str, Any]) -> None:
 
 def load_token_from_db() -> Optional[Dict[str, Any]]:
     """DB'dagi AmoCRM token payload'ini qaytaradi yoki xatoда None."""
+    if not _db_persist_enabled():
+        return None
     try:
         return _run_coro_blocking(_load_async())
     except Exception as exc:
@@ -141,6 +160,8 @@ def load_token_from_db() -> Optional[Dict[str, Any]]:
 
 def save_token_to_db(token_data: Dict[str, Any]) -> None:
     """Token payload'ini DB'ga saqlaydi. Xato yutiladi (fayl fallback baribir bor)."""
+    if not _db_persist_enabled():
+        return
     if not isinstance(token_data, dict):
         return
     try:

@@ -47,6 +47,18 @@ OWNER_HEARTBEAT_SECS = int(os.getenv("USERBOT_OWNER_HEARTBEAT_SECS", "60"))
 _INSTANCE_ID = f"{socket.gethostname()}:{os.getpid()}"
 
 
+def _db_enabled() -> bool:
+    """Session DB persistence / egalik lock yoqilganmi.
+
+    Default yoqilgan; ``USERBOT_SESSION_DB_DISABLED=1`` yoki test muhiti
+    (``SKIP_LIVE=1``, aniq belgilanmaganда) o'chiradi.
+    """
+    raw = os.environ.get("USERBOT_SESSION_DB_DISABLED", "").strip().lower()
+    if raw in {"1", "true", "yes"}:
+        return False
+    return os.environ.get("SKIP_LIVE", "").strip() not in {"1", "true", "yes"}
+
+
 def _run_coro_blocking(coro) -> Any:
     """Sync kontekstdan coroutine'ni xavfsiz ishga tushiradi (token_store bilan bir xil naqsh)."""
     try:
@@ -109,6 +121,8 @@ async def _save_session_async(session_string: str) -> None:
 
 
 def load_session_string_from_db() -> Optional[str]:
+    if not _db_enabled():
+        return None
     try:
         return _run_coro_blocking(_load_session_async())
     except Exception as exc:
@@ -117,6 +131,8 @@ def load_session_string_from_db() -> Optional[str]:
 
 
 def save_session_string_to_db(session_string: str) -> None:
+    if not _db_enabled():
+        return
     if not session_string or len(session_string) < 50:
         return
     try:
@@ -180,6 +196,8 @@ def acquire_session_ownership(*, force: bool = False) -> bool:
     """
     if os.getenv("USERBOT_OWNER_LOCK_DISABLED", "").strip() in {"1", "true", "yes"}:
         return True
+    if not _db_enabled():
+        return True
     try:
         current = _run_coro_blocking(_read_owner_async())
     except Exception as exc:
@@ -218,6 +236,9 @@ async def owner_heartbeat_loop(stop_event: Optional[asyncio.Event] = None) -> No
     'tirik ega' deb ko'rishi uchun."""
     if stop_event is None:
         stop_event = asyncio.Event()
+    if not _db_enabled():
+        logger.info("[USERBOT OWNER] DB o'chiq — heartbeat loop ishga tushmaydi")
+        return
     logger.info("[USERBOT OWNER] Heartbeat loop boshlandi (interval=%ds, TTL=%ds)",
                 OWNER_HEARTBEAT_SECS, OWNER_TTL_SECS)
     while not stop_event.is_set():
