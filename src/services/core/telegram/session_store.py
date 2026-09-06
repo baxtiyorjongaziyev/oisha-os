@@ -43,6 +43,8 @@ OWNER_SERVICE_NAME = "userbot_session_owner"
 OWNER_TTL_SECS = int(os.getenv("USERBOT_OWNER_TTL_SECS", "180"))
 # Heartbeat yangilash oralig'i (TTL'ning ~1/3 i)
 OWNER_HEARTBEAT_SECS = int(os.getenv("USERBOT_OWNER_HEARTBEAT_SECS", "60"))
+# Egalik band bo'lsa qayta urinishdan oldin kutish
+OWNER_RETRY_DELAY_SECS = int(os.getenv("USERBOT_OWNER_RETRY_DELAY_SECS", "2"))
 
 _INSTANCE_ID = f"{socket.gethostname()}:{os.getpid()}"
 
@@ -142,8 +144,46 @@ def save_session_string_to_db(session_string: str) -> None:
 
 
 # ─────────────────────────── Yagona egalik lock ───────────────────────────
+#
+# Egalik `oauth_tokens` jadvalidagi bitta qatorда yashaydi
+# (`service_name='userbot_session_owner'`): `access_token` = ega instance id,
+# `expires_at` = heartbeat muddati (hozir + TTL). Egalik olish ATOMIK: bitta
+# shartli UPDATE (yangi ega olish uchun eski qator eskirgan yoki bizga tegishli
+# bo'lishi kerak) + qator yo'q bo'lsa INSERT. `rowcount`/keyingi tekshiruv
+# faqat bitta chaqiruvchi yutganini isbotlaydi — ikki instance parallel
+# ishga tushса ham ikkalasi `True` qaytara olmaydi (AUTH_KEY_DUPLICATED
+# oynasi yopiladi).
 
-async def _read_owner_async() -> Optional[Dict[str, Any]]:
+_OWNER_ACQUIRE_SQL = """
+UPDATE oauth_tokens
+   SET access_token = ?, expires_at = ?, updated_at = ?
+ WHERE service_name = ?
+   AND (access_token = ? OR expires_at < ?)
+"""
+
+_OWNER_INSERT_SQL = """
+INSERT INTO oauth_tokens (service_name, access_token, refresh_token, expires_at, updated_at, extra_data)
+VALUES (?, ?, 'n/a', ?, ?, NULL)
+ON CONFLICT(service_name) DO NOTHING
+"""
+
+_OWNER_RELEASE_SQL = """
+UPDATE oauth_tokens
+   SET access_token = '', expires_at = ?, updated_at = ?
+ WHERE service_name = ? AND access_token = ?
+"""
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _deadline_iso(extra_secs: int) -> str:
+    return (datetime.now(timezone.utc) + timedelta(seconds=extra_secs)).isoformat()
+
+
+async def _try_acquire_owner_async(*, force: bool) -> bool:
+    """Egalikni atomik olishga urinadi. True -> biz egamiz."""
     from src.db import get_db
 
     db = get_db()
@@ -152,83 +192,107 @@ async def _read_owner_async() -> Optional[Dict[str, Any]]:
     except Exception:
         logger.debug("[USERBOT OWNER] _init_tables skip", exc_info=True)
 
+    conn = await db.oauth._get_conn()
+    now_iso = _now_iso()
+    new_deadline = _deadline_iso(OWNER_TTL_SECS)
+    # force -> har qanday joriy egani bosib o'tish uchun "hozir"dan katta chegara
+    stale_before = _deadline_iso(10**9) if force else now_iso
+
+    # 1. Qator mavjud bo'lmasa yaratish (boshqa yozuvni buzmaydi)
+    await conn.execute(_OWNER_INSERT_SQL, (OWNER_SERVICE_NAME, "", new_deadline, now_iso))
+    # 2. Atomik shartli egalik olish
+    await conn.execute(
+        _OWNER_ACQUIRE_SQL,
+        (_INSTANCE_ID, new_deadline, now_iso, OWNER_SERVICE_NAME, _INSTANCE_ID, stale_before),
+    )
+    await conn.commit()
+
+    # 3. Kim yutganini o'qib tasdiqlash — faqat bitta chaqiruvchi bu yerда
+    #    o'z id'ini ko'radi (UPDATE WHERE sharti tufayli)
     row = await db.oauth.get_tokens(OWNER_SERVICE_NAME)
-    if not row:
-        return None
-    extra = row.get("extra_data") or {}
-    owner = str(row.get("access_token") or "")
-    hb = 0
-    if isinstance(extra, dict):
-        try:
-            hb = int(extra.get("heartbeat", 0))
-        except (TypeError, ValueError):
-            hb = 0
-    return {"instance": owner, "heartbeat": hb}
+    won = bool(row and row.get("access_token") == _INSTANCE_ID)
+    return won
 
 
 async def _write_owner_async(instance: str) -> None:
+    """Heartbeat yangilash — faqat biz ega bo'lsak muddatni uzaytiradi."""
     from src.db import get_db
 
     db = get_db()
-    try:
-        await db.oauth._init_tables()
-    except Exception:
-        logger.debug("[USERBOT OWNER] _init_tables skip", exc_info=True)
-
-    now = int(time.time())
-    await db.oauth.save_tokens(
-        service_name=OWNER_SERVICE_NAME,
-        access_token=instance,
-        refresh_token="n/a",
-        expires_at=datetime.now(timezone.utc) + timedelta(days=3650),
-        extra_data={"heartbeat": now},
+    conn = await db.oauth._get_conn()
+    await conn.execute(
+        _OWNER_ACQUIRE_SQL,
+        (
+            instance,
+            _deadline_iso(OWNER_TTL_SECS),
+            _now_iso(),
+            OWNER_SERVICE_NAME,
+            instance,
+            _deadline_iso(10**9),  # heartbeat: doim o'zimizniki bo'lса yangilash
+        ),
     )
+    await conn.commit()
+
+
+async def _release_owner_async(instance: str) -> None:
+    from src.db import get_db
+
+    db = get_db()
+    conn = await db.oauth._get_conn()
+    await conn.execute(_OWNER_RELEASE_SQL, (_now_iso(), _now_iso(), OWNER_SERVICE_NAME, instance))
+    await conn.commit()
 
 
 def acquire_session_ownership(*, force: bool = False) -> bool:
-    """Bu instance userbot session'ni ochishга haqli-yo'qligini aniqlaydi.
+    """Bu instance userbot session'ni ochishга haqli-yo'qligini ATOMIK aniqlaydi.
 
-    True  -> ega bo'ldik (yoki ega noaniq / DB yo'q — eski xatti-harakat).
-    False -> boshqa instance active heartbeat bilan ega. Userbot OCHILMASIN.
+    True  -> egalik bizda (yoki DB/lock o'chiq — eski xatti-harakat).
+    False -> boshqa instance tirik ega. Userbot OCHILMASIN.
 
-    ``force=True`` — heartbeat holatidан qat'i nazar egalikni tortib oladi
-    (masalan qo'lда "men yagonaman" deб ishonch bilan qayта ishga tushirish).
+    Ikki urinish qilinadi: birinchisi eskirmagan begona egaga duch kelса,
+    ~2s kutib yana bir marta (oldingi jarayon shu orada release qilishi
+    yoki TTL tugashi mumkin — normal systemd restart sikli).
     """
     if os.getenv("USERBOT_OWNER_LOCK_DISABLED", "").strip() in {"1", "true", "yes"}:
         return True
     if not _db_enabled():
         return True
-    try:
-        current = _run_coro_blocking(_read_owner_async())
-    except Exception as exc:
-        logger.warning("[USERBOT OWNER] O'qish xatosi, lock o'tkazib yuborildi: %s", type(exc).__name__)
-        return True
 
-    now = int(time.time())
-    if current and not force:
-        other = current.get("instance") or ""
-        hb = current.get("heartbeat") or 0
-        age = now - hb
-        if other and other != _INSTANCE_ID and age < OWNER_TTL_SECS:
-            logger.critical(
-                "[USERBOT OWNER] ❌ Boshqa instance ega: %s (heartbeat %ds oldin). "
-                "Bu instance userbot'ni OCHMAYDI — AUTH_KEY_DUPLICATED oldini olish.",
-                other, age,
-            )
-            return False
-        if other and other != _INSTANCE_ID:
+    for attempt in (1, 2):
+        try:
+            if _run_coro_blocking(_try_acquire_owner_async(force=force)):
+                logger.info("[USERBOT OWNER] ✅ Egalik olindi (atomik): %s", _INSTANCE_ID)
+                return True
+        except Exception as exc:
             logger.warning(
-                "[USERBOT OWNER] Oldingi ega %s tashlangan (heartbeat %ds oldin) — egalik olinmoqda",
-                other, age,
+                "[USERBOT OWNER] Egalik olish xatosi (urinish %d), lock o'tkazib yuborildi: %s",
+                attempt, type(exc).__name__,
             )
+            return True
+        if attempt == 1:
+            logger.warning(
+                "[USERBOT OWNER] Boshqa instance tirik ega — %ds kutib qayta urinaman",
+                OWNER_RETRY_DELAY_SECS,
+            )
+            time.sleep(OWNER_RETRY_DELAY_SECS)
 
+    logger.critical(
+        "[USERBOT OWNER] ❌ Egalik olinmadi — boshqa instance tirik. "
+        "Userbot bu yerда OCHILMAYDI (AUTH_KEY_DUPLICATED oldini olish). "
+        "Heartbeat loop egalik bo'shashini kutadi."
+    )
+    return False
+
+
+def release_session_ownership() -> None:
+    """Graceful shutdown'да egalikni bo'shatadi — keyingi instance darhol olsin."""
+    if not _db_enabled():
+        return
     try:
-        _run_coro_blocking(_write_owner_async(_INSTANCE_ID))
-        logger.info("[USERBOT OWNER] ✅ Egalik olindi: %s", _INSTANCE_ID)
-        return True
+        _run_coro_blocking(_release_owner_async(_INSTANCE_ID))
+        logger.info("[USERBOT OWNER] Egalik bo'shatildi: %s", _INSTANCE_ID)
     except Exception as exc:
-        logger.warning("[USERBOT OWNER] Yozish xatosi, lock o'tkazib yuborildi: %s", type(exc).__name__)
-        return True
+        logger.warning("[USERBOT OWNER] Egalik bo'shatish xatosi: %s", type(exc).__name__)
 
 
 async def owner_heartbeat_loop(stop_event: Optional[asyncio.Event] = None) -> None:
@@ -258,3 +322,65 @@ async def owner_heartbeat_loop(stop_event: Optional[asyncio.Event] = None) -> No
 
 def start_owner_heartbeat(stop_event: Optional[asyncio.Event] = None) -> asyncio.Task:
     return asyncio.create_task(owner_heartbeat_loop(stop_event), name="userbot_owner_heartbeat")
+
+
+async def owner_reacquire_watch(
+    on_acquired,
+    *,
+    stop_event: Optional[asyncio.Event] = None,
+    interval_secs: int = OWNER_HEARTBEAT_SECS,
+) -> None:
+    """Egalik ololmagan instance uchun: davriy ravishda qayta urinadi va
+    egalik bo'shashi bilan ``on_acquired`` chaqiriladi.
+
+    ``acquire_session_ownership`` allaqachon ega bo'lganida (normal holat) bu
+    darrov chiqadi — faqat lock rad etilgan instance'da foydali.
+    """
+    if not _db_enabled():
+        return
+    if stop_event is None:
+        stop_event = asyncio.Event()
+    while not stop_event.is_set():
+        try:
+            await asyncio.sleep(interval_secs)
+            if stop_event.is_set():
+                break
+            if _run_coro_blocking(_try_acquire_owner_async(force=False)):
+                logger.warning("[USERBOT OWNER] Egalik bo'shadi — userbot tiklanmoqda")
+                res = on_acquired()
+                if asyncio.iscoroutine(res):
+                    await res
+                return
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.warning("[USERBOT OWNER] Reacquire watch xatosi: %s", type(exc).__name__)
+            await asyncio.sleep(10)
+
+
+def start_owner_reacquire_watch(stop_event: Optional[asyncio.Event] = None) -> Optional[asyncio.Task]:
+    """Bu instance ALLAQACHON ega bo'lса — hech narsa qilmaydi (None).
+
+    Aks holда egalikni kuzatib, bo'shashi bilan jarayonni qayta ishga
+    tushirishни so'raydi (systemd userbot'ni toza holатда qayta ko'taradi).
+    """
+    if not _db_enabled():
+        return None
+    try:
+        already_owner = _run_coro_blocking(_try_acquire_owner_async(force=False))
+    except Exception:
+        return None
+    if already_owner:
+        return None
+
+    def _request_restart() -> None:
+        logger.critical(
+            "[USERBOT OWNER] Egalik olindi — process qayta ishga tushirilishi kerak "
+            "(systemd Restart=always buni bajaradi)."
+        )
+        os._exit(3)
+
+    return asyncio.create_task(
+        owner_reacquire_watch(_request_restart, stop_event=stop_event),
+        name="userbot_owner_reacquire_watch",
+    )
