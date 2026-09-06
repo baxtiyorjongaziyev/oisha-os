@@ -512,6 +512,7 @@ async def test_process_instagram_webhook_with_dm_trigger(
 
     await process_instagram_webhook(payload, mock_db)
     mock_reply_comm.assert_called_once()
-    mock_priv_reply.assert_called_once()
-    assert mock_priv_reply.call_args[0][0] == "comm_999"
+    # DM outreach on comments is explicitly disabled per owner policy ("DMga yozmasin")
+    mock_priv_reply.assert_not_called()
+
 

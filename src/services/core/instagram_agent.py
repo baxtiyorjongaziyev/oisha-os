@@ -34,8 +34,7 @@ COMMENT_REPLY_SYSTEM = (
     "- 'Jon Branding' so'zini ishlatma — bu shaxsiy sahifang.\n"
     "- BIR XIL NOMNI HAMMAGA BERMA: nom/g'oya so'ralsa, har kimга alohida, "
     "o'ziga xos, jarangdor yangi variant taklif qil.\n"
-    "- Agar izohда nom/brend/logo/narx/xizmat yoki postдаги kalit so'z bo'lsa, "
-    "qisqa jonli javob berib oxирига 'Direct'ингизга yozdim 📩' deb qo'sh.\n"
+    "- Faqat izohning o'zida do'stona va aniq javob ber. Direct (DM) ga yozish yoki taklif qilish TAQIQLANADI.\n"
     "- O'zbekcha, 1-2 gap. Emoji 0-1 ta.\n"
     "- Shablon javob YOZMA ('Rahmat! Tez orada javob beramiz' taqiqlanadi)."
 )
@@ -349,17 +348,7 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                     await db.log_message(user_id_str, clean_reply, is_ai=True)
 
                 reply_to_comment(comment_id, clean_reply, access_token)
-                
-                # Check for Lead triggers and open a human-sounding DM
-                is_trigger, kw = should_trigger_dm(comment_text, post_caption)
-                if is_trigger:
-                    initial_dm = await generate_initial_dm_message_ai(
-                        commenter_name, comment_text, kw, post_caption
-                    )
-                    send_ig_private_reply(comment_id, initial_dm, access_token)
-                    if db:
-                        dm_uid = f"ig_{commenter_id}"
-                        await db.log_message(dm_uid, initial_dm, is_ai=True)
 
                 source = "Instagram Mention" if field in {"mentions", "mention"} else "Instagram Comment"
                 notify_crm(source, commenter_name, commenter_id, comment_text, ai_reply)
+
