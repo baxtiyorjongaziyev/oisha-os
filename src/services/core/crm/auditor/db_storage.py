@@ -69,6 +69,10 @@ class DatabaseStorageMixin:
                 await _maybe_await(conn.execute("ALTER TABLE crm_contacts_audit ADD COLUMN task_text TEXT"))
             except Exception:
                 logger.debug("[CRM_AUDIT] task_text column may already exist", exc_info=True)
+            try:
+                await _maybe_await(conn.execute("ALTER TABLE crm_contacts_audit ADD COLUMN temperature TEXT"))
+            except Exception:
+                logger.debug("[CRM_AUDIT] temperature column may already exist", exc_info=True)
             await _maybe_await(conn.commit())
             
             logger.info("[AUDITOR] crm_contacts_audit table initialized successfully.")
@@ -108,6 +112,7 @@ class DatabaseStorageMixin:
         explanation: str,
         detailed_summary: Optional[str] = None,
         task_text: Optional[str] = None,
+        temperature: Optional[str] = None,
     ) -> None:
         """Persist audit result to database."""
         if not self.db:
@@ -121,8 +126,8 @@ class DatabaseStorageMixin:
                     INSERT OR REPLACE INTO crm_contacts_audit
                         (lead_id, lead_name, contact_id, contact_name, phone, username,
                          telegram_user_id, call_summary, telegram_history, category,
-                         explanation, detailed_summary, task_text, audited_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         explanation, detailed_summary, task_text, temperature, audited_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         lead_id,
@@ -138,12 +143,16 @@ class DatabaseStorageMixin:
                         explanation,
                         detailed_summary,
                         task_text,
+                        temperature,
                         now,
                     ),
                 )
             )
             await _maybe_await(conn.commit())
-            logger.info("[AUDITOR] Audit saved: lead_id=%s contact=%s category=%s", lead_id, contact_name, category)
+            logger.info(
+                "[AUDITOR] Audit saved: lead_id=%s contact=%s category=%s temperature=%s",
+                lead_id, contact_name, category, temperature,
+            )
         except Exception as e:
             logger.error("[AUDITOR] Failed to save audit to DB for lead %s: %s", lead_id, e)
 
