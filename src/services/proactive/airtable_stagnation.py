@@ -112,8 +112,8 @@ def _format_stalled_report(stalled: List[Dict[str, Any]]) -> str:
 
 async def check_airtable_stagnation():
     """Qimirlamay qolgan loyihalarni topib, PMga push yuborish."""
-    # Owner disabled this unsolicited report on 2026-09-06.
-    return False
+    if os.environ.get("DISABLE_UNSOLICITED_REPORTS") == "1":
+        return False
     import src.config as config
     db = _resolve('Database', Database)()
     now = _resolve('get_local_now', get_local_now)()

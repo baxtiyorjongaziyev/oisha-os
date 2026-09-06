@@ -50,11 +50,17 @@ def test_telegram_login_page(client):
 
 
 def test_telegram_callback_fails_without_strong_jwt_secret(client, monkeypatch):
+    from unittest.mock import MagicMock, AsyncMock
     from src.api import auth_service
 
     monkeypatch.setattr(auth_service, "verify_telegram_hash", lambda *args, **kwargs: True)
     monkeypatch.setattr(auth_service, "is_auth_date_fresh", lambda *args, **kwargs: True)
     monkeypatch.delenv("JWT_SECRET", raising=False)
+
+    mock_db = MagicMock()
+    mock_db.users.upsert_user = AsyncMock()
+    mock_db.users.get_user = AsyncMock(return_value={"role": "client"})
+    monkeypatch.setattr("src.services.api_server.oauth.get_db", lambda: mock_db)
 
     params = {
         "id": "12345",
@@ -69,11 +75,17 @@ def test_telegram_callback_fails_without_strong_jwt_secret(client, monkeypatch):
 
 
 def test_telegram_callback_success_with_strong_jwt_secret(client, monkeypatch):
+    from unittest.mock import MagicMock, AsyncMock
     from src.api import auth_service
 
     monkeypatch.setattr(auth_service, "verify_telegram_hash", lambda *args, **kwargs: True)
     monkeypatch.setattr(auth_service, "is_auth_date_fresh", lambda *args, **kwargs: True)
     monkeypatch.setenv("JWT_SECRET", "test-dedicated-jwt-secret-at-least-32-bytes-long!")
+
+    mock_db = MagicMock()
+    mock_db.users.upsert_user = AsyncMock()
+    mock_db.users.get_user = AsyncMock(return_value={"role": "client"})
+    monkeypatch.setattr("src.services.api_server.oauth.get_db", lambda: mock_db)
 
     params = {
         "id": "12345",

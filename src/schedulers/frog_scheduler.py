@@ -1,6 +1,7 @@
 """Scheduler for Daily Frog briefing."""
 import asyncio
 import logging
+import os
 from html import escape
 from src.services.core.notification_quality import notification_is_publishable
 from src.database import get_db
@@ -23,8 +24,8 @@ async def send_daily_frog_brief(bot_client=None, team_group_id=None):
     The brief is delivered by the @jonairobot bot (``bot_client``), never the
     userbot — the morning motivational message must come from the bot account.
     """
-    # Owner disabled this unsolicited report on 2026-09-06.
-    return False
+    if os.environ.get("DISABLE_UNSOLICITED_REPORTS") == "1":
+        return False
     logger.info("[FROG] Starting daily frog identification...")
     from src.settings import settings
     from src.services.core.composio_tasks import ComposioTaskService
