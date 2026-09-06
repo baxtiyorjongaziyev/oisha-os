@@ -69,77 +69,83 @@ class AmoCRMAuthMixin:
         Turso DB — restart'ga chidamli fallback: agar env va fayl bo'sh
         bo'lsa (aynan Oracle VM restart'da ``data/`` yo'qolganda yuzaga
         keladigan holat), DB'dagi eng oxirgi rotatsiya qilingan payload
-        integratsiyani tirik saqlaydi. Har muvaffaqiyatli yuklashdan keyin
-        joriy payload DB'ga yoziladi, shunda zanjir bardavom bo'ladi.
+        integratsiyani tirik saqlaydi. Manba tanlash SRP bo'yicha alohida
+        yordamchilarga bo'lingan.
         """
-        # 1. Environment variable'dan o'qish
+        if self._load_token_from_env_json():
+            return
+        self._load_token_from_file()
+        self._apply_raw_refresh_fallback()
+        if self._load_token_from_db_fallback():
+            return
+        # Env/fayldan yuklangan sog'lom payloadни DB'ga ko'chirish
+        if self.token_data.get("refresh_token"):
+            self._persist_token_to_db()
+
+    def _set_token_data(self, data: dict) -> None:
+        """token_data + access_token'ni bir joyda o'rnatadi."""
+        self.token_data = data
+        self.access_token = (
+            str(data.get("access_token", "")) if data.get("access_token") else None
+        )
+
+    def _load_token_from_env_json(self) -> bool:
+        """AMOCRM_TOKEN_JSON env'dan to'liq payload. True -> yuklandi."""
         env_token_json = os.environ.get("AMOCRM_TOKEN_JSON")
-        if env_token_json:
+        if not env_token_json:
+            return False
+        try:
+            data = json.loads(env_token_json)
+            if isinstance(data, dict):
+                self._set_token_data(data)
+                self._persist_token_to_db()
+                return True
+        except Exception as e:
+            self.last_error = "token_env_parse_failed"
+            logger.error(f"[AMOCRM] Env token parse xatosi: {type(e).__name__}")
+        return False
+
+    def _load_token_from_file(self) -> None:
+        """Diskdagi token JSON'ini o'qiydi (raw refresh'dan afzal — rotatsiya)."""
+        if self.token_data or not os.path.exists(self.token_file):
+            return
+        for encoding in ("utf-8-sig", "utf-16"):
             try:
-                data = json.loads(env_token_json)
+                with open(self.token_file, "r", encoding=encoding) as f:
+                    data = json.load(f)
                 if isinstance(data, dict):
-                    self.token_data = data
-                    self.access_token = (
-                        str(data.get("access_token", ""))
-                        if data.get("access_token")
-                        else None
-                    )
-                    self._persist_token_to_db()
+                    self._set_token_data(data)
                     return
+            except UnicodeError:
+                continue
             except Exception as e:
-                self.last_error = "token_env_parse_failed"
-                logger.error(f"[AMOCRM] Env token parse xatosi: {type(e).__name__}")
+                self.last_error = "token_file_load_failed"
+                logger.error(f"[AMOCRM] Token yuklashda xato: {type(e).__name__}")
+                return
 
-        # 2. File token backup. Prefer the full token JSON over raw refresh
-        # because AmoCRM rotates refresh tokens and needs the matching payload.
-        if os.path.exists(self.token_file) and not self.token_data:
-            for encoding in ("utf-8-sig", "utf-16"):
-                try:
-                    with open(self.token_file, "r", encoding=encoding) as f:
-                        data = json.load(f)
-                    if isinstance(data, dict):
-                        self.token_data = data
-                        self.access_token = (
-                            str(data.get("access_token", ""))
-                            if data.get("access_token")
-                            else None
-                        )
-                        break
-                except UnicodeError:
-                    continue
-                except Exception as e:
-                    self.last_error = "token_file_load_failed"
-                    logger.error(f"[AMOCRM] Token yuklashda xato: {type(e).__name__}")
-                    break
-
-        # 3. Raw Refresh Token fallback (for first deploy or if loaded token lacks refresh_token)
+    def _apply_raw_refresh_fallback(self) -> None:
+        """AMOCRM_REFRESH_TOKEN — payload bo'sh yoki refresh_token yo'q bo'lsa."""
         raw_refresh = os.environ.get("AMOCRM_REFRESH_TOKEN")
         if raw_refresh and (not self.token_data or not self.token_data.get("refresh_token")):
             logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
             self.token_data = {"refresh_token": raw_refresh}
             self.access_token = None
 
-        # 4. Turso DB fallback — env/fayl butunlay bo'sh bo'lganda (restart-proof).
-        if not self.token_data or not self.token_data.get("refresh_token"):
-            try:
-                from src.services.core.crm.amocrm.token_store import load_token_from_db
+    def _load_token_from_db_fallback(self) -> bool:
+        """Turso DB fallback — env/fayl butunlay bo'sh bo'lganda. True -> yuklandi."""
+        if self.token_data and self.token_data.get("refresh_token"):
+            return False
+        try:
+            from src.services.core.crm.amocrm.token_store import load_token_from_db
 
-                db_token = load_token_from_db()
-                if isinstance(db_token, dict) and db_token.get("refresh_token"):
-                    self.token_data = db_token
-                    self.access_token = (
-                        str(db_token.get("access_token", ""))
-                        if db_token.get("access_token")
-                        else None
-                    )
-                    logger.info("[AMOCRM] Token Turso DB fallback'dan yuklandi (restart-proof)")
-                    return
-            except Exception as e:
-                logger.warning("[AMOCRM] DB token yuklashda xato: %s", type(e).__name__)
-
-        # Env yoki fayldan yuklangan sog'lom payloadни DB'ga ko'chirish
-        if self.token_data.get("refresh_token"):
-            self._persist_token_to_db()
+            db_token = load_token_from_db()
+            if isinstance(db_token, dict) and db_token.get("refresh_token"):
+                self._set_token_data(db_token)
+                logger.info("[AMOCRM] Token Turso DB fallback'dan yuklandi (restart-proof)")
+                return True
+        except Exception as e:
+            logger.warning("[AMOCRM] DB token yuklashda xato: %s", type(e).__name__)
+        return False
 
     def _persist_token_to_db(self):
         """Joriy token_data'ni Turso DB'ga yozadi (best-effort, xato yutiladi)."""

@@ -36,6 +36,14 @@ async def graceful_drain(
             logger.info("[SHUTDOWN] Userbot client disconnected.")
         except Exception as e:
             logger.warning(f"[SHUTDOWN] Userbot disconnect error: {e}")
+        # Egalik lock'ni bo'shatish — keyingi instance darhol olsin,
+        # TTL tugashini kutmasin (normal systemd restart tez bo'lsin).
+        try:
+            from src.services.core.telegram.session_store import release_session_ownership
+
+            await asyncio.to_thread(release_session_ownership)
+        except Exception as e:
+            logger.warning(f"[SHUTDOWN] Userbot ownership release error: {e}")
     if app_ctx.aiogram_bot_head is not None:
         try:
             await app_ctx.aiogram_bot_head.stop()

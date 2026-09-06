@@ -61,14 +61,9 @@ async def boot_application():
     client, telegram_session_manager = await init_telegram_session(cloud_control_plane_only)
     bot_client, BOT_TOKEN_STR, bot_runtime, bot_ingress_mode = init_bot_client_runtime()
 
-    if telegram_session_manager is not None:
-        async def _notify_userbot_owner(message: str) -> None:
-            try:
-                await bot_runtime.send_message(settings.OWNER_ID, message)
-            except Exception as notify_exc:
-                logger.warning("[SESSION] Owner reconnect alert failed: %s", notify_exc)
-
-        telegram_session_manager.admin_notifier = _notify_userbot_owner
+    # Userbot owner alert'lari init_telegram_session ichida bot runtime orqali
+    # ulanadi (_make_owner_notifier). Bu yerda ADEGA qayta ulash shart emas —
+    # notifier app_ctx.bot_runtime'ni kech (lazy) o'qiydi.
 
     # 3. Domain Agents & Services
     agents = init_domain_agents(api_keys, msg_controller, client, bot_client, bot_runtime, m)
