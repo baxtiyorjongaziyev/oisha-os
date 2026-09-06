@@ -3,7 +3,8 @@ import requests
 import json
 from dotenv import load_dotenv
 
-load_dotenv()
+env_path = '/home/ubuntu/oisha-os/.env' if os.path.exists('/home/ubuntu/oisha-os/.env') else '.env'
+load_dotenv(env_path)
 
 tok = os.getenv("META_PAGE_ACCESS_TOKEN")
 ig_id = os.getenv("META_INSTAGRAM_USER_ID", "17841404148272074")
@@ -12,8 +13,12 @@ media_list = []
 url = f"https://graph.facebook.com/v21.0/{ig_id}/media?fields=id,caption,comments_count,permalink,timestamp&limit=50&access_token={tok}"
 while url:
     r = requests.get(url).json()
+    if "error" in r:
+        print("API Error:", r["error"])
+        break
     media_list.extend(r.get("data", []))
     url = r.get("paging", {}).get("next")
+
 
 posts_with_comments = [m for m in media_list if m.get("comments_count", 0) > 0]
 
