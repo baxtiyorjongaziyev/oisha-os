@@ -10,6 +10,7 @@ from typing import Any, Dict, Mapping, Optional
 
 from src.api.rbac import Principal, Role, scope_owned_rows
 from src.api.routes.state import api_state
+from src.services.core.sales_playbook import STAGE_METRICS
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,18 @@ def _safe_json_list(value: Any) -> list:
         return parsed if isinstance(parsed, list) else []
     except (TypeError, ValueError):
         return []
+
+
+def _safe_json_dict(value: Any) -> dict:
+    if not value:
+        return {}
+    if isinstance(value, dict):
+        return value
+    try:
+        parsed = json.loads(str(value))
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError):
+        return {}
 
 
 def _row_to_dict(row: Any, columns: list) -> dict:
@@ -218,9 +231,11 @@ def _build_sales_quality_payload(
     }
 
 
-# Radar o'qlari — call_analyses.scores JSON'idagi QualityMetric.value kalitlari
-# (src/services/ai/quality/models.py) ekran ko'rsatkichlari bilan mos:
-# Salomlashish, Ehtiyoj, Mahsulot, E'tiroz, Bosim, Kayfiyat, Aktiv.
+# Radar o'qlari — ekran ko'rsatkichlari (Salomlashish, Ehtiyoj, Mahsulot,
+# E'tiroz, Bosim, Kayfiyat, Aktiv) bilan mos. `call_analyses.scores` ustuniga
+# o'zbekcha playbook bosqich nomlari bilan yoziladi (sales_playbook.STAGE_WEIGHTS
+# kalitlari — normalizer.py), shuning uchun bu yerda `sales_playbook.STAGE_METRICS`
+# orqali har bir bosqich balli tegishli ingliz radar o'qi(lari)ga taqsimlanadi.
 RADAR_AXES: tuple[tuple[str, str], ...] = (
     ("introduction", "Salomlashish"),
     ("need_identification", "Ehtiyoj"),
@@ -297,12 +312,11 @@ def _build_manager_cards_payload(
 
         metric_totals: Dict[str, list] = defaultdict(list)
         for r in mgr_rows:
-            for item in _safe_json_list(r.get("scores")):
-                if not isinstance(item, dict):
+            stage_scores = _safe_json_dict(r.get("scores"))
+            for stage, score in stage_scores.items():
+                if not isinstance(score, (int, float)):
                     continue
-                metric = item.get("metric")
-                score = item.get("score")
-                if metric and isinstance(score, (int, float)):
+                for metric in STAGE_METRICS.get(stage, ()):
                     metric_totals[metric].append(float(score))
 
         radar = [
