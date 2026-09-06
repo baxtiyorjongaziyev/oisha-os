@@ -10,7 +10,7 @@ logger = structlog.get_logger()
 
 class OAuthRepository(BaseRepository):
     async def _init_tables(self) -> None:
-        conn = await self.get_connection()
+        conn = await self._get_conn()
         try:
             await conn.execute("""
             CREATE TABLE IF NOT EXISTS oauth_tokens (
@@ -36,7 +36,7 @@ class OAuthRepository(BaseRepository):
         extra_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Save or update OAuth tokens for a service."""
-        conn = await self.get_connection()
+        conn = await self._get_conn()
         now = datetime.now(timezone.utc)
         extra_str = json.dumps(extra_data) if extra_data else None
 
@@ -57,7 +57,7 @@ class OAuthRepository(BaseRepository):
 
     async def get_tokens(self, service_name: str) -> Optional[Dict[str, Any]]:
         """Retrieve stored tokens for a service."""
-        conn = await self.get_connection()
+        conn = await self._get_conn()
         async with conn.execute(
             "SELECT access_token, refresh_token, expires_at, extra_data FROM oauth_tokens WHERE service_name = ?",
             (service_name,)

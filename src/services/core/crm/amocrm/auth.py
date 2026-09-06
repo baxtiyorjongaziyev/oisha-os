@@ -64,7 +64,14 @@ def _plain_secret(value: Any) -> Any:
 
 class AmoCRMAuthMixin:
     def _load_token(self):
-        """Tokenni environment yoki fayldan o'qish."""
+        """Tokenni env > fayl > raw refresh > Turso DB tartibida o'qish.
+
+        Turso DB — restart'ga chidamli fallback: agar env va fayl bo'sh
+        bo'lsa (aynan Oracle VM restart'da ``data/`` yo'qolganda yuzaga
+        keladigan holat), DB'dagi eng oxirgi rotatsiya qilingan payload
+        integratsiyani tirik saqlaydi. Har muvaffaqiyatli yuklashdan keyin
+        joriy payload DB'ga yoziladi, shunda zanjir bardavom bo'ladi.
+        """
         # 1. Environment variable'dan o'qish
         env_token_json = os.environ.get("AMOCRM_TOKEN_JSON")
         if env_token_json:
@@ -77,6 +84,7 @@ class AmoCRMAuthMixin:
                         if data.get("access_token")
                         else None
                     )
+                    self._persist_token_to_db()
                     return
             except Exception as e:
                 self.last_error = "token_env_parse_failed"
@@ -110,6 +118,38 @@ class AmoCRMAuthMixin:
             logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
             self.token_data = {"refresh_token": raw_refresh}
             self.access_token = None
+
+        # 4. Turso DB fallback — env/fayl butunlay bo'sh bo'lganda (restart-proof).
+        if not self.token_data or not self.token_data.get("refresh_token"):
+            try:
+                from src.services.core.crm.amocrm.token_store import load_token_from_db
+
+                db_token = load_token_from_db()
+                if isinstance(db_token, dict) and db_token.get("refresh_token"):
+                    self.token_data = db_token
+                    self.access_token = (
+                        str(db_token.get("access_token", ""))
+                        if db_token.get("access_token")
+                        else None
+                    )
+                    logger.info("[AMOCRM] Token Turso DB fallback'dan yuklandi (restart-proof)")
+                    return
+            except Exception as e:
+                logger.warning("[AMOCRM] DB token yuklashda xato: %s", type(e).__name__)
+
+        # Env yoki fayldan yuklangan sog'lom payloadни DB'ga ko'chirish
+        if self.token_data.get("refresh_token"):
+            self._persist_token_to_db()
+
+    def _persist_token_to_db(self):
+        """Joriy token_data'ni Turso DB'ga yozadi (best-effort, xato yutiladi)."""
+        try:
+            from src.services.core.crm.amocrm.token_store import save_token_to_db
+
+            if isinstance(self.token_data, dict) and self.token_data.get("refresh_token"):
+                save_token_to_db(self.token_data)
+        except Exception as e:
+            logger.debug("[AMOCRM] DB token persist skip: %s", type(e).__name__)
 
     def _save_token(self, token_data):
         """Atomically save OAuth tokens with owner-only file permissions."""
@@ -148,6 +188,11 @@ class AmoCRMAuthMixin:
                     os.unlink(temp_path)
                 except OSError:
                     pass
+
+        # Faylga yozildi — endi Turso DB'ga ham. AmoCRM refresh_token'lari
+        # rotatsiya qilinadi, shuning uchun yangi payload'ni bardavom joyga
+        # yozib qo'yish zanjir uzilishining oldini oladi (restart-proof).
+        self._persist_token_to_db()
 
     def _mark_auth_blocked(self, reason: str, seconds: int = 3600) -> None:
         self.auth_block_reason = reason
