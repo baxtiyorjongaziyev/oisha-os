@@ -11,6 +11,7 @@ from src.services.core.crm.auditor.db_storage import (
 from src.services.core.crm.auditor.telegram_history import TelegramHistoryMixin
 from src.services.core.crm.auditor.tasks_notes import TasksNotesMixin
 from src.services.core.crm.auditor.classifier import ClassifierMixin
+from src.services.core.crm.auditor.temperature import TemperatureMixin
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class CRMContactsAuditor(
     TelegramHistoryMixin,
     TasksNotesMixin,
     ClassifierMixin,
+    TemperatureMixin,
 ):
     """
     Surgical CRM & Multi-channel Contact Auditor.

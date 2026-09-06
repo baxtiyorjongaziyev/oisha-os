@@ -242,6 +242,18 @@ class ClassifierMixin:
             telegram_unanswered_info=telegram_unanswered_info,
         )
 
+        # Score lead temperature (Iliq/Sovuq) -- only meaningful for actual clients
+        temperature = None
+        temperature_reason = ""
+        if category == "Mijoz":
+            temperature, temperature_reason = self.score_lead_temperature(
+                lead=lead,
+                telegram_history=telegram_history + ("\n\n" + group_history if group_history else ""),
+                call_summary=call_summary,
+                notes_history=notes_history,
+                is_unanswered=is_unanswered_tg or is_unanswered_group,
+            )
+
         # Save to DB
         await self.save_audit_result(
             lead_id=int(lead_id),
@@ -257,6 +269,7 @@ class ClassifierMixin:
             explanation=explanation,
             detailed_summary=detailed_summary,
             task_text=next_step_task,
+            temperature=temperature,
         )
 
         # Add note to AmoCRM lead
@@ -320,6 +333,12 @@ class ClassifierMixin:
             if callable(add_tag):
                 await _maybe_await(add_tag(int(lead_id), category))
                 logger.info("[AUDITOR] Auto-tagged lead %s as '%s' in AmoCRM.", lead_id, category)
+                if temperature:
+                    await _maybe_await(add_tag(int(lead_id), temperature))
+                    logger.info(
+                        "[AUDITOR] Auto-tagged lead %s as '%s' in AmoCRM (%s).",
+                        lead_id, temperature, temperature_reason,
+                    )
         except Exception as tag_err:
             logger.warning("[AUDITOR] Failed to tag lead %s as '%s' in AmoCRM: %s", lead_id, category, tag_err)
 
