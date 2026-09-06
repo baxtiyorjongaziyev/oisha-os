@@ -148,3 +148,4 @@ data/session_output.txt
 data/verify_result.txt
 data/reports/
 data/job_claims/
+*.png

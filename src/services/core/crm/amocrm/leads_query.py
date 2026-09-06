@@ -16,12 +16,28 @@ logger = structlog.get_logger()
 class AmoCRMLeadsQueryMixin:
     """Methods for querying leads from AmoCRM."""
 
-    async def get_leads(self, status_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    async def get_leads(
+        self,
+        status_id: Optional[int] = None,
+        limit: Optional[int] = None,
+        page: Optional[int] = None,
+        with_contacts: bool = False,
+        **kwargs: Any,
+    ) -> List[Dict[str, Any]]:
         self._load_token()
         url = f"{self.base_url}/api/v4/leads"
-        params = {}
+        params: Dict[str, Any] = {}
         if status_id:
             params["filter[statuses][0][status_id]"] = status_id
+        if limit:
+            params["limit"] = max(1, min(int(limit), 250))
+        if page:
+            params["page"] = page
+        if with_contacts:
+            params["with"] = "contacts"
+        for k, v in kwargs.items():
+            if v is not None:
+                params[k] = v
 
         try:
             response = await asyncio.to_thread(

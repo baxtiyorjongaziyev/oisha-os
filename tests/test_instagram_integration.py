@@ -423,7 +423,12 @@ def test_should_trigger_dm():
     assert kw1 == "nom"
 
     trig2, kw2 = should_trigger_dm("Logo dizayn narxi qancha?", "")
-    assert trig1 is True
+    assert trig2 is True
+    assert kw2 == "logo"
+
+    trig5, kw5 = should_trigger_dm("Logo dizayn narxi qancha? nom ham kerak", "")
+    assert trig5 is True
+    assert kw5 == "nom"
 
     # Caption keyword match
     trig3, kw3 = should_trigger_dm("START", "Izohda 'START' deb yozing")

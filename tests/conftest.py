@@ -56,3 +56,23 @@ def _reset_agent_runtime_context():
     reset_runtime_context()
     yield
     reset_runtime_context()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Store the pytest exit status code on the config object for unconfigure."""
+    session.config._pytest_exitstatus = int(exitstatus)
+
+
+def pytest_unconfigure(config):
+    """Ensure pytest process exits cleanly on CI without hanging indefinitely
+    on non-daemon background threads or unclosed event loop portals left behind
+    by async tests (e.g. Starlette TestClient / AnyIO BlockingPortal).
+    """
+    import os
+    if os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("FORCE_PYTEST_EXIT") == "1":
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()
+        code = getattr(config, "_pytest_exitstatus", 0)
+        os._exit(code)
+

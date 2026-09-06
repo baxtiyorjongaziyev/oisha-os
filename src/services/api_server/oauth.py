@@ -109,27 +109,48 @@ async def telegram_extension_send(request: Request):
         if not chat_id or not text:
             return {"success": False, "error": "chat_id and text required"}
             
-        # 1. Telegram orqali yuborish (app_ctx.outgoing_messages queue)
-        if app_ctx.outgoing_messages is None:
-            app_ctx.outgoing_messages = asyncio.Queue()
-            
-        await app_ctx.outgoing_messages.put({
-            "chat_id": chat_id, # Agar phone bo'lsa, qanday ishlaydi? telegram_bot_client raqam bo'yicha yubora oladimi?
-            "text": text
-        })
+        # 1. Telegram orqali yuborish
+        target = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
+        sent = False
+        
+        # A) Telethon Userbot orqali (+998336450097)
+        if getattr(app_ctx, "client", None):
+            try:
+                await app_ctx.client.send_message(target, text)
+                sent = True
+                logger.info(f"[TELEGRAM EXT] Sent via Userbot to {target}")
+            except Exception as ex:
+                logger.warning(f"[TELEGRAM EXT] Userbot send failed: {ex}")
+                
+        # B) Bot runtime orqali fallback
+        if not sent and getattr(app_ctx, "bot_runtime", None):
+            try:
+                await app_ctx.bot_runtime.send_message(target, text)
+                sent = True
+                logger.info(f"[TELEGRAM EXT] Sent via Bot to {target}")
+            except Exception as ex:
+                logger.warning(f"[TELEGRAM EXT] Bot send failed: {ex}")
+                
+        # C) Queue fallback
+        if not sent:
+            if app_ctx.outgoing_messages is None:
+                app_ctx.outgoing_messages = asyncio.Queue()
+            await app_ctx.outgoing_messages.put({"chat_id": chat_id, "text": text})
         
         # 2. AmoCRM ga Note qilib yozib qo'yish (kelajakdagi tarix uchun)
-        from src.services.core.crm.amocrm_sync import AmoCRMSync
-        amocrm = AmoCRMSync()
-        lead = amocrm.find_active_lead_by_phone(chat_id)
-        if lead:
-            # Menejer yuborganligini bildirish uchun
-            amocrm.add_lead_note(lead["id"], f"TG: {text}")
+        try:
+            from src.services.core.crm.amocrm_sync import AmoCRMSync
+            amocrm = AmoCRMSync()
+            lead = amocrm.find_active_lead_by_phone(str(chat_id))
+            if lead:
+                amocrm.add_lead_note(lead["id"], f"TG: {text}")
+        except Exception as note_ex:
+            logger.warning(f"[TELEGRAM EXT NOTE] Failed: {note_ex}")
             
-        return {"success": True}
+        return {"success": True, "sent": sent}
     except Exception as e:
         logger.error(f"[TELEGRAM EXT SEND] {e}")
-        return {"success": False, "error": "Telegram message send failed"}
+        return {"success": False, "error": str(e)}
 
 # =====================================================================
 # Airtable OAuth 2.0 Integratsiyasi

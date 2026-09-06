@@ -143,6 +143,7 @@ class ProjectsMixin:
                 fields.setdefault("Chiqim (uzs)", summa_uzs)
 
             fields.setdefault("Summa", summa_uzs)
+            fields.setdefault("Loyiha nomi", fields.get("Loyiha") or [])
             record["fields"] = fields
             records.append(record)
 

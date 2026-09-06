@@ -1,6 +1,8 @@
 """Scheduler for Daily Frog briefing."""
 import asyncio
 import logging
+from html import escape
+from src.services.core.notification_quality import notification_is_publishable
 from src.database import get_db
 from src.services.ai.frog_agent import FrogAgent
 from src.services.core.telegram.bot_runtime import BotRuntimePort, TelethonBotRuntime
@@ -71,6 +73,10 @@ async def send_daily_frog_brief(bot_client=None, team_group_id=None):
         } for r in rows
     ]
     
+    tasks = [t for t in tasks if notification_is_publishable(t["title"])]
+    if not tasks:
+        logger.warning("[FROG] No publishable source tasks")
+        return
     agent = FrogAgent()
     frog = await agent.identify_frog(tasks)
     if not frog:
@@ -105,7 +111,7 @@ async def send_daily_frog_brief(bot_client=None, team_group_id=None):
         try:
             await bot_runtime.send_message(
                 team_group_id,
-                f"🐸 <b>Qurbaqani yeymiz!</b>\n\n{frog.motivation_message}\n\n"
+                f"🐸 <b>Qurbaqani yeymiz!</b>\n\n{escape(selected['title'])}\n\n"
                 f"<i>Daromad prognozi: ${frog.profit_estimate}</i>",
                 parse_mode="HTML"
             )

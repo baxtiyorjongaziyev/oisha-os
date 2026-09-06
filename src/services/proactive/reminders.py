@@ -14,6 +14,7 @@ from src.services.proactive.formatters import (
     _run_notification_agent,
 )
 from src import config
+from src.services.core.notification_quality import notification_is_publishable
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,13 @@ async def _execute_telegram_notification(
     **kwargs,
 ) -> Dict[str, Any]:
     """Send proactive notifications to Telegram groups/topics and direct messages."""
+    if message is not None and not notification_is_publishable(message):
+        logger.warning("[TELEGRAM NOTIFY] Suppressed unresolved notification")
+        return {"success": False, "group_sent": False, "suppressed": True}
+    direct_messages = [
+        dm for dm in (direct_messages or [])
+        if notification_is_publishable(dm.get("text"))
+    ]
     # Legacy invocation pattern: _execute_telegram_notification(bot_client, chat_id, message, parse_mode)
     if (
         isinstance(group_id, (int, str))
