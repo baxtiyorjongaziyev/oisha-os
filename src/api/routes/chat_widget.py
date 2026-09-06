@@ -11,13 +11,10 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from src.api.auth_service import decode_widget_jwt, issue_widget_jwt
-from src.api.rbac import Permission, require_permissions
 from src.api.routes.state import api_state
 from src.settings import settings
 
-router = APIRouter(
-    tags=["chat"],
-)
+router = APIRouter(tags=["chat"])
 logger = logging.getLogger(__name__)
 
 
@@ -35,57 +32,68 @@ class SendMessageRequest(BaseModel):
     model: Optional[str] = getattr(settings, "GEMINI_CALL_MODEL", None)
 
 
+def _secret_text(value: Any) -> str:
+    getter = getattr(value, "get_secret_value", None)
+    return str(getter() if callable(getter) else value or "").strip()
+
+
 def _get_widget_jwt_secret() -> str:
-    raw = (
-        os.environ.get("JWT_SECRET")
-        or os.environ.get("OISHA_API_SECRET")
-        or getattr(settings, "BOT_TOKEN", None)
-    )
-    secret = str(getattr(raw, "get_secret_value", lambda: raw)() if hasattr(raw, "get_secret_value") else raw or "").strip()
+    """Return a server-only signing key; never fall back to a public constant.
+
+    JWT_SECRET is preferred. OISHA_API_SECRET is retained as a server-side
+    compatibility fallback until production has a dedicated JWT secret.
+    """
+    raw = os.environ.get("JWT_SECRET") or os.environ.get("OISHA_API_SECRET")
+    secret = _secret_text(raw)
     if len(secret.encode("utf-8")) < 32:
-        return "oisha_widget_session_signing_secret_32b_fixed"
+        raise RuntimeError("JWT_SECRET or OISHA_API_SECRET must be at least 32 bytes")
     return secret
 
 
-def _check_secret(
+def _extract_token(
     secret_key: Optional[str] = None,
     x_secret_key: Optional[str] = None,
     authorization: Optional[str] = None,
-) -> bool:
-    master_secret = os.environ.get("OISHA_API_SECRET")
-    widget_secret = os.environ.get("OISHA_WIDGET_SECRET")
-    jwt_secret = _get_widget_jwt_secret()
-
-    token = None
+) -> str:
     if isinstance(x_secret_key, str) and x_secret_key:
-        token = x_secret_key
-    elif isinstance(authorization, str) and authorization.startswith("Bearer "):
-        token = authorization[7:].strip()
-    elif isinstance(secret_key, str) and secret_key:
-        token = secret_key
+        return x_secret_key.strip()
+    if isinstance(authorization, str) and authorization.startswith("Bearer "):
+        return authorization[7:].strip()
+    if isinstance(secret_key, str) and secret_key:
+        return secret_key.strip()
+    return ""
 
+
+def _is_privileged_token(token: str) -> bool:
+    """Accept only server/operator secrets for privileged chat operations."""
     if not token:
         return False
-
-    if master_secret and hmac.compare_digest(token, master_secret):
-        return True
-
-    if widget_secret and hmac.compare_digest(token, widget_secret):
-        return True
-
-    payload = decode_widget_jwt(token, jwt_secret)
-    if payload and ("chat:write" in payload.get("scopes", []) or payload.get("role") == "widget_guest"):
-        return True
-
+    for candidate in (
+        os.environ.get("OISHA_API_SECRET"),
+        os.environ.get("OISHA_WIDGET_SECRET"),
+    ):
+        if candidate and hmac.compare_digest(token, candidate):
+            return True
     return False
 
 
-def _require_secret(
+def _widget_payload(token: str) -> Optional[dict[str, Any]]:
+    if not token:
+        return None
+    try:
+        return decode_widget_jwt(token, _get_widget_jwt_secret())
+    except RuntimeError:
+        logger.error("[CHAT] Widget JWT signing secret is not configured securely")
+        return None
+
+
+def _require_privileged(
     secret_key: Optional[str] = None,
     x_secret_key: Optional[str] = None,
     authorization: Optional[str] = None,
 ) -> None:
-    if not _check_secret(secret_key=secret_key, x_secret_key=x_secret_key, authorization=authorization):
+    token = _extract_token(secret_key, x_secret_key, authorization)
+    if not _is_privileged_token(token):
         raise HTTPException(
             status_code=401,
             detail="Unauthorized",
@@ -93,12 +101,42 @@ def _require_secret(
         )
 
 
+def _require_web_session(
+    user_id: str,
+    *,
+    secret_key: Optional[str] = None,
+    x_secret_key: Optional[str] = None,
+    authorization: Optional[str] = None,
+) -> None:
+    """Allow a widget JWT to access only the web session it was issued for.
+
+    Privileged server/operator secrets remain valid for support/admin tooling.
+    """
+    token = _extract_token(secret_key, x_secret_key, authorization)
+    if _is_privileged_token(token):
+        return
+
+    payload = _widget_payload(token)
+    session_id = str(payload.get("session_id", "")) if payload else ""
+    expected_user_id = f"web_{session_id}" if session_id else ""
+    if not expected_user_id or not hmac.compare_digest(str(user_id), expected_user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Widget token is not valid for this chat session",
+        )
+
+
 @router.post("/api/chat/token")
 async def get_widget_token():
-    """Issue a scoped, short-lived JWT for web chat widget visitors (zero master secret exposure)."""
+    """Issue a short-lived JWT for one anonymous web-chat session."""
     session_id = secrets.token_hex(16)
-    jwt_secret = _get_widget_jwt_secret()
-    token = issue_widget_jwt(session_id=session_id, secret=jwt_secret, ttl_seconds=86400)
+    try:
+        jwt_secret = _get_widget_jwt_secret()
+    except RuntimeError as exc:
+        logger.error("[CHAT] Refusing to issue widget token: %s", exc)
+        raise HTTPException(status_code=503, detail="Chat authentication is not configured") from exc
+
+    token = issue_widget_jwt(session_id=session_id, secret=jwt_secret, ttl_seconds=3600)
     return {"token": token, "session_id": f"web_{session_id}"}
 
 
@@ -109,7 +147,9 @@ async def lookup_user_by_phone(
     x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key"),
     authorization: Optional[str] = Header(None, alias="Authorization"),
 ):
-    _require_secret(secret_key=secret_key, x_secret_key=x_secret_key, authorization=authorization)
+    # Phone lookup exposes CRM identity data and is never available to an
+    # anonymous widget JWT.
+    _require_privileged(secret_key, x_secret_key, authorization)
     if not api_state.db_instance:
         return {"error": "Database not connected"}
 
@@ -126,7 +166,16 @@ async def get_chat_history(
     x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key"),
     authorization: Optional[str] = Header(None, alias="Authorization"),
 ):
-    _require_secret(secret_key=secret_key, x_secret_key=x_secret_key, authorization=authorization)
+    if str(user_id).startswith("web_"):
+        _require_web_session(
+            str(user_id),
+            secret_key=secret_key,
+            x_secret_key=x_secret_key,
+            authorization=authorization,
+        )
+    else:
+        _require_privileged(secret_key, x_secret_key, authorization)
+
     if not api_state.db_instance:
         return {"error": "Database not connected"}
 
@@ -145,16 +194,18 @@ async def send_chat_message(
     x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key"),
     authorization: Optional[str] = Header(None, alias="Authorization"),
 ):
-    _require_secret(
-        secret_key=request.secret_key,
-        x_secret_key=x_secret_key,
-        authorization=authorization,
-    )
-
     user_id_str = str(request.user_id)
 
     if user_id_str.startswith("web_"):
+        _require_web_session(
+            user_id_str,
+            secret_key=request.secret_key,
+            x_secret_key=x_secret_key,
+            authorization=authorization,
+        )
+
         from src.agents.autonomous_sales_agent import AutonomousSalesAgent as _Agent
+
         _db = api_state.db_instance
         if _db:
             await _db.log_message(user_id_str, request.text, is_ai=False)
@@ -169,6 +220,14 @@ async def send_chat_message(
             await _db.log_message(user_id_str, response_text, is_ai=True)
         return {"status": "success", "response": response_text}
 
+    # Non-web IDs map to real Telegram users. Anonymous widget credentials must
+    # never be able to enqueue messages to them.
+    _require_privileged(
+        secret_key=request.secret_key,
+        x_secret_key=x_secret_key,
+        authorization=authorization,
+    )
+
     try:
         user_id = int(request.user_id)
     except (ValueError, TypeError):
@@ -182,6 +241,7 @@ async def send_chat_message(
 
     from src.api.routes.state import api_state as _s
     from src.time_utils import get_local_now
+
     activity = {
         "timestamp": get_local_now().strftime("%H:%M:%S"),
         "action": "💬 Widget Message",
@@ -201,11 +261,9 @@ async def create_amo_lead(
     x_secret_key: Optional[str] = Header(None, alias="X-Secret-Key"),
     authorization: Optional[str] = Header(None, alias="Authorization"),
 ):
-    _require_secret(
-        secret_key=request.secret_key,
-        x_secret_key=x_secret_key,
-        authorization=authorization,
-    )
+    # Lead creation mutates CRM state and therefore requires a privileged
+    # server/operator credential, not an anonymous widget JWT.
+    _require_privileged(request.secret_key, x_secret_key, authorization)
 
     from src.services.core.crm.amocrm_sync import AmoCRMSync
     from src.time_utils import get_local_now
@@ -213,8 +271,6 @@ async def create_amo_lead(
     amocrm = AmoCRMSync(
         subdomain=getattr(settings, "AMOCRM_SUBDOMAIN", ""),
         client_id=getattr(settings, "AMOCRM_CLIENT_ID", ""),
-        # AmoCRMSync SecretStr'ni o'zi ochadi (_plain_secret), shu sababli
-        # bu yerda xom qiymat uzatish xavfsiz.
         client_secret=getattr(settings, "AMOCRM_CLIENT_SECRET", "") or "",
         redirect_url=getattr(settings, "AMOCRM_REDIRECT_URL", ""),
     )
