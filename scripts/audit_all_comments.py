@@ -75,10 +75,14 @@ c_url = f"https://graph.facebook.com/v21.0/{m_id}/comments?fields=id,text,from,t
 res = requests.get(c_url).json()
 comments = res.get("data", [])
 print(f"Total top-level comments on this reel: {len(comments)}")
-for c in comments:
-    author = (c.get("from") or {}).get("username", "")
-    replies = (c.get("replies") or {}).get("data", [])
-    has_reply = any((r.get("from") or {}).get("username") == "baxtiyorjongaziyev" for r in replies)
-    print(f"Comment {c.get('id')} by @{author}: '{c.get('text')}' -> Replied: {has_reply}")
+from src.services.core.instagram_agent import like_comment
+
+print(f"\n--- TESTING LIKE ON FIRST COMMENT ---")
+if comments:
+    first_c_id = comments[0]["id"]
+    print(f"Liking comment {first_c_id}...")
+    like_ok = like_comment(first_c_id, tok)
+    print(f"Like result: {like_ok}")
+
 
 
