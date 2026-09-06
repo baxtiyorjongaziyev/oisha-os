@@ -6,8 +6,17 @@ from dotenv import load_dotenv
 env_path = '/home/ubuntu/oisha-os/.env' if os.path.exists('/home/ubuntu/oisha-os/.env') else '.env'
 load_dotenv(env_path)
 
-tok = os.getenv("META_PAGE_ACCESS_TOKEN")
+tok = None
+if os.path.exists('/home/ubuntu/oisha-os/meta_tok_clean.txt'):
+    with open('/home/ubuntu/oisha-os/meta_tok_clean.txt', 'r') as f:
+        tok = f.read().strip()
+
+if not tok:
+    tok = os.getenv("META_PAGE_ACCESS_TOKEN", "").strip()
+
 ig_id = os.getenv("META_INSTAGRAM_USER_ID", "17841404148272074")
+print(f"DEBUG: Token loaded length={len(tok) if tok else 0}, ig_id={ig_id}")
+
 
 media_list = []
 url = f"https://graph.facebook.com/v21.0/{ig_id}/media?fields=id,caption,comments_count,permalink,timestamp&limit=50&access_token={tok}"
