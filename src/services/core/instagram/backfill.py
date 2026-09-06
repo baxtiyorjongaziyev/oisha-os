@@ -9,6 +9,7 @@ import structlog
 
 from src.settings import settings
 from src.services.core.instagram.graph_client import InstagramGraphClient
+from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
 
 logger = structlog.get_logger("InstagramBackfill")
 
@@ -141,12 +142,16 @@ async def backfill_unanswered_comments(
                 continue
 
             try:
-                if generate_reply_fn:
+                emoji_mirror = get_mirror_emoji_reply(text)
+                if emoji_mirror:
+                    clean = emoji_mirror
+                elif generate_reply_fn:
                     ai_reply = await generate_reply_fn(text, caption, commenter_name)
+                    clean = re.sub(r"\[.*?\]", "", ai_reply).strip()
                 else:
                     from src.services.core.instagram_agent import generate_comment_reply
                     ai_reply = await generate_comment_reply(text, caption, commenter_name)
-                clean = re.sub(r"\[.*?\]", "", ai_reply).strip()
+                    clean = re.sub(r"\[.*?\]", "", ai_reply).strip()
                 if reply_to_comment_fn:
                     ok = reply_to_comment_fn(comment_id, clean, token)
                 else:

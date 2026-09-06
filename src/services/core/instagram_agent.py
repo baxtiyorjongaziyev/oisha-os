@@ -86,99 +86,22 @@ def verify_signature(payload: Any, signature: str, app_secret: Optional[str] = N
     return hmac.compare_digest(expected, signature)
 
 
-def _send_ig_message(recipient_payload: dict, text: str, access_token: str, log_tag: str) -> bool:
-    if not access_token or not recipient_payload:
-        logger.warning("[META] %s skipped: access_token or recipient missing", log_tag)
-        return False
-    url = "https://graph.facebook.com/v19.0/me/messages"
-    try:
-        resp = requests.post(
-            url,
-            json={"recipient": recipient_payload, "message": {"text": text}},
-            headers={"Content-Type": "application/json"},
-            params={"access_token": access_token},
-            timeout=15,
-        )
-        if resp.status_code == 200:
-            logger.info("[META] %s sent successfully", log_tag)
-            return True
-        logger.error("[META] %s failed", log_tag, status_code=resp.status_code, body=resp.text)
-    except Exception as exc:
-        logger.error("[META] %s exception", log_tag, error=str(exc))
-    return False
+from src.services.core.instagram.api_helpers import (
+    send_ig_message_payload,
+    like_comment,
+    reply_to_comment,
+    fetch_media_caption,
+)
 
 
 def send_ig_reply(recipient_id: str, text: str, access_token: str) -> bool:
     """Sends a Direct Message to the user using the Meta Graph API."""
-    return _send_ig_message({"id": recipient_id}, text, access_token, f"DM to {recipient_id}")
+    return send_ig_message_payload({"id": recipient_id}, text, access_token, f"DM to {recipient_id}")
 
 
 def send_ig_private_reply(comment_id: str, text: str, access_token: str) -> bool:
     """Sends a Private Direct Message in response to an Instagram comment."""
-    return _send_ig_message({"comment_id": comment_id}, text, access_token, f"Private DM on comment {comment_id}")
-
-
-def like_comment(comment_id: str, access_token: str) -> bool:
-    """Likes a comment on Instagram via Graph API."""
-    if not access_token:
-        logger.warning("[META] PAGE_ACCESS_TOKEN not set, comment like not sent")
-        return False
-
-    url = f"https://graph.facebook.com/v19.0/{comment_id}/likes"
-    params = {"access_token": access_token}
-
-    try:
-        resp = requests.post(url, params=params, timeout=10)
-        if resp.status_code == 200:
-            logger.info("[META] Comment liked successfully", comment_id=comment_id)
-            return True
-        else:
-            logger.error("[META] Failed to like comment", status_code=resp.status_code, body=resp.text)
-            return False
-    except Exception as exc:
-        logger.error("[META] Exception in like_comment", error=str(exc))
-        return False
-
-
-def reply_to_comment(comment_id: str, text: str, access_token: str) -> bool:
-    """Replies to a comment on Instagram."""
-    if not access_token:
-        logger.warning("[META] PAGE_ACCESS_TOKEN not set, comment reply not sent")
-        return False
-
-    url = f"https://graph.facebook.com/v19.0/{comment_id}/replies"
-    params = {
-        "message": text,
-        "access_token": access_token
-    }
-
-    try:
-        resp = requests.post(url, params=params, timeout=10)
-        if resp.status_code == 200:
-            logger.info("[META] Comment reply sent successfully", comment_id=comment_id)
-            return True
-        else:
-            logger.error("[META] Failed to send comment reply", status_code=resp.status_code, body=resp.text)
-            return False
-    except Exception as exc:
-        logger.error("[META] Exception in reply_to_comment", error=str(exc))
-        return False
-
-
-def fetch_media_caption(media_id: str, access_token: str) -> str:
-    """Fetches the caption of the post a comment belongs to (for reply context)."""
-    if not media_id or not access_token:
-        return ""
-    url = f"https://graph.facebook.com/v19.0/{media_id}"
-    params = {"fields": "caption", "access_token": access_token}
-    try:
-        resp = requests.get(url, params=params, timeout=10)
-        if resp.status_code == 200:
-            return resp.json().get("caption", "") or ""
-        logger.warning("[META] Failed to fetch media caption", status_code=resp.status_code)
-    except Exception as exc:
-        logger.error("[META] Exception in fetch_media_caption", error=str(exc))
-    return ""
+    return send_ig_message_payload({"comment_id": comment_id}, text, access_token, f"Private DM on comment {comment_id}")
 
 
 FALLBACK_COMMENT_REPLIES = [
@@ -190,7 +113,14 @@ FALLBACK_COMMENT_REPLIES = [
 
 
 async def generate_comment_reply(comment_text: str, post_caption: str = "", commenter_name: str = "") -> str:
-    """Context-aware reply to an Instagram comment using the free-AI router."""
+    """Context-aware reply to an Instagram comment using the free-AI router.
+    If comment is pure emojis, returns identical emojis.
+    """
+    from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
+    emoji_mirror = get_mirror_emoji_reply(comment_text)
+    if emoji_mirror:
+        return emoji_mirror
+
     caption_block = f'\nPost matni: "{post_caption[:500]}"' if post_caption else ""
     prompt = (
         f"{caption_block}\n"
@@ -402,13 +332,18 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 media_id = str((value.get("media") or {}).get("id") or "")
                 post_caption = fetch_media_caption(media_id, access_token) if media_id else ""
 
-                ai_reply = await generate_comment_reply(
-                    comment_text=comment_text,
-                    post_caption=post_caption,
-                    commenter_name=commenter_name,
-                )
-
-                clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
+                from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
+                emoji_mirror = get_mirror_emoji_reply(comment_text)
+                if emoji_mirror:
+                    clean_reply = emoji_mirror
+                    ai_reply = emoji_mirror
+                else:
+                    ai_reply = await generate_comment_reply(
+                        comment_text=comment_text,
+                        post_caption=post_caption,
+                        commenter_name=commenter_name,
+                    )
+                    clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
 
                 if db:
                     await db.log_message(user_id_str, clean_reply, is_ai=True)
