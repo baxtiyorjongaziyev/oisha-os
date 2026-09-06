@@ -165,7 +165,6 @@ export default async function HomePage() {
           {signals.map((sig: SystemSignal, idx: number) => {
             const isOk = sig.status === 'healthy';
             const isWarn = sig.status === 'warning';
-            const isCrit = sig.status === 'degraded' || sig.status === 'disconnected';
             
             return (
               <div
