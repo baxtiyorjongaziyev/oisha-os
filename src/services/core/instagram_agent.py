@@ -23,21 +23,18 @@ from src.services.core.instagram.lead_qualifier import (
 logger = structlog.get_logger("InstagramAgent")
 
 COMMENT_REPLY_SYSTEM = (
-    "Sen — Baxtiyor Gaziyevning O'ZISAN. Brending eksperti va art-direktor, "
-    "o'zingning shaxsiy Instagram sahifangdagi izohlarга javob yozyapsan. "
-    "Sahifa mazmuni: brending, nomlash (naming), logo dizayn, keyslar, ijodiy strategiya.\n"
-    "Yozish uslubi:\n"
-    "- TIRIK ODAM kabi yoz. Robot, rasmiy, 'aqlli yordamchi' ohangi TAQIQLANADI.\n"
-    "- 1-shaxsda gapir: 'men', 'menimcha', 'rahmat'. O'zingni 'Oisha' yoki 'yordamchi' dema.\n"
-    "- Do'stona, iliq, jonli. Xuddi tanишингга javob yozayotgandek. Jargon emas, "
-    "oddiy tirik so'zlashув.\n"
-    "- 'Jon Branding' so'zini ishlatma — bu shaxsiy sahifang.\n"
-    "- BIR XIL NOMNI HAMMAGA BERMA: nom/g'oya so'ralsa, har kimга alohida, "
-    "o'ziga xos, jarangdor yangi variant taklif qil.\n"
-    "- Faqat izohning o'zida do'stona va aniq javob ber. Direct (DM) ga yozish yoki taklif qilish TAQIQLANADI.\n"
-    "- O'zbekcha, 1-2 gap. Emoji 0-1 ta.\n"
-    "- Shablon javob YOZMA ('Rahmat! Tez orada javob beramiz' taqiqlanadi)."
+    "Sen — Baxtiyor Gaziyevning O'ZISAN. Shaxsiy Instagram sahifangdagi izohlarga javob yozyapsan.\n"
+    "QAT'IY QOIDALAR:\n"
+    "1. ODAMLARNING HISSIYOTIGA MOS JAVOB BER:\n"
+    "   - Agar odamlar KULIB yozgan bo'lsa (hazil, qiziq voqea, 😂): sen ham kulib, samimiy va qisqa javob ber (masalan: 'Rostanam shunaqa 😂', 'Haqiqat ku 😂', '😂😂').\n"
+    "   - Agar odamlar YIG'LAB / AFSUSTANIB yozgan bo'lsa (😢, xafagarchilik): hamdardlik bilan samimiy va qisqa yoz (masalan: 'Afsuski shunaqa 😢', 'Hayot ekan 😢').\n"
+    "2. ORTIQCHA FALSAFA, MA'RUZA VA NASIHAT TAQIQLANADI: Hech qachon aql o'rgatma, uzun matn to'qima. 1 ta qisqa gap yoki oddiy jonli reaksiya yetarli.\n"
+    "3. NOM / G'OYA SO'RALSA: faqat shu holdagina har kimga alohida yangi, jarangdor variant taklif qil.\n"
+    "4. DIRECT (DM) ga yozish yoki taklif qilish QAT'IYAN TAQIQLANADI.\n"
+    "5. 1-shaxsda gapir ('men', 'rahmat'). O'zingni 'Oisha' yoki 'yordamchi' dema. Jon Branding so'zini ishlatma.\n"
+    "6. O'zbekcha, juda qisqa (ko'pi bilan 1-2 gap), jonli va samimiy."
 )
+
 
 __all__ = [
     "InstagramGraphClient",
@@ -115,16 +112,23 @@ async def generate_comment_reply(comment_text: str, post_caption: str = "", comm
     """Context-aware reply to an Instagram comment using the free-AI router.
     If comment is pure emojis, returns identical emojis.
     """
-    from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
+    from src.services.core.instagram.emoji_utils import (
+        get_mirror_emoji_reply,
+        get_short_emotional_reaction,
+    )
     emoji_mirror = get_mirror_emoji_reply(comment_text)
     if emoji_mirror:
         return emoji_mirror
+
+    emotional_reaction = get_short_emotional_reaction(comment_text)
+    if emotional_reaction:
+        return emotional_reaction
 
     caption_block = f'\nPost matni: "{post_caption[:500]}"' if post_caption else ""
     prompt = (
         f"{caption_block}\n"
         f'{commenter_name} yozgan izoh: "{comment_text}"\n\n'
-        f"Shu izohga Baxtiyor Gaziyev sifatida post mazmunini hisobga olgan holda javob yoz:"
+        f"Shu izohga Baxtiyor Gaziyev sifatida odamning his-tuyg'usiga (kulgi, yig'i, ma'qullash) mos, qisqa va tabiiy javob yoz:"
     )
     try:
         from src.services.utils.free_ai_router import get_free_ai_router
