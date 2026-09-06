@@ -20,6 +20,12 @@
 
 ## Agent Handoff Log
 
+- **2026-09-07 — Antigravity — PR #591 Cleanup, enforce_admins & CI Verification:**
+  1. **PR #591 Closed & Branch Deleted**: `security/hardening-2026-09-07` branch'dagi barcha o'zgarishlar allaqachon `main` ga to'g'ridan-to'g'ri push qilingan edi (commits `d8c314eb`, `8fb32a32`). PR diverged holatda edi (4 ahead, 2 behind), merge qilish duplicate/conflict keltirib chiqarishi mumkin edi. PR yopildi va branch o'chirildi.
+  2. **Branch Protection `enforce_admins: true`**: Oldin `enforce_admins: false` edi — admin/owner direct push qila olardi. Endi `enforce_admins: true` qilib, barcha foydalanuvchilar (admin ham) PR orqali o'tishi majburiy qilindi.
+  3. **CI 100% Green**: Barcha 4 ta workflow muvaffaqiyatli: CI - Oisha-OS ✅, Security - CodeQL ✅, Security - Secret Scan (gitleaks) ✅, Oracle Production Deploy ✅.
+  4. **Qolgan Ishlar**: Oracle VM da `DISABLE_UNSOLICITED_REPORTS=1` env var o'rnatilishi kerak (SSH orqali); P3 credential rotation tashqi providerlar orqali mustaqil tasdiqlanishi kerak.
+
 - **2026-09-07 — Antigravity — Security Boundary Hardening, Branch Protection & CI Alignment:**
   1. **P0 Web Chat Widget Authorization Boundary**: Anonymous widget JWT is now strictly scoped to its own web session ID (`web_<session_id>`). It is strictly rejected (401/403) from `/api/chat/lookup/{phone}`, `/api/leads`, reading other users' history, and queuing outbound Telegram messages to integer user IDs. Removed hardcoded secret fallback (`oisha_widget_session_signing_secret_32b_fixed`); requires $\ge 32$-byte dedicated secret and fails closed with 503 if unconfigured.
   2. **P1 Main Branch Protection Activated**: Configured GitHub branch protection on `main` (`protected: true`, required status checks: `Import-time crash guard`, `CodeQL Analyze (python)`, `gitleaks`, force pushes blocked, branch deletion blocked).

@@ -236,6 +236,7 @@ jobs:
             HISOBCHI_GSHEET_ID=${HISOBCHI_GSHEET_ID}
             HISOBCHI_PNL_WORKSHEET_GID=${HISOBCHI_PNL_WORKSHEET_GID}
             AIRTABLE_API_KEY=${AIRTABLE_API_KEY}
+            DISABLE_UNSOLICITED_REPORTS=1
             ENVFILE
             sed -i 's/^            //' .env
 
