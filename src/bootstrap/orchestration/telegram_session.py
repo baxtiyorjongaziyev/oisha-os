@@ -35,13 +35,43 @@ async def init_telegram_session(cloud_control_plane_only: bool) -> Tuple[Optiona
                 get_best_session_string,
                 session_keepalive_loop,
             )
+            from src.services.core.telegram.session_store import (
+                acquire_session_ownership,
+                start_owner_heartbeat,
+            )
+
+            # Yagona egalik lock — boshqa instance (eski VPS/deploy/lokal dev)
+            # bir vaqtda userbot ochsa Telegram AUTH_KEY_DUPLICATED beradi va
+            # session o'ladi. Boshqa ega tirik (heartbeat yangi) bo'lsa —
+            # bu instance userbot'ni umuman ochmaydi.
+            if not acquire_session_ownership(
+                force=os.getenv("USERBOT_OWNER_FORCE", "").strip() in {"1", "true", "yes"}
+            ):
+                logger.critical(
+                    "[SESSION] ❌ Boshqa instance userbot egasi — bu yerda userbot OCHILMAYDI. "
+                    "Yagona kerak bo'lsa: USERBOT_OWNER_FORCE=1 bilan qayta ishga tushiring."
+                )
+                app_ctx.client = None
+                return app_ctx.client, telegram_session_manager
+
+            def _owner_admin_notify(msg: str):
+                try:
+                    from src.context import app_ctx as _ctx
+
+                    notifier = getattr(_ctx, "notify_owner", None)
+                    if callable(notifier):
+                        return notifier(msg)
+                except Exception:
+                    logger.debug("[SESSION] admin notify skip", exc_info=True)
+                logger.warning("[SESSION][ADMIN-ALERT] %s", msg)
+                return None
 
             telegram_session_manager = TelegramSessionManager(
                 api_id=settings.API_ID,
                 api_hash=settings.API_HASH,
                 session_file="data/userbot.session",
                 session_string=get_best_session_string(),
-                admin_notifier=None,
+                admin_notifier=_owner_admin_notify,
                 device_model="Oisha Enterprise v2",
                 system_version="Linux Server",
             )
@@ -59,12 +89,13 @@ async def init_telegram_session(cloud_control_plane_only: bool) -> Tuple[Optiona
                     session_keepalive_loop(
                         app_ctx.client,
                         interval_secs=int(os.getenv("USERBOT_KEEPALIVE_INTERVAL_SECS", "300")),
-                        notify_callback=None,
+                        notify_callback=_owner_admin_notify,
                         stop_event=_keepalive_stop,
                     ),
                     name="userbot_session_keepalive",
                 )
-                logger.info("[SESSION] Keep-alive loop ishga tushdi")
+                start_owner_heartbeat(_keepalive_stop)
+                logger.info("[SESSION] Keep-alive + egalik heartbeat ishga tushdi")
 
     return app_ctx.client, telegram_session_manager
 

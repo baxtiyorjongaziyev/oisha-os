@@ -67,18 +67,29 @@ def _write_session_string_to_file(string: str, path: Optional[str] = None) -> bo
 
 
 def get_best_session_string(env_var: str = "USERBOT_SESSION_STRING") -> Optional[str]:
-    """Eng yaxshi session string — fayl > env var tartibida.
+    """Eng yaxshi session string — Turso DB > fayl > env var tartibida.
 
-    Fayl ENV dan ustunlik qiladi, chunki:
-    - Fayl har reconnect da yangilanadi (eng yangi valid string)
-    - ENV restart'lar orasida eskirgan bo'lishi mumkin
+    Turso DB birinchi, chunki u restart'ga chidamli yagona manba: fayl
+    (``data/``) efemer bo'lishi mumkin, ENV esa restart'lar orasida eskiradi.
+    DB har reconnect'da yangilanadi.
     """
-    # 1. Avval fayldan o'qish (eng yangi)
+    # 1. Turso DB (eng ishonchli — restart-proof)
+    try:
+        from src.services.core.telegram.session_store import load_session_string_from_db
+
+        from_db = load_session_string_from_db()
+        if from_db:
+            logger.info("[SESSION_KEEPER] Turso DB'dan session string olindi (%d b)", len(from_db))
+            return from_db
+    except Exception as exc:
+        logger.warning("[SESSION_KEEPER] DB session o'qish xatosi: %s", type(exc).__name__)
+
+    # 2. Fayldan o'qish
     from_file = _read_session_string_from_file()
     if from_file:
         return from_file
 
-    # 2. Env var dan
+    # 3. Env var dan
     from_env = os.environ.get(env_var, "").strip()
     if from_env:
         logger.info("[SESSION_KEEPER] Env var'dan session string olinmoqda")
@@ -125,7 +136,14 @@ async def save_current_session_string(client: Any) -> Optional[str]:
             _write_session_string_to_file(string)
             # ENV ga ham qo'yish (shu runtime uchun)
             os.environ["USERBOT_SESSION_STRING"] = string
-            logger.info("[SESSION_KEEPER] Session string saqlandi va ENV yangilandi (%d b)", len(string))
+            # Turso DB'ga ham — restart-proof yagona manba
+            try:
+                from src.services.core.telegram.session_store import save_session_string_to_db
+
+                save_session_string_to_db(string)
+            except Exception as exc:
+                logger.warning("[SESSION_KEEPER] DB session yozish xatosi: %s", type(exc).__name__)
+            logger.info("[SESSION_KEEPER] Session string saqlandi (fayl+ENV+DB, %d b)", len(string))
             return string
         else:
             logger.warning("[SESSION_KEEPER] Session string juda qisqa yoki bo'sh: %r", string)
