@@ -20,6 +20,15 @@
 
 ## Agent Handoff Log
 
+- **2026-09-06 — Antigravity — Instagram Emoji Mirror & Oracle VM Auto-Responder Live Activation:**
+  1. **Root Cause Resolved**: Oracle VM dagi `.env` faylida `META_PAGE_ACCESS_TOKEN` va `META_INSTAGRAM_USER_ID` yetishmayotgan bo'lib, `IG-BACKFILL: Skipped: instagram_not_configured` holatida to'xtab turgan edi. Lokal toza tokenlar xavfsiz sinxronizatsiya qilindi.
+  2. **Identical Emoji Mirroring (Foydalanuvchi talabi)**: Agar foydalanuvchi faqat emojilardan iborat izoh qoldirsa (masalan `🔥🔥🔥` yoki `👏`), robot ortiqcha matn qo'shmasdan aynan o'sha emojilarning o'zini (`src/services/core/instagram/emoji_utils.py` orqali) qaytaradigan qilindi.
+  3. **Modular Standards & 400-Line Rule**: `src/services/core/instagram_agent.py` dan API xabarlar logikasi `src/services/core/instagram/api_helpers.py` (90L) ga ajratilib, 366 qator toza holatga keltirildi. Barcha yangi fayllar 400 qator qoidasiga to'liq mos.
+  4. **Live Verification**:
+     - `pytest`: 29/29 barcha Instagram testlari 100% yashil o'tdi.
+     - `bandit -r src/services/core/instagram/ -ll`: 0 issues (toza).
+     - **Oracle Production Logs**: `oisha-os.service` jonli ravishda izohlarga birma-bir javob yozishni boshladi (dalil: `{"comment_id": "18624020485002513", "event": "[META] Comment reply sent successfully"}`, `{"comment_id": "18020585288878395", ...}`, Gemini/Groq failover ishlayapti).
+
 - **2026-09-06 — Antigravity — GitHub Actions 100% Green CI & Workspace Isolation Remediation:**
   1. **Pytest Teardown Hang Resolved**: `tests/conftest.py` ga `pytest_unconfigure` hooki qo'shildi (`GITHUB_ACTIONS=true` da toza va tezkor `os._exit(session.exitstatus)` chaqiradi). Natijada test suite 35 daqiqa qotib qolmasdan **1m 17s** da 1980+ testni muvaffaqiyatli yakunlaydigan bo'ldi.
   2. **Ruff Syntax Rule Compatibility**: `.github/workflows/test.yml` da eskirgan `E999` qoidasi o'rniga `ruff check --select F821 src/` qo'yildi.
