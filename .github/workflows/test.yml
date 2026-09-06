@@ -70,16 +70,12 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
-              - '.github/workflows/test.yml'
             salescoach:
               - 'salescoach-ai/**'
-              - '.github/workflows/test.yml'
             marketing_frontend:
               - 'marketing-os/frontend/**'
-              - '.github/workflows/test.yml'
             marketing_backend:
               - 'marketing-os/backend/**'
-              - '.github/workflows/test.yml'
 
   pull-request-tests:
     if: github.event_name == 'pull_request'
