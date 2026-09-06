@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from src.context import app_ctx
 from src.database import get_db
 from src.services.core.airtable_client import AirtableClient
+from src.settings import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["oauth"])
@@ -306,11 +307,27 @@ async def telegram_callback(
     user = await db.users.get_user(id)
     role = user.get("role", "client") if user else "client"
 
-    # Generate JWT (fallback to bot token if no separate secret)
-    jwt_secret = getattr(config, "JWT_SECRET", bot_token)
+    # Dedicated JWT secret (strictly separate from Telegram bot_token)
+    raw_secret = os.environ.get("JWT_SECRET") or getattr(settings, "JWT_SECRET", "")
+    jwt_secret = str(
+        getattr(raw_secret, "get_secret_value", lambda: raw_secret)()
+        if hasattr(raw_secret, "get_secret_value")
+        else raw_secret or ""
+    ).strip()
+    if not jwt_secret or len(jwt_secret.encode("utf-8")) < 32:
+        logger.error("[OAUTH] JWT_SECRET is not configured or shorter than 32 bytes")
+        raise HTTPException(
+            status_code=503,
+            detail="Session signing secret (JWT_SECRET) is not configured or too short (min 32 bytes)",
+        )
+
     token = auth_service.issue_session_jwt(
-        user_id=id, username=username, first_name=first_name,
-        role=role, secret=jwt_secret,
+        user_id=id,
+        username=username,
+        first_name=first_name,
+        role=role,
+        secret=jwt_secret,
+        ttl_seconds=auth_service.SESSION_TTL_SECONDS,
     )
 
     # Create response that stores the cookie and redirects to Dashboard
@@ -318,7 +335,7 @@ async def telegram_callback(
     response.set_cookie(
         key="oisha_token",
         value=token,
-        max_age=30 * 24 * 3600,
+        max_age=auth_service.SESSION_TTL_SECONDS,
         httponly=True,
         samesite="lax",
     )

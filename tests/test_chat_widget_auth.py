@@ -74,3 +74,61 @@ def test_chat_send_unauthorized(client):
         json={"user_id": "web_123", "text": "Salom"},
     )
     assert res.status_code == 401
+
+
+def test_widget_token_forbidden_from_lookup(client):
+    token_res = client.post("/api/chat/token")
+    token = token_res.json()["token"]
+
+    res = client.get(
+        "/api/chat/lookup/+998901234567",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code in (401, 403)
+
+
+def test_widget_token_forbidden_from_leads_endpoint(client):
+    token_res = client.post("/api/chat/token")
+    token = token_res.json()["token"]
+
+    res = client.post(
+        "/api/leads",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": "Attacker", "phone": "+998901112233"},
+    )
+    assert res.status_code in (401, 403)
+
+
+def test_widget_token_forbidden_from_other_session_history(client):
+    token_res = client.post("/api/chat/token")
+    token = token_res.json()["token"]
+
+    res = client.get(
+        "/api/chat/history/web_other_victim_session",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code in (401, 403)
+
+
+def test_widget_token_forbidden_from_telegram_user_messaging(client):
+    token_res = client.post("/api/chat/token")
+    token = token_res.json()["token"]
+
+    # Trying to send a message to a real Telegram user ID
+    res = client.post(
+        "/api/chat/send",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"user_id": 150074828, "text": "Spoofed message"},
+    )
+    assert res.status_code == 403
+    assert "widget token can only send messages within its own web session" in res.json().get("detail", "")
+
+
+def test_widget_token_fail_closed_without_strong_secret(client, monkeypatch):
+    # If JWT_SECRET and OISHA_API_SECRET are missing or too short, must fail closed with 503
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+    monkeypatch.delenv("OISHA_API_SECRET", raising=False)
+
+    res = client.post("/api/chat/token")
+    assert res.status_code == 503
+    assert "shorter than 32 bytes" in res.json().get("detail", "")

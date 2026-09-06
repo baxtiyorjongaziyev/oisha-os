@@ -3,6 +3,7 @@ Client dashboard view, background audit, and server runner.
 """
 import asyncio
 import logging
+import os
 import time
 import uvicorn
 from fastapi import APIRouter, Request
@@ -22,6 +23,7 @@ from src.api.routes.amocrm_integration import (
     _CALL_BACKFILL_LAST_RESULT_KEY,
     _CALL_BACKFILL_LAST_ERROR_KEY,
 )
+from src.settings import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["dashboard"])
@@ -35,7 +37,14 @@ async def client_dashboard(request: Request):
 
     import config
     from src.api import auth_service
-    jwt_secret = getattr(config, "JWT_SECRET", config.BOT_TOKEN)
+    raw_secret = os.environ.get("JWT_SECRET") or getattr(settings, "JWT_SECRET", "")
+    jwt_secret = str(
+        getattr(raw_secret, "get_secret_value", lambda: raw_secret)()
+        if hasattr(raw_secret, "get_secret_value")
+        else raw_secret or ""
+    ).strip()
+    if not jwt_secret or len(jwt_secret.encode("utf-8")) < 32:
+        return RedirectResponse(url="/api/auth/telegram/login")
     payload = auth_service.decode_session_jwt(token, jwt_secret)
     if payload is None:
         # Invalid or expired token

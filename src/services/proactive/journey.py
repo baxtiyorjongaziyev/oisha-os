@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 async def check_client_journey_excellence() -> bool:
     """Mijoz yo'li bo'yicha wow-service signal va mikromanagement push yuborish."""
+    # Owner disabled this unsolicited report on 2026-09-06.
+    return False
     db = Database()
     now = get_local_now()
     today = now.strftime("%Y-%m-%d")
