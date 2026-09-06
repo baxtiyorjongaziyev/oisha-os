@@ -20,6 +20,13 @@
 
 ## Agent Handoff Log
 
+- **2026-09-07 — Antigravity — Security Boundary Hardening, Branch Protection & CI Alignment:**
+  1. **P0 Web Chat Widget Authorization Boundary**: Anonymous widget JWT is now strictly scoped to its own web session ID (`web_<session_id>`). It is strictly rejected (401/403) from `/api/chat/lookup/{phone}`, `/api/leads`, reading other users' history, and queuing outbound Telegram messages to integer user IDs. Removed hardcoded secret fallback (`oisha_widget_session_signing_secret_32b_fixed`); requires $\ge 32$-byte dedicated secret and fails closed with 503 if unconfigured.
+  2. **P1 Main Branch Protection Activated**: Configured GitHub branch protection on `main` (`protected: true`, required status checks: `Import-time crash guard`, `CodeQL Analyze (python)`, `gitleaks`, force pushes blocked, branch deletion blocked).
+  3. **P2 OAuth Secret Separation & Cookie TTL Alignment**: Removed Telegram `BOT_TOKEN` fallback for JWT signing in `oauth.py` and `dashboard.py` (strictly requires `JWT_SECRET` $\ge 32$ bytes). Aligned cookie `max_age` to session TTL (`SESSION_TTL_SECONDS` = 12h) instead of 30 days.
+  4. **P4 & P5 CI, Python 3.12 & Lockfile Alignment**: Added `ruff check --select F821 src/` to `trusted-main-tests` on push in `test.yml`; added push commit-range scanning to `gitleaks.yml`; unified Python version to `3.12` in `oracle-deploy.yml` and `dependabot-remediation.yml`; generated reproducible `requirements-lock.txt` (145 packages).
+  5. **Verification**: 37/37 auth/security unit tests passed, Ruff clean (0 errors), Bandit clean (0 issues, 92K LOC), 400-line modular standard strictly maintained.
+
 - **2026-09-06 — Antigravity — Disable Instagram Comment-Triggered DMs (Owner Directive):**
   1. **User Policy**: Foydalanuvchi qat'iy talabiga binoan ("DMga yozmasin") izohlardan avtomatik Direct (DM) ga yozish to'liq o'chirildi.
   2. **Code Remediation**:

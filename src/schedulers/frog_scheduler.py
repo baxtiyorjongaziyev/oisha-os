@@ -23,6 +23,8 @@ async def send_daily_frog_brief(bot_client=None, team_group_id=None):
     The brief is delivered by the @jonairobot bot (``bot_client``), never the
     userbot — the morning motivational message must come from the bot account.
     """
+    # Owner disabled this unsolicited report on 2026-09-06.
+    return False
     logger.info("[FROG] Starting daily frog identification...")
     from src.settings import settings
     from src.services.core.composio_tasks import ComposioTaskService

@@ -47,3 +47,43 @@ def test_telegram_login_page(client):
     res = client.get("/api/auth/telegram/login")
     assert res.status_code == 200
     assert "text/html" in res.headers.get("content-type", "")
+
+
+def test_telegram_callback_fails_without_strong_jwt_secret(client, monkeypatch):
+    from src.api import auth_service
+
+    monkeypatch.setattr(auth_service, "verify_telegram_hash", lambda *args, **kwargs: True)
+    monkeypatch.setattr(auth_service, "is_auth_date_fresh", lambda *args, **kwargs: True)
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+
+    params = {
+        "id": "12345",
+        "first_name": "Test",
+        "username": "tester",
+        "auth_date": "1700000000",
+        "hash": "validhash",
+    }
+    res = client.get("/api/auth/telegram/callback", params=params)
+    assert res.status_code == 503
+    assert "JWT_SECRET" in res.json().get("detail", "")
+
+
+def test_telegram_callback_success_with_strong_jwt_secret(client, monkeypatch):
+    from src.api import auth_service
+
+    monkeypatch.setattr(auth_service, "verify_telegram_hash", lambda *args, **kwargs: True)
+    monkeypatch.setattr(auth_service, "is_auth_date_fresh", lambda *args, **kwargs: True)
+    monkeypatch.setenv("JWT_SECRET", "test-dedicated-jwt-secret-at-least-32-bytes-long!")
+
+    params = {
+        "id": "12345",
+        "first_name": "Test",
+        "username": "tester",
+        "auth_date": "1700000000",
+        "hash": "validhash",
+    }
+    res = client.get("/api/auth/telegram/callback", params=params, follow_redirects=False)
+    assert res.status_code == 307
+    cookie = res.headers.get("set-cookie", "")
+    assert "oisha_token=" in cookie
+    assert "Max-Age=" in cookie or "max-age=" in cookie.lower()

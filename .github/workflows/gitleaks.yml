@@ -1,8 +1,8 @@
 name: Security - Secret Scan (gitleaks)
 
 on:
-  # Push trigger removed — gitleaks scans full history, so running on
-  # every push wastes minutes. Weekly schedule + PR checks are sufficient.
+  push:
+    branches: [main, master]
   pull_request:
     branches: [main, master]
   schedule:
@@ -50,6 +50,9 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ] && [ -n "${{ github.base_ref }}" ]; then
             echo "[GITLEAKS] Scanning PR commits: origin/${{ github.base_ref }}...HEAD"
             gitleaks detect --source . --config .gitleaks.toml --redact --verbose --exit-code 1 --log-opts="origin/${{ github.base_ref }}...HEAD"
+          elif [ "${{ github.event_name }}" = "push" ] && [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "[GITLEAKS] Scanning push commits: ${{ github.event.before }}...HEAD"
+            gitleaks detect --source . --config .gitleaks.toml --redact --verbose --exit-code 1 --log-opts="${{ github.event.before }}...HEAD"
           else
             echo "[GITLEAKS] Scanning history reachable from HEAD"
             gitleaks detect --source . --config .gitleaks.toml --redact --verbose --exit-code 1 --log-opts=HEAD

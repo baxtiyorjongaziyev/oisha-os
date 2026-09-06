@@ -83,6 +83,7 @@ Icon?
 *.txt
 !requirements.txt
 !requirements-dev.txt
+!requirements-lock.txt
 logs/
 audit/
 out/
