@@ -20,6 +20,15 @@
 
 ## Agent Handoff Log
 
+- **2026-09-06 — Antigravity — Disable Instagram Comment-Triggered DMs (Owner Directive):**
+  1. **User Policy**: Foydalanuvchi qat'iy talabiga binoan ("DMga yozmasin") izohlardan avtomatik Direct (DM) ga yozish to'liq o'chirildi.
+  2. **Code Remediation**:
+     - `src/services/core/instagram_agent.py`: `COMMENT_REPLY_SYSTEM` da DM ga yo'naltirish taqiqlandi; jonli webhookdagi `should_trigger_dm` va `send_ig_private_reply` logikasi olib tashlandi.
+     - `src/services/core/instagram/backfill.py`: Orqa fonda izohlarni o'qib javob beruvchi backfill'dagi DM outreach olib tashlandi.
+     - `tests/test_instagram_integration.py`: `mock_priv_reply.assert_not_called()` bilan yangilandi.
+  3. **Verification & Standards**: 29/29 Instagram testlari 100% yashil o'tdi, Bandit auditi toza (0 issues), 400-qator modular standarti saqlangan (`instagram_agent.py` 355L, `backfill.py` 178L).
+
+
 - **2026-09-06 — Antigravity — Instagram Emoji Mirror & Oracle VM Auto-Responder Live Activation:**
   1. **Root Cause Resolved**: Oracle VM dagi `.env` faylida `META_PAGE_ACCESS_TOKEN` va `META_INSTAGRAM_USER_ID` yetishmayotgan bo'lib, `IG-BACKFILL: Skipped: instagram_not_configured` holatida to'xtab turgan edi. Lokal toza tokenlar xavfsiz sinxronizatsiya qilindi.
   2. **Identical Emoji Mirroring (Foydalanuvchi talabi)**: Agar foydalanuvchi faqat emojilardan iborat izoh qoldirsa (masalan `🔥🔥🔥` yoki `👏`), robot ortiqcha matn qo'shmasdan aynan o'sha emojilarning o'zini (`src/services/core/instagram/emoji_utils.py` orqali) qaytaradigan qilindi.
@@ -229,6 +238,13 @@ bandit -r src/ -ll
 ```
 
 ## Branch Naming
+
+### Codex handoff - 2026-09-06 Airtable Finance V2
+- Live API/UI verified: USD555 test absent; Sadiyya paid UZS17850000, debt UZS150000. Of 338 transactions, 337 PASS; incomplete draft recPYf96Vm60YWcSF left untouched. Populated transactions have P&L links.
+- Published KPI pagBuUndb0l8vzDiA now uses Tranzaksiyalar, SUM Kirim UZS, date filter and grid; old five-card layout simplified. Live all-time confirmed income UZS772902150.
+- Published and verified hidden navigation for legacy pages pagA0TPu789kQs6yP and pagHzwr3AB8Mx79Hh; data retained.
+- Published form pagXqD6m5BgxhXYzz: Loyiha, read-only Reja, required single P&L selection titled Hisobot oyi (Sana bilan bir xil oy). Live form/selector verified. Month selection is manual; no automatic P&L linking implemented. No test finance submission or outbound messages.
+- Other legacy dashboards remain outside this focused repair. Antigravity Telegram writer migration not redeployed or production-verified here. Brain tools unavailable; filesystem note used.
 `feat/<short-description>` yoki `fix/<short-description>`
 
 ## Commit Style
