@@ -39,12 +39,13 @@ class _OAuthSessionStore:
 
 _oauth_sessions = _OAuthSessionStore()
 
+
 async def telegram_extension_history(phone: str):
     """Fetch chat history (via AmoCRM notes) for a given phone number."""
     try:
         from src.services.core.crm.amocrm_sync import AmoCRMSync
         amocrm = AmoCRMSync()
-        
+
         # 1. Mijozni topish
         lead = amocrm.find_active_lead_by_phone(phone)
         if not lead:
@@ -57,38 +58,38 @@ async def telegram_extension_history(phone: str):
                 lead = leads[0]
             else:
                 return {"success": False, "error": "Mijozning faol bitimi yo'q"}
-                
+
         lead_id = lead["id"]
-        
+
         # 2. Mijoz izohlarini (Notes) olish
         notes = await amocrm.get_lead_notes(lead_id)
-        
+
         messages = []
         for note in notes:
             text = note.get("params", {}).get("text", "")
             if not text:
                 continue
-                
+
             # Biz yuborgan yoki bot yozgan xabarlarni ajratamiz
             is_outbound = "Menejer:" in text or "TG:" in text or "Oisha:" in text or note.get("created_by") != 0
-            
+
             # Matnni tozalash (masalan "TG: " ni olib tashlash)
             clean_text = text.replace("TG: ", "").replace("Menejer: ", "")
-            
+
             messages.append({
                 "text": clean_text,
                 "outbound": is_outbound,
                 "created_at": note.get("created_at")
             })
-            
+
         # Vaqt bo'yicha saralash
         messages.sort(key=lambda x: x["created_at"])
-        
+
         # Telegram Chat ID ni topish (custom field lardan)
-        chat_id = phone # Fallback
-        
+        chat_id = phone  # Fallback
+
         return {
-            "success": True, 
+            "success": True,
             "messages": messages,
             "chatId": chat_id,
             "leadId": lead_id
@@ -105,14 +106,14 @@ async def telegram_extension_send(request: Request):
         data = await request.json()
         chat_id = data.get("chat_id")
         text = data.get("text")
-        
+
         if not chat_id or not text:
             return {"success": False, "error": "chat_id and text required"}
-            
+
         # 1. Telegram orqali yuborish
         target = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
         sent = False
-        
+
         # A) Telethon Userbot orqali (+998336450097)
         if getattr(app_ctx, "client", None):
             try:
@@ -121,7 +122,7 @@ async def telegram_extension_send(request: Request):
                 logger.info(f"[TELEGRAM EXT] Sent via Userbot to {target}")
             except Exception as ex:
                 logger.warning(f"[TELEGRAM EXT] Userbot send failed: {ex}")
-                
+
         # B) Bot runtime orqali fallback
         if not sent and getattr(app_ctx, "bot_runtime", None):
             try:
@@ -130,13 +131,13 @@ async def telegram_extension_send(request: Request):
                 logger.info(f"[TELEGRAM EXT] Sent via Bot to {target}")
             except Exception as ex:
                 logger.warning(f"[TELEGRAM EXT] Bot send failed: {ex}")
-                
+
         # C) Queue fallback
         if not sent:
             if app_ctx.outgoing_messages is None:
                 app_ctx.outgoing_messages = asyncio.Queue()
             await app_ctx.outgoing_messages.put({"chat_id": chat_id, "text": text})
-        
+
         # 2. AmoCRM ga Note qilib yozib qo'yish (kelajakdagi tarix uchun)
         try:
             from src.services.core.crm.amocrm_sync import AmoCRMSync
@@ -146,11 +147,12 @@ async def telegram_extension_send(request: Request):
                 amocrm.add_lead_note(lead["id"], f"TG: {text}")
         except Exception as note_ex:
             logger.warning(f"[TELEGRAM EXT NOTE] Failed: {note_ex}")
-            
+
         return {"success": True, "sent": sent}
     except Exception as e:
         logger.error(f"[TELEGRAM EXT SEND] {e}")
         return {"success": False, "error": str(e)}
+
 
 # =====================================================================
 # Airtable OAuth 2.0 Integratsiyasi
@@ -159,17 +161,15 @@ async def telegram_extension_send(request: Request):
 @router.get("/api/auth/airtable/login")
 async def airtable_login():
     """Redirect to Airtable for OAuth authorization."""
-    # Generate PKCE code verifier and challenge
-    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).decode('utf-8').rstrip('=')
+    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8").rstrip("=")
     code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode('utf-8')).digest()
-    ).decode('utf-8').rstrip('=')
-    
-    state = base64.urlsafe_b64encode(os.urandom(16)).decode('utf-8').rstrip('=')
-    
-    # Store verifier temporarily to use in callback
+        hashlib.sha256(code_verifier.encode("utf-8")).digest()
+    ).decode("utf-8").rstrip("=")
+
+    state = base64.urlsafe_b64encode(os.urandom(16)).decode("utf-8").rstrip("=")
+
     await _oauth_sessions.set(state, code_verifier, ttl=600)
-    
+
     client = AirtableClient()
     url = client.get_authorization_url(state, code_challenge)
     return RedirectResponse(url)
@@ -180,23 +180,23 @@ async def airtable_callback(code: str = None, state: str = None, error: str = No
     """Handle Airtable OAuth callback."""
     if error:
         raise HTTPException(status_code=400, detail=f"Airtable Auth Error: {error} - {error_description}")
-        
+
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code or state")
-        
+
     code_verifier = await _oauth_sessions.get(state)
     if code_verifier:
         await _oauth_sessions.delete(state)
     if not code_verifier:
         raise HTTPException(status_code=400, detail="Invalid or expired state")
-        
+
     client = AirtableClient()
     try:
         await client.exchange_code_for_token(code, code_verifier)
     except Exception as e:
         logger.error(f"Failed to exchange Airtable token: {e}")
         raise HTTPException(status_code=500, detail="Failed to exchange token")
-        
+
     html_content = """
     <html>
         <head>
@@ -209,7 +209,7 @@ async def airtable_callback(code: str = None, state: str = None, error: str = No
         </head>
         <body>
             <div class="card">
-                <h1>âœ… Muvaffaqiyatli!</h1>
+                <h1>✅ Muvaffaqiyatli!</h1>
                 <p>Oisha-OS Airtable bilan to'g'ridan-to'g'ri bog'landi.</p>
                 <p>Ushbu oynani yopishingiz mumkin.</p>
             </div>
@@ -237,8 +237,8 @@ async def airtable_status():
 async def telegram_login():
     """Return an HTML page with the Telegram Login Widget."""
     import config
+
     bot_username = getattr(config, "BOT_USERNAME", "jonairobot")
-    # For local testing, auth_url could be the local IP, but for prod it's the domain
     html_content = f"""
     <html>
         <head>
@@ -277,7 +277,8 @@ async def telegram_callback(
     import config
     from src.api import auth_service
 
-    # 1. Verify hash
+    # 1. Verify Telegram login hash with the bot token. The bot token is used
+    # only for Telegram's own login verification, never for Oisha JWT signing.
     bot_token = config.BOT_TOKEN
     fields = {
         "id": str(id) if id is not None else None,
@@ -290,36 +291,45 @@ async def telegram_callback(
     if not auth_service.verify_telegram_hash(fields, bot_token, hash):
         raise HTTPException(status_code=403, detail="Invalid Telegram Auth Hash")
 
-    # Check expiry (prevent replay attacks - 24 hours max)
     if not auth_service.is_auth_date_fresh(auth_date):
         raise HTTPException(status_code=403, detail="Auth date is expired")
 
     # 2. Get or Create user in DB, sync role
     db = get_db()
-    # Ensure they exist in our users table
     await db.users.upsert_user(
         user_id=id,
         username=username,
         first_name=first_name,
-        last_name=last_name
+        last_name=last_name,
     )
     user = await db.users.get_user(id)
     role = user.get("role", "client") if user else "client"
 
-    # Generate JWT (fallback to bot token if no separate secret)
-    jwt_secret = getattr(config, "JWT_SECRET", bot_token)
+    # JWT signing must use an independent application secret. Reusing the
+    # Telegram bot token couples two security domains and makes rotation unsafe.
+    jwt_secret = (
+        os.environ.get("JWT_SECRET", "").strip()
+        or os.environ.get("OISHA_API_SECRET", "").strip()
+    )
+    if len(jwt_secret.encode("utf-8")) < 32:
+        logger.error("[AUTH] JWT signing secret missing or too short")
+        raise HTTPException(status_code=503, detail="Session authentication is not configured")
+
     token = auth_service.issue_session_jwt(
-        user_id=id, username=username, first_name=first_name,
-        role=role, secret=jwt_secret,
+        user_id=id,
+        username=username,
+        first_name=first_name,
+        role=role,
+        secret=jwt_secret,
     )
 
-    # Create response that stores the cookie and redirects to Dashboard
     response = RedirectResponse(url="/")
     response.set_cookie(
         key="oisha_token",
         value=token,
-        max_age=30 * 24 * 3600,
+        max_age=12 * 60 * 60,
         httponly=True,
+        secure=True,
         samesite="lax",
     )
     return response
