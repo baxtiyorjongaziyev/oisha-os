@@ -58,3 +58,32 @@ print(f"UNANSWERED_COMMENTS={len(unanswered)}")
 
 with open("audit_comments.json", "w", encoding="utf-8") as f:
     json.dump({"total": total_comments, "answered": answered_count, "unanswered": unanswered}, f, ensure_ascii=False, indent=2)
+
+import time
+import asyncio
+from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
+from src.services.core.instagram_agent import generate_comment_reply, reply_to_comment
+
+async def reply_first_batch():
+    batch = unanswered[:10]
+    print(f"\n--- STARTING REPLY TO FIRST {len(batch)} UNANSWERED COMMENTS ---")
+    for idx, c in enumerate(batch):
+        c_id = c["id"]
+        text = c["text"]
+        author = c["author"]
+        post = c["post"]
+        print(f"[{idx+1}/{len(batch)}] Replying to @{author}: {text}")
+        emoji = get_mirror_emoji_reply(text)
+        if emoji:
+            reply = emoji
+        else:
+            reply = await generate_comment_reply(text, post, author)
+            import re
+            reply = re.sub(r"\[.*?\]", "", reply).strip()
+        print(f"  -> Generated: {reply}")
+        ok = reply_to_comment(c_id, reply, tok)
+        print(f"  -> Result: {'SUCCESS' if ok else 'FAILED'}")
+        await asyncio.sleep(6)
+
+asyncio.run(reply_first_batch())
+
