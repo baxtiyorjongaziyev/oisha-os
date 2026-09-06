@@ -95,6 +95,7 @@ class Database:
         await self.intelligence.init_tables()
         await self.reports.init_tables()
         await self.gamification.init_table()
+        await self.oauth._init_tables()
         await self._init_legacy_tables()
 
         # Ensure owner exists
