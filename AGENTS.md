@@ -20,6 +20,19 @@
 
 ## Agent Handoff Log
 
+- **2026-09-06 — Antigravity — GitHub Actions 100% Green CI & Workspace Isolation Remediation:**
+  1. **Pytest Teardown Hang Resolved**: `tests/conftest.py` ga `pytest_unconfigure` hooki qo'shildi (`GITHUB_ACTIONS=true` da toza va tezkor `os._exit(session.exitstatus)` chaqiradi). Natijada test suite 35 daqiqa qotib qolmasdan **1m 17s** da 1980+ testni muvaffaqiyatli yakunlaydigan bo'ldi.
+  2. **Ruff Syntax Rule Compatibility**: `.github/workflows/test.yml` da eskirgan `E999` qoidasi o'rniga `ruff check --select F821 src/` qo'yildi.
+  3. **Monorepo Path Isolation**: `.github/workflows/test.yml` dagi `dorny/paths-filter` da subloyihalardan sun'iy `.github/workflows/test.yml` trigeri olib tashlandi. Shuningdek, `marketing-os/frontend/pnpm-lock.yaml` drifti to'g'rilandi va `apps/web` dagi ESLint xatolari (`isCrit`, `analytics/page.tsx` setState in effect) to'liq tuzatildi.
+  4. **Verification & Live Status**:
+     - `CI - Oisha-OS`: **SUCCESS in 1m 20s** (`34025352968`)
+     - `Oisha Web Ops`: **SUCCESS in 1m 4s** (`34025352989`)
+     - `Oracle Production Deploy`: **SUCCESS in 3m 51s** (`34024960316`)
+     - `Security - CodeQL`: **SUCCESS in 2m 7s** (`34024960325`)
+     - `Security - Secret Scan (gitleaks)`: **SUCCESS in 9s**
+     - Bandit: 0 issues. 400-qator modular standarti 100% ta'minlangan.
+
+
 - **2026-09-05 — Antigravity — Airtable Finance V2 (Tranzaksiyalar) Cutover & Telegram Income Workflow:**
   1. **Airtable Audit & Test Cleanup**: Codex limitga tushib to'xtab qolgan nuqtalar (Sadiyya cakes to'lovlari ko'chirilishi, 555 USD sinov yozuvi, nazorat formulalari) audit qilindi. 555 USD (6 549 000 UZS) sinov yozuvi (`rechRs9rLFcEgNsYp`) `Tranzaksiyalar` jadvalidan to'liq o'chirildi; Sadiyya loyihasi balansi tekshirildi (17 850 000 so'm to'langan, 150 000 so'm qoldiq).
   2. **Telegram Income Workflow Migrated**: `src/handlers/income_workflow.py` eski `Kirim` jadvali o'rniga `Tranzaksiyalar` jadvaliga yo'naltirildi. Kategoriya (`Branding loyiha daromadi` / `Naming loyiha daromadi`), kassa/hisob (`Bank UZS`, `Naqd USD`, `Naqd UZS`, `P2P karta`) va joriy oylik P&L mappingi avtomatlashtirildi; `Holat = 'Tasdiqlangan'` bilan yoziladi.
