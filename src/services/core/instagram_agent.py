@@ -124,7 +124,7 @@ async def generate_comment_reply(comment_text: str, post_caption: str = "", comm
     prompt = (
         f"{caption_block}\n"
         f'{commenter_name} yozgan izoh: "{comment_text}"\n\n'
-        f"Shu izohga Oisha nomidan javob yoz:"
+        f"Shu izohga Baxtiyor Gaziyev sifatida post mazmunini hisobga olgan holda javob yoz:"
     )
     try:
         from src.services.utils.free_ai_router import get_free_ai_router
