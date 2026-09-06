@@ -14,7 +14,7 @@
   ],
   "content_scripts": [
     {
-      "matches": ["*://*.amocrm.ru/leads/detail/*"],
+      "matches": ["*://*.amocrm.ru/leads/*", "*://*.amocrm.ru/contacts/*"],
       "css": ["styles.css"],
       "js": ["content.js"]
     }

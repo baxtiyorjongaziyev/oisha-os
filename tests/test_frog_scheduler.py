@@ -161,3 +161,27 @@ async def test_frog_brief_with_composio(monkeypatch):
 
 async def _async_value(value):
     return value
+
+
+@pytest.mark.asyncio
+async def test_example_task_is_never_sent(monkeypatch):
+    db = _Db([(7, "Buyurtmachi A bilan uchrashuv", "", 1, 1500)])
+    bot = _BotClient()
+    monkeypatch.setattr(frog_scheduler, "get_db", lambda: db)
+    await frog_scheduler.send_daily_frog_brief(bot, -100123)
+    assert not bot.sent
+
+
+@pytest.mark.asyncio
+async def test_frog_text_uses_source_not_generated_claims(monkeypatch):
+    db = _Db([(7, "Atlas bilan uchrashuv", "", 1, 0)])
+    bot = _BotClient()
+    frog = _Frog()
+    frog.motivation_message = "Buyurtmachi A sizga $1500 foyda keltiradi"
+    monkeypatch.setattr(frog_scheduler, "get_db", lambda: db)
+    monkeypatch.setattr(frog_scheduler, "FrogAgent", lambda: SimpleNamespace(
+        identify_frog=lambda tasks: _async_value(frog)))
+    await frog_scheduler.send_daily_frog_brief(bot, -100123)
+    assert "Atlas bilan uchrashuv" in bot.sent[0][1]
+    assert "1500" not in bot.sent[0][1]
+    assert "Buyurtmachi A" not in bot.sent[0][1]

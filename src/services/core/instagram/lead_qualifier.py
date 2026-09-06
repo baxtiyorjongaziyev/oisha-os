@@ -19,14 +19,14 @@ def _secret_text(value) -> str:
     getter = getattr(value, "get_secret_value", None)
     return str(getter() if callable(getter) else value or "")
 
-DEFAULT_TRIGGER_KEYWORDS = {
+DEFAULT_TRIGGER_KEYWORDS = (
     "nom", "ном", "brand", "brend", "бренд", "logo", "лого",
     "branding", "бrenдинг", "брендинг", "rebrending", "ребрендинг",
     "narx", "нарх", "narxi", "нархи", "keys", "кейс", "кейслар",
     "dizayn", "дизайн", "start", "старт", "loyiha", "лойиха",
     "konsultatsiya", "консультация", "xizmat", "хизмат",
     "hamkorlik", "хамкорлик", "qancha", "канча", "food", "fastfood"
-}
+)
 
 QUALIFICATION_SYSTEM_PROMPT = (
     "Sen — Baxtiyor Gaziyevning O'ZISAN. Branding bo'yicha ekspert va art-direktor, "

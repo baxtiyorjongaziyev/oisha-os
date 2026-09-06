@@ -118,12 +118,6 @@ async def logout():
     return {"success": True}
 
 
-@app.get("/api/auth/logout")
-async def logout_get():
-    delete_token()
-    return {"success": True}
-
-
 @app.get("/api/performance")
 async def get_performance_data() -> Dict[str, Any]:
     """

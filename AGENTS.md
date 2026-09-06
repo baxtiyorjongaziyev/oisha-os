@@ -20,6 +20,20 @@
 
 ## Agent Handoff Log
 
+- **2026-09-05 — Antigravity — Airtable Finance V2 (Tranzaksiyalar) Cutover & Telegram Income Workflow:**
+  1. **Airtable Audit & Test Cleanup**: Codex limitga tushib to'xtab qolgan nuqtalar (Sadiyya cakes to'lovlari ko'chirilishi, 555 USD sinov yozuvi, nazorat formulalari) audit qilindi. 555 USD (6 549 000 UZS) sinov yozuvi (`rechRs9rLFcEgNsYp`) `Tranzaksiyalar` jadvalidan to'liq o'chirildi; Sadiyya loyihasi balansi tekshirildi (17 850 000 so'm to'langan, 150 000 so'm qoldiq).
+  2. **Telegram Income Workflow Migrated**: `src/handlers/income_workflow.py` eski `Kirim` jadvali o'rniga `Tranzaksiyalar` jadvaliga yo'naltirildi. Kategoriya (`Branding loyiha daromadi` / `Naming loyiha daromadi`), kassa/hisob (`Bank UZS`, `Naqd USD`, `Naqd UZS`, `P2P karta`) va joriy oylik P&L mappingi avtomatlashtirildi; `Holat = 'Tasdiqlangan'` bilan yoziladi.
+  3. **Backward Compatibility**: `src/services/core/airtable/projects.py` da `get_finance_records()` ga `"Loyiha nomi"` default aliasi qo'shildi (`Loyiha` dan oladi); `count_income_records_for_project()` ikkala maydonni ham qo'llab-quvvatlaydigan qilindi.
+  4. **Verification**: `tests/test_income_workflow.py` (4/4 passed), `tests/test_kirim_handler.py` va `tests/test_airtable_sync.py` (12/12 passed); Bandit xavfsizlik auditi 0 issues; fayl hajmlari 150-400 qator standartiga to'liq mos (`income_workflow.py`: 296L, `projects.py`: 271L).
+
+
+- **2026-09-05 — Antigravity — Cloud Brain Synthesizer & AmoCRM Production Fix:**
+  1. **Root Cause Diagnosis**: Telegram'dagi "OpenRouter API kaliti topilmadi" xatosi tekshirildi. `src/schedulers/cloud_brain_synthesizer.py` Oracle VM da OpenRouter'ga hardcoded bo'lgan va fail-closed guard bo'lmagani sababli Telegram'ga xato yuborayotgan edi.
+  2. **FreeAIProviderRouter & Fail-Closed**: `cloud_brain_synthesizer.py` `FreeAIProviderRouter`ga ulandi (Gemini, Groq, Cerebras failover). Ma'lumot yoki kalit bo'lmasa xato yubormasdan jim o'tadigan (fail-closed) qilindi. Oracle VM da live test qilindi (`HTTP 200 OK`, Gemini orqali muvaffaqiyatli sintezlandi). Unit testlar: `tests/test_cloud_brain_synthesizer.py` 7/7 passed.
+  3. **AmoCRM Token Sync**: Oracle VM da AmoCRM `access_token_missing` xatosi lokal ishlayotgan `data/amocrm_token.json` SSH orqali nusxalanishi bilan to'liq tuzatildi. `probe_integrations.py` da `amocrm: account_ok: true, lead_read_ok: true` tasdiqlandi.
+  4. **Production Health**: `oisha-os.service` restart qilindi, `/healthz/` 200 OK (healthy, problems: []), `/readyz` da AmoCRM `connected`. Faqat `userbot_unauthorized` qoldi (SMS kod kutadi).
+
+
 - **2026-09-05 — Antigravity — Gitleaks PR Scoping & Secret Remediation:**
   1. **PR-Scoped Gitleaks**: `.github/workflows/gitleaks.yml` da PR skaneri faqat PR commitlariga (`origin/${{ github.base_ref }}...HEAD`) cheklandi, scheduled/dispatch runlar uchun to'liq tarix saqlandi. Barcha ochiq va yangi PR'lar tarixiy o'tmish sababli sun'iy bloklanishi bartaraf etildi.
   2. **Workflow Secret Sanitization**: `.github/workflows/oracle-deploy.yml` da ochiq matnda qolib ketgan `AMOCRM_CHAT_CHANNEL_SECRET` va `AMOCRM_CHAT_CHANNEL_ID` GitHub Secrets'ga (`gh secret set`) kiritildi va workflow env o'zgaruvchisiga bog'landi.

@@ -47,18 +47,24 @@ class AmoCRMSync(
 
     def __init__(
         self,
-        subdomain,
-        client_id,
-        client_secret,
-        redirect_url,
-        token_file="data/amocrm_token.json",
+        subdomain: Optional[str] = None,
+        client_id: Optional[str] = None,
+        client_secret: Optional[Any] = None,
+        redirect_url: Optional[str] = None,
+        token_file: str = "data/amocrm_token.json",
     ):
-        self.subdomain = subdomain
-        self.client_id = client_id
-        self.client_secret = _plain_secret(client_secret)
-        self.redirect_url = redirect_url
+        from src.settings import settings
+
+        self.subdomain = subdomain or getattr(settings, "AMOCRM_SUBDOMAIN", "jonbrandingagency")
+        self.client_id = client_id or getattr(settings, "AMOCRM_CLIENT_ID", "")
+        self.client_secret = _plain_secret(
+            client_secret
+            if client_secret is not None
+            else getattr(settings, "AMOCRM_CLIENT_SECRET", "")
+        )
+        self.redirect_url = redirect_url or getattr(settings, "AMOCRM_REDIRECT_URL", "")
         self.token_file = token_file
-        self.base_url = f"https://{subdomain}.amocrm.ru"
+        self.base_url = f"https://{self.subdomain}.amocrm.ru"
         self.access_token: Optional[str] = None
         self.token_data: Dict[str, Any] = {}
         self.last_error: Optional[str] = None

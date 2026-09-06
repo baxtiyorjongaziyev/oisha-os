@@ -24,6 +24,7 @@ from src.services.proactive.formatters import (
 from src.services.proactive.reminders import _execute_telegram_notification
 from src.services.proactive.airtable_deadlines import _resolve
 from src.time_utils import get_local_now
+from src.services.core.notification_quality import notification_is_publishable
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +47,9 @@ def _filter_stalled_projects(projects: List[Dict[str, Any]], now: datetime.datet
                 or fields.get("Dizayner")
                 or fields.get("Designer")
             )
-        mgr_name = AirtableSync.resolve_pm_handle(mgr_raw) if mgr_raw else "@Inomjon_JonBranding"
-        if not mgr_name or mgr_name == "Mas'ul belgilanmagan":
-            mgr_name = "@Inomjon_JonBranding"
+        mgr_name = AirtableSync.resolve_pm_handle(mgr_raw) if mgr_raw else ""
+        if not notification_is_publishable(mgr_name) or mgr_name == "PM":
+            continue
 
         age = _project_age_days(project)
         is_overdue = False
@@ -76,8 +77,9 @@ def _filter_stalled_projects(projects: List[Dict[str, Any]], now: datetime.datet
                     or fields.get("AmoCRM_ID")
                 )
             if not raw_p_name or str(raw_p_name).strip() in ("", "Noma'lum", "None", "null", "[]"):
-                pid_str = str(project.get("id") or "")
-                raw_p_name = f"Loyiha #{pid_str[-6:]}" if pid_str else "Loyiha"
+                continue
+            if not notification_is_publishable(raw_p_name):
+                continue
             p_name = _safe_text(raw_p_name, "Loyiha")
 
             stalled.append({

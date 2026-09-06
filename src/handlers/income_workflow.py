@@ -156,6 +156,38 @@ async def find_project_for_income(message_text: str) -> Optional[Dict[str, Any]]
     return best_match if best_score >= 0.6 else None
 
 
+INCOME_CAT_NAMING = "recZfiahYoNRbLxrM"
+INCOME_CAT_BRANDING = "recGLyiTJBay9T7lt"
+
+ACC_BANK_UZS = "recHVOcCQkisfitiD"
+ACC_P2P_UZS = "recNtlN2Sj7LDtkMG"
+ACC_NAQD_UZS = "recTZ8GgVFBdZGf8s"
+ACC_NAQD_USD = "recseGjV7hF4L1vl7"
+
+PNL_MONTHS = {
+    "2026-08": "rec39HclAkO7cg6lt",
+    "2026-09": "rececZCdTUNko7Ftc",
+    "2026-10": "reciGDbC427qobT65",
+    "2026-11": "recPwyeGcWFQSZDZj",
+    "2026-12": "recENsluVaOmq8Gbj",
+}
+
+
+def resolve_income_category(source_text: str, project_name: str = "") -> str:
+    combined = f"{source_text} {project_name}".lower()
+    if "naming" in combined:
+        return INCOME_CAT_NAMING
+    return INCOME_CAT_BRANDING
+
+
+def resolve_income_account(payment_source: Optional[str], currency: str) -> str:
+    if payment_source == "Naqd":
+        return ACC_NAQD_USD if currency == "USD" else ACC_NAQD_UZS
+    if payment_source == "Bank hisobi":
+        return ACC_BANK_UZS
+    return ACC_P2P_UZS
+
+
 async def count_income_records_for_project(project_record_id: str) -> int:
     from src.services.core.airtable_sync import AirtableSync
 
@@ -165,7 +197,9 @@ async def count_income_records_for_project(project_record_id: str) -> int:
     for record in records:
         if record.get("_record_type") != "income":
             continue
-        if project_record_id in (record.get("fields", {}).get("Loyiha nomi") or []):
+        fields = record.get("fields", {}) or {}
+        project_links = fields.get("Loyiha") or fields.get("Loyiha nomi") or []
+        if project_record_id in project_links:
             count += 1
     return count
 
@@ -187,26 +221,40 @@ async def create_income_airtable_record(
 
     currency = workflow.get("currency") or "UZS"
     kurs = project_fields.get("Kurs") or 12000
-    fields: Dict[str, Any] = {
-        "Loyiha nomi": [project_id],
-        "Valyuta": currency,
-        "To'lov sanasi": get_local_now().strftime("%Y-%m-%d"),
-        "To'lov miqdori": amount_value,
-        "Kurs": kurs,
-        "To'lov turi": detect_payment_type(
-            workflow.get("source_text", ""), workflow.get("is_first_payment", False)
-        ),
-    }
+    now = get_local_now()
+    now_date = now.strftime("%Y-%m-%d")
+    month_code = now.strftime("%Y-%m")
 
     payment_source = detect_payment_source(workflow.get("source_text", ""))
-    if payment_source:
-        fields["To'lov manbasi"] = payment_source
-    if workflow.get("client_ids"):
-        fields["Mijoz"] = workflow["client_ids"]
-    if workflow.get("seller_ids"):
-        fields["Seller"] = workflow["seller_ids"]
+    account_id = resolve_income_account(payment_source, currency)
+    category_id = resolve_income_category(
+        workflow.get("source_text", ""), workflow.get("project_name", "")
+    )
+    pnl_id = PNL_MONTHS.get(month_code)
 
-    sync = AirtableSync(table_name="Kirim")
+    trx_title = f"KIRIM-TG-{now.strftime('%Y%m%d%H%M')}-{int(amount_value)}{currency}"
+    source_snippet = (workflow.get("source_text") or "").strip()[:100]
+    izoh = f"Telegram kirim e'loni ({payment_source or 'noma lum'}). Manba: {source_snippet}"
+
+    fields: Dict[str, Any] = {
+        "Tranzaksiya": trx_title,
+        "Sana": now_date,
+        "Turi": "Kirim",
+        "Summa": amount_value,
+        "Valyuta": currency,
+        "Kurs": kurs,
+        "Loyiha": [project_id],
+        "Holat": "Tasdiqlangan",
+        "Kategoriya": [category_id],
+        "Hisob": [account_id],
+        "Izoh": izoh,
+    }
+    if pnl_id:
+        fields["Oylik P&L (Hisobot)"] = [pnl_id]
+    if workflow.get("seller_ids"):
+        fields["Xodim"] = workflow["seller_ids"]
+
+    sync = AirtableSync(table_name="Tranzaksiyalar")
     return await asyncio.to_thread(sync.create_record, fields)
 
 
