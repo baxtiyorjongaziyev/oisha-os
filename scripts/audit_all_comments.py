@@ -59,31 +59,26 @@ print(f"UNANSWERED_COMMENTS={len(unanswered)}")
 with open("audit_comments.json", "w", encoding="utf-8") as f:
     json.dump({"total": total_comments, "answered": answered_count, "unanswered": unanswered}, f, ensure_ascii=False, indent=2)
 
-import time
-import asyncio
-from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
-from src.services.core.instagram_agent import generate_comment_reply, reply_to_comment
+target_reel = None
+for m in media_list:
+    cap = (m.get("caption") or "").lower()
+    if any(w in cap for w in ["qo'ng'iroq", "qongiroq", "davomiyligi", "telefon", "dadam", "soniya"]):
+        target_reel = m
+        break
 
-async def reply_first_batch():
-    batch = unanswered[:10]
-    print(f"\n--- STARTING REPLY TO FIRST {len(batch)} UNANSWERED COMMENTS ---")
-    for idx, c in enumerate(batch):
-        c_id = c["id"]
-        text = c["text"]
-        author = c["author"]
-        post = c["post"]
-        print(f"[{idx+1}/{len(batch)}] Replying to @{author}: {text}")
-        emoji = get_mirror_emoji_reply(text)
-        if emoji:
-            reply = emoji
-        else:
-            reply = await generate_comment_reply(text, post, author)
-            import re
-            reply = re.sub(r"\[.*?\]", "", reply).strip()
-        print(f"  -> Generated: {reply}")
-        ok = reply_to_comment(c_id, reply, tok)
-        print(f"  -> Result: {'SUCCESS' if ok else 'FAILED'}")
-        await asyncio.sleep(6)
+if not target_reel and media_list:
+    target_reel = media_list[0]
 
-asyncio.run(reply_first_batch())
+print(f"\nTARGET REEL: {target_reel.get('permalink')} | Caption: {target_reel.get('caption')[:80]}")
+m_id = target_reel["id"]
+c_url = f"https://graph.facebook.com/v21.0/{m_id}/comments?fields=id,text,from,timestamp,replies{{id,from,text}}&limit=50&access_token={tok}"
+res = requests.get(c_url).json()
+comments = res.get("data", [])
+print(f"Total top-level comments on this reel: {len(comments)}")
+for c in comments:
+    author = (c.get("from") or {}).get("username", "")
+    replies = (c.get("replies") or {}).get("data", [])
+    has_reply = any((r.get("from") or {}).get("username") == "baxtiyorjongaziyev" for r in replies)
+    print(f"Comment {c.get('id')} by @{author}: '{c.get('text')}' -> Replied: {has_reply}")
+
 
