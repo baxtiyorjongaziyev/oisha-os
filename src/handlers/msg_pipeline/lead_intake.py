@@ -106,6 +106,26 @@ async def process_elite_intake(
     if folder_manager:
         asyncio.create_task(folder_manager.assign_to_folder(sender.id, intent))
 
+    from src.services.core.crm.non_client_filter import is_sender_marked_as_non_client
+    crm_client = getattr(getattr(msg_controller, "crm", None), "amocrm", None) if msg_controller else None
+    db_instance = getattr(msg_controller, "db", None) if msg_controller else None
+    sender_phone = lead_data.get("phone") or getattr(sender, "phone", None)
+    is_nc, nc_reason = await is_sender_marked_as_non_client(
+        crm_client,
+        phone=sender_phone,
+        user_id=getattr(sender, "id", None),
+        name=sender_name,
+        db=db_instance,
+    )
+    if is_nc:
+        logger.info(
+            "[ELITE INTAKE] %s (%s) 'mijoz emas' deb belgilangan (%s). CRM ga chiqarilmaydi.",
+            sender_name,
+            getattr(sender, "id", None),
+            nc_reason,
+        )
+        return
+
     open_lead, gate_reason = should_open_lead(lead_data, message_text, lead_mode)
     if not open_lead:
         logger.info(

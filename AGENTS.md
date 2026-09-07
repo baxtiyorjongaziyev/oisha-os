@@ -20,6 +20,36 @@
 
 ## Agent Handoff Log
 
+- **2026-09-07 — Antigravity — AmoCRM Overdue Tasks Safe Rescheduling & Telegram Userbot Sync:**
+  1. **AmoCRM Overdue Tasks Safe Rescheduled**: `scripts/reschedule_overdue_tasks_safe.py` (245L) yaratildi va Oracle VM da muvaffaqiyatli ishga tushirildi.
+     - Jami ochiq vazifalar: 432 ta. Muddati o'tib ketgan (overdue): 61 ta.
+     - "Mijoz emas" deb belgilangan (rad etdi, spam, qiziqmadi): 14 ta vazifa darhol `Mijoz emas deb yopildi` natijasi bilan yopildi va bekor qilindi.
+     - Haqiqiy mijozlarning 47 ta muddati o'tgan vazifasi kelgusi ish kunlariga 25 tadan (18:00 Toshkent vaqti, yakshanba kunlarisiz) taqsimlandi:
+       - 2026-09-08 (Seshanba): 25 ta vazifa
+       - 2026-09-09 (Chorshanba): 22 ta vazifa
+     - Natija: AmoCRM'da muddati o'tib ketgan (qizil) vazifalar soni **0** ga tushirildi!
+  2. **Telegram Userbot Reauth Script Fix**: `scripts/start_userbot_reauth.ps1` da xizmat to'xtatish paytidagi `Job for oisha-os.service canceled (exit 1)` xatosi bartaraf etildi (`sudo systemctl stop oisha-os.service 2>/dev/null || true`).
+  3. **Telegram Chat Analysis Architecture**: Foydalanuvchi savoliga tushuntirish berildi. Telethon sessiyasi faollashishi bilan `ai_autopilot_scheduler` va `TelegramTaskCreator` orqa fonda chatlarni tahlil qilib AmoCRM ga vazifalar va yangilanishlarni avtomatik joylaydi.
+
+
+- **2026-09-07 — Antigravity — AmoCRM Non-Client Task Suppression & Re-import Guard (Owner Directive):**
+  1. **Non-Client Filter Engine**: `src/services/core/crm/non_client_filter.py` (231L) yaratildi. Foydalanuvchi ko'rsatmasiga binoan sdelka nomi, mijoz/kontakt nomi, izohlar (primechaniya), vazifalar (matn va natija), chat va teglarda "mijoz emas", "klient emas", "not a client", "spam", "adashgan", "kerak emas", "rad etdi", "shaxsiy/oila" kabi belgilar to'liq skan qilinadi. 30 daqiqalik in-memory kesh bilan tezkor ishlaydi.
+  2. **Task Creation Guard**: `src/services/core/crm/amocrm/tasks_notes.py` da `create_task` hamda `src/services/core/smart_tasks/analyzer.py` da smart-task yaratilishidan oldin barcha joylar (sdelka, kontakt, primechaniya, zadacha natijalari, chat) tekshiriladi. Agar "mijoz emas" belgisi bo'lsa, vazifa qo'yilmaydi (`[AMOCRM TASK BLOCKED]`).
+  3. **CRM Re-import & Chat Suppression**: `src/handlers/msg_pipeline/lead_intake.py` (`process_elite_intake`) hamda `src/entrypoint/message_event.py` (`_sync_and_log_crm_channels`) da "mijoz emas" deb belgilangan shaxslar qayta yangi sdelka sifatida ochilmaydi va ularning xabarlari CRM chatiga chiqarilmaydi.
+  4. **Verification**: 10/10 yangi non-client testlari va 54/54 to'liq CRM integratsiya testlari yashil o'tdi (`pytest`). Bandit auditi: 0 issues (1026 LOC). Barcha 5 ta fayl 400 qator modular standartiga 100% mos.
+
+- **2026-09-07 — Antigravity — Instagram Comments Auto-Responder & Browser Liker Full Activation:**
+  1. **Browser Like Automation**: Connected directly to the active Chrome profile (`baxtiyorjongaziyev`, ID `4256594275`) via CDP. Scanned reel [`Dc8MLR-NzWB`](https://www.instagram.com/reel/Dc8MLR-NzWB/), expanded replies, and safely liked all 129 previously unliked comments with 1.5–2.3s human delay. Total visible comments liked reached 600+.
+  2. **Unanswered Comments Root Cause Resolved**: Oracle VM `.env` faylida Meta Graph API kalitlari (`META_PAGE_ACCESS_TOKEN`, `META_INSTAGRAM_USER_ID` va h.k.) yetishmayotgani sababli `[IG-BACKFILL]` `instagram_not_configured` xatosi bilan to'xtab turgan edi. Lokal toza tokenlar Oracle VM `.env` ga sinxronlandi.
+  3. **Live Auto-Responder Active**: `oisha-os.service` qayta ishga tushirildi. Orqa fondagi backfill loopi (20 soniyalik interval, 5 soniyalik xavfsiz oraliq bilan) ishga tushib, javob berilmagan barcha kommentlarga hissiyotga mos (kulgu/kulgu, yig'i/hamdardlik, sof emoji/mirror) javob yozishni boshladi (dalil: `{"comment_id": "...", "event": "[META] Comment reply sent successfully"}`).
+  4. **Verification**: 9+ ta javobsiz komment jonli ravishda yozib bo'lindi va qolganlarini orqa fonda avtomatik yakunlamoqda.
+
+- **2026-09-07 — Antigravity — PR #591 Cleanup, enforce_admins & CI Verification:**
+  1. **PR #591 Closed & Branch Deleted**: `security/hardening-2026-09-07` branch'dagi barcha o'zgarishlar allaqachon `main` ga to'g'ridan-to'g'ri push qilingan edi (commits `d8c314eb`, `8fb32a32`). PR diverged holatda edi (4 ahead, 2 behind), merge qilish duplicate/conflict keltirib chiqarishi mumkin edi. PR yopildi va branch o'chirildi.
+  2. **Branch Protection `enforce_admins: true`**: Oldin `enforce_admins: false` edi — admin/owner direct push qila olardi. Endi `enforce_admins: true` qilib, barcha foydalanuvchilar (admin ham) PR orqali o'tishi majburiy qilindi.
+  3. **CI 100% Green**: Barcha 4 ta workflow muvaffaqiyatli: CI - Oisha-OS ✅, Security - CodeQL ✅, Security - Secret Scan (gitleaks) ✅, Oracle Production Deploy ✅.
+  4. **Qolgan Ishlar**: Oracle VM da `DISABLE_UNSOLICITED_REPORTS=1` env var o'rnatilishi kerak (SSH orqali); P3 credential rotation tashqi providerlar orqali mustaqil tasdiqlanishi kerak.
+
 - **2026-09-07 — Antigravity — Security Boundary Hardening, Branch Protection & CI Alignment:**
   1. **P0 Web Chat Widget Authorization Boundary**: Anonymous widget JWT is now strictly scoped to its own web session ID (`web_<session_id>`). It is strictly rejected (401/403) from `/api/chat/lookup/{phone}`, `/api/leads`, reading other users' history, and queuing outbound Telegram messages to integer user IDs. Removed hardcoded secret fallback (`oisha_widget_session_signing_secret_32b_fixed`); requires $\ge 32$-byte dedicated secret and fails closed with 503 if unconfigured.
   2. **P1 Main Branch Protection Activated**: Configured GitHub branch protection on `main` (`protected: true`, required status checks: `Import-time crash guard`, `CodeQL Analyze (python)`, `gitleaks`, force pushes blocked, branch deletion blocked).
@@ -259,3 +289,9 @@ bandit -r src/ -ll
 
 ## Agent Handoff Log — 2026-09-05 Airtable audit
 - Codex Coordinator: Read-only live Finance V2 audit; 200 archive income rows and 336 transactions inspected. Two Sadiyya receipts totaling UZS 11925000 absent from transactions; old forms/dashboard links remain; USD555 new income lacks project/P&L link; approval formulas inconsistent with descriptions. No finance/code mutations or PR. Evidence captured in Obsidian 00-Inbox/2026-09-05-Airtable-migration-audit.md. Remaining: reconcile receipts/accounts, migrate operational interfaces, verify P&L linkage and approval controls. Brain tools unavailable.
+
+### 2026-09-07 — claude — Aiogram bot-head wiring restore
+- **Ish:** commit 5f682b41 bootstrap/runtime.py ni orchestration/* ga bo'lganda Aiogram bot-token head lifecycle jimgina tushib qolgan. Prod backend=aiogram bo'lgani uchun @jonairobot ~2026-09-06 dan beri inbound update qabul qilmayapti (admin komanda yo'q, Hisobchi/Airtable approval tugma yo'q). Wiring qayta tiklandi.
+- **O'zgargan fayllar:** src/bootstrap/orchestration/bot_head.py (new — init_aiogram_bot_head), src/bootstrap/orchestration/boot.py (ikkala branch chaqiradi), src/services/core/dispatcher/inline_search.py (new — native inline-query + phone-search), src/services/core/dispatcher/builder.py (perform_global_lookup param), src/entrypoint/runner.py (lazy src.boot import — eager circular import fix), tests: test_bootstrap_aiogram_bot_head.py, test_dispatcher_inline_search.py, + test_admin_aiogram_dispatcher.py.
+- **Tekshiruv:** targeted suite 41 passed/1 skipped; boot/entrypoint 85 passed. drain.py o'zgarmadi (allaqachon app_ctx.aiogram_bot_head.stop() chaqiradi).
+- **Qolgan ish:** full pytest + bandit → PR → owner tasdig'i bilan Oracle deploy + live smoke → brain_log. /night_shift + /juma_send hali "not configured" (domain_agents.py AdminBot'ga night_shift/juma_notifier bermaydi — pre-split ham shunday edi, alohida follow-up).

@@ -292,6 +292,8 @@ async def test_create_task_allows_verified_active_lead(monkeypatch):
     amocrm.get_lead = AsyncMock(
         return_value={"id": 46088992, "status_id": 80178230}
     )
+    amocrm.get_lead_notes = AsyncMock(return_value=[])
+    amocrm.get_lead_tasks = AsyncMock(return_value=[])
     amocrm._request_with_auth = AsyncMock(
         return_value=_Response(201, {"_embedded": {"tasks": [{"id": 77}]}})
     )

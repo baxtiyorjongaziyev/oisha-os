@@ -521,3 +521,40 @@ async def test_aiogram_psychological_coach_and_sparring_handlers():
 
 
 
+
+
+@pytest.mark.asyncio
+async def test_builder_registers_inline_search_when_lookup_provided():
+    async def _stats():
+        return {}
+
+    async def fake_lookup(phone):
+        return None
+
+    dp = build_admin_aiogram_dispatcher(
+        owner_id=1,
+        get_role=lambda uid: None,
+        get_role_name=lambda role: "GUEST",
+        is_admin=lambda uid: True,
+        get_today_stats=_stats,
+        cached_crm_audit={},
+        perform_global_lookup=fake_lookup,
+        db=object(),
+    )
+    assert dp.inline_query.handlers, "inline_query handler should be registered"
+
+
+@pytest.mark.asyncio
+async def test_builder_skips_inline_search_without_lookup():
+    async def _stats():
+        return {}
+
+    dp = build_admin_aiogram_dispatcher(
+        owner_id=1,
+        get_role=lambda uid: None,
+        get_role_name=lambda role: "GUEST",
+        is_admin=lambda uid: True,
+        get_today_stats=_stats,
+        cached_crm_audit={},
+    )
+    assert not dp.inline_query.handlers

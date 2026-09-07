@@ -28,6 +28,7 @@ from src.services.core.dispatcher.handlers_crm_coach import (
     handle_aiogram_psychological_coach,
     handle_aiogram_sparring,
 )
+from src.services.core.dispatcher.inline_search import register_inline_search_handlers
 
 logger = logging.getLogger("AdminAiogramDispatcher")
 
@@ -45,6 +46,7 @@ def build_admin_aiogram_dispatcher(
     get_team_capacity: Optional[Callable[[], Any]] = None,
     get_command_center: Optional[Callable[[], Any]] = None,
     get_amocrm_client: Optional[Callable[[], Any]] = None,
+    perform_global_lookup: Optional[Callable[[str], Any]] = None,
     db: Any = None,
 ) -> Any:
     from aiogram import Dispatcher, F
@@ -169,6 +171,14 @@ def build_admin_aiogram_dispatcher(
             is_admin=is_admin,
         )
 
+    if perform_global_lookup is not None:
+        register_inline_search_handlers(
+            dp,
+            is_admin=is_admin,
+            perform_global_lookup=perform_global_lookup,
+            db=db,
+        )
+
     return dp
 
 
@@ -187,6 +197,7 @@ def maybe_build_admin_aiogram_dispatcher(
     get_team_capacity: Optional[Callable[[], Any]] = None,
     get_command_center: Optional[Callable[[], Any]] = None,
     get_amocrm_client: Optional[Callable[[], Any]] = None,
+    perform_global_lookup: Optional[Callable[[str], Any]] = None,
     db: Any = None,
 ) -> Any:
     if not enabled:
@@ -204,6 +215,7 @@ def maybe_build_admin_aiogram_dispatcher(
         get_team_capacity=get_team_capacity,
         get_command_center=get_command_center,
         get_amocrm_client=get_amocrm_client,
+        perform_global_lookup=perform_global_lookup,
         db=db,
     )
 
