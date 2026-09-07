@@ -6,8 +6,6 @@ import os
 import sys
 from telethon import TelegramClient
 
-from src.boot import boot_application
-
 logger = logging.getLogger("OishaRunner")
 
 async def _connect_user_client(telegram_client: TelegramClient) -> bool:
@@ -89,5 +87,7 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
 
 async def main():
     """Botlarni ishga tushirish (Userbot + Admin Bot)."""
+    from src.boot import boot_application
+
     await boot_application()
 

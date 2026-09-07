@@ -9,6 +9,7 @@ import os
 import signal as _signal
 
 from src.api.routes.state import api_state
+from src.bootstrap.orchestration.bot_head import init_aiogram_bot_head
 from src.bootstrap.orchestration.core_services import init_core_services
 from src.bootstrap.orchestration.domain_agents import init_domain_agents
 from src.bootstrap.orchestration.drain import graceful_drain
@@ -127,12 +128,28 @@ async def boot_application():
                 await bot_client.start(bot_token=BOT_TOKEN_STR)
             except Exception as bot_exc:
                 logger.error(f"[AUTH] Bot-token head startup failed: {bot_exc}")
-        if admin_bot and bot_client and bot_ingress_mode == "polling":
+            if admin_bot and bot_client:
+                try:
+                    admin_bot.user_client = None
+                    await admin_bot.start()
+                except Exception as admin_exc:
+                    logger.error(f"[BOT_ONLY] Admin bot startup failed: {admin_exc}", exc_info=True)
+        elif bot_runtime.backend == "aiogram" and bot_ingress_mode == "polling":
             try:
                 admin_bot.user_client = None
-                await admin_bot.start()
-            except Exception as admin_exc:
-                logger.error(f"[BOT_ONLY] Admin bot startup failed: {admin_exc}", exc_info=True)
+                await init_aiogram_bot_head(
+                    bot_runtime=bot_runtime,
+                    bot_ingress_mode=bot_ingress_mode,
+                    admin_bot=admin_bot,
+                    access_manager=access_manager,
+                    msg_controller=msg_controller,
+                    db=db,
+                    hisobchi_engine=None,
+                    api_module=api_module,
+                    app_ctx=app_ctx,
+                )
+            except Exception as head_exc:
+                logger.error(f"[BOT_ONLY] Aiogram bot head startup failed: {head_exc}", exc_info=True)
         api_module.update_api_status("degraded", "Bot-token mode active; userbot needs re-login")
         asyncio.create_task(m.background_monitor_task(), name="background_monitor_task")
         await asyncio.Event().wait()
@@ -164,6 +181,23 @@ async def boot_application():
 
     me = await client.get_me() if client else None
     register_event_handlers(client, bot_client, bot_runtime, hisobchi_engine, hisobchi_analyst, m, me)
+
+    # Restore the Aiogram bot-token head (dropped by the bootstrap split in
+    # commit 5f682b41). No-op when backend != aiogram.
+    try:
+        await init_aiogram_bot_head(
+            bot_runtime=bot_runtime,
+            bot_ingress_mode=bot_ingress_mode,
+            admin_bot=admin_bot,
+            access_manager=access_manager,
+            msg_controller=msg_controller,
+            db=db,
+            hisobchi_engine=hisobchi_engine,
+            api_module=api_module,
+            app_ctx=app_ctx,
+        )
+    except Exception as head_exc:
+        logger.error("[BOT] Aiogram bot head startup failed: %s", head_exc, exc_info=True)
 
     # 8. Moliya & Probe Loops
     from src.schedulers.moliya_hisobotlari import moliya_hisobotlari_loop

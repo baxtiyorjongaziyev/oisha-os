@@ -74,3 +74,67 @@ async def test_compat_dispatches_callback_with_telethon_data_shape():
     await bot.session.close()
 
     assert seen == [("approve:123", 42)]
+
+
+import re as _re
+
+
+class _RecordingDispatcher:
+    def __init__(self):
+        self.message_cb = None
+        self.callback_cb = None
+
+    def message(self, *a, **k):
+        def deco(fn):
+            self.message_cb = fn
+            return fn
+        return deco
+
+    def callback_query(self, *a, **k):
+        def deco(fn):
+            self.callback_cb = fn
+            return fn
+        return deco
+
+
+class _NewMessageBuilder:
+    __module__ = "telethon.events.newmessage"
+
+    def __init__(self, pattern):
+        self.pattern = _re.compile(pattern).match
+
+
+class _PlainMsg:
+    def __init__(self, text):
+        self.text = text
+        self.from_user = None
+        self.chat = None
+        self.reply_to_message = None
+        self.replies = []
+
+    async def answer(self, text, **k):
+        self.replies.append(text)
+
+
+@pytest.mark.asyncio
+async def test_compat_bridge_routes_unmigrated_command():
+    from src.services.core.telegram.aiogram_telethon_compat import (
+        AiogramTelethonCompatClient,
+    )
+
+    dp = _RecordingDispatcher()
+    compat = AiogramTelethonCompatClient(bot=object(), dispatcher=dp)
+
+    seen = []
+
+    @compat.on(_NewMessageBuilder(r"(?i)^/junk_audit"))
+    async def _junk_audit(event):
+        seen.append(event.text)
+
+    compat.attach()
+    assert dp.message_cb is not None
+
+    await dp.message_cb(_PlainMsg("/junk_audit"))
+    await dp.message_cb(_PlainMsg("hello"))  # must not match
+
+    assert seen == ["/junk_audit"]

@@ -100,6 +100,18 @@ class AmoCRMTasksNotesMixin:
             )
             return False
 
+        # Check if lead or associated contacts/notes/tasks/chat are marked as 'mijoz emas'
+        from src.services.core.crm.non_client_filter import is_lead_marked_as_non_client
+        is_nc, nc_reason = await is_lead_marked_as_non_client(self, int(element_id), lead_data=lead)
+        if is_nc:
+            self.last_error = "lead_marked_as_non_client"
+            logger.info(
+                "[AMOCRM TASK BLOCKED] Lead %s 'mijoz emas' deb belgilangan (%s). Vazifa yaratilmadi.",
+                element_id,
+                nc_reason,
+            )
+            return False
+
         url = f"{self.base_url}/api/v4/tasks"
         task_payload = {
             "task_type_id": 1,  # Call or generic task

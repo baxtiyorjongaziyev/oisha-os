@@ -43,12 +43,32 @@ async def _sync_and_log_crm_channels(event: Any, sender: Any, sender_name: str, 
             await app_ctx.msg_controller.db.log_message(sender.id, message_text, is_ai=False)
         if 'src.main' in sys.modules and hasattr(sys.modules['src.main'], 'session_manager'):
             sys.modules['src.main'].session_manager.add_message(sender.id, sender_name, message_text, getattr(sender, 'phone', None))
-        if getattr(settings, 'AMOCRM_CHAT_SECRET', None):
+
+        crm_client = getattr(getattr(app_ctx.msg_controller, "crm", None), "amocrm", None) if app_ctx.msg_controller else None
+        db_instance = getattr(app_ctx.msg_controller, "db", None) if app_ctx.msg_controller else None
+        from src.services.core.crm.non_client_filter import is_sender_marked_as_non_client
+        is_nc, nc_reason = await is_sender_marked_as_non_client(
+            crm_client,
+            phone=getattr(sender, "phone", None),
+            user_id=getattr(sender, "id", None),
+            name=sender_name,
+            db=db_instance,
+        )
+        if is_nc:
+            logger.info(f"[AMOCRM CHAT FILTER] Sender {sender_name} is 'mijoz emas' ({nc_reason}). Skipping CRM chat sync.")
+            return
+
+        chat_secret = getattr(settings, 'AMOCRM_CHAT_SECRET', None) or getattr(settings, 'AMOCRM_CHAT_CHANNEL_SECRET', None)
+        if hasattr(chat_secret, "get_secret_value"):
+            chat_secret = chat_secret.get_secret_value()
+        chat_secret = str(chat_secret or "")
+
+        if chat_secret:
             from src.services.core.crm.amocrm_chat import AmoCRMChatClient
             chat_client = AmoCRMChatClient(
                 amocrm_account_id=settings.AMOCRM_CHAT_ACCOUNT_ID,
                 channel_id=settings.AMOCRM_CHAT_CHANNEL_ID,
-                channel_secret=settings.AMOCRM_CHAT_SECRET,
+                channel_secret=chat_secret,
             )
             asyncio.create_task(chat_client.send_message_to_amocrm(
                 user_id=sender.id, chat_id=chat_id, text=message_text,
