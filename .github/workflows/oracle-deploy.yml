@@ -10,6 +10,15 @@ on:
       - 'scripts/**'
       - 'data/service_account.json'
       - '.github/workflows/oracle-deploy.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'requirements.txt'
+      - 'deploy/**'
+      - 'scripts/**'
+      - 'data/service_account.json'
+      - '.github/workflows/oracle-deploy.yml'
   workflow_dispatch:
 
 concurrency:
@@ -62,7 +71,9 @@ jobs:
   deploy:
     name: Oracle VM healthy deploy
     needs: import-guard
-    if: "!startsWith(github.event.head_commit.message, 'chore(auto):')"
+    # Deploy only on push to main; on pull_request events run import-guard alone
+    # so the required check can report without touching production.
+    if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(auto):')"
     runs-on: [self-hosted, oracle]
     environment: production
     permissions:
