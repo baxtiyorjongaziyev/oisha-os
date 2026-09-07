@@ -96,6 +96,16 @@ class TaskAnalyzerMixin:
             if not data:
                 stats["errors"] += 1
                 return
+            from src.services.core.crm.non_client_filter import is_lead_marked_as_non_client
+            is_nc, nc_reason = await is_lead_marked_as_non_client(self, lead_id, lead_data=data)
+            if is_nc:
+                logger.info(
+                    "[SMART_TASK BLOCKED] Lead %s 'mijoz emas' (%s). Skipped.",
+                    lead_id,
+                    nc_reason,
+                )
+                stats["skipped"] += 1
+                return
             if _has_recent_task(data.get("tasks", []), now):
                 stats["skipped"] += 1
                 return

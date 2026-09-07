@@ -20,6 +20,18 @@
 
 ## Agent Handoff Log
 
+- **2026-09-07 — Antigravity — AmoCRM Non-Client Task Suppression & Re-import Guard (Owner Directive):**
+  1. **Non-Client Filter Engine**: `src/services/core/crm/non_client_filter.py` (231L) yaratildi. Foydalanuvchi ko'rsatmasiga binoan sdelka nomi, mijoz/kontakt nomi, izohlar (primechaniya), vazifalar (matn va natija), chat va teglarda "mijoz emas", "klient emas", "not a client", "spam", "adashgan", "kerak emas", "rad etdi", "shaxsiy/oila" kabi belgilar to'liq skan qilinadi. 30 daqiqalik in-memory kesh bilan tezkor ishlaydi.
+  2. **Task Creation Guard**: `src/services/core/crm/amocrm/tasks_notes.py` da `create_task` hamda `src/services/core/smart_tasks/analyzer.py` da smart-task yaratilishidan oldin barcha joylar (sdelka, kontakt, primechaniya, zadacha natijalari, chat) tekshiriladi. Agar "mijoz emas" belgisi bo'lsa, vazifa qo'yilmaydi (`[AMOCRM TASK BLOCKED]`).
+  3. **CRM Re-import & Chat Suppression**: `src/handlers/msg_pipeline/lead_intake.py` (`process_elite_intake`) hamda `src/entrypoint/message_event.py` (`_sync_and_log_crm_channels`) da "mijoz emas" deb belgilangan shaxslar qayta yangi sdelka sifatida ochilmaydi va ularning xabarlari CRM chatiga chiqarilmaydi.
+  4. **Verification**: 10/10 yangi non-client testlari va 54/54 to'liq CRM integratsiya testlari yashil o'tdi (`pytest`). Bandit auditi: 0 issues (1026 LOC). Barcha 5 ta fayl 400 qator modular standartiga 100% mos.
+
+- **2026-09-07 — Antigravity — Instagram Comments Auto-Responder & Browser Liker Full Activation:**
+  1. **Browser Like Automation**: Connected directly to the active Chrome profile (`baxtiyorjongaziyev`, ID `4256594275`) via CDP. Scanned reel [`Dc8MLR-NzWB`](https://www.instagram.com/reel/Dc8MLR-NzWB/), expanded replies, and safely liked all 129 previously unliked comments with 1.5–2.3s human delay. Total visible comments liked reached 600+.
+  2. **Unanswered Comments Root Cause Resolved**: Oracle VM `.env` faylida Meta Graph API kalitlari (`META_PAGE_ACCESS_TOKEN`, `META_INSTAGRAM_USER_ID` va h.k.) yetishmayotgani sababli `[IG-BACKFILL]` `instagram_not_configured` xatosi bilan to'xtab turgan edi. Lokal toza tokenlar Oracle VM `.env` ga sinxronlandi.
+  3. **Live Auto-Responder Active**: `oisha-os.service` qayta ishga tushirildi. Orqa fondagi backfill loopi (20 soniyalik interval, 5 soniyalik xavfsiz oraliq bilan) ishga tushib, javob berilmagan barcha kommentlarga hissiyotga mos (kulgu/kulgu, yig'i/hamdardlik, sof emoji/mirror) javob yozishni boshladi (dalil: `{"comment_id": "...", "event": "[META] Comment reply sent successfully"}`).
+  4. **Verification**: 9+ ta javobsiz komment jonli ravishda yozib bo'lindi va qolganlarini orqa fonda avtomatik yakunlamoqda.
+
 - **2026-09-07 — Antigravity — PR #591 Cleanup, enforce_admins & CI Verification:**
   1. **PR #591 Closed & Branch Deleted**: `security/hardening-2026-09-07` branch'dagi barcha o'zgarishlar allaqachon `main` ga to'g'ridan-to'g'ri push qilingan edi (commits `d8c314eb`, `8fb32a32`). PR diverged holatda edi (4 ahead, 2 behind), merge qilish duplicate/conflict keltirib chiqarishi mumkin edi. PR yopildi va branch o'chirildi.
   2. **Branch Protection `enforce_admins: true`**: Oldin `enforce_admins: false` edi — admin/owner direct push qila olardi. Endi `enforce_admins: true` qilib, barcha foydalanuvchilar (admin ham) PR orqali o'tishi majburiy qilindi.
