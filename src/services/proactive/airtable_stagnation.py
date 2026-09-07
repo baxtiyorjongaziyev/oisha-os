@@ -47,8 +47,11 @@ def _filter_stalled_projects(projects: List[Dict[str, Any]], now: datetime.datet
                 or fields.get("Dizayner")
                 or fields.get("Designer")
             )
-        mgr_name = AirtableSync.resolve_pm_handle(mgr_raw) if mgr_raw else ""
-        if not notification_is_publishable(mgr_name) or mgr_name == "PM":
+        mgr_name = AirtableSync.resolve_pm_name(mgr_raw) if mgr_raw else ""
+        if (
+            not notification_is_publishable(mgr_name)
+            or mgr_name in ("PM", "Mas'ul belgilanmagan")
+        ):
             continue
 
         age = _project_age_days(project)

@@ -15,8 +15,16 @@ from src.services.core.client_journey.models import (
     _render_airtable_card_line,
     _render_owner_html,
 )
+from src.services.core.notification_quality import notification_is_publishable
 
 logger = logging.getLogger("ClientJourneyPlaybook")
+
+
+def _signal_is_publishable(signal: JourneySignal) -> bool:
+    """Har bir signalning mijozga ko'rinadigan matni toza (resolve bo'lgan) bo'lsin."""
+    return notification_is_publishable(signal.client_name) and notification_is_publishable(
+        _humanize_stage(signal.stage)
+    )
 
 def _render_signal_lines(
     signal: JourneySignal, airtable: Optional[AirtableSync]
@@ -46,6 +54,15 @@ def render_excellence_report(
     except Exception:
         logger.error("Exception handled in %s", __name__, exc_info=True)
         airtable = None
+
+    dropped = (
+        sum(1 for s in sales_signals if not _signal_is_publishable(s))
+        + sum(1 for s in project_signals if not _signal_is_publishable(s))
+    )
+    if dropped:
+        logger.warning("[WOW-AUDIT] %s ta signal resolve bo'lmagani uchun tashlandi", dropped)
+    sales_signals = [s for s in sales_signals if _signal_is_publishable(s)]
+    project_signals = [s for s in project_signals if _signal_is_publishable(s)]
 
     total_signals = len(sales_signals) + len(project_signals)
     critical_count = sum(
