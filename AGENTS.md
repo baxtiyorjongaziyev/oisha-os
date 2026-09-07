@@ -20,6 +20,18 @@
 
 ## Agent Handoff Log
 
+- **2026-09-07 — Antigravity — AmoCRM Overdue Tasks Safe Rescheduling & Telegram Userbot Sync:**
+  1. **AmoCRM Overdue Tasks Safe Rescheduled**: `scripts/reschedule_overdue_tasks_safe.py` (245L) yaratildi va Oracle VM da muvaffaqiyatli ishga tushirildi.
+     - Jami ochiq vazifalar: 432 ta. Muddati o'tib ketgan (overdue): 61 ta.
+     - "Mijoz emas" deb belgilangan (rad etdi, spam, qiziqmadi): 14 ta vazifa darhol `Mijoz emas deb yopildi` natijasi bilan yopildi va bekor qilindi.
+     - Haqiqiy mijozlarning 47 ta muddati o'tgan vazifasi kelgusi ish kunlariga 25 tadan (18:00 Toshkent vaqti, yakshanba kunlarisiz) taqsimlandi:
+       - 2026-09-08 (Seshanba): 25 ta vazifa
+       - 2026-09-09 (Chorshanba): 22 ta vazifa
+     - Natija: AmoCRM'da muddati o'tib ketgan (qizil) vazifalar soni **0** ga tushirildi!
+  2. **Telegram Userbot Reauth Script Fix**: `scripts/start_userbot_reauth.ps1` da xizmat to'xtatish paytidagi `Job for oisha-os.service canceled (exit 1)` xatosi bartaraf etildi (`sudo systemctl stop oisha-os.service 2>/dev/null || true`).
+  3. **Telegram Chat Analysis Architecture**: Foydalanuvchi savoliga tushuntirish berildi. Telethon sessiyasi faollashishi bilan `ai_autopilot_scheduler` va `TelegramTaskCreator` orqa fonda chatlarni tahlil qilib AmoCRM ga vazifalar va yangilanishlarni avtomatik joylaydi.
+
+
 - **2026-09-07 — Antigravity — AmoCRM Non-Client Task Suppression & Re-import Guard (Owner Directive):**
   1. **Non-Client Filter Engine**: `src/services/core/crm/non_client_filter.py` (231L) yaratildi. Foydalanuvchi ko'rsatmasiga binoan sdelka nomi, mijoz/kontakt nomi, izohlar (primechaniya), vazifalar (matn va natija), chat va teglarda "mijoz emas", "klient emas", "not a client", "spam", "adashgan", "kerak emas", "rad etdi", "shaxsiy/oila" kabi belgilar to'liq skan qilinadi. 30 daqiqalik in-memory kesh bilan tezkor ishlaydi.
   2. **Task Creation Guard**: `src/services/core/crm/amocrm/tasks_notes.py` da `create_task` hamda `src/services/core/smart_tasks/analyzer.py` da smart-task yaratilishidan oldin barcha joylar (sdelka, kontakt, primechaniya, zadacha natijalari, chat) tekshiriladi. Agar "mijoz emas" belgisi bo'lsa, vazifa qo'yilmaydi (`[AMOCRM TASK BLOCKED]`).
@@ -277,3 +289,9 @@ bandit -r src/ -ll
 
 ## Agent Handoff Log — 2026-09-05 Airtable audit
 - Codex Coordinator: Read-only live Finance V2 audit; 200 archive income rows and 336 transactions inspected. Two Sadiyya receipts totaling UZS 11925000 absent from transactions; old forms/dashboard links remain; USD555 new income lacks project/P&L link; approval formulas inconsistent with descriptions. No finance/code mutations or PR. Evidence captured in Obsidian 00-Inbox/2026-09-05-Airtable-migration-audit.md. Remaining: reconcile receipts/accounts, migrate operational interfaces, verify P&L linkage and approval controls. Brain tools unavailable.
+
+### 2026-09-07 — claude — Aiogram bot-head wiring restore
+- **Ish:** commit 5f682b41 bootstrap/runtime.py ni orchestration/* ga bo'lganda Aiogram bot-token head lifecycle jimgina tushib qolgan. Prod backend=aiogram bo'lgani uchun @jonairobot ~2026-09-06 dan beri inbound update qabul qilmayapti (admin komanda yo'q, Hisobchi/Airtable approval tugma yo'q). Wiring qayta tiklandi.
+- **O'zgargan fayllar:** src/bootstrap/orchestration/bot_head.py (new — init_aiogram_bot_head), src/bootstrap/orchestration/boot.py (ikkala branch chaqiradi), src/services/core/dispatcher/inline_search.py (new — native inline-query + phone-search), src/services/core/dispatcher/builder.py (perform_global_lookup param), src/entrypoint/runner.py (lazy src.boot import — eager circular import fix), tests: test_bootstrap_aiogram_bot_head.py, test_dispatcher_inline_search.py, + test_admin_aiogram_dispatcher.py.
+- **Tekshiruv:** targeted suite 41 passed/1 skipped; boot/entrypoint 85 passed. drain.py o'zgarmadi (allaqachon app_ctx.aiogram_bot_head.stop() chaqiradi).
+- **Qolgan ish:** full pytest + bandit → PR → owner tasdig'i bilan Oracle deploy + live smoke → brain_log. /night_shift + /juma_send hali "not configured" (domain_agents.py AdminBot'ga night_shift/juma_notifier bermaydi — pre-split ham shunday edi, alohida follow-up).
