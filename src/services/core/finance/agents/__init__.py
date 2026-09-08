@@ -1,31 +1,23 @@
-'''FinanceAI Agent Registry.
-
-This module provides a simple registry for finance management agents.
-Agents inherit from :class:`BaseFinanceAgent` defined in ``base.py`` and
-implement a ``process`` method.
-
-The registry allows dynamic lookup and instantiation by name.
-'''  
+"""Allow-listed finance analysis registry."""
+from __future__ import annotations
 
 from .base import BaseFinanceAgent
-from .fin_gpt import FinGPTAgent
+from .cashflow import CashflowAnalysisAgent
 
-# Registry mapping agent identifiers to their implementing classes.
 _AGENT_REGISTRY: dict[str, type[BaseFinanceAgent]] = {
-    "fin_gpt": FinGPTAgent,
-    # Future agents can be added here, e.g., "pla_id_ai": PlaidAIAgent,
+    "cashflow": CashflowAnalysisAgent,
 }
 
 
-def get_agent(name: str) -> BaseFinanceAgent:
-    """Return an instance of the requested finance agent.
+def get_agent(name: str) -> type[BaseFinanceAgent]:
+    try:
+        return _AGENT_REGISTRY[name]
+    except KeyError:
+        raise KeyError(f"Unknown finance agent: {name}") from None
 
-    Args:
-        name: The registry key for the desired agent.
-    Raises:
-        KeyError: If the agent name is not registered.
-    """
-    cls = _AGENT_REGISTRY[name]
-    return cls()
 
-__all__ = ["BaseFinanceAgent", "FinGPTAgent", "get_agent", "_AGENT_REGISTRY"]
+def create_agent(name: str) -> BaseFinanceAgent:
+    return get_agent(name)()
+
+
+__all__ = ["BaseFinanceAgent", "CashflowAnalysisAgent", "create_agent"]
