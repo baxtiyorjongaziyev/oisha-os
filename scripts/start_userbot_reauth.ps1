@@ -41,7 +41,7 @@ try {
     $phone = Read-Host 'Telegram telefon raqamingizni xalqaro formatda kiriting (+998...)'
     if ([string]::IsNullOrWhiteSpace($phone)) { throw "Telefon raqami bo'sh." }
 
-    Invoke-Oracle "sudo systemctl kill -s SIGKILL oisha-os.service; sudo systemctl stop oisha-os.service || true"
+    Invoke-Oracle "sudo systemctl stop oisha-os.service 2>/dev/null || true"
     $phone.Trim() | & $sshExe @sshArgs "read -r TELEGRAM_PHONE; export TELEGRAM_PHONE; cd /home/ubuntu/oisha-os; rm -f data/userbot_auth_code.txt data/userbot_auth_password.txt data/userbot_auth_status.json; nohup env USERBOT_AUTH_WAIT_SECONDS=900 ./venv/bin/python3 scripts/prod/auth_userbot_on_oracle.py > data/userbot_auth.log 2>&1 < /dev/null &"
     $phone = $null
     if ($LASTEXITCODE -ne 0) { throw 'Telegram auth jarayoni ishga tushmadi.' }
