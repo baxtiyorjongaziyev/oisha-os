@@ -137,9 +137,10 @@ async def test_send_task_alert_and_deduplication():
 
 
 @pytest.mark.asyncio
-async def test_check_and_notify_due_tasks():
+async def test_check_and_notify_due_tasks(monkeypatch):
     import time
     now = time.time()
+    monkeypatch.setattr("src.services.core.crm.task_notifier.notifier._is_working_hours", lambda: True)
 
     mock_bot = AsyncMock()
     mock_amocrm = MagicMock()

@@ -19,6 +19,15 @@ logger = logging.getLogger('AmoCRMTaskNotifier')
 DEFAULT_FORWARD_GROUP_ID = -1003854308552
 DEFAULT_FORWARD_TOPIC_ID = 443
 
+def _is_working_hours() -> bool:
+    """Check if current time is within official working hours (10:00 - 18:00, Mon-Sat)."""
+    from src.time_utils import get_local_now
+    now = get_local_now()
+    if now.weekday() == 6:  # Sunday
+        return False
+    return 10 <= now.hour < 18
+
+
 class AmoCrmTaskNotifier:
     """Direct amoCRM task notification engine using @jonairobot."""
 
@@ -146,6 +155,18 @@ class AmoCrmTaskNotifier:
             except Exception as e:
                 logger.error(f"[TASK_NOTIFIER] Error resolving entity details for task {task_id}: {e}")
 
+        # Check non-client filter
+        if entity_id and entity_type in ("leads", 2):
+            try:
+                from src.services.core.crm.non_client_filter import is_non_client_lead
+                is_nc, reason = await is_non_client_lead(int(entity_id), amocrm_client=self.amocrm, lead_data=lead_or_contact)
+                if is_nc:
+                    logger.info(f"[TASK_NOTIFIER] Task {task_id} blocked: lead {entity_id} is marked as non-client ({reason})")
+                    await self.mark_alert_sent(task_id, alert_type)
+                    return False
+            except Exception as e:
+                logger.debug(f"[TASK_NOTIFIER] Non-client check warning: {e}")
+
         subdomain = getattr(self.amocrm, "subdomain", None) or DEFAULT_SUBDOMAIN
         text, buttons = format_task_notification(
             task=task,
@@ -177,6 +198,9 @@ class AmoCrmTaskNotifier:
     async def check_and_notify_due_tasks(self, limit: int = 250) -> Dict[str, int]:
         """Proactive check of open tasks from AmoCRM API."""
         stats = {"due_sent": 0, "overdue_sent": 0, "skipped": 0, "total_open": 0}
+        if not _is_working_hours():
+            logger.debug("[TASK_NOTIFIER] Outside working hours (10:00-18:00 Mon-Sat). Skipping task notification loop.")
+            return stats
         if not self.amocrm:
             logger.debug("[TASK_NOTIFIER] AmoCRM client not available for polling.")
             return stats
@@ -196,7 +220,7 @@ class AmoCrmTaskNotifier:
                         stats["due_sent"] += 1
                     else:
                         stats["skipped"] += 1
-                elif 900 < diff <= (48 * 3600):
+                elif 900 < diff <= (4 * 3600):
                     sent = await self.send_task_alert(task, alert_type="overdue")
                     if sent:
                         stats["overdue_sent"] += 1
