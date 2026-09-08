@@ -30,6 +30,9 @@ limiter = Limiter(key_func=get_remote_address)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from src.services.core.instagram.config_guard import check_meta_config
+
+    check_meta_config()
     mark_heartbeat("api")
     add_activity("api_started", "ok", {"event": "lifespan_start"})
     yield
