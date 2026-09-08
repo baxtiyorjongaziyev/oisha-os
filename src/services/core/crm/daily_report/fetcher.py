@@ -228,6 +228,21 @@ class AmoFetcherMixin:
         if not self._crm:
             return []
 
+        # Delegate to the CRM client if it exposes its own collection fetcher
+        # (used by tests and adapters that mock the amoCRM transport).
+        client_fetch = getattr(self._crm, "_fetch_amocrm_collection", None)
+        if callable(client_fetch):
+            try:
+                return await client_fetch(collection, extra_params, **{
+                    k: v for k, v in (
+                        ("embedded_key", embedded_key),
+                        ("page_size", page_size),
+                        ("max_pages", max_pages),
+                    ) if v is not None
+                })
+            except TypeError:
+                return await client_fetch(collection, extra_params)
+
         try:
             if hasattr(self._crm, "_load_token") and not getattr(
                 self._crm, "access_token", None

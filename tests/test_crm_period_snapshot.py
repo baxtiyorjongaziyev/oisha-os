@@ -43,3 +43,52 @@ def test_list_snapshots_desc_by_start(tmp_path):
         r.save_snapshot(_m(PeriodType.DAILY, date(2026, 9, day), date(2026, 9, day), new_leads=day))
     rows = r.list_snapshots(PeriodType.DAILY, limit=2)
     assert [x.period_start.day for x in rows] == [7, 6]
+
+
+import pytest
+from src.services.core.crm.daily_report.reporter import CRMPeriodReporter
+
+
+class _StubAmo:
+    base_url = "https://jonbrandingagency.amocrm.ru"
+
+    def __init__(self, per_call):
+        self._per_call = per_call
+        self.n = 0
+
+    def get_user_name(self, uid):
+        return f"U{uid}"
+
+    async def _fetch_amocrm_collection(self, coll, extra=None, **kw):
+        return self._per_call.get(coll, [])
+
+
+@pytest.mark.asyncio
+async def test_build_produces_result_and_persists_snapshot(tmp_path):
+    amo = _StubAmo({
+        "leads": [{"status_id": 1, "price": 1000, "updated_at": 9e12, "id": 1}],
+        "contacts": [{"id": 1}, {"id": 2}],
+    })
+    r = CRMPeriodReporter(amocrm=amo, db_path=str(tmp_path / "r.db"))
+    res = await r.build(PeriodType.DAILY, date(2026, 9, 7))
+    assert res.period_type == PeriodType.DAILY
+    assert res.metrics.active_count == 1
+    assert res.metrics.new_contacts == 2
+    assert "KUNLIK HISOBOT" in res.telegram_text
+    # snapshot saved for today
+    assert r.load_snapshot(PeriodType.DAILY, date(2026, 9, 7)) is not None
+
+
+@pytest.mark.asyncio
+async def test_build_uses_prior_snapshot_for_deltas(tmp_path):
+    amo = _StubAmo({"contacts": [{"id": i} for i in range(5)]})
+    r = CRMPeriodReporter(amocrm=amo, db_path=str(tmp_path / "r.db"))
+    # seed yesterday
+    prev = PeriodMetrics(period_type=PeriodType.DAILY,
+                         period_start=date(2026, 9, 6), period_end=date(2026, 9, 6),
+                         new_contacts=2)
+    r.save_snapshot(prev)
+    res = await r.build(PeriodType.DAILY, date(2026, 9, 7))
+    assert res.previous is not None
+    assert res.deltas["new_contacts"] == 3
+    assert "▲ +3" in res.telegram_text
