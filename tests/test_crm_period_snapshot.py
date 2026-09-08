@@ -49,18 +49,33 @@ import pytest
 from src.services.core.crm.daily_report.reporter import CRMPeriodReporter
 
 
+class FakeResponse:
+    def __init__(self, status_code, payload):
+        self.status_code = status_code
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
 class _StubAmo:
     base_url = "https://jonbrandingagency.amocrm.ru"
+    access_token = "token"
 
-    def __init__(self, per_call):
-        self._per_call = per_call
-        self.n = 0
+    def __init__(self, per_collection):
+        # per_collection: dict[str, list[dict]] keyed by amocrm collection name
+        # ("leads", "contacts", "companies", "calls", "tasks")
+        self._pc = per_collection
+
+    def _get_headers(self):
+        return {"Authorization": "Bearer token"}
 
     def get_user_name(self, uid):
         return f"U{uid}"
 
-    async def _fetch_amocrm_collection(self, coll, extra=None, **kw):
-        return self._per_call.get(coll, [])
+    async def _request_with_auth(self, request_fn, url, **kwargs):
+        collection = url.rsplit("/", 1)[-1]
+        return FakeResponse(200, {"_embedded": {collection: self._pc.get(collection, [])}})
 
 
 @pytest.mark.asyncio
