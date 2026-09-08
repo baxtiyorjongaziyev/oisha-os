@@ -12,6 +12,8 @@ import asyncio
 import logging
 import os
 
+from src.services.core.instagram.config_guard import check_meta_config
+
 logger = logging.getLogger(__name__)
 
 # Env knobs (all optional; ultra-fast 20s default)
@@ -32,6 +34,7 @@ def _enabled() -> bool:
 
 
 async def instagram_comment_backfill_loop(db=None) -> None:
+    check_meta_config()
     if not _enabled():
         logger.info("[IG-BACKFILL] Disabled via IG_COMMENT_BACKFILL_ENABLED")
         return
@@ -41,6 +44,7 @@ async def instagram_comment_backfill_loop(db=None) -> None:
     await asyncio.sleep(_START_DELAY_SEC)
     while True:
         try:
+            check_meta_config()
             summary = await backfill_unanswered_comments(
                 db,
                 media_limit=_MEDIA_LIMIT,
@@ -55,7 +59,7 @@ async def instagram_comment_backfill_loop(db=None) -> None:
                         summary.get("scanned_comments", 0),
                         summary.get("scanned_media", 0),
                     )
-            else:
+            elif summary.get("error") != "instagram_not_configured":
                 logger.info("[IG-BACKFILL] Skipped: %s", summary.get("error"))
         except Exception as exc:
             logger.error("[IG-BACKFILL] Loop error: %s", exc)

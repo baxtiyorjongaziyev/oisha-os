@@ -7,6 +7,16 @@ from src import api_server
 from src.api.routes.state import api_state
 
 
+@pytest.fixture(autouse=True)
+def _configured_meta(monkeypatch):
+    # These tests isolate database/userbot/CRM readiness from local Meta secrets.
+    monkeypatch.setattr(
+        "src.services.core.instagram.config_guard.check_meta_config",
+        lambda: {"configured": True, "missing_keys": []},
+    )
+    monkeypatch.setattr("src.api.routes.amocrm_integration._get_amocrm_instance", lambda: None)
+
+
 class _Cursor:
     async def fetchone(self):
         return (1,)

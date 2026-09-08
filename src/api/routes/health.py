@@ -11,6 +11,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from src.api.routes.state import api_state
+from src.services.core.instagram.config_guard import add_meta_health
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,12 @@ router = APIRouter(tags=["health"])
 # them means one stale credential blocks every later deploy too.
 # Set READYZ_STRICT_DEPS=1 to restore the old gate, which blocked on the
 # userbot; AmoCRM has never blocked readiness and stays soft in both modes.
-SOFT_DEPENDENCY_PROBLEMS = frozenset({"userbot_unauthorized", "amocrm_unavailable"})
-STRICT_SOFT_DEPENDENCY_PROBLEMS = frozenset({"amocrm_unavailable"})
+SOFT_DEPENDENCY_PROBLEMS = frozenset({
+    "userbot_unauthorized", "amocrm_unavailable", "instagram_not_configured",
+})
+STRICT_SOFT_DEPENDENCY_PROBLEMS = frozenset({
+    "amocrm_unavailable", "instagram_not_configured",
+})
 
 
 def _strict_dependencies() -> bool:
@@ -51,6 +56,7 @@ async def liveness_probe():
         "db_ok": None,
     }
     problems: List[str] = []
+    add_meta_health(checks, problems)
 
     if api_state._last_heartbeat_at is not None:
         hb_age = (now - api_state._last_heartbeat_at).total_seconds()
@@ -192,6 +198,7 @@ async def production_readiness_probe():
     now = get_local_now()
     checks: Dict[str, Any] = {}
     problems: List[str] = []
+    add_meta_health(checks, problems)
     runtime = get_runtime_context()
     scheduler_mode = runtime.get("scheduler_mode", "persistent")
     runtime_source = runtime.get("runtime_source", "unknown")
