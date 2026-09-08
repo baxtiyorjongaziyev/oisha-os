@@ -36,6 +36,13 @@ def vm_runtime(monkeypatch):
     monkeypatch.setattr(api_state, "db_instance", _FakeDatabase())
     monkeypatch.setattr(api_state, "user_client", None)
     monkeypatch.setattr("src.api.routes.amocrm_integration._get_amocrm_instance", lambda: None)
+    # Meta config drift guard is orthogonal to these DB/userbot/AmoCRM cases —
+    # pin it configured so a local .env without META_* vars can't add
+    # instagram_not_configured to the degraded list.
+    monkeypatch.setattr(
+        "src.services.core.instagram.config_guard.check_meta_config",
+        lambda: {"configured": True, "missing_keys": []},
+    )
     monkeypatch.delenv("READYZ_STRICT_DEPS", raising=False)
 
     def _runtime(authorized):
