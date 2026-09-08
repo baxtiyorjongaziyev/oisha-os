@@ -287,15 +287,9 @@ async def handle_webhook():
                             f"[META DB] User updated: {sender_id} -> {info_updates}"
                         )
 
-                    # Tezni tozalash
-                    import re
-
-                    clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
-
-                    # Javobni jo'natish
-                    send_ig_reply(sender_id, clean_reply)
-
-                    # CRM ni xabardor qilish
+                    # Policy: DM mijozlarga AI avtomatik javob YUBORMAYDI.
+                    # AI javobi faqat taklif (draft) sifatida CRM guruhga
+                    # yuboriladi — jamoa qo'lda javob beradi.
                     notify_crm(
                         "Instagram DM", "Foydalanuvchi", sender_id, text, ai_reply
                     )
