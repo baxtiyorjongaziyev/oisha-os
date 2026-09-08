@@ -217,8 +217,12 @@ async def test_process_instagram_webhook_dm(mock_sync, mock_qual, mock_notify, m
     mock_db.log_message.assert_any_call("ig_112233", "Qalay ishlar?", is_ai=False)
     mock_db.log_message.assert_any_call("ig_112233", "Salom, xabarni qabul qildim", is_ai=True)
     mock_db.upsert_user.assert_called_once_with("ig_112233", "Foydalanuvchi", phone="+998991234567")
-    from unittest.mock import ANY
-    mock_send_reply.assert_called_once_with("112233", "Salom, xabarni qabul qildim", ANY)
+    # Policy: DM mijozlarga AI avtomatik javob yubormaydi — faqat CRM'ga draft boradi.
+    mock_send_reply.assert_not_called()
+    mock_notify.assert_called_once_with(
+        "Instagram DM", "Foydalanuvchi", "112233", "Qalay ishlar?",
+        "[SAVE_INFO: phone=+998991234567] Salom, xabarni qabul qildim",
+    )
     mock_sync.assert_not_called()                 # AmoCRM opens the deal natively — no duplicate
 
 
@@ -256,8 +260,12 @@ async def test_process_instagram_webhook_dm_changes_format(mock_qual, mock_notif
     await process_instagram_webhook(payload, mock_db)
 
     mock_qual.assert_awaited_once()
-    from unittest.mock import ANY
-    mock_send_reply.assert_called_once_with("998877", "Rahmat, qaysi sohada ishlaysiz?", ANY)
+    # Policy: DM mijozlarga AI avtomatik javob yubormaydi — faqat CRM'ga draft boradi.
+    mock_send_reply.assert_not_called()
+    mock_notify.assert_called_once_with(
+        "Instagram DM", "Foydalanuvchi", "998877", "Salom, narx qancha?",
+        "Rahmat, qaysi sohada ishlaysiz?",
+    )
 
 
 @pytest.mark.asyncio
