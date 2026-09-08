@@ -12,13 +12,8 @@ import requests
 import structlog
 
 from src.settings import settings
-from src.agents.autonomous_sales_agent import AutonomousSalesAgent
 from src.services.core.instagram.graph_client import InstagramGraphClient
 from src.services.core.instagram.backfill import backfill_unanswered_comments
-from src.services.core.instagram.lead_qualifier import (
-    should_trigger_dm,
-    generate_initial_dm_message_ai,
-)
 
 logger = structlog.get_logger("InstagramAgent")
 
@@ -149,6 +144,24 @@ async def generate_comment_reply(comment_text: str, post_caption: str = "", comm
     return random.choice(FALLBACK_COMMENT_REPLIES)
 
 
+def strip_bracket_tags(text: str) -> str:
+    """Safely strip bracket tags like [TAG] in linear O(N) time without regex/ReDoS."""
+    if not text or "[" not in text:
+        return text or ""
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if text[i] == "[":
+            close_idx = text.find("]", i, min(i + 200, n))
+            if close_idx != -1:
+                i = close_idx + 1
+                continue
+        out.append(text[i])
+        i += 1
+    return "".join(out).strip()
+
+
 def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: str) -> None:
     """Sends a notification message to the Telegram CRM group."""
     crm_group_id = settings.CRM_GROUP_ID
@@ -162,7 +175,7 @@ def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: s
     if "quality=sifatli" in reply.lower():
         quality = "Sifatli 💎"
 
-    clean_reply = re.sub(r"\[.*?\]", "", reply).strip()
+    clean_reply = strip_bracket_tags(reply)
 
     crm_msg = (
         f"📱 <b>YANGI {source.upper()} LEAD!</b>\n"
@@ -282,14 +295,14 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
             )
 
             info_updates: dict[str, str] = {}
-            for m in re.finditer(r"\[SAVE_INFO:\s*(.*?)\]", ai_reply, re.IGNORECASE):
+            for m in re.finditer(r"\[SAVE_INFO:\s*([^\[\]]+)\]", ai_reply, re.IGNORECASE):
                 parts = m.group(1).split("=", 1)
                 if len(parts) == 2:
                     info_updates[parts[0].strip().lower()] = parts[1].strip()
             if info_updates and db:
                 await db.upsert_user(user_id_str, "Foydalanuvchi", **info_updates)
 
-            clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
+            clean_reply = strip_bracket_tags(ai_reply)
             if db:
                 # Stored as a draft suggestion only — is_ai=True marks it as
                 # AI-authored text, but it is never sent to the customer.
@@ -352,7 +365,7 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                         post_caption=post_caption,
                         commenter_name=commenter_name,
                     )
-                    clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
+                    clean_reply = strip_bracket_tags(ai_reply)
 
                 if db:
                     await db.log_message(user_id_str, clean_reply, is_ai=True)
