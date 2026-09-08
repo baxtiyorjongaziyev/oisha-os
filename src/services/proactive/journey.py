@@ -103,6 +103,14 @@ async def check_client_journey_excellence() -> bool:
         return False
 
     team_members = await db.get_team_roles()
+    from src.services.core.client_journey.reporting import _signal_is_publishable
+
+    sales_signals = [s for s in sales_signals if _signal_is_publishable(s)]
+    project_signals = [s for s in project_signals if _signal_is_publishable(s)]
+    if not sales_signals and not project_signals:
+        await _unclaim()
+        return False
+
     message = render_excellence_report(sales_signals, project_signals)
     direct_messages = build_department_direct_messages(
         team_members, sales_signals, project_signals
