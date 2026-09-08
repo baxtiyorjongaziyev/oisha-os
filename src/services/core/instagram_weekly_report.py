@@ -99,6 +99,7 @@ class InstagramWeeklyReportAgent:
 
     async def _fetch_media_insights(self, media_id: str, access_token: str) -> dict[str, int]:
         metric_sets = (
+            "views,reach,saved,shares,total_interactions",
             "reach,plays,saved,shares,total_interactions",
             "reach,saved,shares,total_interactions",
             "impressions,reach,engagement,saved",
@@ -134,8 +135,8 @@ class InstagramWeeklyReportAgent:
         caption = item.get("caption") or ""
         likes = int(item.get("like_count") or 0)
         comments = int(item.get("comments_count") or 0)
-        reach = insights.get("reach", insights.get("impressions", 0))
-        plays = insights.get("plays", 0)
+        reach = insights.get("reach", insights.get("views", insights.get("impressions", 0)))
+        plays = insights.get("views", insights.get("plays", 0))
         saves = insights.get("saved", 0)
         shares = insights.get("shares", 0)
         total_interactions = insights.get("total_interactions", insights.get("engagement", 0))
