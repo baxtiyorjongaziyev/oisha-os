@@ -291,12 +291,18 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
 
             clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
             if db:
+                # Stored as a draft suggestion only — is_ai=True marks it as
+                # AI-authored text, but it is never sent to the customer.
                 await db.log_message(user_id_str, clean_reply, is_ai=True)
 
             # NOTE: AmoCRM already ingests Instagram DMs via its own native
             # integration and opens the deal itself. Do NOT create a second
             # deal here — it produces junk "Instagram DM: <id>" duplicates.
-            send_ig_reply(sender_id, clean_reply, access_token)
+            #
+            # Policy: DM mijozlarga AI avtomatik javob YUBORMAYDI (faqat
+            # Telegram va Instagram kommentlarida AI javob berish ruxsat
+            # etilgan). AI javobi faqat taklif (draft) sifatida CRM guruhga
+            # yuboriladi — jamoa qo'lda javob beradi.
             notify_crm("Instagram DM", "Foydalanuvchi", sender_id, text, ai_reply)
 
         # Comment / Page Feed Change Handling
