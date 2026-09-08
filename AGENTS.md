@@ -20,6 +20,19 @@
 
 ## Agent Handoff Log
 
+- **2026-09-07 — Antigravity — Instagram Auto-Responder Recovery & Live Backfill Execution:**
+  1. **Root Cause Resolved**: Oracle VM serveridagi `.env` faylida Meta o'zgaruvchilari yo'qolib qolgan bo'lib, `oisha-os.service` `[IG-BACKFILL] Skipped: instagram_not_configured` holatida javob berishni to'xtatgan edi.
+  2. **Env Sync & Service Restart**: Barcha 9 ta `META_*` va `INSTAGRAM_*` konfiguratsiya parametrlari `/home/ubuntu/oisha-os/.env` ga qayta yuklandi va `oisha-os.service` (PID 3607026) muvaffaqiyatli qayta ishga tushirildi.
+  3. **Live Auto-Replies Active**: Orqa fondagi `[IG-BACKFILL]` 20 soniyalik siklda so'nggi postlarni skan qilib, javob berilmagan barcha izohlarga 5 soniyalik xavfsiz throttle bilan jonli javob yozishni boshladi (dalil: `18088923206438402`, `17950317048264120`, `18473208925119887`, `18012004616951990`, `18115465633756336`, `18133166770647827`, `18066900731576771`, `18111791837038338`, `18016584428946638`, `18146522194555088` — `[META] Comment reply sent successfully`).
+
+- **2026-09-07 — Antigravity — Meta Production Config Restore & Instagram Views Metrics Fix:**
+  1. **Prod .env Full Meta Recovery**: Oracle VM dagi `.env` faylida soat 18:42 da qayta tiklangan eski backup tufayli o'chib ketgan barcha 9 ta Meta o'zgaruvchilari (`META_APP_ID`, `META_APP_SECRET`, `META_GRAPH_API_VERSION`, `META_PAGE_ID`, `META_INSTAGRAM_ACCOUNT_ID`, `META_INSTAGRAM_USER_ID`, `META_PAGE_ACCESS_TOKEN`, `META_VERIFY_TOKEN`, `INSTAGRAM_VERIFY_TOKEN`) `scripts/sync_meta_env_to_vm.py` orqali to'liq sinxronlashtirildi.
+  2. **Instagram Weekly Insights Views Metric Upgrade**: Meta Graph API v19 da eskirgan `plays`/`impressions` metrikasi o'rniga yangi `views` metrikasi `src/services/core/instagram_weekly_report.py` ga birinchi ustuvorlik bilan kiritildi (`views,reach,saved,shares,total_interactions`).
+  3. **Verification**: Oracle VM da to'g'ridan-to'g'ri `InstagramWeeklyReportAgent` ishga tushirilib, so'nggi 30 kunlik barcha 19 ta post bo'yicha real insights `HTTP/1.1 200 OK` bilan to'liq tortib olindi; `credential_status` 100% true bo'ldi. Pytest: 55/55 Instagram testlari yashil. Bandit: 0 issues. `oisha-os.service` yangilangan kod va env bilan muvaffaqiyatli restart qilindi.
+
+- **2026-09-07 — Codex Coordinator — secret-safe recovery readiness (#587/#588):** Added `scripts/prod/recovery_readiness.py`, `scripts/prod/recovery_sources.py`, `tests/test_recovery_readiness.py`, and `docs/operations/recovery-readiness.md`. Standalone inventory mirrors current AmoCRM env/file/raw-refresh/DB fallback and userbot DB/file/env order; checks refresh prerequisites, session wire shape/MCP equality, owner state and bypass flags without printing values. SQLite mode=ro; Turso fixed SELECT only behind explicit --read-turso; no application bootstrap, refresh, Telethon client, DDL, persistence, lock mutation, or silent remote-to-local fallback. Fail-closed JSON always ready=false / exit 2; actual auth and acquisition remain unverified. Evidence: Python 3.12 focused pytest --noconftest 36 passed; scoped Ruff clean; scoped Bandit 0 issues; git diff --check clean. Full suite not run (standalone operator-only patch, no PR created); no commit/push, production connection or credential change. Existing unrelated work preserved. Brain MCP tools unavailable; source-attributed Obsidian inbox note written via filesystem. Remaining: operator-authorized Oracle inventory and separate live auth/recovery verification; existing lock implementation was not changed.
+
+
 - **2026-09-07 — Antigravity — AmoCRM Overdue Tasks Safe Rescheduling & Telegram Userbot Sync:**
   1. **AmoCRM Overdue Tasks Safe Rescheduled**: `scripts/reschedule_overdue_tasks_safe.py` (245L) yaratildi va Oracle VM da muvaffaqiyatli ishga tushirildi.
      - Jami ochiq vazifalar: 432 ta. Muddati o'tib ketgan (overdue): 61 ta.
@@ -186,6 +199,9 @@
 | **Code Quality** | dead code, naming, type hints | — |
 
 ## Current State
+
+## Locks
+- Finance archive handoff (Codex, 2026-09-07; lock released): read-only MCP reconciliation found 200 source/338 target rows, 193 populated receipts already migrated, 7 empty, no duplicates, UZS 772902150 both sides. Account review: 110 P2P, 11 bank, 40 cash USD differences, 16 unknown source accounts. Added scripts/finance_migration/ and tests/test_finance_archive_migration.py; 18 offline tests passed, Ruff clean, Bandit 0 issues. Private evidence data/finance-migration/20260907/. No Airtable writes, commit, PR or deploy. Apply blocked by discrepancies; no missing receipts. Brain tools unavailable; vault filesystem note used. Any correction/apply/rollback requires owner action-time approval.
 
 ### Locked
 - Codex Coordinator: client journey, SalesCoach writer, Telegram task creator, dependency contracts
