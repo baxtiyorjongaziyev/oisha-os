@@ -2,7 +2,7 @@
 Data classes and time range utilities for CRM daily and weekly reporting.
 """
 import calendar
-from dataclasses import dataclass
+from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta, date
 from enum import Enum
 from typing import Any, Dict, Optional, Tuple
@@ -14,7 +14,112 @@ class PeriodType(str, Enum):
     MONTHLY = "monthly"
 
 
-_DELTA_FIELDS: tuple[str, ...] = ()  # filled in Task 2
+@dataclass
+class ManagerRow:
+    user_id: int
+    name: str
+    won_count: int = 0
+    won_amount: float = 0.0
+    open_tasks: int = 0
+    overdue_tasks: int = 0
+
+
+@dataclass
+class PeriodMetrics:
+    period_type: PeriodType
+    period_start: date
+    period_end: date
+
+    new_leads: int = 0
+    won_count: int = 0
+    won_amount: float = 0.0
+    lost_count: int = 0
+    lost_amount: float = 0.0
+
+    active_count: int = 0
+    active_amount: float = 0.0
+    pipeline_value: float = 0.0
+    stagnated_count: int = 0
+
+    win_rate: float = 0.0
+    avg_won_deal: float = 0.0
+
+    new_contacts: int = 0
+    new_companies: int = 0
+    incoming_calls: int = 0
+
+    tasks_created: int = 0
+    tasks_completed: int = 0
+    tasks_open: int = 0
+    tasks_overdue: int = 0
+    leads_without_task: int = 0
+
+    managers: list = field(default_factory=list)
+
+    def recompute_derived(self) -> None:
+        denom = self.won_count + self.lost_count
+        self.win_rate = (self.won_count / denom * 100) if denom else 0.0
+        self.avg_won_deal = (self.won_amount / self.won_count) if self.won_count else 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "period_type": self.period_type.value,
+            "period_start": self.period_start.isoformat(),
+            "period_end": self.period_end.isoformat(),
+            **{f: getattr(self, f) for f in _DELTA_FIELDS},
+            "managers": [asdict(mr) for mr in self.managers],
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "PeriodMetrics":
+        return cls(
+            period_type=PeriodType(d["period_type"]),
+            period_start=date.fromisoformat(d["period_start"]),
+            period_end=date.fromisoformat(d["period_end"]),
+            managers=[ManagerRow(**mr) for mr in d.get("managers", [])],
+            **{f: d.get(f, 0) for f in _DELTA_FIELDS},
+        )
+
+    @property
+    def total_leads(self) -> int:
+        return self.new_leads
+
+    @property
+    def won(self) -> int:
+        return self.won_count
+
+    @property
+    def lost(self) -> int:
+        return self.lost_count
+
+    @property
+    def revenue(self) -> float:
+        return self.won_amount
+
+    @property
+    def date_label(self) -> str:
+        return self.period_end.strftime("%b %d, %Y")
+
+
+_DELTA_FIELDS = (
+    "new_leads", "won_count", "won_amount", "lost_count", "lost_amount",
+    "active_count", "active_amount", "pipeline_value", "stagnated_count",
+    "win_rate", "avg_won_deal",
+    "new_contacts", "new_companies", "incoming_calls",
+    "tasks_created", "tasks_completed", "tasks_open", "tasks_overdue", "leads_without_task",
+)
+
+
+@dataclass
+class ReportResult:
+    period_type: PeriodType
+    period_start: date
+    period_end: date
+    metrics: PeriodMetrics
+    previous: "PeriodMetrics | None"
+    deltas: Dict[str, float]
+    telegram_text: str
+    fetch_ok: bool = True
 
 
 def period_range(ptype: "PeriodType", anchor: date) -> Tuple[date, date]:
