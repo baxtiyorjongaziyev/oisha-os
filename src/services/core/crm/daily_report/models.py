@@ -1,9 +1,56 @@
 """
 Data classes and time range utilities for CRM daily and weekly reporting.
 """
+import calendar
 from dataclasses import dataclass
 from datetime import datetime, timedelta, date
+from enum import Enum
 from typing import Any, Dict, Optional, Tuple
+
+
+class PeriodType(str, Enum):
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+
+
+_DELTA_FIELDS: tuple[str, ...] = ()  # filled in Task 2
+
+
+def period_range(ptype: "PeriodType", anchor: date) -> Tuple[date, date]:
+    if ptype == PeriodType.DAILY:
+        return anchor, anchor
+    if ptype == PeriodType.WEEKLY:
+        start = anchor - timedelta(days=anchor.weekday())
+        return start, start + timedelta(days=6)
+    if ptype == PeriodType.MONTHLY:
+        start = anchor.replace(day=1)
+        last = calendar.monthrange(anchor.year, anchor.month)[1]
+        return start, anchor.replace(day=last)
+    raise ValueError(f"unknown period type: {ptype!r}")
+
+
+def previous_anchor(ptype: "PeriodType", anchor: date) -> date:
+    if ptype == PeriodType.DAILY:
+        return anchor - timedelta(days=1)
+    if ptype == PeriodType.WEEKLY:
+        this_start = anchor - timedelta(days=anchor.weekday())
+        return this_start - timedelta(days=7)
+    if ptype == PeriodType.MONTHLY:
+        first = anchor.replace(day=1)
+        return (first - timedelta(days=1)).replace(day=1)
+    raise ValueError(f"unknown period type: {ptype!r}")
+
+
+def previous_range(ptype: "PeriodType", anchor: date) -> Tuple[date, date]:
+    return period_range(ptype, previous_anchor(ptype, anchor))
+
+
+def compute_deltas(cur: "PeriodMetrics", prev: "PeriodMetrics | None") -> Dict[str, float]:
+    if prev is None:
+        return {}
+    return {f: getattr(cur, f) - getattr(prev, f) for f in _DELTA_FIELDS}
+
 
 def _ts_today() -> Tuple[int, int]:
     """Bugungi kunning Unix timestamp [from, to]."""
