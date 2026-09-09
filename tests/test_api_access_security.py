@@ -301,6 +301,64 @@ def test_internal_mcp_denies_access_when_secret_is_unconfigured(monkeypatch):
     assert exc_info.value.status_code == 503
 
 
+def _mcp_request(monkeypatch, *, headers, api_secret=STRONG_API_SECRET, service_tokens_json=""):
+    from src.settings import settings
+
+    monkeypatch.setattr(settings, "OISHA_API_SECRET", api_secret, raising=False)
+    monkeypatch.setenv("OISHA_API_SECRET", api_secret)
+    monkeypatch.setattr(settings, "OISHA_SERVICE_TOKENS_JSON", service_tokens_json, raising=False)
+    monkeypatch.setenv("OISHA_SERVICE_TOKENS_JSON", service_tokens_json)
+    monkeypatch.setattr(settings, "JWT_SECRET", "", raising=False)
+    monkeypatch.setenv("JWT_SECRET", "")
+    return Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/internal/mcp/dialogs",
+            "headers": [
+                (k.lower().encode(), v.encode()) for k, v in headers.items()
+            ],
+            "client": ("203.0.113.10", 12345),
+        }
+    )
+
+
+def test_internal_mcp_denies_when_no_secret_and_no_principal(monkeypatch):
+    request = _mcp_request(monkeypatch, headers={})
+
+    with pytest.raises(HTTPException) as exc_info:
+        _require_internal_secret(request)
+
+    assert exc_info.value.status_code == 401
+
+
+def test_internal_mcp_accepts_legacy_internal_secret_header(monkeypatch):
+    request = _mcp_request(
+        monkeypatch, headers={"X-Oisha-Internal-Secret": STRONG_API_SECRET}
+    )
+
+    # No exception — legacy service-to-service path still works.
+    _require_internal_secret(request)
+
+
+def test_internal_mcp_accepts_scoped_service_token_without_internal_secret(monkeypatch):
+    import json
+
+    token = "svc-token-mcp-read"
+    service_tokens_json = json.dumps(
+        {token: {"subject": "mcp-bridge", "scopes": ["mcp:read", "mcp:write"]}}
+    )
+    request = _mcp_request(
+        monkeypatch,
+        headers={"Authorization": f"Bearer {token}"},
+        service_tokens_json=service_tokens_json,
+    )
+
+    # A scoped SERVICE principal authenticates the request; route-level
+    # require_permissions still enforces the mcp:* scope separately.
+    _require_internal_secret(request)
+
+
 def test_config_session_secret_never_falls_back_to_bot_token(monkeypatch):
     from src import config
 
