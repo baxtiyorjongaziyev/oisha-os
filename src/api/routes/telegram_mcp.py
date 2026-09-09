@@ -2,8 +2,9 @@ import hmac
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from starlette.requests import HTTPConnection
 
 from src.context import app_ctx
 from src.api.rbac import Permission, require_permissions
@@ -18,10 +19,25 @@ class SendMessageRequest(BaseModel):
     text: str = Field(min_length=1, max_length=4096)
 
 
-def _require_internal_secret(request: Request) -> None:
-    # security._auth_setting env'ga ustunlik beradi — settings jarayon
-    # boshida bir marta yuklangani uchun keyin o'rnatilgan qiymatni ko'rmaydi.
-    from src.api.security import _auth_setting
+def _require_internal_secret(connection: HTTPConnection) -> None:
+    """MCP internal so'rovni autentifikatsiya qiladi.
+
+    Ikki yo'l qabul qilinadi:
+    - `X-Oisha-Internal-Secret` header `OISHA_API_SECRET` bilan mos kelsa
+      (legacy service-to-service chaqiriqlar uchun); yoki
+    - so'rov `authorize_connection` orqali biror Principal beradi — masalan
+      `mcp:read` / `mcp:write` scope'li scoped SERVICE token yoki owner/admin
+      sessiyasi. Scope tekshiruvi route'dagi `require_permissions` bilan
+      alohida qo'llanadi, shuning uchun bu yerda faqat "kim bo'lsa ham
+      autentifikatsiyadan o'tganmi" tekshiriladi.
+
+    Ikkalasi ham yo'q bo'lsa fail-closed: 401. `OISHA_API_SECRET` umuman
+    sozlanmagan bo'lsa 503.
+    """
+    from src.api.security import _auth_setting, authorize_connection
+
+    if authorize_connection(connection) is not None:
+        return
 
     expected = _auth_setting("OISHA_API_SECRET")
     if not expected:
@@ -30,7 +46,7 @@ def _require_internal_secret(request: Request) -> None:
             status_code=503, detail="Internal API authentication is not configured"
         )
 
-    auth = request.headers.get("X-Oisha-Internal-Secret", "")
+    auth = connection.headers.get("X-Oisha-Internal-Secret", "")
     if not hmac.compare_digest(auth, expected):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
