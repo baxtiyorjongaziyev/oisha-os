@@ -3,7 +3,12 @@ from datetime import datetime
 
 import pytest
 
-from src.services.core.crm.daily_report.models import PeriodType, ReportResult, PeriodMetrics
+from src.services.core.crm.daily_report.models import (
+    PeriodType,
+    ReportResult,
+    PeriodMetrics,
+    previous_anchor,
+)
 from src.schedulers.main_loop import periodic_reports as pr
 
 
@@ -15,8 +20,8 @@ class _FakeReporter:
     def __init__(self):
         self.built = []
 
-    async def build(self, ptype):
-        self.built.append(ptype)
+    async def build(self, ptype, anchor=None):
+        self.built.append((ptype, anchor))
         m = PeriodMetrics(period_type=ptype,
                           period_start=datetime(2026, 9, 7).date(),
                           period_end=datetime(2026, 9, 7).date())
@@ -43,7 +48,9 @@ async def test_send_period_report_dispatches_to_sales_group(monkeypatch):
         PeriodType.WEEKLY, datetime(2026, 9, 7, 9, 0), _Task(),
         reporter_factory=lambda: rep,
     )
-    assert rep.built == [PeriodType.WEEKLY]
+    assert rep.built == [
+        (PeriodType.WEEKLY, previous_anchor(PeriodType.WEEKLY, datetime(2026, 9, 7).date()))
+    ]
     assert bot.sent == [(-1003854308552, "TEXT-BODY", {"message_thread_id": 115})]
 
 
@@ -72,5 +79,28 @@ async def test_send_period_report_is_idempotent_per_day(monkeypatch):
             PeriodType.DAILY, datetime(2026, 9, 7, 19, 30), task,
             reporter_factory=lambda: rep,
         )
-    assert rep.built == [PeriodType.DAILY]  # built once
+    assert rep.built == [(PeriodType.DAILY, None)]  # built once
     assert len(bot.sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_weekly_report_targets_completed_prior_week(monkeypatch):
+    from datetime import date
+    from src.services.core.crm.daily_report.models import previous_anchor
+    bot = _Bot(); rep = _FakeReporter()
+    monkeypatch.setattr(pr.m, "bot_runtime", bot, raising=False)
+    monkeypatch.setattr(pr.settings, "CRM_SALES_REPORT_GROUP_ID", -1, raising=False)
+    monkeypatch.setattr(pr.settings, "CRM_SALES_REPORT_TOPIC_ID", None, raising=False)
+    monday = datetime(2026, 9, 7, 9, 0)  # a Monday
+    await pr._send_period_report(PeriodType.WEEKLY, monday, _Task(), reporter_factory=lambda: rep)
+    assert rep.built == [(PeriodType.WEEKLY, previous_anchor(PeriodType.WEEKLY, date(2026, 9, 7)))]
+
+
+@pytest.mark.asyncio
+async def test_daily_report_targets_today(monkeypatch):
+    bot = _Bot(); rep = _FakeReporter()
+    monkeypatch.setattr(pr.m, "bot_runtime", bot, raising=False)
+    monkeypatch.setattr(pr.settings, "CRM_SALES_REPORT_GROUP_ID", -1, raising=False)
+    monkeypatch.setattr(pr.settings, "CRM_SALES_REPORT_TOPIC_ID", None, raising=False)
+    await pr._send_period_report(PeriodType.DAILY, datetime(2026, 9, 7, 19, 30), _Task(), reporter_factory=lambda: rep)
+    assert rep.built == [(PeriodType.DAILY, None)]

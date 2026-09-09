@@ -653,7 +653,7 @@ function CrmReportView({ report }: { report: CrmReport }) {
                 <th className="py-2 pr-4">Yutilgan</th>
                 <th className="py-2 pr-4">Summa</th>
                 <th className="py-2 pr-4">Ochiq zadacha</th>
-                <th className="py-2 pr-4">Muddati o'tgan</th>
+                <th className="py-2 pr-4">Muddati o&apos;tgan</th>
               </tr>
             </thead>
             <tbody>

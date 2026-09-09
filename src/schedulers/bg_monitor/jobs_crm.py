@@ -149,28 +149,6 @@ class JobsCrmMixin:
                 logger.error("[SCHEDULE][REPORT] Error: %s", exc)
             self._mark_sent(key)
 
-    async def _job_crm_daily_report(self, now: datetime) -> None:
-        key = self._job_key("crm_daily_report", now)
-        if not self._already_sent(key):
-            try:
-                from src.services.core.crm.crm_daily_report import CRMDailyReporter
-
-                amocrm_client = self._get_amocrm_client()
-                if amocrm_client:
-                    reporter = CRMDailyReporter(amocrm=amocrm_client)
-                    stats = await reporter.fetch_stats()
-                    prev = reporter._load_prev_stats()
-                    report_text = reporter.format_report(stats, prev)
-
-                    send_kwargs = {}
-                    if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
-                        send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID
-                    await self._send_to_group_or_admin(report_text, **send_kwargs)
-                    logger.info("[SCHEDULE] CRM Daily reportagram sent.")
-            except Exception as exc:
-                logger.error("[SCHEDULE][CRM_REPORT] Error: %s", exc)
-            self._mark_sent(key)
-
     async def _job_hisobchi_daily_roast(self, now: datetime) -> None:
         key = self._job_key("hisobchi_daily_roast", now)
         if not self._already_sent(key):
@@ -192,45 +170,6 @@ class JobsCrmMixin:
             except Exception as exc:
                 logger.error("[SCHEDULE][HISOBCHI_ROAST] Error: %s", exc)
             self._mark_sent(key)
-
-    async def _job_crm_weekly_report(self, now: datetime) -> None:
-        try:
-            from src.services.core.crm.crm_daily_report import CRMDailyReporter, previous_week_range
-
-            period_start, period_end = previous_week_range(now.date())
-            run_key = f"{period_start.isoformat()}_{period_end.isoformat()}"
-            job_key = f"crm_weekly_report_{run_key}"
-
-            if self._already_sent(job_key):
-                return
-
-            already_sent = False
-            if self.msg_controller and getattr(self.msg_controller, "db", None):
-                already_sent = await self.msg_controller.db.is_job_run("crm_weekly_report", run_key)
-
-            if already_sent:
-                return
-
-            amocrm_client = self._get_amocrm_client()
-            if amocrm_client:
-                from src.services.core.crm.crm_daily_report import CRMPeriodReporter
-                from src.services.core.crm.daily_report.models import PeriodType
-                reporter = CRMPeriodReporter(amocrm=amocrm_client)
-                report_text = (await reporter.build(PeriodType.WEEKLY)).telegram_text
-
-                send_kwargs = {}
-                if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
-                    send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID
-                await self._send_to_group_or_admin(report_text, **send_kwargs)
-
-                if self.msg_controller and getattr(self.msg_controller, "db", None):
-                    await self.msg_controller.db.mark_job_run("crm_weekly_report", run_key)
-                self._mark_sent(job_key)
-                logger.info("[SCHEDULE] CRM weekly Uzbek report sent for %s.", run_key)
-            else:
-                logger.warning("[SCHEDULE][CRM_WEEKLY_REPORT] AmoCRM client not ready.")
-        except Exception as exc:
-            logger.error("[SCHEDULE][CRM_WEEKLY_REPORT] Error: %s", exc)
 
     async def _job_stagnation_alert(self, now: datetime) -> None:
         key = self._hour_key("stagnation_alert", now)

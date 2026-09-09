@@ -10,7 +10,7 @@ from typing import Any
 from src.settings import settings
 import src.main as m
 from src.schedulers.main_loop.helpers import _is_due
-from src.services.core.crm.daily_report.models import PeriodType
+from src.services.core.crm.daily_report.models import PeriodType, previous_anchor
 
 logger = logging.getLogger("OishaScheduler")
 
@@ -42,7 +42,10 @@ async def _send_period_report(ptype, now, task, *, reporter_factory=None):
         if reporter is None:
             logger.warning("[SCHEDULE][%s] no amocrm; skip", ptype.value)
             return
-        result = await reporter.build(ptype)
+        if ptype is PeriodType.DAILY:
+            result = await reporter.build(ptype)
+        else:
+            result = await reporter.build(ptype, previous_anchor(ptype, now.date()))
         group = settings.CRM_SALES_REPORT_GROUP_ID
         topic = settings.CRM_SALES_REPORT_TOPIC_ID
         bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
