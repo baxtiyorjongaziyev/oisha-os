@@ -1,57 +1,64 @@
-import os
+"""Async OpenAI Whisper adapter with fail-closed input validation."""
+from __future__ import annotations
+
 import io
-from typing import Optional
+import os
+from typing import Any, Optional
 
 import structlog
 
 logger = structlog.get_logger()
 
-class OpenAIWhisperASR:
-    """Thin async wrapper around OpenAI Whisper transcription API.
-    Uses the free‑tier key from environment variable ``OPENAI_API_KEY``.
-    """
+_EXTENSIONS = {
+    "audio/mpeg": "mp3",
+    "audio/mp4": "mp4",
+    "audio/ogg": "ogg",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/flac": "flac",
+    "audio/aac": "aac",
+    "audio/webm": "webm",
+}
+MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
-    def __init__(self) -> None:
-        self.api_key = os.getenv("OPENAI_API_KEY", "").strip()
-        if not self.api_key:
-            logger.warning("[ASR] OPENAI_API_KEY not set – ASR will be unavailable.")
-        self._client = None
-        if self.api_key:
+
+class OpenAIWhisperASR:
+    """Small async wrapper around OpenAI audio transcription."""
+
+    def __init__(self, *, api_key: Optional[str] = None, client: Any = None) -> None:
+        key = (api_key if api_key is not None else os.getenv("OPENAI_API_KEY", "")).strip()
+        self._client = client
+        if self._client is None and key:
             try:
-                from openai import OpenAI
-                self._client = OpenAI(api_key=self.api_key)
-            except Exception as exc:
-                logger.error("[ASR] Failed to init OpenAI client: %s", exc)
-                self._client = None
+                from openai import AsyncOpenAI
+
+                self._client = AsyncOpenAI(api_key=key)
+            except (ImportError, TypeError, ValueError):
+                logger.warning("OpenAI ASR client is unavailable", exc_info=True)
 
     async def transcribe(self, audio_bytes: bytes, mime_type: str) -> Optional[str]:
-        """Transcribe ``audio_bytes`` (any supported mime) to Uzbek latin text.
-        Returns ``None`` on failure.
-        """
-        if not self._client:
-            logger.error("[ASR] OpenAI client not available for transcription.")
+        """Return Uzbek transcript, or ``None`` when unavailable/invalid."""
+        if self._client is None:
             return None
-        ext = {
-            "audio/mpeg": "mp3",
-            "audio/mp4": "mp4",
-            "audio/ogg": "ogg",
-            "audio/wav": "wav",
-            "audio/flac": "flac",
-            "audio/aac": "aac",
-            "audio/webm": "webm",
-            "audio/amr": "amr",
-        }.get(mime_type, "mp3")
-        file_obj = io.BytesIO(audio_bytes)
-        file_obj.name = f"call.{ext}"
+        if not audio_bytes or len(audio_bytes) > MAX_AUDIO_BYTES:
+            return None
+        normalized_mime = mime_type.split(";", 1)[0].strip().lower()
+        extension = _EXTENSIONS.get(normalized_mime)
+        if extension is None:
+            return None
+
+        audio_file = io.BytesIO(audio_bytes)
+        audio_file.name = f"audio.{extension}"
         try:
             response = await self._client.audio.transcriptions.create(
                 model="whisper-1",
-                file=file_obj,
+                file=audio_file,
                 language="uz",
                 response_format="text",
-                prompt="Telefon qo'ng'irog'ini O'zbek lotinida transkripsiya qiling.",
+                prompt="Telefon qo'ng'irog'ini o'zbek lotin yozuvida transkripsiya qiling.",
             )
-            return str(response).strip()
-        except Exception as exc:
-            logger.error("[ASR] Whisper transcription failed: %s", exc)
+        except Exception:
+            logger.warning("OpenAI ASR transcription failed", exc_info=True)
             return None
+        transcript = str(response).strip()
+        return transcript or None

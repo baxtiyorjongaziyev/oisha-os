@@ -1,47 +1,29 @@
-'''Finance AI API routes.
-
-Provides endpoints to interact with registered finance agents.
-''' 
-
+"""Read-only finance analysis API."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
+from typing import Any
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from src.api.rbac import Permission, require_permissions
-from src.services.core.finance.agents import get_agent
+from src.services.core.finance.agents import create_agent
 
-router = APIRouter(tags=["finance-ai"])
+router = APIRouter(prefix="/api/finance/ai", tags=["finance-ai"])
+
 
 class AgentRequest(BaseModel):
-    """Payload sent to a finance AI agent.
+    agent: str = Field(min_length=1, max_length=40)
+    payload: dict[str, Any]
 
-    The ``agent`` field selects which registered agent to use.  ``payload``
-    contains the free‑form data passed to the agent's ``process`` method.
-    """
 
-    agent: str
-    payload: dict
-
-@router.post(
-    "/api/finance/ai",
-    dependencies=[require_permissions(Permission.FINANCE_WRITE)],
-)
-async def invoke_finance_agent(request: AgentRequest):
-    """Invoke a registered finance AI agent.
-
-    Returns the agent's result or an error if the agent is unknown.
-    """
+@router.post("/analyze", dependencies=[require_permissions(Permission.FINANCE_READ)])
+async def analyze_finance(request: AgentRequest) -> dict[str, Any]:
     try:
-        agent = get_agent(request.agent)
+        agent = create_agent(request.agent)
+        result = agent.process(request.payload)
     except KeyError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "code": "unknown_agent",
-                "message": f"Agent '{request.agent}' is not registered.",
-            },
-        )
-    # In a real implementation this could be async; our placeholder agents are sync.
-    result = agent.process(request.payload)
+        raise HTTPException(status_code=400, detail="Unknown finance agent") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
     return {"agent": request.agent, "result": result}
