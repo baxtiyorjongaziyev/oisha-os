@@ -125,7 +125,11 @@ async def test_handle_topic_plain_text_digits(temp_db) -> None:
 @pytest.mark.asyncio
 async def test_process_hisobchi_integration(monkeypatch, temp_db) -> None:
     from src.settings import settings
-    
+
+    # AI auto-entry is off by default (Dilbar's Airtable form is now the
+    # only real kirim/chiqim path) — opt back in for this integration test.
+    monkeypatch.setenv("HISOBCHI_AI_AUTO_ENTRY_ENABLED", "1")
+
     # Configure mock group & topics
     monkeypatch.setattr(settings, "HISOBCHI_FINANCE_GROUP_ID", -100999)
     monkeypatch.setattr(settings, "HISOBCHI_KIRIM_TOPIC_ID", 10)
@@ -154,6 +158,40 @@ async def test_process_hisobchi_integration(monkeypatch, temp_db) -> None:
     assert rows[0]["amount"] == 25000
     assert rows[0]["direction"] == "out"
     assert rows[0]["merchant"] == "yandex taxi"
+
+
+@pytest.mark.asyncio
+async def test_process_hisobchi_ai_auto_entry_disabled_by_default(monkeypatch, temp_db) -> None:
+    """Real kirim/chiqim now only comes through Dilbar's Airtable form.
+
+    With HISOBCHI_AI_AUTO_ENTRY_ENABLED unset (the default), process_hisobchi
+    must not write a transaction from a Telegram message, even one shaped
+    exactly like a valid manual log.
+    """
+    from src.settings import settings
+
+    monkeypatch.delenv("HISOBCHI_AI_AUTO_ENTRY_ENABLED", raising=False)
+    monkeypatch.setattr(settings, "HISOBCHI_FINANCE_GROUP_ID", -100999)
+    monkeypatch.setattr(settings, "HISOBCHI_KIRIM_TOPIC_ID", 10)
+    monkeypatch.setattr(settings, "HISOBCHI_CHIQIM_TOPIC_ID", 20)
+
+    msg_controller = SimpleNamespace(db=temp_db)
+    ev = _FakeEvent(chat_id=-100999, text="25000 yandex taxi", reply_to_msg_id=20)
+
+    res = await process_hisobchi(
+        event=ev,
+        client=None,
+        sender=SimpleNamespace(id=111, bot=False),
+        message_text="25000 yandex taxi",
+        msg_controller=msg_controller,
+        voice_processor=None,
+        settings=settings,
+    )
+
+    assert res is False
+    assert ev.replied == []
+    rows = await temp_db.execute("SELECT amount FROM hisobchi_transactions")
+    assert rows == []
 
 
 class _FakeClientWithMe:

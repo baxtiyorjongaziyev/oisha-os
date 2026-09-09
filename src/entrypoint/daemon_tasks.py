@@ -181,5 +181,7 @@ async def stop_health_check_api(
 async def _brain_evolution_loop():
     """Runs OishaBrain.evolve() every 6 hours to self-diagnose agent failures."""
     from src.schedulers.brain_evolution import brain_evolution_loop as _impl
-    await _impl(oisha_brain=getattr(app_ctx, "oisha_brain", None))
+    from src.services.core.agent_brain import oisha_brain
+
+    await _impl(oisha_brain=getattr(app_ctx, "oisha_brain", None) or oisha_brain)
 

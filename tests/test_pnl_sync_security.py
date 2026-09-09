@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 
@@ -163,8 +164,6 @@ async def test_pnl_sync_later_page_error_stops_before_any_write(monkeypatch):
         requests.append(request)
         if pnl_sync.PNL_TABLE_ID in request.url.path:
             return httpx.Response(200, json={"records": []})
-        if pnl_sync.CAT_TABLE_ID in request.url.path:
-            return httpx.Response(200, json={"records": []})
         transaction_pages += 1
         if transaction_pages == 1:
             return httpx.Response(
@@ -178,7 +177,7 @@ async def test_pnl_sync_later_page_error_stops_before_any_write(monkeypatch):
     with pytest.raises(httpx.HTTPStatusError):
         await pnl_sync.sync_monthly_pnl()
 
-    assert [request.method for request in requests] == ["GET"] * 4
+    assert [request.method for request in requests] == ["GET"] * 3
 
 
 @pytest.mark.asyncio
@@ -205,8 +204,6 @@ async def test_pnl_sync_malformed_success_payload_stops_before_write(monkeypatch
                     ]
                 },
             )
-        if pnl_sync.CAT_TABLE_ID in request.url.path:
-            return httpx.Response(200, json={"records": []})
         return httpx.Response(200, json={})
 
     _mock_airtable(monkeypatch, handler)
@@ -214,7 +211,7 @@ async def test_pnl_sync_malformed_success_payload_stops_before_write(monkeypatch
     with pytest.raises(AirtableResponseError, match="records list"):
         await pnl_sync.sync_monthly_pnl()
 
-    assert methods == ["GET", "GET", "GET"]
+    assert methods == ["GET", "GET"]
 
 
 @pytest.mark.asyncio
@@ -243,8 +240,6 @@ async def test_pnl_sync_patch_error_is_not_reported_as_success(monkeypatch):
                     ]
                 },
             )
-        if CAT_TABLE_ID in request.url.path:
-            return httpx.Response(200, json={"records": []})
         return httpx.Response(
             200,
             json={
@@ -253,9 +248,7 @@ async def test_pnl_sync_patch_error_is_not_reported_as_success(monkeypatch):
                         "id": "rec-trx",
                         "fields": {
                             "Sana": "2026-08-28",
-                            "Oylik P&L": [],
-                            "Turi": "Kirim",
-                            "Summa UZS": 100,
+                            pnl_sync.PNL_LINK_FIELD: [],
                         },
                     }
                 ]
@@ -263,13 +256,57 @@ async def test_pnl_sync_patch_error_is_not_reported_as_success(monkeypatch):
         )
 
     PNL_TABLE_ID = pnl_sync.PNL_TABLE_ID
-    CAT_TABLE_ID = pnl_sync.CAT_TABLE_ID
     _mock_airtable(monkeypatch, handler)
 
     with pytest.raises(httpx.HTTPStatusError):
         await pnl_sync.sync_monthly_pnl()
 
-    assert methods == ["GET", "GET", "GET", "PATCH"]
+    assert methods == ["GET", "GET", "PATCH"]
+
+
+@pytest.mark.asyncio
+async def test_pnl_sync_links_transactions_to_the_live_pnl_table(monkeypatch):
+    monkeypatch.setattr(
+        airtable_config.settings,
+        "AIRTABLE_API_KEY",
+        SecretStr("unit-test-secret"),
+        raising=False,
+    )
+    patched_payloads = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "PATCH":
+            patched_payloads.append(json.loads(request.content))
+            return httpx.Response(200, json={"records": []})
+        if pnl_sync.PNL_TABLE_ID in request.url.path:
+            return httpx.Response(
+                200,
+                json={
+                    "records": [
+                        {
+                            "id": "rec-pnl-aug",
+                            "fields": {"Oy nomi": "2026-08 (Avgust 2026)"},
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "records": [
+                    {"id": "rec-trx", "fields": {"Sana": "2026-08-28"}}
+                ]
+            },
+        )
+
+    _mock_airtable(monkeypatch, handler)
+
+    result = await pnl_sync.sync_monthly_pnl()
+
+    assert result["transactions_linked"] == 1
+    assert patched_payloads == [
+        {"records": [{"id": "rec-trx", "fields": {pnl_sync.PNL_LINK_FIELD: ["rec-pnl-aug"]}}]}
+    ]
 
 
 @pytest.mark.asyncio
@@ -292,10 +329,10 @@ async def test_pnl_sync_valid_secret_preserves_successful_empty_sync(monkeypatch
 
     assert result == {
         "status": "ok",
-        "months_updated": 0,
+        "months_available": 0,
         "transactions_linked": 0,
     }
-    assert [request.method for request in requests] == ["GET", "GET", "GET"]
+    assert [request.method for request in requests] == ["GET", "GET"]
     assert all(
         request.headers["Authorization"] == "Bearer unit-test-secret"
         for request in requests

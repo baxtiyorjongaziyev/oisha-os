@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import TYPE_CHECKING
 from telethon import TelegramClient
 
@@ -11,6 +12,23 @@ from src.services.core.finance.handlers import (
 )
 
 logger = logging.getLogger("OishaHisobchiHandler")
+
+
+def _env_enabled(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _hisobchi_ai_auto_entry_enabled() -> bool:
+    """Voice/receipt/text/card-bot auto-entry into Tranzaksiyalar.
+
+    Disabled by default: real kirim/chiqim now goes only through the
+    "Jamoa — Kirim va chiqim yuborish" Airtable form, entered by Dilbar
+    (the finance officer). This flag is a monitoring-only kill switch —
+    set HISOBCHI_AI_AUTO_ENTRY_ENABLED=1 to restore AI auto-entry without
+    touching any of the parsing/entry code below.
+    """
+    return _env_enabled("HISOBCHI_AI_AUTO_ENTRY_ENABLED")
+
 
 async def process_hisobchi(
     event,
@@ -46,6 +64,13 @@ async def process_hisobchi(
                 return False
 
         _hisobchi_engine = app_ctx.hisobchi_engine or HisobchiEngine(msg_controller.db)
+
+        if not _hisobchi_ai_auto_entry_enabled():
+            # AI auto-entry (card bot, voice, receipt photo, text parsing) is
+            # paused: real kirim/chiqim now only comes through Dilbar's
+            # Airtable form. Nothing below writes a transaction while this
+            # flag is off — just observe/log, don't act.
+            return False
 
         # Card bot messages handling
         if event.is_private and not event.out and is_card_bot_sender(sender):
