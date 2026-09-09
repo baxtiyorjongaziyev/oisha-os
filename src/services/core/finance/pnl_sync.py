@@ -1,6 +1,8 @@
-"""Airtable Monthly P&L Dynamic Calculation and Linking Engine.
-Automatically links all new and existing transactions to the corresponding Oylik P&L record
-and recalculates accurate Soliqqacha, Soliqdan keyingi, and Taqsimlanmagan foyda figures.
+"""Airtable Monthly P&L transaction linking engine.
+
+Links every transaction to its month's Oylik P&L record. The P&L table computes
+Kirim, Chiqim, soliq, dividend and foyda itself via native rollups and formulas,
+so this module only maintains the link that feeds them.
 """
 import logging
 from typing import Any
@@ -18,7 +20,11 @@ AIRTABLE_API_BASE = "https://api.airtable.com/v0"
 DEFAULT_BASE_ID = "app8xoyx1XCumYFXV"
 TRX_TABLE_ID = "tblrqxqIzyrvg7XpQ"
 PNL_TABLE_ID = "tblAgVaGlVory2yAW"
-CAT_TABLE_ID = "tblRt6aiU6Vy2yLCD"
+
+# Link field on Tranzaksiyalar pointing at the current Oylik P&L table. Verified
+# live in Airtable 2026-09: this is a "Link to another record" field. The legacy
+# "[ESKI] Oylik P&L (V1 Link)" text field still holds old values and must not be used.
+PNL_LINK_FIELD = "Oylik P&L (Hisobot)"
 
 UZBEK_MONTHS = {
     "01": "Yanvar", "02": "Fevral", "03": "Mart", "04": "Aprel",
@@ -32,12 +38,12 @@ def _get_headers() -> dict[str, str]:
 
 
 async def sync_monthly_pnl() -> dict[str, Any]:
-    """Sync all transactions to Oylik P&L and update monthly totals."""
+    """Link every transaction to its month's Oylik P&L record."""
     base_id = getattr(settings, "AIRTABLE_BASE_ID", None) or DEFAULT_BASE_ID
     headers = _get_headers()
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        # 1. Fetch P&L records
+        # 1. Map each month code to its P&L record
         pnl_resp = await client.get(f"{AIRTABLE_API_BASE}/{base_id}/{PNL_TABLE_ID}?pageSize=100", headers=headers)
         pnl_records, _ = airtable_records_page(pnl_resp, resource="P&L")
         pnl_map = {}
@@ -46,12 +52,7 @@ async def sync_monthly_pnl() -> dict[str, Any]:
             if code:
                 pnl_map[code] = r["id"]
 
-        # 2. Fetch categories
-        cat_resp = await client.get(f"{AIRTABLE_API_BASE}/{base_id}/{CAT_TABLE_ID}?pageSize=100", headers=headers)
-        cats, _ = airtable_records_page(cat_resp, resource="categories")
-        cat_lookup = {c["id"]: c["fields"] for c in cats}
-
-        # 3. Fetch all transactions
+        # 2. Fetch all transactions
         trx_records = []
         offset = None
         while True:
@@ -67,44 +68,23 @@ async def sync_monthly_pnl() -> dict[str, Any]:
             if not offset:
                 break
 
-        # 4. Calculate monthly sums and find missing links
-        monthly_sums: dict[str, dict[str, int]] = {}
+        # 3. Collect transactions whose link is missing or points at the wrong month
         trx_to_link = []
-
         for r in trx_records:
             f = r["fields"]
             sana = f.get("Sana", "")
             if not sana or len(sana) < 7:
                 continue
-            m_code = sana[:7]
 
-            if m_code not in monthly_sums:
-                monthly_sums[m_code] = {"kirim": 0, "cogs": 0, "opex": 0, "soliq": 0}
+            target_pnl_id = pnl_map.get(sana[:7])
+            if not target_pnl_id:
+                continue
 
-            # Check if linked to P&L
-            target_pnl_id = pnl_map.get(m_code)
-            current_links = f.get("Oylik P&L", [])
-            if target_pnl_id and (not current_links or current_links[0] != target_pnl_id):
-                trx_to_link.append({"id": r["id"], "fields": {"Oylik P&L": [target_pnl_id]}})
+            current_links = f.get(PNL_LINK_FIELD, [])
+            if not current_links or current_links[0] != target_pnl_id:
+                trx_to_link.append({"id": r["id"], "fields": {PNL_LINK_FIELD: [target_pnl_id]}})
 
-            turi = f.get("Turi", "")
-            summa = f.get("Summa UZS", 0) or 0
-            kategoriya_ids = f.get("Kategoriya", [])
-            cat_info = cat_lookup.get(kategoriya_ids[0], {}) if kategoriya_ids else {}
-            cat_guruh = cat_info.get("Guruh", "")
-            cat_nomi = cat_info.get("Kategoriya", "")
-
-            if turi == "Kirim":
-                monthly_sums[m_code]["kirim"] += summa
-            elif turi == "Chiqim":
-                if cat_guruh == "Loyiha xarajati" or "Freelancer" in cat_nomi:
-                    monthly_sums[m_code]["cogs"] += summa
-                elif cat_guruh == "Soliq" or "Soliq" in cat_nomi:
-                    monthly_sums[m_code]["soliq"] += summa
-                else:
-                    monthly_sums[m_code]["opex"] += summa
-
-        # 5. Patch missing transaction links in batches of 10
+        # 4. Patch the links in batches of 10
         for i in range(0, len(trx_to_link), 10):
             chunk = trx_to_link[i:i+10]
             response = await client.patch(
@@ -114,36 +94,13 @@ async def sync_monthly_pnl() -> dict[str, Any]:
             )
             response.raise_for_status()
 
-        # 6. Update P&L table rows
-        pnl_updates = []
-        for r in pnl_records:
-            m_code = r["fields"].get("Oy nomi", "")[:7]
-            sums = monthly_sums.get(m_code, {"kirim": 0, "cogs": 0, "opex": 0, "soliq": 0})
-            soliq = sums["soliq"] if sums["soliq"] > 0 else int(sums["kirim"] * 0.04)
-            yalpi = sums["kirim"] - sums["cogs"]
-            ebt = yalpi - sums["opex"]
-            net_profit = ebt - soliq
-            dividend = int(net_profit * 0.6) if net_profit > 0 else 0
-
-            pnl_updates.append({
-                "id": r["id"],
-                "fields": {
-                    "Jami Kirim (UZS)": sums["kirim"],
-                    "Loyiha xarajatlari — COGS (UZS)": sums["cogs"],
-                    "Operatsion xarajatlar — OPEX (UZS)": sums["opex"],
-                    "Soliq xarajati (UZS)": soliq,
-                    "Taqsimlangan Dividendlar (UZS)": dividend
-                }
-            })
-
-        for i in range(0, len(pnl_updates), 10):
-            chunk = pnl_updates[i:i+10]
-            response = await client.patch(
-                f"{AIRTABLE_API_BASE}/{base_id}/{PNL_TABLE_ID}",
-                headers=headers,
-                json={"records": chunk}
-            )
-            response.raise_for_status()
-
-        logger.info("[PNL_SYNC] Successfully synced %d months and %d transactions", len(pnl_updates), len(trx_to_link))
-        return {"status": "ok", "months_updated": len(pnl_updates), "transactions_linked": len(trx_to_link)}
+        logger.info(
+            "[PNL_SYNC] Linked %d transactions across %d months",
+            len(trx_to_link),
+            len(pnl_map),
+        )
+        return {
+            "status": "ok",
+            "months_available": len(pnl_map),
+            "transactions_linked": len(trx_to_link),
+        }

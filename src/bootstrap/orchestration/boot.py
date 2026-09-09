@@ -174,6 +174,15 @@ async def boot_application():
     from src.schedulers.moliya_hisobotlari import moliya_hisobotlari_loop
     asyncio.create_task(moliya_hisobotlari_loop(), name="oisha_moliya_hisobotlari")
 
+    from src.schedulers.hisobchi_gap_reporter import hisobchi_gap_report_loop
+    asyncio.create_task(
+        hisobchi_gap_report_loop(hisobchi_engine, bot_client),
+        name="hisobchi_gap_report_loop",
+    )
+
+    from src.entrypoint.daemon_tasks import _brain_evolution_loop
+    asyncio.create_task(_brain_evolution_loop(), name="oisha_brain_evolution")
+
     # 9. Graceful Shutdown Watcher
     _shutdown_event = asyncio.Event()
 

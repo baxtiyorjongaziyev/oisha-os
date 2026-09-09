@@ -94,9 +94,17 @@ class AgentPolicyEngine:
         allow_on_sunday = bool(payload.get("allow_on_sunday"))
         in_quiet_hours = quiet_hours_enabled and is_quiet_hours(now)
 
-        # Master override — barcha funksiyalar avtomatik
+        # Master override — faqat mijozga yo'naltirilmagan, ichki/operatsion
+        # harakatlarni tezlashtiradi. Client-facing va sezgir tekshiruvlardan
+        # hech qachon o'tkazib yubormaydi (auto_actions_enabled/quiet_hours/
+        # sunday_block/sensitive_terms/low_confidence pastda alohida tekshiriladi).
         auto_master = await self._get_bool_state("policy:auto_master", True)
-        if auto_master and requested_by not in {"owner"}:
+        if (
+            auto_master
+            and requested_by not in {"owner"}
+            and not client_facing
+            and not sensitive_terms
+        ):
             return PolicyDecision(True, "auto_master_override", checks={})
 
         checks = {

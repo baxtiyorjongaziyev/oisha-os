@@ -175,20 +175,14 @@ async def client_dashboard(request: Request):
     return HTMLResponse(content=html_content)
 
 async def background_crm_audit_task():
+    """No-op placeholder.
+
+    The CRM audit implementation this task depended on
+    (src.services.debug.crm_audit.AmoCRMAudit) does not exist in this
+    codebase, so every iteration failed ImportError and slept. Kept as a
+    scheduled no-op until a real, production-owned auditor replaces it.
+    """
     while True:
-        try:
-            try:
-                from src.services.debug.crm_audit import AmoCRMAudit
-                audit = AmoCRMAudit()
-            except ImportError:
-                await asyncio.sleep(900)
-                continue
-            results = await audit.run_full_audit()
-            if results and "error" not in results:
-                api_state.cached_crm_audit = results
-                logger.info("[API] CRM Audit complete. Health: %s%%", results.get("health_score"))
-        except Exception as e:
-            logger.error("[API] CRM Audit CRASH: %s", e)
         await asyncio.sleep(900)
 
 async def _schedule_amocrm_call_backfill(
