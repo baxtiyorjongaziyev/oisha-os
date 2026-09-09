@@ -242,10 +242,17 @@ async def get_deadlines(airtable=Depends(get_airtable_instance)):
     )
 
 
-@router.post("/actions/{action_type}")
+@router.post(
+    "/actions/{action_type}",
+    dependencies=[require_permissions(Permission.SYSTEM_DEPLOY)],
+)
 async def execute_admin_action(action_type: str, payload: Optional[Dict[str, Any]] = None):
     """Admin amallari. Telethon userbot talab qilinadigan amallar bot
-    ishlamayotgan jarayonda halol 503 qaytaradi."""
+    ishlamayotgan jarayonda halol 503 qaytaradi.
+
+    Router `SYSTEM_READ` talab qiladi (o'qish endpointlari uchun); bu mutatsiya
+    qiluvchi amal qo'shimcha `SYSTEM_DEPLOY` talab qiladi, shuning uchun uni
+    faqat OWNER chaqira oladi (ADMIN'da `SYSTEM_DEPLOY` yo'q)."""
     try:
         if action_type == "send_briefing":
             bot = _get_admin_bot()
