@@ -14,21 +14,31 @@ import structlog
 from src.settings import settings
 from src.services.core.instagram.graph_client import InstagramGraphClient
 from src.services.core.instagram.backfill import backfill_unanswered_comments
+from src.services.core.instagram.api_helpers import (
+    send_ig_message_payload,
+    like_comment,
+    reply_to_comment,
+    fetch_media_caption,
+)
 
 logger = structlog.get_logger("InstagramAgent")
 
 COMMENT_REPLY_SYSTEM = (
-    "Sen — Baxtiyor Gaziyevning O'ZISAN. Shaxsiy Instagram sahifangdagi izohlarga javob yozyapsan.\n"
-    "QAT'IY QOIDALAR:\n"
-    "1. ODAMLARNING HISSIYOTIGA MOS JAVOB BER:\n"
-    "   - Agar odamlar KULIB yozgan bo'lsa (hazil, qiziq voqea, 😂): sen ham kulib, samimiy va qisqa javob ber (masalan: 'Rostanam shunaqa 😂', 'Haqiqat ku 😂', '😂😂').\n"
-    "   - Agar odamlar YIG'LAB / AFSUSTANIB yozgan bo'lsa (😢, xafagarchilik): hamdardlik bilan samimiy va qisqa yoz (masalan: 'Afsuski shunaqa 😢', 'Hayot ekan 😢').\n"
-    "2. ORTIQCHA FALSAFA, MA'RUZA VA NASIHAT TAQIQLANADI: Hech qachon aql o'rgatma, uzun matn to'qima. 1 ta qisqa gap yoki oddiy jonli reaksiya yetarli.\n"
-    "3. NOM / G'OYA SO'RALSA: faqat shu holdagina har kimga alohida yangi, jarangdor variant taklif qil.\n"
-    "4. DIRECT (DM) ga yozish yoki taklif qilish QAT'IYAN TAQIQLANADI.\n"
-    "5. 1-shaxsda gapir ('men', 'rahmat'). O'zingni 'Oisha' yoki 'yordamchi' dema. Jon Branding so'zini ishlatma.\n"
-    "6. O'zbekcha, juda qisqa (ko'pi bilan 1-2 gap), jonli va samimiy."
+    "Sen — Baxtiyor Gaziyevning O'ZISAN (art-direktor, brend dizayner). Shaxsiy Instagram sahifangdagi izohlarga javob yozyapsan.\n"
+    "QAT'IY KO'RSATMALAR (MAJBURIY):\n"
+    "1. VIDEO/REELS MAZMUNI VA DESCRIPTION'NI DIQQAT BILAN O'RGAN: Har bir izohga javob berishdan oldin video posti matnini (caption) va videosining asosiy ma'nosini tahlil qil. Izoh shu videoga qanday bog'langanini tushunib, video kontekstiga to'la mos javob ber.\n"
+    "2. KALIT SO'ZLAR (KEYWORDS / TRIGGERLAR) VA SO'ROVLARGA JAVOB:\n"
+    "   - Agar izohda kalit so'z (masalan: '99', 'prompt', 'kitob', 'shablon', 'daromad', 'link', '+', material/qo'llanma so'rovi) yozilgan bo'lsa:\n"
+    "     * MUTLAQO KULMA! ('Rostanam shunaqa 😂', 'haha' kabi javoblar QAT'IYAN TAQIQLANADI)!\n"
+    "     * MUTLAQO YIG'LAMA! ('Afsuski shunaqa 😢', 'Afsus' kabi javoblar QAT'IYAN TAQIQLANADI)!\n"
+    "     * Munosib, xushmuomala va professional javob ber: masalan, kerakli material profil bio'sida (shapkasida) joylashganini bildir (masalan: 'Qabul qilindi! Havola profil bio'sida joylangan 🤝' yoki 'Rahmat! Kerakli material profil shapkasida bor ✨').\n"
+    "3. O'RINSIZ KULGI VA YIG'I TAQIQLANADI: Faqat izoh muallifi o'zi haqiqatan kulgili hazil qilgan bo'lsagina samimiy tabassum qil. Har bir gapga 'Rostanam shunaqa 😂' deb kulma, jiddiy, neytral yoki ma'lumot so'ralgan izohlarga 'Afsuski 😢' deb yig'lama.\n"
+    "4. FIKR VA SAVOLLARGA MUNOSIB JAVOB: Video mavzusi yuzasidan fikr bildirganlarni samimiy qo'llab-quvvatla; savol berganlarga aniq va tushunarli javob ber; nom/g'oya so'ralsa har biriga alohida jarangdor variant taklif qil.\n"
+    "5. DIRECT (DM) GA CHAQIRISH QAT'IYAN TAQIQLANADI: 'DMga yozdim', 'Directga qarang' dema. Material kerak bo'lsa profil/bio'dagi havolani eslat.\n"
+    "6. SHAXS VA USLUB: 1-shaxsda gapir ('men', 'rahmat'). O'zingni 'Oisha', 'bot' yoki 'yordamchi' dema. Jon Branding so'zini ishlatma.\n"
+    "7. TILI VA HAJMI: O'zbekcha, juda qisqa (ko'pi bilan 1-2 gap), jonli, tabiiy va samimiy."
 )
+
 
 
 __all__ = [
@@ -77,13 +87,6 @@ def verify_signature(payload: Any, signature: str, app_secret: Optional[str] = N
     return hmac.compare_digest(expected, signature)
 
 
-from src.services.core.instagram.api_helpers import (
-    send_ig_message_payload,
-    like_comment,
-    reply_to_comment,
-    fetch_media_caption,
-)
-
 
 def send_ig_reply(recipient_id: str, text: str, access_token: str) -> bool:
     """Sends a Direct Message to the user using the Meta Graph API."""
@@ -105,26 +108,22 @@ FALLBACK_COMMENT_REPLIES = [
 
 async def generate_comment_reply(comment_text: str, post_caption: str = "", commenter_name: str = "") -> str:
     """Context-aware reply to an Instagram comment using the free-AI router.
-    If comment is pure emojis, returns identical emojis.
+    Evaluates video description and comment intent. Pure emojis get mirrored.
     """
-    from src.services.core.instagram.emoji_utils import (
-        get_mirror_emoji_reply,
-        get_short_emotional_reaction,
-    )
+    from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
     emoji_mirror = get_mirror_emoji_reply(comment_text)
     if emoji_mirror:
         return emoji_mirror
 
-    emotional_reaction = get_short_emotional_reaction(comment_text)
-    if emotional_reaction:
-        return emotional_reaction
-
-    caption_block = f'\nPost matni: "{post_caption[:500]}"' if post_caption else ""
+    caption_block = f'Video/Reels matni (caption):\n"{post_caption[:1000]}"\n\n' if post_caption else ""
+    user_label = f"@{commenter_name}" if commenter_name else "Foydalanuvchi"
     prompt = (
-        f"{caption_block}\n"
-        f'{commenter_name} yozgan izoh: "{comment_text}"\n\n'
-        f"Shu izohga Baxtiyor Gaziyev sifatida odamning his-tuyg'usiga (kulgi, yig'i, ma'qullash) mos, qisqa va tabiiy javob yoz:"
+        f"{caption_block}"
+        f'{user_label} izohi: "{comment_text}"\n\n'
+        f"Vazifa: Video mavzusi va matnini inobatga olgan holda Baxtiyor Gaziyev sifatida ushbu izohga munosib, tabiiy va samimiy javob yoz. "
+        f"Agar izoh kalit so'z yoki material so'rovi bo'lsa, aslo kulmasdan va yig'lamasdan, ma'lumot bio'da ekanini bildirib munosib javob ber:"
     )
+
     try:
         from src.services.utils.free_ai_router import get_free_ai_router
         result = await get_free_ai_router().generate_text(

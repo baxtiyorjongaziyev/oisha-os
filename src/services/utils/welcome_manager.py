@@ -23,12 +23,6 @@ class WelcomeManager:
         )
 
     async def send_welcome(self, user_id: int):
-        """Yangi mijozga xush kelibsiz xabari yuborish."""
-        try:
-            # Xavfsizlik uchun faqat biz javob bergan (out=True) bo'lsak yoki lid deb topilsa yuboramiz
-            await self.client.send_message(user_id, self.WELCOME_TEMPLATE)
-            logger.info(f"[WELCOME] Elite greeting sent to user {user_id}")
-            return True
-        except Exception as e:
-            logger.error(f"[WELCOME ERROR] {e}")
-            return False
+        """Yangi mijozga xush kelibsiz xabari yuborish (Owner policy: userbot orqali avtomatik DM yuborish taqiqlangan)."""
+        logger.info(f"[WELCOME] Automated direct message suppressed by owner policy for user {user_id}")
+        return False

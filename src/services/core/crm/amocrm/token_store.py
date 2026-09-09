@@ -106,7 +106,7 @@ async def _load_async() -> Optional[Dict[str, Any]]:
 
     if row.get("access_token"):
         token_data["access_token"] = row["access_token"]
-    if row.get("refresh_token"):
+    if row.get("refresh_token") and row["refresh_token"] != "long_lived_token":
         token_data["refresh_token"] = row["refresh_token"]
 
     expires_at = row.get("expires_at")
@@ -126,9 +126,9 @@ async def _save_async(token_data: Dict[str, Any]) -> None:
         logger.debug("[AMOCRM TOKEN STORE] _init_tables skip", exc_info=True)
 
     access_token = str(token_data.get("access_token") or "")
-    refresh_token = str(token_data.get("refresh_token") or "")
-    if not access_token or not refresh_token:
-        logger.debug("[AMOCRM TOKEN STORE] access/refresh yo'q, DB yozuv o'tkazib yuborildi")
+    refresh_token = str(token_data.get("refresh_token") or "long_lived_token")
+    if not access_token:
+        logger.debug("[AMOCRM TOKEN STORE] access_token yo'q, DB yozuv o'tkazib yuborildi")
         return
 
     expires_raw = token_data.get("expires_at")
