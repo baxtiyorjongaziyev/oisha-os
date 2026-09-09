@@ -213,9 +213,10 @@ class JobsCrmMixin:
 
             amocrm_client = self._get_amocrm_client()
             if amocrm_client:
-                reporter = CRMDailyReporter(amocrm=amocrm_client)
-                stats = await reporter.fetch_weekly_stats(period_start, period_end)
-                report_text = reporter.format_weekly_report_uz(stats)
+                from src.services.core.crm.crm_daily_report import CRMPeriodReporter
+                from src.services.core.crm.daily_report.models import PeriodType
+                reporter = CRMPeriodReporter(amocrm=amocrm_client)
+                report_text = (await reporter.build(PeriodType.WEEKLY)).telegram_text
 
                 send_kwargs = {}
                 if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
