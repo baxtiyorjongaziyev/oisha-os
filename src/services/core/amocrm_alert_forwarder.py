@@ -56,59 +56,11 @@ class AmoCrmAlertForwarder:
         self.topic_id = settings.AMOCRM_ALERT_FORWARD_TOPIC_ID
 
     def setup_handlers(self) -> None:
-        if not self.group_id:
-            logger.warning(
-                "[AMOCRM_ALERT] AMOCRM_ALERT_FORWARD_GROUP_ID sozlanmagan — forwarder o'chirilgan."
-            )
-            return
-        if not self.bot_runtime:
-            logger.warning(
-                "[AMOCRM_ALERT] bot_runtime mavjud emas — forwarder o'chirilgan."
-            )
-            return
-        if not self.user_client:
-            logger.warning(
-                "[AMOCRM_ALERT] user_client mavjud emas — forwarder o'chirilgan."
-            )
-            return
-
-        @self.user_client.on(
-            events.NewMessage(
-                incoming=True,
-                from_users=AMOCRM_BOT_USERNAME,
-            )
-        )
-        async def _relay_amocrm_alert(event):
-            try:
-                # event.message.text re-renders formatting entities as
-                # Telethon's own markdown dialect (** for bold, not Telegram
-                # Bot API's single-* Markdown or MarkdownV2 escaping rules),
-                # so relaying it with a matching parse_mode would need exact
-                # dialect parity we can't guarantee. raw_text is the
-                # unformatted original — safe to send as plain text, no
-                # literal "**" markers leaking into the relayed message.
-                text = (event.message.raw_text or event.message.message or "").strip()
-                if not text:
-                    return
-                crm_url = _extract_crm_url(event.message)
-                buttons = [[{"text": "🌐 Перейти в amoCRM", "url": crm_url}]] if crm_url else None
-
-                await self.bot_runtime.send_message(
-                    self.group_id,
-                    text,
-                    message_thread_id=self.topic_id,
-                    buttons=buttons,
-                )
-                logger.info(
-                    f"[AMOCRM_ALERT] Relayed alert from @{AMOCRM_BOT_USERNAME} to {self.group_id}"
-                    + (" (with CRM link)" if crm_url else " (no CRM link found)")
-                )
-            except Exception as e:
-                logger.error(f"[AMOCRM_ALERT] Relay failed: {e}")
-
+        """Deprecated: Userbot interception of @amocrm_amobot private messages
+        is disabled per owner directive. Task alerts are handled directly
+        via AmoCRM REST API polling (poll_overdue_tasks) and @jonairobot."""
         logger.info(
-            f"[AMOCRM_ALERT] Listening for @{AMOCRM_BOT_USERNAME} alerts -> group {self.group_id} "
-            f"(via {getattr(self.bot_runtime, 'backend', 'bot_runtime')})"
+            "[AMOCRM_ALERT] Userbot relay of @amocrm_amobot DMs is disabled per policy. Direct API polling active."
         )
 
     async def poll_overdue_tasks(self) -> None:

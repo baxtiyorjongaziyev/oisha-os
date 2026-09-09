@@ -20,6 +20,19 @@
 
 ## Agent Handoff Log
 
+- **2026-09-09 — Antigravity — CodeQL 0-Alerts Resolved & Deploy Meta Retention Guard:**
+  1. **All 4 CodeQL Alerts Resolved (0 Alerts Remaining)**: PR #598 orqali barcha ochiq CodeQL alertlar (ReDoS, stack-trace exposure, clear-text logging) to'liq tuzatildi va `main` ga merge qilindi. GitHub Code Scanning Alerts soni **0** ga tushirildi (`[]`).
+  2. **Oracle Deploy Meta Credentials Retention**: `oracle-deploy.yml` har deployda `.env` ni qayta yaratganda mavjud `META_*` va `INSTAGRAM_*` kalitlarni `/tmp/meta_env_backup.env` orqali saqlab qoladigan qilindi. Endi deploy Meta konfiguratsiyasini o'chirib yubormaydi.
+  3. **Non-blocking /readyz/ Probe**: `src/api/routes/health.py` dagi `/readyz/` endpointi `HEALTH_LIVE_DB_PROBE` parametriga moslashtirildi (`vm_service` rejimida Turso DB ga keraksiz blocking simulyatsiyasi to'xtatildi). Deploy health-check kutish sikli `seq 1 36` (180s) ga kengaytirildi.
+  4. **AmoCRM Long-Lived Token Store Fix**: `src/services/core/crm/amocrm/auth.py` va `token_store.py` uzoq muddatli access_tokenlarni Turso DB ga to'g'ri saqlab, restartdan keyin ham o'chib ketmaydigan qilindi.
+  5. **Verification**: 805 ta test 100% yashil o'tdi (`pytest`). Bandit: 0 issues (92,713 LOC). CodeQL: 0 alerts.
+
+- **2026-09-09 — Antigravity — Instagram Video Context & Keyword Reply Guard Implementation:**
+  1. **Video Description & Reels Context Awareness**: `src/services/core/instagram_agent.py` dagi `COMMENT_REPLY_SYSTEM` va `generate_comment_reply` to'liq yangilandi. Izohga javob berishdan oldin video posti tavsifi (caption) va reels ma'nosini chuqur tahlil qilib, shunga mos professional javob yozish majburiy qilindi.
+  2. **Keyword & Trigger Reply Guard**: Kalit so'zlar (masalan: '99', 'prompt', 'kitob', 'shablon', 'daromad', 'link', '+', material/qo'llanma so'rovi) yozganlarga "Rostanam shunaqa 😂" deb kulish yoki "Afsuski shunaqa 😢" deb yig'lash qat'iyan taqiqlandi. Ular uchun material profil bio'sida (shapkasida) ekanligini bildiruvchi xushmuomala, professional javoblar belgilandi.
+  3. **Canned Shortcut Deprecation**: `src/services/core/instagram/emoji_utils.py` dagi `get_short_emotional_reaction` shabloni o'chirildi (barcha matnli izohlar endi to'liq AI orqali video caption konteksti bilan tahlil qilinadi; faqatgina sof emojilar mirror qilinadi).
+  4. **Verification & Deployment**: Pytest (23/23 tests passed), Bandit (0 issues), 400 qator modular standartiga 100% rioya qilindi (`instagram_agent.py` 312L, `emoji_utils.py` 51L). Oracle VM ga jonli deploy qilinib, `oisha-os.service` muvaffaqiyatli restart qilindi (`active (running)`).
+
 - **2026-09-08 — Antigravity — AmoCRM Task Staggering & Notification Pipeline Recovery:**
   1. **User Policy ("bir vaqtga qator zadachalar qo'yma")**: Barcha 360 ta ochiq vazifa `scripts/stagger_tasks.py` orqali qayta tekshirildi. Bitta vaqtga to'planib qolgan barcha klasterlar (masalan, 18:00 ga qator tushgan 24 ta va 22 ta vazifa) ish vaqti bo'yicha (10:00 dan 18:00 gacha) har 15–20 daqiqaga bittadan tekis taqsimlandi.
   2. **Notification Pipeline Fix ("Vazifa vaqti keldi")**: Nima uchun bugun bildirishnoma kelmagani aniqlandi: vazifalar 18:00 ga surilgani sababli kun davomida tizim ularni "kelajakdagi vazifa" deb hisoblagan va eslatma yubormagan; shuningdek Oracle VM dagi 24 soatlik access token muddati tugab 401 bergandi. 2031-yilgacha amal qiluvchi uzoq muddatli rasmiy token tiklandi va HTTP 200 OK qaytdi.

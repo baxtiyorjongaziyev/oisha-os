@@ -79,7 +79,7 @@ class AmoCRMAuthMixin:
         if self._load_token_from_db_fallback():
             return
         # Env/fayldan yuklangan sog'lom payloadни DB'ga ko'chirish
-        if self.token_data.get("refresh_token"):
+        if self.token_data.get("refresh_token") or self.token_data.get("access_token"):
             self._persist_token_to_db()
 
     def _set_token_data(self, data: dict) -> None:
@@ -126,20 +126,37 @@ class AmoCRMAuthMixin:
     def _apply_raw_refresh_fallback(self) -> None:
         """AMOCRM_REFRESH_TOKEN — payload bo'sh yoki refresh_token yo'q bo'lsa."""
         raw_refresh = os.environ.get("AMOCRM_REFRESH_TOKEN")
-        if raw_refresh and (not self.token_data or not self.token_data.get("refresh_token")):
+        if not raw_refresh:
+            return
+        expires_at = self.token_data.get("expires_at") if isinstance(self.token_data, dict) else None
+        is_long_lived = bool(
+            expires_at
+            and isinstance(expires_at, (int, float))
+            and expires_at > (time.time() + 86400)
+            and self.access_token
+        )
+        if not self.token_data:
             logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
             self.token_data = {"refresh_token": raw_refresh}
             self.access_token = None
+        elif not self.token_data.get("refresh_token"):
+            if is_long_lived:
+                logger.debug("[AMOCRM] Retaining valid long-lived access token and attaching refresh fallback.")
+                self.token_data["refresh_token"] = raw_refresh
+            else:
+                logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
+                self.token_data = {"refresh_token": raw_refresh}
+                self.access_token = None
 
     def _load_token_from_db_fallback(self) -> bool:
         """Turso DB fallback — env/fayl butunlay bo'sh bo'lganda. True -> yuklandi."""
-        if self.token_data and self.token_data.get("refresh_token"):
+        if self.token_data and (self.token_data.get("refresh_token") or self.token_data.get("access_token")):
             return False
         try:
             from src.services.core.crm.amocrm.token_store import load_token_from_db
 
             db_token = load_token_from_db()
-            if isinstance(db_token, dict) and db_token.get("refresh_token"):
+            if isinstance(db_token, dict) and (db_token.get("refresh_token") or db_token.get("access_token")):
                 self._set_token_data(db_token)
                 logger.info("[AMOCRM] Token Turso DB fallback'dan yuklandi (restart-proof)")
                 return True
@@ -152,7 +169,7 @@ class AmoCRMAuthMixin:
         try:
             from src.services.core.crm.amocrm.token_store import save_token_to_db
 
-            if isinstance(self.token_data, dict) and self.token_data.get("refresh_token"):
+            if isinstance(self.token_data, dict) and (self.token_data.get("refresh_token") or self.token_data.get("access_token")):
                 save_token_to_db(self.token_data)
         except Exception as e:
             logger.debug("[AMOCRM] DB token persist skip: %s", type(e).__name__)
