@@ -111,13 +111,14 @@ def main() -> int:
 
     print("\n# ---- paste into the server .env ----")
     print(f"YOUTUBE_CLIENT_ID={args.client_id}")
-    print(f"YOUTUBE_CLIENT_SECRET={args.client_secret}")
-    print(f"YOUTUBE_REFRESH_TOKEN={creds.refresh_token}")
+    print("YOUTUBE_CLIENT_SECRET=***   # <-- configured in Google Cloud Console")
+    print("YOUTUBE_REFRESH_TOKEN=***   # <-- saved to token.pickle, loaded automatically")
     if channel_id:
         print(f"YOUTUBE_CHANNEL_ID={channel_id}")
     else:
         print("YOUTUBE_CHANNEL_ID=UC...   # <-- fill in manually (channel could not be detected)")
     print("# ------------------------------------")
+    print("\n[INFO] Full credentials saved to token.pickle — deploy token.pickle to server data/ directory.", file=sys.stderr)
     return 0
 
 

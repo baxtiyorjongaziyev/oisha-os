@@ -151,7 +151,7 @@ async def telegram_extension_send(request: Request):
         return {"success": True, "sent": sent}
     except Exception as e:
         logger.error(f"[TELEGRAM EXT SEND] {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Internal server error"}
 
 # =====================================================================
 # Airtable OAuth 2.0 Integratsiyasi
