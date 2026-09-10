@@ -12,13 +12,12 @@ on:
       - '.github/workflows/oracle-deploy.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'requirements.txt'
-      - 'deploy/**'
-      - 'scripts/**'
-      - 'data/service_account.json'
-      - '.github/workflows/oracle-deploy.yml'
+    # No paths filter here on purpose: "Import-time crash guard" is a required
+    # status check on main's branch protection, so it must report on every PR
+    # regardless of which files it touches — a path filter here means GitHub
+    # never sees a run for out-of-scope PRs and treats the check as eternally
+    # pending, blocking merge even via admin bypass. The push trigger above
+    # keeps its path filter since that one gates actual production deploys.
   workflow_dispatch:
 
 concurrency:
