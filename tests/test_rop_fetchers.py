@@ -71,6 +71,14 @@ async def test_non_200_returns_empty_not_raise():
     f = RopFetcher(FakeAmo(), session=sess)
     assert await f.fetch_today_events([1, 2]) == {}
 
+@pytest.mark.asyncio
+async def test_won_leads_first_page_failure_returns_empty_not_raise():
+    sess = FakeSession([("/api/v4/leads", FakeResp(500, {}))])
+    f = RopFetcher(FakeAmo(), session=sess)
+    result = await f.fetch_won_leads_since(0)
+    assert result == []
+
+
 def test_tashkent_day_start_epoch():
     now = datetime(2026, 9, 10, 15, 0, tzinfo=timezone.utc)  # 20:00 Tashkent
     start = _tashkent_day_start_epoch(now)
