@@ -24,6 +24,7 @@ from src.db.repositories.intelligence import IntelligenceRepository
 from src.db.repositories.reports import ReportsRepository
 from src.db.repositories.oauth import OAuthRepository
 from src.db.repositories.gamification import GamificationRepository
+from src.db.repositories.rop import RopRepository
 
 logger = structlog.get_logger()
 
@@ -59,11 +60,12 @@ class Database:
         self.reports = ReportsRepository(self.conn_manager)
         self.oauth = OAuthRepository(self.conn_manager)
         self.gamification = GamificationRepository(self.conn_manager)
+        self.rop = RopRepository(self.conn_manager)
 
         # Wire connection factory so monkeypatching db.get_connection works
         for repo in [
             self.users, self.messages, self.kv, self.crm,
-            self.tasks, self.checkpoints, self.intelligence, self.reports, self.oauth, self.gamification
+            self.tasks, self.checkpoints, self.intelligence, self.reports, self.oauth, self.gamification, self.rop
         ]:
             repo.set_connection_factory(lambda: self.get_connection())
 
@@ -95,6 +97,7 @@ class Database:
         await self.intelligence.init_tables()
         await self.reports.init_tables()
         await self.gamification.init_table()
+        await self.rop.init_table()
         await self.oauth._init_tables()
         await self._init_legacy_tables()
 
