@@ -30,8 +30,8 @@ def test_monday_start_is_monday_midnight():
 
 def test_no_result_streak_skips_sunday_and_stops_on_hit():
     now = datetime(2026, 9, 10, 18, 0, tzinfo=TZ)   # Thursday
-    # Wed and Tue empty, Mon has a win -> streak 2 (Sun 2026-09-07 skipped anyway)
-    mon_win = int(datetime(2026, 9, 8, 11, 0, tzinfo=TZ).timestamp())  # Monday
+    # Wed and Tue empty, Mon 09-07 has a win -> streak 2
+    mon_win = int(datetime(2026, 9, 7, 11, 0, tzinfo=TZ).timestamp())  # Monday
     assert no_result_streak_days([mon_win], now) == 2
 
 def test_no_result_streak_capped_at_7():
