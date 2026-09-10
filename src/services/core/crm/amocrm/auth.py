@@ -9,6 +9,8 @@ from functools import wraps
 
 import structlog
 
+from src.services.core.crm.amocrm.token_loader import AmoCRMTokenLoaderMixin
+
 logger = structlog.get_logger()
 
 
@@ -62,120 +64,29 @@ def _plain_secret(value: Any) -> Any:
 
 
 
-class AmoCRMAuthMixin:
-    def _load_token(self):
-        """Tokenni env > fayl > raw refresh > Turso DB tartibida o'qish.
-
-        Turso DB — restart'ga chidamli fallback: agar env va fayl bo'sh
-        bo'lsa (aynan Oracle VM restart'da ``data/`` yo'qolganda yuzaga
-        keladigan holat), DB'dagi eng oxirgi rotatsiya qilingan payload
-        integratsiyani tirik saqlaydi. Manba tanlash SRP bo'yicha alohida
-        yordamchilarga bo'lingan.
-        """
-        if self._load_token_from_env_json():
-            return
-        self._load_token_from_file()
-        self._apply_raw_refresh_fallback()
-        if self._load_token_from_db_fallback():
-            return
-        # Env/fayldan yuklangan sog'lom payloadни DB'ga ko'chirish
-        if self.token_data.get("refresh_token") or self.token_data.get("access_token"):
-            self._persist_token_to_db()
-
-    def _set_token_data(self, data: dict) -> None:
-        """token_data + access_token'ni bir joyda o'rnatadi."""
-        self.token_data = data
-        self.access_token = (
-            str(data.get("access_token", "")) if data.get("access_token") else None
-        )
-
-    def _load_token_from_env_json(self) -> bool:
-        """AMOCRM_TOKEN_JSON env'dan to'liq payload. True -> yuklandi."""
-        env_token_json = os.environ.get("AMOCRM_TOKEN_JSON")
-        if not env_token_json:
-            return False
-        try:
-            data = json.loads(env_token_json)
-            if isinstance(data, dict):
-                self._set_token_data(data)
-                self._persist_token_to_db()
-                return True
-        except Exception as e:
-            self.last_error = "token_env_parse_failed"
-            logger.error(f"[AMOCRM] Env token parse xatosi: {type(e).__name__}")
-        return False
-
-    def _load_token_from_file(self) -> None:
-        """Diskdagi token JSON'ini o'qiydi (raw refresh'dan afzal — rotatsiya)."""
-        if self.token_data or not os.path.exists(self.token_file):
-            return
-        for encoding in ("utf-8-sig", "utf-16"):
-            try:
-                with open(self.token_file, "r", encoding=encoding) as f:
-                    data = json.load(f)
-                if isinstance(data, dict):
-                    self._set_token_data(data)
-                    return
-            except UnicodeError:
-                continue
-            except Exception as e:
-                self.last_error = "token_file_load_failed"
-                logger.error(f"[AMOCRM] Token yuklashda xato: {type(e).__name__}")
-                return
-
-    def _apply_raw_refresh_fallback(self) -> None:
-        """AMOCRM_REFRESH_TOKEN — payload bo'sh yoki refresh_token yo'q bo'lsa."""
-        raw_refresh = os.environ.get("AMOCRM_REFRESH_TOKEN")
-        if not raw_refresh:
-            return
-        expires_at = self.token_data.get("expires_at") if isinstance(self.token_data, dict) else None
-        is_long_lived = bool(
-            expires_at
-            and isinstance(expires_at, (int, float))
-            and expires_at > (time.time() + 86400)
-            and self.access_token
-        )
-        if not self.token_data:
-            logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
-            self.token_data = {"refresh_token": raw_refresh}
-            self.access_token = None
-        elif not self.token_data.get("refresh_token"):
-            if is_long_lived:
-                logger.debug("[AMOCRM] Retaining valid long-lived access token and attaching refresh fallback.")
-                self.token_data["refresh_token"] = raw_refresh
-            else:
-                logger.info("[AMOCRM] Found raw AMOCRM_REFRESH_TOKEN fallback.")
-                self.token_data = {"refresh_token": raw_refresh}
-                self.access_token = None
-
-    def _load_token_from_db_fallback(self) -> bool:
-        """Turso DB fallback — env/fayl butunlay bo'sh bo'lganda. True -> yuklandi."""
-        if self.token_data and (self.token_data.get("refresh_token") or self.token_data.get("access_token")):
-            return False
-        try:
-            from src.services.core.crm.amocrm.token_store import load_token_from_db
-
-            db_token = load_token_from_db()
-            if isinstance(db_token, dict) and (db_token.get("refresh_token") or db_token.get("access_token")):
-                self._set_token_data(db_token)
-                logger.info("[AMOCRM] Token Turso DB fallback'dan yuklandi (restart-proof)")
-                return True
-        except Exception as e:
-            logger.warning("[AMOCRM] DB token yuklashda xato: %s", type(e).__name__)
-        return False
-
-    def _persist_token_to_db(self):
-        """Joriy token_data'ni Turso DB'ga yozadi (best-effort, xato yutiladi)."""
-        try:
-            from src.services.core.crm.amocrm.token_store import save_token_to_db
-
-            if isinstance(self.token_data, dict) and (self.token_data.get("refresh_token") or self.token_data.get("access_token")):
-                save_token_to_db(self.token_data)
-        except Exception as e:
-            logger.debug("[AMOCRM] DB token persist skip: %s", type(e).__name__)
+class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
+    """OAuth token saqlash + refresh. Yuklash mantiqи ``AmoCRMTokenLoaderMixin``da."""
 
     def _save_token(self, token_data):
-        """Atomically save OAuth tokens with owner-only file permissions."""
+        """Atomically save OAuth tokens with owner-only file permissions.
+
+        Yozish tartibi SIGKILL-proof: avval xotira holati + Turso DB
+        (bardavom, restart'ga chidamli manba), keyin lokal fayl. Oracle VM'da
+        servis shutdown timeout'da ``SIGKILL`` (status=9) bilan o'ladi —
+        agar u fayl yozish o'rtasida kelsa, DB'da allaqachon yangi rotatsiya
+        qilingan token bor va keyingi start uzilmaydi.
+        """
+        # 1. Xotira holati — darrov, hech qanday I/O kutmasdan.
+        self.token_data = token_data
+        self.access_token = token_data.get("access_token")
+        self.auth_blocked_until = 0.0
+        self.auth_block_reason = None
+
+        # 2. Turso DB — fayldan OLDIN. Rotatsiya qilingan refresh_token
+        #    shu yerda bo'lsa, SIGKILL fayl yozuvini uzsa ham zanjir tirik.
+        self._persist_token_to_db()
+
+        # 3. Lokal fayl (atomik replace) — bonus, tez local o'qish uchun.
         token_path = os.path.abspath(self.token_file)
         token_dir = os.path.dirname(token_path)
         temp_path = None
@@ -197,25 +108,17 @@ class AmoCRMAuthMixin:
                 except OSError:
                     pass
                 raise
-            self.token_data = token_data
-            self.access_token = token_data.get("access_token")
-            self.auth_blocked_until = 0.0
-            self.auth_block_reason = None
         except Exception as e:
+            # DB'ga allaqachon yozilgan — fayl xatosi integratsiyani
+            # o'ldirmaydi, faqat lokal keshni yangilay olmadik.
             self.last_error = "token_file_save_failed"
-            logger.error("[AMOCRM] Token saqlashda xato: %s", type(e).__name__)
-            raise
+            logger.error("[AMOCRM] Token faylga saqlashda xato (DB baribir yangilandi): %s", type(e).__name__)
         finally:
             if temp_path:
                 try:
                     os.unlink(temp_path)
                 except OSError:
                     pass
-
-        # Faylga yozildi — endi Turso DB'ga ham. AmoCRM refresh_token'lari
-        # rotatsiya qilinadi, shuning uchun yangi payload'ni bardavom joyga
-        # yozib qo'yish zanjir uzilishining oldini oladi (restart-proof).
-        self._persist_token_to_db()
 
     def _mark_auth_blocked(self, reason: str, seconds: int = 3600) -> None:
         self.auth_block_reason = reason
@@ -233,7 +136,13 @@ class AmoCRMAuthMixin:
         return True
 
     def refresh_token(self):
-        """Refresh token yordamida yangi access token olish."""
+        """Refresh token yordamida yangi access token olish.
+
+        Sinmaydigan oqim ``refresh_guard`` orqali: cross-process lock ostida
+        ishlaydi, HTTP 4xx da darrov bloklamasdan bardavom joydan yangiroq
+        token izlaydi (parallel rotatsiya holati). Faqat hamma manba
+        yaroqsiz bo'lсagina blok + owner alert.
+        """
         if self.is_auth_blocked():
             return False
 
@@ -242,6 +151,26 @@ class AmoCRMAuthMixin:
             logger.error("[AMOCRM] Refresh token topilmadi.")
             return False
 
+        from src.services.core.crm.amocrm.refresh_guard import refresh_with_guard
+
+        self._last_refresh_http_status = None
+        ok = refresh_with_guard(
+            do_refresh=self._do_http_refresh,
+            reload_freshest=self._reload_freshest_token,
+            apply_token=self._set_token_data,
+        )
+        if not ok:
+            # Guard hamma manbani (HTTP + bardavom joy) yaroqsiz deb topdi —
+            # endi haqiqatan owner qayta avtorizatsiya qilishi kerak.
+            status = getattr(self, "_last_refresh_http_status", None) or "unknown"
+            self._mark_auth_blocked(
+                f"oauth_reauthorization_required_http_{status}", seconds=3600
+            )
+            logger.critical("[AMOCRM AUTH EXPIRED] Yangi authorization code kerak.")
+        return ok
+
+    def _do_http_refresh(self):
+        """Haqiqiy ``grant_type=refresh_token`` HTTP so'rovi. Guard ичидан chaqiriladi."""
         url = f"{self.base_url}/oauth2/access_token"
         data = {
             "client_id": self.client_id,
@@ -276,12 +205,12 @@ class AmoCRMAuthMixin:
             )
             self.last_error = f"refresh_failed_http_{response.status_code}"
             logger.error(f"[AMOCRM ERROR] Token yangilashda xato: {error_msg}")
-            if response.status_code in {400, 401}:
-                self._mark_auth_blocked(
-                    f"oauth_reauthorization_required_http_{response.status_code}",
-                    seconds=3600,
-                )
-                logger.critical("[AMOCRM AUTH EXPIRED] Yangi authorization code kerak.")
+            # DIQQAT: 400/401 da BU YERDA bloklamaymiz. AmoCRM refresh_token'lari
+            # rotatsiya qilinadi — 400 ko'pincha "boshqa instance allaqachon
+            # yangiladi" degani. Blok qarorini refresh_guard beradi: u avval
+            # bardavom joydan (Turso DB) yangiroq token izlaydi, faqat u ham
+            # yaroqsiz bo'lсagina _mark_reauth_required() chaqiriladi.
+            self._last_refresh_http_status = response.status_code
             return False
         except Exception as e:
             self.last_error = "refresh_request_failed"
