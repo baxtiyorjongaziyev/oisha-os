@@ -199,8 +199,15 @@ class AppSettings(BaseSettings):
     MARKETING_TOPIC_ID: Optional[int] = None                             # Marketing topic ID
 
     # @amocrm_amobot eslatmalarini forward qilish (Просроченная задача va h.k.)
+    # Bu follow-up / task deadline eslatmalari uchun (kelishilgan vaqtda yuboriladi).
     AMOCRM_ALERT_FORWARD_GROUP_ID: Optional[int] = None
     AMOCRM_ALERT_FORWARD_TOPIC_ID: Optional[int] = None
+
+    # AI qo'ng'iroq tahlili xulosasi uchun alohida topic (o'qitish bo'limi).
+    # Har qo'ng'iroq tahlil qilingach darhol yuboriladi. Unset bo'lsa
+    # AMOCRM_ALERT_FORWARD_* ga qaytadi.
+    CALL_ANALYSIS_GROUP_ID: Optional[int] = None
+    CALL_ANALYSIS_TOPIC_ID: Optional[int] = None
 
     # Tez Natija Group IDs
     TN6_GROUP_ID: Optional[int] = None
