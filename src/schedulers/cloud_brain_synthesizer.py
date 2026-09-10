@@ -11,30 +11,32 @@ from src.utils.git_sync import push_vault_to_remote
 logger = logging.getLogger(__name__)
 
 PROMPT = """
-You are the AI "Second Brain" Synthesizer for Oisha-OS.
-Analyze the following recent tasks, activities, and communication logs.
-Your goal is to extract valuable insights across 5 key dimensions of a Second Brain.
+Sen Oisha-OS uchun AI "Ikkinchi Miya" (Second Brain) tahlilchisisan.
+Quyidagi so'nggi vazifalar, faoliyatlar va muloqot loglarini tahlil qil.
+Maqsading — Ikkinchi Miyaning 5 asosiy yo'nalishi bo'yicha foydali xulosalar chiqarish.
 
-Format your output EXACTLY as a markdown list with these 5 sections:
+Javobni albatta O'ZBEK TILIDA yoz. Inglizcha so'z va iboralardan foydalanma.
 
-### 1. 🔄 Context Switching (Key Decisions & Next Actions)
-- Extract the absolute next action for active projects so the user can jump right back in without thinking.
+Natijani AYNAN quyidagi 5 bo'lim bilan markdown ro'yxat shaklida ber:
 
-### 2. 💡 Content Machine (Ideas & Quotes)
-- Extract any interesting thoughts, quotes, or marketing/content ideas mentioned.
+### 1. 🔄 Kontekst almashinuvi (Muhim qarorlar va keyingi qadamlar)
+- Faol loyihalar bo'yicha aniq keyingi qadamni ajratib ber, shunda foydalanuvchi darhol ishni davom ettira oladi.
 
-### 3. 📜 SOPs & Agent Rules
-- Extract any implicit rules, instructions, or workflows that the user mentioned. These will become permanent SOPs.
+### 2. 💡 Kontent g'oyalari (Fikrlar va iqtiboslar)
+- Aytilgan qiziqarli fikrlar, iqtiboslar yoki marketing/kontent g'oyalarini ajratib ber.
 
-### 4. 🤝 Personal CRM (Promises Tracker)
-- Extract any "Dropped Balls", unfulfilled promises, or pending agreements with specific people.
+### 3. 📜 SOP va agent qoidalari
+- Foydalanuvchi aytgan yashirin qoidalar, ko'rsatmalar yoki ish jarayonlarini ajratib ber. Ular doimiy SOP (standart ish tartibi) ga aylanadi.
 
-### 5. 🧩 Pattern Recognition (Connections)
-- Find any non-obvious connections between different tasks or problems. How does A relate to B?
+### 4. 🤝 Shaxsiy CRM (Va'dalar kuzatuvchisi)
+- Aniq odamlar bilan bog'liq bajarilmagan va'dalar yoki kelishuvlarni ajratib ber.
 
-If a section has no relevant data, write: "Ma'lumot yo'q."
+### 5. 🧩 Naqsh aniqlash (Bog'lanishlar)
+- Turli vazifalar yoki muammolar orasidagi oshkora bo'lmagan bog'lanishlarni top. A qanday qilib B bilan bog'liq?
 
-Data:
+Agar biror bo'limda tegishli ma'lumot bo'lmasa, shunday yoz: "Ma'lumot yo'q."
+
+Ma'lumotlar:
 {data}
 """
 
