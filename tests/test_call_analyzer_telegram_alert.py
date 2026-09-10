@@ -18,6 +18,8 @@ async def test_notify_telegram_call_analysis_triggers_bot():
     mock_bot.send_message = AsyncMock(return_value=True)
 
     with patch("src.context.app_ctx.bot_runtime", mock_bot), \
+         patch("src.settings.settings.CALL_ANALYSIS_GROUP_ID", None), \
+         patch("src.settings.settings.CALL_ANALYSIS_TOPIC_ID", None), \
          patch("src.settings.settings.AMOCRM_ALERT_FORWARD_GROUP_ID", -100123456789), \
          patch("src.settings.settings.AMOCRM_ALERT_FORWARD_TOPIC_ID", 443):
 
@@ -42,7 +44,8 @@ async def test_notify_telegram_call_analysis_triggers_bot():
         mock_bot.send_message.assert_called_once()
         call_kwargs = mock_bot.send_message.call_args.kwargs
         assert call_kwargs["chat_id"] == -100123456789
-        assert call_kwargs["reply_to_message_id"] == 443
+        assert call_kwargs["message_thread_id"] == 443
+        assert "reply_to_message_id" not in call_kwargs
         assert "Call Intelligence" in call_kwargs["text"]
         assert "AmoCRM Lead #98765" in call_kwargs["text"]
         assert "92/100" in call_kwargs["text"]
