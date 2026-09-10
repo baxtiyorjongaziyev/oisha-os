@@ -140,18 +140,11 @@ def score_seller_leads(
     return out
 
 
-def _is_hot(scored: list[LeadScore], s: LeadScore) -> bool:
-    """A lead worth flagging: HOT/WARM band, or the seller's single best live lead."""
-    if s.band in ("HOT", "WARM"):
-        return True
-    return bool(scored) and s is scored[0] and s.score > 0
-
-
 def _expected(scored: list[LeadScore]) -> tuple[list[ExpectedItem], int]:
     items = [
         ExpectedItem(s.name, int(s.price * s.score / 100), s.score)
         for s in scored
-        if _is_hot(scored, s)
+        if s.band in ("HOT", "WARM")
     ]
     return items, sum(i.revenue_est for i in items)
 
@@ -189,7 +182,7 @@ def build_morning(seller, scored, tasks_by_lead, findings, config, now) -> Selle
 def build_midday(seller, scored, actuals, touched_lead_ids, config) -> SellerMiddayCheck:
     pace = config["midday.pace_pct"]
     hot_not_touched = [
-        s.name for s in scored if _is_hot(scored, s) and s.lead_id not in touched_lead_ids
+        s.name for s in scored if s.band == "HOT" and s.lead_id not in touched_lead_ids
     ]
     priority_now = [s for s in scored if s.lead_id not in touched_lead_ids][:3]
     buckets = [
