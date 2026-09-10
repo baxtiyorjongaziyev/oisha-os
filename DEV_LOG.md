@@ -5,6 +5,43 @@ Bu fayl Google AI Studio ↔ Antigravity o'rtasidagi "xotira ko'prigi" vazifasin
 
 ---
 
+## 2026-09-09 | Claude Sessiyasi — Yagona CRM davriy hisobot (kunlik/haftalik/oylik)
+
+**Nima qilindi:** `src/services/core/crm/daily_report/` paketi period-agnostic
+qilib qayta yig'ildi. Bitta `CRMPeriodReporter.build(PeriodType)` uch davr
+(kunlik/haftalik/oylik) uchun bir xil metrika to'plamini beradi — Telegram
+matni va Dashboard raqamlari **bitta manbadan**.
+
+- `PeriodMetrics` — bitim (yangi/faol/yutilgan/yutqazilgan/win rate/o'rtacha
+  bitim/pipeline/stagnatsiya), aloqa (yangi kontakt/kompaniya/kiruvchi
+  qo'ng'iroq), zadacha (yaratilgan/bajarilgan/ochiq/muddati o'tgan/zadachasiz
+  bitim), menejer kesimi.
+- Proxy metrikalar (`contacted`, `qualified`, `avg_response_sec`) olib
+  tashlandi — soxta aniqlik.
+- Telegram: kunlik 19:30, haftalik Dush 9:00, oylik oyning 1-kuni 9:00 ->
+  sotuv bo'limi guruhi `CRM_SALES_REPORT_GROUP_ID` (`-1003854308552`),
+  topic `115`. `.env` orqali override mumkin.
+- Davriy snapshotlar `crm_report_snapshots` jadvaliga yoziladi (davrlararo
+  delta uchun).
+- Yangi `GET /api/crm/reports?period=daily|weekly|monthly` endpoint +
+  Next.js proxy `/api/oisha/crm-reports` + `/analytics` sahifasida "CRM
+  Hisobot" tab (davr tugmalari, 4 karta guruhi, menejer jadvali, Telegram
+  matni bloki).
+- Ilgari buzuq bo'lgan `CRMDailyReporter.get_weekly_report()` chaqiruvi
+  tuzatildi.
+- Telegram komandalar: `/report` (kunlik), yangi `/report_week`,
+  `/report_month`; `/stats` va `/history` yangi maydonlarga o'tkazildi.
+
+**Gate:** 63 test o'tdi (7 yangi feature + weekly/amocrm-sync/task-notifier/
+crm-db/daily-analytics backward-compat). `bandit -ll` toza.
+
+**Qolgan tekshiruv:** frontend `apps/web` uchun `pnpm install && pnpm
+typecheck && pnpm build` bu muhitda ishlamadi (node_modules yo'q) — statik
+ko'rib chiqildi, lekin `tsc`/`next build` tasdiqlanmagan. Backend dev API
+ham bu worktree'da ochilmadi (`ALLOW_LOCAL_RUN=0`).
+
+---
+
 ## 2026-08-21 | Claude Sessiyasi — Telegram userbot: akkaunt to'liq chiqarib yuborildi
 
 **Nima bo'ldi:** `scripts/send_juma_greetings.py` (Juma tabrigi, 1606 kishilik guruh)

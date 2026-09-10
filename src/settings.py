@@ -209,6 +209,10 @@ class AppSettings(BaseSettings):
     TN3_GROUP_ID: Optional[int] = None
     TN2_GROUP_ID: Optional[int] = None
 
+    # CRM Period Reports (kunlik/haftalik/oylik -> sotuv bo'limi guruhi)
+    CRM_SALES_REPORT_GROUP_ID: Optional[int] = -1003854308552   # Sotuv bo'limi guruhi (CRM davriy hisobotlar)
+    CRM_SALES_REPORT_TOPIC_ID: Optional[int] = 115              # Hisobotlar topic
+
     # Case Publisher & CMS Settings
     JONBRANDING_CHANNEL: str = "jonbranding"
     CMS_WEBHOOK_URL: Optional[str] = None

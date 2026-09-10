@@ -25,16 +25,85 @@ interface DashboardOverview {
   };
 }
 
+interface CrmManagerRow {
+  user_id: number;
+  name: string;
+  won_count: number;
+  won_amount: number;
+  open_tasks: number;
+  overdue_tasks: number;
+}
+
+interface CrmMetrics {
+  new_leads: number;
+  won_count: number;
+  won_amount: number;
+  lost_count: number;
+  lost_amount: number;
+  active_count: number;
+  active_amount: number;
+  pipeline_value: number;
+  stagnated_count: number;
+  win_rate: number;
+  avg_won_deal: number;
+  new_contacts: number;
+  new_companies: number;
+  incoming_calls: number;
+  tasks_created: number;
+  tasks_completed: number;
+  tasks_open: number;
+  tasks_overdue: number;
+  leads_without_task: number;
+  managers: CrmManagerRow[];
+}
+
+interface CrmReport {
+  available: boolean;
+  period: "daily" | "weekly" | "monthly";
+  period_start?: string;
+  period_end?: string;
+  metrics?: CrmMetrics;
+  previous?: CrmMetrics | null;
+  deltas?: Record<string, number>;
+  telegram_text?: string;
+}
+
 function fmtUzs(n: number): string {
   return `${n.toLocaleString("en-US")} so'm`;
 }
 
 export default function AnalyticsPage() {
-  const [activeTab, setActiveTab] = useState<"overview" | "quality" | "training" | "customer" | "activity" | "leads">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "quality" | "training" | "customer" | "activity" | "leads" | "crm-report">("overview");
   const [timeFilter, setTimeFilter] = useState<"today" | "3days" | "week" | "month" | "custom">("month");
 
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(true);
+
+  const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
+  const [crmReport, setCrmReport] = useState<CrmReport | null>(null);
+  const [crmReportError, setCrmReportError] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== "crm-report") return;
+    let cancelled = false;
+    fetch(`/api/oisha/crm-reports?period=${reportPeriod}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) {
+          setCrmReport(d);
+          setCrmReportError(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCrmReport(null);
+          setCrmReportError(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, reportPeriod]);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,7 +176,8 @@ export default function AnalyticsPage() {
           { id: "training", label: "Jamoa malakasi" },
           { id: "customer", label: "Mijoz tahlili" },
           { id: "activity", label: "Faoliyat tahlili" },
-          { id: "leads", label: "Lid analitikasi" }
+          { id: "leads", label: "Lid analitikasi" },
+          { id: "crm-report", label: "CRM Hisobot" }
         ] as const).map((tab) => (
           <button
             key={tab.id}
@@ -464,7 +534,165 @@ export default function AnalyticsPage() {
             </div>
           </div>
         )}
+
+        {/* Tab 7: CRM Hisobot */}
+        {activeTab === "crm-report" && (
+          <div className="space-y-6">
+            <div className="flex gap-2">
+              {(["daily", "weekly", "monthly"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => {
+                    setReportPeriod(p);
+                    setCrmReport(null);
+                    setCrmReportError(false);
+                  }}
+                  className={`rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
+                    reportPeriod === p
+                      ? "bg-brand text-white"
+                      : "bg-bg-card text-text-muted hover:text-brand border border-border"
+                  }`}
+                >
+                  {p === "daily" ? "Kunlik" : p === "weekly" ? "Haftalik" : "Oylik"}
+                </button>
+              ))}
+            </div>
+
+            {!crmReport && !crmReportError && (
+              <p className="text-text-muted text-xs">Yuklanmoqda...</p>
+            )}
+
+            {crmReportError && (
+              <div className="rounded-3xl border border-dashed border-border p-8 text-center text-xs text-text-muted">
+                AmoCRM ulanmagan — hisobot mavjud emas.
+              </div>
+            )}
+
+            {crmReport && !crmReport.available && (
+              <div className="rounded-3xl border border-dashed border-border p-8 text-center text-xs text-text-muted">
+                AmoCRM ulanmagan — hisobot mavjud emas.
+              </div>
+            )}
+
+            {crmReport?.available && crmReport.metrics && (
+              <CrmReportView report={crmReport} />
+            )}
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function delta(deltas: Record<string, number> | undefined, key: string) {
+  const v = deltas?.[key];
+  if (v === undefined || Math.abs(v) < 1e-9) return null;
+  const up = v > 0;
+  return (
+    <span className={up ? "text-emerald-600 ml-2 text-xs" : "text-rose-600 ml-2 text-xs"}>
+      {up ? "▲ +" : "▼ "}
+      {Math.round(v).toLocaleString("en-US").replace(/,/g, " ")}
+    </span>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  deltas,
+  deltaKey,
+}: {
+  label: string;
+  value: string;
+  deltas?: Record<string, number>;
+  deltaKey?: string;
+}) {
+  return (
+    <div className="rounded-3xl border border-border bg-bg-card p-4 shadow-sm">
+      <div className="text-[10px] font-bold text-text-muted uppercase">{label}</div>
+      <div className="text-base font-extrabold text-text mt-1">
+        {value}
+        {deltaKey ? delta(deltas, deltaKey) : null}
+      </div>
+    </div>
+  );
+}
+
+function CrmReportView({ report }: { report: CrmReport }) {
+  const m = report.metrics!;
+  const d = report.deltas;
+  return (
+    <div className="space-y-6">
+      <section>
+        <h3 className="text-sm font-bold text-text mb-2">Bitimlar</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Stat label="Yangi bitimlar" value={String(m.new_leads)} deltas={d} deltaKey="new_leads" />
+          <Stat label="Faol bitimlar" value={`${m.active_count} · ${fmtUzs(m.active_amount)}`} />
+          <Stat label="Yutilgan" value={`${m.won_count} · ${fmtUzs(m.won_amount)}`} deltas={d} deltaKey="won_count" />
+          <Stat label="Yutqazilgan" value={`${m.lost_count} · ${fmtUzs(m.lost_amount)}`} deltas={d} deltaKey="lost_count" />
+          <Stat label="Win rate" value={`${m.win_rate.toFixed(0)}%`} deltas={d} deltaKey="win_rate" />
+          <Stat label="O'rtacha yutilgan bitim" value={fmtUzs(m.avg_won_deal)} />
+          <Stat label="Pipeline qiymati" value={fmtUzs(m.pipeline_value)} />
+          <Stat label="Stagnatsiya (3+ kun)" value={String(m.stagnated_count)} />
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-bold text-text mb-2">Aloqa</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Stat label="Yangi kontaktlar" value={String(m.new_contacts)} deltas={d} deltaKey="new_contacts" />
+          <Stat label="Yangi kompaniyalar" value={String(m.new_companies)} />
+          <Stat label="Kiruvchi qo'ng'iroqlar" value={String(m.incoming_calls)} deltas={d} deltaKey="incoming_calls" />
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-bold text-text mb-2">Zadachalar</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Stat label="Yaratilgan" value={String(m.tasks_created)} deltas={d} deltaKey="tasks_created" />
+          <Stat label="Bajarilgan" value={String(m.tasks_completed)} />
+          <Stat label="Ochiq" value={String(m.tasks_open)} />
+          <Stat label="Muddati o'tgan" value={String(m.tasks_overdue)} />
+          <Stat label="Zadachasiz ochiq bitimlar" value={String(m.leads_without_task)} />
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-bold text-text mb-2">Menejerlar</h3>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-text-muted">
+                <th className="py-2 pr-4">Menejer</th>
+                <th className="py-2 pr-4">Yutilgan</th>
+                <th className="py-2 pr-4">Summa</th>
+                <th className="py-2 pr-4">Ochiq zadacha</th>
+                <th className="py-2 pr-4">Muddati o&apos;tgan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {m.managers.map((mr) => (
+                <tr key={mr.user_id} className="border-t border-border">
+                  <td className="py-2 pr-4">{mr.name}</td>
+                  <td className="py-2 pr-4">{mr.won_count}</td>
+                  <td className="py-2 pr-4">{fmtUzs(mr.won_amount)}</td>
+                  <td className="py-2 pr-4">{mr.open_tasks}</td>
+                  <td className="py-2 pr-4">{mr.overdue_tasks}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {report.telegram_text && (
+        <section>
+          <h3 className="text-sm font-bold text-text mb-2">Telegram xabari</h3>
+          <pre className="whitespace-pre-wrap rounded-3xl bg-bg-card border border-border p-4 text-xs text-text-muted">
+{report.telegram_text}
+          </pre>
+        </section>
+      )}
     </div>
   );
 }
