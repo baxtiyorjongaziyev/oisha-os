@@ -60,16 +60,24 @@ class TestAPISecurity:
         assert "headers: {'X-Secret-Key': secret}" in amocrm_widget_content
 
     def test_health_check_is_not_force_green(self):
-        api_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'api_server.py')
-        with open(api_file, 'r', encoding='utf-8') as f:
-            api_content = f.read()
+        """Readiness must still fail on a real DB outage (not force-green).
+
+        Liveness (``/healthz``) is deliberately always-200 now — it only
+        reports "process is alive", so the Oracle watchdog stops SIGKILL-
+        looping the service on a boot-time 503. The dependency gate moved to
+        readiness (``/readyz``), which must still return 503 when the DB is
+        down — otherwise a broken deploy looks healthy.
+        """
         health_file = os.path.join(os.path.dirname(__file__), '..', 'src', 'api', 'routes', 'health.py')
         with open(health_file, 'r', encoding='utf-8') as f:
             health_content = f.read()
-        combined = api_content + health_content
 
-        assert "async def liveness_probe" in combined
-        assert "db_ok" in combined
+        assert "async def liveness_probe" in health_content
+        assert "async def production_readiness_probe" in health_content
+        # Readiness still probes the DB and can fail closed.
+        assert "database_unavailable" in health_content
+        assert "database_not_initialized" in health_content
+        assert 'status_code=200 if serving else 503' in health_content or "not_ready" in health_content
 
     def test_http_transport_logs_do_not_expose_bot_api_tokens(self):
         for relative_path in ('main.py', 'api_server.py'):

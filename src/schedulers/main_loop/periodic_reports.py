@@ -10,6 +10,7 @@ from typing import Any
 from src.settings import settings
 import src.main as m
 from src.schedulers.main_loop.helpers import _is_due
+from src.services.core.crm.daily_report.models import PeriodType, previous_anchor
 
 logger = logging.getLogger("OishaScheduler")
 
@@ -21,6 +22,41 @@ def _is_job_sent(task: Any, key: str) -> bool:
         return True
     task._sent_jobs.add(key)
     return False
+
+
+def _default_period_reporter():
+    from src.services.core.crm.daily_report import CRMPeriodReporter
+    from src.services.core.crm.crm_service import CRMService
+    crm = CRMService()
+    if not crm.amocrm:
+        return None
+    return CRMPeriodReporter(amocrm=crm.amocrm)
+
+
+async def _send_period_report(ptype, now, task, *, reporter_factory=None):
+    key = f"crm_{ptype.value}_report_{now:%Y-%m-%d}"
+    if _is_job_sent(task, key):
+        return
+    try:
+        reporter = (reporter_factory or _default_period_reporter)()
+        if reporter is None:
+            logger.warning("[SCHEDULE][%s] no amocrm; skip", ptype.value)
+            return
+        if ptype is PeriodType.DAILY:
+            result = await reporter.build(ptype)
+        else:
+            result = await reporter.build(ptype, previous_anchor(ptype, now.date()))
+        group = settings.CRM_SALES_REPORT_GROUP_ID
+        topic = settings.CRM_SALES_REPORT_TOPIC_ID
+        bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
+        if not group or not bot_rt:
+            logger.warning("[SCHEDULE][%s] group/bot missing; skip", ptype.value)
+            return
+        kw = {"message_thread_id": topic} if topic else {}
+        await bot_rt.send_message(group, result.telegram_text, **kw)
+        logger.info("[SCHEDULE][%s] CRM report sent to %s", ptype.value, group)
+    except Exception as exc:
+        logger.error("[SCHEDULE][%s] Error: %s", ptype.value, exc)
 
 
 async def _check_overdue_and_status(now: datetime, task: Any) -> None:
@@ -87,46 +123,17 @@ async def _check_daily_reports(now: datetime, task: Any) -> None:
         except Exception as rep_exc:
             logger.error("[SCHEDULE][REPORT] Error: %s", rep_exc)
 
-    if _is_due(now, 19, 30) and not _is_job_sent(task, f"crm_daily_report_{today_str}"):
-        try:
-            from src.services.core.crm.crm_daily_report import CRMDailyReporter
-            from src.services.core.crm.crm_service import CRMService
-            crm = CRMService()
-            if crm.amocrm:
-                reporter = CRMDailyReporter(amocrm=crm.amocrm)
-                stats = await reporter.fetch_stats()
-                prev = reporter._load_prev_stats()
-                report_text = reporter.format_report(stats, prev)
-                target_group = m.TN5_GROUP_ID or getattr(settings, "CRM_GROUP_ID", None)
-                bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
-                if target_group and bot_rt:
-                    kw = {"message_thread_id": settings.TOPIC_REPORTS_ID} if settings.TOPIC_REPORTS_ID else {}
-                    await bot_rt.send_message(target_group, report_text, **kw)
-        except Exception as rep_exc:
-            logger.error("[SCHEDULE][CRM_REPORT] Error: %s", rep_exc)
+    if _is_due(now, 19, 30):
+        await _send_period_report(PeriodType.DAILY, now, task)
 
 
 async def _check_weekly_and_stagnation(now: datetime, task: Any) -> None:
     today_str = now.strftime("%Y-%m-%d")
-    if (
-        now.weekday() == 0
-        and _is_due(now, 9, 0)
-        and not _is_job_sent(task, f"crm_weekly_report_{today_str}")
-    ):
-        try:
-            from src.services.core.crm.crm_daily_report import CRMDailyReporter
-            from src.services.core.crm.crm_service import CRMService
-            crm = CRMService()
-            if crm.amocrm:
-                reporter = CRMDailyReporter(amocrm=crm.amocrm)
-                report_text = await reporter.get_weekly_report()
-                bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
-                target_group = m.TN5_GROUP_ID or getattr(settings, "CRM_GROUP_ID", None)
-                if target_group and bot_rt:
-                    kw = {"message_thread_id": settings.TOPIC_REPORTS_ID} if settings.TOPIC_REPORTS_ID else {}
-                    await bot_rt.send_message(target_group, report_text, **kw)
-        except Exception as exc:
-            logger.error("[SCHEDULE][WEEKLY_CRM] Error: %s", exc)
+    if now.weekday() == 0 and _is_due(now, 9, 0):
+        await _send_period_report(PeriodType.WEEKLY, now, task)
+
+    if now.day == 1 and _is_due(now, 9, 0):
+        await _send_period_report(PeriodType.MONTHLY, now, task)
 
     if (
         _is_due(now, 10, 0) or _is_due(now, 22, 0)

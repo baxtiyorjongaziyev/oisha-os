@@ -118,11 +118,18 @@ async def send_call_analysis_telegram_alert(
         if not bot_client:
             return
 
+        # Call analysis summaries go to their own topic (o'qitish bo'limi),
+        # separate from follow-up deadline alerts. Fall back to the generic
+        # AmoCRM alert destination when not configured.
         target_chat_id = (
-            getattr(settings, "AMOCRM_ALERT_FORWARD_GROUP_ID", None)
+            getattr(settings, "CALL_ANALYSIS_GROUP_ID", None)
+            or getattr(settings, "AMOCRM_ALERT_FORWARD_GROUP_ID", None)
             or getattr(settings, "CRM_GROUP_ID", None)
         )
-        topic_id = getattr(settings, "AMOCRM_ALERT_FORWARD_TOPIC_ID", None)
+        topic_id = (
+            getattr(settings, "CALL_ANALYSIS_TOPIC_ID", None)
+            or getattr(settings, "AMOCRM_ALERT_FORWARD_TOPIC_ID", None)
+        )
         if not target_chat_id:
             return
 
@@ -143,9 +150,16 @@ async def send_call_analysis_telegram_alert(
 
         kwargs: Dict[str, Any] = {"parse_mode": "HTML", "disable_web_page_preview": True}
         if topic_id:
-            kwargs["reply_to_message_id"] = topic_id
+            # Forum topic requires message_thread_id, NOT reply_to_message_id.
+            kwargs["message_thread_id"] = int(topic_id)
 
         if hasattr(bot_client, "send_message"):
             await bot_client.send_message(chat_id=target_chat_id, text=msg_text, **kwargs)
+            logger.info(
+                "[CALL] Telegram alert sent for call %s -> chat %s topic %s",
+                call_id,
+                target_chat_id,
+                topic_id,
+            )
     except Exception as exc:
         logger.warning("[CALL] Failed to notify Telegram for call %s: %s", call_id, exc)

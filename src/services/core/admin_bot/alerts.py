@@ -117,7 +117,7 @@ class AdminAlertsMixin:
                 self.team_group_id,
                 text,
                 buttons=buttons,
-                reply_to_message_id=topic_id,
+                message_thread_id=topic_id,
                 parse_mode=parse_mode,
             )
             logger.info(
