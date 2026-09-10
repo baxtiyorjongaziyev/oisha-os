@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Card, Badge } from '@salescoach/ui';
 
 export default function MarketingDashboard() {
   const [data, setData] = useState<any>(null);
