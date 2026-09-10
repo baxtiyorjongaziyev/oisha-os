@@ -5,6 +5,8 @@ import logging
 from datetime import datetime
 
 from src.commands import register_command
+from src.services.core.crm.daily_report import CRMPeriodReporter
+from src.services.core.crm.daily_report.models import PeriodType
 
 logger = logging.getLogger(__name__)
 
@@ -39,27 +41,41 @@ async def cmd_status(event, **ctx):
     await event.respond("🟢 **Oisha Engine:** Active\n🛰 **Server:** GCP Cloud Run")
 
 
-@register_command("/report")
-async def cmd_report(event, **ctx):
-    msg_controller = ctx["msg_controller"]
-    get_surgical_integration = ctx["get_surgical_integration"]
-    await event.respond("⏳ Oisha-OS: Kunlik hisobot (Reportagram) tayyorlanmoqda...")
+def _amocrm_from_ctx(msg_controller, get_surgical_integration):
+    amocrm = None
+    if msg_controller and getattr(msg_controller, "crm", None):
+        amocrm = getattr(msg_controller.crm, "amocrm", None)
+    if not amocrm:
+        amocrm = get_surgical_integration().amocrm
+    return amocrm
+
+
+async def _run_period(event, ptype, msg_controller, get_surgical_integration):
     try:
-        from src.services.core.crm.crm_daily_report import CRMDailyReporter
-        amocrm_client = None
-        if msg_controller and getattr(msg_controller, "crm", None):
-            amocrm_client = getattr(msg_controller.crm, "amocrm", None)
-        if not amocrm_client:
-            amocrm_client = get_surgical_integration().amocrm
-        
-        reporter = CRMDailyReporter(amocrm=amocrm_client)
-        stats = await reporter.fetch_stats()
-        prev = reporter._load_prev_stats()
-        report_text = reporter.format_report(stats, prev)
-        await event.respond(report_text)
+        amocrm = _amocrm_from_ctx(msg_controller, get_surgical_integration)
+        res = await CRMPeriodReporter(amocrm=amocrm).build(ptype)
+        await event.respond(res.telegram_text)
     except Exception as e:
         logger.error("Exception handled in %s", __name__, exc_info=True)
         await event.respond(f"❌ Xatolik yuz berdi: {e}")
+
+
+@register_command("/report")
+async def cmd_report(event, **ctx):
+    await event.respond("⏳ Oisha-OS: Kunlik CRM hisobot tayyorlanmoqda...")
+    await _run_period(event, PeriodType.DAILY, ctx["msg_controller"], ctx["get_surgical_integration"])
+
+
+@register_command("/report_week")
+async def cmd_report_week(event, **ctx):
+    await event.respond("⏳ Haftalik CRM hisobot tayyorlanmoqda...")
+    await _run_period(event, PeriodType.WEEKLY, ctx["msg_controller"], ctx["get_surgical_integration"])
+
+
+@register_command("/report_month")
+async def cmd_report_month(event, **ctx):
+    await event.respond("⏳ Oylik CRM hisobot tayyorlanmoqda...")
+    await _run_period(event, PeriodType.MONTHLY, ctx["msg_controller"], ctx["get_surgical_integration"])
 
 
 @register_command("/stats")
@@ -68,23 +84,16 @@ async def cmd_stats(event, **ctx):
     get_surgical_integration = ctx["get_surgical_integration"]
     await event.respond("⏳ Joriy statistika olinmoqda...")
     try:
-        from src.services.core.crm.crm_daily_report import CRMDailyReporter
-        amocrm_client = None
-        if msg_controller and getattr(msg_controller, "crm", None):
-            amocrm_client = getattr(msg_controller.crm, "amocrm", None)
-        if not amocrm_client:
-            amocrm_client = get_surgical_integration().amocrm
-        
-        reporter = CRMDailyReporter(amocrm=amocrm_client)
-        stats = await reporter.fetch_stats()
+        amocrm_client = _amocrm_from_ctx(msg_controller, get_surgical_integration)
+        reporter = CRMPeriodReporter(amocrm=amocrm_client)
+        res = await reporter.build(PeriodType.DAILY)
+        m = res.metrics
         text = (
-            f"📊 **Bugungi holat ({stats.date_label})**\n"
-            f"Tushgan: {stats.total_leads} lead\n"
-            f"Gaplashilgan: {stats.contacted} lead\n"
-            f"Sifatli: {stats.qualified} lead\n"
-            f"Muvaffaqiyatli (Won): {stats.won}\n"
-            f"Daromad: ${stats.revenue:,.0f}\n"
-            f"Pipeline qiymati: ${stats.pipeline_value:,.0f}"
+            f"📊 **Bugungi holat ({m.date_label})**\n"
+            f"Yangi bitimlar: {m.new_leads}\n"
+            f"Faol: {m.active_count} ({m.active_amount:,.0f} so'm)\n".replace(",", " ")
+            + f"Yutilgan: {m.won_count} | Daromad: {m.won_amount:,.0f} so'm\n".replace(",", " ")
+            + f"Pipeline: {m.pipeline_value:,.0f} so'm".replace(",", " ")
         )
         await event.respond(text)
     except Exception as e:
@@ -95,16 +104,15 @@ async def cmd_stats(event, **ctx):
 @register_command("/history")
 async def cmd_history(event, **ctx):
     try:
-        from src.services.core.crm.crm_daily_report import CRMDailyReporter
-        reporter = CRMDailyReporter(amocrm=None)
-        history = reporter.get_history(7)
+        reporter = CRMPeriodReporter(amocrm=None)
+        history = reporter.list_snapshots(PeriodType.DAILY, 7)
         if not history:
             await event.respond("📅 Tarix topilmadi. Hisobotlar hali keshga yozilmagan.")
             return
-        lines = ["📅 **So'nggi 7 kunlik hisobotlar tarixi:**"]
+        lines = ["📅 **So'nggi 7 kunlik CRM hisobotlar:**"]
         for s in history:
             lines.append(
-                f"• {s.date_label}: {s.total_leads} lead | {s.won} won | ${s.revenue:,.0f}"
+                f"• {s.date_label}: {s.new_leads} lead | {s.won_count} won | {s.won_amount:,.0f} so'm".replace(",", " ")
             )
         await event.respond("\n".join(lines))
     except Exception as e:

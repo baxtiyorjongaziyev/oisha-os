@@ -1,6 +1,14 @@
 from src.services.core.crm.daily_report.models import (
     CRMStats,
     CRMWeeklyStats,
+    PeriodType,
+    PeriodMetrics,
+    ManagerRow,
+    ReportResult,
+    period_range,
+    previous_range,
+    previous_anchor,
+    compute_deltas,
     _ts_today,
     _ts_yesterday,
     _delta,
@@ -9,6 +17,7 @@ from src.services.core.crm.daily_report.models import (
 )
 from src.services.core.crm.daily_report.reporter import (
     CRMDailyReporter,
+    CRMPeriodReporter,
     ReportBot,
     build_reportagram_report,
 )
@@ -17,6 +26,15 @@ __all__ = [
     "CRMStats",
     "CRMWeeklyStats",
     "CRMDailyReporter",
+    "CRMPeriodReporter",
+    "PeriodType",
+    "PeriodMetrics",
+    "ManagerRow",
+    "ReportResult",
+    "period_range",
+    "previous_range",
+    "previous_anchor",
+    "compute_deltas",
     "ReportBot",
     "build_reportagram_report",
     "_ts_today",

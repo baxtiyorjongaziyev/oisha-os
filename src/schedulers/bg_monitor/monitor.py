@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from datetime import datetime
 from typing import Any, Optional, Set
 
@@ -104,28 +103,9 @@ class BackgroundMonitor(BaseMonitorHelpersMixin, JobsCrmMixin, JobsAnalyticsMixi
                 if now.hour == 18 and now.minute == 0:
                     await self._job_daily_report(now)
 
-                # 8. CRM daily report (19:30)
-                if now.hour == 19 and now.minute == 30:
-                    await self._job_crm_daily_report(now)
-
                 # Hisobchi daily roast (20:30)
                 if now.hour == 20 and now.minute == 30:
                     await self._job_hisobchi_daily_roast(now)
-
-                # 9. CRM weekly report (configurable)
-                weekly_enabled = os.getenv("CRM_WEEKLY_REPORT_ENABLED", "true").lower() not in {
-                    "0", "false", "no", "off",
-                }
-                weekly_weekday = int(os.getenv("CRM_WEEKLY_REPORT_WEEKDAY", "0"))
-                weekly_hour = int(os.getenv("CRM_WEEKLY_REPORT_HOUR", "9"))
-                weekly_minute = int(os.getenv("CRM_WEEKLY_REPORT_MINUTE", "0"))
-                if (
-                    weekly_enabled
-                    and now.weekday() == weekly_weekday
-                    and now.hour == weekly_hour
-                    and now.minute == weekly_minute
-                ):
-                    await self._job_crm_weekly_report(now)
 
                 # 10. Stagnation alert (10:00, 22:00)
                 if now.hour in [10, 22] and now.minute == 0:

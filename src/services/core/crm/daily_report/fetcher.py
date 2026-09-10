@@ -3,6 +3,7 @@ AmoCRM stats fetching and aggregation mixin.
 """
 import asyncio
 import logging
+import time
 import requests
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
@@ -10,6 +11,10 @@ from typing import Any, Dict, List, Optional
 from src.services.core.crm.daily_report.models import (
     CRMStats,
     CRMWeeklyStats,
+    ManagerRow,
+    PeriodMetrics,
+    PeriodType,
+    period_range,
     previous_week_range,
 )
 
@@ -338,4 +343,145 @@ class AmoFetcherMixin:
         if not deltas:
             return 0.0
         return sum(deltas) / len(deltas)
+
+    def _aggregate_metrics(
+        self,
+        ptype,
+        start,
+        end,
+        *,
+        leads_all,
+        leads_created,
+        leads_closed,
+        contacts_new,
+        companies_new,
+        calls,
+        tasks_all,
+        tasks_created,
+        tasks_done,
+        user_names,
+    ) -> PeriodMetrics:
+        now = time.time()
+        won_s, lost_s = self.WON_STATUS, self.LOST_STATUS
+
+        m = PeriodMetrics(period_type=ptype, period_start=start, period_end=end)
+        m.new_leads = len(leads_created)
+        m.new_contacts = len(contacts_new)
+        m.new_companies = len(companies_new)
+        m.incoming_calls = len(calls)
+        m.tasks_created = len(tasks_created)
+        m.tasks_completed = len(tasks_done)
+
+        open_lead_ids = set()
+        for l in leads_all:
+            sid = l.get("status_id")
+            price = l.get("price") or 0
+            if sid in (won_s, lost_s):
+                continue
+            m.active_count += 1
+            m.active_amount += price
+            open_lead_ids.add(l.get("id"))
+            if (now - (l.get("updated_at") or 0)) > 3 * 86400:
+                m.stagnated_count += 1
+        m.pipeline_value = m.active_amount
+
+        mgr = {}
+        for l in leads_closed:
+            sid = l.get("status_id")
+            price = l.get("price") or 0
+            uid = l.get("responsible_user_id")
+            if sid == won_s:
+                m.won_count += 1
+                m.won_amount += price
+                if uid:
+                    row = mgr.setdefault(uid, ManagerRow(user_id=uid, name=user_names.get(uid, f"Manager #{uid}")))
+                    row.won_count += 1
+                    row.won_amount += price
+            elif sid == lost_s:
+                m.lost_count += 1
+                m.lost_amount += price
+
+        leads_with_task = {
+            t.get("entity_id")
+            for t in tasks_all
+            if t.get("entity_type") == "leads" and not t.get("is_completed")
+        }
+        for t in tasks_all:
+            if t.get("is_completed"):
+                continue
+            m.tasks_open += 1
+            till = t.get("complete_till") or 0
+            overdue = bool(till) and till < now
+            if overdue:
+                m.tasks_overdue += 1
+            uid = t.get("responsible_user_id")
+            if uid:
+                row = mgr.setdefault(uid, ManagerRow(user_id=uid, name=user_names.get(uid, f"Manager #{uid}")))
+                row.open_tasks += 1
+                if overdue:
+                    row.overdue_tasks += 1
+
+        m.leads_without_task = len(open_lead_ids - leads_with_task)
+
+        m.managers = sorted(mgr.values(), key=lambda r: r.won_amount, reverse=True)[:5]
+        m.recompute_derived()
+        return m
+
+    async def fetch_metrics(self, ptype, anchor=None) -> PeriodMetrics:
+        anchor = anchor or date.today()
+        start, end = period_range(ptype, anchor)
+        t_from = int(datetime(start.year, start.month, start.day, 0, 0, 0).timestamp())
+        t_to = int(datetime(end.year, end.month, end.day, 23, 59, 59).timestamp())
+
+        async def _safe(coll, extra=None, **kw):
+            try:
+                return await self._fetch_amocrm_collection(coll, extra, **kw)
+            except Exception as exc:
+                logger.warning("[CRMPeriodReporter] fetch %s failed: %s", coll, exc)
+                return []
+
+        created = {"filter[created_at][from]": t_from, "filter[created_at][to]": t_to}
+        closed = {"filter[closed_at][from]": t_from, "filter[closed_at][to]": t_to}
+        done = {"filter[is_completed]": 1,
+                "filter[updated_at][from]": t_from, "filter[updated_at][to]": t_to}
+        open_tasks = {"filter[is_completed]": 0}
+
+        (
+            leads_all, leads_created, leads_closed,
+            contacts_new, companies_new, calls,
+            tasks_all, tasks_created, tasks_done,
+        ) = await asyncio.gather(
+            _safe("leads"),
+            _safe("leads", created),
+            _safe("leads", closed),
+            _safe("contacts", created),
+            _safe("companies", created),
+            _safe("calls", created),
+            _safe("tasks", open_tasks),
+            _safe("tasks", {"filter[created_at][from]": t_from, "filter[created_at][to]": t_to}),
+            _safe("tasks", done),
+        )
+
+        uids = {l.get("responsible_user_id") for l in leads_closed if l.get("responsible_user_id")}
+        uids |= {t.get("responsible_user_id") for t in tasks_all if t.get("responsible_user_id")}
+        user_names = {}
+        for uid in uids:
+            try:
+                user_names[uid] = self._crm.get_user_name(uid)
+            except Exception:
+                user_names[uid] = f"Manager #{uid}"
+
+        self._last_fetch_ok = any([
+            leads_all, leads_created, leads_closed,
+            contacts_new, companies_new, calls,
+            tasks_all, tasks_created, tasks_done,
+        ])
+
+        return self._aggregate_metrics(
+            ptype, start, end,
+            leads_all=leads_all, leads_created=leads_created, leads_closed=leads_closed,
+            contacts_new=contacts_new, companies_new=companies_new, calls=calls,
+            tasks_all=tasks_all, tasks_created=tasks_created, tasks_done=tasks_done,
+            user_names=user_names,
+        )
 

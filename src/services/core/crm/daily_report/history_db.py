@@ -6,7 +6,7 @@ import logging
 from contextlib import contextmanager
 from datetime import date, timedelta
 from typing import List, Optional
-from src.services.core.crm.daily_report.models import CRMStats
+from src.services.core.crm.daily_report.models import CRMStats, PeriodType, PeriodMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,16 @@ class HistoryDBMixin:
                     report_date TEXT PRIMARY KEY,
                     stats_json  TEXT NOT NULL,
                     created_at  TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS crm_report_snapshots (
+                    period_type   TEXT NOT NULL,
+                    period_start  TEXT NOT NULL,
+                    period_end    TEXT NOT NULL,
+                    metrics_json  TEXT NOT NULL,
+                    created_at    TEXT DEFAULT (datetime('now')),
+                    PRIMARY KEY (period_type, period_start)
                 )
             """)
             conn.commit()
@@ -82,4 +92,50 @@ class HistoryDBMixin:
                 exc_info=True,
             )
         return result
+
+    def save_snapshot(self, m: PeriodMetrics) -> None:
+        try:
+            with self._history_conn() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO crm_report_snapshots "
+                    "(period_type, period_start, period_end, metrics_json) VALUES (?, ?, ?, ?)",
+                    (
+                        m.period_type.value,
+                        m.period_start.isoformat(),
+                        m.period_end.isoformat(),
+                        json.dumps(m.to_dict()),
+                    ),
+                )
+                conn.commit()
+        except Exception as exc:
+            logger.debug("[CRMPeriodReporter] save_snapshot: %s", exc)
+
+    def load_snapshot(self, ptype: PeriodType, period_start: date):
+        try:
+            with self._history_conn() as conn:
+                row = conn.execute(
+                    "SELECT metrics_json FROM crm_report_snapshots "
+                    "WHERE period_type = ? AND period_start = ?",
+                    (ptype.value, period_start.isoformat()),
+                ).fetchone()
+            if row:
+                return PeriodMetrics.from_dict(json.loads(row[0]))
+        except Exception as exc:
+            logger.debug("[CRMPeriodReporter] load_snapshot: %s", exc)
+        return None
+
+    def list_snapshots(self, ptype: PeriodType, limit: int = 12):
+        out = []
+        try:
+            with self._history_conn() as conn:
+                rows = conn.execute(
+                    "SELECT metrics_json FROM crm_report_snapshots "
+                    "WHERE period_type = ? ORDER BY period_start DESC LIMIT ?",
+                    (ptype.value, limit),
+                ).fetchall()
+            for (j,) in rows:
+                out.append(PeriodMetrics.from_dict(json.loads(j)))
+        except Exception as exc:
+            logger.debug("[CRMPeriodReporter] list_snapshots: %s", exc)
+        return out
 
