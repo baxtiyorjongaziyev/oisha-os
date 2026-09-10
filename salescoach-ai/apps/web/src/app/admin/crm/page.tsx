@@ -53,6 +53,10 @@ export default function CRMPage() {
             onClick={() => setSelectedAction(action.id)}
             style={{
               borderLeft: `4px solid ${action.color.split(',')[0]}`,
+              outline:
+                selectedAction === action.id
+                  ? '2px solid var(--text-secondary)'
+                  : 'none',
             }}
           >
             <h3 className="text-lg font-semibold mb-2">{action.label}</h3>

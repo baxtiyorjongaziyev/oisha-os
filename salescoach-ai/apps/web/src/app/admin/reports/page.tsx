@@ -48,6 +48,12 @@ export default function ReportsPage() {
             key={report.id}
             className="glass p-6 cursor-pointer transition-all hover:scale-105"
             onClick={() => setSelectedReport(report.id)}
+            style={{
+              outline:
+                selectedReport === report.id
+                  ? '2px solid var(--accent-cyan)'
+                  : 'none',
+            }}
           >
             <h3 className="text-lg font-semibold mb-2">{report.label}</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '.875rem', marginBottom: '1rem' }}>
