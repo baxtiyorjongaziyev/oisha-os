@@ -43,7 +43,7 @@ class RopFetcher:
             timeout=_TIMEOUT,
         )
 
-    async def _paged(self, url, params, key, *, max_pages, embed):
+    async def _paged(self, url, params, key, *, max_pages, embed, raise_on_first=False):
         out: list[dict] = []
         page_url, page_params = url, dict(params)
         for i in range(max_pages):
@@ -54,7 +54,7 @@ class RopFetcher:
                 break
             if resp.status_code != 200:
                 logger.warning("[ROP] %s page %s -> HTTP %s", url, i, resp.status_code)
-                if i == 0 and key == "leads" and embed == "leads":
+                if i == 0 and raise_on_first:
                     raise RopFetchError(f"{url} -> {resp.status_code}")
                 break
             body = resp.json()
@@ -70,7 +70,7 @@ class RopFetcher:
             leads = await self._paged(
                 f"{self._amo.base_url}/api/v4/leads",
                 {"filter[pipeline_id]": SALES_PIPELINE_ID, "with": "contacts", "limit": 250},
-                key="leads", max_pages=4, embed="leads",
+                key="leads", max_pages=4, embed="leads", raise_on_first=True,
             )
         except RopFetchError:
             raise
