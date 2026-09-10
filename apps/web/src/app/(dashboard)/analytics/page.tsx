@@ -81,22 +81,24 @@ export default function AnalyticsPage() {
 
   const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
   const [crmReport, setCrmReport] = useState<CrmReport | null>(null);
-  const [crmReportLoading, setCrmReportLoading] = useState(false);
+  const [crmReportError, setCrmReportError] = useState(false);
 
   useEffect(() => {
     if (activeTab !== "crm-report") return;
     let cancelled = false;
-    setCrmReportLoading(true);
     fetch(`/api/oisha/crm-reports?period=${reportPeriod}`)
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelled) setCrmReport(d);
+        if (!cancelled) {
+          setCrmReport(d);
+          setCrmReportError(false);
+        }
       })
       .catch(() => {
-        if (!cancelled) setCrmReport(null);
-      })
-      .finally(() => {
-        if (!cancelled) setCrmReportLoading(false);
+        if (!cancelled) {
+          setCrmReport(null);
+          setCrmReportError(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -540,7 +542,11 @@ export default function AnalyticsPage() {
               {(["daily", "weekly", "monthly"] as const).map((p) => (
                 <button
                   key={p}
-                  onClick={() => setReportPeriod(p)}
+                  onClick={() => {
+                    setReportPeriod(p);
+                    setCrmReport(null);
+                    setCrmReportError(false);
+                  }}
                   className={`rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
                     reportPeriod === p
                       ? "bg-brand text-white"
@@ -552,15 +558,23 @@ export default function AnalyticsPage() {
               ))}
             </div>
 
-            {crmReportLoading && <p className="text-text-muted text-xs">Yuklanmoqda...</p>}
+            {!crmReport && !crmReportError && (
+              <p className="text-text-muted text-xs">Yuklanmoqda...</p>
+            )}
 
-            {!crmReportLoading && (!crmReport || !crmReport.available) && (
+            {crmReportError && (
               <div className="rounded-3xl border border-dashed border-border p-8 text-center text-xs text-text-muted">
                 AmoCRM ulanmagan — hisobot mavjud emas.
               </div>
             )}
 
-            {!crmReportLoading && crmReport?.available && crmReport.metrics && (
+            {crmReport && !crmReport.available && (
+              <div className="rounded-3xl border border-dashed border-border p-8 text-center text-xs text-text-muted">
+                AmoCRM ulanmagan — hisobot mavjud emas.
+              </div>
+            )}
+
+            {crmReport?.available && crmReport.metrics && (
               <CrmReportView report={crmReport} />
             )}
           </div>
