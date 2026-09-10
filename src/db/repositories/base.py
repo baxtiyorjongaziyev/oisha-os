@@ -90,7 +90,19 @@ class BaseRepository:
         try:
             await self._execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
         except Exception as exc:
-            logger.error("Exception handled in %s", __name__, exc_info=True)
+            # "duplicate column" / "already exists" — ustun aslida bor,
+            # ``_get_table_columns`` (PRAGMA) uni ba'zi backendlarda
+            # ko'rmagan. Bu kutilgan holat: jimgina qaytamiz, aks holda
+            # har boot'da har mavjud ustun uchun to'liq traceback spam
+            # bo'ladi va /healthz probe'ini bo'g'adi.
             if _is_benign_schema_error(exc):
+                logger.debug(
+                    "[DB] ADD COLUMN %s.%s allaqachon mavjud — o'tkazib yuborildi",
+                    table, column,
+                )
                 return
+            logger.error(
+                "[DB] ADD COLUMN %s.%s muvaffaqiyatsiz: %s",
+                table, column, type(exc).__name__, exc_info=True,
+            )
             raise

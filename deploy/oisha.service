@@ -1,16 +1,26 @@
 [Unit]
-Description=Oisha-OS Enterprise AI Bot
+Description=Oisha-OS Telegram Userbot
 After=network.target
 
 [Service]
-User=baxti
-WorkingDirectory=/home/baxti/oisha-os
-ExecStart=/home/baxti/oisha-os/venv/bin/python src/main.py
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/oisha-os
+# PATH venv'ni oldinga qo'yadi, LEKIN tizim yo'llari ham bo'lishi shart —
+# aks holda `git` (Second Brain digest push), `ffmpeg` va boshqa tashqi
+# ijro fayllar topilmay, xususiyatlar jimgina yiqiladi.
+Environment=PATH=/home/ubuntu/oisha-os/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=RUNNING_IN_CLOUD=1
+EnvironmentFile=-/home/ubuntu/oisha-os/.env
+ExecStart=/home/ubuntu/oisha-os/venv/bin/python3 src/main.py
 Restart=always
 RestartSec=10
-EnvironmentFile=/home/baxti/oisha-os/.env
-StandardOutput=append:/home/baxti/oisha-os/data/oisha.log
-StandardError=append:/home/baxti/oisha-os/data/oisha_err.log
+# Graceful drain (boot.py SIGTERM handler -> graceful_drain) Telethon
+# disconnect + DB flush uchun standart 90s'dan ko'proq vaqt olishi mumkin.
+# 35s'da SIGKILL bo'lса rotatsiya qilingan token/session yo'qolib, keyingi
+# start uziladi. 120s zaxira beramiz; keyin baribir SIGKILL.
+TimeoutStopSec=120
+KillSignal=SIGTERM
 
 [Install]
 WantedBy=multi-user.target
