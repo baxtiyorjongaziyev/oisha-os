@@ -24,23 +24,40 @@ def _leads():
     ]
 
 
+def _tasks():
+    # ABC: one open task -> has_open_next_task True
+    return {1: [{"id": 11, "is_completed": False, "complete_till": E + 3600, "task_type_id": 1}], 2: []}
+
+
+def _notes():
+    # ABC: a payment-promised note (payment keyword -> +20) with no objection keyword
+    return {1: [{"created_at": E - 7200, "params": {"text": "To'lov kelishildi"}}], 2: []}
+
+
+def _events():
+    # ABC: a status-change event ~2 days ago + a recent touch
+    # -> last_interaction_hours small, days_in_stage ~2
+    return {1: [{"type": "lead_status_changed", "created_at": E - 2 * 86400},
+                {"type": "common_note", "created_at": E - 3600}], 2: []}
+
+
 def test_score_seller_leads_sorted_desc():
-    scored = score_seller_leads(_leads(), {1: [], 2: []}, {1: [], 2: []}, {1: [], 2: []}, CFG, NOW)
+    scored = score_seller_leads(_leads(), _tasks(), _notes(), _events(), CFG, NOW)
     assert [s.name for s in scored] == ["ABC", "XYZ"]
     assert scored[0].score > scored[1].score
     assert isinstance(scored[0], LeadScore)
 
 
 def test_build_morning_expected_and_top():
-    scored = score_seller_leads(_leads(), {1: [], 2: []}, {1: [], 2: []}, {1: [], 2: []}, CFG, NOW)
-    mp = build_morning(SELLER, scored, {1: [], 2: []}, [], CFG, NOW)
+    scored = score_seller_leads(_leads(), _tasks(), _notes(), _events(), CFG, NOW)
+    mp = build_morning(SELLER, scored, _tasks(), [], CFG, NOW)
     assert mp.top_closings[0].name == "ABC"
     assert mp.expected_revenue_total >= 1
     assert any(e.name == "ABC" for e in mp.expected)
 
 
 def test_build_midday_on_track_suppression_logic():
-    scored = score_seller_leads(_leads(), {1: [], 2: []}, {1: [], 2: []}, {1: [], 2: []}, CFG, NOW)
+    scored = score_seller_leads(_leads(), _tasks(), _notes(), _events(), CFG, NOW)
     good = build_midday(SELLER, scored, dict(calls=5, follow_ups=8, meetings=1, won=0), {1, 2}, CFG)
     assert good.on_track is True
     bad = build_midday(SELLER, scored, dict(calls=1, follow_ups=1, meetings=0, won=0), set(), CFG)
@@ -49,7 +66,7 @@ def test_build_midday_on_track_suppression_logic():
 
 
 def test_build_evening_fields():
-    scored = score_seller_leads(_leads(), {1: [], 2: []}, {1: [], 2: []}, {1: [], 2: []}, CFG, NOW)
+    scored = score_seller_leads(_leads(), _tasks(), _notes(), _events(), CFG, NOW)
     ev = build_evening(SELLER, scored, dict(calls=9, follow_ups=18, meetings=2, won=1, won_revenue=12_000_000), overdue_count=0)
     assert ev.sales_done == 1 and ev.calls_done == 9
     assert len(ev.tomorrow_closings) >= 1
@@ -63,7 +80,7 @@ def test_pick_action_maps_reason():
 
 
 def test_build_ceo_dashboard_aggregates():
-    scored = score_seller_leads(_leads(), {1: [], 2: []}, {1: [], 2: []}, {1: [], 2: []}, CFG, NOW)
+    scored = score_seller_leads(_leads(), _tasks(), _notes(), _events(), CFG, NOW)
     ev = build_evening(SELLER, scored, dict(calls=9, follow_ups=18, meetings=2, won=1, won_revenue=12_000_000), 0)
     from src.services.core.rop.weekly import progress
     wk = progress([{"status_id": 142, "price": 12_000_000}], CFG)
