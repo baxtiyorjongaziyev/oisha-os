@@ -64,7 +64,8 @@ async def test_command_center_digest_sends_via_telethon_compatible_bot():
     assert sent is True
     assert bot.sent[0][0] == -100123
     assert "Oisha Command Center" in bot.sent[0][1]
-    assert bot.sent[0][2]["reply_to"] == 55
+    reply_to = bot.sent[0][2]["reply_to"]
+    assert getattr(reply_to, "top_msg_id", None) == 55 or reply_to == 55
     assert bot.sent[0][2]["link_preview"] is False
 
 

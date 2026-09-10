@@ -43,13 +43,13 @@ async def test_notify_team_prefers_bot_delivery_when_available():
 
     await admin_bot.notify_team("Hisobot", topic_id=52)
 
-    admin_bot.bot_client.send_message.assert_awaited_once_with(
-        -100123,
-        "Hisobot",
-        buttons=None,
-        reply_to=52,
-        link_preview=True,
-    )
+    admin_bot.bot_client.send_message.assert_awaited_once()
+    args, kwargs = admin_bot.bot_client.send_message.call_args
+    assert args == (-100123, "Hisobot")
+    assert kwargs["link_preview"] is True
+    # Forum topic must route via top_msg_id, not a bare reply_to int.
+    reply_to = kwargs["reply_to"]
+    assert getattr(reply_to, "top_msg_id", None) == 52 or reply_to == 52
     admin_bot.user_client.send_message.assert_not_awaited()
 
 
@@ -78,7 +78,7 @@ async def test_notify_team_can_use_aiogram_runtime():
             "chat_id": -100123,
             "text": "Hisobot",
             "parse_mode": "HTML",
-            "reply_to_message_id": 52,
+            "message_thread_id": 52,
         }
     ]
     admin_bot.user_client.send_message.assert_not_awaited()

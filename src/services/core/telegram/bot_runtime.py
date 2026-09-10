@@ -62,10 +62,30 @@ class TelethonBotRuntime:
         kwargs: dict[str, Any] = dict(extra)
         if parse_mode:
             kwargs["parse_mode"] = parse_mode.lower()
+
+        # Forum topic: Telethon needs the topic root id as `top_msg_id`, not a
+        # plain `reply_to`. Passing only reply_to lands the message in "General"
+        # (or errors) instead of the target topic.
         if message_thread_id:
-            kwargs["reply_to"] = message_thread_id
+            try:
+                from telethon.tl.types import InputReplyToMessage
+
+                kwargs["reply_to"] = InputReplyToMessage(
+                    reply_to_msg_id=reply_to_message_id or message_thread_id,
+                    top_msg_id=message_thread_id,
+                )
+            except Exception:  # pragma: no cover - older Telethon
+                kwargs["reply_to"] = message_thread_id
         elif reply_to_message_id:
             kwargs["reply_to"] = reply_to_message_id
+
+        # Callers (e.g. AmoCrmTaskNotifier) pass buttons as a list of rows of
+        # {"text", "url"|"callback_data"} dicts. Telethon needs Button objects.
+        buttons = kwargs.pop("buttons", None)
+        coerced = _coerce_telethon_buttons(buttons)
+        if coerced is not None:
+            kwargs["buttons"] = coerced
+
         kwargs["link_preview"] = not disable_web_page_preview
         if disable_notification:
             kwargs["silent"] = True
@@ -164,6 +184,42 @@ def build_outbound_bot_runtime(
 
         return AiogramBotRuntime(Bot(token=bot_token))
     raise ValueError(f"Unsupported bot runtime backend: {backend}")
+
+
+def _coerce_telethon_buttons(buttons: Any) -> Any:
+    """Convert [[{"text","url"|"callback_data"}]] rows to Telethon Button objects."""
+    if buttons is None:
+        return None
+    # Already Telethon buttons or a custom markup object — pass through.
+    if not isinstance(buttons, (list, tuple)):
+        return buttons
+    try:
+        from telethon import Button
+    except Exception:  # pragma: no cover
+        return None
+
+    rows = buttons if buttons and isinstance(buttons[0], (list, tuple)) else [buttons]
+    out: list[list[Any]] = []
+    for row in rows:
+        converted = []
+        for btn in row:
+            if isinstance(btn, dict):
+                text = btn.get("text")
+                url = btn.get("url")
+                data = btn.get("callback_data") or btn.get("data")
+            else:
+                # Non-dict entry (already a Button) — keep as-is.
+                converted.append(btn)
+                continue
+            if isinstance(data, bytes):
+                data = data.decode("utf-8")
+            if text and url:
+                converted.append(Button.url(str(text), str(url)))
+            elif text and data:
+                converted.append(Button.inline(str(text), str(data)))
+        if converted:
+            out.append(converted)
+    return out or None
 
 
 def _coerce_aiogram_inline_keyboard(buttons: Any) -> Any:
