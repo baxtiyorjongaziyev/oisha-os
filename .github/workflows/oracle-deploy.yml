@@ -297,17 +297,29 @@ jobs:
             [Service]
             Restart=always
             RestartSec=10
-            TimeoutStopSec=35
-            KillSignal=SIGINT
+            # Graceful drain (boot.py SIGTERM/SIGINT handler -> graceful_drain:
+            # Telethon disconnect + DB flush) can exceed 35s on the loaded
+            # micro VM. A short window here means systemd SIGKILLs mid-drain,
+            # losing an in-flight rotated AmoCRM token / userbot session and
+            # breaking the next boot -> the ~8-minute restart loop. 120s + a
+            # real SIGTERM (handled) lets the drain finish.
+            TimeoutStopSec=120
+            KillSignal=SIGTERM
+            Environment=PATH=/home/ubuntu/oisha-os/venv/bin:/usr/local/bin:/usr/bin:/bin
             UNIT
             sudo sed -i 's/^            //' /etc/systemd/system/oisha-os.service.d/10-resilience.conf
             sudo systemctl daemon-reload
             sudo systemctl reset-failed oisha-os || true
             sudo systemctl restart oisha-os
 
+            # Liveness gate: the PROCESS must come up and stay up. /healthz is
+            # an always-200 liveness probe (process alive + event loop
+            # responsive) — it does NOT reflect DB/userbot/AmoCRM, which are
+            # checked separately below. On the loaded micro VM the userbot boot
+            # can block the loop for a while, so give it a generous window.
             HEALTH_OK=0
-            for _ in $(seq 1 36); do
-              HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/readyz/ || echo 000)"
+            for _ in $(seq 1 48); do
+              HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/healthz/ || echo 000)"
               if [ "$HTTP_CODE" = "200" ] && systemctl is-active --quiet oisha-os; then
                 HEALTH_OK=1
                 break
@@ -316,27 +328,33 @@ jobs:
             done
 
             if [ "$HEALTH_OK" != "1" ]; then
-              echo "XATO: Oisha /readyz production dependencies tayyor emas"
+              echo "XATO: Oisha /healthz liveness — process ko'tarilmadi yoki event loop javob bermayapti"
               cat /tmp/oisha-health.json 2>/dev/null || true
               sudo journalctl -u oisha-os --no-pager -n 80
               exit 1
             fi
 
-            # The userbot boot can briefly block the event loop while Telegram,
-            # Google and CRM clients initialize. Treat stability as a short
-            # window with retries, not a single brittle curl.
-            sleep 25
-            STABLE_OK=0
-            for _ in $(seq 1 12); do
+            # Readiness gate: production dependencies. /readyz can transiently
+            # 503 during boot (DB probe under load), so retry a short window.
+            # A 200 with status "degraded" is acceptable (soft deps down —
+            # reported below); only a persistent non-200 or a non-empty
+            # "blocking" list fails the deploy.
+            sleep 20
+            READY_OK=0
+            for _ in $(seq 1 24); do
               HTTP_CODE="$(curl -s -o /tmp/oisha-health.json -w "%{http_code}" --max-time 10 http://127.0.0.1:8080/readyz/ || echo 000)"
               if [ "$HTTP_CODE" = "200" ] && systemctl is-active --quiet oisha-os; then
-                STABLE_OK=1
-                break
+                BLOCKING="$(python3 -c 'import json,sys; print(",".join(json.load(open("/tmp/oisha-health.json")).get("blocking") or []))' 2>/dev/null || echo parse_error)"
+                if [ -z "$BLOCKING" ]; then
+                  READY_OK=1
+                  break
+                fi
+                echo "readyz 200 lekin blocking=${BLOCKING} — kutilmoqda"
               fi
               sleep 5
             done
-            if [ "$STABLE_OK" != "1" ]; then
-              echo "XATO: Oisha stability window'dan o'tmadi"
+            if [ "$READY_OK" != "1" ]; then
+              echo "XATO: Oisha /readyz — production dependency bloklanmoqda yoki barqaror emas"
               cat /tmp/oisha-health.json 2>/dev/null || true
               sudo journalctl -u oisha-os --no-pager -n 80
               exit 1
