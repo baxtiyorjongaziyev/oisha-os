@@ -40,7 +40,8 @@ def test_important_no_note():
     leads = [{"id": 5, "name": "CallCo", "status_id": 111,
               "responsible_user_id": 101, "updated_at": E - 100}]
     tasks = {5: [
-        {"is_completed": True, "task_type_id": 1, "complete_till": E - 1800},   # call done 30m ago
+        {"is_completed": True, "task_type_id": 1, "complete_till": E - 1800,
+         "updated_at": E - 1800},   # call completed 30m ago
         {"is_completed": False, "complete_till": E + 3600},
     ]}
     out = find(leads, tasks, {5: []}, CFG, NOW)
@@ -48,3 +49,13 @@ def test_important_no_note():
     # with a fresh note, it disappears
     out2 = find(leads, tasks, {5: [{"created_at": E - 600, "params": {"text": "gaplashdim"}}]}, CFG, NOW)
     assert not any(f.type == "IMPORTANT_NO_NOTE" for f in out2)
+
+
+def test_important_no_note_uses_completion_time_not_due_time():
+    leads = [{"id": 6, "name": "DueYesterday", "status_id": 111,
+              "responsible_user_id": 101, "updated_at": E - 100}]
+    tasks = {6: [{"is_completed": True, "task_type_id": 1,
+                  "complete_till": E - 3 * 86400,  # due 3 days ago
+                  "updated_at": E - 1800}]}        # completed 30 min ago
+    out = find(leads, tasks, {6: []}, CFG, NOW)
+    assert any(f.type == "IMPORTANT_NO_NOTE" for f in out)

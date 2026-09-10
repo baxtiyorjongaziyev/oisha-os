@@ -67,27 +67,31 @@ class RopService:
                 leads_by_user[uid].append(l)
 
         all_lead_ids = [l["id"] for l in leads]
-        open_tasks = await self._fetch.fetch_open_tasks_for_leads(all_lead_ids)
-        completed_by_entity, completed_by_user = await self._fetch.fetch_today_completed_tasks(
-            list(roster_ids), now=now
-        )
-        today_events = await self._fetch.fetch_today_events(all_lead_ids, now=now)
-        notes = (
-            await self._fetch.fetch_notes_for_leads(all_lead_ids)
-            if slot in ("morning", "evening")
-            else {}
-        )
-
         is_monday = now.weekday() == 0
         recent_events: dict = {}
         won_today: list[dict] = []
         won_week: list[dict] = []
-        if slot in ("midday", "evening"):
-            won_today = await self._fetch.fetch_won_leads_since(_tashkent_day_start_epoch(now))
-        if slot == "evening" or (slot == "morning" and is_monday):
-            since_7d = int((now - timedelta(days=7)).timestamp())
-            recent_events = await self._fetch.fetch_recent_events(all_lead_ids, since_7d)
-            won_week = await self._fetch.fetch_won_leads_since(int(monday_start(now).timestamp()))
+        try:
+            open_tasks = await self._fetch.fetch_open_tasks_for_leads(all_lead_ids)
+            completed_by_entity, completed_by_user = await self._fetch.fetch_today_completed_tasks(
+                list(roster_ids), now=now
+            )
+            today_events = await self._fetch.fetch_today_events(all_lead_ids, now=now)
+            notes = (
+                await self._fetch.fetch_notes_for_leads(all_lead_ids)
+                if slot in ("morning", "evening")
+                else {}
+            )
+
+            if slot in ("midday", "evening"):
+                won_today = await self._fetch.fetch_won_leads_since(_tashkent_day_start_epoch(now))
+            if slot == "evening" or (slot == "morning" and is_monday):
+                since_7d = int((now - timedelta(days=7)).timestamp())
+                recent_events = await self._fetch.fetch_recent_events(all_lead_ids, since_7d)
+                won_week = await self._fetch.fetch_won_leads_since(int(monday_start(now).timestamp()))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[ROP] %s slot aborted — secondary fetch failed: %s", slot, exc)
+            return []
 
         prior_snapshot = await self._latest_snapshot(now)
         plan: list[tuple[int, str]] = []

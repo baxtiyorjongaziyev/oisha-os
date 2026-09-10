@@ -66,6 +66,16 @@ async def test_completed_tasks_filtered_by_user_and_grouped():
     assert 101 in by_user and 999 not in by_user
 
 @pytest.mark.asyncio
+async def test_completed_tasks_query_filters_to_leads_entity():
+    payload = {"_embedded": {"tasks": []}}
+    sess = FakeSession([("/api/v4/tasks", FakeResp(200, payload))])
+    f = RopFetcher(FakeAmo(), session=sess)
+    await f.fetch_today_completed_tasks([101])
+    _, params = sess.calls[0]
+    assert params.get("filter[entity_type]") == "leads"
+    assert params.get("filter[is_completed]") == 1
+
+@pytest.mark.asyncio
 async def test_non_200_returns_empty_not_raise():
     sess = FakeSession([("/api/v4/events", FakeResp(403, {}))])
     f = RopFetcher(FakeAmo(), session=sess)

@@ -95,7 +95,8 @@ class RopFetcher:
         since = _tashkent_day_start_epoch(now)
         rows = await self._paged(
             f"{self._amo.base_url}/api/v4/tasks",
-            {"filter[is_completed]": 1, "filter[updated_at][from]": since, "limit": 250},
+            {"filter[entity_type]": "leads", "filter[is_completed]": 1,
+             "filter[updated_at][from]": since, "limit": 250},
             key="tasks", max_pages=4, embed="tasks",
         )
         want = set(user_ids)

@@ -53,6 +53,11 @@ def render_seller_morning(plan: SellerMorningPlan) -> str:
     lines.append(f"• {s.follow_ups} ta follow-up")
     lines.append(f"• {s.meetings} ta uchrashuv")
     lines.append(f"• {s.payments} ta to'lov")
+    if plan.followup_due:
+        lines.append("")
+        lines.append("<b>Bugun follow-up:</b>")
+        for n in _trim([escape(x) for x in plan.followup_due]):
+            lines.append(f"• {n}")
     lines.append("")
     if plan.expected:
         lines.append("<b>Bugun kutilyapti:</b>")

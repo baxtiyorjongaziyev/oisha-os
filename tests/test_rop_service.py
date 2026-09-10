@@ -83,3 +83,14 @@ async def test_fetch_error_aborts_slot():
             raise RopFetchError("boom")
     svc = RopService(FakeRepo([_target(101, 555)]), Boom([]), ceo_chat_id=42, now_fn=lambda: THU_630)
     assert await svc.run("evening") == []
+
+@pytest.mark.asyncio
+async def test_secondary_fetch_error_aborts_slot():
+    class BoomTasks(FakeFetcher):
+        async def fetch_open_tasks_for_leads(self, ids):
+            raise RuntimeError("amocrm 500")
+    leads = [{"id": 1, "name": "ABC", "status_id": 111, "price": 1_000_000,
+              "responsible_user_id": 101, "updated_at": int(THU_630.timestamp()) - 100,
+              "created_at": int(THU_630.timestamp()) - 3 * 86400}]
+    svc = RopService(FakeRepo([_target(101, 555)]), BoomTasks(leads), ceo_chat_id=42, now_fn=lambda: THU_630)
+    assert await svc.run("evening") == []

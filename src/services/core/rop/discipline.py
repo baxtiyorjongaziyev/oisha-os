@@ -71,7 +71,7 @@ def find(seller_leads, tasks_by_lead, notes_by_lead, config, now) -> list[Findin
         for t in tasks:
             if not t.get("is_completed") or t.get("task_type_id") not in (1, 2):
                 continue
-            ct = float(t.get("complete_till") or 0)
+            ct = float(t.get("updated_at") or 0)
             if not (day_start <= ct <= day_end):
                 continue
             if not any(_note_time(n) >= ct for n in notes):
