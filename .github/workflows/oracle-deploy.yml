@@ -21,7 +21,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: oracle-production-deploy
+  # Keyed by event so PR runs (import-guard only) never share a concurrency
+  # group with a real production deploy or with each other: push-to-main
+  # still serializes under one group (only one live deploy at a time), each
+  # PR gets its own isolated group.
+  group: oracle-production-deploy-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'main' }}
   cancel-in-progress: true
 
 # Workflow-level default: read-only. import-guard runs pull-request-adjacent
