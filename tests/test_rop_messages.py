@@ -33,6 +33,14 @@ def test_seller_morning_has_disclaimer_and_escapes():
     assert DISCLAIMER in html
     assert "ABC &amp; Co" in html and "ABC & Co" not in html.replace("ABC &amp; Co", "")
 
+def test_seller_morning_renders_followup_due():
+    plan = SellerMorningPlan(SELLER, [LS], 3, [("ABC & Co", "Qo'ng'iroq")],
+                             ["ABC & Co"], [ExpectedItem("ABC & Co", 9_800_000, 82)],
+                             9_800_000, [Finding("ABC & Co", "NO_NEXT_TASK", "")])
+    html = render_seller_morning(plan)
+    assert "Bugun follow-up:" in html
+    assert "ABC &amp; Co" in html
+
 def test_seller_midday_renders():
     c = SellerMiddayCheck(SELLER, 1, 0, 3, 7, 1, ["ABC & Co"], [LS], False)
     html = render_seller_midday(c)
