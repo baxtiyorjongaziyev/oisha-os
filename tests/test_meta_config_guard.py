@@ -58,28 +58,29 @@ def test_runtime_fallback_and_no_mutation():
 
 
 @pytest.mark.asyncio
-async def test_health_reports_loss_and_recovery(monkeypatch):
+async def test_liveness_never_fails_on_meta_or_deps(monkeypatch):
+    """Liveness = "process tirikmi". Meta config, DB, userbot — readiness ishi.
+
+    Ilgari ``/healthz`` Meta config yo'qligini "degraded" deb ko'rsatib,
+    boot paytida 503 qaytarardi — Oracle watchdog uni "o'lik" deb restart
+    qilib, SIGKILL loop keltirib chiqarardi. Endi liveness doim 200/"alive".
+    Meta degradation ``/readyz``da qoladi (test_readiness_soft_degradation).
+    """
     from src.api.routes import health
     from src.api.routes.state import api_state
-    from src.services.core import agent_runtime
 
-    config = {}
-    original = guard.check_meta_config
-    monkeypatch.setattr(guard, "check_meta_config", lambda: original(SimpleNamespace(), config))
-    monkeypatch.setattr(api_state, "db_instance", SimpleNamespace(get_backend_name=lambda: "sqlite"))
-    monkeypatch.setenv("HEALTH_LIVE_DB_PROBE", "0")
-    monkeypatch.setattr(agent_runtime, "get_runtime_context", lambda: {
-        "runtime_source": "vm_service", "userbot_authorized": True,
-        "telegram_bot_ok": True, "crm_connected": True,
-    })
+    orig = guard.check_meta_config
+    monkeypatch.setattr(guard, "check_meta_config", lambda: orig(SimpleNamespace(), {}))
+    # db_instance hali init bo'lmagan — eng yomon boot holati.
+    monkeypatch.setattr(api_state, "db_instance", None)
+
     response = await health.liveness_probe()
     body = json.loads(response.body)
-    assert body["status"] == "degraded"
-    assert "instagram_not_configured" in body["problems"]
-    assert body["checks"]["meta_config"]["missing_keys"] == list(complete())
-    config.update(complete())
-    body = json.loads((await health.liveness_probe()).body)
-    assert "instagram_not_configured" not in body["problems"]
+
+    assert response.status_code == 200
+    assert body["status"] == "alive"
+    assert body["checks"]["db_instance"] == "pending"
+    assert "problems" not in body
     assert "synthetic-secret-sentinel" not in json.dumps(body)
 
 
