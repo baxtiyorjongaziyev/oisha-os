@@ -75,3 +75,9 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         )
     except ImportError as exc:
         logger.warning("[BRAIN] Cloud synthesizer unavailable: %s", exc)
+
+    try:
+        from src.schedulers.rop_scheduler import start_rop_schedulers
+        start_rop_schedulers(bot_runtime)
+    except ImportError as exc:
+        logger.warning("[ROP] scheduler unavailable: %s", exc)
