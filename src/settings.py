@@ -199,8 +199,15 @@ class AppSettings(BaseSettings):
     MARKETING_TOPIC_ID: Optional[int] = None                             # Marketing topic ID
 
     # @amocrm_amobot eslatmalarini forward qilish (Просроченная задача va h.k.)
+    # Bu follow-up / task deadline eslatmalari uchun (kelishilgan vaqtda yuboriladi).
     AMOCRM_ALERT_FORWARD_GROUP_ID: Optional[int] = None
     AMOCRM_ALERT_FORWARD_TOPIC_ID: Optional[int] = None
+
+    # AI qo'ng'iroq tahlili xulosasi uchun alohida topic (o'qitish bo'limi).
+    # Har qo'ng'iroq tahlil qilingach darhol yuboriladi. Unset bo'lsa
+    # AMOCRM_ALERT_FORWARD_* ga qaytadi.
+    CALL_ANALYSIS_GROUP_ID: Optional[int] = None
+    CALL_ANALYSIS_TOPIC_ID: Optional[int] = None
 
     # Tez Natija Group IDs
     TN6_GROUP_ID: Optional[int] = None
@@ -208,6 +215,10 @@ class AppSettings(BaseSettings):
     TN4_GROUP_ID: Optional[int] = None
     TN3_GROUP_ID: Optional[int] = None
     TN2_GROUP_ID: Optional[int] = None
+
+    # CRM Period Reports (kunlik/haftalik/oylik -> sotuv bo'limi guruhi)
+    CRM_SALES_REPORT_GROUP_ID: Optional[int] = -1003854308552   # Sotuv bo'limi guruhi (CRM davriy hisobotlar)
+    CRM_SALES_REPORT_TOPIC_ID: Optional[int] = 115              # Hisobotlar topic
 
     # Case Publisher & CMS Settings
     JONBRANDING_CHANNEL: str = "jonbranding"

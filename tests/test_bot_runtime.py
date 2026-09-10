@@ -29,7 +29,7 @@ class FakeAiogramBot:
 
 
 @pytest.mark.asyncio
-async def test_telethon_runtime_keeps_current_send_message_shape():
+async def test_telethon_runtime_forum_topic_uses_input_reply_to():
     client = FakeTelethonClient()
     runtime = TelethonBotRuntime(client)
 
@@ -44,18 +44,30 @@ async def test_telethon_runtime_keeps_current_send_message_shape():
 
     assert sent.backend == "telethon"
     assert sent.message_id == 101
-    assert client.calls == [
-        (
-            -1001,
-            "salom",
-            {
-                "parse_mode": "html",
-                "reply_to": 77,
-                "link_preview": False,
-                "silent": True,
-            },
-        )
-    ]
+    chat_id, text, kwargs = client.calls[0]
+    assert (chat_id, text) == (-1001, "salom")
+    assert kwargs["parse_mode"] == "html"
+    assert kwargs["link_preview"] is False
+    assert kwargs["silent"] is True
+    # Forum topic must route via top_msg_id, not a bare reply_to int.
+    reply_to = kwargs["reply_to"]
+    assert getattr(reply_to, "top_msg_id", None) == 77 or reply_to == 77
+
+
+@pytest.mark.asyncio
+async def test_telethon_runtime_converts_dict_buttons():
+    client = FakeTelethonClient()
+    runtime = TelethonBotRuntime(client)
+
+    await runtime.send_message(
+        -1001,
+        "vazifa",
+        buttons=[[{"text": "amoCRM", "url": "https://x.amocrm.ru/leads/detail/1"}]],
+    )
+
+    _, _, kwargs = client.calls[0]
+    btns = kwargs["buttons"]
+    assert btns and btns[0]  # one row, one button, coerced to a Telethon Button
 
 
 @pytest.mark.asyncio

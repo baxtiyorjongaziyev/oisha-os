@@ -10,6 +10,9 @@ from typing import Any, Dict, Optional
 from src.services.core.crm.daily_report.models import (
     CRMStats,
     CRMWeeklyStats,
+    PeriodType,
+    PeriodMetrics,
+    compute_deltas,
     _delta,
     _fmt_duration,
 )
@@ -18,11 +21,25 @@ logger = logging.getLogger(__name__)
 
 DIVIDER = "────────────────────────────"
 
+_UZ_MONTHS = [
+    "", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
+    "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr",
+]
+
 
 class FormatMixin:
     """Handles daily and weekly report formatting and Telegram group dispatch."""
 
-    def format_report(
+    def format_report(self, *args):
+        """Dispatch: PeriodType-first -> period report; else legacy daily report."""
+        if args and isinstance(args[0], PeriodType):
+            ptype, current, previous = (args + (None,))[:3]
+            return self.format_period_report(ptype, current, previous)
+        stats = args[0]
+        prev = args[1] if len(args) > 1 else None
+        return self._format_legacy_report(stats, prev)
+
+    def _format_legacy_report(
         self,
         stats: CRMStats,
         prev: Optional[CRMStats] = None,
@@ -94,6 +111,96 @@ class FormatMixin:
             "Sent via Oisha-OS",
         ]
         return "\n".join(lines)
+
+    @staticmethod
+    def _delta_str(cur, prev):
+        if prev is None:
+            return ""
+        diff = cur - prev
+        if abs(diff) < 1e-9:
+            return "  —"
+        sign = "▲ +" if diff > 0 else "▼ "
+        return f"  {sign}{diff:,.0f}".replace(",", " ")
+
+    @staticmethod
+    def _period_heading(ptype):
+        return {
+            PeriodType.DAILY: "KUNLIK HISOBOT",
+            PeriodType.WEEKLY: "HAFTALIK HISOBOT",
+            PeriodType.MONTHLY: "OYLIK HISOBOT",
+        }[ptype]
+
+    @staticmethod
+    def _period_label(ptype, start, end):
+        if ptype == PeriodType.DAILY:
+            return start.strftime("%d.%m.%Y")
+        if ptype == PeriodType.WEEKLY:
+            return f"{start.strftime('%d.%m')} - {end.strftime('%d.%m.%Y')}"
+        return f"{_UZ_MONTHS[start.month]} {start.year}"
+
+    def format_period_report(self, ptype, current, previous):
+        p = previous
+        d = self._delta_str
+        m = current
+
+        def pv(field):
+            return getattr(p, field) if p is not None else None
+
+        lines = [
+            f"📊 AmoCRM {self._period_heading(ptype)} | {self._period_label(ptype, m.period_start, m.period_end)}",
+            DIVIDER,
+            "🎯 BITIMLAR",
+            f"  Yangi bitimlar: {m.new_leads}{d(m.new_leads, pv('new_leads'))}",
+            f"  Faol bitimlar: {m.active_count} ({self._fmt_money(m.active_amount)} so'm)",
+            f"  Yutilgan: {m.won_count} ({self._fmt_money(m.won_amount)} so'm){d(m.won_count, pv('won_count'))}",
+            f"  Yutqazilgan: {m.lost_count} ({self._fmt_money(m.lost_amount)} so'm){d(m.lost_count, pv('lost_count'))}",
+            f"  Win rate: {m.win_rate:.0f}%{d(m.win_rate, pv('win_rate'))}",
+            f"  O'rtacha yutilgan bitim: {self._fmt_money(m.avg_won_deal)} so'm",
+            f"  Pipeline qiymati: {self._fmt_money(m.pipeline_value)} so'm",
+            f"  ⚠️ Stagnatsiya (3+ kun): {m.stagnated_count}",
+            "",
+            "📞 ALOQA",
+            f"  Yangi kontaktlar: {m.new_contacts}{d(m.new_contacts, pv('new_contacts'))}",
+            f"  Yangi kompaniyalar: {m.new_companies}",
+            f"  Kiruvchi qo'ng'iroqlar: {m.incoming_calls}{d(m.incoming_calls, pv('incoming_calls'))}",
+            "",
+            "✅ ZADACHALAR",
+            f"  Yaratilgan: {m.tasks_created}{d(m.tasks_created, pv('tasks_created'))}",
+            f"  Bajarilgan: {m.tasks_completed}",
+            f"  Ochiq: {m.tasks_open}",
+            f"  🔴 Muddati o'tgan: {m.tasks_overdue}",
+            f"  🚨 Zadachasiz ochiq bitimlar: {m.leads_without_task}",
+            "",
+            "🏆 MENEJERLAR (yutilgan bo'yicha)",
+        ]
+
+        medals = ["🥇", "🥈", "🥉"]
+        if not m.managers:
+            lines.append("  Ma'lumot yo'q")
+        for i, mr in enumerate(m.managers):
+            badge = medals[i] if i < 3 else f"  {i + 1}."
+            lines.append(
+                f"  {badge} {mr.name} — {mr.won_count} ta / {self._fmt_money(mr.won_amount)} so'm"
+            )
+            if mr.open_tasks or mr.overdue_tasks:
+                lines.append(
+                    f"     └ ochiq zadacha: {mr.open_tasks} | muddati o'tgan: {mr.overdue_tasks}"
+                )
+
+        links = self._period_links(ptype, m.period_start, m.period_end)
+        lines += [
+            "",
+            DIVIDER,
+            "🔗 AmoCRM'da ochish:",
+            f"  [Yangi bitimlar]({links['new_leads']}) · [Yutilgan]({links['won']}) · [Yutqazilgan]({links['lost']})",
+            "",
+            "Oisha-OS orqali yuborilgan",
+        ]
+        return "\n".join(lines)
+
+    def _period_links(self, ptype, start, end):
+        # reuse existing _weekly_report_links machinery for date filters
+        return self._weekly_report_links(start, end)
 
     async def send_to_group(
         self,

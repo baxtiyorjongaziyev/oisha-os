@@ -4,12 +4,21 @@ CRMDailyReporter and ReportBot orchestration classes.
 import asyncio
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
 from src.services.core.crm.daily_report.history_db import HistoryDBMixin
 from src.services.core.crm.daily_report.fetcher import AmoFetcherMixin
 from src.services.core.crm.daily_report.formatter import FormatMixin
+from src.services.core.crm.daily_report.models import (
+    PeriodType,
+    PeriodMetrics,
+    ReportResult,
+    period_range,
+    previous_range,
+    previous_anchor,
+    compute_deltas,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +44,11 @@ class CRMDailyReporter(HistoryDBMixin, AmoFetcherMixin, FormatMixin):
         self._crm = amocrm
         self._db_path = db_path
         self._ensure_db()
+
+    async def get_weekly_report(self) -> str:
+        res = await CRMPeriodReporter(self._crm, self._db_path).build(PeriodType.WEEKLY)
+        return res.telegram_text
+
 
 class ReportBot:
     """
@@ -155,6 +169,40 @@ class ReportBot:
                 )
         except Exception as exc:
             logger.error(f"[ReportBot] _send_report error: {exc}")
+
+
+class CRMPeriodReporter(CRMDailyReporter):
+    """Unified daily / weekly / monthly amoCRM reporter."""
+
+    async def build(self, ptype: PeriodType, anchor: "date | None" = None) -> ReportResult:
+        anchor = anchor or date.today()
+        start, end = period_range(ptype, anchor)
+
+        current = await self.fetch_metrics(ptype, anchor)
+        fetch_ok = getattr(self, "_last_fetch_ok", True)
+
+        prev_start = previous_range(ptype, anchor)[0]
+        previous = self.load_snapshot(ptype, prev_start)
+        if previous is None:
+            try:
+                previous = await self.fetch_metrics(ptype, previous_anchor(ptype, anchor))
+            except Exception as exc:
+                logger.debug("[CRMPeriodReporter] previous fetch failed: %s", exc)
+                previous = None
+
+        text = self.format_period_report(ptype, current, previous)
+        self.save_snapshot(current)
+
+        return ReportResult(
+            period_type=ptype,
+            period_start=start,
+            period_end=end,
+            metrics=current,
+            previous=previous,
+            deltas=compute_deltas(current, previous),
+            telegram_text=text,
+            fetch_ok=fetch_ok,
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
