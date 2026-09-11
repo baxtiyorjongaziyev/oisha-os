@@ -8,7 +8,7 @@ pydantic-settings>=2.15.0
 python-dotenv>=1.2.3
 aiogram>=3.29.1
 python-telegram-bot>=22.8
-telethon>=1.44.0
+telethon==1.44.0
 httpx>=0.28.1,<0.29.0
 aiohttp>=3.14.1
 requests>=2.34.2
