@@ -86,7 +86,7 @@ async def backfill_unanswered_comments(
         "dry_run": dry_run,
     }
 
-    media_res = client.list_media(limit=media_limit)
+    media_res = await asyncio.to_thread(client.list_media, limit=media_limit)
     if not media_res.get("ok"):
         return {"ok": False, "error": media_res.get("error", "media_fetch_failed")}
 
@@ -97,7 +97,8 @@ async def backfill_unanswered_comments(
         summary["scanned_media"] += 1
         caption = media.get("caption", "") or ""
 
-        for comment in _fetch_media_comments(media_id, token):
+        comments = await asyncio.to_thread(_fetch_media_comments, media_id, token)
+        for comment in comments:
             if summary["answered"] >= max_replies:
                 logger.info("[META] Backfill hit max_replies cap", cap=max_replies)
                 return {"ok": True, **summary}
@@ -120,7 +121,7 @@ async def backfill_unanswered_comments(
             if replies_data is not None:
                 replies = replies_data
             else:
-                replies = _fetch_comment_replies(comment_id, token)
+                replies = await asyncio.to_thread(_fetch_comment_replies, comment_id, token)
 
             already = any(
                 (r.get("from") or {}).get("id") == own_id
@@ -153,10 +154,10 @@ async def backfill_unanswered_comments(
                     ai_reply = await generate_comment_reply(text, caption, commenter_name)
                     clean = re.sub(r"\[.*?\]", "", ai_reply).strip()
                 if reply_to_comment_fn:
-                    ok = reply_to_comment_fn(comment_id, clean, token)
+                    ok = await asyncio.to_thread(reply_to_comment_fn, comment_id, clean, token)
                 else:
                     from src.services.core.instagram_agent import reply_to_comment
-                    ok = reply_to_comment(comment_id, clean, token)
+                    ok = await asyncio.to_thread(reply_to_comment, comment_id, clean, token)
                 if ok:
                     summary["answered"] += 1
                     if db:
