@@ -31,7 +31,7 @@ class AutoTaskCreator:
         from src.settings import settings
 
         self.token_file = token_file
-        subdomain = getattr(settings, "AMOCRM_SUBDOMAIN", "jonbranding")
+        subdomain = getattr(settings, "AMOCRM_SUBDOMAIN", "") or "jonbranding"
         self.base_url = f"https://{subdomain}.amocrm.ru"
         self._token: Optional[str] = None
         self._token_expires: float = 0
