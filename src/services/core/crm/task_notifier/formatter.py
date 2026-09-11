@@ -12,7 +12,7 @@ logger = logging.getLogger('AmoCRMTaskNotifier')
 
 DEFAULT_FORWARD_GROUP_ID = -1003854308552
 DEFAULT_FORWARD_TOPIC_ID = 443
-DEFAULT_SUBDOMAIN = "jonbrandingagency"
+DEFAULT_SUBDOMAIN = "jonbranding"
 
 PIPELINE_MAP = {
     11162698: "1. PRESALES",

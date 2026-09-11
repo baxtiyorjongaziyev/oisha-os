@@ -47,7 +47,7 @@ jobs:
             if [ -n "$TOKEN" ]; then
               HTTP=$(curl -s -o /tmp/amo_test.json -w "%{http_code}" \
                 -H "Authorization: Bearer $TOKEN" \
-                "https://jonbrandingagency.amocrm.ru/api/v4/account" 2>/dev/null)
+                "https://jonbranding.amocrm.ru/api/v4/account" 2>/dev/null)
               echo "GET /api/v4/account: HTTP $HTTP"
               if [ "$HTTP" != "200" ]; then
                 cat /tmp/amo_test.json 2>/dev/null | head -c 200 || true

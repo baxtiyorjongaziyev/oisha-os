@@ -20,7 +20,7 @@ class SmartTaskCreator(ContextBuilderMixin, TaskAnalyzerMixin):
 
     def __init__(self, token_file: str = "data/amocrm_token.json"):
         self.token_file = token_file
-        self.base_url = "https://jonbrandingagency.amocrm.ru"
+        self.base_url = "https://jonbranding.amocrm.ru"
         self._token: Optional[str] = None
         self._token_expires: float = 0
 
