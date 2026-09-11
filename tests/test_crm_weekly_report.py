@@ -19,7 +19,7 @@ class FakeResponse:
 
 
 class FakeAmoCRM:
-    base_url = "https://jonbrandingagency.amocrm.ru"
+    base_url = "https://jonbranding.amocrm.ru"
     access_token = "token"
 
     def __init__(self, pages):
@@ -75,7 +75,7 @@ def test_format_weekly_report_uz_contains_reportagram_style_fields(tmp_path):
     assert "Yangi bitimlar: 65" in text
     assert "Yangi kompaniyalar: 3" in text
     assert "Yangi kontaktlar: 71" in text
-    assert "jonbrandingagency.amocrm.ru/gtd/leads/list/" in text
+    assert "jonbranding.amocrm.ru/gtd/leads/list/" in text
 
 
 @pytest.mark.asyncio

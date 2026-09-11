@@ -55,7 +55,7 @@ class AmoCRMSync(
     ):
         from src.settings import settings
 
-        self.subdomain = subdomain or getattr(settings, "AMOCRM_SUBDOMAIN", "jonbranding")
+        self.subdomain = subdomain or getattr(settings, "AMOCRM_SUBDOMAIN", "") or "jonbranding"
         self.client_id = client_id or getattr(settings, "AMOCRM_CLIENT_ID", "")
         self.client_secret = _plain_secret(
             client_secret

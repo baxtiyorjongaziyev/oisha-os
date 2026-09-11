@@ -46,7 +46,7 @@ def main():
     page = 1
     while True:
         r = requests.get(
-            f'https://jonbrandingagency.amocrm.ru/api/v4/tasks?limit=250&page={page}&filter[is_completed]=0',
+            f'https://jonbranding.amocrm.ru/api/v4/tasks?limit=250&page={page}&filter[is_completed]=0',
             headers=headers
         )
         if r.status_code != 200:
@@ -99,7 +99,7 @@ def main():
     for i in range(0, len(tasks_to_update), chunk_size):
         chunk = tasks_to_update[i:i+chunk_size]
         r = requests.patch(
-            'https://jonbrandingagency.amocrm.ru/api/v4/tasks',
+            'https://jonbranding.amocrm.ru/api/v4/tasks',
             headers=headers,
             json=chunk
         )
