@@ -96,6 +96,7 @@ airtable_scan.txt
 data/csv/
 data/*.csv
 data/*.tar
+data/juma_sent/
 
 # Temp & Artifacts
 tmp/

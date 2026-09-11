@@ -1,12 +1,14 @@
 """Juma tabrigi — Tez natija 2/3/4/5 guruh a'zolariga DM."""
 import asyncio
 import contextlib
+import json
 import os
 import random
 import sys
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from telethon import TelegramClient
@@ -107,6 +109,30 @@ print(
     f"Payshanba tasdiqlandi: {_now_tashkent.strftime('%Y-%m-%d %H:%M')} Toshkent vaqti. "
     f"Deadline (Juma Shomi): {DEADLINE_TASHKENT.strftime('%Y-%m-%d %H:%M')}"
 )
+
+#: Shu haftaning broadcast'i davomida kimga allaqachon yuborilganini saqlaydi
+#: (Payshanba sanasi bilan nomlangan fayl) — PeerFloodError yoki boshqa sabab
+#: bilan to'xtab, xuddi shu kun/oyna ichida qayta ishga tushirilsa, avval
+#: yuborilganlarga IKKINCHI MARTA yozilmasligi uchun. Keyingi Payshanba —
+#: yangi sana, yangi fayl, ro'yxat tabiiy ravishda boshidan boshlanadi.
+SENT_LOG_DIR = Path(__file__).resolve().parent.parent / "data" / "juma_sent"
+SENT_LOG_PATH = SENT_LOG_DIR / f"{_now_tashkent.strftime('%Y-%m-%d')}.json"
+
+
+def load_already_sent() -> set[int]:
+    if not SENT_LOG_PATH.exists():
+        return set()
+    try:
+        return set(json.loads(SENT_LOG_PATH.read_text()))
+    except Exception as e:
+        print(f"OGOHLANTIRISH: sent-log o'qilmadi ({e}) — bo'sh deb hisoblanadi")
+        return set()
+
+
+def mark_sent(user_id: int, already_sent: set[int]) -> None:
+    already_sent.add(user_id)
+    SENT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    SENT_LOG_PATH.write_text(json.dumps(sorted(already_sent)))
 
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
@@ -219,12 +245,27 @@ async def run() -> None:
     send_tg_notification("✅ Telethon ulandi — guruhlar skanerlanmoqda...")
 
     members = await collect_members(client)
+    already_sent = load_already_sent()
+    total_before_filter = len(members)
+    if already_sent:
+        members = [m for m in members if m["id"] not in already_sent]
+        skipped = total_before_filter - len(members)
+        print(
+            f"Shu hafta avval yuborilgan {skipped} kishi o'tkazib yuborildi "
+            f"({SENT_LOG_PATH.name})"
+        )
+        if skipped:
+            send_tg_notification(
+                f"ℹ️ Shu hafta avval yuborilgan {skipped} kishiga bugun qayta "
+                "yozilmaydi (davom etilmoqda)."
+            )
     total = len(members)
-    print(f"Jami unikal aʼzolar: {total}")
+    print(f"Jami unikal aʼzolar (yangi, hali yuborilmagan): {total}")
 
     if total == 0:
         send_tg_notification(
-            "Juma tabrigi: hech kim topilmadi. Guruh nomlarini tekshiring."
+            "Juma tabrigi: yuboriladigan yangi kishi qolmadi "
+            f"(barchasi shu hafta allaqachon yuborilgan yoki guruhlar topilmadi)."
         )
         await client.disconnect()
         return
@@ -258,6 +299,7 @@ async def run() -> None:
                 await send_to_member(client, member)
                 sent += 1
                 consecutive_disconnects = 0
+                mark_sent(member["id"], already_sent)
                 print(f"OK {label}")
             except PeerFloodError as e:
                 # Telegram bu yerda "juda ko'p odamga yozyapsiz" deb hisobladi —
@@ -280,6 +322,7 @@ async def run() -> None:
                     await send_to_member(client, member)
                     sent += 1
                     consecutive_disconnects = 0
+                    mark_sent(member["id"], already_sent)
                     print(f"OK (retry) {label}")
                 except Exception as retry_err:
                     failed += 1
@@ -355,22 +398,19 @@ async def run() -> None:
                 f"Yuborildi: {sent}/{total}\n"
                 f"Qolgan {total - sent} kishi (pastroq ustuvorlikdagi guruhlar) "
                 "bu safar tabrik olmadi — keyingi Payshanba avtomatik qayta "
-                "boshlanadi (lekin yana ro'yxat BOSHIDAN, ya'ni Tez Natija 6 dan)."
+                "boshlanadi (yangi hafta, yangi ro'yxat — Tez Natija 6 dan)."
             )
         if hit_run_cap:
-            # DIQQAT: skript hozircha kimga allaqachon yuborilganini saqlamaydi —
-            # keyingi ishga tushirishda ro'yxat BOSHIDAN qayta boshlanadi. Demak
-            # {total - MAX_MESSAGES_PER_RUN} kishi bu limit turgan ekan hech
-            # qachon tabrik olmaydi, faqat JUMA_MAX_PER_RUN oshirilmasa yoki
-            # davomiylik (cursor) logikasi qo'shilmasa.
+            # Kimga yuborilgani SENT_LOG_PATH ga yoziladi — shu hafta ichida
+            # qayta ishga tushirilsa, avval yuborilganlar avtomatik o'tkazib
+            # yuboriladi (load_already_sent/mark_sent, yuqorida).
             send_tg_notification(
                 "⏸ Juma tabrigi bir martalik limitga yetdi va TO'XTATILDI "
                 f"(Telegram xavfsizligi uchun ataylab: {MAX_MESSAGES_PER_RUN} ta).\n\n"
                 f"Yuborildi: {sent}/{total}\n"
-                "DIQQAT: skript kimga yuborilganini eslab qolmaydi — keyingi safar "
-                "ro'yxat boshidan boshlanadi. Qolgan "
-                f"{total - sent} kishi tabrik olishi uchun JUMA_MAX_PER_RUN ni "
-                "oshiring yoki avval navbat (cursor) logikasini qo'shishni so'rang."
+                "Kimga yuborilgani saqlandi — qayta ishga tushirilsa, ularga "
+                f"qayta yozilmaydi. Qolgan {total - sent} kishi tabrik olishi "
+                "uchun JUMA_MAX_PER_RUN ni oshiring yoki skriptni qayta ishga tushiring."
             )
         if aborted_reason:
             send_tg_notification(aborted_reason)
