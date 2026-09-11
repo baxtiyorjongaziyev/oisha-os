@@ -44,11 +44,19 @@ Loyihalar jadvalida "NAF Stroy - Patent" record. Start sana / END sana ustunlari
 ### 3. ARXIV jadvallar — QAROR KERAK (owner savol berdi):
 "ARXIV — Kirim (Finance V1)" (20 field), "ARXIV — Chiqim (Finance V1)" (15 field) — hidden.
 Owner xavotiri: mijoz-loyiha bog'lanishi, kelishilgan/to'langan/qoldiq.
-TEKSHIRISH: ARXIV'da nechta record + Tranzaksiyalarga to'liq ko'chirilganmi.
-CLAUDE.md tasdiqlaydi: "Eski Kirim/Chiqim jadvallaridagi barcha yozuvlar Tranzaksiyalarga ko'chirilgan. arxiv — maydonlar hisob-kitobda ishlatilmaydi."
+TEKSHIRISH (HALI TASDIQLANMAGAN — bu bosqich bajarilmagan): ARXIV'da nechta
+record bor va ular Tranzaksiyalarga to'liq ko'chirilganmi — canlı
+record-parity solishtiruv qilinmagan. Loyihalar jadvalidagi field
+izohida (Airtable field description) "arxiv — bilan boshlanadigan
+maydonlar hisob-kitobda ishlatilmaydi, eski yozuvlar Tranzaksiyalarga
+ko'chirilgan" deyilgan — bu Airtable ichidagi field-level izoh, CLAUDE.md
+matnida so'zma-so'z tasdiq YO'Q va mustaqil tekshirilmagan.
 Yangi hisob Loyihalar'da: `Jami to'langan (UZS)` (Tranzaksiyalardan rollup), `Qoldiq to'lov uzs` — bular ISHLAYDI, tegmang.
-O'chirsangiz `arxiv —` rollup/link fieldlar buziladi (lekin baribir ishlatilmaydi).
-Owner tasdiqlаса → ARXIV jadvallarni o'chirish, keyin Loyihalar/Mijozlar/Jamoa/KPI'dagi `arxiv —`/`[ESKI]` fieldlar.
+O'chirsangiz `arxiv —` rollup/link fieldlar buziladi (lekin baribir ishlatilmaydi — bu izohga asoslanadi, tasdiqlanmagan).
+QOIDA: ARXIV jadvallarni yoki `arxiv —`/`[ESKI]` fieldlarni O'CHIRMANG toki
+ARXIV record'lari va Tranzaksiyalar'dagi mos yozuvlar qo'lda yoki
+skript bilan solishtirilib, to'liq migratsiya tasdiqlanmaguncha. Shundan
+keyingina owner tasdig'i bilan o'chirish.
 
 ### 4. Loyihalar jadval — 68 field (juda shishган). Keraksizlar:
 - arxiv — eski Kirim (UZS), arxiv — eski Kirim (USD), arxiv — eski Chiqim (UZS), arxiv — chiqim USD (eski Chiqim) — rollup, ARXIV o'chgach o'chirish
