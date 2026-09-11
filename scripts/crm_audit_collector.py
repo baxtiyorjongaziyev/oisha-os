@@ -16,7 +16,7 @@ def run_audit():
         token_data = json.load(f)
     
     access_token = token_data.get("access_token")
-    subdomain = "jonbrandingagency"
+    subdomain = "jonbranding"
     base_url = f"https://{subdomain}.amocrm.ru"
     headers = {
         "Authorization": f"Bearer {access_token}",

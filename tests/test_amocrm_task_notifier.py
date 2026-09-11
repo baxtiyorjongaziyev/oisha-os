@@ -38,7 +38,7 @@ def test_format_task_notification_due():
         phone="+998901234567",
         responsible_name="Baxtiyorjon Gaziyev",
         alert_type="due",
-        subdomain="jonbrandingagency",
+        subdomain="jonbranding",
     )
     assert "Пора выполнить задачу" in msg
     assert "Azamat Aka Admiral" in msg
@@ -51,7 +51,7 @@ def test_format_task_notification_due():
     assert "15 000 000" in msg
     assert "@azamat_admiral" in msg
     assert buttons is not None
-    assert buttons[0][0]["url"] == "https://jonbrandingagency.amocrm.ru/leads/detail/36654487"
+    assert buttons[0][0]["url"] == "https://jonbranding.amocrm.ru/leads/detail/36654487"
 
 
 def test_format_task_notification_overdue():
@@ -74,7 +74,7 @@ def test_format_task_notification_overdue():
     assert "Nilufar opa" in msg
     assert "Oydin" in msg
     assert "+998775073030" in msg
-    assert buttons[0][0]["url"] == "https://jonbrandingagency.amocrm.ru/contacts/detail/112233"
+    assert buttons[0][0]["url"] == "https://jonbranding.amocrm.ru/contacts/detail/112233"
 
 
 def test_parse_amocrm_task_webhook_data():

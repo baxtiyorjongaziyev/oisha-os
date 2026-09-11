@@ -28,8 +28,11 @@ class AutoTaskCreator:
     """Birinchi kontakt statusidagi leadlarga avtomatik task yaratadi."""
 
     def __init__(self, token_file: str = "data/amocrm_token.json"):
+        from src.settings import settings
+
         self.token_file = token_file
-        self.base_url = "https://jonbrandingagency.amocrm.ru"
+        subdomain = getattr(settings, "AMOCRM_SUBDOMAIN", "jonbranding")
+        self.base_url = f"https://{subdomain}.amocrm.ru"
         self._token: Optional[str] = None
         self._token_expires: float = 0
 
