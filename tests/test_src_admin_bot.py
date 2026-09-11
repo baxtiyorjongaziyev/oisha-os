@@ -27,8 +27,10 @@ async def test_send_recent_leads_no_leads():
 
 
 @pytest.mark.asyncio
-async def test_send_recent_leads_with_leads():
+async def test_send_recent_leads_with_leads(monkeypatch):
     # Arrange
+    from src import admin_bot as _admin_bot_mod
+    monkeypatch.setattr(_admin_bot_mod.settings, "AMOCRM_SUBDOMAIN", "jonbranding", raising=False)
     mock_client = MagicMock()
     mock_db = MagicMock()
     

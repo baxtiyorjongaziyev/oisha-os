@@ -7,7 +7,7 @@ from src.services.core.crm.daily_report.reporter import CRMDailyReporter
 
 def _reporter(tmp_path):
     class _Amo:
-        base_url = "https://jonbrandingagency.amocrm.ru"
+        base_url = "https://jonbranding.amocrm.ru"
     return CRMDailyReporter(amocrm=_Amo(), db_path=str(tmp_path / "r.db"))
 
 

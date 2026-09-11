@@ -29,13 +29,13 @@ async def test_check_connection_uses_env_token(monkeypatch):
 
     def fake_get(url, headers=None, timeout=None):
         seen_headers.update(headers or {})
-        assert url == "https://jonbrandingagency.amocrm.ru/api/v4/account"
+        assert url == "https://jonbranding.amocrm.ru/api/v4/account"
         assert timeout == 15
         return _Response(200, {"id": 1})
 
     monkeypatch.setattr("requests.get", fake_get)
 
-    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+    amocrm = AmoCRMSync("jonbranding", "client-id", "client-secret", "https://example.test/cb")
 
     assert await amocrm.check_connection() is True
     assert seen_headers["Authorization"] == "Bearer valid-access-token"
@@ -60,7 +60,7 @@ async def test_check_connection_does_not_block_event_loop(monkeypatch):
         release.set()
 
     monkeypatch.setattr("requests.get", fake_get)
-    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+    amocrm = AmoCRMSync("jonbranding", "client-id", "client-secret", "https://example.test/cb")
 
     release_task = asyncio.create_task(release_request())
     assert await amocrm.check_connection() is True
@@ -84,7 +84,7 @@ async def test_check_connection_refreshes_expired_token(monkeypatch):
     monkeypatch.setattr("requests.get", fake_get)
     monkeypatch.setattr(AmoCRMSync, "refresh_token", lambda self: setattr(self, "access_token", "new-token") or True)
 
-    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+    amocrm = AmoCRMSync("jonbranding", "client-id", "client-secret", "https://example.test/cb")
 
     assert await amocrm.check_connection() is True
     assert calls["account"] == 2
@@ -111,7 +111,7 @@ async def test_invalid_oauth_refresh_blocks_repeated_crm_calls(monkeypatch):
     monkeypatch.setattr("requests.post", fake_post)
     monkeypatch.setattr("requests.get", fake_get)
 
-    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+    amocrm = AmoCRMSync("jonbranding", "client-id", "client-secret", "https://example.test/cb")
 
     assert amocrm.refresh_token() is False
     assert amocrm.is_auth_blocked() is True
@@ -141,7 +141,7 @@ async def test_get_leads_detailed_does_not_block_event_loop(monkeypatch):
         release.set()
 
     monkeypatch.setattr("requests.get", fake_get)
-    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+    amocrm = AmoCRMSync("jonbranding", "client-id", "client-secret", "https://example.test/cb")
 
     release_task = asyncio.create_task(release_request())
     assert await amocrm.get_leads_detailed(limit=30) == []
@@ -167,7 +167,7 @@ async def test_get_lead_does_not_block_event_loop(monkeypatch):
         release.set()
 
     monkeypatch.setattr("requests.get", fake_get)
-    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+    amocrm = AmoCRMSync("jonbranding", "client-id", "client-secret", "https://example.test/cb")
 
     release_task = asyncio.create_task(release_request())
     lead = await amocrm.get_lead(46088992)
@@ -201,7 +201,7 @@ async def test_primary_contact_phone_hydrates_shallow_embedded_contact(monkeypat
         )
 
     monkeypatch.setattr("requests.get", fake_get)
-    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+    amocrm = AmoCRMSync("jonbranding", "client-id", "client-secret", "https://example.test/cb")
 
     phone = await amocrm.get_primary_contact_phone(
         {"_embedded": {"contacts": [{"id": 321}]}}
@@ -217,7 +217,7 @@ async def test_create_task_blocks_closed_leads(monkeypatch, closed_status_id):
         "AMOCRM_TOKEN_JSON",
         json.dumps({"access_token": "valid-access-token", "refresh_token": "refresh-token"}),
     )
-    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+    amocrm = AmoCRMSync("jonbranding", "client-id", "client-secret", "https://example.test/cb")
     amocrm.get_lead = AsyncMock(
         return_value={"id": 46088992, "status_id": closed_status_id}
     )
@@ -242,7 +242,7 @@ async def test_create_task_blocks_when_lead_state_cannot_be_verified(monkeypatch
         "AMOCRM_TOKEN_JSON",
         json.dumps({"access_token": "valid-access-token", "refresh_token": "refresh-token"}),
     )
-    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+    amocrm = AmoCRMSync("jonbranding", "client-id", "client-secret", "https://example.test/cb")
     amocrm.get_lead = AsyncMock(return_value=None)
     amocrm._request_with_auth = AsyncMock(
         return_value=_Response(201, {"_embedded": {"tasks": [{"id": 77}]}})
@@ -265,7 +265,7 @@ async def test_create_task_blocks_when_lead_status_is_missing(monkeypatch):
         "AMOCRM_TOKEN_JSON",
         json.dumps({"access_token": "valid-access-token", "refresh_token": "refresh-token"}),
     )
-    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+    amocrm = AmoCRMSync("jonbranding", "client-id", "client-secret", "https://example.test/cb")
     amocrm.get_lead = AsyncMock(return_value={"id": 46088992})
     amocrm._request_with_auth = AsyncMock(
         return_value=_Response(201, {"_embedded": {"tasks": [{"id": 77}]}})
@@ -288,7 +288,7 @@ async def test_create_task_allows_verified_active_lead(monkeypatch):
         "AMOCRM_TOKEN_JSON",
         json.dumps({"access_token": "valid-access-token", "refresh_token": "refresh-token"}),
     )
-    amocrm = AmoCRMSync("jonbrandingagency", "client-id", "client-secret", "https://example.test/cb")
+    amocrm = AmoCRMSync("jonbranding", "client-id", "client-secret", "https://example.test/cb")
     amocrm.get_lead = AsyncMock(
         return_value={"id": 46088992, "status_id": 80178230}
     )
@@ -320,7 +320,7 @@ def test_secret_str_client_secret_is_unwrapped():
     from pydantic import SecretStr
 
     amocrm = AmoCRMSync(
-        "jonbrandingagency",
+        "jonbranding",
         "client-id",
         SecretStr("super-secret"),
         "https://example.test/cb",
@@ -335,7 +335,7 @@ def test_secret_str_client_secret_is_unwrapped():
 def test_plain_client_secret_passes_through():
     """Oddiy str uzatilganda xatti-harakat o'zgarmasligi kerak."""
     amocrm = AmoCRMSync(
-        "jonbrandingagency",
+        "jonbranding",
         "client-id",
         "plain-secret",
         "https://example.test/cb",

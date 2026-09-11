@@ -14,7 +14,7 @@ print(f"Now: {now}")
 print(f"Expired: {now > expires_at}")
 
 # Test API call
-url = "https://jonbrandingagency.amocrm.ru/api/v4/account"
+url = "https://jonbranding.amocrm.ru/api/v4/account"
 headers = {"Authorization": f"Bearer {token}"}
 resp = httpx.get(url, headers=headers, timeout=10)
 print(f"Status: {resp.status_code}")

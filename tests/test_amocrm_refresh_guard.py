@@ -99,7 +99,7 @@ async def test_save_token_writes_db_before_file(monkeypatch, tmp_path):
     order = []
 
     amocrm = AmoCRMSync(
-        "jonbrandingagency", "cid", "csecret", "https://x.test/cb",
+        "jonbranding", "cid", "csecret", "https://x.test/cb",
         token_file=str(tmp_path / "amocrm_token.json"),
     )
     monkeypatch.setattr(amocrm, "_persist_token_to_db", lambda: order.append("db"))

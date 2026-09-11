@@ -30,7 +30,7 @@ async def test_raw_refresh_fallback_used_when_file_has_access_token_only(
     monkeypatch.delenv("AMOCRM_TOKEN_JSON", raising=False)
 
     amocrm = AmoCRMSync(
-        "jonbrandingagency",
+        "jonbranding",
         "client-id",
         "client-secret",
         "https://example.test/cb",
@@ -51,7 +51,7 @@ async def test_raw_refresh_fallback_used_when_file_is_empty_dict(monkeypatch, tm
     monkeypatch.delenv("AMOCRM_TOKEN_JSON", raising=False)
 
     amocrm = AmoCRMSync(
-        "jonbrandingagency",
+        "jonbranding",
         "client-id",
         "client-secret",
         "https://example.test/cb",
@@ -74,7 +74,7 @@ async def test_raw_refresh_fallback_skipped_when_file_already_has_refresh_token(
     monkeypatch.delenv("AMOCRM_TOKEN_JSON", raising=False)
 
     amocrm = AmoCRMSync(
-        "jonbrandingagency",
+        "jonbranding",
         "client-id",
         "client-secret",
         "https://example.test/cb",
@@ -93,7 +93,7 @@ async def test_no_fallback_available_still_reports_missing(monkeypatch, tmp_path
     monkeypatch.delenv("AMOCRM_TOKEN_JSON", raising=False)
 
     amocrm = AmoCRMSync(
-        "jonbrandingagency",
+        "jonbranding",
         "client-id",
         "client-secret",
         "https://example.test/cb",

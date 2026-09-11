@@ -74,7 +74,7 @@ def main():
             f.write("| ID | Lead Nomi | Sabab | Havola |\n")
             f.write("|---|---|---|---|\n")
             for lead in junk_leads:
-                link = f"https://jonbrandingagency.amocrm.ru/leads/detail/{lead['id']}"
+                link = f"https://jonbranding.amocrm.ru/leads/detail/{lead['id']}"
                 f.write(f"| {lead['id']} | {lead['name']} | {lead['reason']} | [Ko'rish]({link}) |\n")
         print("Report saved to junk_leads_report.md")
 

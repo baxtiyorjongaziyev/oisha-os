@@ -8,7 +8,7 @@ from src.services.core.crm.daily_report.reporter import CRMDailyReporter
 
 
 class _Amo:
-    base_url = "https://jonbrandingagency.amocrm.ru"
+    base_url = "https://jonbranding.amocrm.ru"
 
     def __init__(self, collections):
         # collections: dict[str, list[dict]] keyed by amocrm collection name +

@@ -59,7 +59,7 @@ class FakeResponse:
 
 
 class _StubAmo:
-    base_url = "https://jonbrandingagency.amocrm.ru"
+    base_url = "https://jonbranding.amocrm.ru"
     access_token = "token"
 
     def __init__(self, per_collection):

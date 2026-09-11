@@ -53,7 +53,7 @@ class _FakeDB:
 
 
 class _FakeAmo:
-    subdomain = "jonbrandingagency"
+    subdomain = "jonbranding"
 
     def __init__(self):
         self.leads = []
