@@ -177,7 +177,7 @@ class AdminBot:
             
             # AmoCRM link
             amo_lead_id = lead.get("amo_lead_id")
-            amo_link = f"\n   🔗 [AmoCRM orqali ko'rish](https://jonbrandingagency.amocrm.ru/leads/detail/{amo_lead_id})" if amo_lead_id else ""
+            amo_link = f"\n   🔗 [AmoCRM orqali ko'rish](https://jonbranding.amocrm.ru/leads/detail/{amo_lead_id})" if amo_lead_id else ""
             
             last_msg = lead.get("last_client_message") or ""
             if last_msg:

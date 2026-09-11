@@ -54,7 +54,7 @@ jobs:
             fi
 
             cat > .env <<ENVFILE
-            AMOCRM_SUBDOMAIN=jonbrandingagency
+            AMOCRM_SUBDOMAIN=jonbranding
             AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID}
             AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET}
             AMOCRM_REDIRECT_URL=${AMOCRM_REDIRECT_URL}
