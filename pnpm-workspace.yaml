@@ -4,23 +4,24 @@ packages:
 
 overrides:
   '@babel/core': ^7.29.6
-  # ReDoS/OOM advisories v1 uchun 1.1.17, v2+ uchun 5.0.8 da tuzatilgan.
-  # v1 va v2+ ni alohida yopamiz: brace-expansion v2 da default eksportdan
-  # named eksportga o'tgan, shuning uchun v1 iste'molchilarini (minimatch@3.x)
-  # 5.x ga majburlash "TypeError: expand is not a function" beradi.
-  brace-expansion@<1.1.17: '>=1.1.17 <2'
-  brace-expansion@>=2 <5.0.8: '>=5.0.8'
-  fast-uri: ^3.1.5
+  # ReDoS/OOM advisories v1 uchun 1.1.18, v2+ uchun 5.0.9 da tuzatilgan.
+  brace-expansion@<1.1.18: '>=1.1.18 <2'
+  brace-expansion@>=2 <5.0.9: '>=5.0.9'
+  fast-uri: ^3.1.6
   file-type: ^21.3.1
-  hono: ^4.12.34
+  hono: ^4.13.5
   ip-address: ^10.3.1
-  js-yaml: ^4.3.1
-  multer: ^2.2.0
+  js-yaml: ^4.3.2
+  multer: ^2.3.0
   music-metadata: ^11.12.3
   nanoid: ^3.3.18
-  nodemailer: ^9.0.1
-  postcss: ^8.5.26
-  sharp@<0.35.0: '>=0.35.0'
+  nodemailer: ^9.1.1
+  postcss: ^8.5.28
+  sharp@<0.35.4: '>=0.35.4'
   socket.io-parser: ^4.2.7
   uuid: ^11.1.1
+  next: 16.3.3
+  qs: ^6.16.0
+  browserslist: ^4.28.7
+  baseline-browser-mapping: ^2.11.0
 
