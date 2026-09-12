@@ -20,6 +20,13 @@
 
 ## Agent Handoff Log
 
+- **2026-09-10 — Claude — Airtable "Jon Branding" Base Cleanup (in progress, paused on AI limit):**
+  1. **Scope**: Operational cleanup of the Airtable finance base (`app8xoyx1XCumYFXV`), not a code change — see `AIRTABLE_CLEANUP_HANDOFF.md` for full detail.
+  2. **Done**: Deleted 3 unused jamoa/inbox tables (`Tuzatish so'rovlari`, `Moliya so'rovlari`, `Moliya nazorati`, all recoverable from Airtable trash 7 days); removed 8 orphan/`[ESKI]` fields across Tranzaksiyalar/Loyihalar/Jamoa; added an `Oy nomi` Uzbek-month formula field on Tranzaksiyalar and regrouped the Kirim/Chiqim views by it; pruned 2 empty duplicate rows in `Cashflow — oylik`.
+  3. **Verification**: Each deletion was checked against Airtable's own "N dependencies" delete-confirmation dialog before confirming; no automation, form, or report table was touched. `Oy` (date formula), `Kirim UZS`/`Chiqim UZS`/`Sof oqim UZS`, `Oylik P&L (Hisobot)`/`Cashflow qatori` links, `Nazorat holati`/`Tekshiruv izohi`, the "Cashflow qatorini bog'lash" and "Finance — yangi tranzaksiyani Reja qilish" automations, and the P&L/Cashflow/Balans report tables were left untouched by design.
+  4. **Files changed**: `AIRTABLE_CLEANUP_HANDOFF.md` (new) — this repo change is docs-only.
+  5. **Remaining / blocker**: Paused on the 5-hour AI session limit. Still open: delete orphan `Moliya so'rovlari` text field in `Moliya kategoriyalari` and `Hisoblar`; answer owner's NAF Stroy project start/end date question; decide on the two `ARXIV — Kirim/Chiqim (Finance V1)` tables — **do not delete them or any `arxiv —`/`[ESKI]` rollup/link field until ARXIV records are verified against `Tranzaksiyalar` for full migration** (this was previously asserted from an Airtable field description, not independently confirmed — see handoff file); decide on `Ovchi`/`Seller`/`Art Direktor` text fields (link to Jamoa or remove).
+
 - **2026-09-09 — Antigravity — CodeQL 0-Alerts Resolved & Deploy Meta Retention Guard:**
   1. **All 4 CodeQL Alerts Resolved (0 Alerts Remaining)**: PR #598 orqali barcha ochiq CodeQL alertlar (ReDoS, stack-trace exposure, clear-text logging) to'liq tuzatildi va `main` ga merge qilindi. GitHub Code Scanning Alerts soni **0** ga tushirildi (`[]`).
   2. **Oracle Deploy Meta Credentials Retention**: `oracle-deploy.yml` har deployda `.env` ni qayta yaratganda mavjud `META_*` va `INSTAGRAM_*` kalitlarni `/tmp/meta_env_backup.env` orqali saqlab qoladigan qilindi. Endi deploy Meta konfiguratsiyasini o'chirib yubormaydi.
