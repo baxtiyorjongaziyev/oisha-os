@@ -38,17 +38,27 @@ Ushbu loyiha 4 tabni real qiladi va 1 ta yangi tab qo'shadi:
 
 ## 1. Sifat nazorati tab
 
-**Backend**: yangi endpoint `GET /api/sales-quality/weak-criteria`
+**Haqiqiy ma'lumot shakli** (`sales_playbook.py` — yagona haqiqat manbai):
+`call_analyses.scores` — JSON dict `{stage: ball}`, 6 ta bosqich:
+`salomlashish`, `ehtiyojlar`, `qiymat`, `etirozlar`, `yakunlash`,
+`muloqot_sifati` (0-100 ball). Har bosqichning og'irligi `STAGE_WEIGHTS`da.
+Frontendda hozir ko'rsatilayotgan "A1/E1" kodlar mavjud emas — bosqich
+nomlari real tizim tili.
+
+**Backend**: yangi endpoint `GET /api/sales-quality/weak-stages`
 (`src/services/sales_quality/router.py` ga qo'shiladi, `Permission.DASHBOARD_READ`).
 
 - `_fetch_call_analysis_rows()` orqali barcha qatorlarni oladi
-- Har bir qatordagi `scores` JSON'ni parse qiladi (`[{code, name, score, max_score,
-  ...}, ...]` — `RADAR_AXES` bilan bir xil kod tizimi A1-E3)
-- Har bir mezon kodi bo'yicha: `rate = bajarilgan_ball / max_ball * 100`,
-  `count = shu mezon past ball olgan qo'ng'iroqlar soni`
-- Eng past `rate`ga ega 4 ta mezonni qaytaradi
-- Har biri uchun misol xato (`weaknesses` field'idan shu mezonga tegishli matn,
-  bo'lsa) va tavsiya (`RADAR_AXES` statik hint yoki bo'sh)
+- Har bir qatordagi `scores` JSON dict'ini parse qiladi (`_safe_json_dict`
+  mavjud helper)
+- Har bir bosqich (`STAGE_WEIGHTS` kalitlari) bo'yicha: `rate = shu bosqich
+  ballarining o'rtachasi`, `count = shu bosqich 60 balldan past bo'lgan
+  qo'ng'iroqlar soni` (`sales_playbook.SCORE_AVERAGE` chegarasi)
+- Eng past `rate`ga ega 4 ta bosqichni qaytaradi (o'zbekcha nom uchun kichik
+  lookup: `salomlashish` → "Salomlashish" va h.k., `RADAR_AXES`dagi bilan bir
+  xil uslubda)
+- Har biri uchun misol xato — shu bosqich past ball olgan qo'ng'iroqlardan
+  birining `weaknesses` (JSON list) ichidagi birinchi matn, bo'lmasa bo'sh
 - Ma'lumot yo'q bo'lsa `{"available": false}`
 
 **Frontend**: `activeTab === "quality"` bloki `useEffect` bilan shu endpointdan
@@ -60,7 +70,7 @@ fetch qiladi, hozirgi 4 ta hardcoded card massivini natija bilan almashtiradi.
 **Backend**:
 - Mavjud `GET /api/sales-quality/manager-cards` dan foydalaniladi (o'zgarishsiz)
   — eng past `average_score`li menejerni frontend tanlaydi
-- Yangi: shu menejerning eng zaif mezoni — `weak-criteria` endpoint'ga
+- Yangi: shu menejerning eng zaif bosqichi — `weak-stages` endpoint'ga
   `manager_id` query parametr qo'shiladi (ixtiyoriy filter)
 - **AI tavsiya matni**: yangi jadval `training_advice` (manager_id, advice_text,
   generated_at). Yangi kunlik scheduler
