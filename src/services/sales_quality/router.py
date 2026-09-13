@@ -19,6 +19,7 @@ from src.services.sales_quality.helpers import (
     _build_sales_quality_payload,
     _fetch_call_analysis_rows,
     _fetch_manager_card_rows,
+    _row_to_dict,
 )
 from src.services.sales_quality.weak_stages import _compute_weak_stages, STAGE_LABELS
 from src.services.sales_quality.schemas import SalesQualityAnalysisRequest
@@ -84,9 +85,7 @@ async def get_sales_quality_weak_stages(
         }
 
     records = [
-        {"manager_id": getattr(r, "manager_id", None) if not isinstance(r, dict) else r.get("manager_id"),
-         "scores": getattr(r, "scores", None) if not isinstance(r, dict) else r.get("scores"),
-         "weaknesses": getattr(r, "weaknesses", None) if not isinstance(r, dict) else r.get("weaknesses")}
+        _row_to_dict(r, ["manager_id", "scores", "weaknesses"])
         for r in rows
     ]
     if manager_id is not None:
