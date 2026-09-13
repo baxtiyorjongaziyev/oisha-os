@@ -20,6 +20,7 @@ from src.services.sales_quality.helpers import (
     _fetch_call_analysis_rows,
     _fetch_manager_card_rows,
 )
+from src.services.sales_quality.weak_stages import _compute_weak_stages, STAGE_LABELS
 from src.services.sales_quality.schemas import SalesQualityAnalysisRequest
 from src.api.routes.state import api_state
 from src.time_utils import get_local_now
@@ -65,6 +66,38 @@ async def get_sales_quality_manager_cards(
             },
         )
     return _build_manager_cards_payload(rows, principal=principal)
+
+
+@router.get("/api/sales-quality/weak-stages")
+async def get_sales_quality_weak_stages(
+    manager_id: int | None = None,
+    principal: Principal = require_permissions(Permission.DASHBOARD_READ),
+):
+    try:
+        rows = await _fetch_call_analysis_rows()
+    except Exception as exc:
+        logger.error("[SALES QUALITY] Weak-stages read failed: %s", exc)
+        return {
+            "timestamp": get_local_now().isoformat(),
+            "available": False,
+            "stages": [],
+        }
+
+    records = [
+        {"manager_id": getattr(r, "manager_id", None) if not isinstance(r, dict) else r.get("manager_id"),
+         "scores": getattr(r, "scores", None) if not isinstance(r, dict) else r.get("scores"),
+         "weaknesses": getattr(r, "weaknesses", None) if not isinstance(r, dict) else r.get("weaknesses")}
+        for r in rows
+    ]
+    if manager_id is not None:
+        records = [r for r in records if r.get("manager_id") == manager_id]
+
+    stages = _compute_weak_stages(records)
+    return {
+        "timestamp": get_local_now().isoformat(),
+        "available": bool(stages),
+        "stages": stages,
+    }
 
 
 @router.post(

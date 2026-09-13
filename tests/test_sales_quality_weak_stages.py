@@ -65,3 +65,48 @@ def test_compute_weak_stages_weak_example_blank_when_no_weaknesses():
 
     assert result[0]["stage_key"] == "qiymat"
     assert result[0]["weak_example"] == ""
+
+
+import pytest
+from src.api.routes.state import api_state
+
+
+@pytest.mark.asyncio
+async def test_weak_stages_route_returns_unavailable_when_db_missing(monkeypatch):
+    from src.services.sales_quality.router import get_sales_quality_weak_stages
+
+    monkeypatch.setattr(api_state, "db_instance", None)
+
+    result = await get_sales_quality_weak_stages()
+
+    assert result["available"] is False
+    assert result["stages"] == []
+
+
+@pytest.mark.asyncio
+async def test_weak_stages_route_filters_by_manager_id(monkeypatch):
+    from src.services.sales_quality.router import get_sales_quality_weak_stages
+
+    async def fake_fetch_rows():
+        return [
+            {
+                "manager_id": 1,
+                "scores": '{"qiymat": 20}',
+                "weaknesses": "[]",
+            },
+            {
+                "manager_id": 2,
+                "scores": '{"qiymat": 95}',
+                "weaknesses": "[]",
+            },
+        ]
+
+    monkeypatch.setattr(
+        "src.services.sales_quality.router._fetch_call_analysis_rows",
+        fake_fetch_rows,
+    )
+
+    result = await get_sales_quality_weak_stages(manager_id=1)
+
+    assert result["available"] is True
+    assert result["stages"][0]["rate"] == 20.0
