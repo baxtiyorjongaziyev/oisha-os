@@ -22,6 +22,14 @@ _CALL_BACKFILL_LAST_FINISHED_KEY = "amocrm_call_backfill:last_finished_ts"
 _CALL_BACKFILL_LAST_RESULT_KEY = "amocrm_call_backfill:last_result"
 _CALL_BACKFILL_LAST_ERROR_KEY = "amocrm_call_backfill:last_error"
 
+# AmoCRM often fires several separate webhook POSTs for one logical change
+# (e.g. lead add + status + responsible_user assignment land as distinct
+# requests within seconds of each other). Without this guard, each POST
+# re-runs enrichment/call-analysis/process_new_lead for the same lead_id,
+# producing duplicate CRM notes and duplicate team notifications.
+_RECENT_LEAD_EVENT_DEDUP_SECONDS = 30
+_recent_lead_events: Dict[int, float] = {}
+
 
 def _get_cron_secret_value() -> str:
     from src.api_server import _secret_setting_text
@@ -188,6 +196,22 @@ async def _process_amocrm_event(data: Dict[str, Any]):
 
         if not lead_id:
             return
+
+        now = datetime.now(timezone.utc).timestamp()
+        last_seen = _recent_lead_events.get(lead_id)
+        if last_seen is not None and (now - last_seen) < _RECENT_LEAD_EVENT_DEDUP_SECONDS:
+            logger.info(
+                "[Webhook] Duplicate AmoCRM event for lead %s within %ss window, skipping",
+                lead_id, _RECENT_LEAD_EVENT_DEDUP_SECONDS,
+            )
+            return
+        _recent_lead_events[lead_id] = now
+        # Bound memory: drop stale entries so this dict doesn't grow forever.
+        if len(_recent_lead_events) > 1000:
+            cutoff = now - _RECENT_LEAD_EVENT_DEDUP_SECONDS
+            for k, v in list(_recent_lead_events.items()):
+                if v < cutoff:
+                    del _recent_lead_events[k]
 
         from src.agents.autonomous_sales_agent import AutonomousSalesAgent
         agent = AutonomousSalesAgent(db=runtime_db)
