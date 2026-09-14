@@ -26,6 +26,9 @@ class ChatBridge:
             sender = await event.get_sender()
             if not sender or event.sender_id == self.owner_id:
                 return
+            if getattr(sender, "bot", False):
+                logger.info(f"👸 [BRIDGE] Skipped bot DM from {event.sender_id}.")
+                return
 
             # Check if this is a business message (Simple AI filter placeholder)
             text = event.raw_text or ""
