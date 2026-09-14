@@ -12,7 +12,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from src.api.rbac import Permission, Principal, require_permissions
+from src.api.rbac import Permission, Principal, Role, require_permissions, scope_owned_rows
 from src.services.sales_quality.helpers import (
     _build_empty_sales_quality,
     _build_manager_cards_payload,
@@ -21,7 +21,7 @@ from src.services.sales_quality.helpers import (
     _fetch_manager_card_rows,
     _row_to_dict,
 )
-from src.services.sales_quality.weak_stages import _compute_weak_stages, STAGE_LABELS
+from src.services.sales_quality.weak_stages import _compute_weak_stages
 from src.services.sales_quality.schemas import SalesQualityAnalysisRequest
 from src.api.routes.state import api_state
 from src.time_utils import get_local_now
@@ -88,6 +88,10 @@ async def get_sales_quality_weak_stages(
         _row_to_dict(r, ["manager_id", "scores", "weaknesses"])
         for r in rows
     ]
+    if isinstance(principal, Principal) and principal.role is Role.SELLER:
+        records = list(
+            scope_owned_rows(principal, records, owner_field="manager_id")
+        )
     if manager_id is not None:
         records = [r for r in records if r.get("manager_id") == manager_id]
 
