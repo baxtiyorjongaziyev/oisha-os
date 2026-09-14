@@ -231,6 +231,16 @@ async def _process_amocrm_event(data: Dict[str, Any]):
         except Exception as e:
             logger.error("[Webhook] Vilgood engine error: %s", e)
 
+        # Duplicate-note guard: only the enrichment/call-analysis/process_new_lead
+        # side effects below are gated, so a status/Won-transition webhook that
+        # arrives within the window right after an add/responsible_user webhook
+        # for the same lead still runs pipeline enforcement and case publishing
+        # above — it just skips re-adding the same CRM notes/notifications.
+        from src.services.core.crm.amocrm_webhook_dedup import is_duplicate_lead_event
+        if is_duplicate_lead_event(lead_id, datetime.now(timezone.utc).timestamp()):
+            logger.info("[Webhook] Duplicate AmoCRM note/notification pass for lead %s, skipping", lead_id)
+            return
+
         phone = amocrm.get_lead_phone(int(lead_id))
 
         if getattr(settings, "ENABLE_AMOCRM_LEAD_ENRICHMENT", True):
