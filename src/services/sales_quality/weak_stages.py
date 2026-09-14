@@ -37,7 +37,11 @@ def _compute_weak_stages(records: list, limit: int = 4) -> list:
         first_weakness = weaknesses[0] if weaknesses else ""
 
         for stage_key, score in scores.items():
-            if stage_key not in STAGE_LABELS or not isinstance(score, (int, float)):
+            if (
+                stage_key not in STAGE_LABELS
+                or not isinstance(score, (int, float))
+                or isinstance(score, bool)
+            ):
                 continue
             stage_scores[stage_key].append(float(score))
             if score < _WEAK_STAGE_THRESHOLD and stage_key not in stage_weak_examples:

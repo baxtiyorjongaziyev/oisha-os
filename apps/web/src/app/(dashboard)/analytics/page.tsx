@@ -98,16 +98,26 @@ export default function AnalyticsPage() {
 
   const [weakStages, setWeakStages] = useState<WeakStage[] | null>(null);
   const [weakStagesLoading, setWeakStagesLoading] = useState(true);
+  const [weakStagesError, setWeakStagesError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/oisha/weak-stages")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`weak-stages request failed: ${res.status}`);
+        return res.json();
+      })
       .then((data: WeakStagesResponse) => {
-        if (!cancelled) setWeakStages(data.available ? data.stages : []);
+        if (!cancelled) {
+          setWeakStages(data.available ? data.stages : []);
+          setWeakStagesError(false);
+        }
       })
       .catch(() => {
-        if (!cancelled) setWeakStages([]);
+        if (!cancelled) {
+          setWeakStages([]);
+          setWeakStagesError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setWeakStagesLoading(false);
@@ -353,6 +363,10 @@ export default function AnalyticsPage() {
 
             {weakStagesLoading ? (
               <p className="text-text-muted text-xs">Yuklanmoqda...</p>
+            ) : weakStagesError ? (
+              <div className="rounded-3xl border border-dashed border-border p-8 text-center text-xs text-text-muted">
+                Backend ulanmagan — qayta urinib ko&apos;ring
+              </div>
             ) : weakStages && weakStages.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-border p-8 text-center text-xs text-text-muted">
                 Ma&apos;lumot yetarli emas
@@ -363,9 +377,6 @@ export default function AnalyticsPage() {
                   <div key={item.stage_key} className="rounded-3xl border border-border bg-bg-card p-5 shadow-sm flex flex-col justify-between space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
-                        <span className="rounded bg-brand-light text-brand px-2 py-0.5 text-xs font-mono font-bold">
-                          {item.stage_key}
-                        </span>
                         <h4 className="text-xs font-bold text-text mt-1.5">{item.label}</h4>
                       </div>
                       <div className="text-right">
