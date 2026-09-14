@@ -64,7 +64,7 @@ def build_call_alert_message(
         "🎙 <b>AI Qo'ng'iroq Tahlili (Call Intelligence)</b>",
         "━━━━━━━━━━━━━━━━━━━━",
         f"👤 <b>Lid:</b> <a href=\"{lead_url}\">AmoCRM Lead #{lead_id}</a>",
-        f"📞 <b>Telefon:</b> <code>{caller_phone or 'N/A'}</code>",
+        f"📞 <b>Telefon:</b> {caller_phone or 'N/A'}",
         f"🧑‍💼 <b>Menejer:</b> {manager_name or 'Aniqlanmadi'}",
         f"⏱ <b>Davomiyligi:</b> {dur_m}m {dur_s}s",
         f"🎭 <b>Kayfiyat:</b> {client_mood} | <b>Toifa:</b> {category}",
