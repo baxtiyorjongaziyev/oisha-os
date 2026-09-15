@@ -45,6 +45,44 @@ class IntelligenceRepository(BaseRepository):
                 created_at DATETIME
             )
         """)
+        await self._execute("""
+            CREATE TABLE IF NOT EXISTS training_advice (
+                manager_id INTEGER PRIMARY KEY,
+                manager_name TEXT,
+                advice_text TEXT,
+                generated_at DATETIME
+            )
+        """)
+
+    async def upsert_training_advice(
+        self, manager_id: int, manager_name: str, advice_text: str
+    ) -> None:
+        """Menejer uchun eng so'nggi AI tavsiyasini yozadi (eskisini almashtiradi)."""
+        from datetime import datetime, timezone
+
+        await self._execute(
+            """
+            INSERT OR REPLACE INTO training_advice
+                (manager_id, manager_name, advice_text, generated_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (manager_id, manager_name, advice_text, datetime.now(timezone.utc).isoformat()),
+        )
+
+    async def get_training_advice(
+        self, manager_id: Optional[int] = None
+    ) -> list[Dict[str, Any]]:
+        """Keshlangan tavsiyalarni o'qiydi, ixtiyoriy manager_id bo'yicha filtrlaydi."""
+        if manager_id is not None:
+            return await self._fetch_all(
+                "SELECT manager_id, manager_name, advice_text, generated_at "
+                "FROM training_advice WHERE manager_id = ?",
+                (manager_id,),
+            )
+        return await self._fetch_all(
+            "SELECT manager_id, manager_name, advice_text, generated_at "
+            "FROM training_advice ORDER BY generated_at DESC"
+        )
 
     async def get_user_intelligence(self, user_id: int) -> Dict[str, Any]:
         """Get user intelligence data."""
