@@ -183,7 +183,26 @@ export default function AnalyticsPage() {
   const [trainingAdvice, setTrainingAdvice] = useState<TrainingAdvice[] | null>(null);
   const [aiRefreshing, setAiRefreshing] = useState(false);
 
-  const fetchTrainingAdvice = () => {
+  useEffect(() => {
+    let cancelled = false;
+    setAiRefreshing(true);
+    fetch("/api/oisha/training-advice")
+      .then((res) => res.json())
+      .then((data: TrainingAdviceResponse) => {
+        if (!cancelled) setTrainingAdvice(data.available ? data.advice : []);
+      })
+      .catch(() => {
+        if (!cancelled) setTrainingAdvice([]);
+      })
+      .finally(() => {
+        if (!cancelled) setAiRefreshing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleRefreshAi = () => {
     setAiRefreshing(true);
     fetch("/api/oisha/training-advice")
       .then((res) => res.json())
@@ -196,14 +215,6 @@ export default function AnalyticsPage() {
       .finally(() => {
         setAiRefreshing(false);
       });
-  };
-
-  useEffect(() => {
-    fetchTrainingAdvice();
-  }, []);
-
-  const handleRefreshAi = () => {
-    fetchTrainingAdvice();
   };
 
   return (
