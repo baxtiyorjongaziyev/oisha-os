@@ -236,8 +236,12 @@ async def _process_amocrm_event(data: Dict[str, Any]):
         # arrives within the window right after an add/responsible_user webhook
         # for the same lead still runs pipeline enforcement and case publishing
         # above — it just skips re-adding the same CRM notes/notifications.
+        # Keyed on (lead_id, new_status) so a status change that follows another
+        # status change for the same lead within the window (e.g. a Won
+        # transition right after a plain status update) is not swallowed by the
+        # earlier transition's dedup window.
         from src.services.core.crm.amocrm_webhook_dedup import is_duplicate_lead_event
-        if is_duplicate_lead_event(lead_id, datetime.now(timezone.utc).timestamp()):
+        if is_duplicate_lead_event(lead_id, datetime.now(timezone.utc).timestamp(), status_id=new_status):
             logger.info("[Webhook] Duplicate AmoCRM note/notification pass for lead %s, skipping", lead_id)
             return
 
