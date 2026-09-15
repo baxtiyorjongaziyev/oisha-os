@@ -68,6 +68,19 @@ interface CrmReport {
   telegram_text?: string;
 }
 
+interface WeakStage {
+  stage_key: string;
+  label: string;
+  rate: number;
+  count: number;
+  weak_example: string;
+}
+
+interface WeakStagesResponse {
+  available: boolean;
+  stages: WeakStage[];
+}
+
 function fmtUzs(n: number): string {
   return `${n.toLocaleString("en-US")} so'm`;
 }
@@ -82,6 +95,37 @@ export default function AnalyticsPage() {
   const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
   const [crmReport, setCrmReport] = useState<CrmReport | null>(null);
   const [crmReportError, setCrmReportError] = useState(false);
+
+  const [weakStages, setWeakStages] = useState<WeakStage[] | null>(null);
+  const [weakStagesLoading, setWeakStagesLoading] = useState(true);
+  const [weakStagesError, setWeakStagesError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/oisha/weak-stages")
+      .then((res) => {
+        if (!res.ok) throw new Error(`weak-stages request failed: ${res.status}`);
+        return res.json();
+      })
+      .then((data: WeakStagesResponse) => {
+        if (!cancelled) {
+          setWeakStages(data.available ? data.stages : []);
+          setWeakStagesError(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setWeakStages([]);
+          setWeakStagesError(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setWeakStagesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (activeTab !== "crm-report") return;
@@ -317,49 +361,50 @@ export default function AnalyticsPage() {
               <p className="text-xs text-text-muted mt-1">Playbook bo&apos;yicha aniqlangan muammolar va zaif o&apos;rinlar.</p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              {[
-                { code: "A2", name: "Murojaat manbasini aniqlash", rate: 16, count: 24, weakDesc: "Menejer mijoz bizni qayerdan topganini so'ramaydi.", hint: "Mijozdan o'z so'rovi manbasini aniqlashni odat qiling." },
-                { code: "E1", name: "Brif yuborish/kelishish", rate: 17, count: 18, weakDesc: "Menejer brif yuborishni unutilgan qoldiradi.", hint: "Har suhbat oxirida brifing havolasini taqdim eting." },
-                { code: "A3", name: "Suhbat maqsadini belgilash", rate: 23, count: 12, weakDesc: "Menejer suhbat maqsadi va algoritmini aytmaydi.", hint: "Kirish qismida suhbat tartibini bayon qiling." },
-                { code: "E3", name: "Moliyaviy kelishuvni yakunlash", rate: 32, count: 9, weakDesc: "Avans to'lovlari bo'yicha kelishuv qilinmagan.", hint: "Avans to'lovi foizlari va muddatlarini aniqlashtiring." }
-              ].map((item) => (
-                <div key={item.code} className="rounded-3xl border border-border bg-bg-card p-5 shadow-sm flex flex-col justify-between space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="rounded bg-brand-light text-brand px-2 py-0.5 text-xs font-mono font-bold">
-                        {item.code}
-                      </span>
-                      <h4 className="text-xs font-bold text-text mt-1.5">{item.name}</h4>
+            {weakStagesLoading ? (
+              <p className="text-text-muted text-xs">Yuklanmoqda...</p>
+            ) : weakStagesError ? (
+              <div className="rounded-3xl border border-dashed border-border p-8 text-center text-xs text-text-muted">
+                Backend ulanmagan — qayta urinib ko&apos;ring
+              </div>
+            ) : weakStages && weakStages.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-border p-8 text-center text-xs text-text-muted">
+                Ma&apos;lumot yetarli emas
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-4">
+                {(weakStages ?? []).map((item) => (
+                  <div key={item.stage_key} className="rounded-3xl border border-border bg-bg-card p-5 shadow-sm flex flex-col justify-between space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold text-text mt-1.5">{item.label}</h4>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-rose-500">{item.rate}%</div>
+                        <div className="text-[9px] font-bold text-text-muted uppercase">Bajarilishi</div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-rose-500">{item.rate}%</div>
-                      <div className="text-[9px] font-bold text-text-muted uppercase">Bajarilishi</div>
-                    </div>
-                  </div>
 
-                  {/* Progress and weak stats */}
-                  <div className="space-y-1">
-                    <div className="h-1.5 w-full bg-bg rounded-full overflow-hidden">
-                      <div className="h-full bg-rose-500" style={{ width: `${item.rate}%` }}></div>
+                    {/* Progress and weak stats */}
+                    <div className="space-y-1">
+                      <div className="h-1.5 w-full bg-bg rounded-full overflow-hidden">
+                        <div className="h-full bg-rose-500" style={{ width: `${item.rate}%` }}></div>
+                      </div>
+                      <div className="text-[9px] text-text-muted font-semibold">
+                        Jami scored qo&apos;ng&apos;iroqlardan {item.count} ta zaif holat aniqlandi.
+                      </div>
                     </div>
-                    <div className="text-[9px] text-text-muted font-semibold">
-                      Jami scored qo&apos;ng&apos;iroqlardan {item.count} ta zaif holat aniqlandi.
-                    </div>
-                  </div>
 
-                  {/* Recommendations */}
-                  <div className="text-[10px] space-y-1 pt-2 border-t border-border/40">
-                    <div className="text-rose-600 dark:text-rose-400">
-                      <strong>Xato:</strong> {item.weakDesc}
-                    </div>
-                    <div className="text-emerald-700 dark:text-emerald-400">
-                      <strong>Maslahat:</strong> {item.hint}
+                    {/* Recommendations */}
+                    <div className="text-[10px] space-y-1 pt-2 border-t border-border/40">
+                      <div className="text-rose-600 dark:text-rose-400">
+                        <strong>Xato:</strong> {item.weak_example}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
