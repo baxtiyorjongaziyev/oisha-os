@@ -74,3 +74,101 @@ async def test_get_training_advice_empty_when_no_rows():
     rows = await repo.get_training_advice()
 
     assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_run_training_advice_cycle_generates_advice_for_lowest_scoring_manager(monkeypatch):
+    from src.schedulers import training_advice_scheduler
+
+    async def fake_fetch_rows():
+        return [
+            {
+                "manager_id": 1,
+                "manager_name": "High Scorer",
+                "overall_score": 90,
+                "scores": '{"etirozlar": 85}',
+                "weaknesses": "[]",
+            },
+            {
+                "manager_id": 2,
+                "manager_name": "Low Scorer",
+                "overall_score": 40,
+                "scores": '{"etirozlar": 20}',
+                "weaknesses": '["Narx e\'tiroziga tayyor javob yo\'q"]',
+            },
+        ]
+
+    monkeypatch.setattr(
+        "src.schedulers.training_advice_scheduler._fetch_call_analysis_rows",
+        fake_fetch_rows,
+    )
+
+    captured_prompt = {}
+
+    class FakeProviderResult:
+        text = "Sizga E'tirozlar bosqichida mashq tavsiya etiladi."
+
+    class FakeRouter:
+        async def generate_text(self, prompt, **kwargs):
+            captured_prompt["value"] = prompt
+            return FakeProviderResult()
+
+    monkeypatch.setattr(
+        "src.schedulers.training_advice_scheduler.FreeAIProviderRouter",
+        lambda: FakeRouter(),
+    )
+
+    written = {}
+
+    class FakeRepo:
+        async def upsert_training_advice(self, manager_id, manager_name, advice_text):
+            written["manager_id"] = manager_id
+            written["manager_name"] = manager_name
+            written["advice_text"] = advice_text
+
+    class FakeDb:
+        intelligence = FakeRepo()
+
+    monkeypatch.setattr(
+        "src.schedulers.training_advice_scheduler.get_db",
+        lambda: FakeDb(),
+    )
+
+    await training_advice_scheduler.run_training_advice_cycle()
+
+    assert written["manager_id"] == 2
+    assert written["manager_name"] == "Low Scorer"
+    assert written["advice_text"] == "Sizga E'tirozlar bosqichida mashq tavsiya etiladi."
+    assert "Low Scorer" in captured_prompt["value"]
+    assert "etirozlar" in captured_prompt["value"].lower() or "E'tirozlar" in captured_prompt["value"]
+
+
+@pytest.mark.asyncio
+async def test_run_training_advice_cycle_skips_when_no_call_analyses(monkeypatch):
+    from src.schedulers import training_advice_scheduler
+
+    async def fake_fetch_rows():
+        return []
+
+    monkeypatch.setattr(
+        "src.schedulers.training_advice_scheduler._fetch_call_analysis_rows",
+        fake_fetch_rows,
+    )
+
+    write_calls = []
+
+    class FakeRepo:
+        async def upsert_training_advice(self, *args, **kwargs):
+            write_calls.append((args, kwargs))
+
+    class FakeDb:
+        intelligence = FakeRepo()
+
+    monkeypatch.setattr(
+        "src.schedulers.training_advice_scheduler.get_db",
+        lambda: FakeDb(),
+    )
+
+    await training_advice_scheduler.run_training_advice_cycle()
+
+    assert write_calls == []
