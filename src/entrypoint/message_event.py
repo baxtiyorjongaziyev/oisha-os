@@ -176,7 +176,8 @@ async def handle_new_message(event):
     await _sync_and_log_crm_channels(event, sender, sender_name, message_text, chat_id)
 
     personal = await _is_personal_folder_sender(sender)
-    if not personal and event.is_private and not event.out and not getattr(sender, "bot", False):
+    is_private_human_dm = event.is_private and not event.out and not getattr(sender, "bot", False)
+    if not personal and is_private_human_dm:
         await process_elite_intake(
             event,
             sender=sender,
@@ -190,6 +191,20 @@ async def handle_new_message(event):
             welcome_manager=app_ctx.welcome_manager,
             TN5_GROUP_ID=tn5_group_id,
         )
+        if await app_ctx.msg_controller.db.is_crm_synced(event.sender_id):
+            from src.handlers.msg_pipeline.existing_contact_signal import (
+                process_existing_contact_signal,
+            )
+            asyncio.create_task(
+                process_existing_contact_signal(
+                    event,
+                    sender=sender,
+                    message_text=message_text,
+                    sender_name=sender_name,
+                    msg_controller=app_ctx.msg_controller,
+                    bot_client=bot_client,
+                )
+            )
 
     await _handle_media_and_voice(event, sender, sender_name)
     await process_ai_reply(

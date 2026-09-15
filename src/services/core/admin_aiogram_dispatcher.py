@@ -24,12 +24,14 @@ from src.services.core.dispatcher import (
     handle_aiogram_team_capacity,
     handle_aiogram_vps_status,
     maybe_build_admin_aiogram_dispatcher,
+    register_existing_contact_signal_callbacks,
     register_hisobchi_aiogram_callbacks,
     register_salescoach_aiogram_callbacks,
 )
 
 __all__ = [
     "AiogramCallbackEventAdapter",
+    "register_existing_contact_signal_callbacks",
     "register_hisobchi_aiogram_callbacks",
     "register_salescoach_aiogram_callbacks",
     "handle_aiogram_chatid",

@@ -19,6 +19,7 @@ from src.services.api_server.helpers import (
     _get_db_instance,
     _secret_setting_text,
 )
+from src.services.api_server.userbot import _business_message_skip_reason
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["webhooks"])
@@ -66,6 +67,59 @@ async def process_telegram_ai_update(update: Dict[str, Any]):
         client = TelegramBotAPI10Client(token)
         sent = await client.answer_guest_query(guest_ctx.guest_query_id, result)
         return {"ok": True, "handled": True, "update_type": "guest_message", "sent_guest_message": sent}
+
+    if update_type == "business_connection":
+        from src.api.routes.state import api_state
+
+        connection = update.get("business_connection") or {}
+        connection_id = str(connection.get("id") or "")
+        if not connection_id:
+            return {"handled": False, "reason": "no_connection_id"}
+        if connection.get("is_enabled", True):
+            api_state.business_connections[connection_id] = connection
+        else:
+            api_state.business_connections.pop(connection_id, None)
+        return {"ok": True, "handled": True, "update_type": "business_connection"}
+
+    if update_type == "business_message":
+        message = update.get("business_message") or {}
+        skip_reason = _business_message_skip_reason(message)
+        if skip_reason:
+            return {"handled": False, "reason": skip_reason}
+
+        connection_id = str(message.get("business_connection_id") or "")
+        chat_id = (message.get("chat") or {}).get("id")
+        text_content = str(message.get("text") or message.get("caption") or "").strip()
+        if not (connection_id and chat_id and text_content):
+            return {"handled": False, "reason": "incomplete_business_message"}
+
+        sender = message.get("from") or {}
+        token = os.environ.get("BOT_TOKEN") or (settings.BOT_TOKEN.get_secret_value() if settings.BOT_TOKEN else "")
+        response_text = ""
+        try:
+            from src.openclaw_bridge import handle_openclaw_message
+            response_text = await handle_openclaw_message(
+                text=text_content,
+                sender=sender,
+                sender_id=str(sender.get("id") or ""),
+                channel="telegram_business",
+            )
+        except Exception as exc:
+            logger.error("[TG-AI] Business agent error: %s", exc)
+
+        if not response_text:
+            return {"handled": False, "reason": "empty_agent_response"}
+
+        client = TelegramBotAPI10Client(token)
+        sent = await client.call(
+            "sendMessage",
+            {
+                "business_connection_id": connection_id,
+                "chat_id": chat_id,
+                "text": response_text,
+            },
+        )
+        return {"ok": True, "handled": True, "update_type": "business_message", "sent": bool(sent)}
 
     return {"handled": False, "reason": f"unhandled_update_type:{update_type}"}
 

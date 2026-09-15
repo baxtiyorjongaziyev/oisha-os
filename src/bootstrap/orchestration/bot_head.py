@@ -11,9 +11,11 @@ from typing import Any
 
 from src.services.core.admin_aiogram_dispatcher import (
     maybe_build_admin_aiogram_dispatcher,
+    register_existing_contact_signal_callbacks,
     register_hisobchi_aiogram_callbacks,
     register_salescoach_aiogram_callbacks,
 )
+from src.handlers.sales_club_survey import register_sales_club_survey_handlers
 from src.services.core.telegram.aiogram_head import AiogramBotHead
 from src.services.core.telegram.aiogram_telethon_compat import (
     AiogramTelethonCompatClient,
@@ -134,6 +136,8 @@ async def init_aiogram_bot_head(
     if hisobchi_engine is not None:
         register_hisobchi_aiogram_callbacks(dispatcher, engine=hisobchi_engine)
     register_salescoach_aiogram_callbacks(dispatcher, context=app_ctx)
+    register_sales_club_survey_handlers(dispatcher, owner_id=access_manager.owner_id)
+    register_existing_contact_signal_callbacks(dispatcher, msg_controller=app_ctx.msg_controller)
 
     legacy_bot_compat.attach()
 
