@@ -13,6 +13,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from src.api.rbac import Permission, Principal, Role, require_permissions, scope_owned_rows
+from src.database import get_db
 from src.services.sales_quality.helpers import (
     _build_empty_sales_quality,
     _build_manager_cards_payload,
@@ -100,6 +101,32 @@ async def get_sales_quality_weak_stages(
         "timestamp": get_local_now().isoformat(),
         "available": bool(stages),
         "stages": stages,
+    }
+
+
+@router.get("/api/sales-quality/training-advice")
+async def get_sales_quality_training_advice(
+    manager_id: int | None = None,
+    principal: Principal = require_permissions(Permission.DASHBOARD_READ),
+):
+    try:
+        db = get_db()
+        rows = await db.intelligence.get_training_advice(manager_id=manager_id)
+    except Exception as exc:
+        logger.error("[TRAINING-ADVICE] Read failed: %s", exc)
+        return {
+            "timestamp": get_local_now().isoformat(),
+            "available": False,
+            "advice": [],
+        }
+
+    if isinstance(principal, Principal) and principal.role is Role.SELLER:
+        rows = list(scope_owned_rows(principal, rows, owner_field="manager_id"))
+
+    return {
+        "timestamp": get_local_now().isoformat(),
+        "available": bool(rows),
+        "advice": rows,
     }
 
 
