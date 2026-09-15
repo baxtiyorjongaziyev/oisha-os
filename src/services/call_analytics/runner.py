@@ -335,6 +335,21 @@ class CallRunnerMixin(NoteExtractorMixin):
                 await event_log.mark_analyzed(call_id)
         return True
 
+    def _is_excluded_phone(self, phone: str) -> bool:
+        """Check whether the given phone number is excluded from call analysis."""
+        if not phone:
+            return False
+        raw = getattr(self._settings, "AMOCRM_CALL_ANALYSIS_EXCLUDED_PHONES", "") or ""
+        excluded = {
+            "".join(ch for ch in p if ch.isdigit())
+            for p in raw.split(",")
+            if p.strip()
+        }
+        if not excluded:
+            return False
+        normalized_phone = "".join(ch for ch in phone if ch.isdigit())
+        return normalized_phone in excluded
+
     async def process_call_recordings_for_lead(
         self,
         lead_id: int,
@@ -348,6 +363,12 @@ class CallRunnerMixin(NoteExtractorMixin):
         call_notes_override: Optional[List[Dict[str, Any]]] = None,
     ) -> int:
         """Process all unprocessed call recordings attached to one AmoCRM lead."""
+        if self._is_excluded_phone(caller_phone):
+            logger.info(
+                "[CALL-RUNNER] Skipping lead %s: phone %s is excluded from analysis",
+                lead_id, caller_phone,
+            )
+            return 0
         await self._load_persisted_cooldown()
         if self._defer_calls_without_fallback():
             return 0
