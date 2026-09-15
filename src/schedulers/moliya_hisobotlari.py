@@ -1,17 +1,19 @@
 """Airtable (Finance V2) → Telegram moliya hisobotlari.
 
-Uchta rejali hisobot:
+To'rtta rejali hisobot:
 
 * **Qarzdorlik** — har dushanba 09:00, to'lovi tugallanmagan loyihalar
+* **P&L**        — har oyning 1-sanasi 09:00, o'tgan oyning foyda/zarar hisoboti
 * **Cashflow**   — har kuni 19:00, shu oyning kirim/chiqim/sof oqimi
 * **Balans**     — har kuni 09:00, hisoblardagi joriy qoldiq
 
 Har biri o'z topikiga tushadi. Topic ID'lar ``settings.py`` da allaqachon
-e'lon qilingan (``HISOBCHI_QARZDORLIK_TOPIC_ID``, ``HISOBCHI_CASHFLOW_TOPIC_ID``,
-``HISOBCHI_BALANCE_TOPIC_ID``) va deploy ``.env`` ga yoziladi.
+e'lon qilingan (``HISOBCHI_QARZDORLIK_TOPIC_ID``, ``HISOBCHI_PNL_TOPIC_ID``,
+``HISOBCHI_CASHFLOW_TOPIC_ID``, ``HISOBCHI_BALANCE_TOPIC_ID``) va deploy
+``.env`` ga yoziladi.
 
-Manba — Airtable ``Tranzaksiyalar``, ``Loyihalar``, ``Hisoblar`` jadvallari.
-Eski Kirim/Chiqim jadvallari ishlatilmaydi.
+Manba — Airtable ``Tranzaksiyalar``, ``Loyihalar``, ``Hisoblar``, ``Oylik P&L``
+jadvallari. Eski Kirim/Chiqim jadvallari ishlatilmaydi.
 """
 
 from __future__ import annotations
@@ -19,13 +21,19 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Qancha qator ko'rsatiladi — xabar 4096 belgidan oshmasligi uchun
 MAX_ROWS = 20
+
+UZBEK_MONTHS = {
+    "01": "Yanvar", "02": "Fevral", "03": "Mart", "04": "Aprel",
+    "05": "May", "06": "Iyun", "07": "Iyul", "08": "Avgust",
+    "09": "Sentabr", "10": "Oktabr", "11": "Noyabr", "12": "Dekabr",
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -205,7 +213,71 @@ async def run_qarzdorlik_report() -> bool:
 
 
 # --------------------------------------------------------------------------- #
-# 2. Cashflow
+# 2. P&L (foyda/zarar)
+# --------------------------------------------------------------------------- #
+
+def _prev_month_code(now: datetime) -> str:
+    """2026-09-01 -> '2026-08' (o'tgan oyning kodi)."""
+    first_of_this_month = now.replace(day=1)
+    last_of_prev_month = first_of_this_month - timedelta(days=1)
+    return last_of_prev_month.strftime("%Y-%m")
+
+
+async def build_pnl_report(now: datetime) -> str:
+    records = await _read_table("Oylik P&L")
+    oy_kodi = _prev_month_code(now)
+
+    record = None
+    for r in records:
+        f = r.get("fields", {}) or {}
+        if str(f.get("Oy nomi") or "")[:7] == oy_kodi:
+            record = f
+            break
+
+    oy_nomi = UZBEK_MONTHS.get(oy_kodi[5:7], oy_kodi)
+    if not record:
+        return f"📈 <b>P&L — {oy_nomi}</b>\n\n<i>Bu oy uchun hali P&L yozuvi yo'q.</i>"
+
+    kirim = record.get("Jami Kirim (UZS)") or 0
+    chiqim = record.get("Jami Chiqim (UZS)") or 0
+    soliqqacha = record.get("Soliqqacha foyda (UZS)") or 0
+    soliq = record.get("Soliq xarajati (UZS)") or 0
+    sof_foyda = record.get("Soliqdan keyingi sof foyda (UZS)") or 0
+    dividend = record.get("Taqsimlangan dividend (UZS)") or 0
+    taqsimlanmagan = record.get("Taqsimlanmagan foyda (UZS)") or 0
+    marja = record.get("Sof foyda marjasi (%)")
+
+    belgi = "🟢" if float(sof_foyda or 0) >= 0 else "🔴"
+
+    lines = [
+        f"📈 <b>P&L — {oy_nomi}</b>\n",
+        f"Kirim:  <b>{_fmt(kirim)}</b> so'm",
+        f"Chiqim: <b>{_fmt(chiqim)}</b> so'm",
+        f"Soliqqacha foyda: <b>{_fmt(soliqqacha)}</b> so'm",
+        f"Soliq: <b>{_fmt(soliq)}</b> so'm",
+        f"{belgi} Sof foyda: <b>{_fmt(sof_foyda)}</b> so'm",
+    ]
+    if marja is not None:
+        try:
+            lines.append(f"Sof foyda marjasi: <b>{float(marja) * 100:.1f}%</b>")
+        except (TypeError, ValueError):
+            pass
+    lines.append(f"\nTaqsimlangan dividend: {_fmt(dividend)} so'm")
+    lines.append(f"Taqsimlanmagan foyda: {_fmt(taqsimlanmagan)} so'm")
+
+    return "\n".join(lines)
+
+
+async def run_pnl_report(now: datetime) -> bool:
+    text = await build_pnl_report(now)
+    ok = await _send(text, "HISOBCHI_PNL_TOPIC_ID")
+    if ok:
+        logger.info("[MOLIYA] P&L hisoboti yuborildi")
+    return ok
+
+
+# --------------------------------------------------------------------------- #
+# 3. Cashflow
 # --------------------------------------------------------------------------- #
 
 async def build_cashflow_report(now: datetime) -> str:
@@ -354,6 +426,11 @@ async def moliya_hisobotlari_loop() -> None:
             if now.hour == 9 and now.minute < 5:
                 if await _once_per_day("moliya_balans", day):
                     await run_balans_report()
+
+            # P&L — har oyning 1-sanasi 09:00, o'tgan oy hisoboti
+            if now.day == 1 and now.hour == 9 and now.minute < 5:
+                if await _once_per_day("moliya_pnl", day):
+                    await run_pnl_report(now)
 
             # Cashflow — har kuni 19:00
             if now.hour == 19 and now.minute < 5:
