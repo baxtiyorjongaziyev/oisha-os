@@ -81,6 +81,18 @@ interface WeakStagesResponse {
   stages: WeakStage[];
 }
 
+interface TrainingAdvice {
+  manager_id: number;
+  manager_name: string;
+  advice_text: string;
+  generated_at: string;
+}
+
+interface TrainingAdviceResponse {
+  available: boolean;
+  advice: TrainingAdvice[];
+}
+
 function fmtUzs(n: number): string {
   return `${n.toLocaleString("en-US")} so'm`;
 }
@@ -168,19 +180,30 @@ export default function AnalyticsPage() {
   }, []);
 
   // Dynamic AI advice state for training tab
+  const [trainingAdvice, setTrainingAdvice] = useState<TrainingAdvice[] | null>(null);
   const [aiRefreshing, setAiRefreshing] = useState(false);
-  const [aiAdviceText, setAiAdviceText] = useState(
-    "Menejer Baxtiyorjon Gaziyevning mijoz ehtiyojlarini aniqlash (B1-B3) bosqichidagi ko'rsatkichlari 38% ga tushib ketgan. Naming (Nomlash) va Logotip yo'nalishlarida narx e'tirozlarini boshqarish bo'yicha maxsus trening o'tash tavsiya etiladi."
-  );
+
+  const fetchTrainingAdvice = () => {
+    setAiRefreshing(true);
+    fetch("/api/oisha/training-advice")
+      .then((res) => res.json())
+      .then((data: TrainingAdviceResponse) => {
+        setTrainingAdvice(data.available ? data.advice : []);
+      })
+      .catch(() => {
+        setTrainingAdvice([]);
+      })
+      .finally(() => {
+        setAiRefreshing(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchTrainingAdvice();
+  }, []);
 
   const handleRefreshAi = () => {
-    setAiRefreshing(true);
-    setTimeout(() => {
-      setAiRefreshing(false);
-      setAiAdviceText(
-        "Yangi baholangan 12 ta qo'ng'iroq tahlilidan so'ng: Baxtiyorjon Gaziyev Salomlashish (A1) va Kirish bosqichini mustahkamlagan. Biroq, Taklif yopilishidan oldin brifing yuborish (E1) bo'yicha topshiriqlar hali ham 17% darajasida qolmoqda. E'tiborni E1 mezonini to'g'irlashga qaratish lozim."
-      );
-    }, 1500);
+    fetchTrainingAdvice();
   };
 
   return (
@@ -428,9 +451,20 @@ export default function AnalyticsPage() {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white font-bold text-sm">
                   💡
                 </span>
-                <p className="text-xs text-text leading-relaxed">
-                  {aiAdviceText}
-                </p>
+                <div className="space-y-1">
+                  <p className="text-xs text-text leading-relaxed">
+                    {aiRefreshing
+                      ? "Yuklanmoqda..."
+                      : trainingAdvice && trainingAdvice.length > 0
+                        ? trainingAdvice[0].advice_text
+                        : "Hozircha tavsiya mavjud emas — kunlik tahlil hali ishlamagan."}
+                  </p>
+                  {!aiRefreshing && trainingAdvice && trainingAdvice.length > 0 && (
+                    <p className="text-[10px] text-text-muted">
+                      {new Date(trainingAdvice[0].generated_at).toLocaleDateString("en-US")}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -441,11 +475,21 @@ export default function AnalyticsPage() {
               <div className="rounded-2xl border border-border bg-bg p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand text-white font-bold text-sm">
-                    BG
+                    {trainingAdvice && trainingAdvice.length > 0
+                      ? trainingAdvice[0].manager_name
+                          .trim()
+                          .split(" ")
+                          .filter(Boolean)
+                          .map((part) => part[0])
+                          .slice(0, 2)
+                          .join("")
+                          .toUpperCase()
+                      : "--"}
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-text">Baxtiyorjon Gaziyev (Sotuvchi)</div>
-                    <div className="text-[10px] text-text-muted mt-0.5">Focus: Ehtiyojni aniqlash va qiymat tushuntirish</div>
+                    <div className="text-xs font-bold text-text">
+                      {trainingAdvice && trainingAdvice.length > 0 ? trainingAdvice[0].manager_name : "Ma'lumot yo'q"}
+                    </div>
                   </div>
                 </div>
 
