@@ -1,11 +1,12 @@
 """Airtable (Finance V2) → Telegram moliya hisobotlari.
 
-To'rtta rejali hisobot:
+Beshta rejali hisobot/eslatma:
 
-* **Qarzdorlik** — har dushanba 09:00, to'lovi tugallanmagan loyihalar
-* **P&L**        — har oyning 1-sanasi 09:00, o'tgan oyning foyda/zarar hisoboti
-* **Cashflow**   — har kuni 19:00, shu oyning kirim/chiqim/sof oqimi
-* **Balans**     — har kuni 09:00, hisoblardagi joriy qoldiq
+* **Qarzdorlik**      — har dushanba 09:00, to'lovi tugallanmagan loyihalar
+* **P&L**             — har oyning 1-sanasi 09:00, o'tgan oyning foyda/zarar hisoboti
+* **Balans**          — har kuni 09:00, hisoblardagi joriy qoldiq
+* **Cashflow**        — har kuni 19:00, shu oyning kirim/chiqim/sof oqimi
+* **Balans eslatmasi** — har kuni 20:00, moliyachiga kunlik balans kiritishni eslatadi
 
 Har biri o'z topikiga tushadi. Topic ID'lar ``settings.py`` da allaqachon
 e'lon qilingan (``HISOBCHI_QARZDORLIK_TOPIC_ID``, ``HISOBCHI_PNL_TOPIC_ID``,
@@ -396,6 +397,22 @@ async def run_balans_report() -> bool:
 
 
 # --------------------------------------------------------------------------- #
+# 4. Kunlik balans eslatmasi (moliyachiga)
+# --------------------------------------------------------------------------- #
+
+async def run_balans_eslatmasi() -> bool:
+    """Moliyachiga kunlik balansni kiritishni eslatadi (unutilmasligi uchun)."""
+    text = (
+        "🔔 <b>Eslatma:</b> @jonbranding_pm — kunlik balansni kiritdingizmi?\n\n"
+        "Har kuni unutmasdan yuborish kerak."
+    )
+    ok = await _send(text, "HISOBCHI_BALANCE_TOPIC_ID")
+    if ok:
+        logger.info("[MOLIYA] Kunlik balans eslatmasi yuborildi")
+    return ok
+
+
+# --------------------------------------------------------------------------- #
 # Rejalashtiruvchi
 # --------------------------------------------------------------------------- #
 
@@ -436,6 +453,11 @@ async def moliya_hisobotlari_loop() -> None:
             if now.hour == 19 and now.minute < 5:
                 if await _once_per_day("moliya_cashflow", day):
                     await run_cashflow_report(now)
+
+            # Kunlik balans eslatmasi — har kuni 20:00
+            if now.hour == 20 and now.minute < 5:
+                if await _once_per_day("moliya_balans_eslatma", day):
+                    await run_balans_eslatmasi()
 
         except Exception:
             logger.error("[MOLIYA] Sikl xatosi", exc_info=True)
