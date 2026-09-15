@@ -143,6 +143,69 @@ async def test_run_training_advice_cycle_generates_advice_for_lowest_scoring_man
     assert "etirozlar" in captured_prompt["value"].lower() or "E'tirozlar" in captured_prompt["value"]
 
 
+class _FakeSqliteRow:
+    """Mimics a non-Mapping driver row object (e.g. sqlite3.Row-like), NOT a dict."""
+
+    def __init__(self, manager_id, manager_name, overall_score, scores, weaknesses):
+        self.manager_id = manager_id
+        self.manager_name = manager_name
+        self.overall_score = overall_score
+        self.scores = scores
+        self.weaknesses = weaknesses
+
+
+@pytest.mark.asyncio
+async def test_run_training_advice_cycle_handles_non_dict_rows(monkeypatch):
+    """Regression test: raw driver rows (non-Mapping) must be converted via
+    _row_to_dict before use — otherwise `.get()` raises AttributeError."""
+    from src.schedulers import training_advice_scheduler
+
+    async def fake_fetch_rows():
+        return [
+            _FakeSqliteRow(1, "High Scorer", 90, '{"etirozlar": 85}', "[]"),
+            _FakeSqliteRow(2, "Low Scorer", 40, '{"etirozlar": 20}', '["Narx e\'tiroziga tayyor javob yo\'q"]'),
+        ]
+
+    monkeypatch.setattr(
+        "src.schedulers.training_advice_scheduler._fetch_call_analysis_rows",
+        fake_fetch_rows,
+    )
+
+    class FakeProviderResult:
+        text = "Sizga E'tirozlar bosqichida mashq tavsiya etiladi."
+
+    class FakeRouter:
+        async def generate_text(self, prompt, **kwargs):
+            return FakeProviderResult()
+
+    monkeypatch.setattr(
+        "src.schedulers.training_advice_scheduler.FreeAIProviderRouter",
+        lambda: FakeRouter(),
+    )
+
+    written = {}
+
+    class FakeRepo:
+        async def upsert_training_advice(self, manager_id, manager_name, advice_text):
+            written["manager_id"] = manager_id
+            written["manager_name"] = manager_name
+            written["advice_text"] = advice_text
+
+    class FakeDb:
+        intelligence = FakeRepo()
+
+    monkeypatch.setattr(
+        "src.schedulers.training_advice_scheduler.get_db",
+        lambda: FakeDb(),
+    )
+
+    await training_advice_scheduler.run_training_advice_cycle()
+
+    assert written["manager_id"] == 2
+    assert written["manager_name"] == "Low Scorer"
+    assert written["advice_text"]
+
+
 @pytest.mark.asyncio
 async def test_run_training_advice_cycle_skips_when_no_call_analyses(monkeypatch):
     from src.schedulers import training_advice_scheduler
