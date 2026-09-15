@@ -162,7 +162,13 @@ class AmoCRMLeadsCreateMixin:
             return None
 
     async def ensure_lead(
-        self, name: str, phone: str, note: Optional[str] = None
+        self,
+        name: str,
+        phone: str,
+        note: Optional[str] = None,
+        pipeline_id: Optional[int] = None,
+        status_id: Optional[int] = None,
+        custom_fields: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[int]:
         """Mavjud aktiv bitimni qidiradi, bo'lmasa yangisini ochadi."""
         existing_lead = await asyncio.to_thread(
@@ -180,8 +186,9 @@ class AmoCRMLeadsCreateMixin:
         lead_id = await self.create_lead(
             name=name,
             phone=phone,
-            pipeline_id=10117998,
-            status_id=80178230,
+            pipeline_id=pipeline_id or 10117998,
+            status_id=status_id or 80178230,
+            custom_fields=custom_fields,
         )
         if lead_id and note:
             await asyncio.to_thread(self.add_lead_note, lead_id, note)
