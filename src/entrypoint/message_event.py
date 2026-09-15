@@ -178,6 +178,13 @@ async def handle_new_message(event):
     personal = await _is_personal_folder_sender(sender)
     is_private_human_dm = event.is_private and not event.out and not getattr(sender, "bot", False)
     if not personal and is_private_human_dm:
+        # process_elite_intake yangi kontaktni CRM'ga sinxronlab, shu joyning
+        # o'zida is_crm_synced'ni true qilib qo'yishi mumkin — shuning uchun
+        # holatni intake chaqirilishidan OLDIN o'qib olamiz, aks holda yangi
+        # lead o'sha birinchi xabarning o'zida "mavjud kontakt" deb ham
+        # hisoblanib, ikkinchi (keraksiz) signal hosil bo'ladi.
+        was_already_synced = await app_ctx.msg_controller.db.is_crm_synced(event.sender_id)
+
         await process_elite_intake(
             event,
             sender=sender,
@@ -191,7 +198,7 @@ async def handle_new_message(event):
             welcome_manager=app_ctx.welcome_manager,
             TN5_GROUP_ID=tn5_group_id,
         )
-        if await app_ctx.msg_controller.db.is_crm_synced(event.sender_id):
+        if was_already_synced:
             from src.handlers.msg_pipeline.existing_contact_signal import (
                 process_existing_contact_signal,
             )
@@ -202,7 +209,7 @@ async def handle_new_message(event):
                     message_text=message_text,
                     sender_name=sender_name,
                     msg_controller=app_ctx.msg_controller,
-                    bot_client=bot_client,
+                    bot_runtime=getattr(app_ctx, "bot_runtime", None),
                 )
             )
 

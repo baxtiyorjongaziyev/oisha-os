@@ -137,7 +137,9 @@ async def init_aiogram_bot_head(
         register_hisobchi_aiogram_callbacks(dispatcher, engine=hisobchi_engine)
     register_salescoach_aiogram_callbacks(dispatcher, context=app_ctx)
     register_sales_club_survey_handlers(dispatcher, owner_id=access_manager.owner_id)
-    register_existing_contact_signal_callbacks(dispatcher, msg_controller=app_ctx.msg_controller)
+    register_existing_contact_signal_callbacks(
+        dispatcher, msg_controller=app_ctx.msg_controller, owner_id=access_manager.owner_id
+    )
 
     legacy_bot_compat.attach()
 

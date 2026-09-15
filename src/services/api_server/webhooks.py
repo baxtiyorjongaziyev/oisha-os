@@ -94,15 +94,19 @@ async def process_telegram_ai_update(update: Dict[str, Any]):
             return {"handled": False, "reason": "incomplete_business_message"}
 
         sender = message.get("from") or {}
+        sender_display_name = str(
+            sender.get("first_name") or sender.get("username") or sender.get("id") or "Mijoz"
+        )
         token = os.environ.get("BOT_TOKEN") or (settings.BOT_TOKEN.get_secret_value() if settings.BOT_TOKEN else "")
         response_text = ""
         try:
             from src.openclaw_bridge import handle_openclaw_message
             response_text = await handle_openclaw_message(
                 text=text_content,
-                sender=sender,
+                sender=sender_display_name,
                 sender_id=str(sender.get("id") or ""),
                 channel="telegram_business",
+                session=connection_id,
             )
         except Exception as exc:
             logger.error("[TG-AI] Business agent error: %s", exc)

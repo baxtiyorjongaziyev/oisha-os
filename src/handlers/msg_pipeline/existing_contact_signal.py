@@ -80,11 +80,18 @@ async def process_existing_contact_signal(
     message_text: str,
     sender_name: str,
     msg_controller: Any,
-    bot_client: Any,
+    bot_runtime: Any,
 ) -> None:
     """Mavjud kontakt DM'sida CRM signal borligini AI orqali baholab, topilsa
-    "Biznes asisstant" guruhga tasdiqlash so'rovi yuboradi."""
-    if not bot_client:
+    "Biznes asisstant" guruhga tasdiqlash so'rovi yuboradi.
+
+    ``bot_runtime`` — ``app_ctx.bot_runtime`` (backend-agnostik port: Telethon
+    yoki Aiogram bo'lishi mumkin, ikkalasi ham bir xil ``send_message``
+    interfeysini ta'minlaydi). Xom Telethon/aiogram klientini emas, shuni
+    ishlatish kerak — chunki productionda bot ingress Aiogram egallaydi va
+    ishlatilmayotgan Telethon bot-klient ulanmagan bo'lishi mumkin.
+    """
+    if not bot_runtime:
         return
 
     verdict = await _ask_ai_for_signal(message_text)
@@ -100,9 +107,7 @@ async def process_existing_contact_signal(
     username = getattr(sender, "username", None)
     username_label = f"@{username}" if username else str(sender_id or "noma'lum")
 
-    from telethon.tl.custom import Button
-
-    callback_data = f"exsig_confirm:{sender_id}".encode("utf-8")
+    callback_data = f"exsig_confirm:{sender_id}"
     text = (
         "\U0001F514 CRM Signal\n\n"
         f"Kim: {sender_name} ({username_label})\n"
@@ -120,13 +125,13 @@ async def process_existing_contact_signal(
         }
 
     try:
-        await bot_client.send_message(
+        await bot_runtime.send_message(
             SIGNAL_GROUP_ID,
             text,
             buttons=[
                 [
-                    Button.inline("✅ Tasdiqlash", callback_data),
-                    Button.inline("❌ Rad etish", b"exsig_reject"),
+                    {"text": "✅ Tasdiqlash", "callback_data": callback_data},
+                    {"text": "❌ Rad etish", "callback_data": "exsig_reject"},
                 ]
             ],
         )
@@ -139,24 +144,28 @@ async def process_existing_contact_signal(
         logger.warning("[EXISTING_CONTACT_SIGNAL] Guruhga yuborishda xato: %s", exc)
 
 
-async def confirm_existing_contact_signal(*, sender_id: int, msg_controller: Any) -> None:
+async def confirm_existing_contact_signal(*, sender_id: int, msg_controller: Any) -> bool:
     """Owner "Tasdiqlash" tugmasini bossa chaqiriladi — CRM'ga real yozadi.
 
+    Faqat lead haqiqatan yaratilgan taqdirda ``True`` qaytaradi va pending
+    signalni o'chiradi — CRM yozuvi muvaffaqiyatsiz bo'lsa signal saqlanib
+    qoladi, owner qayta urinib ko'rishi mumkin.
+
     Voronka/pipeline ID hali ENV'dan sozlanmagan bo'lsa, oddiy lead sifatida
-    (pipeline/status default) yaratadi va izohga taklif qilingan harakatni yozadi
-    — owner keyin AmoCRM'da bosqichni qo'lda tanlaydi.
+    (pipeline/status default) yaratadi — owner keyin AmoCRM'da bosqichni
+    qo'lda tanlaydi.
     """
-    pending = _PENDING_SIGNALS.pop(sender_id, None)
+    pending = _PENDING_SIGNALS.get(sender_id)
     if not pending:
         logger.warning("[EXISTING_CONTACT_SIGNAL] Tasdiqlash uchun signal topilmadi: %s", sender_id)
-        return
+        return False
 
     import os
 
     crm_client = getattr(getattr(msg_controller, "crm", None), "amocrm", None)
     if crm_client is None:
         logger.warning("[EXISTING_CONTACT_SIGNAL] AmoCRM klient mavjud emas")
-        return
+        return False
 
     phone = None
     try:
@@ -180,11 +189,20 @@ async def confirm_existing_contact_signal(*, sender_id: int, msg_controller: Any
             phone=phone or "Raqam yo'q",
             pipeline_id=pipeline_id,
         )
+        if not lead_id:
+            logger.error("[EXISTING_CONTACT_SIGNAL] CRM lead yaratilmadi: sender=%s", sender_id)
+            return False
+
+        import asyncio
+
+        await asyncio.to_thread(crm_client.add_lead_note, lead_id, note)
+        _PENDING_SIGNALS.pop(sender_id, None)
         logger.info(
-            "[EXISTING_CONTACT_SIGNAL] CRM lead yaratildi: sender=%s lead_id=%s note=%s",
+            "[EXISTING_CONTACT_SIGNAL] CRM lead yaratildi: sender=%s lead_id=%s",
             sender_id,
             lead_id,
-            note,
         )
+        return True
     except Exception as exc:
         logger.error("[EXISTING_CONTACT_SIGNAL] CRM yozish xatosi: %s", exc)
+        return False
