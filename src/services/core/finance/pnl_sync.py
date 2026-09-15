@@ -4,6 +4,7 @@ Links every transaction to its month's Oylik P&L record. The P&L table computes
 Kirim, Chiqim, soliq, dividend and foyda itself via native rollups and formulas,
 so this module only maintains the link that feeds them.
 """
+import asyncio
 import logging
 from typing import Any
 import httpx
@@ -15,6 +16,11 @@ from src.services.core.airtable_config import (
 from src.settings import settings
 
 logger = logging.getLogger(__name__)
+
+# Concurrent approvals each trigger a full-table sync; without this, parallel
+# runs race on the same Tranzaksiyalar/P&L pages and their PATCH batches can
+# collide and hit Airtable's rate limit (429).
+_SYNC_LOCK = asyncio.Lock()
 
 AIRTABLE_API_BASE = "https://api.airtable.com/v0"
 DEFAULT_BASE_ID = "app8xoyx1XCumYFXV"
@@ -39,6 +45,11 @@ def _get_headers() -> dict[str, str]:
 
 async def sync_monthly_pnl() -> dict[str, Any]:
     """Link every transaction to its month's Oylik P&L record."""
+    async with _SYNC_LOCK:
+        return await _sync_monthly_pnl()
+
+
+async def _sync_monthly_pnl() -> dict[str, Any]:
     base_id = getattr(settings, "AIRTABLE_BASE_ID", None) or DEFAULT_BASE_ID
     headers = _get_headers()
 
