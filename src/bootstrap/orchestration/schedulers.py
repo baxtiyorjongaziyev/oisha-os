@@ -81,3 +81,9 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         start_rop_schedulers(bot_runtime)
     except ImportError as exc:
         logger.warning("[ROP] scheduler unavailable: %s", exc)
+
+    try:
+        from src.schedulers.meta_leadgen_scheduler import meta_leadgen_loop
+        asyncio.create_task(meta_leadgen_loop(), name="meta_leadgen_loop")
+    except ImportError as exc:
+        logger.warning("[META LEADGEN] scheduler unavailable: %s", exc)
