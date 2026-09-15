@@ -172,3 +172,83 @@ async def test_run_training_advice_cycle_skips_when_no_call_analyses(monkeypatch
     await training_advice_scheduler.run_training_advice_cycle()
 
     assert write_calls == []
+
+
+@pytest.mark.asyncio
+async def test_training_advice_route_returns_unavailable_when_no_rows(monkeypatch):
+    from src.services.sales_quality.router import get_sales_quality_training_advice
+
+    class FakeRepo:
+        async def get_training_advice(self, manager_id=None):
+            return []
+
+    class FakeDb:
+        intelligence = FakeRepo()
+
+    monkeypatch.setattr(
+        "src.services.sales_quality.router.get_db",
+        lambda: FakeDb(),
+    )
+
+    result = await get_sales_quality_training_advice()
+
+    assert result["available"] is False
+    assert result["advice"] == []
+
+
+@pytest.mark.asyncio
+async def test_training_advice_route_returns_cached_rows(monkeypatch):
+    from src.services.sales_quality.router import get_sales_quality_training_advice
+
+    class FakeRepo:
+        async def get_training_advice(self, manager_id=None):
+            return [
+                {
+                    "manager_id": 2,
+                    "manager_name": "Low Scorer",
+                    "advice_text": "E'tirozlar bosqichini mustahkamlang.",
+                    "generated_at": "2026-09-15T00:00:00+00:00",
+                }
+            ]
+
+    class FakeDb:
+        intelligence = FakeRepo()
+
+    monkeypatch.setattr(
+        "src.services.sales_quality.router.get_db",
+        lambda: FakeDb(),
+    )
+
+    result = await get_sales_quality_training_advice()
+
+    assert result["available"] is True
+    assert result["advice"][0]["manager_name"] == "Low Scorer"
+
+
+@pytest.mark.asyncio
+async def test_training_advice_route_scopes_rows_for_seller_principal(monkeypatch):
+    from src.services.sales_quality.router import get_sales_quality_training_advice
+    from src.api.rbac import Principal, Role
+
+    class FakeRepo:
+        async def get_training_advice(self, manager_id=None):
+            return [
+                {"manager_id": 1, "manager_name": "Manager One", "advice_text": "A", "generated_at": "t"},
+                {"manager_id": 2, "manager_name": "Manager Two", "advice_text": "B", "generated_at": "t"},
+            ]
+
+    class FakeDb:
+        intelligence = FakeRepo()
+
+    monkeypatch.setattr(
+        "src.services.sales_quality.router.get_db",
+        lambda: FakeDb(),
+    )
+
+    seller = Principal(subject="1", role=Role.SELLER, auth_type="test")
+
+    result = await get_sales_quality_training_advice(principal=seller)
+
+    assert result["available"] is True
+    assert len(result["advice"]) == 1
+    assert result["advice"][0]["manager_id"] == 1
