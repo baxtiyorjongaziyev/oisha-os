@@ -14,8 +14,8 @@ from collections import defaultdict
 from typing import Any, Dict, List
 
 from src.database import get_db
-from src.services.sales_quality.helpers import _fetch_call_analysis_rows, _safe_json_dict
-from src.services.sales_quality.weak_stages import _compute_weak_stages, STAGE_LABELS
+from src.services.sales_quality.helpers import _fetch_call_analysis_rows, _row_to_dict
+from src.services.sales_quality.weak_stages import _compute_weak_stages
 from src.services.utils.free_ai_router import FreeAIProviderRouter
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ _PROMPT_TEMPLATE = """
 Sen Jon Branding agentligi uchun sotuv menejerlarini o'qitish bo'yicha AI murabbiysan.
 
 Menejer: {manager_name}
-Eng zaif bosqich: {weak_stage_label} (o'rtacha ball: {weak_stage_rate})
+Eng zaif bosqich: {weak_stage_label} (o'rtacha ball: {weak_stage_rate}%)
 
 Shu menejerga 2-3 gapdan iborat, aniq va amaliy tavsiya yoz — nima ustida
 ishlashi kerakligini va qanday qilib yaxshilashi mumkinligini tushuntir.
@@ -48,7 +48,13 @@ def _pick_lowest_scoring_manager(rows: List[Dict[str, Any]]) -> Dict[str, Any] |
     best_avg = None
     best_rows: List[Dict[str, Any]] = []
     for manager_id, manager_rows in by_manager.items():
-        scores = [r.get("overall_score", 0) for r in manager_rows]
+        scores = [
+            r.get("overall_score") for r in manager_rows
+            if isinstance(r.get("overall_score"), (int, float))
+            and not isinstance(r.get("overall_score"), bool)
+        ]
+        if not scores:
+            continue
         avg = sum(scores) / len(scores)
         if best_avg is None or avg < best_avg:
             best_avg = avg
@@ -73,6 +79,11 @@ async def run_training_advice_cycle() -> None:
     if not rows:
         logger.info("[TRAINING-ADVICE] No call_analyses rows yet — skipping cycle.")
         return
+
+    rows = [
+        _row_to_dict(r, ["manager_id", "manager_name", "overall_score", "scores", "weaknesses"])
+        for r in rows
+    ]
 
     target = _pick_lowest_scoring_manager(rows)
     if target is None:

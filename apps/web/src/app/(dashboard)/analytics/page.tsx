@@ -451,13 +451,20 @@ export default function AnalyticsPage() {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white font-bold text-sm">
                   💡
                 </span>
-                <p className="text-xs text-text leading-relaxed">
-                  {aiRefreshing
-                    ? "Yuklanmoqda..."
-                    : trainingAdvice && trainingAdvice.length > 0
-                      ? trainingAdvice[0].advice_text
-                      : "Hozircha tavsiya mavjud emas — kunlik tahlil hali ishlamagan."}
-                </p>
+                <div className="space-y-1">
+                  <p className="text-xs text-text leading-relaxed">
+                    {aiRefreshing
+                      ? "Yuklanmoqda..."
+                      : trainingAdvice && trainingAdvice.length > 0
+                        ? trainingAdvice[0].advice_text
+                        : "Hozircha tavsiya mavjud emas — kunlik tahlil hali ishlamagan."}
+                  </p>
+                  {!aiRefreshing && trainingAdvice && trainingAdvice.length > 0 && (
+                    <p className="text-[10px] text-text-muted">
+                      {new Date(trainingAdvice[0].generated_at).toLocaleDateString("en-US")}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -472,6 +479,7 @@ export default function AnalyticsPage() {
                       ? trainingAdvice[0].manager_name
                           .trim()
                           .split(" ")
+                          .filter(Boolean)
                           .map((part) => part[0])
                           .slice(0, 2)
                           .join("")
