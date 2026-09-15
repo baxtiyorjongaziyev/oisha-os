@@ -60,7 +60,8 @@ class IntelligenceRepository(BaseRepository):
         """Menejer uchun eng so'nggi AI tavsiyasini yozadi (eskisini almashtiradi)."""
         from datetime import datetime, timezone
 
-        await self._execute(
+        conn = await self._get_conn()
+        await conn.execute(
             """
             INSERT OR REPLACE INTO training_advice
                 (manager_id, manager_name, advice_text, generated_at)
@@ -68,6 +69,7 @@ class IntelligenceRepository(BaseRepository):
             """,
             (manager_id, manager_name, advice_text, datetime.now(timezone.utc).isoformat()),
         )
+        await conn.commit()
 
     async def get_training_advice(
         self, manager_id: Optional[int] = None
