@@ -153,6 +153,9 @@ class AppSettings(BaseSettings):
     # haqiqiy suhbat bo'lmasa ham AI orqali "tahlil qilinib", to'qilgan
     # (hallucination) natija AmoCRM'ga yozilishining oldini oladi.
     AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS: int = 10
+    # Vergul bilan ajratilgan telefon raqamlar — shu raqamlarga tegishli
+    # qo'ng'iroqlar AI tahlilidan butunlay o'tkazib yuboriladi (owner so'roviga ko'ra).
+    AMOCRM_CALL_ANALYSIS_EXCLUDED_PHONES: str = ""
     AMOCRM_CALL_BACKFILL_ON_WEBHOOK: bool = True
     AMOCRM_CALL_BACKFILL_INTERVAL_MINUTES: int = 60
     AMOCRM_CALL_BACKFILL_LIMIT: int = 50
