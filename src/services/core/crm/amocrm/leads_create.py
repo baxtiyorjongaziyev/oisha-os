@@ -62,6 +62,26 @@ class AmoCRMLeadsCreateMixin:
                     f"[AMOCRM LEAD CREATED] ID: {lead_id} for contact {contact_id}"
                 )
                 return lead_id
+            if response.status_code == 400 and "custom_fields_values" in lead_data:
+                logger.warning(
+                    f"[AMOCRM LEAD RETRY] Status 400 with custom fields, retrying without: {response.text}"
+                )
+                fallback_data = dict(lead_data)
+                fallback_data.pop("custom_fields_values", None)
+                retry_resp = requests.post(
+                    url, headers=self._get_headers(), json=[fallback_data], timeout=30
+                )
+                if retry_resp.status_code in [200, 201]:
+                    lead_id = (
+                        retry_resp.json()
+                        .get("_embedded", {})
+                        .get("leads", [{}])[0]
+                        .get("id")
+                    )
+                    logger.info(
+                        f"[AMOCRM LEAD CREATED FALLBACK] ID: {lead_id} without custom fields for contact {contact_id}"
+                    )
+                    return lead_id
             logger.error(
                 f"[AMOCRM LEAD CREATE FAILED] Status: {response.status_code}, Body: {response.text}"
             )
@@ -153,6 +173,34 @@ class AmoCRMLeadsCreateMixin:
                         self.add_lead_note, int(lead_id), str(note)
                     )
                 return lead_id
+            if response.status_code == 400 and "custom_fields_values" in lead_data:
+                logger.warning(
+                    f"[AMOCRM STANDALONE RETRY] Status 400 with custom fields, retrying without: {response.text}"
+                )
+                fallback_data = dict(lead_data)
+                fallback_data.pop("custom_fields_values", None)
+                retry_resp = await asyncio.to_thread(
+                    requests.post,
+                    url,
+                    headers=self._get_headers(),
+                    json=[fallback_data],
+                    timeout=30,
+                )
+                if retry_resp.status_code in [200, 201]:
+                    lead_id = (
+                        retry_resp.json()
+                        .get("_embedded", {})
+                        .get("leads", [{}])[0]
+                        .get("id")
+                    )
+                    logger.info(
+                        f"[AMOCRM STANDALONE LEAD CREATED FALLBACK] ID: {lead_id} without custom fields"
+                    )
+                    if note and lead_id:
+                        await asyncio.to_thread(
+                            self.add_lead_note, int(lead_id), str(note)
+                        )
+                    return lead_id
             logger.error(
                 f"[AMOCRM STANDALONE LEAD FAILED] Status: {response.status_code}, Body: {response.text}"
             )
@@ -162,7 +210,13 @@ class AmoCRMLeadsCreateMixin:
             return None
 
     async def ensure_lead(
-        self, name: str, phone: str, note: Optional[str] = None
+        self,
+        name: str,
+        phone: str,
+        note: Optional[str] = None,
+        pipeline_id: Optional[int] = None,
+        status_id: Optional[int] = None,
+        custom_fields: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[int]:
         """Mavjud aktiv bitimni qidiradi, bo'lmasa yangisini ochadi."""
         existing_lead = await asyncio.to_thread(
@@ -180,8 +234,9 @@ class AmoCRMLeadsCreateMixin:
         lead_id = await self.create_lead(
             name=name,
             phone=phone,
-            pipeline_id=10117998,
-            status_id=80178230,
+            pipeline_id=pipeline_id or 10117998,
+            status_id=status_id or 80178230,
+            custom_fields=custom_fields,
         )
         if lead_id and note:
             await asyncio.to_thread(self.add_lead_note, lead_id, note)
