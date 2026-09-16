@@ -27,6 +27,8 @@ from src.services.core.instagram.leadgen_dedup import is_leadgen_processed, mark
 from src.services.core.instagram.leadgen_delivery import (
     _ROUTING_LOCK, get_crm_checkpoint, save_crm_checkpoint,
 )
+from src.services.core.marketing.attribution_store import save_attribution
+from src.time_utils import get_local_now
 
 logger = structlog.get_logger("MetaLeadgenRouter")
 
@@ -315,6 +317,19 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
 
     if not lead_id:
         return {"ok": False, "reason": "crm_delivery_failed", "leadgen_id": leadgen_id}
+
+    merged_payload = {**value, **payload}
+    await asyncio.to_thread(
+        save_attribution,
+        leadgen_id,
+        int(lead_id),
+        str(merged_payload.get("campaign_id") or ""),
+        str(merged_payload.get("campaign_name") or ""),
+        str(merged_payload.get("ad_id") or ""),
+        str(merged_payload.get("form_id") or ""),
+        get_local_now().isoformat(),
+    )
+
     if not checkpoint:
         await asyncio.to_thread(save_crm_checkpoint, leadgen_id, int(lead_id))
         await amocrm.update_lead_status(
