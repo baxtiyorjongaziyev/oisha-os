@@ -110,6 +110,21 @@ def update_revenue(leadgen_id: str, price: float, won: Optional[int], synced_at:
         )
 
 
+def count_recent_leads_for_campaign(campaign_id: str, days: int = 30) -> int:
+    """Berilgan kampaniyada oxirgi `days` kunda tushgan leadlar soni."""
+    if not campaign_id:
+        return 0
+    with _connection() as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS n FROM lead_attribution
+            WHERE campaign_id = ? AND created_at >= datetime('now', ?)
+            """,
+            (campaign_id, f"-{int(days)} days"),
+        ).fetchone()
+    return int(row["n"] or 0) if row else 0
+
+
 def aggregate_by_campaign(start_date: str, end_date: str) -> Dict[str, Dict[str, Any]]:
     """`created_at` sanasi oralig'idagi leadlarni campaign_id bo'yicha yig'adi.
 
