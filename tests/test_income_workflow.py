@@ -13,6 +13,7 @@ from src.handlers.income_workflow import (
     ACC_NAQD_UZS,
     ACC_NAQD_USD,
 )
+from src.services.core.finance.pnl_sync import PNL_LINK_FIELD
 
 
 def test_resolve_income_category():
@@ -84,3 +85,5 @@ async def test_create_income_airtable_record_tranzaksiyalar():
         assert call_fields["Xodim"] == ["recSeller456"]
         assert "Tranzaksiya" in call_fields
         assert call_fields["Tranzaksiya"].startswith("KIRIM-TG-")
+        assert PNL_LINK_FIELD in call_fields
+        assert "Oylik P&L (Hisobot)" not in call_fields
