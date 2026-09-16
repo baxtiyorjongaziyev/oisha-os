@@ -49,8 +49,34 @@ def _report_pnl_sync_result(task: asyncio.Task[dict[str, Any]]) -> None:
         task.result()
     except asyncio.CancelledError:
         logger.warning("[PNL_SYNC] Background sync was cancelled")
-    except Exception:
+    except Exception as exc:
         logger.exception("[PNL_SYNC] Background sync failed")
+        asyncio.create_task(_alert_owner_pnl_sync_failed(exc))
+
+
+async def _alert_owner_pnl_sync_failed(exc: Exception) -> None:
+    """Owner ko'rmasdan qolmasin — log yetarli emas, chunki bu jim task."""
+    try:
+        from src.services.core.tool_adapters import send_group_message_with_fallback
+        from telegram import Bot
+
+        bot_token = getattr(settings, "BOT_TOKEN", None)
+        if hasattr(bot_token, "get_secret_value"):
+            bot_token = bot_token.get_secret_value()
+        owner_id = getattr(settings, "OWNER_ID", None)
+        if not bot_token or not owner_id:
+            return
+
+        bot = Bot(token=bot_token)
+        await send_group_message_with_fallback(
+            bot,
+            chat_id=owner_id,
+            text=f"⚠️ P&L sinxronizatsiyasi muvaffaqiyatsiz tugadi:\n<code>{html.escape(str(exc))}</code>",
+            parse_mode="HTML",
+            allow_userbot_fallback=False,
+        )
+    except Exception:
+        logger.error("[PNL_SYNC] Owner alert yuborilmadi", exc_info=True)
 
 
 def register_airtable_approval_callbacks(dispatcher: Any) -> None:
