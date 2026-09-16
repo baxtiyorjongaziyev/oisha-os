@@ -27,6 +27,9 @@ from src.services.core.instagram.leadgen_dedup import is_leadgen_processed, mark
 from src.services.core.instagram.leadgen_delivery import (
     _ROUTING_LOCK, get_crm_checkpoint, save_crm_checkpoint,
 )
+from src.services.core.marketing.attribution_store import save_attribution
+from src.services.core.marketing.lead_cost_estimator import estimate_cost_per_lead
+from src.time_utils import get_local_now
 
 logger = structlog.get_logger("MetaLeadgenRouter")
 
@@ -179,6 +182,7 @@ def build_telegram_message(
     phone: str,
     email: str,
     fields: Dict[str, str],
+    cost_per_lead: Optional[float] = None,
 ) -> str:
     """Format clean Telegram alert using leadgen_formatter."""
     return _fmt_build_tg(
@@ -189,6 +193,7 @@ def build_telegram_message(
         email,
         fields,
         _excluded_leadgen_keys(fields),
+        cost_per_lead=cost_per_lead,
     )
 
 
@@ -315,6 +320,19 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
 
     if not lead_id:
         return {"ok": False, "reason": "crm_delivery_failed", "leadgen_id": leadgen_id}
+
+    merged_payload = {**value, **payload}
+    await asyncio.to_thread(
+        save_attribution,
+        leadgen_id,
+        int(lead_id),
+        str(merged_payload.get("campaign_id") or ""),
+        str(merged_payload.get("campaign_name") or ""),
+        str(merged_payload.get("ad_id") or ""),
+        str(merged_payload.get("form_id") or ""),
+        get_local_now().isoformat(),
+    )
+
     if not checkpoint:
         await asyncio.to_thread(save_crm_checkpoint, leadgen_id, int(lead_id))
         await amocrm.update_lead_status(
@@ -328,7 +346,11 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     if not checkpoint and email:
         await asyncio.to_thread(amocrm.add_lead_note, int(lead_id), f"Email: {email}")
 
-    telegram_text = build_telegram_message(leadgen_id, lead_id, name, phone, email, fields)
+    campaign_id = str(merged_payload.get("campaign_id") or "")
+    cost_per_lead = await asyncio.to_thread(estimate_cost_per_lead, campaign_id)
+    telegram_text = build_telegram_message(
+        leadgen_id, lead_id, name, phone, email, fields, cost_per_lead=cost_per_lead
+    )
     telegram_ok = await asyncio.to_thread(_notify_telegram, telegram_text)
     if telegram_ok:
         mark_leadgen_processed(leadgen_id, lead_id=int(lead_id))

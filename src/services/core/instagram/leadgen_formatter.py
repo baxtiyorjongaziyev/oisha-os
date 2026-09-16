@@ -235,6 +235,7 @@ def build_telegram_message(
     email: str,
     fields: Dict[str, str],
     exclude_keys: Optional[set[str]] = None,
+    cost_per_lead: Optional[float] = None,
 ) -> str:
     """Format a clean, executive CRM group notification for a Facebook lead."""
     lead_link = (
@@ -257,6 +258,9 @@ def build_telegram_message(
             f"🆔 <b>Meta lead:</b> <code>{html.escape(leadgen_id)}</code>",
         ]
     )
+    if cost_per_lead:
+        formatted = f"{round(cost_per_lead):,}".replace(",", " ")
+        lines.append(f"💵 <b>Taxminiy lid narxi:</b> ~{formatted} so'm (30 kunlik oʻrtacha)")
 
     ignored = exclude_keys or set()
     extras = [(k, v) for k, v in fields.items() if k not in ignored]

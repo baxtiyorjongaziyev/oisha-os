@@ -286,6 +286,8 @@ class AppSettings(BaseSettings):
     META_INSTAGRAM_USER_ID: Optional[str] = None
     META_INSTAGRAM_ACCOUNT_ID: Optional[str] = None
     INSTAGRAM_REPORT_AIRTABLE_TABLE: Optional[str] = None
+    # Meta Ads spend attribution (act_<id> — Ads Manager > Business Settings > Ad Accounts)
+    META_AD_ACCOUNT_ID: Optional[str] = None
 
     # Google Analytics 4
     GA4_PROPERTY_ID: Optional[str] = None

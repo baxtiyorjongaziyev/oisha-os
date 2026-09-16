@@ -93,3 +93,9 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         asyncio.create_task(meta_leadgen_loop(), name="meta_leadgen_loop")
     except ImportError as exc:
         logger.warning("[META LEADGEN] scheduler unavailable: %s", exc)
+
+    try:
+        from src.schedulers.marketing_attribution_scheduler import marketing_attribution_loop
+        asyncio.create_task(marketing_attribution_loop(), name="marketing_attribution_loop")
+    except ImportError as exc:
+        logger.warning("[ADS ATTRIBUTION] scheduler unavailable: %s", exc)

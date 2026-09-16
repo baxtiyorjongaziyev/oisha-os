@@ -25,7 +25,8 @@ async def get_marketing_performance(
 ):
     """
     Meta Ads xarajatlari va AmoCRM savdolarini birlashtirilgan ko'rinishda (ROAS, CAC bilan) qaytaradi.
-    Hozircha demo datani beradi.
+    Real ma'lumot mahalliy keshdan olinadi (`marketing_attribution_scheduler.py`
+    orqali muntazam sinxronlanadi) — Meta/AmoCRM'ga to'g'ridan-to'g'ri so'rov yubormaydi.
     """
     if not start_date:
         start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
