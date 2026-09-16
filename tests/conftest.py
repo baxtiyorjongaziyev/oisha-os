@@ -45,6 +45,23 @@ def _reset_gemini_model_quota_cooldowns():
 
 
 @pytest.fixture(autouse=True)
+def _reset_api_state_db_instance():
+    """api_state.db_instance is a module-level global. Some routes
+    (src/api/routes/amocrm_integration.py's _get_db_instance) lazily create a
+    real Database() and assign it here as a side effect the first time
+    they're hit, and any test that patches it with a bare MagicMock leaves
+    that behind too — so whichever test runs next inherits either a stray
+    real DB or a non-async mock instead of the None it expects, and any
+    `await db_instance.something()` blows up with 'MagicMock can't be used
+    in an await expression'."""
+    from src.api.routes.state import api_state
+
+    original = api_state.db_instance
+    yield
+    api_state.db_instance = original
+
+
+@pytest.fixture(autouse=True)
 def _reset_agent_runtime_context():
     """agent_runtime._runtime_context is a module-level global that leaks
     across the whole pytest session otherwise — e.g. GitHub Actions runners

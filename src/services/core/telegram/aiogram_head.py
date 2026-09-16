@@ -32,13 +32,23 @@ class AiogramBotHead:
         if raw_update_handler is not None:
             self._register_raw_update_middleware()
 
+    _RAW_PASSTHROUGH_KEYS = (
+        "guest_message",
+        "business_connection",
+        "business_message",
+        "edited_business_message",
+        "deleted_business_messages",
+    )
+
     def _register_raw_update_middleware(self) -> None:
         raw_update_handler = self.raw_update_handler
 
         async def _raw_update_middleware(handler, event, data):
             try:
                 payload = event.model_dump(exclude_none=True)
-                if "guest_message" in payload and raw_update_handler is not None:
+                if raw_update_handler is not None and any(
+                    key in payload for key in AiogramBotHead._RAW_PASSTHROUGH_KEYS
+                ):
                     return await raw_update_handler(payload)
             except Exception as exc:
                 logger.debug("[BOT] Raw update middleware dump skipped: %s", exc)

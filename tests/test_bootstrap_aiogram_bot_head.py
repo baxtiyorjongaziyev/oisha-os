@@ -111,6 +111,8 @@ def patched(monkeypatch):
     )
     hisobchi_calls = []
     salescoach_calls = []
+    survey_calls = []
+    existing_contact_signal_calls = []
     monkeypatch.setattr(
         "src.bootstrap.orchestration.bot_head.register_hisobchi_aiogram_callbacks",
         lambda dp, *, engine: hisobchi_calls.append(engine),
@@ -119,10 +121,22 @@ def patched(monkeypatch):
         "src.bootstrap.orchestration.bot_head.register_salescoach_aiogram_callbacks",
         lambda dp, *, context: salescoach_calls.append(context),
     )
+    monkeypatch.setattr(
+        "src.bootstrap.orchestration.bot_head.register_sales_club_survey_handlers",
+        lambda dp, *, owner_id: survey_calls.append(owner_id),
+    )
+    monkeypatch.setattr(
+        "src.bootstrap.orchestration.bot_head.register_existing_contact_signal_callbacks",
+        lambda dp, *, msg_controller, owner_id: existing_contact_signal_calls.append(
+            (msg_controller, owner_id)
+        ),
+    )
     return SimpleNamespace(
         built=built,
         hisobchi_calls=hisobchi_calls,
         salescoach_calls=salescoach_calls,
+        survey_calls=survey_calls,
+        existing_contact_signal_calls=existing_contact_signal_calls,
     )
 
 
