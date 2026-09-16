@@ -250,7 +250,9 @@ async def create_income_airtable_record(
         "Izoh": izoh,
     }
     if pnl_id:
-        fields["Oylik P&L (Hisobot)"] = [pnl_id]
+        from src.services.core.finance.pnl_sync import PNL_LINK_FIELD
+
+        fields[PNL_LINK_FIELD] = [pnl_id]
     if workflow.get("seller_ids"):
         fields["Xodim"] = workflow["seller_ids"]
 

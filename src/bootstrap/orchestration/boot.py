@@ -200,7 +200,7 @@ async def boot_application():
         logger.error("[BOT] Aiogram bot head startup failed: %s", head_exc, exc_info=True)
 
     # 8. Moliya & Probe Loops
-    from src.schedulers.moliya_hisobotlari import moliya_hisobotlari_loop
+    from src.schedulers.moliya import moliya_hisobotlari_loop
     asyncio.create_task(moliya_hisobotlari_loop(), name="oisha_moliya_hisobotlari")
 
     from src.schedulers.hisobchi_gap_reporter import hisobchi_gap_report_loop
