@@ -126,8 +126,8 @@ importers:
         version: 19.2.7(react@19.2.8)
     devDependencies:
       '@next/eslint-plugin-next':
-        specifier: 16.3.3
-        version: 16.3.3(eslint@9.39.5(jiti@2.7.0))
+        specifier: 16.3.5
+        version: 16.3.5(eslint@9.39.5(jiti@2.7.0))
       '@tailwindcss/postcss':
         specifier: ^4.3.0
         version: 4.3.2
@@ -982,6 +982,9 @@ packages:
 
   '@next/eslint-plugin-next@16.3.3':
     resolution: {integrity: sha512-pbEh30vvjKpDoTAmo1v3q2uM4JUi8QaEBpbmjWvGfoec2jLghy/WNtvzAT0bk+Ik9oz6etjt4YjXEk4BQnicCw==}
+
+  '@next/eslint-plugin-next@16.3.5':
+    resolution: {integrity: sha512-PGfSeItHJ12DH8t+6sEbuMe59NE5rAhCfgk06QKTH2ne9VUL1JlaXdYXY3B8RaiF2SO50rDYvd39TulP6A6xZQ==}
 
   '@next/swc-darwin-arm64@16.3.3':
     resolution: {integrity: sha512-8Hiv32QJPwdV6KYJ8meR9SBA061tQqnIKTJDocvOXlEQqib0xMFpzArosuffFUUc0sslbh7QQ8a3Yey1QV8EIw==}
@@ -2463,8 +2466,8 @@ packages:
   fast-safe-stringify@2.1.1:
     resolution: {integrity: sha512-W+KJc2dmILlPplD/H4K9l9LcAHAfPtP6BY84uVLXQ6Evcz9Lcg33Y2z1IVblT6xdY54PXYVHEv+0Wpq8Io6zkA==}
 
-  fastq@1.20.1:
-    resolution: {integrity: sha512-GGToxJ/w1x32s/D2EKND7kTil4n8OVk/9mycTc4VDza13lOvpUZTGX3mFSCtV9ksdGBVzvsyAVLM6mHFThxXxw==}
+  fastq@1.20.3:
+    resolution: {integrity: sha512-XKv5nnLs6nLF71NgiKJLIZFLkPyIEuOselLG7ujZnGrRfQK8HpvY+WqKhAJUAdLomwVHErVS4LfxFlPq0/FTAw==}
 
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
@@ -3869,6 +3872,11 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
+  use-sync-external-store@1.7.0:
+    resolution: {integrity: sha512-6L+EeigHMQhdaIPNIFUKwfWJSwWFQ8gJbJ2DLOs5sDIegTwR9fRxvnM3uciHKjIZhFz+KAv2emhWMRvDmMcY8A==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
@@ -3989,7 +3997,7 @@ snapshots:
       react-dom: 19.2.7(react@19.2.8)
       react-stately: 3.50.0(react@19.2.8)
       react-transition-group: 4.4.5(react-dom@19.2.7(react@19.2.8))(react@19.2.8)
-      use-sync-external-store: 1.6.0(react@19.2.8)
+      use-sync-external-store: 1.7.0(react@19.2.8)
 
   '@alloc/quick-lru@5.2.0': {}
 
@@ -4647,6 +4655,13 @@ snapshots:
     transitivePeerDependencies:
       - eslint
 
+  '@next/eslint-plugin-next@16.3.5(eslint@9.39.5(jiti@2.7.0))':
+    dependencies:
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.5(jiti@2.7.0))
+      fast-glob: 3.3.1
+    transitivePeerDependencies:
+      - eslint
+
   '@next/swc-darwin-arm64@16.3.3':
     optional: true
 
@@ -4681,7 +4696,7 @@ snapshots:
   '@nodelib/fs.walk@1.2.8':
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
-      fastq: 1.20.1
+      fastq: 1.20.3
 
   '@nolyfill/is-core-module@1.0.39': {}
 
@@ -6415,7 +6430,7 @@ snapshots:
 
   fast-safe-stringify@2.1.1: {}
 
-  fastq@1.20.1:
+  fastq@1.20.3:
     dependencies:
       reusify: 1.1.0
 
@@ -7390,7 +7405,7 @@ snapshots:
       react: 19.2.8
       react-dom: 19.2.7(react@19.2.8)
       react-stately: 3.50.0(react@19.2.8)
-      use-sync-external-store: 1.6.0(react@19.2.8)
+      use-sync-external-store: 1.7.0(react@19.2.8)
 
   react-dom@19.2.7(react@19.2.8):
     dependencies:
@@ -7417,7 +7432,7 @@ snapshots:
       '@react-types/shared': 3.36.1(react@19.2.8)
       '@swc/helpers': 0.5.23
       react: 19.2.8
-      use-sync-external-store: 1.6.0(react@19.2.8)
+      use-sync-external-store: 1.7.0(react@19.2.8)
 
   react-transition-group@4.4.5(react-dom@19.2.7(react@19.2.8))(react@19.2.8):
     dependencies:
@@ -8012,6 +8027,10 @@ snapshots:
       punycode: 2.3.1
 
   use-sync-external-store@1.6.0(react@19.2.8):
+    dependencies:
+      react: 19.2.8
+
+  use-sync-external-store@1.7.0(react@19.2.8):
     dependencies:
       react: 19.2.8
 
