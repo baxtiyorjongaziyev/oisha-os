@@ -13,9 +13,9 @@ from src.services.core.instagram.leadgen_sheets import (
 
 
 def test_clean_phone():
-    assert clean_phone("998911780850") == "998 (91) 178-08-50"
-    assert clean_phone("+998901234567") == "998 (90) 123-45-67"
-    assert clean_phone("901234567") == "998 (90) 123-45-67"
+    assert clean_phone("998911780850") == "'+998 (91) 178-08-50"
+    assert clean_phone("+998901234567") == "'+998 (90) 123-45-67"
+    assert clean_phone("901234567") == "'+998 (90) 123-45-67"
 
 
 def test_humanizers():
@@ -45,7 +45,7 @@ def test_format_lead_row():
     assert row[0] == "=ROW()-1"
     assert row[1] == "18.09.2026 17:00"
     assert row[2] == "Akbar"
-    assert row[3] == "998 (90) 123-45-67"
+    assert row[3] == "'+998 (90) 123-45-67"
     assert row[4] == "Savdo"
     assert row[5] == "Yangi biznes boshlash"
     assert row[6] == "Patentlash va Himoya"

@@ -36,10 +36,11 @@ _SCOPES = [
 def clean_phone(raw: str) -> str:
     digits = re.sub(r"\D", "", raw or "")
     if digits.startswith("998") and len(digits) == 12:
-        return f"{digits[0:3]} ({digits[3:5]}) {digits[5:8]}-{digits[8:10]}-{digits[10:12]}"
+        return f"'+{digits[0:3]} ({digits[3:5]}) {digits[5:8]}-{digits[8:10]}-{digits[10:12]}"
     if len(digits) == 9:
-        return f"998 ({digits[0:2]}) {digits[2:5]}-{digits[5:7]}-{digits[7:9]}"
-    return (raw or "").strip()
+        return f"'+998 ({digits[0:2]}) {digits[2:5]}-{digits[5:7]}-{digits[7:9]}"
+    val = (raw or "").strip()
+    return f"'{val}" if val.startswith("+") else val
 
 
 def humanize_stage(raw: str) -> str:

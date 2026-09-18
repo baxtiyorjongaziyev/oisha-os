@@ -21,6 +21,17 @@
 
 ## Agent Handoff Log
 
+- **2026-09-18 — Antigravity — Google Sheets Phone Number #ERROR! Resolution & Safe Formatting:**
+  1. **User Request**: "Telefon raqami ERROR bo'lib qoldi".
+  2. **Root Cause Resolved**: In Google Sheets, entries starting with `+` without quotation are parsed by Sheets as arithmetic formulas (`=+...`). Because phone numbers contain spaces and hyphens (`+998 (90) 123-45-67`), Google Sheets threw a formula parse error (`#ERROR!`).
+  3. **Fix & Zero-Error Formula-Safe Formatting**:
+     - Upgraded `clean_phone` in `src/services/core/instagram/leadgen_sheets.py` (282L $\le 400$L) to prefix string with single quote `'+998 (...) ...'`. This instructs Google Sheets to render the international `+` sign cleanly as plain text without formula parsing.
+     - Updated all 98 existing rows in `Target Leads (2026)` (range `D2:D99`) with formatted values. Verified that 0 cells in the entire sheet contain `#ERROR!`.
+     - 4/4 unit tests passing (`pytest tests/test_meta_leadgen_sheets.py`), Bandit 0 security issues.
+  4. **Production Deployment & Verification**:
+     - Deployed updated `leadgen_sheets.py` to Oracle VM (`ubuntu@163.192.10.104`).
+     - Restarted `oisha-os.service` (`active (running)`, PID `360009`), `/healthz/` 200 OK.
+
 - **2026-09-18 — Antigravity — Full Repository PR Resolution & Consolidated Dependency Upgrades:**
   1. **Airtable Finance Hotfix PR #641**: Rebased onto latest `main`, resolved `AGENTS.md` conflict, verified 21/21 tests, and merged cleanly.
   2. **Python / Pip PRs**: Merged #643 (instagrapi 3.0.2), #644 (websockets 17.1), #645 (ruff 0.16.7), #646 (jiter 0.17.0), #647 (google-auth 2.58.0), #648 (phonenumbers 9.0.39), #649 (pydantic-core 2.49.0), #651 (pyee 14.0.0), #652 (sphinx-press-theme 0.9.1). Closed broken #650 (Telethon 1.45.0 drops KeyboardButtonUrl breaking test collection).
