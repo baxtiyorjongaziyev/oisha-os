@@ -348,9 +348,33 @@ async def guarded_is_authorized(client, source: SessionSource) -> bool:
         raise
 
 
-def prepare(dedicated_env: Optional[str] = None) -> SessionSource:
-    """Skriptlar uchun qulay yig'ma qadam: resolve + owner-host tekshiruvi."""
+def prepare(
+    dedicated_env: Optional[str] = None,
+    *,
+    require_dedicated: bool = False,
+) -> SessionSource:
+    """Skriptlar uchun qulay yig'ma qadam: resolve + owner-host tekshiruvi.
+
+    Args:
+        dedicated_env: Skriptga xos env nomi, masalan ``JUMA_SESSION_STRING``.
+        require_dedicated: ``True`` bo'lsa, prod kalitiga (fayl yoki env orqali)
+            SILIQ fallback qilinmaydi — Oracle VM'ning o'zida ham
+            oisha-os.service bilan bir xil session'ni parallel ushlash
+            AuthKeyDuplicated'ga olib kelishi mumkin (2026-08-21 hodisasi),
+            shuning uchun uzoq davom etadigan broadcast skriptlari uchun
+            dedicated session MAJBURIY qilinadi.
+    """
     source = resolve_session(dedicated_env=dedicated_env)
+    if require_dedicated and source.is_shared_prod:
+        raise SessionConflictError(
+            f"{dedicated_env or GENERIC_DEDICATED_ENV} o'rnatilmagan — bu skript "
+            "prod userbot kalitiga ({} orqali) SILIQ tushib qolishni rad etadi. "
+            "Oracle VM'ning o'zida ham oisha-os.service shu kalitni parallel "
+            "ushlab turadi va uzoq broadcast paytida AuthKeyDuplicated xavfi "
+            "yuqori (2026-08-21 hodisasi aynan shunday sodir bo'lgan).\n\n"
+            "Avval alohida session generatsiya qiling va uni {} ga qo'ying."
+            .format(source.origin, dedicated_env or GENERIC_DEDICATED_ENV)
+        )
     assert_owner_host(source)
     logger.info("[GUARD] Session manbasi: %s", source.origin)
     return source
