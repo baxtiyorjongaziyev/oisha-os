@@ -171,7 +171,7 @@ instagrapi==3.0.2
     # via -r requirements.txt
 jinja2==3.1.6
     # via sphinx
-jiter==0.16.0
+jiter==0.17.0
     # via
     #   anthropic
     #   openai
