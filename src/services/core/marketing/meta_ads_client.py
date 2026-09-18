@@ -120,6 +120,48 @@ class MetaAdsClient:
 
         return rows
 
+    def get_ad_name(self, ad_id: str) -> Optional[str]:
+        """Bitta reklama (ad_id)ning nomini oladi — "qaysi video/aksiya" savoliga javob.
+
+        `META_AD_ACCOUNT_ID` shart emas — faqat `ads_read` huquqli token
+        bilan bitta ad obyektini o'qiydi. Kreativ nomi (creative.name)
+        odatda dizayner/marketolog qo'ygan tushunarli nom bo'ladi
+        (masalan "Video 3 - Brend strategiya - Sentabr").
+        """
+        if not ad_id or not self.access_token:
+            return None
+
+        url = f"https://graph.facebook.com/{self.api_version}/{ad_id}"
+        params = {
+            "access_token": self.access_token,
+            "fields": "name,creative{name,title,video_id}",
+        }
+        try:
+            response = requests.get(url, params=params, timeout=15)
+            payload = response.json()
+        except requests.RequestException as exc:
+            logger.warning("[META ADS] Ad nomi olinmadi", error=type(exc).__name__)
+            return None
+        except ValueError:
+            return None
+
+        if response.status_code >= 400 or payload.get("error"):
+            error = payload.get("error") or {}
+            logger.warning(
+                "[META ADS] Ad nomi Graph xatosi",
+                message=error.get("message"),
+                code=error.get("code"),
+            )
+            return None
+
+        creative = payload.get("creative") or {}
+        name = (
+            creative.get("name")
+            or creative.get("title")
+            or payload.get("name")
+        )
+        return str(name).strip() if name else None
+
     @staticmethod
     def extract_lead_actions(row: Dict[str, Any]) -> int:
         """`actions[]` ichidan Meta hisoblagan "lead" harakatlar sonini oladi."""
