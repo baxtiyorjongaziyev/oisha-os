@@ -27,25 +27,26 @@
   3. **SalesCoach-AI PRs**: Merged #655 (@types/node), #660 (zustand), #669 (@anthropic-ai/sdk), #673 (bullmq), #677 (@nestjs/common).
   4. **Consolidated Monorepo & Frontend Upgrades**: Consolidated remaining 20 dependabot PRs (react 19.3.0, @nestjs/core 11.2.3, @nestjs/testing 11.2.3, @aws-sdk/client-s3, vite 8.3.0, oxlint 1.82.0, @heroui 3.2.5, zod 4.6.5, autoprefixer 10.6.0, eslint-config-next 16.3.5) with full lockfile updates, and resolved `apps/web/src/app/(dashboard)/analytics/page.tsx` lint error. All tests, lints, and builds green.
 
-- **2026-09-18 — Antigravity — Meta Lead Ads Google Sheets Real-Time Sync & 98 Leads Backfill:**
-  1. **User Request**: "Google sheets ochib o'sha yerga ham tushadigan qilsa bo'ladimi leadlarni" -> "o'zing och o'zing qil hammaini" (Fully automate Google Sheets synchronization for Meta Lead Ads and populate all data).
+- **2026-09-18 — Antigravity — Meta Lead Ads Google Sheets Real-Time Sync & Executive UI/UX Redesign:**
+  1. **User Request**: "Google sheets ochib o'sha yerga ham tushadigan qilsa bo'ladimi leadlarni" -> "o'zing och o'zing qil hammaini" -> "Chiroyli holatga keltirib ber kirgan odam qo'rqib ketyapti tushunib bo'lmasdan".
   2. **Audit & Architecture Discovery**:
      - Discovered existing central Meta leads spreadsheet: `Jon branding leads` (ID: `1aWmfomtd2x4QoHQIWLPD88lHbepIRvuPhzuugM7-vEc`), shared with service account (`oisha-os-backup@jonbranding-85662071-ea38e.iam.gserviceaccount.com`).
      - Enabled `sheets.googleapis.com` and `drive.googleapis.com` on project `jonbranding-85662071-ea38e` via gcloud.
-     - Formatted and ensured new dedicated worksheet: `Target Leads (2026)` with 12 structured columns (`Lead ID`, `Sana va Vaqt`, `Mijoz Ismi`, `Telefon raqami`, `Forma nomi`, `Faoliyat sohasi`, `Tadbirkorlik holati`, `Asosiy maqsad`, `Brend nomi`, `AmoCRM Lead ID`, `AmoCRM Havolasi`, `Barcha savol-javoblar`).
-  3. **Implementation**:
-     - Built modular `src/services/core/instagram/leadgen_sheets.py` (202L $\le 400$L) for non-blocking Google Sheets appends.
-     - Hooked into `src/services/core/instagram/leadgen_router.py` (389L $\le 400$L) to automatically append rows in real-time as leads arrive from Meta Ads.
-     - Updated `src/settings.py` (399L $\le 400$L) with `TARGET_LEADS_GSHEET_ID`.
-  4. **98 Leads Full Backfill**:
-     - Synchronized 98 leads from Meta active form `1973180183373812` (`patent brend new forma | 12.09`) into `Target Leads (2026)`.
-     - Matched existing AmoCRM deal IDs and generated direct clickable URLs (`https://jonbranding.amocrm.ru/leads/detail/...`).
+  3. **Executive UI/UX & Visual Redesign**:
+     - **Header Design**: Premium Dark Navy (`#0F172A`), white bold text, height 40px, frozen row 1, frozen columns 1-3.
+     - **Grid Styling**: Alternating zebra striping (white & `#F8FAFC`), 32px comfortable row height, subtle `#E2E8F0` cell borders.
+     - **Pixel-Accurate Column Widths**: `№` (45px), `Sana va Vaqt` (130px), `Mijoz Ismi` (180px, bold), `Telefon raqami` (160px), `Faoliyat sohasi` (140px), `Tadbirkorlik holati` (200px), `Asosiy maqsad` (180px), `Brend nomi` (140px), `AmoCRM Bitimi` (120px), `Forma / Kampaniya` (160px), `Barcha savol-javoblar` (240px, clipped), `Meta Lead ID` (130px, muted gray).
+     - **Data Humanization**: Raw technical underscores converted to clean, natural Uzbek descriptions (`Mahsulot bor (brend ochiq)`, `Yangi biznes boshlash`, `Patentlash va Himoya`, `Savdo`, `Ishlab chiqarish`...).
+     - **Phone Formatting & Zero Error**: Normalized to `998 (90) 123-45-67` without leading `+` to eliminate Google Sheets `#ERROR!` formula parse failures.
+     - **Clean Semicolon Hyperlinks**: Used `=HYPERLINK("..."; "🔗 #ID")` with semicolon separator matching the spreadsheet locale for direct 1-click deal access.
+  4. **Implementation & 98 Leads Backfill**:
+     - Modular `src/services/core/instagram/leadgen_sheets.py` (282L $\le 400$L) handles formatting and safe non-blocking appends.
+     - Hooked into `src/services/core/instagram/leadgen_router.py` (389L $\le 400$L) for real-time appends.
+     - Backfilled all 98 active Meta leads into `Target Leads (2026)`.
   5. **Production Deployment & Verification**:
      - Deployed `leadgen_sheets.py`, `leadgen_router.py`, `settings.py`, and `data/service_account.json` to Oracle VM (`ubuntu@163.192.10.104`).
-     - Updated VM `.env` with `TARGET_LEADS_GSHEET_ID`, `GSHEET_CREDS_FILE`, `TARGET_LEADS_GROUP_ID`, and `TARGET_LEADS_TOPIC_ID`.
-     - Restarted `oisha-os.service` (`active (running)`, PID `358057`), verified `/healthz/` returns 200 OK.
-     - Verified live connection from Oracle VM Python environment: `VM connected to sheet: Jon branding leads`.
-     - 3/3 tests passed (`pytest tests/test_meta_leadgen_sheets.py`), Bandit: 0 security issues.
+     - Restarted `oisha-os.service` (`active (running)`, PID `359324`), `/healthz/` 200 OK.
+     - 4/4 unit tests passed (`pytest tests/test_meta_leadgen_sheets.py`), Bandit: 0 security issues.
 
 - **2026-09-16 — Antigravity — Meta Lead Ads Universal Zero-Drop Fallback & Production Recovery:**
   1. **User Goal**: Investigate why Meta lead ingestion into AmoCRM and Telegram stopped/failed and ensure it works reliably and universally for `@baxtiyorjongaziyev` Instagram across all current creatives and all future ads.
