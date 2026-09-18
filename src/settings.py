@@ -200,6 +200,7 @@ class AppSettings(BaseSettings):
     MARKETING_TOPIC_ID: Optional[int] = 42                               # Marketing topic ID
     TARGET_LEADS_GROUP_ID: Optional[int] = -1003854308552                 # Meta Lead Ads leadlari uchun sotuv guruhi
     TARGET_LEADS_TOPIC_ID: Optional[int] = 1020                          # Target lead topic ID
+    TARGET_LEADS_GSHEET_ID: str = "1aWmfomtd2x4QoHQIWLPD88lHbepIRvuPhzuugM7-vEc"  # Google Sheets lead tracking
 
     # @amocrm_amobot eslatmalarini forward qilish (Просроченная задача va h.k.)
     # Bu follow-up / task deadline eslatmalari uchun (kelishilgan vaqtda yuboriladi).

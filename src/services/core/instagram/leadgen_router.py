@@ -24,6 +24,7 @@ from src.services.core.instagram.leadgen_formatter import (
 )
 from src.services.core.instagram.leadgen_custom_fields import extract_lead_custom_fields
 from src.services.core.instagram.leadgen_dedup import is_leadgen_processed, mark_leadgen_processed
+from src.services.core.instagram.leadgen_sheets import append_lead_to_sheet
 from src.services.core.instagram.leadgen_delivery import (
     _ROUTING_LOCK, get_crm_checkpoint, save_crm_checkpoint,
 )
@@ -375,6 +376,9 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     telegram_ok = await asyncio.to_thread(_notify_telegram, telegram_text)
     if telegram_ok:
         mark_leadgen_processed(leadgen_id, lead_id=int(lead_id))
+
+    form_title = str(merged_payload.get("form_name") or merged_payload.get("form_id") or "")
+    await asyncio.to_thread(append_lead_to_sheet, leadgen_id, int(lead_id) if lead_id else None, fields, form_title)
 
     logger.info("[META LEADGEN] Routed Facebook lead", leadgen_id=leadgen_id, lead_id=lead_id)
     return {
