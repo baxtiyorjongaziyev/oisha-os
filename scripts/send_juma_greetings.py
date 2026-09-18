@@ -222,7 +222,7 @@ async def send_to_member(client: TelegramClient, member: dict) -> None:
 
 async def run() -> None:
     send_tg_notification("⚙️ Juma tabrigi workflow ishga tushdi — Telethon ulanmoqda...")
-    source = prepare(DEDICATED_SESSION_ENV)
+    source = prepare(DEDICATED_SESSION_ENV, require_dedicated=True)
     client = TelegramClient(StringSession(source.string), API_ID, API_HASH)
     try:
         await guarded_connect(client, source)

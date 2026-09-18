@@ -223,7 +223,7 @@ async def broadcast_tn6(client: TelegramClient) -> None:
 
 async def run(args: argparse.Namespace) -> None:
     notify("⚙️ Juma oneoff skripti ishga tushdi...")
-    source = prepare(DEDICATED_SESSION_ENV)
+    source = prepare(DEDICATED_SESSION_ENV, require_dedicated=True)
     client = TelegramClient(StringSession(source.string), API_ID, API_HASH)
     try:
         await guarded_connect(client, source)
