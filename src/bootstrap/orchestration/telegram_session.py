@@ -32,7 +32,8 @@ def _make_owner_notifier():
         runtime = getattr(app_ctx, "bot_runtime", None)
         if runtime is not None and owner_id:
             try:
-                await runtime.send_message(int(owner_id), f"🚨 [SESSION] {msg}")
+                formatted = msg if msg.startswith(("🚨", "⚠️", "✅", "ℹ️", "🚀", "🔔")) else f"🔔 {msg}"
+                await runtime.send_message(int(owner_id), formatted)
                 return
             except Exception:
                 logger.warning("[SESSION] Owner alert yuborilmadi", exc_info=True)

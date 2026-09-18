@@ -1,13 +1,5 @@
 """Telegram Session Manager — Xavfsiz session boshqaruvchisi.
-
-ASOSIY QOIDA: HECH QACHON yangi session yaratma, faqat mavjudini saqla va qayta ulan.
-
-Xavfsizlik:
-- AUTH_KEY_DUPLICATED → QAYTA ULANMAYDI, admin ga xabar
-- FloodWaitError → Telegram aytgan vaqtni KUTADI + 10s
-- Har qanday reconnect orasida MINIMUM 10 sekund kutish
-- Productionda qayta ulanish davom etadi; AUTH_KEY_DUPLICATED bo'lsa to'xtaydi
-- Session faqat faylga saqlanadi, env var ga YAZILMAYDI
+Qoida: Yangi session yaratilmaydi, mavjudini saqlaydi va qayta ulanadi.
 """
 
 from __future__ import annotations
@@ -72,6 +64,7 @@ class TelegramSessionManager:
         self._last_connected_at: float = 0
         self._is_connected = False
         self._fatal_auth_error = False
+        self._reconnect_alert_sent = False
         self._reconnect_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
 
@@ -163,24 +156,21 @@ class TelegramSessionManager:
         self._fatal_auth_error = True
         self._stop_event.set()
 
-        # Admin ga xabar
         if self._admin_notifier:
             try:
                 await self._admin_notifier(
-                    "🚨 SESSION XAVFSIZLIGI\n\n"
-                    "AUTH_KEY_DUPLICATED xatoligi aniqlandi!\n\n"
-                    "Session boshqa runtime da ishlatilmoqda.\n"
-                    "QAYTA ULANMAYDI — Telegram ban qo'yishi mumkin!\n\n"
-                    "Yangi session yaratish kerak:\n"
-                    "1. Eski session ni tozalang\n"
+                    "🚨 TELEGRAM SESSIYA XAVFSIZLIGI\n\n"
+                    "Diqqat: Telegram sessiyasi boshqa joyda ochilgan (AUTH_KEY_DUPLICATED)!\n\n"
+                    "Akkaunt ban bo'lish xavfining oldini olish uchun qayta ulanish to'xtatildi.\n\n"
+                    "Kerakli choralar:\n"
+                    "1. Eski sessiyani tozalang\n"
                     "2. Yangi session string oling\n"
-                    "3. .env ga qo'shing\n"
-                    "4. Container ni qayta ishga tushiring"
+                    "3. .env ga joylashtiring\n"
+                    "4. Servisni qayta ishga tushiring."
                 )
             except Exception as e:
                 logger.error("[SESSION] Admin ga xabar jo'natishda xato: %s", e)
 
-        # Disconnect
         if self.client:
             try:
                 await self.client.disconnect()
@@ -192,7 +182,7 @@ class TelegramSessionManager:
         if not self.client:
             return False
         try:
-            await asyncio.wait_for(self.client.get_me(), timeout=10)
+            await asyncio.wait_for(self.client.get_me(), timeout=25)
             return True
         except asyncio.TimeoutError:
             logger.warning("[SESSION] get_me health probe timeout")
@@ -209,11 +199,11 @@ class TelegramSessionManager:
             self._is_connected = False
             return False
 
-    async def _notify_admin_throttled(self, message: str) -> None:
+    async def _notify_admin_throttled(self, message: str, ignore_cooldown: bool = False) -> None:
         if not self._admin_notifier:
             return
         now = time.time()
-        if now - self._last_alert_at < self._alert_cooldown:
+        if not ignore_cooldown and (now - self._last_alert_at < self._alert_cooldown):
             return
         self._last_alert_at = now
         try:
@@ -259,9 +249,9 @@ class TelegramSessionManager:
                         self._max_reconnect,
                     )
                     await self._notify_admin_throttled(
-                        f"🚨 SESSION XATO\n\n"
-                        f"{self._max_reconnect} marta qayta urinish muvaffaqiyatsiz!\n"
-                        f"Bot to'xtatildi. Qo'lda tuzating."
+                        f"🚨 TELEGRAM ALOQA XATOLIGI\n\n"
+                        f"Telegram userbot aloqasi ketma-ket {self._max_reconnect} marta qayta urinishdan keyin ham tiklanmadi.\n"
+                        f"Xavfsizlik maqsadida bot to'xtatildi. Iltimos, serverni tekshiring."
                     )
                     break
 
@@ -276,11 +266,14 @@ class TelegramSessionManager:
                     self._reconnect_count + 1,
                     self._max_reconnect or "forever",
                 )
-                if self._reconnect_count >= 2:
+                if self._reconnect_count >= 3:
                     await self._notify_admin_throttled(
-                        "⚠️ USERBOT RECONNECT\n\n"
-                        "Telegram userbot connection tushdi. Oisha avtomatik qayta ulanishga urinmoqda."
+                        "⚠️ TELEGRAM ALOQASI VAQTINCHA UZILDI\n\n"
+                        "Telegram userbot bilan aloqa vaqtincha uzildi.\n"
+                        "Oisha tizimi avtomatik tarzda qayta ulanishni amalga oshirmoqda.\n"
+                        "Aloqa qayta tiklanishi bilan darhol xabar beriladi."
                     )
+                    self._reconnect_alert_sent = True
                 await asyncio.sleep(delay)
 
                 # Qayta ulanish
@@ -289,6 +282,14 @@ class TelegramSessionManager:
 
                 if success:
                     logger.info("[SESSION] ✅ Qayta ulanish muvaffaqiyatli!")
+                    if getattr(self, "_reconnect_alert_sent", False):
+                        self._reconnect_alert_sent = False
+                        await self._notify_admin_throttled(
+                            "✅ TELEGRAM ALOQASI TIKLANDI\n\n"
+                            "Telegram userbot aloqasi muvaffaqiyatli qayta tiklandi.\n"
+                            "Barcha tizimlar odatiy rejimda barqaror ishlamoqda.",
+                            ignore_cooldown=True,
+                        )
                 else:
                     logger.warning("[SESSION] Qayta ulanish muvaffaqiyatsiz")
 
@@ -355,11 +356,6 @@ class TelegramSessionManager:
                 logger.info("[SESSION] Session faylga saqlandi: %s", self._session_file)
         except Exception as exc:
             logger.error("[SESSION] Session saqlash xatosi: %s", exc)
-
-    async def _save_string_to_file(self, session_string: str):
-        """String session ni faylga saqlash (session_keeper orqali)."""
-        from src.services.core.session_keeper import _write_session_string_to_file
-        _write_session_string_to_file(session_string)
 
     def get_session_string(self) -> str:
         """Hozirgi session string ni qaytarish."""
