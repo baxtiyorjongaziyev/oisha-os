@@ -222,11 +222,51 @@ class CallTranscriberMixin:
                 )
 
     async def _transcribe_inline(self, audio_bytes: bytes, mime_type: str) -> Optional[str]:
-        """Transcribe audio using STTService, fallback to Gemini, then OpenAI."""
-        # Removed duplicate import; STTService is imported at module level
+        """Transcribe audio using Gemini first (best Uzbek accuracy), fallback to
+        STTService (Groq Whisper — weaker on Uzbek, drifts into Kazakh/Russian on
+        noisy clips), then OpenAI Whisper."""
         from google.genai import types
 
-        # 1. Try STTService
+        # 1. Try Gemini first — Groq/Whisper is unreliable on Uzbek speech.
+        prompt = (
+            "Siz professional qo'ng'iroq transkripsiya mutaxassisisiz. "
+            "Audio yozuvni diqqat bilan eshiting va har bir gapni AYNAN eshitilganidek, "
+            "to'liq O'zbek tilida (lotin alifbosida) yozing.\n\n"
+            "QOIDALAR:\n"
+            "- Faqat audio faylda HAQIQATDA eshitilgan gaplarni yozing — hech narsa o'ylab topmang.\n"
+            "- Agar tushunarli nutq bo'lmasa, qaytaring: {NO_SPEECH_SENTINEL}\n"
+            "- Har bir gapni [mm:ss] vaqt belgisi bilan boshlang.\n"
+            "- Gapiruvchini rolига qarab aniqlang va shu tarzda belgilang: \"Menejer:\" "
+            "(qo'ng'iroq qilayotgan/xizmat ko'rsatayotgan tomon) va \"Mijoz:\" "
+            "(qo'ng'iroqqa javob berayotgan/xizmat so'rayotgan tomon).\n"
+            "- HECH QACHON \"A:\" yoki \"B:\" kabi harf bilan belgilamang — faqat "
+            "\"Menejer:\" yoki \"Mijoz:\" dan foydalaning.\n"
+            "- Rolni aniqlab bo'lmasa ham, taxmin qiling — nutq mazmuni, savol-javob "
+            "yo'nalishi va ohangdan kelib chiqib eng ehtimoliy rolni tanlang.\n"
+            "- Har bir gapni to'liq dialog shaklida, gapiruvchi nomi bilan alohida qatorda yozing:\n"
+            "  [00:05] Menejer: Assalomu alaykum, Jon Branding agentligidan...\n"
+            "  [00:12] Mijoz: Vaalaykum assalom, brending xizmati kerak edi...\n"
+            "- Ingliz yoki rus so'zlari eshitilsa ham, ularni asl holicha (o'zgartirmasdan) yozing, "
+            "lekin qolgan matnni O'zbek tilida saqlang."
+        )
+        try:
+            audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
+            response = await self._gemini_generate_content(
+                contents=[prompt, audio_part],
+                config=types.GenerateContentConfig(temperature=0.1, max_output_tokens=8192),
+            )
+            text = (getattr(response, "text", None) or "").strip()
+            if text and NO_SPEECH_SENTINEL not in text:
+                if not _looks_like_stt_hallucination(text):
+                    return text
+                logger.info(
+                    "[CALL] Gemini transcript rejected as likely hallucination: %r",
+                    text[:80],
+                )
+        except Exception as exc:
+            logger.error("[CALL] Gemini STT failed: %s", exc)
+
+        # 2. Fallback to STTService (Groq Whisper) if Gemini failed/unavailable
         try:
             stt_service = STTService()
             result = await stt_service.transcribe(audio_bytes, mime_type)
@@ -240,29 +280,7 @@ class CallTranscriberMixin:
                 else:
                     return result.transcript
         except Exception as exc:
-            logger.warning("[CALL] STTService failed: %s", exc)
-
-        # 2. Try Gemini fallback
-        prompt = (
-            "Siz professional qo'ng'iroq transkripsiya mutaxassisisiz. "
-            "Audio yozuvni eshiting va suhbatni O'zbek lotinida yozing.\n\n"
-            "QOIDALAR:\n"
-            "- Faqat audio faylda HAQIQATDA eshitilgan gaplarni yozing.\n"
-            "- Agar tushunarli nutq bo'lmasa, qaytaring: {NO_SPEECH_SENTINEL}\n"
-            "- Har bir gapni [mm:ss] vaqt belgisi bilan boshlang.\n"
-            "- A: va B: deb ajrating."
-        )
-        try:
-            audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
-            response = await self._gemini_generate_content(
-                contents=[prompt, audio_part],
-                config=types.GenerateContentConfig(temperature=0.1, max_output_tokens=8192),
-            )
-            text = (getattr(response, "text", None) or "").strip()
-            if text and NO_SPEECH_SENTINEL not in text:
-                return text
-        except Exception as exc:
-            logger.error("[CALL] Gemini STT fallback failed: %s", exc)
+            logger.warning("[CALL] STTService fallback failed: %s", exc)
 
         # 3. Final fallback to OpenAI
         return await self._transcribe_openai(audio_bytes, mime_type)
