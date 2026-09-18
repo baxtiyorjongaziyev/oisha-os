@@ -360,7 +360,7 @@ soupsieve==2.9.2
     # via beautifulsoup4
 sphinx==9.1.0
     # via sphinx-press-theme
-sphinx-press-theme==0.8.0
+sphinx-press-theme==0.9.1
     # via libsql-client
 sphinxcontrib-applehelp==2.0.0
     # via sphinx
