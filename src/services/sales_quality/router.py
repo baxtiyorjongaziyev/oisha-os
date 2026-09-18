@@ -12,14 +12,17 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from src.api.rbac import Permission, Principal, require_permissions
+from src.api.rbac import Permission, Principal, Role, require_permissions, scope_owned_rows
+from src.database import get_db
 from src.services.sales_quality.helpers import (
     _build_empty_sales_quality,
     _build_manager_cards_payload,
     _build_sales_quality_payload,
     _fetch_call_analysis_rows,
     _fetch_manager_card_rows,
+    _row_to_dict,
 )
+from src.services.sales_quality.weak_stages import _compute_weak_stages
 from src.services.sales_quality.schemas import SalesQualityAnalysisRequest
 from src.api.routes.state import api_state
 from src.time_utils import get_local_now
@@ -65,6 +68,66 @@ async def get_sales_quality_manager_cards(
             },
         )
     return _build_manager_cards_payload(rows, principal=principal)
+
+
+@router.get("/api/sales-quality/weak-stages")
+async def get_sales_quality_weak_stages(
+    manager_id: int | None = None,
+    principal: Principal = require_permissions(Permission.DASHBOARD_READ),
+):
+    try:
+        rows = await _fetch_call_analysis_rows()
+    except Exception as exc:
+        logger.error("[SALES QUALITY] Weak-stages read failed: %s", exc)
+        return {
+            "timestamp": get_local_now().isoformat(),
+            "available": False,
+            "stages": [],
+        }
+
+    records = [
+        _row_to_dict(r, ["manager_id", "scores", "weaknesses"])
+        for r in rows
+    ]
+    if isinstance(principal, Principal) and principal.role is Role.SELLER:
+        records = list(
+            scope_owned_rows(principal, records, owner_field="manager_id")
+        )
+    if manager_id is not None:
+        records = [r for r in records if r.get("manager_id") == manager_id]
+
+    stages = _compute_weak_stages(records)
+    return {
+        "timestamp": get_local_now().isoformat(),
+        "available": bool(stages),
+        "stages": stages,
+    }
+
+
+@router.get("/api/sales-quality/training-advice")
+async def get_sales_quality_training_advice(
+    manager_id: int | None = None,
+    principal: Principal = require_permissions(Permission.DASHBOARD_READ),
+):
+    try:
+        db = get_db()
+        rows = await db.intelligence.get_training_advice(manager_id=manager_id)
+    except Exception as exc:
+        logger.error("[TRAINING-ADVICE] Read failed: %s", exc)
+        return {
+            "timestamp": get_local_now().isoformat(),
+            "available": False,
+            "advice": [],
+        }
+
+    if isinstance(principal, Principal) and principal.role is Role.SELLER:
+        rows = list(scope_owned_rows(principal, rows, owner_field="manager_id"))
+
+    return {
+        "timestamp": get_local_now().isoformat(),
+        "available": bool(rows),
+        "advice": rows,
+    }
 
 
 @router.post(

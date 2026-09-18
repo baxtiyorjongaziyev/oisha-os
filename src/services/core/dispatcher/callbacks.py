@@ -43,6 +43,61 @@ def register_hisobchi_aiogram_callbacks(
             await callback.answer("Xatolik yuz berdi, qayta urinib ko'ring")
 
 
+def register_existing_contact_signal_callbacks(
+    dispatcher: Any, *, msg_controller: Any, owner_id: int
+) -> None:
+    """CRM signal tasdiqlash/rad etish tugmalarini ro'yxatdan o'tkazadi.
+
+    Bu tugmalar haqiqiy AmoCRM mutatsiyasini ishga tushiradi — faqat owner
+    bosishi mumkin, boshqa guruh a'zolari rad etiladi.
+    """
+    from aiogram import F
+
+    def _is_owner(callback: Any) -> bool:
+        return int(getattr(callback.from_user, "id", 0) or 0) == int(owner_id)
+
+    @dispatcher.callback_query(F.data.startswith("exsig_confirm:"))
+    async def _exsig_confirm(callback: Any) -> None:
+        if not _is_owner(callback):
+            await callback.answer("Faqat owner tasdiqlashi mumkin", show_alert=True)
+            return
+
+        try:
+            from src.handlers.msg_pipeline.existing_contact_signal import (
+                confirm_existing_contact_signal,
+            )
+
+            sender_id_str = callback.data.split(":", 1)[-1]
+            success = await confirm_existing_contact_signal(
+                sender_id=int(sender_id_str),
+                msg_controller=msg_controller,
+            )
+            if success:
+                await callback.message.edit_text(
+                    callback.message.text + "\n\n✅ Tasdiqlandi, CRM'ga yozildi."
+                )
+                await callback.answer()
+            else:
+                await callback.answer(
+                    "CRM yozishda xatolik — log'ni tekshiring, qayta urinib ko'ring",
+                    show_alert=True,
+                )
+        except Exception:
+            logger.error("existing_contact_signal confirm failed", exc_info=True)
+            await callback.answer("Xatolik yuz berdi, qayta urinib ko'ring")
+
+    @dispatcher.callback_query(F.data == "exsig_reject")
+    async def _exsig_reject(callback: Any) -> None:
+        if not _is_owner(callback):
+            await callback.answer("Faqat owner rad etishi mumkin", show_alert=True)
+            return
+        try:
+            await callback.message.edit_text(callback.message.text + "\n\n❌ Rad etildi.")
+        except Exception:
+            logger.error("existing_contact_signal reject failed", exc_info=True)
+        await callback.answer()
+
+
 def register_salescoach_aiogram_callbacks(dispatcher: Any, *, context: Any) -> None:
     """Route SalesCoach approval decisions through the bot-account head."""
     from aiogram import F

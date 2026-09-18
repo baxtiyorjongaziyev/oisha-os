@@ -249,6 +249,33 @@ def test_prepare_returns_dedicated_session_on_hosted_runner(monkeypatch, tmp_pat
     assert source.is_shared_prod is False
 
 
+def test_prepare_require_dedicated_rejects_shared_fallback_even_on_oracle(
+    monkeypatch, tmp_path
+):
+    """Broadcast skriptlari (Juma) uchun: dedicated yo'q bo'lsa, Oracle VM'ning
+    o'zida ham (self-hosted/plain shell) prod kalitiga jim tushib qolinmaydi —
+    oisha-os.service bilan parallel ushlash AuthKeyDuplicated xavfini keltirib
+    chiqaradi (2026-08-21 hodisasi)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("JUMA_SESSION_STRING", raising=False)
+    monkeypatch.delenv(GENERIC_DEDICATED_ENV, raising=False)
+    monkeypatch.setenv(SHARED_PROD_ENV, "prod")
+
+    with pytest.raises(SessionConflictError) as exc:
+        prepare("JUMA_SESSION_STRING", require_dedicated=True)
+    assert "JUMA_SESSION_STRING" in str(exc.value)
+
+
+def test_prepare_require_dedicated_allows_true_dedicated_session(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("JUMA_SESSION_STRING", "juma")
+    monkeypatch.setenv(SHARED_PROD_ENV, "prod")
+
+    source = prepare("JUMA_SESSION_STRING", require_dedicated=True)
+    assert source.string == "juma"
+    assert source.is_shared_prod is False
+
+
 # --------------------------------------------------------------------------
 # AuthKeyDuplicated aniqlash
 # --------------------------------------------------------------------------

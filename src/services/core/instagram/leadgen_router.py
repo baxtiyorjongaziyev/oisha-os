@@ -27,6 +27,10 @@ from src.services.core.instagram.leadgen_dedup import is_leadgen_processed, mark
 from src.services.core.instagram.leadgen_delivery import (
     _ROUTING_LOCK, get_crm_checkpoint, save_crm_checkpoint,
 )
+from src.services.core.marketing.ad_name_resolver import resolve_ad_name
+from src.services.core.marketing.attribution_store import save_attribution
+from src.services.core.marketing.lead_cost_estimator import estimate_cost_per_lead
+from src.time_utils import get_local_now
 
 logger = structlog.get_logger("MetaLeadgenRouter")
 
@@ -167,9 +171,16 @@ def _excluded_leadgen_keys(fields: Dict[str, str]) -> set[str]:
     }
 
 
-def build_leadgen_note(leadgen_id: str, payload: Dict[str, Any], fields: Dict[str, str]) -> str:
+def build_leadgen_note(
+    leadgen_id: str,
+    payload: Dict[str, Any],
+    fields: Dict[str, str],
+    ad_name: Optional[str] = None,
+) -> str:
     """Format leadgen note using leadgen_formatter with excluded contact keys."""
-    return _fmt_build_note(leadgen_id, payload, fields, _excluded_leadgen_keys(fields))
+    return _fmt_build_note(
+        leadgen_id, payload, fields, _excluded_leadgen_keys(fields), ad_name=ad_name
+    )
 
 
 def build_telegram_message(
@@ -179,6 +190,8 @@ def build_telegram_message(
     phone: str,
     email: str,
     fields: Dict[str, str],
+    cost_per_lead: Optional[float] = None,
+    ad_name: Optional[str] = None,
 ) -> str:
     """Format clean Telegram alert using leadgen_formatter."""
     return _fmt_build_tg(
@@ -189,6 +202,8 @@ def build_telegram_message(
         email,
         fields,
         _excluded_leadgen_keys(fields),
+        cost_per_lead=cost_per_lead,
+        ad_name=ad_name,
     )
 
 
@@ -198,7 +213,7 @@ def _secret_text(value: Any) -> str:
 
 
 def _notify_telegram(text: str) -> bool:
-    chat_id = getattr(settings, "TARGET_LEADS_GROUP_ID", None) or os.getenv("TARGET_LEADS_GROUP_ID") or -1003854308552
+    chat_id = getattr(settings, "TARGET_LEADS_GROUP_ID", None) or os.getenv("TARGET_LEADS_GROUP_ID")
     bot_token = _secret_text(getattr(settings, "BOT_TOKEN", None))
     if not bot_token:
         bot_token = os.getenv("BOT_TOKEN", "").strip()
@@ -207,14 +222,14 @@ def _notify_telegram(text: str) -> bool:
         return False
 
     payload: Dict[str, Any] = {
-        "chat_id": int(chat_id),
+        "chat_id": chat_id,
         "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
-    topic_id = getattr(settings, "TARGET_LEADS_TOPIC_ID", None) or os.getenv("TARGET_LEADS_TOPIC_ID") or 1020
+    topic_id = getattr(settings, "TARGET_LEADS_TOPIC_ID", None) or os.getenv("TARGET_LEADS_TOPIC_ID")
     if topic_id is not None:
-        payload["message_thread_id"] = int(topic_id)
+        payload["message_thread_id"] = topic_id
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     try:
@@ -287,7 +302,12 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     name = _pick_name(fields) or "Facebook Lead Ads"
     phone = _pick_phone(fields)
     email = _pick(fields, EMAIL_KEYS)
-    note = build_leadgen_note(leadgen_id, {**value, **payload}, fields)
+
+    merged_payload = {**value, **payload}
+    ad_id = str(merged_payload.get("ad_id") or "")
+    ad_name = await asyncio.to_thread(resolve_ad_name, ad_id)
+
+    note = build_leadgen_note(leadgen_id, merged_payload, fields, ad_name=ad_name)
 
     custom_fields = extract_lead_custom_fields(fields)
     amocrm = _amocrm_instance()
@@ -315,6 +335,18 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
 
     if not lead_id:
         return {"ok": False, "reason": "crm_delivery_failed", "leadgen_id": leadgen_id}
+
+    await asyncio.to_thread(
+        save_attribution,
+        leadgen_id,
+        int(lead_id),
+        str(merged_payload.get("campaign_id") or ""),
+        str(merged_payload.get("campaign_name") or ""),
+        str(merged_payload.get("ad_id") or ""),
+        str(merged_payload.get("form_id") or ""),
+        get_local_now().isoformat(),
+    )
+
     if not checkpoint:
         await asyncio.to_thread(save_crm_checkpoint, leadgen_id, int(lead_id))
         await amocrm.update_lead_status(
@@ -328,7 +360,18 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     if not checkpoint and email:
         await asyncio.to_thread(amocrm.add_lead_note, int(lead_id), f"Email: {email}")
 
-    telegram_text = build_telegram_message(leadgen_id, lead_id, name, phone, email, fields)
+    campaign_id = str(merged_payload.get("campaign_id") or "")
+    cost_per_lead = await asyncio.to_thread(estimate_cost_per_lead, campaign_id)
+    telegram_text = build_telegram_message(
+        leadgen_id,
+        lead_id,
+        name,
+        phone,
+        email,
+        fields,
+        cost_per_lead=cost_per_lead,
+        ad_name=ad_name,
+    )
     telegram_ok = await asyncio.to_thread(_notify_telegram, telegram_text)
     if telegram_ok:
         mark_leadgen_processed(leadgen_id, lead_id=int(lead_id))

@@ -51,17 +51,8 @@ def _get_active_form_ids(token: str, version: str) -> list[str]:
     page_id = os.getenv("META_PAGE_ID", "103894334533931").strip()
     url = f"https://graph.facebook.com/{version}/{page_id}/leadgen_forms"
     try:
-        forms = _get_pages(url, token, "id,status,leads_count")
-        active_ids = []
-        for f in forms:
-            fid = str(f.get("id") or "").strip()
-            if not fid:
-                continue
-            status = str(f.get("status") or "").upper()
-            if status == "ACTIVE" or (f.get("leads_count") or 0) > 0:
-                active_ids.append(fid)
-        if active_ids:
-            return active_ids
+        forms = _get_pages(url, token, "id,status")
+        return [str(f["id"]) for f in forms if f.get("status") == "ACTIVE" and f.get("id")]
     except Exception as exc:
         logger.warning("[META LEADGEN POLL] Form listing failed: %s", type(exc).__name__)
 

@@ -4,6 +4,7 @@ Links every transaction to its month's Oylik P&L record. The P&L table computes
 Kirim, Chiqim, soliq, dividend and foyda itself via native rollups and formulas,
 so this module only maintains the link that feeds them.
 """
+import asyncio
 import logging
 from typing import Any
 import httpx
@@ -16,15 +17,21 @@ from src.settings import settings
 
 logger = logging.getLogger(__name__)
 
+# Concurrent approvals each trigger a full-table sync; without this, parallel
+# runs race on the same Tranzaksiyalar/P&L pages and their PATCH batches can
+# collide and hit Airtable's rate limit (429).
+_SYNC_LOCK = asyncio.Lock()
+
 AIRTABLE_API_BASE = "https://api.airtable.com/v0"
 DEFAULT_BASE_ID = "app8xoyx1XCumYFXV"
 TRX_TABLE_ID = "tblrqxqIzyrvg7XpQ"
 PNL_TABLE_ID = "tblAgVaGlVory2yAW"
 
-# Link field on Tranzaksiyalar pointing at the current Oylik P&L table. Verified
-# live in Airtable 2026-09: this is a "Link to another record" field. The legacy
-# "[ESKI] Oylik P&L (V1 Link)" text field still holds old values and must not be used.
-PNL_LINK_FIELD = "Oylik P&L (Hisobot)"
+# Link field on Tranzaksiyalar pointing at the current Oylik P&L table. Re-verified
+# live in Airtable 2026-09-15: the base was restructured and the old
+# "Oylik P&L (Hisobot)" field no longer exists. "[TEXNIK] Oylik P&L link"
+# (fldgR2oBDztMX0knF) is the current "Link to another record" field.
+PNL_LINK_FIELD = "[TEXNIK] Oylik P&L link"
 
 UZBEK_MONTHS = {
     "01": "Yanvar", "02": "Fevral", "03": "Mart", "04": "Aprel",
@@ -39,6 +46,11 @@ def _get_headers() -> dict[str, str]:
 
 async def sync_monthly_pnl() -> dict[str, Any]:
     """Link every transaction to its month's Oylik P&L record."""
+    async with _SYNC_LOCK:
+        return await _sync_monthly_pnl()
+
+
+async def _sync_monthly_pnl() -> dict[str, Any]:
     base_id = getattr(settings, "AIRTABLE_BASE_ID", None) or DEFAULT_BASE_ID
     headers = _get_headers()
 

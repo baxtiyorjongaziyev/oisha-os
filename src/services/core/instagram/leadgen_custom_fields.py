@@ -36,26 +36,20 @@ ENUM_SECTOR_TRADE = 965757            # Savdo
 ENUM_SECTOR_PRODUCTION = 965755       # Ishlab chiqarish
 ENUM_SECTOR_SERVICE = 965753          # Xizmat ko'rsatish
 ENUM_SECTOR_EDUCATION = 965751        # Ta'lim
-ENUM_SECTOR_OTHER = 965759            # Boshqa (to'g'ri enum_id)
+ENUM_SECTOR_IT = 965749               # IT va texnologiyalar
+ENUM_SECTOR_MEDICINE = 965747         # Tibbiyot
+ENUM_SECTOR_OTHER = 965745            # Boshqa
 
-ENUM_GOAL_PROTECT = 1375123           # Patentlash
-ENUM_GOAL_NAMING = 1375121            # Naming tekshiruvi
-ENUM_GOAL_REBRAND = 965735            # Rebrending
-ENUM_GOAL_SALES = 965731              # Savdo ko'tarish / biznesni kengaytirish
-ENUM_GOAL_PREMIUM = 965733            # Premium imij
-ENUM_GOAL_OTHER = 965737              # Boshqa
+ENUM_GOAL_PROTECT = 1375123           # Himoya qilish / Patentlash
+ENUM_GOAL_FAMOUS = 1375125            # Taniqli bo'lish
+ENUM_GOAL_TRUST = 1375127             # Ishonch qozonish
+ENUM_GOAL_OTHER = 1375129             # Boshqa
 
 
-def _find_field_val(
-    fields: Dict[str, str],
-    keywords: List[str],
-    exclude: Optional[List[str]] = None,
-) -> str:
+def _find_field_val(fields: Dict[str, str], keywords: List[str]) -> str:
     """Helper to find matching field by keyword prefixes or parts."""
     for key, val in fields.items():
         k_lower = key.lower()
-        if exclude and any(ex in k_lower for ex in exclude):
-            continue
         if any(kw in k_lower for kw in keywords):
             return str(val).strip()
     return ""
@@ -75,17 +69,7 @@ def extract_lead_custom_fields(fields: Dict[str, str]) -> List[Dict[str, Any]]:
     })
 
     # 2. Brend / Biznes nomi
-    brand_raw = _find_field_val(
-        fields,
-        ["nomi", "brendingiz", "biznesingiz", "kompaniya", "loyiha"],
-        exclude=["maqsad", "holat", "soha", "faoliyat"],
-    )
-    if not brand_raw:
-        brand_raw = _find_field_val(
-            fields,
-            ["brend", "biznes"],
-            exclude=["maqsad", "holat", "soha", "faoliyat"],
-        )
+    brand_raw = _find_field_val(fields, ["brend", "biznes", "nomi", "kompaniya", "loyiha"])
     if brand_raw and brand_raw.lower() not in ["a", "yoq", "yo'q", "mavjud emas", "-"]:
         custom_fields.append({
             "field_id": FIELD_BRAND_NAME,
@@ -99,7 +83,7 @@ def extract_lead_custom_fields(fields: Dict[str, str]) -> List[Dict[str, Any]]:
         stage_enum = ENUM_STAGE_PRODUCT_EXISTS
     elif "yangi" in stage_raw:
         stage_enum = ENUM_STAGE_NEW_BIZ
-    elif "rebrend" in stage_raw or "majvud" in stage_raw or "mavjud" in stage_raw:
+    elif "rebrend" in stage_raw:
         stage_enum = ENUM_STAGE_REBRAND
     elif "rivoj" in stage_raw:
         stage_enum = ENUM_STAGE_SCALE
@@ -113,14 +97,18 @@ def extract_lead_custom_fields(fields: Dict[str, str]) -> List[Dict[str, Any]]:
     # 4. Faoliyat sohasi
     sector_raw = _find_field_val(fields, ["soha", "faoliyat"]).lower()
     sector_enum: Optional[int] = None
-    if "savdo" in sector_raw or "magazin" in sector_raw or "do'kon" in sector_raw or "market" in sector_raw:
+    if "savdo" in sector_raw or "magazin" in sector_raw:
         sector_enum = ENUM_SECTOR_TRADE
-    elif "ishlab" in sector_raw or "zavod" in sector_raw or "fabrika" in sector_raw or "tsex" in sector_raw:
+    elif "ishlab" in sector_raw or "zavod" in sector_raw or "fabrika" in sector_raw:
         sector_enum = ENUM_SECTOR_PRODUCTION
-    elif "xizmat" in sector_raw or "servis" in sector_raw or "remont" in sector_raw:
+    elif "xizmat" in sector_raw or "servis" in sector_raw:
         sector_enum = ENUM_SECTOR_SERVICE
     elif "ta'lim" in sector_raw or "talim" in sector_raw or "maktab" in sector_raw or "kurs" in sector_raw:
         sector_enum = ENUM_SECTOR_EDUCATION
+    elif "it" in sector_raw or "dastur" in sector_raw or "texnolog" in sector_raw:
+        sector_enum = ENUM_SECTOR_IT
+    elif "tibbiyot" in sector_raw or "klinika" in sector_raw or "apteka" in sector_raw:
+        sector_enum = ENUM_SECTOR_MEDICINE
     elif sector_raw:
         sector_enum = ENUM_SECTOR_OTHER
 
@@ -135,14 +123,10 @@ def extract_lead_custom_fields(fields: Dict[str, str]) -> List[Dict[str, Any]]:
     goal_enum: Optional[int] = None
     if "himoya" in goal_raw or "patent" in goal_raw:
         goal_enum = ENUM_GOAL_PROTECT
-    elif "nomi" in goal_raw or "naming" in goal_raw:
-        goal_enum = ENUM_GOAL_NAMING
-    elif "rebrend" in goal_raw:
-        goal_enum = ENUM_GOAL_REBRAND
-    elif "savdo" in goal_raw or "kengay" in goal_raw or "biznesni_kengaytirish" in goal_raw:
-        goal_enum = ENUM_GOAL_SALES
-    elif "imij" in goal_raw or "taniqli" in goal_raw or "mashhur" in goal_raw:
-        goal_enum = ENUM_GOAL_PREMIUM
+    elif "taniqli" in goal_raw or "mashhur" in goal_raw:
+        goal_enum = ENUM_GOAL_FAMOUS
+    elif "ishonch" in goal_raw:
+        goal_enum = ENUM_GOAL_TRUST
     elif goal_raw:
         goal_enum = ENUM_GOAL_OTHER
 

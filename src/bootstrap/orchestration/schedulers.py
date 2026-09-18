@@ -77,7 +77,25 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         logger.warning("[BRAIN] Cloud synthesizer unavailable: %s", exc)
 
     try:
+        from src.schedulers.training_advice_scheduler import training_advice_loop
+        asyncio.create_task(training_advice_loop(), name="training_advice_loop")
+    except ImportError as exc:
+        logger.warning("[TRAINING-ADVICE] Daily advice loop unavailable: %s", exc)
+
+    try:
         from src.schedulers.rop_scheduler import start_rop_schedulers
         start_rop_schedulers(bot_runtime)
     except ImportError as exc:
         logger.warning("[ROP] scheduler unavailable: %s", exc)
+
+    try:
+        from src.schedulers.meta_leadgen_scheduler import meta_leadgen_loop
+        asyncio.create_task(meta_leadgen_loop(), name="meta_leadgen_loop")
+    except ImportError as exc:
+        logger.warning("[META LEADGEN] scheduler unavailable: %s", exc)
+
+    try:
+        from src.schedulers.marketing_attribution_scheduler import marketing_attribution_loop
+        asyncio.create_task(marketing_attribution_loop(), name="marketing_attribution_loop")
+    except ImportError as exc:
+        logger.warning("[ADS ATTRIBUTION] scheduler unavailable: %s", exc)

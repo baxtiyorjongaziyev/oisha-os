@@ -189,9 +189,6 @@ async def _process_amocrm_event(data: Dict[str, Any]):
         if not lead_id:
             return
 
-        from src.agents.autonomous_sales_agent import AutonomousSalesAgent
-        agent = AutonomousSalesAgent(db=runtime_db)
-
         lead_data = await amocrm.get_lead(int(lead_id))
         if not lead_data:
             return
@@ -231,6 +228,20 @@ async def _process_amocrm_event(data: Dict[str, Any]):
         except Exception as e:
             logger.error("[Webhook] Vilgood engine error: %s", e)
 
+        # Duplicate-note guard: only the enrichment/call-analysis
+        # side effects below are gated, so a status/Won-transition webhook that
+        # arrives within the window right after an add/responsible_user webhook
+        # for the same lead still runs pipeline enforcement and case publishing
+        # above — it just skips re-adding the same CRM notes/notifications.
+        # Keyed on (lead_id, new_status) so a status change that follows another
+        # status change for the same lead within the window (e.g. a Won
+        # transition right after a plain status update) is not swallowed by the
+        # earlier transition's dedup window.
+        from src.services.core.crm.amocrm_webhook_dedup import is_duplicate_lead_event
+        if is_duplicate_lead_event(lead_id, datetime.now(timezone.utc).timestamp(), status_id=new_status):
+            logger.info("[Webhook] Duplicate AmoCRM note/notification pass for lead %s, skipping", lead_id)
+            return
+
         phone = amocrm.get_lead_phone(int(lead_id))
 
         if getattr(settings, "ENABLE_AMOCRM_LEAD_ENRICHMENT", True):
@@ -254,8 +265,6 @@ async def _process_amocrm_event(data: Dict[str, Any]):
                 logger.info("[Webhook] AmoCRM call analysis result: lead_id=%s processed=%s", lead_id, calls_processed)
             except Exception as call_exc:
                 logger.error("[Webhook] AmoCRM call analysis failed for lead %s: %s", lead_id, call_exc, exc_info=True)
-
-        await agent.process_new_lead(lead_id=int(lead_id), lead_data=lead_data)
 
     except Exception as exc:
         logger.error("[Webhook] process_amocrm_event failed: %s", exc, exc_info=True)

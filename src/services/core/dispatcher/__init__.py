@@ -1,5 +1,6 @@
 from src.services.core.dispatcher.adapter import AiogramCallbackEventAdapter
 from src.services.core.dispatcher.callbacks import (
+    register_existing_contact_signal_callbacks,
     register_hisobchi_aiogram_callbacks,
     register_salescoach_aiogram_callbacks,
 )
@@ -32,6 +33,7 @@ from src.services.core.dispatcher.builder import (
 
 __all__ = [
     "AiogramCallbackEventAdapter",
+    "register_existing_contact_signal_callbacks",
     "register_hisobchi_aiogram_callbacks",
     "register_salescoach_aiogram_callbacks",
     "handle_aiogram_chatid",
