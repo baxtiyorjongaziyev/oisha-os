@@ -21,6 +21,19 @@
 
 ## Agent Handoff Log
 
+- **2026-09-18 — Antigravity — Meta Leads AmoCRM Pipeline Stage Fix (Yangi Murojaat) & Recovery:**
+  1. **User Request**: "nimaga amocrmga kelib tushmayapti leadlar?".
+  2. **Audit Findings & Root Causes Resolved**:
+     - **All leads exist**: Verified that 100% of active Meta leads (107/107) were successfully ingested into AmoCRM `Target LEADs` pipeline (`11295630`). Zero leads were dropped.
+     - **The Invisible Leads Glitch**: In `src/services/core/crm/amocrm_pipeline_config.py`, `TARGET_LEADS_FIRST_CONTACT_STATUS_ID` was mistakenly set to `88564682` ("Taklif berildi" - column 6) instead of `88696194` ("Yangi murojaat" - column 1).
+     - Because of this, incoming leads (e.g. Shaxboz, Lola, Burxonjon, Muzayyana, Jasur, Sherzod, Javohir, Nargiz) skipped the first 4 funnel stages and were deposited directly into "Taklif berildi", leaving the "Yangi murojaat" column completely empty to the user's eye.
+     - Additionally, AmoCRM defaults to pipeline `1. PRESALES` on login, while Meta leads route to `Target LEADs`.
+  3. **Fix & Safe Migration**:
+     - Fixed `TARGET_LEADS_FIRST_CONTACT_STATUS_ID = 88696194` (`Yangi murojaat`) in `amocrm_pipeline_config.py` (107L $\le 400$L).
+     - Patched all 8 misplaced leads from today directly to `88696194` (`Yangi murojaat`).
+     - Deployed update to Oracle VM (`ubuntu@163.192.10.104`) and restarted `oisha-os.service` (`active`).
+     - Verified: All 12 of today's leads are now prominently displayed in `Yangi murojaat`.
+
 - **2026-09-18 — Antigravity — Google Sheets Phone Number #ERROR! Resolution & Safe Formatting:**
   1. **User Request**: "Telefon raqami ERROR bo'lib qoldi".
   2. **Root Cause Resolved**: In Google Sheets, entries starting with `+` without quotation are parsed by Sheets as arithmetic formulas (`=+...`). Because phone numbers contain spaces and hyphens (`+998 (90) 123-45-67`), Google Sheets threw a formula parse error (`#ERROR!`).
