@@ -9,12 +9,39 @@ from src.schedulers.moliya.helpers import UZBEK_MONTHS, fmt, read_table, send
 
 logger = logging.getLogger(__name__)
 
+PNL_FIELD_ALIASES = {
+    "kirim": ("Jami Kirim (UZS)",),
+    "chiqim": ("Jami Chiqim (UZS)",),
+    "soliqqacha": ("Soliqqacha foyda (UZS)", "SOLIQQACHA FOYDA (UZS)"),
+    "soliq": ("Soliq xarajati (UZS)", "Soliq Xarajati (UZS)"),
+    "sof_foyda": (
+        "Soliqdan keyingi sof foyda (UZS)",
+        "SOLIQDAN KEYINGI SOF FOYDA (UZS)",
+    ),
+    "dividend": (
+        "Taqsimlangan dividend (UZS)",
+        "Taqsimlangan Dividendlar (UZS)",
+    ),
+    "taqsimlanmagan": (
+        "Taqsimlanmagan foyda (UZS)",
+        "TAQSIMLANMAGAN FOYDA (UZS)",
+    ),
+    "marja": ("Sof foyda marjasi (%)",),
+}
+
 
 def _prev_month_code(now: datetime) -> str:
     """2026-09-01 -> '2026-08' (o'tgan oyning kodi)."""
     first_of_this_month = now.replace(day=1)
     last_of_prev_month = first_of_this_month - timedelta(days=1)
     return last_of_prev_month.strftime("%Y-%m")
+
+
+def _field(record: dict, key: str, default: object = 0) -> object:
+    for name in PNL_FIELD_ALIASES[key]:
+        if name in record and record.get(name) is not None:
+            return record.get(name)
+    return default
 
 
 async def build_pnl_report(now: datetime) -> str:
@@ -32,14 +59,14 @@ async def build_pnl_report(now: datetime) -> str:
     if not record:
         return f"📈 <b>P&L — {oy_nomi}</b>\n\n<i>Bu oy uchun hali P&L yozuvi yo'q.</i>"
 
-    kirim = record.get("Jami Kirim (UZS)") or 0
-    chiqim = record.get("Jami Chiqim (UZS)") or 0
-    soliqqacha = record.get("Soliqqacha foyda (UZS)") or 0
-    soliq = record.get("Soliq xarajati (UZS)") or 0
-    sof_foyda = record.get("Soliqdan keyingi sof foyda (UZS)") or 0
-    dividend = record.get("Taqsimlangan dividend (UZS)") or 0
-    taqsimlanmagan = record.get("Taqsimlanmagan foyda (UZS)") or 0
-    marja = record.get("Sof foyda marjasi (%)")
+    kirim = _field(record, "kirim")
+    chiqim = _field(record, "chiqim")
+    soliqqacha = _field(record, "soliqqacha")
+    soliq = _field(record, "soliq")
+    sof_foyda = _field(record, "sof_foyda")
+    dividend = _field(record, "dividend")
+    taqsimlanmagan = _field(record, "taqsimlanmagan")
+    marja = _field(record, "marja", None)
 
     belgi = "🟢" if float(sof_foyda or 0) >= 0 else "🔴"
 

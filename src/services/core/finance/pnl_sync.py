@@ -28,9 +28,8 @@ TRX_TABLE_ID = "tblrqxqIzyrvg7XpQ"
 PNL_TABLE_ID = "tblAgVaGlVory2yAW"
 
 # Link field on Tranzaksiyalar pointing at the current Oylik P&L table. Re-verified
-# live in Airtable 2026-09-15: the base was restructured and the old
-# "Oylik P&L (Hisobot)" field no longer exists. "[TEXNIK] Oylik P&L link"
-# (fldgR2oBDztMX0knF) is the current "Link to another record" field.
+# live in Airtable 2026-09-15: the old "Oylik P&L (Hisobot)" automation/link
+# flow was removed, and "[TEXNIK] Oylik P&L link" is the current live link.
 PNL_LINK_FIELD = "[TEXNIK] Oylik P&L link"
 
 UZBEK_MONTHS = {
