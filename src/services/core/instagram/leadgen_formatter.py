@@ -202,12 +202,15 @@ def build_leadgen_note(
     payload: Dict[str, Any],
     fields: Dict[str, str],
     exclude_keys: Optional[set[str]] = None,
+    ad_name: Optional[str] = None,
 ) -> str:
     """Build a detailed, human-readable AmoCRM lead note."""
     lines = [
         "Facebook Lead Ads orqali avtomatik tushdi.",
         f"Leadgen ID: {leadgen_id}",
     ]
+    if ad_name:
+        lines.append(f"Reklama/Aksiya: {ad_name}")
     for key in ("form_id", "ad_id", "adgroup_id", "campaign_id", "created_time"):
         if payload.get(key):
             lines.append(f"{key}: {payload[key]}")
@@ -236,6 +239,7 @@ def build_telegram_message(
     fields: Dict[str, str],
     exclude_keys: Optional[set[str]] = None,
     cost_per_lead: Optional[float] = None,
+    ad_name: Optional[str] = None,
 ) -> str:
     """Format a clean, executive CRM group notification for a Facebook lead."""
     lead_link = (
@@ -258,6 +262,8 @@ def build_telegram_message(
             f"🆔 <b>Meta lead:</b> <code>{html.escape(leadgen_id)}</code>",
         ]
     )
+    if ad_name:
+        lines.append(f"🎬 <b>Reklama/Aksiya:</b> {html.escape(ad_name)}")
     if cost_per_lead:
         formatted = f"{round(cost_per_lead):,}".replace(",", " ")
         lines.append(f"💵 <b>Taxminiy lid narxi:</b> ~{formatted} so'm (30 kunlik oʻrtacha)")
