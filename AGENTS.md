@@ -21,6 +21,18 @@
 
 ## Agent Handoff Log
 
+- **2026-09-18 — Antigravity — Telegram Notifications Uzbek Localization & Userbot Boot Resilience:**
+  1. **User Request**: "nima degani? o'zbekcha kelsin shu xabarlar" (regarding `Oisha deploy: success` and `🚨 [SESSION] ⚠️ USERBOT RECONNECT Telegram userbot connection tushdi...`).
+  2. **Root Cause Analysis**:
+     - Deploy at 19:10 restarted `oisha-os.service`. Concurrent startup tasks (AmoCRM archiver, finance sync, DB pool) on the single-core micro VM caused Telethon's RPC health probe (`get_me`) to hit the tight 10s timeout (`get_me health probe timeout`).
+     - Reconnect monitor alerted prematurely at attempt 2 (`reconnect_count >= 2`, within 30s of restart) with mixed English/developer jargon, without ever notifying the user when connection recovered cleanly 40s later at attempt 3 (`✅ Qayta ulanish muvaffaqiyatli!`).
+     - GitHub Actions deploy workflow sent hardcoded English text.
+  3. **Fixes & Enhancements**:
+     - **Increased Auth Probe Timeout**: In `src/services/core/telegram_session_manager.py` (393L $\le 400$L), bumped `get_me` timeout from 10s to 25s to absorb cold boot CPU spikes.
+     - **Higher Alert Threshold & Safe Auto-Recovery**: Reconnect alert threshold raised from $\ge 2$ to $\ge 3$ (>70s of sustained downtime), eliminating transient boot-time false alarms. When connection successfully restores, an immediate resolution notification (`✅ TELEGRAM ALOQASI TIKLANDI`) is dispatched to reassure the user.
+     - **Full Uzbek Localization**: Replaced all English / technical jargon across `telegram_session_manager.py`, `telegram_session.py` (removed ugly `🚨 [SESSION]` prefix), `session_keeper.py`, and `.github/workflows/oracle-deploy.yml` with clean, professional Uzbek.
+  4. **Verification**: 841/841 syntax & unit tests passing (`pytest tests/test_telegram_session_manager.py tests/test_syntax_guard.py`), Bandit: 0 issues on 666 LOC. All files strictly comply with Rule 6 ($\le 400$L).
+
 - **2026-09-18 — Antigravity — Meta Leads AmoCRM Pipeline Stage Fix (Yangi Murojaat) & Recovery:**
   1. **User Request**: "nimaga amocrmga kelib tushmayapti leadlar?".
   2. **Audit Findings & Root Causes Resolved**:

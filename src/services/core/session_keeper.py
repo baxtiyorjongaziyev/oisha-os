@@ -207,9 +207,9 @@ async def session_keepalive_loop(
                     if notify_callback:
                         try:
                             await notify_callback(
-                                f"🚨 SESSION KEEPALIVE XATO\n\n"
-                                f"Telegram userbot session ping'da auth xatosi:\n`{exc}`\n\n"
-                                f"Reconnect manager ishga tushadi."
+                                f"🚨 TELEGRAM SESSIYA XATOLIGI\n\n"
+                                f"Userbot sessiyasida autentifikatsiya xatosi aniqlandi:\n`{exc}`\n\n"
+                                f"Tizim qayta ulanishni avtomatik boshlamoqda."
                             )
                         except Exception:
                             logger.error("Exception handled in %s", __name__, exc_info=True)

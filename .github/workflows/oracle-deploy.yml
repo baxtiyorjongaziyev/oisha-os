@@ -389,16 +389,49 @@ jobs:
 
       - name: Notify Telegram
         if: always() && !cancelled()
+        env:
+          STATUS: ${{ steps.oracle.outcome }}
+          DEGRADED: ${{ steps.oracle.outputs.degraded }}
+          COMMIT_SHA: ${{ github.sha }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          OWNER_ID: ${{ env.OWNER_ID }}
         run: |
-          STATUS="${{ steps.oracle.outcome }}"
-          DEGRADED="${{ steps.oracle.outputs.degraded }}"
-          if [ "$STATUS" = "success" ] && [ -n "$DEGRADED" ]; then
-            MSG="Oisha deploy: success (degraded)%0ACommit: ${{ github.sha }}%0AProduction: Oracle VM serving%0ADegraded: ${DEGRADED}%0AKerak: credential yangilang (userbot session / AmoCRM token)"
-          elif [ "$STATUS" = "success" ]; then
-            MSG="Oisha deploy: success%0ACommit: ${{ github.sha }}%0AProduction: Oracle VM healthy"
-          else
-            MSG="Oisha deploy: failure%0ACommit: ${{ github.sha }}%0AReason: Oracle VM health check failed"
-          fi
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=${OWNER_ID}" \
-            -d "text=${MSG}" || true
+          python3 -c "
+          import os, requests
+          status = os.getenv('STATUS')
+          degraded = os.getenv('DEGRADED')
+          sha = (os.getenv('COMMIT_SHA') or '')[:7]
+          bot_token = os.getenv('BOT_TOKEN')
+          owner_id = os.getenv('OWNER_ID')
+
+          if status == 'success' and degraded:
+              text = (
+                  '🚀 Oisha OS: Yangilanish o\'rnatildi (cheklangan rejim)\n\n'
+                  f'📌 Versiya (Commit): {sha}\n'
+                  '🖥 Server: Oracle VM (ishlamoqda)\n'
+                  f'⚠️ Cheklov: {degraded}\n'
+                  'ℹ️ Tavsiya: Bog\'liq tokenlarni yangilang.'
+              )
+          elif status == 'success':
+              text = (
+                  '🚀 Oisha OS: Yangilanish muvaffaqiyatli o\'rnatildi ✅\n\n'
+                  f'📌 Versiya (Commit): {sha}\n'
+                  '🖥 Server: Oracle VM to\'liq barqaror va sog\'lom.'
+              )
+          else:
+              text = (
+                  '🚨 Oisha OS: Yangilanishda xatolik yuz berdi ❌\n\n'
+                  f'📌 Versiya (Commit): {sha}\n'
+                  '⚠️ Sabab: Oracle VM salomatlik tekshiruvi muvaffaqiyatsiz bo\'ldi.'
+              )
+
+          if bot_token and owner_id:
+              try:
+                  requests.post(
+                      f'https://api.telegram.org/bot{bot_token}/sendMessage',
+                      json={'chat_id': int(owner_id), 'text': text},
+                      timeout=10,
+                  )
+              except Exception as e:
+                  print(f'Telegram xabar yuborishda xato: {e}')
+          " || true
