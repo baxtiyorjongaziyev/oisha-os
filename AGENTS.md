@@ -255,46 +255,16 @@
   3. **Live AmoCRM Audit**: Hozirgi barcha 381 ta ochiq vazifa tekshirildi — bazada yakshanba kuniga birorta ham vazifa yo'q (**0 ta vazifa**).
   4. **Verification**: 20/20 test yashil (`tests/test_call_conversion_tasks.py`, `tests/test_telegram_task_creator.py`), Bandit: 0 issues. Barcha modullar 400 qator modular standartiga to'liq mos.
 
-- **2026-09-10 — Claude — Airtable "Jon Branding" Base Cleanup (in progress, paused on AI limit):**
-  1. **Scope**: Operational cleanup of the Airtable finance base (`app8xoyx1XCumYFXV`), not a code change — see `AIRTABLE_CLEANUP_HANDOFF.md` for full detail.
-  2. **Done**: Deleted 3 unused jamoa/inbox tables (`Tuzatish so'rovlari`, `Moliya so'rovlari`, `Moliya nazorati`, all recoverable from Airtable trash 7 days); removed 8 orphan/`[ESKI]` fields across Tranzaksiyalar/Loyihalar/Jamoa; added an `Oy nomi` Uzbek-month formula field on Tranzaksiyalar and regrouped the Kirim/Chiqim views by it; pruned 2 empty duplicate rows in `Cashflow — oylik`.
-  3. **Verification**: Each deletion was checked against Airtable's own "N dependencies" delete-confirmation dialog before confirming; no automation, form, or report table was touched. `Oy` (date formula), `Kirim UZS`/`Chiqim UZS`/`Sof oqim UZS`, `Oylik P&L (Hisobot)`/`Cashflow qatori` links, `Nazorat holati`/`Tekshiruv izohi`, the "Cashflow qatorini bog'lash" and "Finance — yangi tranzaksiyani Reja qilish" automations, and the P&L/Cashflow/Balans report tables were left untouched by design.
-  4. **Files changed**: `AIRTABLE_CLEANUP_HANDOFF.md` (new) — this repo change is docs-only.
-  5. **Remaining / blocker**: Paused on the 5-hour AI session limit. Still open: delete orphan `Moliya so'rovlari` text field in `Moliya kategoriyalari` and `Hisoblar`; answer owner's NAF Stroy project start/end date question; decide on the two `ARXIV — Kirim/Chiqim (Finance V1)` tables — **do not delete them or any `arxiv —`/`[ESKI]` rollup/link field until ARXIV records are verified against `Tranzaksiyalar` for full migration** (this was previously asserted from an Airtable field description, not independently confirmed — see handoff file); decide on `Ovchi`/`Seller`/`Art Direktor` text fields (link to Jamoa or remove).
+- **2026-09-16 — Codex — PR #640 Follow-up Finance Airtable/P&L Hotfix:**
+  1. **Scope**: PR #640 already merged at c00cc45, so a follow-up hotfix PR #641 was opened from origin/main (codex/finance-airtable-pnl-hotfix) to cover the remaining P1 finance issues.
+  2. **Airtable/Finance Fixes**:
+     - Transaction creation and P&L sync now share the live Airtable P&L link constant ([TEXNIK] Oylik P&L link) instead of relying on the removed Oylik P&L (Hisobot) planning/link flow.
+     - Monthly P&L report now reads both current lowercase field names and uppercase/native formula names (SOLIQQACHA FOYDA (UZS), SOLIQDAN KEYINGI SOF FOYDA (UZS), Taqsimlangan Dividendlar (UZS), TAQSIMLANMAGAN FOYDA (UZS)), preventing real P&L values from rendering as 0.
+     - PR #640 finance modules remain below the 400-line limit.
+  3. **Changed Files**: src/services/core/finance/pnl_sync.py, src/schedulers/moliya/pnl.py, tests/test_income_workflow.py, tests/test_moliya_pnl_report.py.
+  4. **Verification**: pytest tests/test_income_workflow.py tests/test_pnl_sync_security.py tests/test_moliya_pnl_report.py -> 21 passed; python -m py_compile on changed modules passed; PR finance file line counts: all <= 298 lines.
+  5. **Open Note**: No secrets were exposed. No direct live Airtable automation mutation was performed in this Codex run; the code hotfix prevents app-side writes from depending on the removed planning/link field.
 
-- **2026-09-11 — Antigravity — AmoCRM Overdue Non-Manager Tasks Safe Rescheduling & Staggering:**
-  1. **Audit**: 88 ta muddati o'tib ketgan vazifa aniqlandi (23 ta menejerlar qo'lda qo'ygan, 65 ta avtomatik Digital Pipeline/bot vazifasi).
-  2. **Manager Task Guard**: Menejerlarning 23 ta individual vazifasiga 100% tegilmadi (o'zgarishsiz saqlandi).
-  3. **Safe Rescheduling**: 65 ta avtomatik vazifa kelgusi bo'sh ish kunlariga (`2026-09-24`, `2026-09-25`, `2026-09-26`) ish vaqti oralig'ida (10:00 dan 18:00 gacha) har 15–20 daqiqalik oraliq bilan bittadan tekis taqsimlandi. Yakshanba kunlari to'liq bo'sh qoldirildi.
-  4. **Natija**: AmoCRM'da avtomatik muddati o'tgan vazifalar soni **0** ga tushirildi!
-  5. **Today's Manager Tasks Shift**: Foydalanuvchi ko'rsatmasi bilan bugungi 3 ta menejer vazifasi ertaga ertalabga (2026-09-12 Shanba) 10:00, 10:15 va 10:30 vaqtlariga 15 daqiqalik qat'iy interval bilan ko'chirildi. U yerdagi avtomatik vazifalar tushdan keyingi bo'sh slotlarga (16:15, 16:30, 16:45) surildi (to'qnashuv 0).
-
-
-- **2026-09-11 — Antigravity — AmoCRM Automatic Tasks Root Cause Audit & 1-Lead-1-Active-Task Guard:**
-  1. **Comprehensive AmoCRM Task Audit (395 Open Tasks Analyzed)**:
-     - **Manba 1 (78.7% / 311 ta vazifa)**: amoCRM ichki Digital Pipeline triggerlari — Presales (179 ta *"Mijoz bilan aloqaga chiqish, ehtiyojni aniqlash va kvalifikatsiya qilish"*) va Closer (132 ta *"Mijoz bilan muzokara olib borish va KP / shartnoma bo'yicha keyingi qadamni belgilash"*).
-     - **Manba 2 (Bugungi faol generator — Call Intelligence AI)**: `call_analysis_loop` har 3 daqiqada audio qo'ng'iroqlarni tahlil qilib, sdelkada avvaldan vazifa bormi-yo'qmi tekshirmasdan har bir qo'ng'iroq uchun yangi follow-up ochgan (ayrim sdelkalarda 4-5 tagacha dublikat yig'ilgan).
-     - **Manba 3 (Menejerlar qo'li bilan yozilgan)**: 59 ta haqiqiy vazifa (14.9%) — to'liq saqlab qolindi.
-  2. **1 Lead = 1 Active Task Guard Implementation**:
-     - `src/services/call_analytics/crm_tasks.py`: `_create_follow_up_task` oldidan `get_lead_open_tasks` tekshiruvi qo'shildi. Agar sdelkada allaqachon bitta ochiq vazifa bo'lsa, AI yangi vazifa qo'shmaydi (`[CALL TASK GUARD]`).
-     - `src/services/core/telegram/task_creator/creator.py`: `_insert_deduped_tasks` ga guard qo'shildi; sdelkada ochiq vazifa bo'lsa chatdan yangi vazifa qo'shilmaydi.
-  3. **Duplicate Tasks Cleanup**:
-     - Bugun AI tomonidan bir xil sdelkalar ustiga ochilgan 14 ta sun'iy dublikat vazifa AmoCRM API orqali xavfsiz yopildi. Menejerlar qo'ygan 59 ta vazifaga 100% tegmasdan saqlandi.
-  4. **Verification**: 10/10 test yashil (`tests/test_call_conversion_tasks.py`), 9/9 test yashil (`tests/test_telegram_task_creator.py`). 400 qator modular standartiga 100% rioya qilindi.
-
-
-- **2026-09-11 — Antigravity — Telegram Bot Platform Full Spectrum Integration (Phase 1–6):**
-  1. **Telegram Scoped Commands & Multilingual Profile**: `src/services/core/telegram/profile_manager.py` (220L) implementatsiya qilindi: UZ, RU, EN tillarida avtomatik `setMyName`, `setMyDescription`, `setMyShortDescription`; `BotCommandScopeDefault` (mijozlar), `BotCommandScopeAllGroupChats`, `BotCommandScopeAllChatAdministrators`, va `BotCommandScopeChat` (Owner Baxtiyorjon); `MenuButtonWebApp` va zamonaviy input pickers (`request_user`, `request_chat`, `request_contact`).
-  2. **Telegram Mini App (TMA) Next.js Frontend Context**: `apps/web/src/context/TelegramWebAppContext.tsx` (115L) va `apps/web/src/app/layout.tsx` ga `telegram-web-app.js` skripti hamda `TelegramWebAppProvider` ulandi (ready, expand, haptic feedback, theme-syncing). TypeScript typecheck 100% toza (`tsc --noEmit`).
-  3. **Telegram Business Connection & Personal Lead Autopilot**: `src/services/core/telegram/business_manager.py` (150L) yaratildi: `business_connection` va `business_message` hodisalarini ushlash, mijoz lichka xabarlarini avtomatik AmoCRM ga sinxronlash, ish vaqtidan tashqarida away messages berish va `/start bizChat<id>` deep link yaratish.
-  4. **Inline Mode Knowledge Base**: `src/services/core/telegram/inline_knowledge_base.py` (189L) va `src/services/core/dispatcher/inline_search.py` (153L) birlashtirildi: `@jonairobot` orqali bo'sh qidiruvda Jon Branding katalogi, `portfolio`, `narxlar`, `brif` va `task <nomi>` kartochkalarini istalgan chatga 1-klikda yuborish.
-  5. **Payments 2.0 & Telegram Stars (XTR)**: `src/services/core/telegram/payments_engine.py` (150L) yaratildi: Telegram Stars (XTR) raqamli to'lovlar, Click/Payme UZS invoices, `pre_checkout_query` va `successful_payment` tekshiruv va audit kesh.
-  6. **Forum Topics & Supergroups**: `src/services/core/telegram/forum_topics_manager.py` (135L) va `smart_polls.py` (110L) yaratildi: `#leads`, `#finance`, `#tasks`, `#monitoring` mavzularini avtomatik ochish va xabarlarni thread bo'yicha yo'naltirish; NPS so'rovnomalari va jamoa viktorinalari.
-  7. **Dispatcher Wiring & Verification**: `src/services/core/dispatcher/handlers_advanced.py` (170L) yaratilib, `builder.py` va `bot_head.py` ga xavfsiz ulandi. 22/22 yangi test 100% yashil o'tdi (`pytest`). Bandit auditi: 0 issues (4869 LOC). Barcha fayllar 400 qator modular standartiga qat'iy mos.
-
-
-- 2026-09-11 Codex Coordinator: Owner-requested AmoCRM subdomain migration. Local and Oracle /home/ubuntu/oisha-os/.env AMOCRM_SUBDOMAIN changed from jonbrandingagency to jonbranding and reread. Oracle service restarted and verified active/running, new PID 3753587, NRestarts=0. Initial localhost:8080 health probes unavailable; final health pending. Existing Oracle data/amocrm_token.json account probe against new domain returned HTTP 401; file has no refresh token and env AMOCRM_TOKEN_JSON absent. Redirect remains existing Cloud Function URL. GitHub repository secret/variable lists contain no AMOCRM_SUBDOMAIN. Two local workflow literals updated (.github/workflows/oracle-deploy.yml and amocrm-phone-normalize.yml); diff check passed, NOT committed/pushed/PR, remote deploy can revert subdomain until merged. Browser tool failed twice loading request-header policy; OAuth integration and n8n workflows not inspected or changed. Additional old hardcoded URLs found in src/admin_bot.py, auto_task_creator.py, smart_tasks/creator.py, CRM sync and notifier formatter; left unchanged outside requested config scope. Brain MCP context/search unavailable and log 404; filesystem capture used. Source: live SSH, account API and gh repository reads in this task. No secrets recorded.
->>>>>>> Stashed changes
 
 - **2026-09-09 — Antigravity — CodeQL 0-Alerts Resolved & Deploy Meta Retention Guard:**
   1. **All 4 CodeQL Alerts Resolved (0 Alerts Remaining)**: PR #598 orqali barcha ochiq CodeQL alertlar (ReDoS, stack-trace exposure, clear-text logging) to'liq tuzatildi va `main` ga merge qilindi. GitHub Code Scanning Alerts soni **0** ga tushirildi (`[]`).
