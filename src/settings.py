@@ -21,12 +21,10 @@ structlog.configure(
     cache_logger_on_first_use=True,
 )
 
-
 from src.settings_helpers import (
     normalize_empty_env_values as _normalize_env_dict,
     normalize_telegram_chat_id,
 )
-
 
 class AppSettings(BaseSettings):
     OWNER_ID: int = 0
@@ -198,8 +196,10 @@ class AppSettings(BaseSettings):
     HISOBCHI_CASHFLOW_TOPIC_ID: Optional[int] = None                     # Cashflow topic ID
     HISOBCHI_BALANCE_TOPIC_ID: Optional[int] = None                      # Balance topic ID
     HISOBCHI_QARZDORLIK_TOPIC_ID: Optional[int] = None                   # Qarzdorlik / Debt topic ID
-    MARKETING_GROUP_ID: Optional[int] = None                             # Marketing guruh ID
-    MARKETING_TOPIC_ID: Optional[int] = None                             # Marketing topic ID
+    MARKETING_GROUP_ID: Optional[int] = -1003608624065                   # Marketing guruh ID
+    MARKETING_TOPIC_ID: Optional[int] = 42                               # Marketing topic ID
+    TARGET_LEADS_GROUP_ID: Optional[int] = -1003854308552                 # Meta Lead Ads leadlari uchun sotuv guruhi
+    TARGET_LEADS_TOPIC_ID: Optional[int] = 1020                          # Target lead topic ID
 
     # @amocrm_amobot eslatmalarini forward qilish (Просроченная задача va h.k.)
     # Bu follow-up / task deadline eslatmalari uchun (kelishilgan vaqtda yuboriladi).
@@ -235,8 +235,6 @@ class AppSettings(BaseSettings):
     SANITY_DATASET: Optional[str] = None
     SANITY_TOKEN: Optional[SecretStr] = None
     RUN_USERBOT_ONLY: bool = False
-
-
 
     # Topic IDs (Forum Groups)
     AMOCRM_URL: Optional[str] = None
@@ -370,36 +368,24 @@ class AppSettings(BaseSettings):
     )
 
     def missing_runtime_settings(self) -> list[str]:
-        missing: list[str] = []
-        if not self.BOT_TOKEN.get_secret_value().strip():
-            missing.append("BOT_TOKEN")
-        if not self.API_ID:
-            missing.append("API_ID")
-        if not self.API_HASH.strip():
-            missing.append("API_HASH")
-        if not self.GEMINI_API_KEY.get_secret_value().strip():
-            missing.append("GEMINI_API_KEY")
-        if not self.AMOCRM_SUBDOMAIN.strip():
-            missing.append("AMOCRM_SUBDOMAIN")
-        if not self.AMOCRM_CLIENT_ID.strip():
-            missing.append("AMOCRM_CLIENT_ID")
-        # Additional credentials required for current deployment
-        if not self.USERBOT_SESSION_STRING:
-            missing.append("USERBOT_SESSION_STRING")
-        if not self.OPENROUTER_API_KEY:
-            missing.append("OPENROUTER_API_KEY")
-        if not self.AMOCRM_ACCESS_TOKEN:
-            missing.append("AMOCRM_ACCESS_TOKEN")
-        return missing
+        checks = [
+            ("BOT_TOKEN", bool(self.BOT_TOKEN.get_secret_value().strip())),
+            ("API_ID", bool(self.API_ID)),
+            ("API_HASH", bool(self.API_HASH.strip())),
+            ("GEMINI_API_KEY", bool(self.GEMINI_API_KEY.get_secret_value().strip())),
+            ("AMOCRM_SUBDOMAIN", bool(self.AMOCRM_SUBDOMAIN.strip())),
+            ("AMOCRM_CLIENT_ID", bool(self.AMOCRM_CLIENT_ID.strip())),
+            ("USERBOT_SESSION_STRING", bool(self.USERBOT_SESSION_STRING)),
+            ("OPENROUTER_API_KEY", bool(self.OPENROUTER_API_KEY)),
+            ("AMOCRM_ACCESS_TOKEN", bool(self.AMOCRM_ACCESS_TOKEN)),
+        ]
+        return [name for name, ok in checks if not ok]
 
     def validate_credentials(self) -> None:
-        """Validate that all required credentials are present.
-        Raises MissingCredentialError for the first missing credential.
-        """
+        """Validate required credentials; raises MissingCredentialError if missing."""
         for name in self.missing_runtime_settings():
             from .exceptions import MissingCredentialError
             raise MissingCredentialError(name)
-
 
     VAULT_PATH: Path = Path(r"C:/Users/baxti/OneDrive/Документы/Obsidian Vault")
     VAULT_GIT_REMOTE: str = "origin"
