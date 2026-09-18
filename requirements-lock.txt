@@ -217,7 +217,7 @@ packaging==26.3
     # via
     #   limits
     #   sphinx
-phonenumbers==9.0.38
+phonenumbers==9.0.39
     # via -r requirements.txt
 pillow==12.3.0
     # via instagrapi
