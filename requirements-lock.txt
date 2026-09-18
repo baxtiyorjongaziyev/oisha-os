@@ -271,7 +271,7 @@ pydantic-settings==2.15.0
     # via
     #   -r requirements.txt
     #   mcp
-pyee==13.0.1
+pyee==14.0.0
     # via playwright
 pygetwindow==0.0.9
     # via pyautogui
