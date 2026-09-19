@@ -21,6 +21,16 @@
 
 ## Agent Handoff Log
 
+- **2026-09-19 — Antigravity — 24/7 Multi-Channel Leadgen Automation, Self-Healing Watchdog & Proactive Reporting:**
+  1. **User Request**: "har kuni so'rab turishim kerakmi? amoCRMga tushyaptimi, Google sheetsga tushyaptimi, Telegramga tushyaptimi deb? Automation 24/7 o'lmasdan ishlaydigan qil"
+  2. **Audit Findings & Root Causes Resolved**:
+     - (a) **Missing Google Sheets Credentials on VM**: `data/service_account.json` was gitignored and had not been copied to Oracle VM, causing `append_lead_to_sheet()` on the VM to fail silently (`Service account credentials not found`). Deployed `service_account.json` to VM (`chmod 600`) and backfilled all 30 missing historical leads into `Target Leads (2026)` (now 128 rows, 100% complete).
+     - (b) **Lack of Multi-Channel Delivery Guarantee**: Upgraded `src/services/core/instagram/leadgen_delivery.py` (130L $\le 400$L) to track delivery status for all 3 channels: `amocrm_ok`, `sheets_ok`, and `telegram_ok`.
+     - (c) **Self-Healing Watchdog**: Created `src/services/core/instagram/leadgen_watchdog.py` (137L $\le 400$L) which automatically scans `leadgen_delivery.db` every 60s and retries any channel that encountered a network/API glitch.
+     - (d) **Proactive Daily Heartbeat & Status Reporter**: Created `src/schedulers/leadgen_status_reporter.py` (130L $\le 400$L) wired into `src/bootstrap/orchestration/schedulers.py`. Dispatches automated status reports twice daily (09:00 AM & 21:00 PM) to the Sales group (`-1003854308552`, topic `1020`), giving the user 100% transparent confirmation without having to ask.
+  3. **Verification**: 6/6 focused unit tests green (`pytest tests/test_leadgen_watchdog.py tests/test_meta_leadgen_sheets.py`), Bandit: 0 security issues on 345 LOC. All files strictly comply with Rule 6 ($\le 400$L).
+  4. **Production Deployment**: Synced all files to Oracle VM (`ubuntu@163.192.10.104`), restarted `oisha-os.service` (active, PID `432078`). Test report verified in Telegram.
+
 - **2026-09-19 — Antigravity — Production System Health Audit & Critical Runtime Fixes:**
   1. **User Request**: "ideal ishlayaptimi birorta joyi yoki yo'lg'on ishlayotgan joylari bormi?"
   2. **Audit Findings & Root Causes Resolved**:
