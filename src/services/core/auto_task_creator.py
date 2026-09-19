@@ -152,7 +152,7 @@ class AutoTaskCreator:
             )
 
             if resp.status_code == 200:
-                for cf in resp.json().get("custom_fields_values", []):
+                for cf in resp.json().get("custom_fields_values") or []:
                     if cf.get("field_code") == "PHONE":
                         values = cf.get("values", [])
                         if values:
