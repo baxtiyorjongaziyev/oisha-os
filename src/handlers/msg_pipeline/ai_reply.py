@@ -54,6 +54,9 @@ async def process_ai_reply(
             me_username = (me.username or "").lower()
             is_mentioned = bool(me_username and f"@{me_username}" in text_low)
 
+        if auto_reply_gate is None:
+            from src.services.core import auto_reply_gate
+
         decision = await auto_reply_gate.evaluate(
             msg_controller.db,
             is_mentioned=is_mentioned,

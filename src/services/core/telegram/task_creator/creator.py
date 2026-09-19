@@ -80,7 +80,10 @@ class TelegramTaskCreator(CooldownMixin, TaskAnalyzerMixin, DialogResolverMixin)
 
         lines = []
         for msg in sorted(messages, key=_msg_date):
-            sender = "Menejer" if msg.out else ((getattr(getattr(msg, "sender", None), "first_name", "") + " " + getattr(getattr(msg, "sender", None), "last_name", "")).strip() or "Mijoz")
+            sender_obj = getattr(msg, "sender", None)
+            fn = getattr(sender_obj, "first_name", "") or ""
+            ln = getattr(sender_obj, "last_name", "") or ""
+            sender = "Menejer" if msg.out else (f"{fn} {ln}".strip() or "Mijoz")
             if msg.voice or msg.audio:
                 voice_text = await self.download_and_transcribe_voice(msg)
                 if voice_text:

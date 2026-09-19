@@ -21,6 +21,18 @@
 
 ## Agent Handoff Log
 
+- **2026-09-19 — Antigravity — Production System Health Audit & Critical Runtime Fixes:**
+  1. **User Request**: "ideal ishlayaptimi birorta joyi yoki yo'lg'on ishlayotgan joylari bormi?"
+  2. **Audit Findings & Root Causes Resolved**:
+     - (a) **Userbot AI Reply Crash**: In `ai_reply.py`, `media_voice.py`, and `message_event.py`, `auto_reply_gate` was `None` because `app_ctx.auto_reply_gate` was not initialized. Calling `.evaluate()` crashed with `'NoneType' object has no attribute 'evaluate'` on every inbound Telegram message. Fixed by adding fallback import `from src.services.core import auto_reply_gate`.
+     - (b) **Telegram Task Creator NoneType Concatenation Crash**: In `creator.py` line 83, `msg.sender.first_name` and `last_name` returned `None` when missing on Telethon User objects. Concatenating `None + " "` threw `TypeError: can only concatenate str (not "NoneType") to str` on autopilot loop. Fixed with `f"{fn} {ln}".strip() or "Mijoz"`.
+     - (c) **AmoCRM Contact Phone Null Iteration Crash**: In `contacts.py` line 265, `auto_task_creator.py` line 155, and `context_builder.py` line 110, when AmoCRM returns `"custom_fields_values": null`, `.get(..., [])` evaluated to `None`, causing `TypeError: 'NoneType' object is not iterable`. Fixed with `get(...) or []`.
+     - (d) **False Alarm Tracebacks**: In `dialogs.py`, expected direct entity resolution miss was logged with `logger.error` before falling back to contact import; changed to `logger.debug`.
+     - (e) **Gemini Fallback Model Pool**: In `models.py`, expanded `DEFAULT_FALLBACK_MODELS` to include `gemini-3.5-flash`, `gemini-flash-lite-latest`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`, preventing premature fallback to Groq when the legacy 2.5 flash free quota (20 req/day) is exceeded.
+  3. **Verification**: 855/855 unit and syntax tests green (`pytest tests/test_telegram_task_creator.py tests/test_call_conversion_tasks.py tests/test_syntax_guard.py`), Bandit: 0 issues on 97,630 LOC. All 9 modified files strictly $\le 400$ lines.
+  4. **Deployment**: Synced to Oracle VM (`ubuntu@163.192.10.104`) and restarted `oisha-os.service` (active, PID `429769`). Healthz 200 OK.
+
+
 - **2026-09-18 — Antigravity — Telegram Notifications Uzbek Localization & Userbot Boot Resilience:**
   1. **User Request**: "nima degani? o'zbekcha kelsin shu xabarlar" (regarding `Oisha deploy: success` and `🚨 [SESSION] ⚠️ USERBOT RECONNECT Telegram userbot connection tushdi...`).
   2. **Root Cause Analysis**:

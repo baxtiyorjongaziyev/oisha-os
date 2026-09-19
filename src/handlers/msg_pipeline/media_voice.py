@@ -93,6 +93,8 @@ async def process_voice(
                     if surgical_result.get("mode") == "surgical":
                         voice_reply = surgical_result.get("response", "")
                         if voice_reply:
+                            if auto_reply_gate is None:
+                                from src.services.core import auto_reply_gate
                             _voice_decision = await auto_reply_gate.evaluate(
                                 msg_controller.db,
                                 is_mentioned=False,
