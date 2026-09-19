@@ -242,13 +242,21 @@ async def process_elite_intake(
         if admin_bot:
             await admin_bot.notify_lead(lead_notify_text)
 
-        if intent == "HOT_LEAD" and bot_client and TN5_GROUP_ID:
-            try:
-                await bot_client.send_message(
-                    TN5_GROUP_ID, lead_notify_text, parse_mode="md"
-                )
-                logger.info(f"[HOT LEAD] CRM guruhiga yuborildi: {sender_name}")
-            except Exception as crm_notif_err:
-                logger.warning(
-                    f"[HOT LEAD] CRM guruh notif xato: {crm_notif_err}"
-                )
+        if intent in ("HOT_LEAD", "WARM_LEAD") and bot_client:
+            new_lead_group_id = getattr(_settings, "NEW_LEAD_GROUP_ID", None)
+            new_lead_topic_id = getattr(_settings, "NEW_LEAD_TOPIC_ID", None)
+            if new_lead_group_id:
+                try:
+                    await bot_client.send_message(
+                        new_lead_group_id,
+                        lead_notify_text,
+                        parse_mode="md",
+                        reply_to=new_lead_topic_id,
+                    )
+                    logger.info(
+                        f"[SIFATLI LEAD] 'Yangi lead' topicga yuborildi: {sender_name} ({intent})"
+                    )
+                except Exception as crm_notif_err:
+                    logger.warning(
+                        f"[SIFATLI LEAD] 'Yangi lead' topic notif xato: {crm_notif_err}"
+                    )
