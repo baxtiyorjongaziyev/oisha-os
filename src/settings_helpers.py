@@ -111,6 +111,7 @@ CHAT_ID_ENV_KEYS = (
     "TN4_GROUP_ID",
     "TN3_GROUP_ID",
     "TN2_GROUP_ID",
+    "NEW_LEAD_GROUP_ID",
 )
 
 
