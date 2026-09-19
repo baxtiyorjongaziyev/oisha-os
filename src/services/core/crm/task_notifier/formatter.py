@@ -165,11 +165,12 @@ def format_task_notification(
         lines.append(f"👤 <b>Mijoz:</b> {html.escape(contact_name)}")
 
     if phone:
-        lines.append(f"📞 <b>Telefon:</b> <code>{html.escape(phone)}</code>")
+        lines.append(f"📞 <b>Telefon:</b> {html.escape(phone)}")
 
     if telegram_user:
         clean_tg = telegram_user.lstrip("@").strip()
-        lines.append(f"💬 <b>Telegram:</b> @{html.escape(clean_tg)}")
+        tg_link = f'<a href="https://t.me/{html.escape(clean_tg)}">@{html.escape(clean_tg)}</a>'
+        lines.append(f"💬 <b>Telegram:</b> {tg_link}")
 
     if stage_str:
         lines.append(f"📊 <b>Bosqich:</b> {html.escape(stage_str)}")
