@@ -28,15 +28,22 @@ class JobsAnalyticsMixin:
                 return
 
             coach = SalesQualityCoach(db=db)
-            report = await coach.generate_daily_report(now.strftime("%Y-%m-%d"))
+            day_iso = now.strftime("%Y-%m-%d")
+            send_kwargs = {}
+            if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
+                send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID
+
+            report = await coach.generate_daily_report(day_iso)
             if report:
-                send_kwargs = {}
-                if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
-                    send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID
                 await self._send_to_group_or_admin(report, **send_kwargs)
                 logger.info("[COACH] Kunlik sifat hisoboti yuborildi.")
             else:
                 logger.info("[COACH] Bugun baholangan qo'ng'iroq yo'q.")
+
+            growth_tips = await coach.generate_manager_growth_tips(day_iso)
+            if growth_tips:
+                await self._send_to_group_or_admin(growth_tips, **send_kwargs)
+                logger.info("[COACH] Konversiya tavsiyalari yuborildi.")
         except Exception as exc:
             logger.error("[COACH][DAILY] Error: %s", exc)
         self._mark_sent(key)

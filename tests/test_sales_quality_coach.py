@@ -174,6 +174,67 @@ async def test_playbook_suggestions_are_advisory_only(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_growth_tips_cover_every_eligible_manager_without_llm():
+    rows = [
+        _row("Sardor", 92, weaknesses=[]),
+        _row("Sardor", 88, weaknesses=[]),
+        _row("Aziz", 45, weaknesses=["Keyingi qadam kelishilmadi"]),
+        _row("Aziz", 35, weaknesses=["Keyingi qadam kelishilmadi", "Narx qat'iy aytildi"]),
+        _row("Malika", 60),  # 1 ta qo'ng'iroq — chiqarilmaydi
+    ]
+
+    class DB:
+        async def execute(self, sql, params):
+            return rows
+
+    coach = SalesQualityCoach(db=DB())  # gemini_client yo'q -> fallback
+    text = await coach.generate_manager_growth_tips(DAY)
+
+    assert "Sardor" in text
+    assert "Aziz" in text
+    assert "Malika" not in text
+    assert "Keyingi qadam kelishilmadi" in text
+
+
+@pytest.mark.asyncio
+async def test_growth_tips_none_when_no_eligible_manager():
+    rows = [_row("Sardor", 90)]  # faqat 1 ta
+
+    class DB:
+        async def execute(self, sql, params):
+            return rows
+
+    coach = SalesQualityCoach(db=DB())
+    assert await coach.generate_manager_growth_tips(DAY) is None
+
+
+@pytest.mark.asyncio
+async def test_growth_tips_use_llm_when_available(monkeypatch):
+    rows = [
+        _row("Sardor", 92, weaknesses=[]),
+        _row("Sardor", 88, weaknesses=[]),
+    ]
+
+    class DB:
+        async def execute(self, sql, params):
+            return rows
+
+    async def fake_generate(client, **kwargs):
+        assert "Sardor" in kwargs.get("contents")
+        return SimpleNamespace(text="👤 Sardor\n   • E'tirozni tezroq yop."), "gemini-1.5-pro"
+
+    monkeypatch.setattr(
+        "src.services.utils.gemini_fallback.generate_content_with_fallback",
+        fake_generate,
+    )
+
+    coach = SalesQualityCoach(db=DB(), gemini_client=SimpleNamespace())
+    text = await coach.generate_manager_growth_tips(DAY)
+
+    assert "E'tirozni tezroq yop" in text
+
+
+@pytest.mark.asyncio
 async def test_llm_failure_is_survivable(monkeypatch):
     class DB:
         async def execute(self, sql, params):

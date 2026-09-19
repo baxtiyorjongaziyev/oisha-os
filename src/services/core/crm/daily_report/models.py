@@ -22,6 +22,8 @@ class ManagerRow:
     won_amount: float = 0.0
     open_tasks: int = 0
     overdue_tasks: int = 0
+    calls_count: int = 0
+    calls_answered: int = 0
 
 
 @dataclass
@@ -54,7 +56,11 @@ class PeriodMetrics:
     tasks_overdue: int = 0
     leads_without_task: int = 0
 
+    calls_total: int = 0
+    calls_answered: int = 0
+
     managers: list = field(default_factory=list)
+    call_managers: list = field(default_factory=list)
 
     def recompute_derived(self) -> None:
         denom = self.won_count + self.lost_count
@@ -107,6 +113,7 @@ _DELTA_FIELDS = (
     "win_rate", "avg_won_deal",
     "new_contacts", "new_companies", "incoming_calls",
     "tasks_created", "tasks_completed", "tasks_open", "tasks_overdue", "leads_without_task",
+    "calls_total", "calls_answered",
 )
 
 

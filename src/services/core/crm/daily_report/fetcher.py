@@ -21,6 +21,16 @@ from src.services.core.crm.daily_report.models import (
 logger = logging.getLogger(__name__)
 
 
+def _call_answered(call: Dict[str, Any]) -> bool:
+    """Best-effort: AmoCRM call note counted answered if it has duration > 0."""
+    params = call.get("params") or {}
+    duration = params.get("duration") or call.get("duration") or 0
+    try:
+        return float(duration) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 class AmoFetcherMixin:
     """Handles AmoCRM leads, calls, notes, and metrics fetching."""
 
@@ -371,6 +381,8 @@ class AmoFetcherMixin:
         m.incoming_calls = len(calls)
         m.tasks_created = len(tasks_created)
         m.tasks_completed = len(tasks_done)
+        m.calls_total = len(calls)
+        m.calls_answered = sum(1 for c in calls if _call_answered(c))
 
         open_lead_ids = set()
         for l in leads_all:
@@ -401,6 +413,15 @@ class AmoFetcherMixin:
                 m.lost_count += 1
                 m.lost_amount += price
 
+        for c in calls:
+            uid = c.get("created_by") or c.get("responsible_user_id")
+            if not uid:
+                continue
+            row = mgr.setdefault(uid, ManagerRow(user_id=uid, name=user_names.get(uid, f"Manager #{uid}")))
+            row.calls_count += 1
+            if _call_answered(c):
+                row.calls_answered += 1
+
         leads_with_task = {
             t.get("entity_id")
             for t in tasks_all
@@ -424,6 +445,9 @@ class AmoFetcherMixin:
         m.leads_without_task = len(open_lead_ids - leads_with_task)
 
         m.managers = sorted(mgr.values(), key=lambda r: r.won_amount, reverse=True)[:5]
+        m.call_managers = sorted(
+            [r for r in mgr.values() if r.calls_count], key=lambda r: r.calls_count, reverse=True
+        )
         m.recompute_derived()
         return m
 
@@ -464,6 +488,11 @@ class AmoFetcherMixin:
 
         uids = {l.get("responsible_user_id") for l in leads_closed if l.get("responsible_user_id")}
         uids |= {t.get("responsible_user_id") for t in tasks_all if t.get("responsible_user_id")}
+        uids |= {
+            (c.get("created_by") or c.get("responsible_user_id"))
+            for c in calls
+            if c.get("created_by") or c.get("responsible_user_id")
+        }
         user_names = {}
         for uid in uids:
             try:
