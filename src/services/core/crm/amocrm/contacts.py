@@ -262,7 +262,7 @@ class AmoCRMContactsMixin:
                 c_url = f"{self.base_url}/api/v4/contacts/{contact_id}"
                 c_resp = requests.get(c_url, headers=self._get_headers(), timeout=30)
                 if c_resp.status_code == 200:
-                    fields = c_resp.json().get("custom_fields_values", [])
+                    fields = c_resp.json().get("custom_fields_values") or []
                     for field in fields:
                         if field.get("field_code") == "PHONE":
                             return field.get("values", [{}])[0].get("value")

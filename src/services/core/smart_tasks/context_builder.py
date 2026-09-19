@@ -107,7 +107,7 @@ class ContextBuilderMixin:
                         timeout=30,
                     )
                     if c_resp.status_code == 200:
-                        for cf in c_resp.json().get("custom_fields_values", []):
+                        for cf in c_resp.json().get("custom_fields_values") or []:
                             if cf.get("field_code") == "PHONE":
                                 for v in cf.get("values", []):
                                     phones.append(v.get("value", ""))

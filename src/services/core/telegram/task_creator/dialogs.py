@@ -37,7 +37,7 @@ class DialogResolverMixin:
         try:
             return await self.user_client.get_input_entity(phone_or_username), None
         except Exception as first_error:
-            logger.error("Exception handled in %s", __name__, exc_info=True)
+            logger.debug("[TELEGRAM_TASK] Direct entity resolution missed for %s: %s", phone_or_username, first_error)
             error_text = str(first_error).lower()
             if (
                 "flood" in error_text

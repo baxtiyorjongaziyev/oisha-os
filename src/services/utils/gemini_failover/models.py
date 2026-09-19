@@ -9,8 +9,13 @@ import time
 from typing import Any, Iterable, List, Optional
 
 DEFAULT_FALLBACK_MODELS = (
-    "gemini-2.5-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-flash-lite-latest",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
     "gemini-flash-latest",
+    "gemini-2.5-flash-lite",
 )
 
 _MODEL_QUOTA_BLOCKED_UNTIL: dict[str, float] = {}

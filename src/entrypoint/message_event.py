@@ -85,6 +85,8 @@ async def _handle_media_and_voice(event: Any, sender: Any, sender_name: str) -> 
     admin_bot = getattr(app_ctx, "admin_bot", None)
     surgical_integration = getattr(app_ctx, "surgical_integration", None)
     auto_reply_gate = getattr(app_ctx, "auto_reply_gate", None)
+    if auto_reply_gate is None:
+        from src.services.core import auto_reply_gate
 
     if event.is_private and not event.out and event.message.voice and voice_processor:
         from src.handlers.message_handler import process_voice
@@ -122,6 +124,8 @@ async def handle_new_message(event):
     folder_manager = getattr(app_ctx, "folder_manager", None)
     admin_bot = getattr(app_ctx, "admin_bot", None)
     auto_reply_gate = getattr(app_ctx, "auto_reply_gate", None)
+    if auto_reply_gate is None:
+        from src.services.core import auto_reply_gate
     surgical_integration = getattr(app_ctx, "surgical_integration", None)
     action_parser = getattr(app_ctx, "action_parser", None)
 
