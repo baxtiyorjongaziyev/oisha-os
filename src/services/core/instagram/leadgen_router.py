@@ -26,7 +26,7 @@ from src.services.core.instagram.leadgen_custom_fields import extract_lead_custo
 from src.services.core.instagram.leadgen_dedup import is_leadgen_processed, mark_leadgen_processed
 from src.services.core.instagram.leadgen_sheets import append_lead_to_sheet
 from src.services.core.instagram.leadgen_delivery import (
-    _ROUTING_LOCK, get_crm_checkpoint, save_crm_checkpoint,
+    _ROUTING_LOCK, get_crm_checkpoint, save_crm_checkpoint, record_delivery_status,
 )
 from src.services.core.marketing.ad_name_resolver import resolve_ad_name
 from src.services.core.marketing.attribution_store import save_attribution
@@ -378,12 +378,22 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
         mark_leadgen_processed(leadgen_id, lead_id=int(lead_id))
 
     form_title = str(merged_payload.get("form_name") or merged_payload.get("form_id") or "")
-    await asyncio.to_thread(append_lead_to_sheet, leadgen_id, int(lead_id) if lead_id else None, fields, form_title)
+    sheets_ok = await asyncio.to_thread(append_lead_to_sheet, leadgen_id, int(lead_id) if lead_id else None, fields, form_title)
 
-    logger.info("[META LEADGEN] Routed Facebook lead", leadgen_id=leadgen_id, lead_id=lead_id)
+    await asyncio.to_thread(
+        record_delivery_status,
+        leadgen_id,
+        int(lead_id) if lead_id else None,
+        bool(lead_id),
+        bool(sheets_ok),
+        bool(telegram_ok),
+    )
+
+    logger.info("[META LEADGEN] Routed Facebook lead", leadgen_id=leadgen_id, lead_id=lead_id, sheets_ok=bool(sheets_ok), tg_ok=bool(telegram_ok))
     return {
-        "ok": bool(lead_id) and telegram_ok,
+        "ok": bool(lead_id) and telegram_ok and bool(sheets_ok),
         "lead_id": lead_id,
         "leadgen_id": leadgen_id,
         "telegram_notified": telegram_ok,
+        "sheets_appended": bool(sheets_ok),
     }
