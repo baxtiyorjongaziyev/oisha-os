@@ -200,6 +200,88 @@ class SalesQualityCoach:
         return self.build_daily_report(rows, day_iso)
 
     # ------------------------------------------------------------------
+    # 1b) Har menejer uchun konversiya oshirish tavsiyasi (kunlik)
+    # ------------------------------------------------------------------
+
+    async def generate_manager_growth_tips(self, day_iso: str) -> Optional[str]:
+        """Kun ichida gaplashilgan suhbatlarni tahlil qilib, HAR bir menejerga
+        konversiyani oshirish uchun shaxsiy tavsiya beradi.
+
+        `build_daily_report` faqat eng yaxshi/eng past ikkitasiga to'xtaydi —
+        bu esa barcha (kamida MIN_CALLS_FOR_RANKING qo'ng'iroqli) menejerlarni
+        qamrab oladi. LLM yo'q bo'lsa, deterministik zaiflik ro'yxati bilan
+        qaytadi — hech qachon jim qolmaydi.
+        """
+        rows = await self.fetch_day_analyses(day_iso)
+        if not rows:
+            return None
+
+        by_manager: Dict[str, List[Any]] = defaultdict(list)
+        for row in rows:
+            name = str(_row_get(row, "manager_name") or "Noma'lum").strip() or "Noma'lum"
+            by_manager[name].append(row)
+
+        eligible = {
+            name: items for name, items in by_manager.items()
+            if len(items) >= MIN_CALLS_FOR_RANKING
+        }
+        if not eligible:
+            return None
+
+        per_manager: Dict[str, Dict[str, Any]] = {}
+        for name, items in eligible.items():
+            scores = [int(_row_get(r, "overall_score") or 0) for r in items]
+            per_manager[name] = {
+                "avg_score": sum(scores) / max(len(scores), 1),
+                "calls": len(items),
+                "weaknesses": self._top_items(items, "weaknesses", top=3),
+                "outcomes": [str(_row_get(r, "outcome") or "") for r in items],
+            }
+
+        client = self._get_gemini_client()
+        if client is None:
+            return self._build_growth_tips_fallback(day_iso, per_manager)
+
+        summary = "\n".join(
+            f"- {name}: o'rtacha {info['avg_score']:.0f}/100, {info['calls']} ta qo'ng'iroq, "
+            f"zaifliklar: {', '.join(info['weaknesses']) or 'aniqlanmagan'}"
+            for name, info in per_manager.items()
+        )
+        prompt = (
+            "Sen Jon Branding savdo murabbiyisan. Quyida bugungi baholangan "
+            "qo'ng'iroqlar bo'yicha HAR BIR menejerning natijasi berilgan.\n\n"
+            f"{rubric_prompt_uz()}\n"
+            "BUGUNGI MENEJERLAR:\n"
+            f"{summary}\n\n"
+            "VAZIFA: har bir menejer uchun ALOHIDA, KONVERSIYANI OSHIRISHGA "
+            "qaratilgan 1-2 ta aniq, amaliy tavsiya yoz (o'zbekcha).\n"
+            "Umumiy gap yozma — faqat shu menejerning zaifligiga tayanib yoz.\n"
+            "Format:\n"
+            "👤 <Ism>\n"
+            "   • <tavsiya>\n\n"
+            "Boshqa hech narsa qo'shma."
+        )
+        text = await self._llm_text(prompt, "growth_tips")
+        if not text:
+            return self._build_growth_tips_fallback(day_iso, per_manager)
+        return f"🎯 KONVERSIYANI OSHIRISH TAVSIYALARI — {day_iso}\n\n{text}"
+
+    @staticmethod
+    def _build_growth_tips_fallback(
+        day_iso: str, per_manager: Dict[str, Dict[str, Any]]
+    ) -> str:
+        lines = [f"🎯 KONVERSIYANI OSHIRISH TAVSIYALARI — {day_iso}", ""]
+        for name, info in sorted(per_manager.items(), key=lambda kv: kv[1]["avg_score"]):
+            lines.append(f"👤 {name} ({info['avg_score']:.0f}/100, {info['calls']} ta)")
+            if info["weaknesses"]:
+                for w in info["weaknesses"]:
+                    lines.append(f"   • {w} ustida ishlash kerak")
+            else:
+                lines.append("   • Zaiflik aniqlanmadi — shu ritmda davom etsin")
+            lines.append("")
+        return "\n".join(lines).rstrip()
+
+    # ------------------------------------------------------------------
     # 2) Ideal skript — eng yaxshi qo'ng'iroqlardan
     # ------------------------------------------------------------------
 

@@ -163,6 +163,8 @@ class FormatMixin:
             f"  Yangi kontaktlar: {m.new_contacts}{d(m.new_contacts, pv('new_contacts'))}",
             f"  Yangi kompaniyalar: {m.new_companies}",
             f"  Kiruvchi qo'ng'iroqlar: {m.incoming_calls}{d(m.incoming_calls, pv('incoming_calls'))}",
+            f"  Jami qo'ng'iroqlar: {m.calls_total}{d(m.calls_total, pv('calls_total'))}",
+            f"  Javob berilgan: {m.calls_answered}{d(m.calls_answered, pv('calls_answered'))}",
             "",
             "✅ ZADACHALAR",
             f"  Yaratilgan: {m.tasks_created}{d(m.tasks_created, pv('tasks_created'))}",
@@ -186,6 +188,13 @@ class FormatMixin:
                 lines.append(
                     f"     └ ochiq zadacha: {mr.open_tasks} | muddati o'tgan: {mr.overdue_tasks}"
                 )
+
+        call_rows = getattr(m, "call_managers", None) or []
+        if call_rows:
+            lines.append("")
+            lines.append("📞 QO'NG'IROQLAR (menejerlar bo'yicha)")
+            for mr in call_rows:
+                lines.append(f"  {mr.name} — {mr.calls_count} ta (javob: {mr.calls_answered})")
 
         links = self._period_links(ptype, m.period_start, m.period_end)
         lines += [
