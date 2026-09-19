@@ -224,6 +224,11 @@ class AppSettings(BaseSettings):
     CRM_SALES_REPORT_GROUP_ID: Optional[int] = -1003854308552   # Sotuv bo'limi guruhi (CRM davriy hisobotlar)
     CRM_SALES_REPORT_TOPIC_ID: Optional[int] = 115              # Hisobotlar topic
 
+    # Yangi sifatli lead aniqlanganda (HOT_LEAD/WARM_LEAD) ism/telefon/murojaat
+    # shu topicga yuboriladi (Sotuv bo'limi guruhi, "Yangi lead" topic).
+    NEW_LEAD_GROUP_ID: Optional[int] = -1003854308552
+    NEW_LEAD_TOPIC_ID: Optional[int] = 1020
+
     # Case Publisher & CMS Settings
     JONBRANDING_CHANNEL: str = "jonbranding"
     CMS_WEBHOOK_URL: Optional[str] = None
