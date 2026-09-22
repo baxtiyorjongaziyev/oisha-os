@@ -409,7 +409,15 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                     continue
 
                 media_id = str((value.get("media") or {}).get("id") or "")
-                post_caption = fetch_media_caption(media_id, access_token) if media_id else ""
+                if media_id:
+                    from src.services.core.instagram.video_analyzer import analyze_media_content
+                    # analyze_media_content fetches the caption itself and, for
+                    # VIDEO/REELS, downloads and has Gemini describe the actual
+                    # video content — so replies are grounded in what the video
+                    # really shows/says, not just the caption text.
+                    post_caption = await analyze_media_content(media_id, access_token)
+                else:
+                    post_caption = ""
 
                 from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
                 emoji_mirror = get_mirror_emoji_reply(comment_text)
