@@ -118,6 +118,12 @@ COMMENT_KEYWORD_AUTOMATIONS: Dict[str, str] = {
 }
 
 
+# Posted publicly under the comment (after the private DM is sent) so the
+# commenter — and others browsing the thread — know to check their inbox.
+# Contains no price/sensitive info, so it's safe to always auto-post.
+KEYWORD_AUTOMATION_PUBLIC_ACK = "Sizga DM'dan yozib qo'ydik! 📩 Xabarlaringizni tekshiring."
+
+
 def _match_comment_keyword_automation(comment_text: str) -> Optional[str]:
     """Returns the fixed DM template for the first matching keyword, or None."""
     lowered = (comment_text or "").lower()
@@ -382,6 +388,8 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 keyword_template = _match_comment_keyword_automation(comment_text)
                 if keyword_template:
                     sent = send_ig_private_reply(comment_id, keyword_template, access_token)
+                    if sent:
+                        reply_to_comment(comment_id, KEYWORD_AUTOMATION_PUBLIC_ACK, access_token)
                     if db:
                         await db.log_message(user_id_str, keyword_template, is_ai=False)
                     source = "Instagram Mention" if field in {"mentions", "mention"} else "Instagram Comment"
