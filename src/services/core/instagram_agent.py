@@ -13,7 +13,11 @@ import structlog
 
 from src.settings import settings
 from src.services.core.instagram.graph_client import InstagramGraphClient
-from src.services.core.instagram.backfill import backfill_unanswered_comments
+from src.services.core.instagram.backfill import (
+    backfill_unanswered_comments,
+    _contains_sensitive_terms,
+)
+from src.time_utils import get_local_now, is_quiet_hours
 from src.services.core.instagram.api_helpers import (
     send_ig_message_payload,
     like_comment,
@@ -369,8 +373,15 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 if db:
                     await db.log_message(user_id_str, clean_reply, is_ai=True)
 
-                reply_to_comment(comment_id, clean_reply, access_token)
-
                 source = "Instagram Mention" if field in {"mentions", "mention"} else "Instagram Comment"
+                if is_quiet_hours(get_local_now()) or _contains_sensitive_terms(comment_text):
+                    logger.warning(
+                        "[META] Auto-post skipped — quiet hours or sensitive terms, needs human review",
+                        comment_id=comment_id,
+                        commenter=commenter_name,
+                    )
+                else:
+                    reply_to_comment(comment_id, clean_reply, access_token)
+
                 notify_crm(source, commenter_name, commenter_id, comment_text, ai_reply)
 
