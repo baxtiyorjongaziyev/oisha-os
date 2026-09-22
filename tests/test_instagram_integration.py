@@ -308,8 +308,9 @@ async def test_process_instagram_webhook_comment_flow(
     mock_db.log_message.assert_any_call("ig_comment_user_888", "COMMENT: Narxi qancha?", is_ai=False)
     # 3. Outgoing log
     mock_db.log_message.assert_any_call("ig_comment_user_888", "Rahmat sharhingiz uchun! Narxlarimiz...", is_ai=True)
-    # 4. Reply to comment called
-    mock_reply_comment.assert_called_once_with("comm_999", "Rahmat sharhingiz uchun! Narxlarimiz...", ANY)
+    # 4. "Narx" (price) is a sensitive term — same policy as DMs: no
+    # public auto-post, only a draft goes to CRM for human review.
+    mock_reply_comment.assert_not_called()
     # 5. Notify CRM called
     mock_notify.assert_called_once_with("Instagram Comment", "anvar_brand", "user_888", "Narxi qancha?", "Rahmat sharhingiz uchun! Narxlarimiz...")
 
