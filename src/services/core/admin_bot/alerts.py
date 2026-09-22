@@ -1,4 +1,5 @@
 import os
+import time
 import structlog
 from telethon import Button
 from typing import TYPE_CHECKING
@@ -287,19 +288,29 @@ class AdminAlertsMixin:
             await wait_msg.edit(f"⚠️ Tahlil jarayonida xatolik: `{str(e)}`")
 
     async def send_draft_for_approval(self, user_id: int, name: str, draft: str):
-        """AI tomonidan tayyorlangan javobni avtomatik yuborish (tasdiqlashsiz)."""
+        """AI tomonidan tayyorlangan javobni ownerga tasdiq uchun yuboradi.
+
+        Mijozga hech narsa avtomatik yuborilmaydi — owner "Yuborish" tugmasini
+        bosgandan keyingina (admin_bot/handlers_callbacks.py: send_draft:)
+        haqiqiy xabar ketadi.
+        """
+        if not self.access_manager.owner_id:
+            logger.warning("[ADMIN_BOT] Draft yaratildi, lekin owner_id yo'q — yuborilmadi")
+            return
         try:
-            await self.user_client.send_message(user_id, draft)
-            logger.info("[ADMIN_BOT] Draft avtomatik yuborildi: lid=%s (%s)", user_id, name)
-            if self.access_manager.owner_id:
-                await self.bot_client.send_message(
-                    self.access_manager.owner_id,
-                    f"✅ Draft avtomatik yuborildi → {name} (ID: {user_id})",
-                )
+            draft_id = f"{user_id}_{int(time.time())}"
+            self.pending_drafts[draft_id] = draft
+            await self.bot_client.send_message(
+                self.access_manager.owner_id,
+                f"✍️ <b>AI draft javob tayyor</b> → {name} (ID: {user_id})\n\n{draft}",
+                parse_mode="html",
+                buttons=[
+                    [
+                        Button.inline("✅ Yuborish", f"send_draft:{draft_id}:{user_id}".encode()),
+                        Button.inline("❌ Rad etish", f"reject_draft:{draft_id}".encode()),
+                    ]
+                ],
+            )
+            logger.info("[ADMIN_BOT] Draft owner tasdiqiga yuborildi: lid=%s (%s)", user_id, name)
         except Exception as e:
-            logger.error("[ADMIN_BOT] Draft yuborishda xatolik: %s", e)
-            if self.access_manager.owner_id:
-                await self.bot_client.send_message(
-                    self.access_manager.owner_id,
-                    f"❌ Draft yuborib bo'lmadi → {name}: {e}",
-                )
+            logger.error("[ADMIN_BOT] Draft tasdiqqa yuborishda xatolik: %s", e)

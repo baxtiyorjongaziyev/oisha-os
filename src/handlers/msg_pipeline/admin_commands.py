@@ -169,6 +169,23 @@ async def process_admin_commands(
     """Admin commands processor."""
     if not (event.is_private and event.message.text and event.message.text.startswith("/")):
         return False
+
+    from src import config
+
+    sender_id = getattr(event, "sender_id", None)
+    owner_id = getattr(config, "OWNER_ID", None)
+    whitelist_ids = getattr(config, "WHITELIST_IDS", None) or []
+    is_authorized = sender_id is not None and (
+        sender_id == owner_id or sender_id in whitelist_ids
+    )
+    if not is_authorized:
+        logger.warning(
+            "[ADMIN_CMD] Ruxsatsiz foydalanuvchi admin buyruq yubordi: sender_id=%s text=%r",
+            sender_id,
+            event.message.text[:64],
+        )
+        return False
+
     text = event.message.text.strip()
     if await _handle_voice_commands(event, text):
         return True

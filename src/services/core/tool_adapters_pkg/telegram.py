@@ -10,6 +10,7 @@ from src.services.core.telegram.telegram_ai_features import (
     TelegramBotAPI10Client,
 )
 from src.services.core.tool_registry import ToolResult
+from src.time_utils import get_local_now, is_quiet_hours
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,21 @@ class TelegramNotificationAdapter(TelegramAPI10Mixin):
         *,
         parse_mode: Optional[str] = None,
         disable_web_page_preview: bool = False,
+        allow_in_quiet_hours: bool = False,
     ) -> ToolResult:
+        if messages and not allow_in_quiet_hours and is_quiet_hours(get_local_now()):
+            logger.warning(
+                "[TELEGRAM TOOL] DM send blocked — quiet hours (23:00-07:00), %s message(s) not sent",
+                len(messages),
+            )
+            return ToolResult(
+                tool_name="telegram.direct_messages",
+                success=False,
+                status="blocked",
+                sent_count=0,
+                reason="quiet_hours_block",
+                metadata={"attempted": len(messages)},
+            )
         delivered_to: List[int] = []
         failed_targets: List[Dict[str, Any]] = []
         direct_message_ids: List[int] = []
@@ -171,8 +186,18 @@ class TelegramNotificationAdapter(TelegramAPI10Mixin):
         draft_text: str = "",
         thread_id: Optional[int] = None,
         parse_mode: Optional[str] = None,
+        allow_in_quiet_hours: bool = False,
     ) -> ToolResult:
         """Show a temporary Bot API 10.0 draft, then persist the final message."""
+        if not allow_in_quiet_hours and is_quiet_hours(get_local_now()):
+            logger.warning("[TELEGRAM TOOL] Streaming send blocked — quiet hours (23:00-07:00)")
+            return ToolResult(
+                tool_name="telegram.streaming_message",
+                success=False,
+                status="blocked",
+                reason="quiet_hours_block",
+                metadata={"chat_id": chat_id, "thread_id": thread_id, "draft_id": draft_id},
+            )
         try:
             await self.bot_api10.send_message_draft(
                 chat_id,

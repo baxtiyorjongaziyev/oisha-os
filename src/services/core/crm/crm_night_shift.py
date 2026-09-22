@@ -114,27 +114,20 @@ class CRMNightShift:
             if not sources:
                 continue
 
-            # Kontaktlarni birlashtrish
+            # Kontaktlarni birlashtirish — bu qaytarib bo'lmaydigan operatsiya
+            # (source kontaktlar o'chadi), shuning uchun avtomatik bajarilmaydi.
+            # Faqat egaga ko'rib chiqish uchun belgilab qo'yamiz.
             source_contact_ids = list(set(e["contact_id"] for e in sources))
-            success = self.amocrm.merge_contacts(target["contact_id"], source_contact_ids)
+            for entry in entries:
+                await self.amocrm.add_lead_tag(entry["lead_id"], "POTENTIAL_DUPLICATE")
+            merged_count += 1
+            logger.info(
+                f"👸 [DUPLICATE_FLAGGED] {phone}: {len(source_contact_ids)} kontakt "
+                f"target={target['contact_id']} bilan dublikat deb belgilandi "
+                f"(qo'lda tasdiqlash kerak — avtomatik merge o'chirildi)"
+            )
 
-            if success:
-                merged_count += 1
-                # Source leadlarni target kontaktga ko'chirish
-                for entry in sources:
-                    if entry["lead_id"] != target["lead_id"]:
-                        self.amocrm.move_lead_to_contact(entry["lead_id"], target["contact_id"])
-
-                logger.info(
-                    f"👸 [MERGE] {phone}: {len(source_contact_ids)} kontakt "
-                    f"-> {target['contact_id']} ga birlashtirildi"
-                )
-            else:
-                # Merge API ishlamasa, tag qo'yib qo'yamiz
-                for entry in entries:
-                    await self.amocrm.add_lead_tag(entry["lead_id"], "POTENTIAL_DUPLICATE")
-
-        logger.info(f"👸 [NIGHT SHIFT] Merged {merged_count} duplicate groups.")
+        logger.info(f"👸 [NIGHT SHIFT] Flagged {merged_count} duplicate groups for review.")
         return merged_count
 
     def _get_contact_id_from_lead(self, lead: dict) -> int | None:

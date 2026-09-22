@@ -92,15 +92,14 @@ try:
 except Exception as exc:
     logger.warning("[MCP] Hisobchi MCP router not mounted: %s", exc)
 
-# Telegram SSE MCP Server
-try:
-    import sys
-    sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
-    from oisha_mcp_server import mcp as telegram_mcp_instance
-    app.mount("/telegram-mcp", telegram_mcp_instance.sse_app(mount_path="/telegram-mcp"))
-    logger.info("[MCP] Telegram SSE MCP server mounted at /telegram-mcp")
-except Exception as exc:
-    logger.warning("[MCP] Failed to mount Telegram SSE MCP: %s", exc)
+# NOTE: the old "/telegram-mcp" SSE mount (scripts/oisha_mcp_server.py) was
+# removed from here. It called Telegram/AmoCRM mutation tools directly
+# (bearer-secret authenticated) without going through the owner-approval
+# gateway (services/core/telegram_mcp/, ports 8765/8766) that CLAUDE.md and
+# docs/telegram-mcp-chatgpt.md document as the only sanctioned integration
+# path — the docs themselves warn against using "/telegram-mcp/sse" directly.
+# scripts/oisha_mcp_server.py itself is unchanged and still usable in its
+# original stdio mode (e.g. for a local Claude Desktop MCP config).
 
 
 # Include route modules
