@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from src.database import Database
+from src.services.core.agent_policy import AgentPolicyEngine
 from src.time_utils import get_local_now
 import logging
 logger = logging.getLogger(__name__)
@@ -35,8 +36,9 @@ class AgentTaskResult:
 class MinimalAgentLoop:
     """Roadmapdagi Planner -> Executor -> Verifier minimal sikli."""
 
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, policy_engine: Optional[AgentPolicyEngine] = None):
         self.db = db
+        self.policy_engine = policy_engine or AgentPolicyEngine(db)
 
     def plan_task(self, task: AgentTask) -> Dict[str, Any]:
         steps = task.planner_notes or [
@@ -58,6 +60,35 @@ class MinimalAgentLoop:
         executor: ExecutorFn,
         verifier: Optional[VerifierFn] = None,
     ) -> AgentTaskResult:
+        decision = await self.policy_engine.evaluate_action(task)
+        await self._log(task, "agent_policy", decision.to_payload(), success=decision.allowed)
+        if not decision.allowed:
+            plan = self.plan_task(task)
+            execution = {
+                "task_id": task.task_id,
+                "success": False,
+                "reason": decision.reason,
+                "policy": decision.to_payload(),
+                "blocked_at": get_local_now().isoformat(),
+            }
+            verification = {
+                "task_id": task.task_id,
+                "success": False,
+                "reason": decision.reason,
+                "verification_mode": "policy_gate",
+                "verified_at": get_local_now().isoformat(),
+            }
+            await self._log(task, "agent_execute", execution, success=False)
+            await self._log(task, "agent_verify", verification, success=False)
+            return AgentTaskResult(
+                task_id=task.task_id,
+                success=False,
+                plan=plan,
+                execution=execution,
+                verification=verification,
+                finished_at=get_local_now().isoformat(),
+            )
+
         plan = self.plan_task(task)
         await self._log(task, "agent_plan", plan, success=True)
 
