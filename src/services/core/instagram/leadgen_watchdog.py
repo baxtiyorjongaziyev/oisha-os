@@ -29,9 +29,10 @@ async def retry_pending_leadgen_deliveries() -> int:
         build_telegram_message,
         _fetch_leadgen_payload,
         flatten_field_data,
+        _pick,
         _pick_name,
         _pick_phone,
-        _pick_email,
+        EMAIL_KEYS,
         _amocrm_instance,
     )
     from src.services.core.instagram.leadgen_sheets import append_lead_to_sheet
@@ -57,7 +58,7 @@ async def retry_pending_leadgen_deliveries() -> int:
         fields = flatten_field_data(payload.get("field_data") or [])
         name = _pick_name(fields) or "Mijoz"
         phone = _pick_phone(fields)
-        email = _pick_email(fields)
+        email = _pick(fields, EMAIL_KEYS)
         form_name = str(payload.get("form_name") or payload.get("form_id") or "")
 
         # 1. Retry AmoCRM
