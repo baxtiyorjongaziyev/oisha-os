@@ -76,6 +76,38 @@ async def read_table(table_name: str) -> list[dict]:
         return []
 
 
+_TITLE_FIELDS = ("Nomi", "Nom", "Name", "Kategoriya", "Kategoriya nomi")
+
+
+def record_title(fields: dict) -> str:
+    """Yozuvning ko'rinadigan nomi — ma'lum nom maydonlari, bo'lmasa birinchi matn."""
+    for key in _TITLE_FIELDS:
+        val = fields.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    for val in fields.values():
+        if isinstance(val, str) and val.strip() and not val.startswith("rec"):
+            return val.strip()
+    return ""
+
+
+async def read_name_map(*table_names: str) -> dict[str, str]:
+    """Linked-record ID -> nom lug'ati. Birinchi mavjud jadval ishlatiladi."""
+    for name in table_names:
+        records = await read_table(name)
+        if not records:
+            continue
+        out = {}
+        for r in records:
+            title = record_title(r.get("fields", {}) or {})
+            if r.get("id") and title:
+                out[r["id"]] = title
+        if out:
+            return out
+    logger.warning("[MOLIYA] Nom lug'ati topilmadi: %s", ", ".join(table_names))
+    return {}
+
+
 async def send(text: str, topic_attr: str) -> bool:
     """Moliya guruhining kerakli topikiga yuborish.
 
@@ -117,17 +149,47 @@ async def send(text: str, topic_attr: str) -> bool:
         return False
 
 
-async def once_per_day(job_key: str, day: str) -> bool:
-    """Kuniga bir marta ishlashini kafolatlash (restart'dan keyin ham)."""
-    try:
-        from src import db
+_ran_in_memory: set[tuple[str, str]] = set()
 
-        if await db.is_job_run(job_key, day):
-            return False
-        await db.mark_job_run(job_key, day)
-        return True
+
+async def once_per_day(job_key: str, day: str) -> bool:
+    """Kuniga bir marta ishlashini kafolatlash (restart'dan keyin ham).
+
+    DB ishlamasa xotiradagi to'plam fallback bo'ladi — shu jarayon ichida
+    takror yuborilmaydi.
+    """
+    key = (job_key, day)
+    if key in _ran_in_memory:
+        return False
+    _ran_in_memory.add(key)
+    try:
+        from src.db import get_db
+
+        return await get_db().claim_job_run(job_key, day)
     except Exception:
-        # DB ishlamasa ham hisobot yuborilsin — takror kelishi mumkin, lekin
-        # butunlay yo'qolganidan ko'ra yaxshi.
-        logger.warning("[MOLIYA] job dedup ishlamadi (%s)", job_key, exc_info=True)
+        logger.warning("[MOLIYA] job dedup DB ishlamadi (%s)", job_key, exc_info=True)
         return True
+
+
+async def release_day(job_key: str, day: str) -> None:
+    """Yuborish muvaffaqiyatsiz bo'lsa claim'ni bo'shatish — keyingi sikl qayta urinadi."""
+    _ran_in_memory.discard((job_key, day))
+    try:
+        from src.db import get_db
+
+        await get_db().release_job_run(job_key, day)
+    except Exception:
+        logger.warning("[MOLIYA] job claim bo'shatilmadi (%s)", job_key, exc_info=True)
+
+
+async def run_once_per_day(job_key: str, day: str, runner) -> None:
+    """Claim -> runner; runner False qaytarsa yoki yiqilsa claim bo'shatiladi."""
+    if not await once_per_day(job_key, day):
+        return
+    ok = False
+    try:
+        ok = bool(await runner())
+    finally:
+        if not ok:
+            logger.warning("[MOLIYA] %s yuborilmadi — qayta urinish uchun bo'shatildi", job_key)
+            await release_day(job_key, day)
