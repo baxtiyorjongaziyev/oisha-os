@@ -169,3 +169,27 @@ async def once_per_day(job_key: str, day: str) -> bool:
     except Exception:
         logger.warning("[MOLIYA] job dedup DB ishlamadi (%s)", job_key, exc_info=True)
         return True
+
+
+async def release_day(job_key: str, day: str) -> None:
+    """Yuborish muvaffaqiyatsiz bo'lsa claim'ni bo'shatish — keyingi sikl qayta urinadi."""
+    _ran_in_memory.discard((job_key, day))
+    try:
+        from src.db import get_db
+
+        await get_db().release_job_run(job_key, day)
+    except Exception:
+        logger.warning("[MOLIYA] job claim bo'shatilmadi (%s)", job_key, exc_info=True)
+
+
+async def run_once_per_day(job_key: str, day: str, runner) -> None:
+    """Claim -> runner; runner False qaytarsa yoki yiqilsa claim bo'shatiladi."""
+    if not await once_per_day(job_key, day):
+        return
+    ok = False
+    try:
+        ok = bool(await runner())
+    finally:
+        if not ok:
+            logger.warning("[MOLIYA] %s yuborilmadi — qayta urinish uchun bo'shatildi", job_key)
+            await release_day(job_key, day)
