@@ -12,7 +12,7 @@ import logging
 
 from src.schedulers.moliya.balans import run_balans_eslatmasi, run_balans_report
 from src.schedulers.moliya.cashflow import run_cashflow_report
-from src.schedulers.moliya.helpers import once_per_day
+from src.schedulers.moliya.helpers import run_once_per_day
 from src.schedulers.moliya.pnl import run_pnl_report
 from src.schedulers.moliya.qarzdorlik import run_qarzdorlik_report
 
@@ -33,28 +33,23 @@ async def moliya_hisobotlari_loop() -> None:
 
             # Qarzdorlik — dushanba 09:00
             if now.weekday() == 0 and now.hour == 9 and now.minute < 5:
-                if await once_per_day("moliya_qarzdorlik", day):
-                    await run_qarzdorlik_report()
+                await run_once_per_day("moliya_qarzdorlik", day, run_qarzdorlik_report)
 
             # Balans — har kuni 09:00
             if now.hour == 9 and now.minute < 5:
-                if await once_per_day("moliya_balans", day):
-                    await run_balans_report()
+                await run_once_per_day("moliya_balans", day, run_balans_report)
 
             # P&L — har oyning 1-sanasi 09:00, o'tgan oy hisoboti
             if now.day == 1 and now.hour == 9 and now.minute < 5:
-                if await once_per_day("moliya_pnl", day):
-                    await run_pnl_report(now)
+                await run_once_per_day("moliya_pnl", day, lambda: run_pnl_report(now))
 
             # Cashflow — har kuni 19:00
             if now.hour == 19 and now.minute < 5:
-                if await once_per_day("moliya_cashflow", day):
-                    await run_cashflow_report(now)
+                await run_once_per_day("moliya_cashflow", day, lambda: run_cashflow_report(now))
 
             # Kunlik balans eslatmasi — har kuni 20:00
             if now.hour == 20 and now.minute < 5:
-                if await once_per_day("moliya_balans_eslatma", day):
-                    await run_balans_eslatmasi()
+                await run_once_per_day("moliya_balans_eslatma", day, run_balans_eslatmasi)
 
         except Exception:
             logger.error("[MOLIYA] Sikl xatosi", exc_info=True)
