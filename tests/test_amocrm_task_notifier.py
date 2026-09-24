@@ -45,7 +45,7 @@ def test_format_task_notification_due():
     assert "+998901234567" in msg
     assert "Baxtiyorjon Gaziyev" in msg
     assert "Aloqaga chiqib uchrashuv belgilash" in msg
-    assert "1. PRESALES ➔ Aloqaga chiqildi" in msg
+    assert "Sotuv ➔ Aloqa" in msg
     assert "Brending" in msg
     assert "Tez Natija (TN5)" in msg
     assert "15 000 000" in msg

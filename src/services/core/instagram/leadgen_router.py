@@ -15,8 +15,7 @@ from src.services.core.crm.amocrm_pipeline_config import (
     UTC_NEW_STATUS_ID,
     TARGET_LEADS_INHOUSE_PIPELINE_ID,
     TARGET_LEADS_INHOUSE_NEW_STATUS_ID,
-    TARGET_LEADS_PIPELINE_ID,
-    TARGET_LEADS_FIRST_CONTACT_STATUS_ID,
+    TARGET_LEAD_TAG,
 )
 from src.services.core.instagram.graph_client import InstagramGraphClient
 from src.services.core.instagram.leadgen_formatter import (
@@ -261,7 +260,7 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
         target_pipeline_id = TARGET_LEADS_INHOUSE_PIPELINE_ID
         target_status_id = TARGET_LEADS_INHOUSE_NEW_STATUS_ID
         dest_tag = "inhouse"
-        dest_label = "🏠 Inhouse (Jon Branding)"
+        dest_label = "🏠 Inhouse (Jon Branding) → Sotuv"
     else:
         target_pipeline_id = UTC_PIPELINE_ID
         target_status_id = UTC_NEW_STATUS_ID
@@ -269,8 +268,15 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
         dest_label = "🌐 UTC Outsource"
 
     checkpoint = None if force else await asyncio.to_thread(get_crm_checkpoint, leadgen_id)
+    # Mavjud aktiv bitim bo'lsa (masalan Muzokarada), uni "Yangi"ga qaytarmaymiz — faqat note/teg qo'shiladi.
+    existing_lead = None
+    if not checkpoint and phone:
+        existing_lead = await asyncio.to_thread(amocrm.find_active_lead_by_phone, phone)
     if checkpoint:
         lead_id = checkpoint
+    elif existing_lead:
+        lead_id = existing_lead.get("id")
+        await asyncio.to_thread(amocrm.add_lead_note, int(lead_id), note)
     elif phone:
         lead_id = await amocrm.ensure_lead(
             name=deal_name,
@@ -285,7 +291,7 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
             name=deal_name,
             pipeline_id=target_pipeline_id,
             status_id=target_status_id,
-            tags=["Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}"],
+            tags=[TARGET_LEAD_TAG, "Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}"],
             note=note,
             custom_fields=custom_fields,
         )
@@ -306,12 +312,15 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
 
     if not checkpoint:
         await asyncio.to_thread(save_crm_checkpoint, leadgen_id, int(lead_id), destination=destination)
-        await amocrm.update_lead_status(
-            int(lead_id),
-            target_status_id,
-            pipeline_id=target_pipeline_id,
-        )
-        tags = ["Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}"]
+        if not existing_lead:
+            await amocrm.update_lead_status(
+                int(lead_id),
+                target_status_id,
+                pipeline_id=target_pipeline_id,
+            )
+        tags = [TARGET_LEAD_TAG, "Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}"]
+        if existing_lead:
+            tags.append("qayta_murojaat")
         if ad_name:
             tags.append(f"reklama:{ad_name.lower()}")
         for t in tags:
