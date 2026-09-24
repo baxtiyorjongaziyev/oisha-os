@@ -105,3 +105,9 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         asyncio.create_task(marketing_attribution_loop(), name="marketing_attribution_loop")
     except ImportError as exc:
         logger.warning("[ADS ATTRIBUTION] scheduler unavailable: %s", exc)
+
+    try:
+        from src.services.core.finance.income_supervisor import income_supervisor_loop
+        asyncio.create_task(income_supervisor_loop(), name="income_supervisor_loop")
+    except ImportError as exc:
+        logger.warning("[INCOME SUPERVISOR] scheduler unavailable: %s", exc)
