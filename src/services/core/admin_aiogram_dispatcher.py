@@ -23,6 +23,7 @@ from src.services.core.dispatcher import (
     handle_aiogram_sparring,
     handle_aiogram_team_capacity,
     handle_aiogram_vps_status,
+    handle_aiogram_kreativlar,
     maybe_build_admin_aiogram_dispatcher,
     register_existing_contact_signal_callbacks,
     register_hisobchi_aiogram_callbacks,
@@ -52,6 +53,7 @@ __all__ = [
     "handle_aiogram_psychological_coach",
     "handle_aiogram_sparring",
     "handle_aiogram_fear_message",
+    "handle_aiogram_kreativlar",
     "build_admin_aiogram_dispatcher",
     "maybe_build_admin_aiogram_dispatcher",
 ]
