@@ -285,7 +285,7 @@ pyjwt==2.13.0
     #   mcp
 pymsgbox==2.0.1
     # via pyautogui
-pyparsing==3.3.2
+pyparsing==3.3.3
     # via httplib2
 pyperclip==1.11.0
     # via
