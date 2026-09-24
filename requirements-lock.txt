@@ -113,7 +113,7 @@ google-auth-oauthlib==1.4.1
     # via
     #   -r requirements.txt
     #   gspread
-google-genai==2.22.0
+google-genai==2.24.0
     # via -r requirements.txt
 googleapis-common-protos==1.75.3
     # via
