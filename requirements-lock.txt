@@ -89,7 +89,7 @@ frozenlist==1.8.0
     #   aiosignal
 google-analytics-data==0.23.0
     # via -r requirements.txt
-google-api-core==2.36.0
+google-api-core==2.38.0
     # via
     #   google-analytics-data
     #   google-api-python-client
