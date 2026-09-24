@@ -85,10 +85,6 @@ async def retry_pending_leadgen_deliveries() -> int:
         _pick,
         _pick_name,
         _pick_phone,
-<<<<<<< Updated upstream
-        EMAIL_KEYS,
-=======
->>>>>>> Stashed changes
         _amocrm_instance,
     )
     from src.services.core.instagram.leadgen_sheets import append_lead_to_sheet
