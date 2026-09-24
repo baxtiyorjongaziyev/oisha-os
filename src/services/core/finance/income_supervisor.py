@@ -117,11 +117,11 @@ def _send_tg_message(text: str, chat_id: int, topic_id: Optional[int] = None) ->
         return False
 
 
-def _dispatch_supervisor_alert(text: str) -> None:
+def _dispatch_supervisor_alert(text: str) -> bool:
     """Send notification to Sales report topic (115) and Finance topic if configured."""
     sales_group_id = getattr(settings, "CRM_SALES_REPORT_GROUP_ID", None) or -1003854308552
     sales_topic_id = getattr(settings, "CRM_SALES_REPORT_TOPIC_ID", None) or 115
-    _send_tg_message(text, sales_group_id, sales_topic_id)
+    return _send_tg_message(text, sales_group_id, sales_topic_id)
 
 
 def extract_phone_numbers(text: str) -> List[str]:
@@ -151,6 +151,17 @@ def extract_brand_or_client(text: str) -> List[str]:
     return queries
 
 
+def _fetch_project_record(record_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch one Loyihalar record by ID via the shared Airtable client."""
+    from src.services.core.airtable_sync import AirtableSync
+
+    proj_sync = AirtableSync(table_name="Loyihalar")
+    response = proj_sync._request("GET", f"{proj_sync.endpoint}/{record_id}")
+    if response is None or response.status_code != 200:
+        return None
+    return response.json()
+
+
 async def resolve_seller_for_income(
     record: Dict[str, Any],
     airtable_sync: Any = None,
@@ -166,7 +177,7 @@ async def resolve_seller_for_income(
     if project_links and airtable_sync:
         project_id = project_links[0]
         try:
-            proj = await asyncio.to_thread(airtable_sync.get_project, project_id)
+            proj = await asyncio.to_thread(_fetch_project_record, project_id)
             if proj:
                 p_fields = proj.get("fields", {}) or {}
                 p_seller = p_fields.get("Sotuvchi") or []
@@ -234,6 +245,88 @@ async def resolve_seller_for_income(
     return None
 
 
+def _select_name(value: Any) -> str:
+    if isinstance(value, dict):
+        value = value.get("name")
+    return (value or "").strip()
+
+
+def _is_unassigned_income(record: Dict[str, Any]) -> bool:
+    """Post-September, non-cancelled Kirim with no seller yet."""
+    fields = record.get("fields", {}) or {}
+    sana = str(fields.get("Sana") or "").strip()
+    if sana and sana < SEPTEMBER_START_DATE:
+        return False
+    if _select_name(fields.get("Holat")) == "Bekor qilingan":
+        return False
+    return _select_name(fields.get("Turi")) == "Kirim" and not fields.get("Sotuvchi")
+
+
+def _resolved_message(fields: Dict[str, Any], resolution: Dict[str, Any]) -> str:
+    trx_title = fields.get("Tranzaksiya") or "Nomsiz kirim"
+    summa = fields.get("Summa UZS") or fields.get("Summa") or 0
+    valyuta = fields.get("Valyuta") or "UZS"
+    izoh = (fields.get("Izoh") or "").strip()
+    seller = JAMOA_SELLER_INFO.get(resolution["seller_id"], {"name": "Sotuvchi", "handle": ""})
+    patent_extra = ""
+    if "patent" in (trx_title + " " + izoh).lower() and summa > 5_000_000:
+        patent_extra = " <i>(5 mln so'mi xizmat haqi hisoblanadi, qolgani davlat boji)</i>"
+    return (
+        "🟢 <b>[OISHA AI NAZORATCHI] Kirim sotuvchisi aniqlandi:</b>\n\n"
+        f"💰 <b>Summa:</b> {summa:,.0f} {valyuta}{patent_extra}\n"
+        f"📝 <b>Tranzaksiya:</b> {trx_title}\n"
+        f"👤 <b>Sotuvchi:</b> {seller['name']} {seller['handle']}\n"
+        f"🔍 <b>Manba:</b> {resolution['source']}"
+    )
+
+
+def _unresolved_message(fields: Dict[str, Any]) -> str:
+    trx_title = fields.get("Tranzaksiya") or "Nomsiz kirim"
+    summa = fields.get("Summa UZS") or fields.get("Summa") or 0
+    valyuta = fields.get("Valyuta") or "UZS"
+    izoh = (fields.get("Izoh") or "").strip()
+    snippet = (izoh[:150] + ("..." if len(izoh) > 150 else "")) if izoh else "Izoh yo'q"
+    return (
+        "⚠️ <b>[OISHA AI NAZORATCHI] Diqqat: Kirim bo'yicha sotuvchi aniqlanmadi!</b>\n\n"
+        f"💰 <b>Summa:</b> {summa:,.0f} {valyuta}\n"
+        f"📝 <b>Tranzaksiya:</b> {trx_title}\n"
+        f"📋 <b>Izoh:</b> <i>{snippet}</i>\n\n"
+        "❓ <i>Ushbu kirimni qaysi sotuvchi amalga oshirgan? Iltimos, Airtable'da 'Sotuvchi' ustuniga belgilang.</i>"
+    )
+
+
+async def _apply_resolution(at_sync: Any, record: Dict[str, Any], resolution: Dict[str, Any], notify: bool) -> bool:
+    """Write seller to Airtable; announce only after a successful write."""
+    rec_id = record.get("id")
+    fields = record.get("fields", {}) or {}
+    try:
+        updated = await asyncio.to_thread(
+            at_sync.update_project_fields, rec_id, {"Sotuvchi": [resolution["seller_id"]]}
+        )
+    except Exception as exc:
+        logger.error("[SUPERVISOR] Failed to update Airtable for %s: %s", rec_id, exc)
+        return False
+    if not updated:
+        # Record stays unassigned; announcing would repeat every cycle.
+        logger.error("[SUPERVISOR] Airtable update failed for %s", rec_id)
+        return False
+    logger.info("[SUPERVISOR] Resolved seller for %s (%s)", rec_id, resolution["source"])
+    if notify and not _dispatch_supervisor_alert(_resolved_message(fields, resolution)):
+        logger.warning("[SUPERVISOR] Resolved alert for %s not delivered", rec_id)
+    return True
+
+
+def _alert_unresolved_once(record: Dict[str, Any], notify: bool) -> None:
+    """Alert once per record; mark as alerted only after Telegram accepts it."""
+    rec_id = record.get("id")
+    alerted = _load_alerted_ids()
+    if not notify or rec_id in alerted:
+        return
+    if _dispatch_supervisor_alert(_unresolved_message(record.get("fields", {}) or {})):
+        alerted.add(rec_id)
+        _save_alerted_ids()
+
+
 async def supervise_recent_incomes(
     airtable_sync: Any = None,
     amocrm_sync: Any = None,
@@ -245,91 +338,22 @@ async def supervise_recent_incomes(
 
     at_sync = airtable_sync or AirtableSync(table_name="Tranzaksiyalar")
     crm_sync = amocrm_sync or AmoCRMSync()
-
     try:
         raw_records = await asyncio.to_thread(at_sync.get_transactions, force_refresh=True)
-        records = []
-        for r in raw_records:
-            r_fields = r.get("fields", {}) or {}
-            turi = r_fields.get("Turi")
-            if isinstance(turi, dict):
-                turi = turi.get("name")
-            sana = str(r_fields.get("Sana") or "").strip()
-            if sana and sana < SEPTEMBER_START_DATE:
-                continue
-            if (turi or "").strip() == "Kirim" and not r_fields.get("Sotuvchi"):
-                records.append(r)
     except Exception as exc:
         logger.error("[SUPERVISOR] Failed to query unassigned incomes: %s", exc)
         return {"checked": 0, "resolved": 0, "unresolved": 0}
 
+    records = [r for r in raw_records if _is_unassigned_income(r)]
     stats = {"checked": len(records), "resolved": 0, "unresolved": 0}
     for record in records:
-        rec_id = record.get("id")
-        fields = record.get("fields", {}) or {}
-        trx_title = fields.get("Tranzaksiya") or "Nomsiz kirim"
-        summa = fields.get("Summa UZS") or fields.get("Summa") or 0
-        valyuta = fields.get("Valyuta") or "UZS"
-        izoh = (fields.get("Izoh") or "").strip()
-        project_links = fields.get("Loyiha") or []
-
         resolution = await resolve_seller_for_income(record, airtable_sync=at_sync, amocrm_sync=crm_sync)
         if resolution and resolution.get("seller_id"):
-            seller_id = resolution["seller_id"]
-            seller_info = JAMOA_SELLER_INFO.get(seller_id, {"name": "Sotuvchi", "handle": ""})
-            s_name = seller_info["name"]
-            s_handle = seller_info["handle"]
-
-            # Update Tranzaksiyalar record
-            try:
-                updated = await asyncio.to_thread(
-                    at_sync.update_project_fields, rec_id, {"Sotuvchi": [seller_id]}
-                )
-                if not updated:
-                    # Airtable rejected the write: the record stays unassigned and
-                    # would be "resolved" + announced again every cycle. Skip the alert.
-                    logger.error("[SUPERVISOR] Airtable update failed for %s (%s)", rec_id, trx_title)
-                    continue
-                # If project was linked and missing seller, update it too
-                if project_links:
-                    proj_sync = AirtableSync(table_name="Loyihalar")
-                    await asyncio.to_thread(proj_sync.update_project_fields, project_links[0], {"Sotuvchi": [seller_id]})
-
+            if await _apply_resolution(at_sync, record, resolution, notify_telegram):
                 stats["resolved"] += 1
-                logger.info("[SUPERVISOR] Resolved seller for %s -> %s (%s)", trx_title, s_name, resolution["source"])
-
-                patent_extra = ""
-                if "patent" in (trx_title + " " + izoh).lower() and summa > 5_000_000:
-                    patent_extra = " <i>(5 mln so'mi xizmat haqi hisoblanadi, qolgani davlat boji)</i>"
-
-                if notify_telegram:
-                    msg = (
-                        "🟢 <b>[OISHA AI NAZORATCHI] Kirim sotuvchisi aniqlandi:</b>\n\n"
-                        f"💰 <b>Summa:</b> {summa:,.0f} {valyuta}{patent_extra}\n"
-                        f"📝 <b>Tranzaksiya:</b> {trx_title}\n"
-                        f"👤 <b>Sotuvchi:</b> {s_name} {s_handle}\n"
-                        f"🔍 <b>Manba:</b> {resolution['source']}"
-                    )
-                    _dispatch_supervisor_alert(msg)
-            except Exception as exc:
-                logger.error("[SUPERVISOR] Failed to update Airtable for %s: %s", rec_id, exc)
         else:
             stats["unresolved"] += 1
-            alerted = _load_alerted_ids()
-            if rec_id not in alerted:
-                alerted.add(rec_id)
-                _save_alerted_ids()
-                if notify_telegram:
-                    snippet = izoh[:150] + ("..." if len(izoh) > 150 else "") if izoh else "Izoh yo'q"
-                    msg = (
-                        "⚠️ <b>[OISHA AI NAZORATCHI] Diqqat: Kirim bo'yicha sotuvchi aniqlanmadi!</b>\n\n"
-                        f"💰 <b>Summa:</b> {summa:,.0f} {valyuta}\n"
-                        f"📝 <b>Tranzaksiya:</b> {trx_title}\n"
-                        f"📋 <b>Izoh:</b> <i>{snippet}</i>\n\n"
-                        "❓ <i>Ushbu kirimni qaysi sotuvchi amalga oshirgan? Iltimos, Airtable'da 'Sotuvchi' ustuniga belgilang.</i>"
-                    )
-                    _dispatch_supervisor_alert(msg)
-
+            _alert_unresolved_once(record, notify_telegram)
     return stats
 
 

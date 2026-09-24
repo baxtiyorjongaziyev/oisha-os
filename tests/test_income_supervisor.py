@@ -12,7 +12,7 @@ def _isolate_state(tmp_path, monkeypatch):
     monkeypatch.setattr(sup, "_ALERTED_RECORD_IDS", set())
     monkeypatch.setattr(sup, "_ALERTED_LOADED", False)
     sent = []
-    monkeypatch.setattr(sup, "_dispatch_supervisor_alert", sent.append)
+    monkeypatch.setattr(sup, "_dispatch_supervisor_alert", lambda text: sent.append(text) or True)
     return sent
 
 
@@ -61,3 +61,24 @@ def test_resolved_alert_when_update_ok(_isolate_state):
     lead = {"id": 1, "name": "x", "responsible_user_id": 13021974}
     stats = asyncio.run(sup.supervise_recent_incomes(_at([REC]), _crm([lead])))
     assert stats["resolved"] == 1 and len(sent) == 1 and "Shahnoza" in sent[0]
+
+
+def test_cancelled_income_is_skipped(_isolate_state):
+    rec = {"id": "recC", "fields": dict(REC["fields"], Holat={"name": "Bekor qilingan"})}
+    stats = asyncio.run(sup.supervise_recent_incomes(_at([rec]), _crm([])))
+    assert stats["checked"] == 0 and _isolate_state == []
+
+
+def test_failed_telegram_delivery_retries_next_cycle(_isolate_state, monkeypatch):
+    calls = []
+    monkeypatch.setattr(sup, "_dispatch_supervisor_alert", lambda text: calls.append(text) and False)
+    asyncio.run(sup.supervise_recent_incomes(_at([REC]), _crm([])))
+    asyncio.run(sup.supervise_recent_incomes(_at([REC]), _crm([])))
+    assert len(calls) == 2 and "recX" not in sup._ALERTED_RECORD_IDS
+
+
+def test_linked_project_seller_is_used(_isolate_state, monkeypatch):
+    monkeypatch.setattr(sup, "_fetch_project_record", lambda rid: {"fields": {"Sotuvchi": ["recfj3ExodGmnN2VW"]}})
+    rec = {"id": "recL", "fields": dict(REC["fields"], Loyiha=["recProj"])}
+    res = asyncio.run(sup.resolve_seller_for_income(rec, airtable_sync=MagicMock(), amocrm_sync=None))
+    assert res["seller_id"] == "recfj3ExodGmnN2VW" and res["source"] == "Loyiha kartasi"
