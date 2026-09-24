@@ -37,11 +37,11 @@ async def test_generate_content_recovers_with_fallback_model():
     )
 
     assert response.text == "ok"
-    assert model == "gemini-2.5-flash-lite"
+    assert model == "gemini-3.5-flash"
     assert [
         call.kwargs["model"]
         for call in models.generate_content.await_args_list
-    ] == ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+    ] == ["gemini-2.5-flash", "gemini-3.5-flash"]
 
 
 @pytest.mark.asyncio
@@ -87,13 +87,13 @@ async def test_generate_content_skips_primary_model_during_quota_cooldown():
 
     assert first_response.text == "fallback"
     assert second_response.text == "fallback again"
-    assert first_model == second_model == "gemini-2.5-flash-lite"
+    assert first_model == second_model == "gemini-3.5-flash"
     assert [
         call.kwargs["model"] for call in models.generate_content.await_args_list
     ] == [
         "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash",
     ]
 
 

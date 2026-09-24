@@ -15,6 +15,15 @@ from src.services.utils.gemini_fallback import model_candidates
 
 
 @pytest.fixture(autouse=True)
+def _default_call_task_settings(monkeypatch):
+    """Pin task creation to the code default so a local .env can't flip it."""
+    from src.settings import settings
+
+    monkeypatch.setattr(settings, "ENABLE_AMOCRM_CALL_TASKS", True, raising=False)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def reset_call_analyzer_cooldown():
     CallAnalyzer._gemini_blocked_until = 0.0
     yield

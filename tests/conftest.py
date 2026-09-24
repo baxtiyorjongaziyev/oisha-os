@@ -34,6 +34,31 @@ def _force_local_sqlite(monkeypatch):
     yield
 
 
+_LIVE_PROVIDER_KEYS = (
+    "GROQ_API_KEY", "CEREBRAS_API_KEY", "SAMBANOVA_API_KEY", "TOGETHERAI_API_KEY",
+    "OPENROUTER_API_KEY", "NVIDIA_NIM_API_KEY", "MISTRAL_API_KEY", "HUGGINGFACE_API_KEY",
+    "CLOUDFLARE_AI_API_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY",
+)
+
+
+@pytest.fixture(autouse=True)
+def _strip_live_ai_provider_keys(monkeypatch):
+    """Under SKIP_LIVE, never let the non-Gemini fallback hit real provider APIs
+    with keys loaded from the local .env. Tests needing a key set it themselves."""
+    if os.getenv("SKIP_LIVE") != "1":
+        yield
+        return
+    try:
+        from src.settings import settings
+    except Exception:
+        settings = None
+    for key in _LIVE_PROVIDER_KEYS:
+        monkeypatch.delenv(key, raising=False)
+        if settings is not None and hasattr(settings, key):
+            monkeypatch.setattr(settings, key, None, raising=False)
+    yield
+
+
 @pytest.fixture(autouse=True)
 def _reset_gemini_model_quota_cooldowns():
     """Keep process-level Gemini cooldown state isolated between tests."""

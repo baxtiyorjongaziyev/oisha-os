@@ -539,11 +539,13 @@ def test_send_ig_private_reply(mock_post):
 
 
 @pytest.mark.asyncio
+@patch("src.services.core.instagram_agent.notify_crm")
+@patch("src.services.core.instagram_agent.is_quiet_hours", return_value=False)
 @patch("src.services.core.instagram_agent.reply_to_comment")
 @patch("src.services.core.instagram_agent.generate_comment_reply")
 @patch("src.services.core.instagram_agent.send_ig_private_reply")
 async def test_process_instagram_webhook_with_dm_trigger(
-    mock_priv_reply, mock_gen_reply, mock_reply_comm
+    mock_priv_reply, mock_gen_reply, mock_reply_comm, _mock_quiet, _mock_notify
 ):
     from src.services.core.instagram_agent import process_instagram_webhook
     mock_db = AsyncMock()
