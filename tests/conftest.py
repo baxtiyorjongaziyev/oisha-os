@@ -14,6 +14,7 @@ import os
 import pytest
 
 from dotenv import load_dotenv
+from pydantic import SecretStr
 
 load_dotenv()
 
@@ -34,17 +35,21 @@ def _force_local_sqlite(monkeypatch):
     yield
 
 
-_LIVE_PROVIDER_KEYS = (
+_LIVE_SECRET_KEYS = (
     "GROQ_API_KEY", "CEREBRAS_API_KEY", "SAMBANOVA_API_KEY", "TOGETHERAI_API_KEY",
     "OPENROUTER_API_KEY", "NVIDIA_NIM_API_KEY", "MISTRAL_API_KEY", "HUGGINGFACE_API_KEY",
     "CLOUDFLARE_AI_API_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY",
+    # Outbound Telegram / CRM / Meta credentials — tests must never post for real.
+    "BOT_TOKEN", "ADMIN_BOT_TOKEN", "USERBOT_SESSION_STRING", "TELEGRAM_MCP_SESSION_STRING",
+    "AMOCRM_ACCESS_TOKEN", "AIRTABLE_ACCESS_TOKEN", "AIRTABLE_API_KEY",
+    "META_PAGE_ACCESS_TOKEN", "CMS_WEBHOOK_URL",
 )
 
 
 @pytest.fixture(autouse=True)
-def _strip_live_ai_provider_keys(monkeypatch):
-    """Under SKIP_LIVE, never let the non-Gemini fallback hit real provider APIs
-    with keys loaded from the local .env. Tests needing a key set it themselves."""
+def _strip_live_credentials(monkeypatch):
+    """Under SKIP_LIVE, never let tests hit real AI providers, Telegram, AmoCRM
+    or Meta with credentials loaded from the local .env. Tests needing a key set it themselves."""
     if os.getenv("SKIP_LIVE") != "1":
         yield
         return
@@ -52,10 +57,12 @@ def _strip_live_ai_provider_keys(monkeypatch):
         from src.settings import settings
     except Exception:
         settings = None
-    for key in _LIVE_PROVIDER_KEYS:
+    for key in _LIVE_SECRET_KEYS:
         monkeypatch.delenv(key, raising=False)
         if settings is not None and hasattr(settings, key):
-            monkeypatch.setattr(settings, key, None, raising=False)
+            current = getattr(settings, key)
+            blank = SecretStr("") if isinstance(current, SecretStr) else None
+            monkeypatch.setattr(settings, key, blank, raising=False)
     yield
 
 
