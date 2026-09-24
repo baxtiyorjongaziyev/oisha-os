@@ -154,7 +154,7 @@ httpx==0.28.1
     #   telegram-mcp
 httpx-sse==0.4.3
     # via mcp
-httpx2==2.12.0
+httpx2==2.13.0
     # via
     #   anthropic
     #   openai
