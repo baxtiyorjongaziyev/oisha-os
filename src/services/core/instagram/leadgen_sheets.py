@@ -10,7 +10,12 @@ import structlog
 logger = structlog.get_logger("MetaLeadgenSheets")
 
 DEFAULT_GSHEET_ID = "1aWmfomtd2x4QoHQIWLPD88lHbepIRvuPhzuugM7-vEc"
-DEFAULT_WORKSHEET_TITLE = "Target Leads (2026)"
+OUTSOURCE_WORKSHEET_TITLE = "Gaplashilmagan Leadlar (UTC Outsource)"
+OUTSOURCE_WORKSHEET_GID = 123739873
+INHOUSE_WORKSHEET_TITLE = "Target Leads Inhouse (Sentabr)"
+INHOUSE_WORKSHEET_GID = 307647876
+LEGACY_TARGET_WORKSHEET_TITLE = "Target Leads (Sentabr)"
+DEFAULT_WORKSHEET_TITLE = OUTSOURCE_WORKSHEET_TITLE
 
 HEADERS = [
     "№",
@@ -96,19 +101,19 @@ def humanize_form(raw: str) -> str:
 
 
 def _get_creds_path() -> str:
+    from pathlib import Path
     from src.settings import settings
 
     configured = getattr(settings, "GSHEET_CREDS_FILE", None) or os.getenv("GSHEET_CREDS_FILE")
     if configured and os.path.exists(configured):
         return configured
-    for candidate in (
-        "data/service_account.json",
-        "service_account.json",
-        "/home/ubuntu/oisha-os/data/service_account.json",
-    ):
-        if os.path.exists(candidate):
-            return candidate
-    return "data/service_account.json"
+    candidate = Path(__file__).resolve().parents[4] / "data" / "service_account.json"
+    if candidate.exists():
+        return str(candidate)
+    for c in ("data/service_account.json", "service_account.json", "/home/ubuntu/oisha-os/data/service_account.json"):
+        if os.path.exists(c):
+            return c
+    return str(candidate)
 
 
 def get_leadgen_spreadsheet(spreadsheet_id: Optional[str] = None):
@@ -145,6 +150,24 @@ def get_leadgen_spreadsheet(spreadsheet_id: Optional[str] = None):
 def ensure_leadgen_worksheet(sh, title: str = DEFAULT_WORKSHEET_TITLE):
     try:
         return sh.worksheet(title)
+    except Exception:
+        pass
+
+    try:
+        t_low = title.lower()
+        for ws in sh.worksheets():
+            ws_id = str(getattr(ws, "id", ""))
+            ws_title = ws.title.lower()
+            if ws_id == str(OUTSOURCE_WORKSHEET_GID) and ("outsource" in t_low or "gaplashilmagan" in t_low):
+                return ws
+            if ws_id == str(INHOUSE_WORKSHEET_GID) and ("inhouse" in t_low or "target" in t_low):
+                return ws
+            if title.lower() in ws_title or ws_title in title.lower():
+                return ws
+            if "inhouse" in t_low and "inhouse" in ws_title:
+                return ws
+            if "target leads" in ws_title and "target leads" in t_low:
+                return ws
     except Exception:
         pass
 
@@ -214,6 +237,9 @@ def format_lead_row(
     fields: Dict[str, str],
     form_name: str = "",
     created_time: str = "",
+    is_outsource: bool = False,
+    ad_name: Optional[str] = None,
+    creative_url: Optional[str] = None,
 ) -> List[str]:
     summary = _extract_summary_fields(fields)
     if lead_id:
@@ -238,7 +264,16 @@ def format_lead_row(
     brand = summary["brand"].strip() if summary["brand"] and summary["brand"].strip().lower() not in ["yoq", "yo'q", "-", "a"] else "—"
     forma = humanize_form(form_name)
 
-    return [
+    if not creative_url and ad_name:
+        from src.services.core.marketing.meta_ads_client import get_creative_url
+        creative_url = get_creative_url(ad_name)
+
+    if ad_name and creative_url:
+        forma = f'=HYPERLINK("{creative_url}"; "🎬 {ad_name} | {forma}")'
+    elif ad_name:
+        forma = f"{ad_name} | {forma}"
+
+    row = [
         "=ROW()-1",
         str(created_time),
         client_name,
@@ -249,9 +284,11 @@ def format_lead_row(
         brand,
         amocrm_cell,
         forma,
-        summary["qa"],
-        str(leadgen_id),
     ]
+    if is_outsource:
+        row.append("0 ta qo'ng'iroq")
+    row.extend([summary["qa"], str(leadgen_id)])
+    return row
 
 
 def append_lead_to_sheet(
@@ -261,20 +298,49 @@ def append_lead_to_sheet(
     form_name: str = "",
     created_time: str = "",
     spreadsheet_id: Optional[str] = None,
-    worksheet_title: str = DEFAULT_WORKSHEET_TITLE,
+    worksheet_title: Optional[str] = None,
+    ad_name: Optional[str] = None,
+    creative_url: Optional[str] = None,
+    destination: str = "utc",
 ) -> bool:
     try:
         sh = get_leadgen_spreadsheet(spreadsheet_id)
         if not sh:
             return False
 
-        ws = ensure_leadgen_worksheet(sh, worksheet_title)
+        if destination == "inhouse":
+            target_title = worksheet_title or INHOUSE_WORKSHEET_TITLE
+            is_outsource = False
+        elif destination == "utc":
+            target_title = worksheet_title or OUTSOURCE_WORKSHEET_TITLE
+            is_outsource = True
+        else:
+            target_title = worksheet_title or OUTSOURCE_WORKSHEET_TITLE
+            is_outsource = "outsource" in target_title.lower() or "gaplashilmagan" in target_title.lower()
+
+        ws = ensure_leadgen_worksheet(sh, target_title)
         if not ws:
+            logger.warning("[GSHEET] Worksheet not found or could not be created", title=target_title)
             return False
 
-        row = format_lead_row(leadgen_id, lead_id, fields, form_name, created_time)
+        row = format_lead_row(
+            leadgen_id,
+            lead_id,
+            fields,
+            form_name,
+            created_time,
+            is_outsource=is_outsource,
+            ad_name=ad_name,
+            creative_url=creative_url,
+        )
         ws.append_row(row, value_input_option="USER_ENTERED")
-        logger.info("[GSHEET] Lead appended to sheet", leadgen_id=leadgen_id, lead_id=lead_id)
+        logger.info(
+            "[GSHEET] Lead appended successfully",
+            destination=destination,
+            target=target_title,
+            leadgen_id=leadgen_id,
+            lead_id=lead_id,
+        )
         return True
     except Exception as exc:
         logger.warning("[GSHEET] Failed to append lead to sheet", error=str(exc), leadgen_id=leadgen_id)
