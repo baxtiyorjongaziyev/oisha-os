@@ -53,28 +53,92 @@ def _send_tg_message(
         return False
 
 
-def get_creative_summary() -> list[tuple[str, int, float]]:
+_AD_NAME_OVERRIDES: Dict[str, str] = {
+    "120249419742870032": "v2 (Video 2)",
+    "120249477279140032": "V6 (Video 6)",
+}
+_AD_NAME_CACHE: Dict[str, str] = {}
+_AD_URL_CACHE: Dict[str, Optional[str]] = {}
+
+
+def _meta_client() -> Any:
+    from src.services.core.marketing.meta_ads_client import MetaAdsClient
+
+    return MetaAdsClient()
+
+
+def _resolve_ad_name(ad_id: str) -> str:
+    ad_id = str(ad_id or "").strip()
+    if not ad_id:
+        return "Noma'lum reklama"
+    if ad_id in _AD_NAME_OVERRIDES:
+        return _AD_NAME_OVERRIDES[ad_id]
+    if ad_id not in _AD_NAME_CACHE:
+        name = None
+        try:
+            name = _meta_client().get_ad_name(ad_id)
+        except Exception as exc:
+            logger.warning("[LEADGEN REPORTER] Ad name lookup failed: %s", exc)
+        _AD_NAME_CACHE[ad_id] = name or f"Ad {ad_id}"
+    return _AD_NAME_CACHE[ad_id]
+
+
+def _resolve_ad_url(ad_id: str) -> Optional[str]:
+    from src.services.core.marketing.meta_ads_client import get_creative_url
+
+    ad_id = str(ad_id or "").strip()
+    if not ad_id:
+        return None
+    known = get_creative_url(ad_id)
+    if known:
+        return known
+    if ad_id not in _AD_URL_CACHE:
+        url = None
+        try:
+            url = _meta_client().get_ad_creative_url(ad_id)
+        except Exception as exc:
+            logger.warning("[LEADGEN REPORTER] Creative URL lookup failed: %s", exc)
+        _AD_URL_CACHE[ad_id] = url
+    return _AD_URL_CACHE[ad_id]
+
+
+def get_creative_summary(hours: int = 24) -> list[tuple[str, int, float, str]]:
+    """Lead counts per ad for the last `hours` — (name, count, pct, ad_id), sorted desc."""
     try:
         from src.services.core.marketing.attribution_store import _connection
         with _connection() as conn:
-            rows = conn.execute("SELECT ad_id, count(1) FROM lead_attribution GROUP BY ad_id").fetchall()
-        total = sum(r[1] for r in rows)
-        ad_map = {
-            "120249419742870032": "v2 (Video 2)",
-            "120249477279140032": "V6 (Video 6)",
-        }
-        res = []
-        for ad_id, count in rows:
-            name = ad_map.get(str(ad_id), f"Ad {ad_id}")
-            pct = round((count / total) * 100, 1) if total else 0
-            res.append((name, count, pct))
-        return sorted(res, key=lambda x: x[1], reverse=True)
-    except Exception:
+            rows = conn.execute(
+                "SELECT ad_id, count(1) FROM lead_attribution "
+                "WHERE created_at >= datetime('now', ?) GROUP BY ad_id",
+                (f"-{int(hours)} hours",),
+            ).fetchall()
+    except Exception as exc:
+        logger.warning("[LEADGEN REPORTER] Creative summary failed: %s", exc)
         return []
 
+    total = sum(r[1] for r in rows)
+    res = []
+    for ad_id, count in rows:
+        pct = round((count / total) * 100, 1) if total else 0
+        res.append((_resolve_ad_name(ad_id), count, pct, str(ad_id or "")))
+    return sorted(res, key=lambda x: x[1], reverse=True)
 
-def build_status_report_text() -> str:
+
+def build_creative_buttons(
+    summary: list[tuple[str, int, float, str]], limit: int = 3
+) -> list[list[Dict[str, str]]]:
+    buttons = []
+    for name, count, pct, ad_id in summary[:limit]:
+        url = _resolve_ad_url(ad_id)
+        if url:
+            buttons.append([{"text": f"🎬 {name} — {count} ta lid ({pct}%)", "url": url}])
+    return buttons
+
+
+def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]] = None) -> str:
     """Compile executive 24/7 status report across Meta, AmoCRM, Sheets, and Telegram."""
+    if summary is None:
+        summary = get_creative_summary()
     stats = audit_leadgen_health()
     now_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
 
@@ -94,17 +158,15 @@ def build_status_report_text() -> str:
     tg_icon = "🟢" if tg_ok >= total else "🟡"
     status_icon = "🟢 24/7 FAOL (O'lmas rejim)" if pending == 0 else "🟠 Qayta tiklanmoqda"
 
-    from src.services.core.instagram.leadgen_sheets import DEFAULT_WORKSHEET_TITLE
-    from src.services.core.marketing.meta_ads_client import get_creative_url
-
     creative_lines = []
-    for c_name, c_count, c_pct in get_creative_summary():
-        code = c_name.split()[0].lower()
-        url = get_creative_url(code)
+    for c_name, c_count, c_pct, ad_id in summary:
+        url = _resolve_ad_url(ad_id)
         if url:
             creative_lines.append(f'• <a href="{url}"><b>{c_name}</b></a>: {c_count} ta lid ({c_pct}%)')
         else:
             creative_lines.append(f"• <b>{c_name}:</b> {c_count} ta lid ({c_pct}%)")
+    if not creative_lines:
+        creative_lines.append("• Oxirgi 24 soatda kreativ bo'yicha lid yo'q")
 
     footer_note = (
         "✅ <i>Barcha lidlar avtomatik tarzda 3 ta tizimga (AmoCRM, Sheets, Telegram) 100% to'liq yetkazildi.</i>"
@@ -124,7 +186,7 @@ def build_status_report_text() -> str:
         f"• {sheets_icon} <b>Google Sheets:</b> {sheets_ok}/{total} ({sheets_pct}% kiritilgan)",
         f"• {tg_icon} <b>Telegram Guruhi:</b> {tg_ok}/{total} ({tg_pct}% xabar yuborilgan)",
         "",
-        "🎬 <b>Kreativlar (Videolar) samaradorligi:</b>",
+        "🎬 <b>Kreativlar samaradorligi (24 soat):</b>",
         *creative_lines,
         "",
         "⚙️ <b>Baza va Integratsiyalar:</b>",
@@ -140,13 +202,10 @@ def build_status_report_text() -> str:
 
 async def send_daily_status_report() -> bool:
     """Send daily integration health report to Target Leads & Marketing groups."""
-    text = build_status_report_text()
-
-    buttons = [
-        [{"text": "🎬 v2 (Video 2) — 26 ta lid (86.7%)", "url": "https://www.instagram.com/p/DdMgcrcgnuH/"}],
-        [{"text": "🎬 V6 (Video 6) — 4 ta lid (13.3%)", "url": "https://www.instagram.com/p/DdVkUMngJiW/"}],
-    ]
-    reply_markup = {"inline_keyboard": buttons}
+    summary = get_creative_summary()
+    text = build_status_report_text(summary)
+    buttons = build_creative_buttons(summary)
+    reply_markup = {"inline_keyboard": buttons} if buttons else None
 
     # 1. Sales group (Target Leads topic)
     sales_chat_id = getattr(settings, "TARGET_LEADS_GROUP_ID", None) or -1003854308552
@@ -154,8 +213,8 @@ async def send_daily_status_report() -> bool:
     ok_sales = await asyncio.to_thread(_send_tg_message, text, sales_chat_id, sales_topic_id, reply_markup=reply_markup)
 
     # 2. Marketing group (Jon Branding | Marketing -> AI Hisobot topic #42)
-    mktg_chat_id = -1003608624065
-    mktg_topic_id = 42
+    mktg_chat_id = getattr(settings, "MARKETING_REPORT_CHAT_ID", None) or -1003608624065
+    mktg_topic_id = getattr(settings, "MARKETING_REPORT_TOPIC_ID", None) or 42
     ok_mktg = await asyncio.to_thread(_send_tg_message, text, mktg_chat_id, mktg_topic_id, reply_markup=reply_markup)
 
     if ok_sales or ok_mktg:
