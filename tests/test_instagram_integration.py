@@ -547,6 +547,7 @@ def test_send_ig_private_reply(mock_post):
 async def test_process_instagram_webhook_with_dm_trigger(
     mock_priv_reply, mock_gen_reply, mock_reply_comm, _mock_quiet, _mock_notify
 ):
+    # Pin daytime: auto-reply is skipped during quiet hours, making this flaky.
     from src.services.core.instagram_agent import process_instagram_webhook
     mock_db = AsyncMock()
     mock_gen_reply.return_value = "Izohingiz uchun rahmat! Directga yozdim."
