@@ -53,6 +53,9 @@ SHOM_HOUR = int(os.environ.get("JUMA_SHOM_HOUR", "19"))
 SHOM_MINUTE = int(os.environ.get("JUMA_SHOM_MINUTE", "30"))
 JUMA_HISTORY_LIMIT = int(os.environ.get("JUMA_HISTORY_LIMIT", "100"))
 JUMA_KEYWORDS = ("juma muborak", "juma ayyom", "jumaning")
+JUMA_SEND_ENABLED = os.environ.get("JUMA_SEND_ENABLED", "0").strip().lower() in {
+    "1", "true", "yes", "on"
+}
 
 #: Guruhlar ustuvorlik tartibida: avval Tez Natija 6, keyin 5, 4, 3, 2.
 #: Har biri kamida bittasi mos kelsa yetarli (nom yoki ID orqali).
@@ -278,6 +281,14 @@ async def run() -> None:
             continue
         eligible_members.append(member)
     members = eligible_members
+    if not JUMA_SEND_ENABLED:
+        send_tg_notification(
+            "🛡 Juma workflow dry-run rejimida: tekshiruv bajarildi, "
+            "tabrik yuborish o‘chiq."
+        )
+        print("JUMA_SEND_ENABLED=0 — tabrik yuborilmaydi.")
+        await client.disconnect()
+        return
     total_before_filter = len(members) + history_skipped
     if already_sent or history_skipped:
         skipped = history_skipped
