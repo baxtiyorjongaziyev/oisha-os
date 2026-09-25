@@ -32,6 +32,15 @@ def _to_float(value: Any) -> float:
         return 0.0
 
 
+async def _notify_capi(lead_id: Any, status_id: Any, price: float, leadgen_id: str) -> None:
+    """Meta CAPI (Conversion Leads) — status o'zgarishini Meta'ga qaytarish."""
+    try:
+        from src.services.core.marketing.meta_capi_triggers import on_amo_status
+        await on_amo_status(int(lead_id), status_id, price=price, leadgen_id=leadgen_id)
+    except Exception as exc:
+        logger.warning("[ADS ATTRIBUTION] CAPI yuborilmadi (%s): %s", leadgen_id, type(exc).__name__)
+
+
 @dataclass
 class AttributionSyncResult:
     checked: int = 0
@@ -89,6 +98,8 @@ async def sync_attribution_revenue(
         else:
             won = None
             result.still_open += 1
+
+        await _notify_capi(lead_id, status_id, price, leadgen_id)
 
         try:
             await asyncio.to_thread(
