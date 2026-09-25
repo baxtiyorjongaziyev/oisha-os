@@ -132,15 +132,25 @@ def build_status_report_text() -> str:
     return "\n".join(lines)
 
 
+def _build_creative_buttons() -> list:
+    """Build inline-keyboard buttons from the live creative summary, not stale numbers."""
+    from src.services.core.marketing.meta_ads_client import get_creative_url
+
+    buttons = []
+    for c_name, c_count, c_pct in get_creative_summary():
+        code = c_name.split()[0].lower()
+        url = get_creative_url(code)
+        if not url:
+            continue
+        buttons.append([{"text": f"🎬 {c_name} — {c_count} ta lid ({c_pct}%)", "url": url}])
+    return buttons
+
+
 async def send_daily_status_report() -> bool:
     """Send daily integration health report to Target Leads & Marketing groups."""
     text = build_status_report_text()
-
-    buttons = [
-        [{"text": "🎬 v2 (Video 2) — 26 ta lid (86.7%)", "url": "https://www.instagram.com/p/DdMgcrcgnuH/"}],
-        [{"text": "🎬 V6 (Video 6) — 4 ta lid (13.3%)", "url": "https://www.instagram.com/p/DdVkUMngJiW/"}],
-    ]
-    reply_markup = {"inline_keyboard": buttons}
+    buttons = _build_creative_buttons()
+    reply_markup = {"inline_keyboard": buttons} if buttons else None
 
     # 1. Sales group (Target Leads topic)
     sales_chat_id = getattr(settings, "TARGET_LEADS_GROUP_ID", None) or -1003854308552

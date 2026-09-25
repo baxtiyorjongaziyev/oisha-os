@@ -8,6 +8,11 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/oisha-os
 EnvironmentFile=/home/ubuntu/oisha-os/.env
+# Refuse to start unless the shared .env already disables the in-process leadgen
+# loops in oisha-os.service (src/bootstrap/orchestration/schedulers.py). Without
+# this, both services poll/handle the same webhooks and can double-post to
+# CRM, Sheets, and Telegram.
+ExecStartPre=/bin/sh -c 'grep -qE "^STANDALONE_LEADGEN_WORKER=(1|[Tt]rue|[Yy]es)\\s*$" /home/ubuntu/oisha-os/.env || { echo "FATAL: set STANDALONE_LEADGEN_WORKER=1 in /home/ubuntu/oisha-os/.env and restart oisha-os.service before starting oisha-leads.service" >&2; exit 1; }'
 ExecStart=/home/ubuntu/oisha-os/venv/bin/python3 -m src.workers.leadgen_worker
 Restart=always
 RestartSec=5s
