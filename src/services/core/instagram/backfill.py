@@ -103,6 +103,8 @@ async def backfill_unanswered_comments(
         media_id = str(media.get("id") or "")
         if not media_id:
             continue
+        if media.get("comments_count") == 0:
+            continue
         summary["scanned_media"] += 1
         caption = media.get("caption", "") or ""
 

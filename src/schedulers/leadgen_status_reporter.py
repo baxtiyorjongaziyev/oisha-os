@@ -53,7 +53,7 @@ def _send_tg_message(
         return False
 
 
-def get_creative_summary() -> List[tuple[str, int, float]]:
+def get_creative_summary() -> list[tuple[str, int, float]]:
     try:
         from src.services.core.marketing.attribution_store import _connection
         with _connection() as conn:
@@ -106,6 +106,12 @@ def build_status_report_text() -> str:
         else:
             creative_lines.append(f"• <b>{c_name}:</b> {c_count} ta lid ({c_pct}%)")
 
+    footer_note = (
+        "✅ <i>Barcha lidlar avtomatik tarzda 3 ta tizimga (AmoCRM, Sheets, Telegram) 100% to'liq yetkazildi.</i>"
+        if pending == 0
+        else f"⚠️ <i>{pending} ta lid integratsiyasi navbatda / qayta urinish jarayonida.</i>"
+    )
+
     lines = [
         "🛡 <b>OISHA-OS: 24/7 AVTOMATLASHTIRISH HOLAT HISOBOTI</b>",
         "━━━━━━━━━━━━━━━━━━━━",
@@ -123,11 +129,11 @@ def build_status_report_text() -> str:
         "",
         "⚙️ <b>Baza va Integratsiyalar:</b>",
         f"• Meta Lead Ads barcha formalardagi lidlar: <b>{meta_total} ta</b>",
-        f"• Google Sheets jadvali: <code>{DEFAULT_WORKSHEET_TITLE}</code>",
-        "• AmoCRM voronkasi: <code>Sotuv (#11162698)</code> + <code>UTC (#11322658)</code>, manba: Target",
+        f"• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",
+        "• AmoCRM voronkalari: <code>Sotuv Bo'limi (#11162698) & UTC (#11322658)</code>",
         f"• Kutilayotgan/xatoli lidlar: <b>{pending} ta</b>",
         "━━━━━━━━━━━━━━━━━━━━",
-        "✅ <i>Barcha lidlar avtomatik tarzda 3 ta tizimga (AmoCRM, Sheets, Telegram) kafolatlangan holda yetkazilmoqda.</i>",
+        footer_note,
     ]
     return "\n".join(lines)
 

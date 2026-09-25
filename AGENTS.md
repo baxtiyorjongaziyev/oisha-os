@@ -21,6 +21,72 @@
 
 ## Agent Handoff Log
 
+- **2026-09-25 — Antigravity — Google Sheet UTC Outsource Full Deduplication & 1 to 90 Renumbering:**
+  - **User Request**: "nega 96 ta ko'rsatyapti" -> "xoylayman" (clean duplicates and fix numbering).
+  - **Cleanup Execution**:
+    - Removed 5 duplicate rows: `Динара` (977053339), `Muhammadjon` (500193103), `Asror` (903935656), `Umar` (937155333), `Азизбек` (905615999).
+    - Removed 1 broken row: `Abduvali` (Row 52, invalid phone `9`).
+    - Verified exactly 90 unique leads remain in `Gaplashilmagan Leadlar (UTC Outsource)`.
+    - Renumbered Column A (`№`) cleanly from **1 to 90** (`A2:M91`).
+    - Synced Column K (`Qo'ng'iroq holati`) with CRM UTC statuses (including new leads `Azamat` and `Azizbek` -> `Maslahat kutmoqda`).
+    - Full local backup saved to `data/backup_utc_outsource_pre_dedup.json`.
+    - Logged to Obsidian Second Brain via `brain_log`.
+
+- **2026-09-25 — Antigravity — AmoCRM Archived Pipelines Decommission & Google Sheets Integration 100% Sync:**
+  - **User Requests**:
+    1. "target leads voronka endi yo'q. target leads va closer voronkasidagi zakrit bo'lganlarini sotuv bo'limi voronkasiga olib o'tib ber."
+    2. "Leadlar integratsiyasi to‘liq emas. Botning 09:00 hisobotiga ko‘ra, oxirgi 24 soatdagi 25 ta liddan 20 tasi Sheets’ga yozilgan, 5 tasi kutilmoqda yoki xatoli. Hisobotdagi “100%” yozuvi shu raqamlarga zid."
+  - **AmoCRM Pipeline Migration & Zero-Deals Verification**:
+    - Discovered real pipeline IDs: `Sotuv Bo'limi` (`11162698`), `[ARXIV] 2. CLOSER` (`11162702`), `[ARXIV] Target LEADs` (`11295630`).
+    - Migrated all 492 deals from `[ARXIV] 2. CLOSER` (51 won to status 142, 441 lost to status 143) into `Sotuv Bo'limi` (`11162698`).
+    - Migrated all 36 deals from `[ARXIV] Target LEADs` (32 lost to status 143, and 4 fresh active leads to status 87609514 `Yangi`) into `Sotuv Bo'limi` (`11162698`).
+    - Verified: `[ARXIV] 2. CLOSER` remaining deals = **0**, `[ARXIV] Target LEADs` remaining deals = **0**. Both pipelines can now be deleted in AmoCRM UI without any validation errors.
+    - Updated `src/services/core/crm/amocrm_pipeline_config.py`: pointed `SALES_PIPELINE_ID` and `TARGET_LEADS_INHOUSE_PIPELINE_ID` to `11162698` (`Sotuv Bo'limi`), status `87609514` (`Yangi`).
+  - **Google Sheets Integration Root Cause & Recovery**:
+    - Discovered `data/service_account.json` was missing on the Oracle VM (only present on local machine). This caused all recent Google Sheets write attempts to fail with `[GSHEET] Service account credentials not found`, leaving `sheets_ok = 0`.
+    - Discovered that on the VM, `src/schedulers/leadgen_status_reporter.py` had `(100% kiritilgan)` hardcoded into the text format string, causing the contradictory report at 09:00.
+    - Uploaded `data/service_account.json` to the VM (`chmod 600`) and symlinked to `/home/ubuntu/oisha-os/service_account.json`.
+    - Uploaded `src/workers/leadgen_worker.py` and `src/services/core/marketing/meta_ads_client.py`.
+    - Deployed fixed `leadgen_status_reporter.py` calculating dynamic percentages `sheets_pct`, `amo_pct`, and truthful footer status notes.
+  - **Double-Sending Bug & Hardcoded Voronka Resolution (10:56 AM Incident)**:
+    - **User Request**: "[25.09.2026 10:56] Jonibek lidi 2 marta yuborildi... nimaga ikki marta yuboryapti?"
+    - **Root Cause**: `STANDALONE_LEADGEN_WORKER=1` was missing from `/home/ubuntu/oisha-os/.env`. As a result, both `oisha-os.service` and `oisha-leads.service` were concurrently running `meta_leadgen_loop()`. At 10:56:22, PID 1032450 and PID 1032592 both polled lead `1441634004785206` at the exact same second and dispatched two identical cards to Telegram. Furthermore, `leadgen_formatter.py` had hardcoded `🎯 Voronka: Target LEADs`.
+    - **Fix & Hardening**:
+      1. Enforced `STANDALONE_LEADGEN_WORKER=1` in VM `.env` and added fallback check `os.path.exists("/etc/systemd/system/oisha-leads.service")` in `schedulers.py`.
+      2. Added SQLite atomic lock table `leadgen_claims` and `try_claim_leadgen()` in `leadgen_delivery.py` and `leadgen_router.py` ensuring mathematical impossibility of concurrent double-processing across processes.
+      3. Updated `leadgen_formatter.py` to accept dynamic `pipeline_name`, displaying `Sotuv Bo'limi` for inhouse leads and `UTC` for outsource leads instead of the deprecated `Target LEADs`.
+    - **Verification**: Restarted both services on VM. Verified `oisha-os` logged `[META LEADGEN] Ingestion & watchdog delegated to dedicated standalone worker`. Tests: 15/15 green (`pytest tests/test_leadgen_dedup_claim.py ...`). Bandit: 0 issues. Rule 6: all files $\le 400$ LOC.
+**
+  - **User Request**: "https://sales.kontaktmarkazi.com/client saytidagi leadlar bilan sheetsdagi leadlarni solishtir nima bor nima yo'q? /browser dan /goal https://docs.google.com/spreadsheets/d/1aWmfomtd2x4QoHQIWLPD88lHbepIRvuPhzuugM7-vEc/edit?gid=123739873#gid=123739873 Gaplashilmagan Leadlar (UTC Outsource)"
+  - **Live Browser Audit**: `browser` subagenti orqali `sales.kontaktmarkazi.com/client` ga ulanib, "Target Leads" (89 lid) va "Основная" (41 lid) voronkalari to'liq skan qilindi.
+  - **Critical Discovery (Real vs Ghost Statuses)**: Google Sheet'da 88 ta lid "0 ta qo'ng'iroq" deb soxta ko'rinishda qolib ketgan edi. Vaholanki, CRM UTC da operatorlar (#0333 va #126) **78 ta lidga allaqachon qo'ng'iroq qilgan**:
+    - **Sotuv (1 ta)**: `Жасур` (976310888)
+    - **Jarayonda (12 ta)**: `Davlatjon`, `Tabassum`, `Abdumalik`, `Сугдиёна`, `Bilol`, `Muhammaddiyor`, `Firuz`, `Jahongir`, `Мансуржон`, `Икром`, `Nurmuxammad`, `Umid`
+    - **O'ylab ko'rmoqda (11 ta)**: `Jaxongir`, `Xayot`, `Murodxon`, `Mahliyo`, `Muhammadyosin`, `Xamidullo`, `Nilufar`, `Turdibay`, `Гули`, `998935008800`, `Otabek`
+    - **Qayta aloqa (24 ta)**: 24 ta mijoz qayta qo'ng'iroq qilishni so'ragan
+    - **Ko'tarmadi (20 ta)**: 20 ta mijoz go'shakni ko'tarmagan
+    - **Qiziqmadi (13 ta)**: 13 ta rad etilgan lid
+    - **Maslahat kutmoqda (11 ta yangi)**: faqat 24-sentabr kechqurun kelgan 10 ta yangi lid hali qo'ng'iroq qilinmagan.
+  - **Cross-funnel Ingestion Anomaly**: Bugun (25.09) kelgan 3 ta inhouse lid (`Humoyun`, `Abbos`, `Alisher aka`) CRM UTC ning "Основная" voronkasiga tushib qolgan va operator #0333 ularga qo'ng'iroq qilgan.
+  - **Live Sheet Sync**: Barcha 93 ta qator uchun Google Sheet'dagi K ustuni ("Qo'ng'iroq holati") to'liq yangilandi (`K2:K94`).
+  - **Obsidian Brain Sync**: `brain_log` orqali ikkinchi miyaga qayd qilindi.
+
+- **2026-09-25 — Antigravity — Instagram Unanswered Comments Full Audit & Resolution:**
+  - **User Request**: "Instagramda javobsiz comment qolmaganmi?"
+  - **Live Audit Discovery**: Barcha 330 ta post/reels va 1,617 ta izoh Meta Graph API orqali skan qilindi. 29 ta javobsiz izoh aniqlandi (asosan `Dc8MLR-NzWB` kabi eski ommabop reels'lardagi izohlar, chunki avvalgi scheduler faqat top-15 ta yangi postlarni tekshirgan).
+  - **Resolution & Anti-Romance Emoji Guard**: Barcha 29 ta izohga `scripts/resolve_all_unanswered.py` orqali to'liq javob berildi. Emojilar oyna qilib qaytarildi, matnli izohlarga AI orqali hurmatli va professional javoblar yozildi (`🤝`, `🙌`).
+  - **Zero-Unanswered Verification**: Qayta to'liq audit o'tkazildi: **1,617/1,617 ta izohga javob berilgan, 0 ta javobsiz izoh qoldi**.
+  - **Permanent Scheduler Hardening**: `src/schedulers/instagram_comment_backfill_scheduler.py` dagi `_MEDIA_LIMIT` 15 dan 50 ga, `_MAX_REPLIES` 50 ga oshirildi. `src/services/core/instagram/backfill.py` da `comments_count == 0` bo'lgan postlarni o'tkazib yuborish optimizatsiyasi kiritildi.
+  - **Deployment**: O'zgarishlar Oracle VM ga deploy qilinib, `oisha-os.service` qayta ishga tushirildi (`active (running)` PID `992440`). 48/48 test yashil. Second Brain jurnallandi.
+
+- **2026-09-25 — Codex — Juma tabrigi takroriy yuborilishini cheklash:**
+  - TN6 guruhi bu haftalik workflow uchun yagona manba qilindi.
+  - Har bir a’zo bo‘yicha Telegram outgoing history tekshiriladi; shu oyda “Juma muborak”, “Juma ayyom” yoki “Jumaning” mazmunidagi tabrik yuborilgan bo‘lsa, qayta yuborilmaydi.
+  - Tarixni o‘qish xatosida xavfsiz fail-closed ishlaydi: tabrik yuborilmaydi.
+  - O‘zgargan fayl: `scripts/send_juma_greetings.py`.
+  - Tekshiruv: `python -m py_compile scripts/send_juma_greetings.py`; `pytest -q tests/test_telethon_session_guard.py` — 45 passed, 3 skipped.
+  - Qolgan ish: alohida Juma session (`JUMA_SESSION_STRING`) Oracle VM’da sozlanmaguncha workflow prod yuborishni boshlamaydi.
+
 - **2026-09-24 — Antigravity — Income Supervisor Anti-Spam Fix & Asl Kids Seller Resolution:**
   1. **User Request**: Telegram warning spam: "Diqqat: Kirim bo'yicha sotuvchi aniqlanmadi! ... SPAM QIlmasin".
   2. **Root Causes Discovered**:

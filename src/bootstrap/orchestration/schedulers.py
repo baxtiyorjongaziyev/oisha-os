@@ -88,7 +88,12 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     except ImportError as exc:
         logger.warning("[ROP] scheduler unavailable: %s", exc)
 
-    if os.getenv("STANDALONE_LEADGEN_WORKER", "").strip().lower() in {"1", "true", "yes"}:
+    standalone_leadgen = (
+        os.getenv("STANDALONE_LEADGEN_WORKER", "").strip().lower() in {"1", "true", "yes"}
+        or getattr(settings, "STANDALONE_LEADGEN_WORKER", False)
+        or os.path.exists("/etc/systemd/system/oisha-leads.service")
+    )
+    if standalone_leadgen:
         logger.info("[META LEADGEN] Ingestion & watchdog delegated to dedicated standalone worker.")
     else:
         try:
