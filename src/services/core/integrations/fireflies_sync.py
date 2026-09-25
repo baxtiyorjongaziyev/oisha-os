@@ -236,13 +236,18 @@ class FirefliesSync:
         """Try matching an AmoCRM lead by phone number, email, or client name."""
         all_text = f"{title} {' '.join(str(p) for p in participants)} {organizer}"
 
+        # A weak, un-scored heuristic here means the wrong customer's deal
+        # gets this transcript (and any follow-up task/alert). Only auto-
+        # attach when the AmoCRM search returns EXACTLY one candidate —
+        # ambiguous/multi-match results are treated as "no confident match"
+        # rather than guessing via leads[0].
         phones = _PHONE_RE.findall(all_text)
         for phone in phones:
             clean_phone = phone.replace("+", "").replace(" ", "").strip()
-            if len(clean_phone) >= 9:
+            if 9 <= len(clean_phone) <= 13:
                 try:
                     leads = await asyncio.to_thread(self.amocrm.search_leads, clean_phone)
-                    if leads and isinstance(leads, list):
+                    if leads and isinstance(leads, list) and len(leads) == 1:
                         return int(leads[0].get("id"))
                 except Exception:
                     pass
@@ -252,7 +257,7 @@ class FirefliesSync:
             if "jonbranding" not in email.lower() and "fireflies" not in email.lower():
                 try:
                     leads = await asyncio.to_thread(self.amocrm.search_leads, email)
-                    if leads and isinstance(leads, list):
+                    if leads and isinstance(leads, list) and len(leads) == 1:
                         return int(leads[0].get("id"))
                 except Exception:
                     pass

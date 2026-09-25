@@ -149,7 +149,7 @@ async def find_project_for_income(message_text: str) -> Optional[Dict[str, Any]]
                 "record_id": project.get("id"),
                 "project_name": project_name,
                 "client_ids": fields.get("Mijoz nomi") or [],
-                "seller_ids": fields.get("Seller") or [],
+                "seller_ids": fields.get("Sotuvchi") or fields.get("Seller") or [],
                 "project_fields": fields,
             }
 
@@ -254,7 +254,7 @@ async def create_income_airtable_record(
 
         fields[PNL_LINK_FIELD] = [pnl_id]
     if workflow.get("seller_ids"):
-        fields["Xodim"] = workflow["seller_ids"]
+        fields["Sotuvchi"] = workflow["seller_ids"]
 
     sync = AirtableSync(table_name="Tranzaksiyalar")
     return await asyncio.to_thread(sync.create_record, fields)

@@ -14,6 +14,15 @@ from src.services.core.tool_adapters import send_group_message_with_fallback
 
 logger = logging.getLogger(__name__)
 
+# Telegram Bot API caps a single Stars invoice price at 2500 XTR.
+MAX_STARS_AMOUNT = 2500
+MIN_STARS_AMOUNT = 1
+
+# Sanity ceiling for AI-generated invoice links — rejects clearly bogus
+# amounts (e.g. prompt-injected or hallucinated) rather than silently
+# creating a real payment link for them.
+MAX_INVOICE_AMOUNT = 100_000_000
+
 
 class ActionParser:
     """Parses and executes [TAG:...] actions from AI responses."""
@@ -126,7 +135,17 @@ class ActionParser:
                 s_data = dict(part.split("=", 1) for part in str(stars_match.group(1) or "").split("|") if "=" in part)
                 s_data = {k.strip(): v.strip() for k, v in s_data.items()}
                 amount = int(s_data.get("amount", "100"))
+                if not (MIN_STARS_AMOUNT <= amount <= MAX_STARS_AMOUNT):
+                    logger.warning(
+                        "[ACTION_PARSER] Stars invoice rad etildi — amount=%s ruxsat etilgan oraliqdan tashqarida (%s-%s), sender_id=%s",
+                        amount, MIN_STARS_AMOUNT, MAX_STARS_AMOUNT, sender_id,
+                    )
+                    return re.sub(r"\[SELL_STARS:.*?\]", "", reply_text, flags=re.IGNORECASE).strip()
                 title = s_data.get("title", "Jon Branding Xizmati")
+                logger.info(
+                    "[ACTION_PARSER] Stars invoice yuborilmoqda: sender_id=%s amount=%s title=%r",
+                    sender_id, amount, title,
+                )
                 await context.bot.send_invoice(
                     chat_id=sender_id, title=title, description=title,
                     payload=f"stars_{sender_id}_{int(datetime.datetime.now().timestamp())}",
@@ -143,7 +162,16 @@ class ActionParser:
                 inv_data = dict(part.split("=", 1) for part in str(inv_match.group(1) or "").split("|") if "=" in part)
                 inv_data = {k.strip(): v.strip() for k, v in inv_data.items()}
                 amount = float(inv_data.get("amount", 0))
-                if amount > 0:
+                if amount > 0 and amount > MAX_INVOICE_AMOUNT:
+                    logger.warning(
+                        "[ACTION_PARSER] Invoice rad etildi — amount=%s ruxsat etilgan chegaradan (%s) katta, sender_id=%s",
+                        amount, MAX_INVOICE_AMOUNT, sender_id,
+                    )
+                elif amount > 0:
+                    logger.info(
+                        "[ACTION_PARSER] Invoice yaratilmoqda: sender_id=%s amount=%s service=%r",
+                        sender_id, amount, inv_data.get("service", "Branding"),
+                    )
                     link = await self.invoicer.create_invoice(
                         amount=amount, service=inv_data.get("service", "Branding"), user_id=sender_id,
                     )

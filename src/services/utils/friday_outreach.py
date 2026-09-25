@@ -4,12 +4,29 @@ import logging
 import os
 import json
 import re
+import sys
+from pathlib import Path
+
+# Allow running as `python src/services/utils/friday_outreach.py` from
+# anywhere — this is a manual, human-triggered campaign tool, not part of
+# the autonomous agent pipeline (import as a module, or run this file
+# directly, both work).
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 from telethon import TelegramClient
-from settings import settings
+from src.settings import settings
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# WARNING: this authenticates as the real personal Telegram account (the
+# same one the production userbot uses). Never run this while the
+# production userbot (USERBOT_SESSION_STRING) is also connected — a
+# second concurrent login invalidates the other session
+# (AuthKeyDuplicatedError). Run this manually, deliberately, one-off.
 
 
 async def main():

@@ -94,7 +94,8 @@ async def process_ai_reply(
         # va bu yerda o'zgarmaydi, shuning uchun shadow rejimi shadow qoladi.
         vision_context = _pop_vision_context(chat_id)
 
-        await safe_responder.prepare_to_reply(event, client)
+        if safe_responder is not None:
+            await safe_responder.prepare_to_reply(event, client)
 
         ai_raw_response = None
         

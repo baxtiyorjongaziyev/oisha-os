@@ -47,8 +47,18 @@ def is_leadgen_processed(leadgen_id: str) -> bool:
     """Check if a leadgen ID has already been routed/processed."""
     if not leadgen_id:
         return False
+    clean_id = str(leadgen_id).strip()
     cache = _load_cache()
-    return str(leadgen_id).strip() in cache
+    if clean_id in cache:
+        return True
+    try:
+        from src.services.core.instagram.leadgen_delivery import is_delivery_complete
+        if is_delivery_complete(clean_id):
+            mark_leadgen_processed(clean_id)
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def mark_leadgen_processed(

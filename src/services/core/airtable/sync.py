@@ -52,7 +52,7 @@ class AirtableSync(PMResolverMixin, ClientBaseMixin, ProjectsMixin):
         self.api_key = api_key or (
             configured_key.get_secret_value() if hasattr(configured_key, "get_secret_value") else str(configured_key or "")
         )
-        self.base_id = base_id or getattr(settings, "AIRTABLE_BASE_ID", None)
+        self.base_id = base_id or getattr(settings, "AIRTABLE_BASE_ID", None) or "app8xoyx1XCumYFXV"
         self.table_name = table_name
         self.transactions_table = (
             getattr(settings, "AIRTABLE_TRANSACTIONS_TABLE", "Transactions")

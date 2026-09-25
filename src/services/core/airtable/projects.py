@@ -55,6 +55,19 @@ class ProjectsMixin:
         except Exception as exc:
             logger.error(f"[AIRTABLE EXCEPTION] {exc}")
             return self._get_disk_cached_records() or []
+    def get_project(self, project_id: str):
+        """Airtable-dan bitta loyihani ID orqali olish."""
+        if not project_id or not self.api_key or not self.base_id:
+            return None
+        url = f"https://api.airtable.com/v0/{self.base_id}/Loyihalar/{project_id}"
+        try:
+            response = self._request("GET", url)
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except Exception as exc:
+            logger.error(f"[AIRTABLE GET PROJECT ERROR] {project_id}: {exc}")
+            return None
 
     def get_overdue_projects(self):
         """Muddati o'tgan loyihalarni topish."""
@@ -144,6 +157,9 @@ class ProjectsMixin:
 
             fields.setdefault("Summa", summa_uzs)
             fields.setdefault("Loyiha nomi", fields.get("Loyiha") or [])
+            seller = fields.get("Sotuvchi") or fields.get("Seller") or []
+            fields.setdefault("Sotuvchi", seller)
+            fields.setdefault("Seller", seller)
             record["fields"] = fields
             records.append(record)
 
