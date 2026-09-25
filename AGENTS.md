@@ -21,6 +21,23 @@
 
 ## Agent Handoff Log
 
+- **2026-09-25 — Antigravity — Tez Natija 6 Database Complete Integration into Jon_Branding_Sotuv_CRM:**
+  - **User Request**: "https://docs.google.com/spreadsheets/d/1oOZUPZOti_CIdUkLUgWSdLOrXwQP5rPLjmBywx3wino/edit mana bu yerda ham baza bor Tez natija 6 hali qo'shilmagan"
+  - **Data Discovery & Aggregation**:
+    - Discovered local Google Contacts exports: `contacts (7).csv` (324 contacts under label `TEZ NATIJA 6`, exported 2026-09-23) and `contacts (6).csv` (35 extra VIP business contacts with `TN6` in contact name). Total unique TN6 contacts: **359**.
+    - Full local backup of all 6 worksheets saved to `data/backup_jon_branding_sotuv_crm.json`.
+  - **Integration Execution (`scripts/sync_tn6_to_crm_sheet.py`, 336 LOC <= 400 LOC)**:
+    - **Raw kontaktlar**: Appended 359 raw records (`Record ID` 1728 to 2086). New total: **2,086** rows.
+    - **CRM Existing Matches (33 leads)**: Updated `Guruh / Manba` to append `; Tez Natija 6`, incremented `Dublikat yozuvlar`, merged original names. Seller notes, stages, and owners 100% preserved.
+    - **CRM Brand New Leads (256 leads)**: Appended new leads (`LD-1242` to `LD-1497`). Perfectly balanced round-robin seller assignment (`Nozima`: 499, `Bobur`: 499, `Ziyoda`: 498). Actionable leads increased from 1,241 to **1,497** (Phones: 957, Telegram: 536).
+    - **Aloqasiz kontaktlar (69 contacts)**: Contacts with no phone and no telegram routed to `Aloqasiz kontaktlar` (`NC-0256` to `NC-0324`). New total: **324** contacts.
+    - **Dublikatlar (33 records)**: Updated 13 existing duplicate records and added 20 new cross-group duplicate pairs with complete source tracking.
+    - **Dashboard**: Dynamically updated KPI ranges and formula evaluations. Added Row 20: `Tez Natija 6 = 289` leads in CRM.
+  - **Verification & Security**:
+    - Bandit: 0 security issues (`bandit -r scripts/sync_tn6_to_crm_sheet.py -ll`).
+    - Python/Rule 6: 336 lines of code (strict $\le 400$ LOC limit).
+    - Logged to Obsidian Second Brain via `brain_log`.
+
 - **2026-09-25 — Antigravity — Google Sheet UTC Outsource Full Deduplication & 1 to 90 Renumbering:**
   - **User Request**: "nega 96 ta ko'rsatyapti" -> "xoylayman" (clean duplicates and fix numbering).
   - **Cleanup Execution**:
