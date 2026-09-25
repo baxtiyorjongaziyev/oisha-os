@@ -6,6 +6,9 @@ import pytest
 from src.services.utils.gemini_failover.models import DEFAULT_FALLBACK_MODELS
 
 from src.agents.orchestrator import AgentOrchestrator
+from src.services.utils.gemini_failover.models import DEFAULT_FALLBACK_MODELS
+
+FIRST_FALLBACK = DEFAULT_FALLBACK_MODELS[0]
 
 
 @pytest.mark.asyncio
@@ -38,7 +41,7 @@ async def test_router_recovers_from_primary_gemini_high_demand():
     assert [
         call.kwargs["model"]
         for call in models.generate_content.await_args_list
-    ] == ["gemini-2.5-flash", "gemini-3.5-flash"]
+    ] == ["gemini-2.5-flash", FIRST_FALLBACK]
 
 
 @pytest.mark.asyncio

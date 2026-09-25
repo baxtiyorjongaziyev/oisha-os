@@ -24,8 +24,9 @@ from src.services.core.instagram.leadgen_sheets import (
 def test_pipeline_config_split_constants():
     assert UTC_PIPELINE_ID == 11322658
     assert UTC_NEW_STATUS_ID == 88756946
-    assert TARGET_LEADS_INHOUSE_PIPELINE_ID == 11295630
-    assert TARGET_LEADS_INHOUSE_NEW_STATUS_ID == 88696194
+    # Inhouse Meta leadlari birlashtirilgan "Sotuv" voronkasining "Yangi" bosqichiga tushadi
+    assert TARGET_LEADS_INHOUSE_PIPELINE_ID == 11162698
+    assert TARGET_LEADS_INHOUSE_NEW_STATUS_ID == 87609514
     assert UTC_PIPELINE_ID in ACTIVE_PIPELINE_IDS
     assert TARGET_LEADS_INHOUSE_PIPELINE_ID in ACTIVE_PIPELINE_IDS
 
