@@ -32,8 +32,8 @@ export default function Header() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const businesses = [
-    { name: "Jon Branding agency", status: "Faol", deals: "487 bitim" },
-    { name: "Jon Academy", status: "Faol", deals: "128 o'quvchi" },
+    { name: "Jon Branding agency", status: "Faol", deals: "AmoCRM" },
+    { name: "Jon Academy", status: "Faol", deals: "Ta'lim" },
   ];
 
   const handleBugSubmit = async (e: React.FormEvent) => {

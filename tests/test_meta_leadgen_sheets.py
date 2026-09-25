@@ -71,3 +71,15 @@ def test_append_lead_to_sheet_success(mock_get_sh):
 
     assert res is True
     assert mock_ws.append_row.called
+
+
+def test_format_lead_row_outsource():
+    fields = {"ism": "Vali", "tel": "+998901234567"}
+    row = format_lead_row(
+        leadgen_id="999",
+        lead_id=888,
+        fields=fields,
+        is_outsource=True,
+    )
+    assert len(row) == 13
+    assert row[10] == "0 ta qo'ng'iroq"

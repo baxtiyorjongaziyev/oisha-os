@@ -88,17 +88,20 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     except ImportError as exc:
         logger.warning("[ROP] scheduler unavailable: %s", exc)
 
-    try:
-        from src.schedulers.meta_leadgen_scheduler import meta_leadgen_loop
-        asyncio.create_task(meta_leadgen_loop(), name="meta_leadgen_loop")
-    except ImportError as exc:
-        logger.warning("[META LEADGEN] scheduler unavailable: %s", exc)
+    if os.getenv("STANDALONE_LEADGEN_WORKER", "").strip().lower() in {"1", "true", "yes"}:
+        logger.info("[META LEADGEN] Ingestion & watchdog delegated to dedicated standalone worker.")
+    else:
+        try:
+            from src.schedulers.meta_leadgen_scheduler import meta_leadgen_loop
+            asyncio.create_task(meta_leadgen_loop(), name="meta_leadgen_loop")
+        except ImportError as exc:
+            logger.warning("[META LEADGEN] scheduler unavailable: %s", exc)
 
-    try:
-        from src.schedulers.leadgen_status_reporter import leadgen_watchdog_and_reporter_loop
-        asyncio.create_task(leadgen_watchdog_and_reporter_loop(), name="leadgen_watchdog_loop")
-    except ImportError as exc:
-        logger.warning("[LEADGEN WATCHDOG] reporter unavailable: %s", exc)
+        try:
+            from src.schedulers.leadgen_status_reporter import leadgen_watchdog_and_reporter_loop
+            asyncio.create_task(leadgen_watchdog_and_reporter_loop(), name="leadgen_watchdog_loop")
+        except ImportError as exc:
+            logger.warning("[LEADGEN WATCHDOG] reporter unavailable: %s", exc)
 
     try:
         from src.schedulers.marketing_attribution_scheduler import marketing_attribution_loop

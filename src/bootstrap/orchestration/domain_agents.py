@@ -60,6 +60,7 @@ def init_domain_agents(
     meeting_scheduler.lead_detector = auto_lead_agent
     SalesCoach(ai_provider=auto_lead_agent)
     safe_responder = SafeResponder()
+    app_ctx.safe_responder = safe_responder
 
     surgical_integration = get_surgical_integration()
     try:

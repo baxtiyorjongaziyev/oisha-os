@@ -44,3 +44,30 @@ def test_delivery_summary():
     assert "sheets_ok" in summary
     assert "telegram_ok" in summary
     assert "pending" in summary
+
+
+def test_channel_status_and_completion():
+    from src.services.core.instagram.leadgen_delivery import (
+        is_delivery_complete,
+        get_delivery_channel_status,
+    )
+    from src.services.core.instagram.leadgen_dedup import is_leadgen_processed
+
+    import uuid
+    lead_id_str = f"test_lead_complete_{uuid.uuid4().hex[:8]}"
+    assert is_delivery_complete(lead_id_str) is False
+    status = get_delivery_channel_status(lead_id_str)
+    assert status == {"amocrm": False, "sheets": False, "telegram": False}
+
+    record_delivery_status(
+        leadgen_id=lead_id_str,
+        lead_id=98765,
+        amocrm_ok=True,
+        sheets_ok=True,
+        telegram_ok=True,
+    )
+    assert is_delivery_complete(lead_id_str) is True
+    assert is_leadgen_processed(lead_id_str) is True
+    status = get_delivery_channel_status(lead_id_str)
+    assert status == {"amocrm": True, "sheets": True, "telegram": True}
+

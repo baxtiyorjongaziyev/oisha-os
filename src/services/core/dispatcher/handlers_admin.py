@@ -349,3 +349,39 @@ async def handle_aiogram_set_mode(
         logger.error("Exception handled in %s", __name__, exc_info=True)
         await message.answer(f"❌ Xato: {e}")
 
+
+async def handle_aiogram_kreativlar(message: Any) -> None:
+    """Handle /kreativ or /creative command to display active creatives with preview buttons."""
+    from src.services.core.marketing.meta_ads_client import KNOWN_CREATIVE_URLS
+    from src.schedulers.leadgen_status_reporter import get_creative_summary
+
+    summary = get_creative_summary()
+    lines = [
+        "🎬 <b>FAOL REKLAMA KREATIVLARI (VIDEOLAR)</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "Quyidagi tugmalar orqali hozirda reklama qilinayotgan videolarni to'g'ridan-to'g'ri ko'rishingiz mumkin:\n",
+    ]
+    buttons = []
+    for c_name, count, pct in summary:
+        code = c_name.split()[0].lower()
+        url = KNOWN_CREATIVE_URLS.get(code) or KNOWN_CREATIVE_URLS.get(code.upper())
+        lines.append(f"• <b>{c_name}</b>: {count} ta lid ({pct}%)")
+        if url:
+            buttons.append([{"text": f"🎬 {c_name} videoni ko'rish", "url": url}])
+
+    if not buttons:
+        buttons = [
+            [{"text": "🎬 v2 (Video 2) — 26 ta lid (86.7%)", "url": "https://www.instagram.com/p/DdMgcrcgnuH/"}],
+            [{"text": "🎬 V6 (Video 6) — 4 ta lid (13.3%)", "url": "https://www.instagram.com/p/DdVkUMngJiW/"}],
+        ]
+
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=b["text"], url=b["url"]) for b in row]
+            for row in buttons
+        ]
+    )
+    await message.answer("\n".join(lines), reply_markup=kb, parse_mode="HTML")
+
+

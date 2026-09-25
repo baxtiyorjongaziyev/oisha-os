@@ -1,8 +1,9 @@
-﻿import { NextResponse } from 'next/server';
-import { FALLBACK_TRANSACTIONS } from '@/lib/apiClient';
+import { NextResponse } from 'next/server';
+import { getFinanceTransactions } from '@/lib/apiClient';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  return NextResponse.json({ transactions: FALLBACK_TRANSACTIONS });
+  const data = await getFinanceTransactions();
+  return NextResponse.json(data);
 }
