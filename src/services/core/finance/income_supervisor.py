@@ -125,11 +125,11 @@ def _send_tg_message(text: str, chat_id: int, topic_id: Optional[int] = None) ->
         return False
 
 
-def _dispatch_supervisor_alert(text: str) -> None:
+def _dispatch_supervisor_alert(text: str) -> bool:
     """Send notification to Sales report topic (115) and Finance topic if configured."""
     sales_group_id = getattr(settings, "CRM_SALES_REPORT_GROUP_ID", None) or -1003854308552
     sales_topic_id = getattr(settings, "CRM_SALES_REPORT_TOPIC_ID", None) or 115
-    _send_tg_message(text, sales_group_id, sales_topic_id)
+    return _send_tg_message(text, sales_group_id, sales_topic_id)
 
 
 def extract_phone_numbers(text: str) -> List[str]:
@@ -290,7 +290,9 @@ async def supervise_recent_incomes(
 
             # Update Tranzaksiyalar record
             try:
-                await asyncio.to_thread(at_sync.update_project_fields, rec_id, {"Sotuvchi": [seller_id]})
+                update_ok = await asyncio.to_thread(at_sync.update_project_fields, rec_id, {"Sotuvchi": [seller_id]})
+                if not update_ok:
+                    raise RuntimeError(f"Airtable update_project_fields returned falsy for record {rec_id}")
                 # If project was linked and missing seller, update it too
                 if project_links:
                     proj_sync = AirtableSync(table_name="Loyihalar")
@@ -318,7 +320,6 @@ async def supervise_recent_incomes(
         else:
             stats["unresolved"] += 1
             if rec_id not in _ALERTED_RECORD_IDS:
-                _save_alerted_record_id(rec_id)
                 if notify_telegram:
                     snippet = izoh[:150] + ("..." if len(izoh) > 150 else "") if izoh else "Izoh yo'q"
                     msg = (
@@ -328,7 +329,15 @@ async def supervise_recent_incomes(
                         f"📋 <b>Izoh:</b> <i>{snippet}</i>\n\n"
                         "❓ <i>Ushbu kirimni qaysi sotuvchi amalga oshirgan? Iltimos, Airtable'da 'Sotuvchi' ustuniga belgilang.</i>"
                     )
-                    _dispatch_supervisor_alert(msg)
+                    # Only mark as alerted once the notification is actually delivered,
+                    # otherwise a transient Telegram failure permanently suppresses it.
+                    if _dispatch_supervisor_alert(msg):
+                        _save_alerted_record_id(rec_id)
+                    else:
+                        logger.warning(
+                            "[SUPERVISOR] Failed to deliver unresolved-income alert for %s; will retry next cycle",
+                            rec_id,
+                        )
 
     return stats
 

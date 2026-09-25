@@ -188,7 +188,7 @@ def _fetch_leadgen_payload(leadgen_id: str, token: str) -> Dict[str, Any]:
     api_version = os.environ.get("META_GRAPH_API_VERSION", "").strip() or "v19.0"
     url = f"https://graph.facebook.com/{api_version}/{leadgen_id}"
     params = {
-        "fields": "created_time,field_data,form_id,ad_id",
+        "fields": "created_time,field_data,form_id,ad_id,adgroup_id,campaign_id",
         "access_token": token,
     }
     response = requests.get(url, params=params, timeout=15)

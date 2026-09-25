@@ -155,13 +155,21 @@ def ensure_leadgen_worksheet(sh, title: str = DEFAULT_WORKSHEET_TITLE):
 
     try:
         t_low = title.lower()
-        for ws in sh.worksheets():
+        worksheets = sh.worksheets()
+
+        # Pass 1: exact GID match wins outright, so a legacy tab that merely
+        # shares words with the target title (e.g. "Target Leads (Sentabr)")
+        # can never shadow the dedicated in-house/outsource destination.
+        for ws in worksheets:
             ws_id = str(getattr(ws, "id", ""))
-            ws_title = ws.title.lower()
             if ws_id == str(OUTSOURCE_WORKSHEET_GID) and ("outsource" in t_low or "gaplashilmagan" in t_low):
                 return ws
             if ws_id == str(INHOUSE_WORKSHEET_GID) and ("inhouse" in t_low or "target" in t_low):
                 return ws
+
+        # Pass 2: fall back to fuzzy title matching only if no GID matched.
+        for ws in worksheets:
+            ws_title = ws.title.lower()
             if title.lower() in ws_title or ws_title in title.lower():
                 return ws
             if "inhouse" in t_low and "inhouse" in ws_title:
