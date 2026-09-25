@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 # Env knobs (all optional; ultra-fast 20s default)
 _INTERVAL_SEC = int(os.getenv("IG_COMMENT_BACKFILL_INTERVAL_SEC", "20"))  # 20 sec
-_MEDIA_LIMIT = int(os.getenv("IG_COMMENT_BACKFILL_MEDIA_LIMIT", "15"))
-_MAX_REPLIES = int(os.getenv("IG_COMMENT_BACKFILL_MAX_REPLIES", "25"))
+_MEDIA_LIMIT = int(os.getenv("IG_COMMENT_BACKFILL_MEDIA_LIMIT", "50"))
+_MAX_REPLIES = int(os.getenv("IG_COMMENT_BACKFILL_MAX_REPLIES", "50"))
 _START_DELAY_SEC = int(os.getenv("IG_COMMENT_BACKFILL_START_DELAY_SEC", "2"))
 
 

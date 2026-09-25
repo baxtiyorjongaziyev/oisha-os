@@ -86,6 +86,8 @@ async def retry_pending_leadgen_deliveries() -> int:
         _pick_name,
         _pick_phone,
         _amocrm_instance,
+        DESTINATION_LABELS,
+        PIPELINE_LABELS,
     )
     from src.services.core.instagram.leadgen_sheets import append_lead_to_sheet
     from src.services.core.crm.amocrm_pipeline_config import (
@@ -104,17 +106,20 @@ async def retry_pending_leadgen_deliveries() -> int:
         amocrm_ok = bool(item.get("amocrm_ok"))
         sheets_ok = bool(item.get("sheets_ok"))
         telegram_ok = bool(item.get("telegram_ok"))
-        destination = item.get("destination") or "utc"
+        destination = item.get("destination")
         retries = int(item.get("retries") or 0)
+        if destination not in ("utc", "inhouse"):
+            # Taqsimot yozilmagan bo'lsa taxmin qilmaymiz (noto'g'ri voronkaga tushmasin).
+            logger.warning("[WATCHDOG] destination missing, skip leadgen_id=%s", leadgen_id)
+            continue
 
         if destination == "inhouse":
             pipe_id = TARGET_LEADS_INHOUSE_PIPELINE_ID
             stat_id = TARGET_LEADS_INHOUSE_NEW_STATUS_ID
-            dest_label = "🏠 Inhouse (Jon Branding)"
         else:
             pipe_id = UTC_PIPELINE_ID
             stat_id = UTC_NEW_STATUS_ID
-            dest_label = "🌐 UTC Outsource"
+        dest_label = DESTINATION_LABELS[destination]
 
         payload: Dict[str, Any] = {}
         if token:
@@ -165,10 +170,12 @@ async def retry_pending_leadgen_deliveries() -> int:
                     send_lead_sos_alert(leadgen_id, lead_id, "sheets", err_msg)
 
         # 3. Retry Telegram
-        if not telegram_ok:
+        if not telegram_ok and fields:
             try:
-                msg = build_telegram_message(leadgen_id, lead_id, name, phone, email, fields)
-                msg += f"\n\n🏢 <b>Taqsimot:</b> {dest_label}"
+                msg = build_telegram_message(
+                    leadgen_id, lead_id, name, phone, email, fields,
+                    pipeline_name=PIPELINE_LABELS[destination], destination_label=dest_label,
+                )
                 tg_res = await asyncio.to_thread(_notify_telegram, msg)
                 if tg_res:
                     mark_channel_delivered(leadgen_id, "telegram")

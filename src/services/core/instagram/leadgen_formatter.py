@@ -240,33 +240,30 @@ def build_telegram_message(
     exclude_keys: Optional[set[str]] = None,
     cost_per_lead: Optional[float] = None,
     ad_name: Optional[str] = None,
+    pipeline_name: Optional[str] = None,
+    destination_label: Optional[str] = None,
+    repeat: bool = False,
 ) -> str:
-    """Format a clean, executive CRM group notification for a Facebook lead."""
+    """One combined alert: sales info on top, compact marketing line at the bottom."""
     lead_link = (
         f'<a href="https://jonbranding.amocrm.ru/leads/detail/{lead_id}">#{lead_id}</a>'
         if lead_id
         else "yaratilmadi"
     )
+    title = "🔁 <b>QAYTA MUROJAAT — FACEBOOK LEAD</b>" if repeat else "🔥 <b>YANGI FACEBOOK LEAD</b>"
     lines = [
-        "🔥 <b>YANGI FACEBOOK LEAD ADS LEAD</b>",
+        title,
         "━━━━━━━━━━━━━━━━━━━━",
         f"👤 <b>Mijoz:</b> {html.escape(name or 'Nomaʼlum')}",
         f"📞 <b>Telefon:</b> {html.escape(phone or 'yoʼq')}",
     ]
     if email:
         lines.append(f"✉️ <b>Email:</b> {html.escape(email)}")
-    lines.extend(
-        [
-            f"🧾 <b>AmoCRM:</b> {lead_link}",
-            "🎯 <b>Voronka:</b> Target LEADs",
-            f"🆔 <b>Meta lead:</b> <code>{html.escape(leadgen_id)}</code>",
-        ]
-    )
-    if ad_name:
-        lines.append(f"🎬 <b>Reklama/Aksiya:</b> {html.escape(ad_name)}")
-    if cost_per_lead:
-        formatted = f"{round(cost_per_lead):,}".replace(",", " ")
-        lines.append(f"💵 <b>Taxminiy lid narxi:</b> ~{formatted} so'm (30 kunlik oʻrtacha)")
+    if destination_label:
+        lines.append(f"🏢 <b>Taqsimot:</b> {html.escape(destination_label)}")
+    if pipeline_name:
+        lines.append(f"🎯 <b>Voronka:</b> {html.escape(pipeline_name)}")
+    lines.append(f"🧾 <b>AmoCRM:</b> {lead_link}")
 
     ignored = exclude_keys or set()
     extras = [(k, v) for k, v in fields.items() if k not in ignored]
@@ -279,4 +276,26 @@ def build_telegram_message(
             ans = humanize_answer(v)
             lines.append(f"{emoji} <b>{html.escape(label)}:</b> {html.escape(ans)}")
 
+    marketing = []
+    short_ad = short_ad_name(ad_name)
+    if short_ad:
+        marketing.append(f"🎬 {html.escape(short_ad)}")
+    if cost_per_lead:
+        marketing.append(f"💰 ~{round(cost_per_lead):,} so'm/lid".replace(",", " "))
+    marketing.append(f"🆔 <code>{html.escape(leadgen_id)}</code>")
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append(" · ".join(marketing))
+
     return "\n".join(lines)
+
+
+_AD_NOISE_RE = re.compile(r"\s*\d{4}-\d{2}-\d{2}-[0-9a-f]{16,}\s*|\b[0-9a-f]{24,}\b", re.IGNORECASE)
+
+
+def short_ad_name(ad_name: Optional[str], limit: int = 60) -> str:
+    """First line of the ad name, without auto-generated date/hash IDs."""
+    if not ad_name:
+        return ""
+    first = next((ln.strip() for ln in str(ad_name).splitlines() if ln.strip()), "")
+    first = _AD_NOISE_RE.sub(" ", first).strip()
+    return first if len(first) <= limit else first[: limit - 1].rstrip() + "…"
