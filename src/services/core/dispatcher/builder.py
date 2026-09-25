@@ -19,6 +19,7 @@ from src.services.core.dispatcher.handlers_admin import (
     handle_aiogram_set_mode,
     handle_aiogram_team_capacity,
     handle_aiogram_vps_status,
+    handle_aiogram_kreativlar,
 )
 from src.services.core.dispatcher.handlers_crm_coach import (
     handle_aiogram_crm_history,
@@ -106,6 +107,10 @@ def build_admin_aiogram_dispatcher(
             is_admin=is_admin,
             get_command_center=get_command_center,
         )
+
+    @dp.message(F.text.regexp(r"(?i)^/(kreativ|kreativlar|creative|creatives)"))
+    async def _kreativlar(message: Any) -> None:
+        await handle_aiogram_kreativlar(message)
 
     @dp.message(F.text.regexp(r"(?i)^/vps_status"))
     async def _vps_status(message: Any) -> None:

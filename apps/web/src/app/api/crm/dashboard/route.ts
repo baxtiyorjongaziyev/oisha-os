@@ -1,8 +1,9 @@
-﻿import { NextResponse } from 'next/server';
-import { FALLBACK_CRM_STATS } from '@/lib/apiClient';
+import { NextResponse } from 'next/server';
+import { getCrmDashboardStats } from '@/lib/apiClient';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  return NextResponse.json(FALLBACK_CRM_STATS);
+  const stats = await getCrmDashboardStats();
+  return NextResponse.json(stats);
 }
