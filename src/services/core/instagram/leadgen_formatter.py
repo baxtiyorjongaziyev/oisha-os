@@ -240,6 +240,7 @@ def build_telegram_message(
     exclude_keys: Optional[set[str]] = None,
     cost_per_lead: Optional[float] = None,
     ad_name: Optional[str] = None,
+    pipeline_name: Optional[str] = None,
 ) -> str:
     """Format a clean, executive CRM group notification for a Facebook lead."""
     lead_link = (
@@ -247,6 +248,7 @@ def build_telegram_message(
         if lead_id
         else "yaratilmadi"
     )
+    p_name = pipeline_name or "Sotuv Bo'limi"
     lines = [
         "🔥 <b>YANGI FACEBOOK LEAD ADS LEAD</b>",
         "━━━━━━━━━━━━━━━━━━━━",
@@ -258,7 +260,7 @@ def build_telegram_message(
     lines.extend(
         [
             f"🧾 <b>AmoCRM:</b> {lead_link}",
-            "🎯 <b>Voronka:</b> Target LEADs",
+            f"🎯 <b>Voronka:</b> {html.escape(p_name)}",
             f"🆔 <b>Meta lead:</b> <code>{html.escape(leadgen_id)}</code>",
         ]
     )
