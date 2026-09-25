@@ -5,7 +5,7 @@ import asyncio
 import datetime
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 
