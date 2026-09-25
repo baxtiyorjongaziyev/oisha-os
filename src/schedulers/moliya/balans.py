@@ -59,7 +59,7 @@ async def run_balans_report() -> bool:
 async def run_balans_eslatmasi() -> bool:
     """Moliyachiga kunlik balansni kiritishni eslatadi (unutilmasligi uchun)."""
     text = (
-        "🔔 <b>Eslatma:</b> @jonbranding_pm — kunlik balansni kiritdingizmi?\n\n"
+        "🔔 <b>Eslatma:</b> @jonbranding_finansist — kunlik balansni kiritdingizmi?\n\n"
         "Har kuni unutmasdan yuborish kerak."
     )
     ok = await send(text, "HISOBCHI_BALANCE_TOPIC_ID")
