@@ -36,6 +36,7 @@ from src.services.core.instagram.leadgen_delivery import (
     get_delivery_channel_status,
     get_lead_destination,
     get_next_lead_destination,
+    try_claim_leadgen,
 )
 from src.services.core.marketing.ad_name_resolver import resolve_ad_name
 from src.services.core.marketing.attribution_store import save_attribution
@@ -224,14 +225,27 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     if not leadgen_id:
         return {"ok": False, "reason": "missing_leadgen_id"}
 
+    # Early deduplication: check if we already have a CRM checkpoint for this leadgen
+    existing_lead_id = await asyncio.to_thread(get_crm_checkpoint, leadgen_id)
+    if existing_lead_id is not None:
+        logger.info("[META LEADGEN] Lead already has CRM checkpoint, skipping duplicate processing", leadgen_id=leadgen_id)
+        # Ensure dedup cache is updated
+        mark_leadgen_processed(leadgen_id, lead_id=existing_lead_id)
+        return {"ok": True, "leadgen_id": leadgen_id, "lead_id": existing_lead_id, "skipped": True}
+
     if not force and is_leadgen_processed(leadgen_id):
         logger.info("[META LEADGEN] Lead already processed, skipping duplicate", leadgen_id=leadgen_id)
         return {"ok": True, "leadgen_id": leadgen_id, "skipped": True}
 
+    if not force:
+        claimed = await asyncio.to_thread(try_claim_leadgen, leadgen_id, os.getpid())
+        if not claimed:
+            logger.info("[META LEADGEN] Lead already claimed by another worker, skipping duplicate", leadgen_id=leadgen_id)
+            return {"ok": True, "leadgen_id": leadgen_id, "skipped": True, "reason": "already_claimed"}
+
     token = access_token or InstagramGraphClient().access_token
     if not token:
         return {"ok": False, "reason": "missing_meta_token"}
-
     payload = value if value.get("field_data") else {}
     if not payload:
         payload = await asyncio.to_thread(_fetch_leadgen_payload, leadgen_id, token)
@@ -346,9 +360,11 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
 
     telegram_ok = bool(ch_status.get("telegram"))
     if not telegram_ok or force:
+        pipeline_name = "Sotuv Bo'limi" if destination == "inhouse" else "UTC"
         telegram_text = build_telegram_message(
             leadgen_id, lead_id, name, phone, email, fields,
             cost_per_lead=cost_per_lead, ad_name=ad_name,
+            pipeline_name=pipeline_name,
         )
         telegram_text += f"\n\n🏢 <b>Taqsimot:</b> {dest_label}"
         buttons = []
