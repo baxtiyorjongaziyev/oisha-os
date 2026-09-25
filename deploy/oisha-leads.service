@@ -1,0 +1,19 @@
+[Unit]
+Description=Oisha-OS Dedicated 24/7 Meta Leads Ingestion & Multi-Channel Pipeline
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/oisha-os
+EnvironmentFile=/home/ubuntu/oisha-os/.env
+ExecStart=/home/ubuntu/oisha-os/venv/bin/python3 -m src.workers.leadgen_worker
+Restart=always
+RestartSec=5s
+TimeoutStopSec=15s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -119,6 +119,10 @@ async def handle_new_message(event):
     client = getattr(app_ctx, "client", None)
     bot_client = getattr(app_ctx, "bot_client", None)
     safe_responder = getattr(app_ctx, "safe_responder", None)
+    if safe_responder is None:
+        from src.services.core.safe_responder import SafeResponder
+        safe_responder = SafeResponder()
+        app_ctx.safe_responder = safe_responder
     voice_processor = getattr(app_ctx, "voice_processor", None)
     auto_lead_agent = getattr(app_ctx, "auto_lead_agent", None)
     folder_manager = getattr(app_ctx, "folder_manager", None)

@@ -118,3 +118,37 @@ async def cmd_history(event, **ctx):
     except Exception as e:
         logger.error("Exception handled in %s", __name__, exc_info=True)
         await event.respond(f"❌ Xatolik: {e}")
+
+
+@register_command("/kreativ", "/kreativlar", "/creative", "/creatives")
+async def cmd_creatives(event, **ctx):
+    try:
+        from telethon import Button
+        from src.services.core.marketing.meta_ads_client import KNOWN_CREATIVE_URLS
+        from src.schedulers.leadgen_status_reporter import get_creative_summary
+
+        summary = get_creative_summary()
+        lines = [
+            "🎬 **FAOL REKLAMA KREATIVLARI (VIDEOLAR)**",
+            "━━━━━━━━━━━━━━━━━━━━",
+            "Quyidagi tugmalar orqali videolarni to'g'ridan-to'g'ri ochib ko'rishingiz mumkin:\n",
+        ]
+        buttons = []
+        for c_name, count, pct in summary:
+            code = c_name.split()[0].lower()
+            url = KNOWN_CREATIVE_URLS.get(code) or KNOWN_CREATIVE_URLS.get(code.upper())
+            lines.append(f"• **{c_name}**: {count} ta lid ({pct}%)")
+            if url:
+                buttons.append([Button.url(f"🎬 {c_name} videoni ko'rish", url)])
+
+        if not buttons:
+            buttons = [
+                [Button.url("🎬 v2 (Video 2) — 26 ta lid", "https://www.instagram.com/p/DdMgcrcgnuH/")],
+                [Button.url("🎬 V6 (Video 6) — 4 ta lid", "https://www.instagram.com/p/DdVkUMngJiW/")],
+            ]
+
+        await event.respond("\n".join(lines), buttons=buttons)
+    except Exception as e:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
+        await event.respond(f"❌ Xatolik: {e}")
+

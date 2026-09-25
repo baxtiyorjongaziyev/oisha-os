@@ -1,7 +1,23 @@
 import logging
+import os
 from typing import Optional, Dict
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_id_role_pairs(raw: str) -> Dict[int, str]:
+    """Parses "id:ROLE,id:ROLE" env value into {id: role}."""
+    pairs: Dict[int, str] = {}
+    for chunk in (raw or "").split(","):
+        chunk = chunk.strip()
+        if not chunk or ":" not in chunk:
+            continue
+        raw_id, role = chunk.split(":", 1)
+        try:
+            pairs[int(raw_id.strip())] = role.strip().upper()
+        except ValueError:
+            continue
+    return pairs
 
 
 class AccessManager:
@@ -20,11 +36,25 @@ class AccessManager:
     def __init__(self, owner_id: int):
         self.owner_id = owner_id
         # Default mapping based on IDs
-        self.user_roles: Dict[int, str] = {
-            owner_id: "OWNER",
-            150074828: "OWNER",  # Absolute fail-safe for Baxtiyor aka
-            8343217526: "SALES",  # Legacy fallback
-        }
+        self.user_roles: Dict[int, str] = {owner_id: "OWNER"}
+
+        # Extra standing role grants (e.g. a secondary owner account, a
+        # legacy sales fallback) — configurable via .env instead of being
+        # invisible hardcoded IDs. Format: "id:ROLE,id:ROLE".
+        # ACCESS_MANAGER_FAILSAFE_ROLES defaults to the two IDs this file
+        # used to hardcode unconditionally, to avoid a silent access change
+        # on upgrade — override/clear it in .env to revoke them.
+        failsafe_raw = os.getenv(
+            "ACCESS_MANAGER_FAILSAFE_ROLES",
+            "150074828:OWNER,8343217526:SALES",
+        )
+        failsafe_roles = _parse_id_role_pairs(failsafe_raw)
+        if failsafe_roles:
+            logger.warning(
+                "[ACCESS] Fail-safe role grants active (ACCESS_MANAGER_FAILSAFE_ROLES): %s",
+                failsafe_roles,
+            )
+        self.user_roles.update(failsafe_roles)
 
         # Hardcoded IDs for the team (can be moved to .env later)
         # Hasan aka, Inomjon aka IDs should be added here

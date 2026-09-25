@@ -47,9 +47,16 @@ db = Database()
 
 
 def verify_meta_signature(payload: bytes, signature: str) -> bool:
-    """META tomonidan kelgan webhook xabar imzosini tekshiradi."""
+    """META tomonidan kelgan webhook xabar imzosini tekshiradi.
+
+    Fail-closed: secret sozlanmagan yoki signature header yo'q/bo'sh bo'lsa,
+    so'rov ishonchsiz deb hisoblanadi va rad etiladi.
+    """
     if not config.META_APP_SECRET:
-        return True  # Secret yo'q bo'lsa, tekshirmaydi (test uchun)
+        logger.error("[META] META_APP_SECRET sozlanmagan — webhook so'rovlari rad etiladi")
+        return False
+    if not signature:
+        return False
 
     expected = (
         "sha256="
@@ -208,8 +215,8 @@ async def handle_webhook():
     """META dan kelgan barcha eventlarni qayta ishlash."""
     # Imzoni tekshirish
     signature = request.headers.get("X-Hub-Signature-256", "")
-    if signature and not verify_meta_signature(request.data, signature):
-        logger.warning("[META] Xavfsizlik: Noto'g'ri imzo!")
+    if not verify_meta_signature(request.data, signature):
+        logger.warning("[META] Xavfsizlik: Noto'g'ri yoki yo'q imzo!")
         return "Unauthorized", 401
 
     try:
@@ -341,14 +348,10 @@ async def handle_webhook():
                             f"[META DB] Commenter updated: {commenter_id} -> {info_updates}"
                         )
 
-                    # Tezni tozalash
-                    import re
-
-                    clean_reply = re.sub(r"\[.*?\]", "", ai_reply).strip()
-
-                    # Kommentga javob
-                    reply_to_comment(comment_id, clean_reply)
-
+                    # Policy: ommaviy kommentga ham AI avtomatik javob
+                    # YOZMAYDI — DM bilan bir xil qoida. Javob faqat taklif
+                    # (draft) sifatida CRM guruhga yuboriladi, jamoa qo'lda
+                    # tasdiqlab javob beradi.
                     # CRM ni xabardor qilish
                     notify_crm(
                         "Instagram Comment",
