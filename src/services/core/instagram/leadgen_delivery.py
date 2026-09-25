@@ -24,6 +24,10 @@ def _connection():
             "CREATE TABLE IF NOT EXISTS leadgen_routing_state "
             "(key TEXT PRIMARY KEY, last_destination TEXT, count INTEGER DEFAULT 0, updated_at TEXT)"
         )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS leadgen_claims "
+            "(leadgen_id TEXT PRIMARY KEY, claimed_at TEXT, pid INTEGER)"
+        )
         # Safe schema migrations for multi-channel tracking
         for col, col_def in (
             ("amocrm_ok", "INTEGER DEFAULT 1"),
@@ -236,5 +240,20 @@ def get_delivery_channel_status(leadgen_id: str) -> Dict[str, bool]:
         "sheets": bool(row[1]),
         "telegram": bool(row[2]),
     }
+
+
+def try_claim_leadgen(leadgen_id: str, pid: int = 0) -> bool:
+    """Atomic cross-process claim for a leadgen ID. Returns True if claimed, False if already claimed."""
+    clean_id = str(leadgen_id or "").strip()
+    if not clean_id:
+        return False
+    now = datetime.datetime.now().isoformat()
+    with _connection() as conn:
+        cursor = conn.execute(
+            "INSERT OR IGNORE INTO leadgen_claims (leadgen_id, claimed_at, pid) VALUES (?, ?, ?)",
+            (clean_id, now, pid),
+        )
+        return cursor.rowcount > 0
+
 
 

@@ -51,6 +51,8 @@ MAX_MESSAGES_PER_RUN = int(_max_per_run_raw) if _max_per_run_raw else None
 #: to'xtaydi, qolganlar keyingi haftaga qoladi.
 SHOM_HOUR = int(os.environ.get("JUMA_SHOM_HOUR", "19"))
 SHOM_MINUTE = int(os.environ.get("JUMA_SHOM_MINUTE", "30"))
+JUMA_HISTORY_LIMIT = int(os.environ.get("JUMA_HISTORY_LIMIT", "100"))
+JUMA_KEYWORDS = ("juma muborak", "juma ayyom", "jumaning")
 
 #: Guruhlar ustuvorlik tartibida: avval Tez Natija 6, keyin 5, 4, 3, 2.
 #: Har biri kamida bittasi mos kelsa yetarli (nom yoki ID orqali).
@@ -184,7 +186,8 @@ async def collect_members(client: TelegramClient) -> list[dict]:
     members: list[dict] = []
     all_dialogs = [d async for d in client.iter_dialogs()]
 
-    for group in GROUP_PRIORITY:
+    # Bu haftadagi broadcast faqat TN6 guruhi uchun.
+    for group in GROUP_PRIORITY[:1]:
         names_lower = {n.lower() for n in group["names"]}
         matching_dialogs = [
             d for d in all_dialogs
@@ -220,6 +223,25 @@ async def send_to_member(client: TelegramClient, member: dict) -> None:
     await client.send_message(member["id"], text)
 
 
+async def was_juma_sent_this_month(client: TelegramClient, user_id: int) -> bool:
+    """Telegram tarixidan shu oy biz yuborgan Juma tabrigini tekshiradi."""
+    month_start = _now_tashkent.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    try:
+        async for message in client.iter_messages(user_id, limit=JUMA_HISTORY_LIMIT):
+            if not message.out or not message.date:
+                continue
+            message_date = message.date.astimezone(_now_tashkent.tzinfo)
+            if message_date < month_start:
+                break
+            text = (message.message or "").lower()
+            if any(keyword in text for keyword in JUMA_KEYWORDS):
+                return True
+    except Exception as exc:
+        print(f"OGOHLANTIRISH: {user_id} tarixi tekshirilmagan: {exc}")
+        return True
+    return False
+
+
 async def run() -> None:
     send_tg_notification("⚙️ Juma tabrigi workflow ishga tushdi — Telethon ulanmoqda...")
     source = prepare(DEDICATED_SESSION_ENV, require_dedicated=True)
@@ -246,18 +268,27 @@ async def run() -> None:
 
     members = await collect_members(client)
     already_sent = load_already_sent()
-    total_before_filter = len(members)
-    if already_sent:
-        members = [m for m in members if m["id"] not in already_sent]
-        skipped = total_before_filter - len(members)
+    history_skipped = 0
+    eligible_members = []
+    for member in members:
+        if member["id"] in already_sent:
+            continue
+        if await was_juma_sent_this_month(client, member["id"]):
+            history_skipped += 1
+            continue
+        eligible_members.append(member)
+    members = eligible_members
+    total_before_filter = len(members) + history_skipped
+    if already_sent or history_skipped:
+        skipped = history_skipped
         print(
-            f"Shu hafta avval yuborilgan {skipped} kishi o'tkazib yuborildi "
-            f"({SENT_LOG_PATH.name})"
+            f"Shu oy Juma tabrigi yuborilgan {skipped} kishi o'tkazib yuborildi "
+            f"(Telegram tarixi + {SENT_LOG_PATH.name})"
         )
         if skipped:
             send_tg_notification(
-                f"ℹ️ Shu hafta avval yuborilgan {skipped} kishiga bugun qayta "
-                "yozilmaydi (davom etilmoqda)."
+                f"ℹ️ Shu oy Juma tabrigi yuborilgan {skipped} kishiga qayta "
+                "yozilmaydi. Faqat TN6 dagi qolganlar davom ettiriladi."
             )
     total = len(members)
     print(f"Jami unikal aʼzolar (yangi, hali yuborilmagan): {total}")
