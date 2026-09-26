@@ -17,6 +17,10 @@ from src.services.core.instagram.leadgen_dedup import is_leadgen_processed, mark
 
 logger = logging.getLogger("LeadgenWatchdog")
 
+# Router checkpoints the lead (telegram_ok=0) before it sends the alert; retrying a
+# fresh row races the in-flight router and produces a duplicate Telegram card.
+_IN_FLIGHT_GRACE_SEC = int(os.getenv("LEADGEN_WATCHDOG_GRACE_SEC", "600"))
+
 
 _DISPATCHED_SOS: set[str] = set()
 
@@ -73,7 +77,7 @@ def send_lead_sos_alert(leadgen_id: str, lead_id: Optional[int], channel: str, e
 
 async def retry_pending_leadgen_deliveries() -> int:
     """Scan and retry any lead that failed AmoCRM, Sheets, or Telegram delivery."""
-    pending = get_pending_deliveries(limit=20)
+    pending = get_pending_deliveries(limit=20, min_age_seconds=_IN_FLIGHT_GRACE_SEC)
     if not pending:
         return 0
 
