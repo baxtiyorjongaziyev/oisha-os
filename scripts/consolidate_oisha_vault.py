@@ -50,9 +50,9 @@ def safe_copy_tree(src, dst):
     print(f"Merged directory tree: {src} -> {dst}")
 
 def consolidate_vault(vault):
-    print(f"\n==========================================")
+    print("\n==========================================")
     print(f"Consolidating: {vault}")
-    print(f"==========================================")
+    print("==========================================")
     if not os.path.exists(vault):
         print("Vault path does not exist, skipping.")
         return
@@ -227,7 +227,7 @@ def consolidate_vault(vault):
 
             with open(graph_json_path, "w", encoding="utf-8") as gf:
                 json.dump(graph_cfg, gf, indent=2)
-            print(f"Updated .obsidian/graph.json with OISHA OS neural galaxy palette!")
+            print("Updated .obsidian/graph.json with OISHA OS neural galaxy palette!")
         except Exception as ge:
             print(f"Failed to update graph.json: {ge}")
 

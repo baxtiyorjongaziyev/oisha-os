@@ -9,18 +9,14 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.services.core.mandatory_workflow import (
-    MandatoryWorkflowManager,
     get_mandatory_workflow,
     Role,
     TaskStatus
 )
 from src.services.core.daily_enforcer import (
-    DailyEnforcer,
-    get_daily_enforcer,
     setup_jon_branding_team
 )
 from src.services.core.workflow_telegram_bot import (
-    WorkflowTelegramBot,
     get_workflow_bot
 )
 
@@ -43,7 +39,7 @@ async def demo_workflow():
     
     print("👤 Demo foydalanuvchi:")
     print(f"   Ism: {user_name}")
-    print(f"   Rol: HUNTER (Lead ovlash)")
+    print("   Rol: HUNTER (Lead ovlash)")
     print()
     
     # 1. Assign daily tasks
@@ -87,10 +83,10 @@ async def demo_workflow():
         result = workflow.complete_task(
             task.id, 
             user_id, 
-            {"note": f"Demo bajarildi", "demo": True}
+            {"note": "Demo bajarildi", "demo": True}
         )
         
-        print(f"   ✅ Bajarildi!")
+        print("   ✅ Bajarildi!")
         
         if result.get("unblocked_tasks"):
             print(f"   🔓 {len(result['unblocked_tasks'])} ta vazifa ochildi!")
@@ -114,7 +110,7 @@ async def demo_workflow():
     print(f"   🚫 Bloklangan: {status['blocked_tasks']}")
     
     if status.get("next_mandatory"):
-        print(f"\n   📋 Keyingi vazifa:")
+        print("\n   📋 Keyingi vazifa:")
         print(f"      {status['next_mandatory']['name']}")
     
     print()
@@ -133,7 +129,7 @@ async def demo_workflow():
     print(f"   Faol foydalanuvchilar: {report['active_users']}")
     
     if report.get('top_performers'):
-        print(f"\n   🏆 TOP BAJARUVCHILAR:")
+        print("\n   🏆 TOP BAJARUVCHILAR:")
         for performer in report['top_performers'][:3]:
             print(f"      {performer['name']}: {performer['count']} vazifa")
     
@@ -154,7 +150,7 @@ async def demo_workflow():
     for cmd, args in commands:
         print(f"\n   💬 {cmd}")
         response = await bot.handle_command(user_id, cmd.replace("/", ""), args)
-        print(f"   🤖 Bot javobi:")
+        print("   🤖 Bot javobi:")
         for line in response.split("\n")[:8]:  # First 8 lines
             print(f"      {line}")
         if len(response.split("\n")) > 8:
@@ -180,7 +176,7 @@ async def demo_workflow():
     print(response)
     
     print()
-    print(f"   👥 Jamoa statusi:")
+    print("   👥 Jamoa statusi:")
     team_response = await bot.handle_command(
         user_id,
         "team_status",
@@ -235,7 +231,7 @@ async def demo_blocking():
     
     # Check status
     status = workflow.get_user_status(user_id)
-    print(f"   Status: BLOKlangan")
+    print("   Status: BLOKlangan")
     print(f"   Sabab: {status['block_reason']}")
     print()
     

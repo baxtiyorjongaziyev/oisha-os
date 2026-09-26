@@ -105,5 +105,5 @@ if os.path.exists(ws_file):
 
 # 4. Start Obsidian
 print("[*] 4. Obsidian ilovasini ishga tushirish...")
-subprocess.Popen([OBSIDIAN_EXE, f"obsidian://open?vault=JonBranding%20Second%20Brain"])
+subprocess.Popen([OBSIDIAN_EXE, "obsidian://open?vault=JonBranding%20Second%20Brain"])
 print("[✅] Obsidian muvaffaqiyatli qayta ochildi!")

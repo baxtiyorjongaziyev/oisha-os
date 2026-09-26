@@ -307,7 +307,7 @@ async def run() -> None:
     if total == 0:
         send_tg_notification(
             "Juma tabrigi: yuboriladigan yangi kishi qolmadi "
-            f"(barchasi shu hafta allaqachon yuborilgan yoki guruhlar topilmadi)."
+            "(barchasi shu hafta allaqachon yuborilgan yoki guruhlar topilmadi)."
         )
         await client.disconnect()
         return
@@ -343,7 +343,7 @@ async def run() -> None:
                 consecutive_disconnects = 0
                 mark_sent(member["id"], already_sent)
                 print(f"OK {label}")
-            except PeerFloodError as e:
+            except PeerFloodError:
                 # Telegram bu yerda "juda ko'p odamga yozyapsiz" deb hisobladi —
                 # davom etish faqat cheklovni uzaytiradi. Darhol to'xtaymiz.
                 aborted_reason = (

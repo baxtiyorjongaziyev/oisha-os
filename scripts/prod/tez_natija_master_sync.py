@@ -3,7 +3,6 @@ import asyncio
 import os
 import sys
 import logging
-import random
 from telethon import TelegramClient
 
 # Add project root to path

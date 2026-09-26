@@ -24,7 +24,7 @@ def check_sync():
     cursor.execute("SELECT message_id, reason FROM processed_messages WHERE message_id < 0 ORDER BY processed_at DESC LIMIT 5")
     last_5 = cursor.fetchall()
 
-    print(f"--- MASS SYNC STATUS ---")
+    print("--- MASS SYNC STATUS ---")
     print(f"Total Mass Synced Contacts (dummy IDs < 0): {mass_synced}")
     print(f"Last 5: {last_5}")
     

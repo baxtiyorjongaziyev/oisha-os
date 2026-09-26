@@ -28,7 +28,7 @@ def check_sync():
     cursor.execute("SELECT COUNT(*) FROM processed_messages")
     total_processed = cursor.fetchone()[0]
 
-    print(f"--- DATABASE STATUS ---")
+    print("--- DATABASE STATUS ---")
     print(f"Total Users in 'users' table: {total_users}")
     print(f"Mass Sync Contacts (synced_mass): {synced_mass}")
     print(f"Total entries in processed_messages: {total_processed}")

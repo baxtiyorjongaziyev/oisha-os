@@ -11,8 +11,6 @@ from src.services.core.crm.daily_report.models import (
     CRMStats,
     CRMWeeklyStats,
     PeriodType,
-    PeriodMetrics,
-    compute_deltas,
     _delta,
     _fmt_duration,
 )

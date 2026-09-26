@@ -2,7 +2,9 @@
 Eliminates ALL manual editable number fields.
 """
 import os
-import urllib.request, json, sys, time
+import urllib.request
+import json
+import sys
 
 sys.stdout.reconfigure(encoding='utf-8')
 

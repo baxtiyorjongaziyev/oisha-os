@@ -1,6 +1,8 @@
 """Deep audit: check if P&L data is real or fake."""
 import os
-import urllib.request, json, sys
+import urllib.request
+import json
+import sys
 sys.stdout.reconfigure(encoding='utf-8')
 
 API_KEY = os.environ.get("AIRTABLE_API_KEY", "").strip()
@@ -57,7 +59,7 @@ for r in trx:
 
 print(f"  Jami haqiqiy kirimlar: {int(kirim_total):,} UZS")
 print(f"  Jami haqiqiy chiqimlar: {int(chiqim_total):,} UZS")
-print(f"  Oylar bo'yicha:")
+print("  Oylar bo'yicha:")
 for oy in sorted(months.keys()):
     m = months[oy]
     print(f"    {oy}: Kirim={int(m['kirim']):,} | Chiqim={int(m['chiqim']):,} | Trx={m['count']}")
@@ -111,6 +113,6 @@ if pnl_total_kirim > 0 and kirim_total > 0:
     diff = abs(pnl_total_kirim - kirim_total)
     print(f"  FARQ: {int(diff):,} UZS")
     if diff > 1000000:
-        print(f"  !!! OGOHLANTIRISH: Raqamlar MOS KELMAYDI !!!")
+        print("  !!! OGOHLANTIRISH: Raqamlar MOS KELMAYDI !!!")
 elif pnl_total_kirim > 0 and kirim_total == 0:
-    print(f"  !!! P&L da raqamlar bor lekin tranzaksiyalar bo'sh yoki 0 !!!")
+    print("  !!! P&L da raqamlar bor lekin tranzaksiyalar bo'sh yoki 0 !!!")

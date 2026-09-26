@@ -7,13 +7,11 @@ from __future__ import annotations
 
 import argparse
 import html
-import json
 import logging
 import os
-import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import httpx
 

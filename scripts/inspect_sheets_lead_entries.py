@@ -12,6 +12,6 @@ for ws in sh.worksheets():
     if len(records) > 0:
         print(f"  Headers: {records[0]}")
     if len(records) > 1:
-        print(f"  Last 5 rows:")
+        print("  Last 5 rows:")
         for r in records[-5:]:
             print(f"    {r[:6]}")

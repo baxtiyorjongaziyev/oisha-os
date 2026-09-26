@@ -20,7 +20,7 @@ def get_server_info():
         
         container_name = "telegram_business_bot"
         
-        print(f"--- RECENT MESSAGES FROM DATABASE (LAST 30) ---")
+        print("--- RECENT MESSAGES FROM DATABASE (LAST 30) ---")
         py_code = """
 import sqlite3
 import sys

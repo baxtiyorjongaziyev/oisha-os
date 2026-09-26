@@ -2,12 +2,10 @@ import asyncio
 import os
 import sys
 import logging
-from datetime import datetime
 
 # Path setup to import from src
 sys.path.append(os.getcwd())
 
-from src.database import Database
 from src import config
 from src.services.airtable_sync import AirtableSync
 

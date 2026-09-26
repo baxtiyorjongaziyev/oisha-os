@@ -35,7 +35,6 @@ async def client_dashboard(request: Request):
     if not token:
         return RedirectResponse(url="/api/auth/telegram/login")
 
-    import config
     from src.api import auth_service
     raw_secret = os.environ.get("JWT_SECRET") or getattr(settings, "JWT_SECRET", "")
     jwt_secret = str(

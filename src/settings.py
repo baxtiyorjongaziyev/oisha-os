@@ -23,7 +23,6 @@ structlog.configure(
 
 from src.settings_helpers import (
     normalize_empty_env_values as _normalize_env_dict,
-    normalize_telegram_chat_id,
 )
 
 class AppSettings(BaseSettings):

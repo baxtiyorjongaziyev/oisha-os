@@ -12,7 +12,6 @@ from src.services.core.crm.daily_report.fetcher import AmoFetcherMixin
 from src.services.core.crm.daily_report.formatter import FormatMixin
 from src.services.core.crm.daily_report.models import (
     PeriodType,
-    PeriodMetrics,
     ReportResult,
     period_range,
     previous_range,

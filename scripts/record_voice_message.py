@@ -152,9 +152,9 @@ def main():
 
     if success:
         logger.info(f"✅ Voice message saved successfully: {args.output}")
-        print(f"\n📞 Voice message ready!")
+        print("\n📞 Voice message ready!")
         print(f"📁 File: {args.output}")
-        print(f"🔗 Upload this to your cloud storage and set VAPI_VOICE_URL in .env")
+        print("🔗 Upload this to your cloud storage and set VAPI_VOICE_URL in .env")
         return 0
     else:
         logger.error("❌ Failed to record voice message")

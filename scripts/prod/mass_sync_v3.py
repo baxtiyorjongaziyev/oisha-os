@@ -1,7 +1,7 @@
 
 import os
 import asyncio
-from telethon import TelegramClient, functions, types
+from telethon import TelegramClient, functions
 from dotenv import load_dotenv
 
 load_dotenv(r"c:\Users\baxti\playground\oisha-os\.env")
@@ -49,7 +49,7 @@ async def main():
                         phone='', # No phone available
                         add_phone_privacy_exception=True
                     ))
-                except Exception as e:
+                except Exception:
                     pass
             
             print(f"Processed batch {i//batch_size + 1}")

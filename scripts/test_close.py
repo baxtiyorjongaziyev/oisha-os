@@ -1,4 +1,6 @@
-import requests, json, sys, os
+import requests
+import sys
+import os
 sys.path.insert(0, os.path.abspath('.'))
 from src.settings import settings
 from src.services.core.crm.amocrm_sync import AmoCRMSync

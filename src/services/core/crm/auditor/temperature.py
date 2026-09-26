@@ -5,7 +5,6 @@ Runs entirely offline (no LLM call) on top of the data already collected during
 `audit_lead_by_data`, so it costs nothing extra to compute.
 """
 import logging
-import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 

@@ -1,5 +1,4 @@
 import os
-import sys
 import pickle
 import logging
 from google_auth_oauthlib.flow import InstalledAppFlow

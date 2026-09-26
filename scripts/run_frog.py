@@ -1,5 +1,4 @@
 import asyncio
-import os
 from src.schedulers.frog_scheduler import send_daily_frog_brief
 
 class MockClient:

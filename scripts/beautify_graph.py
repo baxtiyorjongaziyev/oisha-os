@@ -88,6 +88,6 @@ for v in VAULTS:
                 inject(ws_data)
                 with open(ws_path, "w", encoding="utf-8") as f:
                     json.dump(ws_data, f, indent=2)
-            except Exception as e:
+            except Exception:
                 pass
         print(f"[+] Beautified graph in: {v}")

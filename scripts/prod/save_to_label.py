@@ -15,7 +15,6 @@ import pickle
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from telethon import TelegramClient, errors
-from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from src.settings import settings
@@ -144,7 +143,7 @@ async def save_to_tez_natija_4():
         print()
         
         # Guruhni qidirish
-        print(f'🔍 "TEZ NATIJA 4" guruhini qidirish...')
+        print('🔍 "TEZ NATIJA 4" guruhini qidirish...')
         target_group = None
         
         async for dialog in client.iter_dialogs():

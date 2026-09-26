@@ -4,7 +4,6 @@ Rename all duplicate files across Obsidian Vault so that every single file has a
 """
 import os
 import shutil
-import subprocess
 from collections import defaultdict
 
 VAULTS = [

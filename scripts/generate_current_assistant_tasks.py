@@ -1,6 +1,4 @@
-import os
 import sys
-import json
 from pathlib import Path
 
 # Add project root to sys.path
@@ -11,7 +9,6 @@ if sys.platform == "win32":
 
 from src.services.core.assistant.telegram_assistant_advisor import (
     TelegramAssistantAdvisor,
-    SHAHNOZA_USER_ID,
 )
 
 advisor = TelegramAssistantAdvisor()

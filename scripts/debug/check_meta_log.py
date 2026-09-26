@@ -1,5 +1,4 @@
 import paramiko
-import sys
 
 ssh = paramiko.SSHClient()
 ssh.load_system_host_keys()

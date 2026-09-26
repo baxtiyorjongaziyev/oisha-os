@@ -1,7 +1,5 @@
 
 import asyncio
-import os
-import logging
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -14,7 +12,6 @@ from amocrm_sync import AmoCRMSync
 from services.google_service import GoogleService
 from settings import settings
 from telethon import TelegramClient
-from telethon.tl.types import PeerChat, PeerChannel
 
 async def fetch_proof():
     print("🔍 Oisha-OS: ISBOTLARNI YIG'ISH JARAYONI...\n")

@@ -1,4 +1,5 @@
-import json, os
+import json
+import os
 
 fn = 'data/processed_leadgen_ids.json'
 if os.path.exists(fn):

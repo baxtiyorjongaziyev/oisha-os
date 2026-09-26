@@ -19,7 +19,7 @@ from src.services.core.rop.rop_messages import (
 )
 from src.services.core.rop.targets import load_roster
 from src.services.core.rop.traffic_light import SellerMetrics, evaluate
-from src.services.core.rop.weekly import monday_start, no_result_streak_days, progress
+from src.services.core.rop.weekly import monday_start, progress
 from src.time_utils import get_local_now
 
 logger = logging.getLogger("RopService")

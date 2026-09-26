@@ -160,7 +160,7 @@ class AmoAuditor:
         print(f"\n  Narxsiz (price=0) bitimlar: {zero_price}")
         print(f"  Kontaktsiz bitimlar: {no_contact}")
 
-        print(f"\n  QOTIB QOLGAN ochiq bitimlar (yangilanmagan):")
+        print("\n  QOTIB QOLGAN ochiq bitimlar (yangilanmagan):")
         print(f"    >30 kun: {len(stale_30d)} ta")
         for lid, name, age, st in stale_30d[:15]:
             print(f"      [{lid}] {name}  ({age} kun, status: {st})")
@@ -234,7 +234,7 @@ class AmoAuditor:
 
     def run(self) -> None:
         print(f"\nAmoCRM LIVE AUDIT — {datetime.now().isoformat(timespec='seconds')}")
-        print(f"(faqat o'qish — hech narsa o'zgartirilmaydi)\n")
+        print("(faqat o'qish — hech narsa o'zgartirilmaydi)\n")
         self.audit_account()
         user_map = self.audit_users()
         pipe_map = self.audit_pipelines()

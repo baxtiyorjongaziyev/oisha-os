@@ -21,6 +21,56 @@
 
 ## Agent Handoff Log
 
+- **2026-09-26 — Antigravity — Telethon Userbot Session Refresh, 2FA Auth & Health Readiness Restoration:**
+  - **User Requests**:
+    1. "Ha, bu haqiqiy xabar. /readyz deploy paytida ishlab chiqarishdagi holatni tekshiradi... 1. userbot_unauthorized 2. amocrm_unavailable"
+    2. "hal qilib ber hammasini"
+    3. Telegram 2FA authentication completion.
+  - **Investigation & Discoveries**:
+    - AmoCRM connection was already verified healthy (`check_connection: True`), tokens persist across Turso DB and `.env`.
+    - Userbot session had expired. Previous script failed with Windows charmap UnicodeEncodeError and lacked 2FA handling.
+    - Built non-blocking, file-driven Telegram auth helper (`scripts/telegram_auth_helper.py`) with 2FA support and pending state persistence.
+  - **Execution & Deliverables**:
+    - Successfully requested fresh login code for `+998336450097`, ingested 5-digit verification code and 2FA cloud password.
+    - Generated and validated brand new `USERBOT_SESSION_STRING` (`Authorized: True, User: Baxtiyorjon BaxtiyorjonGaziyev`).
+    - Updated local `.env` and `data/userbot_session_string.txt`.
+    - Updated GitHub Secrets `USERBOT_SESSION_STRING` across repository and `production` environment via `gh secret set`.
+    - Sanitized all temporary code/password plaintext files.
+    - Updated `.github/workflows/oracle-deploy.yml` to support `workflow_dispatch` deployment.
+  - **Verification**:
+    - Telethon authorization verified live (`Authorized: True`).
+    - No secret leakage in logs (Rule 7 compliant).
+    - Modular architecture compliant (Rule 6).
+    - Logged to Obsidian Second Brain.
+
+- **2026-09-26 — Antigravity — Health Monitoring, Nightly SQLite VACUUM & Quarterly Budget Review Automations:**
+  - **User Requests**:
+    1. "Integratsiya sog‘lomligi uchun Telegram/Discord ga avtomatik ogohlantirishlar qo‘shish."
+    2. "Har kecha eski leadlarni arxivlab, SQLite DB‑ni VACUUM qilish."
+    3. "Instagram leadgen byudjetini har chorakda qayta ko‘rib chiqish, manba balansini saqlash."
+    4. Hanging UI task cleanup (`tree /F /A "..." | more`).
+  - **Execution & Deliverables**:
+    - **Terminated Hanging Task**: Killed task `74161a0f-5e7c-4d64-9ef0-931248e13b2f/task-35` which was frozen awaiting stdin on `more`.
+    - **Integration Health Monitor (`scripts/integration_health_monitor.py`, 236 LOC)**:
+      - Validates AmoCRM (`jonbranding.amocrm.ru`), Google Sheets (`1aWmfomtd2x4QoHQIWLPD88lHbepIRvuPhzuugM7-vEc`), Telegram Bot (`@jonairobot`), and Meta Graph API (`Jon Branding`).
+      - Dispatches instant formatted HTML alerts to Telegram (`TARGET_LEADS_GROUP_ID` / `TARGET_LEADS_TOPIC_ID`) and Discord upon failure.
+      - Scheduled hourly via cron: `0 * * * *` (task-44).
+    - **Nightly Lead Archiving & VACUUM (`scripts/archive_old_leads.py`, 285 LOC)**:
+      - Archives delivered leads older than 60 days from `deliveries` to `deliveries_archive` in `data/leadgen_delivery.db`.
+      - Prunes stale claims (> 24h) and cleans `bot.db` message logs (cleaned 13,815 stale logs on first run).
+      - Runs `VACUUM` across all SQLite databases (`leadgen_delivery.db`, `bot.db`, `meta_ad_spend.db`, `meta_ad_attribution.db`, `meta_ad_names.db`).
+      - Scheduled nightly at 02:00 via cron: `0 2 * * *` (task-46).
+    - **Quarterly Budget & Source Balance Review (`scripts/instagram_budget_review.py`, 286 LOC)**:
+      - Analyzes UTC Outsource vs Inhouse (50/50 split) source balance across 123 leads, evaluating drift/skew.
+      - Evaluates quarterly Meta ad spend, Cost Per Lead (CPL), and budget utilization.
+      - Delivers strategic rebalancing recommendations to Telegram/Discord.
+      - Scheduled quarterly via cron: `0 3 1 */3 *` (task-50).
+  - **Verification & Security**:
+    - All 3 scripts tested and verified (all exit code 0).
+    - Bandit: 0 security issues across 664 LOC (`bandit -r scripts/integration_health_monitor.py scripts/archive_old_leads.py scripts/instagram_budget_review.py -ll`).
+    - Rule 6: Strictly adhered to modular $\le 400$ LOC limit (all 3 scripts are 236-286 LOC).
+    - Second Brain: Logged to Obsidian Second Brain via `brain_log`.
+
 - **2026-09-25 — Antigravity — Tez Natija 6 Database Complete Integration into Jon_Branding_Sotuv_CRM:**
   - **User Request**: "https://docs.google.com/spreadsheets/d/1oOZUPZOti_CIdUkLUgWSdLOrXwQP5rPLjmBywx3wino/edit mana bu yerda ham baza bor Tez natija 6 hali qo'shilmagan"
   - **Data Discovery & Aggregation**:

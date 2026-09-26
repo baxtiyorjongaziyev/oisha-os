@@ -1,6 +1,5 @@
 import subprocess
 import json
-import os
 
 def run_cmd(cmd):
     try:

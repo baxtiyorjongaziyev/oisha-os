@@ -12,7 +12,7 @@ import csv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from telethon import TelegramClient, errors
+from telethon import TelegramClient
 from src.settings import settings
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -69,7 +69,7 @@ async def safe_collect():
             with_phone = []
             without_phone = []
             
-            print(f"📊 A'zolarni yig'ish...")
+            print("📊 A'zolarni yig'ish...")
             print("-" * 70)
             
             async for user in client.iter_participants(target_group.id):

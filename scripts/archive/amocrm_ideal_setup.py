@@ -2,7 +2,6 @@ import asyncio
 import logging
 import time
 import sys
-from typing import Optional
 
 # Project imports
 project_dir = r"c:\Users\baxti\.gemini\antigravity\playground\oisha-os"

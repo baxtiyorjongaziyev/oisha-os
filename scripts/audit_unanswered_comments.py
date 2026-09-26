@@ -3,7 +3,6 @@ Adheres to Rule 6 (<= 400 lines).
 """
 import os
 import sys
-import json
 import requests
 from dotenv import load_dotenv
 
@@ -12,6 +11,21 @@ for env_path in ["/home/ubuntu/oisha-os/.env", ".env", "../.env"]:
     if os.path.exists(env_path):
         load_dotenv(env_path)
         break
+
+# Create a requests session with retries and longer timeout
+import urllib3
+from requests.adapters import HTTPAdapter
+
+session = requests.Session()
+retry_strategy = urllib3.util.retry.Retry(
+    total=5,
+    backoff_factor=2,
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["GET", "POST"]
+)
+adapter = HTTPAdapter(max_retries=retry_strategy)
+session.mount("https://", adapter)
+session.mount("http://", adapter)
 
 token = os.environ.get("META_PAGE_ACCESS_TOKEN", "").strip()
 own_id = str(os.environ.get("META_INSTAGRAM_USER_ID", "17841404148272074")).strip()
@@ -31,7 +45,7 @@ def fetch_all_media():
     }
     all_items = []
     while url:
-        resp = requests.get(url, params=params, timeout=20)
+        resp = session.get(url, params=params, timeout=30)
         if resp.status_code != 200:
             print(f"[ERROR] Fetch media failed: {resp.status_code} {resp.text}")
             break

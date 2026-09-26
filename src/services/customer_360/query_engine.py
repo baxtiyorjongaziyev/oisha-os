@@ -9,10 +9,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from src.services.customer_360.collector import Customer360Collector
-from src.services.customer_360.models import Customer360Profile
 from src.services.customer_360.obsidian_syncer import DEFAULT_VAULT_PATHS
 
 logger = logging.getLogger(__name__)

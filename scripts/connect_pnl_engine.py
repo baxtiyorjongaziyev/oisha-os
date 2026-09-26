@@ -1,6 +1,9 @@
 """Connect Tranzaksiyalar and Oylik P&L with dynamic link and rollups, and auto-link all transactions."""
 import os
-import urllib.request, json, sys, time
+import urllib.request
+import json
+import sys
+import time
 
 sys.stdout.reconfigure(encoding='utf-8')
 

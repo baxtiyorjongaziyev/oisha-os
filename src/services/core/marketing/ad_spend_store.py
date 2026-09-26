@@ -4,7 +4,7 @@ from __future__ import annotations
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable
 
 _DB_PATH = Path(__file__).resolve().parents[4] / "data" / "meta_ad_spend.db"
 

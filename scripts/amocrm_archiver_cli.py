@@ -11,7 +11,6 @@ import sys
 import asyncio
 import argparse
 import logging
-from typing import Dict, Any, List
 
 # Windows terminal emoji/utf-8 compatibility
 try:
@@ -24,7 +23,6 @@ except Exception:
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.services.core.crm.crm_archiver import CRMArchiver
-from src.services.core.crm.amocrm_sync import AmoCRMSync
 
 # Setup logging
 logging.basicConfig(
@@ -56,7 +54,7 @@ async def main():
         leads = await archiver.fetch_all_active_leads()
         active_count = len(leads)
         print("=" * 60)
-        print(f"📊 **AmoCRM FAOL BITIMLAR STATUSI** 📊")
+        print("📊 **AmoCRM FAOL BITIMLAR STATUSI** 📊")
         print(f"• Faol bitimlar soni: {active_count} / 500 limit")
         capacity_pct = (active_count / 500) * 100
         print(f"• Bandlik ko'rsatkichi: {capacity_pct:.1f}%")
@@ -101,7 +99,7 @@ async def main():
                 campaign = res.get("campaign", {})
                 print(f"✅ [SUCCESS] Lead ID: {lead_id} ({res.get('name')})")
                 print(f"  📞 Kontakt: {res.get('contact_name') or 'Noma`lum'} ({res.get('phone') or 'Raqamsiz'})")
-                print(f"  💬 3-bosqichli Outreach kampaniyasi:")
+                print("  💬 3-bosqichli Outreach kampaniyasi:")
                 print(f"    1-qadam: {campaign.get('step1')}")
                 print(f"    2-qadam: {campaign.get('step2')}")
                 print(f"    3-qadam: {campaign.get('step3')}")
@@ -114,7 +112,7 @@ async def main():
             print(f"❌ [ERROR] Lead ID: {lead_id} -> {e}")
 
     print("=" * 60)
-    print(f"🏁 **ARXIVLASH NATIJALARI** 🏁")
+    print("🏁 **ARXIVLASH NATIJALARI** 🏁")
     print(f"• Muvaffaqiyatli: {processed_count} ta")
     print(f"• Xato/Muammo: {failed_count} ta")
     print(f"• Rejim: {'DRY-RUN' if dry_run else 'LIVE'}")

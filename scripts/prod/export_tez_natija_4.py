@@ -156,7 +156,7 @@ if __name__ == "__main__":
         print("❌ AVVAL AVTORIZATSIYA QILING!")
         print()
         print("Quyidagi buyruqni ishga tushiring:")
-        print("   .venv_oi\\Scripts\\python -c \"import asyncio; from telethon import TelegramClient; from src.settings import settings; async def auth(): client = TelegramClient('oisha_userbot', settings.API_ID, settings.API_HASH); await client.start(); print('OK'); await client.disconnect(); asyncio.run(auth())\"");
+        print("   .venv_oi\\Scripts\\python -c \"import asyncio; from telethon import TelegramClient; from src.settings import settings; async def auth(): client = TelegramClient('oisha_userbot', settings.API_ID, settings.API_HASH); await client.start(); print('OK'); await client.disconnect(); asyncio.run(auth())\"")
         print()
         print("So'ngra qayta urining.")
         sys.exit(1)

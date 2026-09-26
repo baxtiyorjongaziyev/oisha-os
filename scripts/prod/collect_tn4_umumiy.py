@@ -15,7 +15,7 @@ import csv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from telethon import TelegramClient, errors, functions, types
+from telethon import TelegramClient, errors, types
 from src.settings import settings
 from src.database import Database
 
@@ -195,7 +195,7 @@ async def process_tez_natija_4():
             print(f"📁 Google Contacts CSV: {csv_with_phone}")
         if contacts_without_phone:
             print(f"📁 Telefon yo'qlar CSV: {csv_without_phone}")
-            print(f"📤 Telegramga xabar yuborildi: Saved Messages")
+            print("📤 Telegramga xabar yuborildi: Saved Messages")
         print("=" * 70)
         print()
         print("📱 Google Contacts-ga import qilish:")

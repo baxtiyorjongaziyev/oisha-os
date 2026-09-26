@@ -1,5 +1,4 @@
 import re
-import os
 
 files = [
     r"c:\Users\baxti\playground\oisha-os\src\agents\ai_router.py",

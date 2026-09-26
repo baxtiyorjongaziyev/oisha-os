@@ -15,7 +15,7 @@ import csv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from telethon import TelegramClient, errors
+from telethon import TelegramClient
 from src.settings import settings
 from src.database import Database
 
@@ -77,7 +77,7 @@ async def safe_collect():
             with_phone = []
             without_phone = []
             
-            print(f"📊 A'zolarni yig'ish... (Faqat o'qish, qo'shmaslik)")
+            print("📊 A'zolarni yig'ish... (Faqat o'qish, qo'shmaslik)")
             print("-" * 70)
             
             async for user in client.iter_participants(target_group.id):

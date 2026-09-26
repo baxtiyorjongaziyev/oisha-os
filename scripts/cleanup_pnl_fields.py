@@ -1,6 +1,7 @@
 """Delete old manual number fields and duplicate fields in Oylik P&L."""
 import os
-import urllib.request, json, sys
+import urllib.request
+import sys
 
 sys.stdout.reconfigure(encoding='utf-8')
 

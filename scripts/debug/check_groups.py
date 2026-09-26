@@ -2,7 +2,6 @@ import os
 import pickle
 import logging
 from googleapiclient.discovery import build
-import google.auth.transport.requests
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
