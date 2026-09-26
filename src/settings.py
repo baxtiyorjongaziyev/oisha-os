@@ -292,6 +292,11 @@ class AppSettings(BaseSettings):
     INSTAGRAM_REPORT_AIRTABLE_TABLE: Optional[str] = None
     # Meta Ads spend attribution (act_<id> — Ads Manager > Business Settings > Ad Accounts)
     META_AD_ACCOUNT_ID: Optional[str] = None
+    # Meta Conversions API — CRM (Conversion Leads) dataset. Default o'chiq.
+    META_CAPI_ENABLED: bool = False
+    META_CAPI_DATASET_ID: Optional[str] = None
+    META_CAPI_ACCESS_TOKEN: Optional[SecretStr] = None
+    META_CAPI_TEST_EVENT_CODE: Optional[str] = None
 
     # Google Analytics 4
     GA4_PROPERTY_ID: Optional[str] = None

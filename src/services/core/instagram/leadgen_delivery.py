@@ -102,6 +102,16 @@ def get_crm_checkpoint(leadgen_id: str) -> int | None:
     return int(row[0]) if row and row[0] is not None else None
 
 
+def get_leadgen_id_by_lead_id(lead_id: int) -> str | None:
+    """Reverse lookup: AmoCRM lead ID -> Meta leadgen_id (Lead Ads lidi bo'lsa)."""
+    with _connection() as conn:
+        row = conn.execute(
+            "SELECT leadgen_id FROM deliveries WHERE lead_id = ? ORDER BY rowid DESC LIMIT 1",
+            (int(lead_id),),
+        ).fetchone()
+    return str(row[0]) if row and row[0] else None
+
+
 def save_crm_checkpoint(
     leadgen_id: str, lead_id: int, destination: str = "", advance_rotation: bool = True,
 ) -> None:

@@ -41,6 +41,7 @@ from src.services.core.instagram.leadgen_delivery import (
 from src.services.core.marketing.ad_name_resolver import resolve_ad_name
 from src.services.core.marketing.attribution_store import save_attribution
 from src.services.core.marketing.lead_cost_estimator import estimate_cost_per_lead
+from src.services.core.marketing.meta_capi_triggers import lead_card_markup
 from src.time_utils import get_local_now
 
 logger = structlog.get_logger("MetaLeadgenRouter")
@@ -398,7 +399,7 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
             buttons.append({"text": "🎬 Kreativ", "url": creative_url})
         if lead_id:
             buttons.append({"text": "🧾 AmoCRM bitimi", "url": f"https://jonbranding.amocrm.ru/leads/detail/{lead_id}"})
-        reply_markup = {"inline_keyboard": [buttons]} if buttons else None
+        reply_markup = lead_card_markup(buttons, leadgen_id)
         telegram_ok = await asyncio.to_thread(_notify_telegram, telegram_text, reply_markup=reply_markup)
 
     sheets_ok = bool(ch_status.get("sheets"))
