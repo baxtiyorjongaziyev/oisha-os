@@ -21,24 +21,17 @@ class CallTranscriberMixin:
         return cls._gemini_cooldown_remaining() > 0
 
     def _pause_gemini_for_quota(self) -> None:
-        type(self)._gemini_blocked_until = (
-            time.time() + self.gemini_cooldown_seconds
-        )
+        type(self)._gemini_blocked_until = time.time() + self.gemini_cooldown_seconds
 
     @staticmethod
     def _is_gemini_quota_error(error: Exception) -> bool:
         from src.services.utils.gemini_fallback import is_quota_error
-
         return is_quota_error(error)
 
     def _defer_calls_without_fallback(self) -> bool:
-        if not self._gemini_cooling_down():
+        if not self._gemini_cooling_down() or self.openai_client:
             return False
-        if self.openai_client:
-            return False
-        if self.free_ai_router.available("groq") or self.free_ai_router.available("cloudflare"):
-            return False
-        return True
+        return not (self.free_ai_router.available("groq") or self.free_ai_router.available("cloudflare"))
 
     async def _load_persisted_cooldown(self) -> None:
         if self._cooldown_loaded:
@@ -60,68 +53,74 @@ class CallTranscriberMixin:
 
     async def _persist_gemini_cooldown(self) -> None:
         set_state = getattr(self.db, "set_state", None)
-        if not callable(set_state):
-            return
-        try:
-            await _maybe_await(
-                set_state(
-                    self._GEMINI_COOLDOWN_KEY,
-                    str(type(self)._gemini_blocked_until),
-                )
-            )
-        except Exception as exc:
-            logger.debug("[CALL] Gemini cooldown state write skipped: %s", exc)
+        if callable(set_state):
+            try:
+                await _maybe_await(set_state(self._GEMINI_COOLDOWN_KEY, str(type(self)._gemini_blocked_until)))
+            except Exception as exc:
+                logger.debug("[CALL] Gemini cooldown state write skipped: %s", exc)
 
     def _get_openai_api_key(self) -> str:
         value = os.getenv("OPENAI_API_KEY", "").strip()
-        if value.lower().startswith("sk-place") or "placeholder" in value.lower():
-            return ""
-        if value:
-            return value
-        setting = getattr(self._settings, "OPENAI_API_KEY", None)
-        if not setting:
-            return ""
-        try:
-            value = (setting.get_secret_value() or "").strip()
-        except Exception as exc:
-            logger.warning("[CALL] Exception while reading OPENAI_API_KEY: %s", exc)
-            value = str(setting or "").strip()
-        if value.lower().startswith("sk-place") or "placeholder" in value.lower():
-            return ""
-        return value
+        if not value and (setting := getattr(self._settings, "OPENAI_API_KEY", None)):
+            try:
+                value = (setting.get_secret_value() or "").strip()
+            except Exception:
+                value = str(setting or "").strip()
+        return "" if value.lower().startswith("sk-place") or "placeholder" in value.lower() else value
 
     def _login_moizvonki(self):
-        email = getattr(self._settings, "MOIZVONKI_EMAIL", None)
-        password = getattr(self._settings, "MOIZVONKI_PASSWORD", None)
+        email = getattr(self._settings, "MOIZVONKI_EMAIL", None) or os.getenv("MOIZVONKI_EMAIL")
+        password = getattr(self._settings, "MOIZVONKI_PASSWORD", None) or os.getenv("MOIZVONKI_PASSWORD")
         if not email or not password:
             logger.warning("[CALL] Moizvonki credentials not configured")
             return None
 
+        domain = (
+            getattr(self._settings, "MOIZVONKI_DOMAIN", None)
+            or os.getenv("MOIZVONKI_DOMAIN")
+            or "jonbrandingagency.moizvonki.ru"
+        ).strip().replace("https://", "").replace("http://", "").rstrip("/")
+
         session = _requests.Session()
-        login_url = f"https://{self.amocrm.subdomain}.moizvonki.ru/accounts/login/"
+        try:
+            from requests.adapters import HTTPAdapter
+            from urllib3.util import Retry
+
+            adapter = HTTPAdapter(
+                max_retries=Retry(
+                    total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504], raise_on_status=False
+                )
+            )
+            session.mount("https://", adapter)
+            session.mount("http://", adapter)
+        except Exception:
+            pass
+
+        login_url = f"https://{domain}/accounts/login/"
         try:
             r = session.get(login_url, timeout=30)
             csrf_token = session.cookies.get("csrftoken")
             csrf_mid = re.search(r'name=["\']csrfmiddlewaretoken["\']\s+value=["\']([^"\']+)["\']', r.text)
             csrf_val = csrf_mid.group(1) if csrf_mid else csrf_token
 
+            pwd_val = password.get_secret_value() if hasattr(password, "get_secret_value") else str(password)
             login_data = {
                 "csrfmiddlewaretoken": csrf_val,
                 "username": email,
-                "password": password.get_secret_value() if hasattr(password, "get_secret_value") else password,
-                "foreign_pc": "on"
+                "password": pwd_val,
+                "foreign_pc": "on",
             }
-            headers = {
-                "Referer": login_url,
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-            }
+            headers = {"Referer": login_url, "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
             r_post = session.post(login_url, data=login_data, headers=headers, timeout=30)
             if r_post.status_code == 200 and "sessionid" in session.cookies:
-                logger.info("[CALL] Moizvonki login successful")
+                logger.info("[CALL] Moizvonki login successful (domain=%s)", domain)
                 return session
-            else:
-                logger.error("[CALL] Moizvonki login failed: status=%s cookies=%s", r_post.status_code, session.cookies.get_dict())
-                return None
+            logger.error(
+                "[CALL] Moizvonki login failed: status=%s cookies=%s",
+                r_post.status_code,
+                session.cookies.get_dict(),
+            )
+            return None
         except Exception as exc:
             logger.error("[CALL] Moizvonki login exception: %s", exc)
             return None
@@ -141,9 +140,17 @@ class CallTranscriberMixin:
                 headers_auth = {}
 
         def _get(headers: Dict[str, str], session: Optional[_requests.Session] = None):
-            if is_moizvonki and session:
-                return session.get(url, timeout=90, stream=False)
-            return _requests.get(url, headers=headers, timeout=90, stream=False)
+            for attempt in range(2):
+                try:
+                    if is_moizvonki and session:
+                        return session.get(url, timeout=90, stream=False)
+                    return _requests.get(url, headers=headers, timeout=90, stream=False)
+                except (_requests.exceptions.SSLError, _requests.exceptions.ConnectionError) as exc:
+                    if attempt == 0:
+                        logger.warning("[CALL] Audio fetch transient network/SSL error, retrying: %s", exc)
+                        time.sleep(1)
+                        continue
+                    raise
 
         try:
             resp = None

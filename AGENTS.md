@@ -21,6 +21,24 @@
 
 ## Agent Handoff Log
 
+- **2026-09-27 — Antigravity — Moizvonki Domain Fix, Session Auth & Audio Download SSL Resilience:**
+  - **User Request / Discovery**:
+    - Production `oisha-os` log showed `[CALL] Moizvonki credentials not configured` and `SSLEOFError ... jonbrandingagency.moizvonki.ru`.
+    - Server `.env` lacked `MOIZVONKI_*` variables because CI/CD `.env` generation did not persist `MOIZVONKI_*`.
+  - **Investigation & Critical Discovery**:
+    - Discovered critical domain mismatch bug: `src/services/call_analytics/transcriber.py` was hardcoded to `f"https://{self.amocrm.subdomain}.moizvonki.ru/accounts/login/"`. Because `AMOCRM_SUBDOMAIN=jonbranding`, it generated `https://jonbranding.moizvonki.ru/accounts/login/` which returns **HTTP 404**! The actual agency domain is `jonbrandingagency.moizvonki.ru` which returns **HTTP 200**.
+    - Discovered that web session auth (`MOIZVONKI_EMAIL` + `MOIZVONKI_PASSWORD`) is what `transcriber.py` uses. Verified live that `Jonbranding@agency.uz` + `a123456` logs in with `status: 200` and creates an authenticated `sessionid` cookie on `jonbrandingagency.moizvonki.ru`.
+  - **Resolution & Fix**:
+    - **Settings & Config**: Added `MOIZVONKI_DOMAIN: str = "jonbrandingagency.moizvonki.ru"` to `src/settings.py` (kept $\le 400$ LOC: 399 lines). Documented `MOIZVONKI_EMAIL`, `MOIZVONKI_PASSWORD`, `MOIZVONKI_API_KEY`, `MOIZVONKI_DOMAIN` in `.env.example`.
+    - **Transcriber (`src/services/call_analytics/transcriber.py`)**: Updated `_login_moizvonki` to read `MOIZVONKI_DOMAIN` with sanitize logic. Mounted `HTTPAdapter` with `Retry(total=3, backoff_factor=1)`. Added retry loop in `_fetch_audio_bytes` for transient `SSLError` / `ConnectionError` (resolves `SSLEOFError`). Kept $\le 400$ LOC (395 lines).
+    - **Deploy Persistence (`.github/workflows/oracle-deploy.yml`)**: Added `MOIZVONKI_*` secrets to workflow env, preserved `MOIZVONKI_*` across `.env` generation, and supported `/home/ubuntu/.secrets/moizvonki.env`.
+    - **GitHub Secrets**: Set `MOIZVONKI_EMAIL`, `MOIZVONKI_PASSWORD`, and `MOIZVONKI_DOMAIN` across repository secrets and `production` environment via `gh secret set` and `gh variable set`.
+  - **Verification**:
+    - Pytest: 4/4 passed in `tests/test_moizvonki_integration.py`. Syntax guard: 850/850 passed.
+    - Bandit: 0 security issues across 100,247 LOC (`bandit -r src/ -ll`).
+    - Rule 6: All modified files strictly $\le 400$ LOC.
+
+
 - **2026-09-27 — Antigravity — Google Sheets Credentials Deploy Persistence & CI/CD Hardening:**
   - **User Request**: Telegram alert at 01:00: `🚨 [OISHA: INTEGRATSIYA SOG'LOMLIGI OGOHLANTIRISHI] Google Sheets: Kalit fayli topilmadi (data/service_account.json) ... nimaga bunaqa xabar kelyapti`.
   - **Investigation & Root Cause**:
