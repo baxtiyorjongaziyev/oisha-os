@@ -21,6 +21,25 @@
 
 ## Agent Handoff Log
 
+- **2026-09-26 — Antigravity — AmoCRM 401 Alert Root Cause Resolution & Health Check Upgrade:**
+  - **User Request**: User provided screenshot of Telegram alert: `🚨 [OISHA: INTEGRATSIYA SOG'LOMLIGI OGOHLANTIRISHI] AmoCRM: Xatolik (status 401)`.
+  - **Root Cause Analysis**:
+    - The health check (`scripts/integration_health_monitor.py`) was performing an unauthenticated HTTP GET to `https://jonbranding.amocrm.ru`.
+    - Because AmoCRM requires browser session login, its web server intentionally responds with HTTP `401 Unauthorized` to anonymous web requests.
+    - The monitor did not treat 401 as reachable, triggering a false alarm.
+    - Furthermore, anonymous pinging didn't actually verify whether the AmoCRM OAuth token / API v4 was functional.
+  - **Remediation & Upgrades**:
+    - Upgraded `check_amocrm()` in `scripts/integration_health_monitor.py` to authenticate directly against AmoCRM API v4 (`/api/v4/account`) using OAuth access token with automatic token refresh.
+    - Verified live: AmoCRM API returns `200 OK` (`Jon Branding Agency`, account ID `32681154`).
+    - Resolved Google Sheets path resolution against `_ROOT` and restored `service_account.json` on Oracle VM, restarting `oisha-leads.service`.
+    - Added `os._exit(0)` to prevent lingering background daemon threads from causing CLI timeouts.
+  - **Verification & Compliance**:
+    - Live health check test: 4/4 passed (`AmoCRM: OK ('Jon Branding Agency', status 200)`, `Google Sheets: OK ('Jon branding leads')`, `Telegram Bot: OK (@jonairobot)`, `Meta/Instagram: OK (Baxtiyorjon Gaziyev)`).
+    - Bandit: 0 issues across 227 LOC (`bandit -r scripts/integration_health_monitor.py -ll`).
+    - Rule 6: 273 LOC (<= 400 LOC standard).
+    - Second Brain: Logged to Obsidian via `brain_log`.
+
+
 - **2026-09-26 — Antigravity — Telethon Userbot Session Refresh, 2FA Auth & Health Readiness Restoration:**
   - **User Requests**:
     1. "Ha, bu haqiqiy xabar. /readyz deploy paytida ishlab chiqarishdagi holatni tekshiradi... 1. userbot_unauthorized 2. amocrm_unavailable"
