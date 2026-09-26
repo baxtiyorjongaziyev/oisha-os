@@ -38,8 +38,9 @@ DEFAULT_TIMEOUT = 15
 def _get_telegram_config() -> Tuple[str, str, str]:
     """Telegram bot token, chat_id va topic_id ni qaytaradi."""
     token = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or ""
-    chat_id = os.getenv("TARGET_LEADS_GROUP_ID") or os.getenv("TELEGRAM_ALERT_CHAT_ID") or "-1003854308552"
-    topic_id = os.getenv("TARGET_LEADS_TOPIC_ID") or "1020"
+    # Texnik alert — sotuv guruhiga emas, texnik guruhga (-1003792973489).
+    chat_id = os.getenv("TELEGRAM_ALERT_CHAT_ID") or "-1003792973489"
+    topic_id = os.getenv("TELEGRAM_ALERT_TOPIC_ID") or ""
     return token.strip(), chat_id.strip(), topic_id.strip()
 
 
