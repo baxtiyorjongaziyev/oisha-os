@@ -149,7 +149,11 @@ async def production_readiness_probe():
         from src.api.routes.amocrm_integration import _get_amocrm_instance
         amocrm = _get_amocrm_instance()
         if amocrm and hasattr(amocrm, "check_connection"):
-            amocrm_ok = await asyncio.wait_for(amocrm.check_connection(), timeout=3.0)
+            amocrm_ok = await asyncio.wait_for(amocrm.check_connection(), timeout=8.0)
+    except asyncio.TimeoutError:
+        # Sekin tarmoq != o'lik token. Sababsiz "unavailable" owner'ni
+        # keraksiz qayta avtorizatsiyaga undardi.
+        checks["amocrm_detail"] = "probe_timeout"
     except Exception as exc:
         logger.debug("[HEALTH] AmoCRM check: %s", exc)
     checks["amocrm"] = "connected" if amocrm_ok else "unavailable"
@@ -159,7 +163,7 @@ async def production_readiness_probe():
         # to re-authorize. This reaches the owner via the deploy notification's
         # degraded-checks summary.
         detail = getattr(amocrm, "last_error", None) if amocrm else None
-        if detail:
+        if detail and "amocrm_detail" not in checks:
             checks["amocrm_detail"] = detail
         if not control_plane_mode:
             problems.append("amocrm_unavailable")

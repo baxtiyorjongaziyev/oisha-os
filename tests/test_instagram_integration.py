@@ -270,11 +270,13 @@ async def test_process_instagram_webhook_dm_changes_format(mock_qual, mock_notif
 
 @pytest.mark.asyncio
 @patch("src.services.core.instagram_agent.reply_to_comment")
-@patch("src.services.core.instagram_agent.generate_comment_reply", return_value="Rahmat sharhingiz uchun! Narxlarimiz...")
+@patch("src.services.core.instagram_agent.send_ig_private_reply", return_value=True)
 @patch("src.services.core.instagram_agent.notify_crm")
-async def test_process_instagram_webhook_comment_flow(
-    mock_notify, mock_gen_reply, mock_reply_comment
+async def test_process_instagram_webhook_comment_flow_keyword_automation(
+    mock_notify, mock_private_reply, mock_reply_comment
 ):
+    """"narx" matches COMMENT_KEYWORD_AUTOMATIONS — sends a fixed private DM
+    template (never an AI-generated price answer) plus a public ack reply."""
     mock_db = AsyncMock()
     mock_db.log_message = AsyncMock()
 
@@ -301,17 +303,66 @@ async def test_process_instagram_webhook_comment_flow(
         ]
     }
 
-    from unittest.mock import ANY
     await process_instagram_webhook(payload, mock_db)
 
     # 1. Incoming log
     mock_db.log_message.assert_any_call("ig_comment_user_888", "COMMENT: Narxi qancha?", is_ai=False)
+    # 2. Private DM template sent (never an AI-generated price answer)
+    mock_private_reply.assert_called_once()
+    assert mock_private_reply.call_args[0][0] == "comm_999"
+    # 3. Public ack posted under the comment
+    mock_reply_comment.assert_called_once()
+    # 4. CRM notified
+    mock_notify.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("src.services.core.instagram_agent.reply_to_comment")
+@patch("src.services.core.instagram_agent.generate_comment_reply", return_value="Rahmat sharhingiz uchun! Chegirmalar haqida...")
+@patch("src.services.core.instagram_agent.notify_crm")
+async def test_process_instagram_webhook_comment_flow_sensitive_no_keyword(
+    mock_notify, mock_gen_reply, mock_reply_comment
+):
+    """A sensitive term that ISN'T a keyword-automation trigger ("chegirma")
+    still goes through the AI path, but the sensitive-terms gate blocks the
+    public auto-post — draft only goes to CRM."""
+    mock_db = AsyncMock()
+    mock_db.log_message = AsyncMock()
+
+    payload = {
+        "object": "instagram",
+        "entry": [
+            {
+                "id": "page_ig_id",
+                "changes": [
+                    {
+                        "field": "comments",
+                        "value": {
+                            "id": "comm_1000",
+                            "text": "Chegirma bormi?",
+                            "verb": "add",
+                            "from": {
+                                "id": "user_889",
+                                "username": "anvar_brand"
+                            }
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    await process_instagram_webhook(payload, mock_db)
+
+    # 1. Incoming log
+    mock_db.log_message.assert_any_call("ig_comment_user_889", "COMMENT: Chegirma bormi?", is_ai=False)
     # 3. Outgoing log
-    mock_db.log_message.assert_any_call("ig_comment_user_888", "Rahmat sharhingiz uchun! Narxlarimiz...", is_ai=True)
-    # 4. Reply to comment called
-    mock_reply_comment.assert_called_once_with("comm_999", "Rahmat sharhingiz uchun! Narxlarimiz...", ANY)
+    mock_db.log_message.assert_any_call("ig_comment_user_889", "Rahmat sharhingiz uchun! Chegirmalar haqida...", is_ai=True)
+    # 4. "Chegirma" (discount) is a sensitive term — same policy as DMs: no
+    # public auto-post, only a draft goes to CRM for human review.
+    mock_reply_comment.assert_not_called()
     # 5. Notify CRM called
-    mock_notify.assert_called_once_with("Instagram Comment", "anvar_brand", "user_888", "Narxi qancha?", "Rahmat sharhingiz uchun! Narxlarimiz...")
+    mock_notify.assert_called_once_with("Instagram Comment", "anvar_brand", "user_889", "Chegirma bormi?", "Rahmat sharhingiz uchun! Chegirmalar haqida...")
 
 
 @pytest.mark.asyncio
@@ -488,12 +539,14 @@ def test_send_ig_private_reply(mock_post):
 
 
 @pytest.mark.asyncio
+@patch("src.services.core.instagram_agent.is_quiet_hours", return_value=False)
 @patch("src.services.core.instagram_agent.reply_to_comment")
 @patch("src.services.core.instagram_agent.generate_comment_reply")
 @patch("src.services.core.instagram_agent.send_ig_private_reply")
 async def test_process_instagram_webhook_with_dm_trigger(
-    mock_priv_reply, mock_gen_reply, mock_reply_comm
+    mock_priv_reply, mock_gen_reply, mock_reply_comm, _mock_quiet
 ):
+    # Pin daytime: auto-reply is skipped during quiet hours, making this flaky.
     from src.services.core.instagram_agent import process_instagram_webhook
     mock_db = AsyncMock()
     mock_gen_reply.return_value = "Izohingiz uchun rahmat! Directga yozdim."

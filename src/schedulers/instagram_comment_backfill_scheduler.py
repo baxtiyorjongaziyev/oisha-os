@@ -13,13 +13,14 @@ import logging
 import os
 
 from src.services.core.instagram.config_guard import check_meta_config
+from src.time_utils import get_local_now, is_quiet_hours
 
 logger = logging.getLogger(__name__)
 
 # Env knobs (all optional; ultra-fast 20s default)
 _INTERVAL_SEC = int(os.getenv("IG_COMMENT_BACKFILL_INTERVAL_SEC", "20"))  # 20 sec
-_MEDIA_LIMIT = int(os.getenv("IG_COMMENT_BACKFILL_MEDIA_LIMIT", "15"))
-_MAX_REPLIES = int(os.getenv("IG_COMMENT_BACKFILL_MAX_REPLIES", "25"))
+_MEDIA_LIMIT = int(os.getenv("IG_COMMENT_BACKFILL_MEDIA_LIMIT", "50"))
+_MAX_REPLIES = int(os.getenv("IG_COMMENT_BACKFILL_MAX_REPLIES", "50"))
 _START_DELAY_SEC = int(os.getenv("IG_COMMENT_BACKFILL_START_DELAY_SEC", "2"))
 
 
@@ -45,6 +46,10 @@ async def instagram_comment_backfill_loop(db=None) -> None:
     while True:
         try:
             check_meta_config()
+            if is_quiet_hours(get_local_now()):
+                logger.info("[IG-BACKFILL] Skipped — quiet hours (23:00-07:00)")
+                await asyncio.sleep(_INTERVAL_SEC)
+                continue
             summary = await backfill_unanswered_comments(
                 db,
                 media_limit=_MEDIA_LIMIT,

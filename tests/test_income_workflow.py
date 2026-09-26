@@ -82,7 +82,7 @@ async def test_create_income_airtable_record_tranzaksiyalar():
         assert call_fields["Holat"] == "Tasdiqlangan"
         assert call_fields["Kategoriya"] == [INCOME_CAT_BRANDING]
         assert call_fields["Hisob"] == [ACC_NAQD_USD]
-        assert call_fields["Xodim"] == ["recSeller456"]
+        assert call_fields["Sotuvchi"] == ["recSeller456"]
         assert "Tranzaksiya" in call_fields
         assert call_fields["Tranzaksiya"].startswith("KIRIM-TG-")
         assert PNL_LINK_FIELD in call_fields

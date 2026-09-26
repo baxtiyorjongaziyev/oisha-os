@@ -349,3 +349,37 @@ async def handle_aiogram_set_mode(
         logger.error("Exception handled in %s", __name__, exc_info=True)
         await message.answer(f"❌ Xato: {e}")
 
+
+async def handle_aiogram_kreativlar(message: Any) -> None:
+    """Handle /kreativ or /creative command to display active creatives with preview buttons."""
+    from src.schedulers.leadgen_status_reporter import _resolve_ad_url, get_creative_summary
+
+    summary = get_creative_summary(hours=24 * 30)
+    lines = [
+        "🎬 <b>FAOL REKLAMA KREATIVLARI (VIDEOLAR)</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "Quyidagi tugmalar orqali hozirda reklama qilinayotgan videolarni to'g'ridan-to'g'ri ko'rishingiz mumkin:\n",
+    ]
+    buttons = []
+    for c_name, count, pct, ad_id in summary:
+        url = _resolve_ad_url(ad_id)
+        lines.append(f"• <b>{c_name}</b>: {count} ta lid ({pct}%)")
+        if url:
+            buttons.append([{"text": f"🎬 {c_name} videoni ko'rish", "url": url}])
+
+    if not buttons:
+        buttons = [
+            [{"text": "🎬 v2 (Video 2) videoni ko'rish", "url": "https://www.instagram.com/p/DdMgcrcgnuH/"}],
+            [{"text": "🎬 V6 (Video 6) videoni ko'rish", "url": "https://www.instagram.com/p/DdVkUMngJiW/"}],
+        ]
+
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=b["text"], url=b["url"]) for b in row]
+            for row in buttons
+        ]
+    )
+    await message.answer("\n".join(lines), reply_markup=kb, parse_mode="HTML")
+
+

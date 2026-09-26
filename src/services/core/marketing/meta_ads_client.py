@@ -156,11 +156,39 @@ class MetaAdsClient:
 
         creative = payload.get("creative") or {}
         name = (
-            creative.get("name")
+            payload.get("name")
+            or creative.get("name")
             or creative.get("title")
-            or payload.get("name")
         )
         return str(name).strip() if name else None
+
+    def get_ad_creative_url(self, ad_id: str) -> Optional[str]:
+        """Reklama kreativining Instagram havolasini oladi."""
+        if not ad_id:
+            return None
+        if ad_id in KNOWN_CREATIVE_URLS:
+            return KNOWN_CREATIVE_URLS[ad_id]
+        if not self.access_token:
+            return None
+
+        url = f"https://graph.facebook.com/{self.api_version}/{ad_id}"
+        params = {
+            "access_token": self.access_token,
+            "fields": "name,creative{id,instagram_permalink_url,video_id}",
+        }
+        try:
+            response = requests.get(url, params=params, timeout=15)
+            payload = response.json()
+            creative = payload.get("creative") or {}
+            permalink = creative.get("instagram_permalink_url")
+            if permalink:
+                return str(permalink).strip()
+            video_id = creative.get("video_id")
+            if video_id:
+                return f"https://www.instagram.com/reel/{video_id}/"
+        except Exception as exc:
+            logger.warning("[META ADS] Creative URL olinmadi", error=str(exc))
+        return None
 
     @staticmethod
     def extract_lead_actions(row: Dict[str, Any]) -> int:
@@ -173,3 +201,24 @@ class MetaAdsClient:
                 except (TypeError, ValueError):
                     continue
         return total
+
+
+KNOWN_CREATIVE_URLS: Dict[str, str] = {
+    "120249419742870032": "https://www.instagram.com/p/DdMgcrcgnuH/",
+    "120249477279140032": "https://www.instagram.com/p/DdVkUMngJiW/",
+    "v2": "https://www.instagram.com/p/DdMgcrcgnuH/",
+    "v6": "https://www.instagram.com/p/DdVkUMngJiW/",
+}
+
+
+def get_creative_url(ad_id_or_name: str) -> Optional[str]:
+    """Reklama yoki video nomiga ko'ra Instagram havolasini qaytaradi."""
+    clean = str(ad_id_or_name or "").strip()
+    if not clean:
+        return None
+    if clean in KNOWN_CREATIVE_URLS:
+        return KNOWN_CREATIVE_URLS[clean]
+    if clean.lower() in KNOWN_CREATIVE_URLS:
+        return KNOWN_CREATIVE_URLS[clean.lower()]
+    return None
+

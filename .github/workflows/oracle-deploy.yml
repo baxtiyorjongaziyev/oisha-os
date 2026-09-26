@@ -76,7 +76,7 @@ jobs:
     needs: import-guard
     # Deploy only on push to main; on pull_request events run import-guard alone
     # so the required check can report without touching production.
-    if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(auto):')"
+    if: "(github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !startsWith(github.event.head_commit.message, 'chore(auto):')"
     runs-on: [self-hosted, oracle]
     environment: production
     permissions:
@@ -100,6 +100,7 @@ jobs:
           AMOCRM_REDIRECT_URL: ${{ secrets.AMOCRM_REDIRECT_URL }}
           AMOCRM_TOKEN_JSON: ${{ secrets.AMOCRM_TOKEN_JSON }}
           AMOCRM_REFRESH_TOKEN: ${{ secrets.AMOCRM_REFRESH_TOKEN }}
+          AMOCRM_ACCESS_TOKEN: ${{ secrets.AMOCRM_ACCESS_TOKEN }}
           AMOCRM_CHAT_CHANNEL_ID: ${{ secrets.AMOCRM_CHAT_CHANNEL_ID }}
           AMOCRM_CHAT_CHANNEL_SECRET: ${{ secrets.AMOCRM_CHAT_CHANNEL_SECRET }}
           OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
@@ -184,6 +185,11 @@ jobs:
             # Preserve existing Meta / Instagram credentials from .env
             if [ -f .env ]; then
               grep -E '^(META_|INSTAGRAM_)' .env > /tmp/meta_env_backup.env 2>/dev/null || true
+              # Long-lived AmoCRM token: secret wins, else keep the value an
+              # owner added by hand — .env is rebuilt below and would erase it.
+              if [ -z "${AMOCRM_ACCESS_TOKEN:-}" ]; then
+                AMOCRM_ACCESS_TOKEN="$( (grep -m1 '^AMOCRM_ACCESS_TOKEN=' .env 2>/dev/null || true) | cut -d= -f2- )"
+              fi
             fi
 
             cat > .env <<ENVFILE
@@ -203,6 +209,7 @@ jobs:
             AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET}
             AMOCRM_REDIRECT_URL=${AMOCRM_REDIRECT_URL}
             AMOCRM_REFRESH_TOKEN=${AMOCRM_REFRESH_TOKEN}
+            AMOCRM_ACCESS_TOKEN=${AMOCRM_ACCESS_TOKEN:-}
             OISHA_API_SECRET=${OISHA_API_SECRET}
             OPENCLAW_SECRET=${OPENCLAW_SECRET}
             USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}

@@ -138,6 +138,10 @@ def register_callback_handlers(self):
                 await _handle_improvement_callback(self, event, data)
             elif data.startswith(("mcp:approve:", "mcp:cancel:")):
                 await _handle_mcp_callback(self, event, data)
+            elif data.startswith("capi:"):
+                # Meta CAPI tugmalari: o'z whitelist tekshiruvi (OWNER_ID/WHITELIST_IDS).
+                from src.services.core.marketing.meta_capi_triggers import handle_capi_callback
+                await handle_capi_callback(event, data)
             elif not self.access_manager.is_admin(event.sender_id) and data != "get_id":
                 await event.answer("⚠️ Kirish rad etildi.", alert=True)
             elif data == "get_id":

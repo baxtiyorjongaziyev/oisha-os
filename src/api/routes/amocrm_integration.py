@@ -114,10 +114,43 @@ async def get_amocrm_call_analysis_status(request: Request):
     return await _build_amocrm_call_analysis_status(runtime_db)
 
 
+def _amocrm_webhook_secret_configured() -> Optional[str]:
+    from src.api_server import _secret_setting_text
+    secret = _secret_setting_text(getattr(settings, "AMOCRM_WEBHOOK_SECRET", None))
+    return secret or None
+
+
+def _is_authorized_amocrm_webhook(request: Request) -> bool:
+    """Shared-secret check for the AmoCRM webhook.
+
+    AmoCRM's own webhook subscriptions don't support custom signing, so the
+    secret is passed as a query param on the subscribed URL (e.g.
+    ``.../webhook/amocrm?token=<secret>``) — update the webhook URL in
+    AmoCRM's settings once AMOCRM_WEBHOOK_SECRET is set.
+
+    Fails open (with a loud log) when no secret is configured yet, so
+    deploying this doesn't silently break the existing integration before
+    the webhook URL is updated.
+    """
+    secret = _amocrm_webhook_secret_configured()
+    if not secret:
+        logger.warning(
+            "[Webhook] AMOCRM_WEBHOOK_SECRET is not set — this endpoint accepts "
+            "unauthenticated requests. Set AMOCRM_WEBHOOK_SECRET and add "
+            "?token=<secret> to the AmoCRM webhook URL to close this gap."
+        )
+        return True
+    token = request.query_params.get("token", "")
+    return hmac.compare_digest(token, secret)
+
+
 @router.post("/api/amocrm/tasks/webhook")
 @router.post("/webhook/amocrm/tasks")
 @router.post("/webhook/amocrm")
 async def amocrm_webhook(request: Request):
+    if not _is_authorized_amocrm_webhook(request):
+        logger.warning("[Webhook] AmoCRM webhook rejected — invalid/missing token")
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
     try:
         content_type = request.headers.get("content-type", "")
         if "application/json" in content_type:

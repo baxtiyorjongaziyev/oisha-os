@@ -58,19 +58,17 @@ async def crm_capacity_archiver_loop() -> None:
                     stagnant = await archiver.get_stagnant_leads(max_stagnant_days=21)
                     if stagnant:
                         targets = stagnant[:30]
-                        processed = 0
-                        for lead in targets:
-                            try:
-                                res = await archiver.archive_lead(lead, dry_run=False)
-                                if res.get("success"):
-                                    processed += 1
-                            except Exception as ex:
-                                logger.error(
-                                    "[ARCHIVER_LOOP] Error archiving lead %s: %s",
-                                    lead.get("id"),
-                                    ex,
-                                )
-                        logger.info("[ARCHIVER_LOOP] Autocleanup complete. Archived %s leads.", processed)
+                        # Closing a deal (Closed Lost) is an irreversible business
+                        # decision — never auto-execute it unattended. Only report
+                        # candidates; an owner must review and archive manually
+                        # (e.g. via crm_cleaner_cli.py --apply).
+                        lead_ids = [lead.get("id") for lead in targets]
+                        logger.warning(
+                            "[ARCHIVER_LOOP] %s stagnant lead(s) candidate for archiving "
+                            "(NOT auto-archived — owner review required): %s",
+                            len(lead_ids),
+                            lead_ids,
+                        )
                     else:
                         logger.info("[ARCHIVER_LOOP] No stagnant leads found.")
         except Exception as e:

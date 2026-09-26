@@ -7,13 +7,17 @@ import hashlib
 import hmac
 import os
 import re
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 import requests
 import structlog
 
 from src.settings import settings
 from src.services.core.instagram.graph_client import InstagramGraphClient
-from src.services.core.instagram.backfill import backfill_unanswered_comments
+from src.services.core.instagram.backfill import (
+    backfill_unanswered_comments,
+    _contains_sensitive_terms,
+)
+from src.time_utils import get_local_now, is_quiet_hours
 from src.services.core.instagram.api_helpers import (
     send_ig_message_payload,
     like_comment,
@@ -96,6 +100,37 @@ def send_ig_reply(recipient_id: str, text: str, access_token: str) -> bool:
 def send_ig_private_reply(comment_id: str, text: str, access_token: str) -> bool:
     """Sends a Private Direct Message in response to an Instagram comment."""
     return send_ig_message_payload({"comment_id": comment_id}, text, access_token, f"Private DM on comment {comment_id}")
+
+
+# Keyword-triggered comment automation: when a comment matches a keyword,
+# we send a fixed, pre-approved private DM instead of an AI-generated
+# public reply. This is safe to auto-send even for "sensitive" keywords
+# (e.g. "narx") because the template never quotes an actual price/deadline/
+# discount — it only greets and asks for a phone number (lead capture),
+# same as a ManyChat/Chatplace "comment-to-DM" automation.
+COMMENT_KEYWORD_AUTOMATIONS: Dict[str, str] = {
+    "narx": (
+        "Assalomu alaykum! 😊 Jon Branding agentligiga murojaat qilganingiz uchun rahmat.\n\n"
+        "Narxlar loyihangizning turi va hajmiga qarab belgilanadi, shuning uchun sizga aniq va "
+        "shaxsiy taklif tayyorlashimiz uchun telefon raqamingizni shu yerga yozib qoldiring — "
+        "tez orada mutaxassisimiz siz bilan bog'lanadi! 📞"
+    ),
+}
+
+
+# Posted publicly under the comment (after the private DM is sent) so the
+# commenter — and others browsing the thread — know to check their inbox.
+# Contains no price/sensitive info, so it's safe to always auto-post.
+KEYWORD_AUTOMATION_PUBLIC_ACK = "Sizga DM'dan yozib qo'ydik! 📩 Xabarlaringizni tekshiring."
+
+
+def _match_comment_keyword_automation(comment_text: str) -> Optional[str]:
+    """Returns the fixed DM template for the first matching keyword, or None."""
+    lowered = (comment_text or "").lower()
+    for keyword, template in COMMENT_KEYWORD_AUTOMATIONS.items():
+        if keyword in lowered:
+            return template
+    return None
 
 
 FALLBACK_COMMENT_REPLIES = [
@@ -350,8 +385,39 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 if db:
                     await db.log_message(user_id_str, f"COMMENT: {comment_text}", is_ai=False)
 
+                keyword_template = _match_comment_keyword_automation(comment_text)
+                if keyword_template:
+                    sent = send_ig_private_reply(comment_id, keyword_template, access_token)
+                    if sent:
+                        reply_to_comment(comment_id, KEYWORD_AUTOMATION_PUBLIC_ACK, access_token)
+                    if db:
+                        await db.log_message(user_id_str, keyword_template, is_ai=False)
+                    source = "Instagram Mention" if field in {"mentions", "mention"} else "Instagram Comment"
+                    notify_crm(
+                        f"{source} (keyword automation)",
+                        commenter_name,
+                        commenter_id,
+                        comment_text,
+                        keyword_template,
+                    )
+                    logger.info(
+                        "[META] Keyword automation DM sent",
+                        sent=sent,
+                        commenter=commenter_name,
+                        comment_id=comment_id,
+                    )
+                    continue
+
                 media_id = str((value.get("media") or {}).get("id") or "")
-                post_caption = fetch_media_caption(media_id, access_token) if media_id else ""
+                if media_id:
+                    from src.services.core.instagram.video_analyzer import analyze_media_content
+                    # analyze_media_content fetches the caption itself and, for
+                    # VIDEO/REELS, downloads and has Gemini describe the actual
+                    # video content — so replies are grounded in what the video
+                    # really shows/says, not just the caption text.
+                    post_caption = await analyze_media_content(media_id, access_token)
+                else:
+                    post_caption = ""
 
                 from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
                 emoji_mirror = get_mirror_emoji_reply(comment_text)
@@ -369,8 +435,15 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 if db:
                     await db.log_message(user_id_str, clean_reply, is_ai=True)
 
-                reply_to_comment(comment_id, clean_reply, access_token)
-
                 source = "Instagram Mention" if field in {"mentions", "mention"} else "Instagram Comment"
+                if is_quiet_hours(get_local_now()) or _contains_sensitive_terms(comment_text):
+                    logger.warning(
+                        "[META] Auto-post skipped — quiet hours or sensitive terms, needs human review",
+                        comment_id=comment_id,
+                        commenter=commenter_name,
+                    )
+                else:
+                    reply_to_comment(comment_id, clean_reply, access_token)
+
                 notify_crm(source, commenter_name, commenter_id, comment_text, ai_reply)
 

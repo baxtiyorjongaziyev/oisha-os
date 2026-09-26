@@ -118,3 +118,35 @@ async def cmd_history(event, **ctx):
     except Exception as e:
         logger.error("Exception handled in %s", __name__, exc_info=True)
         await event.respond(f"❌ Xatolik: {e}")
+
+
+@register_command("/kreativ", "/kreativlar", "/creative", "/creatives")
+async def cmd_creatives(event, **ctx):
+    try:
+        from telethon import Button
+        from src.schedulers.leadgen_status_reporter import _resolve_ad_url, get_creative_summary
+
+        summary = get_creative_summary(hours=24 * 30)
+        lines = [
+            "🎬 **FAOL REKLAMA KREATIVLARI (VIDEOLAR)**",
+            "━━━━━━━━━━━━━━━━━━━━",
+            "Quyidagi tugmalar orqali videolarni to'g'ridan-to'g'ri ochib ko'rishingiz mumkin:\n",
+        ]
+        buttons = []
+        for c_name, count, pct, ad_id in summary:
+            url = _resolve_ad_url(ad_id)
+            lines.append(f"• **{c_name}**: {count} ta lid ({pct}%)")
+            if url:
+                buttons.append([Button.url(f"🎬 {c_name} videoni ko'rish", url)])
+
+        if not buttons:
+            buttons = [
+                [Button.url("🎬 v2 (Video 2) videoni ko'rish", "https://www.instagram.com/p/DdMgcrcgnuH/")],
+                [Button.url("🎬 V6 (Video 6) videoni ko'rish", "https://www.instagram.com/p/DdVkUMngJiW/")],
+            ]
+
+        await event.respond("\n".join(lines), buttons=buttons)
+    except Exception as e:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
+        await event.respond(f"❌ Xatolik: {e}")
+

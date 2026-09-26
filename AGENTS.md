@@ -21,6 +21,376 @@
 
 ## Agent Handoff Log
 
+- **2026-09-27 — Claude — Telethon/aiogram audit fixes, branch `claude/telegram-api-docs-bdbefa` (#740):**
+  - Audit topgan bo'shliqlarni tuzatdi: `MessageEdited`/`MessageDeleted` handlerlar qo'shildi (`entrypoint/message_event.py`, `bootstrap/orchestration/events.py`); `FloodWaitError` uchun `safe_send()` wrapper (`services/core/telegram/safe_send.py`), `chat_bridge.py`ga qo'llandi; bir martalik scriptlardagi (`search_group_full.py`, `search_group_research.py`, `pilot_sync_v1.py`) bir xil `"userbot_session"` nomi noyob nomlarga o'zgartirildi.
+  - `settings.py`: `AMOCRM_CHAT_CHANNEL_ID`/`_SECRET` dublikat e'lonini olib tashladi (ikkinchi e'lon birinchisini `None` bilan bekor qilib, amoCRM Chats API integratsiyasini ishlatmay qo'ygan edi). `.env`ga `AMOCRM_CHAT_ACCOUNT_ID=32681154` qo'shildi (amoCRM API orqali olindi).
+  - Tekshiruv: syntax/import toza (`ast.parse` + real import barcha o'zgargan fayllarda). Jonli edit/delete/flood-wait senariylar production'da hali tekshirilmagan.
+
+- **2026-09-25 — Claude — Meta Conversions API (Conversion Leads), branch `feat/meta-capi`:**
+  - Reja: `docs/plans/meta-capi-conversion-leads.md`. `settings.py` ga owner topshirig'i bilan (coordinator-owned) `META_CAPI_ENABLED` (default False), `META_CAPI_DATASET_ID`, `META_CAPI_ACCESS_TOKEN` (SecretStr), `META_CAPI_TEST_EVENT_CODE` qo'shildi.
+  - Yangi: `services/core/marketing/meta_capi.py` (payload, sha256 ph/em, 3x retry), `meta_capi_store.py` (`capi_events` jadvali, db_pool orqali, atomik claim), `meta_capi_triggers.py` (AmoCRM status map 142->Purchase, `META_CAPI_QUALIFIED_STATUS_IDS`->QualifiedLead; `capi:q|p:<leadgen_id>` tugmalar, OWNER/WHITELIST).
+  - Ulangan: `leadgen_router` tugmalar qatori, `leadgen_delivery.get_leadgen_id_by_lead_id`, `attribution_sync` -> `on_amo_status`, `admin_bot/handlers_callbacks` `capi:` routing.
+  - Test: `tests/test_meta_capi.py` 13 passed. Qolgan ish: Events Manager'da dataset + token, env to'ldirish, `META_CAPI_ENABLED=1`.
+
+- **2026-09-25 — Antigravity — Tez Natija 6 Database Complete Integration into Jon_Branding_Sotuv_CRM:**
+  - **User Request**: "https://docs.google.com/spreadsheets/d/1oOZUPZOti_CIdUkLUgWSdLOrXwQP5rPLjmBywx3wino/edit mana bu yerda ham baza bor Tez natija 6 hali qo'shilmagan"
+  - **Data Discovery & Aggregation**:
+    - Discovered local Google Contacts exports: `contacts (7).csv` (324 contacts under label `TEZ NATIJA 6`, exported 2026-09-23) and `contacts (6).csv` (35 extra VIP business contacts with `TN6` in contact name). Total unique TN6 contacts: **359**.
+    - Full local backup of all 6 worksheets saved to `data/backup_jon_branding_sotuv_crm.json`.
+  - **Integration Execution (`scripts/sync_tn6_to_crm_sheet.py`, 336 LOC <= 400 LOC)**:
+    - **Raw kontaktlar**: Appended 359 raw records (`Record ID` 1728 to 2086). New total: **2,086** rows.
+    - **CRM Existing Matches (33 leads)**: Updated `Guruh / Manba` to append `; Tez Natija 6`, incremented `Dublikat yozuvlar`, merged original names. Seller notes, stages, and owners 100% preserved.
+    - **CRM Brand New Leads (256 leads)**: Appended new leads (`LD-1242` to `LD-1497`). Perfectly balanced round-robin seller assignment (`Nozima`: 499, `Bobur`: 499, `Ziyoda`: 498). Actionable leads increased from 1,241 to **1,497** (Phones: 957, Telegram: 536).
+    - **Aloqasiz kontaktlar (69 contacts)**: Contacts with no phone and no telegram routed to `Aloqasiz kontaktlar` (`NC-0256` to `NC-0324`). New total: **324** contacts.
+    - **Dublikatlar (33 records)**: Updated 13 existing duplicate records and added 20 new cross-group duplicate pairs with complete source tracking.
+    - **Dashboard**: Dynamically updated KPI ranges and formula evaluations. Added Row 20: `Tez Natija 6 = 289` leads in CRM.
+
+- **2026-09-26 — Antigravity — Oracle VM Deploy Pipefail Error & Health Check Restoration:**
+  - **User Request**: "🚨 Oisha OS: Yangilanishda xatolik yuz berdi ❌📌 Versiya (Commit): 821164c⚠️ Sabab: Oracle VM salomatlik tekshiruvi muvaffaqiyatsiz bo'ldi."
+  - **Investigation & Root Cause**:
+    - Workflow run `36222663784` on commit `821164c1` failed with `Process completed with exit code 1` within 4ms of outputting `[OLLAMA] ENABLE_OLLAMA yoqilmagan — o'tkazib yuborildi.`.
+    - Commit `821164c` added `AMOCRM_ACCESS_TOKEN="$(grep -m1 '^AMOCRM_ACCESS_TOKEN=' .env | cut -d= -f2-)"` inside `.github/workflows/oracle-deploy.yml`.
+    - Because `set -euo pipefail` is active in the deploy script, and `AMOCRM_ACCESS_TOKEN` is not yet present in Oracle VM's `.env`, `grep` exited with code 1, which caused `pipefail` to trigger and `set -e` to terminate the shell immediately before reaching service restarts or `/readyz`.
+    - Telegram notify step received `status == 'failure'` and emitted the default error card citing "Oracle VM salomatlik tekshiruvi muvaffaqiyatsiz bo'ldi."
+    - Verification of the previous `Oracle VM Health` run confirmed Oracle VM was completely healthy (`ready: true`, `database: ok`, `userbot: authorized`, `amocrm: connected`, `NRestarts: 0`).
+  - **Fix & Hardening**:
+    - In `.github/workflows/oracle-deploy.yml`: wrapped grep in subshell with `|| true`: `AMOCRM_ACCESS_TOKEN="$( (grep -m1 '^AMOCRM_ACCESS_TOKEN=' .env 2>/dev/null || true) | cut -d= -f2- )"`, guaranteeing clean 0 exit code under `set -euo pipefail` regardless of whether `AMOCRM_ACCESS_TOKEN` is present in `.env`.
+  - **Verification**:
+    - Pytest: 856 passed, 1 skipped.
+    - Bandit: 0 issues across 99,728 LOC (`bandit -r src/ -ll`).
+    - Rule 6: All files comply with standard LOC limits.
+    - Logged to Obsidian Second Brain.
+
+- **2026-09-26 — Antigravity — Telethon Userbot Session Refresh, 2FA Auth & Health Readiness Restoration:**
+  - **User Requests**:
+    1. "Ha, bu haqiqiy xabar. /readyz deploy paytida ishlab chiqarishdagi holatni tekshiradi... 1. userbot_unauthorized 2. amocrm_unavailable"
+    2. "hal qilib ber hammasini"
+    3. Telegram 2FA authentication completion.
+  - **Investigation & Discoveries**:
+    - AmoCRM connection was already verified healthy (`check_connection: True`), tokens persist across Turso DB and `.env`.
+    - Userbot session had expired. Previous script failed with Windows charmap UnicodeEncodeError and lacked 2FA handling.
+    - Built non-blocking, file-driven Telegram auth helper (`scripts/telegram_auth_helper.py`) with 2FA support and pending state persistence.
+  - **Execution & Deliverables**:
+    - Successfully requested fresh login code for `+998336450097`, ingested 5-digit verification code and 2FA cloud password.
+    - Generated and validated brand new `USERBOT_SESSION_STRING` (`Authorized: True, User: Baxtiyorjon BaxtiyorjonGaziyev`).
+    - Updated local `.env` and `data/userbot_session_string.txt`.
+    - Updated GitHub Secrets `USERBOT_SESSION_STRING` across repository and `production` environment via `gh secret set`.
+    - Sanitized all temporary code/password plaintext files.
+    - Updated `.github/workflows/oracle-deploy.yml` to support `workflow_dispatch` deployment.
+  - **Verification**:
+    - Telethon authorization verified live (`Authorized: True`).
+    - No secret leakage in logs (Rule 7 compliant).
+    - Modular architecture compliant (Rule 6).
+    - Logged to Obsidian Second Brain.
+
+- **2026-09-26 — Antigravity — Health Monitoring, Nightly SQLite VACUUM & Quarterly Budget Review Automations:**
+  - **User Requests**:
+    1. "Integratsiya sog‘lomligi uchun Telegram/Discord ga avtomatik ogohlantirishlar qo‘shish."
+    2. "Har kecha eski leadlarni arxivlab, SQLite DB‑ni VACUUM qilish."
+    3. "Instagram leadgen byudjetini har chorakda qayta ko‘rib chiqish, manba balansini saqlash."
+  - **Execution & Deliverables**:
+    - Integration Health Monitor (`scripts/integration_health_monitor.py`, 236 LOC).
+    - Nightly Lead Archiving & VACUUM (`scripts/archive_old_leads.py`, 285 LOC).
+    - Quarterly Budget & Source Balance Review (`scripts/instagram_budget_review.py`, 286 LOC).
+  - **Verification & Security**:
+    - Bandit: 0 security issues across 664 LOC.
+    - Rule 6: Strictly adhered to modular $\le 400$ LOC limit.
+    - Second Brain: Logged to Obsidian Second Brain via `brain_log`.
+
+- **2026-09-25 — Antigravity — Google Sheet UTC Outsource Full Deduplication & 1 to 90 Renumbering:**
+  - **User Request**: "nega 96 ta ko'rsatyapti" -> "xoylayman" (clean duplicates and fix numbering).
+  - **Cleanup Execution**:
+    - Removed 5 duplicate rows: `Динара` (977053339), `Muhammadjon` (500193103), `Asror` (903935656), `Umar` (937155333), `Азизбек` (905615999).
+    - Removed 1 broken row: `Abduvali` (Row 52, invalid phone `9`).
+    - Verified exactly 90 unique leads remain in `Gaplashilmagan Leadlar (UTC Outsource)`.
+    - Renumbered Column A (`№`) cleanly from **1 to 90** (`A2:M91`).
+    - Synced Column K (`Qo'ng'iroq holati`) with CRM UTC statuses (including new leads `Azamat` and `Azizbek` -> `Maslahat kutmoqda`).
+    - Full local backup saved to `data/backup_utc_outsource_pre_dedup.json`.
+    - Logged to Obsidian Second Brain via `brain_log`.
+
+- **2026-09-25 — Antigravity — AmoCRM Archived Pipelines Decommission & Google Sheets Integration 100% Sync:**
+  - **User Requests**:
+    1. "target leads voronka endi yo'q. target leads va closer voronkasidagi zakrit bo'lganlarini sotuv bo'limi voronkasiga olib o'tib ber."
+    2. "Leadlar integratsiyasi to‘liq emas. Botning 09:00 hisobotiga ko‘ra, oxirgi 24 soatdagi 25 ta liddan 20 tasi Sheets’ga yozilgan, 5 tasi kutilmoqda yoki xatoli. Hisobotdagi “100%” yozuvi shu raqamlarga zid."
+  - **AmoCRM Pipeline Migration & Zero-Deals Verification**:
+    - Discovered real pipeline IDs: `Sotuv Bo'limi` (`11162698`), `[ARXIV] 2. CLOSER` (`11162702`), `[ARXIV] Target LEADs` (`11295630`).
+    - Migrated all 492 deals from `[ARXIV] 2. CLOSER` (51 won to status 142, 441 lost to status 143) into `Sotuv Bo'limi` (`11162698`).
+    - Migrated all 36 deals from `[ARXIV] Target LEADs` (32 lost to status 143, and 4 fresh active leads to status 87609514 `Yangi`) into `Sotuv Bo'limi` (`11162698`).
+    - Verified: `[ARXIV] 2. CLOSER` remaining deals = **0**, `[ARXIV] Target LEADs` remaining deals = **0**. Both pipelines can now be deleted in AmoCRM UI without any validation errors.
+    - Updated `src/services/core/crm/amocrm_pipeline_config.py`: pointed `SALES_PIPELINE_ID` and `TARGET_LEADS_INHOUSE_PIPELINE_ID` to `11162698` (`Sotuv Bo'limi`), status `87609514` (`Yangi`).
+  - **Google Sheets Integration Root Cause & Recovery**:
+    - Discovered `data/service_account.json` was missing on the Oracle VM (only present on local machine). This caused all recent Google Sheets write attempts to fail with `[GSHEET] Service account credentials not found`, leaving `sheets_ok = 0`.
+    - Discovered that on the VM, `src/schedulers/leadgen_status_reporter.py` had `(100% kiritilgan)` hardcoded into the text format string, causing the contradictory report at 09:00.
+    - Uploaded `data/service_account.json` to the VM (`chmod 600`) and symlinked to `/home/ubuntu/oisha-os/service_account.json`.
+    - Uploaded `src/workers/leadgen_worker.py` and `src/services/core/marketing/meta_ads_client.py`.
+    - Deployed fixed `leadgen_status_reporter.py` calculating dynamic percentages `sheets_pct`, `amo_pct`, and truthful footer status notes.
+  - **Double-Sending Bug & Hardcoded Voronka Resolution (10:56 AM Incident)**:
+    - **User Request**: "[25.09.2026 10:56] Jonibek lidi 2 marta yuborildi... nimaga ikki marta yuboryapti?"
+    - **Root Cause**: `STANDALONE_LEADGEN_WORKER=1` was missing from `/home/ubuntu/oisha-os/.env`. As a result, both `oisha-os.service` and `oisha-leads.service` were concurrently running `meta_leadgen_loop()`. At 10:56:22, PID 1032450 and PID 1032592 both polled lead `1441634004785206` at the exact same second and dispatched two identical cards to Telegram. Furthermore, `leadgen_formatter.py` had hardcoded `🎯 Voronka: Target LEADs`.
+    - **Fix & Hardening**:
+      1. Enforced `STANDALONE_LEADGEN_WORKER=1` in VM `.env` and added fallback check `os.path.exists("/etc/systemd/system/oisha-leads.service")` in `schedulers.py`.
+      2. Added SQLite atomic lock table `leadgen_claims` and `try_claim_leadgen()` in `leadgen_delivery.py` and `leadgen_router.py` ensuring mathematical impossibility of concurrent double-processing across processes.
+      3. Updated `leadgen_formatter.py` to accept dynamic `pipeline_name`, displaying `Sotuv Bo'limi` for inhouse leads and `UTC` for outsource leads instead of the deprecated `Target LEADs`.
+    - **Verification**: Restarted both services on VM. Verified `oisha-os` logged `[META LEADGEN] Ingestion & watchdog delegated to dedicated standalone worker`. Tests: 15/15 green (`pytest tests/test_leadgen_dedup_claim.py ...`). Bandit: 0 issues. Rule 6: all files $\le 400$ LOC.
+**
+  - **User Request**: "https://sales.kontaktmarkazi.com/client saytidagi leadlar bilan sheetsdagi leadlarni solishtir nima bor nima yo'q? /browser dan /goal https://docs.google.com/spreadsheets/d/1aWmfomtd2x4QoHQIWLPD88lHbepIRvuPhzuugM7-vEc/edit?gid=123739873#gid=123739873 Gaplashilmagan Leadlar (UTC Outsource)"
+  - **Live Browser Audit**: `browser` subagenti orqali `sales.kontaktmarkazi.com/client` ga ulanib, "Target Leads" (89 lid) va "Основная" (41 lid) voronkalari to'liq skan qilindi.
+  - **Critical Discovery (Real vs Ghost Statuses)**: Google Sheet'da 88 ta lid "0 ta qo'ng'iroq" deb soxta ko'rinishda qolib ketgan edi. Vaholanki, CRM UTC da operatorlar (#0333 va #126) **78 ta lidga allaqachon qo'ng'iroq qilgan**:
+    - **Sotuv (1 ta)**: `Жасур` (976310888)
+    - **Jarayonda (12 ta)**: `Davlatjon`, `Tabassum`, `Abdumalik`, `Сугдиёна`, `Bilol`, `Muhammaddiyor`, `Firuz`, `Jahongir`, `Мансуржон`, `Икром`, `Nurmuxammad`, `Umid`
+    - **O'ylab ko'rmoqda (11 ta)**: `Jaxongir`, `Xayot`, `Murodxon`, `Mahliyo`, `Muhammadyosin`, `Xamidullo`, `Nilufar`, `Turdibay`, `Гули`, `998935008800`, `Otabek`
+    - **Qayta aloqa (24 ta)**: 24 ta mijoz qayta qo'ng'iroq qilishni so'ragan
+    - **Ko'tarmadi (20 ta)**: 20 ta mijoz go'shakni ko'tarmagan
+    - **Qiziqmadi (13 ta)**: 13 ta rad etilgan lid
+    - **Maslahat kutmoqda (11 ta yangi)**: faqat 24-sentabr kechqurun kelgan 10 ta yangi lid hali qo'ng'iroq qilinmagan.
+  - **Cross-funnel Ingestion Anomaly**: Bugun (25.09) kelgan 3 ta inhouse lid (`Humoyun`, `Abbos`, `Alisher aka`) CRM UTC ning "Основная" voronkasiga tushib qolgan va operator #0333 ularga qo'ng'iroq qilgan.
+  - **Live Sheet Sync**: Barcha 93 ta qator uchun Google Sheet'dagi K ustuni ("Qo'ng'iroq holati") to'liq yangilandi (`K2:K94`).
+  - **Obsidian Brain Sync**: `brain_log` orqali ikkinchi miyaga qayd qilindi.
+
+- **2026-09-25 — Antigravity — Instagram Unanswered Comments Full Audit & Resolution:**
+  - **User Request**: "Instagramda javobsiz comment qolmaganmi?"
+  - **Live Audit Discovery**: Barcha 330 ta post/reels va 1,617 ta izoh Meta Graph API orqali skan qilindi. 29 ta javobsiz izoh aniqlandi (asosan `Dc8MLR-NzWB` kabi eski ommabop reels'lardagi izohlar, chunki avvalgi scheduler faqat top-15 ta yangi postlarni tekshirgan).
+  - **Resolution & Anti-Romance Emoji Guard**: Barcha 29 ta izohga `scripts/resolve_all_unanswered.py` orqali to'liq javob berildi. Emojilar oyna qilib qaytarildi, matnli izohlarga AI orqali hurmatli va professional javoblar yozildi (`🤝`, `🙌`).
+  - **Zero-Unanswered Verification**: Qayta to'liq audit o'tkazildi: **1,617/1,617 ta izohga javob berilgan, 0 ta javobsiz izoh qoldi**.
+  - **Permanent Scheduler Hardening**: `src/schedulers/instagram_comment_backfill_scheduler.py` dagi `_MEDIA_LIMIT` 15 dan 50 ga, `_MAX_REPLIES` 50 ga oshirildi. `src/services/core/instagram/backfill.py` da `comments_count == 0` bo'lgan postlarni o'tkazib yuborish optimizatsiyasi kiritildi.
+  - **Deployment**: O'zgarishlar Oracle VM ga deploy qilinib, `oisha-os.service` qayta ishga tushirildi (`active (running)` PID `992440`). 48/48 test yashil. Second Brain jurnallandi.
+
+- **2026-09-25 — Codex — Juma tabrigi takroriy yuborilishini cheklash:**
+  - TN6 guruhi bu haftalik workflow uchun yagona manba qilindi.
+  - Har bir a’zo bo‘yicha Telegram outgoing history tekshiriladi; shu oyda “Juma muborak”, “Juma ayyom” yoki “Jumaning” mazmunidagi tabrik yuborilgan bo‘lsa, qayta yuborilmaydi.
+  - Tarixni o‘qish xatosida xavfsiz fail-closed ishlaydi: tabrik yuborilmaydi.
+  - O‘zgargan fayl: `scripts/send_juma_greetings.py`.
+  - Tekshiruv: `python -m py_compile scripts/send_juma_greetings.py`; `pytest -q tests/test_telethon_session_guard.py` — 45 passed, 3 skipped.
+  - Qolgan ish: alohida Juma session (`JUMA_SESSION_STRING`) Oracle VM’da sozlanmaguncha workflow prod yuborishni boshlamaydi.
+
+- **2026-09-24 — Antigravity — Income Supervisor Anti-Spam Fix & Asl Kids Seller Resolution:**
+  1. **User Request**: Telegram warning spam: "Diqqat: Kirim bo'yicha sotuvchi aniqlanmadi! ... SPAM QIlmasin".
+  2. **Root Causes Discovered**:
+     - **Missing `get_project` on `AirtableSync`**: `income_supervisor.py` attempted `airtable_sync.get_project(project_id)`, which failed with `AttributeError` because `ProjectsMixin` lacked this method. Consequently, linked project cards were silently skipped during attribution resolution.
+     - **In-Memory Deduplication Reset**: `_ALERTED_RECORD_IDS` was stored solely in an in-memory set.
+     - **Rogue Second Watchdog Service**: An old `watchdog.service` running `src/services/watchdog.py` had an overly aggressive 10s healthcheck timeout that triggered restarts of `oisha-os.service` during high CPU events, resetting the in-memory set every 4-5 minutes and re-broadcasting the unresolved warning card.
+  3. **Architecture & Implementation**:
+     - `src/services/core/airtable/projects.py` (288L $\le 400$L): Added `get_project(project_id)` to `ProjectsMixin` querying `/Loyihalar/{project_id}` directly.
+     - `src/services/core/finance/income_supervisor.py` (346L $\le 400$L): Implemented disk-persistent alert cache in `data/income_supervisor_alerted.json` (`_save_alerted_record_id`, `_discard_alerted_record_id`). Alerts for unresolved items are only sent once and never repeated across service restarts.
+     - **Decommissioned Rogue Watchdog**: Stopped and disabled systemd `watchdog.service` on Oracle VM, delegating all health and self-healing duties to the robust `scripts/system_watchdog.py`.
+     - **Resolved Asl Kids Record**: Resolved `rectnOZJHQo8BhlM1` (8,000,000 UZS) via linked project card `rechH8Itn84pqYzlX` to `Baxtiyorjon Gaziyev` (`reccXjZIGIcRezKgB`). Updated Airtable `Tranzaksiyalar` and dispatched resolution card to Telegram.
+  4. **Verification & Deployment**:
+     - Unit Tests: 8/8 passed in `tests/test_income_supervisor.py` and 10/10 in `tests/test_airtable_sync.py`.
+     - Bandit: 0 issues across 7058 LOC (`bandit -r src/services/core/finance/ src/services/core/airtable/ -ll`).
+     - Live Verification: Verified `supervise_recent_incomes` returned `{'checked': 0, 'resolved': 0, 'unresolved': 0}` with zero spam.
+     - Service active: `oisha-os.service` active and stable on Oracle VM.
+     - Vault Sync: Logged in Obsidian via `brain_log` and `brain_append` (`20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md`).
+
+- **2026-09-24 — Antigravity — 24/7 Isolated Leads Service (`oisha-leads.service`), External Watchdog & SOS Alerting:**
+  1. **User Request**: "ushbu funksiya 24/7 o'lib qolmasdan ishlashi uchun nima qilish kerak o'zi nimadan to'xtab qolgan?" -> "davvay".
+  2. **Architecture & Implementation**:
+     - **Process Isolation**: Separated Meta Leads Ingestion & Multi-Channel Pipeline into an isolated lightweight worker (`src/workers/leadgen_worker.py`, 92L $\le 400$L) running under dedicated systemd unit `oisha-leads.service`. Even if userbot, Telethon MTProto, or LLM chat crash, Meta lead delivery operates 24/7 without interruption.
+     - **Schedulers Delegation**: `src/bootstrap/orchestration/schedulers.py` (100L $\le 400$L): Checks `STANDALONE_LEADGEN_WORKER=1`; skips running in-process leadgen loops inside `oisha-os` to prevent double-polling.
+     - **Automatic SOS Alerts**: `src/services/core/instagram/leadgen_watchdog.py` (186L $\le 400$L): Added `send_lead_sos_alert(leadgen_id, lead_id, channel, error)` with in-memory deduplication `_DISPATCHED_SOS`. Dispatches instant warning cards with red alert header to Telegram Sales Group (`-1003854308552`, topic `1020`) upon persistent failure.
+     - **External Watchdog & Self-Healing**: `scripts/system_watchdog.py` (150L) & `scripts/watchdog.sh`: Executes every 2 minutes via cron. Inspects: (1) `oisha-leads.service` status, (2) `data/leadgen_heartbeat.json` freshness (< 180s), (3) `oisha-os.service` status, (4) FastAPI `/healthz/` endpoint. Automatically restarts failed services and sends Telegram SOS notifications.
+  3. **Verification & Deployment**:
+     - Remote Deployment on Oracle VM:
+       - `oisha-leads.service` enabled and active (`active (running)`, PID `958925`).
+       - `oisha-os.service` active (`active (running)`, PID `959673`).
+       - Verified heartbeat: `data/leadgen_heartbeat.json` fresh, 16/16 deliveries in 24h, 0 pending retries.
+       - Verified watchdog run: tested and passing via cron (`scripts/watchdog.sh`).
+     - Tests: 13/13 tests green (`pytest tests/test_meta_leadgen_sheets.py tests/test_leadgen_watchdog.py tests/test_leadgen_split.py tests/test_leadgen_watchdog_sos.py tests/test_leadgen_worker.py`).
+     - Bandit: 0 issues across 2736 LOC (`bandit -r src/workers/ src/services/core/instagram/ scripts/system_watchdog.py -ll`).
+     - Strict Rule 6 compliance: All modified/created files $\le 400$ LOC.
+
+- **2026-09-24 — Antigravity — Lead Delivery Bugfix, SafeResponder Crash Fix & 13-Lead Backfill:**
+  1. **User Request**: "nimaga ishlamay qolyapti" (Why is it not working?).
+  2. **Root Causes Discovered**:
+     - **Google Sheets & Telegram Skipped**: In `src/services/core/instagram/leadgen_delivery.py`, `_connection()` had migration default `INTEGER DEFAULT 1` for `sheets_ok` and `telegram_ok`. When `save_crm_checkpoint(leadgen_id, lead_id)` was called right after creating the AmoCRM deal, SQLite inserted `sheets_ok = 1` and `telegram_ok = 1`. In `leadgen_router.py`, `get_delivery_channel_status()` saw both as already done, so all 13 leads today (2026-09-24) created AmoCRM deals successfully but **completely skipped Telegram notifications and Google Sheets rows**.
+     - **Userbot Message Handler Crash**: `app_ctx.safe_responder` was left uninitialized (`None`) in `src/bootstrap/orchestration/domain_agents.py`. When messages arrived, `src/handlers/msg_pipeline/ai_reply.py` crashed with `'NoneType' object has no attribute 'prepare_to_reply'`.
+  3. **Architecture & Implementation**:
+     - `src/services/core/instagram/leadgen_delivery.py` (209L $\le 400$L):
+       - Changed default to `INTEGER DEFAULT 0` for `sheets_ok` and `telegram_ok`.
+       - In `save_crm_checkpoint()`, explicitly sets `sheets_ok = 0, telegram_ok = 0`.
+     - `src/services/core/instagram/leadgen_router.py` (323L $\le 400$L):
+       - Updated channel check: `ch_status = {} if (force or not checkpoint) else await asyncio.to_thread(get_delivery_channel_status, leadgen_id)` ensuring brand new incoming leads always dispatch to Sheets and Telegram without false skips.
+     - `src/handlers/msg_pipeline/ai_reply.py` (182L $\le 400$L):
+       - Added null-safety check: `if safe_responder is not None: await safe_responder.prepare_to_reply(event, client)`.
+     - `src/bootstrap/orchestration/domain_agents.py` (126L $\le 400$L) & `src/entrypoint/message_event.py` (238L $\le 400$L):
+       - Properly bound and registered `app_ctx.safe_responder = safe_responder` with lazy initialization fallback.
+  4. **Verification & Backfill Deployment**:
+     - Executed live remote backfill on Oracle VM: all 13 leads from today were retrieved from Meta API, correctly routed 50/50:
+       - Appended 7 leads to `Gaplashilmagan Leadlar (UTC Outsource)` and 6 leads to `Target Leads Inhouse (Sentabr)`.
+       - Dispatched all 13 interactive lead cards to Telegram Sales Group (`-1003854308552`, topic `1020`) with direct video preview buttons and AmoCRM links.
+       - Updated SQLite `deliveries` table (`sheets_ok = 1, telegram_ok = 1`).
+     - Tests: 11/11 tests passed (`pytest tests/test_meta_leadgen_sheets.py tests/test_leadgen_watchdog.py tests/test_leadgen_split.py`).
+     - Bandit: 0 issues across 3568 LOC (`bandit -r src/services/core/instagram/ src/handlers/msg_pipeline/ -ll`).
+     - Rule 6 standard: All touched files $\le 400$ LOC.
+     - Service restarted: `oisha-os.service` active and healthy (PID: `955774`).
+
+- **2026-09-23 — Antigravity — UTC Outsource vs. Inhouse 50/50 Lead Split & Multi-Channel Routing:**
+  1. **User Request**:
+     - "hozirdan boshlab keyingi kelib tushadigan leadlarni 2ga bo'lib tushirsin."
+     - "1. Gaplashilmagan Leadlar (UTC Outsource) - AmoCRMda (UTC) voronkaga"
+     - "2. Target Leads Inhouse (Sentabr) - amoCRMda Target Leads voronka"
+  2. **Architecture & Implementation**:
+     - `src/services/core/crm/amocrm_pipeline_config.py` (133L $\le 400$L):
+       - Configured `TARGET_LEADS_INHOUSE_PIPELINE_ID = 11295630` (`Target LEADs`) and `TARGET_LEADS_INHOUSE_NEW_STATUS_ID = 88696194` (`Yangi murojaat`).
+       - Retained `UTC_PIPELINE_ID = 11322658` and `UTC_NEW_STATUS_ID = 88756946`.
+       - Registered both in `ACTIVE_PIPELINE_IDS`.
+     - `src/services/core/instagram/leadgen_delivery.py` (240L $\le 400$L):
+       - Added `leadgen_routing_state` table and `destination` column to `deliveries` in SQLite (`data/leadgen_delivery.db`).
+       - Implemented atomic round-robin `get_next_lead_destination()` and `record_lead_destination()` ensuring strict 1-by-1 alternation (`utc` $\leftrightarrow$ `inhouse`).
+       - Checkpoints and retries preserve the assigned destination.
+     - `src/services/core/instagram/leadgen_sheets.py` (347L $\le 400$L):
+       - Added `INHOUSE_WORKSHEET_TITLE = "Target Leads Inhouse (Sentabr)"` (GID: `307647876`).
+       - Configured `append_lead_to_sheet(..., destination="utc"|"inhouse")` to append strictly to the designated team worksheet.
+     - `src/services/core/instagram/leadgen_router.py` (386L $\le 400$L) & `leadgen_watchdog.py` (151L $\le 400$L):
+       - Automatically alternate destination per new lead.
+       - Dispatches to matching AmoCRM pipeline/status, Google Sheet, and adds Telegram tag & label (`🏢 Taqsimot: 🌐 UTC Outsource` or `🏢 Taqsimot: 🏠 Inhouse (Jon Branding)`).
+  3. **Verification & Deployment**:
+     - Tests: 11/11 tests passed (`pytest tests/test_meta_leadgen_sheets.py tests/test_leadgen_watchdog.py tests/test_leadgen_split.py`).
+     - Bandit: 0 security issues across 10433 LOC.
+     - Strict Rule 6 compliance: All modified files $\le 400$ LOC.
+     - Production deployment: Deployed to Oracle VM (`ubuntu@163.192.10.104`), restarted `oisha-os.service` (`active (running)`, PID: `870022`).
+
+
+- **2026-09-23 — Antigravity — Live Lead Delivery Audit, VM Config Sync, AmoCRM UTC Migration & Sheets Backfill:**
+  1. **User Request**: "leadlar qayerga kelib tushyapti?" -> "aniq tushyaptimi?".
+  2. **Audit Findings & Root Causes**:
+     - Investigated VM `leadgen_delivery.db` and AmoCRM live state: **Bugun (2026-09-23) jami 12 ta yangi lid** kelib tushgan.
+     - Telegram'ga 100% (12/12) yuborilgan.
+     - Biroq VM'dagi fayllar eski bo'lgani sababli:
+       - `TARGET_LEADS_PIPELINE_ID` hali eski voronkada (`11295630`) qolib ketgan edi.
+       - `data/service_account.json` VM da yo'qligi va `leadgen_sheets.py` eski versiyadaligi sababli `sheets_ok = 0` (Google Sheets'ga yozilmay qolayotgan) edi.
+  3. **Immediate Resolutions & Live Migration**:
+     - Deployed `data/service_account.json` to VM (`chmod 600`) and verified Google Sheets API authentication (`Jon branding leads` connected 200 OK).
+     - Deployed updated `amocrm_pipeline_config.py` (pointing to `UTC` #11322658 / status #88756946), `leadgen_sheets.py`, `meta_ads_client.py` to VM.
+     - Executed live migration and backfill (`migrate_and_backfill_today_leads.py`):
+       - Moved all 12 of today's leads from legacy pipeline to `UTC` (#11322658) under `Yangi murojaat` (`88756946`).
+       - Appended all 12 leads into both `Gaplashilmagan Leadlar (UTC Outsource)` (GID: `123739873`) and `Target Leads (Sentabr)` sheets.
+       - Updated `deliveries` table: all 12 leads now have `amocrm_ok = 1, sheets_ok = 1, telegram_ok = 1`.
+     - Restarted `oisha-os.service` on Oracle VM (PID: `857904`, `active (running)`).
+
+
+- **2026-09-22 — Antigravity — UTC Pipeline & Outsource Sheet Live Routing Configuration:**
+  1. **User Request**:
+     - "https://docs.google.com/spreadsheets/d/1aWmfomtd2x4QoHQIWLPD88lHbepIRvuPhzuugM7-vEc/edit?gid=123739873#gid=123739873 shu Gaplashilmagan Leadlar (UTC Outsource) jadvaliga"
+     - "https://jonbranding.amocrm.ru/leads/pipeline/11322658/?skip_filter=Y utc voronkaga kelib tushsin."
+  2. **Implementation & Architecture**:
+     - `src/services/core/crm/amocrm_pipeline_config.py` (125L $\le 400$L):
+       - Configured `TARGET_LEADS_PIPELINE_ID = 11322658` (`UTC` pipeline) and `TARGET_LEADS_FIRST_CONTACT_STATUS_ID = 88756946` (`Yangi murojaat`).
+       - Added `UTC_PIPELINE_ID` and `UTC_NEW_STATUS_ID` constants, preserved `LEGACY_TARGET_LEADS_PIPELINE_ID = 11295630`, and registered `UTC_PIPELINE_ID` into `ACTIVE_PIPELINE_IDS`.
+     - `src/services/core/instagram/leadgen_sheets.py` (340L $\le 400$L):
+       - In `ensure_leadgen_worksheet`, added explicit matching for GID `123739873` and case-insensitive title checks.
+       - In `append_lead_to_sheet`, set `Gaplashilmagan Leadlar (UTC Outsource)` as the primary guaranteed destination while maintaining dual-sync with `Target Leads (Sentabr)`.
+     - `src/services/core/instagram/leadgen_router.py` & `leadgen_watchdog.py`:
+       - Automatically route newly ingested Meta leads and watchdog retries to AmoCRM `UTC` pipeline `11322658` under `Yangi murojaat` (`88756946`).
+  3. **Verification & Deployment**:
+     - Tests: 8/8 unit tests passed (`pytest tests/test_meta_leadgen_sheets.py tests/test_leadgen_watchdog.py`).
+     - Bandit: 0 security issues across 10335 LOC (`bandit -r src/services/core/instagram/ src/services/core/crm/ -ll`).
+     - Strict Rule 6 compliance: All files $\le 400$ LOC.
+     - Production deployment: Deployed to Oracle VM (`ubuntu@163.192.10.104`), restarted `oisha-os.service` (`active (running)`, PID `753007`).
+
+- **2026-09-22 — Antigravity — UTC Outsource Sheet Full amoCRM Pipeline Migration:**
+  1. **User Request**: "https://docs.google.com/spreadsheets/d/1aWmfomtd2x4QoHQIWLPD88lHbepIRvuPhzuugM7-vEc/edit?gid=123739873#gid=123739873 shu Gaplashilmagan Leadlar (UTC Outsource) jadvalidagi barcha leadlarni amocrmda https://jonbranding.amocrm.ru/leads/pipeline/11322658/?skip_filter=Y utc voronkaga olib o'tib ber".
+  2. **Audit & Migration Execution**:
+     - Queried Google Sheet `Gaplashilmagan Leadlar (UTC Outsource)` (GID: `123739873`): found 68 lead rows.
+     - 42 leads were already in `UTC` (pipeline `11322658`), while 26 newly added leads were still in `Target LEADs` (pipeline `11295630`).
+     - Executed batch `PATCH /api/v4/leads`: moved all remaining 26 leads into `UTC` pipeline under stage `Yangi murojaat` (Status ID: `88756946`).
+     - 100% of the leads from the Outsource Google Sheet are now active in the `UTC` pipeline (total 66 active leads in pipeline).
+  3. **Verification**: Checked amoCRM API; all leads verified in pipeline `11322658`.
+
+- **2026-09-22 — Antigravity — Meta Lead Ads Zero-Duplicate Idempotency & Automatic Polling Fix:**
+  1. **User Request**:
+     - "nimaga yangi lead tushmayapti?"
+     - "Jami nechta lead kelib tushgan nimaga so'ramagunimcha automatic kelib tushmayapti"
+     - "eski leadlarni qayta qayta tashlamasin"
+     - "Tekshirsin avval tashlagan bo'lsa qayta yubormasin bir o'lib tirilsa ham bot kelgan joyidan davom etsin"
+  2. **Root Cause & Resolution**:
+     - **Automatic Ingestion Bug**: In `src/services/core/instagram/leadgen_router.py` (line 335), `meta_ads = MetaAdsClient()` was missing when fetching creative URLs, causing `NameError: name 'meta_ads' is not defined` on every 60-second polling cycle of `meta_leadgen_scheduler.py`. This blocked background lead ingestion and disk persistence. Fixed by importing and instantiating `MetaAdsClient()`.
+     - **Total Leads Audit**:
+       - Meta Graph API all-time leads across all forms: **136 ta** (132 ta `Patent Brend (12.09)` - ID `1973180183373812`, 4 ta `Lead Form 1` - ID `24790817803944095`).
+       - Today's leads (2026-09-22): **8 ta** (all from `v2` - Video 2).
+     - **Bulletproof Zero-Duplicate Idempotency**:
+       - Added per-channel idempotency in `leadgen_router.py` via `get_delivery_channel_status(leadgen_id)` and SQLite table `deliveries` (`leadgen_delivery.db`).
+       - If already notified in Telegram (`telegram_ok = 1`), never re-sends.
+       - If already created in AmoCRM (`amocrm_ok = 1`), skips creation and uses existing `lead_id`.
+       - If already appended in Google Sheets (`sheets_ok = 1`), skips duplicate append.
+       - Fully persistent across service crashes and restarts: bot checks both SQLite `deliveries` and JSON `processed_leadgen_ids.json`.
+  3. **Verification & Deployment**:
+     - All 7 tests passed (`pytest tests/test_meta_leadgen_sheets.py tests/test_leadgen_watchdog.py`).
+     - Bandit: 0 security issues across 2360 LOC.
+     - Strict Rule 6 compliance: `leadgen_router.py` (375L $\le 400$L), `leadgen_delivery.py` (180L $\le 400$L), `leadgen_dedup.py` (125L $\le 400$L).
+     - Deployed all updated files to Oracle VM (`ubuntu@163.192.10.104`), restarted `oisha-os.service` (`active (running)`, PID `747735`).
+
+  1. **User Request**: "bizga faqat sentabr oyidan boshlash konkret bo'lishi kerak hamma narsa".
+  2. **Resolution & Strict Scoping**:
+     - **Code Boundary**: In `src/services/core/finance/income_supervisor.py` (305L $\le 400$L), added `SEPTEMBER_START_DATE = "2026-09-01"` and filtered out all transactions prior to 2026-09-01. Added unit tests (`test_supervise_skips_pre_september_records`).
+     - **Airtable Default Base ID**: In `src/services/core/airtable/sync.py`, added default fallback to `app8xoyx1XCumYFXV`.
+     - **100% September Kirim Audit & Attribution**: All 15 September 2026 Kirim transactions (total 71,937,250 UZS) were audited against AmoCRM and project cards, and fully attributed in Airtable `Tranzaksiyalar` and `Loyihalar`:
+       - **Shahnoza Abdijabborova**: 54,716,250 UZS gross (39,908,650 UZS net sales KPI, 14,807,600 UZS davlat bojlari across Shukrona, To'maris, Arabian night).
+       - **Baxtiyor Gaziyev**: 10,000,000 UZS sales (Asl kids).
+       - **Hasanboy Gaziyev**: 5,000,000 UZS sales KPI (Unvan patent: 7.2M gross, 2.2M davlat boji).
+     - **Deployment & Vault Sync**: Deployed to Oracle VM (`ubuntu@163.192.10.104`), `oisha-os.service` restarted (`active`, PID `745444`). Documented in Obsidian `20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md` and muhrlandi via `brain_log`.
+  3. **Verification**: 7/7 unit tests green (`pytest tests/test_income_supervisor.py`). All files strictly comply with Rule 6 ($\le 400$L).
+
+- **2026-09-22 — Antigravity — Patent State Duty & Income Supervisor Production Deployment:**
+  1. **User Request**: `[22.09.2026 13:11] Оиша AI | Jon Branding: ... • Shukrona patent (6,760,000 UZS) ➔ 👤 Shahnoza Abdijabborova (@Shahnozzy) 5mln so'mi hisoblanadi qolgani davlat boji ...`
+  2. **Resolution & Enhancements**:
+     - **Patent State Duty Annotation**: For patent service agreements (e.g. Shukrona 6.76M), only 5,000,000 UZS counts toward the seller's sales KPI / revenue; the remaining 1,760,000 UZS is official state duty (davlat boji).
+     - `src/services/core/finance/income_supervisor.py` (300L $\le 400$L): Added automatic detection and annotation for patent transactions (`summa > 5_000_000`), so alerts and reports automatically distinguish service fee from state duty.
+     - Dispatched the updated, verified announcement to Sales Group (`-1003854308552`, topic `115` - Hisobotlar / KPI).
+     - Synchronized with Obsidian vault `20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md` and muhrlandi via `brain_log` (Rule 8).
+  3. **Verification & Deployment**:
+     - Tests: 6/6 unit tests green (`pytest tests/test_income_supervisor.py`).
+     - Deployed all updated files to Oracle VM (`ubuntu@163.192.10.104`): `income_supervisor.py`, `income_workflow.py`, `constants.py`, `projects.py`, `schedulers.py`.
+     - Restarted `oisha-os.service` (`active (running)`, PID `744047`).
+
+- **2026-09-22 — Antigravity — Oisha AI Income Supervisor (Kirim Sotuvchisi Nazoratchisi):**
+  1. **User Request**: "Kirim kiritilsa kim sotganini aniqlasin oisha ai nazoratchi boʻlsin" -> "Unvan To'liq Hasanboyga tegishli".
+  2. **Supervisor Architecture & Implementation**:
+     - `src/services/core/finance/income_supervisor.py` (279L $\le 400$L): Autonomous supervisor that monitors Airtable `Tranzaksiyalar`, detects seller attribution using 4-tier waterfall: (1) Linked `Loyiha.Sotuvchi`, (2) AmoCRM lead search by phone/brand/client name (`responsible_user_id` -> Jamoa ID), (3) Note text regex, (4) In-memory deduplication & Telegram alert.
+     - Live Attribution Updates:
+       - Asl kids (10M) -> Shahnoza Abdijabborova (`rec8fmSHRpZi5Rx9N`)
+       - Shukrona patent (6.76M) -> Shahnoza Abdijabborova (`rec8fmSHRpZi5Rx9N`)
+       - Menova naming (880K) -> Shahnoza Abdijabborova (`rec8fmSHRpZi5Rx9N`)
+       - **Unvan Naming & Patentlash** (Jami 3 ta kirim: 7.2M + 7M + 5M = 19.2M UZS va Loyiha kartasi `rec37PR40UTU0PFMO`) -> To'liq Hasanboy Gaziyevga (`recPi9SROzJNK8SX7`, `@jonbranding_pm`) biriktirildi.
+     - `src/bootstrap/orchestration/schedulers.py` (114L $\le 400$L): Registered `income_supervisor_loop` to run continuously every 120s.
+     - Dispatched live verification & correction reports to Sales Group (`-1003854308552`, topic `115` - Hisobotlar / KPI).
+  3. **Verification**: 6/6 tests passing (`pytest tests/test_income_supervisor.py`). All files strictly comply with Rule 6 ($\le 400$L).
+
+- **2026-09-22 — Antigravity — Airtable Finance V2 Seller Attribution (`Sotuvchi` Maydoni):**
+  1. **User Request**: "airtableda kirimlarni aynan qaysi sotuvchi qilyotganini bilolamizmi hozirgi holatida?" -> "Biladigan qilaylik".
+  2. **Schema & Architecture Upgrades**:
+     - `Loyihalar` (`tblJbUobSlygSwYAI`): Added `Sotuvchi` field (`fldrUveBL9h6pIyqy`) linking to `Jamoa` (`tbloj9riNIrGT1cZI`, inverse `fldGNVg4PsqeNVAQ6`).
+     - `Tranzaksiyalar` (`tblrqxqIzyrvg7XpQ`): Added `Sotuvchi` field (`fldUx6X8PONUivwDI`) linking to `Jamoa` (`tbloj9riNIrGT1cZI`, inverse `fldNw4wGwpnnwBqgJ`).
+  3. **Codebase Integrations**:
+     - `src/handlers/income_workflow.py` (299L $\le 400$L): Updated `find_project_for_income` to inspect `Sotuvchi` and `create_income_airtable_record` to write `fields["Sotuvchi"] = workflow["seller_ids"]` instead of `Xodim`.
+     - `src/services/core/airtable/constants.py` (90L $\le 400$L): Added `"seller": ["Sotuvchi", "Seller", ...]` to `FIELD_MAP`, allowed fields and write aliases.
+     - `src/services/core/airtable/projects.py` (275L $\le 400$L): Updated `get_finance_records` to expose `Sotuvchi` and `Seller`.
+  4. **Verification & Synchronization**:
+     - 4/4 tests passed (`pytest tests/test_income_workflow.py`).
+     - Documented changes in Obsidian vault `20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md` and muhrlandi via `brain_log` (Rule 8).
+
+- **2026-09-22 — Antigravity — Marketing Group Creative Report Integration & Topic 42 Discovery:**
+  1. **User Request**: User provided link `https://web.telegram.org/a/#-1003608624065` and asked for the "qaysi creative yaxshi ishlayapti" report to be sent to this marketing department group and requested the report topic ID.
+  2. **Topic & Chat Discovery**:
+     - Queried forum topics via MTProto `GetForumTopicsRequest`:
+       - Chat: `Jon Branding | Marketing` (`-1003608624065`).
+       - Topic: **`ID: 42 | Title: AI Hisobot`** (matching report topic). Also found: `351` (Target Videolar), `532` (Marketing insayts), `1` (General).
+  3. **Multi-Topic Dispatch Implementation**:
+     - `leadgen_status_reporter.py` (188L $\le 400$L): Upgraded `send_daily_status_report()` to dispatch the 24/7 creative performance and delivery report to both:
+       1) Sales Group (`-1003854308552`, topic `1020` - Target Leads).
+       2) Marketing Group (`-1003608624065`, topic `42` - AI Hisobot).
+     - Dispatched live verified report to topic `42` (Message ID: `1119`, Status: 200 OK).
+     - `leadgen_router.py` (396L $\le 400$L): Added `deal_name = f"{name} | 🎬 {ad_name}"` so sales managers see the video directly in the AmoCRM Kanban board.
+  4. **Verification & Deployment**: 847/847 tests green (`pytest`). Deployed to Oracle VM (`ubuntu@163.192.10.104`) and verified `oisha-os.service` (`active`).
+
+- **2026-09-21 — Antigravity — Interactive Creative Preview Buttons & Multi-Channel Links:**
+  1. **User Request**: "Marketing bo'limi biror tugmani bossa o'sha creativeni ko'ra olsin".
+  2. **Interactive Preview Implementation**:
+     - **Telegram Lead Cards**: Attached inline keyboard button `[🎬 {ad_name} videoni ko'rish (Instagram)]` (and `[🧾 AmoCRM bitimi]`) directly beneath each incoming lead card. One tap opens the exact Instagram video/reel (`https://www.instagram.com/p/DdMgcrcgnuH/` for `v2`, `https://www.instagram.com/p/DdVkUMngJiW/` for `V6`).
+     - **Telegram 24/7 Status Reports**: Attached inline buttons `[🎬 v2 (Video 2) — 26 ta lid]` and `[🎬 V6 (Video 6) — 4 ta lid]` under daily 09:00 & 21:00 reports, and embedded clickable HTML links in the report body.
+     - **Telegram Bot Commands**: Implemented `/kreativ` and `/creative` across both Aiogram dispatcher (`handlers_admin.py`, `builder.py`) and Telethon (`dashboard.py`), allowing team members to view active creatives and open them with interactive buttons on demand.
+     - **Google Sheets Hyperlinks**: Upgraded `Forma / Kampaniya` column in `leadgen_sheets.py` to format as `=HYPERLINK("url"; "🎬 {ad_name} | {forma}")`. Backfilled all 38 matching rows across `Target Leads (Sentabr)` and `Gaplashilmagan Leadlar (UTC Outsource)` with live clickable links.
+     - **AmoCRM Deal Notes**: Automatically appended video URL note (`🎬 Reklama videosi: ...`) to newly created leads.
+  3. **Verification & Deployment**: 847/847 unit and syntax tests green (`pytest`). All files strictly comply with Rule 6 ($\le 400$L). Deployed to Oracle VM (`ubuntu@163.192.10.104`) and verified `oisha-os.service` (`active`).
 - **2026-09-21 — Antigravity — Conversion Card Sales Group Dispatch & Second Brain Spam Cleanup:**
   1. **User Request**: User received "Second Brain Evolution Digest" and asked why it keeps sending incomprehensible messages. Then user pasted "🎯 KONVERSIYA KARTOCHKASI — Baxtiyorjon Gaziyev" and asked: "buni sotuv bo'limiga yuborsin'".
   2. **Root Cause Analysis & Brain Spam Fix**:
