@@ -21,6 +21,24 @@
 
 ## Agent Handoff Log
 
+- **2026-09-27 — Antigravity — Payme Merchant API Integration & Credential Hardening:**
+  - **User Request**: Configured `PAYME_KEY` and `PAYME_ENABLED=true`.
+  - **Deliverables & Changes**:
+    - **Endpoint & Routing (`src/api/routes/payme.py`, 105 LOC)**: Implemented full JSON-RPC 2.0 Payme Merchant API handling `CheckPerformTransaction`, `CreateTransaction`, `PerformTransaction`, `CheckTransaction`, `CancelTransaction`. Supported dual endpoints `/payme` and `/api/payme` with `_is_enabled()` and secure `hmac.compare_digest` basic auth.
+    - **FastAPI Mount & Security (`src/services/api_server/core.py`, `src/api/security.py`)**: Mounted `payme_router`. Allowlisted `/payme` and `/api/payme` in `_PUBLIC_PATHS` to bypass internal admin bearer middleware so Payme Basic Auth executes seamlessly.
+    - **Caddy Reverse Proxy**: Configured `oisha.jonbranding.uz` Caddyfile to route `@api path /payme /payme/* /api/* ...` to `:8080`.
+    - **Deploy Persistence & Secrets (`.github/workflows/oracle-deploy.yml`)**: Added `PAYME_KEY` and `PAYME_ENABLED` to workflow env, preserved them across `.env` generation in `persisted_env_backup.env`, and set repository and production secrets via GitHub CLI.
+    - **Unit Tests (`tests/test_payme.py`, 98 LOC)**: Added 6 comprehensive test cases covering authentication, enabled state toggle, missing invoice, invalid amount, check perform, and perform transaction.
+  - **Verification**:
+    - Pytest: 6/6 passed in `tests/test_payme.py`; 12/12 passed in combined payme/runtime test run.
+    - Bandit: 0 security issues across scanned files (`bandit -ll`).
+    - Rule 6: All files strictly adhere to modular $\le 400$ LOC limits.
+
+
+- 2026-09-27 Codex: Added `customer_intro_pipeline.py` with injected amoCRM/Obsidian/Airtable writer contracts and durable idempotency boundary; added 3 focused pipeline tests. Verification: 7 focused pytest tests passed; Bandit clean on the new/proposal modules. No external mutations. Remaining: connector recovery, live customer/payment snapshot adapters, verified Airtable Mijozlar field mapping, persistent idempotency store, event-loop wiring, bounded backfill, and live production validation. Do not report the pipeline as active automation yet.
+
+- 2026-09-27 Codex: Added contact_intro_updates.py proposal-only identity/payment gates and focused tests (7 passed with intro parser). No external mutations, scheduler, history backfill, CRM/Airtable field adapters or deploy. Airtable schema read blocked by monthly API billing cap; Obsidian MCP context returned 404. Preserve unrelated untracked work. Remaining: verify live schemas, verified customer/sender mapping, payment ledger links, field-specific validation, durable per-destination deduplication and retries, append-only vault audit, edited/new-message ingestion and bounded backfill, then production validation. Do not report the proposal module as an active automation.
+
 - **2026-09-27 — Antigravity — Moizvonki Domain Fix, Session Auth & Audio Download SSL Resilience:**
   - **User Request / Discovery**:
     - Production `oisha-os` log showed `[CALL] Moizvonki credentials not configured` and `SSLEOFError ... jonbrandingagency.moizvonki.ru`.
