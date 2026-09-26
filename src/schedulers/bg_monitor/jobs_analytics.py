@@ -138,34 +138,39 @@ class JobsAnalyticsMixin:
             else:
                 logger.info("[METASELL] Konversiya hisoboti uchun ma'lumot yetarli emas.")
 
-            sent = 0
-            sales_group = (
-                getattr(self.settings, "CRM_SALES_REPORT_GROUP_ID", None)
-                or getattr(self.settings, "TEAM_GROUP_ID", None)
-            )
-            sales_topic = (
-                getattr(self.settings, "CRM_SALES_REPORT_TOPIC_ID", None)
-                or getattr(self.settings, "TOPIC_REPORTS_ID", None)
-            )
-            for diagnosis in diagnoses:
-                if not diagnosis.has_diagnosis:
-                    continue
-                card_text = engine.build_seller_card(
-                    diagnosis, volumes.get(diagnosis.manager_name)
-                )
-                if sales_group and self.bot_client:
-                    try:
-                        kw = {"message_thread_id": sales_topic} if sales_topic else {}
-                        await self.bot_client.send_message(sales_group, card_text, **kw)
-                    except Exception as exc:
-                        logger.warning("[METASELL] Failed to send card to sales group: %s", exc)
-                await self._notify_admin(card_text)
-                sent += 1
+            sent = await self._dispatch_seller_cards(engine, diagnoses, volumes)
             if sent:
                 logger.info("[METASELL] %s ta sotuvchi kartochkasi yuborildi.", sent)
         except Exception as exc:
             logger.error("[METASELL][WEEKLY] Error: %s", exc)
         self._mark_sent(key)
+
+    async def _dispatch_seller_cards(self, engine, diagnoses, volumes) -> int:
+        """Har bir sotuvchi uchun konversiya kartochkasini sotuv guruhi + admin'ga yuboradi."""
+        sales_group = (
+            getattr(self.settings, "CRM_SALES_REPORT_GROUP_ID", None)
+            or getattr(self.settings, "TEAM_GROUP_ID", None)
+        )
+        sales_topic = (
+            getattr(self.settings, "CRM_SALES_REPORT_TOPIC_ID", None)
+            or getattr(self.settings, "TOPIC_REPORTS_ID", None)
+        )
+        sent = 0
+        for diagnosis in diagnoses:
+            if not diagnosis.has_diagnosis:
+                continue
+            card_text = engine.build_seller_card(
+                diagnosis, volumes.get(diagnosis.manager_name)
+            )
+            if sales_group and self.bot_client:
+                try:
+                    kw = {"message_thread_id": sales_topic} if sales_topic else {}
+                    await self.bot_client.send_message(sales_group, card_text, **kw)
+                except Exception as exc:
+                    logger.warning("[METASELL] Failed to send card to sales group: %s", exc)
+            await self._notify_admin(card_text)
+            sent += 1
+        return sent
 
     async def _job_heartbeat(self) -> None:
         if self.client:
