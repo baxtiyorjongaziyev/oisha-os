@@ -76,7 +76,7 @@ jobs:
     needs: import-guard
     # Deploy only on push to main; on pull_request events run import-guard alone
     # so the required check can report without touching production.
-    if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(auto):')"
+    if: "(github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !startsWith(github.event.head_commit.message, 'chore(auto):')"
     runs-on: [self-hosted, oracle]
     environment: production
     permissions:
