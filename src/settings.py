@@ -129,11 +129,7 @@ class AppSettings(BaseSettings):
     AIRTABLE_CLIENT_SECRET: Optional[SecretStr] = None
     AIRTABLE_REDIRECT_URI: str = "https://localhost"
 
-    # API auth. src/api/security.py bularni settings'dan o'qiydi; maydon
-    # e'lon qilinmasa getattr(...) doim "" qaytaradi va butun HTTP auth
-    # (Bearer token, JWT cookie, proxy rol xaritasi) jim ishlamay qoladi.
-    # SecretStr emas, chunki iste'molchilar qiymatni to'g'ridan-to'g'ri
-    # hmac.compare_digest / jwt.decode ga uzatadi.
+    # API auth for src/api/security.py (Bearer token, JWT cookie, proxy rol xaritasi)
     OISHA_API_SECRET: str = ""
     JWT_SECRET: str = ""
     OISHA_SERVICE_TOKENS_JSON: str = ""
@@ -147,12 +143,7 @@ class AppSettings(BaseSettings):
     ENABLE_AMOCRM_CALL_TASKS: bool = True
     AMOCRM_CALL_TASK_DUE_HOURS: int = 24
     AMOCRM_CALL_ANALYSIS_LIMIT: int = 20
-    # Juda qisqa yozuvlar (ovoz pochtasi signali, band ohang, xato raqam)
-    # haqiqiy suhbat bo'lmasa ham AI orqali "tahlil qilinib", to'qilgan
-    # (hallucination) natija AmoCRM'ga yozilishining oldini oladi.
     AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS: int = 10
-    # Vergul bilan ajratilgan telefon raqamlar — shu raqamlarga tegishli
-    # qo'ng'iroqlar AI tahlilidan butunlay o'tkazib yuboriladi (owner so'roviga ko'ra).
     AMOCRM_CALL_ANALYSIS_EXCLUDED_PHONES: str = ""
     AMOCRM_CALL_BACKFILL_ON_WEBHOOK: bool = True
     AMOCRM_CALL_BACKFILL_INTERVAL_MINUTES: int = 60
@@ -166,6 +157,7 @@ class AppSettings(BaseSettings):
     MOIZVONKI_EMAIL: Optional[str] = None
     MOIZVONKI_PASSWORD: Optional[SecretStr] = None
     MOIZVONKI_API_KEY: Optional[SecretStr] = None
+    MOIZVONKI_DOMAIN: str = "jonbrandingagency.moizvonki.ru"
     AIRTABLE_API_KEY: Optional[SecretStr] = None
     AIRTABLE_BASE_ID: Optional[str] = None
     # Airtable OAuth 2.0 (API key o'rniga to'g'ridan-to'g'ri OAuth token)
