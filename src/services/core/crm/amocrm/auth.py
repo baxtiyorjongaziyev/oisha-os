@@ -277,6 +277,12 @@ class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
                 self.last_error = None
                 return True
 
+            if response.status_code == 401 and self.token_data.get("long_lived"):
+                # Long-lived token'da refresh yo'q — refresh urinishi faqat
+                # chalg'ituvchi "refresh_token_missing" blokini beradi.
+                self.last_error = "long_lived_token_rejected_http_401"
+                return False
+
             if response.status_code == 401 and self.refresh_token():
                 response = requests.get(url, headers=self._get_headers(), timeout=15)
                 if response.status_code == 200:
