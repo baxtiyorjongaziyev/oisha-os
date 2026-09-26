@@ -90,7 +90,7 @@ class AmoCRMLeadsMutateMixin:
     async def add_lead_tag(self, lead_id: int, tag_name: str):
         self._load_token()
         url = f"{self.base_url}/api/v4/leads/{lead_id}"
-        payload = {"_embedded": {"tags": [{"name": tag_name}]}}
+        payload = {"tags_to_add": [{"name": tag_name}]}  # _embedded.tags mavjud teglarni almashtirib yuboradi
 
         try:
             response = await asyncio.to_thread(

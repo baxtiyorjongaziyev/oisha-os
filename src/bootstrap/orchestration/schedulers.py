@@ -109,6 +109,12 @@ def start_background_schedulers(bot_runtime: Any) -> None:
             logger.warning("[LEADGEN WATCHDOG] reporter unavailable: %s", exc)
 
     try:
+        from src.schedulers.unowned_lead_alert import unowned_lead_alert_loop
+        asyncio.create_task(unowned_lead_alert_loop(), name="unowned_lead_alert_loop")
+    except ImportError as exc:
+        logger.warning("[UNOWNED LEAD] scheduler unavailable: %s", exc)
+
+    try:
         from src.schedulers.marketing_attribution_scheduler import marketing_attribution_loop
         asyncio.create_task(marketing_attribution_loop(), name="marketing_attribution_loop")
     except ImportError as exc:
