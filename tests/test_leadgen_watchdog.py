@@ -37,6 +37,18 @@ def test_delivery_status_tracking():
     assert len(matching_after) == 0
 
 
+def test_pending_skips_in_flight_rows():
+    import uuid
+    leadgen_id = f"test_in_flight_{uuid.uuid4().hex[:8]}"
+    record_delivery_status(
+        leadgen_id=leadgen_id, lead_id=555, amocrm_ok=True, sheets_ok=False, telegram_ok=False,
+    )
+    fresh = get_pending_deliveries(limit=1000, min_age_seconds=600)
+    assert all(p["leadgen_id"] != leadgen_id for p in fresh)
+    now = get_pending_deliveries(limit=1000, min_age_seconds=0)
+    assert any(p["leadgen_id"] == leadgen_id for p in now)
+
+
 def test_delivery_summary():
     summary = get_delivery_summary(hours=24)
     assert "total" in summary

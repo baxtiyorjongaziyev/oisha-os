@@ -177,8 +177,13 @@ def mark_channel_delivered(leadgen_id: str, channel: str) -> None:
             conn.execute("UPDATE deliveries SET telegram_ok = 1, updated_at = ? WHERE leadgen_id = ?", (now, clean_id))
 
 
-def get_pending_deliveries(limit: int = 50) -> List[Dict[str, Any]]:
-    """Return deliveries where any of AmoCRM, Sheets, or Telegram has not succeeded."""
+def get_pending_deliveries(limit: int = 50, min_age_seconds: int = 0) -> List[Dict[str, Any]]:
+    """Return deliveries where any of AmoCRM, Sheets, or Telegram has not succeeded.
+
+    min_age_seconds: skip rows touched more recently than this — the router writes
+    the checkpoint (telegram_ok=0) before it sends, so a fresh row is usually in flight.
+    """
+    cutoff = (datetime.datetime.now() - datetime.timedelta(seconds=min_age_seconds)).isoformat()
     with _connection() as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
@@ -186,8 +191,9 @@ def get_pending_deliveries(limit: int = 50) -> List[Dict[str, Any]]:
             "FROM deliveries "
             "WHERE (amocrm_ok = 0 OR sheets_ok = 0 OR telegram_ok = 0) "
             "AND retries < 10 "
+            "AND updated_at <= ? "
             "ORDER BY rowid ASC LIMIT ?",
-            (limit,),
+            (cutoff, limit),
         ).fetchall()
     return [dict(r) for r in rows]
 
