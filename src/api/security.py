@@ -54,6 +54,9 @@ _PUBLIC_PATHS = frozenset(
         "/webhook/amocrm",
         "/webhook/amocrm/tasks",
         "/webhook/amocrm/chats",
+        # Payme Merchant API endpoints (authenticated via Basic Auth in handler)
+        "/payme",
+        "/api/payme",
     }
 )
 

@@ -134,6 +134,8 @@ jobs:
           MOIZVONKI_PASSWORD: ${{ secrets.MOIZVONKI_PASSWORD }}
           MOIZVONKI_API_KEY: ${{ secrets.MOIZVONKI_API_KEY }}
           MOIZVONKI_DOMAIN: ${{ vars.MOIZVONKI_DOMAIN || 'jonbrandingagency.moizvonki.ru' }}
+          PAYME_KEY: ${{ secrets.PAYME_KEY }}
+          PAYME_ENABLED: ${{ vars.PAYME_ENABLED || 'true' }}
           # Fail-safe rollout: keep Oracle polling until the Cloud Run head is
           # live-verified, then set this repository variable to "disabled".
           TELEGRAM_BOT_INGRESS_MODE: ${{ vars.TELEGRAM_BOT_INGRESS_MODE || 'polling' }}
@@ -191,9 +193,9 @@ jobs:
               printf '%s' "$AMOCRM_TOKEN_JSON" > data/amocrm_token.json
             fi
 
-            # Preserve existing Meta / Instagram / Moizvonki credentials from .env
+            # Preserve existing Meta / Instagram / Moizvonki / Payme credentials from .env
             if [ -f .env ]; then
-              grep -E '^(META_|INSTAGRAM_|MOIZVONKI_)' .env > /tmp/persisted_env_backup.env 2>/dev/null || true
+              grep -E '^(META_|INSTAGRAM_|MOIZVONKI_|PAYME_)' .env > /tmp/persisted_env_backup.env 2>/dev/null || true
               # Long-lived AmoCRM token: secret wins, else keep the value an
               # owner added by hand — .env is rebuilt below and would erase it.
               if [ -z "${AMOCRM_ACCESS_TOKEN:-}" ]; then
@@ -296,6 +298,14 @@ jobs:
             # If external persistent secrets file exists, append any extra Moizvonki vars
             if [ -f /home/ubuntu/.secrets/moizvonki.env ]; then
               grep -E '^MOIZVONKI_' /home/ubuntu/.secrets/moizvonki.env >> .env 2>/dev/null || true
+            fi
+
+            # Ingest Payme credentials from workflow env if not already present
+            if [ -n "${PAYME_KEY:-}" ] && ! grep -q '^PAYME_KEY=' .env; then
+              echo "PAYME_KEY=${PAYME_KEY}" >> .env
+            fi
+            if ! grep -q '^PAYME_ENABLED=' .env; then
+              echo "PAYME_ENABLED=${PAYME_ENABLED:-true}" >> .env
             fi
 
             if [ -n "${USERBOT_SESSION_STRING:-}" ]; then
