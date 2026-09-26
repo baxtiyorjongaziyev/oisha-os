@@ -32,7 +32,12 @@ from src.handlers.negotiation import negotiation_agent_handler
 from src.handlers.shadow_advisor import shadow_advisor_handler
 from src.handlers.monitoring import activity_monitor_handler
 from src.handlers.meeting import meeting_scheduler_handler
-from src.entrypoint.message_event import handle_new_message, self_command_handler
+from src.entrypoint.message_event import (
+    handle_new_message,
+    self_command_handler,
+    handle_message_edited,
+    handle_message_deleted,
+)
 
 logger = logging.getLogger("OishaBootstrap")
 
@@ -118,6 +123,8 @@ def register_event_handlers(
         client.add_event_handler(meeting_scheduler_handler, events.NewMessage(outgoing=True))
         client.add_event_handler(self_command_handler, events.NewMessage(chats="me"))
         client.add_event_handler(handle_new_message, events.NewMessage(incoming=True))
+        client.add_event_handler(handle_message_edited, events.MessageEdited())
+        client.add_event_handler(handle_message_deleted, events.MessageDeleted())
 
     async def _hisobchi_callback_handler(event):
         try:

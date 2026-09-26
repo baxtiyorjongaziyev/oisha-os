@@ -17,7 +17,7 @@ async def main():
         # Initialize Services
         google_service = GoogleService()
         # Connect Telegram
-        client = TelegramClient("userbot_session", settings.API_ID, settings.API_HASH)
+        client = TelegramClient("pilot_sync_v1_session", settings.API_ID, settings.API_HASH)
         await client.connect()
 
         # Initialize Scraper with client for background tasks
