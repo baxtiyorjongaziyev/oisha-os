@@ -138,9 +138,17 @@ def check_google_sheets() -> Tuple[bool, str]:
         from google.oauth2.service_account import Credentials
         import gspread
 
-        creds_path = os.getenv("GSHEET_CREDS_FILE") or "data/service_account.json"
-        if not Path(creds_path).exists():
-            return False, f"Google Sheets: Kalit fayli topilmadi ({creds_path})"
+        creds_cand = [
+            os.getenv("GSHEET_CREDS_FILE"),
+            "/home/ubuntu/.secrets/service_account.json",
+            str(_ROOT / "data" / "service_account.json"),
+            str(_ROOT / "service_account.json"),
+            "/home/ubuntu/oisha-os/data/service_account.json",
+            "data/service_account.json",
+        ]
+        creds_path = next((c for c in creds_cand if c and Path(c).exists()), None)
+        if not creds_path:
+            return False, "Google Sheets: Kalit fayli topilmadi (data/service_account.json)"
 
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_file(creds_path, scopes=scopes)

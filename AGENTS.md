@@ -21,6 +21,28 @@
 
 ## Agent Handoff Log
 
+- **2026-09-27 — Antigravity — Google Sheets Credentials Deploy Persistence & CI/CD Hardening:**
+  - **User Request**: Telegram alert at 01:00: `🚨 [OISHA: INTEGRATSIYA SOG'LOMLIGI OGOHLANTIRISHI] Google Sheets: Kalit fayli topilmadi (data/service_account.json) ... nimaga bunaqa xabar kelyapti`.
+  - **Investigation & Root Cause**:
+    - Recent merges (#738, #739, #740) triggered `.github/workflows/oracle-deploy.yml`.
+    - Line 155 of `oracle-deploy.yml` explicitly ran `rm -f service_account.json data/service_account.json token.pickle data/token.pickle` (a legacy cleanup from June 2026 when Cloud Run was deprecated).
+    - Because `service_account.json` is gitignored and was not restored during deploy, the file was wiped from `/home/ubuntu/oisha-os/data/service_account.json` on each CI/CD deployment, causing the hourly cron health monitor to fire an alert at 01:00.
+  - **Resolution & Fix**:
+    - Created persistent secrets storage outside the git workspace at `/home/ubuntu/.secrets/service_account.json` (`chmod 600`) on Oracle VM.
+    - Updated `.github/workflows/oracle-deploy.yml` to automatically restore `service_account.json` from `/home/ubuntu/.secrets/service_account.json` immediately following any repo reset/cleanup.
+    - Updated `scripts/integration_health_monitor.py`, `src/services/core/instagram/leadgen_sheets.py`, and `src/services/core/finance/gsheets/client.py` to prioritize `/home/ubuntu/.secrets/service_account.json` as a candidate path.
+    - Added automatic restart of `oisha-leads.service` in `oracle-deploy.yml` alongside `oisha-os.service`.
+  - **Verification**:
+    - Executed live `integration_health_monitor` on Oracle VM:
+      - `AmoCRM: OK ('Jon Branding Agency', status 200)`
+      - `Google Sheets: OK ('Jon branding leads')`
+      - `Telegram Bot: OK (@jonairobot)`
+      - `Meta/Instagram: OK (Baxtiyorjon Gaziyev)`
+      - `Result`: `Barcha integratsiyalar sog'lom. Ogohlantirish talab etilmaydi.` (Exit code 0).
+    - Pytest: 5 passed, 1 skipped in `test_oracle_only_runtime.py`; 83 passed across finance/sheets regression tests.
+    - Bandit: 0 issues across scanned files (`bandit -ll`).
+    - Logged to Obsidian Second Brain via `brain_log`.
+
 - **2026-09-27 — Claude — Telethon/aiogram audit fixes, branch `claude/telegram-api-docs-bdbefa` (#740):**
   - Audit topgan bo'shliqlarni tuzatdi: `MessageEdited`/`MessageDeleted` handlerlar qo'shildi (`entrypoint/message_event.py`, `bootstrap/orchestration/events.py`); `FloodWaitError` uchun `safe_send()` wrapper (`services/core/telegram/safe_send.py`), `chat_bridge.py`ga qo'llandi; bir martalik scriptlardagi (`search_group_full.py`, `search_group_research.py`, `pilot_sync_v1.py`) bir xil `"userbot_session"` nomi noyob nomlarga o'zgartirildi.
   - `settings.py`: `AMOCRM_CHAT_CHANNEL_ID`/`_SECRET` dublikat e'lonini olib tashladi (ikkinchi e'lon birinchisini `None` bilan bekor qilib, amoCRM Chats API integratsiyasini ishlatmay qo'ygan edi). `.env`ga `AMOCRM_CHAT_ACCOUNT_ID=32681154` qo'shildi (amoCRM API orqali olindi).
@@ -44,6 +66,43 @@
     - **Aloqasiz kontaktlar (69 contacts)**: Contacts with no phone and no telegram routed to `Aloqasiz kontaktlar` (`NC-0256` to `NC-0324`). New total: **324** contacts.
     - **Dublikatlar (33 records)**: Updated 13 existing duplicate records and added 20 new cross-group duplicate pairs with complete source tracking.
     - **Dashboard**: Dynamically updated KPI ranges and formula evaluations. Added Row 20: `Tez Natija 6 = 289` leads in CRM.
+
+- **2026-09-26 — Antigravity — Oracle VM Google Sheets Credentials Restoration & Health Pass:**
+  - **User Request**: User forwarded Telegram alert: `🚨 [OISHA: INTEGRATSIYA SOG'LOMLIGI OGOHLANTIRISHI] Google Sheets: Kalit fayli topilmadi (data/service_account.json) ... nimaga bunaqa deyapti?`.
+  - **Investigation & Root Cause**:
+    - The cron hourly integration monitor (`scripts/integration_health_monitor.py`) executed on the Oracle VM.
+    - Because `service_account.json` is gitignored for security, it was present locally on the Windows machine (`data/service_account.json`) but missing on the Oracle VM filesystem (`/home/ubuntu/oisha-os/data/service_account.json`).
+    - The monitor correctly detected the missing key and fired the alert to Telegram at 14:46:26.
+  - **Resolution & Fix**:
+    - Transferred `data/service_account.json` to `/home/ubuntu/oisha-os/data/service_account.json` via SCP and set secure permissions (`chmod 600`).
+    - Symlinked to `/home/ubuntu/oisha-os/service_account.json` and `/home/ubuntu/data/service_account.json` for resilient candidate lookup.
+    - Updated `scripts/integration_health_monitor.py` to resolve candidates using `_ROOT` fallback.
+    - Restarted `oisha-leads.service` (PID `1171427`) and `oisha-os.service`.
+  - **Verification**:
+    - Tested live Google Sheets access via python script on Oracle VM: `GSHEET_STATUS_OK: Jon branding leads`.
+    - Executed live `integration_health_monitor`:
+      - `AmoCRM: OK ('Jon Branding Agency', status 200)`
+      - `Google Sheets: OK ('Jon branding leads')`
+      - `Telegram Bot: OK (@jonairobot)`
+      - `Meta/Instagram: OK (Baxtiyorjon Gaziyev)`
+      - `Result`: `Barcha integratsiyalar sog'lom. Ogohlantirish talab etilmaydi.` (Exit code 0).
+    - Logged to Obsidian Second Brain via `brain_log`.
+
+- **2026-09-26 — Antigravity — Google Sheets Phone Number #ERROR! Resolution & Data Sanitization:**
+  - **User Request**: "raqam error bo'lib tushyapti" (Phone numbers showing as #ERROR! in Google Sheets).
+  - **Investigation & Discovery**:
+    - Scanned all sheets across the spreadsheet: found exactly 8 `#ERROR!` cells in Column D (Phone):
+      - `Gaplashilmagan Leadlar (UTC Outsource)`: Rows 102, 104, 105, 106 (`Jonibek`, `Abror`, `Азиза`, `Kamola`).
+      - `Target Leads Inhouse (Sentabr)`: Rows 200, 201, 202, 203 (`Behzod`, `Ruslan`, `Gulasal`, `Oybek`).
+    - **Root Cause**: Under `value_input_option="USER_ENTERED"`, Google Sheets parses any string beginning with `+` as a mathematical formula. Formatted phone numbers with parentheses and spaces (e.g. `+998 (88) 931-00-25`) fail formula parsing with `Formula parse error (#ERROR!)` unless escaped with a leading single quote (`'`). Additionally, these rows had unformatted Excel date serial floats (`46290.455...`) and hardcoded numbers in Column A instead of `=ROW()-1`.
+  - **Resolution & Fix**:
+    - Executed targeted batch repair via `scripts/fix_sheet_phone_errors.py`:
+      - Restored clean escaped phone numbers for all 8 rows (`'+998 (88) 931-00-25`, `'+998 (97) 703-80-95`, etc.).
+      - Converted date serials into human-readable `DD.MM.YYYY HH:MM` strings.
+      - Restored dynamic `=ROW()-1` formulas in Column A.
+    - Verified: Re-scanned all sheets — total `#ERROR!` cells is now **0** across the entire spreadsheet.
+    - Verified production code: `clean_phone()` on Oracle VM already includes the leading `'` escape, explaining why all 12 leads received today (26.09.2026) arrived with clean, uncorrupted phone numbers.
+    - Logged to Obsidian Second Brain via `brain_log`.
 
 - **2026-09-26 — Antigravity — Oracle VM Deploy Pipefail Error & Health Check Restoration:**
   - **User Request**: "🚨 Oisha OS: Yangilanishda xatolik yuz berdi ❌📌 Versiya (Commit): 821164c⚠️ Sabab: Oracle VM salomatlik tekshiruvi muvaffaqiyatsiz bo'ldi."

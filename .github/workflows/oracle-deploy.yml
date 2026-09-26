@@ -153,6 +153,11 @@ jobs:
             cp -a /tmp/*.session data/ 2>/dev/null || true
             cp -a /tmp/amocrm_token.json data/amocrm_token.json 2>/dev/null || true
             rm -f service_account.json data/service_account.json token.pickle data/token.pickle
+            if [ -f /home/ubuntu/.secrets/service_account.json ]; then
+              cp -a /home/ubuntu/.secrets/service_account.json data/service_account.json
+              cp -a /home/ubuntu/.secrets/service_account.json service_account.json
+              chmod 600 data/service_account.json service_account.json
+            fi
 
             ./venv/bin/pip install -q -r requirements.txt
 
@@ -321,6 +326,9 @@ jobs:
             sudo systemctl daemon-reload
             sudo systemctl reset-failed oisha-os || true
             sudo systemctl restart oisha-os
+            if systemctl is-active --quiet oisha-leads; then
+              sudo systemctl restart oisha-leads || true
+            fi
 
             # Liveness gate: the PROCESS must come up and stay up. /healthz is
             # an always-200 liveness probe (process alive + event loop
