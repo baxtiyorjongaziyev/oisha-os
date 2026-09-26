@@ -32,6 +32,20 @@ def _to_float(value: Any) -> float:
         return 0.0
 
 
+async def _notify_capi(lead_id: Any, status_id: Any, price: float, leadgen_id: str) -> bool:
+    """Meta CAPI (Conversion Leads) — status o'zgarishini Meta'ga qaytarish.
+
+    False — event yuborilmadi va qayta urinish kerak (yozuvni yakunlamaslik uchun).
+    """
+    try:
+        from src.services.core.marketing.meta_capi_triggers import on_amo_status
+        result = await on_amo_status(int(lead_id), status_id, price=price, leadgen_id=leadgen_id)
+    except Exception as exc:
+        logger.warning("[ADS ATTRIBUTION] CAPI yuborilmadi (%s): %s", leadgen_id, type(exc).__name__)
+        return False
+    return result is None or result.status != "failed"
+
+
 @dataclass
 class AttributionSyncResult:
     checked: int = 0
@@ -89,6 +103,11 @@ async def sync_attribution_revenue(
         else:
             won = None
             result.still_open += 1
+
+        if not await _notify_capi(lead_id, status_id, price, leadgen_id) and won is not None:
+            # Yakuniy statusni yozmaymiz — keyingi siklda CAPI qayta uriniladi.
+            result.failed += 1
+            continue
 
         try:
             await asyncio.to_thread(
