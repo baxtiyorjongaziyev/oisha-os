@@ -145,12 +145,31 @@ def build_leadgen_note(
 def build_telegram_message(
     leadgen_id: str, lead_id: Optional[int], name: str, phone: str, email: str,
     fields: Dict[str, str], cost_per_lead: Optional[float] = None, ad_name: Optional[str] = None,
+    pipeline_name: Optional[str] = None, destination_label: Optional[str] = None, repeat: bool = False,
 ) -> str:
     """Format clean Telegram alert using leadgen_formatter."""
     return _fmt_build_tg(
         leadgen_id, lead_id, name, phone, email, fields,
         _excluded_leadgen_keys(fields), cost_per_lead=cost_per_lead, ad_name=ad_name,
+        pipeline_name=pipeline_name, destination_label=destination_label, repeat=repeat,
     )
+
+
+DESTINATION_LABELS = {"inhouse": "🏠 Inhouse (Jon Branding)", "utc": "🌐 UTC Outsource"}
+PIPELINE_LABELS = {"inhouse": "Sotuv Bo'limi", "utc": "UTC"}
+
+
+def destination_for_pipeline(pipeline_id: Any) -> Optional[str]:
+    """Map an existing AmoCRM pipeline back to its split bucket (None = neither)."""
+    try:
+        pid = int(pipeline_id)
+    except (TypeError, ValueError):
+        return None
+    if pid == int(TARGET_LEADS_INHOUSE_PIPELINE_ID):
+        return "inhouse"
+    if pid == int(UTC_PIPELINE_ID):
+        return "utc"
+    return None
 
 
 def _secret_text(value: Any) -> str:
@@ -264,26 +283,31 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     amocrm = _amocrm_instance()
     deal_name = f"{name} | 🎬 {ad_name}" if ad_name else name
 
-    destination = await asyncio.to_thread(get_lead_destination, leadgen_id)
-    if not destination:
-        destination = await asyncio.to_thread(get_next_lead_destination)
-
-    if destination == "inhouse":
-        target_pipeline_id = TARGET_LEADS_INHOUSE_PIPELINE_ID
-        target_status_id = TARGET_LEADS_INHOUSE_NEW_STATUS_ID
-        dest_tag = "inhouse"
-        dest_label = "🏠 Inhouse (Jon Branding) → Sotuv"
-    else:
-        target_pipeline_id = UTC_PIPELINE_ID
-        target_status_id = UTC_NEW_STATUS_ID
-        dest_tag = "utc_outsource"
-        dest_label = "🌐 UTC Outsource"
-
     checkpoint = None if force else await asyncio.to_thread(get_crm_checkpoint, leadgen_id)
     # Mavjud aktiv bitim bo'lsa (masalan Muzokarada), uni "Yangi"ga qaytarmaymiz — faqat note/teg qo'shiladi.
     existing_lead = None
     if not checkpoint and phone:
         existing_lead = await asyncio.to_thread(amocrm.find_active_lead_by_phone, phone)
+
+    # Taqsimot: avval saqlangan qaror, keyin mavjud bitim voronkasi, oxirida navbat (50/50).
+    # Navbat faqat haqiqatan yangi lead uchun suriladi — qayta murojaat balansni buzmaydi.
+    destination = await asyncio.to_thread(get_lead_destination, leadgen_id)
+    advance_rotation = False
+    if not destination and existing_lead:
+        destination = destination_for_pipeline(existing_lead.get("pipeline_id"))
+    if not destination:
+        destination = await asyncio.to_thread(get_next_lead_destination)
+        advance_rotation = not existing_lead
+
+    if destination == "inhouse":
+        target_pipeline_id = TARGET_LEADS_INHOUSE_PIPELINE_ID
+        target_status_id = TARGET_LEADS_INHOUSE_NEW_STATUS_ID
+        dest_tag = "inhouse"
+    else:
+        target_pipeline_id = UTC_PIPELINE_ID
+        target_status_id = UTC_NEW_STATUS_ID
+        dest_tag = "utc_outsource"
+    dest_label = DESTINATION_LABELS[destination]
     if checkpoint:
         lead_id = checkpoint
     elif existing_lead:
@@ -323,7 +347,10 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     )
 
     if not checkpoint:
-        await asyncio.to_thread(save_crm_checkpoint, leadgen_id, int(lead_id), destination=destination)
+        await asyncio.to_thread(
+            save_crm_checkpoint, leadgen_id, int(lead_id),
+            destination=destination, advance_rotation=advance_rotation,
+        )
         if not existing_lead:
             await amocrm.update_lead_status(
                 int(lead_id),
@@ -358,16 +385,15 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
 
     telegram_ok = bool(ch_status.get("telegram"))
     if not telegram_ok or force:
-        pipeline_name = "Sotuv Bo'limi" if destination == "inhouse" else "UTC"
         telegram_text = build_telegram_message(
             leadgen_id, lead_id, name, phone, email, fields,
             cost_per_lead=cost_per_lead, ad_name=ad_name,
-            pipeline_name=pipeline_name,
+            pipeline_name=PIPELINE_LABELS[destination], destination_label=dest_label,
+            repeat=bool(existing_lead),
         )
-        telegram_text += f"\n\n🏢 <b>Taqsimot:</b> {dest_label}"
         buttons = []
         if creative_url:
-            buttons.append({"text": f"🎬 {ad_name or 'Kreativ'}ni ko'rish", "url": creative_url})
+            buttons.append({"text": "🎬 Kreativ", "url": creative_url})
         if lead_id:
             buttons.append({"text": "🧾 AmoCRM bitimi", "url": f"https://jonbranding.amocrm.ru/leads/detail/{lead_id}"})
         reply_markup = {"inline_keyboard": [buttons]} if buttons else None
