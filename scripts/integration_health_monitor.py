@@ -132,13 +132,19 @@ def check_amocrm() -> Tuple[bool, str]:
         return False, f"AmoCRM: Aloqa uzildi ({type(exc).__name__}: {exc})"
 
 
+def _resolve_creds_path(path: str) -> str:
+    """Relative paths are resolved against the repo root, not the cron job's cwd."""
+    p = Path(path).expanduser()
+    return str(p if p.is_absolute() else _ROOT / p)
+
+
 def check_google_sheets() -> Tuple[bool, str]:
     """Google Sheets service account va spreadsheet ruxsatini tekshiradi."""
     try:
         from google.oauth2.service_account import Credentials
         import gspread
 
-        creds_path = os.getenv("GSHEET_CREDS_FILE") or "data/service_account.json"
+        creds_path = _resolve_creds_path(os.getenv("GSHEET_CREDS_FILE") or "data/service_account.json")
         if not Path(creds_path).exists():
             return False, f"Google Sheets: Kalit fayli topilmadi ({creds_path})"
 
