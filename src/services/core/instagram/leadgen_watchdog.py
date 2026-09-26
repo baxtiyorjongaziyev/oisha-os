@@ -31,6 +31,25 @@ def send_lead_sos_alert(leadgen_id: str, lead_id: Optional[int], channel: str, e
     if sos_key in _DISPATCHED_SOS:
         return False
 
+    sos_text = (
+        "🚨 <b>[OISHA SOS: LID YETKAZISHDA XATOLIK]</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"⚠️ <b>Meta Lid ID:</b> <code>{leadgen_id}</code>\n"
+        f"🧾 <b>AmoCRM Bitim:</b> <code>{lead_id or 'Ochilmadi'}</code>\n"
+        f"❌ <b>Yetkazilmagan kanal:</b> <b>{channel.upper()}</b>\n"
+        f"❗️ <b>Xatolik:</b> <code>{error[:250]}</code>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔄 <i>Watchdog qayta urinmoqda. Zudlik bilan tekshiring!</i>"
+    )
+    if send_admin_alert(sos_text):
+        _DISPATCHED_SOS.add(sos_key)
+        logger.warning("[WATCHDOG SOS] Dispatched SOS alert for %s channel=%s", leadgen_id, channel)
+        return True
+    return False
+
+
+def send_admin_alert(text: str) -> bool:
+    """Post an HTML alert to the leads group/topic. Returns True on HTTP 200."""
     from src.settings import settings
     bot_token = os.getenv("BOT_TOKEN", "").strip()
     getter = getattr(getattr(settings, "BOT_TOKEN", None), "get_secret_value", None)
@@ -42,19 +61,9 @@ def send_lead_sos_alert(leadgen_id: str, lead_id: Optional[int], channel: str, e
     if not bot_token or not chat_id:
         return False
 
-    sos_text = (
-        "🚨 <b>[OISHA SOS: LID YETKAZISHDA XATOLIK]</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"⚠️ <b>Meta Lid ID:</b> <code>{leadgen_id}</code>\n"
-        f"🧾 <b>AmoCRM Bitim:</b> <code>{lead_id or 'Ochilmadi'}</code>\n"
-        f"❌ <b>Yetkazilmagan kanal:</b> <b>{channel.upper()}</b>\n"
-        f"❗️ <b>Xatolik:</b> <code>{error[:250]}</code>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "🔄 <i>Watchdog qayta urinmoqda. Zudlik bilan tekshiring!</i>"
-    )
     payload: Dict[str, Any] = {
         "chat_id": chat_id,
-        "text": sos_text,
+        "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
@@ -66,12 +75,9 @@ def send_lead_sos_alert(leadgen_id: str, lead_id: Optional[int], channel: str, e
 
     try:
         res = requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", json=payload, timeout=10)
-        if res.status_code == 200:
-            _DISPATCHED_SOS.add(sos_key)
-            logger.warning("[WATCHDOG SOS] Dispatched SOS alert for %s channel=%s", leadgen_id, channel)
-            return True
+        return res.status_code == 200
     except Exception as exc:
-        logger.error("[WATCHDOG SOS] Failed to dispatch SOS alert: %s", exc)
+        logger.error("[WATCHDOG SOS] Failed to dispatch alert: %s", type(exc).__name__)
     return False
 
 
