@@ -103,11 +103,37 @@ async def handle_capi_callback(event: Any, data: str) -> None:
     event_name, leadgen_id = parsed
     from src.services.core.instagram.leadgen_delivery import get_crm_checkpoint
     amo_lead_id = await asyncio.to_thread(get_crm_checkpoint, leadgen_id)
+    value = None
+    if event_name == "Purchase":
+        value = await _amo_lead_price(amo_lead_id)
+        if not value:
+            await event.answer("⚠️ Avval AmoCRM bitimiga summa kiriting, keyin qayta bosing.", alert=True)
+            return
     result = await send_crm_event(
-        leadgen_id, event_name, amo_lead_id=amo_lead_id, source=f"telegram:{event.sender_id}",
+        leadgen_id, event_name, amo_lead_id=amo_lead_id, value=value,
+        source=f"telegram:{event.sender_id}",
     )
     logger.info("[META CAPI] Tugma %s by %s -> %s", event_name, event.sender_id, result.status)
     await _answer_result(event, event_name, result)
+
+
+async def _amo_lead_price(amo_lead_id: Optional[int]) -> Optional[float]:
+    """Qo'lda `Purchase` uchun AmoCRM bitim summasi (0 so'mlik event yubormaslik uchun)."""
+    if not amo_lead_id:
+        return None
+    try:
+        from src.services.core.instagram.leadgen_router import _amocrm_instance
+        lead = await _amocrm_instance().get_lead(int(amo_lead_id))
+        return float((lead or {}).get("price") or 0) or None
+    except Exception as exc:
+        logger.warning("[META CAPI] Bitim summasi olinmadi: %s", type(exc).__name__)
+        return None
+
+
+def lead_card_markup(buttons: List[Dict[str, str]], leadgen_id: str) -> Optional[Dict[str, Any]]:
+    """Lid kartochkasi reply_markup: asosiy tugmalar + CAPI qatori."""
+    rows = ([buttons] if buttons else []) + capi_button_rows(leadgen_id)
+    return {"inline_keyboard": rows} if rows else None
 
 
 async def _answer_result(event: Any, event_name: str, result: ToolResult) -> None:

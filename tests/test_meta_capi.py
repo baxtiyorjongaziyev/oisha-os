@@ -21,8 +21,11 @@ class _SqlitePool:
     async def execute(self, query, params=None):
         cur = self.conn.execute(query, params or [])
         rows = [dict(r) for r in cur.fetchall()]
-        self.conn.commit()
         return rows
+
+    async def commit(self):
+        self.commits = getattr(self, "commits", 0) + 1
+        self.conn.commit()
 
 
 @pytest.fixture
@@ -50,6 +53,7 @@ def test_build_event_shape_and_hash():
     assert ev["action_source"] == "system_generated"
     assert ev["event_time"] == 1700000000
     assert ev["user_data"]["lead_id"] == "123"
+    assert ev["event_id"] == "crm-123-Purchase"
     assert ev["user_data"]["ph"] == [hashlib.sha256(b"998901234567").hexdigest()]
     assert ev["user_data"]["em"] == [hashlib.sha256(b"a@b.uz").hexdigest()]
     assert ev["custom_data"] == {"event_source": "crm", "lead_event_source": "Oisha-OS",
@@ -81,6 +85,7 @@ def test_idempotent_send(monkeypatch, pool, enabled):
     second = _run(meta_capi.send_crm_event("555", "QualifiedLead", amo_lead_id=7))
     assert first.status == "sent" and second.status == "duplicate"
     assert calls == [("999", "QualifiedLead")]
+    assert pool.commits >= 2
     assert _run(meta_capi_store.get_event_status("555", "QualifiedLead")) == "sent"
 
 
@@ -196,7 +201,55 @@ def test_callback_whitelisted_sends_and_edits(monkeypatch):
         return ToolResult("meta_capi", True, status="sent")
 
     monkeypatch.setattr(meta_capi_triggers, "send_crm_event", fake_send)
+
+    async def price(lid):
+        return 7_000_000.0
+
+    monkeypatch.setattr(meta_capi_triggers, "_amo_lead_price", price)
     ev = _Event(sender_id=2)
     _run(meta_capi_triggers.handle_capi_callback(ev, "capi:p:123"))
     assert seen["event_name"] == "Purchase" and seen["amo_lead_id"] == 555
+    assert seen["value"] == 7_000_000.0
     assert "Meta CAPI" in ev.message.text
+
+
+def test_manual_purchase_without_price_is_refused(monkeypatch):
+    _settings(monkeypatch)
+    import src.services.core.instagram.leadgen_delivery as delivery
+    monkeypatch.setattr(delivery, "get_crm_checkpoint", lambda lg: 555)
+    called = []
+
+    async def fake_send(*a, **kw):
+        called.append(a)
+
+    async def no_price(lid):
+        return None
+
+    monkeypatch.setattr(meta_capi_triggers, "send_crm_event", fake_send)
+    monkeypatch.setattr(meta_capi_triggers, "_amo_lead_price", no_price)
+    ev = _Event(sender_id=2)
+    _run(meta_capi_triggers.handle_capi_callback(ev, "capi:p:123"))
+    assert not called and "summa" in ev.answers[0][0]
+
+
+def test_failed_purchase_keeps_attribution_row_open(monkeypatch):
+    from src.services.core.marketing import attribution_sync
+    from src.services.core.tool_registry import ToolResult
+    import src.services.core.marketing.meta_capi_triggers as trig
+    updates = []
+    monkeypatch.setattr(attribution_sync, "pending_revenue_sync",
+                        lambda d, l: [{"leadgen_id": "LG1", "lead_id": 42}])
+    monkeypatch.setattr(attribution_sync, "update_revenue", lambda *a: updates.append(a))
+    monkeypatch.setattr(attribution_sync, "_REQUEST_DELAY_SECONDS", 0)
+
+    async def failed(*a, **kw):
+        return ToolResult("meta_capi", False, status="failed")
+
+    monkeypatch.setattr(trig, "on_amo_status", failed)
+
+    class Amo:
+        async def get_lead(self, lid):
+            return {"price": 100, "status_id": 142}
+
+    res = _run(attribution_sync.sync_attribution_revenue(Amo()))
+    assert updates == [] and res.failed == 1

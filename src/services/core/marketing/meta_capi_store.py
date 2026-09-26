@@ -55,6 +55,7 @@ async def claim_event(
         "RETURNING leadgen_id",
         [str(leadgen_id), event_name, amo_lead_id, source, now.isoformat(), stale_before],
     )
+    await _pool().commit()
     return bool(rows)
 
 
@@ -67,6 +68,7 @@ async def mark_result(leadgen_id: str, event_name: str, ok: bool, error: str = "
         ["sent" if ok else "failed", (error or "")[:500], now, int(ok), now,
          str(leadgen_id), event_name],
     )
+    await _pool().commit()
 
 
 async def get_event_status(leadgen_id: str, event_name: str) -> Optional[str]:

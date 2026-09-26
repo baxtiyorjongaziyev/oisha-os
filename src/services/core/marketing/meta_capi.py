@@ -79,6 +79,8 @@ def build_event(
         custom_data["currency"] = currency
     return {
         "event_name": event_name,
+        # Deterministik ID: tarmoq xatosidan keyingi retry Meta'da dublikat bo'lmaydi.
+        "event_id": f"crm-{leadgen_id}-{event_name}",
         "event_time": int(event_time or time.time()),
         "action_source": "system_generated",
         "user_data": user_data,
