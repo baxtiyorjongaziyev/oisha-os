@@ -21,6 +21,22 @@
 
 ## Agent Handoff Log
 
+- **2026-09-26 — Antigravity — Oracle VM Deploy Pipefail Error & Health Check Restoration:**
+  - **User Request**: "🚨 Oisha OS: Yangilanishda xatolik yuz berdi ❌📌 Versiya (Commit): 821164c⚠️ Sabab: Oracle VM salomatlik tekshiruvi muvaffaqiyatsiz bo'ldi."
+  - **Investigation & Root Cause**:
+    - Workflow run `36222663784` on commit `821164c1` failed with `Process completed with exit code 1` within 4ms of outputting `[OLLAMA] ENABLE_OLLAMA yoqilmagan — o'tkazib yuborildi.`.
+    - Commit `821164c` added `AMOCRM_ACCESS_TOKEN="$(grep -m1 '^AMOCRM_ACCESS_TOKEN=' .env | cut -d= -f2-)"` inside `.github/workflows/oracle-deploy.yml`.
+    - Because `set -euo pipefail` is active in the deploy script, and `AMOCRM_ACCESS_TOKEN` is not yet present in Oracle VM's `.env`, `grep` exited with code 1, which caused `pipefail` to trigger and `set -e` to terminate the shell immediately before reaching service restarts or `/readyz`.
+    - Telegram notify step received `status == 'failure'` and emitted the default error card citing "Oracle VM salomatlik tekshiruvi muvaffaqiyatsiz bo'ldi."
+    - Verification of the previous `Oracle VM Health` run confirmed Oracle VM was completely healthy (`ready: true`, `database: ok`, `userbot: authorized`, `amocrm: connected`, `NRestarts: 0`).
+  - **Fix & Hardening**:
+    - In `.github/workflows/oracle-deploy.yml`: wrapped grep in subshell with `|| true`: `AMOCRM_ACCESS_TOKEN="$( (grep -m1 '^AMOCRM_ACCESS_TOKEN=' .env 2>/dev/null || true) | cut -d= -f2- )"`, guaranteeing clean 0 exit code under `set -euo pipefail` regardless of whether `AMOCRM_ACCESS_TOKEN` is present in `.env`.
+  - **Verification**:
+    - Pytest: 856 passed, 1 skipped.
+    - Bandit: 0 issues across 99,728 LOC (`bandit -r src/ -ll`).
+    - Rule 6: All files comply with standard LOC limits.
+    - Logged to Obsidian Second Brain.
+
 - **2026-09-26 — Antigravity — Telethon Userbot Session Refresh, 2FA Auth & Health Readiness Restoration:**
   - **User Requests**:
     1. "Ha, bu haqiqiy xabar. /readyz deploy paytida ishlab chiqarishdagi holatni tekshiradi... 1. userbot_unauthorized 2. amocrm_unavailable"

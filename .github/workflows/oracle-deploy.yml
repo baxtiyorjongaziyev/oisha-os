@@ -188,7 +188,7 @@ jobs:
               # Long-lived AmoCRM token: secret wins, else keep the value an
               # owner added by hand — .env is rebuilt below and would erase it.
               if [ -z "${AMOCRM_ACCESS_TOKEN:-}" ]; then
-                AMOCRM_ACCESS_TOKEN="$(grep -m1 '^AMOCRM_ACCESS_TOKEN=' .env | cut -d= -f2-)"
+                AMOCRM_ACCESS_TOKEN="$( (grep -m1 '^AMOCRM_ACCESS_TOKEN=' .env 2>/dev/null || true) | cut -d= -f2- )"
               fi
             fi
 
