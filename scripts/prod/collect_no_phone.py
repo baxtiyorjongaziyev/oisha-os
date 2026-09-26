@@ -59,7 +59,7 @@ async def collect_no_phone_users():
             return
         
         print()
-        print(f"📊 Telefon yo'q foydalanuvchilarni yig'ish...")
+        print("📊 Telefon yo'q foydalanuvchilarni yig'ish...")
         print("-" * 70)
         
         async for user in client.iter_participants(target_group.id):
@@ -106,10 +106,10 @@ async def collect_no_phone_users():
         
         # Telegram Saved Messages ga yuborish
         if no_phone_users:
-            print(f"\n📤 Saved Messages ga yuborilmoqda...")
+            print("\n📤 Saved Messages ga yuborilmoqda...")
             
             # Xabarni bo'lib yuborish (Telegram limit: 4096 belgi)
-            header = f"📋 <b>TEZ NATIJA 4 - Telefon Yo'q Contactlar</b>\n"
+            header = "📋 <b>TEZ NATIJA 4 - Telefon Yo'q Contactlar</b>\n"
             header += f"Jami: {len(no_phone_users)} ta\n"
             header += "-" * 50 + "\n\n"
             
@@ -140,7 +140,7 @@ async def collect_no_phone_users():
                     logger.error(f"Xabar yuborishda xato: {e}")
             
             print(f"✅ Saved Messages ga {len(messages)} ta xabar yuborildi")
-            print(f"   Telefon raqamini olish uchun shaxsan yozing!")
+            print("   Telefon raqamini olish uchun shaxsan yozing!")
         
         # Natija
         print()

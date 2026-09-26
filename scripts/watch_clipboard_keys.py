@@ -3,7 +3,6 @@ Background clipboard watcher that automatically detects copied AI API keys,
 tests them live, and injects them into local and Oracle VM .env.
 """
 import time
-import os
 import sys
 import subprocess
 
@@ -38,7 +37,7 @@ def watch(duration_seconds=300):
                     if test_key(prov, current):
                         sync_key(prov, current)
                         print(f"[SUCCESS] {prov.upper()} key verified and synced to local & Oracle VM .env!\n")
-        except Exception as e:
+        except Exception:
             pass
         time.sleep(1)
 

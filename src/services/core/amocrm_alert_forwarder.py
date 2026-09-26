@@ -21,7 +21,7 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from telethon import TelegramClient, events
+from telethon import TelegramClient
 from telethon.tl.types import KeyboardButtonUrl
 
 from src.settings import settings

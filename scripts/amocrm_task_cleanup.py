@@ -115,7 +115,7 @@ class AmoCRMTaskCleaner:
 
     def _close_task(self, task_id: int, reason: str) -> None:
         tag = "[DRY-RUN]" if not self.live else "[LIVE]"
-        ok = self._patch(f"/api/v4/tasks", [{"id": task_id, "is_completed": True}])
+        ok = self._patch("/api/v4/tasks", [{"id": task_id, "is_completed": True}])
         if ok:
             self.closed += 1
             print(f"  {tag} ✓ Closed task {task_id} — {reason}")

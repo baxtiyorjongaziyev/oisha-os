@@ -11,11 +11,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.agents import (
     get_surgical_negotiator,
-    negotiate,
     DealStage,
     DealPriority,
 )
-from src.agents.surgical_negotiator import SurgicalNegotiator
 
 
 async def demo_new_lead():
@@ -75,7 +73,7 @@ async def demo_new_lead():
         
         print(f"🤖 Oisha: {result['response']}")
         print()
-        print(f"📊 TAHLIL:")
+        print("📊 TAHLIL:")
         print(f"   Stage: {result['stage']}")
         print(f"   Intent: {result['assessment']['intent']}")
         print(f"   Objection: {result['assessment']['objection']}")
@@ -83,17 +81,17 @@ async def demo_new_lead():
         print(f"   Autonomy Mode: {result['assessment']['autonomy_mode']}")
         
         if result.get('actions'):
-            print(f"\n⚡ ACTIONS:")
+            print("\n⚡ ACTIONS:")
             for action in result['actions']:
                 print(f"   • {action['type']}")
         
         if result.get('contract'):
-            print(f"\n📄 CONTRACT GENERATED!")
+            print("\n📄 CONTRACT GENERATED!")
             print(f"   ID: {result['contract']['contract_id']}")
             print(f"   Risk: {result['contract']['risk_assessment']['level']}")
             print(f"   Requires Approval: {result['contract']['risk_assessment']['requires_approval']}")
         
-        print(f"\n⏸️  Davom etish uchun ENTER...")
+        print("\n⏸️  Davom etish uchun ENTER...")
         input()
     
     # Final summary
@@ -102,7 +100,7 @@ async def demo_new_lead():
     print(f"{'=' * 60}")
     
     dashboard = negotiator.get_dashboard()
-    print(f"\nPipeline Stats:")
+    print("\nPipeline Stats:")
     for key, value in dashboard['summary'].items():
         print(f"   {key}: {value}")
     
@@ -170,15 +168,15 @@ async def demo_contract_generation():
     print(f"Autonomy Allowed: {risk_assessment['autonomy_allowed']}")
     print(f"Requires Approval: {risk_assessment['requires_approval']}")
     
-    print(f"\n⚠️  Risk Factors:")
+    print("\n⚠️  Risk Factors:")
     for factor in risk_assessment['breakdown']:
         print(f"   • {factor['factor']}: {factor['weight']} ({factor['level']})")
     
-    print(f"\n💡 Recommendations:")
+    print("\n💡 Recommendations:")
     for rec in risk_assessment['recommendations']:
         print(f"   → {rec}")
     
-    print(f"\n📋 Approval Requirements:")
+    print("\n📋 Approval Requirements:")
     for req in risk.get_approval_requirements(risk_assessment):
         print(f"   ✓ {req}")
 
@@ -186,7 +184,7 @@ async def demo_contract_generation():
 async def demo_pipeline_management():
     """Pipeline boshqaruvi demo"""
     
-    from src.agents import get_lifecycle_manager, DealStage, DealPriority
+    from src.agents import get_lifecycle_manager
     
     print("=" * 60)
     print("📊 PIPELINE MANAGEMENT DEMO")

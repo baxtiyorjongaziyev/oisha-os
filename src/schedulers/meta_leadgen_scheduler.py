@@ -8,14 +8,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, Dict, Set
+from typing import Set
 
 import requests
 
 from src.services.core.instagram.leadgen_dedup import (
     get_all_processed_ids,
     is_leadgen_processed,
-    mark_leadgen_processed,
 )
 
 logger = logging.getLogger("MetaLeadgenScheduler")

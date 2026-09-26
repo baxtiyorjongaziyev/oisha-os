@@ -20,8 +20,6 @@ from src.services.core.crm.amocrm_pipeline_config import (
 from src.services.core.instagram.graph_client import InstagramGraphClient
 from src.services.core.instagram.leadgen_formatter import (
     clean_form_key,
-    humanize_question,
-    humanize_answer,
     build_leadgen_note as _fmt_build_note,
     build_telegram_message as _fmt_build_tg,
 )

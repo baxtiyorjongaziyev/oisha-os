@@ -50,7 +50,7 @@ async def main() -> None:
         try:
             await client.sign_in(phone=phone, code=code, phone_code_hash=sent_code.phone_code_hash)
         except SessionPasswordNeededError:
-            print(f"[*] 2FA parol ishlatilmoqda...")
+            print("[*] 2FA parol ishlatilmoqda...")
             try:
                 await client.sign_in(password=password)
             except Exception as e:

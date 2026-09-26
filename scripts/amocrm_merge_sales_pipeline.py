@@ -5,7 +5,6 @@ import json
 import sys
 import time
 from collections import defaultdict
-from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any

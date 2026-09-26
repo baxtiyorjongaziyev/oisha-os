@@ -44,7 +44,7 @@ async def trigger_sync():
         # TN5 Group ID
         TN5_CHAT_ID = -1002347167664 
         
-        logger.info(f"🚀 Starting immediate TN5 sync for Juma feature...")
+        logger.info("🚀 Starting immediate TN5 sync for Juma feature...")
         # Sync 5 members just to verify it works and populate a small audience
         await scraper.sync_all_group_members(
             client=client, 

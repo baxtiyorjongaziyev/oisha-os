@@ -29,7 +29,7 @@ async def main():
             me = await client.get_me()
             print()
             print("=" * 60)
-            print(f"✅ AVTORIZATSIYA MUVAFFAQIYATLI!")
+            print("✅ AVTORIZATSIYA MUVAFFAQIYATLI!")
             print("=" * 60)
             print(f"👤 Ism: {me.first_name} {me.last_name or ''}")
             print(f"🆔 ID: {me.id}")

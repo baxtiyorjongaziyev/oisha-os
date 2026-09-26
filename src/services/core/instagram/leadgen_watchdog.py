@@ -5,7 +5,7 @@ import asyncio
 import logging
 import os
 import requests
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from src.services.core.instagram.leadgen_delivery import (
     get_pending_deliveries,
@@ -13,7 +13,7 @@ from src.services.core.instagram.leadgen_delivery import (
     increment_delivery_retry,
     get_delivery_summary,
 )
-from src.services.core.instagram.leadgen_dedup import is_leadgen_processed, mark_leadgen_processed
+from src.services.core.instagram.leadgen_dedup import mark_leadgen_processed
 
 logger = logging.getLogger("LeadgenWatchdog")
 
@@ -82,7 +82,6 @@ async def retry_pending_leadgen_deliveries() -> int:
         build_telegram_message,
         _fetch_leadgen_payload,
         flatten_field_data,
-        _pick,
         _pick_name,
         _pick_phone,
         _amocrm_instance,

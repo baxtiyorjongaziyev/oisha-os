@@ -94,7 +94,6 @@ def build_status_report_text() -> str:
     tg_icon = "🟢" if tg_ok >= total else "🟡"
     status_icon = "🟢 24/7 FAOL (O'lmas rejim)" if pending == 0 else "🟠 Qayta tiklanmoqda"
 
-    from src.services.core.instagram.leadgen_sheets import DEFAULT_WORKSHEET_TITLE
     from src.services.core.marketing.meta_ads_client import get_creative_url
 
     creative_lines = []
@@ -129,7 +128,7 @@ def build_status_report_text() -> str:
         "",
         "⚙️ <b>Baza va Integratsiyalar:</b>",
         f"• Meta Lead Ads barcha formalardagi lidlar: <b>{meta_total} ta</b>",
-        f"• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",
+        "• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",
         "• AmoCRM voronkalari: <code>Sotuv Bo'limi (#11162698) & UTC (#11322658)</code>",
         f"• Kutilayotgan/xatoli lidlar: <b>{pending} ta</b>",
         "━━━━━━━━━━━━━━━━━━━━",

@@ -1,6 +1,9 @@
 """Populate all months and link all transactions to the new clean Oylik P&L table (tblAgVaGlVory2yAW)."""
 import os
-import urllib.request, json, sys, time
+import urllib.request
+import json
+import sys
+import time
 
 sys.stdout.reconfigure(encoding='utf-8')
 

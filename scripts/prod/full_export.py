@@ -196,7 +196,7 @@ async def export_contacts():
         await client.connect()
         
         # Guruhni qidirish
-        print(f"\n🔍 'Tez Natija 4' guruhi qidirilmoqda...")
+        print("\n🔍 'Tez Natija 4' guruhi qidirilmoqda...")
         target_group = None
         
         async for dialog in client.iter_dialogs():
@@ -210,9 +210,9 @@ async def export_contacts():
             await client.disconnect()
             return
         
-        print(f"\n📊 Statistika:")
+        print("\n📊 Statistika:")
         print(f"   Guruh: {target_group.name}")
-        print(f"   Bu jarayon bir necha daqiqa davom etishi mumkin...")
+        print("   Bu jarayon bir necha daqiqa davom etishi mumkin...")
         print("-" * 60)
         
         # A'zolarni yig'ish

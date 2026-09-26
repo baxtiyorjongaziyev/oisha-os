@@ -1,7 +1,4 @@
 import requests
-import os
-import sys
-import json
 from src.settings import settings
 
 def check_airtable_structure():

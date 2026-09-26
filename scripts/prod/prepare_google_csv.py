@@ -1,5 +1,4 @@
 import csv
-import os
 
 # O'qish
 input_file = 'tez_natija_4_contacts.csv'

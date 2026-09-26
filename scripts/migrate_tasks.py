@@ -1,4 +1,3 @@
-import asyncio
 import sqlite3
 
 def run_migration():

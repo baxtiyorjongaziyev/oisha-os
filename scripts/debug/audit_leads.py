@@ -1,11 +1,9 @@
 
 import asyncio
 import logging
-import json
 from telethon import TelegramClient
 from settings import settings
 from services.auto_lead_agent import AutoLeadAgent
-import config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

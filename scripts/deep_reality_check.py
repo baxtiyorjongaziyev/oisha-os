@@ -1,6 +1,8 @@
 """Deep reality check: true transactions, true projects, true table order, true P&L."""
 import os
-import urllib.request, json, sys
+import urllib.request
+import json
+import sys
 sys.stdout.reconfigure(encoding='utf-8')
 
 API_KEY = os.environ.get("AIRTABLE_API_KEY", "").strip()
@@ -84,7 +86,7 @@ for p in unpaid_projects[:5]:
 
 # 3. Oylik P&L jadvali haqiqiyligi
 pnl = fetch_all("tblUgfwoxSn2fS4wJ")
-print(f"\n3. OYLIK P&L JADVALI HOLATI:")
+print("\n3. OYLIK P&L JADVALI HOLATI:")
 for r in pnl:
     f = r["fields"]
     oy = f.get("Oy nomi", "")

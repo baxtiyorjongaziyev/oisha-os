@@ -20,7 +20,7 @@ def check_db():
         if 'processed_messages' in tables:
             cursor.execute("SELECT status, count(*) FROM processed_messages GROUP BY status")
             stats = cursor.fetchall()
-            print(f"\n Leadlar statistikasi (processed_messages):")
+            print("\n Leadlar statistikasi (processed_messages):")
             for stat in stats:
                 print(f" - {stat[0]}: {stat[1]} ta")
                 

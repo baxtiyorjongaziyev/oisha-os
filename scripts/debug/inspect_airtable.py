@@ -2,7 +2,6 @@ import requests
 import os
 import sys
 import json
-from datetime import datetime
 
 # Path setup to import from src
 sys.path.append(os.getcwd())

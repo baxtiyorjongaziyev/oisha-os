@@ -1,6 +1,5 @@
 import asyncio
 import csv
-import os
 from telethon import TelegramClient
 from telethon.tl.functions.messages import ImportChatInviteRequest
 from src.settings import settings
@@ -22,7 +21,7 @@ async def main():
         print("Error: Userbot not authorized. Run login script first.")
         return
 
-    print(f"Connected as userbot.")
+    print("Connected as userbot.")
     
     try:
         # Join group if not already a member

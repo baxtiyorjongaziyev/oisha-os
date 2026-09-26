@@ -10,7 +10,7 @@ from src.context import app_ctx
 from src.database import get_db
 from src.services.core.rop.fetchers import RopFetcher
 from src.services.core.rop.service import RopService
-from src.services.core.telegram.bot_runtime import BotRuntimePort, TelethonBotRuntime
+from src.services.core.telegram.bot_runtime import TelethonBotRuntime
 from src.time_utils import get_local_now, is_quiet_hours
 
 logger = logging.getLogger("RopScheduler")

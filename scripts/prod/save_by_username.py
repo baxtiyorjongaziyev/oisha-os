@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from telethon import TelegramClient, errors, functions, types
+from telethon import TelegramClient, errors, functions
 from src.settings import settings
 from src.database import Database
 
@@ -61,7 +61,7 @@ async def save_contacts_by_username():
             return
         
         print()
-        print(f"📊 Username bilan kontaktlarni saqlash...")
+        print("📊 Username bilan kontaktlarni saqlash...")
         print("-" * 70)
         
         async for user in client.iter_participants(target_group.id):
@@ -93,7 +93,7 @@ async def save_contacts_by_username():
                 result = await client(functions.contacts.AddContactRequest(
                     id=user_entity,
                     first_name=first_name,
-                    last_name=last_name or f"TN4 Gr",
+                    last_name=last_name or "TN4 Gr",
                     phone="+",  # Bo'sh yoki '+' - Telegram yangi funksiyasi
                     add_phone_privacy_exception=False
                 ))

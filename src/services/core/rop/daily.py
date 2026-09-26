@@ -1,7 +1,7 @@
 """AI ROP per-seller + CEO view models and builders. Pure; injected `now`."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from src.services.core.rop.config import DEFAULTS  # noqa: F401 (kept for parity)

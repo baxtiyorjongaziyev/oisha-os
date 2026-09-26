@@ -1,6 +1,8 @@
 """Update formulas to use the native Rollup fields and delete manual number fields in Oylik P&L."""
 import os
-import urllib.request, json, sys
+import urllib.request
+import json
+import sys
 
 sys.stdout.reconfigure(encoding='utf-8')
 

@@ -18,11 +18,6 @@ from src.services.core.tool_adapters import (
 from src.services.proactive.airtable_deadlines import (
     _resolve,
     check_airtable_deadlines,
-    _prune_stale_claims,
-    _claim_on_disk,
-    _release_on_disk,
-    _deadline_sent_keys,
-    _DEADLINE_CLAIM_DIR,
 )
 from src.services.proactive.airtable_stagnation import (
     check_airtable_stagnation,
@@ -141,7 +136,6 @@ async def check_amocrm_stagnation():
         logger.info(f"[STAGNATION] Conversion push sent for hour {now.hour}.")
 
 
-from src.services.proactive.airtable_stagnation import check_airtable_stagnation
 
 __all__ = [
     "check_amocrm_stagnation",

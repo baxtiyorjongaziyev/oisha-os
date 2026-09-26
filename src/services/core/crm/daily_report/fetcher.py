@@ -13,7 +13,6 @@ from src.services.core.crm.daily_report.models import (
     CRMWeeklyStats,
     ManagerRow,
     PeriodMetrics,
-    PeriodType,
     period_range,
     previous_week_range,
 )

@@ -27,45 +27,45 @@ def format_money(amount: int) -> str:
 report = []
 
 # Sarlavha
-report.append(f"📊 *HAFTALIK HISOBOT*")
+report.append("📊 *HAFTALIK HISOBOT*")
 report.append(f"📅 *Davri: {period_start} - {period_end}*\n")
 
 # Aktiv bitimlar
-report.append(f"💼 *AKTIV BITIMLAR (davr oxirida):*")
+report.append("💼 *AKTIV BITIMLAR (davr oxirida):*")
 report.append(f"• Jami: *{active_deals} ta*")
 report.append(f"• Qiymati: *{format_money(active_value)} soʻm*\n")
 
 # Yopilgan bitimlar
-report.append(f"✅ *YOPILGAN BITIMLAR:*")
+report.append("✅ *YOPILGAN BITIMLAR:*")
 if completed_deals > 0:
     report.append(f"• Muvaffaqiyatli: *{completed_deals} ta* ({format_money(completed_value)} soʻm)")
 else:
-    report.append(f"• Muvaffaqiyatli: *0 ta* ⚠️")
+    report.append("• Muvaffaqiyatli: *0 ta* ⚠️")
 
 if lost_deals > 0:
     report.append(f"• Bekor qilingan: *{lost_deals} ta* ({format_money(lost_value)} soʻm)")
 report.append("")
 
 # Yangi yaratilgan
-report.append(f"🆕 *YANGI YARATILGAN:*")
+report.append("🆕 *YANGI YARATILGAN:*")
 report.append(f"• Bitimlar: *{new_deals} ta* 📈")
 report.append(f"• Kompaniyalar: *{new_companies} ta* 🏢")
 report.append(f"• Kontaktlar: *{new_contacts} ta* 👥\n")
 
 # Tahlili
-report.append(f"📈 *OISHA TAHLILI:*")
+report.append("📈 *OISHA TAHLILI:*")
 
 if new_deals > 100:
     report.append(f"_✅ Ajoyib! Haftada {new_deals} ta yangi bitim - aktiv sotuv jarayoni._")
 elif new_deals > 50:
-    report.append(f"_🟡 O'rtacha. Yangi bitimlar oqimi yaxshi, lekin yanada kuchaytirish mumkin._")
+    report.append("_🟡 O'rtacha. Yangi bitimlar oqimi yaxshi, lekin yanada kuchaytirish mumkin._")
 else:
-    report.append(f"_🔴 Diqqat! Yangi leadlar kam. Marketing kanallarini ko'rib chiqish vaqt._")
+    report.append("_🔴 Diqqat! Yangi leadlar kam. Marketing kanallarini ko'rib chiqish vaqt._")
 
 if completed_deals == 0 and active_deals > 100:
     report.append(f"_⚠️ {active_deals} ta aktiv bitim ichida yopilgan yo'q - menejerlar nazoratini kuchaytiring._")
 
-report.append(f"\n📊 *Davom ettirish uchun @baxtiyorjong_gaziyev nazoratida* 👑")
+report.append("\n📊 *Davom ettirish uchun @baxtiyorjong_gaziyev nazoratida* 👑")
 
 # Natija
 print("\n".join(report))

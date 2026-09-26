@@ -9,12 +9,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.services.core.service_configurator import (
-    get_service_configurator,
-    ServiceType
-)
-from src.services.core.project_phases import (
-    get_project_phase_manager,
-    PhaseStatus
+    get_service_configurator
 )
 from src.services.core.client_project_checklist import (
     get_client_project_manager,
@@ -41,7 +36,7 @@ async def demo_service_configuration():
         print(f"      Narx: ${svc['price']}")
         print(f"      Muddat: {svc['days']} kun")
         print(f"      Qadamlar: {svc['total_steps']} ta")
-        print(f"      Topshiriqlar:")
+        print("      Topshiriqlar:")
         for d in svc['deliverables'][:3]:
             print(f"         • {d}")
         if len(svc['deliverables']) > 3:
@@ -185,7 +180,7 @@ async def demo_phase_execution(project_id: str):
         # Start phase
         start_result = manager.start_phase(project_id, phase_id, user_id)
         if start_result['success']:
-            print(f"   🚀 Bosqich boshlandi")
+            print("   🚀 Bosqich boshlandi")
         
         # Simulate work
         await asyncio.sleep(0.5)
@@ -199,7 +194,7 @@ async def demo_phase_execution(project_id: str):
         )
         
         if complete_result['success']:
-            print(f"   ✅ Bajarildi!")
+            print("   ✅ Bajarildi!")
             if complete_result.get('unlocked_phases'):
                 print(f"   🔓 Ochilgan: {', '.join(complete_result['unlocked_phases'])}")
         

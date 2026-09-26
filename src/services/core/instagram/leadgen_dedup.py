@@ -6,10 +6,9 @@ even across service restarts and crashes.
 from __future__ import annotations
 
 import json
-import os
 import threading
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Set
+from typing import Iterable, Optional, Set
 
 import structlog
 

@@ -134,7 +134,7 @@ def main():
     # Bugundan boshlab 25tadan taqsimlash
     schedule = generate_schedule(today, total_to_redistribute, per_day=25)
 
-    print(f"\n--- Taqsimlash rejasi (25/kun, Yakshanbasiz) ---")
+    print("\n--- Taqsimlash rejasi (25/kun, Yakshanbasiz) ---")
     for s in schedule:
         print(f"   {s['date_str']}: {s['count']} ta vazifa (Deadline: 18:00)")
 

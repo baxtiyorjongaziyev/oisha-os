@@ -4,7 +4,7 @@ Aiogram dispatcher builder and factory functions.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
 
 from src.services.core.dispatcher.handlers_admin import (
     handle_aiogram_auto_status,

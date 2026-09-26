@@ -6,7 +6,6 @@ import sys
 sys.path.insert(0, '/home/ubuntu/oisha-os')
 os.chdir('/home/ubuntu/oisha-os')
 
-from src.settings import settings
 from src.api_server import _get_amocrm_instance
 
 async def run():

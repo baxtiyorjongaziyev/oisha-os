@@ -35,7 +35,7 @@ def main():
                     token_path.parent.mkdir(exist_ok=True)
                     token_path.write_text(json.dumps(token_data, indent=2), encoding="utf-8")
                     os.chmod(str(token_path), 0o600)
-                    print(f"OK: token fayl yozildi, refresh_token bor")
+                    print("OK: token fayl yozildi, refresh_token bor")
                     return 0
                 else:
                     print("AMOCRM_TOKEN_JSON da ham refresh_token yo'q")

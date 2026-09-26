@@ -1,9 +1,6 @@
 import urllib.request
 import urllib.error
-import json
-import base64
 import os
-from dotenv import load_dotenv
 
 secret = os.environ.get('OISHA_API_SECRET', '').strip()
 headers = {

@@ -2,7 +2,11 @@
 """
 👸 OISHA: TEZ NATIJA 3 - Xavfsiz Yig'ish
 """
-import asyncio, csv, os, random, sys
+import asyncio
+import csv
+import os
+import random
+import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from telethon import TelegramClient
 from src.settings import settings

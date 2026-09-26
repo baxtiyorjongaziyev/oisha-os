@@ -6,7 +6,6 @@ import asyncio
 import contextlib
 import os
 import sys
-import time
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone

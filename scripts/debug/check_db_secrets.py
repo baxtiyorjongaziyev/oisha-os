@@ -1,5 +1,4 @@
 import sqlite3
-import json
 
 def check_db(db_path):
     print(f"--- Checking {db_path} ---")

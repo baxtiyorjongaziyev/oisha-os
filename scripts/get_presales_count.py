@@ -1,4 +1,4 @@
-import os, requests, json
+import requests
 from src.settings import settings
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 amocrm=AmoCRMSync(subdomain=settings.AMOCRM_SUBDOMAIN, client_id=settings.AMOCRM_CLIENT_ID, client_secret=settings.AMOCRM_CLIENT_SECRET, redirect_url=settings.AMOCRM_REDIRECT_URL)

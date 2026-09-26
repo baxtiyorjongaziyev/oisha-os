@@ -1,5 +1,4 @@
 import os
-import sys
 import pickle
 import logging
 from google.oauth2.service_account import Credentials as ServiceAccountCredentials

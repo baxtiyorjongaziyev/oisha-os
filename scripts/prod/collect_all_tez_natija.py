@@ -60,7 +60,7 @@ async def process_all_groups():
             print("=" * 70)
             
             # Guruhni qidirish
-            print(f'🔍 Guruh qidirilmoqda...')
+            print('🔍 Guruh qidirilmoqda...')
             target_group = None
             
             async for dialog in client.iter_dialogs():
@@ -82,7 +82,7 @@ async def process_all_groups():
             username_saved = 0
             no_username = 0
             
-            print(f"📊 A'zolarni yig'ish...")
+            print("📊 A'zolarni yig'ish...")
             print("-" * 70)
             
             async for user in client.iter_participants(target_group.id):

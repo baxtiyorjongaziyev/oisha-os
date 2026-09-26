@@ -91,7 +91,7 @@ comments = res.get("data", [])
 print(f"Total top-level comments on this reel: {len(comments)}")
 from src.services.core.instagram_agent import like_comment
 
-print(f"\n--- TESTING LIKE ON FIRST COMMENT ---")
+print("\n--- TESTING LIKE ON FIRST COMMENT ---")
 if comments:
     first_c_id = comments[0]["id"]
     print(f"Liking comment {first_c_id}...")

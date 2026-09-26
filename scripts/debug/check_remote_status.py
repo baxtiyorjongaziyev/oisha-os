@@ -1,5 +1,4 @@
 import paramiko
-import sys
 import os
 
 HOST = os.environ.get('SSH_HOST', '109.199.100.137')

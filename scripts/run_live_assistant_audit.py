@@ -2,7 +2,6 @@ import os
 import sys
 import json
 import requests
-from datetime import datetime, timezone
 from pathlib import Path
 
 # Add project root to sys.path
@@ -13,7 +12,6 @@ if sys.platform == "win32":
 
 from src.services.core.assistant.telegram_assistant_advisor import (
     TelegramAssistantAdvisor,
-    SHAHNOZA_USER_ID,
 )
 
 # Oracle VM MCP API configuration
@@ -55,7 +53,7 @@ try:
                     if task:
                         audit_tasks.append(task)
                         print(f"  [⚡ Yangi Tavsiya] {title}: {task['action_type']}")
-            except Exception as m_err:
+            except Exception:
                 pass
     else:
         print(f"[!] Dialoglar API javobi: {resp.status_code}")

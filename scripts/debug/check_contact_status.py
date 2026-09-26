@@ -1,5 +1,5 @@
 
-from telethon import TelegramClient, functions, types
+from telethon import TelegramClient
 import os
 from dotenv import load_dotenv
 

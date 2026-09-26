@@ -8,7 +8,6 @@ sys.path.append(os.path.join(os.getcwd(), "src", "services"))
 
 try:
     print("--- IMPORT TEST START ---")
-    import src.main
     print("--- IMPORT TEST SUCCESS ---")
 except Exception:
     print("--- IMPORT TEST FAILED ---")

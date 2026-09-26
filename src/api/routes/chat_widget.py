@@ -11,7 +11,6 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from src.api.auth_service import decode_widget_jwt, issue_widget_jwt
-from src.api.rbac import Permission, require_permissions
 from src.api.routes.state import api_state
 from src.settings import settings
 
