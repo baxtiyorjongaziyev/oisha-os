@@ -58,7 +58,7 @@ async def _sync_and_log_crm_channels(event: Any, sender: Any, sender_name: str, 
             logger.info(f"[AMOCRM CHAT FILTER] Sender {sender_name} is 'mijoz emas' ({nc_reason}). Skipping CRM chat sync.")
             return
 
-        chat_secret = getattr(settings, 'AMOCRM_CHAT_CHANNEL_SECRET', None)
+        chat_secret = getattr(settings, 'AMOCRM_CHAT_CHANNEL_SECRET', None) or getattr(settings, 'AMOCRM_CHAT_SECRET', None)
         if hasattr(chat_secret, "get_secret_value"):
             chat_secret = chat_secret.get_secret_value()
         chat_secret = str(chat_secret or "")
