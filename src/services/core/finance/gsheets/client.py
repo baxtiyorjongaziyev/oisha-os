@@ -60,7 +60,15 @@ class GsheetClientMixin:
             self._worksheets[SHEET_HISOBOT] = existing[SHEET_HISOBOT]
 
     def _authenticate(self):
-        if not os.path.exists(self.credentials_path):
+        cand_paths = [
+            self.credentials_path,
+            "/home/ubuntu/.secrets/service_account.json",
+            "data/service_account.json",
+            "service_account.json",
+            "/home/ubuntu/oisha-os/data/service_account.json",
+        ]
+        creds_file = next((p for p in cand_paths if p and os.path.exists(p)), None)
+        if not creds_file:
             logger.warning(
                 "[HISOBCHI-GS] Credentials fayli topilmadi: %s",
                 self.credentials_path,
@@ -68,7 +76,7 @@ class GsheetClientMixin:
             return
         try:
             creds = Credentials.from_service_account_file(
-                self.credentials_path, scopes=_GSHEET_SCOPES
+                creds_file, scopes=_GSHEET_SCOPES
             )
             self.client = gspread.authorize(creds)
             if self.spreadsheet_id and self.client:

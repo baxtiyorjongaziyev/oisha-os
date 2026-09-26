@@ -110,7 +110,12 @@ def _get_creds_path() -> str:
     candidate = Path(__file__).resolve().parents[4] / "data" / "service_account.json"
     if candidate.exists():
         return str(candidate)
-    for c in ("data/service_account.json", "service_account.json", "/home/ubuntu/oisha-os/data/service_account.json"):
+    for c in (
+        "/home/ubuntu/.secrets/service_account.json",
+        "data/service_account.json",
+        "service_account.json",
+        "/home/ubuntu/oisha-os/data/service_account.json",
+    ):
         if os.path.exists(c):
             return c
     return str(candidate)
