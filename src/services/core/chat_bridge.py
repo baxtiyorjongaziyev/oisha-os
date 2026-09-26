@@ -1,6 +1,7 @@
 import logging
 from telethon import TelegramClient, events
 from src.settings import settings
+from src.services.core.telegram.safe_send import safe_send
 
 logger = logging.getLogger("ChatBridge")
 
@@ -43,7 +44,10 @@ class ChatBridge:
 
             # Store the mapping to know who to reply to
             await self.db.set_state(f"bridge_map_{event.id}", event.sender_id)
-            await self.bot_client.send_message(self.team_group_id, forward_msg)
+            await safe_send(
+                lambda: self.bot_client.send_message(self.team_group_id, forward_msg),
+                context="bridge:incoming_dm",
+            )
             logger.info(
                 f"👸 [BRIDGE] Forwarded message from {event.sender_id} to team."
             )
@@ -60,18 +64,19 @@ class ChatBridge:
 
             if target_user_id:
                 # Send the team's reply to the customer via YOUR (userbot) account
-                try:
-                    await self.user_client.send_message(
-                        int(target_user_id), event.raw_text
-                    )
+                result = await safe_send(
+                    lambda: self.user_client.send_message(int(target_user_id), event.raw_text),
+                    context="bridge:team_reply",
+                )
+                if result is not None:
                     await event.reply(
                         "✅ Xabaringiz mijozga shaxsiy Telegramdan yuborildi."
                     )
                     logger.info(
                         f"👸 [BRIDGE] Sent team reply to {target_user_id} via userbot."
                     )
-                except Exception as e:
-                    logger.error(f"👸 [BRIDGE ERROR] Failed to send reply: {e}")
+                else:
+                    await event.reply("⚠️ Xabar yuborilmadi (flood-wait yoki xato). Loglarni tekshiring.")
 
     async def close(self):
         pass  # No session to close in this implementation

@@ -5,7 +5,7 @@ from settings import settings
 
 async def main():
     try:
-        client = TelegramClient("userbot_session", settings.API_ID, settings.API_HASH)
+        client = TelegramClient("search_group_full_session", settings.API_ID, settings.API_HASH)
         await client.connect()
         print("Connected.")
 

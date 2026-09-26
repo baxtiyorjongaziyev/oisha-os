@@ -21,6 +21,11 @@
 
 ## Agent Handoff Log
 
+- **2026-09-27 — Claude — Telethon/aiogram audit fixes, branch `claude/telegram-api-docs-bdbefa` (#740):**
+  - Audit topgan bo'shliqlarni tuzatdi: `MessageEdited`/`MessageDeleted` handlerlar qo'shildi (`entrypoint/message_event.py`, `bootstrap/orchestration/events.py`); `FloodWaitError` uchun `safe_send()` wrapper (`services/core/telegram/safe_send.py`), `chat_bridge.py`ga qo'llandi; bir martalik scriptlardagi (`search_group_full.py`, `search_group_research.py`, `pilot_sync_v1.py`) bir xil `"userbot_session"` nomi noyob nomlarga o'zgartirildi.
+  - `settings.py`: `AMOCRM_CHAT_CHANNEL_ID`/`_SECRET` dublikat e'lonini olib tashladi (ikkinchi e'lon birinchisini `None` bilan bekor qilib, amoCRM Chats API integratsiyasini ishlatmay qo'ygan edi). `.env`ga `AMOCRM_CHAT_ACCOUNT_ID=32681154` qo'shildi (amoCRM API orqali olindi).
+  - Tekshiruv: syntax/import toza (`ast.parse` + real import barcha o'zgargan fayllarda). Jonli edit/delete/flood-wait senariylar production'da hali tekshirilmagan.
+
 - **2026-09-25 — Claude — Meta Conversions API (Conversion Leads), branch `feat/meta-capi`:**
   - Reja: `docs/plans/meta-capi-conversion-leads.md`. `settings.py` ga owner topshirig'i bilan (coordinator-owned) `META_CAPI_ENABLED` (default False), `META_CAPI_DATASET_ID`, `META_CAPI_ACCESS_TOKEN` (SecretStr), `META_CAPI_TEST_EVENT_CODE` qo'shildi.
   - Yangi: `services/core/marketing/meta_capi.py` (payload, sha256 ph/em, 3x retry), `meta_capi_store.py` (`capi_events` jadvali, db_pool orqali, atomik claim), `meta_capi_triggers.py` (AmoCRM status map 142->Purchase, `META_CAPI_QUALIFIED_STATUS_IDS`->QualifiedLead; `capi:q|p:<leadgen_id>` tugmalar, OWNER/WHITELIST).
@@ -386,7 +391,6 @@
      - **Google Sheets Hyperlinks**: Upgraded `Forma / Kampaniya` column in `leadgen_sheets.py` to format as `=HYPERLINK("url"; "🎬 {ad_name} | {forma}")`. Backfilled all 38 matching rows across `Target Leads (Sentabr)` and `Gaplashilmagan Leadlar (UTC Outsource)` with live clickable links.
      - **AmoCRM Deal Notes**: Automatically appended video URL note (`🎬 Reklama videosi: ...`) to newly created leads.
   3. **Verification & Deployment**: 847/847 unit and syntax tests green (`pytest`). All files strictly comply with Rule 6 ($\le 400$L). Deployed to Oracle VM (`ubuntu@163.192.10.104`) and verified `oisha-os.service` (`active`).
-
 - **2026-09-21 — Antigravity — Conversion Card Sales Group Dispatch & Second Brain Spam Cleanup:**
   1. **User Request**: User received "Second Brain Evolution Digest" and asked why it keeps sending incomprehensible messages. Then user pasted "🎯 KONVERSIYA KARTOCHKASI — Baxtiyorjon Gaziyev" and asked: "buni sotuv bo'limiga yuborsin'".
   2. **Root Cause Analysis & Brain Spam Fix**:

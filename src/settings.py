@@ -252,8 +252,6 @@ class AppSettings(BaseSettings):
     
     # AmoCRM Chats API (Wazzup alternative)
     AMOCRM_CHAT_ACCOUNT_ID: Optional[str] = None
-    AMOCRM_CHAT_CHANNEL_ID: Optional[str] = None
-    AMOCRM_CHAT_SECRET: Optional[str] = None
     CRM_TOPIC_ID: Optional[int] = 1
     PROJECTS_TOPIC_ID: Optional[int] = None
     TOPIC_CRM_ID: Optional[int] = None
