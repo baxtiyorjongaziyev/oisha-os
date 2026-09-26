@@ -6,6 +6,7 @@ inherit qiladi, shuning uchun mavjud importlar va testlar buzilmaydi.
 
 Manba tartibi (birinchi topilgani g'olib):
 
+0. ``AMOCRM_ACCESS_TOKEN`` env — long-lived token (refresh'siz, DB'ga yozilmaydi).
 1. ``AMOCRM_TOKEN_JSON`` env — to'liq payload (deploy secret).
 2. Lokal fayl (``data/amocrm_token.json``) — oxirgi rotatsiya.
 3. ``AMOCRM_REFRESH_TOKEN`` env — faqat raw refresh, long-lived access'ni
@@ -29,7 +30,9 @@ logger = structlog.get_logger()
 
 class AmoCRMTokenLoaderMixin:
     def _load_token(self):
-        """Tokenni env > fayl > raw refresh > Turso DB tartibida o'qadi."""
+        """Tokenni long-lived env > env JSON > fayl > raw refresh > Turso DB tartibida o'qadi."""
+        if self._load_long_lived_from_env():
+            return
         if self._load_token_from_env_json():
             return
         self._load_token_from_file()
@@ -46,6 +49,22 @@ class AmoCRMTokenLoaderMixin:
         self.access_token = (
             str(data.get("access_token", "")) if data.get("access_token") else None
         )
+
+    def _load_long_lived_from_env(self) -> bool:
+        """AMOCRM_ACCESS_TOKEN — AmoCRM "uzoq muddatli token" (refresh'siz).
+
+        Owner integratsiya sozlamasidan olgan long-lived token eng ustun: u
+        refresh talab qilmaydi, shuning uchun fayl/DB'dagi eski OAuth payload
+        yoki AMOCRM_REFRESH_TOKEN uni almashtirib yubormasligi kerak. DB'ga
+        yozilmaydi — token_store ``expires_at``siz payload'ga +24 soat qo'yadi,
+        bu esa keyinroq soxta "muddati tugadi" refresh'ini keltirib chiqaradi.
+        """
+        token = (os.environ.get("AMOCRM_ACCESS_TOKEN") or "").strip()
+        if not token:
+            return False
+        self.token_data = {"access_token": token, "long_lived": True}
+        self.access_token = token
+        return True
 
     def _load_token_from_env_json(self) -> bool:
         """AMOCRM_TOKEN_JSON env'dan to'liq payload. True -> yuklandi."""
