@@ -36,8 +36,9 @@ logging.basicConfig(
 logger = logging.getLogger("WatchdogMonitor")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
-GROUP_ID = os.getenv("TARGET_LEADS_GROUP_ID", "-1003854308552").strip()
-TOPIC_ID = os.getenv("TARGET_LEADS_TOPIC_ID", "1020").strip()
+# Texnik alert — sotuv guruhiga emas, Owner/alert chatiga.
+GROUP_ID = (os.getenv("TELEGRAM_ALERT_CHAT_ID") or os.getenv("OWNER_ID") or "").strip()
+TOPIC_ID = (os.getenv("TELEGRAM_ALERT_TOPIC_ID") or "").strip()
 HEARTBEAT_FILE = _ROOT / "data" / "leadgen_heartbeat.json"
 
 

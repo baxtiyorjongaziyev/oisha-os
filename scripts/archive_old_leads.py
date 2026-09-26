@@ -209,10 +209,13 @@ def send_archive_notification(
     deleted_msgs: int,
     vacuum_results: List[Dict[str, Any]],
 ) -> None:
-    """Tungi tozalash natijalarini Telegram kanalga yuboradi."""
+    """Tungi tozalash natijalarini Owner'ga (texnik hisobot) yuboradi.
+
+    Sotuv guruhiga (TARGET_LEADS_GROUP_ID) yuborilmaydi — bu sotuvga oid emas.
+    """
     token = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or ""
-    chat_id = os.getenv("TARGET_LEADS_GROUP_ID") or "-1003854308552"
-    topic_id = os.getenv("TARGET_LEADS_TOPIC_ID") or "1020"
+    chat_id = os.getenv("ARCHIVE_REPORT_CHAT_ID") or os.getenv("OWNER_ID") or ""
+    topic_id = os.getenv("ARCHIVE_REPORT_TOPIC_ID") or ""
 
     if not token or not chat_id:
         return
