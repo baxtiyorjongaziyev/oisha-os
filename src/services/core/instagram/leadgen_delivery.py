@@ -102,9 +102,14 @@ def get_crm_checkpoint(leadgen_id: str) -> int | None:
     return int(row[0]) if row and row[0] is not None else None
 
 
-def save_crm_checkpoint(leadgen_id: str, lead_id: int, destination: str = "") -> None:
-    """Save AmoCRM lead checkpoint and destination."""
-    if destination:
+def save_crm_checkpoint(
+    leadgen_id: str, lead_id: int, destination: str = "", advance_rotation: bool = True,
+) -> None:
+    """Save AmoCRM lead checkpoint and destination.
+
+    advance_rotation=False: lead joined an existing deal, so the 50/50 split must not move.
+    """
+    if destination and advance_rotation:
         record_lead_destination(destination)
     now = datetime.datetime.now().isoformat()
     with _connection() as conn:
