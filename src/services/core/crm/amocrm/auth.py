@@ -146,6 +146,13 @@ class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
         if self.is_auth_blocked():
             return False
 
+        if self.token_data.get("long_lived"):
+            # Long-lived token'da refresh yo'q: 401 = token bekor qilingan.
+            # Blok qo'ymaymiz (bo'sh bearer yubormaslik uchun) — faqat sabab.
+            self.last_error = "long_lived_token_rejected_http_401"
+            logger.error("[AMOCRM] Long-lived token rad etildi (401) — yangi token kerak.")
+            return False
+
         if not self.token_data.get("refresh_token"):
             self._mark_auth_blocked("refresh_token_missing", seconds=900)
             logger.error("[AMOCRM] Refresh token topilmadi.")
@@ -283,7 +290,8 @@ class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
                     self.last_error = None
                     return True
 
-            self.last_error = f"check_connection_http_{response.status_code}"
+            if not (response.status_code == 401 and self.token_data.get("long_lived")):
+                self.last_error = f"check_connection_http_{response.status_code}"
             return False
         except Exception as e:
             self.last_error = "check_connection_exception"
