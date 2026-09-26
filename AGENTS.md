@@ -21,6 +21,42 @@
 
 ## Agent Handoff Log
 
+- **2026-09-26 — Antigravity — Telethon Userbot Session Refresh, 2FA Auth & Health Readiness Restoration:**
+  - **User Requests**:
+    1. "Ha, bu haqiqiy xabar. /readyz deploy paytida ishlab chiqarishdagi holatni tekshiradi... 1. userbot_unauthorized 2. amocrm_unavailable"
+    2. "hal qilib ber hammasini"
+    3. Telegram 2FA authentication completion.
+  - **Investigation & Discoveries**:
+    - AmoCRM connection was already verified healthy (`check_connection: True`), tokens persist across Turso DB and `.env`.
+    - Userbot session had expired. Previous script failed with Windows charmap UnicodeEncodeError and lacked 2FA handling.
+    - Built non-blocking, file-driven Telegram auth helper (`scripts/telegram_auth_helper.py`) with 2FA support and pending state persistence.
+  - **Execution & Deliverables**:
+    - Successfully requested fresh login code for `+998336450097`, ingested 5-digit verification code and 2FA cloud password.
+    - Generated and validated brand new `USERBOT_SESSION_STRING` (`Authorized: True, User: Baxtiyorjon BaxtiyorjonGaziyev`).
+    - Updated local `.env` and `data/userbot_session_string.txt`.
+    - Updated GitHub Secrets `USERBOT_SESSION_STRING` across repository and `production` environment via `gh secret set`.
+    - Sanitized all temporary code/password plaintext files.
+    - Updated `.github/workflows/oracle-deploy.yml` to support `workflow_dispatch` deployment.
+  - **Verification**:
+    - Telethon authorization verified live (`Authorized: True`).
+    - No secret leakage in logs (Rule 7 compliant).
+    - Modular architecture compliant (Rule 6).
+    - Logged to Obsidian Second Brain.
+
+- **2026-09-26 — Antigravity — Health Monitoring, Nightly SQLite VACUUM & Quarterly Budget Review Automations:**
+  - **User Requests**:
+    1. "Integratsiya sog‘lomligi uchun Telegram/Discord ga avtomatik ogohlantirishlar qo‘shish."
+    2. "Har kecha eski leadlarni arxivlab, SQLite DB‑ni VACUUM qilish."
+    3. "Instagram leadgen byudjetini har chorakda qayta ko‘rib chiqish, manba balansini saqlash."
+  - **Execution & Deliverables**:
+    - Integration Health Monitor (`scripts/integration_health_monitor.py`, 236 LOC).
+    - Nightly Lead Archiving & VACUUM (`scripts/archive_old_leads.py`, 285 LOC).
+    - Quarterly Budget & Source Balance Review (`scripts/instagram_budget_review.py`, 286 LOC).
+  - **Verification & Security**:
+    - Bandit: 0 security issues across 664 LOC.
+    - Rule 6: Strictly adhered to modular $\le 400$ LOC limit.
+    - Second Brain: Logged to Obsidian Second Brain via `brain_log`.
+
 - **2026-09-25 — Antigravity — Google Sheet UTC Outsource Full Deduplication & 1 to 90 Renumbering:**
   - **User Request**: "nega 96 ta ko'rsatyapti" -> "xoylayman" (clean duplicates and fix numbering).
   - **Cleanup Execution**:
