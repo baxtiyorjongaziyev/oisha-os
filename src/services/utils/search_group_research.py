@@ -4,7 +4,7 @@ from settings import settings
 
 
 async def search_group():
-    client = TelegramClient("userbot_session", settings.API_ID, settings.API_HASH)
+    client = TelegramClient("search_group_research_session", settings.API_ID, settings.API_HASH)
     await client.connect()
 
     if not await client.is_user_authorized():

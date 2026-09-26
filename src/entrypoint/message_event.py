@@ -58,7 +58,7 @@ async def _sync_and_log_crm_channels(event: Any, sender: Any, sender_name: str, 
             logger.info(f"[AMOCRM CHAT FILTER] Sender {sender_name} is 'mijoz emas' ({nc_reason}). Skipping CRM chat sync.")
             return
 
-        chat_secret = getattr(settings, 'AMOCRM_CHAT_SECRET', None) or getattr(settings, 'AMOCRM_CHAT_CHANNEL_SECRET', None)
+        chat_secret = getattr(settings, 'AMOCRM_CHAT_CHANNEL_SECRET', None)
         if hasattr(chat_secret, "get_secret_value"):
             chat_secret = chat_secret.get_secret_value()
         chat_secret = str(chat_secret or "")
@@ -240,6 +240,43 @@ def _negotiation_int(name: str, default: int) -> int:
         return int(os.getenv(name, str(default)))
     except ValueError:
         return default
+
+
+async def handle_message_edited(event: Any) -> None:
+    """Mijoz/xodim xabarni tahrirlasa — audit uchun log + owner ogohlantirish.
+
+    Narx yoki shartnoma tafsiloti keyinchalik "tuzatilsa", asl matn logda
+    qolishi kerak — Telethon buni faqat ``MessageEdited`` orqali beradi,
+    ``NewMessage`` uni umuman ko'rmaydi.
+    """
+    if event.is_private and event.out:
+        return
+    try:
+        sender = await event.get_sender()
+        sender_name = getattr(sender, "first_name", None) or getattr(sender, "title", "Noma'lum")
+        new_text = (event.message.message or "")[:2000]
+        logger.info(
+            "[MESSAGE EDITED] chat=%s sender=%s msg_id=%s new_text=%r",
+            event.chat_id, sender_name, event.id, new_text,
+        )
+        if app_ctx.msg_controller and getattr(sender, "id", None):
+            await app_ctx.msg_controller.db.log_message(
+                sender.id, f"[TAHRIRLANGAN] {new_text}", is_ai=False,
+            )
+    except Exception as exc:
+        logger.error("[MESSAGE EDITED] handler failed: %s", exc, exc_info=True)
+
+
+async def handle_message_deleted(event: Any) -> None:
+    """Xabar o'chirilganda log qoldiradi (Telethon o'chirilgan matnni bermaydi,
+    faqat msg_id'larni — shuning uchun faqat voqeani qayd etamiz)."""
+    try:
+        logger.info(
+            "[MESSAGE DELETED] chat=%s deleted_ids=%s",
+            getattr(event, "chat_id", None), list(event.deleted_ids),
+        )
+    except Exception as exc:
+        logger.error("[MESSAGE DELETED] handler failed: %s", exc, exc_info=True)
 
 
 async def self_command_handler(event):
