@@ -8,10 +8,19 @@ import requests
 import structlog
 
 from src.settings import settings
+from src.services.core.agent_policy import SENSITIVE_NEGOTIATION_WORDS
 from src.services.core.instagram.graph_client import InstagramGraphClient
 from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
 
 logger = structlog.get_logger("InstagramBackfill")
+
+
+def _contains_sensitive_terms(*texts: str) -> bool:
+    """True if any text mentions price/contract/payment-type topics — those
+    need a human review before a reply is posted publicly, same bar as
+    agent_policy's client-facing sensitive-terms gate."""
+    combined = " ".join(t or "" for t in texts).lower()
+    return any(term in combined for term in SENSITIVE_NEGOTIATION_WORDS)
 
 # Seconds to wait between two outgoing replies so we do not burst the free-AI
 # providers (Groq caps ~8k tokens/min) or Meta's write rate limits.
@@ -94,6 +103,8 @@ async def backfill_unanswered_comments(
         media_id = str(media.get("id") or "")
         if not media_id:
             continue
+        if media.get("comments_count") == 0:
+            continue
         summary["scanned_media"] += 1
         caption = media.get("caption", "") or ""
 
@@ -140,6 +151,16 @@ async def backfill_unanswered_comments(
                     text=text[:60],
                 )
                 summary["answered"] += 1
+                continue
+
+            if _contains_sensitive_terms(text):
+                logger.warning(
+                    "[META] Backfill skipping auto-post — sensitive terms, needs human review",
+                    comment_id=comment_id,
+                    commenter=commenter_name,
+                    text=text[:60],
+                )
+                summary["skipped"] += 1
                 continue
 
             try:

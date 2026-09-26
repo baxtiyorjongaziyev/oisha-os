@@ -11,8 +11,11 @@ import structlog
 
 from src.settings import settings
 from src.services.core.crm.amocrm_pipeline_config import (
-    TARGET_LEADS_PIPELINE_ID,
-    TARGET_LEADS_FIRST_CONTACT_STATUS_ID,
+    UTC_PIPELINE_ID,
+    UTC_NEW_STATUS_ID,
+    TARGET_LEADS_INHOUSE_PIPELINE_ID,
+    TARGET_LEADS_INHOUSE_NEW_STATUS_ID,
+    TARGET_LEAD_TAG,
 )
 from src.services.core.instagram.graph_client import InstagramGraphClient
 from src.services.core.instagram.leadgen_formatter import (
@@ -26,42 +29,31 @@ from src.services.core.instagram.leadgen_custom_fields import extract_lead_custo
 from src.services.core.instagram.leadgen_dedup import is_leadgen_processed, mark_leadgen_processed
 from src.services.core.instagram.leadgen_sheets import append_lead_to_sheet
 from src.services.core.instagram.leadgen_delivery import (
-    _ROUTING_LOCK, get_crm_checkpoint, save_crm_checkpoint, record_delivery_status,
+    _ROUTING_LOCK,
+    get_crm_checkpoint,
+    save_crm_checkpoint,
+    record_delivery_status,
+    get_delivery_channel_status,
+    get_lead_destination,
+    get_next_lead_destination,
+    try_claim_leadgen,
 )
 from src.services.core.marketing.ad_name_resolver import resolve_ad_name
 from src.services.core.marketing.attribution_store import save_attribution
 from src.services.core.marketing.lead_cost_estimator import estimate_cost_per_lead
+from src.services.core.marketing.meta_capi_triggers import lead_card_markup
 from src.time_utils import get_local_now
 
 logger = structlog.get_logger("MetaLeadgenRouter")
 
 NAME_KEYS = {
-    "full_name",
-    "name",
-    "first_name",
-    "last_name",
-    "ismingizni_yozing",
-    "ismingiz_nima",
-    "ismingiz",
-    "ism",
-    "fio",
-    "mijoz_ismi",
-    "client_name",
-    "your_name",
+    "full_name", "name", "first_name", "last_name", "ismingizni_yozing",
+    "ismingiz_nima", "ismingiz", "ism", "fio", "mijoz_ismi", "client_name", "your_name",
 }
 PHONE_KEYS = {
-    "phone",
-    "phone_number",
-    "telefon",
-    "tel",
-    "mobile_phone",
-    "telefon_raqamingizni_kiriting",
-    "telefon_raqamingizni_yozing",
-    "telefon_raqam",
-    "telefon_raqamingiz",
-    "telefon_raqamingz",
-    "what_is_your_phone_number",
-    "aloqa_uchun_telefon",
+    "phone", "phone_number", "telefon", "tel", "mobile_phone",
+    "telefon_raqamingizni_kiriting", "telefon_raqamingizni_yozing", "telefon_raqam",
+    "telefon_raqamingiz", "telefon_raqamingz", "what_is_your_phone_number", "aloqa_uchun_telefon",
 }
 EMAIL_KEYS = {"email", "email_address", "e_mail", "pochta", "elektron_pochta"}
 
@@ -98,41 +90,23 @@ def _is_name_field(key: str) -> bool:
     if any(w in cleaned for w in ("brend", "biznes", "brand", "company", "kompaniya", "nomi")):
         return False
     parts = cleaned.split("_")
-    if "ism" in parts or "ismingiz" in parts or "fio" in parts or cleaned.startswith("ism"):
-        return True
-    return False
+    return "ism" in parts or "ismingiz" in parts or "fio" in parts or cleaned.startswith("ism")
 
 
 def _is_phone_field(key: str) -> bool:
     cleaned = _clean_key(key)
-    if cleaned in PHONE_KEYS:
-        return True
-    parts = cleaned.split("_")
-    return any(p in ("phone", "tel", "telefon") for p in parts)
+    return cleaned in PHONE_KEYS or any(p in ("phone", "tel", "telefon") for p in cleaned.split("_"))
 
 
 def _is_email_field(key: str) -> bool:
     cleaned = _clean_key(key)
-    if cleaned in EMAIL_KEYS:
-        return True
-    parts = cleaned.split("_")
-    return any(p in ("email", "mail", "pochta") for p in parts)
+    return cleaned in EMAIL_KEYS or any(p in ("email", "mail", "pochta") for p in cleaned.split("_"))
 
 
 def _pick_name(fields: Dict[str, str]) -> str:
-    for key in (
-        "ismingizni_yozing",
-        "ismingiz",
-        "ism",
-        "full_name",
-        "name",
-        "first_name",
-        "fio",
-        "client_name",
-    ):
-        val = fields.get(key)
-        if val and val.strip():
-            return val.strip()
+    for key in ("ismingizni_yozing", "ismingiz", "ism", "full_name", "name", "first_name", "fio", "client_name"):
+        if fields.get(key) and fields[key].strip():
+            return fields[key].strip()
     for key, val in fields.items():
         if _is_name_field(key) and val and val.strip():
             return val.strip()
@@ -140,11 +114,7 @@ def _pick_name(fields: Dict[str, str]) -> str:
 
 
 def _pick_phone(fields: Dict[str, str]) -> str:
-    for key in ("phone", "phone_number", "mobile_phone"):
-        val = fields.get(key)
-        if val and len(re.sub(r"\D", "", val)) >= 7:
-            return val.strip()
-    for key in ("telefon_raqamingizni_kiriting", "telefon_raqam", "telefon"):
+    for key in ("phone", "phone_number", "mobile_phone", "telefon_raqamingizni_kiriting", "telefon_raqam", "telefon"):
         val = fields.get(key)
         if val and len(re.sub(r"\D", "", val)) >= 7:
             return val.strip()
@@ -165,47 +135,44 @@ def _pick(fields: Dict[str, str], keys: set[str]) -> str:
 
 
 def _excluded_leadgen_keys(fields: Dict[str, str]) -> set[str]:
-    return {
-        k
-        for k in fields
-        if _is_name_field(k) or _is_phone_field(k) or _is_email_field(k)
-    }
+    return {k for k in fields if _is_name_field(k) or _is_phone_field(k) or _is_email_field(k)}
 
 
 def build_leadgen_note(
-    leadgen_id: str,
-    payload: Dict[str, Any],
-    fields: Dict[str, str],
-    ad_name: Optional[str] = None,
+    leadgen_id: str, payload: Dict[str, Any], fields: Dict[str, str], ad_name: Optional[str] = None,
 ) -> str:
     """Format leadgen note using leadgen_formatter with excluded contact keys."""
-    return _fmt_build_note(
-        leadgen_id, payload, fields, _excluded_leadgen_keys(fields), ad_name=ad_name
-    )
+    return _fmt_build_note(leadgen_id, payload, fields, _excluded_leadgen_keys(fields), ad_name=ad_name)
 
 
 def build_telegram_message(
-    leadgen_id: str,
-    lead_id: Optional[int],
-    name: str,
-    phone: str,
-    email: str,
-    fields: Dict[str, str],
-    cost_per_lead: Optional[float] = None,
-    ad_name: Optional[str] = None,
+    leadgen_id: str, lead_id: Optional[int], name: str, phone: str, email: str,
+    fields: Dict[str, str], cost_per_lead: Optional[float] = None, ad_name: Optional[str] = None,
+    pipeline_name: Optional[str] = None, destination_label: Optional[str] = None, repeat: bool = False,
 ) -> str:
     """Format clean Telegram alert using leadgen_formatter."""
     return _fmt_build_tg(
-        leadgen_id,
-        lead_id,
-        name,
-        phone,
-        email,
-        fields,
-        _excluded_leadgen_keys(fields),
-        cost_per_lead=cost_per_lead,
-        ad_name=ad_name,
+        leadgen_id, lead_id, name, phone, email, fields,
+        _excluded_leadgen_keys(fields), cost_per_lead=cost_per_lead, ad_name=ad_name,
+        pipeline_name=pipeline_name, destination_label=destination_label, repeat=repeat,
     )
+
+
+DESTINATION_LABELS = {"inhouse": "🏠 Inhouse (Jon Branding)", "utc": "🌐 UTC Outsource"}
+PIPELINE_LABELS = {"inhouse": "Sotuv Bo'limi", "utc": "UTC"}
+
+
+def destination_for_pipeline(pipeline_id: Any) -> Optional[str]:
+    """Map an existing AmoCRM pipeline back to its split bucket (None = neither)."""
+    try:
+        pid = int(pipeline_id)
+    except (TypeError, ValueError):
+        return None
+    if pid == int(TARGET_LEADS_INHOUSE_PIPELINE_ID):
+        return "inhouse"
+    if pid == int(UTC_PIPELINE_ID):
+        return "utc"
+    return None
 
 
 def _secret_text(value: Any) -> str:
@@ -213,43 +180,35 @@ def _secret_text(value: Any) -> str:
     return str(getter() if callable(getter) else value or "").strip()
 
 
-def _notify_telegram(text: str) -> bool:
+def _notify_telegram(text: str, reply_markup: Optional[Dict[str, Any]] = None) -> bool:
     chat_id = getattr(settings, "TARGET_LEADS_GROUP_ID", None) or os.getenv("TARGET_LEADS_GROUP_ID")
-    bot_token = _secret_text(getattr(settings, "BOT_TOKEN", None))
-    if not bot_token:
-        bot_token = os.getenv("BOT_TOKEN", "").strip()
+    bot_token = _secret_text(getattr(settings, "BOT_TOKEN", None)) or os.getenv("BOT_TOKEN", "").strip()
     if not chat_id or not bot_token:
         logger.warning("[META LEADGEN] Telegram notification skipped: missing config")
         return False
 
     payload: Dict[str, Any] = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": True,
+        "chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True,
     }
     topic_id = getattr(settings, "TARGET_LEADS_TOPIC_ID", None) or os.getenv("TARGET_LEADS_TOPIC_ID")
     if topic_id is not None:
         payload["message_thread_id"] = topic_id
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
 
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     try:
-        response = requests.post(url, json=payload, timeout=10)
+        res = requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", json=payload, timeout=10)
+        return res.status_code == 200
     except requests.RequestException as exc:
         logger.warning("[META LEADGEN] Telegram notification failed", error=type(exc).__name__)
         return False
-
-    if response.status_code != 200:
-        logger.warning("[META LEADGEN] Telegram notification failed", status=response.status_code)
-        return False
-    return True
 
 
 def _fetch_leadgen_payload(leadgen_id: str, token: str) -> Dict[str, Any]:
     api_version = os.environ.get("META_GRAPH_API_VERSION", "").strip() or "v19.0"
     url = f"https://graph.facebook.com/{api_version}/{leadgen_id}"
     params = {
-        "fields": "created_time,field_data,form_id,ad_id,adgroup_id,campaign_id",
+        "fields": "created_time,field_data,form_id,ad_id",
         "access_token": token,
     }
     response = requests.get(url, params=params, timeout=15)
@@ -286,14 +245,27 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     if not leadgen_id:
         return {"ok": False, "reason": "missing_leadgen_id"}
 
+    # Early deduplication: check if we already have a CRM checkpoint for this leadgen
+    existing_lead_id = await asyncio.to_thread(get_crm_checkpoint, leadgen_id)
+    if existing_lead_id is not None:
+        logger.info("[META LEADGEN] Lead already has CRM checkpoint, skipping duplicate processing", leadgen_id=leadgen_id)
+        # Ensure dedup cache is updated
+        mark_leadgen_processed(leadgen_id, lead_id=existing_lead_id)
+        return {"ok": True, "leadgen_id": leadgen_id, "lead_id": existing_lead_id, "skipped": True}
+
     if not force and is_leadgen_processed(leadgen_id):
         logger.info("[META LEADGEN] Lead already processed, skipping duplicate", leadgen_id=leadgen_id)
         return {"ok": True, "leadgen_id": leadgen_id, "skipped": True}
 
+    if not force:
+        claimed = await asyncio.to_thread(try_claim_leadgen, leadgen_id, os.getpid())
+        if not claimed:
+            logger.info("[META LEADGEN] Lead already claimed by another worker, skipping duplicate", leadgen_id=leadgen_id)
+            return {"ok": True, "leadgen_id": leadgen_id, "skipped": True, "reason": "already_claimed"}
+
     token = access_token or InstagramGraphClient().access_token
     if not token:
         return {"ok": False, "reason": "missing_meta_token"}
-
     payload = value if value.get("field_data") else {}
     if not payload:
         payload = await asyncio.to_thread(_fetch_leadgen_payload, leadgen_id, token)
@@ -312,24 +284,53 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
 
     custom_fields = extract_lead_custom_fields(fields)
     amocrm = _amocrm_instance()
+    deal_name = f"{name} | 🎬 {ad_name}" if ad_name else name
+
     checkpoint = None if force else await asyncio.to_thread(get_crm_checkpoint, leadgen_id)
+    # Mavjud aktiv bitim bo'lsa (masalan Muzokarada), uni "Yangi"ga qaytarmaymiz — faqat note/teg qo'shiladi.
+    existing_lead = None
+    if not checkpoint and phone:
+        existing_lead = await asyncio.to_thread(amocrm.find_active_lead_by_phone, phone)
+
+    # Taqsimot: avval saqlangan qaror, keyin mavjud bitim voronkasi, oxirida navbat (50/50).
+    # Navbat faqat haqiqatan yangi lead uchun suriladi — qayta murojaat balansni buzmaydi.
+    destination = await asyncio.to_thread(get_lead_destination, leadgen_id)
+    advance_rotation = False
+    if not destination and existing_lead:
+        destination = destination_for_pipeline(existing_lead.get("pipeline_id"))
+    if not destination:
+        destination = await asyncio.to_thread(get_next_lead_destination)
+        advance_rotation = not existing_lead
+
+    if destination == "inhouse":
+        target_pipeline_id = TARGET_LEADS_INHOUSE_PIPELINE_ID
+        target_status_id = TARGET_LEADS_INHOUSE_NEW_STATUS_ID
+        dest_tag = "inhouse"
+    else:
+        target_pipeline_id = UTC_PIPELINE_ID
+        target_status_id = UTC_NEW_STATUS_ID
+        dest_tag = "utc_outsource"
+    dest_label = DESTINATION_LABELS[destination]
     if checkpoint:
         lead_id = checkpoint
+    elif existing_lead:
+        lead_id = existing_lead.get("id")
+        await asyncio.to_thread(amocrm.add_lead_note, int(lead_id), note)
     elif phone:
         lead_id = await amocrm.ensure_lead(
-            name=name,
+            name=deal_name,
             phone=phone,
             note=note,
-            pipeline_id=TARGET_LEADS_PIPELINE_ID,
-            status_id=TARGET_LEADS_FIRST_CONTACT_STATUS_ID,
+            pipeline_id=target_pipeline_id,
+            status_id=target_status_id,
             custom_fields=custom_fields,
         )
     else:
         lead_id = await amocrm.create_standalone_lead(
-            name=f"{name} (Facebook Lead Ads)",
-            pipeline_id=TARGET_LEADS_PIPELINE_ID,
-            status_id=TARGET_LEADS_FIRST_CONTACT_STATUS_ID,
-            tags=["Facebook Lead Ads", "Oisha"],
+            name=deal_name,
+            pipeline_id=target_pipeline_id,
+            status_id=target_status_id,
+            tags=[TARGET_LEAD_TAG, "Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}"],
             note=note,
             custom_fields=custom_fields,
         )
@@ -349,51 +350,89 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     )
 
     if not checkpoint:
-        await asyncio.to_thread(save_crm_checkpoint, leadgen_id, int(lead_id))
-        await amocrm.update_lead_status(
-            int(lead_id),
-            TARGET_LEADS_FIRST_CONTACT_STATUS_ID,
-            pipeline_id=TARGET_LEADS_PIPELINE_ID,
+        await asyncio.to_thread(
+            save_crm_checkpoint, leadgen_id, int(lead_id),
+            destination=destination, advance_rotation=advance_rotation,
         )
-        await amocrm.add_lead_tag(int(lead_id), "Facebook Lead Ads")
-        await amocrm.add_lead_tag(int(lead_id), "Oisha")
+        if not existing_lead:
+            await amocrm.update_lead_status(
+                int(lead_id),
+                target_status_id,
+                pipeline_id=target_pipeline_id,
+            )
+        tags = [TARGET_LEAD_TAG, "Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}"]
+        if existing_lead:
+            tags.append("qayta_murojaat")
+        if ad_name:
+            tags.append(f"reklama:{ad_name.lower()}")
+        for t in tags:
+            await amocrm.add_lead_tag(int(lead_id), t)
 
-    if not checkpoint and email:
-        await asyncio.to_thread(amocrm.add_lead_note, int(lead_id), f"Email: {email}")
+    from src.services.core.marketing.meta_ads_client import MetaAdsClient, get_creative_url
+    creative_url = None
+    if ad_id:
+        meta_ads = MetaAdsClient()
+        creative_url = await asyncio.to_thread(meta_ads.get_ad_creative_url, str(ad_id))
+    if not creative_url and ad_name:
+        creative_url = get_creative_url(ad_name)
+
+    if not checkpoint:
+        if email:
+            await asyncio.to_thread(amocrm.add_lead_note, int(lead_id), f"Email: {email}")
+        if creative_url:
+            await asyncio.to_thread(amocrm.add_lead_note, int(lead_id), f"🎬 Reklama videosi: {creative_url}")
 
     campaign_id = str(merged_payload.get("campaign_id") or "")
     cost_per_lead = await asyncio.to_thread(estimate_cost_per_lead, campaign_id)
-    telegram_text = build_telegram_message(
-        leadgen_id,
-        lead_id,
-        name,
-        phone,
-        email,
-        fields,
-        cost_per_lead=cost_per_lead,
-        ad_name=ad_name,
-    )
-    telegram_ok = await asyncio.to_thread(_notify_telegram, telegram_text)
-    if telegram_ok:
-        mark_leadgen_processed(leadgen_id, lead_id=int(lead_id))
+    ch_status = {} if (force or not checkpoint) else await asyncio.to_thread(get_delivery_channel_status, leadgen_id)
 
-    form_title = str(merged_payload.get("form_name") or merged_payload.get("form_id") or "")
-    sheets_ok = await asyncio.to_thread(append_lead_to_sheet, leadgen_id, int(lead_id) if lead_id else None, fields, form_title)
+    telegram_ok = bool(ch_status.get("telegram"))
+    if not telegram_ok or force:
+        telegram_text = build_telegram_message(
+            leadgen_id, lead_id, name, phone, email, fields,
+            cost_per_lead=cost_per_lead, ad_name=ad_name,
+            pipeline_name=PIPELINE_LABELS[destination], destination_label=dest_label,
+            repeat=bool(existing_lead),
+        )
+        buttons = []
+        if creative_url:
+            buttons.append({"text": "🎬 Kreativ", "url": creative_url})
+        if lead_id:
+            buttons.append({"text": "🧾 AmoCRM bitimi", "url": f"https://jonbranding.amocrm.ru/leads/detail/{lead_id}"})
+        reply_markup = lead_card_markup(buttons, leadgen_id)
+        telegram_ok = await asyncio.to_thread(_notify_telegram, telegram_text, reply_markup=reply_markup)
+
+    sheets_ok = bool(ch_status.get("sheets"))
+    if not sheets_ok or force:
+        form_title = str(merged_payload.get("form_name") or merged_payload.get("form_id") or "")
+        sheets_ok = await asyncio.to_thread(
+            append_lead_to_sheet,
+            leadgen_id, int(lead_id) if lead_id else None, fields, form_title,
+            ad_name=ad_name, creative_url=creative_url, destination=destination,
+        )
 
     await asyncio.to_thread(
         record_delivery_status,
-        leadgen_id,
-        int(lead_id) if lead_id else None,
-        bool(lead_id),
-        bool(sheets_ok),
-        bool(telegram_ok),
+        leadgen_id, int(lead_id) if lead_id else None,
+        bool(lead_id), bool(sheets_ok), bool(telegram_ok),
+        destination=destination,
     )
+    if telegram_ok and sheets_ok and lead_id:
+        mark_leadgen_processed(leadgen_id, lead_id=int(lead_id))
 
-    logger.info("[META LEADGEN] Routed Facebook lead", leadgen_id=leadgen_id, lead_id=lead_id, sheets_ok=bool(sheets_ok), tg_ok=bool(telegram_ok))
+    logger.info(
+        "[META LEADGEN] Routed Facebook lead",
+        leadgen_id=leadgen_id,
+        lead_id=lead_id,
+        destination=destination,
+        sheets_ok=bool(sheets_ok),
+        tg_ok=bool(telegram_ok),
+    )
     return {
         "ok": bool(lead_id) and telegram_ok and bool(sheets_ok),
         "lead_id": lead_id,
         "leadgen_id": leadgen_id,
+        "destination": destination,
         "telegram_notified": telegram_ok,
         "sheets_appended": bool(sheets_ok),
     }

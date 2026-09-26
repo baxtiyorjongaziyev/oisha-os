@@ -5,7 +5,6 @@ from html import escape
 from typing import Any, Dict, List, Optional
 from src.time_utils import get_local_now
 from src.services.core.agent_loop import AgentTask, AgentTaskResult, MinimalAgentLoop
-from src.services.core.agent_policy import AgentPolicyEngine
 from src.services.core.agent_verifier import NotificationOutcomeVerifier
 from src.services.core.persona_hub import get_persona
 from src.services.core.crm.amocrm_pipeline_config import LEGACY_CLOSER_PIPELINE_ID
@@ -179,39 +178,8 @@ async def _run_notification_agent(
     task: AgentTask,
     executor,
 ) -> AgentTaskResult:
+    # Policy gate (quiet-hours, sensitive-terms, approval) is enforced inside
+    # MinimalAgentLoop.run() itself — every caller gets it for free.
     loop = MinimalAgentLoop(db)
-    policy_engine = AgentPolicyEngine(db)
     verifier = NotificationOutcomeVerifier()
-
-    decision = await policy_engine.evaluate_action(task)
-    await loop.log_stage(
-        task, "agent_policy", decision.to_payload(), success=decision.allowed
-    )
-    if not decision.allowed:
-        plan = loop.plan_task(task)
-        execution = {
-            "task_id": task.task_id,
-            "success": False,
-            "reason": decision.reason,
-            "policy": decision.to_payload(),
-            "blocked_at": get_local_now().isoformat(),
-        }
-        verification = {
-            "task_id": task.task_id,
-            "success": False,
-            "reason": decision.reason,
-            "verification_mode": "policy_gate",
-            "verified_at": get_local_now().isoformat(),
-        }
-        await loop.log_stage(task, "agent_execute", execution, success=False)
-        await loop.log_stage(task, "agent_verify", verification, success=False)
-        return AgentTaskResult(
-            task_id=task.task_id,
-            success=False,
-            plan=plan,
-            execution=execution,
-            verification=verification,
-            finished_at=get_local_now().isoformat(),
-        )
-
     return await loop.run(task, executor, verifier.verify)

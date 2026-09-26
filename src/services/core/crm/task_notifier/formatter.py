@@ -15,8 +15,10 @@ DEFAULT_FORWARD_TOPIC_ID = 443
 DEFAULT_SUBDOMAIN = "jonbranding"
 
 PIPELINE_MAP = {
-    11162698: "1. PRESALES",
-    11162702: "2. CLOSER",
+    11162698: "Sotuv",
+    11162702: "[ARXIV] 2. CLOSER",
+    11295630: "[ARXIV] Target LEADs",
+    11322658: "UTC",
     10123318: "Farmer",
     10427390: "Sifat Nazorati",
     10947042: "Reactivation",
@@ -25,10 +27,13 @@ PIPELINE_MAP = {
 
 STATUS_MAP = {
     87609510: "Неразобранное",
-    87609514: "Yangi so'rov",
-    87609518: "Aloqaga chiqildi",
+    87609514: "Yangi",
+    87609518: "Aloqa",
     87609522: "Kvalifikatsiya",
-    87609526: "Uchrashuv belgilandi",
+    87609526: "Uchrashuv",
+    88871062: "KP",
+    88871066: "Muzokara",
+    88871070: "Avans kutilmoqda",
     87609534: "Uchrashuv o'tdi",
     87609538: "KP / Taklif",
     87609542: "Muzokara",

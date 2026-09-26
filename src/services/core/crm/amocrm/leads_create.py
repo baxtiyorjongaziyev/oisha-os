@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 import requests
 import structlog
 from src.services.core.crm.amocrm.auth import retry_with_backoff
+from src.services.core.crm.amocrm_pipeline_config import SALES_NEW_STATUS_ID, SALES_PIPELINE_ID
 
 logger = structlog.get_logger()
 
@@ -234,8 +235,8 @@ class AmoCRMLeadsCreateMixin:
         lead_id = await self.create_lead(
             name=name,
             phone=phone,
-            pipeline_id=pipeline_id or 10117998,
-            status_id=status_id or 80178230,
+            pipeline_id=pipeline_id or SALES_PIPELINE_ID,
+            status_id=status_id or SALES_NEW_STATUS_ID,
             custom_fields=custom_fields,
         )
         if lead_id and note:

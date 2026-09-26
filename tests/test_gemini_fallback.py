@@ -9,6 +9,9 @@ from src.services.utils.gemini_fallback import (
     generate_content_with_fallback,
     reset_model_quota_cooldowns,
 )
+from src.services.utils.gemini_failover.models import DEFAULT_FALLBACK_MODELS
+
+FIRST_FALLBACK = DEFAULT_FALLBACK_MODELS[0]
 
 
 @pytest.fixture(autouse=True)
@@ -37,11 +40,11 @@ async def test_generate_content_recovers_with_fallback_model():
     )
 
     assert response.text == "ok"
-    assert model == "gemini-2.5-flash-lite"
+    assert model == FIRST_FALLBACK
     assert [
         call.kwargs["model"]
         for call in models.generate_content.await_args_list
-    ] == ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+    ] == ["gemini-2.5-flash", FIRST_FALLBACK]
 
 
 @pytest.mark.asyncio
@@ -87,13 +90,13 @@ async def test_generate_content_skips_primary_model_during_quota_cooldown():
 
     assert first_response.text == "fallback"
     assert second_response.text == "fallback again"
-    assert first_model == second_model == "gemini-2.5-flash-lite"
+    assert first_model == second_model == FIRST_FALLBACK
     assert [
         call.kwargs["model"] for call in models.generate_content.await_args_list
     ] == [
         "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-flash-lite",
+        FIRST_FALLBACK,
+        FIRST_FALLBACK,
     ]
 
 

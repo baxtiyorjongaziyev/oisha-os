@@ -46,6 +46,7 @@ FIELD_MAP = {
     "paid_usd": ["Jami to'langan USD"],
     "remaining_usd": ["Qoldiq to'lov $"],
     "summary": ["Xulosa", "Summary", "Chat Summary"],
+    "seller": ["Sotuvchi", "Seller", "Closer", "Mas'ul sotuvchi"],
 }
 
 PROJECT_WRITE_ALIASES = {
@@ -58,6 +59,7 @@ PROJECT_WRITE_ALIASES = {
     "Created At": "Start sana",
     "Summary": "Xulosa",
     "Chat Summary": "Xulosa",
+    "Seller": "Sotuvchi",
 }
 
 # Writable fields in the current "Loyihalar" schema.
@@ -74,6 +76,8 @@ PROJECT_ALLOWED_FIELDS = {
     "Xizmat turi",
     "PM",
     "Manager",
+    "Sotuvchi",
+    "Seller",
     "Xulosa",
 }
 

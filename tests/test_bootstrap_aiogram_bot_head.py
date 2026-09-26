@@ -112,6 +112,7 @@ def patched(monkeypatch):
     hisobchi_calls = []
     salescoach_calls = []
     survey_calls = []
+    meeting_calls = []
     existing_contact_signal_calls = []
     monkeypatch.setattr(
         "src.bootstrap.orchestration.bot_head.register_hisobchi_aiogram_callbacks",
@@ -126,6 +127,10 @@ def patched(monkeypatch):
         lambda dp, *, owner_id: survey_calls.append(owner_id),
     )
     monkeypatch.setattr(
+        "src.bootstrap.orchestration.bot_head.register_vodiy_meeting_handlers",
+        lambda dp, *, owner_id: meeting_calls.append(owner_id),
+    )
+    monkeypatch.setattr(
         "src.bootstrap.orchestration.bot_head.register_existing_contact_signal_callbacks",
         lambda dp, *, msg_controller, owner_id: existing_contact_signal_calls.append(
             (msg_controller, owner_id)
@@ -136,6 +141,7 @@ def patched(monkeypatch):
         hisobchi_calls=hisobchi_calls,
         salescoach_calls=salescoach_calls,
         survey_calls=survey_calls,
+        meeting_calls=meeting_calls,
         existing_contact_signal_calls=existing_contact_signal_calls,
     )
 
@@ -170,6 +176,7 @@ async def test_aiogram_path_builds_starts_and_registers_once(patched):
     assert api_module.ingress == ("aiogram", True)
     assert len(patched.hisobchi_calls) == 1
     assert len(patched.salescoach_calls) == 1
+    assert patched.meeting_calls == [1]
     assert callable(patched.built.get("perform_global_lookup"))
     assert patched.built.get("enabled") is True
 
