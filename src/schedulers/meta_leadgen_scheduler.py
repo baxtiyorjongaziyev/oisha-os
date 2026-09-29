@@ -6,8 +6,10 @@ zero lost leads, even if webhooks are delayed, offline, or dropped.
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 import os
+import time
 from typing import Any, Dict, Set
 
 import requests
@@ -29,6 +31,49 @@ def _get_page_token() -> str:
     return os.getenv("META_PAGE_ACCESS_TOKEN", "").strip() or InstagramGraphClient().access_token
 
 
+# Only "token is dead" codes. Permission errors (10/200) keep the old behaviour — the
+# form-list endpoint can fail on permissions while per-form lead reads still work.
+_AUTH_ERROR_CODES = {102, 190}
+_AUTH_ALERT_INTERVAL_SEC = 6 * 3600
+_last_auth_alert_at = 0.0
+
+
+class MetaAuthError(RuntimeError):
+    """Token expired or revoked — polling cannot recover on its own."""
+
+
+def _raise_for_meta_error(response: requests.Response) -> None:
+    try:
+        error = (response.json() or {}).get("error") or {}
+    except ValueError:
+        error = {}
+    code = error.get("code")
+    if code in _AUTH_ERROR_CODES:
+        raise MetaAuthError(f"code={code} subcode={error.get('error_subcode')}: {error.get('message', '')[:200]}")
+    raise RuntimeError(f"Meta HTTP {response.status_code}")
+
+
+def _alert_token_invalid(err: MetaAuthError) -> None:
+    global _last_auth_alert_at
+    now = time.monotonic()
+    if _last_auth_alert_at and now - _last_auth_alert_at < _AUTH_ALERT_INTERVAL_SEC:
+        return
+    from src.services.core.instagram.leadgen_watchdog import send_admin_alert
+    text = (
+        "🚨 <b>[OISHA: META TOKEN ISHLAMAYAPTI]</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Facebook Lead Ads leadlari olinmayapti — META_PAGE_ACCESS_TOKEN "
+        "eskirgan yoki bekor qilingan.\n"
+        f"❗️ <code>{html.escape(str(err))}</code>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔑 Yangi token qo'yib, oisha-os'ni qayta ishga tushiring. "
+        "Meta leadlarni 90 kun saqlaydi — token tiklangach ular avtomatik olinadi."
+    )
+    if send_admin_alert(text, technical=True):
+        _last_auth_alert_at = now
+    logger.error("[META LEADGEN POLL] Meta auth failed: %s", err)
+
+
 def _get_pages(url: str, token: str, fields: str) -> list[dict]:
     rows = []
     params = {"access_token": token, "fields": fields, "limit": 100}
@@ -36,7 +81,7 @@ def _get_pages(url: str, token: str, fields: str) -> list[dict]:
     while True:
         response = requests.get(url, params=params, timeout=20)
         if response.status_code != 200:
-            raise RuntimeError(f"Meta HTTP {response.status_code}")
+            _raise_for_meta_error(response)
         payload = response.json()
         rows.extend(payload.get("data", []))
         paging = payload.get("paging", {})
@@ -53,6 +98,8 @@ def _get_active_form_ids(token: str, version: str) -> list[str]:
     try:
         forms = _get_pages(url, token, "id,status")
         return [str(f["id"]) for f in forms if f.get("status") == "ACTIVE" and f.get("id")]
+    except MetaAuthError:
+        raise
     except Exception as exc:
         logger.warning("[META LEADGEN POLL] Form listing failed: %s", type(exc).__name__)
 
@@ -73,7 +120,11 @@ async def poll_leadgen_forms_once() -> int:
         return 0
 
     version = os.getenv("META_GRAPH_API_VERSION", "v19.0").strip() or "v19.0"
-    form_ids = await asyncio.to_thread(_get_active_form_ids, token, version)
+    try:
+        form_ids = await asyncio.to_thread(_get_active_form_ids, token, version)
+    except MetaAuthError as err:
+        _alert_token_invalid(err)
+        return 0
 
     from src.services.core.instagram.leadgen_router import route_leadgen_event
 
@@ -98,6 +149,9 @@ async def poll_leadgen_forms_once() -> int:
                         leadgen_id,
                         res.get("lead_id"),
                     )
+        except MetaAuthError as err:
+            _alert_token_invalid(err)
+            break
         except Exception as err:
             logger.warning("[META LEADGEN POLL] Error polling form %s: %s", form_id, type(err).__name__)
 
