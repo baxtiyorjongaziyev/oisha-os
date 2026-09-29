@@ -18,7 +18,10 @@ BASH_RULES = [
      "Direct push to main is blocked. Open a PR from a feat/ or fix/ branch."),
     (r"\bgit\s+reset\s+--hard\b", "git reset --hard is blocked. Use a WIP commit or git revert."),
     (r"\brm\s+-[a-z]*r[a-z]*f|\brm\s+-[a-z]*f[a-z]*r", "rm -rf is blocked."),
-    (r"(^|[\s/\\'\"])\.env(\s|$|['\"])", "Reading or writing .env is blocked (secrets)."),
+    # only file-access commands / redirects, so mentioning ".env" in text (PR bodies) is fine
+    (r"(\b(cat|type|less|more|head|tail|source|get-content|gc|cp|copy|mv|move|nano|vim?|code|sed|awk|grep)\b"
+     r"[^;&|\n]*|>>?\s*)(^|[\s/\\'\"])\.env(\s|$|['\"])",
+     "Reading or writing .env is blocked (secrets)."),
     (r"\.session\b", "Telethon .session files are off-limits."),
 ]
 
