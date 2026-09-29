@@ -6,6 +6,14 @@
       "Bash(python -m py_compile *)",
       "mcp__ccd_session__mark_chapter",
       "mcp__computer-use__screenshot"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Edit(./.env)",
+      "Read(./**/*.session)",
+      "Edit(./**/*.session)",
+      "Bash(python src/main.py*)",
+      "Bash(git reset --hard*)"
     ]
   },
   "enabledPlugins": {
