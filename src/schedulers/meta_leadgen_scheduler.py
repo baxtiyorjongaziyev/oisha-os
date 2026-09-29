@@ -67,7 +67,7 @@ def _alert_token_invalid(err: MetaAuthError) -> None:
         "🔑 Yangi token qo'yib, oisha-os'ni qayta ishga tushiring. "
         "Meta leadlarni 90 kun saqlaydi — token tiklangach ular avtomatik olinadi."
     )
-    if send_admin_alert(text):
+    if send_admin_alert(text, technical=True):
         _last_auth_alert_at = now
     logger.error("[META LEADGEN POLL] Meta auth failed: %s", err)
 

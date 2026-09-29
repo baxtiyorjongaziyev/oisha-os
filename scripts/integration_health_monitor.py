@@ -38,8 +38,9 @@ DEFAULT_TIMEOUT = 15
 def _get_telegram_config() -> Tuple[str, str, str]:
     """Telegram bot token, chat_id va topic_id ni qaytaradi."""
     token = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or ""
-    chat_id = os.getenv("TARGET_LEADS_GROUP_ID") or os.getenv("TELEGRAM_ALERT_CHAT_ID") or "-1003854308552"
-    topic_id = os.getenv("TARGET_LEADS_TOPIC_ID") or "1020"
+    # Texnik alert — sotuv guruhiga emas, texnik guruhga (-1003792973489).
+    chat_id = os.getenv("TELEGRAM_ALERT_CHAT_ID") or "-1003792973489"
+    topic_id = os.getenv("TELEGRAM_ALERT_TOPIC_ID") or ""
     return token.strip(), chat_id.strip(), topic_id.strip()
 
 
@@ -132,21 +133,23 @@ def check_amocrm() -> Tuple[bool, str]:
         return False, f"AmoCRM: Aloqa uzildi ({type(exc).__name__}: {exc})"
 
 
-def _resolve_creds_path(path: str) -> str:
-    """Relative paths are resolved against the repo root, not the cron job's cwd."""
-    p = Path(path).expanduser()
-    return str(p if p.is_absolute() else _ROOT / p)
-
-
 def check_google_sheets() -> Tuple[bool, str]:
     """Google Sheets service account va spreadsheet ruxsatini tekshiradi."""
     try:
         from google.oauth2.service_account import Credentials
         import gspread
 
-        creds_path = _resolve_creds_path(os.getenv("GSHEET_CREDS_FILE") or "data/service_account.json")
-        if not Path(creds_path).exists():
-            return False, f"Google Sheets: Kalit fayli topilmadi ({creds_path})"
+        creds_cand = [
+            os.getenv("GSHEET_CREDS_FILE"),
+            "/home/ubuntu/.secrets/service_account.json",
+            str(_ROOT / "data" / "service_account.json"),
+            str(_ROOT / "service_account.json"),
+            "/home/ubuntu/oisha-os/data/service_account.json",
+            "data/service_account.json",
+        ]
+        creds_path = next((c for c in creds_cand if c and Path(c).exists()), None)
+        if not creds_path:
+            return False, "Google Sheets: Kalit fayli topilmadi (data/service_account.json)"
 
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_file(creds_path, scopes=scopes)

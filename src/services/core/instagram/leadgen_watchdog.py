@@ -48,16 +48,23 @@ def send_lead_sos_alert(leadgen_id: str, lead_id: Optional[int], channel: str, e
     return False
 
 
-def send_admin_alert(text: str) -> bool:
-    """Post an HTML alert to the leads group/topic. Returns True on HTTP 200."""
+def send_admin_alert(text: str, technical: bool = False) -> bool:
+    """Post an HTML alert. Returns True on HTTP 200.
+
+    technical=True routes to the tech alert chat (TELEGRAM_ALERT_CHAT_ID), not the sales group.
+    """
     from src.settings import settings
     bot_token = os.getenv("BOT_TOKEN", "").strip()
     getter = getattr(getattr(settings, "BOT_TOKEN", None), "get_secret_value", None)
     if callable(getter):
         bot_token = getter() or bot_token
 
-    chat_id = getattr(settings, "TARGET_LEADS_GROUP_ID", None) or os.getenv("TARGET_LEADS_GROUP_ID", "-1003854308552")
-    topic_id = getattr(settings, "TARGET_LEADS_TOPIC_ID", None) or os.getenv("TARGET_LEADS_TOPIC_ID", 1020)
+    if technical:
+        chat_id = os.getenv("TELEGRAM_ALERT_CHAT_ID") or "-1003792973489"
+        topic_id = os.getenv("TELEGRAM_ALERT_TOPIC_ID") or ""
+    else:
+        chat_id = getattr(settings, "TARGET_LEADS_GROUP_ID", None) or os.getenv("TARGET_LEADS_GROUP_ID", "-1003854308552")
+        topic_id = getattr(settings, "TARGET_LEADS_TOPIC_ID", None) or os.getenv("TARGET_LEADS_TOPIC_ID", 1020)
     if not bot_token or not chat_id:
         return False
 

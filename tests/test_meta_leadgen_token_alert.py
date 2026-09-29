@@ -23,6 +23,7 @@ def test_expired_token_alerts_once_and_skips_fallback_forms(monkeypatch):
 
     assert alert.call_count == 1
     assert "190" in alert.call_args[0][0]
+    assert alert.call_args.kwargs.get("technical") is True
     assert get.call_count == 2
 
 
