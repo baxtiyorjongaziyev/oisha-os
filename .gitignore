@@ -144,7 +144,9 @@ __pycache__/
 *.pyo
 
 # Claude Code agent worktrees (local only)
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 
 # Sensitive runtime outputs
 data/session_output.txt
