@@ -31,13 +31,15 @@ def _get_page_token() -> str:
     return os.getenv("META_PAGE_ACCESS_TOKEN", "").strip() or InstagramGraphClient().access_token
 
 
-_AUTH_ERROR_CODES = {102, 190, 10, 200}
+# Only "token is dead" codes. Permission errors (10/200) keep the old behaviour — the
+# form-list endpoint can fail on permissions while per-form lead reads still work.
+_AUTH_ERROR_CODES = {102, 190}
 _AUTH_ALERT_INTERVAL_SEC = 6 * 3600
 _last_auth_alert_at = 0.0
 
 
 class MetaAuthError(RuntimeError):
-    """Token expired, revoked, or missing a permission — polling cannot recover on its own."""
+    """Token expired or revoked — polling cannot recover on its own."""
 
 
 def _raise_for_meta_error(response: requests.Response) -> None:
@@ -46,7 +48,7 @@ def _raise_for_meta_error(response: requests.Response) -> None:
     except ValueError:
         error = {}
     code = error.get("code")
-    if error.get("type") == "OAuthException" or code in _AUTH_ERROR_CODES:
+    if code in _AUTH_ERROR_CODES:
         raise MetaAuthError(f"code={code} subcode={error.get('error_subcode')}: {error.get('message', '')[:200]}")
     raise RuntimeError(f"Meta HTTP {response.status_code}")
 
@@ -61,7 +63,7 @@ def _alert_token_invalid(err: MetaAuthError) -> None:
         "🚨 <b>[OISHA: META TOKEN ISHLAMAYAPTI]</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "Facebook Lead Ads leadlari olinmayapti — META_PAGE_ACCESS_TOKEN "
-        "eskirgan, bekor qilingan yoki ruxsati yetmaydi.\n"
+        "eskirgan yoki bekor qilingan.\n"
         f"❗️ <code>{html.escape(str(err))}</code>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔑 Yangi token qo'yib, oisha-os'ni qayta ishga tushiring. "

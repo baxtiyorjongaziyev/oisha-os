@@ -37,3 +37,25 @@ def test_non_auth_error_stays_generic():
         raise AssertionError("500 must not be treated as a token problem")
     except RuntimeError:
         pass
+
+
+def test_permission_error_on_form_list_keeps_fallback_forms(monkeypatch):
+    monkeypatch.setenv("META_PAGE_ACCESS_TOKEN", "valid")
+    monkeypatch.setattr(sched, "_last_auth_alert_at", 0.0)
+    perm = MagicMock()
+    perm.status_code = 403
+    perm.json.return_value = {"error": {"type": "OAuthException", "code": 200, "message": "Permissions error"}}
+    empty = MagicMock()
+    empty.status_code = 200
+    empty.json.return_value = {"data": []}
+
+    def fake_get(url, params=None, timeout=None):
+        return perm if url.endswith("/leadgen_forms") else empty
+
+    with patch.object(sched.requests, "get", side_effect=fake_get) as get, \
+         patch("src.services.core.instagram.leadgen_watchdog.send_admin_alert", return_value=True) as alert:
+        assert asyncio.run(sched.poll_leadgen_forms_once()) == 0
+
+    assert alert.call_count == 0
+    polled = [c.args[0] for c in get.call_args_list if c.args[0].endswith("/leads")]
+    assert len(polled) >= 1
