@@ -14,6 +14,7 @@ import datetime
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 import requests
@@ -198,7 +199,24 @@ def check_meta_leadgen() -> Tuple[bool, str]:
         return False, f"Meta/Instagram: Ulanishda xato ({type(exc).__name__}: {exc})"
 
 
-def run_health_checks() -> Tuple[List[str], List[str]]:
+# A single dropped TLS/TCP connection (SSLEOFError, timeouts) recovers on its own and
+# used to fire an hourly alert; only persistent failures are worth waking someone up.
+_TRANSIENT_MARKERS = ("SSLError", "ConnectionError", "ConnectTimeout", "ReadTimeout", "Timeout")
+_RETRY_DELAYS_SEC = (5, 15)
+
+
+def _run_with_retry(func, sleep=time.sleep) -> Tuple[bool, str]:
+    ok, detail = func()
+    for delay in _RETRY_DELAYS_SEC:
+        if ok or not any(m in detail for m in _TRANSIENT_MARKERS):
+            break
+        logger.warning(f"[RETRY] Vaqtinchalik tarmoq xatosi, {delay}s dan keyin qayta: {detail[:120]}")
+        sleep(delay)
+        ok, detail = func()
+    return ok, detail
+
+
+def run_health_checks(sleep=time.sleep) -> Tuple[List[str], List[str]]:
     """Barcha tizimlarni tekshirib, muvaffaqiyatli va muammolilar ro'yxatini qaytaradi."""
     successes: List[str] = []
     failures: List[str] = []
@@ -211,7 +229,7 @@ def run_health_checks() -> Tuple[List[str], List[str]]:
     ]
 
     for name, func in checks:
-        ok, detail = func()
+        ok, detail = _run_with_retry(func, sleep=sleep)
         if ok:
             logger.info(f"[PASS] {detail}")
             successes.append(detail)
