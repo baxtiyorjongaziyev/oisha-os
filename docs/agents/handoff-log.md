@@ -1104,3 +1104,25 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 
 - Post-deploy Instagram verification: media HTTP 200, insights HTTP 200, all 5 requested metrics returned. Historical 2026-08-31 missing-credentials message does not describe the current verified state.
 
+
+- 2026-09-30 Codex: User-requested Windows/VS Code setup. Backed up and updated Code/User/settings.json; prepared four separate project workspaces and BOSHLASH.md under Documents/VS Code Loyihalar. Verified persisted settings and existing Oisha .venv Python 3.12.10. Disabled Makefile configure-on-open and automatic Python test discovery on save; improved editor tabs/readability and excluded generated dependencies from search/watch. Computer Use verified VS Code settings and Explorer. Black console popup was not visible during final inspection; exact cause remains open, no agent processes or scheduled tasks stopped. Obsidian brain_context/search/log returned 429/404; vault capture unconfirmed. Production files unchanged; no deploy.
+
+- **2026-09-30 — Antigravity — Senior Harness Loop & Verification Architecture Implementation:**
+  - **Ish**:
+    1. VS Code professional sozlamalari (`.vscode/settings.json`, `.vscode/tasks.json`): Pytest to'g'ri integratsiya qilindi, 1-bosish bilan ishlaydigan `Ctrl+Shift+B` Build Task pre-flight tekshiruvi kiritildi.
+    2. Master Harness Engine (`scripts/harness/run_harness.py`, `scripts/harness/harness.ps1`): Code standards, Bandit security scan, va Pytest suite integratsiyasi va `HARNESS_FEEDBACK.md` avtomatik generatori yaratildi.
+    3. Code Standards Verifier (`scripts/harness/verify_standards.py`): Python AST orqali 400 qator chegarasi (God-file) va 60 qator funksiya chegarasini tekshiruvchi evaluator yaratildi.
+    4. Universal Agent Rules (`.cursorrules`): Har qanday AI agent (Antigravity, Codex, Claude Code) uchun Harness Loop va modular kod standartlari protokoli muhrlandi.
+    5. 400 Qator Chegarasi Refactoring (Zero-breaking Facade & Decompose):
+       - `src/services/call_analytics/runner.py`: 402L -> 346L.
+       - `src/services/core/crm/auditor/classifier.py`: 404L -> 329L (`classifier_prompt.py` ajratildi).
+       - `src/api/routes/amocrm_integration.py`: 416L -> 317L (`fireflies_integration.py` ajratildi).
+       - `src/services/core/instagram/leadgen_router.py`: 439L -> 315L (`leadgen_parser.py` ajratildi).
+       - `src/services/core/instagram_agent.py`: 450L -> 321L (`agent_constants.py` va `webhook_verifier.py` ajratildi, stray syntax tuzatildi).
+       - `src/services/core/crm/daily_report/fetcher.py`: 517L -> 347L (`metrics_aggregator.py` ajratildi).
+  - **Tekshiruv Dalili**:
+    - `verify_standards.py`: 0 critical violations, 0 files > 400 lines across entire `src/`.
+    - `bandit -r src/ -ll`: 0 issues (PASSED).
+    - `pytest`: PASSED (Exit code 0).
+    - Harness Loop status: **100% GREEN (ALL HARNESS CHECKS PASSED)**.
+
