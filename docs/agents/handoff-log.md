@@ -5,6 +5,16 @@
 
 ## Agent Handoff Log
 
+- **2026-09-30 — Antigravity / Codex — Oisha OS PRD v1.0 & Sales Pipeline 5-Stage Alignment:**
+  - **Bajarilgan ish:** 
+    1. Oisha OS yagona PRD hujjati (`docs/oisha-prd.md`) tayyorlandi: Product vision, source-of-truth xaritasi, MVP scope, funksional talablar, acceptance criteria va risklar.
+    2. Sotuv voronkasi (Sales Pipeline 11162698) 5 ta toza bosqichga moslashtirildi (`Yangi`, `Aloqa`, `Kvalifikatsiya`, `Uchrashuv`, `Kelishuv / Yopish`).
+    3. `src/services/core/crm/amocrm_pipeline_config.py` yangilandi, eski statuslar uchun orqaga moslik (backward-compatibility aliases) ta'minlandi.
+    4. Xavfsiz migratsiya va avtomatik zaxira yaratuvchi skript qo'shildi (`scripts/align_sales_pipeline_to_5_stages.py`, 194 LOC <= 400 LOC).
+  - **O'zgargan fayllar:** `docs/oisha-prd.md`, `src/services/core/crm/amocrm_pipeline_config.py`, `scripts/align_sales_pipeline_to_5_stages.py`, `docs/agents/handoff-log.md`.
+  - **Tekshiruv dalili:** Pytest 21/21 passed (`test_amocrm_merge_sales_pipeline.py`, `test_leadgen_split.py`, `test_rop_fetchers.py`, `test_rop_weekly.py`). Bandit 0 issues across scanned files. Production implementatsiya qat'iy <= 400 LOC.
+  - **Qolgan ish:** Owner bilan live pipeline mutatsiyasini tasdiqlash va ishga tushirish.
+
 - **2026-09-27 — Antigravity — Payme Merchant API Integration & Credential Hardening:**
   - **User Request**: Configured `PAYME_KEY` and `PAYME_ENABLED=true`.
   - **Deliverables & Changes**:
