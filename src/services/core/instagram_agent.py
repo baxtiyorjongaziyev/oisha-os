@@ -27,23 +27,14 @@ from src.services.core.instagram.api_helpers import (
 
 logger = structlog.get_logger("InstagramAgent")
 
-COMMENT_REPLY_SYSTEM = (
-    "Sen — Baxtiyor Gaziyevning O'ZISAN (art-direktor, brend dizayner). Shaxsiy Instagram sahifangdagi izohlarga javob yozyapsan.\n"
-    "QAT'IY KO'RSATMALAR (MAJBURIY):\n"
-    "1. VIDEO/REELS MAZMUNI VA DESCRIPTION'NI DIQQAT BILAN O'RGAN: Har bir izohga javob berishdan oldin video posti matnini (caption) va videosining asosiy ma'nosini tahlil qil. Izoh shu videoga qanday bog'langanini tushunib, video kontekstiga to'la mos javob ber.\n"
-    "2. KALIT SO'ZLAR (KEYWORDS / TRIGGERLAR) VA SO'ROVLARGA JAVOB:\n"
-    "   - Agar izohda kalit so'z (masalan: '99', 'prompt', 'kitob', 'shablon', 'daromad', 'link', '+', material/qo'llanma so'rovi) yozilgan bo'lsa:\n"
-    "     * MUTLAQO KULMA! ('Rostanam shunaqa 😂', 'haha' kabi javoblar QAT'IYAN TAQIQLANADI)!\n"
-    "     * MUTLAQO YIG'LAMA! ('Afsuski shunaqa 😢', 'Afsus' kabi javoblar QAT'IYAN TAQIQLANADI)!\n"
-    "     * Munosib, xushmuomala va professional javob ber: masalan, kerakli material profil bio'sida (shapkasida) joylashganini bildir (masalan: 'Qabul qilindi! Havola profil bio'sida joylangan 🤝' yoki 'Rahmat! Kerakli material profil shapkasida bor ✨').\n"
-    "3. O'RINSIZ KULGI VA YIG'I TAQIQLANADI: Faqat izoh muallifi o'zi haqiqatan kulgili hazil qilgan bo'lsagina samimiy tabassum qil. Har bir gapga 'Rostanam shunaqa 😂' deb kulma, jiddiy, neytral yoki ma'lumot so'ralgan izohlarga 'Afsuski 😢' deb yig'lama.\n"
-    "4. FIKR VA SAVOLLARGA MUNOSIB JAVOB: Video mavzusi yuzasidan fikr bildirganlarni samimiy qo'llab-quvvatla; savol berganlarga aniq va tushunarli javob ber; nom/g'oya so'ralsa har biriga alohida jarangdor variant taklif qil.\n"
-    "5. DIRECT (DM) GA CHAQIRISH QAT'IYAN TAQIQLANADI: 'DMga yozdim', 'Directga qarang' dema. Material kerak bo'lsa profil/bio'dagi havolani eslat.\n"
-    "6. SHAXS VA USLUB: 1-shaxsda gapir ('men', 'rahmat'). O'zingni 'Oisha', 'bot' yoki 'yordamchi' dema. Jon Branding so'zini ishlatma.\n"
-    "7. TILI VA HAJMI: O'zbekcha, juda qisqa (ko'pi bilan 1-2 gap), jonli, tabiiy va samimiy."
+from src.services.core.instagram.agent_constants import (
+    COMMENT_REPLY_SYSTEM,
+    COMMENT_KEYWORD_AUTOMATIONS,
+    KEYWORD_AUTOMATION_PUBLIC_ACK,
+    FALLBACK_COMMENT_REPLIES,
+    match_comment_keyword_automation as _match_comment_keyword_automation,
 )
-
-
+from src.services.core.instagram.webhook_verifier import verify_signature
 
 __all__ = [
     "InstagramGraphClient",
@@ -60,38 +51,6 @@ __all__ = [
 ]
 
 
-def verify_signature(payload: Any, signature: str, app_secret: Optional[str] = None) -> bool:
-    """Verifies the SHA256 signature from Meta webhook requests."""
-    secret = app_secret
-    if secret is None:
-        secret = settings.META_APP_SECRET.get_secret_value() if settings.META_APP_SECRET else ""
-
-    if not secret:
-        logger.error("[META] APP_SECRET not set, rejecting webhook")
-        return False
-
-    if not signature:
-        logger.warning("[META] Signature header missing")
-        return False
-
-    if signature.startswith("sha256="):
-        signature = signature[7:]
-
-    if isinstance(payload, bytes):
-        payload_bytes = payload
-    elif isinstance(payload, str):
-        payload_bytes = payload.encode("utf-8")
-    else:
-        import json
-        payload_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-
-    expected = hmac.new(
-        secret.encode("utf-8"), payload_bytes, hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(expected, signature)
-
-
-
 def send_ig_reply(recipient_id: str, text: str, access_token: str) -> bool:
     """Sends a Direct Message to the user using the Meta Graph API."""
     return send_ig_message_payload({"id": recipient_id}, text, access_token, f"DM to {recipient_id}")
@@ -100,45 +59,6 @@ def send_ig_reply(recipient_id: str, text: str, access_token: str) -> bool:
 def send_ig_private_reply(comment_id: str, text: str, access_token: str) -> bool:
     """Sends a Private Direct Message in response to an Instagram comment."""
     return send_ig_message_payload({"comment_id": comment_id}, text, access_token, f"Private DM on comment {comment_id}")
-
-
-# Keyword-triggered comment automation: when a comment matches a keyword,
-# we send a fixed, pre-approved private DM instead of an AI-generated
-# public reply. This is safe to auto-send even for "sensitive" keywords
-# (e.g. "narx") because the template never quotes an actual price/deadline/
-# discount — it only greets and asks for a phone number (lead capture),
-# same as a ManyChat/Chatplace "comment-to-DM" automation.
-COMMENT_KEYWORD_AUTOMATIONS: Dict[str, str] = {
-    "narx": (
-        "Assalomu alaykum! 😊 Jon Branding agentligiga murojaat qilganingiz uchun rahmat.\n\n"
-        "Narxlar loyihangizning turi va hajmiga qarab belgilanadi, shuning uchun sizga aniq va "
-        "shaxsiy taklif tayyorlashimiz uchun telefon raqamingizni shu yerga yozib qoldiring — "
-        "tez orada mutaxassisimiz siz bilan bog'lanadi! 📞"
-    ),
-}
-
-
-# Posted publicly under the comment (after the private DM is sent) so the
-# commenter — and others browsing the thread — know to check their inbox.
-# Contains no price/sensitive info, so it's safe to always auto-post.
-KEYWORD_AUTOMATION_PUBLIC_ACK = "Sizga DM'dan yozib qo'ydik! 📩 Xabarlaringizni tekshiring."
-
-
-def _match_comment_keyword_automation(comment_text: str) -> Optional[str]:
-    """Returns the fixed DM template for the first matching keyword, or None."""
-    lowered = (comment_text or "").lower()
-    for keyword, template in COMMENT_KEYWORD_AUTOMATIONS.items():
-        if keyword in lowered:
-            return template
-    return None
-
-
-FALLBACK_COMMENT_REPLIES = [
-    "Fikringiz va e'tiboringiz uchun katta rahmat! 🙌",
-    "Izohingiz uchun tashakkur! Savollaringiz bo'lsa, yordam berishdan xursand bo'lamiz 😊",
-    "Fikringiz biz uchun juda muhim, rahmat! ✨",
-    "Qiziqishingiz va samimiy munosabatingiz uchun rahmat! 🤝",
-]
 
 
 async def generate_comment_reply(comment_text: str, post_caption: str = "", commenter_name: str = "") -> str:
