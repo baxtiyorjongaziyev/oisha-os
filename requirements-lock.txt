@@ -444,5 +444,5 @@ websockets==17.1
     # via google-genai
 wrapt==2.4.0
     # via deprecated
-yarl==1.24.5
+yarl==1.25.1
     # via aiohttp
