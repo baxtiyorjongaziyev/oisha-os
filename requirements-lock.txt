@@ -231,7 +231,7 @@ proto-plus==1.28.4
     # via
     #   google-analytics-data
     #   google-api-core
-protobuf==7.36.1
+protobuf==7.36.2
     # via
     #   google-analytics-data
     #   google-api-core
