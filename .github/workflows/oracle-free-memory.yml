@@ -305,6 +305,22 @@ jobs:
               if [ -f "$HOME/oisha-os/deploy/n8n/.env" ]; then
                 rm -f "$HOME/oisha-os/deploy/n8n/.env" && echo "deploy/n8n/.env o'chirildi"
               fi
+              # VM dagi n8n-n8n-1 repo tashqarisidagi ~/n8n compose
+              # loyihasidan ishga tushgan edi (2026-10-02 run: "compose
+              # papka: /home/ubuntu/n8n"). Konteyner o'chgach labeldan
+              # topib bo'lmaydi, shuning uchun aniq yo'l.
+              case "$HOME" in
+                /home/?*)
+                  if [ -d "$HOME/n8n" ]; then
+                    if sudo rm -r -- "$HOME/n8n"; then
+                      echo "$HOME/n8n papkasi o'chirildi"
+                    else
+                      echo "XATO: $HOME/n8n o'chmadi"
+                      CLEANUP_FAILED=1
+                    fi
+                  fi
+                  ;;
+              esac
 
               echo "=== CADDY: n8n.jonbranding.uz ==="
               CF=/etc/caddy/Caddyfile
