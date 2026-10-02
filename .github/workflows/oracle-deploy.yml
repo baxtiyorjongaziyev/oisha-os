@@ -356,7 +356,10 @@ jobs:
             Environment=PATH=/home/ubuntu/oisha-os/venv/bin:/usr/local/bin:/usr/bin:/bin
             UNIT
             sudo sed -i 's/^            //' /etc/systemd/system/oisha-os.service.d/10-resilience.conf
+            # Kunlik Moizvonki qo'ng'iroq hisoboti (06:00 Toshkent)
+            sudo install -m 0644 deploy/systemd/oisha-calls-report.service deploy/systemd/oisha-calls-report.timer /etc/systemd/system/
             sudo systemctl daemon-reload
+            sudo systemctl enable --now oisha-calls-report.timer || echo "calls report timer enable skipped"
             sudo systemctl reset-failed oisha-os || true
             sudo systemctl restart oisha-os
             # oisha-leads: unit mavjud bo'lsa HAR deployda qayta ishga tushadi.
