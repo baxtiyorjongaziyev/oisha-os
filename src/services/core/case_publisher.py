@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class CasePublisher:
-    """Service to automatically process portfolio cases from @jonbranding Telegram channel and upload them to CMS/n8n."""
+    """Service to automatically process portfolio cases from @jonbranding Telegram channel and upload them to CMS."""
 
     def __init__(self, client: TelegramClient, db=None, genai_client=None):
         self.client = client

@@ -29,7 +29,7 @@ class AgencyHR:
             "designer": "Midjourney API / Adobe Firefly",
             "copywriter": "Jasper / Copy.ai / Claude-3-Opus",
             "researcher": "Perplexity API / Tavily",
-            "automator": "Zapier Central / N8N",
+            "automator": "Zapier Central / Make",
         }
 
         selected = agents_market.get(specialty.lower(), "General AI Agent")

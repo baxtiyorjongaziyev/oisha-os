@@ -16,7 +16,7 @@ jobs:
   gitleaks:
     name: gitleaks
     # GitHub-hosted runner: the Oracle self-hosted runner is a 1GB free-tier
-    # VM that also runs the production oisha-os stack (userbot, minio, n8n,
+    # VM that also runs the production oisha-os stack (userbot, minio,
     # docker). A full-history gitleaks scan competing with that for memory
     # thrashes into swap and can run 40+ minutes without finishing. Moved
     # here once the account-level billing issue blocking ubuntu-latest was

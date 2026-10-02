@@ -5,17 +5,7 @@ logger = logging.getLogger(__name__)
 
 
 class AutomationBridge:
-    """N8N, Make (Integromat) va Zapier bilan bog'lanish moduli."""
-
-    @staticmethod
-    def trigger_n8n_webhook(webhook_url, data):
-        """N8N workflow'ni ishga tushirish."""
-        try:
-            response = requests.post(webhook_url, json=data, timeout=15)
-            return response.status_code == 200
-        except Exception as e:
-            logger.error(f"[N8N ERROR] {e}")
-            return False
+    """Make (Integromat) va Zapier bilan bog'lanish moduli."""
 
     @staticmethod
     def trigger_make_webhook(webhook_url, data):
