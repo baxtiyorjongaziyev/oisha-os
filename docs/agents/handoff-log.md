@@ -1094,3 +1094,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 
 - Post-deploy Instagram verification: media HTTP 200, insights HTTP 200, all 5 requested metrics returned. Historical 2026-08-31 missing-credentials message does not describe the current verified state.
 
+
+### 2026-10-02 — claude — n8n butunlay olib tashlandi (Owner qarori)
+- **Ish:** Owner: "n8n kerak emas, ildizi bilan". Lead yo'li (Meta → AmoCRM → Telegram) n8n'ga bog'liq emas; VM'dagi n8n-n8n-1 da 0 workflow/0 credential (2026-09-11 tekshiruvi). 1GB VM RAM tanqisligi (oisha-os swap'da, /readyz javobsiz, deploylar timeout) sababli olib tashlandi.
+- **O'zgargan fayllar:** o'chirildi — deploy/n8n/, n8n/workflows/, docs/N8N_ORACLE_SETUP_OWNER_GUIDE.md; tahrir — deploy/Caddyfile(.fixed) (n8n.jonbranding.uz bloki), .gitignore, CLAUDE.md, docs/branding-agency-erp-brain.md, integrations.py, automation_portal.py (ishlatilmagan trigger_n8n_webhook), agency_hr.py, case_publisher.py, gitleaks.yml izohi; oracle-free-memory.yml ga remove_n8n va restart_oisha input'lari.
+- **Tekshiruv:** command center testlari 21 passed (--noconftest; sandbox'da cffi yo'q), bandit toza, workflow skripti bash -n/sh -n, Caddy awk bloki repo Caddyfile'da sinaldi, docker oqimi soxta docker bilan simulyatsiya qilindi.
+- **Qolgan ish:** Oracle Free Memory (remove_n8n=yes, restart_oisha=yes) natijasini tekshirish; Owner: DNS'dagi n8n.jonbranding.uz yozuvi va Oracle Security List'dagi 5678 port qoidasini o'chirish.

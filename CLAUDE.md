@@ -12,9 +12,8 @@ mix of **Uzbek and English** — this is expected, not noise.
 
 > This repository is a **polyglot monorepo**. The primary system is a Python/asyncio
 > Telegram + AmoCRM automation platform under `src/`. Alongside it live several
-> TypeScript products (`apps/`, `packages/`, `salescoach-ai/`), a marketing OAuth app
-> (`marketing-os/`), and n8n workflow definitions (`n8n/`). Know which subsystem you are
-> in before editing.
+> TypeScript products (`apps/`, `packages/`, `salescoach-ai/`) and a marketing OAuth app
+> (`marketing-os/`). Know which subsystem you are in before editing.
 
 ## Tech Stack (Python core)
 
@@ -133,7 +132,6 @@ src/
 tests/                      # ~90 pytest modules (test_*.py); conftest.py; SKIP_LIVE gating
 docs/                       # AGENT_ROADMAP, IDEAL_AI_AGENT, salescoach-*, integration guides
 deploy/ ops/ scripts/       # systemd units, watchdog, Oracle setup, CLI + pipeline scripts
-n8n/workflows/              # n8n JSON workflow definitions (lead lifecycle, reports, gates)
 marketing-os/               # Standalone Meta-OAuth app: FastAPI backend/ + Vite/React frontend/
 apps/ packages/             # Root TypeScript monorepo (SalesCoach AI) — see below
 salescoach-ai/              # Second, self-contained TypeScript monorepo (api/bot/web/worker)

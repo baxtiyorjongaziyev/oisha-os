@@ -22,10 +22,16 @@
 #     oracle-deploy.yml (ENABLE_OLLAMA=0 bo'lganda) uni .env dan olib
 #     tashlaydi va router uni jim o'tkazib yuboradi.
 #
-# TEGILMAYDI: oisha-os.service, nginx, actions.runner.*, va n8n-n8n-1
-# konteyneri — n8n/workflows/ loyihaning ishlaydigan qismi.
+#   n8n (remove_n8n=yes bo'lsa) — QAYTARIB BO'LMAYDI
+#     Owner qarori (2026-10-02): n8n kerak emas. Lead yo'li (Meta → AmoCRM →
+#     Telegram) unga bog'liq emas, 01_lead_lifecycle bor-yo'g'i 1 marta
+#     ishlagan. Konteynerlar, volume'lar (baza), image, tarmoq, .env va
+#     Caddy'dagi n8n.jonbranding.uz bloki o'chiriladi.
 #
-# Qaytarish oson — pastdagi "Rollback" izohiga qarang.
+# TEGILMAYDI: oisha-os.service, oisha-leads.service, nginx, actions.runner.*.
+# restart_oisha=yes bo'lsa oisha-leads va oisha-os faqat qayta ishga tushadi.
+#
+# Qaytarish oson (n8n'dan tashqari) — pastdagi "Rollback" izohiga qarang.
 name: Oracle Free Memory
 
 on:
@@ -41,6 +47,18 @@ on:
         default: 'yes'
         type: choice
         options: [ 'yes', 'no' ]
+      remove_n8n:
+        description: 'n8n ni ma‘lumotlari bilan BUTUNLAY o‘chirish (qaytarib bo‘lmaydi)'
+        required: false
+        default: 'no'
+        type: choice
+        options: [ 'no', 'yes' ]
+      restart_oisha:
+        description: 'Tozalashdan keyin oisha-leads va oisha-os qayta ishga tushirilsinmi?'
+        required: false
+        default: 'no'
+        type: choice
+        options: [ 'no', 'yes' ]
 
 permissions:
   contents: read
@@ -49,7 +67,7 @@ jobs:
   free-memory:
     name: Stop non-production workloads on Oracle VM
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       # Tasdiq GitHub tomonda tekshiriladi — tasodifiy bosish SSH
       # ochilishidan oldin to'xtaydi.
@@ -66,8 +84,10 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           STOP_OLLAMA: ${{ inputs.stop_ollama }}
+          REMOVE_N8N: ${{ inputs.remove_n8n }}
+          RESTART_OISHA: ${{ inputs.restart_oisha }}
         with:
-          envs: STOP_OLLAMA
+          envs: STOP_OLLAMA,REMOVE_N8N,RESTART_OISHA
           host: ${{ secrets.ORACLE_HOST }}
           username: ubuntu
           key: ${{ secrets.ORACLE_SSH_KEY }}
@@ -75,7 +95,7 @@ jobs:
           fingerprint: ${{ secrets.ORACLE_SSH_FINGERPRINT }}
           port: 22
           timeout: 30s
-          command_timeout: 8m
+          command_timeout: 12m
           script: |
             # set -e YO'Q: bitta konteyner topilmasa ham qolganlari
             # to'xtatilishi kerak.
@@ -88,8 +108,8 @@ jobs:
             # workflow to'g'ri "konteyner mavjud emas" deb yozardi, lekin
             # hech narsa to'xtatmasdi. Nomlar `docker ps` dan olindi.
             #
-            # n8n-n8n-1 ATAYLAB ro'yxatda YO'Q: n8n/workflows/ loyihaning
-            # ishlaydigan qismi (lead lifecycle, hisobotlar, gate'lar).
+            # n8n bu ro'yxatda emas: u alohida remove_n8n bo'limida
+            # (to'xtatish emas, butunlay o'chirish) boshqariladi.
             TARGETS="salescoach-ai-postgres-1 salescoach-ai-redis-1 salescoach-ai-minio-1"
 
             echo "=== OLDINGI XOTIRA ==="
@@ -204,8 +224,159 @@ jobs:
               echo "=== OLLAMA: so'ralmagan, tegilmadi ==="
             fi
 
-            echo "=== TEGILMAGAN SERVISLAR ==="
-            for u in oisha-os nginx; do
+            if [ "${REMOVE_N8N:-no}" = "yes" ]; then
+              echo "=== N8N: BUTUNLAY O'CHIRISH ==="
+              if [ -z "$DOCKER" ]; then
+                echo "XATO: docker bilan bog'lanib bo'lmadi — n8n o'chirilmadi."
+                CLEANUP_FAILED=1
+              else
+                # Nomida n8n bor konteynerlar + ular bilan bir compose
+                # loyihasidagi (nomida n8n bo'lgan loyiha) qo'shnilar —
+                # postgres konteyneri nomida n8n bo'lmasa ham tushib qolmasin.
+                N8N_CONTAINERS="$(timeout 20 $DOCKER ps -a --format '{{.Names}}' 2>/dev/null | grep -i n8n)"
+                for c in $N8N_CONTAINERS; do
+                  P="$(timeout 20 $DOCKER inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$c" 2>/dev/null)"
+                  case "$P" in
+                    *n8n*) N8N_CONTAINERS="$N8N_CONTAINERS $(timeout 20 $DOCKER ps -a --filter "label=com.docker.compose.project=$P" --format '{{.Names}}' 2>/dev/null)" ;;
+                  esac
+                done
+                N8N_CONTAINERS="$(printf '%s\n' $N8N_CONTAINERS | sort -u)"
+                [ -z "$N8N_CONTAINERS" ] && echo "n8n konteynerlari topilmadi"
+
+                N8N_VOLUMES="$(timeout 20 $DOCKER volume ls -q 2>/dev/null | grep -i n8n)"
+                N8N_IMAGES=""
+                N8N_NETWORKS=""
+                for c in $N8N_CONTAINERS; do
+                  echo "--- $c ---"
+                  echo "  compose papka: $(timeout 20 $DOCKER inspect -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$c" 2>/dev/null)"
+                  N8N_VOLUMES="$N8N_VOLUMES $(timeout 20 $DOCKER inspect -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' "$c" 2>/dev/null)"
+                  N8N_IMAGES="$N8N_IMAGES $(timeout 20 $DOCKER inspect -f '{{.Config.Image}}' "$c" 2>/dev/null)"
+                  N8N_NETWORKS="$N8N_NETWORKS $(timeout 20 $DOCKER inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$c" 2>/dev/null)"
+                  ERR="$(timeout 90 $DOCKER rm -f "$c" 2>&1 >/dev/null)"
+                  if [ -z "$ERR" ]; then
+                    echo "  konteyner o'chirildi"
+                  else
+                    echo "  XATO: konteyner o'chmadi: $ERR"
+                    CLEANUP_FAILED=1
+                  fi
+                done
+
+                for v in $(printf '%s\n' $N8N_VOLUMES | sort -u); do
+                  ERR="$(timeout 60 $DOCKER volume rm "$v" 2>&1 >/dev/null)"
+                  if [ -z "$ERR" ]; then
+                    echo "volume o'chirildi: $v"
+                  else
+                    echo "XATO: volume o'chmadi: $v — $ERR"
+                    CLEANUP_FAILED=1
+                  fi
+                done
+
+                # Tarmoq va image boshqa konteynerda band bo'lsa docker
+                # o'zi rad etadi — bu xato emas, shunchaki qoldiriladi.
+                for n in $(printf '%s\n' $N8N_NETWORKS | sort -u); do
+                  case "$n" in bridge|host|none) continue ;; esac
+                  if timeout 30 $DOCKER network rm "$n" >/dev/null 2>&1; then
+                    echo "tarmoq o'chirildi: $n"
+                  else
+                    echo "tarmoq qoldirildi (band yoki allaqachon yo'q): $n"
+                  fi
+                done
+                for i in $(printf '%s\n' $N8N_IMAGES | sort -u); do
+                  if timeout 90 $DOCKER rmi "$i" >/dev/null 2>&1; then
+                    echo "image o'chirildi: $i"
+                  else
+                    echo "image qoldirildi (boshqa konteyner ishlatadi): $i"
+                  fi
+                done
+
+                echo "--- YAKUNIY TEKSHIRUV (n8n) ---"
+                LEFT="$(timeout 20 $DOCKER ps -a --format '{{.Names}}' 2>/dev/null | grep -i n8n)"
+                if [ -n "$LEFT" ]; then
+                  echo "  XATO: hali bor: $LEFT"
+                  CLEANUP_FAILED=1
+                else
+                  echo "  n8n konteynerlari: yo'q ✓"
+                fi
+              fi
+
+              # Sirli .env fayl (POSTGRES_PASSWORD, N8N_ENCRYPTION_KEY).
+              # Kuzatiladigan compose fayllarini keyingi deploy'dagi git o'zi
+              # olib tashlaydi.
+              if [ -f "$HOME/oisha-os/deploy/n8n/.env" ]; then
+                rm -f "$HOME/oisha-os/deploy/n8n/.env" && echo "deploy/n8n/.env o'chirildi"
+              fi
+
+              echo "=== CADDY: n8n.jonbranding.uz ==="
+              CF=/etc/caddy/Caddyfile
+              if [ -f "$CF" ] && command -v caddy >/dev/null 2>&1 \
+                 && sudo grep -qE '^n8n\.jonbranding\.uz[[:space:]]*\{' "$CF"; then
+                TMP="$(mktemp)"
+                # Qavslarni sanab faqat shu blokni olib tashlaydi; sed
+                # diapazoni yopuvchi qavs boshqacha turganda keyingi saytni
+                # ham yutib yuborishi mumkin edi.
+                sudo cat "$CF" | awk '
+                  !done && /^n8n\.jonbranding\.uz[ \t]*\{[ \t]*$/ { skip = 1 }
+                  skip { d += gsub(/\{/, "{"); d -= gsub(/\}/, "}"); if (d <= 0) { skip = 0; done = 1 }; next }
+                  { print }
+                ' > "$TMP"
+                REMOVED=$(( $(sudo cat "$CF" | wc -l) - $(wc -l < "$TMP") ))
+                if [ "$REMOVED" -ge 2 ] && [ "$REMOVED" -le 10 ] && ! grep -q '5678' "$TMP" \
+                   && sudo caddy validate --config "$TMP" --adapter caddyfile >/dev/null 2>&1; then
+                  sudo cp "$CF" "$CF.bak-n8n"
+                  sudo cp "$TMP" "$CF"
+                  if ! systemctl is-active --quiet caddy; then
+                    echo "caddy: n8n bloki olib tashlandi (caddy ishlamayapti, reload shart emas)"
+                  elif sudo systemctl reload caddy; then
+                    echo "caddy: n8n bloki olib tashlandi, reload qilindi (zaxira: $CF.bak-n8n)"
+                  else
+                    echo "XATO: caddy reload yiqildi — eski Caddyfile qaytarildi"
+                    sudo cp "$CF.bak-n8n" "$CF"
+                    sudo systemctl reload caddy || true
+                    CLEANUP_FAILED=1
+                  fi
+                else
+                  echo "XATO: Caddyfile o'zgartirilmadi (olib tashlanadigan qator=$REMOVED yoki validatsiya o'tmadi)"
+                  CLEANUP_FAILED=1
+                fi
+                rm -f "$TMP"
+              else
+                echo "caddy: n8n yozuvi yo'q yoki Caddy o'rnatilmagan"
+              fi
+              echo "--- nginx'da 5678 ga ishora (faqat hisobot) ---"
+              sudo grep -ls '5678' /etc/nginx/sites-enabled/* 2>/dev/null || echo "(yo'q)"
+            else
+              echo "=== N8N: so'ralmagan, tegilmadi ==="
+            fi
+
+            if [ "${RESTART_OISHA:-no}" = "yes" ]; then
+              echo "=== OISHA QAYTA ISHGA TUSHIRISH ==="
+              if systemctl list-unit-files --no-legend 'oisha-leads.service' 2>/dev/null | grep -q oisha-leads; then
+                if sudo systemctl restart oisha-leads; then
+                  echo "oisha-leads: qayta ishga tushdi"
+                else
+                  echo "XATO: oisha-leads qayta ishga tushmadi"
+                  CLEANUP_FAILED=1
+                fi
+              else
+                echo "oisha-leads: (unit topilmadi)"
+              fi
+              if sudo systemctl restart oisha-os; then
+                echo "oisha-os: qayta ishga tushdi, /readyz kutilmoqda (2 daqiqagacha)"
+              else
+                echo "XATO: oisha-os qayta ishga tushmadi"
+                CLEANUP_FAILED=1
+              fi
+              READY=000
+              for _ in $(seq 1 24); do
+                READY="$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:8080/readyz/ 2>/dev/null)"
+                [ "$READY" = "200" ] && break
+                sleep 5
+              done
+              echo "readyz: $READY"
+            fi
+
+            echo "=== SERVISLAR HOLATI ==="
+            for u in oisha-os oisha-leads nginx caddy; do
               printf '%s: ' "$u"
               systemctl is-active "$u" 2>/dev/null || echo "(inactive)"
             done
