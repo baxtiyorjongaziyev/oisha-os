@@ -175,6 +175,7 @@ def build_report(
     day: str,
     followup_calls: Iterable[dict] = (),
     exclude_accounts: Iterable[str] = (),
+    known_accounts: Iterable[str] = (),
 ) -> Report:
     """Qo'ng'iroqlarni sotuvchi bo'yicha guruhlaydi.
 
@@ -217,6 +218,13 @@ def build_report(
             report.missed_no_callback.append(c)
             reps[c.get("user_account") or "noma'lum"].no_callback += 1
             report.total.no_callback += 1
+
+    # Ro'yxatdagi, lekin bu kun qo'ng'iroq qilmagan sotuvchilar ham ko'rinsin
+    present = {a.lower() for a in reps}
+    for account in known_accounts:
+        if account and account.lower() not in present and account.lower() not in excluded:
+            reps[account] = RepStats(account=account)
+            present.add(account.lower())
 
     report.reps = sorted(reps.values(), key=lambda r: (r.talk_seconds, r.total), reverse=True)
     return report
@@ -281,16 +289,19 @@ def format_report(report: Report, names: Optional[Dict[str, str]] = None) -> str
     names = names or {}
     e = html.escape
     lines = [f"📞 <b>Qo'ng'iroqlar hisoboti — {e(report.day)}</b>", ""]
-    if not report.reps:
+    active = [r for r in report.reps if r.total]
+    if not active:
         lines.append("Bu kunda qo'ng'iroq bo'lmagan.")
         return "\n".join(lines)
 
     for i, r in enumerate(report.reps, 1):
         lines.append(f"<b>{i}. {e(_display_name(r.account, names))}</b>")
-        lines += _stats_lines(r)
+        lines += _stats_lines(r) if r.total else ["   🚫 Qo'ng'iroq yo'q"]
         lines.append("")
 
-    lines += ["━━━━━━━━━━━━━━", f"<b>👥 Jamoa bo'yicha ({len(report.reps)} sotuvchi)</b>"]
+    idle = len(report.reps) - len(active)
+    team = f"{len(active)} sotuvchi" + (f", {idle} tasi qo'ng'iroqsiz" if idle else "")
+    lines += ["━━━━━━━━━━━━━━", f"<b>👥 Jamoa bo'yicha ({team})</b>"]
     lines += _stats_lines(report.total)
 
     if report.hourly:
@@ -379,8 +390,9 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     # Admin hisobi sotuvchi emas; qo'shimcha istisnolar MOIZVONKI_EXCLUDE_ACCOUNTS orqali
     exclude = [email, *os.environ.get("MOIZVONKI_EXCLUDE_ACCOUNTS", "").split(",")]
-    report = build_report(calls, start.strftime("%Y-%m-%d"), followup, exclude)
-    text = format_report(report, parse_rep_names(os.environ.get("MOIZVONKI_REP_NAMES", "")))
+    names = parse_rep_names(os.environ.get("MOIZVONKI_REP_NAMES", ""))
+    report = build_report(calls, start.strftime("%Y-%m-%d"), followup, exclude, known_accounts=names)
+    text = format_report(report, names)
 
     if args.dry_run:
         print(text)

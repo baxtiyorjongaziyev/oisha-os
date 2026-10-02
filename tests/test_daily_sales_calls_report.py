@@ -128,3 +128,13 @@ def test_split_message():
     chunks = rpt.split_message(text, limit=1000)
     assert all(len(c) <= 1000 for c in chunks)
     assert "\n".join(chunks) == text
+
+
+def test_known_rep_without_calls_is_listed():
+    calls = [_call("a@x.uz", 1, 1, 60)]
+    rep = rpt.build_report(calls, "d", exclude_accounts=["admin@x.uz"],
+                           known_accounts=["a@x.uz", "Farangiz@x.uz", "admin@x.uz"])
+    assert [r.account for r in rep.reps] == ["a@x.uz", "Farangiz@x.uz"]
+    text = rpt.format_report(rep, {"farangiz@x.uz": "Farangiz"})
+    assert "Farangiz</b>\n   🚫 Qo'ng'iroq yo'q" in text
+    assert "1 sotuvchi, 1 tasi qo'ng'iroqsiz" in text
