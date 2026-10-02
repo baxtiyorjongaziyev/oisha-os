@@ -21,7 +21,7 @@ on:
         required: true
         default: 'status'
         type: choice
-        options: [start, code, status, restart, diagnose]
+        options: [start, code, status, restart, diagnose, leads]
       code:
         description: '[faqat step=code] Telegram login kodi (faqat raqamlar)'
         required: false
@@ -124,6 +124,71 @@ jobs:
               status)
                 show_status
                 echo "--- log ---"; tail -n 30 data/userbot_auth.log || true
+                ;;
+
+              leads)
+                # Faqat o'qish, faqat sonlar — ism/telefon chiqarilmaydi.
+                echo "=== oisha-leads servisi ==="
+                systemctl is-active oisha-leads || true
+                systemctl show oisha-leads -p ActiveEnterTimestamp -p NRestarts || true
+                ./venv/bin/python - <<'PY' || echo "XATO: hisobot skripti yiqildi"
+            import datetime, os, sqlite3, sys
+            from collections import Counter
+            sys.path.insert(0, ".")
+            from dotenv import load_dotenv
+            load_dotenv(".env")
+            days = 7
+            since = datetime.datetime.now() - datetime.timedelta(days=days)
+            print(f"=== Oisha yetkazish bazasi (oxirgi {days} kun, updated_at bo'yicha) ===")
+            con = sqlite3.connect("data/leadgen_delivery.db")
+            rows = con.execute(
+                "SELECT substr(updated_at,1,10) d, count(1), sum(amocrm_ok), sum(sheets_ok), sum(telegram_ok) "
+                "FROM deliveries WHERE updated_at >= ? GROUP BY d ORDER BY d", (since.isoformat(),)
+            ).fetchall()
+            print("sana        jami amocrm sheets telegram")
+            for d, n, a, s, t in rows:
+                print(f"{d}  {n:4} {a or 0:6} {s or 0:6} {t or 0:8}")
+            tot = con.execute(
+                "SELECT count(1), sum(amocrm_ok), sum(sheets_ok), sum(telegram_ok) FROM deliveries WHERE updated_at >= ?",
+                (since.isoformat(),),
+            ).fetchone()
+            print(f"JAMI        {tot[0]:4} {tot[1] or 0:6} {tot[2] or 0:6} {tot[3] or 0:8}")
+            for lid, err, r in con.execute(
+                "SELECT leadgen_id, last_error, retries FROM deliveries WHERE updated_at >= ? "
+                "AND (amocrm_ok=0 OR sheets_ok=0 OR telegram_ok=0)", (since.isoformat(),)
+            ).fetchall():
+                print(f"  CHALA: {lid} retries={r} err={(err or '')[:120]}")
+            print(f"=== Meta (oxirgi {days} kun, created_time bo'yicha) ===")
+            try:
+                from src.schedulers import meta_leadgen_scheduler as m
+                token = m._get_page_token()
+                ver = os.getenv("META_GRAPH_API_VERSION", "v19.0").strip() or "v19.0"
+                per_day, ids = Counter(), set()
+                for fid in m._get_active_form_ids(token, ver):
+                    for lead in m._get_pages(f"https://graph.facebook.com/{ver}/{fid}/leads", token, "id,created_time"):
+                        ct = datetime.datetime.strptime(lead["created_time"][:19], "%Y-%m-%dT%H:%M:%S")
+                        if ct >= since:
+                            per_day[ct.strftime("%Y-%m-%d")] += 1
+                            ids.add(str(lead["id"]))
+                for d in sorted(per_day):
+                    print(f"{d}  {per_day[d]:4}")
+                print(f"JAMI        {len(ids):4}")
+                known = {r[0] for r in con.execute("SELECT leadgen_id FROM deliveries")}
+                missing = sorted(ids - known)
+                print(f"Meta'da bor, Oisha bazasida YO'Q: {len(missing)}")
+                for lid in missing[:20]:
+                    print(f"  YO'Q: {lid}")
+            except Exception as exc:
+                print(f"Meta so'rovi xatosi: {type(exc).__name__}: {str(exc)[:200]}")
+            PY
+                echo "=== oisha-leads logi (oxirgi 24 soat) ==="
+                J="$(sudo journalctl -u oisha-leads --since '24 hours ago' --no-pager 2>/dev/null)"
+                echo "Routed lead: $(printf '%s\n' "$J" | grep -c 'Routed lead')"
+                echo "WATCHDOG: $(printf '%s\n' "$J" | grep -c 'WATCHDOG')"
+                echo "ERROR/Traceback: $(printf '%s\n' "$J" | grep -cE 'ERROR|Traceback')"
+                printf '%s\n' "$J" | grep -E 'ERROR|WARNING|Traceback|Routed lead|SOS' \
+                  | sed -E 's/[A-Za-z0-9_+/=-]{40,}/[MASKED]/g; s/\+?998[0-9 -]{9,}/[TEL]/g' \
+                  | cut -c1-240 | tail -n 25 || true
                 ;;
 
               diagnose)

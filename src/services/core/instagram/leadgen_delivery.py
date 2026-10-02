@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -263,16 +264,31 @@ def get_delivery_channel_status(leadgen_id: str) -> Dict[str, bool]:
     }
 
 
+_CLAIM_TTL_SEC = int(os.getenv("LEADGEN_CLAIM_TTL_SEC", "900"))
+
+
 def try_claim_leadgen(leadgen_id: str, pid: int = 0) -> bool:
     """Atomic cross-process claim for a leadgen ID. Returns True if claimed, False if already claimed."""
     clean_id = str(leadgen_id or "").strip()
     if not clean_id:
         return False
-    now = datetime.datetime.now().isoformat()
+    now_dt = datetime.datetime.now()
+    now = now_dt.isoformat()
+    # Claim hech qachon bo'shatilmaydi: jarayon claim'dan keyin o'lsa yoki
+    # yetkazish yiqilsa (OOM, restart, AmoCRM xatosi), lead abadiy "already
+    # claimed" bo'lib qolardi (2026-09-30..10-02 da 67 ta lead shunday tiqildi).
+    # Eskirgan claim'ni atomik shartli UPDATE bilan qayta olamiz.
+    stale_before = (now_dt - datetime.timedelta(seconds=_CLAIM_TTL_SEC)).isoformat()
     with _connection() as conn:
         cursor = conn.execute(
             "INSERT OR IGNORE INTO leadgen_claims (leadgen_id, claimed_at, pid) VALUES (?, ?, ?)",
             (clean_id, now, pid),
+        )
+        if cursor.rowcount > 0:
+            return True
+        cursor = conn.execute(
+            "UPDATE leadgen_claims SET claimed_at = ?, pid = ? WHERE leadgen_id = ? AND claimed_at < ?",
+            (now, pid, clean_id, stale_before),
         )
         return cursor.rowcount > 0
 
