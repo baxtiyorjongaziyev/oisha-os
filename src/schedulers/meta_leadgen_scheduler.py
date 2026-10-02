@@ -142,7 +142,9 @@ async def poll_leadgen_forms_once() -> int:
 
                 event = {**lead, "leadgen_id": leadgen_id}
                 res = await route_leadgen_event(event, token)
-                if res.get("ok"):
+                # skipped = boshqa jarayon band/allaqachon yetkazilgan; uni "Routed"
+                # deb yozish logni sutkasiga ~75k yolg'on qator bilan to'ldirardi.
+                if res.get("ok") and not res.get("skipped"):
                     routed_count += 1
                     logger.info(
                         "[META LEADGEN POLL] Routed lead: leadgen_id=%s amo_id=%s",
