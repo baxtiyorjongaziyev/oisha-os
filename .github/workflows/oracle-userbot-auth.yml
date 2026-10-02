@@ -21,7 +21,7 @@ on:
         required: true
         default: 'status'
         type: choice
-        options: [start, code, status, restart]
+        options: [start, code, status, restart, diagnose]
       code:
         description: '[faqat step=code] Telegram login kodi (faqat raqamlar)'
         required: false
@@ -74,12 +74,11 @@ jobs:
               fi
             }
 
-            # .env ni export qilish
-            set +eu
-            set -o allexport
-            source .env
-            set +o allexport
-            set -eu
+            # .env ni `source` QILMAYMIZ: qiymatida bo'sh joy yoki maxsus belgi
+            # bo'lsa bash uni buyruq deb ishga tushirib, sir bo'lagini logga
+            # chiqarardi (2026-10-02 da shunday bo'ldi). Auth skript .env ni
+            # o'zi load_dotenv bilan o'qiydi; bu yerda faqat telefon kerak.
+            TELEGRAM_PHONE="$(sed -n 's/^TELEGRAM_PHONE=//p' .env 2>/dev/null | tail -n 1 | tr -d "\"'")"
 
             case "$AUTH_STEP" in
               start)
@@ -125,6 +124,21 @@ jobs:
               status)
                 show_status
                 echo "--- log ---"; tail -n 30 data/userbot_auth.log || true
+                ;;
+
+              diagnose)
+                # Faqat o'qish. Uzun token-ga o'xshash ketma-ketliklar maskalanadi.
+                show_status
+                f=data/userbot_session_string.txt
+                if [ -f "$f" ]; then
+                  echo "$f: bor ($(wc -c < "$f") bayt, $(date -r "$f" '+%F %T'))"
+                else
+                  echo "$f: yo'q"
+                fi
+                echo "--- oisha-os: userbot/session loglari (oxirgi 6 soat) ---"
+                sudo journalctl -u oisha-os --since '6 hours ago' --no-pager 2>/dev/null \
+                  | grep -iE 'USERBOT|SESSION_KEEPER|SESSION STORE|AuthKey|Unauthorized' \
+                  | sed -E 's/[A-Za-z0-9_+/=-]{40,}/[MASKED]/g' | cut -c1-260 | tail -n 60 || true
                 ;;
 
               restart)
