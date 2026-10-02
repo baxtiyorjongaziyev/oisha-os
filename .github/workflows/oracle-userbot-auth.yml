@@ -181,6 +181,11 @@ jobs:
             except Exception as exc:
                 print(f"Meta so'rovi xatosi: {type(exc).__name__}: {str(exc)[:200]}")
             PY
+                echo "=== claims jadvali ==="
+                ./venv/bin/python -c "import sqlite3;c=sqlite3.connect('data/leadgen_delivery.db');print('claims:',c.execute('select count(1),min(claimed_at),max(claimed_at) from leadgen_claims').fetchone())" || true
+                echo "=== oisha-leads: oxirgi 40 qator (xom, maskalangan) ==="
+                sudo journalctl -u oisha-leads -n 40 --no-pager 2>/dev/null \
+                  | sed -E 's/[A-Za-z0-9_+/=-]{40,}/[MASKED]/g; s/\+?998[0-9 -]{9,}/[TEL]/g' | cut -c1-260 || true
                 echo "=== oisha-leads logi (oxirgi 24 soat) ==="
                 J="$(sudo journalctl -u oisha-leads --since '24 hours ago' --no-pager 2>/dev/null)"
                 echo "Routed lead: $(printf '%s\n' "$J" | grep -c 'Routed lead')"
