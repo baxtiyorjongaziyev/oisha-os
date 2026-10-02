@@ -14,7 +14,7 @@ Env:
     MOIZVONKI_REP_NAMES                  ixtiyoriy: "email:Ism,email2:Ism2"
     MOIZVONKI_EXCLUDE_ACCOUNTS           ixtiyoriy: hisobotdan chiqariladigan email'lar
                                          (admin MOIZVONKI_EMAIL doim chiqariladi)
-    BOT_TOKEN, CRM_SALES_REPORT_GROUP_ID, CRM_SALES_REPORT_TOPIC_ID (ixtiyoriy)
+    BOT_TOKEN; CRM_SALES_REPORT_GROUP_ID / _TOPIC_ID (default: settings.py qiymatlari)
 """
 from __future__ import annotations
 
@@ -35,6 +35,9 @@ TASHKENT = timezone(timedelta(hours=5))
 DIRECTION_IN = 0  # Moizvonki: 0 - kiruvchi, 1 - chiquvchi
 DIRECTION_OUT = 1
 PAGE_SIZE = 100  # API maksimumi
+# src/settings.py dagi CRM_SALES_REPORT_GROUP_ID / CRM_SALES_REPORT_TOPIC_ID defaultlari
+DEFAULT_REPORT_GROUP_ID = -1003854308552
+DEFAULT_REPORT_TOPIC_ID = 115
 
 
 # ---------------------------------------------------------------- fetch
@@ -384,11 +387,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     bot_token = os.environ.get("BOT_TOKEN", "")
-    chat_id = os.environ.get("CRM_SALES_REPORT_GROUP_ID", "")
-    if not bot_token or not chat_id:
-        logger.error("BOT_TOKEN / CRM_SALES_REPORT_GROUP_ID topilmadi")
+    # oracle-deploy .env ga bu qiymatlarni yozmaydi -> settings.py defaultlari
+    chat_id = os.environ.get("CRM_SALES_REPORT_GROUP_ID") or str(DEFAULT_REPORT_GROUP_ID)
+    topic_id = os.environ.get("CRM_SALES_REPORT_TOPIC_ID") or str(DEFAULT_REPORT_TOPIC_ID)
+    if not bot_token:
+        logger.error("BOT_TOKEN topilmadi")
         return 1
-    topic_id = os.environ.get("CRM_SALES_REPORT_TOPIC_ID") or None
     for chunk in split_message(text):
         send_telegram(bot_token, chat_id, chunk, topic_id)
     logger.info("Hisobot yuborildi: %s, %d qo'ng'iroq", report.day, len(calls))
