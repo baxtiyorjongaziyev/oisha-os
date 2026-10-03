@@ -150,6 +150,11 @@ __pycache__/
 !.claude/settings.json
 !.claude/hooks/
 !.claude/skills/
+!.claude/agents/
+# Third-party skill runtime state (unlazy gates, autoresearch run logs)
+.unlazy/
+.unlazy-hook-state.json
+/autoresearch/
 
 # Sensitive runtime outputs
 data/session_output.txt
