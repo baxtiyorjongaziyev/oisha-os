@@ -1193,3 +1193,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Files: `.claude/skills/*` (64 papka, verbatim upstream), `.claude/agents/poteto-agent.md`, `.claude/skills/THIRD_PARTY.md` (manba/commit/litsenziya/buyruq), `.gitignore`.
 - Tekshiruv: gitleaks 8.21.2 (`.gitleaks.toml`) — no leaks; barcha SKILL.md frontmatter'i to'g'ri; asosiy SKILL.md'lar o'qildi, skriptlar exec/tarmoq naqshlariga grep qilindi.
 - Open: Open Design skill emas (ilova) — o'rnatilmadi. Matt Pocock skill'lari uchun `/setup-matt-pocock-skills` hali ishlatilmagan.
+
+## 2026-10-03 — Claude Code — claude/install-claude-cursor-skills-ipt47r (3)
+- Task: skill'larni Codex va Antigravity uchun ham ochish (ikkalasi `.agents/skills/` ni o'qiydi).
+- Files: `.agents/skills/` (`.claude/skills/` nusxasi), `scripts/sync_agent_skills.py`, `tests/test_agent_skills_sync.py`, `.gitignore` (`!.claude/skills/**`, `!.agents/skills/**`), `.claude/skills/THIRD_PARTY.md`, `.claude/skills/preflight/SKILL.md`.
+- Tekshiruv: test drift'da FAILED, sync'dan keyin passed; `--check` exit 1/0.
+- Open: `.claude/skills/` ni tahrirlagan agent `python scripts/sync_agent_skills.py` ni ishga tushirishi shart.
