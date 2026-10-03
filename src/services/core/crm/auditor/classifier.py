@@ -20,6 +20,50 @@ except Exception:
     genai_types = None
 
 
+_VALID_CATEGORIES = {"Mijoz", "Shaxsiy", "Kandidat", "Hamkor/Jamoa", "Boshqa"}
+
+
+def _parse_classification(text: str) -> Tuple[str, str, str, str, str]:
+    data = {}
+    if text:
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", text, re.DOTALL)
+            if match:
+                data = json.loads(match.group(0))
+
+    category = data.get("category")
+    explanation = data.get("explanation", "Sabab taqdim etilmadi.")
+    detailed_summary = data.get("detailed_summary", f"Tizim tomonidan avtomatik tahlil: {explanation}")
+    next_step_task = data.get("next_step_task", "Mijoz bilan bog'lanib, holatni aniqlashtiring.")
+    telegram_draft_reply = data.get("telegram_draft_reply", "")
+
+    if category not in _VALID_CATEGORIES:
+        category = "Boshqa"
+
+    return category, explanation, detailed_summary, next_step_task, telegram_draft_reply
+
+
+def _rules_fallback(lowered_history: str, error: Exception) -> Tuple[str, str, str, str, str]:
+    category = "Boshqa"
+    if any(w in lowered_history for w in ("mijozimiz emas", "ishlab bo'lmaydi", "pulini qaytar", "not a client", "junk")):
+        next_step_task = ""
+    elif any(w in lowered_history for w in ("rezyume", "resume", "cv", "ishga", "vakansiya", "amaliyot")):
+        category = "Kandidat"
+        next_step_task = ""
+    elif any(w in lowered_history for w in ("branding", "brending", "narxi", "narx", "site", "sayt", "logo", "smm", "dizayn")):
+        category = "Mijoz"
+        next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
+    else:
+        next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
+
+    explanation = f"Xatolik tufayli qoida bo'yicha saralandi (Fallback): {str(error)}"
+    detailed_summary = f"Mijoz va uning yozishmalari tahlili xatolik tufayli yakunlanmadi. Aloqa toifasi: {category}."
+
+    return category, explanation, detailed_summary, next_step_task, ""
+
+
 class ClassifierMixin:
     """Handles contact classification and multi-channel audit execution."""
 
@@ -59,68 +103,26 @@ class ClassifierMixin:
         prompt = build_classification_prompt(context)
 
         try:
-            kwargs = {"model": self.model_name, "contents": [prompt]}
+            config = None
             if genai_types is not None:
-                kwargs["config"] = genai_types.GenerateContentConfig(
+                config = genai_types.GenerateContentConfig(
                     response_mime_type="application/json",
                     temperature=0.2,
                 )
 
-            # Using generate_content_with_fallback for resiliency
             response, _ = await generate_content_with_fallback(
                 self.genai_client,
                 primary_model=self.model_name,
-                contents=kwargs["contents"],
-                config=kwargs.get("config"),
+                contents=[prompt],
+                config=config,
                 env_name="GEMINI_CRM_AUDIT_FALLBACK_MODELS",
                 log_prefix="[AUDITOR_GEMINI]",
             )
-            text = str(getattr(response, "text", "") or "").strip()
-
-            # Parse JSON safely
-            data = {}
-            if text:
-                try:
-                    data = json.loads(text)
-                except json.JSONDecodeError:
-                    # Try regex match
-                    match = re.search(r"\{.*\}", text, re.DOTALL)
-                    if match:
-                        data = json.loads(match.group(0))
-
-            category = data.get("category")
-            explanation = data.get("explanation", "Sabab taqdim etilmadi.")
-            detailed_summary = data.get("detailed_summary", f"Tizim tomonidan avtomatik tahlil: {explanation}")
-            next_step_task = data.get("next_step_task", "Mijoz bilan bog'lanib, holatni aniqlashtiring.")
-            telegram_draft_reply = data.get("telegram_draft_reply", "")
-
-            valid_categories = {"Mijoz", "Shaxsiy", "Kandidat", "Hamkor/Jamoa", "Boshqa"}
-            if category not in valid_categories:
-                category = "Boshqa"
-
-            return category, explanation, detailed_summary, next_step_task, telegram_draft_reply
+            return _parse_classification(str(getattr(response, "text", "") or "").strip())
         except Exception as e:
             logger.error("[AUDITOR] Gemini classification/analysis failed: %s", e)
-
-            # Rules-based fallback if Gemini fails
             lowered_history = (telegram_history + " " + call_summary + " " + group_history + " " + notes_history).lower()
-            category = "Boshqa"
-            if any(w in lowered_history for w in ("mijozimiz emas", "ishlab bo'lmaydi", "pulini qaytar", "not a client", "junk")):
-                category = "Boshqa"
-                next_step_task = ""
-            elif any(w in lowered_history for w in ("rezyume", "resume", "cv", "ishga", "vakansiya", "amaliyot")):
-                category = "Kandidat"
-                next_step_task = ""
-            elif any(w in lowered_history for w in ("branding", "brending", "narxi", "narx", "site", "sayt", "logo", "smm", "dizayn")):
-                category = "Mijoz"
-                next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
-            else:
-                next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
-
-            explanation = f"Xatolik tufayli qoida bo'yicha saralandi (Fallback): {str(e)}"
-            detailed_summary = f"Mijoz va uning yozishmalari tahlili xatolik tufayli yakunlanmadi. Aloqa toifasi: {category}."
-
-            return category, explanation, detailed_summary, next_step_task, ""
+            return _rules_fallback(lowered_history, e)
 
     async def audit_lead_by_data(self, lead: Dict[str, Any], force: bool = False) -> Optional[str]:
         """Audit and classify a single AmoCRM lead data dictionary."""
