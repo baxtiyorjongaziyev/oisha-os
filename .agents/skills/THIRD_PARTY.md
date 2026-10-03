@@ -36,6 +36,9 @@ keyingisiga `git clone --depth 1` qilib, papkani qayta ko'chiring va diff'ni o'q
 
 - `mattpocock-code-review/SKILL.md`: `name: code-review` → `name: mattpocock-code-review`.
   Sabab: Claude Code'ning o'zida `/code-review` bor; nom to'qnashuvi bo'lmasin. Papka nomi ham shunga mos.
+- `../agents/poteto-agent.md`: `tools:` ro'yxati qo'shildi (MCP vositalarisiz). Sabab: cheklovsiz
+  background subagent Telegram/AmoCRM MCP mutatsiyalarini meros qilib olardi; repo qoidasi ularni
+  faqat owner tasdig'i bilan ruxsat etadi.
 - pstack'ning `tdd` skill'i o'rnatilmagan: `implement` chaqiradigan Matt Pocock `tdd` bilan nomi bir xil.
 - Upstream testlari (`tests/`, `*.test.ts`), `.github/` va unlazy'ning `research/`, `CHANGELOG.md`, `CONTRIBUTING.md` fayllari ko'chirilmagan.
 
