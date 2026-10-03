@@ -106,3 +106,9 @@ Invoke-RestMethod -Uri "https://<public-host>/api/instagram/snapshot" -Headers $
 - Public write endpointlar `OISHA_API_SECRET` bilan yopilgan.
 - Webhook POST raw body bo'yicha HMAC bilan tekshiriladi.
 - Meta/AmoCRM/Telegram xatolari lead oqimini imkon qadar fail-open ushlaydi: xabar yo'qolmasligi birinchi o'rinda.
+
+## Developer tooling
+
+App Review holati, webhook obunalari, rate limit va Graph API deprecation'larni
+agentdan tekshirish uchun Meta Social Technologies MCP ulangan:
+`docs/meta-social-technologies-mcp.md`.

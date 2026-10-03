@@ -1169,3 +1169,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Files: `deploy/systemd/oisha-calls-report.service`
 - Server: vaqtinchalik drop-in `/etc/systemd/system/oisha-calls-report.service.d/rep-names.conf` deploy'dan keyin o'chiriladi.
 - Open: yo'q.
+
+## 2026-10-03 — Claude Code — claude/meta-social-technologies-mcp-a1bup3
+- Task: Meta Social Technologies MCP (`https://mcp.facebook.com/devtools`, OAuth) ni developer tooling sifatida ulash.
+- Files: `.mcp.json` (yangi, sirsiz), `.gitignore` (`!.mcp.json`), `docs/meta-social-technologies-mcp.md` (yangi), `docs/instagram-full-integration.md` (havola).
+- Runtime kodi o'zgarmagan. Webhook manage/test — Owner tasdig'i bilan (hujjatda).
+- Open: har bir dasturchi `/mcp` → Authenticate qilishi kerak (OAuth, sessiyaga bog'liq).
