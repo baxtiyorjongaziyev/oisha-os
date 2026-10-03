@@ -139,6 +139,18 @@ class FormatMixin:
         return f"{_UZ_MONTHS[start.month]} {start.year}"
 
     def format_period_report(self, ptype, current, previous):
+        m = current
+        lines = [
+            f"📊 AmoCRM {self._period_heading(ptype)} | {self._period_label(ptype, m.period_start, m.period_end)}",
+            DIVIDER,
+        ]
+        lines += self._period_metric_lines(current, previous)
+        lines += self._period_manager_lines(m)
+        lines += self._period_call_lines(m)
+        lines += self._period_footer_lines(ptype, m)
+        return "\n".join(lines)
+
+    def _period_metric_lines(self, current, previous):
         p = previous
         d = self._delta_str
         m = current
@@ -146,9 +158,7 @@ class FormatMixin:
         def pv(field):
             return getattr(p, field) if p is not None else None
 
-        lines = [
-            f"📊 AmoCRM {self._period_heading(ptype)} | {self._period_label(ptype, m.period_start, m.period_end)}",
-            DIVIDER,
+        return [
             "🎯 BITIMLAR",
             f"  Yangi bitimlar: {m.new_leads}{d(m.new_leads, pv('new_leads'))}",
             f"  Faol bitimlar: {m.active_count} ({self._fmt_money(m.active_amount)} so'm)",
@@ -176,6 +186,8 @@ class FormatMixin:
             "🏆 MENEJERLAR (yutilgan bo'yicha)",
         ]
 
+    def _period_manager_lines(self, m):
+        lines = []
         medals = ["🥇", "🥈", "🥉"]
         if not m.managers:
             lines.append("  Ma'lumot yo'q")
@@ -188,16 +200,21 @@ class FormatMixin:
                 lines.append(
                     f"     └ ochiq zadacha: {mr.open_tasks} | muddati o'tgan: {mr.overdue_tasks}"
                 )
+        return lines
 
+    def _period_call_lines(self, m):
+        lines = []
         call_rows = getattr(m, "call_managers", None) or []
         if call_rows:
             lines.append("")
             lines.append("📞 QO'NG'IROQLAR (menejerlar bo'yicha)")
             for mr in call_rows:
                 lines.append(f"  {mr.name} — {mr.calls_count} ta (javob: {mr.calls_answered})")
+        return lines
 
+    def _period_footer_lines(self, ptype, m):
         links = self._period_links(ptype, m.period_start, m.period_end)
-        lines += [
+        return [
             "",
             DIVIDER,
             "🔗 AmoCRM'da ochish:",
@@ -205,7 +222,6 @@ class FormatMixin:
             "",
             "Oisha-OS orqali yuborilgan",
         ]
-        return "\n".join(lines)
 
     def _period_links(self, ptype, start, end):
         # reuse existing _weekly_report_links machinery for date filters
