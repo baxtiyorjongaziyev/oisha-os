@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=oneshot
 User=ubuntu
 WorkingDirectory=/home/ubuntu/oisha-os
+Environment="MOIZVONKI_REP_NAMES=farangiz@jonbranding.uz:Farangiz,rayxona@jonbranding.uz:Rayxona,shahnoza@jonbranding.uz:Shahnoza"
 EnvironmentFile=/home/ubuntu/oisha-os/.env
 ExecStart=/home/ubuntu/oisha-os/venv/bin/python scripts/daily_sales_calls_report.py
 TimeoutStartSec=600

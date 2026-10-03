@@ -1163,3 +1163,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
   - Full pytest suite: 2355+ tests passed.
 - **Status**: Ready to commit and push to `feat/harness-loop` for PR #749.
 
+
+## 2026-10-03 — Claude Code — fix/calls-report-rep-names
+- Task: `MOIZVONKI_REP_NAMES` ni `deploy/systemd/oisha-calls-report.service` ga qo'shish (#788 davomi; `.env` guard bilan bloklangan).
+- Files: `deploy/systemd/oisha-calls-report.service`
+- Server: vaqtinchalik drop-in `/etc/systemd/system/oisha-calls-report.service.d/rep-names.conf` deploy'dan keyin o'chiriladi.
+- Open: yo'q.
