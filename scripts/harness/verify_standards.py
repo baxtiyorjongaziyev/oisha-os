@@ -72,6 +72,7 @@ def main():
     scanned_files = 0
 
     warn_legacy = "--warn-legacy-functions" in sys.argv
+    warn_files = "--warn-legacy-files" in sys.argv
     cli_targets = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
 
     targets_to_scan = cli_targets if cli_targets else TARGET_DIRS
@@ -97,8 +98,10 @@ def main():
 
     output_format = "markdown" if "--markdown" in sys.argv else "text"
 
-    has_critical = any(v["type"] in ("FILE_TOO_LONG", "SYNTAX_ERROR") for v in all_violations)
+    has_file_violations = any(v["type"] == "FILE_TOO_LONG" for v in all_violations)
+    has_syntax_errors = any(v["type"] == "SYNTAX_ERROR" for v in all_violations)
     has_func_violations = any(v["type"] == "FUNC_TOO_LONG" for v in all_violations)
+    has_critical = has_syntax_errors or (has_file_violations and not warn_files)
     is_failed = has_critical or (has_func_violations and not warn_legacy)
 
     if output_format == "markdown":
