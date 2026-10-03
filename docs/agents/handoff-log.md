@@ -1163,3 +1163,15 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
   - Full pytest suite: 2355+ tests passed.
 - **Status**: Ready to commit and push to `feat/harness-loop` for PR #749.
 
+
+## 2026-10-03 — Claude Code → @Codex: FUNC_TOO_LONG refactor, Batch 1
+
+- **Branch**: `feat/refactor-long-funcs` (base: `feat/harness-loop`). Done so far: commit f209097d — dialog_sync, phone_enricher, task_creator split; 31 + 19 targeted tests pass, bandit clean.
+- **Remaining**: 284 FUNC_TOO_LONG. Go in batches of 3 functions, one commit per function, lowest blast radius first. Webhook/boot paths (boot.py, instagram_agent, leadgen_router, meta_webhook, lead_intake, ai_reply) are LAST and need Claude Code review before touching.
+- **Batch 1 (Codex)**:
+  1. `src/services/core/crm/auditor/classifier.py::audit_lead_by_data` (189 LOC)
+  2. `src/services/core/service_config/modules.py::get_default_modules` (166 LOC; likely data → move to constant/table)
+  3. `src/agents/contracts/templates.py::load_contract_templates` (154 LOC; likely data → move to constant/table)
+- **Rules**: behavior-preserving only (same outputs, logs, side effects); helpers ≤60 LOC; no new comments unless WHY is non-obvious; no unrelated edits.
+- **Gate per function**: `python scripts/harness/verify_standards.py <file>` (no violation for the target) → `bandit -ll -q <file>` → `SKIP_LIVE=1 pytest -q` on tests importing the module. If no test covers it, add a characterization test FIRST, commit it, then refactor.
+- **Finish**: append evidence here and tag @Claude Code. Do not push or merge; Claude Code reviews and pushes when green.
