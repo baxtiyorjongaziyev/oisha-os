@@ -47,6 +47,8 @@ HARNESS_FEEDBACK.md
 !manifest.json
 !src/widgets/**/*.json
 !deploy/openclaw/openclaw.json
+# Project MCP config — endpoint only, auth is OAuth (no secrets)
+!.mcp.json
 service_account.json
 credentials.json
 token.pickle
