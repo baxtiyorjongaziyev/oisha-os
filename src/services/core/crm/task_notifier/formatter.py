@@ -91,42 +91,15 @@ def _extract_custom_field_value(entity: Dict[str, Any], field_id: int) -> Option
     return None
 
 
-def format_task_notification(
-    task: Dict[str, Any],
-    lead_or_contact: Optional[Dict[str, Any]] = None,
-    contact_details: Optional[Dict[str, Any]] = None,
-    phone: Optional[str] = None,
-    responsible_name: Optional[str] = None,
-    alert_type: str = "due",
-    subdomain: str = DEFAULT_SUBDOMAIN,
-) -> Tuple[str, Optional[List[List[Dict[str, str]]]]]:
-    """Format task alert into a rich, fully-detailed HTML message with amoCRM link button.
-
-    alert_type: 'due' | 'overdue' | 'new'
-    """
+def _alert_title(alert_type: str) -> str:
     if alert_type == "overdue":
-        title_header = "⚠️ <b>Просроченная задача! (Muddati o'tgan)</b>"
+        return "⚠️ <b>Просроченная задача! (Muddati o'tgan)</b>"
     elif alert_type == "new":
-        title_header = "📋 <b>Yangi vazifa biriktirildi</b>"
-    else:
-        title_header = "🔔 <b>Пора выполнить задачу! (Vazifa vaqti keldi)</b>"
+        return "📋 <b>Yangi vazifa biriktirildi</b>"
+    return "🔔 <b>Пора выполнить задачу! (Vazifa vaqti keldi)</b>"
 
-    entity_type = task.get("entity_type") or "leads"
-    entity_id = task.get("entity_id")
-    if not entity_id and "element_id" in task:
-        entity_id = task.get("element_id")
 
-    lead_data = lead_or_contact if entity_type in ("leads", 2) else None
-    contact_data = contact_details or (lead_or_contact if entity_type in ("contacts", 1) else None)
-
-    lead_name = lead_data.get("name") if lead_data else ("Noma'lum" if entity_type in ("leads", 2) else None)
-    contact_name = contact_data.get("name") if contact_data else None
-
-    # Resolve phone
-    if not phone and contact_data:
-        phone = contact_data.get("phone")
-
-    # Resolve stage & pipeline
+def _resolve_stage(lead_data: Optional[Dict[str, Any]]) -> Optional[str]:
     stage_str = None
     if lead_data:
         p_id = lead_data.get("pipeline_id")
@@ -137,8 +110,12 @@ def format_task_notification(
             stage_str = f"{p_name} ➔ {s_name}"
         elif s_name:
             stage_str = s_name
+    return stage_str
 
-    # Custom fields
+
+def _resolve_custom_fields(
+    lead_data: Optional[Dict[str, Any]], contact_data: Optional[Dict[str, Any]]
+) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
     service_name = None
     source_name = None
     telegram_user = None
@@ -152,18 +129,20 @@ def format_task_notification(
 
     if not telegram_user and contact_data:
         telegram_user = _extract_custom_field_value(contact_data, 1340887)
+    return service_name, source_name, telegram_user, price_str
 
-    # Task details
-    task_type_id = task.get("task_type_id") or task.get("task_type")
-    task_type_str = TASK_TYPE_MAP.get(task_type_id, "📝 Vazifa" if task_type_id else None)
-    task_text = (task.get("text") or "").strip() or "Vazifa matni ko'rsatilmagan"
-    safe_task_text = html.escape(task_text)
-    safe_resp_name = html.escape(responsible_name or "Mas'ul xodim")
-    due_str = _format_timestamp(task.get("complete_till"))
 
-    # Build rich message body
-    lines = [title_header, ""]
-
+def _entity_lines(
+    lead_name: Optional[str],
+    contact_name: Optional[str],
+    phone: Optional[str],
+    telegram_user: Optional[str],
+    stage_str: Optional[str],
+    service_name: Optional[str],
+    source_name: Optional[str],
+    price_str: Optional[str],
+) -> List[str]:
+    lines = []
     if lead_name:
         lines.append(f"📌 <b>Bitim:</b> <b>{html.escape(lead_name)}</b>")
 
@@ -189,22 +168,75 @@ def format_task_notification(
 
     if price_str:
         lines.append(f"💰 <b>Byudjet:</b> {html.escape(price_str)}")
+    return lines
 
-    lines.append("")
+
+def _task_lines(task: Dict[str, Any], responsible_name: Optional[str]) -> List[str]:
+    task_type_id = task.get("task_type_id") or task.get("task_type")
+    task_type_str = TASK_TYPE_MAP.get(task_type_id, "📝 Vazifa" if task_type_id else None)
+    task_text = (task.get("text") or "").strip() or "Vazifa matni ko'rsatilmagan"
+    safe_task_text = html.escape(task_text)
+    safe_resp_name = html.escape(responsible_name or "Mas'ul xodim")
+    due_str = _format_timestamp(task.get("complete_till"))
+
+    lines = [""]
     if task_type_str:
         lines.append(f"🏷️ <b>Vazifa turi:</b> {task_type_str}")
     lines.append(f"📝 <b>Vazifa:</b> {safe_task_text}")
     lines.append(f"👤 <b>Mas'ul:</b> {safe_resp_name}")
     lines.append(f"⏰ <b>Muddat:</b> {due_str}")
+    return lines
 
-    msg = "\n".join(lines)
 
-    # Build inline action buttons
+def _crm_buttons(entity_type: Any, entity_id: Any, subdomain: str) -> Optional[List[List[Dict[str, str]]]]:
     button_row = []
     if entity_id:
         url_path = "leads" if entity_type in ("leads", 2) else "contacts"
         crm_url = f"https://{subdomain}.amocrm.ru/{url_path}/detail/{entity_id}"
         button_row.append({"text": "🌐 Перейти в amoCRM", "url": crm_url})
 
-    buttons = [button_row] if button_row else None
-    return msg, buttons
+    return [button_row] if button_row else None
+
+
+def format_task_notification(
+    task: Dict[str, Any],
+    lead_or_contact: Optional[Dict[str, Any]] = None,
+    contact_details: Optional[Dict[str, Any]] = None,
+    phone: Optional[str] = None,
+    responsible_name: Optional[str] = None,
+    alert_type: str = "due",
+    subdomain: str = DEFAULT_SUBDOMAIN,
+) -> Tuple[str, Optional[List[List[Dict[str, str]]]]]:
+    """Format task alert into a rich, fully-detailed HTML message with amoCRM link button.
+
+    alert_type: 'due' | 'overdue' | 'new'
+    """
+    title_header = _alert_title(alert_type)
+
+    entity_type = task.get("entity_type") or "leads"
+    entity_id = task.get("entity_id")
+    if not entity_id and "element_id" in task:
+        entity_id = task.get("element_id")
+
+    lead_data = lead_or_contact if entity_type in ("leads", 2) else None
+    contact_data = contact_details or (lead_or_contact if entity_type in ("contacts", 1) else None)
+
+    lead_name = lead_data.get("name") if lead_data else ("Noma'lum" if entity_type in ("leads", 2) else None)
+    contact_name = contact_data.get("name") if contact_data else None
+
+    # Resolve phone
+    if not phone and contact_data:
+        phone = contact_data.get("phone")
+
+    stage_str = _resolve_stage(lead_data)
+    service_name, source_name, telegram_user, price_str = _resolve_custom_fields(lead_data, contact_data)
+
+    lines = [title_header, ""]
+    lines += _entity_lines(
+        lead_name, contact_name, phone, telegram_user,
+        stage_str, service_name, source_name, price_str,
+    )
+    lines += _task_lines(task, responsible_name)
+
+    msg = "\n".join(lines)
+    return msg, _crm_buttons(entity_type, entity_id, subdomain)
