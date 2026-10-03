@@ -62,6 +62,8 @@
 
 ## Locks
 
+
+
 > Faqat **faol** qulflar. Bo'shatilgan qulf o'chiriladi (tarix → handoff-log).
 
 - Codex Coordinator: leadgen delivery recovery modules and focused tests (2026-09-15).
@@ -79,3 +81,7 @@ bandit -r src/ -ll
 - Branch: `feat/<short-description>` yoki `fix/<short-description>`
 - Commit: `feat(scope): message` / `fix(scope): message` / `refactor(scope): message`
 - Avtonom loop commitlari oxirida `[ralph]` bo'ladi.
+
+## VS Code: uch agent
+
+Ish boshida `AGENTS.md`, `docs/oisha-prd.md` va `docs/agents/three-agent-workflow.md` ni o'qing. Bir checkoutda bitta implementer yozadi; reviewer va analyst shu fayllarga yozmaydi.

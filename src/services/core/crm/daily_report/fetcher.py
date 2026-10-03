@@ -21,14 +21,7 @@ from src.services.core.crm.daily_report.models import (
 logger = logging.getLogger(__name__)
 
 
-def _call_answered(call: Dict[str, Any]) -> bool:
-    """Best-effort: AmoCRM call note counted answered if it has duration > 0."""
-    params = call.get("params") or {}
-    duration = params.get("duration") or call.get("duration") or 0
-    try:
-        return float(duration) > 0
-    except (TypeError, ValueError):
-        return False
+from src.services.core.crm.daily_report.metrics_aggregator import call_answered as _call_answered
 
 
 class AmoFetcherMixin:
@@ -194,36 +187,12 @@ class AmoFetcherMixin:
 
     async def _get_leads_by_range(self, t_from: int, t_to: int) -> List[Dict]:
         """AmoCRM /api/v4/leads?filter[created_at][from]=..."""
-        if not self._crm:
-            return []
-        try:
-            if hasattr(self._crm, "_load_token"):
-                self._crm._load_token()
-            url = f"{self._crm.base_url}/api/v4/leads"
-            all_leads: List[Dict] = []
-            page = 1
-            while True:
-                params = {
-                    "filter[created_at][from]": t_from,
-                    "filter[created_at][to]":   t_to,
-                    "limit": 50,
-                    "page": page,
-                }
-                resp = requests.get(url, headers=self._crm._get_headers(), params=params, timeout=15)
-                if resp.status_code == 401:
-                    self._crm.refresh_token()
-                    resp = requests.get(url, headers=self._crm._get_headers(), params=params, timeout=15)
-                if resp.status_code != 200:
-                    break
-                batch = resp.json().get("_embedded", {}).get("leads", [])
-                all_leads.extend(batch)
-                if len(batch) < 50:
-                    break
-                page += 1
-            return all_leads
-        except Exception as exc:
-            logger.warning(f"[CRMDailyReporter] _get_leads_by_range: {exc}")
-            return []
+        return await self._fetch_amocrm_collection(
+            "leads",
+            {"filter[created_at][from]": t_from, "filter[created_at][to]": t_to},
+            page_size=50,
+        )
+
 
     async def _fetch_amocrm_collection(
         self,
@@ -354,102 +323,12 @@ class AmoFetcherMixin:
             return 0.0
         return sum(deltas) / len(deltas)
 
-    def _aggregate_metrics(
-        self,
-        ptype,
-        start,
-        end,
-        *,
-        leads_all,
-        leads_created,
-        leads_closed,
-        contacts_new,
-        companies_new,
-        calls,
-        tasks_all,
-        tasks_created,
-        tasks_done,
-        user_names,
-    ) -> PeriodMetrics:
-        now = time.time()
-        won_s, lost_s = self.WON_STATUS, self.LOST_STATUS
-
-        m = PeriodMetrics(period_type=ptype, period_start=start, period_end=end)
-        m.new_leads = len(leads_created)
-        m.new_contacts = len(contacts_new)
-        m.new_companies = len(companies_new)
-        m.incoming_calls = len(calls)
-        m.tasks_created = len(tasks_created)
-        m.tasks_completed = len(tasks_done)
-        m.calls_total = len(calls)
-        m.calls_answered = sum(1 for c in calls if _call_answered(c))
-
-        open_lead_ids = set()
-        for l in leads_all:
-            sid = l.get("status_id")
-            price = l.get("price") or 0
-            if sid in (won_s, lost_s):
-                continue
-            m.active_count += 1
-            m.active_amount += price
-            open_lead_ids.add(l.get("id"))
-            if (now - (l.get("updated_at") or 0)) > 3 * 86400:
-                m.stagnated_count += 1
-        m.pipeline_value = m.active_amount
-
-        mgr = {}
-        for l in leads_closed:
-            sid = l.get("status_id")
-            price = l.get("price") or 0
-            uid = l.get("responsible_user_id")
-            if sid == won_s:
-                m.won_count += 1
-                m.won_amount += price
-                if uid:
-                    row = mgr.setdefault(uid, ManagerRow(user_id=uid, name=user_names.get(uid, f"Manager #{uid}")))
-                    row.won_count += 1
-                    row.won_amount += price
-            elif sid == lost_s:
-                m.lost_count += 1
-                m.lost_amount += price
-
-        for c in calls:
-            uid = c.get("created_by") or c.get("responsible_user_id")
-            if not uid:
-                continue
-            row = mgr.setdefault(uid, ManagerRow(user_id=uid, name=user_names.get(uid, f"Manager #{uid}")))
-            row.calls_count += 1
-            if _call_answered(c):
-                row.calls_answered += 1
-
-        leads_with_task = {
-            t.get("entity_id")
-            for t in tasks_all
-            if t.get("entity_type") == "leads" and not t.get("is_completed")
-        }
-        for t in tasks_all:
-            if t.get("is_completed"):
-                continue
-            m.tasks_open += 1
-            till = t.get("complete_till") or 0
-            overdue = bool(till) and till < now
-            if overdue:
-                m.tasks_overdue += 1
-            uid = t.get("responsible_user_id")
-            if uid:
-                row = mgr.setdefault(uid, ManagerRow(user_id=uid, name=user_names.get(uid, f"Manager #{uid}")))
-                row.open_tasks += 1
-                if overdue:
-                    row.overdue_tasks += 1
-
-        m.leads_without_task = len(open_lead_ids - leads_with_task)
-
-        m.managers = sorted(mgr.values(), key=lambda r: r.won_amount, reverse=True)[:5]
-        m.call_managers = sorted(
-            [r for r in mgr.values() if r.calls_count], key=lambda r: r.calls_count, reverse=True
+    def _aggregate_metrics(self, ptype, start, end, **kwargs) -> PeriodMetrics:
+        from src.services.core.crm.daily_report.metrics_aggregator import aggregate_period_metrics
+        return aggregate_period_metrics(
+            self.WON_STATUS, self.LOST_STATUS, ptype, start, end, **kwargs
         )
-        m.recompute_derived()
-        return m
+
 
     async def fetch_metrics(self, ptype, anchor=None) -> PeriodMetrics:
         anchor = anchor or date.today()

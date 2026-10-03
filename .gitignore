@@ -31,6 +31,7 @@ build/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+HARNESS_FEEDBACK.md
 
 # Credentials & Secrets
 # We ignore all JSON files by default except for specific known non-secret ones
