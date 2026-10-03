@@ -35,3 +35,15 @@ def test_build_telegram_message_dynamic_pipeline():
     )
     assert "🎯 <b>Voronka:</b> UTC" in msg_utc
     assert "Target LEADs" not in msg_utc
+
+
+def test_stale_claim_is_reclaimed(monkeypatch):
+    """Claim'dan keyin o'lgan jarayon leadni abadiy qulflab qo'ymasligi kerak."""
+    import uuid
+    from src.services.core.instagram import leadgen_delivery as ld
+
+    test_id = f"test_stale_claim_{uuid.uuid4().hex}"
+    assert ld.try_claim_leadgen(test_id, pid=100) is True
+    assert ld.try_claim_leadgen(test_id, pid=200) is False  # yangi claim hurmat qilinadi
+    monkeypatch.setattr(ld, "_CLAIM_TTL_SEC", -1)  # claim eskirgan
+    assert ld.try_claim_leadgen(test_id, pid=300) is True

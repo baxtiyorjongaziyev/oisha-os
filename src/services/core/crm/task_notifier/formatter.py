@@ -27,6 +27,7 @@ PIPELINE_MAP = {
 
 STATUS_MAP = {
     87609510: "Неразобранное",
+    89067962: "Yangi LEads",
     87609514: "Yangi",
     87609518: "Aloqa",
     87609522: "Kvalifikatsiya",

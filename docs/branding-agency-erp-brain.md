@@ -18,7 +18,6 @@ verifies the result.
 | Finance | Hisobchi + Google Sheets | Track advance, debt, cost, margin, payment alerts |
 | Approvals | Telegram bot | Ask owner before mutations and store audit trail |
 | Conversation evidence | Telethon userbot | Read allowed Telegram history on Oracle VM only |
-| Automation | n8n | Run workflow glue that does not belong in core code |
 | AI access | MCP gateways | Let agents inspect and act through approved tools |
 
 ## Runtime Rules
@@ -71,7 +70,7 @@ Server digest:
 ## Implementation Phases
 
 1. Stabilize 24/7 runtime: `/healthz`, `/readyz`, systemd active, userbot
-   authorized, bot token can send, n8n active.
+   authorized, bot token can send.
 2. Lock AmoCRM sales discipline: stages, tasks, lead owners, reactivation, no
    automatic Lost/delete for open leads.
 3. Connect delivery board: brief, KP, deadlines, files, project owner, feedback.

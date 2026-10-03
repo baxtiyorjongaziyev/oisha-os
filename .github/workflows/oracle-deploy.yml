@@ -356,11 +356,31 @@ jobs:
             Environment=PATH=/home/ubuntu/oisha-os/venv/bin:/usr/local/bin:/usr/bin:/bin
             UNIT
             sudo sed -i 's/^            //' /etc/systemd/system/oisha-os.service.d/10-resilience.conf
+            # Kunlik Moizvonki qo'ng'iroq hisoboti (06:00 Toshkent)
+            sudo install -m 0644 deploy/systemd/oisha-calls-report.service deploy/systemd/oisha-calls-report.timer /etc/systemd/system/
             sudo systemctl daemon-reload
+            sudo systemctl enable --now oisha-calls-report.timer || echo "calls report timer enable skipped"
             sudo systemctl reset-failed oisha-os || true
             sudo systemctl restart oisha-os
-            if systemctl is-active --quiet oisha-leads; then
-              sudo systemctl restart oisha-leads || true
+            # oisha-leads: unit mavjud bo'lsa HAR deployda qayta ishga tushadi.
+            # Oldin `is-active` sharti va `|| true` bilan edi — 2026-10-02 da uch
+            # deploy ketma-ket eski PID'ni qoldirdi va lead tuzatishlari qo'lda
+            # restartgacha ishlamadi. Endi PID oldin/keyin solishtiriladi va
+            # o'zgarmasa deploy yiqiladi (jim qolmasin).
+            if systemctl list-unit-files --no-legend oisha-leads.service 2>/dev/null | grep -q oisha-leads; then
+              OLD_PID="$(systemctl show -p MainPID --value oisha-leads)"
+              sudo systemctl reset-failed oisha-leads || true
+              sudo systemctl restart oisha-leads
+              sleep 5
+              NEW_PID="$(systemctl show -p MainPID --value oisha-leads)"
+              echo "oisha-leads: PID ${OLD_PID} -> ${NEW_PID}, $(systemctl show -p ActiveEnterTimestamp --value oisha-leads)"
+              if ! systemctl is-active --quiet oisha-leads || [ "$NEW_PID" = "0" ] || [ "$NEW_PID" = "$OLD_PID" ]; then
+                echo "XATO: oisha-leads yangi kod bilan qayta ishga tushmadi"
+                sudo journalctl -u oisha-leads --no-pager -n 40
+                exit 1
+              fi
+            else
+              echo "oisha-leads.service topilmadi — o'tkazib yuborildi"
             fi
 
             # Liveness gate: the PROCESS must come up and stay up. /healthz is

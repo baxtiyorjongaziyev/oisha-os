@@ -174,6 +174,36 @@ UPDATE oauth_tokens
 """
 
 
+# Shu hostdagi o'lgan jarayon qoldirgan egalikni olish. `access_token = ?`
+# sharti atomiklikni saqlaydi: ikki yangi instance bir vaqtda urinsa, faqat
+# birinchisi o'lik egani almashtiradi, ikkinchisining UPDATE'i hech narsa
+# topmaydi.
+_OWNER_TAKEOVER_SQL = """
+UPDATE oauth_tokens
+   SET access_token = ?, expires_at = ?, updated_at = ?
+ WHERE service_name = ? AND access_token = ?
+"""
+
+
+def _is_dead_local_holder(holder: Optional[str]) -> bool:
+    """Ega shu hostdagi, endi mavjud bo'lmagan jarayonmi?
+
+    systemd restart'da eski jarayon heartbeat TTL tugamasdan o'ladi; uning
+    yozuvi yangi jarayonni 'boshqa instance tirik' deb userbot'siz qoldirardi.
+    O'lgan jarayon Telegram ulanishini ushlab turolmaydi — xavfsiz olinadi.
+    """
+    host, _, pid = (holder or "").rpartition(":")
+    if host != socket.gethostname() or not pid.isdigit() or int(pid) == os.getpid():
+        return False
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return True
+    except OSError:
+        return False
+    return False
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -200,6 +230,17 @@ async def _try_acquire_owner_async(*, force: bool) -> bool:
 
     # 1. Qator mavjud bo'lmasa yaratish (boshqa yozuvni buzmaydi)
     await conn.execute(_OWNER_INSERT_SQL, (OWNER_SERVICE_NAME, "", new_deadline, now_iso))
+    await conn.commit()
+
+    # 1b. Ega shu hostdagi o'lgan jarayon bo'lsa — TTL'ni kutmasdan olamiz
+    current = await db.oauth.get_tokens(OWNER_SERVICE_NAME)
+    holder = (current or {}).get("access_token")
+    if not force and _is_dead_local_holder(holder):
+        logger.info("[USERBOT OWNER] O'lgan lokal ega (%s) almashtirilmoqda", holder)
+        await conn.execute(
+            _OWNER_TAKEOVER_SQL,
+            (_INSTANCE_ID, new_deadline, now_iso, OWNER_SERVICE_NAME, holder),
+        )
     # 2. Atomik shartli egalik olish
     await conn.execute(
         _OWNER_ACQUIRE_SQL,
