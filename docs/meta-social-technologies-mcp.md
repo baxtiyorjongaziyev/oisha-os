@@ -123,6 +123,27 @@ deprecation ro'yxatidami?
 mentions field'lari bormi? Hech narsani o'zgartirma.
 ```
 
+## Haftalik avtomatik health-check (Oracle runtime)
+
+MCP OAuth'ni faqat interaktiv klientda bajaradi, shuning uchun Oracle'dagi Oisha
+xuddi shu signallarni **to'g'ridan-to'g'ri Graph API'dan** oladi va har **dushanba
+09:15 (Toshkent)** Owner'ga Telegram hisobot yuboradi. Faqat o'qish — hech narsa
+o'zgartirilmaydi.
+
+| Tekshiruv | Manba | Ogohlantirish |
+|---|---|---|
+| Token amal qilishi | `GET /debug_token` | Yaroqsiz ❌, 14 kundan kam qolgan ⚠️ |
+| Ruxsatlar | `debug_token.scopes` | `instagram_basic`, `instagram_manage_messages`, `instagram_manage_comments` yo'q ❌ |
+| Rate limit | `X-App-Usage`, `X-Business-Use-Case-Usage` header | ≥ 75% ⚠️ |
+| API versiya | `facebook-api-version` header | Meta boshqa versiya bilan javob bersa (eskirgan, auto-upgrade) ⚠️ |
+| Page webhook | `GET /{META_PAGE_ID}/subscribed_apps` | App obuna emas ❌, field'lar bo'sh ⚠️ |
+
+Kod: `src/services/core/instagram/meta_health_check.py`,
+`src/schedulers/meta_health_scheduler.py`. Env: `META_PAGE_ACCESS_TOKEN` (majburiy),
+`META_PAGE_ID`, `META_GRAPH_API_VERSION`, `META_HEALTH_CHECK_ENABLED` (default `1`).
+Token yo'q bo'lsa loop jim o'tkazib yuboradi. Hisobotda ⚠️/❌ chiqsa — batafsil
+tahlilni Claude Code'da MCP orqali qiling.
+
 ## Tekshirish
 
 1. Klientni qayta ishga tushiring.
