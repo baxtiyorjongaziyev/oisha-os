@@ -149,6 +149,7 @@ __pycache__/
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
+!.claude/skills/
 
 # Sensitive runtime outputs
 data/session_output.txt
