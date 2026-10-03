@@ -8,10 +8,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-if hasattr(sys.stderr, "reconfigure"):
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+for stream in (sys.stdout, sys.stderr):
+    reconfigure = getattr(stream, "reconfigure", None)
+    if callable(reconfigure):
+        reconfigure(encoding="utf-8", errors="replace")
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 PYTHON_EXE = ROOT / ".venv" / "Scripts" / "python.exe"
@@ -45,7 +45,7 @@ def main():
 
     # Stage 1: Standards Check (Max 400 lines)
     print("\n[1/3] 📏 Checking Modular Code Standards (400-line limit)...")
-    code, out = run_cmd([str(PYTHON_EXE), "scripts/harness/verify_standards.py", "--markdown"])
+    code, out = run_cmd([str(PYTHON_EXE), "scripts/harness/verify_standards.py", "--markdown", "--warn-legacy-functions"])
     if code == 0:
         print("  ✅ Standards Check: PASSED")
         stages.append(("Code Standards", True, out))
@@ -67,16 +67,18 @@ def main():
 
     # Stage 3: Test Suite (Pytest)
     print("\n[3/3] 🧪 Running Pytest Suite ($env:SKIP_LIVE=1)...")
-    test_target = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else "tests/test_ai.py"
+    test_target = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else None
+    test_args = [test_target] if test_target else []
+    test_label = test_target or "full suite"
     code, out = run_cmd(
-        [str(PYTHON_EXE), "-m", "pytest", test_target, "-q", "--tb=short"],
+        [str(PYTHON_EXE), "-m", "pytest", *test_args, "-q", "--tb=short"],
         env={"SKIP_LIVE": "1", "ALLOW_LOCAL_RUN": "0"}
     )
     if code == 0:
-        print(f"  ✅ Pytest Suite ({test_target}): PASSED")
+        print(f"  ✅ Pytest Suite ({test_label}): PASSED")
         stages.append(("Pytest Suite", True, out))
     else:
-        print(f"  ❌ Pytest Suite ({test_target}): FAILED")
+        print(f"  ❌ Pytest Suite ({test_label}): FAILED")
         stages.append(("Pytest Suite", False, out))
         has_failure = True
 
