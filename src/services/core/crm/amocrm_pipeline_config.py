@@ -4,7 +4,9 @@ from dataclasses import dataclass
 
 
 SALES_PIPELINE_ID = 11162698  # "Sotuv" (PRESALES + CLOSER + Target LEADs birlashtirilgan, 2026-09-25)
-SALES_NEW_STATUS_ID = 87609514  # Yangi
+# 87609514 "Yangi" 2026-09-30 da o'chirilgan edi; owner 2026-10-02 da Meta
+# leadlari uchun alohida "Yangi LEads" bosqichini yaratdi (Неразобранное'dan keyin).
+SALES_NEW_STATUS_ID = 89067962  # Yangi LEads
 SALES_CONTACT_STATUS_ID = 87609518  # Aloqa
 SALES_QUALIFICATION_STATUS_ID = 87609522  # Kvalifikatsiya
 SALES_MEETING_STATUS_ID = 87609526  # Uchrashuv

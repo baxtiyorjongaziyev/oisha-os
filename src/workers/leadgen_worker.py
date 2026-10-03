@@ -61,6 +61,7 @@ async def main() -> None:
 
     from src.schedulers.meta_leadgen_scheduler import meta_leadgen_loop
     from src.schedulers.leadgen_status_reporter import leadgen_watchdog_and_reporter_loop
+    from src.schedulers.leadgen_reconciliation import leadgen_reconciliation_loop
 
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
@@ -80,6 +81,7 @@ async def main() -> None:
         asyncio.create_task(meta_leadgen_loop(), name="meta_leadgen_loop"),
         asyncio.create_task(leadgen_watchdog_and_reporter_loop(), name="watchdog_loop"),
         asyncio.create_task(heartbeat_loop(), name="heartbeat_loop"),
+        asyncio.create_task(leadgen_reconciliation_loop(), name="reconciliation_loop"),
     ]
 
     await stop_event.wait()

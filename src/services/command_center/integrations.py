@@ -62,7 +62,7 @@ def branding_erp_roadmap() -> list[dict[str, Any]]:
             title="24/7 runtime and truthful sources",
             outcome="Oracle VM runs the userbot, bot head, API, schedulers, and health checks without local dependency.",
             source_of_truth=("Oracle VM", "GitHub Secrets", "production .env"),
-            must_run_24_7=("Telethon userbot", "bot-token head", "FastAPI health/ready", "n8n workflows"),
+            must_run_24_7=("Telethon userbot", "bot-token head", "FastAPI health/ready"),
             acceptance_checks=("systemd active", "/healthz 200", "/readyz 200", "no local userbot session owner"),
         ),
         BrandingERPPhase(

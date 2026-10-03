@@ -1,0 +1,16 @@
+[Unit]
+Description=Oisha daily Moizvonki sales calls report
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/oisha-os
+EnvironmentFile=/home/ubuntu/oisha-os/.env
+ExecStart=/home/ubuntu/oisha-os/venv/bin/python scripts/daily_sales_calls_report.py
+TimeoutStartSec=600
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
