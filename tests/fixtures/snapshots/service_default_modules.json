@@ -1,0 +1,217 @@
+[
+ [
+  "brand_audit",
+  {
+   "id": "brand_audit",
+   "name": "Brand Audit",
+   "name_uz": "Brand audit",
+   "service_type": "brand_audit",
+   "base_price": 500,
+   "estimated_days": 5,
+   "deliverables": [
+    "Brand audit hisoboti (PDF)",
+    "SWOT analiz",
+    "Raqobat tahlili",
+    "Tavsiyalar ro'yxati"
+   ],
+   "includes_phases": [
+    "D1",
+    "D2",
+    "D3",
+    "D4",
+    "D5",
+    "D6"
+   ],
+   "total_steps": 6
+  }
+ ],
+ [
+  "naming_check",
+  {
+   "id": "naming_check",
+   "name": "Naming Check",
+   "name_uz": "Naming tekshiruvi",
+   "service_type": "naming_check",
+   "base_price": 200,
+   "estimated_days": 2,
+   "deliverables": [
+    "Mavjud nomlarni tekshirish",
+    "Trademark tekshiruvi",
+    "Domen tekshiruvi",
+    "Xulosa hisoboti"
+   ],
+   "includes_phases": [
+    "N2",
+    "N4"
+   ],
+   "total_steps": 2
+  }
+ ],
+ [
+  "naming",
+  {
+   "id": "naming",
+   "name": "Naming",
+   "name_uz": "Nom yaratish",
+   "service_type": "naming",
+   "base_price": 800,
+   "estimated_days": 7,
+   "deliverables": [
+    "30 ta nom varianti",
+    "3 ta eng yaxshisi",
+    "Trademark tekshiruvi",
+    "Domen tekshiruvi",
+    "Nom ma'nosi tushuntiruvi"
+   ],
+   "includes_phases": [
+    "N1",
+    "N2",
+    "N3",
+    "N4",
+    "N5",
+    "N6"
+   ],
+   "total_steps": 6
+  }
+ ],
+ [
+  "logo",
+  {
+   "id": "logo",
+   "name": "Logo Design",
+   "name_uz": "Logo dizayn",
+   "service_type": "logo",
+   "base_price": 1500,
+   "estimated_days": 10,
+   "deliverables": [
+    "3 ta logo konsepsiyasi",
+    "Yakuniy logo (tasdiqlangan)",
+    "Logo variantlari (RGB, CMYK, mono)",
+    "Logo qo'llanmasi (usage guide)",
+    "Source fayllar (AI, EPS, PDF, SVG, PNG)"
+   ],
+   "includes_phases": [
+    "L1",
+    "L2",
+    "L3",
+    "L4",
+    "L5",
+    "L6",
+    "L7"
+   ],
+   "total_steps": 7
+  }
+ ],
+ [
+  "visual_identity",
+  {
+   "id": "visual_identity",
+   "name": "Visual Identity",
+   "name_uz": "Vizual identitet",
+   "service_type": "visual_identity",
+   "base_price": 2000,
+   "estimated_days": 10,
+   "deliverables": [
+    "Rang palitrasu",
+    "Typography sistemasi",
+    "Grafik elementlar (pattern, shapes)",
+    "Icon set (20 ta)",
+    "Photography style guide",
+    "Visual identity qoidalari"
+   ],
+   "includes_phases": [
+    "V1",
+    "V2",
+    "V3",
+    "V4",
+    "V5",
+    "V6",
+    "V7"
+   ],
+   "total_steps": 7
+  }
+ ],
+ [
+  "brandbook",
+  {
+   "id": "brandbook",
+   "name": "Brandbook",
+   "name_uz": "Brandbook",
+   "service_type": "brandbook",
+   "base_price": 3000,
+   "estimated_days": 14,
+   "deliverables": [
+    "Brand strategy bo'limi",
+    "Logo usage guidelines",
+    "Color system qoidalari",
+    "Typography qoidalari",
+    "Visual applications",
+    "Mockup'lar to'plami",
+    "Print-ready brandbook (PDF)"
+   ],
+   "includes_phases": [
+    "B1",
+    "B2",
+    "B3",
+    "B4",
+    "B5",
+    "B6",
+    "B7",
+    "B8",
+    "B9"
+   ],
+   "total_steps": 9
+  }
+ ],
+ [
+  "packaging",
+  {
+   "id": "packaging",
+   "name": "Packaging Design",
+   "name_uz": "Qadoq dizayni",
+   "service_type": "packaging",
+   "base_price": 1500,
+   "estimated_days": 10,
+   "deliverables": [
+    "3 ta qadoq konsepsiyasi",
+    "Dieline (texnik chizma)",
+    "3D mockup",
+    "Print-ready fayllar",
+    "Qadoq qo'llanmasi"
+   ],
+   "includes_phases": [
+    "Q1",
+    "Q2",
+    "Q3",
+    "Q4",
+    "Q5",
+    "Q6",
+    "Q7"
+   ],
+   "total_steps": 7
+  }
+ ],
+ [
+  "patent_support",
+  {
+   "id": "patent_support",
+   "name": "Patent Support",
+   "name_uz": "Patentlash yordami",
+   "service_type": "patent_support",
+   "base_price": 300,
+   "estimated_days": 3,
+   "deliverables": [
+    "Logo va elementlar dokumentatsiyasi",
+    "Patent uchun fayllar tayyorlash",
+    "Uzpatent yo'naltiruvi",
+    "Qo'llab-quvvatlash hujjatlari"
+   ],
+   "includes_phases": [
+    "PT1",
+    "PT2",
+    "PT3"
+   ],
+   "total_steps": 3
+  }
+ ]
+]
