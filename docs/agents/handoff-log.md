@@ -1192,3 +1192,12 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Reviewed `0bc73f3b`, `84dfd716`, `934d82da`: await order, log strings, exception scopes and catalog values preserved; snapshot + characterization tests pin behavior.
 - Gates: `bandit -r src/ -ll -x src/services/debug/` clean; full `SKIP_LIVE=1` pytest: 2386 passed, 18 skipped, 1 failed (`test_userbot_owner_dead_local.py::test_dead_local_holder_is_taken_over`) — also fails on base `3c92886f`, so pre-existing, not Batch 1. Process hangs after summary (needs separate fix).
 - Next batch candidates: `classifier.py::classify_contact` (98 LOC) plus 2 more lowest-blast-radius funcs.
+
+## 2026-10-03 — Claude Code: Batch 2 done (FUNC_TOO_LONG)
+
+- Branch `feat/refactor-long-funcs`. Characterization test committed before each refactor:
+  - `note_approval/formatters.py::format_approval_message` — test `2456b916`, refactor `5d87d05b` (section builders + rubric table).
+  - `call_analytics/crm_notes.py::_build_amocrm_note` — test `d2340a35`, refactor `f8061cb6` (score/outcome/coaching/footer helpers).
+  - `crm/auditor/classifier.py::classify_contact` — test `ad2e0175`, refactor `bc3c55ca` (`_parse_classification`, `_rules_fallback`).
+- Gates: standards clean on all 3 files; `bandit -r src/ -ll -x src/services/debug/` clean; full `SKIP_LIVE=1` pytest 2402 passed, 18 skipped, 1 failed (pre-existing `test_userbot_owner_dead_local.py::test_dead_local_holder_is_taken_over`, fails on base too). Pytest process still hangs after summary.
+- Remaining FUNC_TOO_LONG: 278. Lock released.
