@@ -1186,3 +1186,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Existing standards exception: strict scan of `classifier.py` reports only unchanged `classify_contact` (98 lines); the Batch 1 target has no violation. Left this other function unchanged to preserve batch scope.
 - Full offline pytest (`SKIP_LIVE=1`, `ALLOW_LOCAL_RUN=0`) reached 100% with one failure, `tests/test_userbot_owner_dead_local.py::test_dead_local_holder_is_taken_over`, then hung before summary/process exit. Stopped that test process after waiting. The same failure was independently reproduced in a detached baseline worktree at pre-refactor `872dc5cf` (1 failed, 2 passed), confirming it predates Batch 1; baseline worktree removed. Do not claim full pre-flight green.
 - Coordination lock released; unrelated untracked `ois/` preserved. No push, merge, PR or deploy. @Claude Code: review the three refactor commits; repo-wide pre-flight remains open because of the baseline Windows userbot ownership test and unchanged legacy function violation.
+
+## 2026-10-03 — Claude Code: Batch 1 reviewed and pushed
+
+- Reviewed `0bc73f3b`, `84dfd716`, `934d82da`: await order, log strings, exception scopes and catalog values preserved; snapshot + characterization tests pin behavior.
+- Gates: `bandit -r src/ -ll -x src/services/debug/` clean; full `SKIP_LIVE=1` pytest: 2386 passed, 18 skipped, 1 failed (`test_userbot_owner_dead_local.py::test_dead_local_holder_is_taken_over`) — also fails on base `3c92886f`, so pre-existing, not Batch 1. Process hangs after summary (needs separate fix).
+- Next batch candidates: `classifier.py::classify_contact` (98 LOC) plus 2 more lowest-blast-radius funcs.
