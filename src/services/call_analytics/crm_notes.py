@@ -16,6 +16,15 @@ class CallCrmNotesMixin:
         filled = round(max(0, min(100, score)) / 10)
         return "█" * filled + "░" * (10 - filled) + f" {score}/100"
 
+    _RUBRIC_ROWS = (
+        ("1. Salomlashish:    ", "salomlashish"),
+        ("2. Ehtiyojlar:      ", "ehtiyojlar"),
+        ("3. Qiymat:          ", "qiymat"),
+        ("4. E'tirozlar (×2): ", "etirozlar"),
+        ("5. Yakunlash  (×2): ", "yakunlash"),
+        ("6. Muloqot sifati:  ", "muloqot_sifati"),
+    )
+
     def _build_amocrm_note(
         self,
         analysis: Dict[str, Any],
@@ -34,30 +43,8 @@ class CallCrmNotesMixin:
     ) -> str:
         """MetaSell Note 1 — Oisha AI tahlil natijasi."""
         _summary = str(analysis.get("summary") or summary or "").strip()
-        _category = str(analysis.get("category") or category or "Boshqa")
         _mood = str(analysis.get("client_mood") or client_mood or "Noaniq")
-        _next = str(analysis.get("next_steps") or next_steps or "N/A").strip() or "N/A"
-        _client_pct = int(analysis.get("client_talk_pct") or client_talk_pct or 0)
-        _agent_pct = int(analysis.get("agent_talk_pct") or agent_talk_pct or 0)
-        _talk_verdict = str(analysis.get("talk_ratio_verdict") or talk_ratio_verdict or "")
-        sifat = int(analysis.get("sifat_bahosi") or 0)
-        lead_b = int(analysis.get("lead_bahosi") or 0)
-        suhbat_oilasi = str(analysis.get("suhbat_oilasi") or "Boshqa")
-        suhbat_domeni = str(analysis.get("suhbat_domeni") or "Boshqa")
-        baholash = str(analysis.get("baholash_rejimi") or "Savdo playbook boyicha baholanadi")
-        mosligi = str(analysis.get("biznes_mosligi") or "Noaniq")
-        servis = str(analysis.get("servis_yonalishi") or "Boshqa")
-
-        rubrik = analysis.get("rubrik_baholar") or {}
-        r_salom = int(rubrik.get("salomlashish") or 0)
-        r_ehti = int(rubrik.get("ehtiyojlar") or 0)
-        r_qiy = int(rubrik.get("qiymat") or 0)
-        r_etir = int(rubrik.get("etirozlar") or 0)
-        r_yak = int(rubrik.get("yakunlash") or 0)
-        r_mul = int(rubrik.get("muloqot_sifati") or 0)
-
         rubrik_amal_qiladi = bool(analysis.get("rubrik_amal_qiladi", True))
-        attributed = bool(analysis.get("talk_ratio_attributed", True))
 
         lines = [
             f"[{ANALYSIS_MARKER}] Oisha AI 360° tahlil natijasi",
@@ -65,92 +52,113 @@ class CallCrmNotesMixin:
             _summary,
             "",
         ]
-
         omni = analysis.get("omnichannel_context")
         if omni and hasattr(omni, "format_crm_note_block"):
             lines.append(omni.format_crm_note_block())
             lines.append("")
 
+        lines += self._note_score_lines(analysis, rubrik_amal_qiladi, _mood)
         if rubrik_amal_qiladi:
-            lines += [
-                f"Sifat bahosi:  {self._score_bar(sifat)}",
-                f"Lead bahosi:   {self._score_bar(lead_b)}",
+            lines += self._note_outcome_lines(analysis)
+            lines += self._note_coaching_lines(analysis)
+        lines += self._note_footer_lines(
+            analysis, next_steps, client_talk_pct, agent_talk_pct, talk_ratio_verdict,
+        )
+        if transcript_snippet:
+            snippet = _clip(transcript_snippet, self.max_transcript_note_chars)
+            lines += ["", "Transkripsiya (O'zbek):", snippet]
+
+        return "\n".join(lines).strip()
+
+    def _note_score_lines(self, analysis: Dict[str, Any], rubrik_amal_qiladi: bool, mood: str) -> list:
+        if rubrik_amal_qiladi:
+            lines = [
+                f"Sifat bahosi:  {self._score_bar(int(analysis.get('sifat_bahosi') or 0))}",
+                f"Lead bahosi:   {self._score_bar(int(analysis.get('lead_bahosi') or 0))}",
             ]
         else:
-            lines.append("Baholanmadi — savdo suhbati emas yoki suhbat juda qisqa")
+            lines = ["Baholanmadi — savdo suhbati emas yoki suhbat juda qisqa"]
 
         lines += [
-            f"Suhbat oilasi: {suhbat_oilasi}",
-            f"Suhbat domeni: {suhbat_domeni}",
-            f"Baholash rejimi: {baholash}",
-            f"Biznes mosligi: {mosligi}",
-            f"Servis yo'nalishi: {servis}",
-            f"Kayfiyat: {_mood}",
+            f"Suhbat oilasi: {analysis.get('suhbat_oilasi') or 'Boshqa'}",
+            f"Suhbat domeni: {analysis.get('suhbat_domeni') or 'Boshqa'}",
+            f"Baholash rejimi: {analysis.get('baholash_rejimi') or 'Savdo playbook boyicha baholanadi'}",
+            f"Biznes mosligi: {analysis.get('biznes_mosligi') or 'Noaniq'}",
+            f"Servis yo'nalishi: {analysis.get('servis_yonalishi') or 'Boshqa'}",
+            f"Kayfiyat: {mood}",
         ]
 
         if rubrik_amal_qiladi:
+            rubrik = analysis.get("rubrik_baholar") or {}
+            lines += ["", "──── JON BRANDING RUBRIK (6 bosqich) ────"]
+            lines += [
+                f"{label}{self._score_bar(int(rubrik.get(key) or 0))}"
+                for label, key in self._RUBRIC_ROWS
+            ]
+        return lines
+
+    @staticmethod
+    def _note_outcome_lines(analysis: Dict[str, Any]) -> list:
+        outcome = normalise_outcome(analysis.get("natija"))
+        lines = [
+            "",
+            f"Natija: {OUTCOME_LABELS_UZ.get(outcome, 'Aniqlanmadi')}"
+            + ("  ✅ konversiya" if outcome_converted(outcome) else ""),
+        ]
+
+        breakdown_at = analysis.get("uzilish_vaqti")
+        breakdown_reason = str(analysis.get("uzilish_sababi") or "").strip()
+        if breakdown_at:
             lines += [
                 "",
-                "──── JON BRANDING RUBRIK (6 bosqich) ────",
-                f"1. Salomlashish:    {self._score_bar(r_salom)}",
-                f"2. Ehtiyojlar:      {self._score_bar(r_ehti)}",
-                f"3. Qiymat:          {self._score_bar(r_qiy)}",
-                f"4. E'tirozlar (×2): {self._score_bar(r_etir)}",
-                f"5. Yakunlash  (×2): {self._score_bar(r_yak)}",
-                f"6. Muloqot sifati:  {self._score_bar(r_mul)}",
+                f"🔴 MIJOZ YO'QOLGAN LAHZA: {breakdown_at}"
+                + (f" — {breakdown_reason}" if breakdown_reason else ""),
             ]
 
-        if rubrik_amal_qiladi:
-            outcome = normalise_outcome(analysis.get("natija"))
-            lines += [
-                "",
-                f"Natija: {OUTCOME_LABELS_UZ.get(outcome, 'Aniqlanmadi')}"
-                + ("  ✅ konversiya" if outcome_converted(outcome) else ""),
-            ]
+        pauses = analysis.get("pauzalar") or []
+        if pauses:
+            longest = max(pauses, key=lambda p: p.get("davomiyligi", 0))
+            lines.append(
+                f"⏸ Keraksiz pauza: {len(pauses)} ta "
+                f"(eng uzuni {longest.get('vaqt')} da "
+                f"{longest.get('davomiyligi')}s)"
+            )
+        return lines
 
-            breakdown_at = analysis.get("uzilish_vaqti")
-            breakdown_reason = str(analysis.get("uzilish_sababi") or "").strip()
-            if breakdown_at:
-                lines += [
-                    "",
-                    f"🔴 MIJOZ YO'QOLGAN LAHZA: {breakdown_at}"
-                    + (f" — {breakdown_reason}" if breakdown_reason else ""),
-                ]
+    @staticmethod
+    def _note_coaching_lines(analysis: Dict[str, Any]) -> list:
+        kuchli = [str(x) for x in (analysis.get("kuchli_tomonlar") or [])]
+        zaif = [str(x) for x in (analysis.get("zaif_tomonlar") or [])]
+        tavsiyalar = [str(x) for x in (analysis.get("konversiya_tavsiyalari") or analysis.get("tavsiyalar") or [])]
+        if not (kuchli or zaif or tavsiyalar):
+            return []
+        lines = ["", "──── MURABBIY IZOHI VA KONVERSIYA ────"]
+        lines += [f"✅ {item}" for item in kuchli[:3]]
+        lines += [f"⚠️ {item}" for item in zaif[:3]]
+        lines += [f"💡 Tavsiya: {item}" for item in tavsiyalar[:3]]
+        return lines
 
-            pauses = analysis.get("pauzalar") or []
-            if pauses:
-                longest = max(pauses, key=lambda p: p.get("davomiyligi", 0))
-                lines.append(
-                    f"⏸ Keraksiz pauza: {len(pauses)} ta "
-                    f"(eng uzuni {longest.get('vaqt')} da "
-                    f"{longest.get('davomiyligi')}s)"
-                )
+    @staticmethod
+    def _note_footer_lines(
+        analysis: Dict[str, Any],
+        next_steps: str,
+        client_talk_pct: int,
+        agent_talk_pct: int,
+        talk_ratio_verdict: str,
+    ) -> list:
+        _next = str(analysis.get("next_steps") or next_steps or "N/A").strip() or "N/A"
+        _client_pct = int(analysis.get("client_talk_pct") or client_talk_pct or 0)
+        _agent_pct = int(analysis.get("agent_talk_pct") or agent_talk_pct or 0)
+        _talk_verdict = str(analysis.get("talk_ratio_verdict") or talk_ratio_verdict or "")
 
-            kuchli = [str(x) for x in (analysis.get("kuchli_tomonlar") or [])]
-            zaif = [str(x) for x in (analysis.get("zaif_tomonlar") or [])]
-            tavsiyalar = [str(x) for x in (analysis.get("konversiya_tavsiyalari") or analysis.get("tavsiyalar") or [])]
-            if kuchli or zaif or tavsiyalar:
-                lines.append("")
-                lines.append("──── MURABBIY IZOHI VA KONVERSIYA ────")
-                for item in kuchli[:3]:
-                    lines.append(f"✅ {item}")
-                for item in zaif[:3]:
-                    lines.append(f"⚠️ {item}")
-                for item in tavsiyalar[:3]:
-                    lines.append(f"💡 Tavsiya: {item}")
-
+        lines = []
         agreed_dt = analysis.get("kelishilgan_vaqt")
         if agreed_dt and hasattr(agreed_dt, "strftime"):
             lines.append(f"⏰ Kelishilgan vaqt: {agreed_dt.strftime('%d.%m.%Y %H:%M')}")
 
-        lines += [
-            "",
-            f"Keyingi qadam: {_next}",
-        ]
-        if attributed:
-            lines.append(
-                f"Gapirish nisbati: Mijoz {_client_pct}% | Sotuvchi {_agent_pct}%"
-            )
+        lines += ["", f"Keyingi qadam: {_next}"]
+        if bool(analysis.get("talk_ratio_attributed", True)):
+            lines.append(f"Gapirish nisbati: Mijoz {_client_pct}% | Sotuvchi {_agent_pct}%")
         elif _client_pct or _agent_pct:
             lines.append(
                 f"So'zlovchilar nisbati: {_client_pct}% / {_agent_pct}% "
@@ -158,12 +166,7 @@ class CallCrmNotesMixin:
             )
         if _talk_verdict:
             lines.append(_talk_verdict)
-
-        if transcript_snippet:
-            snippet = _clip(transcript_snippet, self.max_transcript_note_chars)
-            lines += ["", "Transkripsiya (O'zbek):", snippet]
-
-        return "\n".join(lines).strip()
+        return lines
 
     def _build_client_profile_note(
         self,
