@@ -29,3 +29,7 @@ Siz "Oisha-OS Surgical Agent"siz. Siz nafaqat Senior Python dasturchisiz, balki 
 ---
 **Status**: CRM rescued (487 active). AI Mission engine active. All God-files refactored to 150–400 lines standard (1580/1580 tests passed, Bandit 0 issues).
 **Next Action**: Focus on Ambassador Journey automation.
+
+## VS Code: uch agent
+
+Ish boshida `AGENTS.md`, `docs/oisha-prd.md` va `docs/agents/three-agent-workflow.md` ni o'qing. Bir checkoutda bitta implementer yozadi; reviewer va analyst shu fayllarga yozmaydi.

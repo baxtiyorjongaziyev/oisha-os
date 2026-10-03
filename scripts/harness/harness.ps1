@@ -1,6 +1,6 @@
 # Harness Loop Wrapper for Windows PowerShell
 param(
-    [string]$Target = "tests/test_ai.py"
+    [string]$Target = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,5 +14,9 @@ if (-not (Test-Path $python)) {
     Write-Error "Virtual environment not found at .venv\Scripts\python.exe"
 }
 
-& $python (Join-Path $root "scripts\harness\run_harness.py") $Target
+$harnessArgs = @()
+if ($Target) {
+    $harnessArgs += $Target
+}
+& $python (Join-Path $root "scripts\harness\run_harness.py") @harnessArgs
 exit $LASTEXITCODE

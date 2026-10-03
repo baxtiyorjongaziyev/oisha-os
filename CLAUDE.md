@@ -333,3 +333,7 @@ Standalone Meta-OAuth app (independent of the pnpm workspaces): FastAPI `backend
   `fix(scope): …`, `refactor(scope): …`.
 - `DEV_LOG.md` and `AGENTS.md` track running history/coordination — skim them for context
   on recent work before starting.
+
+## VS Code: uch agent
+
+Ish boshida `AGENTS.md`, `docs/oisha-prd.md` va `docs/agents/three-agent-workflow.md` ni o'qing. Bir checkoutda bitta implementer yozadi; reviewer va analyst shu fayllarga yozmaydi.

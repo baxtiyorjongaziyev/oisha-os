@@ -15,7 +15,9 @@ from src.services.utils.gemini_fallback import model_candidates
 
 
 @pytest.fixture(autouse=True)
-def reset_call_analyzer_cooldown():
+def reset_call_analyzer_cooldown(monkeypatch):
+    from src.settings import settings
+    monkeypatch.setattr(settings, "ENABLE_AMOCRM_CALL_TASKS", True)
     CallAnalyzer._gemini_blocked_until = 0.0
     yield
     CallAnalyzer._gemini_blocked_until = 0.0
