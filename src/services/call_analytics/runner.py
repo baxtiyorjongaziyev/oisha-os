@@ -40,47 +40,34 @@ class CallRunnerMixin(NoteExtractorMixin):
         self.voice_processor = voice_processor
 
         from src.settings import settings
+        from src.services.utils.free_ai_router import get_free_ai_router
 
         self._settings = settings
-        self.model_name = (
-            model_name
-            or getattr(settings, "GEMINI_CALL_MODEL", "gemini-2.5-flash")
-            or "gemini-2.5-flash"
-        )
+        self.model_name = model_name or getattr(settings, "GEMINI_CALL_MODEL", "gemini-2.5-flash") or "gemini-2.5-flash"
         self.max_audio_mb = int(getattr(settings, "AMOCRM_CALL_MAX_AUDIO_MB", 19) or 19)
-        self.max_transcript_note_chars = int(
-            getattr(settings, "AMOCRM_CALL_TRANSCRIPT_NOTE_CHARS", 6000) or 6000
-        )
+        self.max_transcript_note_chars = int(getattr(settings, "AMOCRM_CALL_TRANSCRIPT_NOTE_CHARS", 6000) or 6000)
         self.create_tasks = bool(getattr(settings, "ENABLE_AMOCRM_CALL_TASKS", True))
         self.task_due_hours = int(getattr(settings, "AMOCRM_CALL_TASK_DUE_HOURS", 24) or 24)
         self._moizvonki_session = None
-        self.gemini_cooldown_seconds = int(
-            os.getenv("GEMINI_CALL_COOLDOWN_SECONDS", "900")
-        )
+        self.gemini_cooldown_seconds = int(os.getenv("GEMINI_CALL_COOLDOWN_SECONDS", "900"))
         self._cooldown_loaded = False
-        from src.services.utils.free_ai_router import get_free_ai_router
-
         self.free_ai_router = get_free_ai_router()
 
         self.genai_client = gemini_client
         if self.genai_client is None:
-            api_key = ""
             try:
                 api_key = settings.GEMINI_API_KEY.get_secret_value()
+                if api_key:
+                    from google import genai
+                    self.genai_client = genai.Client(api_key=api_key)
             except Exception as exc:
                 logger.error("[CALL] Failed to read GEMINI_API_KEY: %s", exc)
-                api_key = ""
-            if api_key:
-                from google import genai
-
-                self.genai_client = genai.Client(api_key=api_key)
 
         self.openai_client = None
         openai_key = self._get_openai_api_key()
         if openai_key:
             try:
                 from openai import OpenAI
-
                 self.openai_client = OpenAI(api_key=openai_key)
             except Exception as exc:
                 logger.warning("[CALL] OpenAI fallback client init failed: %s", exc)
