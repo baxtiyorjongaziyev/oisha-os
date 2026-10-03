@@ -1175,3 +1175,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Files: `.mcp.json` (yangi, sirsiz), `.gitignore` (`!.mcp.json`), `docs/meta-social-technologies-mcp.md` (yangi), `docs/instagram-full-integration.md` (havola).
 - Runtime kodi o'zgarmagan. Webhook manage/test — Owner tasdig'i bilan (hujjatda).
 - Open: har bir dasturchi `/mcp` → Authenticate qilishi kerak (OAuth, sessiyaga bog'liq).
+
+## 2026-10-03 — Claude Code — claude/meta-social-technologies-mcp-a1bup3 (2)
+- Task: haftalik Meta app health-check → Owner Telegram (dushanba 09:15 Toshkent).
+- Files: `src/services/core/instagram/meta_health_check.py`, `src/schedulers/meta_health_scheduler.py` (yangi), `src/bootstrap/orchestration/schedulers.py` (loop ro'yxatga olindi), `.env.example` (`META_PAGE_ID`, `META_GRAPH_API_VERSION`, `META_HEALTH_CHECK_ENABLED`), `tests/test_meta_health_check.py`, `docs/meta-social-technologies-mcp.md`.
+- Read-only Graph API: debug_token, rate-limit header'lari, facebook-api-version, Page subscribed_apps. Token Bearer header'da, hisobot/logga chiqmaydi.
+- Open: prod `.env` da `META_PAGE_ID` bo'lmasa webhook tekshiruvi ⚠️ bilan o'tkaziladi.
