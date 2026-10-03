@@ -1111,3 +1111,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - **Tekshiruv:** command center testlari 21 passed (--noconftest; sandbox'da cffi yo'q), bandit toza, workflow skripti bash -n/sh -n, Caddy awk bloki repo Caddyfile'da sinaldi, docker oqimi soxta docker bilan simulyatsiya qilindi.
 - **Server natijasi (run 36979971683):** n8n-n8n-1, n8n_n8n_data volume, n8n_default tarmoq, image o'chirildi; Ollama ishlab turgan ekan — disable qilindi; Caddy n8n bloki olib tashlandi (zaxira Caddyfile.bak-n8n); oisha-leads + oisha-os restart, /readyz 200 (degraded: userbot_unauthorized — eski muammo). Swap 988MB → 366MB. Keyingi run ~/n8n compose papkasini o'chiradi.
 - **Qolgan ish:** Owner: DNS'dagi n8n.jonbranding.uz yozuvi va Oracle Security List'dagi 5678 port qoidasini o'chirish.
+
+## 2026-10-03 — Claude Code — fix/calls-report-rep-names
+- Task: `MOIZVONKI_REP_NAMES` ni `deploy/systemd/oisha-calls-report.service` ga qo'shish (#788 davomi; `.env` guard bilan bloklangan).
+- Files: `deploy/systemd/oisha-calls-report.service`
+- Server: vaqtinchalik drop-in `/etc/systemd/system/oisha-calls-report.service.d/rep-names.conf` deploy'dan keyin o'chiriladi.
+- Open: yo'q.
