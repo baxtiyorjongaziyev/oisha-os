@@ -1187,3 +1187,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Files: `.claude/skills/steward/SKILL.md`, `.claude/skills/preflight/SKILL.md` (yangi), `.cursor/rules/steward.mdc`, `.cursor/rules/preflight.mdc` (yangi, Claude skill'iga `@` havola), `.gitignore` (`!.claude/skills/`).
 - Runtime kodi o'zgarmagan. Preflight buyruqlari `.github/workflows/test.yml` bilan moslangan.
 - Open: CI yoki AGENTS.md pre-flight o'zgarsa — `.claude/skills/preflight/SKILL.md` ni yangilang (Cursor qoidasidagi qisqa buyruqlar ham).
+
+## 2026-10-03 — Claude Code — claude/install-claude-cursor-skills-ipt47r (2)
+- Task: video'dagi uchinchi tomon skill'larini asl repolaridan o'rnatish (Claude Code + Cursor).
+- Files: `.claude/skills/*` (64 papka, verbatim upstream), `.claude/agents/poteto-agent.md`, `.claude/skills/THIRD_PARTY.md` (manba/commit/litsenziya/buyruq), `.gitignore`.
+- Tekshiruv: gitleaks 8.21.2 (`.gitleaks.toml`) — no leaks; barcha SKILL.md frontmatter'i to'g'ri; asosiy SKILL.md'lar o'qildi, skriptlar exec/tarmoq naqshlariga grep qilindi.
+- Open: Open Design skill emas (ilova) — o'rnatilmadi. Matt Pocock skill'lari uchun `/setup-matt-pocock-skills` hali ishlatilmagan.
