@@ -69,6 +69,7 @@ async def test_audit_outputs_and_side_effects(category, duplicate):
     assert '(2h)' in context['telegram_unanswered_info']
     assert '(3h)' in context['telegram_unanswered_info']
     saved = auditor.save_audit_result.await_args.kwargs
+    auditor.get_lead_tasks.assert_awaited_once_with(12)
     assert saved['telegram_history'] == 'private\n\n--- Guruh: Title ---\ngroup history'
     assert saved['temperature'] == ('Iliq' if category == 'Mijoz' else None)
     assert saved['task_text'] == ' task '
