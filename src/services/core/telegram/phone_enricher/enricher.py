@@ -156,6 +156,11 @@ class TelegramPhoneEnricher:
             result.reason = "Contact yozuvlarida @username topilmadi"
             return result
 
+        await self._lookup_usernames(result, usernames)
+        await self._apply_enrichment(result, usernames, dry_run)
+        return result
+
+    async def _lookup_usernames(self, result: EnrichmentResult, usernames: List[str]) -> None:
         for username in usernames:
             try:
                 phone, tg_id = await self._resolve_username(username)
@@ -172,38 +177,33 @@ class TelegramPhoneEnricher:
                 result.resolved_phone = phone
                 result.status = "found"
                 result.evidence.append(f"@{username} -> {phone}")
-                break
-            else:
-                result.status = "hidden"
-                result.reason = "Telegram raqamni yashirgan (privacy)"
-                result.evidence.append(f"@{username} -> phone hidden")
+                return
+            result.status = "hidden"
+            result.reason = "Telegram raqamni yashirgan (privacy)"
+            result.evidence.append(f"@{username} -> phone hidden")
 
-        if result.resolved_phone:
-            if dry_run:
-                result.status = "dry_run"
-                result.reason = "Dry-run: raqam topildi, lekin yozilmadi"
-                return result
-            applied = await asyncio.to_thread(
-                self._patch_contact_phone, contact_id, result.resolved_phone
-            )
-            if applied:
-                result.status = "applied"
+    async def _apply_enrichment(
+        self, result: EnrichmentResult, usernames: List[str], dry_run: bool
+    ) -> None:
+        contact_id = result.contact_id
+        if not result.resolved_phone:
+            if not dry_run:
+                checked = ", ".join("@" + u for u in usernames)
                 await self._tag_and_note(
-                    contact_id,
-                    ENRICHMENT_TAG,
-                    self._format_enrichment_note(result),
+                    contact_id, NO_PHONE_TAG, f"Oisha: telefon topib bo'lmadi. Tekshirilgan: {checked}"
                 )
-            else:
-                result.status = "error"
-                result.reason = "AmoCRM PATCH muvaffaqiyatsiz"
+            return
+        if dry_run:
+            result.status = "dry_run"
+            result.reason = "Dry-run: raqam topildi, lekin yozilmadi"
+            return
+        applied = await asyncio.to_thread(self._patch_contact_phone, contact_id, result.resolved_phone)
+        if applied:
+            result.status = "applied"
+            await self._tag_and_note(contact_id, ENRICHMENT_TAG, self._format_enrichment_note(result))
         else:
-            await self._tag_and_note(
-                contact_id,
-                NO_PHONE_TAG,
-                f"Oisha: telefon topib bo'lmadi. Tekshirilgan: {', '.join('@' + u for u in usernames)}",
-            ) if not dry_run else None
-
-        return result
+            result.status = "error"
+            result.reason = "AmoCRM PATCH muvaffaqiyatsiz"
 
     def _build_contact_corpus(self, contact: Dict[str, Any]) -> str:
         parts: List[str] = [str(contact.get("name") or "")]
@@ -263,7 +263,13 @@ class TelegramPhoneEnricher:
         if phone:
             return normalize_phone(phone), tg_id
 
-        # Try ImportContactsRequest as a probe — does NOT permanently store contact.
+        probed = await self._probe_phone_via_import(entity, username)
+        return probed, tg_id
+
+    async def _probe_phone_via_import(self, entity, username: str) -> Optional[str]:
+        """ImportContactsRequest probe — imported contact is deleted right after."""
+        from telethon.tl import functions, types  # type: ignore
+
         try:
             imported = await self.tg_client(
                 functions.contacts.ImportContactsRequest(
@@ -277,20 +283,17 @@ class TelegramPhoneEnricher:
                     ]
                 )
             )
-            for user in getattr(imported, "users", []) or []:
-                if user.id == entity.id and getattr(user, "phone", None):
-                    # cleanup: delete the imported contact
-                    try:
-                        await self.tg_client(
-                            functions.contacts.DeleteContactsRequest(id=[user])
-                        )
-                    except Exception:
-                        logger.debug("[ENRICH] Failed to clean up imported Telegram contact", exc_info=True)
-                    return normalize_phone(user.phone), tg_id
         except Exception as exc:
             logger.debug(f"[ENRICH] ImportContacts probe failed for @{username}: {exc}")
-
-        return None, tg_id
+            return None
+        for user in getattr(imported, "users", []) or []:
+            if user.id == entity.id and getattr(user, "phone", None):
+                try:
+                    await self.tg_client(functions.contacts.DeleteContactsRequest(id=[user]))
+                except Exception:
+                    logger.debug("[ENRICH] Failed to clean up imported Telegram contact", exc_info=True)
+                return normalize_phone(user.phone)
+        return None
 
     # -----------------------
     # AmoCRM writeback
