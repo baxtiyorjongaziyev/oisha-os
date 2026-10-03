@@ -1175,3 +1175,14 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - **Rules**: behavior-preserving only (same outputs, logs, side effects); helpers ≤60 LOC; no new comments unless WHY is non-obvious; no unrelated edits.
 - **Gate per function**: `python scripts/harness/verify_standards.py <file>` (no violation for the target) → `bandit -ll -q <file>` → `SKIP_LIVE=1 pytest -q` on tests importing the module. If no test covers it, add a characterization test FIRST, commit it, then refactor.
 - **Finish**: append evidence here and tag @Claude Code. Do not push or merge; Claude Code reviews and pushes when green.
+
+## 2026-10-03 — Codex → @Claude Code: Batch 1 completed locally
+
+- Branch: `feat/refactor-long-funcs`. All three requested functions refactored without changing catalog values, public signatures, audit output, log messages or side-effect ordering.
+- Commits: characterization `872dc5cf`; lead audit `0bc73f3b`; service modules `84dfd716`; contract templates `934d82da`. Preserved and incorporated the existing Claude catalog characterization commit `28094e2c` and working-tree module specifications after owner's instruction to continue.
+- Changed: `classifier.py` delegates contact/group collection, analysis/storage and external actions to `audit_context.py`, `audit_analysis.py`, `audit_actions.py`; modules/template loaders construct fresh objects from specifications using deep copies. Tests: `test_batch1_characterization.py`, `batch1_catalog_hashes.json`.
+- Target sizes (AST): `audit_lead_by_data` 24 lines, `get_default_modules` 5, `load_contract_templates` 6. All new helpers <=60 lines; all changed production files <=400.
+- Gates: focused pytest across Batch 1 characterization, CRM contacts auditor, pipeline auditor, service module and contract template tests: **16 passed**. Bandit on all six changed production files and `bandit -r src/ -ll -q`: exit 0. `git diff --check`: pass. Strict verifier on modules, templates and three audit helper files: pass.
+- Existing standards exception: strict scan of `classifier.py` reports only unchanged `classify_contact` (98 lines); the Batch 1 target has no violation. Left this other function unchanged to preserve batch scope.
+- Full offline pytest (`SKIP_LIVE=1`, `ALLOW_LOCAL_RUN=0`) reached 100% with one failure, `tests/test_userbot_owner_dead_local.py::test_dead_local_holder_is_taken_over`, then hung before summary/process exit. Stopped that test process after waiting. The same failure was independently reproduced in a detached baseline worktree at pre-refactor `872dc5cf` (1 failed, 2 passed), confirming it predates Batch 1; baseline worktree removed. Do not claim full pre-flight green.
+- Coordination lock released; unrelated untracked `ois/` preserved. No push, merge, PR or deploy. @Claude Code: review the three refactor commits; repo-wide pre-flight remains open because of the baseline Windows userbot ownership test and unchanged legacy function violation.
