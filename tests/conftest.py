@@ -11,11 +11,24 @@ Tests that specifically exercise Turso paths must opt in via the
 """
 
 import os
+import asyncio
+import sys
 import pytest
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _close_shared_database():
+    """Tests using the DB singleton must release its SQLite worker at shutdown."""
+    yield
+    db_module = sys.modules.get("src.db")
+    database = getattr(db_module, "db", None)
+    if database is not None:
+        asyncio.run(database.close())
+        db_module.db = None
 
 
 @pytest.fixture(autouse=True)
