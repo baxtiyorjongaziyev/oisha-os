@@ -1181,3 +1181,21 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Files: `src/services/core/instagram/meta_health_check.py`, `src/schedulers/meta_health_scheduler.py` (yangi), `src/bootstrap/orchestration/schedulers.py` (loop ro'yxatga olindi), `.env.example` (`META_PAGE_ID`, `META_GRAPH_API_VERSION`, `META_HEALTH_CHECK_ENABLED`), `tests/test_meta_health_check.py`, `docs/meta-social-technologies-mcp.md`.
 - Read-only Graph API: debug_token, rate-limit header'lari, facebook-api-version, Page subscribed_apps. Token Bearer header'da, hisobot/logga chiqmaydi.
 - Open: prod `.env` da `META_PAGE_ID` bo'lmasa webhook tekshiruvi ⚠️ bilan o'tkaziladi.
+
+## 2026-10-03 — Claude Code — claude/install-claude-cursor-skills-ipt47r
+- Task: `steward` (PR'ni yashil holatga yetkazish) va `preflight` (CI bilan bir xil lokal tekshiruv) skill'larini Claude Code va Cursor uchun o'rnatish.
+- Files: `.claude/skills/steward/SKILL.md`, `.claude/skills/preflight/SKILL.md` (yangi), `.cursor/rules/steward.mdc`, `.cursor/rules/preflight.mdc` (yangi, Claude skill'iga `@` havola), `.gitignore` (`!.claude/skills/`).
+- Runtime kodi o'zgarmagan. Preflight buyruqlari `.github/workflows/test.yml` bilan moslangan.
+- Open: CI yoki AGENTS.md pre-flight o'zgarsa — `.claude/skills/preflight/SKILL.md` ni yangilang (Cursor qoidasidagi qisqa buyruqlar ham).
+
+## 2026-10-03 — Claude Code — claude/install-claude-cursor-skills-ipt47r (2)
+- Task: video'dagi uchinchi tomon skill'larini asl repolaridan o'rnatish (Claude Code + Cursor).
+- Files: `.claude/skills/*` (64 papka, verbatim upstream), `.claude/agents/poteto-agent.md`, `.claude/skills/THIRD_PARTY.md` (manba/commit/litsenziya/buyruq), `.gitignore`.
+- Tekshiruv: gitleaks 8.21.2 (`.gitleaks.toml`) — no leaks; barcha SKILL.md frontmatter'i to'g'ri; asosiy SKILL.md'lar o'qildi, skriptlar exec/tarmoq naqshlariga grep qilindi.
+- Open: Open Design skill emas (ilova) — o'rnatilmadi. Matt Pocock skill'lari uchun `/setup-matt-pocock-skills` hali ishlatilmagan.
+
+## 2026-10-03 — Claude Code — claude/install-claude-cursor-skills-ipt47r (3)
+- Task: skill'larni Codex va Antigravity uchun ham ochish (ikkalasi `.agents/skills/` ni o'qiydi).
+- Files: `.agents/skills/` (`.claude/skills/` nusxasi), `scripts/sync_agent_skills.py`, `tests/test_agent_skills_sync.py`, `.gitignore` (`!.claude/skills/**`, `!.agents/skills/**`), `.claude/skills/THIRD_PARTY.md`, `.claude/skills/preflight/SKILL.md`.
+- Tekshiruv: test drift'da FAILED, sync'dan keyin passed; `--check` exit 1/0.
+- Open: `.claude/skills/` ni tahrirlagan agent `python scripts/sync_agent_skills.py` ni ishga tushirishi shart.
