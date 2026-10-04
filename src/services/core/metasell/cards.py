@@ -3,7 +3,7 @@ Telegram card and team report formatting for MetaSell conversion engine.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from src.services.core.metasell.constants import (
     MIN_ACCEPTABLE_ANSWER_RATE,
@@ -20,6 +20,19 @@ def build_seller_card(
     diagnosis: SellerDiagnosis, volume: Optional[Any] = None
 ) -> str:
     """Bitta sotuvchi uchun haftalik o'sish kartochkasi."""
+    lines = _seller_card_summary(diagnosis, volume)
+
+    if not diagnosis.has_diagnosis:
+        lines += ["", f"ℹ️ {diagnosis.reason}"]
+        return "\n".join(lines)
+
+    lines += _seller_card_growth(diagnosis)
+    return "\n".join(lines)
+
+
+def _seller_card_summary(
+    diagnosis: SellerDiagnosis, volume: Optional[Any]
+) -> List[str]:
     lines = [
         f"🎯 KONVERSIYA KARTOCHKASI — {diagnosis.manager_name}",
         "",
@@ -46,11 +59,11 @@ def build_seller_card(
             f"{diagnosis.deals_lost} ta yutqazildi "
             f"({format_money(diagnosis.revenue_at_risk)})",
         ]
+    return lines
 
-    if not diagnosis.has_diagnosis:
-        lines += ["", f"ℹ️ {diagnosis.reason}"]
-        return "\n".join(lines)
 
+def _seller_card_growth(diagnosis: SellerDiagnosis) -> List[str]:
+    lines = []
     stage_label = STAGE_LABELS_UZ.get(diagnosis.growth_stage, diagnosis.growth_stage)
     lines += [
         "",
@@ -88,7 +101,7 @@ def build_seller_card(
             + ", ".join(diagnosis.top_objections),
         ]
 
-    return "\n".join(lines)
+    return lines
 
 
 def build_team_report(
