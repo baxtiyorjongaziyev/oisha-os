@@ -149,6 +149,12 @@ __pycache__/
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
+!.claude/skills/
+!.claude/agents/
+# Third-party skill runtime state (unlazy gates, autoresearch run logs)
+.unlazy/
+.unlazy-hook-state.json
+/autoresearch/
 
 # Sensitive runtime outputs
 data/session_output.txt
@@ -156,3 +162,7 @@ data/verify_result.txt
 data/reports/
 data/job_claims/
 *.png
+
+# Agent skills ship json/txt assets; keep them tracked despite the global rules above
+!.claude/skills/**
+!.agents/skills/**
