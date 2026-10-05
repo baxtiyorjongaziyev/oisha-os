@@ -41,3 +41,11 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    # Resolver verified against production Linux/Python 3.11 on 2026-10-05.
+    # aiohttp <7 multidict constraint and Sphinx <0.23 docutils constraint.
+    # Ignore only these incompatible releases; security alerts remain enabled.
+    ignore:
+      - dependency-name: "multidict"
+        versions: ["7.0.0"]
+      - dependency-name: "docutils"
+        versions: ["0.23"]
