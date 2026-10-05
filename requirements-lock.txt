@@ -65,7 +65,7 @@ charset-normalizer==3.5.1
     # via requests
 click==8.5.0
     # via uvicorn
-cryptography==50.0.1
+cryptography==50.0.2
     # via
     #   google-auth
     #   pyjwt
