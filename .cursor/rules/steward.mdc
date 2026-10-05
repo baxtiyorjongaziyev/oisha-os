@@ -1,0 +1,22 @@
+---
+description: Drive an Oisha-OS pull request to green and mergeable — CI failures, merge conflicts, review comments. Apply when babysitting a PR or asked to get a PR green.
+globs:
+alwaysApply: false
+---
+
+# PR Steward (Oisha-OS)
+
+To'liq qo'llanma (yagona manba): @.claude/skills/steward/SKILL.md
+
+Tartib: **konflikt → CI → review**.
+
+1. **Konflikt:** `git fetch origin main && git merge origin/main` (rebase/force-push yo'q).
+   Lockfile'larni `pnpm install` bilan qayta yarating, qo'lda emas.
+2. **CI qizil:** log'ni o'qing, xatoni lokal takrorlang (preflight), ildiz sababini tuzating.
+   `main` da ham qizil bo'lsa — PR'ga bitta izoh. "Flake" sabab emas; qayta run ko'pi bilan bir marta.
+   Testni o'chirish/skip/xfail, bo'sh commit, PR'ni yopib-ochish taqiqlanadi.
+3. **Review:** kichik so'rovlarni bajaring; katta (ko'p fayl, API/schema, shared fayllar:
+   `settings.py`, `context.py`, `boot.py`, `AGENTS.md`) — taklif yozing, Owner hal qiladi.
+
+Push'dan oldin preflight ✅, diff minimal, commit `fix(scope): …`. Approve/merge qilmang.
+Tugagach: `AGENTS.md` Locks'dan qulfni o'chiring, `docs/agents/handoff-log.md` oxiriga yozing.
