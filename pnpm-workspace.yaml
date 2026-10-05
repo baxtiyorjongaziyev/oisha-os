@@ -2,26 +2,30 @@ packages:
   - apps/*
   - packages/*
 
+patchedDependencies:
+  braces@3.0.3: patches/braces@3.0.3.patch
+
 overrides:
   '@babel/core': ^7.29.6
-  # ReDoS/OOM advisories v1 uchun 1.1.18, v2+ uchun 5.0.9 da tuzatilgan.
-  brace-expansion@<1.1.18: '>=1.1.18 <2'
-  brace-expansion@>=2 <5.0.9: '>=5.0.9'
-  fast-uri: ^3.1.6
+  # ReDoS/OOM advisories v1 uchun 1.1.21, v2+ uchun 5.0.12 da tuzatilgan.
+  brace-expansion@<1.1.21: '>=1.1.21 <2'
+  brace-expansion@>=2 <5.0.12: '>=5.0.12'
+  fast-uri: ^3.1.8
   file-type: ^21.3.1
   hono: ^4.13.5
-  ip-address: ^10.3.1
+  ip-address: ^10.7.1
   js-yaml: ^4.3.2
-  multer: ^2.3.0
+  multer: ^2.4.0
   music-metadata: ^11.12.3
   nanoid: ^3.3.18
-  nodemailer: ^9.1.1
+  nodemailer: ^10.0.9
   postcss: ^8.5.28
   sharp@<0.35.4: '>=0.35.4'
   socket.io-parser: ^4.2.7
   uuid: ^11.1.1
-  next: 16.3.3
+  next: 16.3.6
   qs: ^6.16.0
   browserslist: ^4.28.7
   baseline-browser-mapping: ^2.11.0
 
+  engine.io: ^6.6.10

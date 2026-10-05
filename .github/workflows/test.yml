@@ -142,6 +142,9 @@ jobs:
       - name: Install TypeScript workspace dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify braces depth protection
+        run: node scripts/check_braces_security.cjs
+
       - name: Typecheck workspace
         run: pnpm run typecheck
 
@@ -179,6 +182,7 @@ jobs:
           cache-dependency-path: salescoach-ai/pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
+      - run: node ../scripts/check_braces_security.cjs
       - run: pnpm run type-check
       - run: pnpm run test
       - run: pnpm run build

@@ -15,7 +15,7 @@ requests>=2.34.2
 openai>=3.5.0
 anthropic>=1.2.0
 google-genai>=2.20.0
-google-auth>=2.58.0
+google-auth>=2.58.1
 google-auth-httplib2>=0.2.0
 google-auth-oauthlib>=1.4.0
 google-api-python-client>=2.199.0
@@ -23,10 +23,10 @@ gspread>=6.2.1
 libsql>=0.1.11
 libsql-client>=0.3.1
 apscheduler>=3.11.3
-pyjwt>=2.13.0
+pyjwt>=2.15.0
 bcrypt>=5.0.0
 python-multipart>=0.0.32
-phonenumbers>=9.0.39
+phonenumbers>=9.0.40
 aiosqlite>=0.22.1
 structlog>=26.1.0
 tenacity>=9.1.4
@@ -36,8 +36,12 @@ psutil>=7.2.2
 playwright>=1.62.0
 pyautogui>=0.9.54
 mss>=10.2.0
-instagrapi>=3.0.2
+instagrapi>=3.0.14
 pyperclip>=1.11.0
 google-analytics-data>=0.23.0
 mcp>=1.28.1,<2.0.0
 telegram-mcp @ git+https://github.com/baxtiyorjongaziyev/telegram-mcp.git@f1a2d8e00a7f127bb7702655c58fdfcee7e73a5a
+
+oauthlib>=4.0.0
+
+urllib3>=2.8.0
