@@ -72,36 +72,6 @@ class TaskAnalyzerMixin:
         Uses Gemini to extract a list of structured action items and relative deadlines.
         Returns a list of dicts: [{'text': 'vazifa matni', 'due_in_hours': 24}]
         """
-        prompt = (
-            f"Siz Jon Branding agency AI operatsion tizimi - Oishasiz. "
-            f"Quyida menejer va mijoz o'rtasidagi Telegram suhbatining (matn va transkripsiya) tarixi taqdim etilgan:\n\n"
-            f"--- SUHBAT BOSHLANISHI ---\n"
-            f"{full_chat_text}\n"
-            f"--- SUHBAT YAKUNI ---\n\n"
-            f"Ushbu suhbatni diqqat bilan tahlil qiling va HALI BAJARILMAGAN, kutilayotgan harakatlarni aniqlang.\n\n"
-            f"MUHIM QOIDALAR:\n"
-            f"1. Agar suhbatda biror ish ALLAQACHON bajarilganligini ko'rsatuvchi belgilar bo'lsa — bu ish uchun VAZIFA YARATMANG.\n"
-            f"   Bajarilganlik belgilari:\n"
-            f"   - Menejer 'yubordik', 'jo'natdik', 'tayyorladik', 'qildik', 'yuborib qo'ydik', 'tashlab qo'ydik' deb yozgan\n"
-            f"   - Menejer shu so'rovga javob bergan (masalan, rekvizit so'raldi → menejer rekvizit yubordi)\n"
-            f"   - Mijoz 'rahmat', 'oldim', 'ko'rdim', 'yaxshi', 'tushunarli' deb tasdiqlagan\n"
-            f"   - Shartnoma, hujjat, fayl, link yuborilganligi ko'rinib turibdi\n"
-            f"2. Faqat hali javob berilmagan, bajarilmagan, kutilayotgan ishlarni oling.\n"
-            f"3. Nisbiy muddatlarni aniqlang (due_in_hours):\n"
-            f"   - Vaqt aytilmagan bo'lsa: 24 soat\n"
-            f"   - 'bugun': 6 soat\n"
-            f"   - 'ertaga': 24 soat\n"
-            f"   - 'dushanba': 72 soat\n"
-            f"4. Agar suhbatda bajarilishi kerak bo'lgan hech narsa qolmagan bo'lsa — bo'sh massiv [] qaytaring.\n\n"
-            f"Javobni FAQAT quyidagi JSON formatida qaytaring, hech qanday qo'shimcha matn yoki izohsiz:\n"
-            f"[\n"
-            f"  {{\n"
-            f"    \"text\": \"Mijozga ekspert tekshiruvi xizmati narxi va karta raqamini yuborish\",\n"
-            f"    \"due_in_hours\": 24\n"
-            f"  }}\n"
-            f"]"
-        )
-
         await self._load_persisted_cooldowns()
         if not self.genai_client:
             logger.warning("[TELEGRAM_TASK] Gemini client missing; using local extraction.")
@@ -110,6 +80,13 @@ class TaskAnalyzerMixin:
             logger.info("[TELEGRAM_TASK] Gemini cooldown active; using local extraction.")
             return self._fallback_extract_tasks(full_chat_text)
 
+        prompt = TASK_PROMPT_TEMPLATE.replace("__CHAT__", full_chat_text)
+        tasks = await self._gemini_extract_tasks(prompt)
+        if tasks is not None:
+            return tasks
+        return self._fallback_extract_tasks(full_chat_text)
+
+    async def _gemini_extract_tasks(self, prompt: str) -> List[Dict[str, Any]] | None:
         try:
             config = genai_types.GenerateContentConfig(
                 temperature=0.1,
@@ -129,20 +106,22 @@ class TaskAnalyzerMixin:
                 if isinstance(data, list):
                     return data
         except Exception as e:
-            if is_quota_error(e):
-                self._pause_gemini()
-                await self._persist_cooldowns()
-                logger.warning(
-                    "[TELEGRAM_TASK] Gemini quota exhausted; local extraction active for %ss.",
-                    self.gemini_cooldown_seconds,
-                )
-            else:
-                logger.warning(
-                    "[TELEGRAM_TASK] Gemini task extraction unavailable; using local extraction: %s",
-                    type(e).__name__,
-                )
+            await self._handle_gemini_error(e)
+        return None
 
-        return self._fallback_extract_tasks(full_chat_text)
+    async def _handle_gemini_error(self, e: Exception) -> None:
+        if is_quota_error(e):
+            self._pause_gemini()
+            await self._persist_cooldowns()
+            logger.warning(
+                "[TELEGRAM_TASK] Gemini quota exhausted; local extraction active for %ss.",
+                self.gemini_cooldown_seconds,
+            )
+        else:
+            logger.warning(
+                "[TELEGRAM_TASK] Gemini task extraction unavailable; using local extraction: %s",
+                type(e).__name__,
+            )
 
     @staticmethod
     def _fallback_extract_tasks(full_chat_text: str) -> List[Dict[str, Any]]:
@@ -195,3 +174,6 @@ class TaskAnalyzerMixin:
                 }
             )
         return tasks[:5]
+
+
+TASK_PROMPT_TEMPLATE = 'Siz Jon Branding agency AI operatsion tizimi - Oishasiz. Quyida menejer va mijoz o\'rtasidagi Telegram suhbatining (matn va transkripsiya) tarixi taqdim etilgan:\n\n--- SUHBAT BOSHLANISHI ---\n__CHAT__\n--- SUHBAT YAKUNI ---\n\nUshbu suhbatni diqqat bilan tahlil qiling va HALI BAJARILMAGAN, kutilayotgan harakatlarni aniqlang.\n\nMUHIM QOIDALAR:\n1. Agar suhbatda biror ish ALLAQACHON bajarilganligini ko\'rsatuvchi belgilar bo\'lsa — bu ish uchun VAZIFA YARATMANG.\n   Bajarilganlik belgilari:\n   - Menejer \'yubordik\', \'jo\'natdik\', \'tayyorladik\', \'qildik\', \'yuborib qo\'ydik\', \'tashlab qo\'ydik\' deb yozgan\n   - Menejer shu so\'rovga javob bergan (masalan, rekvizit so\'raldi → menejer rekvizit yubordi)\n   - Mijoz \'rahmat\', \'oldim\', \'ko\'rdim\', \'yaxshi\', \'tushunarli\' deb tasdiqlagan\n   - Shartnoma, hujjat, fayl, link yuborilganligi ko\'rinib turibdi\n2. Faqat hali javob berilmagan, bajarilmagan, kutilayotgan ishlarni oling.\n3. Nisbiy muddatlarni aniqlang (due_in_hours):\n   - Vaqt aytilmagan bo\'lsa: 24 soat\n   - \'bugun\': 6 soat\n   - \'ertaga\': 24 soat\n   - \'dushanba\': 72 soat\n4. Agar suhbatda bajarilishi kerak bo\'lgan hech narsa qolmagan bo\'lsa — bo\'sh massiv [] qaytaring.\n\nJavobni FAQAT quyidagi JSON formatida qaytaring, hech qanday qo\'shimcha matn yoki izohsiz:\n[\n  {\n    "text": "Mijozga ekspert tekshiruvi xizmati narxi va karta raqamini yuborish",\n    "due_in_hours": 24\n  }\n]'

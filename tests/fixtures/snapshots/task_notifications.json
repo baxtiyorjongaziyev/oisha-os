@@ -1,0 +1,61 @@
+{
+  "contact_new": {
+    "msg": "📋 <b>Yangi vazifa biriktirildi</b>\n\n👤 <b>Mijoz:</b> Aziz\n📞 <b>Telefon:</b> +998901234567\n💬 <b>Telegram:</b> <a href=\"https://t.me/aziz_tg\">@aziz_tg</a>\n\n🏷️ <b>Vazifa turi:</b> 📞 Qo'ng'iroq\n📝 <b>Vazifa:</b> Vazifa matni ko&#x27;rsatilmagan\n👤 <b>Mas'ul:</b> Mas&#x27;ul xodim\n⏰ <b>Muddat:</b> TS(None)",
+    "buttons": [
+      [
+        {
+          "text": "🌐 Перейти в amoCRM",
+          "url": "https://jonbranding.amocrm.ru/contacts/detail/77"
+        }
+      ]
+    ]
+  },
+  "lead_full_due": {
+    "msg": "🔔 <b>Пора выполнить задачу! (Vazifa vaqti keldi)</b>\n\n📌 <b>Bitim:</b> <b>Logo &lt;Brend&gt;</b>\n👤 <b>Mijoz:</b> Aziz\n📞 <b>Telefon:</b> +998901234567\n💬 <b>Telegram:</b> <a href=\"https://t.me/@jon_client\">@@jon_client</a>\n📊 <b>Bosqich:</b> Sotuv ➔ KP\n🎯 <b>Xizmat:</b> Logo &amp; Brandbook\n📍 <b>Manba:</b> Instagram\n💰 <b>Byudjet:</b> 12 500 000 so&#x27;m\n\n🏷️ <b>Vazifa turi:</b> 🤝 Uchrashuv\n📝 <b>Vazifa:</b> Uchrashuv &lt;b&gt;KP&lt;/b&gt;\n👤 <b>Mas'ul:</b> Ali &amp; Co\n⏰ <b>Muddat:</b> TS(1790000000)",
+    "buttons": [
+      [
+        {
+          "text": "🌐 Перейти в amoCRM",
+          "url": "https://jonbranding.amocrm.ru/leads/detail/555"
+        }
+      ]
+    ]
+  },
+  "lead_missing_no_entity": {
+    "msg": "🔔 <b>Пора выполнить задачу! (Vazifa vaqti keldi)</b>\n\n📌 <b>Bitim:</b> <b>Noma&#x27;lum</b>\n\n📝 <b>Vazifa:</b> Vazifa matni ko&#x27;rsatilmagan\n👤 <b>Mas'ul:</b> Mas&#x27;ul xodim\n⏰ <b>Muddat:</b> TS(None)",
+    "buttons": null
+  },
+  "lead_overdue_unknown_ids": {
+    "msg": "⚠️ <b>Просроченная задача! (Muddati o'tgan)</b>\n\n📌 <b>Bitim:</b> <b>X</b>\n📊 <b>Bosqich:</b> Voronka #1 ➔ Status #2\n\n🏷️ <b>Vazifa turi:</b> 📝 Vazifa\n📝 <b>Vazifa:</b> Vazifa matni ko&#x27;rsatilmagan\n👤 <b>Mas'ul:</b> Mas&#x27;ul xodim\n⏰ <b>Muddat:</b> TS(None)",
+    "buttons": [
+      [
+        {
+          "text": "🌐 Перейти в amoCRM",
+          "url": "https://demo.amocrm.ru/leads/detail/9"
+        }
+      ]
+    ]
+  },
+  "lead_status_only_bad_price": {
+    "msg": "🔔 <b>Пора выполнить задачу! (Vazifa vaqti keldi)</b>\n\n📌 <b>Bitim:</b> <b>Aziz</b>\n📞 <b>Telefon:</b> +1 &lt;2&gt;\n📊 <b>Bosqich:</b> Успешно реализовано\n💰 <b>Byudjet:</b> abc\n\n📝 <b>Vazifa:</b> Vazifa matni ko&#x27;rsatilmagan\n👤 <b>Mas'ul:</b> Mas&#x27;ul xodim\n⏰ <b>Muddat:</b> TS(None)",
+    "buttons": [
+      [
+        {
+          "text": "🌐 Перейти в amoCRM",
+          "url": "https://jonbranding.amocrm.ru/leads/detail/3"
+        }
+      ]
+    ]
+  },
+  "other_entity_type": {
+    "msg": "🔔 <b>Пора выполнить задачу! (Vazifa vaqti keldi)</b>\n\n\n📝 <b>Vazifa:</b> Vazifa matni ko&#x27;rsatilmagan\n👤 <b>Mas'ul:</b> Mas&#x27;ul xodim\n⏰ <b>Muddat:</b> TS(None)",
+    "buttons": [
+      [
+        {
+          "text": "🌐 Перейти в amoCRM",
+          "url": "https://jonbranding.amocrm.ru/contacts/detail/4"
+        }
+      ]
+    ]
+  }
+}

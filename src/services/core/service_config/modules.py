@@ -3,15 +3,14 @@ Default modules and package definitions for Service Configurator.
 """
 from __future__ import annotations
 
+import copy
 from typing import Dict, List
 
 from src.services.core.service_config.models import ServiceModule, ServiceType
 
 
-def get_default_modules() -> Dict[ServiceType, ServiceModule]:
-    modules = {}
-
-    modules[ServiceType.BRAND_AUDIT] = ServiceModule(
+_MODULE_SPECS = (
+    dict(
         id="brand_audit",
         name="Brand Audit",
         name_uz="Brand audit",
@@ -26,9 +25,8 @@ def get_default_modules() -> Dict[ServiceType, ServiceModule]:
         ],
         includes_phases=["D1", "D2", "D3", "D4", "D5", "D6"],
         total_steps=6,
-    )
-
-    modules[ServiceType.NAMING_CHECK] = ServiceModule(
+    ),
+    dict(
         id="naming_check",
         name="Naming Check",
         name_uz="Naming tekshiruvi",
@@ -43,9 +41,8 @@ def get_default_modules() -> Dict[ServiceType, ServiceModule]:
         ],
         includes_phases=["N2", "N4"],
         total_steps=2,
-    )
-
-    modules[ServiceType.NAMING] = ServiceModule(
+    ),
+    dict(
         id="naming",
         name="Naming",
         name_uz="Nom yaratish",
@@ -61,9 +58,8 @@ def get_default_modules() -> Dict[ServiceType, ServiceModule]:
         ],
         includes_phases=["N1", "N2", "N3", "N4", "N5", "N6"],
         total_steps=6,
-    )
-
-    modules[ServiceType.LOGO] = ServiceModule(
+    ),
+    dict(
         id="logo",
         name="Logo Design",
         name_uz="Logo dizayn",
@@ -79,9 +75,8 @@ def get_default_modules() -> Dict[ServiceType, ServiceModule]:
         ],
         includes_phases=["L1", "L2", "L3", "L4", "L5", "L6", "L7"],
         total_steps=7,
-    )
-
-    modules[ServiceType.VISUAL_IDENTITY] = ServiceModule(
+    ),
+    dict(
         id="visual_identity",
         name="Visual Identity",
         name_uz="Vizual identitet",
@@ -98,9 +93,8 @@ def get_default_modules() -> Dict[ServiceType, ServiceModule]:
         ],
         includes_phases=["V1", "V2", "V3", "V4", "V5", "V6", "V7"],
         total_steps=7,
-    )
-
-    modules[ServiceType.BRANDBOOK] = ServiceModule(
+    ),
+    dict(
         id="brandbook",
         name="Brandbook",
         name_uz="Brandbook",
@@ -128,9 +122,8 @@ def get_default_modules() -> Dict[ServiceType, ServiceModule]:
             "B9",
         ],
         total_steps=9,
-    )
-
-    modules[ServiceType.PACKAGING] = ServiceModule(
+    ),
+    dict(
         id="packaging",
         name="Packaging Design",
         name_uz="Qadoq dizayni",
@@ -154,9 +147,8 @@ def get_default_modules() -> Dict[ServiceType, ServiceModule]:
             "Q7",
         ],
         total_steps=7,
-    )
-
-    modules[ServiceType.PATENT_SUPPORT] = ServiceModule(
+    ),
+    dict(
         id="patent_support",
         name="Patent Support",
         name_uz="Patentlash yordami",
@@ -171,9 +163,15 @@ def get_default_modules() -> Dict[ServiceType, ServiceModule]:
         ],
         includes_phases=["PT1", "PT2", "PT3"],
         total_steps=3,
-    )
+    ),
+)
 
-    return modules
+
+def get_default_modules() -> Dict[ServiceType, ServiceModule]:
+    return {
+        spec["service_type"]: ServiceModule(**copy.deepcopy(spec))
+        for spec in _MODULE_SPECS
+    }
 
 
 def get_recommended_packages_list() -> List[Dict]:
