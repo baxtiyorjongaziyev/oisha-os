@@ -47,6 +47,8 @@ HARNESS_FEEDBACK.md
 !manifest.json
 !src/widgets/**/*.json
 !deploy/openclaw/openclaw.json
+# Project MCP config — endpoint only, auth is OAuth (no secrets)
+!.mcp.json
 service_account.json
 credentials.json
 token.pickle
@@ -147,6 +149,12 @@ __pycache__/
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
+!.claude/skills/
+!.claude/agents/
+# Third-party skill runtime state (unlazy gates, autoresearch run logs)
+.unlazy/
+.unlazy-hook-state.json
+/autoresearch/
 
 # Sensitive runtime outputs
 data/session_output.txt
@@ -154,3 +162,7 @@ data/verify_result.txt
 data/reports/
 data/job_claims/
 *.png
+
+# Agent skills ship json/txt assets; keep them tracked despite the global rules above
+!.claude/skills/**
+!.agents/skills/**

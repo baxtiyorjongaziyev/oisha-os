@@ -45,6 +45,18 @@ class HarnessTests(unittest.TestCase):
         call, _, _ = self.run_harness(["tests/test_ai.py"])
         self.assertEqual(call.args[0][3], "tests/test_ai.py")
 
+    def test_file_size_gate_is_not_disabled(self):
+        runner = load_script("run_harness")
+        with tempfile.TemporaryDirectory() as directory:
+            feedback = Path(directory) / "feedback.md"
+            with patch.object(runner, "FEEDBACK_FILE", feedback), patch.object(
+                runner, "run_cmd", side_effect=[(1, "FILE_TOO_LONG"), (0, ""), (0, "")]
+            ) as command, patch("sys.argv", ["run_harness.py"]), contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(SystemExit) as result:
+                    runner.main()
+                self.assertNotIn("--warn-legacy-files", command.call_args_list[0].args[0])
+                self.assertEqual(result.exception.code, 1)
+
     def test_test_failure_fails_harness_and_writes_feedback(self):
         _, code, feedback_exists = self.run_harness([], test_code=1)
         self.assertEqual(code, 1)

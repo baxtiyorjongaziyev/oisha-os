@@ -1212,3 +1212,44 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Bandit: full `src/` without exclusions exit 0; changed production files and shutdown regression/conftest scan exit 0. `git diff --check` passes. Strict standards: `session_store.py`, `owner_lock.py`, `process_liveness.py` pass. Batch 3 targets conform; unchanged `metasell/cards.py::build_team_report` remains a pre-existing 93-line function outside this batch.
 - Independent read-only reviewer found no actionable correctness/privacy/regression issues in Batch 3 or either fix; reviewed subsequent singleton teardown separately. Coordination lock released. No service/userbot started and no production mutation performed.
 - Publication: direct Git/gh network timed out; preparing GitHub connector publication from the reviewed trees, keeping one commit per refactored function. CI/merge/deploy status must be checked remotely; local green is not production evidence.
+
+## 2026-10-03 — Claude Code — fix/calls-report-rep-names
+- Task: `MOIZVONKI_REP_NAMES` ni `deploy/systemd/oisha-calls-report.service` ga qo'shish (#788 davomi; `.env` guard bilan bloklangan).
+- Files: `deploy/systemd/oisha-calls-report.service`
+- Server: vaqtinchalik drop-in `/etc/systemd/system/oisha-calls-report.service.d/rep-names.conf` deploy'dan keyin o'chiriladi.
+- Open: yo'q.
+
+## 2026-10-03 — Claude Code — claude/meta-social-technologies-mcp-a1bup3
+- Task: Meta Social Technologies MCP (`https://mcp.facebook.com/devtools`, OAuth) ni developer tooling sifatida ulash.
+- Files: `.mcp.json` (yangi, sirsiz), `.gitignore` (`!.mcp.json`), `docs/meta-social-technologies-mcp.md` (yangi), `docs/instagram-full-integration.md` (havola).
+- Runtime kodi o'zgarmagan. Webhook manage/test — Owner tasdig'i bilan (hujjatda).
+- Open: har bir dasturchi `/mcp` → Authenticate qilishi kerak (OAuth, sessiyaga bog'liq).
+
+## 2026-10-03 — Claude Code — claude/meta-social-technologies-mcp-a1bup3 (2)
+- Task: haftalik Meta app health-check → Owner Telegram (dushanba 09:15 Toshkent).
+- Files: `src/services/core/instagram/meta_health_check.py`, `src/schedulers/meta_health_scheduler.py` (yangi), `src/bootstrap/orchestration/schedulers.py` (loop ro'yxatga olindi), `.env.example` (`META_PAGE_ID`, `META_GRAPH_API_VERSION`, `META_HEALTH_CHECK_ENABLED`), `tests/test_meta_health_check.py`, `docs/meta-social-technologies-mcp.md`.
+- Read-only Graph API: debug_token, rate-limit header'lari, facebook-api-version, Page subscribed_apps. Token Bearer header'da, hisobot/logga chiqmaydi.
+- Open: prod `.env` da `META_PAGE_ID` bo'lmasa webhook tekshiruvi ⚠️ bilan o'tkaziladi.
+
+## 2026-10-03 — Claude Code — claude/install-claude-cursor-skills-ipt47r
+- Task: `steward` (PR'ni yashil holatga yetkazish) va `preflight` (CI bilan bir xil lokal tekshiruv) skill'larini Claude Code va Cursor uchun o'rnatish.
+- Files: `.claude/skills/steward/SKILL.md`, `.claude/skills/preflight/SKILL.md` (yangi), `.cursor/rules/steward.mdc`, `.cursor/rules/preflight.mdc` (yangi, Claude skill'iga `@` havola), `.gitignore` (`!.claude/skills/`).
+- Runtime kodi o'zgarmagan. Preflight buyruqlari `.github/workflows/test.yml` bilan moslangan.
+- Open: CI yoki AGENTS.md pre-flight o'zgarsa — `.claude/skills/preflight/SKILL.md` ni yangilang (Cursor qoidasidagi qisqa buyruqlar ham).
+
+## 2026-10-03 — Claude Code — claude/install-claude-cursor-skills-ipt47r (2)
+- Task: video'dagi uchinchi tomon skill'larini asl repolaridan o'rnatish (Claude Code + Cursor).
+- Files: `.claude/skills/*` (64 papka, verbatim upstream), `.claude/agents/poteto-agent.md`, `.claude/skills/THIRD_PARTY.md` (manba/commit/litsenziya/buyruq), `.gitignore`.
+- Tekshiruv: gitleaks 8.21.2 (`.gitleaks.toml`) — no leaks; barcha SKILL.md frontmatter'i to'g'ri; asosiy SKILL.md'lar o'qildi, skriptlar exec/tarmoq naqshlariga grep qilindi.
+- Open: Open Design skill emas (ilova) — o'rnatilmadi. Matt Pocock skill'lari uchun `/setup-matt-pocock-skills` hali ishlatilmagan.
+
+## 2026-10-03 — Claude Code — claude/install-claude-cursor-skills-ipt47r (3)
+- Task: skill'larni Codex va Antigravity uchun ham ochish (ikkalasi `.agents/skills/` ni o'qiydi).
+- Files: `.agents/skills/` (`.claude/skills/` nusxasi), `scripts/sync_agent_skills.py`, `tests/test_agent_skills_sync.py`, `.gitignore` (`!.claude/skills/**`, `!.agents/skills/**`), `.claude/skills/THIRD_PARTY.md`, `.claude/skills/preflight/SKILL.md`.
+- Tekshiruv: test drift'da FAILED, sync'dan keyin passed; `--check` exit 1/0.
+- Open: `.claude/skills/` ni tahrirlagan agent `python scripts/sync_agent_skills.py` ni ishga tushirishi shart.
+
+## 2026-10-05 — Codex — PR 794 integration
+- Owner requested full completion including merge and deploy.
+- PR 794 published; Git trees match tested local trees. Resolved main conflict by preserving both appended handoff histories.
+- Combined code preflight and remote deployment verification pending.

@@ -45,7 +45,7 @@ def main():
 
     # Stage 1: Standards Check (Max 400 lines)
     print("\n[1/3] 📏 Checking Modular Code Standards (400-line limit)...")
-    code, out = run_cmd([str(PYTHON_EXE), "scripts/harness/verify_standards.py", "--markdown", "--warn-legacy-files", "--warn-legacy-functions"])
+    code, out = run_cmd([str(PYTHON_EXE), "scripts/harness/verify_standards.py", "--markdown", "--warn-legacy-functions"])
     if code == 0:
         print("  ✅ Standards Check: PASSED")
         stages.append(("Code Standards", True, out))

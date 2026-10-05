@@ -1,0 +1,26 @@
+---
+description: Oisha-OS pre-flight checks before every commit/push/PR — mirrors CI (.github/workflows/test.yml). Apply when pushing, opening a PR, or asked to run checks.
+globs:
+alwaysApply: false
+---
+
+# Pre-flight (Oisha-OS)
+
+To'liq qo'llanma (yagona manba): @.claude/skills/preflight/SKILL.md
+
+`AGENTS.md` qoidasi: **pre-flight qizil bo'lsa — PR yo'q.**
+
+Python core (har doim, repo ildizidan):
+
+```bash
+ruff check --select F821 src/
+bandit -r src/ -ll -x src/services/debug/ --quiet
+bandit -r src/ -ll
+SKIP_LIVE=1 python -m pytest -q --tb=short
+```
+
+TS workspace'lar faqat o'zgarganda: root (`pnpm run typecheck/lint/test/build`),
+`salescoach-ai/` (`pnpm run type-check/test/build`) — ikkalasi alohida, faqat `pnpm`.
+
+Natija: har bo'lim uchun ✅/❌. ❌ bo'lsa push yo'q. Testni o'chirib/skip qilib yashil qilish taqiqlanadi.
+Hech qachon `python src/main.py` / userbot'ni lokal ishga tushirmang, `.env` / `*.session` ni o'qimang.
