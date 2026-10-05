@@ -78,7 +78,7 @@ class TestAmoCRMSyncMethods:
         """Create a mock AmoCRM instance."""
         from src.services.core.crm.amocrm_sync import AmoCRMSync
         
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {"SKIP_LIVE": "1", "AMOCRM_TOKEN_DB_PERSIST": "0"}, clear=True):
             amocrm = AmoCRMSync(
                 subdomain="test",
                 client_id="test_id",
@@ -111,7 +111,7 @@ class TestAmoCRMErrorHandling:
         """Test that 401 triggers token refresh."""
         from src.services.core.crm.amocrm_sync import AmoCRMSync
         
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {"SKIP_LIVE": "1", "AMOCRM_TOKEN_DB_PERSIST": "0"}, clear=True):
             amocrm = AmoCRMSync(
                 subdomain="test",
                 client_id="test_id",

@@ -1,0 +1,78 @@
+[
+ [
+  "branding",
+  {
+   "name": "Brand Identity Contract",
+   "service_type": "branding",
+   "base_template": "\n# SHARTNOMA\n\n## Tomonlar:\nBajaruvchi: \"Jon.Branding\" MCHJ (keyingi o'rinlarda \"Agentlik\")\nBuyurtmachi: {{CLIENT_NAME}} (keyingi o'rinlarda \"Mijoz\")\n\n## 1. Shartnoma predmeti\nAgentlik Mijozga quyidagi xizmatlarni taqdim etadi:\n{{SERVICE_SCOPE}}\n\n## 2. Muddati\nBoshlanish: {{START_DATE}}\nTugash: {{END_DATE}}\nUmumiy muddat: {{TIMELINE}}\n\n## 3. Narx va to'lov tartibi\nUmumiy shartnoma qiymati: {{TOTAL_PRICE}} so'm\nTo'lov jadvali:\n- 50% boshlanishda: {{DOWN_PAYMENT}} so'm\n- 50% qabul qilishda: {{FINAL_PAYMENT}} so'm\n\n## 4. Kafolatlar\n- 30 kunlik bepul tuzatish muddati\n- Sifat kafolati\n{{GUARANTEES}}\n\n## 5. Tomonlarning majburiyatlari\n### Agentlik:\n- Loyihani muddati ichida bajarish\n- Mijoz bilan muntazam aloqada bo'lish\n- Sifat standartlariga rioya qilish\n\n### Mijoz:\n- Tezda feedback berish\n- Kerakli materiallarni taqdim etish\n- To'lovlarni o'z vaqtida amalga oshirish\n\n## 6. Force Majeure\nKuch majburiy vaziyatlar yuz berganda tomonlar bir-biridan xabar qilish majburiyatini oladi.\n\n## 7. Nizolar hal qilish\nNizolar kelishuv orqali hal qilinadi, kelishuv bo'lmasa - O'zbekiston Respublikasi qonunchiligiga asosan.\n\n## 8. Aloqa\nAgentlik: +998 90 123 45 67, info@jonbranding.uz\nMijoz: {{CLIENT_PHONE}}, {{CLIENT_EMAIL}}\n\n---\nImzolar:\n\nAgentlik: _________________   Sana: {{SIGN_DATE}}\nMijoz: _________________     Sana: {{SIGN_DATE}}\n",
+   "clauses": [
+    {
+     "title": "Revision Policy",
+     "text": "3 ta bepul revision, keyingilar 500,000 so'm"
+    },
+    {
+     "title": "Source Files",
+     "text": "Source fayllar shartnoma tugagach beriladi"
+    }
+   ],
+   "variables": [
+    "CLIENT_NAME",
+    "SERVICE_SCOPE",
+    "TOTAL_PRICE",
+    "TIMELINE",
+    "START_DATE",
+    "END_DATE"
+   ]
+  }
+ ],
+ [
+  "web",
+  {
+   "name": "Web Development Contract",
+   "service_type": "web",
+   "base_template": "\n# VEB-LOYIHA SHARTNOMASI\n\n## Tomonlar:\nBajaruvchi: \"Jon.Branding\" MCHJ\nBuyurtmachi: {{CLIENT_NAME}}\n\n## 1. Xizmat doirasi\n{{SERVICE_SCOPE}}\n\n## 2. Texnik talablar\n- Responsive dizayn\n- SEO optimallashtirish\n- Asosiy xavfsizlik\n\n## 3. Muddati va bosqichlar\n{{TIMELINE}}\n\n## 4. Narx\nUmumiy: {{TOTAL_PRICE}} so'm\n{{PAYMENT_TERMS}}\n\n## 5. Intellektual mulk\nSayt dizayni va kodi Agentlik mulki bo'lib qoladi, kontent Mijozga tegishli.\n\n## 6. Texnik qo'llab-quvvatlash\n30 kunlik bepul support, keyin har oy {{SUPPORT_PRICE}} so'm.\n\n---\nImzolar:\nAgentlik: _______   Mijoz: _______   Sana: {{SIGN_DATE}}\n",
+   "clauses": [
+    {
+     "title": "Hosting",
+     "text": "Hosting Mijoz tomonidan ta'minlanadi"
+    },
+    {
+     "title": "Domain",
+     "text": "Domain Mijoz mulki"
+    }
+   ],
+   "variables": [
+    "CLIENT_NAME",
+    "SERVICE_SCOPE",
+    "TOTAL_PRICE",
+    "TIMELINE",
+    "SUPPORT_PRICE"
+   ]
+  }
+ ],
+ [
+  "marketing",
+  {
+   "name": "Marketing Services Contract",
+   "service_type": "marketing",
+   "base_template": "\n# SHARTNOMA\n\n## Tomonlar:\nBajaruvchi: \"Jon.Branding\" MCHJ (keyingi o'rinlarda \"Agentlik\")\nBuyurtmachi: {{CLIENT_NAME}} (keyingi o'rinlarda \"Mijoz\")\n\n## 1. Shartnoma predmeti\nAgentlik Mijozga quyidagi xizmatlarni taqdim etadi:\n{{SERVICE_SCOPE}}\n\n## 2. Muddati\nBoshlanish: {{START_DATE}}\nTugash: {{END_DATE}}\nUmumiy muddat: {{TIMELINE}}\n\n## 3. Narx va to'lov tartibi\nUmumiy shartnoma qiymati: {{TOTAL_PRICE}} so'm\nTo'lov jadvali:\n- 50% boshlanishda: {{DOWN_PAYMENT}} so'm\n- 50% qabul qilishda: {{FINAL_PAYMENT}} so'm\n\n## 4. Kafolatlar\n- 30 kunlik bepul tuzatish muddati\n- Sifat kafolati\n{{GUARANTEES}}\n\n## 5. Tomonlarning majburiyatlari\n### Agentlik:\n- Loyihani muddati ichida bajarish\n- Mijoz bilan muntazam aloqada bo'lish\n- Sifat standartlariga rioya qilish\n\n### Mijoz:\n- Tezda feedback berish\n- Kerakli materiallarni taqdim etish\n- To'lovlarni o'z vaqtida amalga oshirish\n\n## 6. Force Majeure\nKuch majburiy vaziyatlar yuz berganda tomonlar bir-biridan xabar qilish majburiyatini oladi.\n\n## 7. Nizolar hal qilish\nNizolar kelishuv orqali hal qilinadi, kelishuv bo'lmasa - O'zbekiston Respublikasi qonunchiligiga asosan.\n\n## 8. Aloqa\nAgentlik: +998 90 123 45 67, info@jonbranding.uz\nMijoz: {{CLIENT_PHONE}}, {{CLIENT_EMAIL}}\n\n---\nImzolar:\n\nAgentlik: _________________   Sana: {{SIGN_DATE}}\nMijoz: _________________     Sana: {{SIGN_DATE}}\n",
+   "clauses": [
+    {
+     "title": "Performance",
+     "text": "KPI lar har oy baholanadi"
+    },
+    {
+     "title": "Ad Spend",
+     "text": "Reklama byudjeti Mijoz tomonidan qoplanadi"
+    }
+   ],
+   "variables": [
+    "CLIENT_NAME",
+    "SERVICE_SCOPE",
+    "TOTAL_PRICE",
+    "TIMELINE",
+    "KPI_TARGETS"
+   ]
+  }
+ ]
+]

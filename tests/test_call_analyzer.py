@@ -18,6 +18,8 @@ from src.services.utils.gemini_fallback import model_candidates
 def reset_call_analyzer_cooldown(monkeypatch):
     from src.settings import settings
     monkeypatch.setattr(settings, "ENABLE_AMOCRM_CALL_TASKS", True)
+    # Customer 360 is an external dependency of these call-analysis unit tests.
+    monkeypatch.setattr(CallAnalyzer, "_sync_call_to_customer_360", AsyncMock())
     CallAnalyzer._gemini_blocked_until = 0.0
     yield
     CallAnalyzer._gemini_blocked_until = 0.0

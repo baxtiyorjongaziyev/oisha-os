@@ -39,7 +39,7 @@
     - Server `.env` lacked `MOIZVONKI_*` variables because CI/CD `.env` generation did not persist `MOIZVONKI_*`.
   - **Investigation & Critical Discovery**:
     - Discovered critical domain mismatch bug: `src/services/call_analytics/transcriber.py` was hardcoded to `f"https://{self.amocrm.subdomain}.moizvonki.ru/accounts/login/"`. Because `AMOCRM_SUBDOMAIN=jonbranding`, it generated `https://jonbranding.moizvonki.ru/accounts/login/` which returns **HTTP 404**! The actual agency domain is `jonbrandingagency.moizvonki.ru` which returns **HTTP 200**.
-    - Discovered that web session auth (`MOIZVONKI_EMAIL` + `MOIZVONKI_PASSWORD`) is what `transcriber.py` uses. Verified live that `Jonbranding@agency.uz` + `a123456` logs in with `status: 200` and creates an authenticated `sessionid` cookie on `jonbrandingagency.moizvonki.ru`.
+    - Historical web-session authentication verification recorded; credential details redacted from this log.
   - **Resolution & Fix**:
     - **Settings & Config**: Added `MOIZVONKI_DOMAIN: str = "jonbrandingagency.moizvonki.ru"` to `src/settings.py` (kept $\le 400$ LOC: 399 lines). Documented `MOIZVONKI_EMAIL`, `MOIZVONKI_PASSWORD`, `MOIZVONKI_API_KEY`, `MOIZVONKI_DOMAIN` in `.env.example`.
     - **Transcriber (`src/services/call_analytics/transcriber.py`)**: Updated `_login_moizvonki` to read `MOIZVONKI_DOMAIN` with sanitize logic. Mounted `HTTPAdapter` with `Retry(total=3, backoff_factor=1)`. Added retry loop in `_fetch_audio_bytes` for transient `SSLError` / `ConnectionError` (resolves `SSLEOFError`). Kept $\le 400$ LOC (395 lines).
@@ -1164,6 +1164,55 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - **Status**: Ready to commit and push to `feat/harness-loop` for PR #749.
 
 
+## 2026-10-03 — Claude Code → @Codex: FUNC_TOO_LONG refactor, Batch 1
+
+- **Branch**: `feat/refactor-long-funcs` (base: `feat/harness-loop`). Done so far: commit f209097d — dialog_sync, phone_enricher, task_creator split; 31 + 19 targeted tests pass, bandit clean.
+- **Remaining**: 284 FUNC_TOO_LONG. Go in batches of 3 functions, one commit per function, lowest blast radius first. Webhook/boot paths (boot.py, instagram_agent, leadgen_router, meta_webhook, lead_intake, ai_reply) are LAST and need Claude Code review before touching.
+- **Batch 1 (Codex)**:
+  1. `src/services/core/crm/auditor/classifier.py::audit_lead_by_data` (189 LOC)
+  2. `src/services/core/service_config/modules.py::get_default_modules` (166 LOC; likely data → move to constant/table)
+  3. `src/agents/contracts/templates.py::load_contract_templates` (154 LOC; likely data → move to constant/table)
+- **Rules**: behavior-preserving only (same outputs, logs, side effects); helpers ≤60 LOC; no new comments unless WHY is non-obvious; no unrelated edits.
+- **Gate per function**: `python scripts/harness/verify_standards.py <file>` (no violation for the target) → `bandit -ll -q <file>` → `SKIP_LIVE=1 pytest -q` on tests importing the module. If no test covers it, add a characterization test FIRST, commit it, then refactor.
+- **Finish**: append evidence here and tag @Claude Code. Do not push or merge; Claude Code reviews and pushes when green.
+
+## 2026-10-03 — Codex → @Claude Code: Batch 1 completed locally
+
+- Branch: `feat/refactor-long-funcs`. All three requested functions refactored without changing catalog values, public signatures, audit output, log messages or side-effect ordering.
+- Commits: characterization `872dc5cf`; lead audit `0bc73f3b`; service modules `84dfd716`; contract templates `934d82da`. Preserved and incorporated the existing Claude catalog characterization commit `28094e2c` and working-tree module specifications after owner's instruction to continue.
+- Changed: `classifier.py` delegates contact/group collection, analysis/storage and external actions to `audit_context.py`, `audit_analysis.py`, `audit_actions.py`; modules/template loaders construct fresh objects from specifications using deep copies. Tests: `test_batch1_characterization.py`, `batch1_catalog_hashes.json`.
+- Target sizes (AST): `audit_lead_by_data` 24 lines, `get_default_modules` 5, `load_contract_templates` 6. All new helpers <=60 lines; all changed production files <=400.
+- Gates: focused pytest across Batch 1 characterization, CRM contacts auditor, pipeline auditor, service module and contract template tests: **16 passed**. Bandit on all six changed production files and `bandit -r src/ -ll -q`: exit 0. `git diff --check`: pass. Strict verifier on modules, templates and three audit helper files: pass.
+- Existing standards exception: strict scan of `classifier.py` reports only unchanged `classify_contact` (98 lines); the Batch 1 target has no violation. Left this other function unchanged to preserve batch scope.
+- Full offline pytest (`SKIP_LIVE=1`, `ALLOW_LOCAL_RUN=0`) reached 100% with one failure, `tests/test_userbot_owner_dead_local.py::test_dead_local_holder_is_taken_over`, then hung before summary/process exit. Stopped that test process after waiting. The same failure was independently reproduced in a detached baseline worktree at pre-refactor `872dc5cf` (1 failed, 2 passed), confirming it predates Batch 1; baseline worktree removed. Do not claim full pre-flight green.
+- Coordination lock released; unrelated untracked `ois/` preserved. No push, merge, PR or deploy. @Claude Code: review the three refactor commits; repo-wide pre-flight remains open because of the baseline Windows userbot ownership test and unchanged legacy function violation.
+
+## 2026-10-03 — Claude Code: Batch 1 reviewed and pushed
+
+- Reviewed `0bc73f3b`, `84dfd716`, `934d82da`: await order, log strings, exception scopes and catalog values preserved; snapshot + characterization tests pin behavior.
+- Gates: `bandit -r src/ -ll -x src/services/debug/` clean; full `SKIP_LIVE=1` pytest: 2386 passed, 18 skipped, 1 failed (`test_userbot_owner_dead_local.py::test_dead_local_holder_is_taken_over`) — also fails on base `3c92886f`, so pre-existing, not Batch 1. Process hangs after summary (needs separate fix).
+- Next batch candidates: `classifier.py::classify_contact` (98 LOC) plus 2 more lowest-blast-radius funcs.
+
+## 2026-10-03 — Claude Code: Batch 2 done (FUNC_TOO_LONG)
+
+- Branch `feat/refactor-long-funcs`. Characterization test committed before each refactor:
+  - `note_approval/formatters.py::format_approval_message` — test `2456b916`, refactor `5d87d05b` (section builders + rubric table).
+  - `call_analytics/crm_notes.py::_build_amocrm_note` — test `d2340a35`, refactor `f8061cb6` (score/outcome/coaching/footer helpers).
+  - `crm/auditor/classifier.py::classify_contact` — test `ad2e0175`, refactor `bc3c55ca` (`_parse_classification`, `_rules_fallback`).
+- Gates: standards clean on all 3 files; `bandit -r src/ -ll -x src/services/debug/` clean; full `SKIP_LIVE=1` pytest 2402 passed, 18 skipped, 1 failed (pre-existing `test_userbot_owner_dead_local.py::test_dead_local_holder_is_taken_over`, fails on base too). Pytest process still hangs after summary.
+- Remaining FUNC_TOO_LONG: 278. Lock released.
+
+## 2026-10-05 — Codex: Batch 3 review and pre-flight recovery
+
+- Scope: Batch 3 formatter/card commits through `02ff4e5b`, plus the baseline Windows ownership failure and pytest shutdown hang. Used isolated checkout `C:/Users/baxti/playground/oisha-refactor-preflight`, branch `fix/refactor-preflight`; original checkout's active Claude lock and unrelated dirty/untracked work preserved.
+- Windows fix `64ae06b`: `process_liveness.py` uses a read-only SYNCHRONIZE process handle, zero-time wait and guaranteed handle close; denied/unknown failures do not authorize takeover. POSIX signal-zero behavior retained. Ownership SQL/local-holder predicate moved into `owner_lock.py` and re-exported from `session_store.py` to satisfy the 400-line limit.
+- Test fix `bfe3797`: retry tests retain offline/disabled-persistence flags inside cleared environment; call-analyzer tests mock unrelated Customer360 synchronization; session teardown closes the existing `src.db.db` singleton. No forced exit, skipped assertion or production Customer360 change.
+- Diagnostic evidence: successive full runs isolated surviving SQLite workers in retry, call-analyzer and Customer360 enrichment tests. A bounded subprocess test first reproduced a 45-second shutdown timeout; final regressions verify natural exit for retry (7 passed), analyzer (27 passed) and Customer360 (4 passed), explicitly disabling GITHUB_ACTIONS/FORCE_PYTEST_EXIT escape hatches. Temporary diagnostic scripts removed.
+- Final full offline pytest: **2435 passed, 17 skipped, 4 subtests passed**, 3 existing Starlette deprecation warnings; process naturally exited 0 in 91.15 seconds. `SKIP_LIVE=1`, `ALLOW_LOCAL_RUN=0`, `FORCE_PYTEST_EXIT=0`, `GITHUB_ACTIONS=false`. New/fixed targeted checks: 49 passed before adding the third subprocess target; all 3 final subprocess targets passed.
+- Bandit: full `src/` without exclusions exit 0; changed production files and shutdown regression/conftest scan exit 0. `git diff --check` passes. Strict standards: `session_store.py`, `owner_lock.py`, `process_liveness.py` pass. Batch 3 targets conform; unchanged `metasell/cards.py::build_team_report` remains a pre-existing 93-line function outside this batch.
+- Independent read-only reviewer found no actionable correctness/privacy/regression issues in Batch 3 or either fix; reviewed subsequent singleton teardown separately. Coordination lock released. No service/userbot started and no production mutation performed.
+- Publication: direct Git/gh network timed out; preparing GitHub connector publication from the reviewed trees, keeping one commit per refactored function. CI/merge/deploy status must be checked remotely; local green is not production evidence.
+
 ## 2026-10-03 — Claude Code — fix/calls-report-rep-names
 - Task: `MOIZVONKI_REP_NAMES` ni `deploy/systemd/oisha-calls-report.service` ga qo'shish (#788 davomi; `.env` guard bilan bloklangan).
 - Files: `deploy/systemd/oisha-calls-report.service`
@@ -1199,3 +1248,8 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Files: `.agents/skills/` (`.claude/skills/` nusxasi), `scripts/sync_agent_skills.py`, `tests/test_agent_skills_sync.py`, `.gitignore` (`!.claude/skills/**`, `!.agents/skills/**`), `.claude/skills/THIRD_PARTY.md`, `.claude/skills/preflight/SKILL.md`.
 - Tekshiruv: test drift'da FAILED, sync'dan keyin passed; `--check` exit 1/0.
 - Open: `.claude/skills/` ni tahrirlagan agent `python scripts/sync_agent_skills.py` ni ishga tushirishi shart.
+
+## 2026-10-05 — Codex — PR 794 integration
+- Owner requested full completion including merge and deploy.
+- PR 794 published; Git trees match tested local trees. Resolved main conflict by preserving both appended handoff histories.
+- Combined code preflight and remote deployment verification pending.

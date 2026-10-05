@@ -66,10 +66,13 @@ def main():
         has_failure = True
 
     # Stage 3: Test Suite (Pytest)
-    print("\n[3/3] 🧪 Running Pytest Suite ($env:SKIP_LIVE=1)...")
-    test_target = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else None
-    test_args = [test_target] if test_target else []
-    test_label = test_target or "full suite"
+    print("\n[3/3] 🧪 Running Pytest Suite (full suite by default)...")
+    test_args = []
+    test_label = "full suite"
+    for arg in sys.argv[1:]:
+        if not arg.startswith("-"):
+            test_args.append(arg)
+            test_label = arg
     code, out = run_cmd(
         [str(PYTHON_EXE), "-m", "pytest", *test_args, "-q", "--tb=short"],
         env={"SKIP_LIVE": "1", "ALLOW_LOCAL_RUN": "0"}

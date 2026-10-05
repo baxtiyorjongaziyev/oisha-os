@@ -20,6 +20,50 @@ except Exception:
     genai_types = None
 
 
+_VALID_CATEGORIES = {"Mijoz", "Shaxsiy", "Kandidat", "Hamkor/Jamoa", "Boshqa"}
+
+
+def _parse_classification(text: str) -> Tuple[str, str, str, str, str]:
+    data = {}
+    if text:
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", text, re.DOTALL)
+            if match:
+                data = json.loads(match.group(0))
+
+    category = data.get("category")
+    explanation = data.get("explanation", "Sabab taqdim etilmadi.")
+    detailed_summary = data.get("detailed_summary", f"Tizim tomonidan avtomatik tahlil: {explanation}")
+    next_step_task = data.get("next_step_task", "Mijoz bilan bog'lanib, holatni aniqlashtiring.")
+    telegram_draft_reply = data.get("telegram_draft_reply", "")
+
+    if category not in _VALID_CATEGORIES:
+        category = "Boshqa"
+
+    return category, explanation, detailed_summary, next_step_task, telegram_draft_reply
+
+
+def _rules_fallback(lowered_history: str, error: Exception) -> Tuple[str, str, str, str, str]:
+    category = "Boshqa"
+    if any(w in lowered_history for w in ("mijozimiz emas", "ishlab bo'lmaydi", "pulini qaytar", "not a client", "junk")):
+        next_step_task = ""
+    elif any(w in lowered_history for w in ("rezyume", "resume", "cv", "ishga", "vakansiya", "amaliyot")):
+        category = "Kandidat"
+        next_step_task = ""
+    elif any(w in lowered_history for w in ("branding", "brending", "narxi", "narx", "site", "sayt", "logo", "smm", "dizayn")):
+        category = "Mijoz"
+        next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
+    else:
+        next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
+
+    explanation = f"Xatolik tufayli qoida bo'yicha saralandi (Fallback): {str(error)}"
+    detailed_summary = f"Mijoz va uning yozishmalari tahlili xatolik tufayli yakunlanmadi. Aloqa toifasi: {category}."
+
+    return category, explanation, detailed_summary, next_step_task, ""
+
+
 class ClassifierMixin:
     """Handles contact classification and multi-channel audit execution."""
 
@@ -59,68 +103,26 @@ class ClassifierMixin:
         prompt = build_classification_prompt(context)
 
         try:
-            kwargs = {"model": self.model_name, "contents": [prompt]}
+            config = None
             if genai_types is not None:
-                kwargs["config"] = genai_types.GenerateContentConfig(
+                config = genai_types.GenerateContentConfig(
                     response_mime_type="application/json",
                     temperature=0.2,
                 )
 
-            # Using generate_content_with_fallback for resiliency
             response, _ = await generate_content_with_fallback(
                 self.genai_client,
                 primary_model=self.model_name,
-                contents=kwargs["contents"],
-                config=kwargs.get("config"),
+                contents=[prompt],
+                config=config,
                 env_name="GEMINI_CRM_AUDIT_FALLBACK_MODELS",
                 log_prefix="[AUDITOR_GEMINI]",
             )
-            text = str(getattr(response, "text", "") or "").strip()
-
-            # Parse JSON safely
-            data = {}
-            if text:
-                try:
-                    data = json.loads(text)
-                except json.JSONDecodeError:
-                    # Try regex match
-                    match = re.search(r"\{.*\}", text, re.DOTALL)
-                    if match:
-                        data = json.loads(match.group(0))
-
-            category = data.get("category")
-            explanation = data.get("explanation", "Sabab taqdim etilmadi.")
-            detailed_summary = data.get("detailed_summary", f"Tizim tomonidan avtomatik tahlil: {explanation}")
-            next_step_task = data.get("next_step_task", "Mijoz bilan bog'lanib, holatni aniqlashtiring.")
-            telegram_draft_reply = data.get("telegram_draft_reply", "")
-
-            valid_categories = {"Mijoz", "Shaxsiy", "Kandidat", "Hamkor/Jamoa", "Boshqa"}
-            if category not in valid_categories:
-                category = "Boshqa"
-
-            return category, explanation, detailed_summary, next_step_task, telegram_draft_reply
+            return _parse_classification(str(getattr(response, "text", "") or "").strip())
         except Exception as e:
             logger.error("[AUDITOR] Gemini classification/analysis failed: %s", e)
-
-            # Rules-based fallback if Gemini fails
             lowered_history = (telegram_history + " " + call_summary + " " + group_history + " " + notes_history).lower()
-            category = "Boshqa"
-            if any(w in lowered_history for w in ("mijozimiz emas", "ishlab bo'lmaydi", "pulini qaytar", "not a client", "junk")):
-                category = "Boshqa"
-                next_step_task = ""
-            elif any(w in lowered_history for w in ("rezyume", "resume", "cv", "ishga", "vakansiya", "amaliyot")):
-                category = "Kandidat"
-                next_step_task = ""
-            elif any(w in lowered_history for w in ("branding", "brending", "narxi", "narx", "site", "sayt", "logo", "smm", "dizayn")):
-                category = "Mijoz"
-                next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
-            else:
-                next_step_task = "Mijoz bilan bog'lanib, keyingi kelishuvlarni aniqlashtiring."
-
-            explanation = f"Xatolik tufayli qoida bo'yicha saralandi (Fallback): {str(e)}"
-            detailed_summary = f"Mijoz va uning yozishmalari tahlili xatolik tufayli yakunlanmadi. Aloqa toifasi: {category}."
-
-            return category, explanation, detailed_summary, next_step_task, ""
+            return _rules_fallback(lowered_history, e)
 
     async def audit_lead_by_data(self, lead: Dict[str, Any], force: bool = False) -> Optional[str]:
         """Audit and classify a single AmoCRM lead data dictionary."""
@@ -131,185 +133,20 @@ class ClassifierMixin:
         if not force and await self.is_lead_audited(int(lead_id)):
             return "skipped"
 
-        lead_name = lead.get("name") or "Noma'lum Bitim"
-        contacts = lead.get("_embedded", {}).get("contacts", []) or lead.get("contacts", [])
-        
-        contact_id = None
-        contact_name = "Noma'lum Kontakt"
-        phone = ""
-        username = ""
-        
-        if contacts:
-            contact_id = contacts[0].get("id")
-            contact_name = contacts[0].get("name") or contact_name
-            if contact_id:
-                phone, username = await self.get_contact_phone_and_username(int(contact_id))
+        from src.services.core.crm.auditor.audit_context import collect_contact_context
+        from src.services.core.crm.auditor.audit_analysis import analyze_and_save
+        from src.services.core.crm.auditor.audit_actions import (
+            _add_audit_note, _save_draft, _create_follow_up, _tag_lead,
+        )
 
-        # Lookup Telegram Account & chat history
-        telegram_user_id = None
-        telegram_history = ""
-        is_unanswered_tg = False
-        tg_unanswered_duration = ""
-        if phone or username:
-            telegram_user_id, username = await self.get_or_lookup_telegram_user(phone, username)
-            if telegram_user_id:
-                telegram_history, is_unanswered_tg, tg_unanswered_duration = await self.get_telegram_history_and_unanswered(telegram_user_id, limit=20)
-
-        # Lookup Shared Group Chats & histories
-        group_history_parts = []
-        is_unanswered_group = False
-        group_unanswered_duration = ""
-        try:
-            shared_groups = await self.find_shared_group_chats(lead_name, contact_name, telegram_user_id)
-            for group_entity, group_title in shared_groups:
-                g_hist, g_unanswered, g_duration = await self.get_group_chat_history_and_unanswered(group_entity, limit=15)
-                if g_hist:
-                    group_history_parts.append(f"--- Guruh: {group_title} ---\n{g_hist}")
-                    if g_unanswered:
-                        is_unanswered_group = True
-                        group_unanswered_duration = g_duration
-        except Exception as group_err:
-            logger.warning("[AUDITOR] Error fetching shared group chats for lead %s: %s", lead_id, group_err)
-
-        group_history = "\n\n".join(group_history_parts)
-
-        # Determine Telegram unanswered status info
-        telegram_unanswered_info = ""
-        if is_unanswered_tg:
-            telegram_unanswered_info += f"Mijoz shaxsiy telegramda oxirgi xabarni yozgan ({tg_unanswered_duration}) va javob berilmagan. "
-        if is_unanswered_group:
-            telegram_unanswered_info += f"Mijoz loyiha guruhida oxirgi xabarni yozgan ({group_unanswered_duration}) va javob berilmagan."
-        if not telegram_unanswered_info:
-            telegram_unanswered_info = "Barcha Telegram xabarlariga javob berilgan."
-
-        # Fetch and serialize Lead Tasks
+        context = await collect_contact_context(self, lead, lead_id)
         existing_tasks = await self.get_lead_tasks(int(lead_id))
-        tasks_history = self.serialize_tasks(existing_tasks)
-
-        # Serialize Lead details
-        lead_details = self.serialize_lead_details(lead)
-
-        # Lookup call notes/transcripts
-        _, call_summary = await self.get_call_notes_and_transcripts(int(lead_id), phone)
-
-        # Fetch notes history (comments) from AmoCRM
-        notes_history = await self.get_lead_notes_history(int(lead_id))
-
-        # Classify and analyze via Gemini
-        category, explanation, detailed_summary, next_step_task, telegram_draft_reply = await self.classify_contact(
-            lead_name=lead_name,
-            contact_name=contact_name,
-            phone=phone,
-            username=username,
-            call_summary=call_summary,
-            telegram_history=telegram_history,
-            lead_details=lead_details,
-            group_history=group_history,
-            tasks_history=tasks_history,
-            notes_history=notes_history,
-            telegram_unanswered_info=telegram_unanswered_info,
-        )
-
-        # Score lead temperature (Iliq/Sovuq) -- only meaningful for actual clients
-        temperature = None
-        temperature_reason = ""
-        if category == "Mijoz":
-            temperature, temperature_reason = self.score_lead_temperature(
-                lead=lead,
-                telegram_history=telegram_history + ("\n\n" + group_history if group_history else ""),
-                call_summary=call_summary,
-                notes_history=notes_history,
-                is_unanswered=is_unanswered_tg or is_unanswered_group,
-            )
-
-        # Save to DB
-        await self.save_audit_result(
-            lead_id=int(lead_id),
-            lead_name=lead_name,
-            contact_id=contact_id,
-            contact_name=contact_name,
-            phone=phone,
-            username=username,
-            telegram_user_id=telegram_user_id,
-            call_summary=call_summary,
-            telegram_history=telegram_history + ("\n\n" + group_history if group_history else ""),
-            category=category,
-            explanation=explanation,
-            detailed_summary=detailed_summary,
-            task_text=next_step_task,
-            temperature=temperature,
-        )
-
-        # Add note to AmoCRM lead
-        if detailed_summary:
-            try:
-                full_note_text = f"🤖 **Oisha-OS: Bitim va Suhbatlar Mukammal Tahlili**\n\n{detailed_summary}"
-                await asyncio.to_thread(self.amocrm.add_lead_note, int(lead_id), full_note_text)
-                logger.info("[AUDITOR] Added audit note to AmoCRM for lead %s.", lead_id)
-            except Exception as note_err:
-                logger.error("[AUDITOR] Failed to add audit note to AmoCRM for lead %s: %s", lead_id, note_err)
-
-        # Save draft in Telegram if unanswered
-        if telegram_user_id and is_unanswered_tg and telegram_draft_reply:
-            try:
-                draft_text = telegram_draft_reply.strip()
-                await self.tg_client.edit_draft(int(telegram_user_id), draft_text)
-                logger.info("[AUDITOR] Saved draft reply in Telegram for user %s: %s", telegram_user_id, draft_text[:50])
-                
-                # Add note to AmoCRM that a draft reply has been saved
-                try:
-                    draft_note = f"🤖 **Oisha-OS Telegram Draft:**\nMijozning shaxsiy Telegramdagi oxirgi javobsiz xabariga userbot orqali taklif etilgan javob qoralama (draft) sifatida saqlandi:\n\n\"{draft_text}\"\n\n*(Menejer ushbu javobni tahrirlashi yoki o'zgartirmasdan shaxsiy Telegram orqali yuborishi mumkin)*"
-                    await asyncio.to_thread(self.amocrm.add_lead_note, int(lead_id), draft_note)
-                except Exception:
-                    logger.warning("[CRM_AUDIT] Failed to add draft reply note to AmoCRM for lead %s", lead_id, exc_info=True)
-            except Exception as draft_err:
-                logger.error("[AUDITOR] Failed to save draft in Telegram for user %s: %s", telegram_user_id, draft_err)
-
-        # Create task in AmoCRM (with duplication prevention)
-        if next_step_task:
-            next_step_task_clean = next_step_task.strip()
-            # Double check duplication logic
-            is_dup = self.is_duplicate_task(next_step_task_clean, existing_tasks)
-            if is_dup:
-                logger.info("[AUDITOR] Skipped creating duplicate task for lead %s: %s", lead_id, next_step_task_clean)
-                try:
-                    dup_note = f"🤖 **Oisha-OS Eslatma:**\nKeyingi qadam vazifasi ('{next_step_task_clean}') bitimda allaqachon faol yoki bajarilganligi sababli takroran yaratilmadi."
-                    await asyncio.to_thread(self.amocrm.add_lead_note, int(lead_id), dup_note)
-                except Exception:
-                    logger.warning("[CRM_AUDIT] Failed to add duplicate task note to AmoCRM for lead %s", lead_id, exc_info=True)
-            else:
-                try:
-                    responsible_user_id = lead.get("responsible_user_id")
-                    # Calculate tomorrow at 18:00 local time (GMT+5 offset)
-                    from src.utils.task_scheduler import task_deadline
-                    complete_till = task_deadline(due_in_hours=24)
-
-                    task_text = f"🤖 Oisha-OS Keyingi Qadam:\n{next_step_task_clean}"
-                    await self.amocrm.create_task(
-                        element_id=int(lead_id),
-                        text=task_text,
-                        complete_till=complete_till,
-                        responsible_user_id=responsible_user_id,
-                    )
-                    logger.info("[AUDITOR] Created follow-up task in AmoCRM for lead %s (responsible: %s).", lead_id, responsible_user_id)
-                except Exception as task_err:
-                    logger.error("[AUDITOR] Failed to create follow-up task in AmoCRM for lead %s: %s", lead_id, task_err)
-
-        # Tag lead in AmoCRM automatically
-        try:
-            add_tag = getattr(self.amocrm, "add_lead_tag", None)
-            if callable(add_tag):
-                await _maybe_await(add_tag(int(lead_id), category))
-                logger.info("[AUDITOR] Auto-tagged lead %s as '%s' in AmoCRM.", lead_id, category)
-                if temperature:
-                    await _maybe_await(add_tag(int(lead_id), temperature))
-                    logger.info(
-                        "[AUDITOR] Auto-tagged lead %s as '%s' in AmoCRM (%s).",
-                        lead_id, temperature, temperature_reason,
-                    )
-        except Exception as tag_err:
-            logger.warning("[AUDITOR] Failed to tag lead %s as '%s' in AmoCRM: %s", lead_id, category, tag_err)
-
+        result = await analyze_and_save(self, lead, lead_id, context, existing_tasks)
+        category, summary, task, draft, temperature, temperature_reason = result
+        await _add_audit_note(self, lead_id, summary)
+        await _save_draft(self, lead_id, context["telegram_user_id"], context["is_unanswered_tg"], draft)
+        await _create_follow_up(self, lead, lead_id, task, existing_tasks)
+        await _tag_lead(self, lead_id, category, temperature, temperature_reason)
         return category
 
     async def run_audit(
