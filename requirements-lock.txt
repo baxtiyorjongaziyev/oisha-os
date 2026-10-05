@@ -93,7 +93,7 @@ google-api-core==2.36.0
     # via
     #   google-analytics-data
     #   google-api-python-client
-google-api-python-client==2.200.0
+google-api-python-client==2.201.0
     # via -r requirements.txt
 google-auth==2.59.1
     # via
