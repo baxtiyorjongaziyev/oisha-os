@@ -253,3 +253,8 @@ def test_failed_purchase_keeps_attribution_row_open(monkeypatch):
 
     res = _run(attribution_sync.sync_attribution_revenue(Amo()))
     assert updates == [] and res.failed == 1
+
+
+def test_hash_phone_adds_uz_country_code():
+    from src.services.core.marketing.meta_capi import hash_phone
+    assert hash_phone("901234567") == hash_phone("+998 90 123-45-67")
