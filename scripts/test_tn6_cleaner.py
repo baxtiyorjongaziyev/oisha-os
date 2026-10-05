@@ -5,7 +5,8 @@ import re
 from pathlib import Path
 
 import sys
-sys.stdout.reconfigure(encoding="utf-8")
+if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
 
 def extract_phones(p: str) -> list[str]:
     if not p:
@@ -45,12 +46,17 @@ def extract_telegrams(text: str) -> list[str]:
 
 def clean_contact_name(orig: str) -> str:
     s = orig or ""
-    # Strip TN suffixes repeatedly
-    pattern_tn = re.compile(
-        r"(?:\s*TN\d*\s*(?:Gr|gr)?|\s*TN\s*(?:Gr|gr)?|\s*Tez\s*Natija\s*\d*|\s*TN\d*)+\s*$",
-        re.IGNORECASE
-    )
-    s = pattern_tn.sub("", s).strip()
+    # Scan suffix tokens once instead of backtracking over repeated alternatives.
+    pattern_tn = re.compile(r"TN\d*(?:\s*Gr)?|Tez\s*Natija\s*\d*", re.IGNORECASE)
+    run_start = None
+    previous_end = 0
+    for match in pattern_tn.finditer(s):
+        if run_start is None or s[previous_end:match.start()].strip():
+            run_start = match.start()
+        previous_end = match.end()
+    if run_start is not None and not s[previous_end:].strip():
+        s = s[:run_start]
+    s = s.strip()
     
     # Strip leading/trailing punctuation and symbols
     s = re.sub(r"^[\s.,;:_()\-+*!?\"'`~#@^%&=/\\|<>\[\]{}]+", "", s)

@@ -12,8 +12,8 @@
   },
   "devDependencies": {
     "eslint": "^10.8.0",
-    "prettier": "^3.9.6",
-    "turbo": "^2.10.12",
+    "prettier": "^3.9.9",
+    "turbo": "^2.11.5",
     "typescript": "^7.0.2"
   },
   "packageManager": "pnpm@9.15.0",
@@ -23,28 +23,32 @@
   },
   "pnpm": {
     "overrides": {
-      "brace-expansion@<1.1.18": ">=1.1.18 <2",
-      "brace-expansion@>=2 <5.0.9": ">=5.0.9",
       "deepmerge-ts": "^8.0.0",
-      "fast-uri": "^3.1.6",
+      "fast-uri": "^3.1.8",
       "file-type": "^21.3.1",
       "hono": "^4.13.5",
       "ioredis": "^5.11.1",
-      "ip-address": "^10.3.1",
+      "ip-address": "^10.7.1",
       "js-yaml": "^4.3.2",
-      "multer": "^2.3.0",
+      "multer": "^2.4.0",
       "music-metadata": "^11.12.3",
       "nanoid": "^3.3.18",
-      "nodemailer": "^9.1.1",
+      "nodemailer": "^10.0.9",
       "postcss": "^8.5.28",
       "sharp": "^0.35.4",
       "socket.io-parser": "^4.2.7",
       "uuid": "^11.1.1",
       "@hono/node-server": "^2.0.5",
-      "next": "^16.3.3",
+      "next": "16.3.6",
       "qs": "^6.16.0",
       "browserslist": "^4.28.7",
-      "baseline-browser-mapping": "^2.11.0"
+      "baseline-browser-mapping": "^2.11.0",
+      "brace-expansion@<1.1.21": ">=1.1.21 <2",
+      "brace-expansion@>=2 <5.0.12": ">=5.0.12",
+      "engine.io": "^6.6.10"
+    },
+    "patchedDependencies": {
+      "braces@3.0.3": "../patches/braces@3.0.3.patch"
     }
   }
 }
