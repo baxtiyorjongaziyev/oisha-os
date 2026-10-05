@@ -231,7 +231,7 @@ propcache==0.5.2
     # via
     #   aiohttp
     #   yarl
-proto-plus==1.28.4
+proto-plus==1.29.0
     # via
     #   google-analytics-data
     #   google-api-core
