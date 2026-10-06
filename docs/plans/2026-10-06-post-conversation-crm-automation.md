@@ -29,8 +29,8 @@ Quiet-hours: `agent_policy` payload `allow_in_quiet_hours=True` (mijozga xabar k
 ## Yangi ishlar
 1. `call_analytics/crm_actions.py` — `CrmActionPlanner`:
    tahlil -> `[NoteAction, FieldFillAction, TaskAction, StageAction]` (sof funksiya).
-   - Field mapping: `config/crm_field_map.yaml` (ism, xodimlar soni, soha, manba -> AmoCRM field_id).
-   - Stage mapping: `config/crm_stage_rules.yaml` (outcome -> status_id, faqat oldinga tartib).
+   - Field mapping: `call_analytics/crm_automation_config.py` (PyYAML yo'q; ID'lar repo skriptlaridan).
+   - Stage mapping: `crm_automation_config.STAGE_RULES` (outcome -> status_id, faqat oldinga tartib).
 2. `call_analytics/crm_executor.py` — `CrmActionExecutor`:
    - kill-switch `crm_automation:enabled` (agent_state), rate-limit, policy tekshiruv
    - bo'sh bo'lmagan maydonni tashlab, note'ga "taklif" qo'shadi
@@ -53,5 +53,5 @@ Quiet-hours: `agent_policy` payload `allow_in_quiet_hours=True` (mijozga xabar k
 3. Pre-flight: `SKIP_LIVE=1 python -m pytest -q`, `bandit -r src/ -ll`.
 
 ## Ochiq savollar
-- AmoCRM field_id va status_id ro'yxati (`crm_field_map.yaml` uchun) — API'dan olinadi.
+- Select maydonlar (LPR, soha, toifa) enum mapping talab qiladi — keyingi bosqich.
 - `settings.py` coordinator-owned: flag qo'shish AGENTS.md lock orqali.

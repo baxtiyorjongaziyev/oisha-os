@@ -76,3 +76,18 @@ def test_terminal_outcome_never_moves_stage():
 def test_unknown_status_in_pipeline_is_skipped():
     actions = _plan({"natija": "uchrashuv_belgilandi", "natija_ishonch": 0.9}, _lead(999))
     assert _of(actions, StageAction) == []
+
+
+def test_production_config_is_consistent():
+    from src.services.call_analytics import crm_automation_config as cfg
+
+    order = cfg.STAGE_RULES["pipeline_order"]
+    assert len(order) == len(set(order)) == 5
+    assert set(cfg.STAGE_RULES["outcome_to_status"].values()) <= set(order)
+    planner = CrmActionPlanner(cfg.FIELD_MAP, cfg.STAGE_RULES)
+    actions = planner.plan(
+        {"natija": "uchrashuv_kelishildi", "natija_ishonch": 0.9, "mijoz_kompaniya": "Acme"},
+        _lead(status_id=cfg.STATUS_ALOQA),
+    )
+    assert StageAction(cfg.STATUS_ALOQA, cfg.STATUS_UCHRASHUV) in actions
+    assert FieldFillAction(cfg.FIELD_BRAND_NAME, "Acme") in actions
