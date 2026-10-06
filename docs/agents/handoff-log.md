@@ -1268,3 +1268,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Fayllar: src/services/core/instagram/agent_constants.py, src/services/core/instagram_agent.py, tests/test_instagram_plus_trigger.py.
 - Tekshiruv: SKIP_LIVE=1 pytest — 2509 passed, 14 skipped; bandit -ll -x debug clean.
 - Qolgan: Ads Manager'da reklama Identity = Instagram akkaunt bo'lishi kerak; Meta app'da `comments` webhook obunasi faol ekanini prod'da tekshirish.
+
+### 2026-10-06 — Claude — Instagram "+" 2 oylik backfill kampaniyasi
+- `scripts/instagram_plus_campaign.py` + workflow `instagram-plus-campaign.yml` (workflow_dispatch, self-hosted Oracle runner, .env'dan META_*).
+- <=7 kun: Private Reply DM + ack; 7..N kun: ochiq javob bilan Direct'ga taklif (Meta 7 kunlik cheklovi). Dry-run default; live `--confirm YUBORISH`, quiet hours'da bloklanadi; takroriy yuborishdan himoya (bizning ack/taklif javobi bor kommentlar o'tkazib yuboriladi).
+- Reklama postlari uchun META_AD_ACCOUNT_ID (yoki workflow input) va token'da ads_read kerak.
+- Tekshiruv: SKIP_LIVE=1 pytest — 2514 passed, 14 skipped; bandit toza.
