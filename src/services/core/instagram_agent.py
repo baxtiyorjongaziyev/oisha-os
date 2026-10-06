@@ -313,6 +313,9 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                     if db:
                         await db.log_message(user_id_str, keyword_template, is_ai=False)
                     source = "Instagram Mention" if field in {"mentions", "mention"} else "Instagram Comment"
+                    ad_id = str((value.get("media") or {}).get("ad_id") or "")
+                    if ad_id:
+                        source = f"Instagram Reklama (ad_id: {ad_id})"
                     notify_crm(
                         f"{source} (keyword automation)",
                         commenter_name,

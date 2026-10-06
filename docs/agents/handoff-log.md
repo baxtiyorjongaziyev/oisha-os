@@ -1262,6 +1262,13 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Verification: updated isolated Python 3.11 suite 2459 passed, 17 skipped, 4 subtests passed; Bandit clean; pip-audit clean for audited packages (VCS telegram-mcp excluded); root typecheck/lint/test/build pass; SalesCoach typecheck/build and 7 API tests pass; Marketing build/audit pass; frozen installs and braces regression pass in both workspaces.
 - Detail: docs/security/2026-10-05-dependency-remediation.md. Remaining: remote CI, merge, alert read-back and deployment; braces advisory is locally patched pending upstream release. Obsidian MCP session terminated.
 
+### 2026-10-06 — Claude — Instagram "+" komment → DM avtomatizatsiyasi
+- Target reklamada (profilda yo'q dark post ham) faqat "+" yozilgan kommentga Private Reply orqali DM + ochiq "DM'dan yozdik" javobi. "+998..." kabi matnlar tegilmaydi.
+- Reklama kommentida `media.ad_id` bo'lsa CRM manbasi `Instagram Reklama (ad_id: …)` bo'ladi.
+- Fayllar: src/services/core/instagram/agent_constants.py, src/services/core/instagram_agent.py, tests/test_instagram_plus_trigger.py.
+- Tekshiruv: SKIP_LIVE=1 pytest — 2509 passed, 14 skipped; bandit -ll -x debug clean.
+- Qolgan: Ads Manager'da reklama Identity = Instagram akkaunt bo'lishi kerak; Meta app'da `comments` webhook obunasi faol ekanini prod'da tekshirish.
+
 ## 2026-10-06 — Claude — Leadgen status report raqamlari
 - Muammo: 21:00 hisobotida "542 ta" butun vaqtdagi jami bo'lib, 24 soatlik deb o'qilardi; pagination yo'q, API xatosida jim "0"; kreativlar bloki (43) "kelib tushgan" (32) dan ko'p — `created_at` (+05:00 ISO) UTC `datetime('now')` bilan matn sifatida solishtirilib oyna ~29 soat bo'lgan.
 - O'zgardi: `src/services/core/instagram/leadgen_watchdog.py` (paginatsiyali `_meta_lifetime_leads_count`, 10 daq kesh, xatoda None), `src/schedulers/leadgen_status_reporter.py` (`datetime(created_at)` UTC normalizatsiya, "Meta'ga kelgan (24 soat)" qatori 🟢/🔴, "butun vaqt" yorlig'i, API xatosida ⚠️), testlar.
