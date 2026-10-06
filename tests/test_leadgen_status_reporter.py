@@ -79,3 +79,27 @@ def test_ad_name_lookup_is_cached(attribution_db, monkeypatch):
     assert rep._resolve_ad_name("555") == "Ad 555"
     assert rep._resolve_ad_name("555") == "Ad 555"
     assert calls == ["555"]
+
+
+def test_local_offset_timestamps_use_true_24h_window(attribution_db):
+    # Router writes Tashkent ISO time with offset; 26h-old lead must not leak into the window.
+    tz = timezone(timedelta(hours=5))
+    attribution_db.executemany(
+        "INSERT INTO lead_attribution VALUES (?, ?, ?)",
+        [
+            ("loc_new", "999", (datetime.now(tz) - timedelta(hours=1)).isoformat()),
+            ("loc_old", "999", (datetime.now(tz) - timedelta(hours=26)).isoformat()),
+        ],
+    )
+    summary = dict((n, c) for n, c, _, _ in rep.get_creative_summary())
+    assert summary["Video 9 - Sentabr"] == 2
+
+
+def test_meta_lines_flag_missing_and_api_failure():
+    ok, total = rep._meta_lines(32, 542, 32)
+    assert ok.startswith("• 🟢") and "32 ta" in ok
+    assert "butun vaqt" in total and "542" in total
+    short, _ = rep._meta_lines(40, 542, 32)
+    assert short.startswith("• 🔴")
+    down_24h, down_total = rep._meta_lines(None, None, 32)
+    assert "javob bermadi" in down_24h and "javob bermadi" in down_total

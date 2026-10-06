@@ -109,7 +109,8 @@ def get_creative_summary(hours: int = 24) -> list[tuple[str, int, float, str]]:
         with _connection() as conn:
             rows = conn.execute(
                 "SELECT ad_id, count(1) FROM lead_attribution "
-                "WHERE created_at >= datetime('now', ?) GROUP BY ad_id",
+                # created_at is local ISO with offset (+05:00); datetime() normalises it to UTC.
+                "WHERE datetime(created_at) >= datetime('now', ?) GROUP BY ad_id",
                 (f"-{int(hours)} hours",),
             ).fetchall()
     except Exception as exc:
@@ -135,6 +136,31 @@ def build_creative_buttons(
     return buttons
 
 
+def _meta_last_24h_count() -> Optional[int]:
+    """Leads Meta itself received in the last 24h (active forms). None when Meta is unreachable."""
+    try:
+        from src.schedulers.leadgen_reconciliation import _meta_leads
+
+        since = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+        return len(_meta_leads(since))
+    except Exception as exc:
+        logger.warning("[LEADGEN REPORTER] Meta 24h count failed: %s", type(exc).__name__)
+        return None
+
+
+def _meta_lines(meta_24h: Optional[int], meta_total: Optional[int], delivered: int) -> tuple[str, str]:
+    if meta_24h is None:
+        line_24h = "• ⚠️ <b>Meta (24 soat):</b> Meta API javob bermadi"
+    else:
+        icon = "🟢" if delivered >= meta_24h else "🔴"
+        line_24h = f"• {icon} <b>Meta'ga kelgan (24 soat):</b> {meta_24h} ta"
+    if meta_total is None:
+        line_total = "• ⚠️ Meta formalaridagi jami lidlar: Meta API javob bermadi"
+    else:
+        line_total = f"• Meta formalaridagi jami lidlar (butun vaqt): <b>{meta_total} ta</b>"
+    return line_24h, line_total
+
+
 def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]] = None) -> str:
     """Compile executive 24/7 status report across Meta, AmoCRM, Sheets, and Telegram."""
     if summary is None:
@@ -146,7 +172,9 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
     amo_ok = stats.get("last_24h_amocrm", 0)
     sheets_ok = stats.get("last_24h_sheets", 0)
     tg_ok = stats.get("last_24h_telegram", 0)
-    meta_total = stats.get("meta_total_forms_leads", 0)
+    meta_24h_line, meta_total_line = _meta_lines(
+        _meta_last_24h_count(), stats.get("meta_total_forms_leads"), total
+    )
     pending = stats.get("pending_retries", 0)
 
     amo_pct = int((amo_ok / total) * 100) if total > 0 else 100
@@ -181,7 +209,8 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         f"⚡️ <b>Tizim holati:</b> {status_icon}",
         "",
         "📊 <b>Oxirgi 24 soatdagi lidlar oqimi:</b>",
-        f"• Kelib tushgan lidlar: <b>{total} ta</b>",
+        meta_24h_line,
+        f"• Tizimga kelib tushgan lidlar: <b>{total} ta</b>",
         f"• {amo_icon} <b>AmoCRM:</b> {amo_ok}/{total} ({amo_pct}% 'Sotuv/UTC -> Yangi')",
         f"• {sheets_icon} <b>Google Sheets:</b> {sheets_ok}/{total} ({sheets_pct}% kiritilgan)",
         f"• {tg_icon} <b>Telegram Guruhi:</b> {tg_ok}/{total} ({tg_pct}% xabar yuborilgan)",
@@ -190,7 +219,7 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         *creative_lines,
         "",
         "⚙️ <b>Baza va Integratsiyalar:</b>",
-        f"• Meta Lead Ads barcha formalardagi lidlar: <b>{meta_total} ta</b>",
+        meta_total_line,
         f"• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",
         "• AmoCRM voronkalari: <code>Sotuv Bo'limi (#11162698) & UTC (#11322658)</code>",
         f"• Kutilayotgan/xatoli lidlar: <b>{pending} ta</b>",
