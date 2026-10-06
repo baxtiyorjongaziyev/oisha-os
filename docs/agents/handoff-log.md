@@ -1275,3 +1275,11 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Xulq: `MISSED_CALL_RESPONDER_MODE` = off (default) | alert | live. Quiet hours'da Telegram yo'q, vazifa 09:00 ga. Dedup call UNIQ/note id bo'yicha (6 soat, in-memory). Davomiylik noma'lum bo'lsa alert YO'Q.
 - Tekshiruv: `SKIP_LIVE=1 pytest -q` → 2517 passed, 14 skipped; `bandit -r src/ -ll -x src/services/debug/` toza.
 - Open: prod'da avval `alert` rejimida yoqib, AmoCRM webhook'i haqiqiy javobsiz call note'ida `DURATION=0` yuborishini tasdiqlash kerak; keyin `live`. `settings.py` ga tegilmadi (env orqali o'qiladi).
+
+## 2026-10-06 — Claude Code — claude/ezzy-welcome-page-65zx2k (2)
+- Task: Ezzy gap-tahlil 2-bosqich — saytga "Sizga qo'ng'iroq qilamiz" vidjeti + UTM'ni AmoCRM lidiga yozish.
+- Files: `src/static/callback-widget.js` (yangi), `src/api/routes/callback_widget.py` (yangi: `POST /api/callback-request`, `GET /callback-widget.js`), `src/services/core/leads/callback_request.py` (yangi), `src/services/api_server/core.py` (router), `src/api/security.py` (`/api/callback-request` public), `tests/test_callback_request.py`, `.env.example`.
+- Xulq: `CALLBACK_WIDGET_ENABLED=0` default (endpoint 404). Yoqilganda: ensure_lead + izohda UTM/fbclid/gclid/sahifa/referrer, Telegram alert, N daqiqalik vazifa (default 5). Himoya: 5/min IP limit, honeypot, raqam bo'yicha 10 daqiqa dedup, maydon uzunligi cheklangan.
+- Topildi (tuzatilmadi): `core.py` dagi `/static` mount `src/src/static` ga qaraydi — hech qachon ulanmagan. Tuzatish `dashboard.html`/`widget.html` ni ham ochiq qilardi, shuning uchun vidjet alohida route bilan beriladi.
+- Tekshiruv: pytest (to'liq), bandit, Playwright'da desktop+mobil (UTM first-touch, niqob, xato/muvaffaqiyat holatlari, o'z tugmasi, Esc).
+- Open: UTM hozircha lid IZOHIGA yoziladi; AmoCRM'dagi UTM maydonlari ID'lari berilsa custom field'larga ham yozish mumkin.
