@@ -1,7 +1,6 @@
 """
 Instagram agent prompt, keyword automation, and fallback reply constants.
 """
-import re
 from typing import Dict, Optional
 
 COMMENT_REPLY_SYSTEM = (
@@ -31,7 +30,6 @@ COMMENT_KEYWORD_AUTOMATIONS: Dict[str, str] = {
 
 # Target reklamalarda odamlar faqat "+" qoldiradi. Faqat "+" (yoki "++", "+ +")
 # dan iborat komment DM'ga tushadi — "+998 90 ..." kabi raqamlar tegilmaydi.
-PLUS_COMMENT_PATTERN = re.compile(r"^[\s+]*\+[\s+]*$")
 
 PLUS_COMMENT_DM_TEMPLATE = (
     "Assalomu alaykum! 👋 Qiziqish bildirganingiz uchun rahmat.\n\n"
@@ -49,9 +47,15 @@ FALLBACK_COMMENT_REPLIES = [
 ]
 
 
+def _is_plus_only(comment_text: Optional[str]) -> bool:
+    """True if the comment is only "+" signs and whitespace (linear, no regex)."""
+    compact = "".join((comment_text or "").split())
+    return bool(compact) and set(compact) == {"+"}
+
+
 def match_comment_keyword_automation(comment_text: str) -> Optional[str]:
     """Returns the fixed DM template for the first matching keyword, or None."""
-    if PLUS_COMMENT_PATTERN.match(comment_text or ""):
+    if _is_plus_only(comment_text):
         return PLUS_COMMENT_DM_TEMPLATE
     lowered = (comment_text or "").lower()
     for keyword, template in COMMENT_KEYWORD_AUTOMATIONS.items():
