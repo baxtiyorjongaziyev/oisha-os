@@ -1261,3 +1261,10 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Changed dependency manifests/overrides and three workspace lockfiles, Linux/Python 3.11 lock, braces depth patch + CI regression, TN contact-cleaner ReDoS fix + tests, precise Dependabot compatibility ignores.
 - Verification: updated isolated Python 3.11 suite 2459 passed, 17 skipped, 4 subtests passed; Bandit clean; pip-audit clean for audited packages (VCS telegram-mcp excluded); root typecheck/lint/test/build pass; SalesCoach typecheck/build and 7 API tests pass; Marketing build/audit pass; frozen installs and braces regression pass in both workspaces.
 - Detail: docs/security/2026-10-05-dependency-remediation.md. Remaining: remote CI, merge, alert read-back and deployment; braces advisory is locally patched pending upstream release. Obsidian MCP session terminated.
+
+## 2026-10-06 — Claude Code — claude/ezzy-welcome-page-65zx2k
+- Task: Ezzy (Cloud PBX) bilan gap-tahlil → 1-bosqich: javobsiz kiruvchi qo'ng'iroqqa real vaqtda reaksiya.
+- Files: `src/services/call_analytics/missed_call_responder.py` (yangi), `src/services/api_server/webhooks.py` (`/webhook/amocrm_notes` ga ulandi), `tests/test_missed_call_responder.py`, `.env.example`.
+- Xulq: `MISSED_CALL_RESPONDER_MODE` = off (default) | alert | live. Quiet hours'da Telegram yo'q, vazifa 09:00 ga. Dedup call UNIQ/note id bo'yicha (6 soat, in-memory). Davomiylik noma'lum bo'lsa alert YO'Q.
+- Tekshiruv: `SKIP_LIVE=1 pytest -q` → 2517 passed, 14 skipped; `bandit -r src/ -ll -x src/services/debug/` toza.
+- Open: prod'da avval `alert` rejimida yoqib, AmoCRM webhook'i haqiqiy javobsiz call note'ida `DURATION=0` yuborishini tasdiqlash kerak; keyin `live`. `settings.py` ga tegilmadi (env orqali o'qiladi).
