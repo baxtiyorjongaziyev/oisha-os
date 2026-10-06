@@ -91,3 +91,14 @@ def test_production_config_is_consistent():
     )
     assert StageAction(cfg.STATUS_ALOQA, cfg.STATUS_UCHRASHUV) in actions
     assert FieldFillAction(cfg.FIELD_BRAND_NAME, "Acme") in actions
+
+
+def test_closed_won_or_lost_lead_is_never_touched():
+    from src.services.call_analytics import crm_automation_config as cfg
+
+    planner = CrmActionPlanner(cfg.FIELD_MAP, cfg.STAGE_RULES)
+    analysis = {"natija": "rad_etdi", "natija_ishonch": 0.99, "mijoz_kompaniya": "Acme"}
+    for status in (cfg.STATUS_WON, cfg.STATUS_LOST):
+        assert planner.plan(analysis, _lead(status_id=status)) == []
+    assert cfg.STATUS_WON not in cfg.STAGE_RULES["outcome_to_status"].values()
+    assert cfg.STATUS_LOST not in cfg.STAGE_RULES["outcome_to_status"].values()

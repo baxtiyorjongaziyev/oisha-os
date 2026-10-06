@@ -24,6 +24,10 @@ STATUS_KVALIFIKATSIYA = 87609522
 STATUS_UCHRASHUV = 87609526
 STATUS_KELISHUV_YOPISH = 88871066
 
+# AmoCRM tizim etaplari (har voronkada bir xil): faqat menejer qo'yadi.
+STATUS_WON = 142
+STATUS_LOST = 143
+
 FIELD_BRAND_NAME = 1551701  # Brend / Biznes nomi [Text]
 
 FIELD_MAP = {
@@ -46,5 +50,6 @@ STAGE_RULES = {
         OUTCOME_PAYMENT: STATUS_KELISHUV_YOPISH,
     },
     "terminal_outcomes": [OUTCOME_REFUSED],
+    "closed_statuses": [STATUS_WON, STATUS_LOST],
     "min_confidence": 0.8,
 }

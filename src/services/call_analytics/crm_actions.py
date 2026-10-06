@@ -64,9 +64,12 @@ class CrmActionPlanner:
             str(k): int(v) for k, v in (stage_rules.get("outcome_to_status") or {}).items()
         }
         self.terminal_outcomes = {str(o) for o in stage_rules.get("terminal_outcomes") or []}
+        self.closed_statuses = {int(s) for s in stage_rules.get("closed_statuses") or []}
         self.min_confidence = _safe_float(stage_rules.get("min_confidence", 0.8))
 
     def plan(self, analysis: Mapping[str, Any], lead: Mapping[str, Any]) -> List[CrmAction]:
+        if int(lead.get("status_id") or 0) in self.closed_statuses:
+            return []  # Won/Lost lid — AI tegmaydi
         actions: List[CrmAction] = list(self._plan_fields(analysis, lead))
         stage_action = self._plan_stage(analysis, lead)
         if stage_action is not None:
