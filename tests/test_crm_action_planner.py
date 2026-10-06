@@ -102,3 +102,9 @@ def test_closed_won_or_lost_lead_is_never_touched():
         assert planner.plan(analysis, _lead(status_id=status)) == []
     assert cfg.STATUS_WON not in cfg.STAGE_RULES["outcome_to_status"].values()
     assert cfg.STATUS_LOST not in cfg.STAGE_RULES["outcome_to_status"].values()
+
+
+def test_placeholder_values_are_never_written():
+    for placeholder in ("N/A", "n/a", "-", "Noaniq", "yo'q", "null", "None"):
+        actions = _plan({"mijoz_kompaniya": placeholder}, _lead())
+        assert _of(actions, FieldFillAction) == [], placeholder

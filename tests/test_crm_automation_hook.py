@@ -53,3 +53,13 @@ def test_won_lead_untouched_even_live():
     amo = LeadAmo(status_id=cfg.STATUS_WON)
     _run({"crm_automation:enabled": "on", "crm_automation:dry_run": "off"}, amo)
     assert amo.calls == []
+
+
+def test_normalizer_emits_clamped_outcome_confidence():
+    from src.services.call_analytics.normalizer import _normalise_outcome_confidence
+
+    assert _normalise_outcome_confidence("0.9") == 0.9
+    assert _normalise_outcome_confidence(1.7) == 1.0
+    assert _normalise_outcome_confidence(-1) == 0.0
+    assert _normalise_outcome_confidence("abc") == 0.0
+    assert _normalise_outcome_confidence(None) == 0.0

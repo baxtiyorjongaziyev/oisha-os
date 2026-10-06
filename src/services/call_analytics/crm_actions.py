@@ -34,6 +34,8 @@ class TaskAction:
     text: str
 
 
+_PLACEHOLDERS = {"", "n/a", "na", "-", "noaniq", "yo'q", "yoq", "null", "none", "mavjud emas"}
+
 CrmAction = Union[FieldFillAction, FieldSuggestion, StageAction, TaskAction]
 
 
@@ -81,7 +83,7 @@ class CrmActionPlanner:
         actions: List[CrmAction] = []
         for key, field_id in self.field_map.items():
             proposed = str(analysis.get(key) or "").strip()
-            if not proposed:
+            if proposed.casefold() in _PLACEHOLDERS:
                 continue
             existing = current.get(int(field_id))
             if existing is None:

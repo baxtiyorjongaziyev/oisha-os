@@ -150,6 +150,7 @@ class CallNormalizerMixin:
             # Murabbiylik qatlami (sales_quality_coach, metasell_conversion)
             # aynan shu maydonlarni o'qiydi.
             "natija": natija,
+            "natija_ishonch": _normalise_outcome_confidence(data.get("natija_ishonch")),
             "konversiya": outcome_converted(natija),
             "uzilish_vaqti": breakdown_at,
             "uzilish_sababi": breakdown_reason,
@@ -252,6 +253,7 @@ class CallNormalizerMixin:
             },
             # Baholanmagan qo'ng'iroq konversiya statistikasiga kirmaydi.
             "natija": OUTCOME_UNKNOWN,
+            "natija_ishonch": 0.0,
             "konversiya": False,
             "uzilish_vaqti": None,
             "uzilish_sababi": "",
@@ -267,3 +269,14 @@ class CallNormalizerMixin:
 
 
 CallAnalyzerNormalizerMixin = CallNormalizerMixin
+
+
+def _normalise_outcome_confidence(value: object) -> float:
+    """Model 'natija' ga ishonchi, 0.0-1.0 oralig'ida (xato bo'lsa 0.0 — etap surilmaydi)."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0.0
+    if number != number:  # NaN
+        return 0.0
+    return max(0.0, min(1.0, number))
