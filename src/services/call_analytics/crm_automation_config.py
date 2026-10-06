@@ -1,7 +1,8 @@
 """CRM avtomatika mapping'lari (AmoCRM ID'lari).
 
 Manbalar (repo ichida tasdiqlangan):
-- Etaplar: scripts/align_sales_pipeline_to_5_stages.py (Sotuv Bo'limi, 5 etap)
+- Etaplar: scripts/align_sales_pipeline_to_5_stages.py (Sotuv Bo'limi, 5 etap);
+  nomlar AmoCRM UI skrinshotida tasdiqlangan (2026-10-06)
 - Maydonlar: src/services/core/instagram/leadgen_custom_fields.py
 - Natija kalitlari: src/services/core/sales_playbook.py (OUTCOME_*)
 
@@ -18,15 +19,15 @@ from src.services.core.sales_playbook import (
 )
 
 SALES_PIPELINE_ID = 11162698
-STATUS_YANGI = 87609514
-STATUS_ALOQA = 87609518
-STATUS_KVALIFIKATSIYA = 87609522
-STATUS_UCHRASHUV = 87609526
-STATUS_KELISHUV_YOPISH = 88871066
+STATUS_YANGI = 87609514  # Yangi LEads
+STATUS_ALOQA = 87609518  # Qayta aloqa
+STATUS_KVALIFIKATSIYA = 87609522  # Kvalifikatsiya
+STATUS_UCHRASHUV = 87609526  # Uchrashuv
+STATUS_KELISHUV_YOPISH = 88871066  # Kelishuv / Yopish
 
 # AmoCRM tizim etaplari (har voronkada bir xil): faqat menejer qo'yadi.
-STATUS_WON = 142
-STATUS_LOST = 143
+STATUS_WON = 142  # Sotuv bo'ldi
+STATUS_LOST = 143  # Yopildi / Bekor qilindi
 
 FIELD_BRAND_NAME = 1551701  # Brend / Biznes nomi [Text]
 
