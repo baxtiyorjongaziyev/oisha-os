@@ -1261,3 +1261,10 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Changed dependency manifests/overrides and three workspace lockfiles, Linux/Python 3.11 lock, braces depth patch + CI regression, TN contact-cleaner ReDoS fix + tests, precise Dependabot compatibility ignores.
 - Verification: updated isolated Python 3.11 suite 2459 passed, 17 skipped, 4 subtests passed; Bandit clean; pip-audit clean for audited packages (VCS telegram-mcp excluded); root typecheck/lint/test/build pass; SalesCoach typecheck/build and 7 API tests pass; Marketing build/audit pass; frozen installs and braces regression pass in both workspaces.
 - Detail: docs/security/2026-10-05-dependency-remediation.md. Remaining: remote CI, merge, alert read-back and deployment; braces advisory is locally patched pending upstream release. Obsidian MCP session terminated.
+
+### 2026-10-06 — Claude — Instagram "+" komment → DM avtomatizatsiyasi
+- Target reklamada (profilda yo'q dark post ham) faqat "+" yozilgan kommentga Private Reply orqali DM + ochiq "DM'dan yozdik" javobi. "+998..." kabi matnlar tegilmaydi.
+- Reklama kommentida `media.ad_id` bo'lsa CRM manbasi `Instagram Reklama (ad_id: …)` bo'ladi.
+- Fayllar: src/services/core/instagram/agent_constants.py, src/services/core/instagram_agent.py, tests/test_instagram_plus_trigger.py.
+- Tekshiruv: SKIP_LIVE=1 pytest — 2509 passed, 14 skipped; bandit -ll -x debug clean.
+- Qolgan: Ads Manager'da reklama Identity = Instagram akkaunt bo'lishi kerak; Meta app'da `comments` webhook obunasi faol ekanini prod'da tekshirish.
