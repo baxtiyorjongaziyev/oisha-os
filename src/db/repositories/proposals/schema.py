@@ -15,8 +15,9 @@ async def rename_away_incompatible_legacy_table(repo: Any, conn: Any) -> None:
     existing_columns = await repo._get_table_columns("improvement_proposals")
     if not existing_columns:
         return
-    if "category" in existing_columns:
-        return
+    # Legacy markers alone decide: earlier inits ALTER-added the new columns
+    # (category, title, ...) onto the INTEGER-PK legacy table, so "category"
+    # being present does not mean the schema is current.
     if not _LEGACY_AGENT_TABLE_MARKERS.issubset(existing_columns):
         return
     for suffix in range(10):

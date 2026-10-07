@@ -13,6 +13,7 @@ import logging
 from src.schedulers.moliya.balans import run_balans_eslatmasi, run_balans_report
 from src.schedulers.moliya.cashflow import run_cashflow_report
 from src.schedulers.moliya.helpers import run_once_per_day
+from src.schedulers.moliya.kuzatuv import run_kuzatuv_report
 from src.schedulers.moliya.pnl import run_pnl_report
 from src.schedulers.moliya.qarzdorlik import run_qarzdorlik_report
 
@@ -50,6 +51,10 @@ async def moliya_hisobotlari_loop() -> None:
             # Kunlik balans eslatmasi — har kuni 20:00
             if now.hour == 20 and now.minute < 5:
                 await run_once_per_day("moliya_balans_eslatma", day, run_balans_eslatmasi)
+
+            # Hisobchi kuzatuvi (moliyachi ishini o'rganish) — egasiga, 21:00
+            if now.hour == 21 and now.minute < 5:
+                await run_once_per_day("moliya_kuzatuv", day, lambda: run_kuzatuv_report(now))
 
         except Exception:
             logger.error("[MOLIYA] Sikl xatosi", exc_info=True)

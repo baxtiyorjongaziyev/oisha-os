@@ -135,3 +135,27 @@ async def test_init_table_is_idempotent_after_collision_fix(legacy_agent_db):
     assert not await _table_exists(
         legacy_agent_db, "agent_improvement_proposals_legacy_1"
     )
+
+
+@pytest.mark.asyncio
+async def test_init_table_moves_hybrid_legacy_table_aside(legacy_agent_db):
+    """Prod state seen 2026-10-07: an earlier init ALTER-added the new columns
+    (category, title, ...) onto the legacy INTEGER-PK table, so a
+    ``"category" in columns`` guard skipped the rename and every TEXT-id insert
+    failed with SQLITE_MISMATCH."""
+    for column in ("category", "severity", "title", "fingerprint"):
+        await legacy_agent_db.execute(
+            f"ALTER TABLE improvement_proposals ADD COLUMN {column} TEXT"
+        )
+    await legacy_agent_db.commit()
+    repo = ProposalRepository(_StubDatabase(legacy_agent_db))
+
+    await repo.init_table()
+
+    assert await _table_exists(legacy_agent_db, "agent_improvement_proposals_legacy")
+    assert "area" not in await _columns(legacy_agent_db, "improvement_proposals")
+    await legacy_agent_db.execute(
+        """INSERT INTO improvement_proposals
+           (id, category, severity, title, status, created_at)
+           VALUES ('DIAG-2', 'unknown', 'medium', 'Taklif', 'proposed', 'now')"""
+    )

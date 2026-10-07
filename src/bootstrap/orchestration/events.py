@@ -39,6 +39,8 @@ from src.entrypoint.message_event import (
     handle_message_deleted,
 )
 
+from src.handlers.msg_pipeline.hisobchi import _hisobchi_ai_auto_entry_enabled
+
 logger = logging.getLogger("OishaBootstrap")
 
 
@@ -57,11 +59,15 @@ def register_event_handlers(
                 return
 
             sender = await event.get_sender()
-            if event.is_private and not event.out and is_card_bot_sender(sender):
+            # Same kill switch as msg_pipeline.hisobchi: while AI auto-entry is
+            # off, card-bot / finance-group auto-entry must not run here either
+            # (this handler used to bypass it). Owner slash commands stay.
+            auto_entry = _hisobchi_ai_auto_entry_enabled()
+            if auto_entry and event.is_private and not event.out and is_card_bot_sender(sender):
                 await handle_card_bot_message(event, client, hisobchi_engine, bot_client=bot_runtime)
                 raise events.StopPropagation
             if not event.is_private and not event.out:
-                if await handle_finance_group_reply(
+                if auto_entry and await handle_finance_group_reply(
                     event, client, hisobchi_engine, bot_client=bot_runtime
                 ):
                     raise events.StopPropagation
@@ -90,7 +96,7 @@ def register_event_handlers(
                         handled = await handle_kirim_chiqim_text(event, hisobchi_engine)
                     if handled:
                         raise events.StopPropagation
-                if should_process_private_receipt_photo(
+                if auto_entry and should_process_private_receipt_photo(
                     is_owner=bool(is_owner),
                     has_photo=bool(event.message.photo),
                     text=text,
