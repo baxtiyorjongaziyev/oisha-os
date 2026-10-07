@@ -1,0 +1,58 @@
+name: Instagram "+" Campaign
+
+# Bir martalik: so'nggi N kunda "+" yozganlarga DM (<=7 kun) yoki
+# Direct'ga taklif (7 kundan eski). Avval dry-run, keyin live.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check (token ruxsatlari), dry-run (faqat hisobot) yoki live (yuboradi)"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - check
+          - live
+      days:
+        description: "Necha kunlik kommentlar"
+        required: true
+        default: "60"
+      ad_account_id:
+        description: "Meta reklama akkaunt ID (act_... yoki raqam). Bo'sh bo'lsa .env dagi META_AD_ACCOUNT_ID"
+        required: false
+        default: ""
+
+concurrency:
+  group: instagram-plus-campaign
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  campaign:
+    runs-on: [self-hosted, oracle]
+    timeout-minutes: 30
+    steps:
+      - name: Run campaign on Oracle
+        env:
+          MODE: ${{ inputs.mode }}
+          DAYS: ${{ inputs.days }}
+          AD_ACCOUNT_INPUT: ${{ inputs.ad_account_id }}
+        run: |
+          set -euo pipefail
+          cd /home/ubuntu/oisha-os
+          if [ -n "${AD_ACCOUNT_INPUT}" ]; then
+            export META_AD_ACCOUNT_ID="${AD_ACCOUNT_INPUT}"
+          fi
+          if ! [[ "${DAYS}" =~ ^[0-9]+$ ]]; then
+            echo "days butun son bo'lishi kerak"; exit 2
+          fi
+          if [ "${MODE}" = "check" ]; then
+            ./venv/bin/python -m scripts.instagram_plus_campaign --check
+          elif [ "${MODE}" = "live" ]; then
+            ./venv/bin/python -m scripts.instagram_plus_campaign --days "${DAYS}" --live --confirm YUBORISH
+          else
+            ./venv/bin/python -m scripts.instagram_plus_campaign --days "${DAYS}"
+          fi
