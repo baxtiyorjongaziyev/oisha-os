@@ -91,6 +91,9 @@ async def backfill_unanswered_comments(
         "scanned_comments": 0,
         "answered": 0,
         "skipped": 0,
+        "skipped_own": 0,
+        "skipped_already_replied": 0,
+        "skipped_sensitive": 0,
         "errors": 0,
         "dry_run": dry_run,
     }
@@ -126,6 +129,7 @@ async def backfill_unanswered_comments(
 
             if own_id and commenter_id == own_id:
                 summary["skipped"] += 1
+                summary["skipped_own"] += 1
                 continue
 
             replies_data = (comment.get("replies") or {}).get("data")
@@ -141,6 +145,7 @@ async def backfill_unanswered_comments(
             )
             if already:
                 summary["skipped"] += 1
+                summary["skipped_already_replied"] += 1
                 continue
 
             if dry_run:
@@ -164,6 +169,7 @@ async def backfill_unanswered_comments(
                 continue
 
             try:
+                summary["skipped_sensitive"] += 1
                 emoji_mirror = get_mirror_emoji_reply(text)
                 if emoji_mirror:
                     clean = emoji_mirror

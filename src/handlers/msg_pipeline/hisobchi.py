@@ -45,13 +45,15 @@ async def process_hisobchi(
     """
     try:
         # Show typing indicator while processing Hisobchi messages
-        try:
-            from telethon.tl.functions.messages import SetTypingRequest
-            from telethon.tl.types import SendMessageTypingAction
+        # (not in observe-only mode: Hisobchi must stay silent there).
+        if _hisobchi_ai_auto_entry_enabled():
+            try:
+                from telethon.tl.functions.messages import SetTypingRequest
+                from telethon.tl.types import SendMessageTypingAction
 
-            await client(SetTypingRequest(event.chat_id, SendMessageTypingAction()))
-        except Exception as exc:
-            logger.debug("[HISOBCHI] Failed to show typing indicator: %s", exc)
+                await client(SetTypingRequest(event.chat_id, SendMessageTypingAction()))
+            except Exception as exc:
+                logger.debug("[HISOBCHI] Failed to show typing indicator: %s", exc)
 
         from src.services.core.finance.hisobchi_engine import HisobchiEngine
         from src.services.core.finance.handlers import _get_finance_config
@@ -69,7 +71,13 @@ async def process_hisobchi(
             # AI auto-entry (card bot, voice, receipt photo, text parsing) is
             # paused: real kirim/chiqim now only comes through Dilbar's
             # Airtable form. Nothing below writes a transaction while this
-            # flag is off — just observe/log, don't act.
+            # flag is off — only count finance-group traffic for the daily
+            # kuzatuv report (schedulers/moliya/kuzatuv.py), never reply.
+            finance_group_id, _, _ = _get_finance_config()
+            if finance_group_id is not None and event.chat_id == finance_group_id and not event.out:
+                from src.schedulers.moliya.kuzatuv import record_observation
+
+                await record_observation(has_photo=bool(getattr(event.message, "photo", None)))
             return False
 
         # Card bot messages handling
