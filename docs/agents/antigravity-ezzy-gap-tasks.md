@@ -45,7 +45,8 @@ Agar Moizvonki boshlanish hodisasini bermasa — to'xtang va Owner'ga yozing, ta
 - Yangi modul: `src/services/call_analytics/incoming_call_card.py` (≤400 qator, funksiya ≤60 qator).
 - Webhook endpoint: `src/api/routes/` ichida, imzo/secret bilan himoyalangan (Moizvonki qanday imzolasa).
   Ochiq endpoint bo'lsa `src/api/security.py::_PUBLIC_PATHS` ga qo'shing va himoyasini route ichida qiling.
-- AmoCRM qidiruv: mavjud `AmoCRMSync.find_active_lead_by_phone` va lid/contact o'qish metodlaridan foydalaning.
+- Mijoz ma'lumoti: avval `src/services/customer_360/` (collector — telefon bo'yicha profil yig'adi) ni o'rganing va qayta ishlating;
+  yetmasa `AmoCRMSync.find_active_lead_by_phone` va lid/contact o'qish metodlari.
 - Karta mas'ul menejerga (AmoCRM responsible → Telegram ID mapping bor-yo'qligini tekshiring), yo'q bo'lsa sotuv guruhiga
   (`leadgen_watchdog.send_admin_alert` namunasi).
 - Flag: `INCOMING_CALL_CARD_ENABLED` (default o'chiq), `os.getenv` orqali — `settings.py` coordinator'niki, tegmang.
