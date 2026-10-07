@@ -17,14 +17,26 @@ const SECTOR_HEROES: Record<string, { headline: string; keys: string; cta: strin
   'education': { headline: 'Ta\'lim Brendingi', keys: 'Maktabingizni tanitadigan dizayn', cta: 'Portfolioni ko\'rish' },
 };
 
+// Bot/crawler'lar cookie saqlamaydi — har so'rovda Workers AI chaqirilib,
+// hisob (neuron kvotasi) yoqib yuborilardi.
+const BOT_UA = /bot|crawl|spider|slurp|curl|wget|python|httpclient|headless/i;
+const MAX_AI_INPUT = 200;
+
 async function getSector(request: Request, env: Env): Promise<string> {
   const cookie = request.headers.get('Cookie') || '';
-  const match = cookie.match(/sector=([^;]+)/);
-  if (match) return match[1];
+  const match = cookie.match(/(?:^|;\s*)sector=([^;]+)/);
+  // Cookie mijoz nazoratida — faqat ma'lum qiymatlar header/Set-Cookie'ga qaytadi.
+  if (match) return SECTOR_HEROES[match[1]] ? match[1] : 'unknown';
 
   const url = new URL(request.url);
   const utmContent = url.searchParams.get('utm_content');
   if (utmContent && SECTOR_HEROES[utmContent]) return utmContent;
+
+  const isPageNavigation =
+    request.method === 'GET' && (request.headers.get('Accept') || '').includes('text/html');
+  if (!isPageNavigation || BOT_UA.test(request.headers.get('User-Agent') || '')) {
+    return 'unknown';
+  }
 
   try {
     const aiResp = await fetch(
@@ -35,7 +47,7 @@ async function getSector(request: Request, env: Env): Promise<string> {
         body: JSON.stringify({
           messages: [
             { role: 'system', content: 'URL dan mijoz sektorini aniqlang. Faqat bitta so\'z: meditsina, retail, food, service, education, yoki unknown.' },
-            { role: 'user', content: url.pathname + url.search },
+            { role: 'user', content: (url.pathname + url.search).slice(0, MAX_AI_INPUT) },
           ],
         }),
       },
