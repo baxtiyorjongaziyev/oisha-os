@@ -51,6 +51,8 @@ _PUBLIC_PATHS = frozenset(
         "/api/call-tracking/config",
         # Vidjet JS fayli (prod Nginx faqat /api/* ni backend'ga yuboradi)
         "/api/callback-widget.js",
+        # Telefoniya / MacroDroid kiruvchi qo'ng'iroq signallari (route ichida secret tekshiriladi)
+        "/api/telephony/incoming-call",
         # Meta must reach this exact verification/event endpoint. The route
         # validates the verify token (GET) and x-hub-signature-256 (POST).
         "/api/instagram/webhook",
