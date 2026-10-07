@@ -79,3 +79,46 @@ def test_ad_name_lookup_is_cached(attribution_db, monkeypatch):
     assert rep._resolve_ad_name("555") == "Ad 555"
     assert rep._resolve_ad_name("555") == "Ad 555"
     assert calls == ["555"]
+
+
+def test_local_offset_timestamps_use_true_24h_window(attribution_db):
+    # Router writes Tashkent ISO time with offset; 26h-old lead must not leak into the window.
+    tz = timezone(timedelta(hours=5))
+    attribution_db.executemany(
+        "INSERT INTO lead_attribution VALUES (?, ?, ?)",
+        [
+            ("loc_new", "999", (datetime.now(tz) - timedelta(hours=1)).isoformat()),
+            ("loc_old", "999", (datetime.now(tz) - timedelta(hours=26)).isoformat()),
+        ],
+    )
+    summary = dict((n, c) for n, c, _, _ in rep.get_creative_summary())
+    assert summary["Video 9 - Sentabr"] == 2
+
+
+def test_meta_lines_flag_missing_and_api_failure():
+    ok, total = rep._meta_lines((32, 0), 542)
+    assert ok.startswith("• 🟢") and "32 ta" in ok
+    assert "butun vaqt" in total and "542" in total
+    short, _ = rep._meta_lines((40, 2), 542)
+    assert short.startswith("• 🔴") and "2 ta AmoCRM'ga yetmagan" in short
+    down_24h, down_total = rep._meta_lines(None, None)
+    assert "javob bermadi" in down_24h and "javob bermadi" in down_total
+
+
+def test_meta_24h_status_matches_by_lead_id(monkeypatch):
+    from src.schedulers import leadgen_reconciliation as rec
+    from src.schedulers import meta_leadgen_scheduler as m
+
+    old = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=2)
+    monkeypatch.setattr(m, "_get_page_token", lambda: "tok")
+    monkeypatch.setattr(rec, "_meta_leads", lambda since: [("L1", old), ("L2", old)])
+    # An old retried lead ("OLD") in deliveries must not mask the missing L2.
+    monkeypatch.setattr(rec, "_delivered_ids", lambda: ["L1", "OLD"])
+    assert rep._meta_24h_status() == (2, 1)
+
+
+def test_meta_24h_status_none_without_token(monkeypatch):
+    from src.schedulers import meta_leadgen_scheduler as m
+
+    monkeypatch.setattr(m, "_get_page_token", lambda: "")
+    assert rep._meta_24h_status() is None
