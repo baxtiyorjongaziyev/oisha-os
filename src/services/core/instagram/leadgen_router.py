@@ -208,7 +208,7 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
 
     note = build_leadgen_note(leadgen_id, merged_payload, fields, ad_name=ad_name)
 
-    custom_fields = extract_lead_custom_fields(fields)
+    custom_fields = extract_lead_custom_fields(fields, leadgen_id=leadgen_id)
     amocrm = _amocrm_instance()
     deal_name = f"{name} | 🎬 {ad_name}" if ad_name else name
 
