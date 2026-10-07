@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 import requests
 from typing import Any, Dict, List, Optional
 
@@ -211,22 +212,42 @@ async def retry_pending_leadgen_deliveries() -> int:
     return recovered_count
 
 
+_META_COUNT_TTL_SEC = 600
+_meta_count_cache: Dict[str, Any] = {"at": 0.0, "value": None}
+
+
+def _meta_lifetime_leads_count() -> Optional[int]:
+    """Sum of `leads_count` over every page form (all-time). None when Meta is unreachable.
+
+    Cached for 10 min: the heartbeat calls audit_leadgen_health() every 30s.
+    """
+    if _meta_count_cache["at"] and time.monotonic() - _meta_count_cache["at"] < _META_COUNT_TTL_SEC:
+        return _meta_count_cache["value"]
+    from src.schedulers import meta_leadgen_scheduler as m
+
+    try:
+        token = m._get_page_token()
+    except Exception:
+        token = ""
+    if not token:
+        return None
+    page_id = os.getenv("META_PAGE_ID", "103894334533931").strip()
+    version = os.getenv("META_GRAPH_API_VERSION", "v19.0").strip() or "v19.0"
+    url = f"https://graph.facebook.com/{version}/{page_id}/leadgen_forms"
+    try:
+        forms = m._get_pages(url, token, "id,leads_count")
+    except Exception as exc:
+        logger.warning("[WATCHDOG] Meta form count failed: %s", type(exc).__name__)
+        return None
+    total = sum(int(f.get("leads_count") or 0) for f in forms)
+    _meta_count_cache.update(at=time.monotonic(), value=total)
+    return total
+
+
 def audit_leadgen_health() -> Dict[str, Any]:
     """Perform a 3-system audit across Meta Graph API, AmoCRM, Sheets, and Telegram."""
     summary = get_delivery_summary(hours=24)
-    meta_token = os.getenv("META_PAGE_ACCESS_TOKEN", "").strip()
-
-    meta_count = 0
-    if meta_token:
-        page_id = os.getenv("META_PAGE_ID", "103894334533931").strip()
-        version = os.getenv("META_GRAPH_API_VERSION", "v19.0").strip() or "v19.0"
-        url = f"https://graph.facebook.com/{version}/{page_id}/leadgen_forms"
-        try:
-            r = requests.get(url, params={"access_token": meta_token, "fields": "id,leads_count"}, timeout=10)
-            if r.status_code == 200:
-                meta_count = sum(f.get("leads_count", 0) for f in r.json().get("data", []))
-        except Exception:
-            pass
+    meta_count = _meta_lifetime_leads_count()
 
     return {
         "meta_total_forms_leads": meta_count,

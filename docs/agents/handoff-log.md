@@ -1275,6 +1275,18 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Reklama postlari uchun META_AD_ACCOUNT_ID (yoki workflow input) va token'da ads_read kerak.
 - Tekshiruv: SKIP_LIVE=1 pytest — 2514 passed, 14 skipped; bandit toza.
 
+## 2026-10-06 — Claude — Leadgen status report raqamlari
+- Muammo: 21:00 hisobotida "542 ta" butun vaqtdagi jami bo'lib, 24 soatlik deb o'qilardi; pagination yo'q, API xatosida jim "0"; kreativlar bloki (43) "kelib tushgan" (32) dan ko'p — `created_at` (+05:00 ISO) UTC `datetime('now')` bilan matn sifatida solishtirilib oyna ~29 soat bo'lgan.
+- O'zgardi: `src/services/core/instagram/leadgen_watchdog.py` (paginatsiyali `_meta_lifetime_leads_count`, 10 daq kesh, xatoda None), `src/schedulers/leadgen_status_reporter.py` (`datetime(created_at)` UTC normalizatsiya, "Meta'ga kelgan (24 soat)" qatori 🟢/🔴, "butun vaqt" yorlig'i, API xatosida ⚠️), testlar.
+- Tekshiruv: leadgen testlari 17 passed; to'liq suite failure ro'yxati base bilan bir xil (6 ta env-related); bandit clean. Lock: `leadgen delivery recovery` (Codex, 2026-09-15) — watchdog fayliga minimal tegildi.
+- Ochiq: Meta MCP ulanmagan — production'da 542 va 24h sonini jonli tekshirish kerak.
+
+### 2026-10-07 — Claude — Egasiz lead ogohlantirishida vaqt formati
+- "⏱ N daqiqadan beri" endi 60+ daqiqada soat/kun bilan chiqadi (1392 -> "23 soat 12 daqiqa", 1 kundan keyin daqiqa tushiriladi).
+- Fayllar: src/schedulers/unowned_lead_alert.py, tests/test_unowned_lead_alert.py.
+- Tekshiruv: SKIP_LIVE=1 pytest tests/test_unowned_lead_alert.py — o'tdi.
+- Qolgan: yo'q (deploy oracle-deploy.yml orqali).
+
 ## 2026-10-06 — Claude Code — claude/ezzy-welcome-page-65zx2k
 - Task: Ezzy (Cloud PBX) bilan gap-tahlil → 1-bosqich: javobsiz kiruvchi qo'ng'iroqqa real vaqtda reaksiya.
 - Files: `src/services/call_analytics/missed_call_responder.py` (yangi), `src/services/api_server/webhooks.py` (`/webhook/amocrm_notes` ga ulandi), `tests/test_missed_call_responder.py`, `.env.example`.

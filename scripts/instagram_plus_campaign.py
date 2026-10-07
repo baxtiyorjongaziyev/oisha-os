@@ -57,6 +57,39 @@ def _parse_ts(value: str) -> Optional[datetime]:
         return None
 
 
+def _get_field(node: str, field: str, token: str) -> Optional[Dict]:
+    try:
+        resp = requests.get(f"{GRAPH}/{node}", params={"fields": field, "access_token": token},
+                            timeout=20)
+        body = resp.json()
+    except (requests.RequestException, ValueError):
+        return None
+    if resp.status_code != 200 or not isinstance(body, dict) or body.get("error"):
+        return None
+    value = body.get(field)
+    return value if isinstance(value, dict) else None
+
+
+def discover_ad_accounts(token: str, errors: List[str]) -> List[Dict]:
+    """Reklama akkauntlarini topadi: /me/adaccounts (user token), aks holda sahifa
+    egasi bo'lgan Business Manager'ning owned/client ad account'lari (page token)."""
+    found: Dict[str, Dict] = {}
+    edges = ["me/adaccounts"]
+    for field in ("business", "owner_business"):
+        biz = _get_field("me", field, token)
+        if biz and biz.get("id"):
+            edges += [f"{biz['id']}/owned_ad_accounts", f"{biz['id']}/client_ad_accounts"]
+    for edge in dict.fromkeys(edges):
+        try:
+            for acc in _get_paged(f"{GRAPH}/{edge}",
+                                  {"fields": "id,name", "limit": 50, "access_token": token}):
+                if acc.get("id"):
+                    found.setdefault(acc["id"], {"id": acc["id"], "name": acc.get("name")})
+        except RuntimeError as exc:
+            errors.append(f"{edge.split('/')[-1]}: {exc}")
+    return list(found.values())
+
+
 def collect_media_ids(token: str, ig_user_id: str, ad_account_id: str,
                       media_since: datetime, report: Dict) -> List[str]:
     """Profil postlari (media_since dan yangi) + reklama kreativlaridagi IG media."""
@@ -72,20 +105,24 @@ def collect_media_ids(token: str, ig_user_id: str, ad_account_id: str,
         report["errors"].append(f"profil postlari: {exc}")
     report["organic_media"] = len(ids)
 
-    if not ad_account_id:
-        report["errors"].append("META_AD_ACCOUNT_ID yo'q — reklama postlari tekshirilmadi")
-        return ids
-    act = ad_account_id if ad_account_id.startswith("act_") else f"act_{ad_account_id}"
+    if ad_account_id:
+        accounts = [ad_account_id if ad_account_id.startswith("act_") else f"act_{ad_account_id}"]
+    else:
+        accounts = [a["id"] for a in discover_ad_accounts(token, report["errors"])]
+    report["ad_accounts"] = len(accounts)
+    if not accounts:
+        report["errors"].append("reklama akkaunti topilmadi — reklama postlari tekshirilmadi")
     ad_media = set()
-    try:
-        for ad in _get_paged(f"{GRAPH}/{act}/ads",
-                             {"fields": "creative{effective_instagram_media_id}",
-                              "limit": 100, "access_token": token}):
-            media_id = (ad.get("creative") or {}).get("effective_instagram_media_id")
-            if media_id:
-                ad_media.add(str(media_id))
-    except RuntimeError as exc:
-        report["errors"].append(f"reklamalar: {exc}")
+    for act in accounts:
+        try:
+            for ad in _get_paged(f"{GRAPH}/{act}/ads",
+                                 {"fields": "creative{effective_instagram_media_id}",
+                                  "limit": 100, "access_token": token}):
+                media_id = (ad.get("creative") or {}).get("effective_instagram_media_id")
+                if media_id:
+                    ad_media.add(str(media_id))
+        except RuntimeError as exc:
+            report["errors"].append(f"reklamalar: {exc}")
     report["ad_media"] = len(ad_media)
     return list(dict.fromkeys(ids + sorted(ad_media)))
 
@@ -163,13 +200,7 @@ def check_token(token: str) -> Dict:
                    scopes=sorted(data.get("scopes") or []))
     except (requests.RequestException, ValueError) as exc:
         out["errors"].append(f"debug_token: {type(exc).__name__}")
-    try:
-        out["ad_accounts"] = [
-            {"id": a.get("id"), "name": a.get("name")}
-            for a in _get_paged(f"{GRAPH}/me/adaccounts",
-                                {"fields": "id,name", "limit": 50, "access_token": token})]
-    except RuntimeError as exc:
-        out["errors"].append(f"adaccounts: {exc}")
+    out["ad_accounts"] = discover_ad_accounts(token, out["errors"])
     out["ads_read"] = "ads_read" in out["scopes"] or "ads_management" in out["scopes"]
     return out
 

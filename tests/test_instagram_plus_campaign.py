@@ -105,3 +105,23 @@ def test_check_token_without_ads_read(monkeypatch):
     assert info["ads_read"] is False
     assert info["ad_accounts"] == []
     assert any("adaccounts" in e for e in info["errors"])
+
+
+def test_discover_ad_accounts_via_page_business(monkeypatch):
+    from scripts import instagram_plus_campaign as mod
+
+    def fake_get(url, params=None, timeout=None):
+        if url.endswith("/me") and params.get("fields") == "business":
+            return _Resp({"business": {"id": "biz1"}})
+        if url.endswith("/me") or url.endswith("/me/adaccounts"):
+            return _Resp({"error": {"message": "nonexisting field"}}, status=400)
+        if url.endswith("/biz1/owned_ad_accounts"):
+            return _Resp({"data": [{"id": "act_9", "name": "Jon Ads"}]})
+        if url.endswith("/biz1/client_ad_accounts"):
+            return _Resp({"data": [{"id": "act_9", "name": "Jon Ads"}]})
+        raise AssertionError(url)
+
+    monkeypatch.setattr(mod.requests, "get", fake_get)
+    errors = []
+    assert mod.discover_ad_accounts("tok", errors) == [{"id": "act_9", "name": "Jon Ads"}]
+    assert any("adaccounts" in e for e in errors)
