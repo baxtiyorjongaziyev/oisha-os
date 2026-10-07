@@ -1308,3 +1308,11 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Xulq: `CALL_TRACKING_NUMBERS` bo'sh = o'chiq. Manba tanlash (JS): utm_source → gclid/fbclid/yclid → referrer domeni → default. Webhook'da tracking raqam mijoz raqamidan boshqa har qanday maydondan oxirgi 9 raqam bo'yicha qidiriladi.
 - Tekshiruv: pytest (to'liq), bandit, Playwright: utm/gclid/noma'lum/direct/t.me referrer + keyingi sahifada saqlanishi.
 - Open: virtual raqamlar hali sotib olinmagan; Moizvonki → AmoCRM call note'ida qaysi raqamga qo'ng'iroq qilingani bor-yo'qligi prod'da tasdiqlanishi kerak (bo'lmasa lid izohi yozilmaydi, sayt qismi baribir ishlaydi).
+
+## 2026-10-07 — Antigravity — feat/incoming-call-screen-pop
+- Task: Ezzy gap-tahlil (#2) — Kiruvchi qo'ng'iroqda real vaqtda mijoz kartasi (Screen-pop / Ringing alert).
+- Files: `src/services/call_analytics/incoming_call_card.py` (yangi), `src/api/routes/telephony.py` (yangi: `POST /api/telephony/incoming-call`), `src/api/security.py` (public path), `src/services/api_server/core.py` (telephony_router include), `tests/test_incoming_call_card.py` (10 ta yangi test), `.env.example`.
+- Xulq: `INCOMING_CALL_CARD_ENABLED=0` default (o'chiq). Yoqilganda: Android MacroDroid / PBX webhook signali qabul qilinadi, secret tekshiriladi (header `X-Telephony-Secret`, `Authorization: Bearer` yoki query `?secret=`). 60s TTL dedup, quiet hours tekshiruvi. AmoCRM'dan mijoz ismi, ochiq lid, byudjet, etap va oxirgi izoh olinib Telegram kartasi chiqariladi; topilmasa "Yangi raqam — CRM'da topilmadi".
+- Tekshiruv: `SKIP_LIVE=1 pytest tests/test_incoming_call_card.py tests/test_missed_call_responder.py tests/test_callback_request.py tests/test_call_tracking.py` — 75 passed; `bandit -r src/ -ll -x src/services/debug/` toza; barcha yangi/o'zgargan fayllar <= 400 qator standarti bajarildi.
+- Keyingi qadam: PR ochish, prod .env da `INCOMING_CALL_CARD_ENABLED=1` va `TELEPHONY_WEBHOOK_SECRET` sozlash; menejerlar telefoniga MacroDroid webhook ulash.
+
