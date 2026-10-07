@@ -109,7 +109,8 @@ def get_creative_summary(hours: int = 24) -> list[tuple[str, int, float, str]]:
         with _connection() as conn:
             rows = conn.execute(
                 "SELECT ad_id, count(1) FROM lead_attribution "
-                "WHERE created_at >= datetime('now', ?) GROUP BY ad_id",
+                # created_at is local ISO with offset (+05:00); datetime() normalises it to UTC.
+                "WHERE datetime(created_at) >= datetime('now', ?) GROUP BY ad_id",
                 (f"-{int(hours)} hours",),
             ).fetchall()
     except Exception as exc:
@@ -135,6 +136,39 @@ def build_creative_buttons(
     return buttons
 
 
+def _meta_24h_status() -> Optional[tuple[int, int]]:
+    """(Meta leads in last 24h, those not in AmoCRM) matched by lead ID. None if Meta is unavailable."""
+    try:
+        from src.schedulers import leadgen_reconciliation as rec
+        from src.schedulers import meta_leadgen_scheduler as m
+
+        if not m._get_page_token():
+            return None
+        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        meta = rec._meta_leads(now - datetime.timedelta(hours=24))
+        missing = rec.find_missing(meta, rec._delivered_ids(), now)
+        return len(meta), len(missing)
+    except Exception as exc:
+        logger.warning("[LEADGEN REPORTER] Meta 24h check failed: %s", type(exc).__name__)
+        return None
+
+
+def _meta_lines(meta_24h: Optional[tuple[int, int]], meta_total: Optional[int]) -> tuple[str, str]:
+    if meta_24h is None:
+        line_24h = "• ⚠️ <b>Meta (24 soat):</b> Meta API javob bermadi"
+    else:
+        count, missing = meta_24h
+        if missing:
+            line_24h = f"• 🔴 <b>Meta'ga kelgan (24 soat):</b> {count} ta — <b>{missing} ta AmoCRM'ga yetmagan</b>"
+        else:
+            line_24h = f"• 🟢 <b>Meta'ga kelgan (24 soat):</b> {count} ta"
+    if meta_total is None:
+        line_total = "• ⚠️ Meta formalaridagi jami lidlar: Meta API javob bermadi"
+    else:
+        line_total = f"• Meta formalaridagi jami lidlar (butun vaqt): <b>{meta_total} ta</b>"
+    return line_24h, line_total
+
+
 def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]] = None) -> str:
     """Compile executive 24/7 status report across Meta, AmoCRM, Sheets, and Telegram."""
     if summary is None:
@@ -146,7 +180,7 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
     amo_ok = stats.get("last_24h_amocrm", 0)
     sheets_ok = stats.get("last_24h_sheets", 0)
     tg_ok = stats.get("last_24h_telegram", 0)
-    meta_total = stats.get("meta_total_forms_leads", 0)
+    meta_24h_line, meta_total_line = _meta_lines(_meta_24h_status(), stats.get("meta_total_forms_leads"))
     pending = stats.get("pending_retries", 0)
 
     amo_pct = int((amo_ok / total) * 100) if total > 0 else 100
@@ -181,7 +215,8 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         f"⚡️ <b>Tizim holati:</b> {status_icon}",
         "",
         "📊 <b>Oxirgi 24 soatdagi lidlar oqimi:</b>",
-        f"• Kelib tushgan lidlar: <b>{total} ta</b>",
+        meta_24h_line,
+        f"• Tizimga kelib tushgan lidlar: <b>{total} ta</b>",
         f"• {amo_icon} <b>AmoCRM:</b> {amo_ok}/{total} ({amo_pct}% 'Sotuv/UTC -> Yangi')",
         f"• {sheets_icon} <b>Google Sheets:</b> {sheets_ok}/{total} ({sheets_pct}% kiritilgan)",
         f"• {tg_icon} <b>Telegram Guruhi:</b> {tg_ok}/{total} ({tg_pct}% xabar yuborilgan)",
@@ -190,7 +225,7 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         *creative_lines,
         "",
         "⚙️ <b>Baza va Integratsiyalar:</b>",
-        f"• Meta Lead Ads barcha formalardagi lidlar: <b>{meta_total} ta</b>",
+        meta_total_line,
         f"• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",
         "• AmoCRM voronkalari: <code>Sotuv Bo'limi (#11162698) & UTC (#11322658)</code>",
         f"• Kutilayotgan/xatoli lidlar: <b>{pending} ta</b>",
@@ -202,9 +237,10 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
 
 async def send_daily_status_report() -> bool:
     """Send daily integration health report to Target Leads & Marketing groups."""
-    summary = get_creative_summary()
-    text = build_status_report_text(summary)
-    buttons = build_creative_buttons(summary)
+    # Meta Graph / DB calls block; keep them off the worker's event loop (lead ingestion runs there).
+    summary = await asyncio.to_thread(get_creative_summary)
+    text = await asyncio.to_thread(build_status_report_text, summary)
+    buttons = await asyncio.to_thread(build_creative_buttons, summary)
     reply_markup = {"inline_keyboard": buttons} if buttons else None
 
     # 1. Sales group (Target Leads topic)
