@@ -16,6 +16,7 @@ Ezzy (app.ezzy.uz — AI'li Cloud PBX) bilan solishtirib, Oisha-OS'dagi bo'shliq
 | Statik call tracking | `src/services/core/leads/call_tracking.py` (PR #822) |
 | Javobsiz/javobli qo'ng'iroq hajmi | `src/services/core/call_events.py` |
 | Moliya bo'yicha oddiy tilda savol | `src/services/core/hisobchi_mcp.py` |
+| Bitta mijoz bo'yicha 360° profil + AI savol-javob | `src/services/customer_360/` (`collector.py`, `query_engine.py`) |
 
 **PR #822 ga bog'liqlik:** quyidagi ishlar #822 dagi `missed_call_responder.flatten_note` va webhook o'zgarishlariga tayanadi.
 #822 `main` ga merge bo'lmaguncha, branch'ni `claude/ezzy-welcome-page-65zx2k` dan oching.
@@ -74,6 +75,8 @@ AmoCRM xatosi (yiqilmasin), webhook imzosi noto'g'ri → 401/403.
 - `pipeline_summary(stage?)` ← AmoCRM
 
 **Talablar:**
+- Mavjudi: `src/services/customer_360/query_engine.py::Customer360QueryEngine` — BITTA mijoz haqidagi savolga javob beradi.
+  Bu vazifa — AGREGAT savollar (hafta/oy, menejer, manba kesimida). Uni kengaytiring yoki yoniga qo'ying, takrorlamang.
 - Namuna: `src/services/core/hisobchi_mcp.py` (moliya uchun xuddi shu g'oya).
 - LLM chaqiruvlari faqat `src/services/utils/free_ai_router.py` orqali.
 - Faqat `OWNER_ID` / `WHITELIST_IDS` uchun. Faqat o'qish — hech qanday yozish/o'zgartirish yo'q.
