@@ -1274,3 +1274,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - <=7 kun: Private Reply DM + ack; 7..N kun: ochiq javob bilan Direct'ga taklif (Meta 7 kunlik cheklovi). Dry-run default; live `--confirm YUBORISH`, quiet hours'da bloklanadi; takroriy yuborishdan himoya (bizning ack/taklif javobi bor kommentlar o'tkazib yuboriladi).
 - Reklama postlari uchun META_AD_ACCOUNT_ID (yoki workflow input) va token'da ads_read kerak.
 - Tekshiruv: SKIP_LIVE=1 pytest — 2514 passed, 14 skipped; bandit toza.
+
+### 2026-10-07 — Claude — Egasiz lead ogohlantirishida vaqt formati
+- "⏱ N daqiqadan beri" endi 60+ daqiqada soat/kun bilan chiqadi (1392 -> "23 soat 12 daqiqa", 1 kundan keyin daqiqa tushiriladi).
+- Fayllar: src/schedulers/unowned_lead_alert.py, tests/test_unowned_lead_alert.py.
+- Tekshiruv: SKIP_LIVE=1 pytest tests/test_unowned_lead_alert.py — o'tdi.
+- Qolgan: yo'q (deploy oracle-deploy.yml orqali).
