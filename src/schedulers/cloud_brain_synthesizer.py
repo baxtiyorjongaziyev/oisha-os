@@ -3,6 +3,7 @@ import asyncio
 import hashlib
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -16,12 +17,20 @@ logger = logging.getLogger(__name__)
 # Bir xil vazifalar ro'yxati uchun digest qayta yuborilmasin (restartdan keyin ham).
 STATE_FILE = Path("data/brain_digest_state.txt")
 
-# Test/demo yozuvlar — real ish emas, tahlilga kirmaydi.
-DEMO_TASK_TITLES = {
-    "buyurtmachi a bilan uchrashuv",
-    "dastur xatolarini tuzatish",
-    "sotuvchilar uchun qo'llanma yozish",
-}
+# Test/demo yozuvlar — real ish emas, tahlilga kirmaydi. Sarlavha + tavsif
+# bo'yicha qisman moslik: bazadagi matn biroz farq qilsa ham ushlanadi.
+DEMO_TASK_PATTERNS = (
+    re.compile(r"\bbuyurtmachi a\b"),
+    re.compile(r"\bdastur xatolarini tuzatish\b"),
+    re.compile(r"\bsotuvchilar uchun qo'llanma\b"),
+)
+_APOSTROPHES = str.maketrans({c: "'" for c in "\u2018\u2019\u02bb\u02bc`"})
+
+
+def _is_demo_task(title: Optional[str], description: Optional[str]) -> bool:
+    text = f"{title or ''} {description or ''}".lower().translate(_APOSTROPHES)
+    text = " ".join(text.split())
+    return any(p.search(text) for p in DEMO_TASK_PATTERNS)
 
 
 def _digest_enabled() -> bool:
@@ -88,7 +97,7 @@ async def _fetch_recent_data() -> str:
         data = "\n".join(
             f"Task: {r[0]} - {r[1]}"
             for r in rows
-            if (r[0] or r[1]) and (r[0] or "").strip().lower() not in DEMO_TASK_TITLES
+            if (r[0] or r[1]) and not _is_demo_task(r[0], r[1])
         )
         return data.strip()
     except Exception as e:
