@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 15mm 20mm 15mm;
+  }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #1a202c;
+    line-height: 1.5;
+    font-size: 11pt;
+    margin: 0;
+    padding: 0;
+  }
+  .header {
+    border-bottom: 2px solid #0f172a;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .brand-title {
+    font-size: 20pt;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.5px;
+    text-transform: uppercase;
+  }
+  .brand-subtitle {
+    font-size: 10pt;
+    color: #475569;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+  .doc-meta {
+    text-align: right;
+    font-size: 8.5pt;
+    color: #64748b;
+    line-height: 1.4;
+  }
+  .doc-title-box {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #2563eb;
+    padding: 12px 16px;
+    margin-bottom: 22px;
+    border-radius: 2px;
+  }
+  .doc-title {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 4px 0;
+  }
+  .doc-desc {
+    font-size: 9.5pt;
+    color: #475569;
+    margin: 0;
+  }
+  h2 {
+    font-size: 11.5pt;
+    font-weight: 700;
+    color: #0f172a;
+    border-bottom: 1px solid #cbd5e1;
+    padding-bottom: 4px;
+    margin-top: 22px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  h3 {
+    font-size: 10pt;
+    font-weight: 700;
+    color: #1e293b;
+    margin-top: 14px;
+    margin-bottom: 6px;
+  }
+  p {
+    margin: 0 0 8px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 16px 0;
+    font-size: 9.5pt;
+  }
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 8px 10px;
+    text-align: left;
+  }
+  th {
+    background-color: #f1f5f9;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .kpi-target {
+    font-weight: 800;
+    color: #1e40af;
+    white-space: nowrap;
+  }
+  .schedule-box {
+    background-color: #faf5ff;
+    border: 1px solid #e9d5ff;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 12px 0;
+  }
+  .schedule-item {
+    display: flex;
+    font-size: 9.5pt;
+    padding: 3px 0;
+  }
+  .schedule-time {
+    font-weight: 700;
+    color: #6b21a8;
+    width: 120px;
+    flex-shrink: 0;
+  }
+  .schedule-action {
+    color: #334155;
+  }
+  .warning-box {
+    background-color: #fff1f2;
+    border: 1px solid #fecdd3;
+    border-left: 4px solid #e11d48;
+    padding: 10px 14px;
+    margin: 14px 0;
+    border-radius: 2px;
+    font-size: 9.5pt;
+  }
+  .warning-box ul {
+    margin: 4px 0 0 18px;
+    padding: 0;
+  }
+  .warning-box li {
+    margin-bottom: 3px;
+  }
+  ul, ol {
+    margin: 4px 0 10px 20px;
+    padding: 0;
+  }
+  li {
+    margin-bottom: 4px;
+  }
+  .signature-section {
+    margin-top: 35px;
+    padding-top: 15px;
+    border-top: 1px dashed #94a3b8;
+    display: flex;
+    justify-content: space-between;
+    font-size: 9.5pt;
+  }
+  .sig-block {
+    width: 45%;
+  }
+  .sig-line {
+    margin-top: 30px;
+    border-bottom: 1px solid #334155;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="brand-title">Jon Branding Agency</div>
+    <div class="brand-subtitle">Operatsion Boshqaruv Tizimi</div>
+  </div>
+  <div class="doc-meta">
+    <b>Hujjat:</b> SOP-SALES-001<br>
+    <b>Tasdiqlangan sana:</b> 07.10.2026<br>
+    <b>Holati:</b> Qat'iy ijro uchun
+  </div>
+</div>
+
+<div class="doc-title-box">
+  <div class="doc-title">SOTUV MENEJERI (SALES MANAGER) KUNLIK LAVOZIM REGLAMENTI</div>
+  <div class="doc-desc">
+    Ushbu standart Jon Branding sotuv bo'limi xodimlari uchun kunlik minimal professional ko'rsatkichlar, 
+    muloqot sifati va ish vaqti intizomini belgilaydi.
+  </div>
+</div>
+
+<h2>1. Kunlik Asosiy KPI Ko'rsatkichlari (Minimum Standart)</h2>
+<p>Kompaniyadagi asosiy qoida: <i>«Sotuvchining asosiy boyligi — mijoz bilan telefonda o'tkazilgan sifatli suhbatdir».</i></p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 32%;">Ko'rsatkich</th>
+      <th style="width: 25%;">Minimal Mezon</th>
+      <th>Izoh va Talab</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>Sifatli suhbatlar</b></td>
+      <td class="kpi-target">Kamida 50 ta mijoz</td>
+      <td>Mijoz go'shakni ko'targan va suhbat davomiyligi <b>kamida 3 daqiqa (≥180s)</b> bo'lgan to'liq muloqotlar.</td>
+    </tr>
+    <tr>
+      <td><b>Raqam terish hajmi</b></td>
+      <td class="kpi-target">100 – 120 ta</td>
+      <td>50 ta sifatli ulanish natijasiga erishish uchun zarur bo'lgan kunlik terishlar soni.</td>
+    </tr>
+    <tr>
+      <td><b>Sof efir vaqti</b></td>
+      <td class="kpi-target">2.5 – 3.0 soat</td>
+      <td>Moizvonki tizimida qayd etilgan sof mijozlar bilan gaplashish vaqti.</td>
+    </tr>
+    <tr>
+      <td><b>Qayta qo'ng'iroq qarzi</b></td>
+      <td class="kpi-target">0 ta (Qarzsiz)</td>
+      <td>Kun oxiriga birorta ham o'tkazib yuborilgan yoki javobsiz qolgan mijoz qolmasligi shart.</td>
+    </tr>
+    <tr>
+      <td><b>CRM to'liqligi</b></td>
+      <td class="kpi-target">100%</td>
+      <td>Har bir lid kartasida suhbat mazmuni, aniq sana va navbatdagi qadam (task) bo'lishi shart.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>2. Kunlik Ish Taqsimoti (10:00 – 19:00)</h2>
+<div class="schedule-box">
+  <div class="schedule-item">
+    <div class="schedule-time">09:45 – 10:00</div>
+    <div class="schedule-action">Ishga tayyorgarlik, garnitura/Moizvonki tekshirish, kunlik 50 talik rejani ochish.</div>
+  </div>
+  <div class="schedule-item">
+    <div class="schedule-time">10:00 – 11:30</div>
+    <div class="schedule-action"><b>1-Sprint:</b> Qarzlar va issiq lidlar. <b>Reja:</b> 12–15 ta sifatli (3+ daq) suhbat.</div>
+  </div>
+  <div class="schedule-item">
+    <div class="schedule-time">11:30 – 11:45</div>
+    <div class="schedule-action">Qisqa tanaffus (15 daqiqa).</div>
+  </div>
+  <div class="schedule-item">
+    <div class="schedule-time">11:45 – 13:15</div>
+    <div class="schedule-action"><b>2-Sprint:</b> Yangi tushgan so'rovlar va B2B kontaktlar. <b>Reja:</b> 12–15 ta sifatli suhbat.</div>
+  </div>
+  <div class="schedule-item">
+    <div class="schedule-time">13:15 – 14:15</div>
+    <div class="schedule-action"><b>Tushlik va to'liq dam olish (1 soat).</b></div>
+  </div>
+  <div class="schedule-item">
+    <div class="schedule-time">14:15 – 15:45</div>
+    <div class="schedule-action"><b>3-Sprint (Prime Time):</b> Eng faol soat. <b>Reja:</b> 13–15 ta sifatli suhbat.</div>
+  </div>
+  <div class="schedule-item">
+    <div class="schedule-time">15:45 – 16:00</div>
+    <div class="schedule-action">Qisqa tanaffus (15 daqiqa).</div>
+  </div>
+  <div class="schedule-item">
+    <div class="schedule-time">16:00 – 17:30</div>
+    <div class="schedule-action"><b>4-Sprint (Closing):</b> Marraga yetkazish va bitimga undash. <b>Reja:</b> 10–12 ta sifatli suhbat.</div>
+  </div>
+  <div class="schedule-item">
+    <div class="schedule-time">17:30 – 18:30</div>
+    <div class="schedule-action">Tijoriy takliflar (KP), hisob-fakturalar yuborish, CRM kartalarini tartibga solish.</div>
+  </div>
+  <div class="schedule-item">
+    <div class="schedule-time">18:30 – 19:00</div>
+    <div class="schedule-action">Moizvonki hisobotini tekshirish, ROPga kunlik hisobot topshirish, ertangi bazani tayyorlash.</div>
+  </div>
+</div>
+
+<h2>3. Bosqichma-bosqich Majburiyatlar</h2>
+<h3>A. Suhbat va Skript Sifati</h3>
+<ul>
+  <li>Mijoz bilan salomlashishda Jon Branding nufuzini saqlagan holda rasmiy va xushmuomala bo'lish;</li>
+  <li>Mijoz bilan monolog qilmaslik — ochiq savollar berib, ehtiyoj, byudjet va qaror qabul qiluvchi shaxsni aniqlash;</li>
+  <li>Har bir muloqotni shunchaki ma'lumot berish bilan emas, <b>aniq keyingi qadam</b> (uchrashuv, taqdimot, hisob sanasi) bilan yakunlash.</li>
+</ul>
+
+<h3>B. CRM Tizimi Intizomi</h3>
+<ul>
+  <li>Qo'ng'iroq tugagach, 30–40 soniya ichida kartochkaga aniq natija va xulosani yozish;</li>
+  <li>Lidni mos bosqichga o'tkazish va navbatdagi topshiriq (task) sanasi hamda soatini biriktirish. <b>Topshiriqsiz kartochka qoldirish qat'iyan taqiqlanadi.</b></li>
+</ul>
+
+<h2>4. Qat'iyan Man Etilgan Holatlar (Qizil Chiziqlar)</h2>
+<div class="warning-box">
+  <ul>
+    <li><b>O'tkazib yuborilgan qo'ng'iroqlar:</b> Mijozga 24 soat ichida qayta bog'lanmaslik;</li>
+    <li><b>Soxta raqam terish:</b> Standartni soxta to'ldirish uchun mijoz bilan 10–20 soniya gaplashib go'shakni qo'yish (bunday qo'ng'iroqlar hisobga kirmaydi);</li>
+    <li><b>Muddatsiz CRM:</b> Kartochkalarni keyingi qadamsiz qoldirish;</li>
+    <li><b>Mijoz bilan bahslashish:</b> Har qanday e'tiroz va vaziyatda nizoga bormaslik, professional yondashish.</li>
+  </ul>
+</div>
+
+<h2>5. Baholash va Rag'batlantirish</h2>
+<p>
+  Har kuni <b>50 ta ko'targan va 3+ daqiqa gaplashilgan</b> mijoz mezonini barqaror bajargan xodimlar oylik to'liq KPI bonusiga va kompaniyaning maxsus rag'batlariga ega bo'ladi. Ushbu mezonlarga beparvo qarash va qarz yig'ish xodimga nisbatan ogohlantirish va jarima choralariga sabab bo'ladi.
+</p>
+
+<div class="signature-section">
+  <div class="sig-block">
+    <b>Tasdiqladi (Rahbariyat / ROP):</b>
+    <div class="sig-line"></div>
+    <p style="margin-top: 5px; font-size: 8.5pt; color: #64748b;">Imzo / F.I.Sh / Sana</p>
+  </div>
+  <div class="sig-block">
+    <b>Tanishdim va qabul qildim (Xodim):</b>
+    <div class="sig-line"></div>
+    <p style="margin-top: 5px; font-size: 8.5pt; color: #64748b;">Imzo / F.I.Sh / Sana</p>
+  </div>
+</div>
+
+</body>
+</html>

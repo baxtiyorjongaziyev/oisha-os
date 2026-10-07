@@ -138,3 +138,25 @@ def test_known_rep_without_calls_is_listed():
     text = rpt.format_report(rep, {"farangiz@x.uz": "Farangiz"})
     assert "Farangiz</b>\n   🚫 Qo'ng'iroq yo'q" in text
     assert "1 sotuvchi, 1 tasi qo'ng'iroqsiz" in text
+
+
+def test_rop_feedback_over_50_calls():
+    # 52 ta ko'targan va kamida 180 soniya (3 daqiqa) gaplashilgan suhbat
+    calls = [_call("star@x.uz", 1, 1, 190) for _ in range(52)]
+    rep = rpt.build_report(calls, "2026-10-06")
+    text = rpt.format_report(rep, {"star@x.uz": "Star Rep"})
+    assert "Star Rep</b> [50+ SIFATLI MARRA]" in text
+    assert "Sifatli suhbat (≥3 daq): <b>52 ta</b>" in text
+    assert "Barakalla!" in text
+    assert "50 ta sifatli suhbat marrasini a'lo darajada bajardingiz!" in text
+
+
+def test_rop_feedback_below_50_calls():
+    # 10 ta javobli, lekin qisqa yoki yetarli bo'lmagan suhbat
+    calls = [_call("junior@x.uz", 1, 1, 60) for _ in range(10)]
+    rep = rpt.build_report(calls, "2026-10-06")
+    text = rpt.format_report(rep, {"junior@x.uz": "Junior Rep"})
+    assert "ROP Xulosasi va Ko'rsatmasi" in text
+    assert "Sifatli suhbat (≥3 daq): <b>0 ta</b>" in text
+    assert "Bu natija yetarli emas!" in text
+    assert "kamida 50 ta ko'targan va 3+ daqiqa gaplashilgan" in text
