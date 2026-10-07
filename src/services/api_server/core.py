@@ -126,6 +126,7 @@ from src.api.routes.callmaster_routes import router as callmaster_router
 from src.api.routes.dashboard_overview import router as dashboard_overview_router
 from src.api.routes.client_qa import router as client_qa_router
 from src.api.routes.payme import router as payme_router
+from src.api.routes.callback_widget import router as callback_widget_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
@@ -150,6 +151,7 @@ app.include_router(callmaster_router)
 app.include_router(dashboard_overview_router)
 app.include_router(client_qa_router)
 app.include_router(payme_router)
+app.include_router(callback_widget_router)
 
 app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
 app.add_api_route("/healthz", liveness_probe, methods=["GET"], include_in_schema=False)

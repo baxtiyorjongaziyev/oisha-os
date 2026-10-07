@@ -45,6 +45,12 @@ _PUBLIC_PATHS = frozenset(
         # Web chat widget guest tokens and messaging
         "/api/chat/token",
         "/api/chat/send",
+        # Saytdagi "Sizga qo'ng'iroq qilamiz" vidjeti (rate limit + honeypot route ichida)
+        "/api/callback-request",
+        # Call tracking: saytdagi JS uchun manba → ochiq telefon raqamlari
+        "/api/call-tracking/config",
+        # Vidjet JS fayli (prod Nginx faqat /api/* ni backend'ga yuboradi)
+        "/api/callback-widget.js",
         # Meta must reach this exact verification/event endpoint. The route
         # validates the verify token (GET) and x-hub-signature-256 (POST).
         "/api/instagram/webhook",
