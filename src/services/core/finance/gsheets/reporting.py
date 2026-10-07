@@ -1,6 +1,12 @@
 import logging
 from typing import Optional
 from src.services.core.finance.gsheets.constants import *
+from src.services.core.finance.gsheets.constants import (  # noqa: F401 — star import skips _names
+    _get,
+    _k2h,
+    _normalize_card_suffix,
+    _normalize_merchant,
+)
 
 logger = logging.getLogger(__name__)
 
