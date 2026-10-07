@@ -152,6 +152,57 @@ def execute(plan: List[Dict], token: str, send_dm: Callable, reply: Callable,
     return stats
 
 
+def check_token(token: str) -> Dict:
+    """Token turi, ruxsatlari (ads_read bormi) va ko'rinadigan reklama akkauntlari."""
+    out: Dict = {"valid": False, "type": None, "scopes": [], "ad_accounts": [], "errors": []}
+    try:
+        resp = requests.get(f"{GRAPH}/debug_token",
+                            params={"input_token": token, "access_token": token}, timeout=20)
+        data = (resp.json() or {}).get("data") or {}
+        out.update(valid=bool(data.get("is_valid")), type=data.get("type"),
+                   scopes=sorted(data.get("scopes") or []))
+    except (requests.RequestException, ValueError) as exc:
+        out["errors"].append(f"debug_token: {type(exc).__name__}")
+    try:
+        out["ad_accounts"] = [
+            {"id": a.get("id"), "name": a.get("name")}
+            for a in _get_paged(f"{GRAPH}/me/adaccounts",
+                                {"fields": "id,name", "limit": 50, "access_token": token})]
+    except RuntimeError as exc:
+        out["errors"].append(f"adaccounts: {exc}")
+    out["ads_read"] = "ads_read" in out["scopes"] or "ads_management" in out["scopes"]
+    return out
+
+
+def _notify_owner(text: str) -> bool:
+    """Maxfiy tafsilotlarni (akkaunt ID) public Actions logiga emas, Owner'ga yuboradi."""
+    bot, owner = os.environ.get("BOT_TOKEN", "").strip(), os.environ.get("OWNER_ID", "").strip()
+    if not bot or not owner:
+        return False
+    try:
+        resp = requests.post(f"https://api.telegram.org/bot{bot}/sendMessage",
+                             json={"chat_id": owner, "text": text}, timeout=15)
+        return resp.status_code == 200
+    except requests.RequestException:
+        return False
+
+
+def run_check(token: str) -> int:
+    info = check_token(token)
+    print(f"token_valid: {info['valid']}")
+    print(f"token_type: {info['type']}")
+    print(f"ads_read: {info['ads_read']}")
+    print(f"scopes: {info['scopes']}")
+    print(f"ad_accounts_found: {len(info['ad_accounts'])}")
+    print(f"errors: {info['errors']}")
+    lines = [f"{a['id']} — {a['name']}" for a in info["ad_accounts"]] or ["(topilmadi)"]
+    sent = _notify_owner("Instagram '+' kampaniya: token tekshiruvi\n"
+                         f"ads_read: {'bor' if info['ads_read'] else 'YO`Q'}\n"
+                         "Reklama akkauntlari:\n" + "\n".join(lines))
+    print(f"owner_notified: {sent}")
+    return 0
+
+
 def _load_env() -> None:
     try:
         from dotenv import load_dotenv
@@ -168,6 +219,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--days", type=int, default=60)
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--confirm", default="")
+    parser.add_argument("--check", action="store_true", help="faqat token ruxsatlarini tekshiradi")
     args = parser.parse_args(argv)
 
     _load_env()
@@ -181,6 +233,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not token or not own_id:
         print("XATO: META_PAGE_ACCESS_TOKEN yoki META_INSTAGRAM_USER_ID yo'q")
         return 2
+    if args.check:
+        return run_check(token)
     if args.live and args.confirm != CONFIRM_TEXT:
         print(f"XATO: live rejim uchun --confirm {CONFIRM_TEXT} kerak")
         return 2
