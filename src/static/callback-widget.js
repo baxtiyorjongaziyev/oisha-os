@@ -2,7 +2,7 @@
  * Oisha "Sizga qo'ng'iroq qilamiz" vidjeti.
  *
  * Saytga qo'yish (</body> dan oldin):
- *   <script src="https://oisha.jonbranding.uz/callback-widget.js"
+ *   <script src="https://oisha.jonbranding.uz/api/callback-widget.js"
  *           data-color="#111111" data-lang="uz" defer></script>
  *
  * Atributlar (ixtiyoriy):

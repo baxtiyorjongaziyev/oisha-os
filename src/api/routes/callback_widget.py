@@ -1,6 +1,6 @@
 """Saytdagi "Sizga qo'ng'iroq qilamiz" vidjeti uchun ochiq endpoint.
 
-Vidjet: `/callback-widget.js` (saytga bitta <script> bilan qo'yiladi).
+Vidjet: `/api/callback-widget.js` (saytga bitta <script> bilan qo'yiladi).
 Himoya: IP bo'yicha rate limit, honeypot maydon, raqam bo'yicha 10 daqiqalik
 dedup, barcha maydonlar uzunligi cheklangan. Default o'chiq.
 """
@@ -75,10 +75,12 @@ async def create_callback_request(request: Request, body: CallbackRequest) -> di
     return {"status": "accepted"}
 
 
+@router.get("/api/callback-widget.js", include_in_schema=False)
 @router.get("/callback-widget.js", include_in_schema=False)
 async def callback_widget_js() -> FileResponse:
     # /static mount faylni topmaydi va boshqa ichki sahifalarni ham ochadi —
-    # shuning uchun faqat shu bitta fayl beriladi.
+    # shuning uchun faqat shu bitta fayl beriladi. Prod'da Nginx faqat /api/*
+    # ni backend'ga yuboradi (qolgani Next.js) — saytga /api/callback-widget.js qo'yiladi.
     return FileResponse(
         _WIDGET_JS, media_type="application/javascript",
         headers={"Cache-Control": "public, max-age=3600"},

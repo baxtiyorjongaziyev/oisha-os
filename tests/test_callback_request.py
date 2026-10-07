@@ -189,9 +189,10 @@ def test_oversized_fields_rejected(monkeypatch):
     assert resp.status_code == 422
 
 
-def test_widget_js_served():
-    resp = _client().get("/callback-widget.js")
+@pytest.mark.parametrize("path", ["/api/callback-widget.js", "/callback-widget.js"])
+def test_widget_js_served(path):
+    resp = _client().get(path)
     assert resp.status_code == 200
     assert "javascript" in resp.headers["content-type"]
     assert "OishaCallback" in resp.text
-    assert is_protected_path("/callback-widget.js") is False
+    assert is_protected_path(path) is False
