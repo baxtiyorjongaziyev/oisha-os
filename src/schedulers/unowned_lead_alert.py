@@ -43,13 +43,29 @@ def find_unowned_inhouse_leads(leads: List[Dict[str, Any]], now: float) -> List[
     return result
 
 
+def format_duration(minutes: int) -> str:
+    """1392 -> '23 soat 12 daqiqa'; 1500 -> '1 kun 1 soat'."""
+    if minutes < 60:
+        return f"{minutes} daqiqa"
+    days, rem = divmod(minutes, 1440)
+    hours, mins = divmod(rem, 60)
+    parts = []
+    if days:
+        parts.append(f"{days} kun")
+    if hours:
+        parts.append(f"{hours} soat")
+    if mins and not days:
+        parts.append(f"{mins} daqiqa")
+    return " ".join(parts)
+
+
 def build_alert_text(lead: Dict[str, Any], now: float) -> str:
     minutes = int((now - int(lead.get("created_at") or now)) // 60)
     name = html.escape(str(lead.get("name") or "Nomsiz lead"))
     return (
         "⚠️ <b>Lead egasiz turibdi</b>\n\n"
         f"📌 {name}\n"
-        f"⏱ {minutes} daqiqadan beri hech kim olmadi\n\n"
+        f"⏱ {format_duration(minutes)}dan beri hech kim olmadi\n\n"
         "Lead'ni olgan menejer AmoCRM'da <b>Mas'ul</b>ga o'z ismini qo'ysin."
     )
 

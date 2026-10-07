@@ -3,6 +3,7 @@ from src.schedulers.unowned_lead_alert import (
     INHOUSE_TAG,
     _alerted,
     build_alert_text,
+    format_duration,
     find_unowned_inhouse_leads,
 )
 
@@ -44,3 +45,19 @@ def test_alert_text_escapes_name_and_shows_minutes():
     text = build_alert_text(_lead(1, 45), NOW)
     assert "Test &lt;lead&gt;" in text
     assert "45 daqiqa" in text
+
+
+def test_format_duration_boundaries():
+    assert format_duration(45) == "45 daqiqa"
+    assert format_duration(60) == "1 soat"
+    assert format_duration(1392) == "23 soat 12 daqiqa"
+    assert format_duration(1439) == "23 soat 59 daqiqa"
+    assert format_duration(1440) == "1 kun"
+    assert format_duration(1500) == "1 kun 1 soat"
+    assert format_duration(4 * 1440 + 125) == "4 kun 2 soat"
+
+
+def test_alert_text_uses_hours_after_60_minutes():
+    now = 10_000_000
+    text = build_alert_text({"name": "Lobar", "created_at": now - 1392 * 60}, now)
+    assert "23 soat 12 daqiqadan beri" in text
