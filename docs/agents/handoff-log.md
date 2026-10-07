@@ -1280,3 +1280,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - O'zgardi: `src/services/core/instagram/leadgen_watchdog.py` (paginatsiyali `_meta_lifetime_leads_count`, 10 daq kesh, xatoda None), `src/schedulers/leadgen_status_reporter.py` (`datetime(created_at)` UTC normalizatsiya, "Meta'ga kelgan (24 soat)" qatori 🟢/🔴, "butun vaqt" yorlig'i, API xatosida ⚠️), testlar.
 - Tekshiruv: leadgen testlari 17 passed; to'liq suite failure ro'yxati base bilan bir xil (6 ta env-related); bandit clean. Lock: `leadgen delivery recovery` (Codex, 2026-09-15) — watchdog fayliga minimal tegildi.
 - Ochiq: Meta MCP ulanmagan — production'da 542 va 24h sonini jonli tekshirish kerak.
+
+### 2026-10-07 — Claude — Egasiz lead ogohlantirishida vaqt formati
+- "⏱ N daqiqadan beri" endi 60+ daqiqada soat/kun bilan chiqadi (1392 -> "23 soat 12 daqiqa", 1 kundan keyin daqiqa tushiriladi).
+- Fayllar: src/schedulers/unowned_lead_alert.py, tests/test_unowned_lead_alert.py.
+- Tekshiruv: SKIP_LIVE=1 pytest tests/test_unowned_lead_alert.py — o'tdi.
+- Qolgan: yo'q (deploy oracle-deploy.yml orqali).
