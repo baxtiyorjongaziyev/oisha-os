@@ -1316,3 +1316,11 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Tekshiruv: `SKIP_LIVE=1 pytest tests/test_incoming_call_card.py tests/test_missed_call_responder.py tests/test_callback_request.py tests/test_call_tracking.py` — 75 passed; `bandit -r src/ -ll -x src/services/debug/` toza; barcha yangi/o'zgargan fayllar <= 400 qator standarti bajarildi.
 - Keyingi qadam: PR ochish, prod .env da `INCOMING_CALL_CARD_ENABLED=1` va `TELEPHONY_WEBHOOK_SECRET` sozlash; menejerlar telefoniga MacroDroid webhook ulash.
 
+## 2026-10-07 — Antigravity — feat/realtime-call-analysis-and-urgent-alert
+- Task: Ezzy gap-tahlil (#1) — Real vaqtda AI tahlil va muammoli qo'ng'iroqlarda shoshilinch Telegram SOS kartasi.
+- Files: `src/services/core/calls/call_notifier.py` (`is_problem_call`, `build_urgent_problem_alert`, `_dispatch_telegram_message`), `src/services/api_server/webhooks.py` (`_resolve_lead_id_for_note`, note_type `"10"`/`"11"`/recording link qo'llab-quvvatlash), `tests/test_realtime_call_analysis.py` (9 ta unit test).
+- Xulq: AmoCRM `notes[add]` webhook'i kelishi bilan Moizvonki audio yozuvlari (note_type 10/11) kechiktirilmasdan `CallAnalyzer.process_call_recordings_for_lead` ga uzatiladi. Tahlil yakunida sifat bahosi past (<60), e'tirozlar mavjud bo'lgan, salbiy kayfiyatdagi yoki boy berilgan qo'ng'iroqlar uchun darhol qizil SOS ogohlantirish kartasi (`🚨 DIQQAT: Qo'ng'iroqda muammo / E'tiroz aniqlandi!`) jo'natiladi. Telegram jo'natish xatoliklariga qarshi to'g'ridan-to'g'ri Bot API HTTP fallback ta'minlandi.
+- Tekshiruv: `SKIP_LIVE=1 pytest tests/test_realtime_call_analysis.py tests/test_call_notifier_topic.py tests/test_incoming_call_card.py` — 21 passed; `bandit -r src/ -ll -x src/services/debug/` — 0 issues; fayl hajmlari qat'iy <= 400 LOC (`webhooks.py`: 391 LOC, `call_notifier.py`: 272 LOC).
+- Keyingi qadam: PR ochish, merge qilish va production'da test qilish.
+
+
