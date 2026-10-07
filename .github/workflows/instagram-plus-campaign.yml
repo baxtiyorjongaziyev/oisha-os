@@ -6,12 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "dry-run (faqat hisobot) yoki live (yuboradi)"
+        description: "check (token ruxsatlari), dry-run (faqat hisobot) yoki live (yuboradi)"
         required: true
         default: "dry-run"
         type: choice
         options:
           - dry-run
+          - check
           - live
       days:
         description: "Necha kunlik kommentlar"
@@ -48,7 +49,9 @@ jobs:
           if ! [[ "${DAYS}" =~ ^[0-9]+$ ]]; then
             echo "days butun son bo'lishi kerak"; exit 2
           fi
-          if [ "${MODE}" = "live" ]; then
+          if [ "${MODE}" = "check" ]; then
+            ./venv/bin/python -m scripts.instagram_plus_campaign --check
+          elif [ "${MODE}" = "live" ]; then
             ./venv/bin/python -m scripts.instagram_plus_campaign --days "${DAYS}" --live --confirm YUBORISH
           else
             ./venv/bin/python -m scripts.instagram_plus_campaign --days "${DAYS}"

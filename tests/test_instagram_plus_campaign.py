@@ -67,3 +67,41 @@ def test_live_requires_confirm(monkeypatch):
     monkeypatch.setenv("META_INSTAGRAM_USER_ID", OWN)
     assert main(["--live"]) == 2
     assert CONFIRM_TEXT == "YUBORISH"
+
+
+class _Resp:
+    def __init__(self, body, status=200):
+        self._body, self.status_code = body, status
+
+    def json(self):
+        return self._body
+
+
+def test_check_token_reports_ads_read_and_accounts(monkeypatch):
+    from scripts import instagram_plus_campaign as mod
+
+    def fake_get(url, params=None, timeout=None):
+        if url.endswith("/debug_token"):
+            return _Resp({"data": {"is_valid": True, "type": "PAGE",
+                                   "scopes": ["instagram_basic", "ads_read"]}})
+        return _Resp({"data": [{"id": "act_1", "name": "Jon"}]})
+
+    monkeypatch.setattr(mod.requests, "get", fake_get)
+    info = mod.check_token("tok")
+    assert info["valid"] and info["ads_read"]
+    assert info["ad_accounts"] == [{"id": "act_1", "name": "Jon"}]
+
+
+def test_check_token_without_ads_read(monkeypatch):
+    from scripts import instagram_plus_campaign as mod
+
+    def fake_get(url, params=None, timeout=None):
+        if url.endswith("/debug_token"):
+            return _Resp({"data": {"is_valid": True, "scopes": ["instagram_basic"]}})
+        return _Resp({"error": {"message": "no permission"}}, status=400)
+
+    monkeypatch.setattr(mod.requests, "get", fake_get)
+    info = mod.check_token("tok")
+    assert info["ads_read"] is False
+    assert info["ad_accounts"] == []
+    assert any("adaccounts" in e for e in info["errors"])
