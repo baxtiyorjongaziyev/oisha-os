@@ -12,11 +12,12 @@ from pathlib import Path
 from typing import Optional, Set
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src.services.core.leads import call_tracking
 from src.services.core.leads import callback_request as cb
 
 router = APIRouter(tags=["callback-widget"])
@@ -81,6 +82,15 @@ async def callback_widget_js() -> FileResponse:
     return FileResponse(
         _WIDGET_JS, media_type="application/javascript",
         headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@router.get("/api/call-tracking/config")
+async def call_tracking_config() -> JSONResponse:
+    """Saytdagi JS uchun manba → raqam (faqat ochiq telefon raqamlari)."""
+    return JSONResponse(
+        call_tracking.public_config(),
+        headers={"Cache-Control": "public, max-age=300"},
     )
 
 

@@ -61,7 +61,7 @@ def _sla_minutes() -> int:
         return DEFAULT_SLA_MINUTES
 
 
-def _flatten(note: Dict[str, Any]) -> Dict[str, Any]:
+def flatten_note(note: Dict[str, Any]) -> Dict[str, Any]:
     """Webhook formati turlicha: params ichida, tekis, yoki `text` da JSON.
 
     Hammasini bitta kichik harfli lug'atga yig'amiz.
@@ -98,7 +98,7 @@ def is_missed_inbound(note: Dict[str, Any]) -> bool:
 
     Davomiylik noma'lum bo'lsa — javobsiz DEMAYMIZ (soxta alert yomonroq).
     """
-    flat = _flatten(note)
+    flat = flatten_note(note)
     if str(flat.get("note_type") or "").lower() not in INBOUND_NOTE_TYPES:
         return False
     if str(flat.get("call_status") or "") == ANSWERED_STATUS:
@@ -146,12 +146,16 @@ def _lead_url(lead_id: Optional[int]) -> str:
     return f"https://{subdomain}.amocrm.ru/leads/detail/{lead_id}" if subdomain else ""
 
 
-def build_alert(phone: str, lead_id: Optional[int], sla_minutes: int, when: datetime) -> str:
+def build_alert(
+    phone: str, lead_id: Optional[int], sla_minutes: int, when: datetime, source: Optional[str] = None,
+) -> str:
     lines = [
         "📵 <b>Javobsiz qo'ng'iroq!</b>",
         f"📞 Raqam: <code>{escape(phone or 'nomaʼlum')}</code>",
         f"🕒 Vaqt: {when.strftime('%H:%M')}",
     ]
+    if source:
+        lines.append(f"🎯 Manba: {escape(source)}")
     url = _lead_url(lead_id)
     if url:
         lines.append(f'🔗 <a href="{escape(url)}">AmoCRM lid #{lead_id}</a>')
@@ -166,6 +170,17 @@ def _lead_id(flat: Dict[str, Any]) -> Optional[int]:
         return int(flat.get("element_id") or 0) or None
     except (TypeError, ValueError):
         return None
+
+
+def _tracked_source(note: Dict[str, Any]) -> Optional[str]:
+    """Call tracking yoqilgan bo'lsa — qo'ng'iroq qaysi kanal raqamiga kelgani."""
+    try:
+        from src.services.core.leads.call_tracking import source_for_note
+        match = source_for_note(note)
+    except Exception as exc:
+        logger.debug("[MISSED CALL] Manba aniqlanmadi: %s", exc)
+        return None
+    return match["source"] if match else None
 
 
 async def _send_alert(text: str) -> bool:
@@ -194,7 +209,7 @@ async def handle_missed_call_note(
     mode = get_mode()
     if mode == "off" or not is_missed_inbound(note):
         return result
-    flat = _flatten(note)
+    flat = flatten_note(note)
     if _already_handled(_call_key(flat), time.monotonic()):
         result["reason"] = "duplicate"
         return result
@@ -208,7 +223,7 @@ async def handle_missed_call_note(
         if is_quiet_hours(now):
             result["reason"] = "quiet_hours"
         else:
-            result["alert"] = await _send_alert(build_alert(phone, lead_id, sla, now))
+            result["alert"] = await _send_alert(build_alert(phone, lead_id, sla, now, _tracked_source(note)))
         if mode == "live" and lead_id and amocrm is not None:
             due = callback_deadline(now, sla)
             result["task"] = await _create_task(amocrm, lead_id, phone, due, flat.get("responsible_user_id"))

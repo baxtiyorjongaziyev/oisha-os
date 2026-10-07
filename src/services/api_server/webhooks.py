@@ -21,6 +21,7 @@ from src.services.api_server.helpers import (
 )
 from src.services.api_server.userbot import _business_message_skip_reason
 from src.services.call_analytics import missed_call_responder
+from src.services.core.leads import call_tracking
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["webhooks"])
@@ -321,6 +322,12 @@ async def amocrm_notes_webhook(request: Request):
             if missed_call_responder.get_mode() != "off" and missed_call_responder.is_missed_inbound(note_data):
                 asyncio.create_task(
                     missed_call_responder.handle_missed_call_note(note_data, amocrm=_get_amocrm_instance())
+                )
+
+            # Call tracking: kiruvchi qo'ng'iroq qaysi kanal raqamiga kelgani → lid izohi
+            if call_tracking.is_enabled():
+                asyncio.create_task(
+                    call_tracking.attribute_inbound_call(note_data, amocrm=_get_amocrm_instance())
                 )
 
             # Agar yangi qo'ng'iroq yoki audio yozuv kelgan bo'lsa

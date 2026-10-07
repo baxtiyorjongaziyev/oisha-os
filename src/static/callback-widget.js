@@ -15,6 +15,11 @@
  * O'z tugmangizdan ochish: <button data-oisha-callback>Qo'ng'iroq qiling</button>
  *   yoki JS: window.OishaCallback.open()
  *
+ * Call tracking (ixtiyoriy): data-call-tracking="1" bo'lsa, sahifadagi
+ *   <a data-oisha-phone href="tel:+998712000000">+998 71 200 00 00</a>
+ * elementlarida mijoz kelgan kanalning raqami ko'rsatiladi
+ * (raqamlar serverdagi CALL_TRACKING_NUMBERS dan olinadi).
+ *
  * UTM: birinchi tashrifdagi utm_* / fbclid / gclid 30 kun saqlanadi va
  * so'rov bilan birga AmoCRM lidiga yoziladi.
  */
@@ -29,6 +34,7 @@
     lang: (script && script.getAttribute("data-lang")) === "ru" ? "ru" : "uz",
     position: (script && script.getAttribute("data-position")) === "left" ? "left" : "right",
     button: !(script && script.getAttribute("data-button") === "0"),
+    callTracking: !!(script && script.getAttribute("data-call-tracking") === "1"),
   };
 
   var T = {
@@ -254,8 +260,66 @@
     if (el) { e.preventDefault(); open(); }
   });
 
-  function mount() { document.body.appendChild(host); }
+  // ---- Call tracking: kanalga mos raqamni ko'rsatish ----
+  var REFERRER_SOURCES = { "t.me": "telegram", "telegram": "telegram", "instagram": "instagram",
+    "facebook": "facebook", "google": "google", "yandex": "yandex", "youtube": "youtube" };
+
+  function pickSource(numbers) {
+    var src = Object.keys(touch.current).length ? touch.current : (touch.stored && touch.stored.data) || {};
+    var utm = String(src.utm_source || "").toLowerCase();
+    if (utm && numbers[utm]) return utm;
+    if (src.gclid && numbers.google) return "google";
+    if (src.fbclid) {
+      var meta = ["meta", "instagram", "facebook"].filter(function (k) { return numbers[k]; })[0];
+      if (meta) return meta;
+    }
+    if (src.yclid && numbers.yandex) return "yandex";
+    var ref = (touch.stored && touch.stored.referrer) || document.referrer || "";
+    var host = "";
+    try { host = ref ? new URL(ref).hostname : ""; } catch (e) { host = ""; }
+    if (host && host !== location.hostname) {
+      for (var needle in REFERRER_SOURCES) {
+        if (host.indexOf(needle) !== -1 && numbers[REFERRER_SOURCES[needle]]) return REFERRER_SOURCES[needle];
+      }
+    }
+    return numbers["default"] ? "default" : null;
+  }
+
+  function displayPhone(number) {
+    var d = String(number).replace(/\D/g, "");
+    if (d.length === 12 && d.indexOf("998") === 0) {
+      return "+998 " + d.slice(3, 5) + " " + d.slice(5, 8) + " " + d.slice(8, 10) + " " + d.slice(10, 12);
+    }
+    return "+" + d;
+  }
+
+  var trackedNumber = null;
+  function applyPhones() {
+    if (!trackedNumber) return;
+    var els = document.querySelectorAll("[data-oisha-phone]");
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.getAttribute("data-oisha-phone-text") !== "0") el.textContent = displayPhone(trackedNumber);
+      if (el.tagName === "A") el.setAttribute("href", "tel:" + trackedNumber);
+    }
+  }
+
+  function loadCallTracking() {
+    if (!cfg.callTracking || !window.fetch) return;
+    fetch(cfg.api + "/api/call-tracking/config")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        var numbers = (data && data.numbers) || {};
+        var source = pickSource(numbers);
+        if (!source) return;
+        trackedNumber = numbers[source];
+        applyPhones();
+      })
+      .catch(function () { /* raqamlar o'zgarmaydi — sayt odatdagidek ishlaydi */ });
+  }
+
+  function mount() { document.body.appendChild(host); loadCallTracking(); }
   if (document.body) mount(); else document.addEventListener("DOMContentLoaded", mount);
 
-  window.OishaCallback = { open: open, close: close, tracking: tracking };
+  window.OishaCallback = { open: open, close: close, tracking: tracking, applyPhones: applyPhones };
 })();

@@ -1283,3 +1283,10 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Topildi (tuzatilmadi): `core.py` dagi `/static` mount `src/src/static` ga qaraydi — hech qachon ulanmagan. Tuzatish `dashboard.html`/`widget.html` ni ham ochiq qilardi, shuning uchun vidjet alohida route bilan beriladi.
 - Tekshiruv: pytest (to'liq), bandit, Playwright'da desktop+mobil (UTM first-touch, niqob, xato/muvaffaqiyat holatlari, o'z tugmasi, Esc).
 - Open: UTM hozircha lid IZOHIGA yoziladi; AmoCRM'dagi UTM maydonlari ID'lari berilsa custom field'larga ham yozish mumkin.
+
+## 2026-10-07 — Claude Code — claude/ezzy-welcome-page-65zx2k (3)
+- Task: Ezzy gap-tahlil 3-bosqich — statik call tracking (kanal → virtual raqam).
+- Files: `src/services/core/leads/call_tracking.py` (yangi), `src/static/callback-widget.js` (`data-call-tracking="1"` → `[data-oisha-phone]` raqamini almashtiradi), `src/api/routes/callback_widget.py` (`GET /api/call-tracking/config`), `src/api/security.py` (public path), `src/services/api_server/webhooks.py` (kiruvchi call → lid izohi "Qo'ng'iroq manbasi"), `src/services/call_analytics/missed_call_responder.py` (`flatten_note` ochiq; alertda manba), `tests/test_call_tracking.py`, `.env.example`.
+- Xulq: `CALL_TRACKING_NUMBERS` bo'sh = o'chiq. Manba tanlash (JS): utm_source → gclid/fbclid/yclid → referrer domeni → default. Webhook'da tracking raqam mijoz raqamidan boshqa har qanday maydondan oxirgi 9 raqam bo'yicha qidiriladi.
+- Tekshiruv: pytest (to'liq), bandit, Playwright: utm/gclid/noma'lum/direct/t.me referrer + keyingi sahifada saqlanishi.
+- Open: virtual raqamlar hali sotib olinmagan; Moizvonki → AmoCRM call note'ida qaysi raqamga qo'ng'iroq qilingani bor-yo'qligi prod'da tasdiqlanishi kerak (bo'lmasa lid izohi yozilmaydi, sayt qismi baribir ishlaydi).
