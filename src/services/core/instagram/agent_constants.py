@@ -47,7 +47,7 @@ FALLBACK_COMMENT_REPLIES = [
 ]
 
 
-def _is_plus_only(comment_text: Optional[str]) -> bool:
+def is_plus_only_comment(comment_text: Optional[str]) -> bool:
     """True if the comment is only "+" signs and whitespace (linear, no regex)."""
     compact = "".join((comment_text or "").split())
     return bool(compact) and set(compact) == {"+"}
@@ -55,7 +55,7 @@ def _is_plus_only(comment_text: Optional[str]) -> bool:
 
 def match_comment_keyword_automation(comment_text: str) -> Optional[str]:
     """Returns the fixed DM template for the first matching keyword, or None."""
-    if _is_plus_only(comment_text):
+    if is_plus_only_comment(comment_text):
         return PLUS_COMMENT_DM_TEMPLATE
     lowered = (comment_text or "").lower()
     for keyword, template in COMMENT_KEYWORD_AUTOMATIONS.items():
