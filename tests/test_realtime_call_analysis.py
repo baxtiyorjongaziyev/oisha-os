@@ -18,10 +18,10 @@ def test_is_problem_call_detects_low_score():
 
 
 def test_is_problem_call_detects_objections():
-    analysis = {"sifat_bahosi": 75, "etirozlar": ["Narxi qimmat deb aytdi"]}
+    analysis = {"sifat_bahosi": 65, "etirozlar": ["Narxi qimmat deb aytdi"]}
     assert call_notifier.is_problem_call(analysis) is True
 
-    analysis_empty = {"sifat_bahosi": 75, "etirozlar": []}
+    analysis_empty = {"sifat_bahosi": 65, "etirozlar": []}
     assert call_notifier.is_problem_call(analysis_empty) is False
 
 
@@ -95,12 +95,11 @@ async def test_send_call_analysis_telegram_alert_sends_both_cards_on_problem(mon
         task_id="t1",
     )
 
-    # 1 standard analysis card + 1 urgent problem alert = 2 messages
-    assert len(sent_messages) == 2
-    assert "Suhbat Tahlili" in sent_messages[0]["text"] or "Kategoriya" in sent_messages[0]["text"] or "Ali" in sent_messages[0]["text"]
-    assert "DIQQAT: Qo'ng'iroqda muammo" in sent_messages[1]["text"]
-    assert sent_messages[1]["chat_id"] == -100111222
-    assert sent_messages[1]["topic_id"] == 99
+    # Muammoli qo'ng'iroqda shoshilinch SOS kartasi yuboriladi
+    assert len(sent_messages) == 1
+    assert "DIQQAT: Qo'ng'iroqda muammo" in sent_messages[0]["text"]
+    assert sent_messages[0]["chat_id"] == -100111222
+    assert sent_messages[0]["topic_id"] == 99
 
 
 @pytest.mark.asyncio

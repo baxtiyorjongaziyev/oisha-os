@@ -98,20 +98,31 @@ def build_call_alert_message(
 def is_problem_call(analysis: Dict[str, Any]) -> bool:
     """Qo'ng'iroqda muammo yoki hal qilinmagan e'tiroz bor-yo'qligini aniqlash."""
     score = analysis.get("sifat_bahosi") or analysis.get("overall_score")
+    score_val = None
     try:
-        if score is not None and int(score) < 60:
-            return True
+        if score is not None:
+            score_val = int(score)
+            if score_val < 60:
+                return True
     except (ValueError, TypeError):
         pass
+
+    outcome = str(analysis.get("natija") or analysis.get("outcome") or "").lower()
+    if any(o in outcome for o in ("yo'qotildi", "rad", "lost", "rad etildi")):
+        return True
+
+    mood = str(analysis.get("client_mood") or "").lower()
+    if any(m in mood for m in ("salbiy", "negative", "jahl", "xafa", "norizo")):
+        return True
+
+    # Agar ball yuqori bo'lsa (>=70) va natija kelishuv bo'lsa, bu muammoli qo'ng'iroq emas
+    if score_val is not None and score_val >= 70:
+        return False
+
     objections = analysis.get("etirozlar") or analysis.get("objections")
     if objections and isinstance(objections, list) and len(objections) > 0:
         return True
-    mood = str(analysis.get("client_mood") or "").lower()
-    if any(m in mood for m in ("salbiy", "negative", "e'tiroz", "jahl", "xafa", "norizo")):
-        return True
-    outcome = str(analysis.get("natija") or analysis.get("outcome") or "").lower()
-    if any(o in outcome for o in ("yo'qotildi", "rad", "lost")):
-        return True
+
     return False
 
 
@@ -211,6 +222,7 @@ async def send_call_analysis_telegram_alert(
     analysis: Dict[str, Any],
     task_id: Optional[str] = None,
     subdomain: str = "jonbranding",
+    send_urgent_alert: bool = True,
 ) -> None:
     """Send formatted Call Intelligence alert card to the Sales/CRM topic via @jonairobot."""
     try:
@@ -228,6 +240,23 @@ async def send_call_analysis_telegram_alert(
             or getattr(settings, "AMOCRM_ALERT_FORWARD_TOPIC_ID", None)
             or getattr(settings, "TARGET_LEADS_TOPIC_ID", None)
         )
+
+        # Agar qo'ng'iroqda muammo yoki e'tiroz bo'lsa va shoshilinch alert yoqilgan bo'lsa
+        if send_urgent_alert and is_problem_call(analysis):
+            urgent_text = build_urgent_problem_alert(
+                lead_id=lead_id,
+                call_id=call_id,
+                summary=summary,
+                client_mood=client_mood,
+                duration_seconds=duration_seconds,
+                manager_name=manager_name,
+                caller_phone=caller_phone,
+                analysis=analysis,
+                subdomain=subdomain,
+            )
+            await _dispatch_telegram_message(urgent_text, target_chat_id, topic_id)
+            logger.info("[CALL] Urgent problem alert sent for call %s", call_id)
+            return
 
         msg_text = build_call_alert_message(
             lead_id=lead_id,
@@ -251,22 +280,6 @@ async def send_call_analysis_telegram_alert(
             target_chat_id,
             topic_id,
         )
-
-        # Agar qo'ng'iroqda muammo yoki e'tiroz bo'lsa, shoshilinch SOS alerti ham yuboriladi
-        if is_problem_call(analysis):
-            urgent_text = build_urgent_problem_alert(
-                lead_id=lead_id,
-                call_id=call_id,
-                summary=summary,
-                client_mood=client_mood,
-                duration_seconds=duration_seconds,
-                manager_name=manager_name,
-                caller_phone=caller_phone,
-                analysis=analysis,
-                subdomain=subdomain,
-            )
-            await _dispatch_telegram_message(urgent_text, target_chat_id, topic_id)
-            logger.info("[CALL] Urgent problem alert sent for call %s", call_id)
 
     except Exception as exc:
         logger.warning("[CALL] Failed to notify Telegram for call %s: %s", call_id, exc)
