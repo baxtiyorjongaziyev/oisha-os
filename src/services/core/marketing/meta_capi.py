@@ -55,6 +55,9 @@ def _sha256(value: str) -> str:
 
 def hash_phone(phone: str) -> str:
     digits = re.sub(r"\D", "", phone or "")
+    # Meta E.164 kutadi (country code bilan): 901234567 -> 998901234567.
+    if len(digits) == 9:
+        digits = "998" + digits
     return _sha256(digits) if digits else ""
 
 
