@@ -131,7 +131,11 @@ async def test_fetch_filters_demo_tasks():
         ("Buyurtmachi A bilan uchrashuv", ""),
         ("Dastur xatolarini tuzatish", None),
         ("Sotuvchilar uchun qo'llanma yozish", ""),
+        ("Uchrashuv Buyurtmachi A $1500", "Yangi loyiha"),
+        ("Dastur  Xatolarini tuzatish", "Login sahifasidagi xato"),
+        ("Sotuvchilar uchun qo\u2018llanma", "Yangi xodimlar uchun"),
         ("Nike brandbook", "Deadline juma"),
+        ("Buyurtmachi Ali bilan uchrashuv", None),
     ])
     conn = MagicMock()
     conn.execute = AsyncMock(return_value=cursor)
@@ -139,4 +143,4 @@ async def test_fetch_filters_demo_tasks():
     db.get_connection = AsyncMock(return_value=conn)
     with patch("src.schedulers.cloud_brain_synthesizer.get_db", return_value=db):
         data = await _fetch_recent_data()
-    assert data == "Task: Nike brandbook - Deadline juma"
+    assert data == "Task: Nike brandbook - Deadline juma\nTask: Buyurtmachi Ali bilan uchrashuv - None"
