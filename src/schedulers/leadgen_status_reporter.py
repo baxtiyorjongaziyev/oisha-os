@@ -136,24 +136,32 @@ def build_creative_buttons(
     return buttons
 
 
-def _meta_last_24h_count() -> Optional[int]:
-    """Leads Meta itself received in the last 24h (active forms). None when Meta is unreachable."""
+def _meta_24h_status() -> Optional[tuple[int, int]]:
+    """(Meta leads in last 24h, those not in AmoCRM) matched by lead ID. None if Meta is unavailable."""
     try:
-        from src.schedulers.leadgen_reconciliation import _meta_leads
+        from src.schedulers import leadgen_reconciliation as rec
+        from src.schedulers import meta_leadgen_scheduler as m
 
-        since = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
-        return len(_meta_leads(since))
+        if not m._get_page_token():
+            return None
+        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        meta = rec._meta_leads(now - datetime.timedelta(hours=24))
+        missing = rec.find_missing(meta, rec._delivered_ids(), now)
+        return len(meta), len(missing)
     except Exception as exc:
-        logger.warning("[LEADGEN REPORTER] Meta 24h count failed: %s", type(exc).__name__)
+        logger.warning("[LEADGEN REPORTER] Meta 24h check failed: %s", type(exc).__name__)
         return None
 
 
-def _meta_lines(meta_24h: Optional[int], meta_total: Optional[int], delivered: int) -> tuple[str, str]:
+def _meta_lines(meta_24h: Optional[tuple[int, int]], meta_total: Optional[int]) -> tuple[str, str]:
     if meta_24h is None:
         line_24h = "• ⚠️ <b>Meta (24 soat):</b> Meta API javob bermadi"
     else:
-        icon = "🟢" if delivered >= meta_24h else "🔴"
-        line_24h = f"• {icon} <b>Meta'ga kelgan (24 soat):</b> {meta_24h} ta"
+        count, missing = meta_24h
+        if missing:
+            line_24h = f"• 🔴 <b>Meta'ga kelgan (24 soat):</b> {count} ta — <b>{missing} ta AmoCRM'ga yetmagan</b>"
+        else:
+            line_24h = f"• 🟢 <b>Meta'ga kelgan (24 soat):</b> {count} ta"
     if meta_total is None:
         line_total = "• ⚠️ Meta formalaridagi jami lidlar: Meta API javob bermadi"
     else:
@@ -172,9 +180,7 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
     amo_ok = stats.get("last_24h_amocrm", 0)
     sheets_ok = stats.get("last_24h_sheets", 0)
     tg_ok = stats.get("last_24h_telegram", 0)
-    meta_24h_line, meta_total_line = _meta_lines(
-        _meta_last_24h_count(), stats.get("meta_total_forms_leads"), total
-    )
+    meta_24h_line, meta_total_line = _meta_lines(_meta_24h_status(), stats.get("meta_total_forms_leads"))
     pending = stats.get("pending_retries", 0)
 
     amo_pct = int((amo_ok / total) * 100) if total > 0 else 100
@@ -231,9 +237,10 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
 
 async def send_daily_status_report() -> bool:
     """Send daily integration health report to Target Leads & Marketing groups."""
-    summary = get_creative_summary()
-    text = build_status_report_text(summary)
-    buttons = build_creative_buttons(summary)
+    # Meta Graph / DB calls block; keep them off the worker's event loop (lead ingestion runs there).
+    summary = await asyncio.to_thread(get_creative_summary)
+    text = await asyncio.to_thread(build_status_report_text, summary)
+    buttons = await asyncio.to_thread(build_creative_buttons, summary)
     reply_markup = {"inline_keyboard": buttons} if buttons else None
 
     # 1. Sales group (Target Leads topic)
