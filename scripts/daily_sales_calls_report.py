@@ -23,6 +23,12 @@ import html
 import logging
 import os
 import sys
+from pathlib import Path
+
+# Repository rootni sys.path ga qo'shish
+_REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Iterable, List, Optional
@@ -81,6 +87,7 @@ def fetch_calls(email: str, api_key: str, from_ts: int, to_ts: int, domain: str 
 # ---------------------------------------------------------------- aggregate
 
 SHORT_CALL_SECONDS = 10  # javobli, lekin juda qisqa suhbat
+SOLID_CALL_SECONDS = 180  # kamida 3 daqiqa gaplashilgan sifatli suhbat
 
 
 @dataclass
@@ -94,6 +101,7 @@ class RepStats:
     talk_seconds: int = 0
     longest: int = 0
     short_calls: int = 0
+    solid_calls: int = 0  # javobli va davomiyligi kamida 3 daqiqa (180s)
     wait_seconds: int = 0  # kiruvchiga javob berguncha kutish (jami)
     first_ts: int = 0
     last_ts: int = 0
@@ -155,6 +163,8 @@ class RepStats:
             self.longest = max(self.longest, dur)
             if dur < SHORT_CALL_SECONDS:
                 self.short_calls += 1
+            if dur >= SOLID_CALL_SECONDS:
+                self.solid_calls += 1
 
 
 @dataclass
@@ -286,42 +296,10 @@ def _stats_lines(r: RepStats) -> List[str]:
 
 
 def format_report(report: Report, names: Optional[Dict[str, str]] = None) -> str:
-    names = names or {}
-    e = html.escape
-    lines = [f"📞 <b>Qo'ng'iroqlar hisoboti — {e(report.day)}</b>", ""]
-    active = [r for r in report.reps if r.total]
-    if not active:
-        lines.append("Bu kunda qo'ng'iroq bo'lmagan.")
-        return "\n".join(lines)
+    """Format call report using clean ROP motivation format."""
+    from src.services.call_analytics.call_report_formatter import format_report_rop
 
-    for i, r in enumerate(report.reps, 1):
-        lines.append(f"<b>{i}. {e(_display_name(r.account, names))}</b>")
-        lines += _stats_lines(r) if r.total else ["   🚫 Qo'ng'iroq yo'q"]
-        lines.append("")
-
-    idle = len(report.reps) - len(active)
-    team = f"{len(active)} sotuvchi" + (f", {idle} tasi qo'ng'iroqsiz" if idle else "")
-    lines += ["━━━━━━━━━━━━━━", f"<b>👥 Jamoa bo'yicha ({team})</b>"]
-    lines += _stats_lines(report.total)
-
-    if report.hourly:
-        peak = max(report.hourly, key=report.hourly.get)
-        lines.append(f"   🔥 Eng faol soat: {peak:02d}:00 ({report.hourly[peak]} ta)")
-        hours = " ".join(f"{h:02d}h:{report.hourly[h]}" for h in sorted(report.hourly))
-        lines.append(f"   🕐 Soatlar: {hours}")
-
-    if report.missed_no_callback:
-        lines += ["", f"⚠️ <b>Qayta qo'ng'iroq qilinmagan mijozlar: {len(report.missed_no_callback)}</b>"]
-        for c in report.missed_no_callback[:20]:
-            number = c.get("client_number") or ""
-            who = c.get("client_name") or number or "?"
-            if c.get("client_name") and number:
-                who = f"{who} ({number})"
-            rep = _display_name(c.get("user_account") or "", names)
-            lines.append(f"   • {_hhmm(c.get('start_time') or 0)} {e(str(who))} → {e(rep)}")
-        if len(report.missed_no_callback) > 20:
-            lines.append(f"   … yana {len(report.missed_no_callback) - 20} ta")
-    return "\n".join(lines)
+    return format_report_rop(report, names)
 
 
 def split_message(text: str, limit: int = 4000) -> List[str]:
