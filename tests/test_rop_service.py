@@ -94,3 +94,23 @@ async def test_secondary_fetch_error_aborts_slot():
               "created_at": int(THU_630.timestamp()) - 3 * 86400}]
     svc = RopService(FakeRepo([_target(101, 555)]), BoomTasks(leads), ceo_chat_id=42, now_fn=lambda: THU_630)
     assert await svc.run("evening") == []
+
+@pytest.mark.asyncio
+async def test_service_integrates_call_stats():
+    class FetcherWithCalls(FakeFetcher):
+        async def fetch_today_calls(self, now):
+            return {
+                "s101": {
+                    "total": 55,
+                    "answered": 52,
+                    "solid_calls": 50,
+                    "talk_seconds": 18000,
+                    "no_callback": 0,
+                }
+            }
+    leads = [{"id": 1, "name": "ABC", "status_id": 111, "price": 1_000_000,
+              "responsible_user_id": 101, "updated_at": int(THU_630.timestamp()) - 100,
+              "created_at": int(THU_630.timestamp()) - 3 * 86400}]
+    svc = RopService(FakeRepo([_target(101, 555)]), FetcherWithCalls(leads), ceo_chat_id=42, now_fn=lambda: THU_630)
+    plan = await svc.run("evening")
+    assert any("50/50 ta" in text for _, text in plan if _ == 555)
