@@ -14,6 +14,7 @@ from src.services.call_analytics.helpers import (
     _normalise_category,
     _normalise_mood,
 )
+from src.services.call_analytics.call_report_formatter import format_report_rop
 from src.services.call_analytics.analyzer import CallAnalyzer
 from src.services.call_analytics.omnichannel_context import (
     OmnichannelContext,
@@ -25,6 +26,7 @@ __all__ = [
     "CallAnalyzer",
     "OmnichannelContext",
     "OmnichannelContextFetcher",
+    "format_report_rop",
     "_maybe_await",
     "_detect_mime",
     "_compute_talk_ratio",
