@@ -154,16 +154,32 @@ class SalesActionsMixin(SalesFormattingMixin):
 
     async def review_conversation(
         self,
-        transcript: str,
+        transcript_or_user_id: Any = None,
+        transcript_or_message: Optional[str] = None,
         user_id: Optional[int] = None,
         lead_id: Optional[int] = None,
+        context: Optional[Dict[str, Any]] = None,
+        execute_actions: bool = False,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
-        assessment = await NegotiationEngine.assess_async(transcript)
-        esc_reason = self._detect_escalation(transcript, assessment)
+        if isinstance(transcript_or_user_id, int):
+            actual_user_id = transcript_or_user_id
+            actual_transcript = str(transcript_or_message or "")
+        else:
+            actual_user_id = user_id
+            actual_transcript = str(transcript_or_user_id or "")
+
+        if context and isinstance(context, dict):
+            actual_user_id = actual_user_id or context.get("user_id")
+            lead_id = lead_id or context.get("lead_id")
+
+        assessment = await NegotiationEngine.assess_async(actual_transcript)
+        esc_reason = self._detect_escalation(actual_transcript, assessment)
         return {
             "assessment": assessment.to_payload(),
             "escalated": bool(esc_reason),
             "escalation_reason": esc_reason,
-            "user_id": user_id,
+            "user_id": actual_user_id,
             "lead_id": lead_id,
         }
+
