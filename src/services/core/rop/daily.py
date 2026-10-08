@@ -54,6 +54,7 @@ class SellerMorningPlan:
     expected: list[ExpectedItem]
     expected_revenue_total: int
     discipline_findings: list[Finding]
+    solid_calls_target: int = 50
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,11 @@ class SellerMiddayCheck:
     hot_not_touched: list[str]
     priority_now: list[LeadScore]
     on_track: bool
+    total_calls: int = 0
+    answered_calls: int = 0
+    solid_calls: int = 0
+    talk_seconds: int = 0
+    solid_calls_target: int = 25
 
 
 @dataclass(frozen=True)
@@ -79,6 +85,12 @@ class SellerEveningResult:
     meetings_done: int
     overdue_count: int
     tomorrow_closings: list[LeadScore]
+    total_calls: int = 0
+    answered_calls: int = 0
+    solid_calls: int = 0
+    talk_seconds: int = 0
+    no_callback: int = 0
+    solid_calls_target: int = 50
 
 
 @dataclass(frozen=True)
@@ -179,7 +191,9 @@ def build_morning(seller, scored, tasks_by_lead, findings, config, now) -> Selle
     )
 
 
-def build_midday(seller, scored, actuals, touched_lead_ids, config) -> SellerMiddayCheck:
+def build_midday(
+    seller, scored, actuals, touched_lead_ids, config, call_stats: dict | None = None
+) -> SellerMiddayCheck:
     pace = config["midday.pace_pct"]
     hot_not_touched = [
         s.name for s in scored if s.band == "HOT" and s.lead_id not in touched_lead_ids
@@ -193,6 +207,17 @@ def build_midday(seller, scored, actuals, touched_lead_ids, config) -> SellerMid
     on_track = all(
         done >= pace * target for done, target in buckets if target > 0
     ) and not hot_not_touched
+
+    c_stats = call_stats or {}
+    total_calls = c_stats.get("total", actuals["calls"])
+    answered_calls = c_stats.get("answered", 0)
+    solid_calls = c_stats.get("solid_calls", 0)
+    talk_seconds = c_stats.get("talk_seconds", 0)
+    solid_target = int(config.get("rop.midday_solid_calls_target", 25))
+
+    if call_stats and solid_calls < int(solid_target * pace):
+        on_track = False
+
     return SellerMiddayCheck(
         seller=seller,
         plan=seller.expected_sales,
@@ -203,10 +228,18 @@ def build_midday(seller, scored, actuals, touched_lead_ids, config) -> SellerMid
         hot_not_touched=hot_not_touched,
         priority_now=priority_now,
         on_track=on_track,
+        total_calls=total_calls,
+        answered_calls=answered_calls,
+        solid_calls=solid_calls,
+        talk_seconds=talk_seconds,
+        solid_calls_target=solid_target,
     )
 
 
-def build_evening(seller, scored, actuals, overdue_count) -> SellerEveningResult:
+def build_evening(
+    seller, scored, actuals, overdue_count, call_stats: dict | None = None
+) -> SellerEveningResult:
+    c_stats = call_stats or {}
     return SellerEveningResult(
         seller=seller,
         sales_done=actuals["won"],
@@ -216,6 +249,12 @@ def build_evening(seller, scored, actuals, overdue_count) -> SellerEveningResult
         meetings_done=actuals["meetings"],
         overdue_count=overdue_count,
         tomorrow_closings=scored[:3],
+        total_calls=c_stats.get("total", actuals["calls"]),
+        answered_calls=c_stats.get("answered", 0),
+        solid_calls=c_stats.get("solid_calls", 0),
+        talk_seconds=c_stats.get("talk_seconds", 0),
+        no_callback=c_stats.get("no_callback", 0),
+        solid_calls_target=50,
     )
 
 
@@ -239,6 +278,8 @@ def build_ceo_midday(midday_checks, traffic_results) -> CeoMidday:
         why = "sur'at past"
         if c.hot_not_touched:
             why = f"{len(c.hot_not_touched)} ta issiq mijoz ishlanmagan"
+        elif c.solid_calls > 0 or c.total_calls > 0:
+            why = f"{c.solid_calls}/{c.solid_calls_target} sifatli suhbat (sur'at past)"
         off.append((c.seller.seller_name, why))
     any_alert = bool(off) or any(
         t.level in ("YELLOW", "RED") for t in traffic_results.values()

@@ -33,6 +33,18 @@ def _bucket_actuals(completed_tasks: list[dict]) -> dict:
     return {"calls": calls, "meetings": meetings, "follow_ups": follow_ups}
 
 
+def _find_seller_calls(seller_name: str, today_calls: dict[str, dict]) -> dict:
+    if not today_calls:
+        return {}
+    s_lower = seller_name.strip().lower()
+    if s_lower in today_calls:
+        return today_calls[s_lower]
+    for k, v in today_calls.items():
+        if k in s_lower or s_lower in k:
+            return v
+    return {}
+
+
 class RopService:
     def __init__(self, repo, fetcher, *, ceo_chat_id, now_fn=get_local_now):
         self._repo = repo
@@ -93,6 +105,13 @@ class RopService:
             logger.warning("[ROP] %s slot aborted — secondary fetch failed: %s", slot, exc)
             return []
 
+        today_calls: dict[str, dict] = {}
+        if slot in ("midday", "evening") and hasattr(self._fetch, "fetch_today_calls"):
+            try:
+                today_calls = await self._fetch.fetch_today_calls(now)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[ROP] fetch_today_calls failed: %s", exc)
+
         prior_snapshot = await self._latest_snapshot(now)
         plan: list[tuple[int, str]] = []
         skipped = 0
@@ -119,6 +138,7 @@ class RopService:
                 ]
                 actuals["won"] = len(s_won_today)
                 actuals["won_revenue"] = sum(int(l.get("price") or 0) for l in s_won_today)
+                s_calls = _find_seller_calls(s.seller_name, today_calls)
 
                 if slot == "morning":
                     tasks_by_lead = {l["id"]: open_tasks.get(l["id"], []) for l in s_leads}
@@ -135,7 +155,7 @@ class RopService:
                         lid for lid in (l["id"] for l in s_leads)
                         if completed_by_entity.get(lid) or today_events.get(lid)
                     }
-                    check = build_midday(s, scored, actuals, touched, config)
+                    check = build_midday(s, scored, actuals, touched, config, call_stats=s_calls)
                     midday_checks.append(check)
                     traffic[s.responsible_user_id] = self._traffic_for(
                         s, scored, actuals, [], config, now, recent_events,
@@ -150,7 +170,7 @@ class RopService:
                         for t in open_tasks.get(lid, [])
                         if (t.get("complete_till") or 0) and float(t["complete_till"]) < now.timestamp()
                     )
-                    ev = build_evening(s, scored, actuals, overdue_count)
+                    ev = build_evening(s, scored, actuals, overdue_count, call_stats=s_calls)
                     evening_results.append(ev)
                     findings = find_discipline(s_leads, open_tasks, notes, config, now)
                     traffic[s.responsible_user_id] = self._traffic_for(
