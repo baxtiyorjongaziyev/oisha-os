@@ -1323,4 +1323,12 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Tekshiruv: `SKIP_LIVE=1 pytest tests/test_realtime_call_analysis.py tests/test_call_notifier_topic.py tests/test_incoming_call_card.py` — 21 passed; `bandit -r src/ -ll -x src/services/debug/` — 0 issues; fayl hajmlari qat'iy <= 400 LOC (`webhooks.py`: 391 LOC, `call_notifier.py`: 272 LOC).
 - Keyingi qadam: PR ochish, merge qilish va production'da test qilish.
 
+## 2026-10-08 — Antigravity — feat/leadgen-inhouse-only-routing (PR #841)
+- Task: Meta Lead Ads taqsimotini vaqtincha faqat Inhouse (Jon Branding)ga yo'naltirish, UTC Outsource taqsimotini to'xtatish va dinamik Telegram/CLI boshqaruvini joriy qilish.
+- Files: `src/services/core/instagram/leadgen_delivery.py` (`get_lead_routing_mode`, `set_lead_routing_mode`, `resolve_lead_destination`), `src/services/core/instagram/leadgen_router.py` (`resolve_lead_destination` orqali taqsimotni aniqlash), `src/commands/crm.py` (`/leadgen_routing [inhouse|split|utc|status]`), `scripts/set_lead_routing.py` (CLI vositasi), `tests/test_leadgen_split.py`.
+- Xulq: `routing_mode` uch xil rejimni qo'llab-quvvatlaydi: `inhouse` (100% Inhouse), `utc` (100% UTC), va `split` (50/50 navbatma-navbat). `inhouse` rejimida barcha yangi kelgan Meta reklamalari lidlari to'g'ridan-to'g'ri Jon Branding Sotuv voronkasiga (`#11162698` - "Yangi") tushadi, UTC Outsource'ga bormaydi. Istalgan paytda Telegram orqali `/leadgen_routing inhouse` yoki `/leadgen_routing split` buyrug'i bilan rejimni o'zgartirish mumkin.
+- Tekshiruv: `SKIP_LIVE=1 pytest tests/test_leadgen_split.py` — 6/6 passed; barcha leadgen testlari (36/36) passed; Bandit 0 ta xatolik; GitHub CI PR #841 import guard, CodeQL va gitleaks yashil.
+- Keyingi qadam: PR #841 merge qilinishi va Oracle VM'da `python3 scripts/set_lead_routing.py inhouse` buyrug'i bilan rejim faollashtirilishi.
+
+
 
