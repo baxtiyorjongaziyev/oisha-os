@@ -11,6 +11,9 @@ from src.services.core.crm.amocrm_pipeline_config import (
 from src.services.core.instagram.leadgen_delivery import (
     get_lead_destination,
     get_next_lead_destination,
+    get_lead_routing_mode,
+    set_lead_routing_mode,
+    resolve_lead_destination,
     save_crm_checkpoint,
     record_delivery_status,
 )
@@ -32,6 +35,7 @@ def test_pipeline_config_split_constants():
 
 
 def test_alternating_lead_destination_logic():
+    set_lead_routing_mode("split")
     id1 = "lead_split_test_1"
     id2 = "lead_split_test_2"
     id3 = "lead_split_test_3"
@@ -91,3 +95,65 @@ def test_append_lead_to_sheet_destinations(mock_get_sh):
     )
     assert res_inhouse is True
     assert mock_ws_in.append_row.called
+
+
+def test_lead_routing_mode_and_resolution():
+    # 1. Switch to inhouse only
+    set_lead_routing_mode("inhouse")
+    assert get_lead_routing_mode() == "inhouse"
+
+    # All next calls must return inhouse
+    assert get_next_lead_destination() == "inhouse"
+    assert get_next_lead_destination() == "inhouse"
+
+    # Resolution for new lead routes to inhouse
+    dest1, adv1 = resolve_lead_destination("new_meta_lead_100")
+    assert dest1 == "inhouse"
+    assert adv1 is True
+
+    # Even if existing lead was in UTC pipeline, forced inhouse takes precedence
+    dest2, adv2 = resolve_lead_destination("new_meta_lead_101", existing_pipeline_id=UTC_PIPELINE_ID)
+    assert dest2 == "inhouse"
+    assert adv2 is True
+
+    # 2. Restore split mode
+    set_lead_routing_mode("split")
+    assert get_lead_routing_mode() == "split"
+
+    # Existing lead in UTC pipeline retains UTC when in split mode
+    dest3, adv3 = resolve_lead_destination("new_meta_lead_102", existing_pipeline_id=UTC_PIPELINE_ID)
+    assert dest3 == "utc"
+    assert adv3 is False
+
+    # Invalid mode raises ValueError
+    with pytest.raises(ValueError):
+        set_lead_routing_mode("invalid_mode")
+
+
+def test_lead_routing_env_override(monkeypatch):
+    monkeypatch.setenv("LEADGEN_ROUTING_MODE", "inhouse")
+    assert get_lead_routing_mode() == "inhouse"
+    assert get_next_lead_destination() == "inhouse"
+
+    dest, _ = resolve_lead_destination("env_test_lead_1")
+    assert dest == "inhouse"
+
+    monkeypatch.setenv("LEADGEN_ROUTING_MODE", "utc")
+    assert get_lead_routing_mode() == "utc"
+    assert get_next_lead_destination() == "utc"
+
+
+def test_saved_leadgen_checkpoint_retains_destination():
+    # If a lead was already assigned and saved, resolve returns saved destination
+    saved_id = "checkpoint_retained_lead"
+    save_crm_checkpoint(saved_id, 9999, destination="utc")
+
+    # Even if routing mode is inhouse, existing checkpoint retains its historical destination
+    set_lead_routing_mode("inhouse")
+    dest, adv = resolve_lead_destination(saved_id)
+    assert dest == "utc"
+    assert adv is False
+
+    # Clean up back to split
+    set_lead_routing_mode("split")
+
