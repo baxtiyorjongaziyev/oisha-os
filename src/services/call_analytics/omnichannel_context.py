@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class OmnichannelContext:
-    """Structured context combining CRM lead fields, contact data, and Telegram history."""
+    """Structured context combining CRM lead fields, contact data, notes, and chat histories."""
 
     def __init__(
         self,
@@ -30,6 +30,9 @@ class OmnichannelContext:
         contact_phone: str = "",
         telegram_username: str = "",
         telegram_messages: Optional[List[str]] = None,
+        crm_notes: Optional[List[str]] = None,
+        instagram_messages: Optional[List[str]] = None,
+        is_follow_up: bool = False,
     ) -> None:
         self.lead_id = lead_id
         self.lead_name = lead_name or f"Lid #{lead_id}"
@@ -43,10 +46,19 @@ class OmnichannelContext:
         self.contact_phone = contact_phone
         self.telegram_username = telegram_username
         self.telegram_messages = telegram_messages or []
+        self.crm_notes = crm_notes or []
+        self.instagram_messages = instagram_messages or []
+        self.is_follow_up = is_follow_up
 
     def format_crm_prompt_block(self) -> str:
         """Build text block describing CRM lead fields for AI prompt."""
+        contact_type = (
+            "QAYTA ALOQA (Follow-up / Avval gaplashilgan mijoz)"
+            if self.is_follow_up
+            else "BIRINCHI ALOQA (Yangi murojaat)"
+        )
         lines = [
+            f"- Aloqa turi: {contact_type}",
             f"- Lid ID va nomi: #{self.lead_id} — {self.lead_name}",
             f"- Byudjet / Qiymat: {self.price:,} so'm / $" if self.price else "- Byudjet: Ko'rsatilmagan",
         ]
@@ -68,6 +80,18 @@ class OmnichannelContext:
                 lines.append(f"- {k}: {v}")
 
         return "\n".join(lines)
+
+    def format_crm_notes_prompt_block(self) -> str:
+        """Build text block describing AmoCRM notes (primecheniyalar) for AI prompt."""
+        if not self.crm_notes:
+            return "AmoCRM da avvalgi izohlar (primecheniyalar) mavjud emas."
+        return "\n".join(self.crm_notes[-15:])
+
+    def format_instagram_prompt_block(self) -> str:
+        """Build text block describing Instagram direct & lead ad context for AI prompt."""
+        if not self.instagram_messages:
+            return "Instagram yozishmalari mavjud emas yoki topilmadi."
+        return "\n".join(self.instagram_messages[-15:])
 
     def format_telegram_prompt_block(self) -> str:
         """Build text block describing Telegram chat history for AI prompt."""
@@ -91,7 +115,8 @@ class OmnichannelContext:
             if self.telegram_username or self.telegram_messages
             else "Mavjud emas"
         )
-        return f"📋 **CRM Ma'lumotlari:** {crm_part}\n💬 **Telegram:** {tg_part}"
+        mode_part = "🔄 Qayta aloqa" if self.is_follow_up else "🆕 Birinchi aloqa"
+        return f"📋 **CRM:** {crm_part} [{mode_part}]\n💬 **Telegram:** {tg_part}"
 
 
 class OmnichannelContextFetcher:
@@ -107,7 +132,7 @@ class OmnichannelContextFetcher:
         lead_id: int,
         caller_phone: str = "",
     ) -> OmnichannelContext:
-        """Fetch CRM lead, custom fields, contact, and Telegram chat history."""
+        """Fetch CRM lead, custom fields, contact, notes, and chat histories."""
         lead_name = ""
         price = 0
         status_name = ""
@@ -118,6 +143,7 @@ class OmnichannelContextFetcher:
         contact_name = ""
         contact_phone = caller_phone
         telegram_username = ""
+        instagram_username = ""
         telegram_messages: List[str] = []
 
         try:
@@ -127,7 +153,7 @@ class OmnichannelContextFetcher:
                 price = int(lead_data.get("price") or 0)
                 status_name = str(lead_data.get("status_name") or lead_data.get("status_id") or "")
                 pipeline_name = str(lead_data.get("pipeline_name") or lead_data.get("pipeline_id") or "")
-                
+
                 # Tags
                 tags_raw = lead_data.get("tags") or lead_data.get("_embedded", {}).get("tags", [])
                 if isinstance(tags_raw, list):
@@ -145,16 +171,23 @@ class OmnichannelContextFetcher:
                         custom_fields[str(fn)] = ", ".join(vals)
 
                 # Contact lookup
-                c_phone, c_user, c_name = await self._fetch_contact_info(lead_data)
+                c_phone, c_user, c_ig, c_name = await self._fetch_contact_info(lead_data)
                 if c_phone and not contact_phone:
                     contact_phone = c_phone
                 if c_user:
                     telegram_username = c_user
+                if c_ig:
+                    instagram_username = c_ig
                 if c_name:
                     contact_name = c_name
 
         except Exception as exc:
             logger.warning("[OMNICHANNEL] Error fetching lead data for #%s: %s", lead_id, exc)
+
+        # Notes / Primecheniyalar & Instagram context
+        crm_notes, ig_notes, has_prior_notes = await self._fetch_lead_notes(lead_id)
+        if instagram_username and not any(instagram_username in x for x in ig_notes):
+            ig_notes.insert(0, f"📸 Instagram hisobi: @{instagram_username}")
 
         # Telegram History
         try:
@@ -164,6 +197,12 @@ class OmnichannelContextFetcher:
             )
         except Exception as exc:
             logger.debug("[OMNICHANNEL] Telegram history lookup error: %s", exc)
+
+        is_follow_up = self._is_follow_up_lead(
+            status_name=status_name,
+            has_prior_notes=has_prior_notes,
+            has_tg=bool(telegram_messages),
+        )
 
         return OmnichannelContext(
             lead_id=lead_id,
@@ -178,7 +217,60 @@ class OmnichannelContextFetcher:
             contact_phone=contact_phone,
             telegram_username=telegram_username,
             telegram_messages=telegram_messages,
+            crm_notes=crm_notes,
+            instagram_messages=ig_notes,
+            is_follow_up=is_follow_up,
         )
+
+    def _is_follow_up_lead(self, status_name: str, has_prior_notes: bool, has_tg: bool) -> bool:
+        """Determines if the lead is in follow-up stage or a brand new lead."""
+        if has_prior_notes or has_tg:
+            return True
+        st_lower = status_name.lower()
+        new_keywords = ("yangi", "first", "birinchi", "new", "inbox", "birlamchi")
+        if any(k in st_lower for k in new_keywords):
+            return False
+        followup_stages = ("taklif", "muzokara", "uchrashuv", "kelishildi", "qaror", "shartnoma", "to'lov")
+        return any(k in st_lower for k in followup_stages)
+
+    async def _fetch_lead_notes(self, lead_id: int) -> Tuple[List[str], List[str], bool]:
+        """Fetch notes/primecheniyalar from AmoCRM and separate regular and instagram notes."""
+        crm_notes: List[str] = []
+        ig_notes: List[str] = []
+        has_prior = False
+
+        if not self.amocrm:
+            return crm_notes, ig_notes, has_prior
+
+        getter = getattr(self.amocrm, "get_lead_notes", None)
+        if not callable(getter):
+            return crm_notes, ig_notes, has_prior
+
+        try:
+            res = getter(lead_id)
+            notes_raw = await res if asyncio.iscoroutine(res) else res
+            for n in (notes_raw or [])[-12:]:
+                text = ""
+                params = n.get("params") or {}
+                if isinstance(params, dict):
+                    text = str(params.get("text") or "")
+                elif isinstance(params, str):
+                    text = params
+
+                nt = str(n.get("note_type") or "")
+                if nt in ("call_in", "call_out", "10", "11"):
+                    has_prior = True
+                    crm_notes.append(f"📞 Qo'ng'iroq yozuvi: {text[:150]}")
+                elif text:
+                    has_prior = True
+                    if any(k in text.lower() for k in ("instagram", "direct", "ig:", "insta")):
+                        ig_notes.append(f"📸 Instagram: {text[:200]}")
+                    else:
+                        crm_notes.append(f"📝 Izoh: {text[:200]}")
+        except Exception as exc:
+            logger.debug("[OMNICHANNEL] Error fetching notes for lead #%s: %s", lead_id, exc)
+
+        return crm_notes, ig_notes, has_prior
 
     async def _fetch_lead_data(self, lead_id: int) -> Optional[Dict[str, Any]]:
         """Safely fetch lead details from AmoCRM."""
@@ -190,16 +282,16 @@ class OmnichannelContextFetcher:
             return await res if asyncio.iscoroutine(res) else res
         return None
 
-    async def _fetch_contact_info(self, lead_data: Dict[str, Any]) -> Tuple[str, str, str]:
-        """Extract phone, telegram username, and contact name from lead's contact."""
-        phone, username, name = "", "", ""
+    async def _fetch_contact_info(self, lead_data: Dict[str, Any]) -> Tuple[str, str, str, str]:
+        """Extract phone, telegram username, instagram username, and contact name from lead's contact."""
+        phone, tg_user, ig_user, name = "", "", "", ""
         contacts = lead_data.get("_embedded", {}).get("contacts", [])
         if not contacts or not self.amocrm:
-            return phone, username, name
+            return phone, tg_user, ig_user, name
 
         first_cid = contacts[0].get("id")
         if not first_cid:
-            return phone, username, name
+            return phone, tg_user, ig_user, name
 
         try:
             getter = getattr(self.amocrm, "get_contact_details", None) or getattr(self.amocrm, "get_contact", None)
@@ -212,17 +304,19 @@ class OmnichannelContextFetcher:
                         code = str(cf.get("field_code") or "").upper()
                         fn = str(cf.get("field_name") or "").upper()
                         for val in cf.get("values") or []:
-                            v = str(val.get("value") or "")
+                            v = str(val.get("value") or "").strip()
                             if not v:
                                 continue
                             if code == "PHONE" and not phone:
                                 phone = v
-                            elif any(k in fn or k in code for k in ["TELEGRAM", "TG", "USERNAME"]) and not username:
-                                username = v.replace("@", "").strip()
+                            elif any(k in fn or k in code for k in ["TELEGRAM", "TG", "USERNAME"]) and not tg_user:
+                                tg_user = v.replace("@", "").strip()
+                            elif any(k in fn or k in code for k in ["INSTAGRAM", "INSTA", "IG"]) and not ig_user:
+                                ig_user = v.replace("@", "").strip()
         except Exception as exc:
             logger.debug("[OMNICHANNEL] Error fetching contact details: %s", exc)
 
-        return phone, username, name
+        return phone, tg_user, ig_user, name
 
     async def _fetch_telegram_history(self, phone: str, username: str) -> List[str]:
         """Fetch recent telegram messages from tg_client if available."""

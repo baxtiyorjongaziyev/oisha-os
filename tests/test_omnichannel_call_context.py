@@ -83,3 +83,69 @@ async def test_omnichannel_fetcher_integration():
     assert ctx.contact_phone == "+998931112233"
     assert ctx.telegram_username == "shoxrux_ledir"
     assert ctx.custom_fields.get("Xizmat turi") == "Packaging & Logo"
+
+
+@pytest.mark.asyncio
+async def test_omnichannel_notes_and_followup():
+    ctx = OmnichannelContext(
+        lead_id=777,
+        lead_name="Safia Bakery",
+        crm_notes=[
+            "📝 Izoh: Dushanba kuni qayta telefon qilish kelishildi",
+            "📞 Qo'ng'iroq yozuvi: Mijoz narxni 10% tushirishni so'radi",
+        ],
+        instagram_messages=[
+            "📸 Instagram: Directda logotip variantlari yuborildi",
+        ],
+        is_follow_up=True,
+    )
+
+    crm_prompt = ctx.format_crm_prompt_block()
+    assert "QAYTA ALOQA" in crm_prompt
+
+    notes_prompt = ctx.format_crm_notes_prompt_block()
+    assert "Dushanba kuni qayta telefon qilish" in notes_prompt
+    assert "Mijoz narxni 10% tushirishni so'radi" in notes_prompt
+
+    ig_prompt = ctx.format_instagram_prompt_block()
+    assert "Directda logotip variantlari yuborildi" in ig_prompt
+
+
+@pytest.mark.asyncio
+async def test_omnichannel_fetcher_with_notes_and_instagram():
+    mock_amocrm = MagicMock()
+    mock_amocrm.get_lead_details = AsyncMock(
+        return_value={
+            "id": 888,
+            "name": "Artel Home",
+            "status_name": "Taklif berildi",
+            "pipeline_name": "Sales",
+            "_embedded": {
+                "contacts": [{"id": 333}],
+            },
+        }
+    )
+    mock_amocrm.get_contact_details = AsyncMock(
+        return_value={
+            "id": 333,
+            "name": "Javohir",
+            "custom_fields_values": [
+                {"field_code": "PHONE", "values": [{"value": "+998909998877"}]},
+                {"field_code": "INSTAGRAM", "values": [{"value": "@artel_home_uz"}]},
+            ],
+        }
+    )
+    mock_amocrm.get_lead_notes = AsyncMock(
+        return_value=[
+            {"note_type": "common", "params": {"text": "Prezentatsiya yuborildi, narx ko'rib chiqilyapti"}},
+            {"note_type": "call_out", "params": {"text": "Avvalgi qo'ng'iroqda uchrashuv so'ralgan"}},
+        ]
+    )
+
+    fetcher = OmnichannelContextFetcher(amocrm=mock_amocrm, tg_client=None, db=None)
+    ctx = await fetcher.fetch_lead_omnichannel_context(lead_id=888)
+
+    assert ctx.is_follow_up is True
+    assert len(ctx.crm_notes) == 2
+    assert any("Prezentatsiya" in n for n in ctx.crm_notes)
+    assert any("artel_home_uz" in ig for ig in ctx.instagram_messages)
