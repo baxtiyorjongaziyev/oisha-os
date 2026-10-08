@@ -280,3 +280,54 @@ async def cmd_contacts_reset(event, **ctx):
     except Exception as e:
         logger.error(f"[COMMAND] /contacts_reset error: {e}", exc_info=True)
         await event.respond(f"❌ **Tozalashda xatolik yuz berdi:** {str(e)}")
+
+
+@register_command("/leadgen_routing")
+async def cmd_leadgen_routing(event, **ctx):
+    """View or change Meta Lead Ads routing mode (inhouse, utc, split)."""
+    from src.services.core.instagram.leadgen_delivery import (
+        get_lead_routing_mode,
+        set_lead_routing_mode,
+    )
+    raw_text = (getattr(event, "raw_text", "") or getattr(event, "text", "") or "").strip()
+    parts = raw_text.split()
+    arg = parts[1].lower() if len(parts) > 1 else ""
+
+    if arg in ("inhouse", "in-house", "internal"):
+        set_lead_routing_mode("inhouse")
+        await event.respond(
+            "🏠 **Meta Leadlar Taqsimoti: FAQAT INHOUSE**\n\n"
+            "✅ Barcha yangi lidlar to'g'ridan-to'g'ri **Sotuv Bo'limi (Inhouse)** voronkasiga tushadi.\n"
+            "⏸ UTC Outsource'ga taqsimot vaqtincha to'xtatildi.\n\n"
+            "Qaytarish uchun: `/leadgen_routing split`"
+        )
+    elif arg in ("utc", "outsource"):
+        set_lead_routing_mode("utc")
+        await event.respond(
+            "🌐 **Meta Leadlar Taqsimoti: FAQAT UTC OUTSOURCE**\n\n"
+            "✅ Barcha yangi lidlar **UTC Outsource** voronkasiga tushadi.\n\n"
+            "Qaytarish uchun: `/leadgen_routing split`"
+        )
+    elif arg in ("split", "auto", "50_50", "reset"):
+        set_lead_routing_mode("split")
+        await event.respond(
+            "⚖️ **Meta Leadlar Taqsimoti: 50/50 NAVBAT (INHOUSE & UTC)**\n\n"
+            "✅ Navbatma-navbat taqsimot rejimi tiklandi."
+        )
+    else:
+        current_mode = get_lead_routing_mode()
+        mode_desc = {
+            "inhouse": "🏠 **Faqat Inhouse** (UTC to'xtatilgan)",
+            "utc": "🌐 **Faqat UTC Outsource**",
+            "split": "⚖️ **50/50 Navbatma-navbat** (Inhouse & UTC)",
+        }.get(current_mode, current_mode)
+
+        await event.respond(
+            f"📊 **Meta Leadlar Taqsimot Holati:**\n"
+            f"• Hozirgi rejim: {mode_desc}\n\n"
+            f"**Rejimni o'zgartirish:**\n"
+            f"• `/leadgen_routing inhouse` — Faqat Inhouse'ga yo'naltirish\n"
+            f"• `/leadgen_routing split` — 50/50 navbatma-navbat taqsimlash\n"
+            f"• `/leadgen_routing utc` — Faqat UTC'ga yo'naltirish"
+        )
+

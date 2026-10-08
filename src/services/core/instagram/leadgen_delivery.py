@@ -75,8 +75,60 @@ def get_lead_destination(leadgen_id: str) -> Optional[str]:
     return None
 
 
+def get_lead_routing_mode() -> str:
+    """Return active routing mode: 'split' (50/50), 'inhouse', or 'utc'.
+
+    Priority:
+    1. Environment variable: LEADGEN_ROUTING_MODE or LEADGEN_FORCE_DESTINATION
+    2. Persistent database key: 'routing_mode' in leadgen_routing_state
+    3. Default: 'split'
+    """
+    env_mode = (
+        os.getenv("LEADGEN_ROUTING_MODE") or os.getenv("LEADGEN_FORCE_DESTINATION") or ""
+    ).strip().lower()
+    if env_mode in ("inhouse", "utc", "split"):
+        return env_mode
+
+    try:
+        with _connection() as conn:
+            row = conn.execute(
+                "SELECT last_destination FROM leadgen_routing_state WHERE key = 'routing_mode'"
+            ).fetchone()
+            if row and row[0]:
+                db_mode = str(row[0]).strip().lower()
+                if db_mode in ("inhouse", "utc", "split"):
+                    return db_mode
+    except Exception:
+        pass
+
+    return "split"
+
+
+def set_lead_routing_mode(mode: str) -> str:
+    """Set persistent routing mode: 'split', 'inhouse', or 'utc'."""
+    clean_mode = (mode or "").strip().lower()
+    if clean_mode not in ("inhouse", "utc", "split"):
+        raise ValueError(f"Invalid routing mode: {mode}. Must be 'inhouse', 'utc', or 'split'")
+    now = datetime.datetime.now().isoformat()
+    with _connection() as conn:
+        conn.execute(
+            "INSERT INTO leadgen_routing_state (key, last_destination, count, updated_at) "
+            "VALUES ('routing_mode', ?, 1, ?) "
+            "ON CONFLICT(key) DO UPDATE SET "
+            "last_destination = excluded.last_destination, "
+            "count = leadgen_routing_state.count + 1, "
+            "updated_at = excluded.updated_at",
+            (clean_mode, now),
+        )
+    return clean_mode
+
+
 def get_next_lead_destination() -> str:
-    """Return 'utc' or 'inhouse' alternating 50/50 based on the last recorded destination."""
+    """Return 'utc' or 'inhouse' based on active routing mode or 50/50 alternation."""
+    mode = get_lead_routing_mode()
+    if mode in ("inhouse", "utc"):
+        return mode
+
     with _connection() as conn:
         row = conn.execute(
             "SELECT last_destination FROM leadgen_routing_state WHERE key = 'split_destination'"
@@ -92,6 +144,36 @@ def get_next_lead_destination() -> str:
             row = d_row
     last_dest = str(row[0]).strip().lower()
     return "inhouse" if last_dest == "utc" else "utc"
+
+
+def resolve_lead_destination(
+    leadgen_id: str, existing_pipeline_id: Any = None
+) -> tuple[str, bool]:
+    """Resolve destination and whether to advance rotation for a leadgen event."""
+    saved = get_lead_destination(leadgen_id)
+    if saved:
+        return saved, False
+
+    mode = get_lead_routing_mode()
+    if mode in ("inhouse", "utc"):
+        return mode, True
+
+    if existing_pipeline_id is not None:
+        from src.services.core.crm.amocrm_pipeline_config import (
+            TARGET_LEADS_INHOUSE_PIPELINE_ID,
+            UTC_PIPELINE_ID,
+        )
+        try:
+            pid = int(existing_pipeline_id)
+            if pid == int(TARGET_LEADS_INHOUSE_PIPELINE_ID):
+                return "inhouse", False
+            if pid == int(UTC_PIPELINE_ID):
+                return "utc", False
+        except (TypeError, ValueError):
+            pass
+
+    return get_next_lead_destination(), (existing_pipeline_id is None)
+
 
 
 def get_crm_checkpoint(leadgen_id: str) -> int | None:
