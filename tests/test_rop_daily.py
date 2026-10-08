@@ -72,6 +72,28 @@ def test_build_evening_fields():
     assert len(ev.tomorrow_closings) >= 1
 
 
+def test_build_midday_with_call_stats():
+    scored = score_seller_leads(_leads(), _tasks(), _notes(), _events(), CFG, NOW)
+    call_stats_slow = {"total": 15, "answered": 10, "solid_calls": 5, "talk_seconds": 1200}
+    bad = build_midday(SELLER, scored, dict(calls=5, follow_ups=10, meetings=1, won=0), {1, 2}, CFG, call_stats=call_stats_slow)
+    assert bad.on_track is False
+    assert bad.solid_calls == 5
+
+    call_stats_fast = {"total": 35, "answered": 28, "solid_calls": 25, "talk_seconds": 6000}
+    good = build_midday(SELLER, scored, dict(calls=5, follow_ups=10, meetings=1, won=0), {1, 2}, CFG, call_stats=call_stats_fast)
+    assert good.on_track is True
+    assert good.solid_calls == 25
+
+
+def test_build_evening_with_call_stats():
+    scored = score_seller_leads(_leads(), _tasks(), _notes(), _events(), CFG, NOW)
+    call_stats = {"total": 60, "answered": 52, "solid_calls": 51, "talk_seconds": 18200, "no_callback": 0}
+    ev = build_evening(SELLER, scored, dict(calls=9, follow_ups=18, meetings=2, won=1, won_revenue=12_000_000), 0, call_stats=call_stats)
+    assert ev.solid_calls == 51
+    assert ev.total_calls == 60
+    assert ev.no_callback == 0
+
+
 def test_pick_action_maps_reason():
     assert pick_action(["To'lov va'da qilingan"]) in {"bugun qo'ng'iroq", "follow-up"}
     assert pick_action(["Ochiq e'tiroz bor"]) == "narx objection yop"

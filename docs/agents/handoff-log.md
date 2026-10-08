@@ -1330,5 +1330,12 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Tekshiruv: `SKIP_LIVE=1 pytest tests/test_leadgen_split.py` — 6/6 passed; barcha leadgen testlari (36/36) passed; Bandit 0 ta xatolik; GitHub CI PR #841 import guard, CodeQL va gitleaks yashil.
 - Keyingi qadam: PR #841 merge qilinishi va Oracle VM'da `python3 scripts/set_lead_routing.py inhouse` buyrug'i bilan rejim faollashtirilishi.
 
+## 2026-10-08 — Antigravity — feat/rop-3-times-daily-with-calls
+- Task: Kuniga 3 mahallik (09:00, 14:00, 18:30 Toshkent vaqti) AI ROP modulini Moizvonki qo'ng'iroqlari va "50 ta ko'targan va 3+ daqiqa gaplashilgan sifatli suhbat" standarti bilan to'liq bog'lash.
+- Files: `src/services/core/rop/fetchers.py` (`fetch_today_calls(now)` Moizvonki API chaqiruvlari), `src/services/core/rop/daily.py` (`SellerMorningPlan`, `SellerMiddayCheck`, `SellerEveningResult`, `build_midday`, `build_evening`, `build_ceo_midday` da Moizvonki qo'ng'iroqlari va sur'at nazorati), `src/services/core/rop/rop_messages.py` (09:00 reja xabarida 50 ta sifatli suhbat standarti, 14:00 tushki xabarda Moizvonki ko'rsatkichlari va tushgacha 20-25 ta marra ogohlantirishi, 18:30 xabarida 50 ta sifatli suhbat natijasi, umumiy vaqt va qayta qilinmagan qarzlar), `src/services/core/rop/service.py` (`_find_seller_calls`, `run` da midday va evening slotlarida `today_calls` bilan boyitish), `tests/test_rop_daily.py`, `tests/test_rop_messages.py`, `tests/test_rop_service.py`.
+- Xulq: 09:00 slotida sotuvchiga bugungi sotuv rejasi, closingga eng yaqin lidlar va asosiy kunlik marra — 50 ta sifatli suhbat (>=3 daqiqa) yetkaziladi. 14:00 slotida Moizvonki'dan real vaqtda olingan tushgacha bo'lgan qo'ng'iroqlar tahlil qilinadi: agar sotuvchi 20-25 ta sifatli suhbat marrasidan orqada bo'lsa, qat'iy ogohlantirish beriladi va CEO midday hisobotiga tushadi. 18:30 slotida kunlik natija (50 ta sifatli suhbat marrasi bajarilishi, gaplashilgan vaqt, javobsiz qolgan qarzlar) umumlashtiriladi va CEO Dashboardga svetofor bahosi chiqariladi.
+- Tekshiruv: `SKIP_LIVE=1 pytest tests/test_rop*.py` — barcha 73 ta ROP testlari passed (100%); `bandit -r src/services/core/rop/ -ll` — 0 security issues; barcha fayllar qat'iy <= 400 LOC me'yoriga javob beradi (`fetchers.py`: 228, `daily.py`: 307, `rop_messages.py`: 234, `service.py`: 278).
+- Keyingi qadam: Branch push, PR ochish va main ga merge qilish.
+
 
 

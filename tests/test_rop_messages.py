@@ -42,14 +42,20 @@ def test_seller_morning_renders_followup_due():
     assert "ABC &amp; Co" in html
 
 def test_seller_midday_renders():
-    c = SellerMiddayCheck(SELLER, 1, 0, 3, 7, 1, ["ABC & Co"], [LS], False)
+    c = SellerMiddayCheck(SELLER, 1, 0, 3, 7, 1, ["ABC & Co"], [LS], False,
+                          total_calls=25, answered_calls=18, solid_calls=12, talk_seconds=3600)
     html = render_seller_midday(c)
     assert "7/20" in html or "7 / 20" in html
+    assert "Moizvonki" in html
+    assert "12/25 ta" in html
 
 def test_seller_evening_renders():
-    r = SellerEveningResult(SELLER, 1, 12_500_000, 9, 18, 2, 0, [LS])
+    r = SellerEveningResult(SELLER, 1, 12_500_000, 9, 18, 2, 0, [LS],
+                            total_calls=55, answered_calls=51, solid_calls=50, talk_seconds=18000)
     html = render_seller_evening(r)
     assert "1/1" in html or "1 / 1" in html
+    assert "50/50 ta" in html
+    assert "✅" in html
 
 def test_ceo_morning_renders():
     m = CeoMorning(2, 17_000_000, 3, 4, ["Dilnoza"], ["NoOwnerLead"], WK)

@@ -49,6 +49,7 @@ def render_seller_morning(plan: SellerMorningPlan) -> str:
             )
         lines.append("")
     lines.append("<b>Bugun:</b>")
+    lines.append(f"🎯 <b>Asosiy marra: {plan.solid_calls_target} ta sifatli suhbat (≥3 daqiqa)!</b>")
     lines.append(f"• {s.calls} ta qo'ng'iroq")
     lines.append(f"• {s.follow_ups} ta follow-up")
     lines.append(f"• {s.meetings} ta uchrashuv")
@@ -100,15 +101,29 @@ _FINDING_UZ = {
 def render_seller_midday(check: SellerMiddayCheck) -> str:
     s = check.seller
     lines = [
-        "<b>Tushki tekshiruv</b>",
+        "<b>Tushki tekshiruv (14:00)</b>",
         "",
         f"Plan: {check.plan}",
         f"Fakt: {check.fakt}",
         "",
-        f"{check.calls_done}/{s.calls} qo'ng'iroq",
+    ]
+    if check.solid_calls > 0 or check.total_calls > 0:
+        mins = check.talk_seconds // 60
+        pct = round(check.solid_calls / check.solid_calls_target * 100) if check.solid_calls_target else 0
+        lines.append("📞 <b>Qo'ng'iroqlar (Moizvonki):</b>")
+        lines.append(f"• Sifatli suhbatlar (≥3 daq): <b>{check.solid_calls}/{check.solid_calls_target} ta</b> ({pct}%)")
+        lines.append(f"• Jami qo'ng'iroqlar: {check.total_calls} ta (ko'tarilgan: {check.answered_calls})")
+        lines.append(f"• Gaplashilgan vaqt: {mins} daqiqa")
+        if check.solid_calls < 20:
+            lines.append("⚠️ <i>Diqqat: Tushgacha marra 20-25 ta sifatli suhbat! Kechgacha 50 taga yetish uchun sur'atni oshiring!</i>")
+        else:
+            lines.append("🔥 <i>Ajoyib sur'at! Tushlik marrasi bajarildi. Kechgacha 50 taga yetkazishda davom eting!</i>")
+        lines.append("")
+    lines.extend([
+        f"{check.calls_done}/{s.calls} CRM vazifa qo'ng'irog'i",
         f"{check.follow_ups_done}/{s.follow_ups} follow-up",
         f"{check.meetings_done}/{s.meetings} uchrashuv",
-    ]
+    ])
     if check.hot_not_touched:
         lines.append("")
         lines.append(f"Hali ishlanmagan {len(check.hot_not_touched)} ta issiq mijoz:")
@@ -125,15 +140,30 @@ def render_seller_midday(check: SellerMiddayCheck) -> str:
 def render_seller_evening(result: SellerEveningResult) -> str:
     s = result.seller
     lines = [
-        "<b>Bugungi natija</b>",
+        "<b>Bugungi natija (18:30)</b>",
         "",
         f"Sales: {result.sales_done}/{s.expected_sales}",
         f"Revenue: {fmt_sum(result.revenue_today)} so'm",
-        f"Calls: {result.calls_done}/{s.calls}",
+        "",
+    ]
+    if result.solid_calls > 0 or result.total_calls > 0:
+        mins = result.talk_seconds // 60
+        target = result.solid_calls_target
+        is_reached = result.solid_calls >= target
+        status_icon = "✅" if is_reached else "⚠️"
+        lines.append("📞 <b>Qo'ng'iroqlar tahlili (Moizvonki):</b>")
+        lines.append(f"• Sifatli suhbatlar (≥3 daq): <b>{result.solid_calls}/{target} ta</b> {status_icon}")
+        lines.append(f"• Jami qo'ng'iroqlar: {result.total_calls} ta ({result.answered_calls} ta ko'tarildi)")
+        lines.append(f"• Gaplashilgan vaqt: {mins} daqiqa")
+        if result.no_callback > 0:
+            lines.append(f"• Qayta qilinmagan o'tkazib yuborilgan: <b>{result.no_callback} ta</b> ❌")
+        lines.append("")
+    lines.extend([
+        f"Calls (CRM): {result.calls_done}/{s.calls}",
         f"Follow-ups: {result.follow_ups_done}/{s.follow_ups}",
         f"Meetings: {result.meetings_done}/{s.meetings}",
         f"Overdue: {result.overdue_count}",
-    ]
+    ])
     if result.tomorrow_closings:
         lines.append("")
         lines.append("Ertaga closingga yaqin:")

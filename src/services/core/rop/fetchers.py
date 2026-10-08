@@ -182,3 +182,47 @@ class RopFetcher:
                 pass
             out[uid] = f"Menejer_{uid}"
         return out
+
+    async def fetch_today_calls(self, now: datetime) -> dict[str, dict]:
+        """Moizvonki bugungi qo'ng'iroqlari va 3+ daqiqalik suhbatlarini oladi."""
+        import os
+        from scripts.daily_sales_calls_report import (
+            fetch_calls,
+            build_report,
+            parse_rep_names,
+        )
+
+        email = os.environ.get("MOIZVONKI_EMAIL", "")
+        api_key = os.environ.get("MOIZVONKI_API_KEY", "")
+        if not email or not api_key:
+            return {}
+
+        domain = os.environ.get("MOIZVONKI_DOMAIN", "")
+        start_ts = _tashkent_day_start_epoch(now)
+        end_ts = int(now.timestamp())
+        if end_ts <= start_ts:
+            return {}
+
+        try:
+            calls = await asyncio.to_thread(fetch_calls, email, api_key, start_ts, end_ts, domain)
+            exclude = [email, *os.environ.get("MOIZVONKI_EXCLUDE_ACCOUNTS", "").split(",")]
+            names = parse_rep_names(os.environ.get("MOIZVONKI_REP_NAMES", ""))
+            day_str = now.strftime("%Y-%m-%d")
+            report = build_report(calls, day_str, exclude_accounts=exclude, known_accounts=names)
+            
+            res: dict[str, dict] = {}
+            for r in report.reps:
+                disp_name = names.get(r.account.lower(), r.account.split("@")[0].capitalize())
+                res[disp_name.lower()] = {
+                    "account": r.account,
+                    "name": disp_name,
+                    "total": r.total,
+                    "answered": r.answered,
+                    "solid_calls": getattr(r, "solid_calls", 0),
+                    "talk_seconds": r.talk_seconds,
+                    "no_callback": getattr(r, "no_callback", 0),
+                }
+            return res
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[ROP] fetch_today_calls failed: %s", exc)
+            return {}
