@@ -83,3 +83,32 @@ def test_channel_status_and_completion():
     status = get_delivery_channel_status(lead_id_str)
     assert status == {"amocrm": True, "sheets": True, "telegram": True}
 
+
+
+def test_meta_lifetime_count_paginates_and_caches(monkeypatch):
+    from src.schedulers import meta_leadgen_scheduler as m
+    from src.services.core.instagram import leadgen_watchdog as wd
+
+    calls = []
+    monkeypatch.setattr(m, "_get_page_token", lambda: "tok")
+    monkeypatch.setattr(
+        m, "_get_pages",
+        lambda url, token, fields: calls.append(url) or [{"leads_count": 500}, {"leads_count": 42}, {}],
+    )
+    monkeypatch.setitem(wd._meta_count_cache, "at", 0.0)
+    assert wd._meta_lifetime_leads_count() == 542
+    assert wd._meta_lifetime_leads_count() == 542
+    assert len(calls) == 1
+
+
+def test_meta_lifetime_count_none_on_api_error(monkeypatch):
+    from src.schedulers import meta_leadgen_scheduler as m
+    from src.services.core.instagram import leadgen_watchdog as wd
+
+    def boom(*_a, **_k):
+        raise RuntimeError("meta down")
+
+    monkeypatch.setattr(m, "_get_page_token", lambda: "tok")
+    monkeypatch.setattr(m, "_get_pages", boom)
+    monkeypatch.setitem(wd._meta_count_cache, "at", 0.0)
+    assert wd._meta_lifetime_leads_count() is None

@@ -19,7 +19,8 @@ export class UsersService {
     return this.prisma.user.update({ where: { id }, data: { locale } });
   }
 
-  async remove(id: string) {
-    await this.prisma.user.delete({ where: { id } });
+  async remove(id: string, orgId: string) {
+    const result = await this.prisma.user.deleteMany({ where: { id, orgId } });
+    if (result.count === 0) throw new NotFoundException('User not found');
   }
 }

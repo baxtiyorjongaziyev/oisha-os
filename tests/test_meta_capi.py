@@ -253,3 +253,17 @@ def test_failed_purchase_keeps_attribution_row_open(monkeypatch):
 
     res = _run(attribution_sync.sync_attribution_revenue(Amo()))
     assert updates == [] and res.failed == 1
+
+
+def test_hash_phone_adds_uz_country_code():
+    from src.services.core.marketing.meta_capi import hash_phone
+    assert hash_phone("901234567") == hash_phone("+998 90 123-45-67")
+
+
+def test_custom_fields_include_meta_lead_id():
+    from src.services.core.instagram.leadgen_custom_fields import (
+        FIELD_META_LEAD_ID, extract_lead_custom_fields,
+    )
+    cf = extract_lead_custom_fields({}, leadgen_id="1630106742003105")
+    assert {"field_id": FIELD_META_LEAD_ID, "values": [{"value": "1630106742003105"}]} in cf
+    assert all(f["field_id"] != FIELD_META_LEAD_ID for f in extract_lead_custom_fields({}))

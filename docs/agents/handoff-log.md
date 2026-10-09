@@ -1270,3 +1270,84 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Changed dependency manifests, requirements-dev/lock, pnpm lock/workspace files, Dependabot config and security report.
 - Evidence: 2459 Python tests + 4 subtests passed, 17 skipped; Bandit clean; pip-audit zero supported-package vulnerabilities; root typecheck/lint/test/build passed; SalesCoach type-check/build and 7 API tests passed; both frozen offline installs and active braces regressions passed. Node scanners retain only locally patched braces advisory.
 - PR #795 merge b3634ae; Oracle deploy 37304769364 successful. Follow-up remote CI/merge/deploy are pending at this entry. Obsidian connector Session terminated, vault logging unconfirmed.
+
+### 2026-10-06 — Claude — Instagram "+" komment → DM avtomatizatsiyasi
+- Target reklamada (profilda yo'q dark post ham) faqat "+" yozilgan kommentga Private Reply orqali DM + ochiq "DM'dan yozdik" javobi. "+998..." kabi matnlar tegilmaydi.
+- Reklama kommentida `media.ad_id` bo'lsa CRM manbasi `Instagram Reklama (ad_id: …)` bo'ladi.
+- Fayllar: src/services/core/instagram/agent_constants.py, src/services/core/instagram_agent.py, tests/test_instagram_plus_trigger.py.
+- Tekshiruv: SKIP_LIVE=1 pytest — 2509 passed, 14 skipped; bandit -ll -x debug clean.
+- Qolgan: Ads Manager'da reklama Identity = Instagram akkaunt bo'lishi kerak; Meta app'da `comments` webhook obunasi faol ekanini prod'da tekshirish.
+
+### 2026-10-06 — Claude — Instagram "+" 2 oylik backfill kampaniyasi
+- `scripts/instagram_plus_campaign.py` + workflow `instagram-plus-campaign.yml` (workflow_dispatch, self-hosted Oracle runner, .env'dan META_*).
+- <=7 kun: Private Reply DM + ack; 7..N kun: ochiq javob bilan Direct'ga taklif (Meta 7 kunlik cheklovi). Dry-run default; live `--confirm YUBORISH`, quiet hours'da bloklanadi; takroriy yuborishdan himoya (bizning ack/taklif javobi bor kommentlar o'tkazib yuboriladi).
+- Reklama postlari uchun META_AD_ACCOUNT_ID (yoki workflow input) va token'da ads_read kerak.
+- Tekshiruv: SKIP_LIVE=1 pytest — 2514 passed, 14 skipped; bandit toza.
+
+## 2026-10-06 — Claude — Leadgen status report raqamlari
+- Muammo: 21:00 hisobotida "542 ta" butun vaqtdagi jami bo'lib, 24 soatlik deb o'qilardi; pagination yo'q, API xatosida jim "0"; kreativlar bloki (43) "kelib tushgan" (32) dan ko'p — `created_at` (+05:00 ISO) UTC `datetime('now')` bilan matn sifatida solishtirilib oyna ~29 soat bo'lgan.
+- O'zgardi: `src/services/core/instagram/leadgen_watchdog.py` (paginatsiyali `_meta_lifetime_leads_count`, 10 daq kesh, xatoda None), `src/schedulers/leadgen_status_reporter.py` (`datetime(created_at)` UTC normalizatsiya, "Meta'ga kelgan (24 soat)" qatori 🟢/🔴, "butun vaqt" yorlig'i, API xatosida ⚠️), testlar.
+- Tekshiruv: leadgen testlari 17 passed; to'liq suite failure ro'yxati base bilan bir xil (6 ta env-related); bandit clean. Lock: `leadgen delivery recovery` (Codex, 2026-09-15) — watchdog fayliga minimal tegildi.
+- Ochiq: Meta MCP ulanmagan — production'da 542 va 24h sonini jonli tekshirish kerak.
+
+### 2026-10-07 — Claude — Egasiz lead ogohlantirishida vaqt formati
+- "⏱ N daqiqadan beri" endi 60+ daqiqada soat/kun bilan chiqadi (1392 -> "23 soat 12 daqiqa", 1 kundan keyin daqiqa tushiriladi).
+- Fayllar: src/schedulers/unowned_lead_alert.py, tests/test_unowned_lead_alert.py.
+- Tekshiruv: SKIP_LIVE=1 pytest tests/test_unowned_lead_alert.py — o'tdi.
+- Qolgan: yo'q (deploy oracle-deploy.yml orqali).
+
+## 2026-10-06 — Claude Code — claude/ezzy-welcome-page-65zx2k
+- Task: Ezzy (Cloud PBX) bilan gap-tahlil → 1-bosqich: javobsiz kiruvchi qo'ng'iroqqa real vaqtda reaksiya.
+- Files: `src/services/call_analytics/missed_call_responder.py` (yangi), `src/services/api_server/webhooks.py` (`/webhook/amocrm_notes` ga ulandi), `tests/test_missed_call_responder.py`, `.env.example`.
+- Xulq: `MISSED_CALL_RESPONDER_MODE` = off (default) | alert | live. Quiet hours'da Telegram yo'q, vazifa 09:00 ga. Dedup call UNIQ/note id bo'yicha (6 soat, in-memory). Davomiylik noma'lum bo'lsa alert YO'Q.
+- Tekshiruv: `SKIP_LIVE=1 pytest -q` → 2517 passed, 14 skipped; `bandit -r src/ -ll -x src/services/debug/` toza.
+- Open: prod'da avval `alert` rejimida yoqib, AmoCRM webhook'i haqiqiy javobsiz call note'ida `DURATION=0` yuborishini tasdiqlash kerak; keyin `live`. `settings.py` ga tegilmadi (env orqali o'qiladi).
+
+## 2026-10-06 — Claude Code — claude/ezzy-welcome-page-65zx2k (2)
+- Task: Ezzy gap-tahlil 2-bosqich — saytga "Sizga qo'ng'iroq qilamiz" vidjeti + UTM'ni AmoCRM lidiga yozish.
+- Files: `src/static/callback-widget.js` (yangi), `src/api/routes/callback_widget.py` (yangi: `POST /api/callback-request`, `GET /callback-widget.js`), `src/services/core/leads/callback_request.py` (yangi), `src/services/api_server/core.py` (router), `src/api/security.py` (`/api/callback-request` public), `tests/test_callback_request.py`, `.env.example`.
+- Xulq: `CALLBACK_WIDGET_ENABLED=0` default (endpoint 404). Yoqilganda: ensure_lead + izohda UTM/fbclid/gclid/sahifa/referrer, Telegram alert, N daqiqalik vazifa (default 5). Himoya: 5/min IP limit, honeypot, raqam bo'yicha 10 daqiqa dedup, maydon uzunligi cheklangan.
+- Topildi (tuzatilmadi): `core.py` dagi `/static` mount `src/src/static` ga qaraydi — hech qachon ulanmagan. Tuzatish `dashboard.html`/`widget.html` ni ham ochiq qilardi, shuning uchun vidjet alohida route bilan beriladi.
+- Tekshiruv: pytest (to'liq), bandit, Playwright'da desktop+mobil (UTM first-touch, niqob, xato/muvaffaqiyat holatlari, o'z tugmasi, Esc).
+- Open: UTM hozircha lid IZOHIGA yoziladi; AmoCRM'dagi UTM maydonlari ID'lari berilsa custom field'larga ham yozish mumkin.
+
+## 2026-10-07 — Claude Code — claude/ezzy-welcome-page-65zx2k (3)
+- Task: Ezzy gap-tahlil 3-bosqich — statik call tracking (kanal → virtual raqam).
+- Files: `src/services/core/leads/call_tracking.py` (yangi), `src/static/callback-widget.js` (`data-call-tracking="1"` → `[data-oisha-phone]` raqamini almashtiradi), `src/api/routes/callback_widget.py` (`GET /api/call-tracking/config`), `src/api/security.py` (public path), `src/services/api_server/webhooks.py` (kiruvchi call → lid izohi "Qo'ng'iroq manbasi"), `src/services/call_analytics/missed_call_responder.py` (`flatten_note` ochiq; alertda manba), `tests/test_call_tracking.py`, `.env.example`.
+- Xulq: `CALL_TRACKING_NUMBERS` bo'sh = o'chiq. Manba tanlash (JS): utm_source → gclid/fbclid/yclid → referrer domeni → default. Webhook'da tracking raqam mijoz raqamidan boshqa har qanday maydondan oxirgi 9 raqam bo'yicha qidiriladi.
+- Tekshiruv: pytest (to'liq), bandit, Playwright: utm/gclid/noma'lum/direct/t.me referrer + keyingi sahifada saqlanishi.
+- Open: virtual raqamlar hali sotib olinmagan; Moizvonki → AmoCRM call note'ida qaysi raqamga qo'ng'iroq qilingani bor-yo'qligi prod'da tasdiqlanishi kerak (bo'lmasa lid izohi yozilmaydi, sayt qismi baribir ishlaydi).
+
+## 2026-10-07 — Antigravity — feat/incoming-call-screen-pop
+- Task: Ezzy gap-tahlil (#2) — Kiruvchi qo'ng'iroqda real vaqtda mijoz kartasi (Screen-pop / Ringing alert).
+- Files: `src/services/call_analytics/incoming_call_card.py` (yangi), `src/api/routes/telephony.py` (yangi: `POST /api/telephony/incoming-call`), `src/api/security.py` (public path), `src/services/api_server/core.py` (telephony_router include), `tests/test_incoming_call_card.py` (10 ta yangi test), `.env.example`.
+- Xulq: `INCOMING_CALL_CARD_ENABLED=0` default (o'chiq). Yoqilganda: Android MacroDroid / PBX webhook signali qabul qilinadi, secret tekshiriladi (header `X-Telephony-Secret`, `Authorization: Bearer` yoki query `?secret=`). 60s TTL dedup, quiet hours tekshiruvi. AmoCRM'dan mijoz ismi, ochiq lid, byudjet, etap va oxirgi izoh olinib Telegram kartasi chiqariladi; topilmasa "Yangi raqam — CRM'da topilmadi".
+- Tekshiruv: `SKIP_LIVE=1 pytest tests/test_incoming_call_card.py tests/test_missed_call_responder.py tests/test_callback_request.py tests/test_call_tracking.py` — 75 passed; `bandit -r src/ -ll -x src/services/debug/` toza; barcha yangi/o'zgargan fayllar <= 400 qator standarti bajarildi.
+- Keyingi qadam: PR ochish, prod .env da `INCOMING_CALL_CARD_ENABLED=1` va `TELEPHONY_WEBHOOK_SECRET` sozlash; menejerlar telefoniga MacroDroid webhook ulash.
+
+## 2026-10-07 — Antigravity — feat/realtime-call-analysis-and-urgent-alert
+- Task: Ezzy gap-tahlil (#1) — Real vaqtda AI tahlil va muammoli qo'ng'iroqlarda shoshilinch Telegram SOS kartasi.
+- Files: `src/services/core/calls/call_notifier.py` (`is_problem_call`, `build_urgent_problem_alert`, `_dispatch_telegram_message`), `src/services/api_server/webhooks.py` (`_resolve_lead_id_for_note`, note_type `"10"`/`"11"`/recording link qo'llab-quvvatlash), `tests/test_realtime_call_analysis.py` (9 ta unit test).
+- Xulq: AmoCRM `notes[add]` webhook'i kelishi bilan Moizvonki audio yozuvlari (note_type 10/11) kechiktirilmasdan `CallAnalyzer.process_call_recordings_for_lead` ga uzatiladi. Tahlil yakunida sifat bahosi past (<60), e'tirozlar mavjud bo'lgan, salbiy kayfiyatdagi yoki boy berilgan qo'ng'iroqlar uchun darhol qizil SOS ogohlantirish kartasi (`🚨 DIQQAT: Qo'ng'iroqda muammo / E'tiroz aniqlandi!`) jo'natiladi. Telegram jo'natish xatoliklariga qarshi to'g'ridan-to'g'ri Bot API HTTP fallback ta'minlandi.
+- Tekshiruv: `SKIP_LIVE=1 pytest tests/test_realtime_call_analysis.py tests/test_call_notifier_topic.py tests/test_incoming_call_card.py` — 21 passed; `bandit -r src/ -ll -x src/services/debug/` — 0 issues; fayl hajmlari qat'iy <= 400 LOC (`webhooks.py`: 391 LOC, `call_notifier.py`: 272 LOC).
+- Keyingi qadam: PR ochish, merge qilish va production'da test qilish.
+
+## 2026-10-08 — Antigravity — feat/leadgen-inhouse-only-routing (PR #841)
+- Task: Meta Lead Ads taqsimotini vaqtincha faqat Inhouse (Jon Branding)ga yo'naltirish, UTC Outsource taqsimotini to'xtatish va dinamik Telegram/CLI boshqaruvini joriy qilish.
+- Files: `src/services/core/instagram/leadgen_delivery.py` (`get_lead_routing_mode`, `set_lead_routing_mode`, `resolve_lead_destination`), `src/services/core/instagram/leadgen_router.py` (`resolve_lead_destination` orqali taqsimotni aniqlash), `src/commands/crm.py` (`/leadgen_routing [inhouse|split|utc|status]`), `scripts/set_lead_routing.py` (CLI vositasi), `tests/test_leadgen_split.py`.
+- Xulq: `routing_mode` uch xil rejimni qo'llab-quvvatlaydi: `inhouse` (100% Inhouse), `utc` (100% UTC), va `split` (50/50 navbatma-navbat). `inhouse` rejimida barcha yangi kelgan Meta reklamalari lidlari to'g'ridan-to'g'ri Jon Branding Sotuv voronkasiga (`#11162698` - "Yangi") tushadi, UTC Outsource'ga bormaydi. Istalgan paytda Telegram orqali `/leadgen_routing inhouse` yoki `/leadgen_routing split` buyrug'i bilan rejimni o'zgartirish mumkin.
+- Tekshiruv: `SKIP_LIVE=1 pytest tests/test_leadgen_split.py` — 6/6 passed; barcha leadgen testlari (36/36) passed; Bandit 0 ta xatolik; GitHub CI PR #841 import guard, CodeQL va gitleaks yashil.
+- Keyingi qadam: PR #841 merge qilinishi va Oracle VM'da `python3 scripts/set_lead_routing.py inhouse` buyrug'i bilan rejim faollashtirilishi.
+
+## 2026-10-08 — Antigravity — feat/rop-3-times-daily-with-calls
+- Task: Kuniga 3 mahallik (09:00, 14:00, 18:30 Toshkent vaqti) AI ROP modulini Moizvonki qo'ng'iroqlari va "50 ta ko'targan va 3+ daqiqa gaplashilgan sifatli suhbat" standarti bilan to'liq bog'lash.
+- Files: `src/services/core/rop/fetchers.py` (`fetch_today_calls(now)` Moizvonki API chaqiruvlari), `src/services/core/rop/daily.py` (`SellerMorningPlan`, `SellerMiddayCheck`, `SellerEveningResult`, `build_midday`, `build_evening`, `build_ceo_midday` da Moizvonki qo'ng'iroqlari va sur'at nazorati), `src/services/core/rop/rop_messages.py` (09:00 reja xabarida 50 ta sifatli suhbat standarti, 14:00 tushki xabarda Moizvonki ko'rsatkichlari va tushgacha 20-25 ta marra ogohlantirishi, 18:30 xabarida 50 ta sifatli suhbat natijasi, umumiy vaqt va qayta qilinmagan qarzlar), `src/services/core/rop/service.py` (`_find_seller_calls`, `run` da midday va evening slotlarida `today_calls` bilan boyitish), `tests/test_rop_daily.py`, `tests/test_rop_messages.py`, `tests/test_rop_service.py`.
+- Xulq: 09:00 slotida sotuvchiga bugungi sotuv rejasi, closingga eng yaqin lidlar va asosiy kunlik marra — 50 ta sifatli suhbat (>=3 daqiqa) yetkaziladi. 14:00 slotida Moizvonki'dan real vaqtda olingan tushgacha bo'lgan qo'ng'iroqlar tahlil qilinadi: agar sotuvchi 20-25 ta sifatli suhbat marrasidan orqada bo'lsa, qat'iy ogohlantirish beriladi va CEO midday hisobotiga tushadi. 18:30 slotida kunlik natija (50 ta sifatli suhbat marrasi bajarilishi, gaplashilgan vaqt, javobsiz qolgan qarzlar) umumlashtiriladi va CEO Dashboardga svetofor bahosi chiqariladi.
+- Keyingi qadam: Branch push, PR ochish va main ga merge qilish.
+
+## 2026-10-08 — Antigravity — feat/omnichannel-call-context-and-followup-rubric (PR #843)
+- Task: Qo'ng'iroqlar tahlilida mijozning to'liq 360-darajali kontekstini (AmoCRM primecheniyalari/izohlari, Telegram va Instagram yozishmalari, mijoz profili) inobatga olish va qo'ng'iroqni faqat yangi murojaat deb emas, qayta aloqa (follow-up) bo'lsa qayta aloqa mezonlari bo'yicha baholash.
+- Files: `src/services/call_analytics/omnichannel_context.py` (`OmnichannelContext` ga `crm_notes`, `instagram_messages`, `is_follow_up` qo'shildi; `_fetch_lead_notes` orqali AmoCRM primecheniyalari va Instagram konteksti tortildi; `_is_follow_up_lead` orqali birinchi aloqa va qayta aloqa avtomatik aniqlandi), `src/services/core/sales_playbook.py` (`rubric_prompt_uz()` da BIRINCHI qo'ng'iroqda va QAYTA ALOQA mezonlari ajratildi: qayta aloqada qaytadan tanishish talab qilinmaydi, avvalgi kelishuvni eslatish, taklif/KP bo'yicha savollar va e'tirozlarni yechish, bitimni keyingi bosqichga siljitish talab qilinadi), `src/services/call_analytics/scorer.py` (AI promptiga `notes_block`, `ig_block` va qayta aloqa/birinchi aloqa bo'yicha qat'iy yo'riqnoma qo'shildi), `tests/test_omnichannel_call_context.py` (yangi testlar), `tests/test_sales_playbook.py`.
+- Xulq: Qo'ng'iroq tahlil qilinganda endi AI faqat quruq audio transkripsiyasiga qaramaydi. U mijozning butun tarixini (avvalgi izohlar, takliflar, Telegram/Instagramdagi yozishmalar va voronkadagi joriy bosqichni) o'qiydi. Agar mijoz bilan avval gaplashilgan bo'lsa, menejerni "qaytadan o'zini tanishtirmadi" deb asossiz ayblamaydi, balki avvalgi muzokara qanchalik professional davom ettirilganiga qarab baholaydi.
+- Tekshiruv: `SKIP_LIVE=1 pytest tests/test_sales_playbook.py tests/test_omnichannel_call_context.py` — barcha testlar yashil; GitHub Actions CI PR #843 barcha tekshiruvlari (pull-request-tests, CodeQL, Import guard, gitleaks) 100% yashil; Bandit — 0 security issues; barcha fayllar qat'iy <= 400 LOC qoidasiga mos (`omnichannel_context.py`: 339, `sales_playbook.py`: 266, `scorer.py`: 312).
+- Keyingi qadam: PR #843 squash-merge qilish va avtomatik prod deploy.

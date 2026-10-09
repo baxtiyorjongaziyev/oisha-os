@@ -37,20 +37,43 @@ class CallScorerMixin:
             if omnichannel_context and hasattr(omnichannel_context, "format_crm_prompt_block"):
                 crm_block = f"\nAMOCRM LID VA KONTAKT MAYDONLARI:\n{omnichannel_context.format_crm_prompt_block()}\n"
 
+            notes_block = ""
+            if omnichannel_context and hasattr(omnichannel_context, "format_crm_notes_prompt_block"):
+                notes_block = f"\nAMOCRM PRIMECHENIYALARI (IZOHLAR VA AVVALGI SUHBATLAR TARIXI):\n{omnichannel_context.format_crm_notes_prompt_block()}\n"
+
             tg_block = ""
             if omnichannel_context and hasattr(omnichannel_context, "format_telegram_prompt_block"):
                 tg_block = f"\nTELEGRAM YOZISHMALAR TARIXI (Ushbu mijoz bilan oxirgi xabarlar):\n{omnichannel_context.format_telegram_prompt_block()}\n"
 
+            ig_block = ""
+            if omnichannel_context and hasattr(omnichannel_context, "format_instagram_prompt_block"):
+                ig_block = f"\nINSTAGRAM VA REKLAMA SHAKLI MA'LUMOTLARI:\n{omnichannel_context.format_instagram_prompt_block()}\n"
+
+            is_follow_up = getattr(omnichannel_context, "is_follow_up", False) if omnichannel_context else False
+            mode_guidance = (
+                "DIQQAT — ALOQA TURI: QAYTA ALOQA (Follow-up / Muzokara / Taklif muhokamasi)!\n"
+                "- Bu yangi murojaat EMAS. Mijoz bilan allaqachon avval gaplashilgan, taklif yuborilgan yoki yozishmalar bor.\n"
+                "- Menejerdan noldan o'zini tanishtirishni yoki 'qanday biznesingiz bor' deb so'rashni talab qilmang.\n"
+                "- Baholash mezoni: avvalgi kelishuv eslatilganmi, taklif/smeta bo'yicha savollar va e'tirozlar yechildimi, "
+                "va bitim keyingi aniq qadamga siljitildimi!\n\n"
+                if is_follow_up
+                else "DIQQAT — ALOQA TURI: BIRINCHI ALOQA (Yangi murojaat).\n"
+                "- Menejer birlamchi ehtiyoj aniqlash, kompaniyani tanishtirish va qiymat ko'rsatish bo'yicha to'liq baholansin.\n\n"
+            )
+
             prompt = (
                 "Quyidagi telefon suhbati transkripsiyasini va unga biriktirilgan mijoz kontekstini "
-                "(AmoCRM kartochka maydonlari hamda Telegram yozishmalari) professional savdo tahlilchisi sifatida "
-                "birlashtirgan holda 360-darajali to'liq tahlil qiling.\n\n"
+                "(AmoCRM kartochka maydonlari, primecheniyalar/izohlar, Telegram va Instagram yozishmalari) "
+                "professional savdo tahlilchisi sifatida birlashtirgan holda 360-darajali to'liq tahlil qiling.\n\n"
                 f"HOZIRGI SANA VA VAQT (Toshkent): {now_local.strftime('%Y-%m-%d %H:%M')} "
                 f"({_WEEKDAY_UZ[now_local.weekday()]})\n"
                 "Transkripsiyada nisbiy vaqt aytilsa (\"ertaga\", \"peshin\", \"kelasi hafta\", "
-                "\"dushanba\"), shu hozirgi sanaga nisbatan hisoblang.\n"
+                "\"dushanba\"), shu hozirgi sanaga nisbatan hisoblang.\n\n"
+                f"{mode_guidance}"
                 f"{crm_block}"
-                f"{tg_block}\n"
+                f"{notes_block}"
+                f"{tg_block}"
+                f"{ig_block}\n"
                 "TOIFALAR (faqat bittasini tanlang):\n"
                 "- Shaxsiy: shaxsiy, biznesga aloqasi yo'q suhbat.\n"
                 "- Oila: oila a'zolari, uy ishlari, bolalar yoki qarindoshlar haqida.\n"
@@ -67,7 +90,7 @@ class CallScorerMixin:
                 "umumiy muloqot sifatiga qarab baholang.\n\n"
                 "Javobni faqat JSON formatida qaytaring:\n"
                 "{\n"
-                '  "summary": "2-4 gapda O\'zbekcha yaxlit 360° xulosa (telefon suhbati, Telegramdagi avvalgi yozishmalar va CRM maydonlarini bir-biriga bog\'lagan holda)",\n'
+                '  "summary": "2-4 gapda O\'zbekcha yaxlit 360° xulosa (telefon suhbati, CRM izohlari/primecheniyalari, Telegram va Instagram yozishmalarini bir-biriga bog\'lagan holda)",\n'
                 '  "category": "Shaxsiy|Oila|Jamoa|Mijoz|Boshqa",\n'
                 '  "client_mood": "Ijobiy|Neytral|Salbiy|Noaniq",\n'
                 '  "next_steps": "Keyingi aniq qadamlar yoki N/A",\n'
@@ -90,6 +113,8 @@ class CallScorerMixin:
                 '  "joylashuv": "shahar/viloyat yoki N/A",\n'
                 '  "mijoz_malumotlari": ["mijoz haqida muhim ma\'lumot 1", "muhim ma\'lumot 2"],\n'
                 '  "natija": "yuqoridagi natija kalitlaridan bittasi",\n'
+                '  "natija_ishonch": "natija aniqligiga ishonch, 0.0-1.0 son '
+                '(aniq kelishuv bo\'lsa 0.9+, taxmin bo\'lsa 0.5 dan past)",\n'
                 '  "uzilish_vaqti": "Agar suhbat biror lahzada BUZILGAN bo\'lsa '
                 '(mijoz qiziqishdan qolgan, e\'tiroz javobsiz qolgan, savdo uzilgan) '
                 '— o\'sha gapning vaqt belgisini \"mm:ss\" formatida yozing. '
@@ -254,6 +279,8 @@ class CallScorerMixin:
             '  "keyingi_kelishuv": "Kelishilgan aniq qadam",\n'
             '  "kelishilgan_vaqt": "Aniq kun/soat kelishilgan bo\'lsa YYYY-MM-DD HH:MM, aks holda null",\n'
             '  "natija": "yuqoridagi natija kalitlaridan bittasi",\n'
+            '  "natija_ishonch": "natija aniqligiga ishonch, 0.0-1.0 son '
+            '(aniq kelishuv bo\'lsa 0.9+, taxmin bo\'lsa 0.5 dan past)",\n'
             '  "kuchli_tomonlar": ["menejer aynan nimani YAXSHI qildi (1-3 ta)"],\n'
             '  "zaif_tomonlar": ["menejer nimani o\'tkazib yubordi (1-3 ta)"],\n'
             '  "konversiya_tavsiyalari": ["konversiyani oshirish va savdoni yopish bo\'yicha 1-3 ta tavsiya"],\n'

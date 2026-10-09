@@ -126,6 +126,8 @@ from src.api.routes.callmaster_routes import router as callmaster_router
 from src.api.routes.dashboard_overview import router as dashboard_overview_router
 from src.api.routes.client_qa import router as client_qa_router
 from src.api.routes.payme import router as payme_router
+from src.api.routes.callback_widget import router as callback_widget_router
+from src.api.routes.telephony import router as telephony_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
@@ -150,6 +152,8 @@ app.include_router(callmaster_router)
 app.include_router(dashboard_overview_router)
 app.include_router(client_qa_router)
 app.include_router(payme_router)
+app.include_router(callback_widget_router)
+app.include_router(telephony_router)
 
 app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
 app.add_api_route("/healthz", liveness_probe, methods=["GET"], include_in_schema=False)
@@ -169,10 +173,13 @@ _CORS_ORIGINS = [
     "*",
 ]
 
+# allow_credentials=False: "*" bilan credentials=True bo'lsa Starlette so'rov
+# Origin'ini qaytaradi — istalgan sayt admin cookie bilan API javobini o'qiy
+# oladi. Vidjetlar cookie ishlatmaydi, dashboard esa Nginx orqali same-origin.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -20,6 +20,8 @@ from src.services.api_server.helpers import (
     _secret_setting_text,
 )
 from src.services.api_server.userbot import _business_message_skip_reason
+from src.services.call_analytics import missed_call_responder
+from src.services.core.leads import call_tracking
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["webhooks"])
@@ -276,10 +278,48 @@ async def reject_voice_call(lead_id: str) -> bool:
     return True
 
 
+async def _resolve_lead_id_for_note(note_data: Dict[str, Any], amocrm: Any) -> Optional[int]:
+    """Qo'ng'iroq izohidan tegishli AmoCRM lid ID sini aniqlash."""
+    el_id = note_data.get("element_id")
+    el_type = str(note_data.get("element_type") or "").lower()
+    if el_type in {"2", "lead", "leads", ""}:
+        try:
+            return int(el_id) if el_id else None
+        except (ValueError, TypeError):
+            return None
+    if el_type in {"1", "contact", "contacts"} and amocrm:
+        phone = str(note_data.get("phone") or "").strip()
+        if phone:
+            try:
+                active_lead = await asyncio.to_thread(amocrm.find_active_lead_by_phone, phone)
+                if active_lead and active_lead.get("id"):
+                    return int(active_lead["id"])
+            except Exception as exc:
+                logger.debug("[WEBHOOK] Phone lead lookup failed: %s", exc)
+        if el_id:
+            try:
+                getter = getattr(amocrm, "get_contact_linked_leads", None)
+                if callable(getter):
+                    linked = await getter(int(el_id)) if asyncio.iscoroutinefunction(getter) else getter(int(el_id))
+                    if linked and isinstance(linked, list):
+                        return int(linked[0].get("id"))
+            except Exception as exc:
+                logger.debug("[WEBHOOK] Contact linked lead lookup failed: %s", exc)
+    return None
+
+
 @router.post("/webhook/amocrm_notes")
 @limiter.limit("60/minute")
 async def amocrm_notes_webhook(request: Request):
     """Receive note[add] webhooks from AmoCRM to send Telegram messages natively and trigger call analysis."""
+    # "TG:" izohi lidga Telegram xabar yuboradi — imzosiz so'rov agentlik
+    # nomidan istalgan lidga xabar jo'natishi mumkin edi. /webhook/amocrm
+    # bilan bir xil ?token=<AMOCRM_WEBHOOK_SECRET> tekshiruvi.
+    from src.api.routes.amocrm_integration import _is_authorized_amocrm_webhook
+
+    if not _is_authorized_amocrm_webhook(request):
+        logger.warning("[AMOCRM NOTES WEBHOOK] Rejected — invalid/missing token")
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
     try:
         form = await request.form()
         notes = {}
@@ -316,23 +356,41 @@ async def amocrm_notes_webhook(request: Request):
                     })
                     logger.info(f"[NATIVE AMOCRM CHAT] Sent to {phone}: {clean_text}")
 
-            # Agar yangi qo'ng'iroq yoki audio yozuv kelgan bo'lsa
-            if lead_id_str and (note_type in {"call_in", "call_out", "call", "service_message"} or "http" in text):
-                try:
-                    lead_id = int(lead_id_str)
-                    from src.services.core.call_analyzer import CallAnalyzer
-                    amocrm = _get_amocrm_instance()
-                    runtime_db = await _get_db_instance()
-                    analyzer = CallAnalyzer(amocrm=amocrm, db=runtime_db)
-                    asyncio.create_task(
-                        analyzer.process_call_recordings_for_lead(
-                            lead_id=lead_id,
-                            min_call_duration_seconds=getattr(settings, "AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS", 10),
-                            call_notes_override=[note_data],
+            # Javobsiz kiruvchi qo'ng'iroq → Telegram alert + qayta qo'ng'iroq vazifasi
+            if missed_call_responder.get_mode() != "off" and missed_call_responder.is_missed_inbound(note_data):
+                asyncio.create_task(
+                    missed_call_responder.handle_missed_call_note(note_data, amocrm=_get_amocrm_instance())
+                )
+
+            # Call tracking: kiruvchi qo'ng'iroq qaysi kanal raqamiga kelgani → lid izohi
+            if call_tracking.is_enabled():
+                asyncio.create_task(
+                    call_tracking.attribute_inbound_call(note_data, amocrm=_get_amocrm_instance())
+                )
+
+            # Yangi qo'ng'iroq (Moizvonki 10/11 yoki audio yozuv) → darhol real-time tahlil
+            is_call = (
+                note_type in {"10", "11", "call_in", "call_out", "call", "service_message"}
+                or bool(note_data.get("link") or note_data.get("recording") or note_data.get("duration"))
+                or "http" in text
+            )
+            if is_call:
+                amocrm_inst = _get_amocrm_instance()
+                resolved_lead_id = await _resolve_lead_id_for_note(note_data, amocrm_inst)
+                if resolved_lead_id:
+                    try:
+                        from src.services.core.call_analyzer import CallAnalyzer
+                        runtime_db = await _get_db_instance()
+                        analyzer = CallAnalyzer(amocrm=amocrm_inst, db=runtime_db)
+                        asyncio.create_task(
+                            analyzer.process_call_recordings_for_lead(
+                                lead_id=resolved_lead_id,
+                                min_call_duration_seconds=getattr(settings, "AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS", 10),
+                                call_notes_override=[note_data],
+                            )
                         )
-                    )
-                except Exception as call_exc:
-                    logger.warning("[AMOCRM NOTES WEBHOOK] Call analysis queue failed: %s", call_exc)
+                    except Exception as call_exc:
+                        logger.warning("[AMOCRM NOTES WEBHOOK] Real-time call analysis queue failed: %s", call_exc)
                     
         return {"status": "ok"}
     except Exception as e:

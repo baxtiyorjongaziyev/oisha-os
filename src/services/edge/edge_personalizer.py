@@ -37,7 +37,8 @@ class EdgePersonalizer:
 // Cloudflare Workers AI + Next.js Edge Middleware
 
 const AI_GATEWAY = 'https://gateway.ai.cloudflare.com/v1/{self.account_id or "ACCOUNT_ID"}/jonbranding';
-const CF_AI_TOKEN = '{self.api_token or "CF_AI_TOKEN"}';
+// Token skript matniga yozilmaydi: `wrangler secret put CLOUDFLARE_AI_API_TOKEN`
+// orqali env'dan o'qiladi (skript manbasi dashboard/loglarda ko'rinadi).
 
 // Sektorlar va ularga mos hero kontent
 const SECTOR_HEROES = {{
@@ -57,7 +58,7 @@ async function getSegment(request, env) {{
   // Cookie orqali segment
   const cookie = request.headers.get('Cookie') || '';
   const segmentMatch = cookie.match(/sector=([^;]+)/);
-  if (segmentMatch) return segmentMatch[1];
+  if (segmentMatch) return SECTOR_HEROES[segmentMatch[1]] ? segmentMatch[1] : 'unknown';
 
   // GA4 dan olingan so'nggi segment (query string orqali)
   const url = new URL(request.url);
@@ -75,7 +76,7 @@ async function getSegment(request, env) {{
   try {{
     const aiResp = await fetch(`${{AI_GATEWAY}}/run/@cf/meta/llama-3.1-8b-instruct`, {{
       method: 'POST',
-      headers: {{ 'Authorization': 'Bearer ${{CF_AI_TOKEN}}', 'Content-Type': 'application/json' }},
+      headers: {{ 'Authorization': `Bearer ${{env.CLOUDFLARE_AI_API_TOKEN}}`, 'Content-Type': 'application/json' }},
       body: JSON.stringify({{
         messages: [
           {{ role: 'system', content: 'URL dan sektorni aniqlang. Faqat bitta so\'z: meditsina, retail, food, service, education, yoki unknown.' }},

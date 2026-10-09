@@ -136,6 +136,10 @@ jobs:
           MOIZVONKI_DOMAIN: ${{ vars.MOIZVONKI_DOMAIN || 'jonbrandingagency.moizvonki.ru' }}
           PAYME_KEY: ${{ secrets.PAYME_KEY }}
           PAYME_ENABLED: ${{ vars.PAYME_ENABLED || 'true' }}
+          INCOMING_CALL_CARD_ENABLED: ${{ vars.INCOMING_CALL_CARD_ENABLED || '0' }}
+          TELEPHONY_WEBHOOK_SECRET: ${{ secrets.TELEPHONY_WEBHOOK_SECRET }}
+          MISSED_CALL_RESPONDER_MODE: ${{ vars.MISSED_CALL_RESPONDER_MODE || 'off' }}
+          CALLBACK_WIDGET_ENABLED: ${{ vars.CALLBACK_WIDGET_ENABLED || '0' }}
           # Fail-safe rollout: keep Oracle polling until the Cloud Run head is
           # live-verified, then set this repository variable to "disabled".
           TELEGRAM_BOT_INGRESS_MODE: ${{ vars.TELEGRAM_BOT_INGRESS_MODE || 'polling' }}
@@ -193,9 +197,9 @@ jobs:
               printf '%s' "$AMOCRM_TOKEN_JSON" > data/amocrm_token.json
             fi
 
-            # Preserve existing Meta / Instagram / Moizvonki / Payme credentials from .env
+            # Preserve existing Meta / Instagram / Moizvonki / Payme / Telephony credentials from .env
             if [ -f .env ]; then
-              grep -E '^(META_|INSTAGRAM_|MOIZVONKI_|PAYME_)' .env > /tmp/persisted_env_backup.env 2>/dev/null || true
+              grep -E '^(META_|INSTAGRAM_|MOIZVONKI_|PAYME_|TELEPHONY_|MISSED_CALL_|CALLBACK_)' .env > /tmp/persisted_env_backup.env 2>/dev/null || true
               # Long-lived AmoCRM token: secret wins, else keep the value an
               # owner added by hand — .env is rebuilt below and would erase it.
               if [ -z "${AMOCRM_ACCESS_TOKEN:-}" ]; then
@@ -306,6 +310,20 @@ jobs:
             fi
             if ! grep -q '^PAYME_ENABLED=' .env; then
               echo "PAYME_ENABLED=${PAYME_ENABLED:-true}" >> .env
+            fi
+
+            # Ingest Telephony & Callback settings from workflow env if not already present
+            if [ -n "${INCOMING_CALL_CARD_ENABLED:-}" ] && ! grep -q '^INCOMING_CALL_CARD_ENABLED=' .env; then
+              echo "INCOMING_CALL_CARD_ENABLED=${INCOMING_CALL_CARD_ENABLED}" >> .env
+            fi
+            if [ -n "${TELEPHONY_WEBHOOK_SECRET:-}" ] && ! grep -q '^TELEPHONY_WEBHOOK_SECRET=' .env; then
+              echo "TELEPHONY_WEBHOOK_SECRET=${TELEPHONY_WEBHOOK_SECRET}" >> .env
+            fi
+            if [ -n "${MISSED_CALL_RESPONDER_MODE:-}" ] && ! grep -q '^MISSED_CALL_RESPONDER_MODE=' .env; then
+              echo "MISSED_CALL_RESPONDER_MODE=${MISSED_CALL_RESPONDER_MODE}" >> .env
+            fi
+            if [ -n "${CALLBACK_WIDGET_ENABLED:-}" ] && ! grep -q '^CALLBACK_WIDGET_ENABLED=' .env; then
+              echo "CALLBACK_WIDGET_ENABLED=${CALLBACK_WIDGET_ENABLED}" >> .env
             fi
 
             if [ -n "${USERBOT_SESSION_STRING:-}" ]; then

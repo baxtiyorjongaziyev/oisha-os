@@ -13,6 +13,7 @@ FIELD_LPR_STATUS = 1551695         # Qaror qabul qiluvchi (LPR) [Select]
 FIELD_BUSINESS_STAGE = 1551697     # Tadbirkorlik holati [Select]
 FIELD_TIMELINE = 1551699           # Boshlash muddati [Select]
 FIELD_BRAND_NAME = 1551701         # Brend / Biznes nomi [Text]
+FIELD_META_LEAD_ID = 1554007       # Meta Lead ID (leadgen_id) [Text] — CAPI Conversion Leads
 
 # Existing System Field IDs
 FIELD_LEAD_SOURCE = 1034663        # Lead manbasi [Select]
@@ -55,7 +56,7 @@ def _find_field_val(fields: Dict[str, str], keywords: List[str]) -> str:
     return ""
 
 
-def extract_lead_custom_fields(fields: Dict[str, str]) -> List[Dict[str, Any]]:
+def extract_lead_custom_fields(fields: Dict[str, str], leadgen_id: str = "") -> List[Dict[str, Any]]:
     """
     Extracts structured AmoCRM custom fields from Meta Lead Ads question-answer dict.
     Returns list of custom field payload dictionaries compatible with AmoCRM API v4.
@@ -67,6 +68,13 @@ def extract_lead_custom_fields(fields: Dict[str, str]) -> List[Dict[str, Any]]:
         "field_id": FIELD_LEAD_SOURCE,
         "values": [{"enum_id": ENUM_SOURCE_TARGET}],
     })
+
+    # 1b. Meta Lead ID — CAPI'da lidni Meta'ga qaytarish uchun
+    if str(leadgen_id or "").strip():
+        custom_fields.append({
+            "field_id": FIELD_META_LEAD_ID,
+            "values": [{"value": str(leadgen_id).strip()}],
+        })
 
     # 2. Brend / Biznes nomi
     brand_raw = _find_field_val(fields, ["brend", "biznes", "nomi", "kompaniya", "loyiha"])

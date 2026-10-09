@@ -26,17 +26,16 @@ jobs:
             if [ -f data/amocrm_token.json ]; then
               echo "Fayl mavjud"
               # Faqat kalitlarni ko'rsatamiz, qiymatlarni EMAS
-              python3 -c "
-              import json
-              t = json.load(open('data/amocrm_token.json'))
-              print('Kalitlar:', list(t.keys()))
-              at = t.get('access_token','')
-              rt = t.get('refresh_token','')
-              print(f'access_token: ...{at[-10:]}' if at else 'access_token: YO_Q')
-              print(f'refresh_token: ...{rt[-10:]}' if rt else 'refresh_token: YO_Q')
-              print(f'expires_in: {t.get(\"expires_in\", \"?\")}')
-              print(f'token_type: {t.get(\"token_type\", \"?\")}')
-              "
+              python3 - <<'PY'
+            import json
+            t = json.load(open('data/amocrm_token.json'))
+            print('Kalitlar:', list(t.keys()))
+            print('access_token:', 'BOR' if t.get('access_token') else 'YOQ')
+            print('refresh_token:', 'BOR' if t.get('refresh_token') else 'YOQ')
+            print('expires_in:', t.get('expires_in', '?'))
+            print('expires_at:', t.get('expires_at', '?'))
+            print('token_type:', t.get('token_type', '?'))
+            PY
             else
               echo "XATO: data/amocrm_token.json TOPILMADI"
             fi

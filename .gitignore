@@ -166,3 +166,6 @@ data/job_claims/
 # Agent skills ship json/txt assets; keep them tracked despite the global rules above
 !.claude/skills/**
 !.agents/skills/**
+
+# Second Brain digest dedupe state (runtime)
+data/brain_digest_state.txt
