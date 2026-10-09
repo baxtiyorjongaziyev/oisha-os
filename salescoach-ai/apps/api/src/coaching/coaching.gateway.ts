@@ -7,10 +7,12 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { NegotiationsService, RealtimeSuggestion } from '../negotiations/negotiations.service';
 import { RealtimeSuggestionDto } from '../negotiations/dto/negotiate.dto';
+import { PrismaService } from '../common/prisma.service';
 
 /**
  * CoachingGateway — real-time WebSocket for live call coaching.
@@ -41,16 +43,40 @@ export class CoachingGateway implements OnGatewayConnection, OnGatewayDisconnect
   // Map: socketId → { orgId, managerId, callId }
   private connections = new Map<string, { orgId: string; managerId: string; callId: string | undefined }>();
 
-  constructor(private negotiations: NegotiationsService) {}
+  constructor(
+    private negotiations: NegotiationsService,
+    private jwt: JwtService,
+    private prisma: PrismaService,
+  ) {}
 
   // ─────────────────────── Lifecycle ───────────────────────────────────────
 
   handleConnection(socket: Socket) {
-    // Auth: expect ?token=<jwt> or Authorization header
-    const managerId = (socket.handshake.query.managerId as string) ?? 'unknown';
-    const orgId = (socket.handshake.query.orgId as string) ?? 'unknown';
-    this.connections.set(socket.id, { orgId, managerId, callId: undefined });
-    this.logger.log(`[WS] Connected: ${managerId} (${socket.id})`);
+    const header = socket.handshake.headers.authorization;
+    const token =
+      (socket.handshake.auth?.token as string | undefined) ??
+      (socket.handshake.query.token as string | undefined) ??
+      (typeof header === 'string' && header.startsWith('Bearer ')
+        ? header.slice('Bearer '.length)
+        : undefined);
+    if (!token) {
+      socket.disconnect(true);
+      return;
+    }
+
+    try {
+      const payload = this.jwt.verify<{ sub: string; orgId: string }>(token);
+      if (!payload.sub || !payload.orgId) throw new UnauthorizedException();
+      this.connections.set(socket.id, {
+        orgId: payload.orgId,
+        managerId: payload.sub,
+        callId: undefined,
+      });
+    } catch {
+      socket.disconnect(true);
+      return;
+    }
+    this.logger.log(`[WS] Connected: ${this.connections.get(socket.id)!.managerId} (${socket.id})`);
   }
 
   handleDisconnect(socket: Socket) {
@@ -65,12 +91,20 @@ export class CoachingGateway implements OnGatewayConnection, OnGatewayDisconnect
   // ─────────────────────── Client → Server events ──────────────────────────
 
   @SubscribeMessage('call:join')
-  handleJoinCall(
+  async handleJoinCall(
     @ConnectedSocket() socket: Socket,
     @MessageBody() data: { callId: string },
   ) {
     const meta = this.connections.get(socket.id);
     if (!meta) return;
+
+    const call = await this.prisma.call.findUnique({
+      where: { id: data.callId },
+      select: { orgId: true },
+    });
+    if (!call || call.orgId !== meta.orgId) {
+      return { status: 'rejected', reason: 'call_not_found' };
+    }
 
     if (!this.callRooms.has(data.callId)) {
       this.callRooms.set(data.callId, new Set());
@@ -90,6 +124,7 @@ export class CoachingGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     const meta = this.connections.get(socket.id);
     if (!meta) return;
+    if (!meta.callId || data.callId !== meta.callId) return;
 
     try {
       const tip: RealtimeSuggestion = await this.negotiations.getRealtimeSuggestion(
@@ -126,7 +161,7 @@ export class CoachingGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() data: { callId: string },
   ) {
     const meta = this.connections.get(socket.id);
-    if (meta?.callId) {
+    if (meta?.callId && meta.callId === data.callId) {
       this.leaveCallRoom(socket.id, meta.callId);
       meta.callId = undefined;
     }

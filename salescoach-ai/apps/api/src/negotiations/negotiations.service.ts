@@ -365,9 +365,14 @@ Respond as JSON: {"response": "...", "strategy": "...", "examples": ["...", "...
     // Store in Call notes field for now (no separate table needed)
     if (!dto.callId) return;
     const note = `[NegotiationSession] intent=${result.assessment?.intent} prob=${result.assessment?.closeProbability}`;
+    const call = await this.prisma.call.findFirst({
+      where: { id: dto.callId, orgId },
+      select: { id: true },
+    });
+    if (!call) return;
     await this.prisma.call
       .update({
-        where: { id: dto.callId },
+        where: { id: call.id },
         data: { errorMessage: null }, // just validate it exists
       })
       .catch(() => null);
