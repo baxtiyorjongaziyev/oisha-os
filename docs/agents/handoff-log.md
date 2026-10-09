@@ -1262,6 +1262,15 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Verification: updated isolated Python 3.11 suite 2459 passed, 17 skipped, 4 subtests passed; Bandit clean; pip-audit clean for audited packages (VCS telegram-mcp excluded); root typecheck/lint/test/build pass; SalesCoach typecheck/build and 7 API tests pass; Marketing build/audit pass; frozen installs and braces regression pass in both workspaces.
 - Detail: docs/security/2026-10-05-dependency-remediation.md. Remaining: remote CI, merge, alert read-back and deployment; braces advisory is locally patched pending upstream release. Obsidian MCP session terminated.
 
+### 2026-10-05 Codex Coordinator — remaining dependency queue
+
+- Refreshed compatible Linux/Python 3.11 lock, Ruff/mypy minimums and both Node workspace manifests/locks after PR #795 merged/deployed.
+- Kept libsql-client-compatible sphinx-press-theme 0.8; resolver rejects PR #803 target 0.9.1. Added exact release ignore.
+- Pinned previously verified Baileys 6.17.16: 6.7.24 removes makeInMemoryStore and fails gateway build. Aligned nodemailer/postcss override specifiers.
+- Changed dependency manifests, requirements-dev/lock, pnpm lock/workspace files, Dependabot config and security report.
+- Evidence: 2459 Python tests + 4 subtests passed, 17 skipped; Bandit clean; pip-audit zero supported-package vulnerabilities; root typecheck/lint/test/build passed; SalesCoach type-check/build and 7 API tests passed; both frozen offline installs and active braces regressions passed. Node scanners retain only locally patched braces advisory.
+- PR #795 merge b3634ae; Oracle deploy 37304769364 successful. Follow-up remote CI/merge/deploy are pending at this entry. Obsidian connector Session terminated, vault logging unconfirmed.
+
 ### 2026-10-06 — Claude — Instagram "+" komment → DM avtomatizatsiyasi
 - Target reklamada (profilda yo'q dark post ham) faqat "+" yozilgan kommentga Private Reply orqali DM + ochiq "DM'dan yozdik" javobi. "+998..." kabi matnlar tegilmaydi.
 - Reklama kommentida `media.ad_id` bo'lsa CRM manbasi `Instagram Reklama (ad_id: …)` bo'ladi.
