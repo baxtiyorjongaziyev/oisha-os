@@ -173,10 +173,13 @@ _CORS_ORIGINS = [
     "*",
 ]
 
+# allow_credentials=False: "*" bilan credentials=True bo'lsa Starlette so'rov
+# Origin'ini qaytaradi — istalgan sayt admin cookie bilan API javobini o'qiy
+# oladi. Vidjetlar cookie ishlatmaydi, dashboard esa Nginx orqali same-origin.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

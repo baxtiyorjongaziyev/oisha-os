@@ -35,6 +35,8 @@ _PROTECTED_PREFIXES = (
     "/telegram-mcp",
     "/client",
     "/ws/live",
+    # OpenAI-compatible gateway → agent orkestratori (CRM konteksti, LLM xarajati)
+    "/v1/",
 )
 _PUBLIC_PATHS = frozenset(
     {

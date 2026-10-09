@@ -52,13 +52,16 @@ async def openclaw_webhook(request: Request):
         body = await request.body()
         signature = request.headers.get("x-openclaw-signature", "")
 
+        # Fail closed: secret bo'lmasa endpoint agent orkestratoriga anonim
+        # kirish beradi (CRM ma'lumotlari, pullik LLM chaqiruvlari).
         openclaw_secret = os.environ.get("OPENCLAW_SECRET", "")
-        if openclaw_secret:
-            expected_sig = hmac.new(
-                openclaw_secret.encode(), body, hashlib.sha256
-            ).hexdigest()
-            if not hmac.compare_digest(signature, expected_sig):
-                return JSONResponse(status_code=403, content={"error": "Invalid signature"})
+        if not openclaw_secret:
+            return JSONResponse(status_code=503, content={"error": "OpenClaw not configured"})
+        expected_sig = hmac.new(
+            openclaw_secret.encode(), body, hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(signature, expected_sig):
+            return JSONResponse(status_code=403, content={"error": "Invalid signature"})
 
         data = json.loads(body)
         message = data.get("message", "")

@@ -312,6 +312,14 @@ async def _resolve_lead_id_for_note(note_data: Dict[str, Any], amocrm: Any) -> O
 @limiter.limit("60/minute")
 async def amocrm_notes_webhook(request: Request):
     """Receive note[add] webhooks from AmoCRM to send Telegram messages natively and trigger call analysis."""
+    # "TG:" izohi lidga Telegram xabar yuboradi — imzosiz so'rov agentlik
+    # nomidan istalgan lidga xabar jo'natishi mumkin edi. /webhook/amocrm
+    # bilan bir xil ?token=<AMOCRM_WEBHOOK_SECRET> tekshiruvi.
+    from src.api.routes.amocrm_integration import _is_authorized_amocrm_webhook
+
+    if not _is_authorized_amocrm_webhook(request):
+        logger.warning("[AMOCRM NOTES WEBHOOK] Rejected — invalid/missing token")
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
     try:
         form = await request.form()
         notes = {}
