@@ -77,3 +77,33 @@ fails the bounded regression by timing out; assertions were preserved.
 Remote CI, merge, alert read-back and production deployment are separate gates.
 Obsidian's live connector returned `Session terminated`; repository handoff
 records preserve this evidence until vault logging is restored.
+
+## Follow-up dependency queue
+
+PR #795 merged as b3634ae04390341bca41cec8c0527c098225121c. Oracle
+deploy run 37304769364 completed successfully, including health verification.
+Live GitHub read-back showed zero open Dependabot, CodeQL and secret alerts.
+Dependabot #241 was explicitly dismissed with the tested braces patch evidence.
+
+Dependabot then opened a new queue (#796 onward). This follow-up refreshes
+compatible Python locks for Linux/Python 3.11 and both Node workspace locks,
+including paired AWS SDK 3.1146, Next 16.3.8 and Anthropic SDK 0.131.0.
+It updates Ruff and mypy minimums. Frozen installation exposed overridden
+manifest specifier mismatches; nodemailer and postcss overrides now match the
+updated minimums.
+
+PR #803 is incompatible: libsql-client 0.3.1 requires
+sphinx-press-theme>=0.8,<0.9, so uv rejects 0.9.1. Ignore only that exact
+release. Baileys 6.7.24 lacks makeInMemoryStore and fails the gateway build;
+the gateway pins the previously verified 6.17.16, preserving its current API.
+No gateway authentication/session was started.
+
+Follow-up verification: 2459 Python tests passed, 17 skipped, 4 subtests;
+Bandit found no medium/high issues; pip-audit found zero vulnerabilities
+(excluding its unsupported pinned VCS dependency). Root typecheck, lint and
+test passed; SalesCoach type-check, build and 2 API suites / 7 tests passed.
+Both frozen offline installations and installed braces regressions passed.
+Node version audits report only the locally patched braces advisory.
+Obsidian brain_log again returned Session terminated; no vault write confirmed.
+
+Root production build also passed after restoring the verified Baileys API.
