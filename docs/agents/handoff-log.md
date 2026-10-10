@@ -1351,3 +1351,14 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Xulq: Qo'ng'iroq tahlil qilinganda endi AI faqat quruq audio transkripsiyasiga qaramaydi. U mijozning butun tarixini (avvalgi izohlar, takliflar, Telegram/Instagramdagi yozishmalar va voronkadagi joriy bosqichni) o'qiydi. Agar mijoz bilan avval gaplashilgan bo'lsa, menejerni "qaytadan o'zini tanishtirmadi" deb asossiz ayblamaydi, balki avvalgi muzokara qanchalik professional davom ettirilganiga qarab baholaydi.
 - Tekshiruv: `SKIP_LIVE=1 pytest tests/test_sales_playbook.py tests/test_omnichannel_call_context.py` — barcha testlar yashil; GitHub Actions CI PR #843 barcha tekshiruvlari (pull-request-tests, CodeQL, Import guard, gitleaks) 100% yashil; Bandit — 0 security issues; barcha fayllar qat'iy <= 400 LOC qoidasiga mos (`omnichannel_context.py`: 339, `sales_playbook.py`: 266, `scorer.py`: 312).
 - Keyingi qadam: PR #843 squash-merge qilish va avtomatik prod deploy.
+
+## 2026-10-10 — Antigravity — Security & Dependabot Queue Resolution (Zero Alerts, 10/10 GitHub)
+- Task: GitHub repositorysini 10/10 ideal holatga keltirish: ochiq PRlarni tartibga solish, barcha ziddiyatlarni (conflicts) bartaraf qilish, CodeQL va Dependabot xavfsizlik ogohlantirishlarini 0 taga tushirish.
+- Bajarildi:
+  1. Oldingi navbatdagi PRlar birlashtirildi va merge qilindi: #845, #833, #829, #818 (yopildi), #815 (handoff-log ziddiyati to'g'irlanib merge qilindi), #846, #848, #850, #851, #853, #855.
+  2. 23 ta eskirgan/takroriy Dependabot PR yopildi, 60 ta foydalanilmayotgan remote branchlar pruned qilindi.
+  3. Qolgan 5 ta muhim Dependabot xavfsizlik zaifliklari (Handlebars, PostCSS-selector-parser va Source-map-js) `salescoach-ai` va `marketing-os/frontend` paketlarida override va qat'iy pnpm lockfile yangilanishi orqali to'liq bartaraf etildi.
+  4. Radix-UI kutubxonalari (@radix-ui/react-dialog ^1.2.0, react-dropdown-menu ^2.1.25, react-progress ^1.1.17, react-select ^2.3.8) va Vite kutubxonalari (@vitejs/plugin-react ^6.1.2, oxlint ^1.87.0, vite ^8.3.4) bitta toza commit/PR ga birlashtirildi.
+  5. Breaking o'zgarishga ega bo'lgan mcp 2.x (#852) FastMCP migratsiyasigacha `mcp<2` ga qat'iy pin qilindi.
+- Tekshiruv: `pnpm install --frozen-lockfile` (salescoach-ai & marketing-os/frontend) muvaffaqiyatli o'tdi; Jest testlari (7/7 passed), marketing frontend build (170ms) va oxlint (0 errors) toza. CodeQL: 0 alert, Secrets: 0 alert.
+- Status: Barcha xavfsizlik va ziddiyatlar to'liq bartaraf etildi.
