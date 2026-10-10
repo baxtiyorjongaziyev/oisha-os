@@ -45,7 +45,9 @@
       "baseline-browser-mapping": "^2.11.0",
       "brace-expansion@<1.1.21": ">=1.1.21 <2",
       "brace-expansion@>=2 <5.0.12": ">=5.0.12",
-      "engine.io": "^6.6.10"
+      "engine.io": "^6.6.10",
+      "handlebars": "^4.7.10",
+      "postcss-selector-parser": "^7.1.6"
     },
     "patchedDependencies": {
       "braces@3.0.3": "../patches/braces@3.0.3.patch"
