@@ -200,3 +200,9 @@ def test_widget_js_served(path):
     assert "javascript" in resp.headers["content-type"]
     assert "OishaCallback" in resp.text
     assert is_protected_path(path) is False
+
+
+def test_source_label_marks_webmcp_agent():
+    label = cb.source_label({"via": "webmcp", "utm_source": "instagram"})
+    assert label == "AI agent (WebMCP) · instagram"
+    assert cb.source_label({"via": "webmcp"}).startswith("AI agent (WebMCP)")
