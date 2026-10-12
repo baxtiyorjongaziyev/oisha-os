@@ -1,6 +1,4 @@
-"""
-Call recording analysis orchestration and pipeline runner.
-"""
+"""Call recording analysis orchestration and pipeline runner."""
 from __future__ import annotations
 
 import asyncio
@@ -229,6 +227,16 @@ class CallRunnerMixin(NoteExtractorMixin):
             manager_name=manager_name, category=category, summary=summary,
             client_mood=client_mood, transcript=transcript, analysis=analysis,
         )
+        try:
+            from src.services.call_analytics.winning_script_evolver import WinningScriptEvolver
+            evolver = WinningScriptEvolver(db=self.db, tg_client=getattr(self, "tg_client", None))
+            await evolver.evolve_from_call(
+                lead_id=lead_id, caller_phone=phone, manager_name=manager_name,
+                duration_seconds=duration, transcript=transcript, analysis=analysis,
+            )
+        except Exception as exc:
+            logger.debug("[CALL] Winning script evolution hook error: %s", exc)
+
 
     async def _sync_call_to_customer_360(
         self, lead_id: int, phone: str, call_id: str, duration: int,

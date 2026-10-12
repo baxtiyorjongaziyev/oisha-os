@@ -273,6 +273,15 @@ async def handle_incoming_call(
         info["assigned_manager"] = payload.get("manager")
     if payload.get("source"):
         info["source"] = payload.get("source")
+    try:
+        from src.services.core.leads import lead_source
+        category = await asyncio.to_thread(lead_source.source_for_incoming_call, phone)
+        result["source_category"] = category
+        info.setdefault("source", lead_source.LABELS[category])
+        if amocrm is not None and info.get("lead_id") and hasattr(amocrm, "add_lead_tag"):
+            await amocrm.add_lead_tag(int(info["lead_id"]), lead_source.tag_for(category))
+    except Exception as exc:
+        logger.warning("[SCREEN-POP] Manba aniqlanmadi: %s", exc)
 
     result["found"] = bool(info.get("found"))
     result["lead_id"] = info.get("lead_id")

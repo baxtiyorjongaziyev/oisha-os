@@ -213,3 +213,34 @@ class TestCallConversionAndTasks:
             assert scan_res.scanned_leads == 1
             assert scan_res.processed_calls == 1
             assert scan_res.errors == 0
+
+    def test_normalize_name_spellings_enforces_rayxon(self):
+        """Owner standard: never say 'Rayhonajon' or 'Rayhona', always 'Rayxon'."""
+        from src.services.call_analytics.helpers import normalize_name_spellings
+
+        cases = [
+            ("Rayhonajon", "Rayxon"),
+            ("Rayhonajonning loyihasi", "Rayxonning loyihasi"),
+            ("Rayhonaga vazifa", "Rayxonga vazifa"),
+            ("Rayxona", "Rayxon"),
+            ("Rayhona brending", "Rayxon brending"),
+            ("Xodim rayxona@jonbranding.uz pochtasi", "Xodim rayxona@jonbranding.uz pochtasi"),
+            ("Mijoz Rayhon brendi", "Mijoz Rayxon brendi"),
+        ]
+        for inp, expected in cases:
+            assert normalize_name_spellings(inp) == expected
+
+    def test_analyzer_normalizer_applies_rayxon_standard(self):
+        """CallNormalizerMixin must enforce Rayxon in summaries and tasks."""
+        analyzer = DummyAnalyzer()
+        raw_data = {
+            "summary": "Mijoz Rayhonajon brendi bo'yicha murojaat qildi",
+            "next_steps": "Rayhonaga narx taklifini yuborish",
+            "mijoz_kompaniya": "Rayhona MCHJ",
+            "mijoz_malumotlari": ["Rayhonaxon bilan gaplashildi"],
+        }
+        res = analyzer._normalise_analysis(raw_data, transcript="")
+        assert res["summary"] == "Mijoz Rayxon brendi bo'yicha murojaat qildi"
+        assert res["next_steps"] == "Rayxonga narx taklifini yuborish"
+        assert res["mijoz_kompaniya"] == "Rayxon MCHJ"
+        assert res["mijoz_malumotlari"] == ["Rayxon bilan gaplashildi"]

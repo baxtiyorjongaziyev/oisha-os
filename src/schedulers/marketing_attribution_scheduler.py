@@ -9,12 +9,33 @@ Ikkalasi ham `MarketingAttributionService.get_performance_data()` uchun manba.
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import os
 
 logger = logging.getLogger("MarketingAttributionScheduler")
 
 _INTERVAL_SEC = int(os.getenv("META_ADS_SYNC_INTERVAL_SEC", "10800"))  # 3 soat
+
+
+def _send_tg_document(path: str, chat_id: int, topic_id: int | None) -> bool:
+    import requests
+
+    from src.schedulers.leadgen_status_reporter import _secret_text
+    from src.settings import settings
+
+    token = _secret_text(getattr(settings, "BOT_TOKEN", None)) or os.getenv("BOT_TOKEN", "").strip()
+    if not token:
+        return False
+    data = {"chat_id": chat_id, "caption": "📄 Haftalik marketing hisoboti"}
+    if topic_id is not None:
+        data["message_thread_id"] = topic_id
+    with open(path, "rb") as fh:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/sendDocument", data=data,
+            files={"document": (os.path.basename(path), fh, "application/pdf")}, timeout=60,
+        )
+    return resp.status_code == 200
 
 
 async def marketing_attribution_loop() -> None:
@@ -29,6 +50,29 @@ async def marketing_attribution_loop() -> None:
             raise
         except Exception as exc:
             logger.error("[ADS ATTRIBUTION] Spend sync xatosi: %s", exc, exc_info=True)
+
+        try:
+            from src.schedulers.leadgen_status_reporter import _send_tg_message
+            from src.services.core.marketing.cpl_monitor import check_and_alert
+            from src.settings import settings
+            from src.time_utils import get_local_now
+
+            chat_id = getattr(settings, "MARKETING_REPORT_CHAT_ID", None) or -1003608624065
+            topic_id = getattr(settings, "MARKETING_REPORT_TOPIC_ID", None) or 42
+            yesterday = (get_local_now().date() - datetime.timedelta(days=1)).isoformat()
+            await asyncio.to_thread(
+                check_and_alert, yesterday, lambda text: _send_tg_message(text, chat_id, topic_id),
+            )
+            from src.services.core.marketing.creative_report import send_weekly_if_due
+            await asyncio.to_thread(
+                send_weekly_if_due, get_local_now().date(),
+                lambda text: _send_tg_message(text, chat_id, topic_id),
+                lambda path: _send_tg_document(path, chat_id, topic_id),
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("[ADS ATTRIBUTION] CPL monitor xatosi: %s", exc, exc_info=True)
 
         try:
             from src.services.core.instagram.leadgen_router import _amocrm_instance

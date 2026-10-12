@@ -19,8 +19,8 @@ class CallNormalizerMixin:
     def _normalise_analysis(
         self, data: Dict[str, Any], transcript: str, duration_seconds: int = 0
     ) -> Dict[str, Any]:
-        summary = str(data.get("summary") or "").strip()
-        next_steps = str(data.get("next_steps") or "N/A").strip() or "N/A"
+        summary = normalize_name_spellings(str(data.get("summary") or "").strip())
+        next_steps = normalize_name_spellings(str(data.get("next_steps") or "N/A").strip() or "N/A")
         agreed_datetime = _parse_agreed_datetime(data.get("kelishilgan_vaqt"))
         computed_client, computed_agent, attributed = _speaker_split(transcript)
         client_pct = int(data.get("client_talk_pct") or computed_client)
@@ -32,16 +32,16 @@ class CallNormalizerMixin:
             except (TypeError, ValueError):
                 return 0
 
-        mijoz_info = data.get("mijoz_malumotlari") or []
-        if isinstance(mijoz_info, str):
-            mijoz_info = [mijoz_info]
+        mijoz_info = [normalize_name_spellings(str(x)) for x in (data.get("mijoz_malumotlari") or [])]
+        if isinstance(data.get("mijoz_malumotlari"), str):
+            mijoz_info = [normalize_name_spellings(data.get("mijoz_malumotlari"))]
 
         def _str_list(value: Any, limit: int = 5) -> List[str]:
             if isinstance(value, str):
                 value = [value] if value.strip() else []
             if not isinstance(value, list):
                 return []
-            items = [str(item).strip() for item in value if str(item).strip()]
+            items = [normalize_name_spellings(str(item).strip()) for item in value if str(item).strip()]
             return items[:limit]
 
         # Uzilish lahzasi — "mijoz qaysi soniyada yo'qoldi".
@@ -83,7 +83,7 @@ class CallNormalizerMixin:
         zaif = _str_list(data.get("zaif_tomonlar"))
         etirozlar = _str_list(data.get("etirozlar"))
         tavsiyalar = _str_list(data.get("konversiya_tavsiyalari") or data.get("tavsiyalar") or [])
-        keyingi_kelishuv = str(data.get("keyingi_kelishuv") or "").strip()
+        keyingi_kelishuv = normalize_name_spellings(str(data.get("keyingi_kelishuv") or "").strip())
         natija = normalise_outcome(data.get("natija"))
 
         # --- Rubrik baholar ---
@@ -142,7 +142,7 @@ class CallNormalizerMixin:
             "biznes_mosligi": str(data.get("biznes_mosligi") or "Noaniq"),
             "servis_yonalishi": str(data.get("servis_yonalishi") or "Boshqa"),
             "mijoz_lavozimi": str(data.get("mijoz_lavozimi") or "N/A"),
-            "mijoz_kompaniya": str(data.get("mijoz_kompaniya") or "N/A"),
+            "mijoz_kompaniya": normalize_name_spellings(str(data.get("mijoz_kompaniya") or "N/A")),
             "qaror_qabul_qiluvchi": str(data.get("qaror_qabul_qiluvchi") or "Noaniq"),
             "joylashuv": str(data.get("joylashuv") or "N/A"),
             "mijoz_malumotlari": list(mijoz_info),

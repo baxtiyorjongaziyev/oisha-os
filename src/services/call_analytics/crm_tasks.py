@@ -224,13 +224,14 @@ class CallCrmTasksMixin:
         agreed_datetime: Optional[datetime] = None,
         conversion_advice: Optional[List[str]] = None,
     ) -> str:
-        action = next_steps if next_steps and next_steps.lower() not in {"n/a", "na", "-"} else "Mijoz bilan follow-up"
+        action = normalize_name_spellings(next_steps if next_steps and next_steps.lower() not in {"n/a", "na", "-"} else "Mijoz bilan follow-up")
+        summary = normalize_name_spellings(summary)
         lines = [f"🎯 VAZIFA: {action}"]
         if agreed_datetime is not None:
             weekday = _WEEKDAY_UZ[agreed_datetime.weekday()] if 0 <= agreed_datetime.weekday() < len(_WEEKDAY_UZ) else ""
             lines.append(f"⏰ Kelishilgan vaqt: {agreed_datetime.strftime('%d.%m.%Y %H:%M')} ({weekday})")
         if conversion_advice:
-            lines.append(f"💡 Konversiya tavsiyasi: {conversion_advice[0]}")
+            lines.append(f"💡 Konversiya tavsiyasi: {normalize_name_spellings(conversion_advice[0])}")
         lines.append(f"📝 Suhbat xulosasi: {summary}")
         lines.append(f"Toifa: {category} | Kayfiyat: {client_mood}")
         return _clip("\n".join(lines), 900)

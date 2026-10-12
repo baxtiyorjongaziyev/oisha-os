@@ -22,6 +22,7 @@ logger = structlog.get_logger("MetaAdsClient")
 # ajratib olamiz — bu Meta tomonidan hisoblangan lead soni (bizniki bilan
 # solishtirish uchun foydali, lekin CRM lead soni ustuvor hisoblanadi).
 _INSIGHTS_FIELDS = "campaign_id,campaign_name,spend,impressions,clicks,actions"
+_AD_INSIGHTS_FIELDS = "ad_id,ad_name," + _INSIGHTS_FIELDS
 
 
 def _secret_text(value: Any) -> str:
@@ -57,7 +58,7 @@ class MetaAdsClient:
         return account if account.startswith("act_") else f"act_{account}"
 
     def get_daily_campaign_insights(
-        self, since: str, until: str
+        self, since: str, until: str, level: str = "campaign"
     ) -> List[Dict[str, Any]]:
         """Kunlik, kampaniya kesimidagi spend/impressions/clicks/leads.
 
@@ -82,8 +83,8 @@ class MetaAdsClient:
         url = f"https://graph.facebook.com/{self.api_version}/{self._account_path()}/insights"
         params = {
             "access_token": self.access_token,
-            "level": "campaign",
-            "fields": _INSIGHTS_FIELDS,
+            "level": level,
+            "fields": _AD_INSIGHTS_FIELDS if level == "ad" else _INSIGHTS_FIELDS,
             "time_range": f'{{"since":"{since}","until":"{until}"}}',
             "time_increment": 1,
             "limit": 500,

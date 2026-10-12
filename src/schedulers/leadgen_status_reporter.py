@@ -169,6 +169,48 @@ def _meta_lines(meta_24h: Optional[tuple[int, int]], meta_total: Optional[int]) 
     return line_24h, line_total
 
 
+def build_seller_lines(days: int = 7) -> list[str]:
+    """Meta lidlari bo'yicha sotuvchilar: birinchi javob vaqti (ish soatida) va yopish foizi."""
+    try:
+        from src.services.core.marketing.attribution_store import seller_rows
+        from src.services.core.marketing.seller_metrics import aggregate, format_lines
+        today = datetime.date.today()
+        rows = seller_rows((today - datetime.timedelta(days=days)).isoformat(), today.isoformat())
+    except Exception as exc:
+        logger.warning("[LEADGEN REPORTER] Seller metrics xato: %s", exc)
+        return []
+    names = {int(r["responsible_user_id"]): r["responsible_name"] for r in rows if r.get("responsible_name")}
+    return format_lines(aggregate(rows), names, days)
+
+
+def build_loss_lines(days: int = 7) -> list[str]:
+    """Rad etilgan lidlar: reklama masalasi vs sotuv masalasi (oxirgi `days` kun)."""
+    try:
+        from src.services.core.marketing.attribution_store import loss_breakdown
+        today = datetime.date.today()
+        data = loss_breakdown((today - datetime.timedelta(days=days)).isoformat(), today.isoformat())
+    except Exception as exc:
+        logger.warning("[LEADGEN REPORTER] Loss breakdown xato: %s", exc)
+        return []
+    total = data["total"]
+    if not total:
+        return []
+    cat = data["by_category"]
+    pct = lambda n: round(n * 100 / total)  # noqa: E731
+    top = sorted(data["by_reason"].items(), key=lambda kv: -kv[1])[:3]
+    lines = [
+        f"🚫 <b>Rad etilgan lidlar ({days} kun): {total} ta</b>",
+        f"• 🎯 Reklama masalasi: <b>{cat.get('reklama', 0)}</b> ({pct(cat.get('reklama', 0))}%)",
+        f"• 💼 Sotuv masalasi: <b>{cat.get('sotuv', 0)}</b> ({pct(cat.get('sotuv', 0))}%)",
+    ]
+    unknown = cat.get("noma'lum", 0)
+    if unknown:
+        lines.append(f"• ❔ Sabab ko'rsatilmagan: <b>{unknown}</b>")
+    lines.append("• Top sabablar: " + "; ".join(f"{name} — {n}" for name, n in top))
+    lines.append("")
+    return lines
+
+
 def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]] = None) -> str:
     """Compile executive 24/7 status report across Meta, AmoCRM, Sheets, and Telegram."""
     if summary is None:
@@ -224,6 +266,8 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         "🎬 <b>Kreativlar samaradorligi (24 soat):</b>",
         *creative_lines,
         "",
+        *build_loss_lines(),
+        *build_seller_lines(),
         "⚙️ <b>Baza va Integratsiyalar:</b>",
         meta_total_line,
         f"• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",

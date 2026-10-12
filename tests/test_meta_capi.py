@@ -267,3 +267,24 @@ def test_custom_fields_include_meta_lead_id():
     cf = extract_lead_custom_fields({}, leadgen_id="1630106742003105")
     assert {"field_id": FIELD_META_LEAD_ID, "values": [{"value": "1630106742003105"}]} in cf
     assert all(f["field_id"] != FIELD_META_LEAD_ID for f in extract_lead_custom_fields({}))
+
+
+def test_on_lead_created_sends_lead_once(monkeypatch, pool, enabled):
+    sent = []
+    monkeypatch.setattr(meta_capi, "_post_events", lambda cfg, ev: sent.append(ev) or {"ok": True})
+    r1 = _run(meta_capi_triggers.on_lead_created("555", 77, phone="+998901234567"))
+    r2 = _run(meta_capi_triggers.on_lead_created("555", 77))
+    assert r1.status == "sent" and r2.status == "duplicate"
+    assert len(sent) == 1 and sent[0]["event_name"] == "Lead"
+    assert sent[0]["user_data"]["ph"]
+
+
+def test_on_lead_created_swallows_errors(monkeypatch, enabled):
+    async def boom(*a, **k):
+        raise RuntimeError("db down")
+    monkeypatch.setattr(meta_capi_triggers, "send_crm_event", boom)
+    assert _run(meta_capi_triggers.on_lead_created("1", 2)) is None
+
+
+def test_on_lead_created_noop_without_leadgen_id(enabled):
+    assert _run(meta_capi_triggers.on_lead_created("", 2)) is None

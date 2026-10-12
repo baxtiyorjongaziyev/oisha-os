@@ -85,6 +85,8 @@ class CallScorerMixin:
                 f"  Ideal: mijoz ≥{IDEAL_CLIENT_TALK_PCT}%.\n\n"
                 f"{rubric_prompt_uz()}\n"
                 f"{outcome_prompt_uz()}\n"
+                "IMLO VA NOMLAR STANDARTI:\n"
+                "- Hech qachon 'Rayhonajon' yoki 'Rayhona' deb yozmang — doimo 'Rayxon' deb yozilsin (xodim, loyiha va brend nomi uchun).\n\n"
                 "Rubrik faqat Mijoz toifasiga taalluqli. Agar toifa Mijoz emas "
                 "(Shaxsiy, Oila, Jamoa, Boshqa) bo'lsa — rubrik_baholar uchun "
                 "umumiy muloqot sifatiga qarab baholang.\n\n"

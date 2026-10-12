@@ -273,6 +273,9 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
         get_local_now().isoformat(),
     )
 
+    from src.services.core.marketing.meta_capi_triggers import on_lead_created
+    await on_lead_created(leadgen_id, int(lead_id), phone=phone or "", email=email or "")
+
     if not checkpoint:
         await asyncio.to_thread(
             save_crm_checkpoint, leadgen_id, int(lead_id),
@@ -284,7 +287,7 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
                 target_status_id,
                 pipeline_id=target_pipeline_id,
             )
-        tags = [TARGET_LEAD_TAG, "Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}"]
+        tags = [TARGET_LEAD_TAG, "Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}", "manba:reklama"]
         if existing_lead:
             tags.append("qayta_murojaat")
         if ad_name:

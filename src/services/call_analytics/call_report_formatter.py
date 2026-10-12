@@ -160,9 +160,12 @@ def _build_action_items(missed_calls: List[dict], hourly: Dict[int, int], names:
 
 def _get_display_name(account: str, names: Dict[str, str]) -> str:
     if account.lower() in names:
-        return names[account.lower()]
-    local = account.split("@")[0]
-    return local.capitalize() if local else account
+        val = names[account.lower()]
+    else:
+        local = account.split("@")[0]
+        val = local.capitalize() if local else account
+    from src.services.call_analytics.helpers import normalize_name_spellings
+    return normalize_name_spellings(val)
 
 
 def format_report_rop(report: any, names: Optional[Dict[str, str]] = None) -> str:
