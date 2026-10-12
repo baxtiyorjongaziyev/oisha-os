@@ -90,8 +90,8 @@ _ATTACH_RE = re.compile(rb'"(?:attachment|application)"', re.IGNORECASE)
 
 def _fetch_gmail(day: datetime) -> list[dict]:
     address = _env("MOLIYACHI_GMAIL_ADDRESS")
-    password = _env("MOLIYACHI_GMAIL_APP_PASSWORD")
-    if not address or not password:
+    app_key = _env("MOLIYACHI_GMAIL_APP_KEY")
+    if not address or not app_key:
         return []
     since = day.strftime("%d-%b-%Y")
     before = (day + timedelta(days=1)).strftime("%d-%b-%Y")
@@ -99,7 +99,7 @@ def _fetch_gmail(day: datetime) -> list[dict]:
     events: list[dict] = []
     imap = imaplib.IMAP4_SSL("imap.gmail.com", 993, timeout=30)
     try:
-        imap.login(address, password)
+        imap.login(address, app_key)
         for folder, direction in (("INBOX", "in"), ('"[Gmail]/Sent Mail"', "out")):
             status, _ = imap.select(folder, readonly=True)
             if status != "OK":
