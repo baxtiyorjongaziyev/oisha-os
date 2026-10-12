@@ -85,6 +85,9 @@ def reset_dedup() -> None:
 
 def source_label(tracking: Dict[str, str]) -> str:
     """Odam o'qiydigan manba: `instagram / cpc / kuzgi_aksiya` yoki `to'g'ridan-to'g'ri`."""
+    if tracking.get("via") == "webmcp":
+        rest = source_label({k: v for k, v in tracking.items() if k != "via"})
+        return f"AI agent (WebMCP) · {rest}"
     parts = [tracking.get(k, "") for k in ("utm_source", "utm_medium", "utm_campaign")]
     parts = [p for p in parts if p]
     if parts:

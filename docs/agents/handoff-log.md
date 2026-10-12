@@ -1419,3 +1419,10 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Fix: add matching `.claude/skills/leadgen-capi-recovery/SKILL.md`, and record the mirror check in both skill copies. No production code changed.
 - Verification after final skill edits: `python scripts/sync_agent_skills.py --check` passed; full `SKIP_LIVE=1 ALLOW_LOCAL_RUN=0 FORCE_PYTEST_EXIT=1 pytest -q --tb=short` — 2742 passed, 18 existing Windows skips, 3 deprecation warnings, 4 subtests passed (108.73s). Earlier full Bandit/Ruff remain applicable because production code is unchanged.
 - Open: await the updated PR head's CI; merge/deploy remain owner actions.
+
+## 2026-10-12 — Claude: WebMCP callback tool'lari
+- `callback-widget.js` ga WebMCP (`navigator.modelContext`) tool'lari: `request_callback`, `open_callback_form`. Brauzer qo'llamasa no-op; `data-webmcp="0"` bilan o'chadi.
+- `/api/callback-request` ga `via` maydoni; `via=webmcp` lid manbasi "AI agent (WebMCP)" bo'lib AmoCRM/Telegram'da ko'rinadi.
+- Fayllar: src/static/callback-widget.js, src/api/routes/callback_widget.py, src/services/core/leads/callback_request.py, tests/test_callback_request.py
+- Tekshiruv: tests/test_callback_request.py 27 passed; bandit 0 issue.
+- Qolgan ish: real brauzer/agentda sinash, ROI uchun AmoCRM'da WebMCP lidlarini sanash.
