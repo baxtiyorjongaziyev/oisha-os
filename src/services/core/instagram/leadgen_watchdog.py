@@ -91,6 +91,8 @@ def send_admin_alert(text: str, technical: bool = False) -> bool:
 
 async def retry_pending_leadgen_deliveries() -> int:
     """Scan and retry any lead that failed AmoCRM, Sheets, or Telegram delivery."""
+    from src.services.core.instagram.leadgen_capi import schedule_capi_recovery
+    schedule_capi_recovery()
     pending = get_pending_deliveries(limit=20, min_age_seconds=_IN_FLIGHT_GRACE_SEC)
     if not pending:
         return 0
