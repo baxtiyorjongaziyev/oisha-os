@@ -197,6 +197,7 @@ def get_leadgen_id_by_lead_id(lead_id: int) -> str | None:
 
 def save_crm_checkpoint(
     leadgen_id: str, lead_id: int, destination: str = "", advance_rotation: bool = True,
+    queue_capi: bool = False,
 ) -> None:
     """Save AmoCRM lead checkpoint and destination.
 
@@ -215,6 +216,9 @@ def save_crm_checkpoint(
             "updated_at = excluded.updated_at",
             (str(leadgen_id), int(lead_id), destination, now),
         )
+        if queue_capi:
+            from src.services.core.instagram.leadgen_capi_outbox import enqueue_in_checkpoint
+            enqueue_in_checkpoint(conn, leadgen_id, lead_id)
 
 
 def record_delivery_status(
