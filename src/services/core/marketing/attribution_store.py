@@ -34,7 +34,11 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_attr_lead_id ON lead_attribution(lead_id)",
 )
 # Keyin qo'shilgan ustunlar (eski DB'larga ALTER bilan qo'shiladi)
-_EXTRA_COLUMNS = {"loss_reason_id": "INTEGER", "status_id": "INTEGER"}
+_EXTRA_COLUMNS = {
+    "loss_reason_id": "INTEGER", "status_id": "INTEGER",
+    "responsible_user_id": "INTEGER", "responsible_name": "TEXT",
+    "lead_created_ts": "INTEGER", "first_touch_ts": "INTEGER",
+}
 
 
 @contextmanager
@@ -118,6 +122,42 @@ def update_revenue(
             "WHERE leadgen_id = ?",
             (price, won, synced_at, status_id, loss_reason_id, leadgen_id),
         )
+
+
+def update_seller_info(
+    leadgen_id: str, responsible_user_id: Optional[int], responsible_name: str,
+    lead_created_ts: Optional[int], first_touch_ts: Optional[int],
+) -> None:
+    with _connection() as conn:
+        conn.execute(
+            "UPDATE lead_attribution SET responsible_user_id = COALESCE(?, responsible_user_id), "
+            "responsible_name = COALESCE(NULLIF(?, ''), responsible_name), "
+            "lead_created_ts = COALESCE(lead_created_ts, ?), "
+            "first_touch_ts = COALESCE(first_touch_ts, ?) WHERE leadgen_id = ?",
+            (responsible_user_id, responsible_name, lead_created_ts, first_touch_ts, leadgen_id),
+        )
+
+
+def has_first_touch(leadgen_id: str) -> bool:
+    with _connection() as conn:
+        row = conn.execute(
+            "SELECT first_touch_ts FROM lead_attribution WHERE leadgen_id = ?", (leadgen_id,),
+        ).fetchone()
+    return bool(row and row["first_touch_ts"])
+
+
+def seller_rows(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    with _connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT responsible_user_id, responsible_name, lead_created_ts, first_touch_ts, lead_won
+            FROM lead_attribution
+            WHERE responsible_user_id IS NOT NULL
+              AND date(created_at) >= date(?) AND date(created_at) <= date(?)
+            """,
+            (start_date, end_date),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def loss_breakdown(start_date: str, end_date: str) -> Dict[str, Any]:

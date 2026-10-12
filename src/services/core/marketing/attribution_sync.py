@@ -9,13 +9,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
 from src.services.core.marketing.attribution_store import (
+    has_first_touch,
     pending_revenue_sync,
     update_revenue,
+    update_seller_info,
 )
+from src.services.core.marketing.seller_metrics import FIRST_TOUCH_EVENT_TYPES, first_touch_ts
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
@@ -53,6 +57,37 @@ def _to_int(value) -> int | None:
         return None
 
 
+_FIRST_TOUCH_LOOKBACK_SEC = 14 * 86400
+
+
+async def _fetch_lead_events(amocrm: Any, lead_id: int) -> list:
+    import requests
+
+    params = {"filter[entity]": "lead", "filter[entity_id][0]": lead_id, "limit": 100}
+    for i, t in enumerate(FIRST_TOUCH_EVENT_TYPES):
+        params[f"filter[type][{i}]"] = t
+    resp = await amocrm._request_with_auth(
+        requests.get, f"{amocrm.base_url}/api/v4/events", params=params, timeout=30,
+    )
+    if resp.status_code != 200:
+        return []
+    return (resp.json() or {}).get("_embedded", {}).get("events", [])
+
+
+async def _sync_seller_info(amocrm: Any, leadgen_id: str, lead_id: int, lead: dict, names: dict) -> None:
+    """Mas'ul sotuvchi va birinchi javob vaqtini yozadi (javob topilguncha, 14 kun ichida)."""
+    uid = _to_int(lead.get("responsible_user_id"))
+    created_ts = _to_int(lead.get("created_at"))
+    if uid and uid not in names:
+        names[uid] = await asyncio.to_thread(amocrm.get_user_name, uid)
+    touch = None
+    if created_ts and not await asyncio.to_thread(has_first_touch, leadgen_id)             and time.time() - created_ts < _FIRST_TOUCH_LOOKBACK_SEC:
+        touch = first_touch_ts(created_ts, await _fetch_lead_events(amocrm, lead_id))
+    await asyncio.to_thread(
+        update_seller_info, leadgen_id, uid, names.get(uid, "") if uid else "", created_ts, touch,
+    )
+
+
 @dataclass
 class AttributionSyncResult:
     checked: int = 0
@@ -85,6 +120,7 @@ async def sync_attribution_revenue(
     if not pending:
         return result
 
+    names: dict = {}
     for row in pending:
         result.checked += 1
         leadgen_id = row["leadgen_id"]
@@ -124,6 +160,11 @@ async def sync_attribution_revenue(
             result.updated += 1
         except Exception as exc:
             logger.warning("[ADS ATTRIBUTION] Yozib bo'lmadi (%s): %s", leadgen_id, exc)
+
+        try:
+            await _sync_seller_info(amocrm, leadgen_id, int(lead_id), lead, names)
+        except Exception as exc:
+            logger.warning("[ADS ATTRIBUTION] Sotuvchi ma'lumoti (%s): %s", leadgen_id, exc)
 
         await asyncio.sleep(_REQUEST_DELAY_SECONDS)
 
