@@ -4,6 +4,7 @@ from typing import Any
 from aiogram import F
 
 from src.services.core.hisobchi_approval import handle_callback
+from src.services.core.telegram.callback_auth import is_trusted_finance_callback
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,14 @@ def register_callbacks(dispatcher: Any, *, engine: Any) -> None:
     @dispatcher.callback_query(F.data.startswith(prefixes))
     async def _hisobchi_callback(callback: Any) -> None:
         data = str(getattr(callback, "data", "") or "")
+        if not is_trusted_finance_callback(callback):
+            logger.warning(
+                "[HISOBCHI] Callback rejected: user=%s data=%s",
+                getattr(getattr(callback, "from_user", None), "id", None),
+                data[:40],
+            )
+            await callback.answer("⚠️ Ruxsat yo'q.", show_alert=True)
+            return
         event = AiogramCallbackEventAdapter(callback)
         try:
             await handle_callback(data, event, engine)
