@@ -186,7 +186,7 @@ def check_meta_leadgen() -> Tuple[bool, str]:
     if not token:
         return False, "Meta/Instagram: META_PAGE_ACCESS_TOKEN aniqlanmagan"
 
-    url = f"https://graph.facebook.com/v19.0/{page_id}?fields=id,name&access_token={token}"
+    url = f"https://graph.facebook.com/v25.0/{page_id}?fields=id,name&access_token={token}"
     try:
         resp = requests.get(url, timeout=DEFAULT_TIMEOUT)
         data = resp.json()
