@@ -125,3 +125,23 @@ def test_discover_ad_accounts_via_page_business(monkeypatch):
     errors = []
     assert mod.discover_ad_accounts("tok", errors) == [{"id": "act_9", "name": "Jon Ads"}]
     assert any("adaccounts" in e for e in errors)
+
+
+def test_dm_only_drops_public_invites(monkeypatch):
+    from scripts import instagram_plus_campaign as mod
+
+    comments = [_c("new", "+", 2), _c("old", "+", 20)]
+    sent = []
+    monkeypatch.setattr(mod, "_load_env", lambda: None)
+    monkeypatch.setenv("META_PAGE_ACCESS_TOKEN", "t")
+    monkeypatch.setenv("META_INSTAGRAM_USER_ID", OWN)
+    monkeypatch.setattr(mod, "collect_media_ids", lambda *a, **k: ["m1"])
+    monkeypatch.setattr(mod, "fetch_comments", lambda *a, **k: comments)
+    monkeypatch.setattr(mod, "datetime", type("D", (), {
+        "now": staticmethod(lambda tz=None: NOW), "strptime": datetime.strptime}))
+    monkeypatch.setattr(mod, "execute", lambda plan, *a, **k: sent.extend(plan) or {"dm_sent": len(plan)})
+    monkeypatch.setattr(mod, "_notify_owner", lambda text: True)
+    monkeypatch.setattr("src.time_utils.is_quiet_hours", lambda *a, **k: False)
+
+    assert mod.main(["--days", "60", "--live", "--confirm", CONFIRM_TEXT, "--dm-only"]) == 0
+    assert sent == [{"comment_id": "new", "action": "dm"}]
