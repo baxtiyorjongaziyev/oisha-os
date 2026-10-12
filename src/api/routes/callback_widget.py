@@ -44,10 +44,12 @@ class CallbackRequest(BaseModel):
     page_url: str = Field(default="", max_length=500)
     landing_url: str = Field(default="", max_length=500)
     referrer: str = Field(default="", max_length=500)
+    # "webmcp" — lid foydalanuvchining AI agenti orqali kelgan.
+    via: str = Field(default="", max_length=20)
 
 
 def _tracking(body: CallbackRequest) -> dict:
-    keys = cb.UTM_KEYS + cb.CLICK_ID_KEYS + ("page_url", "landing_url", "referrer")
+    keys = cb.UTM_KEYS + cb.CLICK_ID_KEYS + ("page_url", "landing_url", "referrer", "via")
     return {k: getattr(body, k).strip() for k in keys if getattr(body, k).strip()}
 
 

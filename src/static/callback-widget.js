@@ -20,6 +20,9 @@
  * elementlarida mijoz kelgan kanalning raqami ko'rsatiladi
  * (raqamlar serverdagi CALL_TRACKING_NUMBERS dan olinadi).
  *
+ * WebMCP: AI agentlar uchun request_callback / open_callback_form tool'lari
+ *   (data-webmcp="0" bo'lsa o'chadi). Lid AmoCRM'da "AI agent (WebMCP)" manbasi bilan tushadi.
+ *
  * UTM: birinchi tashrifdagi utm_* / fbclid / gclid 30 kun saqlanadi va
  * so'rov bilan birga AmoCRM lidiga yoziladi.
  */
@@ -216,6 +219,26 @@
     caretToEnd();
   });
 
+  // Forma va WebMCP agenti uchun umumiy yuborish.
+  function submitLead(name, phone, honeypot, via) {
+    var payload = tracking();
+    payload.phone = phone;
+    payload.name = String(name || "").trim().slice(0, 80);
+    payload.website = honeypot || "";
+    if (via) payload.via = via;
+    return fetch(cfg.api + "/api/callback-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      try {
+        if (window.dataLayer) window.dataLayer.push({ event: "oisha_callback_request", via: via || "form" });
+        if (window.fbq) window.fbq("track", "Lead");
+      } catch (err) { /* analitika ixtiyoriy */ }
+    });
+  }
+
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     msg.textContent = "";
@@ -227,25 +250,12 @@
       phoneInput.focus();
       return;
     }
-    var payload = tracking();
-    payload.phone = "+" + digits;
-    payload.name = nameInput.value.trim().slice(0, 80);
-    payload.website = form.website.value;
     send.disabled = true;
     send.textContent = T.sending;
-    fetch(cfg.api + "/api/callback-request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-      .then(function (r) {
-        if (!r.ok) throw new Error("HTTP " + r.status);
+    submitLead(nameInput.value, "+" + digits, form.website.value, "")
+      .then(function () {
         form.innerHTML = '<div class="ok"></div>';
         form.querySelector(".ok").textContent = "✅ " + T.ok;
-        try {
-          if (window.dataLayer) window.dataLayer.push({ event: "oisha_callback_request" });
-          if (window.fbq) window.fbq("track", "Lead");
-        } catch (err) { /* analitika ixtiyoriy */ }
       })
       .catch(function () {
         msg.textContent = T.fail;
@@ -318,7 +328,50 @@
       .catch(function () { /* raqamlar o'zgarmaydi — sayt odatdagidek ishlaydi */ });
   }
 
-  function mount() { document.body.appendChild(host); loadCallTracking(); }
+
+  // ---- WebMCP: foydalanuvchining AI agenti (ChatGPT, Claude…) formani bosmasdan
+  // tool chaqiradi. Brauzer qo'llamasa — hech narsa qilinmaydi. O'chirish: data-webmcp="0".
+  function registerWebMCP() {
+    var mc = (navigator && navigator.modelContext) || document.modelContext;
+    if (!mc || typeof mc.registerTool !== "function") return;
+    if (script && script.getAttribute("data-webmcp") === "0") return;
+    try {
+      mc.registerTool({
+        name: "request_callback",
+        description: "Jon Branding agentligidan qo'ng'iroq so'rash (brending, logo, packaging, naming). " +
+          "Menejer bir necha daqiqada O'zbekiston raqamiga qo'ng'iroq qiladi. Faqat foydalanuvchi roziligi bilan chaqiring.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            phone: { type: "string", description: "O'zbekiston raqami, masalan +998901234567" },
+            name: { type: "string", description: "Mijoz ismi" },
+          },
+          required: ["phone"],
+        },
+        execute: function (input) {
+          var d = phoneDigits(input && input.phone);
+          if (d.length === 9) d = "998" + d;
+          if (d.length !== 12 || d.indexOf("998") !== 0) {
+            return Promise.resolve({ content: [{ type: "text", text: "Xato: raqam +998XXXXXXXXX formatida bo'lishi kerak." }] });
+          }
+          return submitLead(input.name, "+" + d, "", "webmcp").then(function () {
+            return { content: [{ type: "text", text: "Qabul qilindi. Jon Branding menejeri tez orada qo'ng'iroq qiladi." }] };
+          });
+        },
+      });
+      mc.registerTool({
+        name: "open_callback_form",
+        description: "Saytda qo'ng'iroq so'rash formasini ochib ko'rsatadi (foydalanuvchi o'zi to'ldiradi).",
+        inputSchema: { type: "object", properties: {} },
+        execute: function () {
+          open();
+          return { content: [{ type: "text", text: "Forma ochildi." }] };
+        },
+      });
+    } catch (e) { /* WebMCP ixtiyoriy — sayt odatdagidek ishlaydi */ }
+  }
+
+  function mount() { document.body.appendChild(host); loadCallTracking(); registerWebMCP(); }
   if (document.body) mount(); else document.addEventListener("DOMContentLoaded", mount);
 
   window.OishaCallback = { open: open, close: close, tracking: tracking, applyPhones: applyPhones };
