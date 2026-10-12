@@ -46,6 +46,13 @@ async def _notify_capi(lead_id: Any, status_id: Any, price: float, leadgen_id: s
     return result is None or result.status != "failed"
 
 
+def _to_int(value) -> int | None:
+    try:
+        return int(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass
 class AttributionSyncResult:
     checked: int = 0
@@ -111,7 +118,8 @@ async def sync_attribution_revenue(
 
         try:
             await asyncio.to_thread(
-                update_revenue, leadgen_id, price, won, get_local_now().isoformat()
+                update_revenue, leadgen_id, price, won, get_local_now().isoformat(),
+                _to_int(status_id), _to_int(lead.get("loss_reason_id")),
             )
             result.updated += 1
         except Exception as exc:

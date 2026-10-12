@@ -169,6 +169,34 @@ def _meta_lines(meta_24h: Optional[tuple[int, int]], meta_total: Optional[int]) 
     return line_24h, line_total
 
 
+def build_loss_lines(days: int = 7) -> list[str]:
+    """Rad etilgan lidlar: reklama masalasi vs sotuv masalasi (oxirgi `days` kun)."""
+    try:
+        from src.services.core.marketing.attribution_store import loss_breakdown
+        today = datetime.date.today()
+        data = loss_breakdown((today - datetime.timedelta(days=days)).isoformat(), today.isoformat())
+    except Exception as exc:
+        logger.warning("[LEADGEN REPORTER] Loss breakdown xato: %s", exc)
+        return []
+    total = data["total"]
+    if not total:
+        return []
+    cat = data["by_category"]
+    pct = lambda n: round(n * 100 / total)  # noqa: E731
+    top = sorted(data["by_reason"].items(), key=lambda kv: -kv[1])[:3]
+    lines = [
+        f"🚫 <b>Rad etilgan lidlar ({days} kun): {total} ta</b>",
+        f"• 🎯 Reklama masalasi: <b>{cat.get('reklama', 0)}</b> ({pct(cat.get('reklama', 0))}%)",
+        f"• 💼 Sotuv masalasi: <b>{cat.get('sotuv', 0)}</b> ({pct(cat.get('sotuv', 0))}%)",
+    ]
+    unknown = cat.get("noma'lum", 0)
+    if unknown:
+        lines.append(f"• ❔ Sabab ko'rsatilmagan: <b>{unknown}</b>")
+    lines.append("• Top sabablar: " + "; ".join(f"{name} — {n}" for name, n in top))
+    lines.append("")
+    return lines
+
+
 def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]] = None) -> str:
     """Compile executive 24/7 status report across Meta, AmoCRM, Sheets, and Telegram."""
     if summary is None:
@@ -224,6 +252,7 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         "🎬 <b>Kreativlar samaradorligi (24 soat):</b>",
         *creative_lines,
         "",
+        *build_loss_lines(),
         "⚙️ <b>Baza va Integratsiyalar:</b>",
         meta_total_line,
         f"• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",
