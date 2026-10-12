@@ -11,7 +11,7 @@ saqlanmaydi. Sozlanmagan manba jim o'tkazib yuboriladi (bo'sh ro'yxat).
   ``MOLIYACHI_SHEET_IDS`` (vergul bilan Drive fayl ID'lari),
   ``MOLIYACHI_EMAIL`` (faqat shu odam tahrirlari). Service account fayl
   ``HISOBCHI_GSHEET_CREDS_FILE`` / ``GSHEET_CREDS_FILE``; fayllar unga
-  "Viewer" sifatida ulashilgan bo'lishi kerak.
+  "Editor" sifatida ulashilgan (Drive revision tarixi faqat writer'larga ochiq) bo'lishi kerak.
 """
 
 from __future__ import annotations
@@ -134,12 +134,13 @@ def _fetch_gmail(day: datetime) -> list[dict]:
     return events
 
 
-async def gmail_events(day: datetime) -> list[dict]:
+async def gmail_events(day: datetime) -> Optional[list[dict]]:
+    """Sozlanmagan bo'lsa [], o'qishda xato bo'lsa None (qayta urinish uchun)."""
     try:
         return await asyncio.to_thread(_fetch_gmail, day)
     except Exception:
         logger.warning("[MOLIYACHI] Gmail o'qilmadi", exc_info=True)
-        return []
+        return None
 
 
 def revisions_to_events(revisions: list[dict], *, file_name: str, day: str, email_filter: str) -> list[dict]:
@@ -162,8 +163,13 @@ def revisions_to_events(revisions: list[dict], *, file_name: str, day: str, emai
 def _fetch_sheet_revisions(day: str) -> list[dict]:
     file_ids = [x.strip() for x in _env("MOLIYACHI_SHEET_IDS").split(",") if x.strip()]
     creds_file = _env("HISOBCHI_GSHEET_CREDS_FILE") or _env("GSHEET_CREDS_FILE") or "service_account.json"
-    if not file_ids or not os.path.exists(creds_file):
+    email_filter = _env("MOLIYACHI_EMAIL")
+    if not file_ids or not email_filter:
+        # Fail closed: tahrirlovchi aniqlanmasa butun jamoa harakati
+        # moliyachiniki bo'lib qoladi.
         return []
+    if not os.path.exists(creds_file):
+        raise FileNotFoundError(creds_file)
     from google.oauth2.service_account import Credentials
     from googleapiclient.discovery import build
 
@@ -171,29 +177,33 @@ def _fetch_sheet_revisions(day: str) -> list[dict]:
         creds_file, scopes=["https://www.googleapis.com/auth/drive.metadata.readonly"]
     )
     drive = build("drive", "v3", credentials=creds, cache_discovery=False)
-    email_filter = _env("MOLIYACHI_EMAIL")
     events: list[dict] = []
     for file_id in file_ids:
-        try:
-            meta = drive.files().get(fileId=file_id, fields="name").execute()
-            revs = drive.revisions().list(
-                fileId=file_id, fields="revisions(modifiedTime,lastModifyingUser)", pageSize=200
+        meta = drive.files().get(fileId=file_id, fields="name").execute()
+        revisions: list[dict] = []
+        token = None
+        while True:
+            page = drive.revisions().list(
+                fileId=file_id, pageSize=200, pageToken=token,
+                fields="nextPageToken,revisions(modifiedTime,lastModifyingUser)",
             ).execute()
-        except Exception:
-            logger.warning("[MOLIYACHI] Drive fayl o'qilmadi: %s", file_id, exc_info=True)
-            continue
+            revisions.extend(page.get("revisions", []))
+            token = page.get("nextPageToken")
+            if not token:
+                break
         events.extend(
             revisions_to_events(
-                revs.get("revisions", []), file_name=meta.get("name", file_id),
+                revisions, file_name=meta.get("name", file_id),
                 day=day, email_filter=email_filter,
             )
         )
     return events
 
 
-async def sheet_events(day: datetime) -> list[dict]:
+async def sheet_events(day: datetime) -> Optional[list[dict]]:
+    """Sozlanmagan bo'lsa [], o'qishda xato bo'lsa None (qayta urinish uchun)."""
     try:
         return await asyncio.to_thread(_fetch_sheet_revisions, day.strftime("%Y-%m-%d"))
     except Exception:
         logger.warning("[MOLIYACHI] Excel/Sheets o'qilmadi", exc_info=True)
-        return []
+        return None

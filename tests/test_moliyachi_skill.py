@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from src.schedulers.moliya import moliyachi_skill as ms
 
 
@@ -123,3 +125,49 @@ def test_empty_username_env_falls_back_to_default(monkeypatch):
     monkeypatch.delenv("MOLIYACHI_TELEGRAM_ID", raising=False)
     assert ms.moliyachi_username() == "jonbranding_finansist"
     assert not ms.is_moliyachi(5, "someone_else")
+
+
+def test_distant_events_are_not_steps():
+    p = ms.update_profile({}, "2026-10-12", [
+        {"t": "09:00", "a": "gm_in"},
+        {"t": "14:00", "a": "at_chiqim"},
+        {"t": "14:30", "a": "xl_edit"},
+    ])
+    assert p["transitions"] == {"at_chiqim>xl_edit": 1}
+
+
+def test_days_are_not_truncated():
+    p = {}
+    for i in range(95):
+        p = ms.update_profile(p, f"d{i:03d}", [{"t": "10:00", "a": "tg_text"}])
+    assert len(p["days"]) == 95 and p["hours"]["10"] == 95
+
+
+def test_sheets_fail_closed_without_editor_email(monkeypatch):
+    from src.schedulers.moliya import moliyachi_sources as src
+
+    monkeypatch.setenv("MOLIYACHI_SHEET_IDS", "abc")
+    monkeypatch.setenv("MOLIYACHI_EMAIL", "")
+    assert src._fetch_sheet_revisions("2026-10-12") == []
+
+
+def test_render_skill_functions_under_60_lines():
+    import inspect
+
+    for fn in (ms.render_skill, ms.update_profile, ms.run_skill_update):
+        assert len(inspect.getsource(fn).splitlines()) <= 60, fn.__name__
+
+
+@pytest.mark.asyncio
+async def test_run_skill_update_retries_on_source_failure(monkeypatch):
+    from datetime import datetime
+    from unittest.mock import AsyncMock
+    from src.schedulers.moliya import helpers, moliyachi_sources as src
+
+    monkeypatch.setattr(helpers, "read_table", AsyncMock(return_value=[_rec("2026-10-12T04:30:00.000Z")]))
+    monkeypatch.setattr(src, "gmail_events", AsyncMock(return_value=None))
+    monkeypatch.setattr(src, "sheet_events", AsyncMock(return_value=[]))
+    db = SimpleNamespace(get_state=AsyncMock(return_value={}), set_state=AsyncMock())
+    monkeypatch.setattr("src.db.get_db", lambda: db)
+    assert await ms.run_skill_update(datetime(2026, 10, 12)) is False
+    db.set_state.assert_not_called()

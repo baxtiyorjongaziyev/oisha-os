@@ -44,20 +44,24 @@ class _Callback:
     [
         (OWNER, STRANGER, True),
         (WHITELISTED, STRANGER, True),
-        (STRANGER, FINANCE_GROUP, True),
-        (STRANGER, TEAM_GROUP, True),
+        (STRANGER, FINANCE_GROUP, False),  # group membership is not authorization
+        (STRANGER, TEAM_GROUP, False),
         (STRANGER, STRANGER, False),  # forged from the stranger's own DM
         (0, 0, False),
     ],
 )
-def test_is_trusted_finance_callback(user_id, chat_id, expected):
+def test_is_trusted_finance_callback(user_id, chat_id, expected, monkeypatch):
+    monkeypatch.delenv("MOLIYACHI_TELEGRAM_ID", raising=False)
+    monkeypatch.delenv("FINANCE_APPROVER_IDS", raising=False)
     assert callback_auth.is_trusted_finance_callback(_Callback(user_id, chat_id)) is expected
 
 
-def test_no_trusted_chats_when_unconfigured(monkeypatch):
-    monkeypatch.setattr(callback_auth.settings, "HISOBCHI_FINANCE_GROUP_ID", None, raising=False)
-    monkeypatch.setattr(callback_auth.settings, "TEAM_GROUP_ID", None, raising=False)
-    assert not callback_auth.is_trusted_finance_callback(_Callback(STRANGER, 0))
+def test_moliyachi_and_extra_approvers_allowed(monkeypatch):
+    monkeypatch.setenv("MOLIYACHI_TELEGRAM_ID", "555")
+    monkeypatch.setenv("FINANCE_APPROVER_IDS", "777, 888")
+    for uid in (555, 777, 888):
+        assert callback_auth.is_trusted_finance_callback(_Callback(uid, FINANCE_GROUP))
+    assert not callback_auth.is_trusted_finance_callback(_Callback(STRANGER, FINANCE_GROUP))
 
 
 class _CapturingDispatcher:
@@ -86,7 +90,7 @@ async def test_hisobchi_callback_rejects_forged_dm_callback():
         approve.assert_not_called()
         assert forged.answers and forged.answers[0][1].get("show_alert") is True
 
-        legit = _Callback(STRANGER, FINANCE_GROUP)
+        legit = _Callback(OWNER, FINANCE_GROUP)
         await handler(legit)
         approve.assert_awaited_once()
 

@@ -158,73 +158,67 @@ def merge_day(tg_events: list[dict], at_events: list[dict]) -> list[dict]:
     return sorted([*tg_events, *at_events], key=lambda e: e.get("t", ""))
 
 
+TRANSITION_WINDOW_MIN = 60
+
+
+def _minutes(t: str) -> int:
+    hh, mm = (t or "00:00").split(":")[:2]
+    return int(hh) * 60 + int(mm)
+
+
+def _count_transitions(events: list[dict]) -> Counter:
+    """Faqat yaqin (≤60 daqiqa) ketma-ket, turli amallar qadam hisoblanadi."""
+    out: Counter = Counter()
+    for a, b in zip(events, events[1:]):
+        close = 0 <= _minutes(b["t"]) - _minutes(a["t"]) <= TRANSITION_WINDOW_MIN
+        if a["a"] != b["a"] and close:
+            out[f"{a['a']}>{b['a']}"] += 1
+    return out
+
+
 def update_profile(profile: Optional[dict], day: str, events: list[dict]) -> dict:
-    """Kunlik hodisalarni umumiy profilga qo'shadi (idempotent: kun bir marta)."""
+    """Kunlik hodisalarni umumiy profilga qo'shadi (idempotent: kun bir marta).
+
+    ``days`` to'liq saqlanadi — hisoblagichlar bilan bir xil davrni qamraydi.
+    """
     p = dict(profile or {})
     days = list(p.get("days", []))
     if day in days or not events:
         return p
     days.append(day)
-    hours = Counter(p.get("hours", {}))
-    actions = Counter(p.get("actions", {}))
-    transitions = Counter(p.get("transitions", {}))
-    first = Counter(p.get("first_action", {}))
-    gaps = Counter(p.get("gaps", {}))
+    c = {k: Counter(p.get(k, {})) for k in ("hours", "actions", "first_action", "gaps", "mail", "files")}
     at_total = int(p.get("at_total", 0))
     at_hujjat = int(p.get("at_hujjat", 0))
-    mail = Counter(p.get("mail", {}))
-    files = Counter(p.get("files", {}))
 
     for e in events:
         if e["a"] in ("gm_in", "gm_out"):
-            mail[f"{e['a']}|{e.get('kind', 'boshqa')}|{e.get('domain', '')}"] += 1
+            c["mail"][f"{e['a']}|{e.get('kind', 'boshqa')}|{e.get('domain', '')}"] += 1
         if e["a"] == "xl_edit":
-            files[e.get("file", "?")] += 1
-        hours[e["t"][:2]] += 1
-        actions[e["a"]] += 1
+            c["files"][e.get("file", "?")] += 1
+        c["hours"][e["t"][:2]] += 1
+        c["actions"][e["a"]] += 1
         if e["a"].startswith("at_"):
             at_total += 1
             at_hujjat += 1 if e.get("hujjat") else 0
             for g in e.get("gaps", []):
-                gaps[g] += 1
-    for a, b in zip(events, events[1:]):
-        if a["a"] != b["a"]:
-            transitions[f"{a['a']}>{b['a']}"] += 1
-    first[events[0]["a"]] += 1
+                c["gaps"][g] += 1
+    c["first_action"][events[0]["a"]] += 1
+    transitions = Counter(p.get("transitions", {})) + _count_transitions(events)
 
+    p.update({k: dict(v) for k, v in c.items()})
     p.update(
-        days=days[-90:],
-        hours=dict(hours),
-        actions=dict(actions),
+        days=days,
         transitions=dict(transitions),
-        first_action=dict(first),
-        gaps=dict(gaps),
         at_total=at_total,
         at_hujjat=at_hujjat,
-        mail=dict(mail),
-        files=dict(files),
         last_day_timeline=[f"{e['t']} {ACTION_LABELS.get(e['a'], e['a'])}" for e in events][:40],
     )
     return p
 
 
-def render_skill(profile: dict, rules: dict[str, dict], nomlar: Optional[dict] = None) -> str:
-    """Profil → Markdown skill hujjati."""
-    nomlar = nomlar or {}
-    days = profile.get("days", [])
-    lines = [
-        "# Skill: Moliyachi ish tartibi (Jon Branding)",
-        "",
-        f"_Manba: {len(days)} kunlik kuzatuv (Telegram moliya guruhi + Airtable Tranzaksiyalar). "
-        "Hujjat avtomatik shakllanadi; qoidalar faqat kuzatilgan amallardan olingan._",
-        "",
-    ]
-    if len(days) < 3:
-        lines.append("> ⚠️ Ma'lumot hali yetarli emas (kamida 3 kun kerak) — xulosalar dastlabki.")
-        lines.append("")
-
+def _section_rhythm(profile: dict) -> list[str]:
+    lines = ["## 1. Kunlik ritm"]
     hours = Counter(profile.get("hours", {}))
-    lines.append("## 1. Kunlik ritm")
     if hours:
         top = ", ".join(f"{h}:00 ({c})" for h, c in sorted(hours.most_common(3)))
         lines.append(f"- Eng faol soatlar: {top}")
@@ -234,21 +228,22 @@ def render_skill(profile: dict, rules: dict[str, dict], nomlar: Optional[dict] =
         lines.append(f"- Kunni odatda shundan boshlaydi: **{ACTION_LABELS.get(a, a)}** ({c} kun)")
     if not hours:
         lines.append("- Ma'lumot yo'q")
-    lines.append("")
+    return lines
 
-    lines.append("## 2. Ish ketma-ketligi (qadamlar)")
+
+def _section_steps(profile: dict) -> list[str]:
+    lines = [f"## 2. Ish ketma-ketligi (qadamlar, {TRANSITION_WINDOW_MIN} daqiqa ichida)"]
     transitions = Counter(profile.get("transitions", {}))
-    if transitions:
-        for i, (pair, c) in enumerate(transitions.most_common(6), 1):
-            a, b = pair.split(">")
-            lines.append(
-                f"{i}. {ACTION_LABELS.get(a, a)} → {ACTION_LABELS.get(b, b)} — {c} marta"
-            )
-    else:
+    for i, (pair, c) in enumerate(transitions.most_common(6), 1):
+        a, b = pair.split(">")
+        lines.append(f"{i}. {ACTION_LABELS.get(a, a)} → {ACTION_LABELS.get(b, b)} — {c} marta")
+    if not transitions:
         lines.append("- Ma'lumot yo'q")
-    lines.append("")
+    return lines
 
-    lines.append("## 3. Tranzaksiya kiritish standarti")
+
+def _section_quality(profile: dict) -> list[str]:
+    lines = ["## 3. Tranzaksiya kiritish standarti"]
     at_total = int(profile.get("at_total", 0))
     if at_total:
         pct = int(profile.get("at_hujjat", 0)) * 100 // at_total
@@ -256,35 +251,57 @@ def render_skill(profile: dict, rules: dict[str, dict], nomlar: Optional[dict] =
     gaps = Counter(profile.get("gaps", {}))
     if gaps:
         lines.append("- Tez-tez uchraydigan kamchiliklar (checklistga qo'shish kerak):")
-        for g, c in gaps.most_common(5):
-            lines.append(f"  - {g} — {c} marta")
+        lines.extend(f"  - {g} — {c} marta" for g, c in gaps.most_common(5))
     if not at_total:
         lines.append("- Ma'lumot yo'q")
-    lines.append("")
+    return lines
 
-    lines.append("## 4. Kategoriya qoidalari (nom → kategoriya)")
+
+def _section_rules(rules: dict[str, dict], nomlar: dict) -> list[str]:
+    lines = ["## 4. Kategoriya qoidalari (nom → kategoriya)"]
     strong = sorted(rules.items(), key=lambda kv: -kv[1]["count"])[:15]
-    if strong:
-        for key, r in strong:
-            kat = nomlar.get(r["kategoriya"], r["kategoriya"])
-            lines.append(f"- \"{key}\" → {kat} ({r['count']} marta)")
-    else:
+    for key, r in strong:
+        kat = nomlar.get(r["kategoriya"], r["kategoriya"])
+        lines.append(f"- \"{key}\" → {kat} ({r['count']} marta)")
+    if not strong:
         lines.append("- Ma'lumot yo'q")
-    lines.append("")
+    return lines
 
-    lines.append("## 5. Gmail va Excel")
+
+def _section_mail_excel(profile: dict) -> list[str]:
+    lines = ["## 5. Gmail va Excel"]
     mail = Counter(profile.get("mail", {}))
     for key, c in mail.most_common(8):
         direction, kind, domain = (key.split("|") + ["", ""])[:3]
         verb = "keladi" if direction == "gm_in" else "yuboradi"
         lines.append(f"- Xat {verb}: {kind}" + (f" ({domain})" if domain else "") + f" — {c} marta")
     files = Counter(profile.get("files", {}))
-    for name, c in files.most_common(5):
-        lines.append(f"- Jadval tahrirlaydi: {name} — {c} marta")
+    lines.extend(f"- Jadval tahrirlaydi: {name} — {c} marta" for name, c in files.most_common(5))
     if not mail and not files:
         lines.append("- Ma'lumot yo'q (Gmail/Sheets sozlanmagan yoki faollik yo'q)")
-    lines.append("")
+    return lines
 
+
+def render_skill(profile: dict, rules: dict[str, dict], nomlar: Optional[dict] = None) -> str:
+    """Profil → Markdown skill hujjati."""
+    days = profile.get("days", [])
+    lines = [
+        "# Skill: Moliyachi ish tartibi (Jon Branding)",
+        "",
+        f"_Manba: {len(days)} kunlik kuzatuv (Telegram, Airtable, Gmail, Excel/Sheets). "
+        "Hujjat avtomatik shakllanadi; qoidalar faqat kuzatilgan amallardan olingan._",
+        "",
+    ]
+    if len(days) < 3:
+        lines += ["> ⚠️ Ma'lumot hali yetarli emas (kamida 3 kun kerak) — xulosalar dastlabki.", ""]
+    for section in (
+        _section_rhythm(profile),
+        _section_steps(profile),
+        _section_quality(profile),
+        _section_rules(rules, nomlar or {}),
+        _section_mail_excel(profile),
+    ):
+        lines += [*section, ""]
     timeline = profile.get("last_day_timeline") or []
     if timeline:
         lines.append(f"## 6. Oxirgi kuzatilgan kun ({days[-1] if days else ''})")
@@ -292,20 +309,26 @@ def render_skill(profile: dict, rules: dict[str, dict], nomlar: Optional[dict] =
     return "\n".join(lines) + "\n"
 
 
-async def run_skill_update(now: datetime, *, send: bool = False) -> bool:
-    """Kunlik: profilni yangilaydi. send=True bo'lsa skillni egasiga yuboradi."""
+async def run_skill_update(day_dt: datetime, *, send: bool = False) -> bool:
+    """Tugagan kun (``day_dt``) uchun profilni yangilaydi; send=True — skillni yuboradi.
+
+    Sozlangan manba o'qilmasa False qaytadi — kun claim'i bo'shatiladi va
+    keyingi daqiqada qayta urinadi (to'liq bo'lmagan kun profilga yozilmaydi).
+    """
     from src.db import get_db
     from src.schedulers.moliya.cashflow import KATEGORIYA_JADVALLARI
     from src.schedulers.moliya.helpers import read_name_map, read_table
-
-    day = now.strftime("%Y-%m-%d")
-    db = get_db()
-    records = await read_table("Tranzaksiyalar")
     from src.schedulers.moliya.moliyachi_sources import gmail_events, sheet_events
 
+    day = day_dt.strftime("%Y-%m-%d")
+    db = get_db()
+    records = await read_table("Tranzaksiyalar")
+    gmail, sheets = await gmail_events(day_dt), await sheet_events(day_dt)
+    if not records or gmail is None or sheets is None:
+        logger.warning("[MOLIYACHI] Manba o'qilmadi — %s qayta uriniladi", day)
+        return False
     tg = await db.get_state(ACTIVITY_PREFIX + day, []) or []
-    extra = [*await gmail_events(now), *await sheet_events(now)]
-    events = merge_day([*tg, *extra], airtable_events(records, day))
+    events = merge_day([*tg, *gmail, *sheets], airtable_events(records, day))
     profile = update_profile(await db.get_state(PROFILE_KEY, {}) or {}, day, events)
     await db.set_state(PROFILE_KEY, profile)
     if not send:
