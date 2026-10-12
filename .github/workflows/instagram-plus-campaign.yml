@@ -3,6 +3,11 @@ name: Instagram "+" Campaign
 # Bir martalik: so'nggi N kunda "+" yozganlarga DM (<=7 kun) yoki
 # Direct'ga taklif (7 kundan eski). Avval dry-run, keyin live.
 on:
+  # Owner ruxsati (2026-10-12): webhook o'tkazib yuborgan yangi "+" larga har
+  # soatda DM. Faqat <=7 kun, ochiq taklif yozilmaydi. Quiet hours (23:00-07:00)
+  # skriptning o'zida bloklanadi — tungi "+" lar 07:00 dan keyingi run'da ketadi.
+  schedule:
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -37,8 +42,8 @@ jobs:
     steps:
       - name: Run campaign on Oracle
         env:
-          MODE: ${{ inputs.mode }}
-          DAYS: ${{ inputs.days }}
+          MODE: ${{ github.event_name == 'schedule' && 'auto' || inputs.mode }}
+          DAYS: ${{ inputs.days || '7' }}
           AD_ACCOUNT_INPUT: ${{ inputs.ad_account_id }}
         run: |
           set -euo pipefail
@@ -49,7 +54,13 @@ jobs:
           if ! [[ "${DAYS}" =~ ^[0-9]+$ ]]; then
             echo "days butun son bo'lishi kerak"; exit 2
           fi
-          if [ "${MODE}" = "check" ]; then
+          if [ "${MODE}" = "auto" ]; then
+            # exit 3 = quiet hours: yuborilmadi, xato emas
+            rc=0
+            ./venv/bin/python -m scripts.instagram_plus_campaign --days 7 --live --confirm YUBORISH --dm-only || rc=$?
+            if [ "$rc" -eq 3 ]; then echo "quiet hours — keyingi run'da"; exit 0; fi
+            exit "$rc"
+          elif [ "${MODE}" = "check" ]; then
             ./venv/bin/python -m scripts.instagram_plus_campaign --check
           elif [ "${MODE}" = "live" ]; then
             ./venv/bin/python -m scripts.instagram_plus_campaign --days "${DAYS}" --live --confirm YUBORISH

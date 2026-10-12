@@ -251,6 +251,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--confirm", default="")
     parser.add_argument("--check", action="store_true", help="faqat token ruxsatlarini tekshiradi")
+    parser.add_argument("--dm-only", action="store_true",
+                        help="faqat DM (<=7 kun); ochiq komment-taklif yozilmaydi")
     args = parser.parse_args(argv)
 
     _load_env()
@@ -280,6 +282,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     comments = fetch_comments(token, media_ids, report)
     markers = [KEYWORD_AUTOMATION_PUBLIC_ACK, PUBLIC_INVITE_TEXT]
     plan = plan_actions(comments, own_id, now, since, markers, is_plus_only_comment)
+    if args.dm_only:
+        plan = [p for p in plan if p["action"] == "dm"]
     report["plus_dm"] = sum(1 for p in plan if p["action"] == "dm")
     report["plus_invite"] = sum(1 for p in plan if p["action"] == "invite")
 
@@ -288,6 +292,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         from src.services.core.instagram_agent import send_ig_private_reply
         report.update(execute(plan, token, send_ig_private_reply, reply_to_comment,
                               PLUS_COMMENT_DM_TEMPLATE, KEYWORD_AUTOMATION_PUBLIC_ACK))
+        if report.get("dm_sent"):
+            _notify_owner(f"Instagram '+': {report['dm_sent']} ta yangi kommentga DM yuborildi"
+                          f" (xato: {report.get('failed', 0)}).")
     report["mode"] = "live" if args.live else "dry-run"
     for key, value in report.items():
         print(f"{key}: {value}")
