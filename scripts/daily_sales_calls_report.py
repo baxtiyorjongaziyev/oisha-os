@@ -268,9 +268,12 @@ def parse_rep_names(raw: str) -> Dict[str, str]:
 
 def _display_name(account: str, names: Dict[str, str]) -> str:
     if account.lower() in names:
-        return names[account.lower()]
-    local = account.split("@")[0]
-    return local.capitalize() if local else account
+        val = names[account.lower()]
+    else:
+        local = account.split("@")[0]
+        val = local.capitalize() if local else account
+    from src.services.call_analytics.helpers import normalize_name_spellings
+    return normalize_name_spellings(val)
 
 
 def _stats_lines(r: RepStats) -> List[str]:

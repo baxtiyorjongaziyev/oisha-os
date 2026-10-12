@@ -1352,10 +1352,44 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Tekshiruv: `SKIP_LIVE=1 pytest tests/test_sales_playbook.py tests/test_omnichannel_call_context.py` — barcha testlar yashil; GitHub Actions CI PR #843 barcha tekshiruvlari (pull-request-tests, CodeQL, Import guard, gitleaks) 100% yashil; Bandit — 0 security issues; barcha fayllar qat'iy <= 400 LOC qoidasiga mos (`omnichannel_context.py`: 339, `sales_playbook.py`: 266, `scorer.py`: 312).
 - Keyingi qadam: PR #843 squash-merge qilish va avtomatik prod deploy.
 
+## 2026-10-09 — Antigravity — Instagram "+" kommentlar uchun 24/7 DM avtomatizatsiyasi
+- Task: Target reklamalar va postlarga "+", "++", "+++" qoldirgan mijozlarga 24/7 avtomatik Direct (DM) ga taklif yuborish mexanizmini serverda to'liq sozlash va jonli ishga tushirish.
+- Files: `scripts/cron_instagram_plus.sh` (yangi fon skripti: flock bilan bir vaqtda qayta ishga tushishdan himoyalangan, live rejimda 7 kunlik oynada aylanadi, log hajmini 5000 qatorda saqlaydi), Oracle VM crontab (`*/15 * * * * /home/ubuntu/oisha-os/scripts/cron_instagram_plus.sh`).
+- Natija va tekshiruv:
+  - 1-bosqich (2026-10-08): O'tgan 14 kunlik 25 ta lid qamrab olindi (9 ta DM, 16 ta ochiq taklif, 0 ta xato).
+  - 2-bosqich (2026-10-09): Yangi qo'shilgan 10 ta "+" izoh skan qilinib, barchasiga (10 kishiga) to'g'ridan-to'g'ri Instagram DM yuborildi va izohiga tasdiq xabari yozildi (0 ta xato).
+  - Jami 35 ta lid to'liq qamrab olindi.
+  - Crontab har 15 daqiqada avtomatik ishlaydigan qilib sozlandi. Takroriy yuborishdan himoyalangan (`_already_handled`), tungi soatlarda (23:00-07:00 Toshkent vaqti) tinch holatda turadi.
+- Holat: Bajarildi (prod jonli faol).
+
+## 2026-10-09 — Antigravity — feat(marketing): Meta Lead Ads avtomatik optimizatsiyasi (Variant A)
+- Task: Meta Ads Manager'da yangi va faol Lead Generation Ad Set'larni hech qanday buyruqsiz to'liq avtomatik ravishda Conversion Leads (`QUALITY_LEAD`) rejimiga o'tkazuvchi avtonom xizmat va fon schedulerini yaratish.
+- Files:
+  - `src/services/core/marketing/meta_lead_optimizer.py` (yangi: `fetch_active_lead_adsets`, `upgrade_adset_to_quality_lead`, `run_lead_optimization_sweep`, `notify_optimization_success`).
+  - `src/schedulers/meta_lead_optimizer_scheduler.py` (yangi: 24/7 fon scheduleri, har 6 soatda avtomatik tekshiruv va yangilash).
+  - `src/bootstrap/orchestration/schedulers.py` (`meta_lead_optimizer_loop` ni background task sifatida ro'yxatga olish).
+  - `tests/test_meta_lead_optimizer.py` (8 ta unit test, 100% yashil).
+- Xulq: Tizim Ad Account (`act_370591433710957`)dagi barcha faol reklamalarni kuzatadi. Oddiy `LEAD_GENERATION` rejimida turgan guruhlarni avtomatik `QUALITY_LEAD` (Conversion Leads) rejimiga va Jon Branding CAPI Dataset (`1134785364752294`)ga ulaydi. Muvaffaqiyatli o'tkazilganda Telegramga bildirishnoma yuboradi. Inson aralashuvi yoki biror /command yozish talab etilmaydi.
+- Tekshiruv: `pytest tests/test_meta_lead_optimizer.py` — 8/8 passed (0.88s); `bandit -r src/services/core/marketing/meta_lead_optimizer.py src/schedulers/meta_lead_optimizer_scheduler.py -ll` — 0 issues.
+
+## 2026-10-09 — Antigravity — fix(naming): "Rayhonajon" / "Rayhona" o'rniga doimo "Rayxon" standarti
+- Task: Owner talabi ("Rayhonajon demasin Rayxon desin"). Barcha AI tahlillari, CRM vazifalari, Telegram hisobotlari, Moizvonki xodim moslashuvi, Turso bazasi va jonli AmoCRM ma'lumotlarida "Rayhonajon" / "Rayhona" / "Rayxona" o'rniga doimo "Rayxon" imlosini qat'iy joriy etish.
+- Files:
+  - `src/services/call_analytics/helpers.py`: `normalize_name_spellings(text)` funksiyasi yaratildi (`Rayhonajon`, `Rayhonaxon`, `Rayhona`, `Rayxona`, `Rayhon` va ularning o'zbekcha qo'shimchalari `-ning`, `-ga`, `-dan`, `-da` ni xavfsiz "Rayxon"ga o'tkazadi; elektron pochta manzillariga tegmaydi).
+  - `src/services/call_analytics/normalizer.py`: Barcha tahlil maydonlariga (`summary`, `next_steps`, `keyingi_kelishuv`, `mijoz_kompaniya`, `mijoz_malumotlari`, `tavsiyalar`) `normalize_name_spellings` qo'llandi.
+  - `src/services/call_analytics/crm_tasks.py`: `_build_task_text` da vazifa matni, xulosa va konversiya tavsiyalariga `normalize_name_spellings` qo'llandi.
+  - `src/services/call_analytics/scorer.py`: Gemini AI promptiga `IMLO VA NOMLAR STANDARTI: Hech qachon 'Rayhonajon' yoki 'Rayhona' deb yozmang — doimo 'Rayxon' deb yozilsin` qoidasi kiritildi.
+  - `src/services/call_analytics/call_report_formatter.py` & `scripts/daily_sales_calls_report.py`: Rep display namelarida `normalize_name_spellings` qo'llandi.
+  - `deploy/systemd/oisha-calls-report.service`: `MOIZVONKI_REP_NAMES` da `rayxona@jonbranding.uz:Rayxon,xayrullayevna006@gmail.com:Rayxon` kiritildi.
+  - `tests/test_call_conversion_tasks.py`: Imlo normalizatsiyasi bo'yicha maxsus testlar qo'shildi.
+  - Jonli ma'lumotlar: AmoCRM vazifa `#49214985` va izohlar `#333069479`, `#333069495` API orqali "Rayxon"ga tuzatildi; Turso DB `call_analyses` dagi id=1644 yozuvi tozalandi.
+  - Obsidian Brain: `20-Areas/SOP_Sotuvchilar_Darsligi.md` ga 6-modul sifatida kiritildi, `brain_log` qayd etildi.
+- Tekshiruv: `SKIP_LIVE=1 pytest tests/test_call_conversion_tasks.py tests/test_daily_sales_calls_report.py` — 26/26 passed; barcha `.py` fayllar 150-400 LOC standartiga mos (`helpers.py`: 361, `runner.py`: 399, `normalizer.py`: 282, `crm_tasks.py`: 298, `scorer.py`: 314, `call_report_formatter.py`: 223, `daily_sales_calls_report.py`: 396).
+
 ## 2026-10-10 — Antigravity — Security & Dependabot Queue Resolution (Zero Alerts, 10/10 GitHub)
 - Task: GitHub repositorysini 10/10 ideal holatga keltirish: ochiq PRlarni tartibga solish, barcha ziddiyatlarni (conflicts) bartaraf qilish, CodeQL va Dependabot xavfsizlik ogohlantirishlarini 0 taga tushirish.
 - Bajarildi:
-  1. Oldingi navbatdagi PRlar birlashtirildi va merge qilindi: #845, #833, #829, #818 (yopildi), #815 (handoff-log ziddiyati to'g'irlanib merge qilindi), #846, #848, #850, #851, #853, #855.
+  1. Oldingi navbatdagi PRlar birlashtirildi va merge qilindi: #845, #833, #829, #818 (yopildi), #815 (handoff-log ziddiyati to'g'irlanib merge qilindi), #846, #848, #850, #851, #853, #855, #861.
   2. 23 ta eskirgan/takroriy Dependabot PR yopildi, 60 ta foydalanilmayotgan remote branchlar pruned qilindi.
   3. Qolgan 5 ta muhim Dependabot xavfsizlik zaifliklari (Handlebars, PostCSS-selector-parser va Source-map-js) `salescoach-ai` va `marketing-os/frontend` paketlarida override va qat'iy pnpm lockfile yangilanishi orqali to'liq bartaraf etildi.
   4. Radix-UI kutubxonalari (@radix-ui/react-dialog ^1.2.0, react-dropdown-menu ^2.1.25, react-progress ^1.1.17, react-select ^2.3.8) va Vite kutubxonalari (@vitejs/plugin-react ^6.1.2, oxlint ^1.87.0, vite ^8.3.4) bitta toza commit/PR ga birlashtirildi.

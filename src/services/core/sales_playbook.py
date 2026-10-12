@@ -231,6 +231,7 @@ def rubric_prompt_uz() -> str:
         "3. Qiymat taqdimoti (og'irlik 1.5x):\n"
         "   - Taklifni mijoz ehtiyojiga bog'lash, keyslar va yechim afzalligini ko'rsatish.\n"
         "   - Narx aytilganda: FAQAT vilka usulida ('20 mln dan 50 mln gacha') aytilishi shart. Bitta qat'iy raqam aytsa — ball kamaytiriladi.\n"
+        "   - Patent narxida: 1-bosqich to'lovi boshida yaxlit holda 'davlat ro'yxatidan o'tkazish va ariza topshirish uchun 6.76 mln so'm (MCHJga 7.64 mln so'm)' deb taqdim qilinadi. Agar mijoz narx tarkibini so'rasa yoki solishtirsa, agentlik xizmati boshqa firmalardan ancha arzonligi (bizda bor-yo'g'i 5 mln so'm, boshqalar 10-15 mln olishi) afzallik sifatida ochiladi; 2-bosqich davlat boji faqat 7 oydan keyin guvohnoma chiqqanda to'lanishi tushuntirilishi kerak.\n"
         "   - Portfolio/keys: uchrashuvda ko'rsatish yoki Telegram orqali yuborishni taklif qilish.\n"
         "   - Sotuv o'sishiga yolg'on va'da bermaslik (bergan bo'lsa — JIDDIY XATO, ball keskin past).\n\n"
         "4. E'tirozlar (og'irlik 2x):\n"

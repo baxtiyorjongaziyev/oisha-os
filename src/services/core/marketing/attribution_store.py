@@ -33,6 +33,12 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_attr_created_at ON lead_attribution(created_at)",
     "CREATE INDEX IF NOT EXISTS idx_attr_lead_id ON lead_attribution(lead_id)",
 )
+# Keyin qo'shilgan ustunlar (eski DB'larga ALTER bilan qo'shiladi)
+_EXTRA_COLUMNS = {
+    "loss_reason_id": "INTEGER", "status_id": "INTEGER",
+    "responsible_user_id": "INTEGER", "responsible_name": "TEXT",
+    "lead_created_ts": "INTEGER", "first_touch_ts": "INTEGER",
+}
 
 
 @contextmanager
@@ -43,6 +49,10 @@ def _connection():
         conn.execute(_CREATE_TABLE)
         for stmt in _INDEXES:
             conn.execute(stmt)
+        existing = {r[1] for r in conn.execute("PRAGMA table_info(lead_attribution)")}
+        for col, typ in _EXTRA_COLUMNS.items():
+            if col not in existing:
+                conn.execute(f"ALTER TABLE lead_attribution ADD COLUMN {col} {typ}")  # nosec B608
         yield conn
 
 
@@ -85,13 +95,13 @@ def save_attribution(
 
 
 def pending_revenue_sync(days: int = 90, limit: int = 200) -> List[Dict[str, Any]]:
-    """AmoCRM yakuni hali noma'lum (lead_won IS NULL) yozuvlar."""
+    """AmoCRM yakuni noma'lum yozuvlar + rad etish sababi hali olinmagan yo'qotilganlar."""
     with _connection() as conn:
         rows = conn.execute(
             """
             SELECT leadgen_id, lead_id FROM lead_attribution
             WHERE lead_id IS NOT NULL
-              AND lead_won IS NULL
+              AND (lead_won IS NULL OR (lead_won = 0 AND status_id IS NULL))
               AND created_at >= datetime('now', ?)
             ORDER BY created_at DESC
             LIMIT ?
@@ -101,13 +111,80 @@ def pending_revenue_sync(days: int = 90, limit: int = 200) -> List[Dict[str, Any
     return [dict(row) for row in rows]
 
 
-def update_revenue(leadgen_id: str, price: float, won: Optional[int], synced_at: str) -> None:
+def update_revenue(
+    leadgen_id: str, price: float, won: Optional[int], synced_at: str,
+    status_id: Optional[int] = None, loss_reason_id: Optional[int] = None,
+) -> None:
     with _connection() as conn:
         conn.execute(
-            "UPDATE lead_attribution SET lead_price = ?, lead_won = ?, revenue_synced_at = ? "
+            "UPDATE lead_attribution SET lead_price = ?, lead_won = ?, revenue_synced_at = ?, "
+            "status_id = COALESCE(?, status_id), loss_reason_id = COALESCE(?, loss_reason_id) "
             "WHERE leadgen_id = ?",
-            (price, won, synced_at, leadgen_id),
+            (price, won, synced_at, status_id, loss_reason_id, leadgen_id),
         )
+
+
+def update_seller_info(
+    leadgen_id: str, responsible_user_id: Optional[int], responsible_name: str,
+    lead_created_ts: Optional[int], first_touch_ts: Optional[int],
+) -> None:
+    with _connection() as conn:
+        conn.execute(
+            "UPDATE lead_attribution SET responsible_user_id = COALESCE(?, responsible_user_id), "
+            "responsible_name = COALESCE(NULLIF(?, ''), responsible_name), "
+            "lead_created_ts = COALESCE(lead_created_ts, ?), "
+            "first_touch_ts = COALESCE(first_touch_ts, ?) WHERE leadgen_id = ?",
+            (responsible_user_id, responsible_name, lead_created_ts, first_touch_ts, leadgen_id),
+        )
+
+
+def has_first_touch(leadgen_id: str) -> bool:
+    with _connection() as conn:
+        row = conn.execute(
+            "SELECT first_touch_ts FROM lead_attribution WHERE leadgen_id = ?", (leadgen_id,),
+        ).fetchone()
+    return bool(row and row["first_touch_ts"])
+
+
+def seller_rows(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    with _connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT responsible_user_id, responsible_name, lead_created_ts, first_touch_ts, lead_won
+            FROM lead_attribution
+            WHERE responsible_user_id IS NOT NULL
+              AND date(created_at) >= date(?) AND date(created_at) <= date(?)
+            """,
+            (start_date, end_date),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def loss_breakdown(start_date: str, end_date: str) -> Dict[str, Any]:
+    """Yo'qotilgan lidlarni toifa (reklama/sotuv) va sabab bo'yicha sanaydi."""
+    from src.services.core.marketing.loss_reasons import classify, reason_name
+
+    with _connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT campaign_id, campaign_name, loss_reason_id FROM lead_attribution
+            WHERE lead_won = 0 AND date(created_at) >= date(?) AND date(created_at) <= date(?)
+            """,
+            (start_date, end_date),
+        ).fetchall()
+    out: Dict[str, Any] = {"total": 0, "by_category": {}, "by_reason": {}, "by_campaign": {}}
+    for row in rows:
+        cat = classify(row["loss_reason_id"])
+        name = reason_name(row["loss_reason_id"]) if row["loss_reason_id"] else "Sabab ko'rsatilmagan"
+        out["total"] += 1
+        out["by_category"][cat] = out["by_category"].get(cat, 0) + 1
+        out["by_reason"][name] = out["by_reason"].get(name, 0) + 1
+        camp = out["by_campaign"].setdefault(
+            str(row["campaign_id"] or "unknown"),
+            {"campaign_name": row["campaign_name"] or "", "reklama": 0, "sotuv": 0, "noma'lum": 0},
+        )
+        camp[cat] += 1
+    return out
 
 
 def count_recent_leads_for_campaign(campaign_id: str, days: int = 30) -> int:
@@ -166,4 +243,27 @@ def aggregate_by_campaign(start_date: str, end_date: str) -> Dict[str, Dict[str,
             bucket["lost"] += 1
         else:
             bucket["open"] += 1
+    return out
+
+
+def aggregate_by_ad(start_date: str, end_date: str, qualified_status_ids: set) -> Dict[str, Dict[str, Any]]:
+    """Reklama (ad_id) bo'yicha CRM natijasi: lid, sifatli lid, sotuv, daromad."""
+    with _connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT ad_id, status_id, lead_won, lead_price FROM lead_attribution
+            WHERE ad_id != '' AND date(created_at) >= date(?) AND date(created_at) <= date(?)
+            """,
+            (start_date, end_date),
+        ).fetchall()
+    out: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        b = out.setdefault(str(r["ad_id"]), {"crm_leads": 0, "qualified": 0, "won": 0, "revenue": 0.0})
+        b["crm_leads"] += 1
+        if r["lead_won"] == 1:
+            b["won"] += 1
+            b["qualified"] += 1
+            b["revenue"] += float(r["lead_price"] or 0)
+        elif r["status_id"] in qualified_status_ids:
+            b["qualified"] += 1
     return out

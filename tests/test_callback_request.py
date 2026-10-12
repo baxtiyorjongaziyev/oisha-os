@@ -17,7 +17,9 @@ NIGHT = datetime(2026, 10, 6, 23, 40, tzinfo=TZ)
 
 
 @pytest.fixture(autouse=True)
-def _clean(monkeypatch):
+def _clean(monkeypatch, tmp_path):
+    from src.services.core.leads import lead_source
+    monkeypatch.setattr(lead_source, "_DB_PATH", tmp_path / "site_visits.db")
     cb.reset_dedup()
     monkeypatch.delenv(cb.SLA_ENV, raising=False)
     callback_widget.limiter.reset()
@@ -29,6 +31,7 @@ def _amocrm(lead_id=321):
     amo = MagicMock()
     amo.ensure_lead = AsyncMock(return_value=lead_id)
     amo.create_task = AsyncMock(return_value={"ok": True})
+    amo.add_lead_tag = AsyncMock(return_value=True)
     return amo
 
 
@@ -88,7 +91,8 @@ async def test_flow_creates_lead_alert_and_task():
     amo = _amocrm()
     with patch.object(cb, "_send_alert", AsyncMock(return_value=True)) as alert:
         res = await cb.handle_callback_request("Ali", "+998901234567", {"utm_source": "instagram"}, amocrm=amo, now=DAY)
-    assert res == {"lead_id": 321, "alert": True, "task": True}
+    assert res == {"lead_id": 321, "alert": True, "task": True, "source": "instagram_organik"}
+    amo.add_lead_tag.assert_awaited_once_with(321, "manba:instagram_organik")
     assert "utm_source: instagram" in amo.ensure_lead.call_args.kwargs["note"]
     assert "instagram" in alert.call_args.args[0]
     assert amo.create_task.call_args.kwargs["complete_till"] == int(DAY.timestamp()) + 5 * 60

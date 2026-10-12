@@ -41,6 +41,22 @@ def event_for_status(status_id: Any) -> Optional[str]:
     return "QualifiedLead" if sid in _qualified_status_ids() else None
 
 
+async def on_lead_created(
+    leadgen_id: str, lead_id: Optional[int], phone: str = "", email: str = "",
+) -> Optional[ToolResult]:
+    """Lead Ads lidi AmoCRM'ga tushganda `Lead` eventini yuboradi (Conversion Leads 1-bosqich)."""
+    if not leadgen_id or not is_enabled():
+        return None
+    try:
+        return await send_crm_event(
+            leadgen_id, "Lead", amo_lead_id=int(lead_id) if lead_id else None,
+            phone=phone, email=email, source="leadgen_router",
+        )
+    except Exception as exc:  # CAPI xatosi lid yetkazishni to'xtatmasin
+        logger.warning("[META CAPI] Lead event xato: leadgen_id=%s %s", leadgen_id, exc)
+        return None
+
+
 async def on_amo_status(
     lead_id: int, status_id: Any, price: Optional[float] = None, leadgen_id: str = "",
 ) -> Optional[ToolResult]:
