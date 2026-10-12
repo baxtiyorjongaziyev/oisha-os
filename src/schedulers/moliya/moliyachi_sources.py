@@ -3,8 +3,8 @@
 Hammasi faqat o'qiydi va faqat metadata oladi — xat matni, jadval qiymatlari
 saqlanmaydi. Sozlanmagan manba jim o'tkazib yuboriladi (bo'sh ro'yxat).
 
-* **Gmail** — IMAP (app password): ``MOLIYACHI_GMAIL_ADDRESS`` +
-  ``MOLIYACHI_GMAIL_APP_PASSWORD``. Kiruvchi (INBOX) va yuborilgan (Sent)
+* **Gmail** — IMAP, Google "App passwords" orqali. Sozlamalar: manzil va
+  ilova kaliti env o'zgaruvchilari (pastda, .env.example). Kiruvchi (INBOX) va yuborilgan (Sent)
   xatlar: vaqt, jo'natuvchi domeni, mavzu turi (hisob-faktura, to'lov, bank,
   soliq, akt...), ilova turi.
 * **Excel / Google Sheets** — Google Drive revision tarixi:
