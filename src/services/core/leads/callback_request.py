@@ -159,6 +159,16 @@ async def handle_callback_request(
         logger.warning("[CALLBACK REQUEST] Lid ochilmadi (%s): %s", phone, exc)
 
     try:
+        from src.services.core.leads import lead_source
+        category = lead_source.classify(tracking)
+        result["source"] = category
+        await asyncio.to_thread(lead_source.remember_visit, phone, tracking)
+        if result["lead_id"]:
+            await amocrm.add_lead_tag(int(result["lead_id"]), lead_source.tag_for(category))
+    except Exception as exc:
+        logger.warning("[CALLBACK REQUEST] Manba yozilmadi (%s): %s", phone, exc)
+
+    try:
         if is_quiet_hours(now):
             result["reason"] = "quiet_hours"
         else:

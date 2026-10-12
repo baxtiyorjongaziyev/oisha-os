@@ -287,7 +287,7 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
                 target_status_id,
                 pipeline_id=target_pipeline_id,
             )
-        tags = [TARGET_LEAD_TAG, "Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}"]
+        tags = [TARGET_LEAD_TAG, "Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}", "manba:reklama"]
         if existing_lead:
             tags.append("qayta_murojaat")
         if ad_name:
