@@ -116,3 +116,10 @@ def test_skill_includes_mail_and_excel():
     assert "Xat keladi: to'lov (bank.uz)" in doc
     assert "Jadval tahrirlaydi: Kassa.xlsx" in doc
     assert "Gmail'ga xat keldi → Excel/Sheets jadvalini tahrirladi" in doc
+
+
+def test_empty_username_env_falls_back_to_default(monkeypatch):
+    monkeypatch.setenv("MOLIYACHI_TELEGRAM_USERNAME", "")
+    monkeypatch.delenv("MOLIYACHI_TELEGRAM_ID", raising=False)
+    assert ms.moliyachi_username() == "jonbranding_finansist"
+    assert not ms.is_moliyachi(5, "someone_else")

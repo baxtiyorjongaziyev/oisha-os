@@ -54,7 +54,8 @@ def moliyachi_telegram_id() -> int:
 
 
 def moliyachi_username() -> str:
-    return os.getenv("MOLIYACHI_TELEGRAM_USERNAME", "jonbranding_finansist").strip().lstrip("@").lower()
+    raw = os.getenv("MOLIYACHI_TELEGRAM_USERNAME", "").strip() or "jonbranding_finansist"
+    return raw.lstrip("@").lower()
 
 
 def is_moliyachi(sender_id: int, username: str) -> bool:
