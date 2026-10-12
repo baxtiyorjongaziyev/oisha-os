@@ -5,8 +5,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import html
 import os
 import re
+import time
+from collections import defaultdict, deque
 from typing import Any, Dict, Optional
 import requests
 import structlog
@@ -130,16 +133,20 @@ def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: s
         quality = "Sifatli 💎"
 
     clean_reply = strip_bracket_tags(reply)
+    # Ism, xabar va AI javobi tashqi foydalanuvchidan keladi — HTML escape
+    # qilinmasa "<" (masalan "<3") xabarni buzadi (lid yo'qoladi) yoki
+    # <a href> orqali jamoa guruhiga phishing havola joylanadi.
+    esc = html.escape
 
     crm_msg = (
-        f"📱 <b>YANGI {source.upper()} LEAD!</b>\n"
+        f"📱 <b>YANGI {esc(source.upper())} LEAD!</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 <b>Foydalanuvchi:</b> {user_name}\n"
-        f"🆔 <b>ID:</b> <code>{user_id}</code>\n"
+        f"👤 <b>Foydalanuvchi:</b> {esc(str(user_name))}\n"
+        f"🆔 <b>ID:</b> <code>{esc(str(user_id))}</code>\n"
         f"💎 <b>Sifati:</b> {quality}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"💬 <b>Xabar:</b> <i>{message[:300]}</i>\n"
-        f"🤖 <b>Oisha Javobi:</b> <i>{clean_reply[:300]}</i>\n"
+        f"💬 <b>Xabar:</b> <i>{esc(message[:300])}</i>\n"
+        f"🤖 <b>Oisha Javobi:</b> <i>{esc(clean_reply[:300])}</i>\n"
     )
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -157,6 +164,38 @@ def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: s
             logger.error("[CRM] Failed to notify CRM", status_code=resp.status_code, body=resp.text)
     except Exception as exc:
         logger.error("[CRM] Exception in notify_crm", error=str(exc))
+
+
+_UNSAFE_PUBLIC_REPLY = re.compile(
+    r"https?://|www\.|t\.me/|\b[\w-]+\.(?:com|uz|ru|net|org|io|me|link|app)\b|@\w{3,}|\+?\d[\d\s-]{7,}",
+    re.IGNORECASE,
+)
+MAX_PUBLIC_REPLY_CHARS = 400
+AUTO_REPLY_LIMIT_PER_HOUR = 3
+_auto_reply_log: dict[str, deque] = defaultdict(deque)
+
+
+def is_safe_public_reply(text: str) -> bool:
+    """AI javobini brend nomidan ommaviy joylashdan oldin tekshiradi.
+
+    Izoh matni LLM'ga kiradi (prompt injection): hujumchi brend akkauntiga
+    havola, @mention yoki telefon raqami yozdirishi mumkin. Bunday javob
+    avtomatik joylanmaydi — jamoa CRM guruhida ko'rib chiqadi.
+    """
+    t = (text or "").strip()
+    return bool(t) and len(t) <= MAX_PUBLIC_REPLY_CHARS and not _UNSAFE_PUBLIC_REPLY.search(t)
+
+
+def allow_auto_reply(commenter_id: str, now: Optional[float] = None) -> bool:
+    """Bitta izohlovchiga soatiga ko'pi bilan AUTO_REPLY_LIMIT_PER_HOUR ta avto-javob."""
+    now = time.time() if now is None else now
+    log = _auto_reply_log[commenter_id]
+    while log and now - log[0] > 3600:
+        log.popleft()
+    if len(log) >= AUTO_REPLY_LIMIT_PER_HOUR:
+        return False
+    log.append(now)
+    return True
 
 
 async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> None:
@@ -359,9 +398,14 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                     await db.log_message(user_id_str, clean_reply, is_ai=True)
 
                 source = "Instagram Mention" if field in {"mentions", "mention"} else "Instagram Comment"
-                if is_quiet_hours(get_local_now()) or _contains_sensitive_terms(comment_text):
+                if (
+                    is_quiet_hours(get_local_now())
+                    or _contains_sensitive_terms(comment_text)
+                    or not is_safe_public_reply(clean_reply)
+                    or not allow_auto_reply(commenter_id)
+                ):
                     logger.warning(
-                        "[META] Auto-post skipped — quiet hours or sensitive terms, needs human review",
+                        "[META] Auto-post skipped — quiet hours, sensitive/unsafe text or rate limit; needs human review",
                         comment_id=comment_id,
                         commenter=commenter_name,
                     )

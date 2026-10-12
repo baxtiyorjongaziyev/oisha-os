@@ -181,6 +181,15 @@ async def backfill_unanswered_comments(
                     from src.services.core.instagram_agent import generate_comment_reply
                     ai_reply = await generate_comment_reply(text, caption, commenter_name)
                     clean = re.sub(r"\[.*?\]", "", ai_reply).strip()
+                from src.services.core.instagram_agent import is_safe_public_reply
+
+                if not is_safe_public_reply(clean):
+                    logger.warning(
+                        "[META] Backfill skipping auto-post — unsafe AI reply (link/mention/phone)",
+                        comment_id=comment_id,
+                    )
+                    summary["skipped"] += 1
+                    continue
                 if reply_to_comment_fn:
                     ok = await asyncio.to_thread(reply_to_comment_fn, comment_id, clean, token)
                 else:
