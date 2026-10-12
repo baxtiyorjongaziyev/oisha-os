@@ -45,3 +45,23 @@ def test_weekly_only_monday_once(monkeypatch, tmp_path):
     assert creative_report.send_weekly_if_due(dt.date(2026, 10, 12), send)
     assert not creative_report.send_weekly_if_due(dt.date(2026, 10, 12), send)
     assert len(sent) == 1
+
+
+def test_weekly_pdf_builds(monkeypatch, tmp_path):
+    from src.services.core.marketing import pdf_report
+
+    _setup(monkeypatch, tmp_path)
+    attribution_store.update_seller_info("a1", 7, "Rayxon", 1_791_000_000, 1_791_000_600)
+    path = pdf_report.weekly_pdf(dt.date(2026, 10, 12), tmp_path / "reports")
+    data = path.read_bytes()
+    assert data.startswith(b"%PDF") and len(data) > 1500
+
+
+def test_weekly_sends_pdf_after_text(monkeypatch, tmp_path):
+    _setup(monkeypatch, tmp_path)
+    sent = []
+    assert creative_report.send_weekly_if_due(
+        dt.date(2026, 10, 12), lambda t: sent.append("text") or True,
+        lambda p: sent.append(p.endswith(".pdf")) or True,
+    )
+    assert sent == ["text", True]

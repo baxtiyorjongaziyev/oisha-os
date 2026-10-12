@@ -18,6 +18,26 @@ logger = logging.getLogger("MarketingAttributionScheduler")
 _INTERVAL_SEC = int(os.getenv("META_ADS_SYNC_INTERVAL_SEC", "10800"))  # 3 soat
 
 
+def _send_tg_document(path: str, chat_id: int, topic_id: int | None) -> bool:
+    import requests
+
+    from src.schedulers.leadgen_status_reporter import _secret_text
+    from src.settings import settings
+
+    token = _secret_text(getattr(settings, "BOT_TOKEN", None)) or os.getenv("BOT_TOKEN", "").strip()
+    if not token:
+        return False
+    data = {"chat_id": chat_id, "caption": "📄 Haftalik marketing hisoboti"}
+    if topic_id is not None:
+        data["message_thread_id"] = topic_id
+    with open(path, "rb") as fh:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/sendDocument", data=data,
+            files={"document": (os.path.basename(path), fh, "application/pdf")}, timeout=60,
+        )
+    return resp.status_code == 200
+
+
 async def marketing_attribution_loop() -> None:
     logger.info("[ADS ATTRIBUTION] Loop started (interval=%ds)", _INTERVAL_SEC)
     await asyncio.sleep(15)
@@ -47,6 +67,7 @@ async def marketing_attribution_loop() -> None:
             await asyncio.to_thread(
                 send_weekly_if_due, get_local_now().date(),
                 lambda text: _send_tg_message(text, chat_id, topic_id),
+                lambda path: _send_tg_document(path, chat_id, topic_id),
             )
         except asyncio.CancelledError:
             raise

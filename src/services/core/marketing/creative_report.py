@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 from src.services.core.marketing import ad_spend_store, attribution_store
 from src.services.core.marketing.meta_capi_triggers import _qualified_status_ids
@@ -65,8 +65,10 @@ def format_report(start: str, end: str, rows: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def send_weekly_if_due(today: dt.date, send: Callable[[str], bool]) -> bool:
-    """Dushanba kuni o'tgan 7 kun hisobotini bir marta yuboradi."""
+def send_weekly_if_due(
+    today: dt.date, send: Callable[[str], bool], send_pdf: Optional[Callable[[str], bool]] = None,
+) -> bool:
+    """Dushanba kuni o'tgan 7 kun hisobotini (va PDF'ni) bir marta yuboradi."""
     if today.weekday() != 0:
         return False
     week = today.isoformat()
@@ -79,6 +81,13 @@ def send_weekly_if_due(today: dt.date, send: Callable[[str], bool]) -> bool:
         text = format_report(start, end, build_rows(start, end))
         if not text or not send(text):
             return False
+        if send_pdf is not None:
+            try:
+                from src.services.core.marketing.pdf_report import weekly_pdf
+                path = weekly_pdf(today, ad_spend_store._DB_PATH.parent / "reports")
+                send_pdf(str(path))
+            except Exception as exc:  # PDF yiqilsa ham matnli hisobot yuborilgan
+                logger.warning("[CREATIVE REPORT] PDF yuborilmadi: %s", exc)
         conn.execute("INSERT INTO creative_reports_sent VALUES (?)", (week,))
         conn.commit()
     logger.info("[CREATIVE REPORT] Haftalik hisobot yuborildi (%s)", week)
