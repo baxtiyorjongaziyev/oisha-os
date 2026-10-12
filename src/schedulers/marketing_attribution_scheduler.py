@@ -43,6 +43,11 @@ async def marketing_attribution_loop() -> None:
             await asyncio.to_thread(
                 check_and_alert, yesterday, lambda text: _send_tg_message(text, chat_id, topic_id),
             )
+            from src.services.core.marketing.creative_report import send_weekly_if_due
+            await asyncio.to_thread(
+                send_weekly_if_due, get_local_now().date(),
+                lambda text: _send_tg_message(text, chat_id, topic_id),
+            )
         except asyncio.CancelledError:
             raise
         except Exception as exc:

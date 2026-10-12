@@ -244,3 +244,26 @@ def aggregate_by_campaign(start_date: str, end_date: str) -> Dict[str, Dict[str,
         else:
             bucket["open"] += 1
     return out
+
+
+def aggregate_by_ad(start_date: str, end_date: str, qualified_status_ids: set) -> Dict[str, Dict[str, Any]]:
+    """Reklama (ad_id) bo'yicha CRM natijasi: lid, sifatli lid, sotuv, daromad."""
+    with _connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT ad_id, status_id, lead_won, lead_price FROM lead_attribution
+            WHERE ad_id != '' AND date(created_at) >= date(?) AND date(created_at) <= date(?)
+            """,
+            (start_date, end_date),
+        ).fetchall()
+    out: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        b = out.setdefault(str(r["ad_id"]), {"crm_leads": 0, "qualified": 0, "won": 0, "revenue": 0.0})
+        b["crm_leads"] += 1
+        if r["lead_won"] == 1:
+            b["won"] += 1
+            b["qualified"] += 1
+            b["revenue"] += float(r["lead_price"] or 0)
+        elif r["status_id"] in qualified_status_ids:
+            b["qualified"] += 1
+    return out
