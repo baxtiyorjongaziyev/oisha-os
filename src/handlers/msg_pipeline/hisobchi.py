@@ -73,11 +73,15 @@ async def process_hisobchi(
             # Airtable form. Nothing below writes a transaction while this
             # flag is off — only count finance-group traffic for the daily
             # kuzatuv report (schedulers/moliya/kuzatuv.py), never reply.
-            finance_group_id, _, _ = _get_finance_config()
+            finance_group_id, kirim_topic, chiqim_topic = _get_finance_config()
             if finance_group_id is not None and event.chat_id == finance_group_id and not event.out:
                 from src.schedulers.moliya.kuzatuv import record_observation
+                from src.schedulers.moliya.moliyachi_skill import observe_finance_message
 
                 await record_observation(has_photo=bool(getattr(event.message, "photo", None)))
+                await observe_finance_message(
+                    event, kirim_topic_id=kirim_topic, chiqim_topic_id=chiqim_topic
+                )
             return False
 
         # Card bot messages handling

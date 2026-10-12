@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 
 from src.schedulers.moliya.balans import run_balans_eslatmasi, run_balans_report
 from src.schedulers.moliya.cashflow import run_cashflow_report
@@ -17,7 +18,14 @@ from src.schedulers.moliya.kuzatuv import run_kuzatuv_report
 from src.schedulers.moliya.pnl import run_pnl_report
 from src.schedulers.moliya.qarzdorlik import run_qarzdorlik_report
 
+from src.schedulers.moliya.moliyachi_skill import run_skill_update
+
 logger = logging.getLogger(__name__)
+
+
+def hisobchi_active() -> bool:
+    """HISOBCHI_ACTIVE=1 bo'lmasa guruhga hisobot/eslatma yuborilmaydi (default: to'xtatilgan)."""
+    return os.getenv("HISOBCHI_ACTIVE", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 async def moliya_hisobotlari_loop() -> None:
@@ -31,6 +39,22 @@ async def moliya_hisobotlari_loop() -> None:
         try:
             now = get_local_now()
             day = now.strftime("%Y-%m-%d")
+
+            # Moliyachi ish tartibini o'rganish — har kuni 21:10 profil,
+            # yakshanba skill hujjati egasiga yuboriladi.
+            if now.hour == 21 and 10 <= now.minute < 15:
+                await run_once_per_day(
+                    "moliyachi_skill", day,
+                    lambda: run_skill_update(now, send=now.weekday() == 6),
+                )
+
+            if not hisobchi_active():
+                # Hisobchi to'xtatilgan: guruhga hisobot/eslatma yuborilmaydi,
+                # faqat egasiga kuzatuv (21:00) va skill (21:10).
+                if now.hour == 21 and now.minute < 5:
+                    await run_once_per_day("moliya_kuzatuv", day, lambda: run_kuzatuv_report(now))
+                await asyncio.sleep(60)
+                continue
 
             # Qarzdorlik — dushanba 09:00
             if now.weekday() == 0 and now.hour == 9 and now.minute < 5:
