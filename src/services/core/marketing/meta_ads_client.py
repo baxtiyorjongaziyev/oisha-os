@@ -14,6 +14,7 @@ import requests
 import structlog
 
 from src.settings import settings
+from src.services.core.instagram.graph_version import graph_api_version
 
 logger = structlog.get_logger("MetaAdsClient")
 
@@ -39,7 +40,7 @@ class MetaAdsClient:
             or getattr(self.settings, "META_AD_ACCOUNT_ID", None)
             or ""
         )
-        self.api_version = os.environ.get("META_GRAPH_API_VERSION", "").strip() or "v19.0"
+        self.api_version = graph_api_version()
 
     @property
     def access_token(self) -> str:

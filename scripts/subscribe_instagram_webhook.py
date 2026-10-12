@@ -14,7 +14,7 @@ if sys.platform == "win32":
 
 
 def check_subscription(page_id: str, token: str):
-    url = f"https://graph.facebook.com/v19.0/{page_id}/subscribed_apps"
+    url = f"https://graph.facebook.com/v25.0/{page_id}/subscribed_apps"
     try:
         res = httpx.get(url, params={"access_token": token}, timeout=20.0)
         print(f"GET {url} -> Status: {res.status_code}")
@@ -24,7 +24,7 @@ def check_subscription(page_id: str, token: str):
 
 
 def subscribe(page_id: str, token: str, fields: str = "feed,conversations,messages,comments,mentions"):
-    url = f"https://graph.facebook.com/v19.0/{page_id}/subscribed_apps"
+    url = f"https://graph.facebook.com/v25.0/{page_id}/subscribed_apps"
     params = {
         "subscribed_fields": fields,
         "access_token": token,

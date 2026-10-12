@@ -350,8 +350,13 @@ async def handle_aiogram_set_mode(
         await message.answer(f"❌ Xato: {e}")
 
 
-async def handle_aiogram_kreativlar(message: Any) -> None:
+async def handle_aiogram_kreativlar(message: Any, *, is_admin: Callable[[int], bool]) -> None:
     """Handle /kreativ or /creative command to display active creatives with preview buttons."""
+    sender_id = int(getattr(getattr(message, "from_user", None), "id", 0) or 0)
+    if not is_admin(sender_id):
+        return
+    import html
+
     from src.schedulers.leadgen_status_reporter import _resolve_ad_url, get_creative_summary
 
     summary = get_creative_summary(hours=24 * 30)
@@ -363,7 +368,7 @@ async def handle_aiogram_kreativlar(message: Any) -> None:
     buttons = []
     for c_name, count, pct, ad_id in summary:
         url = _resolve_ad_url(ad_id)
-        lines.append(f"• <b>{c_name}</b>: {count} ta lid ({pct}%)")
+        lines.append(f"• <b>{html.escape(str(c_name))}</b>: {count} ta lid ({pct}%)")
         if url:
             buttons.append([{"text": f"🎬 {c_name} videoni ko'rish", "url": url}])
 

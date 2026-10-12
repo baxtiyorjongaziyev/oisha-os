@@ -11,6 +11,7 @@ import httpx
 from aiogram import F
 
 from src.services.core.airtable_config import airtable_request_headers
+from src.services.core.telegram.callback_auth import is_trusted_finance_callback
 from src.settings import settings
 from src.time_utils import get_local_now
 
@@ -83,6 +84,13 @@ def register_airtable_approval_callbacks(dispatcher: Any) -> None:
     @dispatcher.callback_query(F.data.startswith(("at_app:", "at_rej:")))
     async def _airtable_approval_callback(callback: Any) -> None:
         data = str(getattr(callback, "data", "") or "")
+        if not is_trusted_finance_callback(callback):
+            logger.warning(
+                "[AIRTABLE APPROVAL] Callback rejected: user=%s",
+                getattr(getattr(callback, "from_user", None), "id", None),
+            )
+            await callback.answer("⚠️ Ruxsat yo'q.", show_alert=True)
+            return
         parts = data.split(":", 1)
         if len(parts) != 2:
             await callback.answer("⚠️ Noto'g'ri so'rov formati.")
