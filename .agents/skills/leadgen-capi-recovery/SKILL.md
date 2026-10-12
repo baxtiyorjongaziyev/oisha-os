@@ -30,6 +30,8 @@ disabled configuration, legacy claims, retry backoff and bounded parallel dispat
 Check that router channels finish while CAPI waits and the checkpoint survives.
 Run tests/test_meta_capi.py and every tests/*leadgen*.py, then full pytest and Bandit
 as required by AGENTS.md. Local tests do not prove live Meta delivery.
+Keep this skill identical in .claude/skills and .agents/skills; after skill edits,
+run `python scripts/sync_agent_skills.py --check` and tests/test_agent_skills_sync.py.
 
 Verified 2026-10-12 by tests/test_leadgen_capi_recovery.py and focused suites.
 Implementation: src/services/core/instagram/leadgen_capi.py and leadgen_capi_outbox.py.
