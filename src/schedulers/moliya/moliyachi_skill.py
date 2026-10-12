@@ -40,6 +40,9 @@ ACTION_LABELS = {
     "at_kirim": "Airtable'ga KIRIM kiritdi",
     "at_chiqim": "Airtable'ga CHIQIM kiritdi",
     "at_other": "Airtable'ga boshqa yozuv kiritdi",
+    "gm_in": "Gmail'ga xat keldi",
+    "gm_out": "Gmail'dan xat yubordi",
+    "xl_edit": "Excel/Sheets jadvalini tahrirladi",
 }
 
 
@@ -48,6 +51,21 @@ def moliyachi_telegram_id() -> int:
         return int(os.getenv("MOLIYACHI_TELEGRAM_ID", "0") or 0)
     except ValueError:
         return 0
+
+
+def moliyachi_username() -> str:
+    return os.getenv("MOLIYACHI_TELEGRAM_USERNAME", "jonbranding_finansist").strip().lstrip("@").lower()
+
+
+def is_moliyachi(sender_id: int, username: str) -> bool:
+    """ID yoki username mos kelsa — moliyachi. Ikkalasi ham bo'sh bo'lsa hammasi."""
+    expected_id = moliyachi_telegram_id()
+    expected_name = moliyachi_username()
+    if not expected_id and not expected_name:
+        return True
+    if expected_id and int(sender_id or 0) == expected_id:
+        return True
+    return bool(expected_name) and (username or "").lstrip("@").lower() == expected_name
 
 
 def classify_message(message: Any) -> str:
@@ -80,10 +98,13 @@ async def record_activity(
         logger.warning("[MOLIYACHI] Harakat yozilmadi", exc_info=True)
 
 
-async def observe_finance_message(event: Any, *, kirim_topic_id: Any, chiqim_topic_id: Any) -> None:
+async def observe_finance_message(
+    event: Any, *, kirim_topic_id: Any, chiqim_topic_id: Any, sender: Any = None
+) -> None:
     """Moliya guruhidagi xabarni moliyachi harakati sifatida qayd etadi."""
-    expected = moliyachi_telegram_id()
-    if expected and int(getattr(event, "sender_id", 0) or 0) != expected:
+    if not is_moliyachi(
+        int(getattr(event, "sender_id", 0) or 0), str(getattr(sender, "username", "") or "")
+    ):
         return
     from src.time_utils import get_local_now
 
@@ -150,8 +171,14 @@ def update_profile(profile: Optional[dict], day: str, events: list[dict]) -> dic
     gaps = Counter(p.get("gaps", {}))
     at_total = int(p.get("at_total", 0))
     at_hujjat = int(p.get("at_hujjat", 0))
+    mail = Counter(p.get("mail", {}))
+    files = Counter(p.get("files", {}))
 
     for e in events:
+        if e["a"] in ("gm_in", "gm_out"):
+            mail[f"{e['a']}|{e.get('kind', 'boshqa')}|{e.get('domain', '')}"] += 1
+        if e["a"] == "xl_edit":
+            files[e.get("file", "?")] += 1
         hours[e["t"][:2]] += 1
         actions[e["a"]] += 1
         if e["a"].startswith("at_"):
@@ -173,6 +200,8 @@ def update_profile(profile: Optional[dict], day: str, events: list[dict]) -> dic
         gaps=dict(gaps),
         at_total=at_total,
         at_hujjat=at_hujjat,
+        mail=dict(mail),
+        files=dict(files),
         last_day_timeline=[f"{e['t']} {ACTION_LABELS.get(e['a'], e['a'])}" for e in events][:40],
     )
     return p
@@ -242,9 +271,22 @@ def render_skill(profile: dict, rules: dict[str, dict], nomlar: Optional[dict] =
         lines.append("- Ma'lumot yo'q")
     lines.append("")
 
+    lines.append("## 5. Gmail va Excel")
+    mail = Counter(profile.get("mail", {}))
+    for key, c in mail.most_common(8):
+        direction, kind, domain = (key.split("|") + ["", ""])[:3]
+        verb = "keladi" if direction == "gm_in" else "yuboradi"
+        lines.append(f"- Xat {verb}: {kind}" + (f" ({domain})" if domain else "") + f" — {c} marta")
+    files = Counter(profile.get("files", {}))
+    for name, c in files.most_common(5):
+        lines.append(f"- Jadval tahrirlaydi: {name} — {c} marta")
+    if not mail and not files:
+        lines.append("- Ma'lumot yo'q (Gmail/Sheets sozlanmagan yoki faollik yo'q)")
+    lines.append("")
+
     timeline = profile.get("last_day_timeline") or []
     if timeline:
-        lines.append(f"## 5. Oxirgi kuzatilgan kun ({days[-1] if days else ''})")
+        lines.append(f"## 6. Oxirgi kuzatilgan kun ({days[-1] if days else ''})")
         lines.extend(f"- {t}" for t in timeline)
     return "\n".join(lines) + "\n"
 
@@ -258,8 +300,11 @@ async def run_skill_update(now: datetime, *, send: bool = False) -> bool:
     day = now.strftime("%Y-%m-%d")
     db = get_db()
     records = await read_table("Tranzaksiyalar")
+    from src.schedulers.moliya.moliyachi_sources import gmail_events, sheet_events
+
     tg = await db.get_state(ACTIVITY_PREFIX + day, []) or []
-    events = merge_day(tg, airtable_events(records, day))
+    extra = [*await gmail_events(now), *await sheet_events(now)]
+    events = merge_day([*tg, *extra], airtable_events(records, day))
     profile = update_profile(await db.get_state(PROFILE_KEY, {}) or {}, day, events)
     await db.set_state(PROFILE_KEY, profile)
     if not send:

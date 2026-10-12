@@ -80,7 +80,7 @@ async def process_hisobchi(
 
                 await record_observation(has_photo=bool(getattr(event.message, "photo", None)))
                 await observe_finance_message(
-                    event, kirim_topic_id=kirim_topic, chiqim_topic_id=chiqim_topic
+                    event, kirim_topic_id=kirim_topic, chiqim_topic_id=chiqim_topic, sender=sender
                 )
             return False
 
