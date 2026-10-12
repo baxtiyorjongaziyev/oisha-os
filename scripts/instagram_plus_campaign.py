@@ -23,7 +23,7 @@ from typing import Callable, Dict, Iterable, List, Optional
 
 import requests
 
-GRAPH = "https://graph.facebook.com/v19.0"
+GRAPH = "https://graph.facebook.com/v25.0"
 CONFIRM_TEXT = "YUBORISH"
 PRIVATE_REPLY_WINDOW = timedelta(days=7)
 

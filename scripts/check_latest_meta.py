@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv('/home/ubuntu/oisha-os/.env')
 token = os.getenv('META_PAGE_ACCESS_TOKEN', '')
 for form_id in ['1973180183373812', '24790817803944095']:
-    url = f'https://graph.facebook.com/v19.0/{form_id}/leads'
+    url = f'https://graph.facebook.com/v25.0/{form_id}/leads'
     r = requests.get(url, params={'access_token': token, 'fields': 'created_time,id', 'limit': 3}).json()
     print(f'Form {form_id}:', r.get('data', []))
 " """

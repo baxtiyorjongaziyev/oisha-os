@@ -28,7 +28,7 @@ from src.services.core.instagram.api_helpers import like_comment, reply_to_comme
 from src.services.core.instagram_agent import generate_comment_reply
 
 def fetch_all_media():
-    url = f"https://graph.facebook.com/v19.0/{own_id}/media"
+    url = f"https://graph.facebook.com/v25.0/{own_id}/media"
     params = {
         "fields": "id,caption,permalink,timestamp,comments_count",
         "limit": 100,
@@ -48,7 +48,7 @@ def fetch_all_media():
     return all_items
 
 def fetch_media_comments(media_id):
-    url = f"https://graph.facebook.com/v19.0/{media_id}/comments"
+    url = f"https://graph.facebook.com/v25.0/{media_id}/comments"
     params = {
         "fields": "id,text,from,timestamp,like_count,replies{id,from,text,timestamp}",
         "limit": 50,
