@@ -9,6 +9,7 @@ Ikkalasi ham `MarketingAttributionService.get_performance_data()` uchun manba.
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import os
 
@@ -29,6 +30,23 @@ async def marketing_attribution_loop() -> None:
             raise
         except Exception as exc:
             logger.error("[ADS ATTRIBUTION] Spend sync xatosi: %s", exc, exc_info=True)
+
+        try:
+            from src.schedulers.leadgen_status_reporter import _send_tg_message
+            from src.services.core.marketing.cpl_monitor import check_and_alert
+            from src.settings import settings
+            from src.time_utils import get_local_now
+
+            chat_id = getattr(settings, "MARKETING_REPORT_CHAT_ID", None) or -1003608624065
+            topic_id = getattr(settings, "MARKETING_REPORT_TOPIC_ID", None) or 42
+            yesterday = (get_local_now().date() - datetime.timedelta(days=1)).isoformat()
+            await asyncio.to_thread(
+                check_and_alert, yesterday, lambda text: _send_tg_message(text, chat_id, topic_id),
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("[ADS ATTRIBUTION] CPL monitor xatosi: %s", exc, exc_info=True)
 
         try:
             from src.services.core.instagram.leadgen_router import _amocrm_instance
