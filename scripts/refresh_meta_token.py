@@ -33,7 +33,7 @@ from pathlib import Path
 
 import requests
 
-GRAPH = "https://graph.facebook.com/v19.0"
+GRAPH = "https://graph.facebook.com/v25.0"
 
 _CANDIDATE_ENV_PATHS = (
     Path("/home/baxti/oisha-os/.env"),

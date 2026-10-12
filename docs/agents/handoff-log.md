@@ -1362,3 +1362,9 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
   5. Breaking o'zgarishga ega bo'lgan mcp 2.x (#852) FastMCP migratsiyasigacha `mcp<2` ga qat'iy pin qilindi.
 - Tekshiruv: `pnpm install --frozen-lockfile` (salescoach-ai & marketing-os/frontend) muvaffaqiyatli o'tdi; Jest testlari (7/7 passed), marketing frontend build (170ms) va oxlint (0 errors) toza. CodeQL: 0 alert, Secrets: 0 alert.
 - Status: Barcha xavfsizlik va ziddiyatlar to'liq bartaraf etildi.
+
+### 2026-10-12 — Claude Code: Meta Graph API v19.0 → v25.0
+- Sabab: meta_health_check ogohlantirdi — v19.0 so'ralgan, Meta v25.0 bilan javob bergan (v19.0 eskirgan, Meta avtomatik ko'targan).
+- Ish: `src/services/core/instagram/graph_version.py` (yagona manba, DEFAULT `v25.0`, `META_GRAPH_API_VERSION` env override). Hardcode qilingan `v19.0` URL'lar (api_helpers, backfill, real_scraper, video_analyzer, meta_webhook, instagram_weekly_report) va graph_client/meta_ads_client default'lari shu helperga ulandi. scripts/, marketing-os, .env.example, docs literal yangilandi.
+- Tekshiruv: `SKIP_LIVE=1 pytest -q` → 2653 passed; `bandit -r src/ -ll -x src/services/debug/` → toza.
+- Qolgan ish: leadgen fayllari (leadgen_router, leadgen_watchdog, meta_leadgen_scheduler, leadgen_reconciliation) Codex lock ostida — default hali `v19.0`, lekin env'dan o'qiydi. Oracle VM `.env` da `META_GRAPH_API_VERSION=v25.0` qo'yilishi kerak (Owner).

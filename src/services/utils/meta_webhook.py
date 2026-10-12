@@ -33,6 +33,7 @@ import re
 # Bot modullari
 import src.config as config
 from src.database import Database
+from src.services.core.instagram.graph_version import graph_base
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -71,7 +72,7 @@ def send_ig_reply(recipient_id: str, text: str):
         logger.warning("[META] PAGE_ACCESS_TOKEN yo'q, javob yuborilmadi")
         return False
 
-    url = "https://graph.facebook.com/v19.0/me/messages"
+    url = f"{graph_base()}/me/messages"
     payload = {"recipient": {"id": recipient_id}, "message": {"text": text}}
     headers = {"Content-Type": "application/json"}
     params = {"access_token": config.META_PAGE_ACCESS_TOKEN}
@@ -96,7 +97,7 @@ def reply_to_comment(comment_id: str, text: str):
     if not config.META_PAGE_ACCESS_TOKEN:
         return False
 
-    url = f"https://graph.facebook.com/v19.0/{comment_id}/replies"
+    url = f"{graph_base()}/{comment_id}/replies"
     params = {"message": text, "access_token": config.META_PAGE_ACCESS_TOKEN}
     try:
         resp = requests.post(url, params=params, timeout=10)

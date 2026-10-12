@@ -8,6 +8,7 @@ from typing import Optional
 
 import httpx
 
+from src.services.core.instagram.graph_version import graph_base
 from src.services.core.instagram.models import InstagramProfile
 from src.services.core.uzbek_entrepreneurs_scraper import (
     ScrapedEntrepreneur,
@@ -94,7 +95,7 @@ class InstagramScraperReal(UzbekEntrepreneurScraper):
                 logger.error("[INSTAGRAM] Could not get hashtag ID for: %s", hashtag)
                 return []
 
-            url = f"https://graph.facebook.com/v19.0/{hashtag_id}/recent_media"
+            url = f"{graph_base()}/{hashtag_id}/recent_media"
 
             params = {
                 "user_id": "me",
@@ -127,7 +128,7 @@ class InstagramScraperReal(UzbekEntrepreneurScraper):
     async def _get_hashtag_id(self, hashtag: str) -> Optional[str]:
         """Get Instagram hashtag ID from hashtag name."""
         try:
-            url = "https://graph.facebook.com/v19.0/ig_hashtag_search"
+            url = f"{graph_base()}/ig_hashtag_search"
 
             params = {
                 "user_id": "me",
@@ -154,7 +155,7 @@ class InstagramScraperReal(UzbekEntrepreneurScraper):
     async def _get_user_profile(self, user_id: str) -> Optional[InstagramProfile]:
         """Get Instagram user profile by ID."""
         try:
-            url = f"https://graph.facebook.com/v19.0/{user_id}"
+            url = f"{graph_base()}/{user_id}"
 
             params = {
                 "fields": "username,biography,followers_count,follows_count,media_count,profile_picture_url,is_business_account,category,phone,email",

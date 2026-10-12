@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from pydantic import SecretStr
 
 from src.services.core.instagram_agent import InstagramGraphClient
+from src.services.core.instagram.graph_version import DEFAULT_GRAPH_API_VERSION
 
 
 class _Response:
@@ -35,13 +36,14 @@ def test_profile_request_is_read_only_and_does_not_return_token(monkeypatch):
         return _Response({"id": "ig_123", "username": "baxtiyorjongaziyev"})
 
     monkeypatch.setattr("src.services.core.instagram.graph_client.requests.get", fake_get)
+    monkeypatch.delenv("META_GRAPH_API_VERSION", raising=False)
     client = InstagramGraphClient(_settings())
 
     result = client.get_profile()
 
     assert result["ok"] is True
     assert result["username"] == "baxtiyorjongaziyev"
-    assert seen["url"].endswith("/v19.0/ig_123")
+    assert seen["url"].endswith(f"/{DEFAULT_GRAPH_API_VERSION}/ig_123")
     assert seen["params"]["access_token"] == "test-token"
     assert "test-token" not in str(result)
 

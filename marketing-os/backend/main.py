@@ -65,7 +65,7 @@ async def login():
     save_oauth_state(state, ttl_seconds=600)
 
     oauth_url = (
-        f"https://www.facebook.com/v19.0/dialog/oauth?"
+        f"https://www.facebook.com/v25.0/dialog/oauth?"
         f"client_id={META_APP_ID}&"
         f"redirect_uri={REDIRECT_URI}&"
         f"state={state}&"
@@ -88,7 +88,7 @@ async def callback(code: Optional[str] = None, state: Optional[str] = None, erro
 
     # Exchange code for access token
     async with httpx.AsyncClient() as client:
-        token_url = "https://graph.facebook.com/v19.0/oauth/access_token"
+        token_url = "https://graph.facebook.com/v25.0/oauth/access_token"
         params = {
             "client_id": META_APP_ID,
             "redirect_uri": REDIRECT_URI,

@@ -23,7 +23,7 @@ if not token:
 print(f"[AUDIT START] Instagram User ID: {own_id}")
 
 def fetch_all_media():
-    url = f"https://graph.facebook.com/v19.0/{own_id}/media"
+    url = f"https://graph.facebook.com/v25.0/{own_id}/media"
     params = {
         "fields": "id,caption,permalink,timestamp,comments_count",
         "limit": 100,
@@ -43,7 +43,7 @@ def fetch_all_media():
     return all_items
 
 def fetch_media_comments(media_id):
-    url = f"https://graph.facebook.com/v19.0/{media_id}/comments"
+    url = f"https://graph.facebook.com/v25.0/{media_id}/comments"
     params = {
         "fields": "id,text,from,timestamp,like_count,replies{id,from,text,timestamp}",
         "limit": 50,

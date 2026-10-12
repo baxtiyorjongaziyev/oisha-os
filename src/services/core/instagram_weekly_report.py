@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from src.settings import settings
+from src.services.core.instagram.graph_version import graph_base
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,6 @@ class InstagramPostInsight:
 class InstagramWeeklyReportAgent:
     """Fetches Instagram insights, stores optional snapshots, and writes a report."""
 
-    GRAPH_BASE = "https://graph.facebook.com/v19.0"
 
     def __init__(self, settings_obj: Any = settings):
         self.settings = settings_obj
@@ -79,7 +79,7 @@ class InstagramWeeklyReportAgent:
         until_dt = datetime.now(timezone.utc)
         since_dt = until_dt - timedelta(days=days)
         media = await self._get_json(
-            f"{self.GRAPH_BASE}/{ig_user_id}/media",
+            f"{graph_base()}/{ig_user_id}/media",
             {
                 "fields": "id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count",
                 "since": int(since_dt.timestamp()),
@@ -107,7 +107,7 @@ class InstagramWeeklyReportAgent:
         for metrics in metric_sets:
             try:
                 data = await self._get_json(
-                    f"{self.GRAPH_BASE}/{media_id}/insights",
+                    f"{graph_base()}/{media_id}/insights",
                     {"metric": metrics, "access_token": access_token},
                 )
             except Exception as exc:

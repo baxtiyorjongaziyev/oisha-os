@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import requests
 import structlog
+from src.services.core.instagram.graph_version import graph_base
 
 logger = structlog.get_logger("InstagramAPIHelpers")
 
@@ -11,7 +12,7 @@ def send_ig_message_payload(recipient_payload: dict, text: str, access_token: st
     if not access_token or not recipient_payload:
         logger.warning("[META] %s skipped: access_token or recipient missing", log_tag)
         return False
-    url = "https://graph.facebook.com/v19.0/me/messages"
+    url = f"{graph_base()}/me/messages"
     try:
         resp = requests.post(
             url,
@@ -35,7 +36,7 @@ def like_comment(comment_id: str, access_token: str) -> bool:
         logger.warning("[META] PAGE_ACCESS_TOKEN not set, comment like not sent")
         return False
 
-    url = f"https://graph.facebook.com/v19.0/{comment_id}/likes"
+    url = f"{graph_base()}/{comment_id}/likes"
     params = {"access_token": access_token}
 
     try:
@@ -56,7 +57,7 @@ def reply_to_comment(comment_id: str, text: str, access_token: str) -> bool:
         logger.warning("[META] PAGE_ACCESS_TOKEN not set, comment reply not sent")
         return False
 
-    url = f"https://graph.facebook.com/v19.0/{comment_id}/replies"
+    url = f"{graph_base()}/{comment_id}/replies"
     params = {
         "message": text,
         "access_token": access_token,
@@ -78,7 +79,7 @@ def fetch_media_caption(media_id: str, access_token: str) -> str:
     """Fetches the caption of the post a comment belongs to (for reply context)."""
     if not media_id or not access_token:
         return ""
-    url = f"https://graph.facebook.com/v19.0/{media_id}"
+    url = f"{graph_base()}/{media_id}"
     params = {"fields": "caption", "access_token": access_token}
     try:
         resp = requests.get(url, params=params, timeout=10)
