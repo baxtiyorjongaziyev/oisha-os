@@ -114,6 +114,27 @@ async def drain_dispatch():
 
 
 @pytest.mark.asyncio
+async def test_stale_legacy_snapshot_cannot_requeue_completed_dispatch(monkeypatch, isolated):
+    from src.services.core.instagram import leadgen_capi as capi
+    from src.services.core.instagram import leadgen_capi_outbox as outbox
+    delivery.save_crm_checkpoint("123", 77, queue_capi=True)
+    monkeypatch.setattr(meta_capi, "_post_events", lambda *args: {
+        "ok": True, "response": {"events_received": 1},
+    })
+
+    async def stale_snapshot(limit):
+        await asyncio.gather(*list(capi._in_flight.values()))
+        assert outbox.pending() == []
+        return [{"leadgen_id": "123", "lead_id": 77}]
+
+    monkeypatch.setattr(capi, "_legacy_failed_events", stale_snapshot)
+    capi.schedule_capi_recovery()
+    await drain_dispatch()
+    assert await meta_capi_store.get_event_status("123", "Lead") == "sent"
+    assert outbox.pending() == []
+
+
+@pytest.mark.asyncio
 async def test_failure_then_watchdog_retry_does_not_redeliver_channels(monkeypatch, isolated):
     from src.services.core.instagram import leadgen_capi as capi, leadgen_watchdog as watchdog
     from src.services.core.instagram import leadgen_router as router

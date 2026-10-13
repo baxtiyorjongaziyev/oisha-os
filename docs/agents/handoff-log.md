@@ -1436,3 +1436,7 @@ User explicitly requested commit/push/PR/merge completion. Publication/deploy st
 - Fayllar: src/static/callback-widget.js, src/api/routes/callback_widget.py, src/services/core/leads/callback_request.py, tests/test_callback_request.py
 - Tekshiruv: tests/test_callback_request.py 27 passed; bandit 0 issue.
 - Qolgan ish: real brauzer/agentda sinash, ROI uchun AmoCRM'da WebMCP lidlarini sanash.
+
+
+### 2026-10-13 - PR #869 CI follow-up
+Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed during the same recovery scan. Added a dispatched-ID snapshot guard and deterministic regression asserting the accepted event stays out of the outbox. No retry/backoff assertions were removed. Full release checks rerun before publication.
