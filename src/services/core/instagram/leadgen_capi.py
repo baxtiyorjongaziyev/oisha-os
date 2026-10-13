@@ -71,12 +71,15 @@ async def _legacy_failed_events(limit: int) -> list[dict]:
 async def _recover() -> None:
     try:
         rows = await asyncio.to_thread(outbox.pending, _MAX_IN_FLIGHT)
+        dispatched = set(_in_flight) | {row["leadgen_id"] for row in rows}
         for row in rows:
             schedule_lead_event(row["leadgen_id"], row["lead_id"])
         slots = _MAX_IN_FLIGHT - len(_in_flight)
         if slots <= 0:
             return
         for row in await _legacy_failed_events(20):
+            if row["leadgen_id"] in dispatched:
+                continue
             await asyncio.to_thread(outbox.enqueue, row["leadgen_id"], row["lead_id"])
     except Exception as exc:
         logger.warning("[META CAPI] Recovery scan failed: %s", type(exc).__name__)

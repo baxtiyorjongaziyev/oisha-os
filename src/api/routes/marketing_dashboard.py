@@ -6,7 +6,8 @@ Oisha-OS v5.0 - /api/marketing/
 from fastapi import APIRouter, HTTPException, Query
 from src.api.rbac import Permission, require_permissions
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import timedelta
+from src.time_utils import get_local_now
 
 from src.services.core.marketing_attribution import MarketingAttributionService
 
@@ -29,12 +30,14 @@ async def get_marketing_performance(
     orqali muntazam sinxronlanadi) — Meta/AmoCRM'ga to'g'ridan-to'g'ri so'rov yubormaydi.
     """
     if not start_date:
-        start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        start_date = (get_local_now() - timedelta(days=30)).strftime("%Y-%m-%d")
     if not end_date:
-        end_date = datetime.now().strftime("%Y-%m-%d")
+        end_date = get_local_now().strftime("%Y-%m-%d")
         
     service = MarketingAttributionService(amocrm_sync=None) # Pass amocrm when available
     try:
         return service.get_performance_data(start_date=start_date, end_date=end_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Invalid date range; use YYYY-MM-DD and start <= end") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import datetime as dt
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 
 from fpdf import FPDF
 
-from src.services.core.marketing import ad_spend_store, attribution_store, creative_report
+from src.services.core.marketing import attribution_store, creative_report
 from src.services.core.marketing.seller_metrics import aggregate as seller_aggregate
+from src.services.core.marketing_attribution import MarketingAttributionService
 
 _FONT_DIRS = (Path("/usr/share/fonts/truetype/dejavu"), Path("C:/Windows/Fonts"))
 
@@ -69,18 +70,19 @@ def build_pdf(start: str, end: str, out_path: Path) -> Path:
     pdf.set_font(pdf.family_name, "B", 16)
     pdf.cell(0, 10, pdf.text_safe(f"Marketing hisoboti: {start} - {end}"), new_x="LMARGIN", new_y="NEXT")
 
-    spend = ad_spend_store.aggregate_spend(start, end)
-    crm = attribution_store.aggregate_by_campaign(start, end)
+    report = MarketingAttributionService().get_performance_data(start, end)
     camp_rows = []
-    for cid in sorted(set(spend) | set(crm), key=lambda c: -float(spend.get(c, {}).get("spend") or 0)):
-        s, c = spend.get(cid, {}), crm.get(cid, {})
-        cost, leads = float(s.get("spend") or 0), int(c.get("leads") or 0)
-        revenue = float(c.get("revenue_won") or 0)
+    for row in report["campaigns"]:
         camp_rows.append([
-            s.get("campaign_name") or c.get("campaign_name") or cid, _money(cost), leads,
-            _money(cost / leads if leads else None), int(c.get("won") or 0), _money(revenue),
-            f"{revenue / cost:.1f}x" if cost else "-",
+            row["campaign_name"], _money(row["spend"]), _money(row["leads"]),
+            _money(row["cost_per_lead"]), _money(row["deals_won"]), _money(row["revenue_won"]),
+            f"{row['roas']:.1f}x" if row["roas"] is not None else "-",
         ])
+    pdf.set_font(pdf.family_name, "", 9)
+    currency = report["totals"]["spend_currency"] or "noma'lum"
+    revenue_currency = report["totals"]["revenue_currency"] or "noma'lum"
+    pdf.cell(0, 6, pdf.text_safe(f"Xarajat: {currency}; daromad: {revenue_currency}; davr: lid yaratilgan sana"),
+             new_x="LMARGIN", new_y="NEXT")
     pdf.heading("Kampaniyalar")
     pdf.table(["Kampaniya", "Xarajat", "Lid", "CPL", "Sotuv", "Daromad", "ROAS"],
               camp_rows, [95, 30, 20, 30, 20, 40, 25])

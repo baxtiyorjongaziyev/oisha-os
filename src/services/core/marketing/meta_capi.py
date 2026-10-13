@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import math
 import os
 import re
 import time
@@ -123,11 +124,15 @@ async def send_crm_event(
         return ToolResult(TOOL_NAME, False, status="invalid", reason="bad_event", metadata=meta)
     if not is_enabled():
         return ToolResult(TOOL_NAME, False, status="disabled", reason="capi_disabled", metadata=meta)
+    if event_name == "Purchase" and (value is None or not math.isfinite(value) or value <= 0):
+        return ToolResult(TOOL_NAME, False, status="invalid", reason="purchase_value_required", metadata=meta)
     if not await store.claim_event(leadgen_id, event_name, amo_lead_id, source):
         return ToolResult(TOOL_NAME, True, status="duplicate", reason="already_sent", metadata=meta)
 
     event = build_event(leadgen_id, event_name, value=value, phone=phone, email=email)
     result = await asyncio.to_thread(_post_events, _config(), event)
+    if result["ok"] and (result.get("response") or {}).get("events_received") != 1:
+        result = {"ok": False, "error": "event_acceptance_unconfirmed"}
     await store.mark_result(leadgen_id, event_name, result["ok"], result.get("error", ""))
     if result["ok"]:
         logger.info("[META CAPI] %s yuborildi: leadgen_id=%s (%s)", event_name, leadgen_id, source)

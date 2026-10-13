@@ -1420,9 +1420,23 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Verification after final skill edits: `python scripts/sync_agent_skills.py --check` passed; full `SKIP_LIVE=1 ALLOW_LOCAL_RUN=0 FORCE_PYTEST_EXIT=1 pytest -q --tb=short` — 2742 passed, 18 existing Windows skips, 3 deprecation warnings, 4 subtests passed (108.73s). Earlier full Bandit/Ruff remain applicable because production code is unchanged.
 - Open: await the updated PR head's CI; merge/deploy remain owner actions.
 
+
+## 2026-10-13 - Codex: marketing evidence release
+
+Isolated checkout: oisha-marketing-release; branch fix/marketing-evidence-release. Preserved original dirty checkout. Integrated latest main marketing extensions; preserved creatives, seller metrics, loss reasons and CAPI retry outbox.
+
+Changed: marketing attribution service/stores/sync/client/CAPI; marketing API date validation; campaign PDF consumes the same null/currency-safe service; synthetic regression tests and CAPI acceptance fixtures; docs/marketing-backend-evidence.md. Unknown values are null, no implicit currency conversion; CRM currency must be verified and configured. Period is explicitly lead-created cohort. Purchase amount and Meta accepted event acknowledgement required.
+
+Validation: full SKIP_LIVE=1 ALLOW_LOCAL_RUN=0 pytest: 2754 passed, 18 skipped, 4 subtests passed. Focused marketing/CAPI/parity suite: 64 passed. Full Bandit -r src/ -ll passed. Changed-file Ruff and F821 source gate passed; diff whitespace check passed. Self-review performed. Previous dirty-checkout redis/eval blockers do not exist in the isolated tracked release. No customer event or production session was started locally.
+
+User explicitly requested commit/push/PR/merge completion. Publication/deploy status must be read back after release. Open: live currency/source reconciliation; freshness completeness; unified site/Lead Ads cohort. Separate creative reporting still has its pre-existing currency contract and is not covered by campaign ROAS guarantee.
 ## 2026-10-12 — Claude: WebMCP callback tool'lari
 - `callback-widget.js` ga WebMCP (`navigator.modelContext`) tool'lari: `request_callback`, `open_callback_form`. Brauzer qo'llamasa no-op; `data-webmcp="0"` bilan o'chadi.
 - `/api/callback-request` ga `via` maydoni; `via=webmcp` lid manbasi "AI agent (WebMCP)" bo'lib AmoCRM/Telegram'da ko'rinadi.
 - Fayllar: src/static/callback-widget.js, src/api/routes/callback_widget.py, src/services/core/leads/callback_request.py, tests/test_callback_request.py
 - Tekshiruv: tests/test_callback_request.py 27 passed; bandit 0 issue.
 - Qolgan ish: real brauzer/agentda sinash, ROI uchun AmoCRM'da WebMCP lidlarini sanash.
+
+
+### 2026-10-13 - PR #869 CI follow-up
+Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed during the same recovery scan. Added a dispatched-ID snapshot guard and deterministic regression asserting the accepted event stays out of the outbox. No retry/backoff assertions were removed. Full release checks rerun before publication.
