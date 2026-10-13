@@ -11,6 +11,7 @@ from src.settings import settings
 from src.services.core.agent_policy import SENSITIVE_NEGOTIATION_WORDS
 from src.services.core.instagram.graph_client import InstagramGraphClient
 from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
+from src.services.core.instagram.graph_version import graph_base
 
 logger = structlog.get_logger("InstagramBackfill")
 
@@ -29,7 +30,7 @@ _REPLY_THROTTLE_SEC = float(os.getenv("IG_BACKFILL_REPLY_THROTTLE_SEC", "5"))
 
 def _fetch_comment_replies(comment_id: str, access_token: str) -> list:
     """Returns the reply objects on a comment (id, text, from)."""
-    url = f"https://graph.facebook.com/v19.0/{comment_id}/replies"
+    url = f"{graph_base()}/{comment_id}/replies"
     params = {"fields": "id,text,from,timestamp", "access_token": access_token}
     try:
         resp = requests.get(url, params=params, timeout=15)
@@ -43,7 +44,7 @@ def _fetch_comment_replies(comment_id: str, access_token: str) -> list:
 
 def _fetch_media_comments(media_id: str, access_token: str) -> list:
     """Returns top-level comments on a post, following pagination."""
-    url = f"https://graph.facebook.com/v19.0/{media_id}/comments"
+    url = f"{graph_base()}/{media_id}/comments"
     params = {
         "fields": "id,text,from,timestamp,like_count,replies{id,from,text}",
         "limit": 50,
@@ -180,6 +181,15 @@ async def backfill_unanswered_comments(
                     from src.services.core.instagram_agent import generate_comment_reply
                     ai_reply = await generate_comment_reply(text, caption, commenter_name)
                     clean = re.sub(r"\[.*?\]", "", ai_reply).strip()
+                from src.services.core.instagram_agent import is_safe_public_reply
+
+                if not is_safe_public_reply(clean):
+                    logger.warning(
+                        "[META] Backfill skipping auto-post — unsafe AI reply (link/mention/phone)",
+                        comment_id=comment_id,
+                    )
+                    summary["skipped"] += 1
+                    continue
                 if reply_to_comment_fn:
                     ok = await asyncio.to_thread(reply_to_comment_fn, comment_id, clean, token)
                 else:

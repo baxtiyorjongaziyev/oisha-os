@@ -114,7 +114,7 @@ ruxsatlari tasdiqlanganmi? Nima yetishmayapti?
 ```
 
 ```
-<app_id> rate limit'ga yaqinmi? Biz ishlatayotgan Graph API versiyasi (v19.0)
+<app_id> rate limit'ga yaqinmi? Biz ishlatayotgan Graph API versiyasi (v25.0)
 deprecation ro'yxatidami?
 ```
 

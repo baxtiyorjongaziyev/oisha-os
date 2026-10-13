@@ -85,6 +85,9 @@ def reset_dedup() -> None:
 
 def source_label(tracking: Dict[str, str]) -> str:
     """Odam o'qiydigan manba: `instagram / cpc / kuzgi_aksiya` yoki `to'g'ridan-to'g'ri`."""
+    if tracking.get("via") == "webmcp":
+        rest = source_label({k: v for k, v in tracking.items() if k != "via"})
+        return f"AI agent (WebMCP) · {rest}"
     parts = [tracking.get(k, "") for k in ("utm_source", "utm_medium", "utm_campaign")]
     parts = [p for p in parts if p]
     if parts:
@@ -157,6 +160,16 @@ async def handle_callback_request(
         )
     except Exception as exc:
         logger.warning("[CALLBACK REQUEST] Lid ochilmadi (%s): %s", phone, exc)
+
+    try:
+        from src.services.core.leads import lead_source
+        category = lead_source.classify(tracking)
+        result["source"] = category
+        await asyncio.to_thread(lead_source.remember_visit, phone, tracking)
+        if result["lead_id"]:
+            await amocrm.add_lead_tag(int(result["lead_id"]), lead_source.tag_for(category))
+    except Exception as exc:
+        logger.warning("[CALLBACK REQUEST] Manba yozilmadi (%s): %s", phone, exc)
 
     try:
         if is_quiet_hours(now):

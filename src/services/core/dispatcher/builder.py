@@ -110,7 +110,7 @@ def build_admin_aiogram_dispatcher(
 
     @dp.message(F.text.regexp(r"(?i)^/(kreativ|kreativlar|creative|creatives)"))
     async def _kreativlar(message: Any) -> None:
-        await handle_aiogram_kreativlar(message)
+        await handle_aiogram_kreativlar(message, is_admin=is_admin)
 
     @dp.message(F.text.regexp(r"(?i)^/vps_status"))
     async def _vps_status(message: Any) -> None:
