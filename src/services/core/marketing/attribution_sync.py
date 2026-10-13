@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -29,14 +30,15 @@ STATUS_LOST = 143
 _REQUEST_DELAY_SECONDS = 0.2
 
 
-def _to_float(value: Any) -> float:
+def _to_float(value: Any) -> float | None:
     try:
-        return float(value)
+        number = float(value)
+        return number if math.isfinite(number) else None
     except (TypeError, ValueError):
-        return 0.0
+        return None
 
 
-async def _notify_capi(lead_id: Any, status_id: Any, price: float, leadgen_id: str) -> bool:
+async def _notify_capi(lead_id: Any, status_id: Any, price: float | None, leadgen_id: str) -> bool:
     """Meta CAPI (Conversion Leads) — status o'zgarishini Meta'ga qaytarish.
 
     False — event yuborilmadi va qayta urinish kerak (yozuvni yakunlamaslik uchun).
@@ -47,7 +49,7 @@ async def _notify_capi(lead_id: Any, status_id: Any, price: float, leadgen_id: s
     except Exception as exc:
         logger.warning("[ADS ATTRIBUTION] CAPI yuborilmadi (%s): %s", leadgen_id, type(exc).__name__)
         return False
-    return result is None or result.status != "failed"
+    return result is None or result.status in {"sent", "duplicate", "disabled"}
 
 
 def _to_int(value) -> int | None:
@@ -115,11 +117,9 @@ async def sync_attribution_revenue(
     result = AttributionSyncResult()
     if amocrm is None:
         return result
-
     pending = await asyncio.to_thread(pending_revenue_sync, days, limit)
     if not pending:
         return result
-
     names: dict = {}
     for row in pending:
         result.checked += 1
@@ -134,7 +134,6 @@ async def sync_attribution_revenue(
         if not lead:
             result.failed += 1
             continue
-
         price = _to_float(lead.get("price"))
         status_id = lead.get("status_id")
         if status_id == STATUS_WON:

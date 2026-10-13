@@ -21,7 +21,7 @@ logger = structlog.get_logger("MetaAdsClient")
 # Bitta so'rovda so'raladigan ustunlar. `actions` ichidan "lead" turini
 # ajratib olamiz — bu Meta tomonidan hisoblangan lead soni (bizniki bilan
 # solishtirish uchun foydali, lekin CRM lead soni ustuvor hisoblanadi).
-_INSIGHTS_FIELDS = "campaign_id,campaign_name,spend,impressions,clicks,actions"
+_INSIGHTS_FIELDS = "campaign_id,campaign_name,spend,impressions,clicks,actions,account_currency"
 _AD_INSIGHTS_FIELDS = "ad_id,ad_name," + _INSIGHTS_FIELDS
 
 

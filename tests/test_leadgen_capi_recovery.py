@@ -57,7 +57,7 @@ async def test_watchdog_recovers_capi_with_no_incomplete_channels(monkeypatch, i
 
     def fake_post(cfg, event):
         loop.call_soon_threadsafe(called.set)
-        return {"ok": True}
+        return {"ok": True, "response": {"events_received": 1}}
 
     delivery.save_crm_checkpoint("123", 77, queue_capi=True)
     delivery.record_delivery_status("123", 77, True, True, True)
@@ -119,7 +119,7 @@ async def test_failure_then_watchdog_retry_does_not_redeliver_channels(monkeypat
     from src.services.core.instagram import leadgen_router as router
     from src.services.core.instagram import leadgen_capi_outbox as outbox
     posted = []
-    results = iter([{"ok": False, "error": "HTTP 500"}, {"ok": True}])
+    results = iter([{"ok": False, "error": "HTTP 500"}, {"ok": True, "response": {"events_received": 1}}])
     monkeypatch.setattr(meta_capi, "_post_events", lambda cfg, ev: posted.append(ev) or next(results))
     delivery.save_crm_checkpoint("123", 77, queue_capi=True)
     delivery.record_delivery_status("123", 77, True, True, True)
@@ -149,7 +149,7 @@ async def test_persisted_queue_survives_missing_background_dispatch(monkeypatch,
     from src.services.core.instagram import leadgen_capi_outbox as outbox
     sent = []
     delivery.save_crm_checkpoint("123", 77, queue_capi=True)
-    monkeypatch.setattr(meta_capi, "_post_events", lambda cfg, ev: sent.append(ev) or {"ok": True})
+    monkeypatch.setattr(meta_capi, "_post_events", lambda cfg, ev: sent.append(ev) or {"ok": True, "response": {"events_received": 1}})
     capi.schedule_capi_recovery()
     await drain_dispatch()
     assert [ev["user_data"]["lead_id"] for ev in sent] == ["123"]
@@ -207,7 +207,7 @@ async def test_legacy_failed_or_abandoned_claim_gets_recovered(monkeypatch, isol
         await isolated.execute("UPDATE capi_events SET updated_at='2000-01-01T00:00:00+00:00'")
         await isolated.commit()
     sent = []
-    monkeypatch.setattr(meta_capi, "_post_events", lambda cfg, ev: sent.append(ev) or {"ok": True})
+    monkeypatch.setattr(meta_capi, "_post_events", lambda cfg, ev: sent.append(ev) or {"ok": True, "response": {"events_received": 1}})
     capi.schedule_capi_recovery()
     await drain_dispatch()
     assert len(outbox.pending()) == 1
@@ -306,7 +306,7 @@ async def test_cancelled_claim_is_recovered_after_restart_grace(monkeypatch, iso
     await isolated.execute("UPDATE capi_events SET updated_at='2000-01-01T00:00:00+00:00'")
     await isolated.commit()
     sent = []
-    monkeypatch.setattr(meta_capi, "_post_events", lambda cfg, ev: sent.append(ev) or {"ok": True})
+    monkeypatch.setattr(meta_capi, "_post_events", lambda cfg, ev: sent.append(ev) or {"ok": True, "response": {"events_received": 1}})
     capi.schedule_capi_recovery()
     await drain_dispatch()
     assert len(sent) == 1

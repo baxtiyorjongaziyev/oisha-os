@@ -4,7 +4,7 @@ from __future__ import annotations
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable
 
 _DB_PATH = Path(__file__).resolve().parents[4] / "data" / "meta_ad_spend.db"
 
@@ -47,6 +47,9 @@ def _connection():
         conn.row_factory = sqlite3.Row
         conn.execute(_CREATE_TABLE)
         conn.execute(_CREATE_AD_TABLE)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(meta_ad_spend)")}
+        if "currency" not in columns:
+            conn.execute("ALTER TABLE meta_ad_spend ADD COLUMN currency TEXT")
         yield conn
 
 
@@ -62,25 +65,27 @@ def upsert_daily_spend(rows: Iterable[Dict[str, Any]], synced_at: str) -> int:
             conn.execute(
                 """
                 INSERT INTO meta_ad_spend
-                    (date, campaign_id, campaign_name, spend, impressions, clicks, meta_leads, synced_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (date, campaign_id, campaign_name, spend, impressions, clicks, meta_leads, synced_at, currency)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(date, campaign_id) DO UPDATE SET
                     campaign_name=excluded.campaign_name,
                     spend=excluded.spend,
                     impressions=excluded.impressions,
                     clicks=excluded.clicks,
                     meta_leads=excluded.meta_leads,
-                    synced_at=excluded.synced_at
+                    synced_at=excluded.synced_at,
+                    currency=excluded.currency
                 """,
                 (
                     date,
                     campaign_id,
                     str(row.get("campaign_name") or ""),
-                    float(row.get("spend") or 0),
+                    float(row["spend"]) if row.get("spend") is not None else None,
                     int(row.get("impressions") or 0),
                     int(row.get("clicks") or 0),
                     int(row.get("meta_leads") or 0),
                     synced_at,
+                    str(row.get("currency") or "").strip().upper() or None,
                 ),
             )
             written += 1
@@ -93,9 +98,12 @@ def aggregate_spend(start_date: str, end_date: str) -> Dict[str, Dict[str, Any]]
     with _connection() as conn:
         rows = conn.execute(
             """
-            SELECT campaign_id, campaign_name, SUM(spend) AS spend,
+            SELECT campaign_id, campaign_name,
+                   CASE WHEN COUNT(spend) = COUNT(*) THEN SUM(spend) ELSE NULL END AS spend,
                    SUM(impressions) AS impressions, SUM(clicks) AS clicks,
-                   SUM(meta_leads) AS meta_leads
+                   SUM(meta_leads) AS meta_leads, MIN(synced_at) AS synced_at,
+                   CASE WHEN COUNT(currency) = COUNT(*) AND MIN(currency) = MAX(currency)
+                        THEN MIN(currency) ELSE NULL END AS currency
             FROM meta_ad_spend
             WHERE date >= ? AND date <= ?
             GROUP BY campaign_id
@@ -109,10 +117,12 @@ def aggregate_spend(start_date: str, end_date: str) -> Dict[str, Dict[str, Any]]
         out[cid] = {
             "campaign_id": cid,
             "campaign_name": row["campaign_name"] or "",
-            "spend": float(row["spend"] or 0),
+            "spend": float(row["spend"]) if row["spend"] is not None else None,
             "impressions": int(row["impressions"] or 0),
             "clicks": int(row["clicks"] or 0),
             "meta_leads": int(row["meta_leads"] or 0),
+            "currency": row["currency"],
+            "synced_at": row["synced_at"],
         }
     return out
 
