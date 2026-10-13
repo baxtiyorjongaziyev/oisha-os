@@ -1430,3 +1430,9 @@ Changed: marketing attribution service/stores/sync/client/CAPI; marketing API da
 Validation: full SKIP_LIVE=1 ALLOW_LOCAL_RUN=0 pytest: 2754 passed, 18 skipped, 4 subtests passed. Focused marketing/CAPI/parity suite: 64 passed. Full Bandit -r src/ -ll passed. Changed-file Ruff and F821 source gate passed; diff whitespace check passed. Self-review performed. Previous dirty-checkout redis/eval blockers do not exist in the isolated tracked release. No customer event or production session was started locally.
 
 User explicitly requested commit/push/PR/merge completion. Publication/deploy status must be read back after release. Open: live currency/source reconciliation; freshness completeness; unified site/Lead Ads cohort. Separate creative reporting still has its pre-existing currency contract and is not covered by campaign ROAS guarantee.
+## 2026-10-12 — Claude: WebMCP callback tool'lari
+- `callback-widget.js` ga WebMCP (`navigator.modelContext`) tool'lari: `request_callback`, `open_callback_form`. Brauzer qo'llamasa no-op; `data-webmcp="0"` bilan o'chadi.
+- `/api/callback-request` ga `via` maydoni; `via=webmcp` lid manbasi "AI agent (WebMCP)" bo'lib AmoCRM/Telegram'da ko'rinadi.
+- Fayllar: src/static/callback-widget.js, src/api/routes/callback_widget.py, src/services/core/leads/callback_request.py, tests/test_callback_request.py
+- Tekshiruv: tests/test_callback_request.py 27 passed; bandit 0 issue.
+- Qolgan ish: real brauzer/agentda sinash, ROI uchun AmoCRM'da WebMCP lidlarini sanash.
