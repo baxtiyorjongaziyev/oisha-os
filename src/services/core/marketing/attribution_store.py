@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS lead_attribution (
     ad_id TEXT,
     form_id TEXT,
     created_at TEXT,
-    lead_price REAL DEFAULT 0,
+    lead_price REAL,
     lead_won INTEGER,
     revenue_synced_at TEXT
 )
@@ -73,8 +73,8 @@ def save_attribution(
         conn.execute(
             """
             INSERT INTO lead_attribution
-                (leadgen_id, lead_id, campaign_id, campaign_name, ad_id, form_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (leadgen_id, lead_id, campaign_id, campaign_name, ad_id, form_id, created_at, lead_price)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
             ON CONFLICT(leadgen_id) DO UPDATE SET
                 lead_id=excluded.lead_id,
                 campaign_id=excluded.campaign_id,
@@ -112,7 +112,7 @@ def pending_revenue_sync(days: int = 90, limit: int = 200) -> List[Dict[str, Any
 
 
 def update_revenue(
-    leadgen_id: str, price: float, won: Optional[int], synced_at: str,
+    leadgen_id: str, price: Optional[float], won: Optional[int], synced_at: str,
     status_id: Optional[int] = None, loss_reason_id: Optional[int] = None,
 ) -> None:
     with _connection() as conn:
@@ -210,7 +210,7 @@ def aggregate_by_campaign(start_date: str, end_date: str) -> Dict[str, Dict[str,
     with _connection() as conn:
         rows = conn.execute(
             """
-            SELECT campaign_id, campaign_name, lead_won, lead_price
+            SELECT campaign_id, campaign_name, lead_won, lead_price, revenue_synced_at
             FROM lead_attribution
             WHERE date(created_at) >= date(?) AND date(created_at) <= date(?)
             """,
@@ -230,15 +230,23 @@ def aggregate_by_campaign(start_date: str, end_date: str) -> Dict[str, Dict[str,
                 "lost": 0,
                 "open": 0,
                 "revenue_won": 0.0,
+                "synced_at": row["revenue_synced_at"],
             },
         )
         bucket["leads"] += 1
+        if bucket["synced_at"] is None or row["revenue_synced_at"] is None:
+            bucket["synced_at"] = None
+        else:
+            bucket["synced_at"] = min(bucket["synced_at"], row["revenue_synced_at"])
         if not bucket["campaign_name"] and row["campaign_name"]:
             bucket["campaign_name"] = row["campaign_name"]
         won = row["lead_won"]
         if won == 1:
             bucket["won"] += 1
-            bucket["revenue_won"] += float(row["lead_price"] or 0)
+            if row["lead_price"] is None:
+                bucket["revenue_won"] = None
+            elif bucket["revenue_won"] is not None:
+                bucket["revenue_won"] += float(row["lead_price"])
         elif won == 0:
             bucket["lost"] += 1
         else:

@@ -90,11 +90,25 @@ def test_idempotent_send(monkeypatch, pool, enabled):
 
 
 def test_failed_send_can_retry(monkeypatch, pool, enabled):
-    results = iter([{"ok": False, "error": "HTTP 500"}, {"ok": True, "response": {}}])
+    results = iter([{"ok": False, "error": "HTTP 500"}, {"ok": True, "response": {"events_received": 1}}])
     monkeypatch.setattr(meta_capi, "_post_events", lambda cfg, ev: next(results))
-    assert _run(meta_capi.send_crm_event("777", "Purchase")).status == "failed"
+    assert _run(meta_capi.send_crm_event("777", "Purchase", value=100)).status == "failed"
     assert _run(meta_capi_store.get_event_status("777", "Purchase")) == "failed"
-    assert _run(meta_capi.send_crm_event("777", "Purchase")).status == "sent"
+    assert _run(meta_capi.send_crm_event("777", "Purchase", value=100)).status == "sent"
+
+
+def test_purchase_missing_amount_never_posts(monkeypatch, pool, enabled):
+    def unexpected(*args):
+        raise AssertionError("Missing purchase amount must not be transmitted")
+    monkeypatch.setattr(meta_capi, "_post_events", unexpected)
+    assert _run(meta_capi.send_crm_event("777", "Purchase")).status == "invalid"
+
+
+def test_http_success_without_event_acknowledgement_is_not_sent(monkeypatch, pool, enabled):
+    monkeypatch.setattr(meta_capi, "_post_events", lambda *args: {"ok": True, "response": {"events_received": 0}})
+    result = _run(meta_capi.send_crm_event("888", "QualifiedLead"))
+    assert result.status == "failed"
+    assert _run(meta_capi_store.get_event_status("888", "QualifiedLead")) == "failed"
 
 
 def test_post_events_no_retry_on_4xx(monkeypatch):
@@ -238,7 +252,7 @@ def test_failed_purchase_keeps_attribution_row_open(monkeypatch):
     import src.services.core.marketing.meta_capi_triggers as trig
     updates = []
     monkeypatch.setattr(attribution_sync, "pending_revenue_sync",
-                        lambda d, l: [{"leadgen_id": "LG1", "lead_id": 42}])
+                        lambda days, limit: [{"leadgen_id": "LG1", "lead_id": 42}])
     monkeypatch.setattr(attribution_sync, "update_revenue", lambda *a: updates.append(a))
     monkeypatch.setattr(attribution_sync, "_REQUEST_DELAY_SECONDS", 0)
 
@@ -271,7 +285,7 @@ def test_custom_fields_include_meta_lead_id():
 
 def test_on_lead_created_sends_lead_once(monkeypatch, pool, enabled):
     sent = []
-    monkeypatch.setattr(meta_capi, "_post_events", lambda cfg, ev: sent.append(ev) or {"ok": True})
+    monkeypatch.setattr(meta_capi, "_post_events", lambda cfg, ev: sent.append(ev) or {"ok": True, "response": {"events_received": 1}})
     r1 = _run(meta_capi_triggers.on_lead_created("555", 77, phone="+998901234567"))
     r2 = _run(meta_capi_triggers.on_lead_created("555", 77))
     assert r1.status == "sent" and r2.status == "duplicate"

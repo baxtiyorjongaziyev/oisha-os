@@ -40,6 +40,7 @@ async def sync_ad_spend(days: int = 7) -> int:
                 "campaign_id": row.get("campaign_id"),
                 "campaign_name": row.get("campaign_name"),
                 "spend": row.get("spend"),
+                "currency": row.get("account_currency"),
                 "impressions": row.get("impressions"),
                 "clicks": row.get("clicks"),
                 "meta_leads": client.extract_lead_actions(row),
