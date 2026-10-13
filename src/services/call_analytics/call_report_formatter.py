@@ -78,8 +78,77 @@ def _team_stats_lines(t: any, team_label: str) -> List[str]:
     return lines
 
 
+# Sotuvchi ismi (normalize qilingan, kichik harf) -> Telegram username
+REP_TG_USERNAMES: Dict[str, str] = {
+    "rayxon": "@RayxonJonbranding",
+    "farangiz": "@FarangizJonBranding",
+    "shahnoza": "@jonbranding_assistant",
+}
+
+
+def _tg_mention(rep_name: str) -> str:
+    key = (rep_name or "").strip().split(" ")[0].lower()
+    return REP_TG_USERNAMES.get(key, "")
+
+
+def _personal_feedback(r: any, rep_name: str, team_avg_rate: float) -> str:
+    """Har bir sotuvchiga o'z raqamlariga asoslangan individual motivatsiya."""
+    solid = getattr(r, "solid_calls", 0)
+    needed = max(TARGET_SOLID_CALLS - solid, 0)
+    strengths: List[str] = []
+    gaps: List[str] = []
+
+    # Kuchli tomonlar
+    if r.total >= 50:
+        strengths.append(f"{r.total} ta terish bilan jamoada eng faol bo'ldingiz — bu katta mehnat")
+    elif r.total >= 25:
+        strengths.append(f"{r.total} ta qo'ng'iroq — yaxshi temp")
+    if r.answer_rate >= team_avg_rate + 3:
+        strengths.append(f"javob olish ko'rsatkichingiz ({r.answer_rate}%) jamoa o'rtachasidan yuqori")
+    if r.longest >= 300:
+        strengths.append(f"eng uzun suhbatingiz {fmt_duration(r.longest)} — mijozni ushlab tura olishingizni isbotladi")
+    if r.answered and r.avg_talk >= 120:
+        strengths.append(f"o'rtacha suhbatingiz {fmt_duration(r.avg_talk)} — chuqur gaplashasiz")
+    if r.incoming_answered and r.incoming_missed == 0:
+        strengths.append("barcha kiruvchi qo'ng'iroqlarga javob bergansiz")
+
+    # O'sish nuqtalari
+    if r.answered and r.avg_talk < 90:
+        gaps.append(
+            f"o'rtacha suhbat {fmt_duration(r.avg_talk)} — mijoz bilan salomlashib, tez tugatilmoqda. "
+            f"Ochiq savollar bering (biznesingiz qanday? hozir qaysi kanaldan mijoz keladi?) va 3 daqiqadan oshiring"
+        )
+    if r.total < 30:
+        gaps.append(f"atigi {r.total} ta qo'ng'iroq — hajmni kamida 2 barobar oshirish kerak")
+    first_hour = datetime.fromtimestamp(r.first_ts, TASHKENT).hour if r.first_ts else None
+    if first_hour is not None and first_hour >= 12:
+        gaps.append(f"ish {_hhmm(r.first_ts)} da boshlangan — ertalab 10:00 dan terishni boshlang, yarim kun yo'qotilmoqda")
+    if r.answer_rate < team_avg_rate - 3:
+        gaps.append(f"javob foizi {r.answer_rate}% — ko'tarmaganlarga boshqa soatda qayta tering")
+
+    if solid >= TARGET_SOLID_CALLS:
+        head = f"Barakalla! {solid} ta sifatli suhbat — marra bajarildi."
+    elif solid == 0:
+        head = "Kecha birorta ham 3+ daqiqalik suhbat bo'lmadi."
+    else:
+        head = f"{solid} ta sifatli suhbat, marragacha yana {needed} ta."
+
+    parts = [head]
+    if strengths:
+        s = "; ".join(strengths[:2])
+        parts.append(s[0].upper() + s[1:] + ".")
+    if gaps:
+        parts.append("Bugungi fokus: " + gaps[0] + ".")
+        if len(gaps) > 1:
+            parts.append("Shuningdek: " + gaps[1] + ".")
+    if solid < TARGET_SOLID_CALLS:
+        goal = min(TARGET_SOLID_CALLS, max(solid * 2, solid + 5, 5))
+        parts.append(f"Bugungi shaxsiy maqsad: kamida <b>{goal} ta</b> 3+ daqiqalik suhbat. Siz buni uddalaysiz!")
+    return " ".join(parts)
+
+
 def _build_rop_feedback(active_reps: List[any], names: Dict[str, str], hourly: Dict[int, int]) -> List[str]:
-    """ROP odamga o'xshash professional, faktlarga asoslangan motivatsiya bloki."""
+    """ROP odamga o'xshash, har bir sotuvchiga individual motivatsiya bloki."""
     e = html.escape
     feedback = [
         "────────────────────────────",
@@ -87,42 +156,16 @@ def _build_rop_feedback(active_reps: List[any], names: Dict[str, str], hourly: D
         f"<i>Kunlik standartimiz: kamida <b>{TARGET_SOLID_CALLS} ta ko'targan va 3+ daqiqa</b> to'liq gaplashilgan sifatli mijoz.</i>",
         "",
     ]
+    total_calls = sum(r.total for r in active_reps)
+    total_ans = sum(r.answered for r in active_reps)
+    team_avg_rate = (total_ans * 100 / total_calls) if total_calls else 0
 
     for r in active_reps:
         rep_name = _get_display_name(r.account, names)
         solid = getattr(r, "solid_calls", 0)
-        needed = TARGET_SOLID_CALLS - solid
-        talk_str = fmt_duration(r.talk_seconds)
-
-        if solid >= TARGET_SOLID_CALLS:
-            text = (
-                f"<b>{e(rep_name)}</b> ({solid} ta 3+ daqiqalik suhbat): "
-                f"Barakalla! Kunlik {TARGET_SOLID_CALLS} ta sifatli suhbat marrasini a'lo darajada bajardingiz! "
-                f"Jami {r.answered} ta javob olingan mijozdan {solid} tasida chuqur 3+ daqiqa gaplashilgan. "
-                f"Umumiy {talk_str} efir vaqti — bu haqiqiy natijador sotuvchining ishi! Shu sifatni ushlang."
-            )
-        elif solid >= 25:
-            text = (
-                f"<b>{e(rep_name)}</b> ({solid} ta 3+ daqiqalik suhbat): "
-                f"Yaxshi qadam, lekin marraga yetish uchun yana {needed} ta to'liq suhbat yetishmadi. "
-                f"Jami {r.answered} ta mijoz ko'targan, biroq suhbatlarni tez tugatmasdan, mijoz ehtiyojini "
-                f"chuqurroq aniqlab 3 daqiqadan oshirish kerak. Bugun 50 ta to'liq suhbatni nishonga oling!"
-            )
-        elif solid >= 10:
-            text = (
-                f"<b>{e(rep_name)}</b> ({solid} ta 3+ daqiqalik suhbat): "
-                f"Harakat bor, lekin asosiy maqsad — ko'targan mijoz bilan kamida 3 daqiqa sifatli muloqot qilish. "
-                f"Sizda {r.answered} ta javobdan atigi {solid} tasi 3 daqiqadan oshgan. Skriptni mustahkamlab, "
-                f"mijozni ko'proq savol bilan ushlab turing va {TARGET_SOLID_CALLS} taga yetkazing!"
-            )
-        else:
-            text = (
-                f"<b>{e(rep_name)}</b> ({solid} ta 3+ daqiqalik suhbat): "
-                f"Bu natija yetarli emas! Kun bo'yi atigi {solid} ta mijoz bilan 3+ daqiqa gaplashilgan. "
-                f"Shunchaki go'shak ko'tarilishi kifoya qilmaydi, har bir mijoz bilan to'liq ehtiyojni aniqlab, "
-                f"taqdimot qilish kerak. Bugun go'shakni dadil oling va 50 ta sifatli suhbatni bajaring!"
-            )
-
+        mention = _tg_mention(rep_name)
+        who = f"<b>{e(rep_name)}</b>" + (f" {mention}" if mention else "")
+        text = f"{who} ({solid} ta 3+ daqiqalik suhbat): " + _personal_feedback(r, rep_name, team_avg_rate)
         if getattr(r, "no_callback", 0):
             text += f" <i>(Eslatma: {r.no_callback} ta qayta qo'ng'iroq qarzingiz bor, birinchi navbatda yoping!)</i>"
         feedback.append(f"• {text}")
@@ -197,8 +240,9 @@ def format_report_rop(report: any, names: Optional[Dict[str, str]] = None) -> st
     if report.hourly:
         peak = max(report.hourly, key=report.hourly.get)
         lines.append(f"• Eng faol soat: {peak:02d}:00 ({report.hourly[peak]} ta)")
-        hours = " ".join(f"{h:02d}h:{report.hourly[h]}" for h in sorted(report.hourly))
-        lines.append(f"• Soatlar: {hours}")
+        lines.append("• Soatlar bo'yicha qo'ng'iroqlar:")
+        for h in sorted(report.hourly):
+            lines.append(f"   {h:02d}:00–{h + 1:02d}:00 — {report.hourly[h]} ta")
 
     # 4. Qayta qo'ng'iroq qilinmagan mijozlar
     if report.missed_no_callback:
