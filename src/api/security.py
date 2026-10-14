@@ -25,7 +25,7 @@ from src.api.rbac import Principal, Role
 import logging
 logger = logging.getLogger(__name__)
 
-_ALLOWED_SESSION_ROLES = frozenset({Role.OWNER, Role.ADMIN, Role.SELLER, Role.VIEWER})
+_ALLOWED_SESSION_ROLES = frozenset({Role.OWNER, Role.ADMIN, Role.SELLER, Role.TARGETOLOG, Role.VIEWER})
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
 _MIN_SESSION_SECRET_BYTES = 32
 _PROTECTED_PREFIXES = (

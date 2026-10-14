@@ -4,7 +4,7 @@ Aiogram dispatcher builder and factory functions.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
 
 from src.services.core.dispatcher.handlers_admin import (
     handle_aiogram_auto_status,
@@ -20,6 +20,10 @@ from src.services.core.dispatcher.handlers_admin import (
     handle_aiogram_team_capacity,
     handle_aiogram_vps_status,
     handle_aiogram_kreativlar,
+)
+from src.services.core.dispatcher.handlers_capi import (
+    handle_aiogram_capi,
+    handle_aiogram_capi_callback,
 )
 from src.services.core.dispatcher.handlers_crm_coach import (
     handle_aiogram_crm_history,
@@ -111,6 +115,14 @@ def build_admin_aiogram_dispatcher(
     @dp.message(F.text.regexp(r"(?i)^/(kreativ|kreativlar|creative|creatives)"))
     async def _kreativlar(message: Any) -> None:
         await handle_aiogram_kreativlar(message, is_admin=is_admin)
+
+    @dp.message(F.text.regexp(r"(?i)^/(capi|targetolog|target|capi_status)"))
+    async def _capi(message: Any) -> None:
+        await handle_aiogram_capi(message, is_admin=is_admin)
+
+    @dp.callback_query(F.data.startswith("capi:"))
+    async def _capi_callback(query: Any) -> None:
+        await handle_aiogram_capi_callback(query, is_admin=is_admin)
 
     @dp.message(F.text.regexp(r"(?i)^/vps_status"))
     async def _vps_status(message: Any) -> None:

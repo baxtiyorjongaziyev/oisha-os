@@ -148,7 +148,7 @@ def test_rop_feedback_over_50_calls():
     assert "Star Rep</b> [50+ SIFATLI MARRA]" in text
     assert "Sifatli suhbat (≥3 daq): <b>52 ta</b>" in text
     assert "Barakalla!" in text
-    assert "50 ta sifatli suhbat marrasini a'lo darajada bajardingiz!" in text
+    assert "52 ta sifatli suhbat — marra bajarildi" in text
 
 
 def test_rop_feedback_below_50_calls():
@@ -158,5 +158,5 @@ def test_rop_feedback_below_50_calls():
     text = rpt.format_report(rep, {"junior@x.uz": "Junior Rep"})
     assert "ROP Xulosasi va Ko'rsatmasi" in text
     assert "Sifatli suhbat (≥3 daq): <b>0 ta</b>" in text
-    assert "Bu natija yetarli emas!" in text
+    assert "Kecha birorta ham 3+ daqiqalik suhbat bo'lmadi" in text
     assert "kamida 50 ta ko'targan va 3+ daqiqa gaplashilgan" in text
