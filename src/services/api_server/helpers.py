@@ -40,12 +40,17 @@ def _secret_setting_text(key_or_val: Any, default: str = "") -> str:
 
 
 
-def set_telegram_ai_ingress_status(enabled: bool, reason: str = "") -> None:
+def set_telegram_ai_ingress_status(enabled: bool = True, reason: str = "", *args, **kwargs) -> None:
     from src.api.routes.health import api_state
+    if "active" in kwargs:
+        enabled = bool(kwargs["active"])
+    if "mode" in kwargs and not reason:
+        reason = str(kwargs["mode"])
     api_state.telegram_ai_ingress_enabled = bool(enabled)
     api_state.telegram_ai_ingress_reason = (
         str(reason or ("enabled" if enabled else "disabled"))
     )
+
 
 
 def mark_heartbeat(component: str = "api") -> None:
