@@ -89,7 +89,6 @@
 
 > Faqat **faol** qulflar. Bo'shatilgan qulf o'chiriladi (tarix → handoff-log).
 
-- Codex Coordinator: leadgen delivery recovery modules and focused tests (2026-09-15).
 - Codex Coordinator: client journey, SalesCoach writer, Telegram task creator, dependency contracts.
 
 ## Pre-flight Checklist (har bir PR dan oldin)

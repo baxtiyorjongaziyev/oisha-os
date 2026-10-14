@@ -149,6 +149,15 @@ class RopFetcher:
             key="leads", max_pages=4, embed="leads",
         )
 
+    async def fetch_closed_leads_since(self, status_id, since_epoch):
+        return await self._paged(
+            f"{self._amo.base_url}/api/v4/leads",
+            {"filter[pipeline_id]": SALES_PIPELINE_ID,
+             "filter[statuses][0][status_id]": status_id,
+             "filter[closed_at][from]": since_epoch, "limit": 250},
+            key="leads", max_pages=4, embed="leads",
+        )
+
     async def fetch_notes_for_leads(self, lead_ids):
         grouped: dict[int, list[dict]] = {}
         ids = list(lead_ids)[:300]
@@ -185,6 +194,10 @@ class RopFetcher:
 
     async def fetch_today_calls(self, now: datetime) -> dict[str, dict]:
         """Moizvonki bugungi qo'ng'iroqlari va 3+ daqiqalik suhbatlarini oladi."""
+        return await self.fetch_calls_between(_tashkent_day_start_epoch(now), int(now.timestamp()), now)
+
+    async def fetch_calls_between(self, start_ts: int, end_ts: int, now: datetime) -> dict[str, dict]:
+        """Moizvonki qo'ng'iroqlari [start_ts, end_ts) oralig'ida, menejer bo'yicha."""
         import os
         from scripts.daily_sales_calls_report import (
             fetch_calls,
@@ -194,14 +207,9 @@ class RopFetcher:
 
         email = os.environ.get("MOIZVONKI_EMAIL", "")
         api_key = os.environ.get("MOIZVONKI_API_KEY", "")
-        if not email or not api_key:
+        if not email or not api_key or end_ts <= start_ts:
             return {}
-
         domain = os.environ.get("MOIZVONKI_DOMAIN", "")
-        start_ts = _tashkent_day_start_epoch(now)
-        end_ts = int(now.timestamp())
-        if end_ts <= start_ts:
-            return {}
 
         try:
             calls = await asyncio.to_thread(fetch_calls, email, api_key, start_ts, end_ts, domain)

@@ -1386,7 +1386,10 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
   - Obsidian Brain: `20-Areas/SOP_Sotuvchilar_Darsligi.md` ga 6-modul sifatida kiritildi, `brain_log` qayd etildi.
 - Tekshiruv: `SKIP_LIVE=1 pytest tests/test_call_conversion_tasks.py tests/test_daily_sales_calls_report.py` — 26/26 passed; barcha `.py` fayllar 150-400 LOC standartiga mos (`helpers.py`: 361, `runner.py`: 399, `normalizer.py`: 282, `crm_tasks.py`: 298, `scorer.py`: 314, `call_report_formatter.py`: 223, `daily_sales_calls_report.py`: 396).
 
+<<<<<<< HEAD
 <<<<<<< Updated upstream
+=======
+>>>>>>> origin/main
 ## 2026-10-10 — Antigravity — Security & Dependabot Queue Resolution (Zero Alerts, 10/10 GitHub)
 - Task: GitHub repositorysini 10/10 ideal holatga keltirish: ochiq PRlarni tartibga solish, barcha ziddiyatlarni (conflicts) bartaraf qilish, CodeQL va Dependabot xavfsizlik ogohlantirishlarini 0 taga tushirish.
 - Bajarildi:
@@ -1398,6 +1401,7 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Tekshiruv: `pnpm install --frozen-lockfile` (salescoach-ai & marketing-os/frontend) muvaffaqiyatli o'tdi; Jest testlari (7/7 passed), marketing frontend build (170ms) va oxlint (0 errors) toza. CodeQL: 0 alert, Secrets: 0 alert.
 - Status: Barcha xavfsizlik va ziddiyatlar to'liq bartaraf etildi.
 
+<<<<<<< HEAD
 
 
 2026-10-10 / Codex Coordinator: Added owner-requested truthfulness and owner-click rules to AGENTS.md (rules 10-11). Verified with rg; recorded source in Obsidian. Other agents have not been verified to have read the changes. Tax review remains open.
@@ -1621,6 +1625,76 @@ Open: existing preflight blockers, secure configuration, owner-authorized deploy
 Meta Test Events and approved live activation/read-back. Website-side durable recovery
 before Oisha receipt not implemented. No local userbot/session and no secret file reads.
 Own locks released; Obsidian project notes and brain_log updated.
+
+## 2026-10-14 — Antigravity: CAPI Benchmark, PRD & Security Hardening (Zero Vulnerabilities)
+
+- Task: adsinc.uz va capip.uz platformalari chuqur tahlili, dunyo bo'yicha CAPI solishtiruvi, Oisha ichki CAPI platformasi PRD hujjati va Claude Code review topilmalari (4 ta xavfsizlik zaifligi) bo'yicha to'liq hardening.
+- Bajarildi:
+  1. Dunyo bo'yicha yetakchi CAPI tizimlari (Elevar, Stape.io, Segment, Blotout) hamda mahalliy platformalar (adsinc.uz, capip.uz) har bir tugmasi, funksiyasi, narxi va zaifliklari bo'yicha solishtirildi.
+  2. To'liq ishlab chiqarish darajasidagi PRD yaratildi: `docs/oisha-capi-platform-prd.md`.
+  3. Claude Code security review'da aniqlangan 4 ta zaiflik bartaraf etildi:
+     - `test_website_credential_cannot_forge_crm_purchase`: sayt bearer tokeni bilan CRM source eventlarini yuborish 403 bilan to'xtatildi.
+     - `test_conflicting_event_reuse_is_rejected`: bir xil `event_id` uchun o'zgargan/konflikt payload kelganda `ValueError("event_id_conflict")` / HTTP 409 qaytariladi.
+     - `test_permanent_meta_rejection_is_terminal`: Meta Graph API dan HTTP 4xx (permanent xato) qaytsa, status terminal `rejected` deb belgilanadi va ortiqcha takrorlanmaydi.
+     - `test_cookie_mutation_requires_origin`: cookie asosidagi mutatsiyalar (`POST /dispatch`, retry) uchun `Origin` sarlavhasi majburiy qilindi (CSRF himoyasi).
+  4. Agent skills sinxronizatsiyasi amalga oshirildi (`python scripts/sync_agent_skills.py` — 13 ta skill sinxronlandi).
+- O'zgargan fayllar:
+  - `src/services/core/marketing/capi_platform.py`
+  - `src/services/core/marketing/capi_platform_store.py`
+  - `src/api/routes/capi_platform.py`
+  - `tests/test_capi_platform.py`
+  - `tests/test_capi_platform_hardening.py`
+  - `docs/oisha-capi-platform-prd.md` (yangi PRD)
+  - `AGENTS.md`
+- Tekshiruv dalili:
+  - `python -m pytest tests/test_meta_capi.py tests/test_capi_platform.py tests/test_capi_platform_hardening.py -q`: **41 passed** (1.74s).
+  - `python -m pytest tests/test_agent_skills_sync.py -q`: **1 passed**.
+  - `bandit -r src/services/core/marketing/capi_platform.py src/services/core/marketing/capi_platform_store.py src/services/core/marketing/capi_platform_schema.py src/api/routes/capi_platform.py -ll`: **0 issues**.
+  - `ruff check src/services/core/marketing/capi_platform.py src/services/core/marketing/capi_platform_store.py src/services/core/marketing/capi_platform_schema.py src/api/routes/capi_platform.py tests/test_capi_platform.py tests/test_capi_platform_hardening.py`: **All checks passed**.
+  - Barcha production fayllar qat'iy <= 400 qator standarti va funksiyalar <= 60 qator me'yoriga to'liq mos.
+- Qolgan ishlar: Oracle VM'ga deploy va Meta Events Manager'da `META_CAPI_TEST_EVENT_CODE` orqali birinchi jonli eventni egasi (Baxtiyorjon) tomonidan tasdiqlanishi.
+### 2026-10-12 — Claude Code: Meta Graph API v19.0 → v25.0
+- Sabab: meta_health_check ogohlantirdi — v19.0 so'ralgan, Meta v25.0 bilan javob bergan (v19.0 eskirgan, Meta avtomatik ko'targan).
+- Ish: `src/services/core/instagram/graph_version.py` (yagona manba, DEFAULT `v25.0`, `META_GRAPH_API_VERSION` env override). Hardcode qilingan `v19.0` URL'lar (api_helpers, backfill, real_scraper, video_analyzer, meta_webhook, instagram_weekly_report) va graph_client/meta_ads_client default'lari shu helperga ulandi. scripts/, marketing-os, .env.example, docs literal yangilandi.
+- Tekshiruv: `SKIP_LIVE=1 pytest -q` → 2653 passed; `bandit -r src/ -ll -x src/services/debug/` → toza.
+- Qolgan ish: leadgen fayllari (leadgen_router, leadgen_watchdog, meta_leadgen_scheduler, leadgen_reconciliation) Codex lock ostida — default hali `v19.0`, lekin env'dan o'qiydi. Oracle VM `.env` da `META_GRAPH_API_VERSION=v25.0` qo'yilishi kerak (Owner).
+
+### 2026-10-12 — Codex Coordinator: durable Lead CAPI recovery after PR #866
+- Branch/base: `fix/leadgen-capi-recovery`, `origin/main` at `74ad319d7caa758fd12ea5a0bc1de6d2b0faa35c` (PR #866 already merged before this task).
+- Reproduced: three new regression tests failed before implementation. CAPI awaited under the global routing lock, while a CRM checkpoint caused subsequent router calls to skip failed Lead events.
+- Fix: save CAPI intent atomically with CRM checkpoint in the existing delivery SQLite transaction; dispatch in tracked background tasks, at most four concurrent. Watchdog recovery runs independently of channel completion, uses persisted exponential retry delay (60s to 1h), and imports only failed/stale-pending legacy Lead claims. Fresh pending duplicate claims keep intent; confirmed sent claims clear it. Cancellation/restart preserves intent. Disabled CAPI sends nothing; historical completed deliveries are not backfilled automatically.
+- Privacy: outbox stores leadgen/CRM IDs, attempt count and retry time; phone/email remain in memory. `manba:reklama`, `qayta_murojaat` and creative tags retain existing behavior.
+- Files: `src/services/core/instagram/{leadgen_capi.py,leadgen_capi_outbox.py,leadgen_delivery.py,leadgen_router.py,leadgen_watchdog.py}`, `tests/test_leadgen_capi_recovery.py`, `.agents/skills/leadgen-capi-recovery/SKILL.md`, `AGENTS.md` lock cleanup and this append-only log.
+- Validation: `SKIP_LIVE=1 ALLOW_LOCAL_RUN=0 python -m pytest -q --tb=short` — 2741 passed, 18 existing skips, 3 deprecation warnings and 4 subtests passed (170.13s). After adding the cancellation test, focused `tests/test_meta_capi.py` plus all `tests/*leadgen*.py` — 70 passed (14.36s). `FORCE_PYTEST_EXIT=1` used for clean process shutdown as supported by conftest. `bandit -r src/ -ll` — exit 0, no medium/high issues. `ruff check --select F821 src/` and `git diff --check` passed. New functions <=15 lines; affected production files <=382 lines.
+- Review: separate read-only agent reviewed durability, concurrency, idempotency and privacy; no blocking findings. Suggested cancellation regression was added and passed.
+- Open: merge/deploy are owner actions; live Meta delivery and production configuration have not been tested. No .env/session access or production service startup. The obsolete 2026-09-15 lock was replaced during work and released after validation; unrelated locks and original checkout changes preserved.
+
+### 2026-10-12 — Codex: PR #867 CI skill mirror follow-up
+- PR: https://github.com/baxtiyorjongaziyev/oisha-os/pull/867, initial implementation commit `191473af1de910e4b3ee790aa2d94d665088a673`, pushed and remote head verified. No merge/deploy.
+- Initial CI run `38244447513`: 1 failure in `tests/test_agent_skills_sync.py`, 2745 passed, 14 platform-dependent skips, 4 subtests passed. New recovery skill was added after the first full local run without its required `.claude/skills` mirror. Reproduced the mirror failure locally; CAPI tests were green in CI.
+- Fix: add matching `.claude/skills/leadgen-capi-recovery/SKILL.md`, and record the mirror check in both skill copies. No production code changed.
+- Verification after final skill edits: `python scripts/sync_agent_skills.py --check` passed; full `SKIP_LIVE=1 ALLOW_LOCAL_RUN=0 FORCE_PYTEST_EXIT=1 pytest -q --tb=short` — 2742 passed, 18 existing Windows skips, 3 deprecation warnings, 4 subtests passed (108.73s). Earlier full Bandit/Ruff remain applicable because production code is unchanged.
+- Open: await the updated PR head's CI; merge/deploy remain owner actions.
+
+## 2026-10-13 - Codex: marketing evidence release
+
+Isolated checkout: oisha-marketing-release; branch fix/marketing-evidence-release. Preserved original dirty checkout. Integrated latest main marketing extensions; preserved creatives, seller metrics, loss reasons and CAPI retry outbox.
+
+Changed: marketing attribution service/stores/sync/client/CAPI; marketing API date validation; campaign PDF consumes the same null/currency-safe service; synthetic regression tests and CAPI acceptance fixtures; docs/marketing-backend-evidence.md. Unknown values are null, no implicit currency conversion; CRM currency must be verified and configured. Period is explicitly lead-created cohort. Purchase amount and Meta accepted event acknowledgement required.
+
+Validation: full SKIP_LIVE=1 ALLOW_LOCAL_RUN=0 pytest: 2754 passed, 18 skipped, 4 subtests passed. Focused marketing/CAPI/parity suite: 64 passed. Full Bandit -r src/ -ll passed. Changed-file Ruff and F821 source gate passed; diff whitespace check passed. Self-review performed. Previous dirty-checkout redis/eval blockers do not exist in the isolated tracked release. No customer event or production session was started locally.
+
+User explicitly requested commit/push/PR/merge completion. Publication/deploy status must be read back after release. Open: live currency/source reconciliation; freshness completeness; unified site/Lead Ads cohort. Separate creative reporting still has its pre-existing currency contract and is not covered by campaign ROAS guarantee.
+
+## 2026-10-12 — Claude: WebMCP callback tool'lari
+- `callback-widget.js` ga WebMCP (`navigator.modelContext`) tool'lari: `request_callback`, `open_callback_form`. Brauzer qo'llamasa no-op; `data-webmcp="0"` bilan o'chadi.
+- `/api/callback-request` ga `via` maydoni; `via=webmcp` lid manbasi "AI agent (WebMCP)" bo'lib AmoCRM/Telegram'da ko'rinadi.
+- Fayllar: src/static/callback-widget.js, src/api/routes/callback_widget.py, src/services/core/leads/callback_request.py, tests/test_callback_request.py
+- Tekshiruv: tests/test_callback_request.py 27 passed; bandit 0 issue.
+- Qolgan ish: real brauzer/agentda sinash, ROI uchun AmoCRM'da WebMCP lidlarini sanash.
+
+### 2026-10-13 - PR #869 CI follow-up
+Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed during the same recovery scan. Added a dispatched-ID snapshot guard and deterministic regression asserting the accepted event stays out of the outbox. No retry/backoff assertions were removed. Full release checks rerun before publication.
 
 ## 2026-10-14 — Antigravity: CAPI Benchmark, PRD & Security Hardening (Zero Vulnerabilities)
 

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+from datetime import timedelta
 
 from src.schedulers.moliya.balans import run_balans_eslatmasi, run_balans_report
 from src.schedulers.moliya.cashflow import run_cashflow_report
@@ -17,7 +19,14 @@ from src.schedulers.moliya.kuzatuv import run_kuzatuv_report
 from src.schedulers.moliya.pnl import run_pnl_report
 from src.schedulers.moliya.qarzdorlik import run_qarzdorlik_report
 
+from src.schedulers.moliya.moliyachi_skill import run_skill_update
+
 logger = logging.getLogger(__name__)
+
+
+def hisobchi_active() -> bool:
+    """HISOBCHI_ACTIVE=1 bo'lmasa guruhga hisobot/eslatma yuborilmaydi (default: to'xtatilgan)."""
+    return os.getenv("HISOBCHI_ACTIVE", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 async def moliya_hisobotlari_loop() -> None:
@@ -31,6 +40,25 @@ async def moliya_hisobotlari_loop() -> None:
         try:
             now = get_local_now()
             day = now.strftime("%Y-%m-%d")
+
+            # Moliyachi ish tartibini o'rganish — 00:10 da tugagan (kechagi) kun
+            # profilga qo'shiladi; dushanba tongida (yakshanba yopilgach) skill
+            # hujjati egasiga yuboriladi. Manba o'qilmasa claim bo'shaydi va
+            # keyingi daqiqada qayta urinadi.
+            if now.hour == 0 and 10 <= now.minute < 15:
+                yesterday = now - timedelta(days=1)
+                await run_once_per_day(
+                    "moliyachi_skill", day,
+                    lambda: run_skill_update(yesterday, send=yesterday.weekday() == 6),
+                )
+
+            if not hisobchi_active():
+                # Hisobchi to'xtatilgan: guruhga hisobot/eslatma yuborilmaydi,
+                # faqat egasiga kuzatuv (21:00) va skill (00:10, kechagi kun).
+                if now.hour == 21 and now.minute < 5:
+                    await run_once_per_day("moliya_kuzatuv", day, lambda: run_kuzatuv_report(now))
+                await asyncio.sleep(60)
+                continue
 
             # Qarzdorlik — dushanba 09:00
             if now.weekday() == 0 and now.hour == 9 and now.minute < 5:
