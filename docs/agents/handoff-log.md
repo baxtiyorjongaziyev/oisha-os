@@ -1790,8 +1790,9 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
     3. **Owner & Targetolog Avtomatik Tanish**: `telegram_callback` da `id == settings.OWNER_ID` bo'lsa darhol `role="owner"`, targetolog bo'lsa `role="targetolog"` JWT beriladi (`SUPPORTED_BROWSER_ROLES` boyitildi).
     4. **Qulay URL (`/capi`) va Dashboard Tugmasi**: `https://oisha.jonbranding.uz/capi` qisqa havolasi yaratildi. Asosiy dashboard (`/`) bosh menyusiga `🎯 CAPI Paneli` tugmasi qo'shildi.
   - **Tekshiruv dalili**:
-    - 66 ta test 100% yashil (`pytest tests/test_capi_targetolog_automation.py tests/test_capi_platform.py tests/test_capi_platform_hardening.py tests/test_meta_capi.py tests/test_permission_dependency.py tests/test_api_auth_service.py tests/test_oauth_api_endpoints.py`).
-    - Brauzer TestClient oqimi: `/api/marketing/capi/console` -> 303 Redirect -> Telegram Login (200 OK).
+    - 68 ta test 100% yashil (`pytest tests/test_capi_targetolog_automation.py tests/test_capi_platform.py tests/test_capi_platform_hardening.py tests/test_meta_capi.py tests/test_permission_dependency.py tests/test_api_auth_service.py tests/test_oauth_api_endpoints.py`).
+    - Brauzer TestClient oqimi: `/api/marketing/capi/console` -> 303 Redirect -> Telegram Login (200 OK) -> Telegram Callback -> CAPI Console.
+    - CodeQL Sanitizatsiyasi: `_ALLOWED_LOGIN_REDIRECTS` static whitelist orqali ochiq redirect (open redirect) va `html.escape` orqali reflected XSS to'liq bartaraf etildi.
     - Bandit: 0 ta zaiflik. Ruff: 100% toza.
   - **Holat**: Bajarildi.
 

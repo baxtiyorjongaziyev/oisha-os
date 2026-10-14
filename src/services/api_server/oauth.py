@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import hashlib
+import html
 import logging
 import os
 import time
@@ -234,12 +235,25 @@ async def airtable_status():
 # Telegram OAuth Integratsiyasi (ERP Login)
 # =====================================================================
 
+_ALLOWED_LOGIN_REDIRECTS: frozenset[str] = frozenset({
+    "/",
+    "/capi",
+    "/api/marketing/capi/console",
+})
+
+
 @router.get("/api/auth/telegram/login")
 async def telegram_login(next: Optional[str] = None):
     """Return an HTML page with the Telegram Login Widget."""
     bot_username = getattr(settings, "BOT_USERNAME", "jonairobot")
-    safe_next = next if (next and next.startswith("/") and not next.startswith("//")) else ""
-    auth_url = f"/api/auth/telegram/callback?next={safe_next}" if safe_next else "/api/auth/telegram/callback"
+    safe_next = next if next in _ALLOWED_LOGIN_REDIRECTS else ""
+    raw_auth_url = (
+        f"/api/auth/telegram/callback?next={safe_next}"
+        if safe_next
+        else "/api/auth/telegram/callback"
+    )
+    auth_url = html.escape(raw_auth_url, quote=True)
+    safe_bot_username = html.escape(str(bot_username).replace("@", ""), quote=True)
     html_content = f"""
     <html>
         <head>
@@ -256,7 +270,7 @@ async def telegram_login(next: Optional[str] = None):
             <div class="card">
                 <h2>Oisha-OS Enterprise</h2>
                 <p>Tizimga kirish uchun Telegram orqali tasdiqlang. Hech qanday parol kerak emas.</p>
-                <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{str(bot_username).replace('@', '')}" data-size="large" data-auth-url="{auth_url}" data-request-access="write"></script>
+                <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{safe_bot_username}" data-size="large" data-auth-url="{auth_url}" data-request-access="write"></script>
             </div>
         </body>
     </html>
@@ -333,7 +347,7 @@ async def telegram_callback(
     )
 
     # Create response that stores the cookie and redirects to Dashboard or next URL
-    target = next if (next and next.startswith("/") and not next.startswith("//")) else "/"
+    target = next if next in _ALLOWED_LOGIN_REDIRECTS else "/"
     response = RedirectResponse(url=target)
     response.set_cookie(
         key="oisha_token",
