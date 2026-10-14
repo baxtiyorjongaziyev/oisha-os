@@ -57,3 +57,4 @@ def test_session_role_fails_safe_to_viewer():
     assert auth_service.normalize_session_role("service") == "viewer"
     assert auth_service.normalize_session_role("unknown") == "viewer"
     assert auth_service.normalize_session_role("OWNER") == "owner"
+    assert auth_service.normalize_session_role("TARGETOLOG") == "targetolog"
