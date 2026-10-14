@@ -30,9 +30,9 @@
 
 | O'zgaruvchi | Qiymat/Joylashuvi |
 |---|---|
-| `API_ID` | 30643078 |
+| `API_ID` | `.env` da |
 | `API_HASH` | ***REDACTED*** |
-| `BOT_TOKEN` | 8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4 |
+| `BOT_TOKEN` | `.env` da |
 | `GEMINI_API_KEY` | `.env` da |
 | `OISHA_API_SECRET` | ***REDACTED*** |
 | `OPENCLAW_SECRET` | ***REDACTED*** |

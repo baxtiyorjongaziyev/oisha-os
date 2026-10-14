@@ -21,7 +21,7 @@ def _get_wa_gateway_url() -> str:
 
 
 def _get_wa_secret() -> str:
-    s = getattr(settings, "OISHA_WHATSAPP_SECRET", "secret")
+    s = getattr(settings, "OISHA_WHATSAPP_SECRET", "")
     return s.get_secret_value() if hasattr(s, "get_secret_value") else str(s)
 
 

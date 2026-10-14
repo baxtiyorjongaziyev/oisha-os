@@ -15,7 +15,7 @@ ISHGA TUSHIRISH:
   python meta_webhook.py
 
 ENVIRONMENT (.env da saqlanadi):
-  META_VERIFY_TOKEN=jonbranding_meta_verify_2026
+  META_VERIFY_TOKEN=<o'zingiz tanlagan tasodifiy satr>
   META_PAGE_ACCESS_TOKEN=<META Developer dan olingan token>
   META_APP_SECRET=<App Secret>
   BOT_TOKEN=<Telegram Bot Token>
