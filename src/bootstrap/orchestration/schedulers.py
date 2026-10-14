@@ -90,6 +90,12 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     except ImportError as exc:
         logger.warning("[ROP] scheduler unavailable: %s", exc)
 
+    try:
+        from src.schedulers.daily_insights_scheduler import daily_insights_loop
+        asyncio.create_task(daily_insights_loop(bot_runtime), name="daily_insights_loop")
+    except ImportError as exc:
+        logger.warning("[INSIGHTS] scheduler unavailable: %s", exc)
+
     standalone_leadgen = (
         os.getenv("STANDALONE_LEADGEN_WORKER", "").strip().lower() in {"1", "true", "yes"}
         or getattr(settings, "STANDALONE_LEADGEN_WORKER", False)
