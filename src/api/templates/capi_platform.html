@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="uz">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oisha · CAPI</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#162235;background:#f5f7fb}*{box-sizing:border-box}
+body{margin:0}main{max-width:1140px;margin:auto;padding:40px 24px}header{display:flex;justify-content:space-between;align-items:center;gap:16px}
+h1{font-size:36px;letter-spacing:-1px;margin:8px 0}h2{font-size:20px}p{line-height:1.6;color:#526078}.eyebrow{font-size:12px;letter-spacing:2px;font-weight:700;color:#2457da}
+button{background:#2457da;color:white;border:0;border-radius:8px;padding:12px 18px;cursor:pointer;font:inherit}button:disabled{opacity:.5;cursor:wait}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:28px 0}.card,section{background:white;border:1px solid #e1e6ef;border-radius:12px;padding:22px;margin-bottom:18px}
+.label{font-size:13px;color:#526078}.value{font-size:22px;margin-top:10px;font-weight:650}.notice{border-left:3px solid #2457da;padding:12px 18px;background:#eaf0ff}
+.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:14px 10px;border-bottom:1px solid #edf0f5;white-space:nowrap}th{color:#526078;font-weight:500}.status{font-weight:600}.sent{color:#166534}.failed{color:#b42318}code{font-size:13px}#message{min-height:24px}a{color:#2457da}@media(max-width:700px){.cards{grid-template-columns:1fr}header{align-items:start;flex-direction:column}main{padding:24px 16px}}
+</style>
+<main>
+<header><div><div class="eyebrow">OISHA / JONBRANDING</div><h1>Conversions API</h1><p>Sayt va CRM signallari → Meta. Har bir yuborishning holati ko‘rinadi.</p></div><button id="refresh">Yangilash</button></header>
+<p class="notice">Sozlangan credential Meta eventni qabul qilganini anglatmaydi. “Qabul qilindi” faqat Meta <code>events_received=1</code> qaytarganda yoziladi.</p>
+<div class="cards"><div class="card"><div class="label">Meta ulanishi</div><div class="value" id="connection">Tekshirilmoqda…</div><p id="dataset"></p></div><div class="card"><div class="label">Yuborish rejimi</div><div class="value" id="mode">Noma’lum</div><p id="enabled"></p></div><div class="card"><div class="label">Sayt serveridan qabul qilish</div><div class="value" id="ingest">Noma’lum</div><p>Credential faqat sayt serverida saqlanadi.</p></div></div>
+<div id="message" role="status" aria-live="polite"></div>
+<section><header><h2>Sayt va server eventlari</h2><button id="dispatch">Navbatni yuborish / qayta urinish</button></header><p>Avtomatik tekshiruv har 30 soniyada. Xatodan keyin kutish muddati oshadi. Test va haqiqiy eventlar alohida saqlanadi.</p><div class="scroll"><table><thead><tr><th>Event</th><th>ID / manba</th><th>Rejim</th><th>Holat</th><th>Urinish</th><th>Yangilandi (Toshkent)</th></tr></thead><tbody id="events"></tbody></table></div></section>
+<section><h2>amoCRM bosqichlari</h2><p id="mapping"></p><p>Eski CRM yozuvlarida Dataset va test rejimi tarixi saqlanmagan. Ular bugungi production ulanishining isboti emas.</p><div class="scroll"><table><thead><tr><th>Event</th><th>Lead Ads ID</th><th>amoCRM ID</th><th>Holat</th><th>Yangilandi (Toshkent)</th><th>Amal</th></tr></thead><tbody id="crm"></tbody></table></div></section>
+<section><h2>Ulash tartibi</h2><p>Server administrator Meta Dataset va credentialni maxfiy konfiguratsiyada ulaydi. Sayt backend’i <code>POST /api/marketing/capi/events</code> ga yuboradi. Browser Pixel bilan bir xil <code>event_id</code> ishlating. Sotuv uchun haqiqiy summa va valyuta shart.</p><p>Avval Meta Test Events rejimida tekshiring; keyin owner tasdig‘i bilan haqiqiy yuborishni yoqing. Telefon va email saqlashdan oldin hash qilinadi; panelda ko‘rsatilmaydi.</p></section>
+<p id="observed"></p>
+</main>
+<script>
+const base='/api/marketing/capi';
+const labels={sent:'Qabul qilindi',failed:'Xato',expired:'Muddati o‘tgan',pending:'Yuborilmoqda',queued:'Navbatda',disabled:'O‘chiq',duplicate:'Mavjud',not_due:'Hozir yuborilmaydi'};
+const el=id=>document.getElementById(id);
+const stamp=value=>value?new Date(value).toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent'}):'Noma’lum';
+function cell(row,value,cls){const td=document.createElement('td');td.textContent=value??'Noma’lum';if(cls)td.className=cls;row.append(td);return td;}
+function populate(id,records,legacy=false){
+ const body=el(id);body.replaceChildren();
+ if(!records.length){const row=document.createElement('tr');const td=cell(row,'Yozuv yo‘q');td.colSpan=6;body.append(row);return;}
+ for(const item of records){const row=document.createElement('tr');cell(row,item.event_name);
+  cell(row,legacy?item.leadgen_id:item.event_id+' / '+item.source);cell(row,legacy?item.amo_lead_id:item.mode);
+  cell(row,(labels[item.status]||item.status)+(item.error?' · '+item.error:''),'status '+item.status);
+  if(!legacy)cell(row,item.attempts);cell(row,stamp(item.updated_at));
+  if(legacy){const td=cell(row,'');if(item.status==='failed'){const b=document.createElement('button');b.textContent='Qayta yuborish';b.onclick=()=>action('/crm/'+encodeURIComponent(item.leadgen_id)+'/'+encodeURIComponent(item.event_name)+'/retry',b);td.append(b);}}
+  body.append(row);
+ }
+}
+async function request(path,method='GET'){
+ const response=await fetch(base+path,{method,credentials:'same-origin',cache:'no-store'});
+ if(!response.ok)throw new Error(response.status===401?'Oisha hisobingizga kiring.':response.status===403?'Bu amal uchun owner ruxsati kerak.':'Ma’lumot olinmadi / amal bajarilmadi ('+response.status+').');
+ return response.json();
+}
+async function load(){
+ el('refresh').disabled=true;
+ try{const data=await request('/status');const c=data.configuration;
+  el('connection').textContent=c.configured?'Sozlangan':'Ulanmagan';el('dataset').textContent='Dataset: '+(c.dataset_id||'Noma’lum');
+  el('mode').textContent=c.mode==='test'?'Test Events':'Haqiqiy';el('enabled').textContent=c.enabled?'Yuborish yoqilgan':'Yuborish o‘chiq';
+  el('ingest').textContent=c.ingest_configured?'Sozlangan':'Ulanmagan';
+  el('mapping').textContent='Sotildi (142) → Purchase. Sifatli lead bosqichlari: '+(c.qualified_status_ids.join(', ')||'sozlanmagan')+'.';
+  populate('events',data.events);populate('crm',data.crm_events,true);el('observed').textContent='Tekshirildi: '+stamp(data.observed_at)+' · har manbadan oxirgi 100 yozuv.';
+ }catch(error){el('message').textContent=error.message;el('connection').textContent='Tekshirib bo‘lmadi';}finally{el('refresh').disabled=false;}
+}
+async function action(path,button){button.disabled=true;try{const data=await request(path,'POST');el('message').textContent=data.status?(labels[data.status]||data.status):'Navbat tekshirildi. Holatlar jadvalda.';await load();}catch(error){el('message').textContent=error.message;}finally{button.disabled=false;}}
+el('refresh').onclick=load;el('dispatch').onclick=()=>action('/dispatch',el('dispatch'));load();
+</script>
+</html>
