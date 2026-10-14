@@ -13,6 +13,7 @@ class Role(StrEnum):
     OWNER = "owner"
     ADMIN = "admin"
     SELLER = "seller"
+    TARGETOLOG = "targetolog"
     VIEWER = "viewer"
     SERVICE = "service"
 
@@ -38,6 +39,8 @@ class Permission(StrEnum):
     SECRETS_MANAGE = "secrets:manage"
     SYSTEM_READ = "system:read"
     SYSTEM_DEPLOY = "system:deploy"
+    MARKETING_READ = "marketing:read"
+    MARKETING_MANAGE = "marketing:manage"
     AUDIT_READ_ALL = "audit:read:all"
     AUDIT_READ_OWN = "audit:read:own"
 
@@ -69,7 +72,17 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             Permission.MCP_WRITE,
             Permission.USERS_MANAGE_LIMITED,
             Permission.SYSTEM_READ,
+            Permission.MARKETING_READ,
+            Permission.MARKETING_MANAGE,
             Permission.AUDIT_READ_ALL,
+        }
+    ),
+    Role.TARGETOLOG: frozenset(
+        {
+            Permission.DASHBOARD_READ,
+            Permission.LEAD_READ_ALL,
+            Permission.MARKETING_READ,
+            Permission.MARKETING_MANAGE,
         }
     ),
     Role.SELLER: frozenset(

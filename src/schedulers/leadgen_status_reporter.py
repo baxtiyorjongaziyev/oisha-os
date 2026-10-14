@@ -5,7 +5,7 @@ import asyncio
 import datetime
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import requests
 
@@ -211,6 +211,24 @@ def build_loss_lines(days: int = 7) -> list[str]:
     return lines
 
 
+def _capi_telemetry_lines() -> list[str]:
+    """CAPI automation status for marketing and targetolog reports."""
+    try:
+        from src.services.core.marketing.meta_capi import _config
+        cfg = _config()
+        if not cfg.get("dataset_id"):
+            return ["• 🎯 <b>Meta Conversions API (CAPI):</b> Ulanmagan"]
+        mode = "Test Events" if cfg.get("test_code") else "Live"
+        status = "Faol (har 30s navbat tekshiriladi)" if cfg.get("enabled") else "Yuborish to'xtatilgan"
+        return [
+            f"• 🎯 <b>Meta CAPI:</b> <code>{cfg['dataset_id']}</code> ({mode}) — {status}",
+            "• 📡 <b>CAPI Avto-oqim:</b> Sayt (Lead) ➔ amoCRM (QualifiedLead, Purchase)",
+        ]
+    except Exception as exc:
+        logger.warning("[LEADGEN REPORTER] CAPI telemetry failed: %s", exc)
+        return []
+
+
 def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]] = None) -> str:
     """Compile executive 24/7 status report across Meta, AmoCRM, Sheets, and Telegram."""
     if summary is None:
@@ -270,9 +288,10 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         *build_seller_lines(),
         "⚙️ <b>Baza va Integratsiyalar:</b>",
         meta_total_line,
-        f"• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",
+        "• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",
         "• AmoCRM voronkalari: <code>Sotuv Bo'limi (#11162698) & UTC (#11322658)</code>",
         f"• Kutilayotgan/xatoli lidlar: <b>{pending} ta</b>",
+        *_capi_telemetry_lines(),
         "━━━━━━━━━━━━━━━━━━━━",
         footer_note,
     ]
