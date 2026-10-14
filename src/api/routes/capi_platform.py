@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import ValidationError
 
-from src.api.rbac import Permission, require_permissions
+from src.api.rbac import Permission, require_any_permission
 from src.services.core.marketing import capi_platform as platform
 from src.services.core.marketing.capi_platform_schema import Conversion
 
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 async def worker():
+    """Background worker draining due CAPI conversions every 30 seconds."""
     while True:
         try:
             if platform.meta_capi.is_enabled():
@@ -33,6 +34,7 @@ async def worker():
 
 @asynccontextmanager
 async def lifespan(app):
+    """Lifecycle manager running the CAPI dispatch worker in background."""
     task = asyncio.create_task(worker(), name="capi-platform")
     try:
         yield
@@ -45,11 +47,13 @@ async def lifespan(app):
 
 
 router = APIRouter(prefix="/api/marketing/capi", tags=["CAPI Platform"], lifespan=lifespan)
-read_access = require_permissions(Permission.SYSTEM_READ)
-write_access = require_permissions(Permission.SYSTEM_DEPLOY)
+# Targetolog and Marketing role can view console, check status, and dispatch/retry queue
+read_access = require_any_permission(Permission.SYSTEM_READ, Permission.MARKETING_READ)
+write_access = require_any_permission(Permission.SYSTEM_DEPLOY, Permission.MARKETING_MANAGE)
 
 
 def same_origin(request: Request):
+    """CSRF and origin validation for authenticated mutations."""
     origin = request.headers.get("origin")
     if request.cookies.get("oisha_token") and not origin:
         raise HTTPException(403, "Origin header required for cookie authentication")
@@ -60,16 +64,55 @@ def same_origin(request: Request):
 
 @router.get("/console", response_class=HTMLResponse, dependencies=[read_access])
 async def console():
+    """Interactive Oisha CAPI web console for targetologists and administrators."""
     path = Path(__file__).parents[1] / "templates" / "capi_platform.html"
     return HTMLResponse(path.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
 
 
 @router.get("/status", dependencies=[read_access])
 async def status():
+    """Current configuration, website conversions queue, and CRM conversions log."""
     try:
         return JSONResponse(await platform.snapshot(), headers={"Cache-Control": "no-store"})
     except Exception as exc:
         raise HTTPException(503, "CAPI history unavailable") from exc
+
+
+@router.get("/summary", dependencies=[read_access])
+async def summary():
+    """Aggregated telemetry and health summary for Targetologs and automated reports."""
+    try:
+        data = await platform.snapshot()
+        events = data.get("events", [])
+        crm_events = data.get("crm_events", [])
+
+        status_counts: dict[str, int] = {}
+        type_counts: dict[str, int] = {}
+        for ev in events:
+            st = str(ev.get("status") or "unknown")
+            nm = str(ev.get("event_name") or "unknown")
+            status_counts[st] = status_counts.get(st, 0) + 1
+            type_counts[nm] = type_counts.get(nm, 0) + 1
+
+        crm_counts: dict[str, int] = {}
+        for ev in crm_events:
+            st = str(ev.get("status") or "unknown")
+            crm_counts[st] = crm_counts.get(st, 0) + 1
+
+        return JSONResponse(
+            {
+                "configuration": data.get("configuration", {}),
+                "total_website_events": len(events),
+                "total_crm_events": len(crm_events),
+                "website_status_counts": status_counts,
+                "crm_status_counts": crm_counts,
+                "event_type_counts": type_counts,
+                "observed_at": data.get("observed_at"),
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception as exc:
+        raise HTTPException(503, "CAPI summary unavailable") from exc
 
 
 @router.post("/events", status_code=202)

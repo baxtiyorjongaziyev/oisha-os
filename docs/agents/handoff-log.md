@@ -1722,4 +1722,37 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - `bandit -r src/services/core/marketing/capi_platform.py src/services/core/marketing/capi_platform_store.py src/services/core/marketing/capi_platform_schema.py src/api/routes/capi_platform.py -ll`: **0 issues**.
   - `ruff check src/services/core/marketing/capi_platform.py src/services/core/marketing/capi_platform_store.py src/services/core/marketing/capi_platform_schema.py src/api/routes/capi_platform.py tests/test_capi_platform.py tests/test_capi_platform_hardening.py`: **All checks passed**.
   - Barcha production fayllar qat'iy <= 400 qator standarti va funksiyalar <= 60 qator me'yoriga to'liq mos.
-- Qolgan ishlar: Oracle VM'ga deploy va Meta Events Manager'da `META_CAPI_TEST_EVENT_CODE` orqali birinchi jonli eventni egasi (Baxtiyorjon) tomonidan tasdiqlanishi.
+- Qolgan ishlar: Oracle VM'ga deploy bajarildi (Run #38534402828 yashil). Meta Events Manager'da jonli sinov event muvaffaqiyatli qabul qilindi.
+
+- **2026-10-14 — Antigravity — Meta CAPI Jonli Sinov va Deploy Tasdig'i:**
+  - **Oracle VM Deploy**: PR #873 main branch'ga birlashtirildi, `Oracle Production Deploy` (Run #38534402828) orqali self-hosted runner'da muvaffaqiyatli deploy bo'ldi va jonli xizmatlar yangilandi.
+  - **Meta CAPI Jonli Tasdiq**:
+    - Dataset ID: `1134785364752294` (Jon.Branding sayt).
+    - Faol sinov kodi: `TEST11075`.
+    - Meta Graph API javobi:
+      ```json
+      {
+        "events_received": 1,
+        "messages": [],
+        "fbtrace_id": "AnJYSsBR-Y8E6GfxTdp_vnd"
+      }
+      ```
+    - Meta Events Manager "Обзор" bo'limida Conversions API statusi:
+      - `Покупка`: Активно (Conversions API)
+      - `Лид`: Активно (Несколько — Browser & Conversions API)
+      - `PageView`: Активно (Браузер)
+  - **Holat**: Bajarildi (kod deploy qilindi, Meta CAPI jonli qabul qilgani 100% rasmiy Graph API javobi bilan tasdiqlandi).
+
+- **2026-10-14 — Antigravity — Targetolog CAPI Avtomatizatsiyasi va O'z-o'ziga Xizmat (Self-Service) Tizimi:**
+  - **Vazifa**: "Automation boʻlsin. Targetolog oʻzi kirib bemalol foydalana olsin".
+  - **Bajarildi**:
+    1. **RBAC & Xavfsizlik**: `Role.TARGETOLOG` ("targetolog") roli va `Permission.MARKETING_READ`, `Permission.MARKETING_MANAGE` ruxsatlari yaratildi. Targetolog va Adminlarga CAPI konsoli, status va navbatni yuborish huquqi berildi (`src/api/rbac.py`, `src/api/security.py`).
+    2. **CAPI API & Web Konsoli**: `/api/marketing/capi/summary` umumiy hisobot endpointi va yangilangan Targetolog Web Konsoli (`src/api/templates/capi_platform.html`) joriy qilindi. Sayt va CRM eventlari, rejim va avtomatlashtirish kartalari qo'shildi.
+    3. **Telegram Bot Boshqaruvi**: Aiogram va Telethon'da Targetologlar uchun `/capi`, `/target`, `/targetolog` buyruqlari va interaktiv inline boshqaruv (`capi:dispatch`, `capi:events`, `capi:creatives`) yaratildi (`src/services/core/dispatcher/handlers_capi.py`, `builder.py`, `admin_commands.py`).
+    4. **24/7 Avtomatlashtirilgan Hisobot**: Marketing guruhi (Topic 42) uchun har kungi avtomatik hisobotga Meta CAPI telemetriyasi ulandi (`src/schedulers/leadgen_status_reporter.py`).
+  - **Tekshiruv dalili**:
+    - `tests/test_capi_targetolog_automation.py` va CAPI testlari: **54 ta test 100% yashil**.
+    - `bandit -r src/services/core/dispatcher/handlers_capi.py src/api/routes/capi_platform.py src/api/rbac.py src/api/security.py -ll`: **0 ta xavfsizlik zaifligi**.
+    - `ruff check`: **100% toza**.
+    - Barcha o'zgargan fayllar qat'iy **150 – 400 qator** oralig'ida (`rbac.py`: 171, `security.py`: 283, `capi_platform.py`: 173, `handlers_capi.py`: 173, `builder.py`: 238, `admin_commands.py`: 218, `leadgen_status_reporter.py`: 352).
+  - **Holat**: Bajarildi (lokal to'liq tayyor va sinovdan o'tgan).
