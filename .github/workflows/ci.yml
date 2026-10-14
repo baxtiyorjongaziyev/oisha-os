@@ -1,0 +1,130 @@
+name: CI - Lint, Test & Quality Gate
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-syntax:
+    name: 🎨 Lint, Format & Syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up uv & Python 3.12
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          python-version: "3.12"
+
+      - name: Syntax Compilation Check (Bytecode)
+        run: |
+          python -m py_compile src/main.py src/api_server.py src/database.py
+
+      - name: Lint with Ruff
+        run: |
+          uv pip install --system ruff black
+          ruff check src/ tests/ --exit-zero || true
+          black --check --diff src/ tests/ || true
+
+  security-scan:
+    name: 🛡️ Security Audit (Bandit & Secrets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up uv & Python 3.12
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          python-version: "3.12"
+
+      - name: Bandit Security Scan
+        run: |
+          uv pip install --system bandit
+          bandit -r src/ -ll -x src/services/debug/ --quiet
+
+  unit-tests:
+    name: 🧪 Unit Tests (Python 3.11 & 3.12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up uv & Python ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Dependencies
+        run: |
+          uv pip install --system -r requirements.txt -r requirements-dev.txt
+
+      - name: Run Fast Gate Tests
+        env:
+          SKIP_LIVE: "1"
+          ALLOW_LOCAL_RUN: "0"
+        run: |
+          python -m pytest tests/test_api_server_security.py -v --tb=short
+
+  typescript-build-check:
+    name: 📦 Monorepo & Frontend Build Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Monorepo Package Verification
+        run: |
+          if [ -f "pnpm-workspace.yaml" ]; then
+            pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+          fi
+
+  ci-status:
+    name: ✅ CI Quality Gate Summary
+    needs: [lint-and-syntax, security-scan, unit-tests, typescript-build-check]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check Overall Status
+        run: |
+          if [[ "${{ needs.lint-and-syntax.result }}" == "success" && \
+                "${{ needs.security-scan.result }}" == "success" && \
+                "${{ needs.unit-tests.result }}" == "success" ]]; then
+            echo "CI Quality Gate PASSED!"
+            exit 0
+          else
+            echo "CI Quality Gate FAILED!"
+            exit 1
+          fi

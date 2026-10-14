@@ -1,54 +1,93 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
+  # 1. GitHub Actions Workflows
+  - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Tashkent"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
-  - package-ecosystem: "npm"
-    directory: "/salescoach-ai"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-
-  - package-ecosystem: "npm"
-    directory: "/marketing-os/frontend"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-
+  # 2. Python Packages (Root)
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:30"
+      timezone: "Asia/Tashkent"
     open-pull-requests-limit: 10
-    # Resolver verified against production Linux/Python 3.11 on 2026-10-05.
-    # aiohttp <7 multidict constraint and Sphinx <0.23 docutils constraint.
-    # Ignore only these incompatible releases; security alerts remain enabled.
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     ignore:
       - dependency-name: "multidict"
         versions: ["7.0.0"]
       - dependency-name: "docutils"
         versions: ["0.23"]
-      # libsql-client 0.3.1 requires sphinx-press-theme<0.9.0.
       - dependency-name: "sphinx-press-theme"
         versions: ["0.9.1"]
+
+  # 3. Monorepo TypeScript / NPM Root
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Asia/Tashkent"
+    open-pull-requests-limit: 10
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # 4. SalesCoach AI NPM packages
+  - package-ecosystem: "npm"
+    directory: "/salescoach-ai"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:30"
+      timezone: "Asia/Tashkent"
+    open-pull-requests-limit: 5
+
+  # 5. Marketing OS Frontend NPM packages
+  - package-ecosystem: "npm"
+    directory: "/marketing-os/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Asia/Tashkent"
+    open-pull-requests-limit: 5
+
+  # 6. Docker Base Images
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:30"
+      timezone: "Asia/Tashkent"
+    open-pull-requests-limit: 5
+    groups:
+      docker-images:
+        patterns:
+          - "*"

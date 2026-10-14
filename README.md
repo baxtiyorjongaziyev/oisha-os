@@ -4,15 +4,17 @@
 
 **Autonomous AI Operating System & Business Intelligence Platform for Modern Agencies**
 
-[![CI Build](https://img.shields.io/github/actions/workflow/status/baxtiyorjongaziyev/oisha-os/test.yml?branch=main&label=CI%20Build&logo=github&style=for-the-badge)](https://github.com/baxtiyorjongaziyev/oisha-os/actions/workflows/test.yml)
+[![CI Gate](https://img.shields.io/github/actions/workflow/status/baxtiyorjongaziyev/oisha-os/ci.yml?branch=main&label=CI%20Gate&logo=githubactions&logoColor=white&style=for-the-badge)](https://github.com/baxtiyorjongaziyev/oisha-os/actions/workflows/ci.yml)
 [![CodeQL Security](https://img.shields.io/github/actions/workflow/status/baxtiyorjongaziyev/oisha-os/codeql.yml?branch=main&label=CodeQL%20Security&logo=github&style=for-the-badge)](https://github.com/baxtiyorjongaziyev/oisha-os/actions/workflows/codeql.yml)
+[![Open in GitHub Codespaces](https://img.shields.io/badge/Codespaces-Open%20Cloud%20IDE-blue?logo=github&style=for-the-badge)](https://codespaces.new/baxtiyorjongaziyev/oisha-os)
+[![GitHub Release](https://img.shields.io/github/v/release/baxtiyorjongaziyev/oisha-os?style=for-the-badge&logo=github&color=7c3aed)](https://github.com/baxtiyorjongaziyev/oisha-os/releases)
+[![Docs](https://img.shields.io/badge/Docs-GitHub%20Pages-22c55e?logo=githubpages&style=for-the-badge)](https://baxtiyorjongaziyev.github.io/oisha-os/)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB.svg?logo=python&logoColor=white&style=for-the-badge)](https://www.python.org/)
-[![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js&style=for-the-badge)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white&style=for-the-badge)](https://fastapi.tiangolo.com/)
 [![Turso](https://img.shields.io/badge/Turso-libSQL-00E599?logo=sqlite&logoColor=black&style=for-the-badge)](https://turso.tech/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
-[🌐 Live Platform](https://oisha.jonbranding.uz) • [📖 Architecture](docs/ARCHITECTURE.md) • [🛠 Sales OS Suite](docs/oisha-sales-os-suite.md) • [🤝 Contributing](CONTRIBUTING.md)
+[🌐 Live Platform](https://oisha.jonbranding.uz) • [📖 Architecture](docs/ARCHITECTURE.md) • [🛠 Sales OS Suite](docs/oisha-sales-os-suite.md) • [☁️ Codespaces](https://codespaces.new/baxtiyorjongaziyev/oisha-os) • [🤝 Contributing](CONTRIBUTING.md)
 
 </div>
 

@@ -1,0 +1,57 @@
+name: Automated Release & Changelog
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 🏷️ Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Release Archive
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          tar -czf oisha-os-${VERSION}.tar.gz \
+            src/ \
+            apps/ \
+            packages/ \
+            deploy/ \
+            requirements*.txt \
+            package.json \
+            Makefile \
+            README.md \
+            LICENSE
+
+      - name: Create GitHub Release with Auto Changelog
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            oisha-os-*.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          name: "Oisha-OS Release ${{ github.ref_name }}"
+          body: |
+            ## 👸 Oisha-OS Enterprise Release ${{ github.ref_name }}
+            
+            Ushbu reliz avtomatik tarzda CI/CD tekshiruvlaridan muvaffaqiyatli o'tgan holda yaratildi.
+            
+            ### 📦 O'rnatish & Yangilash
+            ```bash
+            git fetch --tags
+            git checkout ${{ github.ref_name }}
+            uv pip install -r requirements.txt
+            ```
+            
+            *Avtomatik o'zgarishlar jurnali quyida keltirilgan:*

@@ -1,0 +1,76 @@
+name: Deploy Documentation to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup uv & Python 3.12
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          python-version: "3.12"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build Docs
+        run: |
+          mkdir -p _site
+          if [ -f "docs/conf.py" ]; then
+            uv pip install --system sphinx sphinx-press-theme
+            sphinx-build -b html docs _site
+          else
+            # Fallback static documentation site
+            cp -r docs/* _site/ || true
+            cat << 'EOF' > _site/index.html
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Oisha-OS Documentation</title>
+              <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+            </head>
+            <body>
+              <h1>👸 Oisha-OS Enterprise Documentation</h1>
+              <p>Autonomous AI Operating System for Jon Branding Agency.</p>
+              <ul>
+                <li><a href="https://github.com/baxtiyorjongaziyev/oisha-os">GitHub Repository</a></li>
+                <li><a href="https://oisha.jonbranding.uz">Live Control Plane</a></li>
+              </ul>
+            </body>
+            </html>
+            EOF
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

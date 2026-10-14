@@ -41,6 +41,7 @@ HARNESS_FEEDBACK.md
 !tsconfig*.json
 !turbo.json
 !.prettierrc.json
+!.devcontainer/*.json
 !apps/**/tsconfig*.json
 !packages/**/tsconfig*.json
 !packages/config/**/*.json
