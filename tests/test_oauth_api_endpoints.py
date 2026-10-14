@@ -1,6 +1,5 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, patch
 
 from src.services.api_server.core import app
 from src.services.api_server.oauth import _OAuthSessionStore
@@ -99,3 +98,49 @@ def test_telegram_callback_success_with_strong_jwt_secret(client, monkeypatch):
     cookie = res.headers.get("set-cookie", "")
     assert "oisha_token=" in cookie
     assert "Max-Age=" in cookie or "max-age=" in cookie.lower()
+
+
+def test_telegram_login_redirect_sanitization(client):
+    # Valid next in whitelist
+    res = client.get("/api/auth/telegram/login?next=/api/marketing/capi/console")
+    assert res.status_code == 200
+    assert 'data-auth-url="/api/auth/telegram/callback?next=/api/marketing/capi/console"' in res.text
+
+    # Malicious next not in whitelist
+    res_bad = client.get('/api/auth/telegram/login?next=https://evil.com"><script>alert(1)</script>')
+    assert res_bad.status_code == 200
+    assert 'data-auth-url="/api/auth/telegram/callback"' in res_bad.text
+    assert "<script>alert(1)</script>" not in res_bad.text
+
+
+def test_telegram_callback_redirect_sanitization(client, monkeypatch):
+    from unittest.mock import MagicMock, AsyncMock
+    from src.api import auth_service
+
+    monkeypatch.setattr(auth_service, "verify_telegram_hash", lambda *args, **kwargs: True)
+    monkeypatch.setattr(auth_service, "is_auth_date_fresh", lambda *args, **kwargs: True)
+    monkeypatch.setenv("JWT_SECRET", "test-dedicated-jwt-secret-at-least-32-bytes-long!")
+
+    mock_db = MagicMock()
+    mock_db.users.upsert_user = AsyncMock()
+    mock_db.users.get_user = AsyncMock(return_value={"role": "client"})
+    monkeypatch.setattr("src.services.api_server.oauth.get_db", lambda: mock_db)
+
+    params = {
+        "id": "12345",
+        "first_name": "Test",
+        "username": "tester",
+        "auth_date": "1700000000",
+        "hash": "validhash",
+        "next": "/api/marketing/capi/console",
+    }
+    # Whitelisted next
+    res = client.get("/api/auth/telegram/callback", params=params, follow_redirects=False)
+    assert res.status_code == 307
+    assert res.headers.get("location") == "/api/marketing/capi/console"
+
+    # Malicious next not in whitelist
+    params["next"] = "https://attacker.com/steal"
+    res_malicious = client.get("/api/auth/telegram/callback", params=params, follow_redirects=False)
+    assert res_malicious.status_code == 307
+    assert res_malicious.headers.get("location") == "/"

@@ -11,10 +11,10 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import ValidationError
 
-from src.api.rbac import Permission, require_any_permission
+from src.api.rbac import Permission, has_permission, require_any_permission
 from src.services.core.marketing import capi_platform as platform
 from src.services.core.marketing.capi_platform_schema import Conversion
 
@@ -62,9 +62,25 @@ def same_origin(request: Request):
         raise HTTPException(403, "Cross-origin operation denied")
 
 
-@router.get("/console", response_class=HTMLResponse, dependencies=[read_access])
-async def console():
+@router.get("/console", response_class=HTMLResponse)
+async def console(request: Request):
     """Interactive Oisha CAPI web console for targetologists and administrators."""
+    from src.api.security import authorize_connection
+
+    principal = authorize_connection(request)
+    if principal is None:
+        accept = request.headers.get("accept", "")
+        if "text/html" in accept and not request.headers.get("authorization"):
+            return RedirectResponse(
+                url="/api/auth/telegram/login?next=/api/marketing/capi/console",
+                status_code=303,
+            )
+        raise HTTPException(401, "Unauthorized")
+    if not (
+        has_permission(principal, Permission.SYSTEM_READ)
+        or has_permission(principal, Permission.MARKETING_READ)
+    ):
+        raise HTTPException(403, "Targetolog yoki Admin ruxsati talab qilinadi")
     path = Path(__file__).parents[1] / "templates" / "capi_platform.html"
     return HTMLResponse(path.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
 

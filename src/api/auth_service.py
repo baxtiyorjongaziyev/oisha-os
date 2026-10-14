@@ -21,7 +21,7 @@ SESSION_TTL_SECONDS = 12 * 60 * 60
 # Telegram login payloads older than this are rejected (replay protection).
 TELEGRAM_AUTH_MAX_AGE_SECONDS = 86400
 _MIN_SESSION_SECRET_BYTES = 32
-SUPPORTED_BROWSER_ROLES = frozenset({"owner", "admin", "seller", "viewer"})
+SUPPORTED_BROWSER_ROLES = frozenset({"owner", "admin", "seller", "targetolog", "viewer"})
 
 
 def build_telegram_data_check_string(fields: Dict[str, Optional[str]]) -> str:

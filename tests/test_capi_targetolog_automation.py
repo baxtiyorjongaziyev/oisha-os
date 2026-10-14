@@ -61,6 +61,20 @@ def test_targetolog_can_access_summary(monkeypatch):
 
 def test_targetolog_can_access_console(monkeypatch):
     client = _app(monkeypatch)
+    # Unauthenticated browser redirects to telegram login
+    unauth = client.get(
+        "/api/marketing/capi/console",
+        headers={"Accept": "text/html"},
+        follow_redirects=False,
+    )
+    assert unauth.status_code == 303
+    assert "/api/auth/telegram/login" in unauth.headers["location"]
+
+    # Seller is forbidden (403)
+    seller_res = client.get("/api/marketing/capi/console", cookies=_token("seller"))
+    assert seller_res.status_code == 403
+
+    # Targetolog gets 200 console
     res = client.get("/api/marketing/capi/console", cookies=_token("targetolog"))
     assert res.status_code == 200
     assert "Targetolog CAPI Paneli" in res.text

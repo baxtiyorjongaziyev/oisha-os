@@ -57,6 +57,9 @@ _PUBLIC_PATHS = frozenset(
         "/api/telephony/incoming-call",
         # Server CAPI intake authenticates its dedicated bearer inside the route.
         "/api/marketing/capi/events",
+        # CAPI web console handles auth and browser login redirection in route.
+        "/api/marketing/capi/console",
+        "/capi",
         # Meta must reach this exact verification/event endpoint. The route
         # validates the verify token (GET) and x-hub-signature-256 (POST).
         "/api/instagram/webhook",
