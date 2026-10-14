@@ -91,8 +91,9 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         logger.warning("[ROP] scheduler unavailable: %s", exc)
 
     try:
-        from src.schedulers.daily_insights_scheduler import daily_insights_loop
+        from src.schedulers.daily_insights_scheduler import daily_insights_loop, sales_intel_loop
         asyncio.create_task(daily_insights_loop(bot_runtime), name="daily_insights_loop")
+        asyncio.create_task(sales_intel_loop(bot_runtime), name="sales_intel_loop")
     except ImportError as exc:
         logger.warning("[INSIGHTS] scheduler unavailable: %s", exc)
 
