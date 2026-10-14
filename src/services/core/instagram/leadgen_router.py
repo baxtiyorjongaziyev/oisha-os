@@ -26,6 +26,7 @@ from src.services.core.instagram.leadgen_formatter import (
     build_telegram_message as _fmt_build_tg,
 )
 from src.services.core.instagram.leadgen_custom_fields import extract_lead_custom_fields
+from src.services.core.instagram import leadgen_capi
 from src.services.core.instagram.leadgen_dedup import is_leadgen_processed, mark_leadgen_processed
 from src.services.core.instagram.leadgen_sheets import append_lead_to_sheet
 from src.services.core.instagram.leadgen_delivery import (
@@ -277,14 +278,16 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
         await asyncio.to_thread(
             save_crm_checkpoint, leadgen_id, int(lead_id),
             destination=destination, advance_rotation=advance_rotation,
+            queue_capi=leadgen_capi.is_enabled(),
         )
+        leadgen_capi.schedule_lead_event(leadgen_id, int(lead_id), phone=phone or "", email=email or "")
         if not existing_lead:
             await amocrm.update_lead_status(
                 int(lead_id),
                 target_status_id,
                 pipeline_id=target_pipeline_id,
             )
-        tags = [TARGET_LEAD_TAG, "Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}"]
+        tags = [TARGET_LEAD_TAG, "Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}", "manba:reklama"]
         if existing_lead:
             tags.append("qayta_murojaat")
         if ad_name:

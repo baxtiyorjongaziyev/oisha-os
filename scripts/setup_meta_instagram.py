@@ -27,7 +27,7 @@ from src.services.core.instagram_weekly_report import InstagramWeeklyReportAgent
 
 logger = logging.getLogger(__name__)
 DEFAULT_PAGE_ID = "103894334533931"
-GRAPH_API_VERSION = "v19.0"
+GRAPH_API_VERSION = "v25.0"
 GRAPH_BASE = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 
 

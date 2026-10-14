@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - optional dependency
     types = None
 
 from src.settings import settings
+from src.services.core.instagram.graph_version import graph_base
 
 logger = logging.getLogger("InstagramVideoAnalyzer")
 
@@ -48,7 +49,7 @@ def _get_client() -> Optional[Any]:
 
 
 def _fetch_media_details(media_id: str, access_token: str) -> Dict[str, Any]:
-    url = f"https://graph.facebook.com/v19.0/{media_id}"
+    url = f"{graph_base()}/{media_id}"
     params = {"fields": "caption,media_type,media_url", "access_token": access_token}
     try:
         resp = requests.get(url, params=params, timeout=15)

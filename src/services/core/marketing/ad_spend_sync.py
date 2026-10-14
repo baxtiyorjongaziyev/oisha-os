@@ -5,7 +5,7 @@ import asyncio
 import logging
 from datetime import timedelta
 
-from src.services.core.marketing.ad_spend_store import upsert_daily_spend
+from src.services.core.marketing.ad_spend_store import upsert_daily_ad_spend, upsert_daily_spend
 from src.services.core.marketing.meta_ads_client import MetaAdsClient
 from src.time_utils import get_local_now
 
@@ -40,6 +40,7 @@ async def sync_ad_spend(days: int = 7) -> int:
                 "campaign_id": row.get("campaign_id"),
                 "campaign_name": row.get("campaign_name"),
                 "spend": row.get("spend"),
+                "currency": row.get("account_currency"),
                 "impressions": row.get("impressions"),
                 "clicks": row.get("clicks"),
                 "meta_leads": client.extract_lead_actions(row),
@@ -48,4 +49,17 @@ async def sync_ad_spend(days: int = 7) -> int:
 
     written = await asyncio.to_thread(upsert_daily_spend, parsed, now.isoformat())
     logger.info("[META ADS SYNC] %s qator yozildi (%s .. %s)", written, since, until)
+
+    ad_rows = await asyncio.to_thread(client.get_daily_campaign_insights, since, until, "ad")
+    ad_parsed = [
+        {
+            "date": r.get("date_start"), "ad_id": r.get("ad_id"), "ad_name": r.get("ad_name"),
+            "campaign_id": r.get("campaign_id"), "campaign_name": r.get("campaign_name"),
+            "spend": r.get("spend"), "impressions": r.get("impressions"), "clicks": r.get("clicks"),
+            "meta_leads": client.extract_lead_actions(r),
+        }
+        for r in ad_rows
+    ]
+    ad_written = await asyncio.to_thread(upsert_daily_ad_spend, ad_parsed, now.isoformat())
+    logger.info("[META ADS SYNC] ad kesimi: %s qator", ad_written)
     return written
