@@ -88,8 +88,8 @@ class FakeRepo:
 
 class FakeBot:
     def __init__(self): self.sent = []
-    async def send_message(self, chat_id, text, parse_mode=None):
-        self.sent.append((chat_id, text))
+    async def send_message(self, chat_id, text, parse_mode=None, **kwargs):
+        self.sent.append((chat_id, text, kwargs))
 
 
 async def test_scheduler_gated_and_sends(monkeypatch):
@@ -110,3 +110,27 @@ async def test_scheduler_skips_sunday(monkeypatch):
     sun = datetime(2026, 9, 13, 9, 15, tzinfo=TZ)
     assert not await sched.run_daily_insights(FakeBot(), now_fn=lambda: sun,
                                               fetcher=FakeFetcher(), repo=FakeRepo())
+
+
+def test_target_destination_defaults(monkeypatch):
+    monkeypatch.setenv("ROP_CEO_CHAT_ID", "-1003854308552")
+    monkeypatch.delenv("ROP_CEO_TOPIC_ID", raising=False)
+    assert sched._target_destination() == (-1003854308552, 115)
+
+    monkeypatch.setenv("ROP_CEO_TOPIC_ID", "200")
+    assert sched._target_destination() == (-1003854308552, 200)
+
+    monkeypatch.setenv("ROP_CEO_CHAT_ID", "123456")
+    monkeypatch.delenv("ROP_CEO_TOPIC_ID", raising=False)
+    assert sched._target_destination() == (123456, None)
+
+
+async def test_scheduler_sends_to_topic(monkeypatch):
+    bot = FakeBot()
+    monkeypatch.setenv("ROP_CEO_CHAT_ID", "-1003854308552")
+    monkeypatch.setenv("DAILY_INSIGHTS_ENABLED", "1")
+    assert await sched.run_daily_insights(bot, now_fn=lambda: WED_9,
+                                          fetcher=FakeFetcher(), repo=FakeRepo())
+    assert bot.sent[0][0] == -1003854308552
+    assert bot.sent[0][2].get("message_thread_id") == 115
+
