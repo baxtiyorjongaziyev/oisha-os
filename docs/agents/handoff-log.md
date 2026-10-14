@@ -1386,6 +1386,7 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
   - Obsidian Brain: `20-Areas/SOP_Sotuvchilar_Darsligi.md` ga 6-modul sifatida kiritildi, `brain_log` qayd etildi.
 - Tekshiruv: `SKIP_LIVE=1 pytest tests/test_call_conversion_tasks.py tests/test_daily_sales_calls_report.py` — 26/26 passed; barcha `.py` fayllar 150-400 LOC standartiga mos (`helpers.py`: 361, `runner.py`: 399, `normalizer.py`: 282, `crm_tasks.py`: 298, `scorer.py`: 314, `call_report_formatter.py`: 223, `daily_sales_calls_report.py`: 396).
 
+<<<<<<< Updated upstream
 ## 2026-10-10 — Antigravity — Security & Dependabot Queue Resolution (Zero Alerts, 10/10 GitHub)
 - Task: GitHub repositorysini 10/10 ideal holatga keltirish: ochiq PRlarni tartibga solish, barcha ziddiyatlarni (conflicts) bartaraf qilish, CodeQL va Dependabot xavfsizlik ogohlantirishlarini 0 taga tushirish.
 - Bajarildi:
@@ -1397,3 +1398,254 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
 - Tekshiruv: `pnpm install --frozen-lockfile` (salescoach-ai & marketing-os/frontend) muvaffaqiyatli o'tdi; Jest testlari (7/7 passed), marketing frontend build (170ms) va oxlint (0 errors) toza. CodeQL: 0 alert, Secrets: 0 alert.
 - Status: Barcha xavfsizlik va ziddiyatlar to'liq bartaraf etildi.
 
+
+
+2026-10-10 / Codex Coordinator: Added owner-requested truthfulness and owner-click rules to AGENTS.md (rules 10-11). Verified with rg; recorded source in Obsidian. Other agents have not been verified to have read the changes. Tax review remains open.
+
+
+2026-10-10 / Codex Coordinator: Added evidence and verification rules to AGENTS.md at owner request. Scope: provenance, uncertainty, freshness, discrepancies, arithmetic checks, post-action verification, honest status, corrections. Recorded in Obsidian. No runtime enforcement or other-agent adoption claimed.
+
+## 2026-10-10 — Antigravity — feat(skills): community-lead-sync yaratildi va barcha AI agentlarga (Codex, Claude, Gemini, Antigravity) ulashildi
+- Task: Telegram forum/guruhlaridagi tanishtiruv postlarini o'qish, Obsidian Second Brain'ga kiritish va amoCRM ga dublikatsiz (zero-duplicate) boyitish/yaratish ishini barcha agentlar (Codex, Claude, Gemini, Antigravity) uchun umumiy va doimiy skill (`community-lead-sync`) ga aylantirish.
+- Files:
+  - `.agents/skills/community-lead-sync/SKILL.md` (yangi: 121 LOC modular skill, 5-qadamli protokol: Telethon extract, parsing/kategoriya, Obsidian vault sync, amoCRM deduplication va connection pool / rate-limit optimizatsiyasi).
+  - `C:\Users\baxti\.gemini\config\skills\community-lead-sync\SKILL.md` (global foydalanuvchi darajasidagi nusxa).
+  - `AGENTS.md`: `## Qayerda nima bor` jadvaliga va 9-qoidaga (`Umumiy skills`) kiritildi (107 qator, <= 150 LOC limitiga to'liq mos).
+  - `CLAUDE.md`: `## Development Notes` qismiga skill havolasi kiritildi (Claude Code uchun).
+  - `GEMINI.md`: `### 🎯 Key Responsibilities` ro'yxatiga 3-band sifatida qo'shildi (Gemini va Google AI Studio uchun).
+  - `20-Areas/Tez_Natija_6_Ishtirokchilar_Bazasi.md` (Obsidian Second Brain'ga 109 ta ishtirokchi kiritildi).
+- Natija va tekshiruv:
+  - Barcha AI agentlar (Claude, Codex, Gemini, Antigravity) ish boshlashdan oldin `AGENTS.md`, `CLAUDE.md` va `GEMINI.md` orqali yangi skill mavjudligini ko'radi.
+  - Skill hajmi 121 qator (150-400 LOC me'yoriga mos).
+  - `git diff` tekshirildi, maxfiy kalitlar yo'q, xavfsizlik va dalillar qoidalariga to'liq rioya qilindi.
+- Holat: Bajarildi.
+
+## 2026-10-10 — Antigravity — feat(leads): "TEZ NATIJA 5" ishtirokchilarini community-lead-sync skilli bo'yicha to'liq sinxronlash
+- Task: Telegram "TEZ NATIJA 5" guruhi 7-mavzusidagi (`https://web.telegram.org/a/#-1003820339529_7`) barcha tanishtiruv postlarini `community-lead-sync` skilli bo'yicha tortib olish, tozalash, Obsidian vault'ga saqlash va amoCRM ga 100% dublikatsiz sinxronlash.
+- Files:
+  - `20-Areas/Tez_Natija_5_Ishtirokchilar_Bazasi.md` (Obsidian Second Brain: 101 ta ishtirokchi, sohalar, lavozimlar, telefon va telegram profillari).
+  - Scratch: `fetch_tn5_topic_7.py`, `parse_tn5_comprehensive.py`, `build_tn5_obsidian_note.py`, `sync_tn5_amocrm.py`.
+- Natija va tekshiruv dalili:
+  - Telegram: 165 ta umumiy xabar, 133 ta matnli xabardan 101 ta noyob tadbirkor va rahbar profili ajratildi (Baxtiyorjon Gaziyev / admin postlari chiqarildi).
+  - Obsidian Second Brain: `20-Areas/Tez_Natija_5_Ishtirokchilar_Bazasi.md` yaratildi va `brain_log` ga muhrlandi.
+  - amoCRM sinxronizatsiyasi: Jami 101 ta profil 100% qayta ishlandi (54 ta mavjud kontakt dublikatsiz yangilandi/boyitildi, 47 ta yangi kontakt ochildi, 0 ta xato, har biriga to'liq tanishtiruv eslatmasi biriktirildi).
+  - Zero Fabrication va Proof qoidalariga to'liq amal qilindi.
+- Holat: Bajarildi.
+
+## 2026-10-10 — Antigravity — feat(leads): "TEZ NATIJA 4" ishtirokchilarini community-lead-sync skilli bo'yicha to'liq sinxronlash
+- Task: Telegram "TEZ NATIJA 4" guruhi 8-mavzusidagi (`https://web.telegram.org/a/#-1003149348132_8`) barcha tanishtiruv postlarini `community-lead-sync` skilli bo'yicha tortib olish, tozalash, Obsidian vault'ga saqlash va amoCRM ga 100% dublikatsiz sinxronlash.
+- Files:
+  - `20-Areas/Tez_Natija_4_Ishtirokchilar_Bazasi.md` (Obsidian Second Brain: 136 ta ishtirokchi, sohalar, lavozimlar, telefon va telegram profillari).
+  - Scratch: `fetch_tn4_topic_8.py`, `parse_tn4_comprehensive.py`, `build_tn4_obsidian_note.py`, `sync_tn4_amocrm.py`.
+- Natija va tekshiruv dalili:
+  - Telegram: 189 ta umumiy xabar, 171 ta matnli xabardan 136 ta noyob tadbirkor va rahbar profili ajratildi (namuna shablonlar va Baxtiyorjon Gaziyev / admin postlari chiqarildi).
+  - Obsidian Second Brain: `20-Areas/Tez_Natija_4_Ishtirokchilar_Bazasi.md` yaratildi va `brain_log` ga muhrlandi (telefon: 106 ta / 78%, telegram: 128 ta / 94%).
+  - amoCRM sinxronizatsiyasi: Jami 136 ta profil 100% qayta ishlandi (97 ta mavjud kontakt dublikatsiz yangilandi/boyitildi, 39 ta yangi kontakt ochildi, 0 ta xato, har biriga to'liq tanishtiruv eslatmasi biriktirildi).
+  - Zero Fabrication va Proof qoidalariga to'liq amal qilindi.
+- Holat: Bajarildi.
+
+## 2026-10-10 — Antigravity — feat(leads): "TEZ NATIJA 3" ishtirokchilarini community-lead-sync skilli bo'yicha to'liq sinxronlash
+- Task: Telegram "TEZ NATIJA 3" guruhi 14-mavzusidagi (`https://web.telegram.org/a/#-1002849105320_14`) barcha tanishtiruv postlarini `community-lead-sync` skilli bo'yicha tortib olish, tozalash, Obsidian vault'ga saqlash va amoCRM ga 100% dublikatsiz sinxronlash.
+- Files:
+  - `20-Areas/Tez_Natija_3_Ishtirokchilar_Bazasi.md` (Obsidian Second Brain: 148 ta ishtirokchi, sohalar, lavozimlar, telefon va telegram profillari).
+  - Scratch: `fetch_tn3_topic_14.py`, `parse_tn3_comprehensive.py`, `build_tn3_obsidian_note.py`, `sync_tn3_amocrm.py`.
+- Natija va tekshiruv dalili:
+  - Telegram: 206 ta umumiy xabar, 189 ta matnli xabardan 148 ta noyob tadbirkor va rahbar profili ajratildi (namuna shablonlar va Baxtiyorjon Gaziyev / admin postlari chiqarildi).
+  - Obsidian Second Brain: `20-Areas/Tez_Natija_3_Ishtirokchilar_Bazasi.md` yaratildi va `brain_log` ga muhrlandi (telefon: 117 ta / 79%, telegram: 137 ta / 93%).
+  - amoCRM sinxronizatsiyasi: Jami 148 ta profil 100% qayta ishlandi (75 ta mavjud kontakt dublikatsiz yangilandi/boyitildi, 73 ta yangi kontakt ochildi, 0 ta xato, har biriga to'liq tanishtiruv eslatmasi biriktirildi).
+  - Zero Fabrication va Proof qoidalariga to'liq amal qilindi.
+- Holat: Bajarildi.
+
+## 2026-10-10 — Antigravity — feat(leads): "TEZ NATIJA 2" ishtirokchilarini community-lead-sync skilli bo'yicha to'liq sinxronlash
+- Task: Telegram "TEZ NATIJA 2" guruhi 5-mavzusidagi (`https://web.telegram.org/a/#-1002440481294_5`) barcha tanishtiruv postlarini `community-lead-sync` skilli bo'yicha tortib olish, tozalash, Obsidian vault'ga saqlash va amoCRM ga 100% dublikatsiz sinxronlash.
+- Files:
+  - `20-Areas/Tez_Natija_2_Ishtirokchilar_Bazasi.md` (Obsidian Second Brain: 161 ta ishtirokchi, sohalar, lavozimlar, telefon va telegram profillari).
+  - Scratch: `fetch_tn2_topic_5.py`, `parse_tn2_comprehensive.py`, `build_tn2_obsidian_note.py`, `sync_tn2_amocrm.py`.
+- Natija va tekshiruv dalili:
+  - Telegram: 236 ta umumiy xabar, 221 ta matnli xabardan 161 ta noyob tadbirkor va rahbar profili ajratildi (namuna shablonlar va Baxtiyorjon Gaziyev / admin postlari chiqarildi).
+  - Obsidian Second Brain: `20-Areas/Tez_Natija_2_Ishtirokchilar_Bazasi.md` yaratildi va `brain_log` ga muhrlandi (telefon: 125 ta / 78%, telegram: 132 ta / 82%).
+  - amoCRM sinxronizatsiyasi: Jami 161 ta profil 100% qayta ishlandi (120 ta mavjud kontakt dublikatsiz yangilandi/boyitildi, 41 ta yangi kontakt ochildi, 0 ta xato, har biriga to'liq tanishtiruv eslatmasi biriktirildi).
+  - Zero Fabrication va Proof qoidalariga to'liq amal qilindi.
+- Holat: Bajarildi.
+
+## 2026-10-10 — Antigravity — feat(leads): "3 KUNLIK INTENSIV" ishtirokchilarini community-lead-sync skilli bo'yicha to'liq sinxronlash
+- Task: Telegram "3 KUNLIK INTENSIV umumiy" guruhi 5-mavzusidagi (`https://web.telegram.org/a/#-1003083200738_5`) barcha tanishtiruv postlarini `community-lead-sync` skilli bo'yicha tortib olish, tozalash, Obsidian vault'ga saqlash va amoCRM ga 100% dublikatsiz sinxronlash.
+- Files:
+  - `20-KURSDOSHLAR (PCG Tez Natija)/3_Kunlik_Intensiv_Ishtirokchilar_Bazasi.md` (Obsidian Second Brain: 17 ta ishtirokchi, sohalar, lavozimlar, telefon va telegram profillari).
+  - `20-Areas/3_Kunlik_Intensiv_Ishtirokchilar_Bazasi.md` (Replikasiya).
+  - `00_PCG_Tez_Natija_Barcha_Kursdoshlar.md` va `Dashboard.md` (Jami 672 nafarga yangilandi).
+  - Scratch: `fetch_new_chat_topic_5.py`, `audit_all_28.py`, `generate_3kunlik_obsidian.py`, `sync_3kunlik_amocrm.py`.
+- Natija va tekshiruv dalili:
+  - Telegram: 29 ta xabar, 28 ta matnli xabardan 17 ta noyob tadbirkor va rahbar profili ajratildi (namuna shablonlar va Baxtiyorjon Gaziyev / admin postlari chiqarildi).
+  - Obsidian Second Brain: `20-KURSDOSHLAR (PCG Tez Natija)/3_Kunlik_Intensiv_Ishtirokchilar_Bazasi.md` yaratildi va `brain_log` ga muhrlandi (telefon: 17/17 / 100%, telegram: 16/17 / 94%).
+  - amoCRM sinxronizatsiyasi: Jami 17 ta profil 100% qayta ishlandi (8 ta mavjud kontakt dublikatsiz yangilandi/boyitildi, 9 ta yangi kontakt ochildi, 0 ta xato, har biriga to'liq tanishtiruv eslatmasi biriktirildi).
+  - Zero Fabrication va Proof qoidalariga to'liq amal qilindi.
+- Holat: Bajarildi.
+
+## 2026-10-10 — Antigravity — feat(leads): "3 KUNLIK INTENSIV (1-Oqim)" ishtirokchilarini community-lead-sync skilli bo'yicha to'liq sinxronlash
+- Task: Telegram "3 KUNLIK INTENSIV umumiy" guruhi 3-mavzusidagi (`https://web.telegram.org/a/#-1002555469683_3`) barcha tanishtiruv postlarini `community-lead-sync` skilli bo'yicha tortib olish, tozalash, Obsidian vault'ga saqlash va amoCRM ga 100% dublikatsiz sinxronlash.
+- Files:
+  - `20-KURSDOSHLAR (PCG Tez Natija)/3_Kunlik_Intensiv_1_Ishtirokchilar_Bazasi.md` (Obsidian Second Brain: 53 ta ishtirokchi, sohalar, lavozimlar, telefon va telegram profillari).
+  - `20-Areas/3_Kunlik_Intensiv_1_Ishtirokchilar_Bazasi.md` (Replikasiya).
+  - `00_PCG_Tez_Natija_Barcha_Kursdoshlar.md` va `Dashboard.md` (Jami 725 nafarga yangilandi).
+  - Scratch: `fetch_chat_2555469683.py`, `parse_topic3_comprehensive.py`, `generate_intensiv1_obsidian.py`, `sync_intensiv1_amocrm.py`.
+- Natija va tekshiruv dalili:
+  - Telegram: 76 ta xabar, 65 ta matnli xabardan 53 ta noyob tadbirkor va rahbar profili ajratildi (shablonlar, admin va Baxtiyorjon Gaziyev postlari chiqarildi).
+  - Obsidian Second Brain: `20-KURSDOSHLAR (PCG Tez Natija)/3_Kunlik_Intensiv_1_Ishtirokchilar_Bazasi.md` yaratildi va `brain_log` ga muhrlandi (telefon: 53/53 / 100%, telegram: 48/53 / 91%).
+  - amoCRM sinxronizatsiyasi: Jami 53 ta profil 100% qayta ishlandi (13 ta mavjud kontakt dublikatsiz yangilandi/boyitildi, 40 ta yangi kontakt ochildi, 0 ta xato, har biriga to'liq tanishtiruv eslatmasi biriktirildi).
+  - Zero Fabrication va Proof qoidalariga to'liq amal qilindi.
+## 2026-10-10 — Antigravity — feat(skills): telegram-lead-discovery skillini yaratish va forum/ochiq manbalarni avtomatlashtirish
+- Task: Telegram guruhlari, forum superguruh mavzulari (topics) va ochiq B2B manbalaridan tadbirkorlar o'zlarini tanishtirgan postlarni avtomatik qidirib topish va `community-lead-sync` ga uzatuvchi `telegram-lead-discovery` skillini yaratish hamda barcha agentlarga umumlashtirish.
+- Files:
+  - `.agents/skills/telegram-lead-discovery/SKILL.md` (To'liq qo'llanma, scoring algoritmi, qidiruv qoliplari va handoff arxitekturasi).
+  - `.agents/skills/telegram-lead-discovery/scripts/scout_telegram_topics.py` (Telegram MTProto GetForumTopicsRequest orqali dialoglardagi forum mavzularini avtomatik skanerlash va web deep-link yaratish skripti).
+  - `.agents/skills/telegram-lead-discovery/scripts/search_open_leads.py` (Ochiq manbalar va networking guruhlarida #tanishuv/#networking va B2B intro qoliplari bo'yicha global qidiruv skripti).
+  - `AGENTS.md` & `GEMINI.md` (Barcha agentlar uchun protokolga kiritildi va Rule 9 ga ulandi).
+- Natija va tekshiruv dalili:
+  - Skript muvaffaqiyatli ishga tushirildi va jami 23 ta guruhdagi forum mavzulari skanerlandi.
+  - Aniqlangan manbalar (shu jumladan yangi ochilmagan zaxiralar):
+    * `PCG CLUB` (Chat: `-1003793681996`, Mavzu 2: "Tanishuv / Networking", Score: 70)
+    * `FARG'ONA | 3 KUNLIK INTENSIV` (Chat: `-1002205593452`, Mavzu 3: "Ishtirokchilar ma'lumotlari", Score: 50)
+    * `FARG'ONA | 3 KUNLIK INTENSIV` (Chat: `-1002993489717`, Mavzu 3: "Ishtirokchilar ma'lumotlari", Score: 50)
+    * `TOSHKENT | 3 KUNLIK INTENSIV` (Chat: `-1003039646126`, Mavzu 5: "Ishtirokchilar ma'lumotlari", Score: 50)
+    * `PCG FARG'ONA BIZNES KOUCHING (TEZ NATIJA)` (Chat: `-1002458325337`, Mavzu 3: "ISHTIROKCHILAR MA'LUMOTI", Score: 50)
+    * `Sales Club | Sotuvchilar klubi` (Chat: `-1002468707765`, Mavzu 3092: "Networking", Score: 30)
+    * `CashFlow B2Brain` (Chat: `-1002641962381`, Mavzu 1765: "Tanishuv", Score: 40)
+    * `Abloguz komanda` (Chat: `-1002218300282`, Mavzu 1988: "Tanishtiruv", Score: 40)
+    * `Muborak Club №1` (Chat: `-1003466793086`, Mavzu 3: "Klub a'zolari ma'lumotlari", Score: 10)
+  - `discovered_sources.json` faylida to'liq veb havolalari bilan muhrlandi.
+- Holat: Bajarildi.
+
+## 2026-10-11 — Antigravity — feat(leads): Barcha 9 ta kashf qilingan networking guruhlarini Obsidian va amoCRM ga to'liq sinxronlash (1,028 nafar)
+- Task: Telegram'dan kashf qilingan barcha 9 ta yangi networking va tanishtiruv manbalari (Toshkent 3-Kunlik Intensiv, PCG Farg'ona Tez Natija, Farg'ona 3-Kunlik Intensiv 1 & 2, PCG Club, CashFlow B2Brain, Abloguz komanda, Muborak Club №1, Sales Club) bo'yicha tanishtiruv postlarini `community-lead-sync` skilli asosida to'liq tortib olish, tozalash, Obsidian vault'ga saqlash va amoCRM ga 100% dublikatsiz sinxronlash.
+- Files:
+  - Obsidian Vault (`20-KURSDOSHLAR (PCG Tez Natija)/` va `20-Areas/`):
+    * `Toshkent_3_Kunlik_Intensiv_Ishtirokchilar_Bazasi.md` (87 nafar)
+    * `PCG_Fargona_Tez_Natija_Ishtirokchilar_Bazasi.md` (17 nafar)
+    * `Fargona_3_Kunlik_Intensiv_1_Ishtirokchilar_Bazasi.md` (54 nafar)
+    * `Fargona_3_Kunlik_Intensiv_2_Ishtirokchilar_Bazasi.md` (73 nafar)
+    * `PCG_Club_Ishtirokchilar_Bazasi.md` (8 nafar)
+    * `CashFlow_B2Brain_Ishtirokchilar_Bazasi.md` (3 nafar)
+    * `Abloguz_Tanishtiruv_Bazasi.md` (10 nafar)
+    * `Muborak_Club_1_Ishtirokchilar_Bazasi.md` (5 nafar)
+    * `Sales_Club_Networking_Bazasi.md` (46 nafar)
+    * `00_PCG_Tez_Natija_Barcha_Kursdoshlar.md` (Master Index: 725 + 303 = **1,028 nafar**ga yangilandi)
+    * `00-Home/Dashboard.md` (Barcha yangi guruhlar va 1,028 nafar ko'rsatkichi bilan yangilandi)
+  - Scratch skriptlar:
+    * `fetch_all_candidate_topics.py` (1,147 ta xabar tortib olindi)
+    * `parse_all_candidate_sources.py` (303 ta noyob B2B tadbirkor profili ajratildi)
+    * `generate_obsidian_notes.py` (9 ta Obsidian fayli va master indexlar shakllantirildi)
+    * `sync_all_new_sources_to_amocrm.py` (amoCRM bilan 100% integratsiya)
+- Natija va tekshiruv dalili:
+  - Telegram: 1,147 ta umumiy xabardan 303 ta haqiqiy B2B biznes egasi va rahbar profili ajratildi (shablonlar, admin reklamalari va Baxtiyorjon Gaziyev postlari chiqarildi).
+  - Obsidian Second Brain: Barcha 9 ta yangi baza `20-KURSDOSHLAR (PCG Tez Natija)/` va `20-Areas/` ga saqlandi, Master Index 1,028 nafarga yetkazildi va `brain_log` ga muhrlandi.
+  - amoCRM sinxronizatsiyasi: Jami 303 ta kontakt to'liq qayta ishlandi (75 ta mavjud kontakt dublikatsiz yangilandi/boyitildi, 228 ta yangi kontakt ochildi, 0 ta xato, barchasiga strukturaviy tanishtiruv notalari va guruh teglari biriktirildi).
+  - Zero Fabrication va Zero Duplication talablariga 100% amal qilindi.
+- Holat: Bajarildi.
+
+## 2026-10-11 — Codex: Dilbar finance workflow learning
+
+- Owner requested ongoing cross-source work observation and reusable skills.
+- Added `.agents/skills/finance-workflow-learning/SKILL.md`: actor identification, source registry, delta/backfill checkpoints, evidence/candidate/promotion rules and no financial write authority.
+- Live Telegram contact/history verified @jonbranding_finansist / 8611068511; 35 recent DM messages, media content not read. Gmail/Drive/Todoist searches performed; finance email and document ownership not resolved. Existing Hisobchi source inspected; deployment not verified.
+- Created ACTIVE thread heartbeat `dilbar-moliya-usullarini-o-rganish`, daily 18:00 Asia/Tashkent. This is Codex scheduling, not Oracle deployment; first scheduled run pending.
+- Obsidian `20-Areas/Dilbar_Finansist_Kuzatuv.md` appended with source coverage and initial candidates; read-back verified. No Airtable/CRM/payment/message mutation.
+- Validation: skill read/diff and automation view. Documentation-only; no production code/tests changed. Existing unrelated dirty files preserved. Open: full 30-day backfill, group discovery, media interpretation, verified actor-specific finance sources, Oracle integration.
+\n2026-10-11 / Codex: Read-only ChatGPT Plus official integration assessment. Added docs/chatgpt-plus-integration-assessment.md; existing code and dirty changes preserved. Official SIWC docs: hosted app registration/approval pending; OSS local route distinct. No live request, production change, paid activation or customer message. Cost catalog zero tariffs prevent claiming reliable monetary caps. Brain project append/log completed. Next: owner submits official interest form for hosted Oisha eligibility. No PR/deploy.
+
+## 2026-10-12 — Codex Dilbar heartbeat
+- Read finance-workflow-learning and skill-evolution; Obsidian context/checkpoint read.
+- Telegram DM pages 1-3 covered 30-day boundary; media and exact edited revision hashes unavailable. No new latest DM.
+- Airtable bases/schema and full Hisoblar/Oy yopilishi read; all 4 account saldo confirmations stale, September close still under review. No actor fields; no individual attribution.
+- Gmail/Calendar/Todoist/Drive bounded search performed; finance identity-specific documents not resolved. No confirmed new workflow promoted. Obsidian checkpoint appended; no external financial mutation, deployment or messages.
+- Group discovery and media coverage remain open; source failures recorded in Obsidian. Unrelated dirty files preserved.
+
+## 2026-10-12 — Codex Coordinator: PR #863 review remediation
+
+- Task/branch: fix the three unresolved Codex findings from PR #863 in the existing `main` checkout. Verified review bodies and unresolved state via GitHub `list_pull_request_review_threads`; PR head is `ccr-66c437aa-iavqu3`, not this checkout. No checkout/reset/stash, commit, push, merge or deploy performed; pre-existing dirty code/docs/untracked work preserved.
+- Completed: organic media enumeration no longer stops at a post-age cutoff; all media pages are scanned and eligibility remains based on comment age. A synthetic 400-day-old post on page two with a two-day-old `+` produces a DM; an eight-day-old comment is excluded from the seven-day scan. Added PR's `--dm-only` option to this checkout and verified public invites are excluded.
+- Completed: Meta HTTP/transport/JSON read failures are recorded without raw API messages or token-bearing exception text. Delivery/ack failures are counted, including raised transport errors; partial work remains counted accurately. Failed scans/deliveries attempt an owner alert even with zero DMs and return exit 1; failed required owner notification also returns 1. Successful no-op remains exit 0 and quiet. Telegram notification requires HTTP 200 plus `ok=true`.
+- Changed files: `scripts/instagram_plus_campaign.py`, `tests/test_instagram_plus_campaign.py`, appended this `docs/agents/handoff-log.md` entry. Temporary lock added to and removed from `AGENTS.md`, preserving prior edits.
+- Verification: before implementation, five new regressions failed (old organic post, HTTP read failure, timeout, DM failure, ack failure). Final `SKIP_LIVE=1`, `ALLOW_LOCAL_RUN=0`, `rtk .venv/Scripts/python.exe -m pytest tests/test_instagram_plus_campaign.py tests/test_instagram_plus_trigger.py -q --tb=short`: **37 passed**. `rtk proxy ruff check scripts/instagram_plus_campaign.py tests/test_instagram_plus_campaign.py`: passed. `rtk bandit scripts/instagram_plus_campaign.py -ll`: no issues. Script: 322 lines; longest function 49 lines. Focused diff whitespace check passed before handoff append.
+- Finding mapping: `PRRT_kwDOR4Ojts6rW2de` (older organic media), `PRRT_kwDOR4Ojts6rW2dm` (scan/delivery failure reporting), `PRRT_kwDOR4Ojts6rW2dw` (mandatory handoff) addressed locally by the code/tests/record above.
+- Open/limits: remote review threads remain unresolved because this patch is local and not on the PR head. Current main workflow lacks PR #863's hourly schedule; schedule was inspected in the remote diff but not copied or activated. No real Meta/Telegram calls, live campaign, production verification, full repository pytest/Bandit pre-flight or release performed. Full organic history scanning can take longer; workflow timeout remains an operational limit.
+
+## 2026-10-12 18:03 - Codex Dilbar heartbeat delta
+- Skills and Obsidian checkpoint read; Telegram/Oisha tools absent, DM checkpoint unchanged.
+- Airtable small finance tables fully paged; no individual attribution. Existing stale saldo/September close unchanged. Obligations manual vs computed statuses recorded as unverified reconciliation candidates.
+- Gmail delta surfaced PR864; gh verified merged at 09:47:16Z, production/config unverified. PR description warns all group actors counted if finance identity unset; GitGuardian failure and PR deploy skipped retained as separate evidence.
+- Drive/Calendar/Todoist bounded searches no finance-specific result. No new skill promoted; no deploy, external finance mutation or message. Obsidian append/read-back and brain_log. Remaining source access and actor-config verification open.
+
+
+## 2026-10-12 — Codex: JonBranding marketing backend evidence
+
+Branch: fix/jonbranding-marketing-evidence. Local only; no commit/push/deploy or external events. Preserved pre-existing dirty changes.
+
+Changed: marketing_attribution.py; marketing/{ad_spend_store,ad_spend_sync,meta_ads_client,attribution_store,attribution_sync,meta_capi}.py; api/routes/marketing_dashboard.py; tests/test_marketing_evidence.py; tests/test_meta_capi.py; docs/marketing-backend-evidence.md.
+
+Implemented unknown/null metrics, explicit lead-created cohort and tracked Meta Lead Ads scope, Meta account currency persistence with legacy migration, configured CRM currency matching for ROAS, Tashkent date defaults and 422 validation, missing revenue preservation, CAPI positive purchase amount and events_received acknowledgement requirements.
+
+Verification: initial 5 regression tests failed as expected; final focused suite 32 passed (SKIP_LIVE=1, ALLOW_LOCAL_RUN=0). Ruff passed; changed production-file Bandit passed; scoped diff check passed. Self-review performed, no independent agent review. Full pytest gate blocked by 16 collection errors, all missing redis in existing/untracked integrations. Full Bandit gate: two B307 eval findings in pre-existing untracked src/api/auth.py lines 141 and 190. No PR while gates red.
+
+Open: production source reconciliation and freshness/coverage proof; confirm CRM currency before setting OISHA_REVENUE_CURRENCY; website tracking-to-attribution integration; unified marketing Telegram digest; live CAPI acceptance. Separate marketing-os performance endpoint remains mock and must not be used as operational data. No live runtime or userbot was started.
+
+## 2026-10-14 — Codex: JonBranding internal CAPI platform
+
+Branch feat/capi-platform. Local only: no commit/push/PR/deploy or external send.
+Preserved existing dirty files. Implementer/self-review; no independent review.
+Added marketing/capi_platform{,_schema,_store}.py, api/routes/capi_platform.py,
+api/templates/capi_platform.html, tests/test_capi_platform.py, docs/capi-platform.md
+and mirrored .agents/.claude skills/capi-platform/SKILL.md. Registration additions
+in services/api_server/core.py; dedicated intake exception in api/security.py.
+
+Private owner/admin console: configuration, website/server durable queue, existing
+CRM history. Owner retry controls; Purchase re-reads amount. Server bearer intake
+validates consent/time/value/currency, hashes contacts before persistence, preserves
+stable IDs/timestamps, atomic leases, stale recovery, backoff, terminal expiration,
+dataset/test/live isolation. Only events_received=1 marks sent. Router lifespan worker.
+Old CRM rows lack dataset/mode provenance; legacy CRM recovery remains existing triggers
+or manual retry. Website feat/oisha-capi-platform adapter selects Oisha via server-only
+configuration and observed consent; reports queued separately from Meta delivery.
+
+Final focused CAPI/permission/access/server-security tests: 83 passed with SKIP_LIVE=1,
+ALLOW_LOCAL_RUN=0. Ruff clean; focused Bandit including api/security.py clean.
+Earlier full pytest snapshot: 2749 passed, 18 skipped, 1 failed (13 pre-existing skill
+mirror drift paths). Full Bandit: two pre-existing B307 eval findings in untracked
+src/api/auth.py lines 141/190. No PR while gates red. New skill mirrors match.
+Website verify:fast/verify 422 tests, typecheck and build (165 pages) passed; focused
+adapter ESLint clean. Playwright desktop/mobile static unavailable-data rendering
+inspected; screenshots output/playwright/. Browser/static server stopped. This is
+not live API evidence. Website DEV_LOG.md appended preserving its legacy encoding.
+
+Open: existing preflight blockers, secure configuration, owner-authorized deployment,
+Meta Test Events and approved live activation/read-back. Website-side durable recovery
+before Oisha receipt not implemented. No local userbot/session and no secret file reads.
+Own locks released; Obsidian project notes and brain_log updated.
+
+## 2026-10-14 — Antigravity: CAPI Benchmark, PRD & Security Hardening (Zero Vulnerabilities)
+
+- Task: adsinc.uz va capip.uz platformalari chuqur tahlili, dunyo bo'yicha CAPI solishtiruvi, Oisha ichki CAPI platformasi PRD hujjati va Claude Code review topilmalari (4 ta xavfsizlik zaifligi) bo'yicha to'liq hardening.
+- Bajarildi:
+  1. Dunyo bo'yicha yetakchi CAPI tizimlari (Elevar, Stape.io, Segment, Blotout) hamda mahalliy platformalar (adsinc.uz, capip.uz) har bir tugmasi, funksiyasi, narxi va zaifliklari bo'yicha solishtirildi.
+  2. To'liq ishlab chiqarish darajasidagi PRD yaratildi: `docs/oisha-capi-platform-prd.md`.
+  3. Claude Code security review'da aniqlangan 4 ta zaiflik bartaraf etildi:
+     - `test_website_credential_cannot_forge_crm_purchase`: sayt bearer tokeni bilan CRM source eventlarini yuborish 403 bilan to'xtatildi.
+     - `test_conflicting_event_reuse_is_rejected`: bir xil `event_id` uchun o'zgargan/konflikt payload kelganda `ValueError("event_id_conflict")` / HTTP 409 qaytariladi.
+     - `test_permanent_meta_rejection_is_terminal`: Meta Graph API dan HTTP 4xx (permanent xato) qaytsa, status terminal `rejected` deb belgilanadi va ortiqcha takrorlanmaydi.
+     - `test_cookie_mutation_requires_origin`: cookie asosidagi mutatsiyalar (`POST /dispatch`, retry) uchun `Origin` sarlavhasi majburiy qilindi (CSRF himoyasi).
+  4. Agent skills sinxronizatsiyasi amalga oshirildi (`python scripts/sync_agent_skills.py` — 13 ta skill sinxronlandi).
+- O'zgargan fayllar:
+  - `src/services/core/marketing/capi_platform.py`
+  - `src/services/core/marketing/capi_platform_store.py`
+  - `src/api/routes/capi_platform.py`
+  - `tests/test_capi_platform.py`
+  - `tests/test_capi_platform_hardening.py`
+  - `docs/oisha-capi-platform-prd.md` (yangi PRD)
+  - `AGENTS.md`
+- Tekshiruv dalili:
+  - `python -m pytest tests/test_meta_capi.py tests/test_capi_platform.py tests/test_capi_platform_hardening.py -q`: **41 passed** (1.74s).
+  - `python -m pytest tests/test_agent_skills_sync.py -q`: **1 passed**.
+  - `bandit -r src/services/core/marketing/capi_platform.py src/services/core/marketing/capi_platform_store.py src/services/core/marketing/capi_platform_schema.py src/api/routes/capi_platform.py -ll`: **0 issues**.
+  - `ruff check src/services/core/marketing/capi_platform.py src/services/core/marketing/capi_platform_store.py src/services/core/marketing/capi_platform_schema.py src/api/routes/capi_platform.py tests/test_capi_platform.py tests/test_capi_platform_hardening.py`: **All checks passed**.
+  - Barcha production fayllar qat'iy <= 400 qator standarti va funksiyalar <= 60 qator me'yoriga to'liq mos.
+- Qolgan ishlar: Oracle VM'ga deploy va Meta Events Manager'da `META_CAPI_TEST_EVENT_CODE` orqali birinchi jonli eventni egasi (Baxtiyorjon) tomonidan tasdiqlanishi.
