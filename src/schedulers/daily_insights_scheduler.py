@@ -1,7 +1,8 @@
 """Daily CEO insights (top sellers / KPI actions / at-risk clients).
 
 Runs Mon–Sat at DAILY_INSIGHTS_TIME (default 09:15 Tashkent) and sends one
-message to ROP_CEO_CHAT_ID. Gated by DAILY_INSIGHTS_ENABLED (default off).
+message to ROP_CEO_CHAT_ID (or ROP_CEO_TOPIC_ID in a forum group). Gated by
+DAILY_INSIGHTS_ENABLED (default off).
 
 Also hosts the weekly Sales Intel report (amoCRM + Moizvonki + Airtable),
 Mondays at SALES_INTEL_TIME (default 10:00), gated by SALES_INTEL_ENABLED.
@@ -11,10 +12,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from typing import Any
 
 from src.context import app_ctx
 from src.database import get_db
-from src.schedulers.rop_scheduler import _as_bot_runtime, _ceo_chat_id
+from src.schedulers.rop_scheduler import _as_bot_runtime
 from src.services.core.rop.config import load_config, seed_config
 from src.services.core.rop.fetchers import RopFetcher
 from src.services.core.rop import sales_intel
@@ -23,6 +25,9 @@ from src.services.core.rop.targets import load_roster
 from src.time_utils import get_local_now, is_quiet_hours
 
 logger = logging.getLogger("DailyInsights")
+
+SALES_GROUP_ID = -1003854308552
+SALES_REPORT_TOPIC_ID = 115
 
 
 def _flag(name: str) -> bool:
@@ -47,9 +52,37 @@ def _slot_time() -> tuple[int, int]:
     return _hhmm("DAILY_INSIGHTS_TIME", "09:15")
 
 
+def _target_destination() -> tuple[int | None, int | None]:
+    """Return (chat_id, topic_id) for sending reports.
+    
+    Supports:
+    - ROP_CEO_CHAT_ID: chat or group ID (e.g. -1003854308552)
+    - ROP_CEO_TOPIC_ID: forum topic ID (e.g. 115)
+    If group is the known Sales group (-1003854308552) and no topic is set,
+    defaults automatically to topic 115 (Hisobotlar).
+    """
+    raw_chat = os.getenv("ROP_CEO_CHAT_ID", "").strip()
+    raw_topic = os.getenv("ROP_CEO_TOPIC_ID", "").strip()
+    chat_id = None
+    topic_id = None
+    if raw_chat:
+        try:
+            chat_id = int(raw_chat)
+        except ValueError:
+            pass
+    if raw_topic:
+        try:
+            topic_id = int(raw_topic)
+        except ValueError:
+            pass
+    if chat_id == SALES_GROUP_ID and topic_id is None:
+        topic_id = SALES_REPORT_TOPIC_ID
+    return chat_id, topic_id
+
+
 async def run_daily_insights(bot_runtime, *, now_fn=get_local_now, fetcher=None, repo=None) -> bool:
     now = now_fn()
-    chat_id = _ceo_chat_id()
+    chat_id, topic_id = _target_destination()
     if not _enabled() or not chat_id or bot_runtime is None:
         return False
     if now.weekday() == 6 or is_quiet_hours(now):
@@ -65,11 +98,16 @@ async def run_daily_insights(bot_runtime, *, now_fn=get_local_now, fetcher=None,
         logger.exception("[INSIGHTS] build failed")
         return False
     try:
-        await bot_runtime.send_message(chat_id, text, parse_mode="HTML")
+        if topic_id:
+            await bot_runtime.send_message(
+                chat_id, text, parse_mode="HTML", message_thread_id=topic_id
+            )
+        else:
+            await bot_runtime.send_message(chat_id, text, parse_mode="HTML")
     except Exception as exc:  # noqa: BLE001
         logger.warning("[INSIGHTS] send failed: %s", exc)
         return False
-    logger.info("[INSIGHTS] daily insights sent")
+    logger.info("[INSIGHTS] daily insights sent (chat=%s, topic=%s)", chat_id, topic_id)
     return True
 
 
@@ -103,7 +141,7 @@ def _default_airtable():
 async def run_sales_intel(bot_runtime, *, now_fn=get_local_now, fetcher=None,
                           repo=None, airtable=None) -> bool:
     now = now_fn()
-    chat_id = _ceo_chat_id()
+    chat_id, topic_id = _target_destination()
     if not _flag("SALES_INTEL_ENABLED") or not chat_id or bot_runtime is None:
         return False
     if is_quiet_hours(now):
@@ -117,11 +155,16 @@ async def run_sales_intel(bot_runtime, *, now_fn=get_local_now, fetcher=None,
         logger.exception("[SALES-INTEL] build failed")
         return False
     try:
-        await bot_runtime.send_message(chat_id, text, parse_mode="HTML")
+        if topic_id:
+            await bot_runtime.send_message(
+                chat_id, text, parse_mode="HTML", message_thread_id=topic_id
+            )
+        else:
+            await bot_runtime.send_message(chat_id, text, parse_mode="HTML")
     except Exception as exc:  # noqa: BLE001
         logger.warning("[SALES-INTEL] send failed: %s", exc)
         return False
-    logger.info("[SALES-INTEL] weekly report sent")
+    logger.info("[SALES-INTEL] weekly report sent (chat=%s, topic=%s)", chat_id, topic_id)
     return True
 
 
