@@ -1755,4 +1755,43 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
     - `bandit -r src/services/core/dispatcher/handlers_capi.py src/api/routes/capi_platform.py src/api/rbac.py src/api/security.py -ll`: **0 ta xavfsizlik zaifligi**.
     - `ruff check`: **100% toza**.
     - Barcha o'zgargan fayllar qat'iy **150 – 400 qator** oralig'ida (`rbac.py`: 171, `security.py`: 283, `capi_platform.py`: 173, `handlers_capi.py`: 173, `builder.py`: 238, `admin_commands.py`: 218, `leadgen_status_reporter.py`: 352).
-  - **Holat**: Bajarildi (lokal to'liq tayyor va sinovdan o'tgan).
+  - **Holat**: Bajarildi (lokal to'liq tayyor, sinovdan o'tgan).
+  - **PR va Deploy Dalillari**:
+    - PR #876 (`https://github.com/baxtiyorjongaziyev/oisha-os/pull/876`): Barcha CI tekshiruvlari (CodeQL, gitleaks, Import-time crash guard, pull-request-tests 3m23s) yashil bo'lgach, `main` branch'ga birlashtirildi.
+    - Pre-existing `tests/test_daily_sales_calls_report.py` da ROP motivatsiyasi matnlariga doir 2 ta assertion yangilandi (`ca80224b`).
+    - **Oracle Production Deploy**: Run `#38540049202` (2m31s) orqali `308e699` commit Oracle VM'ga avtomatik va muvaffaqiyatli deploy qilindi, oisha-leads qayta ishga tushirildi va Telegram bildirishnomasi yetkazildi.
+    - **Holat**: Bajarildi (kod merge qilindi va Oracle VM production'ga muvaffaqiyatli deploy bo'ldi).
+
+- **2026-10-14 — Antigravity — Oylik Soliq Operatsiyalari (soliq-ops) Standarti va To'liq Integratsiya:**
+  - **Vazifa**: "Soliq bo'yicha barcha ishlarni skillsga aylantirib qo'y har soliq to'lash muddati kelganda automation ishga tushsin... codex bo'ladi boshqa ai agent ishlatganimizda ham skillsni ko'ra olsin tushunsin qila olsin".
+  - **Bajarildi**:
+    1. **Soliq topshirish va auditi**:
+       - JonBranding MCHJ (STIR 312675253) ning Iyul (№ 243449493), Avgust (№ 243449664) va Sentabr (№ 243602405) JShDS va ijtimoiy soliq (`11101_20`) hisobotlari to'liq tasdiqlanib, portalda qabul qilindi.
+       - Sentabr 2026 Aylanmadan olinadigan soliq (`10104_36`, № 243067154) hisoboti 40 897 501 so'm aylanma va 1 635 900.04 so'm soliq bilan muvaffaqiyatli topshirildi ("Проведенный вовремя").
+       - Ortiqcha to'langan 873 156.76 so'mni TBC Bank hisobraqamiga (`20208000107372064001`) qaytarish bo'yicha 2 ta rasmiy ariza (№ 7441403 va № 7441418) soliq organiga topshirildi.
+    2. **Multi-Agent Skill Standarti (`soliq-ops`)**:
+       - Codex, Claude, Cursor va Antigravity agentlari birdek ko'ra olishi uchun `.agents/skills/soliq-ops/SKILL.md` va `.claude/skills/soliq-ops/SKILL.md` yaratildi.
+       - Global Antigravity darajasida `C:\Users\baxti\.gemini\config\skills\soliq-ops\SKILL.md` o'rnatildi.
+       - `python scripts/sync_agent_skills.py --check` orqali 100% sinxronlik tasdiqlandi.
+       - `AGENTS.md` (jadval va 9-qoida) hamda `GEMINI.md` ga `soliq-ops` majburiy qo'llanma sifatida kiritildi.
+    3. **Oylik Rekurrent Avtomatizatsiya**:
+       - Har oyning 12-kuni soat 09:00 da (`0 9 12 * *`) yangi oylik ko'rsatkichlarni tekshirish va hisobotlarni muddatidan oldin tayyorlash bo'yicha doimiy fon topshirig'i sozlandi (`task-1017`).
+  - **Tekshiruv dalili**:
+    - `python scripts/sync_agent_skills.py --check`: toza, xatosiz.
+    - my.soliq.uz va oldmy.soliq.uz'da barcha hisobotlar va arizalar real holatda qabul qilingan.
+    - Obsidian Second Brain'ga barcha qarorlar va hisobotlar qayd etildi (`monthly-tax-ops`).
+  - **Holat**: Bajarildi (multi-agent skill va avtomatizatsiya 100% to'liq).
+
+- **2026-10-14 — Antigravity — CAPI Konsoli Brauzer Avtorizatsiyasi va Telegram Login Silliq Yo'naltirish:**
+  - **Muammo**: Foydalanuvchi `https://oisha.jonbranding.uz/api/marketing/capi/console` havolasiga brauzerdan to'g'ridan-to'g'ri kirganda, cookie bo'lmagani sababli `ApiAccessMiddleware` orqali `{"detail":"Unauthorized"}` JSON xatoligi chiqqan. Shuningdek, `/api/auth/telegram/login` da eski `import config` sababli `ModuleNotFoundError` xavfi bo'lgan.
+  - **Bajarildi**:
+    1. **Silliq Login Yo'naltirish (303 Redirect)**: `_PUBLIC_PATHS` ga `/api/marketing/capi/console` va `/capi` qo'shildi. Agar brauzer foydalanuvchisi sessiyasiz konsolga kirsa, 401 JSON o'rniga avtomatik ravishda `/api/auth/telegram/login?next=/api/marketing/capi/console` ga yo'naltiriladi.
+    2. **Telegram Login Takomillashtirildi**: `src/services/api_server/oauth.py` da eskirgan `import config` olib tashlanib, `settings` ga o'tkazildi. `next` parametri qo'shildi — foydalanuvchi Telegram orqali kirishi bilan to'g'ridan-to'g'ri CAPI konsoliga qaytariladi.
+    3. **Owner & Targetolog Avtomatik Tanish**: `telegram_callback` da `id == settings.OWNER_ID` bo'lsa darhol `role="owner"`, targetolog bo'lsa `role="targetolog"` JWT beriladi (`SUPPORTED_BROWSER_ROLES` boyitildi).
+    4. **Qulay URL (`/capi`) va Dashboard Tugmasi**: `https://oisha.jonbranding.uz/capi` qisqa havolasi yaratildi. Asosiy dashboard (`/`) bosh menyusiga `🎯 CAPI Paneli` tugmasi qo'shildi.
+  - **Tekshiruv dalili**:
+    - 66 ta test 100% yashil (`pytest tests/test_capi_targetolog_automation.py tests/test_capi_platform.py tests/test_capi_platform_hardening.py tests/test_meta_capi.py tests/test_permission_dependency.py tests/test_api_auth_service.py tests/test_oauth_api_endpoints.py`).
+    - Brauzer TestClient oqimi: `/api/marketing/capi/console` -> 303 Redirect -> Telegram Login (200 OK).
+    - Bandit: 0 ta zaiflik. Ruff: 100% toza.
+  - **Holat**: Bajarildi.
+

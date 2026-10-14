@@ -235,11 +235,11 @@ async def airtable_status():
 # =====================================================================
 
 @router.get("/api/auth/telegram/login")
-async def telegram_login():
+async def telegram_login(next: Optional[str] = None):
     """Return an HTML page with the Telegram Login Widget."""
-    import config
-    bot_username = getattr(config, "BOT_USERNAME", "jonairobot")
-    # For local testing, auth_url could be the local IP, but for prod it's the domain
+    bot_username = getattr(settings, "BOT_USERNAME", "jonairobot")
+    safe_next = next if (next and next.startswith("/") and not next.startswith("//")) else ""
+    auth_url = f"/api/auth/telegram/callback?next={safe_next}" if safe_next else "/api/auth/telegram/callback"
     html_content = f"""
     <html>
         <head>
@@ -256,7 +256,7 @@ async def telegram_login():
             <div class="card">
                 <h2>Oisha-OS Enterprise</h2>
                 <p>Tizimga kirish uchun Telegram orqali tasdiqlang. Hech qanday parol kerak emas.</p>
-                <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{bot_username.replace('@', '')}" data-size="large" data-auth-url="/api/auth/telegram/callback" data-request-access="write"></script>
+                <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{str(bot_username).replace('@', '')}" data-size="large" data-auth-url="{auth_url}" data-request-access="write"></script>
             </div>
         </body>
     </html>
@@ -273,13 +273,13 @@ async def telegram_callback(
     username: str = None,
     photo_url: str = None,
     auth_date: int = None,
+    next: str = None,
 ):
     """Handle Telegram OAuth callback."""
-    import config
     from src.api import auth_service
 
     # 1. Verify hash
-    bot_token = config.BOT_TOKEN
+    bot_token = settings.BOT_TOKEN.get_secret_value()
     fields = {
         "id": str(id) if id is not None else None,
         "first_name": first_name,
@@ -306,6 +306,8 @@ async def telegram_callback(
     )
     user = await db.users.get_user(id)
     role = user.get("role", "client") if user else "client"
+    if str(id) == str(settings.OWNER_ID):
+        role = "owner"
 
     # Dedicated JWT secret (strictly separate from Telegram bot_token)
     raw_secret = os.environ.get("JWT_SECRET") or getattr(settings, "JWT_SECRET", "")
@@ -330,8 +332,9 @@ async def telegram_callback(
         ttl_seconds=auth_service.SESSION_TTL_SECONDS,
     )
 
-    # Create response that stores the cookie and redirects to Dashboard
-    response = RedirectResponse(url="/")
+    # Create response that stores the cookie and redirects to Dashboard or next URL
+    target = next if (next and next.startswith("/") and not next.startswith("//")) else "/"
+    response = RedirectResponse(url=target)
     response.set_cookie(
         key="oisha_token",
         value=token,

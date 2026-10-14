@@ -28,6 +28,13 @@ from src.settings import settings
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["dashboard"])
 
+
+@router.get("/capi")
+async def capi_quick_redirect():
+    return RedirectResponse(url="/api/marketing/capi/console")
+
+
+@router.get("/")
 async def client_dashboard(request: Request):
     """Serve the Client Dashboard (MVP)."""
     # Simple check for JWT token in cookies
@@ -35,7 +42,6 @@ async def client_dashboard(request: Request):
     if not token:
         return RedirectResponse(url="/api/auth/telegram/login")
 
-    import config
     from src.api import auth_service
     raw_secret = os.environ.get("JWT_SECRET") or getattr(settings, "JWT_SECRET", "")
     jwt_secret = str(
@@ -52,6 +58,14 @@ async def client_dashboard(request: Request):
     user_id = payload.get("sub")
     first_name = payload.get("first_name", "Foydalanuvchi")
     role = payload.get("role", "client")
+
+    capi_btn = (
+        '<a href="/api/marketing/capi/console" style="color:#2563eb;background:#eff6ff;'
+        'padding:6px 14px;border-radius:6px;text-decoration:none;font-size:0.85rem;'
+        'font-weight:600;margin-right:8px;border:1px solid #bfdbfe">🎯 CAPI Paneli</a>'
+        if role in {"owner", "admin", "targetolog"}
+        else ""
+    )
 
     html_content = f"""
     <!DOCTYPE html>
@@ -124,6 +138,7 @@ async def client_dashboard(request: Request):
                 Oisha-OS
             </div>
             <div class="user-profile">
+                {capi_btn}
                 <span style="font-weight: 500; font-size: 0.9rem;">{first_name}</span>
                 <div class="avatar">{first_name[0].upper()}</div>
             </div>
