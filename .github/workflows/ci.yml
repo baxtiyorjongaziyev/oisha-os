@@ -35,7 +35,7 @@ jobs:
 
       - name: Lint with Ruff
         run: |
-          uv pip install --system ruff black
+          uv pip install --system --break-system-packages ruff black
           ruff check src/ tests/ --exit-zero || true
           black --check --diff src/ tests/ || true
 
@@ -55,7 +55,7 @@ jobs:
 
       - name: Bandit Security Scan
         run: |
-          uv pip install --system bandit
+          uv pip install --system --break-system-packages bandit
           bandit -r src/ -ll -x src/services/debug/ --quiet
 
   unit-tests:
@@ -76,9 +76,12 @@ jobs:
           version: "latest"
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Dependencies
+      - name: Create venv and Install Dependencies
         run: |
-          uv pip install --system -r requirements.txt -r requirements-dev.txt
+          uv venv
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> $GITHUB_ENV
+          uv pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run Fast Gate Tests
         env:
@@ -95,15 +98,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+          cache: "pnpm"
 
       - name: Monorepo Package Verification
         run: |
