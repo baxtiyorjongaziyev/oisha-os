@@ -55,6 +55,8 @@ _PUBLIC_PATHS = frozenset(
         "/api/callback-widget.js",
         # Telefoniya / MacroDroid kiruvchi qo'ng'iroq signallari (route ichida secret tekshiriladi)
         "/api/telephony/incoming-call",
+        # Server CAPI intake authenticates its dedicated bearer inside the route.
+        "/api/marketing/capi/events",
         # Meta must reach this exact verification/event endpoint. The route
         # validates the verify token (GET) and x-hub-signature-256 (POST).
         "/api/instagram/webhook",

@@ -122,6 +122,7 @@ from src.api.routes.crm_reports import router as crm_reports_router
 from src.api.routes.finance_dashboard import router as finance_dashboard_router
 from src.api.routes.finance_ai import router as finance_ai_router
 from src.api.routes.marketing_dashboard import router as marketing_router
+from src.api.routes.capi_platform import router as capi_platform_router
 from src.api.routes.callmaster_routes import router as callmaster_router
 from src.api.routes.dashboard_overview import router as dashboard_overview_router
 from src.api.routes.client_qa import router as client_qa_router
@@ -148,6 +149,7 @@ app.include_router(crm_reports_router)
 app.include_router(finance_dashboard_router)
 app.include_router(finance_ai_router)
 app.include_router(marketing_router)
+app.include_router(capi_platform_router)
 app.include_router(callmaster_router)
 app.include_router(dashboard_overview_router)
 app.include_router(client_qa_router)
