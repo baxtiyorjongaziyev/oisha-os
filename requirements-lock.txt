@@ -173,7 +173,7 @@ idna==3.20
     #   yarl
 imagesize==2.0.1
     # via sphinx
-instagrapi==3.0.20
+instagrapi==3.0.21
     # via -r requirements.txt
 jinja2==3.1.6
     # via sphinx
