@@ -29,8 +29,7 @@ mix of **Uzbek and English** — this is expected, not noise.
 - **Sync / Integrations:** Airtable, Google Sheets/Drive/Calendar/Contacts, Instagram/Meta
   Graph API, DocuSign, Apollo, SMS Gateway (sms-gate.app)
 - **API:** FastAPI + uvicorn (internal HTTP control plane, `src/api_server.py`)
-- **Infra:** **Oracle Cloud VM (primary, systemd)**; Google Cloud Run / Cloud Build (legacy
-  fallback); legacy VPS userbot
+- **Infra:** **Contabo VPS (primary production, 109.199.100.137)**; Oracle Cloud VM (decommissioned); Google Cloud Run / Cloud Build (legacy fallback)
 
 ## Commands
 
@@ -65,7 +64,7 @@ bandit -r src/ -ll
 # .env.example ships ALLOW_LOCAL_RUN=0, which trips the Anti-Local Execution Lock
 # in boot.py (the process exits before wiring services). To run on a dev machine:
 #   1. Set ALLOW_LOCAL_RUN=1
-#   2. Use a DEDICATED, non-production Telegram session (never the Oracle-owned
+#   2. Use a DEDICATED, non-production Telegram session (never the Contabo-owned
 #      USERBOT_SESSION_STRING) or you will invalidate prod with AuthKeyDuplicatedError.
 ALLOW_LOCAL_RUN=1 python src/main.py
 ```
@@ -164,14 +163,14 @@ checklist, commit/branch conventions, and a "Dead Files (don't touch)" list.
 | EnterpriseReporter | `services/core/enterprise_reporter.py` | Daily plan + audit reports |
 | Free-AI router | `services/utils/free_ai_router.py` | Multi-provider LLM failover |
 
-### Runtime (important: Oracle is primary now)
-- **Oracle Cloud VM** — **primary production**. Runs `src/main.py` under systemd
-  (`oisha-os.service`), owns the single userbot session. **Never run a parallel userbot
-  locally** — it invalidates the Oracle session with `AuthKeyDuplicatedError`. Set
+### Runtime (important: Contabo VPS is primary now)
+- **Contabo VPS (109.199.100.137)** — **primary production**. Runs `src/main.py` under systemd
+  (`oisha.service`), owns the single userbot session. **Never run a parallel userbot
+  locally** — it invalidates the Contabo session with `AuthKeyDuplicatedError`. Set
   `ALLOW_LOCAL_RUN=0` unless you know what you're doing.
+- **Oracle Cloud VM (163.192.10.104)** — decommissioned (services stopped and disabled).
 - **Cloud Run / Cloud Build** — legacy fallback (`cloudbuild.yaml`, `scripts/entrypoint.sh`,
-  `RUNNING_IN_CLOUD=True`). GitHub Actions self-hosted runner is the canonical rollout path.
-- **VPS** — legacy Telethon userbot (`userbot-vps.yml`).
+  `RUNNING_IN_CLOUD=True`).
 - Runtime is auto-detected via `services/core/agent_runtime.py` (`resolve_runtime_mode`).
 
 ### FastAPI control plane
@@ -201,7 +200,7 @@ Required:
 ```
 API_ID / API_HASH        Telegram app credentials
 BOT_TOKEN                Telegram bot token
-USERBOT_SESSION_STRING   Telethon userbot session (Oracle-owned in prod)
+USERBOT_SESSION_STRING   Telethon userbot session (Contabo-owned in prod)
 GEMINI_API_KEY           Google Gemini
 AMOCRM_CLIENT_ID / AMOCRM_CLIENT_SECRET / AMOCRM_SUBDOMAIN   AmoCRM OAuth
 TURSO_DATABASE_URL / TURSO_AUTH_TOKEN   Turso cloud DB (production). Unset ⇒ local
@@ -331,6 +330,7 @@ Standalone Meta-OAuth app (independent of the pnpm workspaces): FastAPI `backend
   `fix(scope): …`, `refactor(scope): …`.
 - `DEV_LOG.md` and `AGENTS.md` track running history/coordination — skim them for context
   on recent work before starting.
+- **Skills:** Telegram community/networking lidlarini CRM va Obsidianga sinxronlashda `.agents/skills/community-lead-sync/SKILL.md` hamda O'zbekiston soliq hisobotlari (JShDS 11101_20, Aylanma 10104_36, solishtirma va qaytarish) bo'yicha `.agents/skills/soliq-ops/SKILL.md` dan foydalaning.
 
 ## VS Code: uch agent
 

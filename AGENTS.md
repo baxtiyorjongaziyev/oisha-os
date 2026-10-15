@@ -19,6 +19,7 @@
 | Eski hisobot va handofflar | `docs/archive/` |
 | Telegram networking lidlarini CRM/Obsidianga sinxronlash | `.agents/skills/community-lead-sync/SKILL.md` |
 | Telegram tanishtiruv guruhlari va networking manbalarini kashf qilish | `.agents/skills/telegram-lead-discovery/SKILL.md` |
+| O'zbekiston soliq hisobotlari (JShDS 11101_20, Aylanma 10104_36) | `.agents/skills/soliq-ops/SKILL.md` |
 
 ## Asosiy qoidalar
 
@@ -33,7 +34,7 @@
 7. **Airtable o'zgarishi** → darhol Obsidian `20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md`
    va `brain_log` ga muhrlanadi (Owner qoidasi, 2026-09-15).
 8. **Sirlar hech qayerga yozilmaydi:** token, parol, session string, API key.
-9. **Umumiy skills:** Codex, Claude va Antigravity barcha takrorlanadigan ishlar uchun `.agents/skills/skill-evolution/SKILL.md` qoidasiga amal qiladi. Masalan, Telegram guruh va forumlaridan lidlarni olish va amoCRM ga dublikatsiz boyitish uchun `.agents/skills/community-lead-sync/SKILL.md` hamda yangi networking manbalari va tanishtiruv mavzularini avtomatik qidirish uchun `.agents/skills/telegram-lead-discovery/SKILL.md` ishlatiladi. Mos skill mavjud bo‘lsa, ish boshlashdan oldin o‘qiydi; yangi tasdiqlangan workflow paydo bo‘lsa, ish tugagach umumiy `.agents/skills/<skill>/SKILL.md` ni yangilaydi.
+9. **Umumiy skills:** Codex, Claude va Antigravity barcha takrorlanadigan ishlar uchun `.agents/skills/skill-evolution/SKILL.md` qoidasiga amal qiladi. Masalan, Telegram guruh va forumlaridan lidlarni olish va amoCRM ga dublikatsiz boyitish uchun `.agents/skills/community-lead-sync/SKILL.md`, yangi networking manbalari va tanishtiruv mavzularini avtomatik qidirish uchun `.agents/skills/telegram-lead-discovery/SKILL.md` hamda oylik soliq hisobotlari (JShDS 11101_20 va Aylanma 10104_36) uchun `.agents/skills/soliq-ops/SKILL.md` ishlatiladi. Mos skill mavjud bo‘lsa, ish boshlashdan oldin o‘qiydi; yangi tasdiqlangan workflow paydo bo‘lsa, ish tugagach umumiy `.agents/skills/<skill>/SKILL.md` ni yangilaydi.
 
 10. **Soxta ma'lumot taqiqlanadi (owner, 2026-10-10):** chat, Obsidian, skills, kod, jadval, hisobot va tashqi tizimlarda uydirma ma'lumotni haqiqiy fakt sifatida yozmang. Yetishmagan qiymatni taxminiy raqam yoki nol bilan to'ldirmang; `noma'lum` yoki `tekshirilmagan` deb belgilang. Faktga manba va kerak bo'lsa sanani qo'shing; taxminni aniq ajrating. Bajarilmagan ishni `bajarildi`, yuborilmagan hisobotni `topshirildi`, tasdiqlanmagan to'lovni `to'landi` demang. Xato aniqlansa, manbasi bilan ochiq tuzatish kiriting. Sintetik test ma'lumotlari aniq belgilansin va haqiqiy operatsion yozuvlarga aralashmasin.
 11. **Owner bosadigan tugmalar:** autentifikatsiya, xavfsizlik ruxsati yoki ownerning shaxsiy ishtiroki zarur bo'lsa, sahifa va tugma nomini aniq ayting; Baxtiyorjon o'zi bosadi. Uning bosganini yoki natijani taxmin qilmang — yangi holatni tekshiring. Oldindan ruxsat berilgan oddiy ishlar uchun qayta tasdiq so'ramang.
@@ -52,7 +53,7 @@
 
 ## Xavfli zonalar (hook bilan bloklangan — `.claude/hooks/guard.py`)
 
-- ⚠️ **Userbot sessiyasi Oracle VM'ga tegishli.** Lokal `src/main.py` / userbot ishga tushirish →
+- ⚠️ **Userbot sessiyasi Contabo VPS'ga tegishli (109.199.100.137).** (Eski Oracle VM to'xtatildi). Lokal `src/main.py` / userbot ishga tushirish →
   prod sessiya `AuthKeyDuplicatedError` bilan o'ladi. `ALLOW_LOCAL_RUN=0`.
 - `.env`, session fayllar, sirlarni o'qish/yozish taqiqlanadi.
 - `git push --force`, `main` ga push, `git reset --hard`, `rm -rf` — bloklangan.

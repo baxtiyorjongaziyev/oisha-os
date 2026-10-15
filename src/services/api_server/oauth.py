@@ -1,12 +1,13 @@
 import asyncio
 import base64
 import hashlib
+import hmac
 import html
 import logging
 import os
 import time
 from typing import Dict, Optional
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from src.context import app_ctx
@@ -41,118 +42,12 @@ class _OAuthSessionStore:
 
 _oauth_sessions = _OAuthSessionStore()
 
-async def telegram_extension_history(phone: str):
-    """Fetch chat history (via AmoCRM notes) for a given phone number."""
-    try:
-        from src.services.core.crm.amocrm_sync import AmoCRMSync
-        amocrm = AmoCRMSync()
-        
-        # 1. Mijozni topish
-        lead = amocrm.find_active_lead_by_phone(phone)
-        if not lead:
-            # Agar bitim topilmasa, kontakt bo'yicha qidirib ko'ramiz
-            contact = amocrm.get_contact_by_phone(phone)
-            if not contact:
-                return {"success": False, "error": "Mijoz topilmadi"}
-            leads = amocrm.get_active_leads_for_contact(contact["id"])
-            if leads:
-                lead = leads[0]
-            else:
-                return {"success": False, "error": "Mijozning faol bitimi yo'q"}
-                
-        lead_id = lead["id"]
-        
-        # 2. Mijoz izohlarini (Notes) olish
-        notes = await amocrm.get_lead_notes(lead_id)
-        
-        messages = []
-        for note in notes:
-            text = note.get("params", {}).get("text", "")
-            if not text:
-                continue
-                
-            # Biz yuborgan yoki bot yozgan xabarlarni ajratamiz
-            is_outbound = "Menejer:" in text or "TG:" in text or "Oisha:" in text or note.get("created_by") != 0
-            
-            # Matnni tozalash (masalan "TG: " ni olib tashlash)
-            clean_text = text.replace("TG: ", "").replace("Menejer: ", "")
-            
-            messages.append({
-                "text": clean_text,
-                "outbound": is_outbound,
-                "created_at": note.get("created_at")
-            })
-            
-        # Vaqt bo'yicha saralash
-        messages.sort(key=lambda x: x["created_at"])
-        
-        # Telegram Chat ID ni topish (custom field lardan)
-        chat_id = phone # Fallback
-        
-        return {
-            "success": True, 
-            "messages": messages,
-            "chatId": chat_id,
-            "leadId": lead_id
-        }
-    except Exception as e:
-        logger.error(f"[TELEGRAM EXT HISTORY] {e}")
-        return {"success": False, "error": "Telegram history request failed"}
-
-
-@router.post("/api/telegram/extension/send")
-async def telegram_extension_send(request: Request):
-    """Send a message to a client via Telegram and log it in AmoCRM."""
-    try:
-        data = await request.json()
-        chat_id = data.get("chat_id")
-        text = data.get("text")
-        
-        if not chat_id or not text:
-            return {"success": False, "error": "chat_id and text required"}
-            
-        # 1. Telegram orqali yuborish
-        target = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
-        sent = False
-        
-        # A) Telethon Userbot orqali (+998336450097)
-        if getattr(app_ctx, "client", None):
-            try:
-                await app_ctx.client.send_message(target, text)
-                sent = True
-                logger.info(f"[TELEGRAM EXT] Sent via Userbot to {target}")
-            except Exception as ex:
-                logger.warning(f"[TELEGRAM EXT] Userbot send failed: {ex}")
-                
-        # B) Bot runtime orqali fallback
-        if not sent and getattr(app_ctx, "bot_runtime", None):
-            try:
-                await app_ctx.bot_runtime.send_message(target, text)
-                sent = True
-                logger.info(f"[TELEGRAM EXT] Sent via Bot to {target}")
-            except Exception as ex:
-                logger.warning(f"[TELEGRAM EXT] Bot send failed: {ex}")
-                
-        # C) Queue fallback
-        if not sent:
-            if app_ctx.outgoing_messages is None:
-                app_ctx.outgoing_messages = asyncio.Queue()
-            await app_ctx.outgoing_messages.put({"chat_id": chat_id, "text": text})
-        
-        # 2. AmoCRM ga Note qilib yozib qo'yish (kelajakdagi tarix uchun)
-        try:
-            from src.services.core.crm.amocrm_sync import AmoCRMSync
-            amocrm = AmoCRMSync()
-            lead = amocrm.find_active_lead_by_phone(str(chat_id))
-            if lead:
-                amocrm.add_lead_note(lead["id"], f"TG: {text}")
-        except Exception as note_ex:
-            logger.warning(f"[TELEGRAM EXT NOTE] Failed: {note_ex}")
-            
-        return {"success": True, "sent": sent}
-    except Exception as e:
-        logger.error(f"[TELEGRAM EXT SEND] {e}")
-        return {"success": False, "error": "Internal server error"}
+from src.services.api_server.telegram_extension import (
+    router as telegram_extension_router,
+    telegram_extension_history,
+    telegram_extension_send,
+)
+router.include_router(telegram_extension_router)
 
 # =====================================================================
 # Airtable OAuth 2.0 Integratsiyasi
@@ -244,7 +139,7 @@ _ALLOWED_LOGIN_REDIRECTS: frozenset[str] = frozenset({
 
 @router.get("/api/auth/telegram/login")
 async def telegram_login(next: Optional[str] = None):
-    """Return an HTML page with the Telegram Login Widget."""
+    """Return an HTML page with Telegram Login Widget and Token Login fallback."""
     bot_username = getattr(settings, "BOT_USERNAME", "jonairobot")
     safe_next = next if next in _ALLOWED_LOGIN_REDIRECTS else ""
     raw_auth_url = (
@@ -261,21 +156,79 @@ async def telegram_login(next: Optional[str] = None):
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
                 body {{ font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f3f4f6; color: #1f2937; margin: 0; }}
-                .card {{ background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; }}
-                h2 {{ color: #2563eb; margin-bottom: 20px; }}
-                p {{ color: #4b5563; margin-bottom: 30px; line-height: 1.5; }}
+                .card {{ background: white; padding: 36px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; box-sizing: border-box; }}
+                h2 {{ color: #2563eb; margin: 0 0 16px; }}
+                p {{ color: #4b5563; margin-bottom: 24px; font-size: 14px; line-height: 1.5; }}
             </style>
         </head>
         <body>
             <div class="card">
                 <h2>Oisha-OS Enterprise</h2>
-                <p>Tizimga kirish uchun Telegram orqali tasdiqlang. Hech qanday parol kerak emas.</p>
-                <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{safe_bot_username}" data-size="large" data-auth-url="{auth_url}" data-request-access="write"></script>
+                <p>Tizimga kirish uchun Telegram orqali tasdiqlang:</p>
+                <div style="min-height: 44px; margin-bottom: 20px;">
+                    <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{safe_bot_username}" data-size="large" data-auth-url="{auth_url}" data-request-access="write"></script>
+                </div>
+                <div style="margin-top: 16px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
+                    <p style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">Yoki kirish kaliti (Token) orqali kiring:</p>
+                    <form method="POST" action="/api/auth/token/login" style="display: flex; flex-direction: column; gap: 8px;">
+                        <input type="hidden" name="next" value="{safe_next}">
+                        <input type="password" name="token" placeholder="Kirish kaliti (API Secret yoki Token)" required style="padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; box-sizing: border-box;">
+                        <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 13px;">Tizimga kirish</button>
+                    </form>
+                </div>
             </div>
         </body>
     </html>
     """
     return HTMLResponse(content=html_content)
+
+
+@router.post("/api/auth/token/login")
+async def token_login(token: str = Form(...), next: Optional[str] = Form(None)):
+    """Direct token/key authentication (fallback for IP access or direct targetolog login)."""
+    import json
+    from src.api import auth_service
+    from src.api.security import _auth_setting, _clean, _session_secret
+
+    raw_token = _clean(token)
+    api_secret = _auth_setting("OISHA_API_SECRET")
+    jwt_secret = _session_secret()
+    role, subject = None, None
+
+    if api_secret and hmac.compare_digest(raw_token, api_secret):
+        role, subject = "owner", "owner-token"
+    else:
+        try:
+            svc_tokens = json.loads(_auth_setting("SERVICE_TOKENS_JSON") or "{}")
+        except Exception:
+            svc_tokens = {}
+        if isinstance(svc_tokens, dict) and raw_token in svc_tokens:
+            role = "targetolog"
+            subject = svc_tokens[raw_token].get("subject", "targetolog")
+
+    if not role or not jwt_secret:
+        raise HTTPException(status_code=401, detail="Noto'g'ri kalit yoki token kiritildi")
+
+    session_jwt = auth_service.issue_session_jwt(
+        user_id=1,
+        username=subject,
+        first_name=subject,
+        role=role,
+        secret=jwt_secret,
+        ttl_seconds=auth_service.SESSION_TTL_SECONDS,
+    )
+    target = next if next in _ALLOWED_LOGIN_REDIRECTS else "/"
+    response = RedirectResponse(url=target, status_code=303)
+    response.set_cookie(
+        key="oisha_token",
+        value=session_jwt,
+        max_age=auth_service.SESSION_TTL_SECONDS,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        path="/",
+    )
+    return response
 
 
 @router.get("/api/auth/telegram/callback")

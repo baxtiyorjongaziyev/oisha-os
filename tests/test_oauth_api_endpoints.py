@@ -144,3 +144,27 @@ def test_telegram_callback_redirect_sanitization(client, monkeypatch):
     res_malicious = client.get("/api/auth/telegram/callback", params=params, follow_redirects=False)
     assert res_malicious.status_code == 307
     assert res_malicious.headers.get("location") == "/"
+
+
+def test_token_login_success(client, monkeypatch):
+    monkeypatch.setenv("OISHA_API_SECRET", "super-secret-api-key-12345678901234567890")
+    monkeypatch.setenv("JWT_SECRET", "test-dedicated-jwt-secret-at-least-32-bytes-long!")
+    res = client.post(
+        "/api/auth/token/login",
+        data={"token": "super-secret-api-key-12345678901234567890", "next": "/api/marketing/capi/console"},
+        follow_redirects=False,
+    )
+    assert res.status_code == 303
+    assert res.headers.get("location") == "/api/marketing/capi/console"
+    assert "oisha_token=" in res.headers.get("set-cookie", "")
+
+
+def test_token_login_invalid(client, monkeypatch):
+    monkeypatch.setenv("OISHA_API_SECRET", "super-secret-api-key-12345678901234567890")
+    monkeypatch.setenv("JWT_SECRET", "test-dedicated-jwt-secret-at-least-32-bytes-long!")
+    res = client.post(
+        "/api/auth/token/login",
+        data={"token": "wrong-token"},
+        follow_redirects=False,
+    )
+    assert res.status_code == 401

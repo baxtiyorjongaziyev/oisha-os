@@ -143,3 +143,27 @@ async def test_send_rich_group_message_requires_content():
     assert ok.group_message_id == 9
     rich_message = adapter.bot_api10.send_rich_message.await_args.args[1]
     assert rich_message == {"text": "Salom"}
+
+
+def test_build_default_tool_registry_registration():
+    from src.services.core.tool_adapters_pkg.registry import build_default_tool_registry
+    from src.services.core.tool_registry import ToolRegistry
+
+    registry = build_default_tool_registry(
+        bot_token="123456:fake-token",
+        amocrm=MagicMock(),
+        airtable=MagicMock(),
+    )
+    assert registry.has("telegram")
+    assert registry.has("amocrm_leads")
+    assert registry.has("airtable_projects")
+
+    # Direct registration with 1 arg (adapter) and 2 args (name, adapter)
+    custom_reg = ToolRegistry()
+    mock_adapter = MagicMock()
+    mock_adapter.tool_name = "custom_tool"
+    custom_reg.register(mock_adapter)
+    assert custom_reg.has("custom_tool")
+
+    custom_reg.register("explicit_name", mock_adapter)
+    assert custom_reg.has("explicit_name")
