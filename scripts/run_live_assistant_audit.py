@@ -18,7 +18,7 @@ from src.services.core.assistant.telegram_assistant_advisor import (
 
 # Oracle VM MCP API configuration
 API_URL = "http://163.192.10.104:8080/api/internal/mcp"
-OISHA_SECRET = "8f94b1a8d052b66bf130c007137f7a22bf7230b77b7ccb8a"
+OISHA_SECRET = os.environ["OISHA_API_SECRET"]
 
 headers = {
     "X-Oisha-Internal-Secret": OISHA_SECRET,
