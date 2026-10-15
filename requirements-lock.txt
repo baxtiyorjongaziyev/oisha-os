@@ -217,7 +217,7 @@ oauthlib==4.0.0
     # via
     #   -r requirements.txt
     #   requests-oauthlib
-openai==3.24.0
+openai==3.29.0
     # via -r requirements.txt
 opentelemetry-api==1.45.0
     # via
