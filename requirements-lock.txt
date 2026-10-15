@@ -263,7 +263,7 @@ pyasn1-modules==0.4.2
     # via google-auth
 pyautogui==0.9.54
     # via -r requirements.txt
-pycparser==3.0
+pycparser==3.11
     # via cffi
 pycryptodomex==3.24.0
     # via instagrapi
