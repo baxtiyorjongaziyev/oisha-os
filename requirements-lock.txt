@@ -265,7 +265,7 @@ pyautogui==0.9.54
     # via -r requirements.txt
 pycparser==3.0
     # via cffi
-pycryptodomex==3.24.0
+pycryptodomex==3.24.1
     # via instagrapi
 pydantic==2.13.5
     # via
