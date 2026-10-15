@@ -25,7 +25,7 @@ annotated-doc==0.0.5
     #   typer
 annotated-types==0.8.0
     # via pydantic
-anthropic==1.11.0
+anthropic==1.13.0
     # via -r requirements.txt
 anyio==4.15.1
     # via
