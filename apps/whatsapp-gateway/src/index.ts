@@ -22,7 +22,10 @@ const logger = pino({ level: "silent" });
 
 // Config (env orqali)
 const OISHA_WEBHOOK_URL = process.env.OISHA_WEBHOOK_URL || "http://localhost:8000/webhook/whatsapp";
-const OISHA_SECRET = process.env.OISHA_WHATSAPP_SECRET || "secret";
+const OISHA_SECRET = process.env.OISHA_WHATSAPP_SECRET;
+if (!OISHA_SECRET) {
+  throw new Error("OISHA_WHATSAPP_SECRET o'rnatilmagan — gateway ishga tushmaydi");
+}
 const PORT = parseInt(process.env.WA_GATEWAY_PORT || "3001");
 const AUTH_DIR = process.env.WA_AUTH_DIR || path.join(__dirname, "..", "wa_auth_state");
 

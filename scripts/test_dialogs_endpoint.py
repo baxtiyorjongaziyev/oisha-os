@@ -1,10 +1,11 @@
+import os
 import requests
 import json
 
 url = 'https://oisha.jonbranding.uz/api/internal/mcp/dialogs?limit=10'
 headers = {
-    'X-Oisha-Internal-Secret': '8f94b1a8d052b66bf130c007137f7a22bf7230b77b7ccb8a',
-    'Authorization': 'Bearer 8f94b1a8d052b66bf130c007137f7a22bf7230b77b7ccb8a'
+    'X-Oisha-Internal-Secret': os.environ['OISHA_API_SECRET'],
+    'Authorization': f"Bearer {os.environ['OISHA_API_SECRET']}"
 }
 try:
     r = requests.get(url, headers=headers, timeout=10)
