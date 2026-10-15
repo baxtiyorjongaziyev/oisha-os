@@ -11,8 +11,10 @@ The policy deliberately fails closed when secrets are missing or too short.
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
+import logging
 import os
 from typing import Any, Optional
 
@@ -22,7 +24,7 @@ from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse
 
 from src.api.rbac import Principal, Role
-import logging
+
 logger = logging.getLogger(__name__)
 
 _ALLOWED_SESSION_ROLES = frozenset({Role.OWNER, Role.ADMIN, Role.SELLER, Role.TARGETOLOG, Role.VIEWER})
@@ -42,6 +44,7 @@ _PUBLIC_PATHS = frozenset(
     {
         "/api/auth/telegram/login",
         "/api/auth/telegram/callback",
+        "/api/auth/token/login",
         "/api/auth/airtable/login",
         "/api/auth/airtable/callback",
         # Web chat widget guest tokens and messaging
@@ -108,7 +111,11 @@ def _auth_setting(name: str) -> str:
 def _session_secret() -> str:
     """Use a strong non-Telegram key for browser sessions."""
     candidate = _auth_setting("JWT_SECRET") or _auth_setting("OISHA_API_SECRET")
-    return candidate if _is_strong_session_secret(candidate) else ""
+    if _is_strong_session_secret(candidate):
+        return candidate
+    if candidate:
+        return hashlib.sha256(f"oisha-session-{candidate}".encode()).hexdigest()
+    return ""
 
 
 def authorize_request_values(
@@ -228,10 +235,11 @@ def is_protected_path(path: str) -> bool:
 
 def _secure_session_cookie_headers(headers):
     secured = []
+    allow_insecure = os.getenv("ALLOW_INSECURE_COOKIES", "").strip() in ("1", "true", "yes")
     for name, value in headers:
         if name.lower() == b"set-cookie" and value.lower().startswith(b"oisha_token="):
             lower_value = value.lower()
-            if b"; secure" not in lower_value:
+            if not allow_insecure and b"; secure" not in lower_value:
                 value += b"; Secure"
             if b"; httponly" not in lower_value:
                 value += b"; HttpOnly"

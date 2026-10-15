@@ -49,9 +49,22 @@ class ToolRegistry:
     def __init__(self) -> None:
         self._adapters: Dict[str, ToolAdapter] = {}
 
-    def register(self, name: str, adapter: ToolAdapter) -> ToolAdapter:
-        self._adapters[name] = adapter
-        return adapter
+    def register(
+        self,
+        name: str | ToolAdapter,
+        adapter: Optional[ToolAdapter] = None,
+    ) -> ToolAdapter:
+        if adapter is None:
+            if hasattr(name, "tool_name"):
+                actual_adapter: ToolAdapter = name  # type: ignore[assignment]
+                actual_name = actual_adapter.tool_name
+            else:
+                raise ValueError("adapter is required when name is a string")
+        else:
+            actual_adapter = adapter
+            actual_name = str(name)
+        self._adapters[actual_name] = actual_adapter
+        return actual_adapter
 
     def get(self, name: str) -> ToolAdapter:
         if name not in self._adapters:

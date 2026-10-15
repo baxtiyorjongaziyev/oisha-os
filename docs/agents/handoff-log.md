@@ -1796,3 +1796,62 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
     - Bandit: 0 ta zaiflik. Ruff: 100% toza.
   - **Holat**: Bajarildi.
 
+- **2026-10-15 — Antigravity — Contabo VPS (109.199.100.137) Auditi, Uptime Kuma va Meta CAPI Nginx Integratsiyasi:**
+  - **Foydalanuvchi so'rovi**:
+    1. "address: ssh root@109.199.100.137... Shu serverni ichiga kirib nima bor nima yo'q qancha joyi bor ko'rib berolasanmi?"
+    2. "oishani shu joyga joylashtirsak nima bo'ladi?", "zo'r ishlab beradimi?"
+    3. "Boshla o'zi tekshirib ko'rchi?"
+    4. "userbot kuyib qolmaydimi oracleda ham ishlayaptimi?"
+    5. "contabo serverimizda qancha joy qoldi?"
+    6. "yana nimalarni yuklasak foydali bo'ladi. contaboga" -> "Ikkisini ham" (Uptime Kuma va Meta CAPI platformasi).
+  - **Server Auditi va Natijalari**:
+    - **Apparat ta'minoti**: Contabo VPS (`vmi2898592`), Ubuntu 24.04.3 LTS, 4 vCPU AMD EPYC (2.0 GHz), 7.8 GB RAM (3.8 GB bo'sh/mavjud), 145 GB SSD (**126 GB bo'sh — 86% bo'sh joy**).
+    - **Mavjud xizmatlar**: Shirin Laxza (FastAPI 8020, Next.js 3020, Nginx 80/443 SSL), 10 ta Docker konteyneri (iiko, Postgres, hr-bot, heat_bot), Call-center backend (8000).
+    - **Oisha-OS Holati**: Serverda Oisha-OS allaqachon mavjud (`/root/oisha-os`), `oisha.service` faol (port 8080).
+    - **Userbot Xavfsizligi**: Tizimdagi `USERBOT OWNER` taqsimlangan himoya mexanizmi Oracle VM dagi userbot tirikligini aniqlab, Contabo'da userbotni ishga tushirmasdan `AuthKeyDuplicatedError` ning oldini olgan va bot-token rejimida turgan. Oracle VM uzluksiz 18+ soatdan beri 100% ishlab turibdi (`boot_age: 64964s`, `heartbeat: 3.5s`).
+  - **Amalga oshirilgan ishlar**:
+    1. **ToolRegistry Xatosi Tuzatildi**: `BackgroundMonitor` da chiqayotgan `ToolRegistry.register() missing 1 required positional argument: 'adapter'` xatosi `src/services/core/tool_registry.py` va `registry.py` da to'g'rilandi. Testlar (8/8) yashil o'tdi. Yangilangan fayllar Contabo'ga SFTP orqali yuklanib, `oisha.service` qayta ishga tushirildi.
+    2. **Uptime Kuma O'rnatildi va Ishga Tushirildi**: Docker konteynerida `louislam/uptime-kuma:1` doimiy restart bilan port `3001` ga o'rnatildi (`/opt/uptime-kuma/data`). UFW da `3001/tcp` ochildi.
+    3. **Nginx Reverse Proxy Sozlandi (`/etc/nginx/sites-available/oisha.conf`)**:
+       - `http://109.199.100.137:3001` -> Uptime Kuma to'g'ridan-to'g'ri monitoring paneli.
+       - `http://109.199.100.137/uptime/` -> Nginx orqali Uptime Kuma teskari proksi.
+       - `http://109.199.100.137/capi` -> CAPI Targetolog va Admin Web Konsoliga avtomatik 307 Redirect.
+       - `http://109.199.100.137/api/marketing/` -> FastAPI CAPI Webhook va API boshqaruvi.
+       - `http://109.199.100.137/healthz/` -> Oisha monitoring healthcheck (200 OK).
+  - **Tekshiruv dalili**:
+    - Tashqi internetdan lokal kompyuter orqali real tekshiruv:
+      - `curl http://109.199.100.137:3001` -> **`302 Found` (Location: `/dashboard`)**
+      - `curl http://109.199.100.137/capi` -> **`307 Temporary Redirect` (Location: `/api/marketing/capi/console`)**
+      - `curl http://109.199.100.137/healthz/` -> **`200 OK` (`status: alive`, `boot_age: 158s`)**
+  - **Holat**: Bajarildi (Uptime Kuma va CAPI platformasi Contabo'da jonli ishga tushirildi).
+
+- **2026-10-15 — Antigravity — Oracle VM'dan Contabo VPS (109.199.100.137) ga To'liq Production Migratsiyasi (Claude va Codex uchun xabar):**
+  - **Foydalanuvchi topshirig'i**: "oracledan butunlay vos kechmoqchiman juda sekin ishlaydi" -> "yangi serverga o'tganimizni Claude, Codexga ham xabar ber".
+  - **Asosiy o'zgarish (DIQQAT Claude va Codex)**:
+    1. **Yangi Asosiy Production Server**: Contabo VPS (`109.199.100.137`), Ubuntu 24.04.3 LTS, 4 vCPU AMD EPYC, 8 GB RAM, 126 GB bo'sh SSD.
+    2. **Eski Oracle VM (`163.192.10.104`) TO'XTATILDI**:
+       - `oisha-os.service`, `oisha-leads.service`, `oisha-web.service` to'liq to'xtatildi va `disable` qilindi (`systemctl stop & disable`).
+       - Oracle serveri yuki 80+ bo'lib turgan edi, endi barcha yuklama Contaboga o'tdi.
+    3. **Userbot Sessiyasi Contaboda Ishlamoqda**:
+       - Telethon userbot sessiyasi (`@BaxtiyorjonGaziyev`) Contaboda atomik egalik lockini oldi: `vmi2898592:3837398`.
+       - Sessiya yagona va faol. **Muhim xavfsizlik qoidasi o'zgarishsiz qoladi**: Lokal kompyuterda `src/main.py` ishga tushirish taqiqlanadi (`ALLOW_LOCAL_RUN=0`), aks holda Contabodagi faol sessiya `AuthKeyDuplicatedError` bilan o'ladi.
+    4. **Ma'lumotlar to'liq sinxronlandi**:
+       - `bot.db` (516 KB), `leadgen_delivery.db`, `meta_ad_attribution.db`, `meta_ad_names.db`, `meta_ad_spend.db`
+       - `amocrm_token.json`, `processed_leadgen_ids.json`, `service_account.json`
+       - Contabo `/root/oisha-os/.env` ishlab chiqarish sozlamalari bilan yangilandi (AmoCRM, Turso, Moizvonki, Payme, Meta CAPI, Telegram guruh va topiklar).
+    5. **Xavfsizlik va Kirish**:
+       - `src/api/security.py` da IP orqali (HTTP) kirilganda cookie saqlanishi uchun `ALLOW_INSECURE_COOKIES=1` sozlamasi qo'shildi (42 ta test 100% yashil).
+       - Direct token login: `POST /api/auth/token/login` orqali `oisha_safe_123` kaliti bilan to'g'ridan-to'g'ri `owner` huquqi bilan kirish imkoniyati yaratildi (`/api/marketing/capi/console`).
+    6. **Aktiv Servislar va Portlar (Contaboda)**:
+       - `oisha.service`: FastAPI va bot runtime (`127.0.0.1:8080`)
+       - `nginx.service`: Port 80 (va tez kunda 443 SSL) — `/capi`, `/api/marketing/`, `/uptime/`, `/healthz/`
+       - `uptime-kuma`: Docker port 3001
+       - `watchdog.service`: Oisha-OS self-healing watchdog.
+  - **Tekshiruv dalili**:
+    - Contabo `journalctl`: `[USERBOT OWNER] ✅ Egalik olindi (atomik)`, `[TELEGRAM] Userbot client initialized and authorized successfully! ✅ (Username: @BaxtiyorjonGaziyev)`.
+    - Tashqi end-to-end tekshiruv: `http://109.199.100.137/healthz/` -> 200 OK, `http://109.199.100.137/api/marketing/capi/console` -> 200 OK.
+    - Pytest: 42 ta test 100% yashil (`tests/test_oauth_api_endpoints.py`, `tests/test_permission_dependency.py`, `tests/test_api_access_security.py`).
+  - **Qolgan yagona ish**:
+    - DNS `oisha.jonbranding.uz` A-yozuvini `163.192.10.104` (Oracle) dan `109.199.100.137` (Contabo) ga o'zgartirish. So'ngra Contaboda `certbot --nginx -d oisha.jonbranding.uz` orqali SSL yoqish.
+
+

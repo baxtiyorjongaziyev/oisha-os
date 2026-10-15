@@ -22,9 +22,12 @@ def build_default_tool_registry(
 ) -> ToolRegistry:
     registry = ToolRegistry()
     if bot_token:
-        registry.register(TelegramNotificationAdapter(bot_token))
+        tg_adapter = TelegramNotificationAdapter(bot_token)
+        registry.register(tg_adapter.tool_name, tg_adapter)
     if amocrm:
-        registry.register(AmoCRMLeadAdapter(amocrm))
+        crm_adapter = AmoCRMLeadAdapter(amocrm)
+        registry.register(crm_adapter.tool_name, crm_adapter)
     if airtable:
-        registry.register(AirtableProjectAdapter(airtable))
+        at_adapter = AirtableProjectAdapter(airtable)
+        registry.register(at_adapter.tool_name, at_adapter)
     return registry
