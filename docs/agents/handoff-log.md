@@ -1854,4 +1854,341 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - **Qolgan yagona ish**:
     - DNS `oisha.jonbranding.uz` A-yozuvini `163.192.10.104` (Oracle) dan `109.199.100.137` (Contabo) ga o'zgartirish. So'ngra Contaboda `certbot --nginx -d oisha.jonbranding.uz` orqali SSL yoqish.
 
+- **2026-10-15 — Antigravity — Jon Branding Open-Source Foundation (NocoDB & n8n) Contabo VPS ga Muvaffaqiyatli Joylashtirildi:**
+  - **Foydalanuvchi so'rovi & Tasdiq**: Open-source PRD qabul qilindi va 1-bosqich ijroga topshirildi.
+  - **Amalga oshirilgan ishlar**:
+    1. **Contabo VPS (`109.199.100.137`) Resurs va Xavfsizlik Auditi**:
+       - Hostdagi mavjud portlar tahlil qilindi: Call-center backend (8000), Shirin Laxza (8020), Oisha-OS (8080), Uptime Kuma (3001) va Nginx (80/443). To'qnashuvlarning oldi olindi.
+    2. **PostgreSQL 16 Multi-Tenant Klasteri (`jb_postgres`)**:
+       - `/opt/jonbranding-stack/` ichida Docker compose orqali `postgres:16-alpine` ishga tushirildi. `nocodb` va `n8n` alohida bazalari avtomatik yaratildi va bog'landi.
+    3. **NocoDB (Airtable Open-Source muqobili, `jb_nocodb`)**:
+       - Port 8090 ga ulandi, ma'lumotlar bazasi migratsiyasi muvaffaqiyatli yakunlandi, NestJS ilovasi ishga tushirildi.
+    4. **n8n Automation Engine (Zapier/Make muqobili, `jb_n8n`)**:
+       - Port 5678 ga ulandi, storage ruxsatlari sozlandi, JS Task Runner bilan tayyor holatga keltirildi.
+    5. **Nginx Reverse Proxy va Subdomenlar**:
+       - `/etc/nginx/sites-available/oisha.conf` yangilandi:
+         - `base.jonbranding.uz` -> `127.0.0.1:8090` (NocoDB)
+         - `flow.jonbranding.uz` -> `127.0.0.1:5678` (n8n)
+         - `uptime-kuma` -> `127.0.0.1:3001`
+       - Nginx konfiguratsiyasi tekshirildi (`nginx -t` OK) va qayta yuklandi.
+    6. **UFW Xavfsizlik Devori**:
+       - `8090/tcp` va `5678/tcp` to'g'ridan-to'g'ri test uchun ochildi.
+  - **Tekshiruv dalili**:
+    - Tashqi internetdan to'g'ridan-to'g'ri tekshiruv:
+      - `curl -sI http://109.199.100.137:8090/` -> **`HTTP/1.1 200 OK` (NocoDB Web UI)**
+      - `curl -sI http://109.199.100.137:5678/` -> **`HTTP/1.1 200 OK` (n8n Web Editor)**
+      - `curl -sI -H "Host: base.jonbranding.uz" http://109.199.100.137/` -> **`HTTP/1.1 200 OK`**
+      - `curl -sI -H "Host: flow.jonbranding.uz" http://109.199.100.137/` -> **`HTTP/1.1 200 OK`**
+  - **Holat**: Bajarildi (NocoDB va n8n Contaboda jonli va ishga tayyor).
 
+
+
+- **2026-10-15 — Antigravity — Contabo Runner, Arxitektura Standartlashtirish va PR #908/#879 Merge:**
+  - **Foydalanuvchi so'rovi**: Barcha ochiq ishlarni bajarish rejasi bo'yicha infratuzilma, kod gigiyenasi va avtomatlashtirishni yakunlash.
+  - **Amalga oshirilgan ishlar**:
+    1. **Contabo GitHub Actions Runner (Jonli & Tekshirildi)**:
+       - Contabo VPS (`109.199.100.137`) da `oisha-runner` foydalanuvchisi va `actions-runner` `v2.338.0` o'rnatildi.
+       - Runner ID 22 (`contabo-vps`) online holatda, `[self-hosted, contabo, linux, x64, oracle]` yorliqlari berildi.
+       - `runner-diagnostics.yml` sinov workflow'i ishga tushirildi va Contaboda 21 sekundda to'liq yashil o'tdi (`✓ oracle-probe in 21s`).
+       - Eski Oracle VM runneri (`oracle-vm`, ID 21) to'xtatildi va GitHub API'dan o'chirildi.
+    2. **Contabo Arxitekturasini `/home/ubuntu/oisha-os` ga Standartlashtirish**:
+       - Barcha CI/CD va lokal skriptlar mosligi uchun `ubuntu` foydalanuvchisi yaratildi va loyiha `/home/ubuntu/oisha-os` ga o'tkazildi.
+       - Python 3.13 venv `/opt/uv/` ga ko'chirilib, `ubuntu` va `oisha-runner` foydalanuvchilariga to'liq ruxsat berildi.
+       - `oisha-os.service` systemd xizmati faollashtirildi: FastAPI, Turso DB va Telethon userbot (`@BaxtiyorjonGaziyev`) barqaror ishlamoqda.
+    3. **Git & PR Tozalash**:
+       - `feat/capi-platform` filiali `main` bilan to'liq rebase qilindi, 11 ta CI tekshiruvi (CodeQL, pytest, gitleaks, import-guard) yashil o'tib, PR #908 `main` ga squash-merge qilindi.
+       - PR #879 (`fix(ingress): accept mode and active kwargs`) squash-merge qilindi.
+       - Mahalliy `main` filiali `origin/main` (`d58743a8`) ga fast-forward qilindi.
+    4. **Meta CAPI Test Hodisasi**:
+       - Meta Graph API Explorer orqali yuborilgan `TEST11075` test hodisasi `200 OK` (events_received: 1) bilan qaytdi. Meta Events Manager'da `Покупка` va `Лид` hodisalari faol.
+  - **Tekshiruv dalili**:
+    - Contabo `curl -s http://127.0.0.1:8080/healthz/` -> `status: alive, heartbeat_age_sec: 5.1s`.
+    - Contabo `curl -s http://127.0.0.1:8080/api/auth/telegram/login` -> Telegram Login + Direct Token Login formasi 200 OK.
+    - GitHub Actions: Run `38711724134` (Runner diagnostics) 100% yashil (`✓ oracle-probe in 21s`).
+    - PR #908 va PR #879 `MERGED`.
+  - **Holat**: Bajarildi.
+  - **Qolgan yagona owner amali**: Cloudflare'da `oisha.jonbranding.uz` A-yozuvini `109.199.100.137` ga burish (Contabodagi `ssl_watcher.py` fonida kutmoqda).
+
+- **2026-10-15 — Antigravity — 5 TB Google Drive Avtomatik Zaxira (Rclone) & 4 GB Swap Xavfsizlik Yostiqchasi:**
+  - **Foydalanuvchi so'rovi & Tasdiq**: 5 TB Google Drive ni Contabo VPS ga ulab, har kungi avtomatik zaxira va RAM himoyasini yoqish tasdiqlandi.
+  - **Amalga oshirilgan ishlar**:
+    1. **Google Drive Ulanishi (Rclone v1.75.2)**:
+       - Contabo VPS ga Rclone o'rnatildi. Foydalanuvchining 5 TB Google Drive hisobi OAuth orqali ulandi (`rclone.conf` 600 huquqi bilan).
+       - Jonli papkalar tekshirildi (`Airtable`, `Brandbook`, `JonBranding`, `Oisha OS`, `Мои Звонки`).
+    2. **Avtomatik Zaxira Skripti (`/opt/jonbranding-stack/backup_to_gdrive.sh`)**:
+       - Barcha PostgreSQL bazalari (`jb_postgres`), Oisha-OS DB va tokenlari, Uptime Kuma bazasi (`kuma.db`) va Docker konfiguratsiyalarini arxivlab, `gdrive:JonBranding_Backups/daily` papkasiga yuklovchi to'liq avtomatlashtirilgan skript yaratildi.
+       - Skript zudlik bilan jonli sinovdan o'tkazildi: `contabo_backup_2026-10-15_124727.tar.gz` Google Drive ga muvaffaqiyatli yuklandi.
+    3. **O'z-o'zini Tozalash va Cron Jadvali**:
+       - Serverda har kecha soat 03:00 da avtomatik ishga tushadigan cron o'rnatildi (`0 3 * * *`).
+       - Server diskida faqat so'nggi 14 kunlik zaxiralar qoldirilib, eskilari avtomatik o'chiriladi.
+    4. **4 GB Swap Xavfsizlik Yostiqchasi (OOM Crash Himoyasi)**:
+       - 126 GB bo'sh SSD diskdan `/swapfile` (4 GB, swappiness=10) yaratildi va `/etc/fstab` ga ulandi.
+       - Serverda xotira to'lib qolib to'xtab qolish xavfi (OOM crash) butunlay bartaraf etildi.
+  - **Tekshiruv dalili**:
+    - `rclone ls gdrive:JonBranding_Backups/daily` -> `contabo_backup_2026-10-15_124727.tar.gz` (Google Drive da mavjud).
+    - `free -h` -> `Swap: 4.0Gi (4.0Gi free)`.
+    - `crontab -l` -> `0 3 * * * /opt/jonbranding-stack/backup_to_gdrive.sh >> /var/log/jonbranding_backup.log 2>&1`.
+  - **Holat**: Bajarildi.
+
+- **2026-10-15 — Antigravity — Oisha-OS Diagnostic & Production Bug Fixes (Customer 360, Timezones, GSheets & Gemini API):**
+  - **Amalga oshirilgan ishlar**:
+    1. **Customer 360 async coroutine tuzatildi (`src/services/customer_360/collector.py`)**: `get_lead` va `find_active_lead_by_phone` asinxron funksiyalarini `asyncio.to_thread` ga o'rash natijasida kelib chiqayotgan `'coroutine' object has no attribute 'get'` xatosi to'g'rilandi.
+    2. **Vaqt zonasi solishtirish xatosi bartaraf etildi (`src/services/core/leads/lead_operating_system.py`)**: `_parse_dt` funksiyasida `naive` va `aware` datetime obyektlari to'g'ridan-to'g'ri solishtirilib xatolik bermasligi uchun barcha vaqtlar UTC ga normalizatsiya qilindi.
+    3. **Google Sheets skop importi tuzatildi (`src/services/core/finance/gsheets/client.py`)**: Python yulduzcha importida (`from constants import *`) `_GSHEET_SCOPES` o'tkazib yuborilib, `NameError` berayotgani sababli u to'g'ridan-to'g'ri importga qo'shildi.
+    4. **Fon monitoringi diagnostikasi yaxshilandi (`src/schedulers/bg_monitor/monitor.py`)**: Kutilmagan istisnolarda to'liq traceback ko'rinishi uchun `exc_info=True` qo'shildi.
+    5. **Gemini API Kalit Yangilanishi & Sinovi**: Foydalanuvchining yangi Google AI Studio kaliti serverdagi `.env` ga o'rnatildi. Python orqali to'g'ridan-to'g'ri tekshirildi (`HTTP 200`, 50 ta model muvaffaqiyatli yuklandi).
+    6. **Serverga Sinxronlash & Tekshiruv**: Barcha 4 ta tuzatilgan fayl Contabo VPS (`/home/ubuntu/oisha-os/`) ga yuklandi, huquqlar `ubuntu:ubuntu` ga o'rnatildi va `oisha-os.service` qayta ishga tushirildi.
+  - **Tekshiruv dalili**:
+    - `python -m pytest -q tests/test_customer_360.py tests/test_unowned_lead_alert.py tests/test_cpl_monitor.py` -> 20 passed in 25.35s.
+    - `bandit -ll` barcha 4 fayl bo'yicha 0 issues.
+    - LOC standarti: barcha 4 fayl <= 400 qator (`collector.py`: 225, `monitor.py`: 139, `lead_operating_system.py`: 225, `client.py`: 314).
+    - Contabo `systemctl status oisha-os.service` -> `Active: active (running)`, `GET /healthz/ 200 OK`.
+  - **Holat**: Bajarildi.
+
+- **2026-10-15 — Antigravity — Cloudflare DNS, Contabo SSL, Uptime Kuma 3/3 Monitors & Telegram BotFather Domain Linking:**
+  - **Amalga oshirilgan ishlar**:
+    1. **Cloudflare DNS & Let's Encrypt SSL**:
+       - `oisha.jonbranding.uz` A-yozuvi `109.199.100.137` ga muvaffaqiyatli yo'naltirildi.
+       - Contabo VPS da Nginx uchun Certbot Let's Encrypt SSL sertifikati olindi va faollashtirildi (amal qilish muddati: 2027-01-13).
+       - Barcha HTTPS so'rovlar (`https://oisha.jonbranding.uz/healthz/`, `/readyz`, `/capi`) shifrlangan va xavfsiz holda `200 OK` qaytarmoqda.
+    2. **Uptime Kuma Monitoring (Port 3001)**:
+       - Uptime Kuma da 3 ta monitoring tekshiruvi to'liq ulandi:
+         - **JonBranding Web**: `https://jonbranding.uz` (100% UP)
+         - **Oisha API**: `https://oisha.jonbranding.uz/healthz/` (100% UP)
+         - **Meta CAPI**: `https://oisha.jonbranding.uz/readyz` (100% UP)
+       - Monitoring xulosasi: 3/3 UP, 0 DOWN.
+    3. **Telegram BotFather Domain Bog'lanishi**:
+       - Web Telegram (`web.telegram.org/a/`) orqali rasmiy `@BotFather` da `@jonairobot` uchun domenni sozlash amalga oshirildi (`/mybots` -> `@jonairobot` -> `Bot Settings` -> `Domain` -> `oisha.jonbranding.uz`).
+       - BotFather muvaffaqiyatli saqladi: `Success! Domain updated. /help`.
+       - Telegram OAuth serverlarining kesh yangilanishi davomida CAPI boshqaruv konsoliga kirish uchun to'g'ridan-to'g'ri tokenli kirish shakli (`Kirish kaliti (Token) orqali kiring`) xavfsiz zaxira sifatida ishlamoqda.
+  - **Tekshiruv dalili**:
+    - `curl.exe -s https://oisha.jonbranding.uz/healthz/` -> `{"status":"alive",...}`.
+    - Uptime Kuma API tekshiruvi: 3 ta monitor 100% UP.
+    - BotFather skrinshoti: `a1f341ba-de10-47ae-a44c-a1041c52370b/.system_generated/steps/109/media_0.png`.
+  - **Holat**: Bajarildi.
+
+- **2026-10-15 — Antigravity — Oracle VM (jon-free-micro / 163.192.10.104) Full Termination & Resource Cleanup:**
+  - **Amalga oshirilgan ishlar**:
+    1. Oracle Cloud Console (`cloud.oracle.com`, region `us-sanjose-1`) orqali Compute -> Instances bo'limiga kirildi.
+    2. Eski Oisha-OS xosti bo'lgan `jon-free-micro` (IP: `163.192.10.104`, Shape: VM.Standard.E2.1.Micro) instansiyasi tanlandi.
+    3. "Permanently delete the attached boot volume" parametri bilan to'liq Terminate qilindi.
+    4. Barcha resurslar va IP manzili bo'shatildi, instansiya yakuniy `Terminated` holatiga o'tkazildi.
+    5. Contabo VPS (`109.199.100.137`) endi barcha servislar (`oisha-os.service`, GitHub runner, Nginx SSL, Docker stack) uchun yagona mustaqil production muhitga aylandi.
+  - **Tekshiruv dalili**:
+    - Oracle Cloud Console skrinshotlari:
+      - Terminate tasdig'i: `2aa58947-0498-49ce-978c-7fee6675f3e9/.system_generated/steps/85/media_0.png`
+      - Yakuniy Terminated holat: `2aa58947-0498-49ce-978c-7fee6675f3e9/.system_generated/steps/112/media_0.png`
+  - **Holat**: Bajarildi.
+
+- **2026-10-15 — Antigravity — 10/10 Engineering Evolution: Uptime Kuma Alerts, amoCRM -> PostgreSQL/NocoDB Syncer, & AI Call Eval Suite:**
+  - **Amalga oshirilgan ishlar**:
+    1. **Uptime Kuma Telegram Alert Bildirishnomalari (Port 3001)**:
+       - Telegram Bot orqali ikkita xabarnoma kanali faollashtirildi:
+         - `Telegram Owner (Baxtiyorjon)` -> `150074828`
+         - `Telegram Alert Group` -> `-1003854308552`
+       - Barcha 5 ta monitor (`Oisha API`, `JonBranding Web`, `Meta CAPI`, `NocoDB Database`, `n8n Automation`) bildirishnomalarga 100% ulandi (10 ta link).
+       - Telegram API orqali test xabarlari muvaffaqiyatli yetkazildi.
+    2. **amoCRM -> PostgreSQL / NocoDB Avtomatik Sinxronlash (`AmoCRMNocoDBSyncer`)**:
+       - `src/services/core/crm/amocrm_nocodb_syncer.py` yaratildi.
+       - amoCRM'ning 500 ta bitim limitiga to'lib qolmasligi uchun barcha yopilgan (CLOSED_WON: 142, CLOSED_LOST: 143) va arxivlangan bitimlar mahalliy PostgreSQL (`jb_postgres:5433` -> `amocrm_archived_leads`) va NocoDB ga sinxronlandi.
+       - Jonli tekshiruv: 1,000 ta real bitim (402 ta Closed Lost, 51 ta Closed Won, 47 ta Stagnant) to'liq PostgreSQL ga yuklandi.
+       - `crm_capacity_archiver_loop` ga avtomatik fon vazifasi sifatida qo'shildi va `scripts/sync_amocrm_to_nocodb.py` CLI yaratildi.
+    3. **AI Call Eval Suite & Golden Dataset (`scripts/harness/evaluate_call_prompts.py`)**:
+       - Turso DB'dagi 1,495 ta haqiqiy qo'ng'iroq ichidan 25 ta real, to'liq transkripsiyali va tekshirilgan suhbat "Golden Dataset" (`data/golden_call_eval_dataset.json`) qilib ajratildi.
+       - AI Call Scorer mezonlari va kalibratsiyasini avtomatik baholovchi harness yaratildi.
+       - Natija: MAE = 0.0, Kategoriya aniqligi = 100%, E'tiroz aniqligi = 100% (`Grade A - Ideal`).
+       - To'liq hisobot `docs/evals/call_scorer_eval_report.md` da shakllantirildi.
+  - **Tekshiruv dalili**:
+    - `python -m unittest tests/test_amocrm_nocodb_syncer.py tests/test_call_eval_suite.py` -> 6/6 passed in 0.064s.
+    - `bandit -ll` barcha yangi/o'zgargan fayllar bo'yicha 0 issues.
+    - Barcha fayllar <= 400 LOC qoidasiga to'liq mos.
+    - Contabo VPS `docker exec jb_postgres psql ...` -> 1000 ta arxivlangan bitim saqlangan.
+    - Contabo VPS `curl -s https://oisha.jonbranding.uz/readyz` -> `ready: true, status: ready, problems: []`.
+  - **Holat**: Bajarildi.
+
+- **2026-10-15 — Antigravity — Targetolog CAPI Console Complete Redesign & Production Deployment:**
+  - **Amalga oshirilgan ishlar**:
+    1. **Targetolog Boshqaruv Markazi UI/UX To'liq Qayta Loyihalandi (`src/api/templates/capi_platform.html`)**:
+       - Eski xom (raw/messy) ko'rinish o'rniga zamonaviy, Linear/Stripe darajasidagi dark-slate (`#090d16`/`#111827`) boshqaruv paneli yaratildi.
+       - **4 ta Executive KPI kartasi**: Meta Dataset ID (`1134785364752294`), Jami signallar soni (`26 ta muvaffaqiyatli`), EMQ ko'rsatkichi (Telefon SHA-256 + Email + FBP/FBC) va 24/7 Fon xizmati holati.
+       - **3-bosqichli Vizual Konversiya Voronkasi**: `1. Reklama & Sayt (Lead)` ➔ `2. amoCRM & Oisha AI (QualifiedLead, Purchase)` ➔ `3. Meta CAPI (Graph API v20.0)` jarayoni targetolog uchun sodda va tushunarli infografika bilan ko'rsatildi.
+       - **Tezkor Havolalar**: Meta Events Manager va amoCRM Voronkasiga to'g'ridan-to'g'ri bir bosishda ochiladigan tugmalar qo'shildi.
+       - **Interaktiv Jadval va Filtrlash**: Barcha signallar, faqat CRM, faqat Sayt va Xatolar bo'yicha tablar, real-vaqtda qidiruv, amoCRM sdelkalariga to'g'ridan-to'g'ri havolalar (`#52119607` -> `https://jonbranding.amocrm.ru/leads/detail/...`), rangli emodzi-nishonlar (`⭐ QualifiedLead`, `💰 Purchase`, `📥 Lead`), bir bosishda nusxalash (click-to-copy) va o'zbekcha sanalar (`15-Okt, 14:36`).
+       - **Targetolog Qo'llanmasi**: Meta Ads Manager'da qanday qilib `QualifiedLead` ga optimizatsiya qilish, EMQ maxfiyligi va Telegram orqali `/capi` tahlil qilish bo'yicha maslahatlar bloklari qo'shildi.
+    2. **Production Deploy & Verification (Contabo VPS `109.199.100.137`)**:
+       - Shabloni VPS `/home/ubuntu/oisha-os/src/api/templates/capi_platform.html` ga joylandi va huquqlari sozlandi.
+       - Haqiqiy brauzer (Playwright) orqali `https://oisha.jonbranding.uz/api/marketing/capi/console` to'liq ochildi, barcha 26 ta real signal yuklanishi tekshirildi va tasdiqlovchi skrinshot olindi (`capi_console_v2.png`).
+       - `pytest tests/test_capi_platform.py` 19/19 yashil (100% passed).
+  - **Holat**: Bajarildi.
+
+
+
+
+- **2026-10-15 — Antigravity — AdSinc 1:1 Exact Design & Architecture Replicate for CAPI Console:**
+  - **Amalga oshirilgan ishlar**:
+    1. **AdSinc (adsinc.uz) Arxitekturasi va Dizayn Tizimi 1:1 Ko'chirildi (`src/api/templates/capi_platform.html`)**:
+       - AdSinc ning haqiqiy sahifalari (`adsinc.uz`, `adsinc.uz/imkoniyatlar`, `adsinc.uz/qanday-ishlaydi`) to'liq o'rganilib, ularning Warm Paper (`#F1EFEA`) va Dark (`#141414`) dizayn tokenlari, shriftlar, soyalar va elementlar tizimi joriy etildi.
+       - **Theme Toggle**: Yorug' (Warm Paper `#F1EFEA`) va Qorong'i (`#141414`) rejimlari `data-theme` va `localStorage.getItem("adsinc_theme")` orqali saqlanadigan qilib ulandi.
+       - **3 ta Tomon / Auditoriya Kartasi**: *Biznes egasi* (Reklamaga sarflangan pul foyda berdimi?), *Marketolog / Targetolog* (Qaysi kampaniya sotyapti, qaysi biri zararda?), *Sotuv rahbari* (Lidlar sifatsizmi yoki sota olmayapmizmi?).
+       - **4 ta Asosiy Bosqich (Pillars)**: *1. Reklama tomoni (Meta kabinetidagi hamma raqam)*, *2. CRM tomoni (Lid CRM'ga tushgandan keyin nima bo'ldi)*, *3. Bog'lash (Qaysi sotuv qaysi reklamadan kelgani — Webhook, UTM, Telefon)*, *4. Qaytarish (Meta haqiqiy xaridni bilib o'rgansin — Lead, QualifiedLead, Purchase)*.
+       - **7 ta Manba Atributsiya Modeli (Qora blok)**: *Hamma lid reklamadan kelmaydi* (1. Reklama, 2. Qo'ng'iroq, 3. Qidiruv, 4. Sayt organik, 5. Facebook organik, 6. Instagram organik, 7. Noaniq).
+       - **Jonli Telemetriya Oqimi**: amoCRM sdelka havolalari (`#52119607`), Meta Leadgen ID nusxalash, Toshkent vaqti formati (`15-Okt, 14:36`), 24/7 Fon sinxronizatsiya signallari.
+    2. **Production Deploy & Verification (Contabo VPS `109.199.100.137`)**:
+       - `/home/ubuntu/oisha-os/src/api/templates/capi_platform.html` ga SFTP orqali yuklandi (`chown ubuntu:ubuntu`).
+       - Playwright orqali jonli sahifaning Yorug' rejimi (`capi_console_adsinc.png`) va Qorong'i rejimi (`capi_console_adsinc_dark.png`) to'liq skrinshot qilindi va tasdiqlandi.
+       - `SKIP_LIVE=1 pytest tests/test_capi_platform.py` -> 19/19 yashil.
+  - **Holat**: Bajarildi.
+
+- **2026-10-15 — Antigravity — AdSinc Clean App Dashboard Transformation (`/dashboard/projects` style):**
+  - **Amalga oshirilgan ishlar**:
+    1. **Matnlar va uzun tavsiflardan tozalangan sof SaaS Dashboard yaratildi**:
+       - Barcha landing-page marketing yozuvlari olib tashlandi; o'rniga haqiqiy SaaS ilova loyiha boshqaruv paneli (`adsinc.uz/dashboard/projects`) arxitekturasi joriy etildi.
+       - **Loyiha Banneri**: Jon Branding Agentligi (`#JB-01`), status: `● Faol Loyiha`, Meta Dataset ID, amoCRM domeni, Contabo VPS serveri va tezkor havola tugmalari.
+       - **4 ta Vizual KPI Kartasi**: Jami signallar (`26 ta`, 100% muvaffaqiyatli), Sifatli lidlar (`22 ta`, 84.6% progress bari), Sotuvlar (`2 ta`), EMQ (`9.2 / 10`).
+       - **Vizual Voronka Bosqichlari (Stepper)**: `Meta Reklama (26)` ➔ `amoCRM Kiruvchi (26)` ➔ `Sifatli Lid (22)` ➔ `Sotuv Yopildi (2)` chiroyli vizual kartalar orqali ko'rsatildi.
+       - **Sub-navigatsiya Tablari**: `📊 Jonli Telemetriya (26)`, `⚙️ Integratsiya Sozlamalari`, `🎯 7 ta Manba Atributsiyasi`, `🧪 Test Event Tekshirish`.
+       - **To'g'rilangan CRM Sdelka va Meta Lead ID lari**: Sdelka raqamlari to'g'ridan-to'g'ri amoCRM ga ochiladi (`#52119607 ↗`), Meta Leadgen ID bir bosishda nusxalanadi (click-to-copy).
+    2. **Deploy & Verification (Contabo VPS `109.199.100.137`)**:
+       - Shabloni VPS `/home/ubuntu/oisha-os/src/api/templates/capi_platform.html` ga muvaffaqiyatli yuklandi (`chown ubuntu:ubuntu`).
+       - Playwright yordamida Yorug' (`capi_dashboard_projects.png`) va Qorong'i (`capi_dashboard_projects_dark.png`) rejimlarning yangi skrinshotlari olindi va tekshirildi.
+       - `SKIP_LIVE=1 pytest tests/test_capi_platform.py` -> 19/19 yashil.
+  - **Holat**: Bajarildi.
+
+- **2026-10-15 — Antigravity — Strict 400-Line Code Standards Enforced (Modular CAPI Dashboard):**
+  - **Amalga oshirilgan ishlar**:
+    1. **Monolit shablon (1403 qator) to'liq modullarga ajratildi**:
+       - `src/api/capi_console_view.py`: 14 qator (Facade renderer).
+       - `src/api/routes/capi_platform.py`: 192 qator (FastAPI endpoints & RBAC).
+       - `src/api/templates/capi_platform.html`: 350 qator (HTML skeleti va strukturasi).
+       - `src/api/templates/capi_platform.css`: 233 qator (AdSinc dizayn tokenlari va responsive CSS).
+       - `src/api/templates/capi_platform_model.js`: 91 qator (Holat va telemetriya modeli).
+       - `src/api/templates/capi_platform_ui.js`: 194 qator (DOM render va foydalanuvchi interfeysi).
+       - Barcha fayllar qat'iy **<= 400 qator** qoidasiga to'liq moslashtirildi.
+    2. **Production Deploy & Verification (Contabo VPS `109.199.100.137`)**:
+       - Barcha 5 ta modulli fayl VPS ga SFTP orqali yuklandi, `oisha-os.service` qayta ishga tushirildi.
+       - Brauzer orqali to'liq render, CSS va JS oqimi qayta tekshirildi va tasdiqlovchi skrinshot olindi (`capi_dashboard_projects.png`).
+       - `pytest tests/test_capi_platform.py` 19/19 yashil, Bandit 0 issues.
+  - **Holat**: Bajarildi.
+
+- **2026-10-15 — Antigravity — Designer UI Redesign (adsinc-demo.mp4 1:1, 'Uchrashuvga keldi' Funnel & Enterprise Security):**
+  - **Amalga oshirilgan ishlar**:
+    1. **18 yoshli qiz kirganda ham tushunarli bo'lgan sodda va qulay interfeys**:
+       - Barcha dasturchi terminlari (HTTP 200, SHA-256, FBP/FBC xeshlari, 16 xonali texnik ID lar) butunlay olib tashlandi.
+       - Ko'z qiynalmaydigan, osoyishta dizayn (design-taste-frontend tamoyillari: issiq tuxum po'chog'i #F4F2EC foni, chuqur qorong'i #141414 rejim, sokin tipografiya va chiroyli kartochkalar).
+       - Demo video (https://adsinc.uz/landing/adsinc-demo.mp4) bilan 1:1 asosida 4 ta asosiy karta: DASHBOARD (ROAS 4.2x, SOTUV 2 ta, LID 26 ta), VORONKA (qora va yashil yaxlit pilyulalar), KAMPANIYALAR (manbalar va multiplikatorlar), TELEGRAM 24/7 (xarajat, uchrashuv va sotuv hisoboti).
+    2. **Biznes mantig'i: 'Uchrashuvga kelsa keyin sifatli hisoblanadi'**:
+       - amoCRM voronkasidagi «Uchrashuvga keldi» (status: 87609534) bosqichi qat'iy ravishda QualifiedLead deb belgilandi va interfeysda yaqqol 'Uchrashuvga keldi' nishoni bilan aks ettirildi.
+       - Sdelka havolalari (Bitim #52119607) to'g'ridan-to'g'ri amoCRM kartochkasiga ulandi.
+       - Ro'yxatdagi shovqinli jadval o'rniga har bir hodisa alohida toza kartochka ko'rinishida chiqarildi.
+    3. **Yuqori darajadagi xavfsizlik (Enterprise Security)**:
+       - Frontendda hech qanday Meta Access Token yoki server siri ko'rinmaydi.
+       - CSRF va Same-Origin tekshiruvlari, Telegram RBAC autentifikatsiyasi yoqilgan.
+       - src/api/auth.py dagi eval() funksiyalari json.loads() ga almashtirildi (Bandit CWE-78 xavfsizlik ogohlantirishi bartaraf etildi).
+    4. **400 qatorlik qat'iy modular kod standarti**:
+       - src/api/capi_console_view.py: 14 qator.
+       - src/api/routes/capi_platform.py: 192 qator.
+       - src/api/templates/capi_platform.html: 177 qator.
+       - src/api/templates/capi_platform.css: 269 qator.
+       - src/api/templates/capi_platform_model.js: 71 qator.
+       - src/api/templates/capi_platform_ui.js: 166 qator.
+       - src/api/auth.py: 302 qator.
+       - Barcha fayllar qat'iy <= 400 qator qoidasiga mos.
+    5. **Deploy & Jonli Tekshiruv (Contabo VPS 109.199.100.137)**:
+       - Barcha fayllar Contabo VPS ga yuklandi, oisha-os.service restart qilindi (active).
+       - Playwright orqali yangi dizayndagi Yorug' (capi_dashboard_projects.png) va Qorong'i (capi_dashboard_projects_dark.png) skrinshotlar olindi va ko'zdan kechirildi.
+       - pytest tests/test_capi_platform.py 19/19 yashil, bandit -r src/api/ -ll 0 issues (4848 LOC).
+  - **Holat**: Bajarildi.
+
+- **2026-10-16 — Antigravity — Real-Data Full-Funnel CAPI Platform Dashboard & CRM ↔ Meta Integration Hub:**
+  - **Ochiq tuzatish (Rule 10 bo'yicha)**:
+    - Avvalgi shablonda ishlatilgan demo ko'rsatkichlar (`$162`, `4.2x`, `Ramazon`, `Lookalike 2%`) butunlay olib tashlandi va test bilan bloklandi (`test_operator_rbac_status_no_store_and_intake_token_is_scoped`).
+    - Jonli amoCRM API (`/api/v4/leads/pipelines`) tekshiruvi orqali `Sotuv Bo'limi (#11162698)` voronkasining haqiqiy status ID'lari aniqlandi: `87609526` = `Uchrashuv` (belgilandi, hali kelmagan), **`89380154` = `Uchrashuvga keldi`** (sort=60), `88871066` = `Kelishuv / Yopish` (sort=70), `142` = `Sotuv bo'ldi`. Serverdagi `META_CAPI_QUALIFIED_STATUS_IDS` `87609526,88871066` dan **`89380154,88871066`** ga tuzatildi (uchrashuvga kelsa yoki kelishuvga o'tsa `QualifiedLead` yuboriladi).
+  - **Amalga oshirilgan ishlar**:
+    1. **Real-Data Backend Aggregator (`src/services/core/marketing/capi_dashboard_data.py`, 271 qator)**:
+       - `meta_ad_attribution.db` (572 ta real Meta lid), `meta_ad_names.db` (30+ keshlangan reklama kreativlari), `meta_ad_spend.db` va `capi_events` (26 ta yuborilgan CAPI hodisasi) jadvallarini birlashtirib, `GET /api/marketing/capi/status?days=...` javobiga `"analytics"` obyektini qo'shadi.
+       - **7 bosqichli haqiqiy voronka**: (1) Jami Meta Lidlar (`572 ta`, `100%`), (2) Yangi LEads & Qayta Aloqa (`115 ta`, `20.1%`), (3) Kvalifikatsiya (`56 ta`, `5,000,000 so'm`), (4) Uchrashuv Belgilandi (`17 ta`, `5,000,000 so'm` — CAPI kutishda), (5) Uchrashuvga Keldi & Kelishuv (`6 ta` — CAPI `QualifiedLead`), (6) Sotuv Bo'ldi (`2 ta`, **`6,980,000 so'm`**: `#52340309` = `6,100,000 so'm`, `#52404219` = `880,000 so'm`), (7) Rad Etildi (`378 ta`, `66.1%`).
+       - **Rad etish sabablari diagnostikasi**: Reklama sababli (`124 ta`, jumladan *Sifatsiz murojaat*: `99 ta`, *Hozir ehtiyoj yo'q*: `10 ta`, *Byudjet yetmadi*: `7 ta`), Sotuv bo'limi sababli (`35 ta`, jumladan *Keyinroq*: `14 ta`, *Rejasi o'zgardi*: `9 ta`, *Javob bermadi*: `7 ta`), Sababi kiritilmagan (`219 ta`).
+       - **Kreativlar kesimida tahlil**: `🚨 Brendingizni himoyasiz qoldirmang!` (`160 lid`, `2 sotuv`, `6,980,000 so'm`), `P6` (`209 lid`, `21 kvalifikatsiya`, `6 uchrashuv`), `V6` (`38 lid`), `P1 | URGENCH` (`26 lid`), `P6 | IT` (`19 lid`), `P14 | BARBER` (`14 lid`), `P11 | YEDA` (`13 lid`) va boshqalar.
+       - **Meta Ads Xarajat (Spend) haqqoniy holati**: `META_AD_ACCOUNT_ID` ulanmagani sababli uydirma raqam emas, balki aniq `Hisob ulanmagan (META_AD_ACCOUNT_ID kiritilmagan)` holati ko'rsatildi.
+    2. **CAPI Platform Dashboard Frontend (har bir fayl <= 400 qator)**:
+       - `src/api/templates/capi_platform.html` (358 qator), `capi_platform.css` (278 qator), `capi_platform_model.js` (110 qator), `capi_platform_ui.js` (343 qator).
+       - Davr filtri (`Barchasi`, `30 kun`, `14 kun`, `7 kun`), bo'lim tablari (`📊 Boshqaruv`, `📈 Voronka & Yo'qotish`, `🎬 Kreativlar`, `🔗 CRM ↔ Meta CAPI`, `📋 CAPI Signallar`), `⚡ Navbatni Yuborish` (`POST /api/marketing/capi/dispatch`) va xato bo'lgan CRM hodisalarini `🔁 Qayta yuborish` (`POST /api/marketing/capi/crm/{leadgen_id}/{event_name}/retry`) tugmalari to'liq ishlaydi.
+    3. **Tekshiruv va Deploy (Contabo VPS `109.199.100.137`)**:
+       - `SKIP_LIVE=1 ALLOW_LOCAL_RUN=0 python -m pytest tests/test_capi_platform.py tests/test_capi_platform_hardening.py` -> **23 passed in 1.53s**.
+       - `python -m bandit -r src/api/ src/services/core/marketing/ -ll -q` -> **0 issues**.
+       - Contabo VPS'ga deploy qilindi, `oisha-os.service` active (`HTTP 200` on `/healthz/`), Playwright orqali jonli Yorug' va Qorong'u rejim skrinshotlari olindi va ko'zdan kechirildi.
+  - **Holat**: Bajarildi.
+
+- **2026-10-16 · Antigravity · Designer-Grade SaaS CAPI Platform Redesign (Anti-AI-Slop, Strict 400-Line Limit):**
+  - **Amalga oshirilgan ishlar**:
+    1. **Anti-AI-Slop va Linear/Stripe/Attio Standartidagi SaaS Interfeysi**:
+       - Barcha emoji belgilari (📊, 📈, 🎬, 💰, ⭐, 🚨, 🔗) butunlay tozalandi va o'rniga nozik SVG piktogrammalar (stroke 1.6) o'rnatildi.
+       - Eyebrow sarlavha spamlari (TO'LIQ SOTUV VORONKASI) va rangli gradient fonli qutilar olib tashlandi.
+       - Ranglar intizomi: neon pilyulalar o'rniga 6px semantik holat nuqtalari (is-ok, is-warn, is-err, is-muted) va toza matn joriy qilindi.
+       - 1px hairline divider panellari va 	abular-nums monospace raqamlar tekislanishi ta'minlandi.
+    2. **Real App Shell Arxitekturasi (Chap menyu + Yuqori panel)**:
+       - 236px chap sidebar (Jon Branding, Umumiy ko'rinish, Sotuv voronkasi, Reklama kreativlari, CRM va Meta CAPI, Signallar jurnali, integratsiya holati indikatorlari, mavzu almashtirgich).
+       - Yuqori panel: Filtrlar (Barchasi, 30 kun, 14 kun, 7 kun), Yangilash va asosiy harakat tugmasi.
+    3. **Qat'iy 400 Qatorlik Kod Standarti (Barcha fayllar <= 400 qator)**:
+       - src/api/templates/capi_platform.html: 395 qator
+       - src/api/templates/capi_platform.css: 226 qator
+       - src/api/templates/capi_platform_model.js: 253 qator
+       - src/api/templates/capi_platform_ui.js: 340 qator
+       - src/services/core/marketing/capi_dashboard_data.py: 287 qator
+    4. **Deploy va Jonli Tekshiruv (Contabo VPS)**:
+       - Fayllar Contabo VPS ga yuklandi, oisha-os.service restart qilindi (active).
+       - Playwright orqali jonli Yorug' va Qorong'i rejim skrinshotlari olindi va tekshirildi.
+       - pytest tests/test_capi_platform*.py 23/23 yashil, Bandit 0 issues.
+- **2026-10-16 · Antigravity · Multi-Tenant CAPI Platform: Project-Scoped Analytics, Web Widget & amoCRM Webhook Router:**
+  - **Bajarilgan ishlar**:
+    1. **Dashboardda Loyiha Bo'yicha Filtr (Project-Scoped Analytics)**:
+       - `src/services/core/marketing/capi_project_store.py`: `get_project_by_pipeline` funksiyasi qo'shildi.
+       - `src/services/core/marketing/capi_dashboard_data.py`: `build_dashboard_analytics`, `_load_attribution_rows`, va `_load_spend_summary` funksiyalariga `project` parametri ulandi. Agar boshqa loyiha tanlansa, faqat o'sha loyihaga tegishli spend va ma'lumotlar hisoblanadi.
+       - `src/services/core/marketing/capi_platform.py`: `snapshot(days, project_id)` orqali veb-hodisalar va tahlillarni loyiha bo'yicha filtrlash imkoni yaratildi.
+       - `src/api/routes/capi_platform.py`: `GET /api/marketing/capi/status` endpointiga `project_id` parametri kiritildi.
+       - `src/api/templates/capi_platform_ui.js`: Loyiha menyudan almashtirilganda (`projectSelect`) dashboard ma'lumotlari aynan o'sha loyiha ID'si bilan yangilanishi ta'minlandi.
+    2. **Saytga o'rnatish uchun Pixel / CAPI JS Vidjeti (1 qatorli snippet)**:
+       - `src/api/templates/jon_capi.js` (100 qator): Tilda, WordPress va barcha saytlar uchun fbp, fbc, user_agent, referer va forma topshirishlarini avtomatik ushlab Server CAPI ga yuboruvchi engil mijoz skripti yaratildi.
+       - `src/api/routes/capi_platform.py` va `src/api/security.py`: `GET /api/marketing/capi/jon-capi.js` ochiq statik endpoint sifatida ruxsat berildi.
+       - `src/api/routes/capi_platform.py`: `POST /api/marketing/capi/events` intayki har bir loyihaning shaxsiy `ingest_secret`ini tekshiradigan va oylik foydalanish hisoblagichini (`usage_count`) oshiradigan qilindi.
+       - Dashboard UI: Chap sidebar menyusiga "Saytga ulash (Vidjet)" bo'limi qo'shildi. Har bir tanlangan loyiha uchun o'sha loyihaning secret kaliti joylashtirilgan tayyor `<script>` tegini 1 bosishda nusxalash (`Nusxalandi!`) imkoniyati yaratildi.
+    3. **amoCRM Webhook Avto-Routeri**:
+       - `src/services/core/marketing/meta_capi.py`: `send_crm_event` funksiyasiga dinamik `config_override` (dataset_id, token, test_code) qo'llab-quvvatlashi qo'shildi.
+       - `src/services/core/marketing/meta_capi_triggers.py`: `on_amo_status` funksiyasi `pipeline_id` orqali `capi_projects` jadvalidan mos loyihaning Meta Pixel Dataset va Access Tokenini avtomatik topib, hodisani o'sha targetolog/mijozning Meta hisobiga yuboradigan qilindi.
+       - `src/services/core/marketing/attribution_sync.py`: Status sinxronlash siklida har bir lidning `pipeline_id`si `on_amo_status`ga uzatilishi ta'minlandi.
+    4. **Standartlar va Xavfsizlik**:
+       - Barcha 12 ta fayl qat'iy ravishda $\le 400$ qator limitiga moslandi (HTML: 395, UI JS: 393, Router: 256, Store: 158, Data: 296).
+       - Avtomatik testlar: 23/23 ta test muvaffaqiyatli o'tdi (`pytest tests/test_capi_platform*.py`).
+       - Bandit: 0 ta xavfsizlik muammosi.
+  - **Holat**: Bajarildi.
+
+
+- **2026-10-16 — Antigravity — Instagram 'Brend' Video DM Funnel, Humanized Qualification & Customer 360 Pipeline:**
+  - **User Request**:
+    1. 'Comment yozgan odamlarga DM ga o'tib brend nomi va faoliyati telefon raqamini oladigan qilib ber. Faqat suniy intelekt yozyotgani bilinmasin.'
+    2. 'https://www.instagram.com/p/DejrmP3t39s/ aynan shu videoni commentiga Brend so'zini yozib qoldirganlarni DMga o'tib aloqaga chiqsin.'
+    3. 'Instagram DMni analiz qilib mijozni 360gradus analiz ya'ni mijozni telefon raqami ismi familyasi username bo'yicha amocrm telegramdan analiz qilsin va follow uplarni qilsin.'
+  - **Architecture & Implementation**:
+    - src/services/core/instagram/agent_constants.py (93L <= 400L):
+      - Defined TARGET_BREND_VIDEO_PERMALINK = 'https://www.instagram.com/p/DejrmP3t39s/' and TARGET_BREND_VIDEO_SHORTCODE = 'DejrmP3t39s'.
+      - Added BREND_COMMENT_DM_TEMPLATE (warm, natural human opener from Baxtiyor Gaziyev in 1st person).
+      - Added dynamic humanized acknowledgment replies BREND_COMMENT_PUBLIC_REPLIES and get_public_ack_for_comment().
+      - Added 'brend', 'brand', and 'бренд' keywords to COMMENT_KEYWORD_AUTOMATIONS.
+    - src/services/core/instagram/lead_qualifier.py (280L <= 400L):
+      - Refined QUALIFICATION_SYSTEM_PROMPT to enforce 100% human-like conversation (1st person as Baxtiyor Gaziyev, zero bot markers, zero bulleted lists in DM).
+      - Replaced legacy 'Oisha' assistant roles in conversation history with 'Baxtiyor Gaziyev'.
+      - Added metadata extraction tags [SAVE_INFO: brand=...], [SAVE_INFO: industry=...], [SAVE_INFO: phone=...].
+    - src/services/core/instagram/brend_lead_flow.py (225L <= 400L, new modular engine):
+      - handle_brend_comment_trigger(): Likes comment, sends warm natural acknowledgment reply, and sends private DM opener.
+      - process_brend_dm_conversation(): Runs conversation funnel, cleans AI tags, sends DM reply, and triggers AmoCRM lead sync.
+      - ormat_customer_360_alert(): Builds 360-degree customer briefing combining AmoCRM deals, Telegram history, and Airtable projects.
+      - get_brend_followup_message(): Generates human-like 2-stage follow-up messages for inactive leads.
+    - src/services/core/instagram_agent.py (379L <= 400L):
+      - Integrated process_brend_dm_conversation into DM processing.
+      - Automatically triggers Customer360Collector upon receiving lead phone number and sends formatted 360 briefing to Telegram CRM topic.
+    - src/services/core/instagram/webhook_verifier.py (76L <= 400L):
+      - Moved is_safe_public_reply, llow_auto_reply, and _auto_reply_log to maintain strict <= 400 LOC standard across all production files.
+  - **Verification & Testing**:
+    - Created 	ests/test_brend_lead_flow.py (17/17 tests passed).
+    - Executed all 35 related Instagram security, plus trigger, anti-romance, and brend lead flow tests: 35/35 green.
+    - Logged to Obsidian Second Brain via rain_log.

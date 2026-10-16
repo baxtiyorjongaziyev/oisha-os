@@ -38,14 +38,19 @@ def _to_float(value: Any) -> float | None:
         return None
 
 
-async def _notify_capi(lead_id: Any, status_id: Any, price: float | None, leadgen_id: str) -> bool:
+async def _notify_capi(
+    lead_id: Any, status_id: Any, price: float | None, leadgen_id: str,
+    pipeline_id: Any = None,
+) -> bool:
     """Meta CAPI (Conversion Leads) — status o'zgarishini Meta'ga qaytarish.
 
     False — event yuborilmadi va qayta urinish kerak (yozuvni yakunlamaslik uchun).
     """
     try:
         from src.services.core.marketing.meta_capi_triggers import on_amo_status
-        result = await on_amo_status(int(lead_id), status_id, price=price, leadgen_id=leadgen_id)
+        result = await on_amo_status(
+            int(lead_id), status_id, price=price, leadgen_id=leadgen_id, pipeline_id=pipeline_id,
+        )
     except Exception as exc:
         logger.warning("[ADS ATTRIBUTION] CAPI yuborilmadi (%s): %s", leadgen_id, type(exc).__name__)
         return False
@@ -146,7 +151,8 @@ async def sync_attribution_revenue(
             won = None
             result.still_open += 1
 
-        if not await _notify_capi(lead_id, status_id, price, leadgen_id) and won is not None:
+        pipeline_id = lead.get("pipeline_id")
+        if not await _notify_capi(lead_id, status_id, price, leadgen_id, pipeline_id=pipeline_id) and won is not None:
             # Yakuniy statusni yozmaymiz — keyingi siklda CAPI qayta uriniladi.
             result.failed += 1
             continue

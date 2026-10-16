@@ -116,13 +116,15 @@ def _post_events(cfg: Dict[str, Any], event: Dict[str, Any]) -> Dict[str, Any]:
 async def send_crm_event(
     leadgen_id: str, event_name: str, amo_lead_id: Optional[int] = None,
     value: Optional[float] = None, phone: str = "", email: str = "", source: str = "",
+    config_override: Optional[Dict[str, Any]] = None,
 ) -> ToolResult:
     """Bitta CRM eventini idempotent yuboradi."""
     leadgen_id = str(leadgen_id or "").strip()
     meta = {"leadgen_id": leadgen_id, "event_name": event_name, "source": source}
     if event_name not in SUPPORTED_EVENTS or not leadgen_id:
         return ToolResult(TOOL_NAME, False, status="invalid", reason="bad_event", metadata=meta)
-    if not is_enabled():
+    active_cfg = config_override or _config()
+    if not (active_cfg.get("dataset_id") and active_cfg.get("token")):
         return ToolResult(TOOL_NAME, False, status="disabled", reason="capi_disabled", metadata=meta)
     if event_name == "Purchase" and (value is None or not math.isfinite(value) or value <= 0):
         return ToolResult(TOOL_NAME, False, status="invalid", reason="purchase_value_required", metadata=meta)
@@ -130,7 +132,7 @@ async def send_crm_event(
         return ToolResult(TOOL_NAME, True, status="duplicate", reason="already_sent", metadata=meta)
 
     event = build_event(leadgen_id, event_name, value=value, phone=phone, email=email)
-    result = await asyncio.to_thread(_post_events, _config(), event)
+    result = await asyncio.to_thread(_post_events, active_cfg, event)
     if result["ok"] and (result.get("response") or {}).get("events_received") != 1:
         result = {"ok": False, "error": "event_acceptance_unconfirmed"}
     await store.mark_result(leadgen_id, event_name, result["ok"], result.get("error", ""))

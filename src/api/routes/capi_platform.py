@@ -7,13 +7,13 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import ValidationError
 
+from src.api.capi_console_view import render_console
 from src.api.rbac import Permission, has_permission, require_any_permission
 from src.services.core.marketing import capi_platform as platform
 from src.services.core.marketing.capi_platform_schema import Conversion
@@ -81,15 +81,40 @@ async def console(request: Request):
         or has_permission(principal, Permission.MARKETING_READ)
     ):
         raise HTTPException(403, "Targetolog yoki Admin ruxsati talab qilinadi")
-    path = Path(__file__).parents[1] / "templates" / "capi_platform.html"
-    return HTMLResponse(path.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
+    can_manage = (
+        has_permission(principal, Permission.SYSTEM_DEPLOY)
+        or has_permission(principal, Permission.MARKETING_MANAGE)
+    )
+    return HTMLResponse(render_console(can_manage=can_manage), headers={"Cache-Control": "no-store"})
+
+
+@router.get("/jon-capi.js")
+async def get_jon_capi_script():
+    """Serve standalone client-side tracking snippet for external websites."""
+    from fastapi.responses import Response
+    from pathlib import Path
+    path = Path(__file__).resolve().parent.parent / "templates" / "jon_capi.js"
+    content = path.read_text(encoding="utf-8") if path.exists() else ""
+    return Response(
+        content=content,
+        media_type="application/javascript",
+        headers={"Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*"},
+    )
 
 
 @router.get("/status", dependencies=[read_access])
-async def status():
-    """Current configuration, website conversions queue, and CRM conversions log."""
+async def status(request: Request, days: int | None = None, project_id: str | None = None):
+    """Current configuration, website conversions queue, CRM conversions log, and full-funnel analytics."""
     try:
-        return JSONResponse(await platform.snapshot(), headers={"Cache-Control": "no-store"})
+        from src.api.security import authorize_connection
+        principal = authorize_connection(request)
+        user_id = principal.subject if principal else "anonymous"
+        is_admin = principal.role.value in ("owner", "admin") if principal else False
+        safe_days = days if (days is not None and 1 <= int(days) <= 3650) else None
+        return JSONResponse(
+            await platform.snapshot(days=safe_days, project_id=project_id, user_id=user_id, is_admin=is_admin),
+            headers={"Cache-Control": "no-store"},
+        )
     except Exception as exc:
         raise HTTPException(503, "CAPI history unavailable") from exc
 
@@ -131,14 +156,57 @@ async def summary():
         raise HTTPException(503, "CAPI summary unavailable") from exc
 
 
+@router.get("/projects", dependencies=[read_access])
+async def list_projects(request: Request):
+    """List projects accessible to the current operator."""
+    from src.api.security import authorize_connection
+    from src.services.core.marketing.capi_project_store import list_projects_for_user
+    principal = authorize_connection(request)
+    user_id = principal.subject if principal else "anonymous"
+    is_admin = principal.role.value in ("owner", "admin") if principal else False
+    return JSONResponse(await list_projects_for_user(user_id, is_admin=is_admin))
+
+
+@router.post("/projects", dependencies=[read_access])
+async def create_new_project(request: Request):
+    """Register a new project for multi-tenant CAPI and attribution tracking."""
+    same_origin(request)
+    from src.api.security import authorize_connection
+    from src.services.core.marketing.capi_project_store import create_project
+    principal = authorize_connection(request)
+    user_id = principal.subject if principal else "anonymous"
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+    name = str(body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(422, "Project name is required")
+    created = await create_project(
+        name=name,
+        owner_id=user_id,
+        dataset_id=str(body.get("dataset_id") or "").strip(),
+        access_token=str(body.get("access_token") or "").strip(),
+        ad_account_id=str(body.get("ad_account_id") or "").strip(),
+        crm_pipeline_id=str(body.get("crm_pipeline_id") or "").strip(),
+    )
+    return JSONResponse(created, status_code=201)
+
+
 @router.post("/events", status_code=202)
 async def intake(request: Request):
-    secret = os.getenv("OISHA_CAPI_INGEST_SECRET", "")
+    global_sec = os.getenv("OISHA_CAPI_INGEST_SECRET", "")
     bearer = request.headers.get("authorization", "")
-    if not secret:
+    token = bearer[7:].strip() if bearer.startswith("Bearer ") else ""
+    if not token and not global_sec:
         raise HTTPException(503, "CAPI intake not configured")
-    if not hmac.compare_digest(bearer.encode(), ("Bearer " + secret).encode()):
-        raise HTTPException(401, "Unauthorized")
+
+    from src.services.core.marketing.capi_project_store import get_project_by_secret, increment_project_usage
+    project = await get_project_by_secret(token) if token else None
+    if not project:
+        if not global_sec or not hmac.compare_digest(token.encode(), global_sec.encode()):
+            raise HTTPException(401, "Unauthorized")
+
     body = bytearray()
     async for chunk in request.stream():
         body.extend(chunk)
@@ -151,7 +219,10 @@ async def intake(request: Request):
     if conversion.source != "website":
         raise HTTPException(403, "Website credential not authorized for non-website source")
     try:
-        return await platform.accept(conversion)
+        res = await platform.accept(conversion)
+        if project:
+            await increment_project_usage(project["id"])
+        return res
     except ValueError as exc:
         if str(exc) == "event_id_conflict":
             raise HTTPException(409, "Event ID conflict") from exc

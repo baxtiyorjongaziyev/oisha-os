@@ -59,10 +59,30 @@ async def on_lead_created(
 
 async def on_amo_status(
     lead_id: int, status_id: Any, price: Optional[float] = None, leadgen_id: str = "",
+    pipeline_id: Optional[Any] = None,
 ) -> Optional[ToolResult]:
-    """AmoCRM status o'zgarganda chaqiriladi. Lead Ads lidi bo'lmasa — None."""
+    """AmoCRM status o'zgarganda chaqiriladi. Multi-tenant project router bilan."""
     event_name = event_for_status(status_id)
-    if not event_name or not is_enabled():
+    if not event_name:
+        return None
+    # Check if pipeline belongs to a custom project
+    cfg_override = None
+    if pipeline_id:
+        try:
+            from src.services.core.marketing.capi_project_store import get_project_by_pipeline
+            proj = await get_project_by_pipeline(str(pipeline_id))
+            if proj and proj.get("dataset_id") and proj.get("access_token"):
+                cfg_override = {
+                    "enabled": True,
+                    "dataset_id": proj["dataset_id"],
+                    "token": proj["access_token"],
+                    "test_code": proj.get("test_code") or "",
+                    "version": os.getenv("META_CAPI_GRAPH_VERSION", "v21.0").strip() or "v21.0",
+                }
+        except Exception as p_err:
+            logger.debug("[META CAPI] Pipeline project lookup skipped: %s", p_err)
+
+    if not cfg_override and not is_enabled():
         return None
     if not leadgen_id:
         from src.services.core.instagram.leadgen_delivery import get_leadgen_id_by_lead_id
@@ -71,6 +91,7 @@ async def on_amo_status(
         return None
     return await send_crm_event(
         leadgen_id, event_name, amo_lead_id=int(lead_id), value=price, source="amocrm_status",
+        config_override=cfg_override,
     )
 
 
