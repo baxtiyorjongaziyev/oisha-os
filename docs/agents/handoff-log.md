@@ -1386,22 +1386,8 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
   - Obsidian Brain: `20-Areas/SOP_Sotuvchilar_Darsligi.md` ga 6-modul sifatida kiritildi, `brain_log` qayd etildi.
 - Tekshiruv: `SKIP_LIVE=1 pytest tests/test_call_conversion_tasks.py tests/test_daily_sales_calls_report.py` — 26/26 passed; barcha `.py` fayllar 150-400 LOC standartiga mos (`helpers.py`: 361, `runner.py`: 399, `normalizer.py`: 282, `crm_tasks.py`: 298, `scorer.py`: 314, `call_report_formatter.py`: 223, `daily_sales_calls_report.py`: 396).
 
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-=======
->>>>>>> origin/main
-## 2026-10-10 — Antigravity — Security & Dependabot Queue Resolution (Zero Alerts, 10/10 GitHub)
-- Task: GitHub repositorysini 10/10 ideal holatga keltirish: ochiq PRlarni tartibga solish, barcha ziddiyatlarni (conflicts) bartaraf qilish, CodeQL va Dependabot xavfsizlik ogohlantirishlarini 0 taga tushirish.
-- Bajarildi:
-  1. Oldingi navbatdagi PRlar birlashtirildi va merge qilindi: #845, #833, #829, #818 (yopildi), #815 (handoff-log ziddiyati to'g'irlanib merge qilindi), #846, #848, #850, #851, #853, #855, #861.
-  2. 23 ta eskirgan/takroriy Dependabot PR yopildi, 60 ta foydalanilmayotgan remote branchlar pruned qilindi.
-  3. Qolgan 5 ta muhim Dependabot xavfsizlik zaifliklari (Handlebars, PostCSS-selector-parser va Source-map-js) `salescoach-ai` va `marketing-os/frontend` paketlarida override va qat'iy pnpm lockfile yangilanishi orqali to'liq bartaraf etildi.
-  4. Radix-UI kutubxonalari (@radix-ui/react-dialog ^1.2.0, react-dropdown-menu ^2.1.25, react-progress ^1.1.17, react-select ^2.3.8) va Vite kutubxonalari (@vitejs/plugin-react ^6.1.2, oxlint ^1.87.0, vite ^8.3.4) bitta toza commit/PR ga birlashtirildi.
-  5. Breaking o'zgarishga ega bo'lgan mcp 2.x (#852) FastMCP migratsiyasigacha `mcp<2` ga qat'iy pin qilindi.
-- Tekshiruv: `pnpm install --frozen-lockfile` (salescoach-ai & marketing-os/frontend) muvaffaqiyatli o'tdi; Jest testlari (7/7 passed), marketing frontend build (170ms) va oxlint (0 errors) toza. CodeQL: 0 alert, Secrets: 0 alert.
-- Status: Barcha xavfsizlik va ziddiyatlar to'liq bartaraf etildi.
 
-<<<<<<< HEAD
+
 
 
 2026-10-10 / Codex Coordinator: Added owner-requested truthfulness and owner-click rules to AGENTS.md (rules 10-11). Verified with rg; recorded source in Obsidian. Other agents have not been verified to have read the changes. Tax review remains open.
@@ -1853,5 +1839,16 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
     - Pytest: 42 ta test 100% yashil (`tests/test_oauth_api_endpoints.py`, `tests/test_permission_dependency.py`, `tests/test_api_access_security.py`).
   - **Qolgan yagona ish**:
     - DNS `oisha.jonbranding.uz` A-yozuvini `163.192.10.104` (Oracle) dan `109.199.100.137` (Contabo) ga o'zgartirish. So'ngra Contaboda `certbot --nginx -d oisha.jonbranding.uz` orqali SSL yoqish.
+
+## 2026-10-16 — Antigravity — CodeQL Zero Security Alerts & Dependabot Grouping
+- Task: GitHub CodeQL security alertlarini (4 ta) to'liq bartaraf etish, ochiq PRlarni tartibga solish va Dependabot guruhlashini joriy etish.
+- Files:
+  - `src/services/api_server/oauth.py`: `_safe_redirect_target` va `_safe_login_next` orqali whitelisted yo'naltirish (CodeQL #65, #67 `py/url-redirection` bartaraf etildi); `html.escape` bilan login forma xavfsizlandi (CodeQL #68 `py/reflective-xss` bartaraf etildi).
+  - `src/services/api_server/telegram_extension.py`: `telegram_extension_send` da xato xabari sanitizatsiya qilindi (CodeQL #66 `py/stack-trace-exposure` bartaraf etildi).
+  - `.github/dependabot.yml`: Har bir ekotizim (npm root, salescoach-ai, marketing-os, pip) uchun `groups` kiritildi, haftalik yangilanishlar 30 ta alohida PR emas, bitta konsolidatsiyalangan PR bo'lib ochiladi.
+  - `tests/test_oauth_security.py`: Xavfsizlik bo'yicha maxsus 5 ta regressiya testi yozildi.
+- Tekshiruv: `pytest tests/test_oauth_security.py` — 5/5 passed; `bandit -r src/services/api_server/oauth.py src/services/api_server/telegram_extension.py -ll` — 0 issues; fayl hajmlari <= 400 LOC qoidasiga to'liq mos.
+- Status: Barcha CodeQL ogohlantirishlari bartaraf etildi.
+
 
 

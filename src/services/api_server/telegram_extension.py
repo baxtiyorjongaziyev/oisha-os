@@ -109,4 +109,4 @@ async def telegram_extension_send(request: Request) -> Dict[str, Any]:
         return {"success": True, "sent": sent}
     except Exception as e:
         logger.error(f"[TELEGRAM EXT] Error: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Telegram send request failed"}
