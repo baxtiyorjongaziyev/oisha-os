@@ -2192,3 +2192,53 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
     - Created 	ests/test_brend_lead_flow.py (17/17 tests passed).
     - Executed all 35 related Instagram security, plus trigger, anti-romance, and brend lead flow tests: 35/35 green.
     - Logged to Obsidian Second Brain via rain_log.
+
+- **2026-10-16 — Antigravity — Instagram Brend Comment Scanner, Deduplication & Crash-Resilient Resumption:**
+  - **User Request**:
+    "Commentlarni analiz qilib yozib chiqsin. bot qayta ishga tushganda qayta yozmasin kelgan joyidan davom etsin. barcha holatlarni chuqur o'ylab senior dasturchi sifatida ishla"
+  - **Senior Architecture & Root-Cause Engineering**:
+    1. **Zero-Duplicate State Store (`comment_store.py`, 343L)**:
+       - Durable SQLite database (`data/instagram_comments.db`) with WAL mode and atomic transactions.
+       - Comment-level deduplication: guarantees no comment is ever processed or replied to twice.
+       - User-level contact limit: tracks users who already received a DM opener (`user_dm_contacts`), preventing multiple DMs when a user comments repeatedly (e.g. `@_.abdulbosit._` commented twice).
+       - Media-level checkpointing: tracks `last_comment_id`, `last_comment_timestamp`, and aggregate sync stats for seamless resumption.
+       - Crash-resilient lease recovery: automatic reclamation of stale `processing` locks older than 300s.
+    2. **Comment Scanner & Processor (`brend_comment_scanner.py`, 277L)**:
+       - Scans post comments via Graph API with pagination support.
+       - Meta API edge cases resolved: detects and skips media owner comments where Graph API omits the `from` object (preventing self-messaging loops).
+       - Anti-ban rate limiting: configurable throttling with random jitter (3.5s + 0.5-1.5s) between outreach actions.
+       - Strict O(1) skipping of previously processed comments on bot restarts.
+    3. **Unified Webhook Integration**:
+       - `brend_lead_flow.py` (250L) and `instagram_agent.py` (397L) now share the exact same `InstagramCommentStore`.
+       - Both real-time webhooks and batch/background scanners maintain shared deduplication state.
+    4. **CLI & Background Runner (`scripts/scan_brend_comments.py`, 77L)**:
+       - Supports `--dry-run`, `--max-dms`, and `--stats` inspection flags.
+  - **Verification & Dalil**:
+    - Live Dry-Run on video `18022341710945202`: 16 comments analyzed, 1 own comment skipped, 12 non-keyword comments safely persisted, 3 qualified 'Brend' comments matched.
+    - Resumption proof: Running scan twice confirmed 12 already processed skipped in 0ms without duplicate operations.
+    - Test Suite: 66/66 tests passed (`pytest tests/test_brend_*.py tests/test_instagram_*.py`).
+    - Security: Bandit scan 0 High/Medium issues; all files <= 400 lines.
+
+- **2026-10-16 — Antigravity — MetaCAPI Platform Dashboard UX Tubdan Soddalashtirish (Targetolog Rejimi):**
+  - **Muammo**: Foydalanuvchi skrinshotni ko'rib "tushunarsiz bir dunyo narsa ko'rinyapti" deb ta'kidladi. Bosh sahifada 6 ta qisilgan KPI katakchalari, 7 bosqichli amoCRM texnik jadvali (ichki `#89067962` ID-lar bilan), 40% ekranni egallagan rad etish sabablari diagnostikasi va pastida to'liq 11 ustunli kreativlar jadvali bitta sahifaga tiqib tashlangan edi.
+  - **Yechim & Arxitektura**:
+    1. **Umumiy ko'rinish (Overview)**: Faqat 3 ta asosiy savolga javob beradigan qilib tozalandi:
+       - CAPI holati banneri: 🟢 "Meta CAPI Faol Ishlamoqda" (Pixel ID va saytga kod olish tugmasi).
+       - 4 ta katta asosiy karta: Jami Lidlar (572), Sifatli Lidlar (6 ta, CAPI), Tasdiqlangan Xaridlar (2 ta), Haqiqiy Tushum (6,980,000 UZS).
+       - Oddiy 4 bosqichli vizual voronka: Reklama lidi (572) -> Aloqaga chiqildi (199) -> Sifatli mijoz (6) -> Sotuv (2).
+       - Top 3 Reklama Kreativlari: Eng ko'p pul olib kelgan 3 ta rasm/video medali bilan (🥇 Brendingizni himoyasiz qoldirmang — 6,980,000 UZS).
+    2. **Fokuslangan Tablar**:
+       - `Reklama kreativlari`: To'liq 15 ta kreativ jadvali va qidiruv faqat shu tabda ochiladi.
+       - `Sotuv voronkasi`: amoCRM 7 bosqichli voronkasi va rad etish sabablari diagnostikasi alohida tabga ko'chirildi.
+       - `CRM & CAPI qoidalari`: Hodisalarni qanday uzatilishi qoidalari.
+       - `Signallar jurnali`: Texnik loglar va statuslar.
+       - `Saytga ulash (Vidjet)`: 1-bosishda Tilda/WordPress uchun kod nusxalash.
+    3. **Standartlar & Pre-flight**:
+       - `capi_platform.html` (311L), `capi_platform.css` (240L), `capi_platform_ui.js` (348L), `capi_platform_model.js` (254L) — barcha fayllar qat'iy 150-400 qator oralig'ida.
+       - Bandit: 0 issues.
+       - Pytest: 23/23 tests passed.
+    4. **Jonli Serverga Deploy (Contabo VPS `109.199.100.137`)**:
+       - `/home/ubuntu/oisha-os/src/api/templates/` dagi fayllar yangilandi.
+       - `oisha-os.service` restart qilindi.
+       - Jonli skrinshotlar olindi va tekshirildi (`metacapi_simplified_overview.png`, `metacapi_simplified_creatives.png`, `metacapi_simplified_funnel.png`, `metacapi_simplified_snippet.png`).
+
