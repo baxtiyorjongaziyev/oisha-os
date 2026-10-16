@@ -8,7 +8,7 @@ aiogram==3.31.0
     # via -r requirements.txt
 aiohappyeyeballs==2.7.1
     # via aiohttp
-aiohttp==3.14.4
+aiohttp==3.14.5
     # via
     #   -r requirements.txt
     #   aiogram
@@ -25,7 +25,7 @@ annotated-doc==0.0.5
     #   typer
 annotated-types==0.8.0
     # via pydantic
-anthropic==1.11.0
+anthropic==1.13.0
     # via -r requirements.txt
 anyio==4.15.1
     # via
@@ -83,11 +83,11 @@ docutils==0.22.4
     # via sphinx
 dotenv==0.9.9
     # via telegram-mcp
-fastapi==0.142.2
+fastapi==0.143.0
     # via -r requirements.txt
 fonttools==4.66.1
     # via fpdf2
-fpdf2==2.8.1
+fpdf2==2.8.9
     # via -r requirements.txt
 frozenlist==1.8.0
     # via
@@ -95,13 +95,13 @@ frozenlist==1.8.0
     #   aiosignal
 google-analytics-data==0.23.3
     # via -r requirements.txt
-google-api-core==2.41.0
+google-api-core==2.42.0
     # via
     #   google-analytics-data
     #   google-api-python-client
 google-api-python-client==2.201.0
     # via -r requirements.txt
-google-auth==2.59.1
+google-auth==2.62.0
     # via
     #   -r requirements.txt
     #   google-analytics-data
@@ -119,7 +119,7 @@ google-auth-oauthlib==1.5.0
     # via
     #   -r requirements.txt
     #   gspread
-google-genai==2.28.0
+google-genai==2.30.0
     # via -r requirements.txt
 googleapis-common-protos==1.75.5
     # via
@@ -173,7 +173,7 @@ idna==3.20
     #   yarl
 imagesize==2.0.1
     # via sphinx
-instagrapi==3.0.20
+instagrapi==3.0.24
     # via -r requirements.txt
 jinja2==3.1.6
     # via sphinx
@@ -217,9 +217,9 @@ oauthlib==4.0.0
     # via
     #   -r requirements.txt
     #   requests-oauthlib
-openai==3.24.0
+openai==3.29.0
     # via -r requirements.txt
-opentelemetry-api==1.45.0
+opentelemetry-api==1.45.1
     # via
     #   fastapi
     #   google-api-core
@@ -227,7 +227,7 @@ packaging==26.3
     # via
     #   limits
     #   sphinx
-phonenumbers==9.0.40
+phonenumbers==9.0.41
     # via -r requirements.txt
 pillow==12.3.0
     # via
@@ -263,11 +263,11 @@ pyasn1-modules==0.4.2
     # via google-auth
 pyautogui==0.9.54
     # via -r requirements.txt
-pycparser==3.0
+pycparser==3.11
     # via cffi
-pycryptodomex==3.24.0
+pycryptodomex==3.24.1
     # via instagrapi
-pydantic==2.13.5
+pydantic==2.14.1
     # via
     #   -r requirements.txt
     #   aiogram
@@ -278,7 +278,7 @@ pydantic==2.13.5
     #   mcp
     #   openai
     #   pydantic-settings
-pydantic-core==2.46.5
+pydantic-core==2.50.1
     # via pydantic
 pydantic-settings==2.15.0
     # via
@@ -400,19 +400,19 @@ structlog==26.1.0
     # via -r requirements.txt
 telegram-mcp @ git+https://github.com/baxtiyorjongaziyev/telegram-mcp.git@f1a2d8e00a7f127bb7702655c58fdfcee7e73a5a
     # via -r requirements.txt
-telethon==1.44.0
+telethon==1.45.0
     # via
     #   -r requirements.txt
     #   telegram-mcp
-tenacity==9.1.4
+tenacity==9.2.1
     # via
     #   -r requirements.txt
     #   google-genai
-truststore==0.10.4
+truststore==0.10.5
     # via
     #   httpcore2
     #   httpx2
-typer==0.27.2
+typer==0.27.3
     # via mcp
 typing-extensions==4.16.0
     # via
