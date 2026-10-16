@@ -4,7 +4,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
+    groups:
+      all-npm-root:
+        patterns:
+          - "*"
     allow:
       - dependency-type: "direct"
       - dependency-type: "indirect"
@@ -16,7 +20,11 @@ updates:
     directory: "/salescoach-ai"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
+    groups:
+      all-salescoach-ai:
+        patterns:
+          - "*"
     allow:
       - dependency-type: "direct"
       - dependency-type: "indirect"
@@ -28,7 +36,11 @@ updates:
     directory: "/marketing-os/frontend"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
+    groups:
+      all-marketing-os:
+        patterns:
+          - "*"
     allow:
       - dependency-type: "direct"
       - dependency-type: "indirect"
@@ -40,15 +52,19 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
-    # Resolver verified against production Linux/Python 3.11 on 2026-10-05.
-    # aiohttp <7 multidict constraint and Sphinx <0.23 docutils constraint.
-    # Ignore only these incompatible releases; security alerts remain enabled.
+    open-pull-requests-limit: 5
+    groups:
+      all-python:
+        patterns:
+          - "*"
     ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "multidict"
         versions: ["7.0.0"]
       - dependency-name: "docutils"
         versions: ["0.23"]
-      # libsql-client 0.3.1 requires sphinx-press-theme<0.9.0.
       - dependency-name: "sphinx-press-theme"
         versions: ["0.9.1"]
+      - dependency-name: "mcp"
+        update-types: ["version-update:semver-major"]
