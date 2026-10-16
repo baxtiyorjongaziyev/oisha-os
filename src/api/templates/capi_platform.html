@@ -1,154 +1,395 @@
-<!doctype html>
-<html lang="uz">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Oisha · Targetolog CAPI Paneli</title>
-<style>
-:root{font-family:system-ui,-apple-system,sans-serif;color:#162235;background:#f5f7fb}*{box-sizing:border-box}
-body{margin:0}main{max-width:1160px;margin:auto;padding:36px 20px}header{display:flex;justify-content:space-between;align-items:center;gap:16px}
-h1{font-size:32px;letter-spacing:-0.5px;margin:6px 0}h2{font-size:18px;margin:0 0 12px}p{line-height:1.5;color:#526078;margin:4px 0}.eyebrow{font-size:11px;letter-spacing:1.5px;font-weight:700;color:#2457da}
-button{background:#2457da;color:white;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font:inherit;font-weight:500;transition:opacity .15s}button:disabled{opacity:.5;cursor:wait}
-.btn-secondary{background:#eaf0ff;color:#2457da}
-.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:24px 0}.card,section{background:white;border:1px solid #e1e6ef;border-radius:12px;padding:20px;margin-bottom:18px}
-.label{font-size:12px;color:#526078;text-transform:uppercase;letter-spacing:0.5px}.value{font-size:22px;margin-top:8px;font-weight:700}.notice{border-left:3px solid #2457da;padding:12px 16px;background:#eaf0ff;border-radius:0 8px 8px 0;font-size:13px}
-.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid #edf0f5;white-space:nowrap}th{color:#526078;font-weight:600;background:#fafbfc}.status{font-weight:600}.sent{color:#166534}.failed{color:#b42318}.queued{color:#b54708}code{font-size:12px;background:#eef2f6;padding:2px 6px;border-radius:4px}#message{min-height:24px;margin:8px 0;font-size:14px;font-weight:500}a{color:#2457da;text-decoration:none}
-.pill{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}.pill-green{background:#dcfce7;color:#166534}.pill-blue{background:#e0e7ff;color:#3730a3}.pill-amber{background:#fef3c7;color:#92400e}
-@media(max-width:800px){.cards{grid-template-columns:repeat(2,1fr)}header{align-items:start;flex-direction:column}main{padding:20px 14px}}
-@media(max-width:500px){.cards{grid-template-columns:1fr}}
-</style>
-<main>
-<header>
-  <div>
-    <div class="eyebrow">OISHA / JONBRANDING · TARGETOLOG PANELI</div>
-    <h1>Conversions API (CAPI)</h1>
-    <p>Sayt va CRM signallari ➔ Meta Dataset. Targetolog uchun to‘liq avtomatlashtirilgan boshqaruv.</p>
-  </div>
-  <div style="display:flex;gap:8px">
-    <button id="dispatch" class="btn-secondary">Navbatni yuborish</button>
-    <button id="refresh">Yangilash</button>
-  </div>
-</header>
+<!DOCTYPE html>
+<html lang="uz" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MetaCAPI · Conversions API va Sotuv Analitikasi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+/* CAPI_STYLES */
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Left Sidebar -->
+    <aside class="app-sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+        <div class="brand-copy">
+          <span class="brand-title">MetaCAPI</span>
+          <span class="brand-sub">Platform · metacapi.uz</span>
+        </div>
+      </div>
 
-<div class="cards">
-  <div class="card">
-    <div class="label">Meta Dataset</div>
-    <div class="value" id="dataset">Yuklanmoqda…</div>
-    <p id="connection" style="font-size:12px"></p>
-  </div>
-  <div class="card">
-    <div class="label">Yuborish rejimi</div>
-    <div class="value" id="mode">—</div>
-    <p id="enabled" style="font-size:12px"></p>
-  </div>
-  <div class="card">
-    <div class="label">24/7 Avtomatlashtirish</div>
-    <div class="value"><span class="pill pill-green">Faol (har 30s)</span></div>
-    <p style="font-size:12px">Navbat fon xizmatida avtomatik ishlaydi</p>
-  </div>
-  <div class="card">
-    <div class="label">Sayt Ingest</div>
-    <div class="value" id="ingest">—</div>
-    <p style="font-size:12px">Saytdan xavfsiz qabul qilish</p>
-  </div>
-</div>
+      <div class="project-selector-wrap">
+        <label for="projectSelect" class="sr-only">Faol loyiha</label>
+        <select id="projectSelect" class="project-select" aria-label="Loyiha tanlash">
+          <option value="">Loyiha tanlang...</option>
+        </select>
+        <button type="button" class="btn-new-project" id="openNewProjectBtn" title="Yangi loyiha ulash">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Yangi loyiha</span>
+        </button>
+      </div>
 
-<p class="notice">💡 <b>Avtomatlashtirish qoidasi:</b> Sayt formasi to‘ldirilganda <code>Lead</code> avtomatik uzatiladi. amoCRM da lid sifatli deb belgilanganda <code>QualifiedLead</code>, bitim yopilganda esa <code>Purchase</code> (haqiqiy summa bilan) Meta CAPI ga to‘g‘ridan-to‘g‘ri yuboriladi.</p>
+      <nav class="sidebar-nav" id="mainNavTabs" aria-label="Asosiy navigatsiya">
+        <button type="button" class="nav-item is-active" data-section="sec-all">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          <span>Umumiy ko'rinish</span>
+        </button>
+        <button type="button" class="nav-item" data-section="sec-funnel">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+          <span>Sotuv voronkasi</span>
+        </button>
+        <button type="button" class="nav-item" data-section="sec-creatives">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span>Reklama kreativlari</span>
+          <span class="nav-count" id="navCreativesCount">0</span>
+        </button>
+        <button type="button" class="nav-item" data-section="sec-bridge">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span>CRM va Meta CAPI</span>
+        </button>
+        <button type="button" class="nav-item" data-section="sec-logs">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span>Signallar jurnali</span>
+          <span class="nav-count" id="navLogsCount">0</span>
+        </button>
+        <button type="button" class="nav-item" data-section="sec-snippet">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          <span>Saytga ulash (Vidjet)</span>
+        </button>
+      </nav>
 
-<div id="message" role="status" aria-live="polite"></div>
+      <div class="sidebar-section">
+        <div class="sidebar-heading">Integratsiya holati</div>
+        <div class="conn-list">
+          <div class="conn-row">
+            <span class="status-dot is-ok" id="dotMetaCapi"></span>
+            <span class="conn-label">Meta CAPI</span>
+            <span class="conn-val mono" id="badgeMetaPixel">Yuklanmoqda</span>
+          </div>
+          <div class="conn-row">
+            <span class="status-dot is-ok" id="dotAmoCrm"></span>
+            <span class="conn-label">amoCRM</span>
+            <span class="conn-val mono" id="badgeAmoPipeline">#11162698</span>
+          </div>
+          <div class="conn-row">
+            <span class="status-dot is-warn" id="dotMetaSpend"></span>
+            <span class="conn-label">Ad Spend</span>
+            <span class="conn-val mono" id="badgeSpendSync">Ulanmagan</span>
+          </div>
+        </div>
+      </div>
 
-<section>
-  <header style="margin-bottom:12px">
-    <h2>Sayt va server eventlari oqimi</h2>
-  </header>
-  <div class="scroll">
-    <table>
-      <thead>
-        <tr><th>Event</th><th>ID / Manba</th><th>Rejim</th><th>Holat</th><th>Urinish</th><th>Yangilandi (Toshkent)</th></tr>
-      </thead>
-      <tbody id="events"></tbody>
-    </table>
+      <div class="sidebar-footer">
+        <button type="button" class="sidebar-btn" id="themeToggleBtn" title="Mavzuni almashtirish">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+          <span id="themeToggleLabel">Qorong'u rejim</span>
+        </button>
+        <button type="button" class="sidebar-btn sidebar-btn-danger" id="logoutBtn" hidden>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span>Chiqish</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <div class="app-workspace">
+      <!-- Top Bar -->
+      <header class="workspace-topbar">
+        <div class="topbar-left">
+          <span class="breadcrumb-root">Konversiya Analitikasi</span>
+          <span class="breadcrumb-sep">/</span>
+          <h1 class="topbar-title" id="activeViewTitle">Umumiy ko'rinish</h1>
+          <span class="topbar-meta mono" id="heroSyncMeta">Yuklanmoqda...</span>
+        </div>
+
+        <div class="topbar-right">
+          <div class="segmented-control" id="periodFilterGroup" role="group" aria-label="Vaqt oralig'i">
+            <button type="button" class="seg-btn is-active" data-days="0">Barchasi</button>
+            <button type="button" class="seg-btn" data-days="30">30 kun</button>
+            <button type="button" class="seg-btn" data-days="14">14 kun</button>
+            <button type="button" class="seg-btn" data-days="7">7 kun</button>
+          </div>
+
+          <button type="button" class="btn-secondary" id="refreshBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            <span>Yangilash</span>
+          </button>
+
+          <button type="button" class="btn-primary" id="dispatchBtn">
+            <span>Navbatni yuborish</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Inline Auth Gate -->
+      <section class="auth-panel" id="authBanner" hidden>
+        <div class="auth-panel-inner">
+          <div class="auth-copy"><h2>Operator avtorizatsiyasi talab qilinadi</h2><p id="authBannerDesc">Real vaqtdagi amoCRM voronkasi va Meta CAPI telemetriyasini ko'rish uchun tizimga kiring.</p></div>
+          <div class="auth-controls">
+            <button type="button" class="btn-telegram" id="sendTelegramMagicBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg><span>Telegram orqali kirish</span></button>
+            <div id="telegramWidgetMount" class="telegram-widget-mount"></div>
+            <form id="tokenLoginForm" class="token-form"><input type="password" id="tokenInput" class="input-control" placeholder="API Secret yoki Bearer token" autocomplete="current-password" /><button type="submit" class="btn-secondary">Kirish</button></form>
+          </div>
+          <p class="auth-feedback" id="authErrorMsg" hidden></p>
+        </div>
+      </section>
+
+      <!-- Workspace Content -->
+      <main class="workspace-content" id="dashboardContent">
+        <!-- 1. Unified Hairline KPI Strip -->
+        <section class="kpi-strip" aria-label="Asosiy ko'rsatkichlar">
+          <div class="kpi-cell">
+            <div class="kpi-label">Jami Meta lidlar</div>
+            <div class="kpi-value mono" id="kpiTotalLeads">0</div>
+            <div class="kpi-sub" id="kpiTotalLeadsSub">Yuklanmoqda</div>
+          </div>
+          <div class="kpi-cell">
+            <div class="kpi-label">Faol voronkada</div>
+            <div class="kpi-value mono" id="kpiActivePipeline">0</div>
+            <div class="kpi-sub" id="kpiActivePipelineSub">Jarayondagi bitimlar</div>
+          </div>
+          <div class="kpi-cell">
+            <div class="kpi-label">Uchrashuv belgilandi</div>
+            <div class="kpi-value mono" id="kpiMeetingSet">0</div>
+            <div class="kpi-sub" id="kpiMeetingSetSub">Konversiya: 0%</div>
+          </div>
+          <div class="kpi-cell">
+            <div class="kpi-label">Uchrashuvga keldi (Sifatli)</div>
+            <div class="kpi-value mono" id="kpiQualified">0</div>
+            <div class="kpi-sub" id="kpiQualifiedSub">QualifiedLead signali</div>
+          </div>
+          <div class="kpi-cell">
+            <div class="kpi-label">Sotuv (Purchase)</div>
+            <div class="kpi-value mono" id="kpiWonDeals">0</div>
+            <div class="kpi-sub mono" id="kpiWonRevenueSub">0 UZS</div>
+          </div>
+          <div class="kpi-cell">
+            <div class="kpi-label">Rad etilgan lidlar</div>
+            <div class="kpi-value mono" id="kpiLostLeads">0</div>
+            <div class="kpi-sub" id="kpiLostLeadsSub">Yo'qotish ulushi</div>
+          </div>
+        </section>
+
+        <!-- 2. Funnel & Loss Diagnostics Split -->
+        <section class="split-grid" id="sec-funnel">
+          <div class="surface-block">
+            <div class="block-header">
+              <div><h2 class="block-title">Reklamadan sotuvgacha voronka</h2><p class="block-desc">amoCRM pipeline (#11162698) bosqichlari va Meta CAPI signallari</p></div>
+              <span class="meta-tag mono">7 bosqich</span>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table funnel-table">
+                <thead><tr><th>Bosqich</th><th>CAPI Signal</th><th class="num-col">Lidlar</th><th class="num-col">Ulushi</th><th class="num-col">Summa (UZS)</th></tr></thead>
+                <tbody id="funnelStagesMount"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="surface-stack">
+            <div class="surface-block">
+              <div class="block-header">
+                <div><h2 class="block-title">Yo'qotish sabablari diagnostikasi</h2><p class="block-desc">Yopilgan lidlarning reklama va sotuv bo'yicha tasnifi</p></div>
+                <span class="meta-tag mono" id="lossTotalBadge">0 ta</span>
+              </div>
+              <div class="loss-summary-grid">
+                <div class="loss-stat"><span class="loss-stat-label"><span class="status-dot is-err"></span>Reklama sifati</span><strong class="loss-stat-val mono" id="lossMarketingVal">0</strong><span class="loss-stat-sub" id="lossMarketingPct">0%</span></div>
+                <div class="loss-stat"><span class="loss-stat-label"><span class="status-dot is-warn"></span>Sotuv jarayoni</span><strong class="loss-stat-val mono" id="lossSalesVal">0</strong><span class="loss-stat-sub" id="lossSalesPct">0%</span></div>
+                <div class="loss-stat"><span class="loss-stat-label"><span class="status-dot is-muted"></span>Sababsiz yopilgan</span><strong class="loss-stat-val mono" id="lossUnknownVal">0</strong><span class="loss-stat-sub" id="lossUnknownPct">0%</span></div>
+              </div>
+              <div class="loss-bar-track" aria-hidden="true">
+                <div class="loss-bar-seg is-err" id="barLossMarketing" style="width: 0%"></div>
+                <div class="loss-bar-seg is-warn" id="barLossSales" style="width: 0%"></div>
+                <div class="loss-bar-seg is-muted" id="barLossUnknown" style="width: 0%"></div>
+              </div>
+              <div class="compact-list" id="lossReasonsMount"></div>
+            </div>
+            <div class="surface-block">
+              <div class="block-header"><div><h2 class="block-title">Tasdiqlangan sotuvlar (Purchase)</h2><p class="block-desc">Shartnoma va to'lov bosqichiga o'tgan bitimlar</p></div></div>
+              <div class="compact-list" id="wonDealsMount"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Ad Creatives Attribution Table -->
+        <section class="surface-block" id="sec-creatives">
+          <div class="block-header">
+            <div>
+              <h2 class="block-title">Reklama kreativlari samaradorligi</h2>
+              <p class="block-desc">Har bir Meta reklama kreatividan kelgan lidlar, uchrashuvga kelganlar va real tushum</p>
+            </div>
+            <div class="block-controls">
+              <input type="search" id="creativeSearchInput" class="input-control input-sm" placeholder="Kreativ nomi yoki Ad ID..." />
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Kreativ nomi va Ad ID</th>
+                  <th class="num-col">Jami lid</th>
+                  <th class="num-col">Faol</th>
+                  <th class="num-col">Uchrashuv</th>
+                  <th class="num-col">Keldi (Sifatli)</th>
+                  <th class="num-col">Sifat %</th>
+                  <th class="num-col">Sotuv</th>
+                  <th class="num-col">Rad etildi</th>
+                  <th class="num-col">Reklama xatosi</th>
+                  <th class="num-col">Xarajat</th>
+                  <th class="num-col">Tushum (UZS)</th>
+                </tr>
+              </thead>
+              <tbody id="creativesTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 4. CRM <-> Meta CAPI Architecture & Recent Movements -->
+        <section class="surface-block" id="sec-bridge">
+          <div class="block-header">
+            <div>
+              <h2 class="block-title">CRM va Meta Conversions API integratsiyasi</h2>
+              <p class="block-desc">Bitim statusi o'zgarganda Meta algoritmiga yuboriladigan konversiya qoidalari</p>
+            </div>
+          </div>
+
+          <div class="rules-strip">
+            <div class="rule-cell">
+              <div class="rule-top">
+                <span class="mono rule-code">#88871054 · Yangi lid</span>
+                <span class="badge-neutral"><span class="status-dot is-ok"></span>Lead</span>
+              </div>
+              <p class="rule-text">Mijoz forma to'ldirishi bilan leadgen_id va telefon SHA-256 xeshlanib Meta'ga yuboriladi.</p>
+            </div>
+            <div class="rule-cell">
+              <div class="rule-top">
+                <span class="mono rule-code">#88871062 · Uchrashuv belgilandi</span>
+                <span class="badge-neutral"><span class="status-dot is-warn"></span>Kutishda</span>
+              </div>
+              <p class="rule-text">Hali sifatli lid hisoblanmaydi. Mijoz uchrashuvga haqiqatan kelishi kutiladi.</p>
+            </div>
+            <div class="rule-cell">
+              <div class="rule-top">
+                <span class="mono rule-code">#89380154 · Uchrashuvga keldi</span>
+                <span class="badge-neutral"><span class="status-dot is-ok"></span>QualifiedLead</span>
+              </div>
+              <p class="rule-text">Mijoz uchrashuvga kelganda yoki #88871066 (Kelishuv) ga o'tganda sifatli lid signali ketadi.</p>
+            </div>
+            <div class="rule-cell">
+              <div class="rule-top">
+                <span class="mono rule-code">#142 · To'lov qilindi</span>
+                <span class="badge-neutral"><span class="status-dot is-ok"></span>Purchase</span>
+              </div>
+              <p class="rule-text">Shartnoma summasi (UZS) bilan Purchase hodisasi Meta'ga ROAS optimizatsiyasi uchun uzatiladi.</p>
+            </div>
+          </div>
+
+          <div class="sub-block-header">
+            <h3 class="sub-block-title">So'nggi CRM va CAPI konversiya harakatlari</h3>
+            <span class="meta-tag mono" id="crmEventsCountBadge">0 ta</span>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Bitim ID</th>
+                  <th>Kreativ</th>
+                  <th>CRM Status</th>
+                  <th>CAPI Hodisa</th>
+                  <th class="num-col">Summa</th>
+                  <th>Holat</th>
+                  <th class="num-col">Vaqt</th>
+                </tr>
+              </thead>
+              <tbody id="crmEventsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 5. Telemetry Log -->
+        <section class="surface-block" id="sec-logs">
+          <div class="block-header">
+            <div>
+              <h2 class="block-title">Meta CAPI signallar jurnali</h2>
+              <p class="block-desc">capi_events va capi_platform_events jadvallaridagi oxirgi yuborishlar</p>
+            </div>
+            <div class="block-controls">
+              <select id="logStatusFilter" class="input-control input-sm" aria-label="Holat filtri">
+                <option value="all">Barcha holatlar</option>
+                <option value="sent">Yuborilgan (Sent)</option>
+                <option value="queued">Navbatda (Queued)</option>
+                <option value="failed">Xatolik (Failed)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Event ID / Lead</th>
+                  <th>Manba</th>
+                  <th>Hodisa</th>
+                  <th>Kreativ</th>
+                  <th class="num-col">Summa</th>
+                  <th>Holat</th>
+                  <th>Javob / Xatolik</th>
+                  <th class="num-col">Vaqt</th>
+                </tr>
+              </thead>
+              <tbody id="logsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 6. Website Snippet & Installation -->
+        <section class="surface-block" id="sec-snippet" style="display:none;">
+          <div class="block-header">
+            <div>
+              <h2 class="block-title">Saytga o'rnatish uchun CAPI Vidjeti (Tilda / WordPress)</h2>
+              <p class="block-desc">Saytdan Meta Pixel va Server CAPI ga hodisalarni fbp, fbc, ip va user_agent bilan avtomatik yuboruvchi 1 qatorli kod</p>
+            </div>
+            <button type="button" class="btn-secondary" id="copySnippetBtn">
+              <span>Kodni nusxalash</span>
+            </button>
+          </div>
+          <div style="padding:16px 18px;">
+            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Ushbu kodni saytingizning &lt;head&gt; yoki &lt;body&gt; qismiga (Tilda HTML blokiga) joylashtiring:</p>
+            <pre class="mono" id="snippetCodeBlock" style="padding:14px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:var(--radius);font-size:11.5px;color:var(--text);overflow-x:auto;user-select:all;white-space:pre-wrap;"></pre>
+          </div>
+        </section>
+      </main>
+    </div>
   </div>
-</section>
+  <!-- New Project Modal Dialog -->
+  <dialog id="newProjectModal" class="project-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title">Yangi loyiha ulash (Meta CAPI)</h3>
+        <button type="button" class="modal-close-btn" id="closeProjectModalBtn">&times;</button>
+      </div>
+      <form id="newProjectForm" class="modal-form">
+        <div class="form-group"><label for="projNameInput">Loyiha nomi *</label><input type="text" id="projNameInput" class="input-control" placeholder="Masalan: Mebel Saloni Toshkent" required /></div>
+        <div class="form-group"><label for="projDatasetInput">Meta Pixel / Dataset ID</label><input type="text" id="projDatasetInput" class="input-control mono" placeholder="16 xonali Pixel ID (ixtiyoriy)" /></div>
+        <div class="form-group"><label for="projTokenInput">Meta CAPI Access Token</label><input type="password" id="projTokenInput" class="input-control mono" placeholder="EAAB... doimiy token (ixtiyoriy)" /></div>
+        <div class="form-group"><label for="projPipelineInput">amoCRM Voronka ID</label><input type="text" id="projPipelineInput" class="input-control mono" placeholder="Masalan: 11162698 (ixtiyoriy)" /></div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="cancelProjectModalBtn">Bekor qilish</button>
+          <button type="submit" class="btn-primary" id="saveProjectBtn">Loyihani yaratish</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
 
-<section>
-  <header style="margin-bottom:8px">
-    <h2>amoCRM Savdo Voronkasi Signallari</h2>
-    <p id="mapping"></p>
-  </header>
-  <div class="scroll">
-    <table>
-      <thead>
-        <tr><th>Event</th><th>Lead Ads ID</th><th>amoCRM ID</th><th>Holat</th><th>Yangilandi (Toshkent)</th><th>Amal</th></tr>
-      </thead>
-      <tbody id="crm"></tbody>
-    </table>
-  </div>
-</section>
-
-<section>
-  <h2>Targetolog uchun eslatma</h2>
-  <p>• Meta Events Manager'da qabul qilingan eventlarni ko‘rish uchun: <code>events_received=1</code> transport tasdig‘i xizmat qiladi.</p>
-  <p>• Reklama guruhlari va kreativlar bo‘yicha tahlil Telegram'dagi <code>/capi</code> yoki <code>/kreativ</code> buyrug‘i orqali ham darhol olinadi.</p>
-  <p>• Telefon va email ma'lumotlari xavfsizlik uchun SHA-256 xeshlangan holda saqlanadi va panelda ochiq ko‘rinmaydi.</p>
-</section>
-
-<p id="observed" style="font-size:12px;color:#8a99ad"></p>
-</main>
-<script>
-const base='/api/marketing/capi';
-const labels={sent:'Qabul qilindi',failed:'Xato',expired:'Muddati o‘tgan',pending:'Yuborilmoqda',queued:'Navbatda',disabled:'O‘chiq',duplicate:'Mavjud',not_due:'Hozir yuborilmaydi'};
-const el=id=>document.getElementById(id);
-const stamp=value=>value?new Date(value).toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent'}):'Noma’lum';
-function cell(row,value,cls){const td=document.createElement('td');td.textContent=value??'Noma’lum';if(cls)td.className=cls;row.append(td);return td;}
-function populate(id,records,legacy=false){
-  const body=el(id);body.replaceChildren();
-  if(!records||!records.length){const row=document.createElement('tr');const td=cell(row,'Hozircha yozuv yo‘q');td.colSpan=6;body.append(row);return;}
-  for(const item of records){
-    const row=document.createElement('tr');
-    cell(row,item.event_name);
-    cell(row,legacy?item.leadgen_id:(item.event_id+' / '+item.source));
-    cell(row,legacy?item.amo_lead_id:item.mode);
-    cell(row,(labels[item.status]||item.status)+(item.error?' · '+item.error:''),'status '+item.status);
-    if(!legacy)cell(row,item.attempts);
-    cell(row,stamp(item.updated_at));
-    if(legacy){
-      const td=cell(row,'');
-      if(item.status==='failed'){
-        const b=document.createElement('button');b.textContent='Qayta yuborish';b.className='btn-secondary';
-        b.onclick=()=>action('/crm/'+encodeURIComponent(item.leadgen_id)+'/'+encodeURIComponent(item.event_name)+'/retry',b);
-        td.append(b);
-      }
-    }
-    body.append(row);
-  }
-}
-async function request(path,method='GET'){
-  const response=await fetch(base+path,{method,credentials:'same-origin',cache:'no-store'});
-  if(!response.ok)throw new Error(response.status===401?'Oisha hisobingizga kiring.':response.status===403?'Bu amal uchun ruxsat kerak (Targetolog / Admin).':'Ma’lumot olinmadi / amal bajarilmadi ('+response.status+').');
-  return response.json();
-}
-async function load(){
-  el('refresh').disabled=true;
-  try{
-    const data=await request('/status');const c=data.configuration;
-    el('connection').textContent=c.configured?'Sozlangan va bog‘langan':'Ulanmagan';
-    el('dataset').textContent=c.dataset_id||'Mavjud emas';
-    el('mode').textContent=c.mode==='test'?'Test Events':'Haqiqiy (Live)';
-    el('enabled').textContent=c.enabled?'Avtomatik yuborish yoqilgan':'Yuborish to‘xtatilgan';
-    el('ingest').textContent=c.ingest_configured?'Sozlangan':'Ulanmagan';
-    el('mapping').textContent='Voronka: 142 (Sotildi) ➔ Purchase | Sifatli lidlar: '+(c.qualified_status_ids.join(', ')||'sozlanmagan')+'.';
-    populate('events',data.events);populate('crm',data.crm_events,true);
-    el('observed').textContent='Tekshirildi: '+stamp(data.observed_at)+' · Har bir manbadan oxirgi 100 yozuv.';
-  }catch(error){el('message').textContent=error.message;el('connection').textContent='Tekshirib bo‘lmadi';}finally{el('refresh').disabled=false;}
-}
-async function action(path,button){
-  button.disabled=true;
-  try{
-    const data=await request(path,'POST');
-    el('message').textContent=data.status?(labels[data.status]||data.status):'Navbat tekshirildi. Natijalar jadvalda yangilandi.';
-    await load();
-  }catch(error){el('message').textContent=error.message;}finally{button.disabled=false;}
-}
-el('refresh').onclick=load;el('dispatch').onclick=()=>action('/dispatch',el('dispatch'));load();
-</script>
+  <script>
+window.__CAPI_CAN_MANAGE__ = __CAPI_CAN_MANAGE__;
+/* CAPI_MODEL */
+/* CAPI_UI */
+  </script>
+</body>
 </html>

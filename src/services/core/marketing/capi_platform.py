@@ -68,14 +68,42 @@ async def dispatch_due():
     return [await dispatch(row["event_id"], row["event_name"]) for row in rows]
 
 
-async def snapshot():
+async def snapshot(days: int | None = None, project_id: str | None = None, user_id: str | None = None, is_admin: bool = False):
+    from src.services.core.marketing.capi_dashboard_data import build_dashboard_analytics
+    from src.services.core.marketing.capi_project_store import get_project, list_projects_for_user
+
+    target_id = project_id
+    if not is_admin and (not target_id or target_id == "default"):
+        user_projects = await list_projects_for_user(user_id or "anonymous", is_admin=False)
+        target_id = user_projects[0]["id"] if user_projects else "none"
+
+    project = await get_project(target_id) if target_id and target_id != "none" else None
+    dataset_id = project.get("dataset_id") if project else None
+
     records = await store.events()
+    if not is_admin or (project and project.get("id") != "default"):
+        records = [r for r in records if r.get("dataset_id") == dataset_id] if dataset_id else []
+
     await meta_capi_store.ensure_table()
-    legacy = await meta_capi_store._pool().execute(
-        "SELECT leadgen_id,event_name,amo_lead_id,status,updated_at,sent_at FROM capi_events "
-        "ORDER BY updated_at DESC LIMIT 100"
-    )
-    return {"configuration": configuration(), "events": records,
-            "crm_events": [dict(row) for row in legacy],
+    crm_rows = []
+    if is_admin and (not project or project.get("id") == "default"):
+        legacy = await meta_capi_store._pool().execute(
+            "SELECT leadgen_id,event_name,amo_lead_id,status,updated_at,sent_at FROM capi_events "
+            "ORDER BY updated_at DESC LIMIT 100"
+        )
+        crm_rows = [dict(row) for row in legacy]
+
+    analytics = build_dashboard_analytics(crm_rows, records, days=days, project=project if (is_admin or (project and project.get("id") != "default")) else {"id": "sandbox_empty"})
+    cfg = configuration()
+    if project:
+        cfg["project_id"] = project.get("id")
+        cfg["project_name"] = project.get("name")
+        if project.get("dataset_id"):
+            cfg["dataset_id"] = project.get("dataset_id")
+        cfg["ingest_secret"] = project.get("ingest_secret")
+        cfg["crm_pipeline_id"] = project.get("crm_pipeline_id")
+    return {"configuration": cfg, "events": records,
+            "crm_events": crm_rows,
+            "analytics": analytics,
             "coverage": "latest 100 events per source; CRM history has no dataset/mode provenance",
             "observed_at": store.now()}

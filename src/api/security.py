@@ -60,6 +60,7 @@ _PUBLIC_PATHS = frozenset(
         "/api/telephony/incoming-call",
         # Server CAPI intake authenticates its dedicated bearer inside the route.
         "/api/marketing/capi/events",
+        "/api/marketing/capi/jon-capi.js",
         # CAPI web console handles auth and browser login redirection in route.
         "/api/marketing/capi/console",
         "/capi",
