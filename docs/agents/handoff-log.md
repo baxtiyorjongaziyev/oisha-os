@@ -1849,6 +1849,41 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - `tests/test_oauth_security.py`: Xavfsizlik bo'yicha maxsus 5 ta regressiya testi yozildi.
 - Tekshiruv: `pytest tests/test_oauth_security.py` — 5/5 passed; `bandit -r src/services/api_server/oauth.py src/services/api_server/telegram_extension.py -ll` — 0 issues; fayl hajmlari <= 400 LOC qoidasiga to'liq mos.
 - Status: Barcha CodeQL ogohlantirishlari bartaraf etildi.
-
-
+- **2026-10-18 — Antigravity — REA (Reverse Engineer Anything v6.5.0) O'rnatilishi va MCP Integratsiyasi:**
+  - **Foydalanuvchi so'rovi**: "morluto/rea vositasini sinab ko‘rish / o‘rnatish: Ushbu repozitoriyni o‘rganib, uni Antigravity yoki lokal tizimingizga MCP server sifatida ulash"
+  - **Bajarilgan ish**:
+    1. `morluto/rea` (npm `rea-agents@6.5.0`) repozitoriyasi va arxitekturasi to'liq o'rganildi.
+    2. Antigravity MCP konfiguratsiyasiga (`C:\Users\User\.gemini\config\mcp_config.json`) REA rasmiy ravishda MCP stdio server sifatida ulandi (`rea-agents@6.5.0 mcp`).
+    3. REA global CLI vositasi (`npm install --global rea-agents`) sifatida o'rnatildi, `rea` buyrug'i terminalda to'liq ishga tushdi (`rea --version`: 6.5.0).
+    4. Antigravity, Claude Code va Codex uchun REA rasmiy ro'yxatdan o'tkazildi (`state: aligned`).
+    5. REA rasmiy skilli (`reverse-engineer-anything`) Antigravity (`C:\Users\User\.gemini\config\skills`) va oisha-os repozitoriyasiga (`.agents/skills/reverse-engineer-anything`) o'rnatildi (207 ta MCP tool, 153 CLI buyruqlari, 6 ta prompt).
+  - **Tekshiruv dalili**:
+    - `rea doctor --skill --json` -> `healthy: true`, `skill: identity aligned` (version 42).
+    - `rea doctor --client antigravity` -> `healthy: true`, `registration:antigravity ok: true`.
+    - `rea --version` -> 6.5.0.
+- **2026-10-18 — Antigravity — SalesCoach CI & Lockfile Drift Remediation (PR #915):**
+  - **Foydalanuvchi so'rovi**: PR #913 failure ([Job 116844705264](https://github.com/baxtiyorjongaziyev/oisha-os/actions/runs/38861527072/job/116844705264)) tahlili va yechimi bo'yicha senior qaror.
+  - **Ildiz sabablari (Root causes)**:
+    1. Dependabot PR #913 `salescoach-ai/pnpm-lock.yaml` da dependency'larni yangilagan, biroq `salescoach-ai/pnpm-workspace.yaml` dagi eskirgan override'larni yangilay olmagan.
+    2. PR #914 `next` override'ini `16.4.0` ga o'zgartirgan, ammo lockfile'lar `16.3.8` da qolib, `main` da `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` keltirib chiqargan.
+    3. `salescoach-ai/pnpm-workspace.yaml` da pnpm 10 talab qiladigan `patchedDependencies` bloki yetishmagan va lockfile'dagi patch hash (pnpm 9 base32 `ltt5unvp...`) pnpm 10 kutgan sha256 (`6f55a8f8...`) bilan to'qnashgan.
+    4. `.github/workflows/salescoach-ai.yml` da API testlaridan oldin Prisma client generatsiyasi (`prisma:generate`) qolib ketgan edi.
+    5. `.github/workflows/test.yml` da `dorny/paths-filter@v3` uchun `pull-requests: read` huquqi yetishmayotgan edi.
+  - **Bajarilgan ish**:
+    - `pnpm-workspace.yaml` (root) va `salescoach-ai/package.json` dagi `next` versiyasi lockfile'ga moslab `16.3.8` ga keltirildi; `postcss` `^8.5.30` bilan sinxronlandi.
+    - `salescoach-ai/pnpm-workspace.yaml` dagi eskirgan override'lar lockfile'dagi aniq 25 ta override bilan 1-ga-1 qilib almashtirildi va `patchedDependencies` qo'shildi.
+    - `salescoach-ai/pnpm-lock.yaml` dagi braces patch hash pnpm 10 mos sha256 formatiga yangilandi.
+    - `.github/workflows/salescoach-ai.yml` ga `pnpm run prisma:generate` qadami qo'shildi.
+    - `.github/workflows/test.yml` permissions blokiga `pull-requests: read` qo'shildi.
+  - **Tekshiruv dalili**:
+    - PR #915 ochildi: [PR #915](https://github.com/baxtiyorjongaziyev/oisha-os/pull/915).
+    - Barcha CI tekshiruvlari 100% yashil o'tdi:
+      - `SalesCoach workspace checks`: pass (1m 39s)
+      - `api-contract`: pass (44s)
+      - `TypeScript monorepo checks`: pass (1m 30s)
+      - `pull-request-tests`: pass (1m 37s)
+      - `changes`: pass (8s)
+      - `gitleaks`: pass (5s)
+      - `Import-time crash guard`: pass (56s)
+  - **Holat**: PR #915 to'liq yashil va MERGEABLE holatda. Reviewer/Owner merge kutilmoqda.
 
