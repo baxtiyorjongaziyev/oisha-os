@@ -42,8 +42,14 @@ _PROTECTED_PREFIXES = (
 )
 _PUBLIC_PATHS = frozenset(
     {
+        "/login",
         "/api/auth/telegram/login",
         "/api/auth/telegram/callback",
+        "/api/auth/telegram/poll",
+        "/api/auth/telegram/otp",
+        "/api/auth/email/login",
+        "/api/auth/google/callback",
+        "/api/auth/logout",
         "/api/auth/token/login",
         "/api/auth/airtable/login",
         "/api/auth/airtable/callback",
