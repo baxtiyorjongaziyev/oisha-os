@@ -94,25 +94,13 @@ async def airtable_callback(code: str = None, state: str = None, error: str = No
         logger.error(f"Failed to exchange Airtable token: {e}")
         raise HTTPException(status_code=500, detail="Failed to exchange token")
         
-    html_content = """
-    <html>
-        <head>
-            <title>Airtable Muvaffaqiyatli Ulandi</title>
-            <style>
-                body { font-family: 'Inter', sans-serif; text-align: center; padding-top: 50px; background: #f3f4f6; color: #1f2937; }
-                .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; }
-                h1 { color: #10b981; }
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <h1>âœ… Muvaffaqiyatli!</h1>
-                <p>Oisha-OS Airtable bilan to'g'ridan-to'g'ri bog'landi.</p>
-                <p>Ushbu oynani yopishingiz mumkin.</p>
-            </div>
-        </body>
-    </html>
-    """
+    html_content = (
+        "<html><head><title>Airtable Muvaffaqiyatli Ulandi</title>"
+        "<style>body{font-family:'Inter',sans-serif;text-align:center;padding-top:50px;background:#f3f4f6;color:#1f2937;}"
+        ".card{background:white;padding:40px;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.1);display:inline-block;}h1{color:#10b981;}</style></head>"
+        "<body><div class='card'><h1>✅ Muvaffaqiyatli!</h1><p>Oisha-OS Airtable bilan to'g'ridan-to'g'ri bog'landi.</p>"
+        "<p>Ushbu oynani yopishingiz mumkin.</p></div></body></html>"
+    )
     return HTMLResponse(content=html_content)
 
 
@@ -126,10 +114,6 @@ async def airtable_status():
     return {"status": "disconnected"}
 
 
-# =====================================================================
-# Telegram OAuth Integratsiyasi (ERP Login)
-# =====================================================================
-
 _ALLOWED_LOGIN_REDIRECTS: frozenset[str] = frozenset({
     "/",
     "/capi",
@@ -137,17 +121,22 @@ _ALLOWED_LOGIN_REDIRECTS: frozenset[str] = frozenset({
 })
 
 
+@router.get("/login")
 @router.get("/api/auth/telegram/login")
-async def telegram_login(next: Optional[str] = None, magic: Optional[str] = None, sent: Optional[str] = None):
-    """Return an HTML page with Telegram Login Widget, 1-click Bot Push Login, and Token Login."""
+async def telegram_login(
+    next: Optional[str] = None,
+    magic: Optional[str] = None,
+    sent: Optional[str] = None,
+    err: Optional[str] = None,
+):
+    """Return multi-method login page: Universal Telegram Account, Google, Email/Password, and API Token."""
     import jwt as pyjwt
-    from src.api import auth_service
+    from src.api import auth_service, web_auth_store
     from src.api.security import _session_secret
 
     safe_next = next if next in _ALLOWED_LOGIN_REDIRECTS else "/api/marketing/capi/console"
     jwt_secret = _session_secret()
 
-    # 1-Click Magic Link verification
     if magic and jwt_secret:
         try:
             payload = pyjwt.decode(magic, jwt_secret, algorithms=["HS256"])
@@ -162,68 +151,118 @@ async def telegram_login(next: Optional[str] = None, magic: Optional[str] = None
                 )
                 resp = RedirectResponse(url=safe_next, status_code=303)
                 resp.set_cookie(
-                    key="oisha_token",
-                    value=session_jwt,
-                    max_age=auth_service.SESSION_TTL_SECONDS,
-                    httponly=True,
-                    samesite="lax",
-                    path="/",
+                    key="oisha_token", value=session_jwt, max_age=auth_service.SESSION_TTL_SECONDS,
+                    httponly=True, samesite="lax", path="/",
                 )
                 return resp
         except Exception as exc:
             logger.warning("[OAUTH] Magic link invalid or expired: %s", type(exc).__name__)
 
     bot_username = getattr(settings, "BOT_USERNAME", None) or os.getenv("BOT_USERNAME") or "jonairobot"
-    raw_auth_url = f"/api/auth/telegram/callback?next={safe_next}"
-    auth_url = html.escape(raw_auth_url, quote=True)
+    auth_url = html.escape(f"/api/auth/telegram/callback?next={safe_next}", quote=True)
     safe_bot_username = html.escape(str(bot_username).replace("@", "").strip() or "jonairobot", quote=True)
-    sent_banner = (
-        '<div style="background:#ECFDF5;border:1px solid #10B981;color:#065F46;padding:12px;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:600;">'
-        '✅ Telegram\'ingizga (@jonairobot dan) 1-bosishda kirish havolasi yuborildi! Telegram\'ni ochib havolani bosing.'
-        '</div>'
-        if sent == "1" else ""
+    html_content = web_auth_store.render_universal_login_html(
+        safe_next=safe_next, safe_bot_username=safe_bot_username, auth_url=auth_url, sent=sent, err_msg=err,
     )
-    html_content = f"""
-    <html>
-        <head>
-            <title>Oisha-OS Enterprise Login</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <meta name="referrer" content="strict-origin-when-cross-origin">
-            <style>
-                body {{ font-family: 'Inter', -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f3f4f6; color: #1f2937; margin: 0; padding: 16px; }}
-                .card {{ background: white; padding: 34px 30px; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center; max-width: 420px; width: 100%; box-sizing: border-box; }}
-                h2 {{ color: #2563eb; margin: 0 0 10px; font-size: 22px; }}
-                p {{ color: #4b5563; margin-bottom: 18px; font-size: 14px; line-height: 1.5; }}
-                .tg-push-btn {{ width: 100%; background: #0088cc; color: white; border: none; padding: 12px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; }}
-                .tg-push-btn:hover {{ background: #0077b5; }}
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <h2>Oisha-OS Enterprise</h2>
-                <p>Tizimga kirish uchun Telegram orqali tasdiqlang:</p>
-                {sent_banner}
-                <form method="POST" action="/api/auth/token/login" style="margin:0 0 12px;">
-                    <input type="hidden" name="next" value="{safe_next}">
-                    <input type="hidden" name="token" value="__SEND_TELEGRAM_MAGIC__">
-                    <button type="submit" class="tg-push-btn">📲 Telegram Botga Kirish Havolasini Yuborish</button>
-                </form>
-                <div style="min-height: 44px; margin-bottom: 16px; display: flex; justify-content: center;">
-                    <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{safe_bot_username}" data-size="large" data-auth-url="{auth_url}" data-request-access="write"></script>
-                </div>
-                <div style="margin-top: 14px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
-                    <p style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">Yoki kirish kaliti (Token) orqali kiring:</p>
-                    <form method="POST" action="/api/auth/token/login" style="display: flex; flex-direction: column; gap: 8px;">
-                        <input type="hidden" name="next" value="{safe_next}">
-                        <input type="password" name="token" placeholder="Kirish kaliti (API Secret yoki Token)" required style="padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; box-sizing: border-box;">
-                        <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;">Tizimga kirish</button>
-                    </form>
-                </div>
-            </div>
-        </body>
-    </html>
-    """
     return HTMLResponse(content=html_content)
+
+
+@router.get("/api/auth/telegram/poll")
+async def telegram_login_poll(state: str):
+    """Poll whether the user has pressed Start in @jonairobot for web login."""
+    from fastapi.responses import JSONResponse
+    from src.api import auth_service, web_auth_store
+    from src.api.security import _session_secret
+
+    info = web_auth_store.poll_tg_login_state(state)
+    if not info or info.get("status") != "approved":
+        return JSONResponse({"status": (info or {}).get("status", "invalid")})
+    jwt_secret = _session_secret()
+    if not jwt_secret:
+        return JSONResponse({"status": "error"}, status_code=503)
+    session_jwt = auth_service.issue_session_jwt(
+        user_id=int(info.get("user_id") or 1),
+        username=str(info.get("username") or "telegram_user"),
+        first_name=str(info.get("first_name") or "Foydalanuvchi"),
+        role=str(info.get("role") or "targetolog"),
+        secret=jwt_secret,
+        ttl_seconds=auth_service.SESSION_TTL_SECONDS,
+    )
+    target = info.get("next_url") if info.get("next_url") in _ALLOWED_LOGIN_REDIRECTS else "/api/marketing/capi/console"
+    resp = JSONResponse({"status": "approved", "redirect": target})
+    resp.set_cookie(
+        key="oisha_token", value=session_jwt, max_age=auth_service.SESSION_TTL_SECONDS,
+        httponly=True, samesite="lax", path="/",
+    )
+    return resp
+
+
+def _set_session_redirect(user_id: int, username: str, first_name: str, role: str, jwt_secret: str, target: str) -> RedirectResponse:
+    from src.api import auth_service
+    session_jwt = auth_service.issue_session_jwt(
+        user_id=int(user_id), username=str(username), first_name=str(first_name),
+        role=str(role or "targetolog"), secret=jwt_secret, ttl_seconds=auth_service.SESSION_TTL_SECONDS,
+    )
+    resp = RedirectResponse(url=target, status_code=303)
+    resp.set_cookie(key="oisha_token", value=session_jwt, max_age=auth_service.SESSION_TTL_SECONDS, httponly=True, samesite="lax", path="/")
+    return resp
+
+
+@router.post("/api/auth/telegram/otp")
+async def telegram_otp_login(code: str = Form(...), next: Optional[str] = Form(None)):
+    """Verify 6-digit OTP code issued by @jonairobot and set session cookie."""
+    from src.api import web_auth_store
+    from src.api.security import _session_secret
+
+    safe_next = next if next in _ALLOWED_LOGIN_REDIRECTS else "/api/marketing/capi/console"
+    info = web_auth_store.poll_tg_login_state(f"otp_{str(code or '').strip()}")
+    jwt_secret = _session_secret()
+    if not info or info.get("status") != "approved" or not jwt_secret:
+        return RedirectResponse(url=f"/login?next={safe_next}&err=6-xonali+kod+xato+yoki+muddati+tugagan", status_code=303)
+    return _set_session_redirect(
+        int(info.get("user_id") or 1), str(info.get("username") or "telegram_user"),
+        str(info.get("first_name") or "Foydalanuvchi"), str(info.get("role") or "targetolog"), jwt_secret, safe_next,
+    )
+
+
+@router.post("/api/auth/email/login")
+async def email_password_login(
+    email: str = Form(...), password: str = Form(...), name: Optional[str] = Form(None),
+    mode: str = Form("login"), next: Optional[str] = Form(None),
+):
+    """Login or register using Email + Password."""
+    from src.api import web_auth_store
+    from src.api.security import _session_secret
+
+    safe_next = next if next in _ALLOWED_LOGIN_REDIRECTS else "/api/marketing/capi/console"
+    user = web_auth_store.register_or_login_email(email, password, name=name, is_register=(mode == "register"))
+    jwt_secret = _session_secret()
+    if not user or not jwt_secret:
+        msg = "Ushbu email band yoki ma'lumot xato" if mode == "register" else "Email yoki parol noto'g'ri (yoki avval Ro'yxatdan o'ting)"
+        return RedirectResponse(url=f"/login?next={safe_next}&err={msg}", status_code=303)
+    return _set_session_redirect(int(user["id"]), str(user["email"]), str(user["name"]), str(user.get("role") or "targetolog"), jwt_secret, safe_next)
+
+
+@router.post("/api/auth/google/callback")
+async def google_signin_callback(credential: str = Form(...), next: Optional[str] = None):
+    """Handle Google Identity Services Sign-In callback."""
+    from src.api import web_auth_store
+    from src.api.security import _session_secret
+
+    safe_next = next if next in _ALLOWED_LOGIN_REDIRECTS else "/api/marketing/capi/console"
+    user = web_auth_store.verify_google_credential(credential)
+    jwt_secret = _session_secret()
+    if not user or not jwt_secret:
+        return RedirectResponse(url=f"/login?next={safe_next}&err=Google+avtorizatsiya+xatosi", status_code=303)
+    return _set_session_redirect(int(user["id"]), str(user["email"]), str(user["name"]), str(user.get("role") or "targetolog"), jwt_secret, safe_next)
+
+
+@router.api_route("/api/auth/logout", methods=["GET", "POST"])
+async def web_logout():
+    """Clear browser session cookie and redirect to login page."""
+    resp = RedirectResponse(url="/login?next=/api/marketing/capi/console", status_code=303)
+    resp.delete_cookie(key="oisha_token", path="/")
+    return resp
 
 
 @router.post("/api/auth/token/login")
@@ -289,66 +328,34 @@ async def token_login(request: Request, token: str = Form(...), next: Optional[s
         raise HTTPException(status_code=401, detail="Noto'g'ri kalit yoki token kiritildi")
 
     session_jwt = auth_service.issue_session_jwt(
-        user_id=1,
-        username=subject,
-        first_name=subject,
-        role=role,
-        secret=jwt_secret,
-        ttl_seconds=auth_service.SESSION_TTL_SECONDS,
+        user_id=1, username=subject, first_name=subject, role=role,
+        secret=jwt_secret, ttl_seconds=auth_service.SESSION_TTL_SECONDS,
     )
     response = RedirectResponse(url=target, status_code=303)
-    response.set_cookie(
-        key="oisha_token",
-        value=session_jwt,
-        max_age=auth_service.SESSION_TTL_SECONDS,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        path="/",
-    )
+    response.set_cookie(key="oisha_token", value=session_jwt, max_age=auth_service.SESSION_TTL_SECONDS, httponly=True, samesite="lax", path="/")
     return response
 
 
 @router.get("/api/auth/telegram/callback")
 async def telegram_callback(
-    id: int,
-    first_name: str,
-    hash: str,
-    last_name: str = None,
-    username: str = None,
-    photo_url: str = None,
-    auth_date: int = None,
-    next: str = None,
+    id: int, first_name: str, hash: str, last_name: str = None,
+    username: str = None, photo_url: str = None, auth_date: int = None, next: str = None,
 ):
     """Handle Telegram OAuth callback."""
     from src.api import auth_service
     from src.api.security import _session_secret
 
     bot_token = settings.BOT_TOKEN.get_secret_value()
-    fields = {
-        "id": str(id) if id is not None else None,
-        "first_name": first_name,
-        "auth_date": str(auth_date) if auth_date is not None else None,
-        "last_name": last_name,
-        "username": username,
-        "photo_url": photo_url,
-    }
-    if not auth_service.verify_telegram_hash(fields, bot_token, hash):
-        raise HTTPException(status_code=403, detail="Invalid Telegram Auth Hash")
-    if not auth_service.is_auth_date_fresh(auth_date):
-        raise HTTPException(status_code=403, detail="Auth date is expired")
+    fields = {"id": str(id) if id is not None else None, "first_name": first_name, "auth_date": str(auth_date) if auth_date is not None else None, "last_name": last_name, "username": username, "photo_url": photo_url}
+    if not auth_service.verify_telegram_hash(fields, bot_token, hash) or not auth_service.is_auth_date_fresh(auth_date):
+        raise HTTPException(status_code=403, detail="Invalid Telegram Auth Hash or expired")
 
     db = get_db()
     await db.users.upsert_user(user_id=id, username=username, first_name=first_name, last_name=last_name)
     user = await db.users.get_user(id)
     role = user.get("role", "targetolog") if user else "targetolog"
     whitelist = {str(x) for x in (getattr(settings, "WHITELIST_IDS", None) or [])}
-    if str(id) == str(settings.OWNER_ID):
-        role = "owner"
-    elif str(id) in whitelist:
-        role = "admin" if role == "admin" else "targetolog"
-    else:
-        role = "targetolog"
+    role = "owner" if str(id) == str(settings.OWNER_ID) else ("admin" if str(id) in whitelist and role == "admin" else "targetolog")
 
     jwt_secret = _session_secret()
     if not jwt_secret or len(jwt_secret.encode("utf-8")) < 32:
@@ -356,21 +363,10 @@ async def telegram_callback(
         raise HTTPException(status_code=503, detail="Session signing secret is not configured")
 
     token = auth_service.issue_session_jwt(
-        user_id=id,
-        username=username,
-        first_name=first_name,
-        role=role,
-        secret=jwt_secret,
-        ttl_seconds=auth_service.SESSION_TTL_SECONDS,
+        user_id=id, username=username, first_name=first_name, role=role,
+        secret=jwt_secret, ttl_seconds=auth_service.SESSION_TTL_SECONDS,
     )
     target = next if next in _ALLOWED_LOGIN_REDIRECTS else "/api/marketing/capi/console"
     response = RedirectResponse(url=target, status_code=303)
-    response.set_cookie(
-        key="oisha_token",
-        value=token,
-        max_age=auth_service.SESSION_TTL_SECONDS,
-        httponly=True,
-        samesite="lax",
-        path="/",
-    )
+    response.set_cookie(key="oisha_token", value=token, max_age=auth_service.SESSION_TTL_SECONDS, httponly=True, samesite="lax", path="/")
     return response
