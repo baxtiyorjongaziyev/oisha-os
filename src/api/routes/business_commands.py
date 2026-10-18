@@ -144,6 +144,27 @@ async def command_center(
     )
 
 
+@router.get("/command-center/patterns")
+async def command_center_patterns(
+    request: Request,
+    threshold: int = Query(default=2, ge=1, le=10),
+):
+    _authorize(request)
+    from src.services.core.systematizer import PatternDetector
+
+    detector = PatternDetector(min_frequency_threshold=threshold)
+    db = api_state.db_instance
+    tasks = []
+    if db is not None and hasattr(db, "tasks") and hasattr(db.tasks, "get_overdue_tasks"):
+        try:
+            tasks = await db.tasks.get_overdue_tasks()
+        except Exception:
+            logger.debug("Failed to read tasks for pattern detector", exc_info=True)
+
+    report = detector.run_audit(tasks=tasks)
+    return report.to_dict()
+
+
 @router.post("/command/plan")
 async def business_command_plan(payload: BusinessCommandRequest, request: Request):
     _authorize(request)

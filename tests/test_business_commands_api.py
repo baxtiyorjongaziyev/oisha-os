@@ -223,6 +223,19 @@ def test_command_center_aggregates_sections_without_fake_fill(monkeypatch):
     assert "guesses" in body["claim_policy"]
 
 
+def test_command_center_patterns_endpoint(monkeypatch):
+    monkeypatch.setenv("OISHA_API_SECRET", "api-secret")
+    response = _client().get(
+        "/api/oisha/command-center/patterns?threshold=2",
+        headers={"Authorization": "Bearer api-secret"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "total_scanned_items" in body
+    assert "patterns" in body
+    assert "proposals" in body
+
+
 class _FakeAmoCRM:
     last_error = None
 
