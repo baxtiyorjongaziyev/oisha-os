@@ -1,26 +1,28 @@
 {
-  "name": "oisha-os-workspace",
+  "name": "oisha-os",
   "private": true,
-  "packageManager": "pnpm@10.33.2",
+  "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "build": "turbo build",
-    "clean": "turbo clean",
-    "dev": "turbo dev --parallel",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "lint": "turbo lint",
-    "test": "turbo test",
-    "typecheck": "turbo typecheck"
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "tsc && vite build",
+    "lint": "tsc --noEmit",
+    "preview": "vite preview --port 3000"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.16.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.2"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.7",
-    "@eslint/js": "^9.39.5",
-    "eslint": "^9.39.5",
-    "eslint-config-next": "^16.4.0",
-    "globals": "^17.13.0",
-    "prettier": "^3.9.10",
-    "turbo": "^2.11.7",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.2"
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.1.0"
   }
 }

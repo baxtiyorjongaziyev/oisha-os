@@ -1,0 +1,8 @@
+{
+  "name": "Oisha OS - Enterprise AI & Automation Platform",
+  "description": "Enterprise AI operating system with Hisobchi AI financial accounting, SalesCoach AI call analytics, Meta Leadgen CAPI console, AmoCRM & Airtable sync, and multi-agent coordination.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
