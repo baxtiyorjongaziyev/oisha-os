@@ -1,0 +1,51 @@
+name: "AI Studio <-> Antigravity Sync"
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_id:
+        description: "Google AI Studio App ID"
+        required: false
+        default: "80b6106f-6db5-4f9a-9b1c-7d5a60fb7827"
+      repo_name:
+        description: "Source GitHub repository (owner/repo)"
+        required: false
+        default: "baxtiyorjongaziyev/oisha-os-preview"
+      branch:
+        description: "Target branch in preview repository"
+        required: false
+        default: "main"
+  schedule:
+    # Run twice daily to automatically check for new exports from AI Studio
+    - cron: "0 6,18 * * *"
+
+jobs:
+  sync-and-modularize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Oisha-OS
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pytest structlog pydantic
+
+      - name: Run AI Studio Sync & Modularization Bridge
+        run: |
+          python -m scripts.ai_studio_bridge \
+            --app-id "${{ github.event.inputs.app_id || '80b6106f-6db5-4f9a-9b1c-7d5a60fb7827' }}" \
+            --repo "${{ github.event.inputs.repo_name || 'baxtiyorjongaziyev/oisha-os-preview' }}" \
+            --branch "${{ github.event.inputs.branch || 'main' }}"
+
+      - name: Run Standards & Tests Verification
+        run: |
+          python -m pytest tests/test_ai_studio_bridge.py -q

@@ -16,6 +16,7 @@ node_modules/
 apps/**/.next/
 apps/**/dist/
 packages/**/dist/
+apps/ai_studio_preview/
 *.tsbuildinfo
 
 # Python

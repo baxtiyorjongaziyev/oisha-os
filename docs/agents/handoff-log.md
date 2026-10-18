@@ -1852,3 +1852,49 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 
 
 
+
+### 2026-10-18 04:54 — Antigravity Harness [harness-loop]
+- **Vazifa / Ish**: Autonomous Harness Verification & Healing Loop
+- **O'zgargan fayllar**: `salescoach-ai/apps/api/package.json`, `salescoach-ai/apps/bot/package.json`, `salescoach-ai/apps/web/package.json`, `salescoach-ai/apps/worker/package.json`, `salescoach-ai/package.json`, `salescoach-ai/pnpm-lock.yaml`, `scripts/harness/harness.ps1`, `src/services/core/instagram_agent.py`
+- **Tekshiruv dalili**: Harness loop 100% GREEN (standards, bandit, pytest)
+- **Holat / Keyingi qadam**: Tayyor, PR yoki keyingi vazifaga o'tish mumkin.
+
+### 2026-10-18 14:25 — Antigravity — AI Studio <-> Antigravity Autonomous Bridge & Modularizer
+- **Vazifa / Ish**: Google AI Studio'dagi ilovalar va prototiplarni (`80b6106f-6db5-4f9a-9b1c-7d5a60fb7827` / `baxtiyorjongaziyev/oisha-os-preview`) Antigravity bilan to'liq avtomatik bog'lovchi, God-componentlarni 150-400 LOC standartiga ajratuvchi va pre-flight bilan tekshiruvchi avtonom konveyer yaratildi.
+- **Yangi va o'zgargan fayllar**:
+  - `src/services/ai_studio/models.py`: AI Studio sinxronizatsiya va audit ma'lumotlar modellari.
+  - `src/services/ai_studio/modularizer.py`: 400 qatordan oshgan monolit fayllarni avtomatik submodul va toza Facadega ajratuvchi dvigatel.
+  - `src/services/ai_studio/git_sync.py`: AI Studio GitHub repolari (`oisha-os-preview`) bilan aloqa va fayl yuklovchi.
+  - `src/services/ai_studio/pipeline.py`: To'liq siklli avtomatlashtirilgan pipeline (`run_pipeline`).
+  - `src/services/ai_studio/__init__.py`: Oisha-OS standartidagi toza Facade.
+  - `scripts/ai_studio_bridge.py`: CLI orqali bir buyruqda sinxronlash va tekshirish skripti.
+  - `.github/workflows/ai-studio-sync.yml`: GitHub Actions avtomatizatsiyasi (kuniga 2 marta va workflow_dispatch).
+  - `tests/test_ai_studio_bridge.py`: 6 ta to'liq qamrovli unit/integration testlar.
+  - `src/services/core/instagram/webhook_processor.py`: Funksiya uzunligi (<= 60 LOC) standartiga moslab dekompozitsiya qilindi, test mosligi tiklandi.
+  - `.gitignore`: `apps/ai_studio_preview/` kesh papkasi qo'shildi.
+- **Tekshiruv dalili**:
+  - `python scripts/harness/verify_standards.py` -> 100% muvaffaqiyatli (barcha fayllar <= 400 LOC, funksiyalar <= 60 LOC).
+  - `bandit -r src/services/ai_studio -ll` -> 0 issues.
+  - `pytest tests/test_ai_studio_bridge.py ...` -> 44/44 passed (0 failures).
+  - `python -m scripts.ai_studio_bridge --repo baxtiyorjongaziyev/oisha-os-preview` -> Real GitHub integratsiyasi muvaffaqiyatli sinxronlandi (`status: COMPLETED`).
+- **Holat**: To'liq tayyor. AI Studio'da "Sync to GitHub" tugmasi bosilishi bilan Antigravity uning barcha kodlarini avtomatik qabul qilishga va modullashtirishga shay.
+
+### 2026-10-18 21:58 — Antigravity — Superpowers, Hermes Learning Loop & OpenClaw Security Integration
+- **Vazifa / Ish**: Trendshift top-3 tizimlari (Superpowers, Hermes Agent, OpenClaw) arxitekturasini Oisha-OS ga to'liq integratsiya qilish:
+  1. **Superpowers**: Global plugin katalogiga (`~/.gemini/config/plugins/superpowers`) o'rnatildi; `.agents/skills/` ga `brainstorming`, `using-git-worktrees`, `systematic-debugging` ko'chirildi.
+  2. **Hermes Agent Learning Loop**: `AGENTS.md` 9-qoidasidagi `.agents/skills/skill-evolution/SKILL.md` yaratildi; `scripts/harness/skill_generator.py` avtonom skill generatori va `src/services/core/tool_adapters_pkg/zero_context_executor.py` token-tejamkor skript ijrochisi qurildi.
+  3. **OpenClaw Security**: `src/services/core/telegram/pairing_security_gate.py` orqali begona kontaktlar uchun pairing challenge, rate limit va prompt-injection to'siqlari o'rnatildi.
+- **Yangi va o'zgargan fayllar**:
+  - `.agents/skills/skill-evolution/SKILL.md`: Skill evolyutsiyasi protokoli.
+  - `.agents/skills/brainstorming/`, `using-git-worktrees/`, `systematic-debugging/`: Superpowers asosiy skilllari.
+  - `scripts/harness/skill_generator.py`: Yangi skilllarni avtonom generatsiya qilish skripti.
+  - `src/services/core/tool_adapters_pkg/zero_context_executor.py`: Multi-step zero-context vositasi.
+  - `src/services/core/telegram/pairing_security_gate.py`: Pairing va DM xavfsizlik darvozasi.
+  - `tests/test_zero_context_executor.py`: 3/3 testlar yashil.
+  - `tests/test_pairing_security_gate.py`: 4/4 testlar yashil.
+- **Tekshiruv dalili**:
+  - `verify_standards.py`: 100% GREEN (barcha yangi va o'zgargan fayllar <= 400 LOC, funksiyalar <= 60 LOC).
+  - `bandit -r src/ -ll`: 0 high/medium issues.
+  - `pytest`: 7/7 yangi testlar passed (`test_zero_context_executor.py`, `test_pairing_security_gate.py`).
+  - `run_harness.py`: 100% ALL GATES GREEN.
+- **Holat**: To'liq integratsiya qilindi va foydalanishga tayyor.
