@@ -1,3 +1,0 @@
-# Oisha MCP routing is canonicalized in C:\Users\baxti\.codex\config.toml.
-# Do not add a project-local `oisha-amocrm` server here: it shadows the
-# Oracle-backed `oisha` route and prevents one consistent tool surface.
