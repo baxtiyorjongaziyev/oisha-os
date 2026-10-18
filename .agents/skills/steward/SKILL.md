@@ -60,13 +60,13 @@ Repo-spetsifik eslatmalar:
 
 ## PR tayyor bo'lganda
 
-- CI yashil, konflikt yo'q, ochiq review thread yo'q → "reviewer kutilmoqda" deb bir marta ayting.
+- CI yashil, konflikt yo'q, ochiq review thread yo'q bo'lsa: PR'ni `gh pr merge <pr> --squash` orqali merge qiling (yoki kerak bo'lsa auto-merge rejimiga qo'ying).
 - `AGENTS.md` → `## Locks` dan o'z qulfingizni o'chiring.
 - `docs/agents/handoff-log.md` OXIRIGA yozing: sana/agent, bajarilgan ish, o'zgargan fayllar,
   tekshiruv dalili, qolgan ish/bloker (AGENTS.md qoida 6).
 
 ## Hech qachon
 
-- Approve yoki merge qilmang — bu Owner'ning ishi.
+- CI qizil yoki tekshirilmagan holatda merge qilmang.
 - Boshqa birovning branch tarixini qayta yozmang (rebase/amend/force-push).
 - Sirlarni (token, session string, API key) commit, izoh yoki log'ga yozmang.
