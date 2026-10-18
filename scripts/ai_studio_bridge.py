@@ -55,6 +55,11 @@ def parse_arguments() -> argparse.Namespace:
         help="Audit files in target-dir without re-cloning",
     )
     parser.add_argument(
+        "--modularize",
+        action="store_true",
+        help="Audit and auto-modularize files in target-dir in-place",
+    )
+    parser.add_argument(
         "--watch",
         action="store_true",
         help="Wait and poll for new commit from AI Studio before syncing",
@@ -85,6 +90,31 @@ def audit_existing_directory(target_path: Path) -> int:
     return 1 if violations > 0 else 0
 
 
+def modularize_existing_directory(target_path: Path) -> int:
+    """Audits and modularizes files in target directory in place."""
+    modularizer = CodeModularizer()
+    files = list(target_path.rglob("*"))
+    source_files = [
+        f for f in files
+        if f.is_file() and f.suffix in {".py", ".ts", ".tsx", ".js", ".jsx"}
+    ]
+
+    print(f"\nModularizing God-files in {target_path}...")
+    refactored = 0
+    for sf in source_files:
+        report = modularizer.audit_file(sf)
+        if report.is_god_file:
+            success, split = modularizer.modularize_if_needed(sf)
+            if success:
+                refactored += 1
+                print(f"  [MODULARIZED] {sf.name} into {len(split)} parts + facade")
+            else:
+                print(f"  [SKIPPED] {sf.name} could not be modularized")
+
+    print(f"\nModularization complete: {refactored} God-file(s) modularized.")
+    return 0
+
+
 def _poll_for_new_commit(config: AIStudioAppConfig, workspace_root: Path) -> None:
     """Blocks until a new commit appears on the remote repository."""
     import time
@@ -111,6 +141,8 @@ def main() -> int:
     target_path = workspace_root / args.target_dir
     if args.audit_only:
         return audit_existing_directory(target_path)
+    if args.modularize:
+        return modularize_existing_directory(target_path)
 
     config = AIStudioAppConfig(
         app_id=args.app_id,
