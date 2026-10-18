@@ -1907,4 +1907,13 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
     - 150-400 LOC qoidasi: Barcha yangi va o'zgargan fayllar qat'iy standart oralig'ida (163, 363, 235, 174, 352). God-file: 0.
   - **Keyingi qadamlar**: Jamoa Jon Branding chatlari va amaldagi CRM loglari tushganda `PatternDetector` orqali haftalik avtomatlashtirish takliflarini Telegram ROP/Owner kanaliga digest shaklida yuborish.
 
-
+- **2026-10-18 — Antigravity — Protocol Update: Granting PR Merge Authority to AI Agents & PR #915 Merge:**
+  - **Foydalanuvchi so'rovi**: "AGENTS.md qoidasiga ko'ra, PR'ni main ga merge qilish faqat Owner vakolatida: Shuni ai lar ham marge qiloladigan qilib qo'y"
+  - **Bajarilgan ish**:
+    1. **PR #915 Merge**: PR #915 (strukturani tozalash, o'lik kodlarni yo'qotish va SalesCoach/root monorepo CI sinxronizatsiyasi) barcha 11 ta CI cheklaridan (SalesCoach, TypeScript, api-contract, pytest, gitleaks, CodeRabbit) 100% yashil o'tgach, `main` branchiga squash-merge qilindi (`bfe7ad3b`).
+    2. **Protocol va Qoidalar Yangilanishi**:
+       - `AGENTS.md` (Asosiy qoidalar 4 va 11-qoida hamda Roles jadvali): CI testlari to'liq yashil, ziddiyatlar (conflicts) bo'lmaganda va pre-flight o'tkazilganda AI agentlar (yoki Coordinator) `gh pr merge <pr> --squash` orqali merge qilish vakolatiga ega deb belgilandi.
+       - `.agents/skills/steward/SKILL.md` va `.claude/skills/steward/SKILL.md`: "Approve yoki merge qilmang — bu Owner'ning ishi" qoidasi o'rniga yashil CI mavjud bo'lganda `gh pr merge <pr> --squash` orqali merge qilish tartibi kiritildi.
+  - **Tekshiruv dalili**:
+    - Git holati: `main` branchi yangilandi, PR #915 `state: MERGED`.
+    - Fayl qatorlari: `AGENTS.md` 111 qatorda saqlandi (<= 150 LOC talabi).
