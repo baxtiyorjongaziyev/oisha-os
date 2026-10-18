@@ -1,6 +1,6 @@
 import requests
-from settings import settings
-from amocrm_sync import AmoCRMSync
+from src.services.core.crm.amocrm_sync import AmoCRMSync
+from src.settings import settings
 
 
 def research():

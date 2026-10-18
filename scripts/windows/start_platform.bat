@@ -1,6 +1,6 @@
 @echo off
 title JonBranding Platform Server Mode
-cd /d "C:\Users\baxti\playground\oisha-os"
+cd /d "%~dp0..\.."
 
 echo ===============================================
 echo   SETTING UP SERVER ENVIRONMENT...
