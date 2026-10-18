@@ -1887,3 +1887,24 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
       - `Import-time crash guard`: pass (56s)
   - **Holat**: PR #915 to'liq yashil va MERGEABLE holatda. Reviewer/Owner merge kutilmoqda.
 
+- **2026-10-18 — Antigravity — Turso Architecture Audit, Data Sources Scan & PatternDetector Engine:**
+  - **Foydalanuvchi so'rovi**:
+    1. "Turso ideal darajadami? hech man uni ichini ko'rmaganman" — texnik audit va tahlil.
+    2. Jon Branding barcha ma'lumot manbalari (AmoCRM + Turso + Telegram + Hisobchi) bo'yicha "Raqamli Boshqaruv Markazi" (Command Center) holatini to'liq skaner qilish.
+    3. Jamoaning takroriy harakatlarini yig'uvchi va tizimlashtiruvchi `PatternDetector` modulini qurish va ishga tushirish.
+  - **Bajarilgan ish**:
+    1. **Turso / LibSQL Architecture Audit**: `src/database_pool.py`, `src/db/connection.py`, `src/db/turso.py` va 10 ta repository skaner qilindi. Turso edge replikatsiya, Hrana drop retry (5 bosqichli backoff), SmartRow mapper va SQLite WAL avto-fallback baholandi; "ideal" holatga yetish uchun mavjud 3 ta cheklov (bitta ulanishli concurrency, deklarativ migratsiya jadvali yetishmasligi, real-time ping telemetriyasi) aniqlandi.
+    2. **Command Center Data Sources Scan**: `src/services/command_center/` orqali 4 ta asosiy manba (AmoCRM, Turso/SQLite, Telegram VPS sessiyasi, Hisobchi Engine) haqiqiy holati tekshirildi (soxta raqamlarsiz, claim_policy asosida).
+    3. **PatternDetector Moduli**: `src/services/core/systematizer/` to'liq ishlab chiqildi:
+       - `models.py` (163 LOC): `PatternType`, `AutomationStrategy`, `DetectedPattern`, `SystematizationProposal`, `SystematizationReport`.
+       - `detector.py` (363 LOC): O'zbek/rus tillaridagi FAQ, takroriy vazifalar (KP, shartnoma, brief), moliya to'lovlari (Yandex, obunalar), va CRM e'tirozlarini (`qimmat`, `o'ylab ko'ramiz`) avtomatik klasterlovchi dvigatel; SOP / `SKILL.md` generatsiyasi.
+       - `__init__.py` (23 LOC): Toza fasad.
+       - API integratsiyasi: `src/api/routes/business_commands.py` (235 LOC) ga `/api/oisha/command-center/patterns` endpointi ulandi.
+    4. **Sinovlar**: `tests/test_pattern_detector.py` (174 LOC) yozildi (8 ta test) va `tests/test_business_commands_api.py` ga endpoint testi qo'shildi (13 ta test).
+  - **Tekshiruv dalillari**:
+    - Pytest: `tests/test_pattern_detector.py` (8/8 passed), `tests/test_business_commands_api.py` (13/13 passed), `tests/test_turso_adapter.py` (9/9 passed) — jami 30/30 yashil.
+    - Bandit: `bandit -r src/services/core/systematizer src/api/routes/business_commands.py -ll` — 0 issues.
+    - 150-400 LOC qoidasi: Barcha yangi va o'zgargan fayllar qat'iy standart oralig'ida (163, 363, 235, 174, 352). God-file: 0.
+  - **Keyingi qadamlar**: Jamoa Jon Branding chatlari va amaldagi CRM loglari tushganda `PatternDetector` orqali haftalik avtomatlashtirish takliflarini Telegram ROP/Owner kanaliga digest shaklida yuborish.
+
+

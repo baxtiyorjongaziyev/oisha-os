@@ -1,6 +1,6 @@
 @echo off
 title Oisha-OS Server Mode
-cd /d "C:\Users\baxti\playground\oisha-os"
+cd /d "%~dp0..\.."
 
 echo Setting Power Scheme to High Performance (Server Mode)...
 powercfg /requestsoverride process python.exe display system awaymode

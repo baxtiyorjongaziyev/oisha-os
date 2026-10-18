@@ -2,8 +2,8 @@
 # This script creates a Windows Task Scheduler entry to start Oisha-OS on Login.
 
 $TaskName = "OishaOS_AutoStart"
-$ScriptDir = "C:\Users\baxti\playground\oisha-os"
-$BatPath = "$ScriptDir\start_oisha.bat"
+$ScriptDir = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$BatPath = Join-Path $PSScriptRoot "start_oisha.bat"
 
 if (-not (Test-Path $BatPath)) {
     Write-Error "start_oisha.bat topilmadi: $BatPath"

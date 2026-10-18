@@ -1,5 +1,5 @@
 @echo off
-cd /d "C:\Users\baxti\playground\oisha-os"
+cd /d "%~dp0..\.."
 
 chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
