@@ -87,17 +87,17 @@ class MapStore:
         """Atomically elect one writer. A fresh 'pending' row means another
         writer is in flight; a stale one is treated as an interrupted write."""
         now = int(self.clock())
-        states = ",".join("'" + s + "'" for s in allowed)  # constants only
+        first, second = (tuple(allowed) + ("", ""))[:2]
         rows = await self.sql(
-            f"""INSERT INTO twenty_sync_map
+            """INSERT INTO twenty_sync_map
             (source_system,kind,source_id,state,attempts,updated_at)
             VALUES(?,?,?,'pending',0,?)
             ON CONFLICT(source_system,kind,source_id) DO UPDATE SET
               state='pending', updated_at=excluded.updated_at
-            WHERE twenty_sync_map.state IN ({states})
+            WHERE twenty_sync_map.state IN (?,?)
                OR (twenty_sync_map.state='pending' AND twenty_sync_map.updated_at<?)
             RETURNING source_id""",
-            [system, kind, str(source_id), now, now - stale_after],
+            [system, kind, str(source_id), now, first, second, now - stale_after],
         )
         return bool(rows)
 
