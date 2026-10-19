@@ -21,11 +21,15 @@ def _json_env(name: str) -> dict:
     return value
 
 
-async def reconcile(mirror, maps) -> dict:
-    """Source (mirror) vs target (map) counts; every gap is listed, not hidden."""
+async def reconcile(mirror, maps, client=None) -> dict:
+    """Source (mirror) vs local map vs live Twenty counts; gaps are explicit.
+
+    ``target_remote`` is read from Twenty (records with amoId set) when a client
+    is available, so a record lost in Twenty shows up as ``remote_gap``.
+    """
     out = {}
     states = await maps.counts()
-    for kind, (map_kind, _, _) in KINDS.items():
+    for kind, (map_kind, plural, _) in KINDS.items():
         rows = await mirror.sql(
             """SELECT COUNT(*) AS n, SUM(CASE WHEN json_extract(payload,'$.is_deleted')
             THEN 1 ELSE 0 END) AS d FROM parallel_crm_entities WHERE kind=?""", [kind])
@@ -35,6 +39,13 @@ async def reconcile(mirror, maps) -> dict:
                      "target_synced": synced,
                      "gap": total - deleted - synced,
                      "states": states.get(map_kind, {})}
+        if client is not None:
+            try:
+                remote = await client.count(plural, "amoId[is]:NOT_NULL")
+                out[kind]["target_remote"] = remote
+                out[kind]["remote_gap"] = synced - remote
+            except Exception as exc:  # report, never hide
+                out[kind]["target_remote"] = f"unavailable: {exc}"
     out["problems"] = await maps.problems()
     return out
 
@@ -47,21 +58,33 @@ async def run_once(*, pull_amo: bool = True, dry_report: bool = False) -> dict:
     mirror = await get_store()
     maps = MapStore(db_pool)
     await maps.init()
-    result: dict = {}
+    result: dict = {"source_complete": True}
     if pull_amo:
         remote = get_remote()
-        result["amo_pull"] = await Sync(mirror, remote, writeback=False).run()
+        pull = await Sync(mirror, remote, writeback=False).run()
+        result["amo_pull"] = pull
+        if pull.get("state") not in ("ready", "partial"):
+            # Account mismatch / unavailable: never read notes or project.
+            result["source_complete"] = False
+            return result
         result["notes_complete"] = await pull_notes(mirror, remote)
-    if not dry_report:
+        result["source_complete"] = pull["state"] == "ready" and result["notes_complete"]
+    try:
         url, key = config_from_env()
         client = TwentyClient(url, key)
-        try:
+    except Exception:
+        client = None
+    try:
+        if not dry_report:
+            if client is None:
+                raise RuntimeError("twenty_not_configured")
             projector = Projector(
                 mirror, maps, client,
                 stage_map=_json_env("TWENTY_STAGE_MAP_JSON"),
                 member_map=_json_env("TWENTY_MEMBER_MAP_JSON"))
             result["projection"] = await projector.run()
-        finally:
+        result["reconcile"] = await reconcile(mirror, maps, client)
+    finally:
+        if client is not None:
             await client.aclose()
-    result["reconcile"] = await reconcile(mirror, maps)
     return result

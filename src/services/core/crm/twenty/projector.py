@@ -108,6 +108,7 @@ class Projector:
             twenty_id = found or twenty_id
         elif current and current["state"] == "synced" and current["digest"] == dig:
             self._count(map_kind, "unchanged")
+            await self._link_target(kind, map_kind, item)  # target may have appeared since
             return "unchanged"
         result = await self._write(map_kind, plural, singular, source_id, twenty_id, body, dig)
         if result == "synced":

@@ -80,9 +80,12 @@ class TwentyClient:
                 raise TwentyUncertain(f"twenty_http_{status}")
             if status >= 400:
                 raise TwentyError(f"twenty_http_{status}")
-            data = response.json() if response.content else {}
+            try:
+                data = response.json() if response.content else {}
+            except ValueError:
+                data = None
             if not isinstance(data, dict):
-                raise TwentyError("twenty_invalid_response")
+                raise (TwentyUncertain if write else TwentyError)("twenty_invalid_response")
             return data
         raise TwentyError("twenty_retry_exhausted")
 
@@ -90,7 +93,8 @@ class TwentyClient:
     def _record(data: dict, key: str) -> dict:
         record = (data.get("data") or {}).get(key)
         if not isinstance(record, dict) or not record.get("id"):
-            raise TwentyError("twenty_missing_record")
+            # 2xx without a receipt: the write may have committed.
+            raise TwentyUncertain("twenty_missing_receipt")
         return record
 
     async def create(self, plural: str, singular: str, body: dict) -> dict:
@@ -120,6 +124,16 @@ class TwentyClient:
         if not isinstance(rows, list):
             raise TwentyError("twenty_invalid_collection")
         return rows
+
+    async def count(self, plural: str, flt: str = "") -> int:
+        params: dict[str, Any] = {"limit": 1}
+        if flt:
+            params["filter"] = flt
+        data = await self._send("GET", f"/{plural}", params=params)
+        total = data.get("totalCount")
+        if not isinstance(total, int):
+            raise TwentyError("twenty_missing_total")
+        return total
 
     async def members(self) -> list[dict[str, Any]]:
         return await self.find("workspaceMembers", "", limit=200)

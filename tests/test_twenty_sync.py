@@ -65,6 +65,10 @@ class FakeTwenty:
         self.writes += 1
         return {"id": rid}
 
+    async def count(self, plural, flt=""):
+        self._maybe_fail()
+        return sum(1 for r in self.db.get(plural, {}).values() if r.get("amoId") is not None)
+
     async def find(self, plural, flt, limit=2):
         self._maybe_fail()
         if flt.startswith("and("):
@@ -384,3 +388,92 @@ def test_phone_normalization():
     assert builders.normalize_phone("+998 (90) 123-45-67") == "901234567"
     assert builders.normalize_phone("901234567") == "901234567"
     assert builders.normalize_phone("12345") is None
+
+
+# --- Review regressions (PR #924) ---------------------------------------------
+
+def test_task_link_retried_when_target_appears_later():
+    async def go():
+        mirror, maps, twenty, projector = await setup()
+        await seed(mirror, ("tasks", task()))
+        await projector.run()
+        assert "taskTargets" not in twenty.db
+        await seed(mirror, ("contacts", contact()), ("leads", lead()))
+        await projector.run()
+        assert len(twenty.db["taskTargets"]) == 1 and len(twenty.db["tasks"]) == 1
+    run(go())
+
+
+def test_uncertain_writes_reach_blocked_after_limit():
+    async def go():
+        _, maps, _, _ = await setup()
+        for _ in range(5):
+            state = await maps.fail("person", 1, "twenty_write_timeout", uncertain=True)
+        assert state == "blocked"
+    run(go())
+
+
+def test_claim_elects_single_writer():
+    async def go():
+        _, maps, _, _ = await setup()
+        assert await maps.claim("call", "SYN-9", system="moizvonki") is True
+        assert await maps.claim("call", "SYN-9", system="moizvonki") is False
+        twenty_calls_maps = maps
+        await twenty_calls_maps.put("call", "SYN-9", state="failed", system="moizvonki")
+        assert await maps.claim("call", "SYN-9", system="moizvonki") is True
+    run(go())
+
+
+def test_concurrent_call_delivery_gets_in_progress():
+    async def go():
+        _, maps, twenty, _ = await setup()
+        await maps.claim("call", "SYN-1", system="moizvonki")  # first delivery in flight
+        with pytest.raises(twenty_calls.CallInProgress):
+            await twenty_calls.record_call(event(), twenty, maps)
+        assert "notes" not in twenty.db
+    run(go())
+
+
+def test_webhook_honors_kill_switch(monkeypatch):
+    monkeypatch.setenv("TWENTY_CALLS_WEBHOOK_SECRET", "SYNTHETIC-secret")
+    monkeypatch.setenv("TWENTY_SYNC_ENABLED", "0")
+    with pytest.raises(HTTPException) as exc:
+        run(twenty_calls.call_webhook(event(), x_webhook_secret="SYNTHETIC-secret"))
+    assert exc.value.status_code == 503 and exc.value.detail == "twenty_sync_disabled"
+
+
+def test_blank_call_id_rejected():
+    with pytest.raises(ValueError):
+        event(call_id="   ")
+    assert event(call_id="  SYN-2 ").call_id == "SYN-2"
+
+
+def test_amount_cleared_when_price_becomes_zero():
+    body = builders.opportunity(lead(price=0), stage="NEW", owner_id=None,
+                                contact_twenty_id=None, currency="UZS")
+    assert body["amount"] == {"amountMicros": None, "currencyCode": "UZS"}
+
+
+def test_missing_receipt_is_uncertain():
+    def handler(request):
+        return httpx.Response(200, json={"data": {}})
+
+    async def go():
+        client = TwentyClient("https://x", "SYNTHETIC", transport=httpx.MockTransport(handler))
+        with pytest.raises(TwentyUncertain):
+            await client.create("people", "person", {})
+        await client.aclose()
+    run(go())
+
+
+def test_reconcile_reads_remote_counts():
+    async def go():
+        mirror, maps, twenty, projector = await setup()
+        await seed(mirror, ("contacts", contact()))
+        await projector.run()
+        twenty.db["people"].clear()  # record lost in Twenty
+        report = await reconcile(mirror, maps, twenty)
+        assert report["contacts"]["target_synced"] == 1
+        assert report["contacts"]["target_remote"] == 0
+        assert report["contacts"]["remote_gap"] == 1
+    run(go())

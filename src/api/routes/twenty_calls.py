@@ -12,7 +12,7 @@ import os
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.services.core.crm.twenty import builders
 from src.services.core.crm.twenty.client import (
@@ -32,6 +32,14 @@ class CallEvent(BaseModel):
     recording_url: Optional[str] = Field(default=None, max_length=1000)
     manager: Optional[str] = Field(default=None, max_length=100)
     started_at: Optional[int] = Field(default=None, ge=0)
+
+    @field_validator("call_id")
+    @classmethod
+    def _call_id_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("call_id is blank")
+        return value
 
 
 def _check_secret(provided: Optional[str]) -> None:
@@ -61,18 +69,31 @@ async def _existing_note(client, call_id: str):
     return rows[0]["id"] if rows else None
 
 
+class CallInProgress(Exception):
+    pass
+
+
 async def record_call(event: CallEvent, client, maps) -> dict:
     current = await maps.get(KIND, event.call_id, SYSTEM)
     if current and current["state"] == "synced":
         # Re-link on retry: a previous attempt may have failed after the note was created.
         linked = await _link_person(client, current["twenty_id"], event.phone)
         return {"status": "duplicate", "note_id": current["twenty_id"], "linked": linked}
+    if current and current["state"] == "blocked":
+        raise TwentyError("call_blocked_for_review")
+    # Elect exactly one writer per call_id; concurrent retries get 409.
+    if not await maps.claim(KIND, event.call_id, system=SYSTEM):
+        raise CallInProgress()
     note_id = None
     if current and current["state"] in ("uncertain", "pending"):
-        note_id = await _existing_note(client, event.call_id)
+        try:
+            note_id = await _existing_note(client, event.call_id)
+        except TwentyError:
+            await maps.put(KIND, event.call_id, state="uncertain", system=SYSTEM,
+                           error="reconcile_failed")
+            raise
     body = call_note(event)
     if note_id is None:
-        await maps.put(KIND, event.call_id, state="pending", system=SYSTEM)
         try:
             note_id = (await client.create("notes", "note", body))["id"]
         except TwentyUncertain as exc:
@@ -106,6 +127,9 @@ async def _link_person(client, note_id: str, phone: str) -> bool:
 async def call_webhook(event: CallEvent,
                        x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret")):
     _check_secret(x_webhook_secret)
+    from src.services.core.crm.twenty.runner import enabled
+    if not enabled():
+        raise HTTPException(503, "twenty_sync_disabled")
     try:
         url, key = config_from_env()
     except TwentyNotConfigured:
@@ -116,6 +140,8 @@ async def call_webhook(event: CallEvent,
     client = TwentyClient(url, key)
     try:
         return await record_call(event, client, maps)
+    except CallInProgress:
+        raise HTTPException(409, "call_in_progress")
     except TwentyError as exc:
         raise HTTPException(502, str(exc))
     finally:

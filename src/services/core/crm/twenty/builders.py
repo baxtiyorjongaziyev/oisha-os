@@ -65,9 +65,10 @@ def opportunity(lead: dict, *, stage: str, owner_id: str | None,
                   or f"Bitim #{lead['id']}", "stage": stage,
                   "ownerId": owner_id, "pointOfContactId": contact_twenty_id}
     price = lead.get("price")
-    if isinstance(price, int) and price > 0:
-        body["amount"] = {"amountMicros": price * 1_000_000,
-                          "currencyCode": (currency or "UZS").upper()}
+    # Always send amount: omitted PATCH fields keep stale values in Twenty.
+    body["amount"] = {
+        "amountMicros": price * 1_000_000 if isinstance(price, int) and price > 0 else None,
+        "currencyCode": (currency or "UZS").upper()}
     return body
 
 

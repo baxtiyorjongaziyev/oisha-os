@@ -34,7 +34,8 @@ def main() -> int:
         dry_report=args.report_only))
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     state = (result.get("projection") or {}).get("state", "ready")
-    return 0 if state == "ready" else 1
+    # Incomplete source pull means unseen amoCRM rows: never report success.
+    return 0 if state == "ready" and result.get("source_complete") else 1
 
 
 if __name__ == "__main__":

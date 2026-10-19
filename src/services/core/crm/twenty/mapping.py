@@ -74,17 +74,40 @@ class MapStore:
     async def fail(self, kind, source_id, error, *, uncertain=False, system="amocrm"):
         current = await self.get(kind, source_id, system) or {}
         attempts = current.get("attempts", 0) + 1
-        state = "uncertain" if uncertain else (
-            "blocked" if attempts >= MAX_ATTEMPTS else "failed")
+        if attempts >= MAX_ATTEMPTS:
+            state = "blocked"
+        else:
+            state = "uncertain" if uncertain else "failed"
         await self.put(kind, source_id, state=state, error=error,
                        attempts=attempts, system=system)
         return state
 
-    async def recover_interrupted(self):
-        """A crash between 'pending' and the result leaves the outcome unknown."""
+    async def claim(self, kind, source_id, allowed=("failed", "uncertain"),
+                    system="amocrm", stale_after=300) -> bool:
+        """Atomically elect one writer. A fresh 'pending' row means another
+        writer is in flight; a stale one is treated as an interrupted write."""
+        now = int(self.clock())
+        states = ",".join("'" + s + "'" for s in allowed)  # constants only
+        rows = await self.sql(
+            f"""INSERT INTO twenty_sync_map
+            (source_system,kind,source_id,state,attempts,updated_at)
+            VALUES(?,?,?,'pending',0,?)
+            ON CONFLICT(source_system,kind,source_id) DO UPDATE SET
+              state='pending', updated_at=excluded.updated_at
+            WHERE twenty_sync_map.state IN ({states})
+               OR (twenty_sync_map.state='pending' AND twenty_sync_map.updated_at<?)
+            RETURNING source_id""",
+            [system, kind, str(source_id), now, now - stale_after],
+        )
+        return bool(rows)
+
+    async def recover_interrupted(self, system="amocrm"):
+        """A crash between 'pending' and the result leaves the outcome unknown.
+        Scoped to one source system so live webhook writes are not disturbed."""
         await self.sql(
             """UPDATE twenty_sync_map SET state='uncertain', last_error='interrupted_write',
-            updated_at=? WHERE state='pending'""", [int(self.clock())],
+            updated_at=? WHERE state='pending' AND source_system=?""",
+            [int(self.clock()), system],
         )
 
     async def counts(self) -> dict[str, dict[str, int]]:
