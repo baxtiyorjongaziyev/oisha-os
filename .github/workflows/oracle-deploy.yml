@@ -159,6 +159,12 @@ jobs:
             OISHA_DIR="/home/ubuntu/oisha-os"
             cd "$OISHA_DIR"
 
+            # Serverda kimdir git'ni root sifatida ishlatsa, .git/objects root'ga
+            # o'tib qoladi va keyingi `git fetch` "insufficient permission"
+            # bilan yiqiladi (2026-10-15 dan beri barcha deploy'lar). Runner
+            # user'ga egalikni qaytaramiz.
+            sudo chown -R "$(id -un):$(id -gn)" "$OISHA_DIR"
+
             mkdir -p data
             cp -a data/*.session /tmp/ 2>/dev/null || true
             cp -a data/amocrm_token.json /tmp/amocrm_token.json 2>/dev/null || true
