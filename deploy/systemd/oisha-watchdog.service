@@ -15,6 +15,12 @@ StateDirectory=oisha-watchdog
 WorkingDirectory=/var/lib/oisha-watchdog
 Environment=OISHA_SYSTEMD_SERVICE=oisha-os.service
 Environment=PYTHONUNBUFFERED=1
+# Legacy /root watchdog.service bilan bir xil bardoshlilik (yuklangan VPS'da
+# vaqtinchalik sekin healthz'da keraksiz restart bo'lmasin).
+Environment=OISHA_HEALTH_URL=http://127.0.0.1:8080/healthz/
+Environment=OISHA_STARTUP_GRACE_SECONDS=300
+Environment=OISHA_HEALTH_TIMEOUT=30
+Environment=OISHA_FAILURE_THRESHOLD=8
 ExecStart=/home/ubuntu/oisha-os/venv/bin/python -u /home/ubuntu/oisha-os/src/services/watchdog.py
 Restart=always
 RestartSec=15
