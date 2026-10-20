@@ -104,13 +104,13 @@ class PairingSecurityGate:
 
         # 2. Prompt injection defense
         if self.is_prompt_injection(text):
-            logger.warning("Prompt injection blocked", sender_id=sender_str, snippet=text[:60])
+            logger.warning("Prompt injection blocked", sender_id=sender_str)
             return GateDecision(allowed=False, reason="PROMPT_INJECTION_DETECTED")
 
         # 3. Pairing verification (if channel is in pairing-enforced mode)
         if requires_pairing and sender_str not in self.trusted_senders and sender_str not in self.paired_senders:
             challenge = self.generate_pairing_code(sender_str)
-            logger.info("Sender pairing challenged", sender_id=sender_str, challenge=challenge)
+            logger.info("Sender pairing challenged", sender_id=sender_str)
             return GateDecision(
                 allowed=False,
                 reason="PAIRING_REQUIRED",

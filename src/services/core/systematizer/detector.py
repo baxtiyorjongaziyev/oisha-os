@@ -24,7 +24,7 @@ logger = structlog.get_logger()
 CANONICAL_FAQ_MAP: Dict[str, Tuple[str, List[str]]] = {
     "pricing_inquiry": (
         "Xizmat narxlarini so'rash",
-        ["narxi", "qancha", "nechpul", "narxlar", "skolko", "price", "stoimost"],
+        ["narxi", "qancha", "nechpul", "narxlar", "narxlari", "skolko", "price", "stoimost"],
     ),
     "portfolio_request": (
         "Portfolio va oldingi ishlarni ko'rish",
@@ -101,7 +101,8 @@ class PatternDetector:
         for key, (title, keywords) in signal_map.items():
             for kw in keywords:
                 norm_kw = self.normalize_text(kw)
-                if norm_kw and (norm_kw in normalized or norm_kw in words):
+                if norm_kw and (norm_kw in words if " " not in norm_kw
+                                else f" {norm_kw} " in f" {normalized} "):
                     return key, title
         return None
 
@@ -267,7 +268,6 @@ class PatternDetector:
 
         for pat in patterns:
             prop_id = f"prop_{pat.pattern_id[4:]}"
-            saved_mins = int(pat.frequency * (pat.impact_score * 20))
             strategy = pat.suggested_strategy
 
             if strategy == AutomationStrategy.AI_AUTO_REPLY:
@@ -302,7 +302,7 @@ class PatternDetector:
                 strategy=strategy,
                 problem_statement=f"Jamoa ushbu operatsiyani {pat.frequency} marta qo'lda takrorlagan.",
                 solution_blueprint=blueprint,
-                time_saved_weekly_minutes=min(saved_mins, 600),
+                time_saved_weekly_minutes=None,
                 target_skill_or_handler=target,
                 status=ProposalStatus.PENDING,
                 created_at=now,
@@ -357,7 +357,13 @@ class PatternDetector:
             f"## Tavsiya etilgan arxitektura\n"
             f"{proposal.solution_blueprint}\n\n"
             f"## Tejash samaradorligi\n"
-            f"Haftasiga taxminan {proposal.time_saved_weekly_minutes} daqiqa jamoa vaqti tejaladi.\n\n"
+            f"{self._savings_text(proposal)}\n\n"
             f"## Texnik integratsiya nuqtasi\n"
             f"`{proposal.target_skill_or_handler}`\n"
         )
+
+    @staticmethod
+    def _savings_text(proposal: SystematizationProposal) -> str:
+        if proposal.time_saved_weekly_minutes is None:
+            return "Noma'lum: kuzatuv davri va har bir amal davomiyligi tasdiqlanmagan."
+        return f"Haftasiga taxminan {proposal.time_saved_weekly_minutes} daqiqa."

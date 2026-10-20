@@ -80,7 +80,10 @@ def audit_existing_directory(target_path: Path) -> int:
     violations = 0
     for sf in source_files:
         report = modularizer.audit_file(sf)
-        if report.is_god_file:
+        if not report.syntax_valid:
+            print(f"  [INVALID] {sf.name}: {report.error_message}")
+            violations += 1
+        elif report.is_god_file:
             print(f"  [!] God-file detected: {sf.name} ({report.total_lines} lines > 400)")
             violations += 1
         else:
@@ -112,7 +115,7 @@ def modularize_existing_directory(target_path: Path) -> int:
                 print(f"  [SKIPPED] {sf.name} could not be modularized")
 
     print(f"\nModularization complete: {refactored} God-file(s) modularized.")
-    return 0
+    return audit_existing_directory(target_path)
 
 
 def _poll_for_new_commit(config: AIStudioAppConfig, workspace_root: Path) -> None:
@@ -170,7 +173,7 @@ def main() -> int:
     print(f"God-files Detected:   {summary.god_files_detected}")
     print(f"God-files Modularized:{summary.god_files_refactored}")
 
-    if summary.status == AppSyncStatus.FAILED:
+    if summary.status != AppSyncStatus.COMPLETED:
         print(f"Error: {summary.details.get('error', 'Unknown error')}")
         return 1
 

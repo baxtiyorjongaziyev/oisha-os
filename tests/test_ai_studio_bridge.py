@@ -44,7 +44,7 @@ def test_modularizer_clean_file(tmp_path: Path):
     assert files == []
 
 
-def test_modularizer_splits_python_god_file(tmp_path: Path):
+def test_modularizer_preserves_python_until_safe_extraction_exists(tmp_path: Path):
     god_py = tmp_path / "giant_service.py"
     lines = [f"def func_{i}():\n    return {i}\n" for i in range(250)]  # 500 lines
     god_py.write_text("\n".join(lines), encoding="utf-8")
@@ -53,17 +53,12 @@ def test_modularizer_splits_python_god_file(tmp_path: Path):
     report = mod.audit_file(god_py)
     assert report.is_god_file is True
 
-    changed, generated_files = mod.modularize_if_needed(god_py)
-    assert changed is True
-    assert len(generated_files) > 1
-
-    # Check that original file became a facade
-    facade_text = god_py.read_text(encoding="utf-8")
-    assert "Facade for giant_service" in facade_text
-    assert len(facade_text.splitlines()) < 50
+    original = god_py.read_bytes()
+    assert mod.modularize_if_needed(god_py) == (False, [])
+    assert god_py.read_bytes() == original
 
 
-def test_modularizer_splits_ts_god_file(tmp_path: Path):
+def test_modularizer_preserves_ts_until_safe_extraction_exists(tmp_path: Path):
     god_tsx = tmp_path / "GiantComponent.tsx"
     lines = [f"export const Item{i} = () => <div>{i}</div>;" for i in range(450)]
     god_tsx.write_text("\n".join(lines), encoding="utf-8")
@@ -72,13 +67,9 @@ def test_modularizer_splits_ts_god_file(tmp_path: Path):
     report = mod.audit_file(god_tsx)
     assert report.is_god_file is True
 
-    changed, generated_files = mod.modularize_if_needed(god_tsx)
-    assert changed is True
-    assert len(generated_files) > 1
-
-    facade_text = god_tsx.read_text(encoding="utf-8")
-    assert "export * from" in facade_text
-    assert len(facade_text.splitlines()) < 50
+    original = god_tsx.read_bytes()
+    assert mod.modularize_if_needed(god_tsx) == (False, [])
+    assert god_tsx.read_bytes() == original
 
 
 def test_git_sync_list_source_files(tmp_path: Path):
@@ -110,6 +101,7 @@ def test_pipeline_run_end_to_end_mocked(tmp_path: Path):
         app_id="app-456",
         repo_name="test/repo",
         target_dir="tmp_target",
+        run_preflight=False,
     )
 
     pipeline = AIStudioBridgePipeline(workspace_root=tmp_path, git_sync=mock_git)

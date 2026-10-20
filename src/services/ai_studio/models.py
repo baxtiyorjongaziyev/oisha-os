@@ -31,7 +31,7 @@ class AIStudioAppConfig(BaseModel):
     )
     auto_modularize: bool = Field(
         default=True,
-        description="Automatically split God-files (>400 lines) into modular subcomponents",
+        description="Request safe extraction; unsupported files remain unchanged and fail standards",
     )
     run_preflight: bool = Field(
         default=True,

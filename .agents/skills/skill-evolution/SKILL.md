@@ -61,5 +61,5 @@ description: <Agent qachon va nima maqsadda ushbu skillni ishga tushirishi kerak
 Oisha-OS da skill yaratishni avtomatlashtirish uchun `scripts/harness/skill_generator.py` yordamchi skriptidan foydalanish mumkin:
 
 ```powershell
-python scripts/harness/skill_generator.py --task "AmoCRM Dublikat Tozalash" --output ".agents/skills/amocrm-dedup"
+rtk proxy python scripts/harness/skill_generator.py --name "amocrm-dedup" --desc "AmoCRM dublikatlarini tozalash"
 ```

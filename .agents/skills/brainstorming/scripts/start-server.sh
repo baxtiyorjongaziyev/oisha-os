@@ -114,6 +114,15 @@ umask 077
 SESSION_ID="$$-$(date +%s)"
 
 if [[ -n "$PROJECT_DIR" ]]; then
+  # Fail before creating credentials if another project does not ignore runtime
+  # state, or if state has already been tracked (ignore rules cannot untrack it).
+  if git -C "$PROJECT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if [[ -n "$(git -C "$PROJECT_DIR" ls-files -- .superpowers/brainstorm)" ]] ||
+       ! git -C "$PROJECT_DIR" check-ignore -q -- .superpowers/brainstorm/; then
+      echo '{"error":"Companion runtime must be untracked and .superpowers/ ignored before startup"}'
+      exit 1
+    fi
+  fi
   SESSION_DIR="${PROJECT_DIR}/.superpowers/brainstorm/${SESSION_ID}"
   # Persist the bound port and key per project so a restart reuses them and an
   # already-open browser tab reconnects to the same URL with a valid cookie.

@@ -13,6 +13,19 @@ if [[ -z "$SESSION_DIR" ]]; then
   exit 1
 fi
 
+# Resolve aliases and '..' before inspecting state or deciding to remove anything.
+# A symlink session is never an ephemeral directory owned by this script.
+SESSION_IS_SYMLINK=false
+[[ -L "$SESSION_DIR" ]] && SESSION_IS_SYMLINK=true
+SESSION_DIR="$(cd -- "$SESSION_DIR" 2>/dev/null && pwd -P)" || exit 1
+TEMP_ROOT="$(cd /tmp && pwd -P)"
+
+is_ephemeral_session() {
+  [[ "$SESSION_IS_SYMLINK" == false ]] || return 1
+  [[ "$(dirname -- "$SESSION_DIR")" == "$TEMP_ROOT" ]] || return 1
+  [[ "$(basename -- "$SESSION_DIR")" =~ ^brainstorm-[0-9]+-[0-9]+$ ]]
+}
+
 STATE_DIR="${SESSION_DIR}/state"
 PID_FILE="${STATE_DIR}/server.pid"
 SERVER_ID_FILE="${STATE_DIR}/server-instance-id"
@@ -110,7 +123,7 @@ if [[ -f "$PID_FILE" ]]; then
   mark_stopped "stop-server.sh"
 
   # Only delete ephemeral /tmp directories
-  if [[ "$SESSION_DIR" == /tmp/* ]]; then
+  if is_ephemeral_session; then
     rm -rf "$SESSION_DIR"
   fi
 

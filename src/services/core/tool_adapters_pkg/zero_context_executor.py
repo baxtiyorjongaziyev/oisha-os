@@ -18,7 +18,7 @@ import structlog
 
 logger = structlog.get_logger("ZeroContextExecutor")
 
-ROOT = Path(__file__).resolve().parent.parent.parent.parent
+ROOT = Path(__file__).resolve().parents[4]
 PYTHON_EXE = ROOT / ".venv" / "Scripts" / "python.exe"
 if not PYTHON_EXE.exists():
     PYTHON_EXE = Path(sys.executable)
@@ -57,11 +57,11 @@ class ZeroContextExecutor:
     def _prepare_environment(self, custom_env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         """Prepares isolated environment with project PYTHONPATH and safety flags."""
         env = os.environ.copy()
-        env["PYTHONPATH"] = str(self.root_dir)
-        env["SKIP_LIVE"] = env.get("SKIP_LIVE", "1")
-        env["ALLOW_LOCAL_RUN"] = "0"
         if custom_env:
             env.update(custom_env)
+        env["PYTHONPATH"] = str(self.root_dir)
+        env["SKIP_LIVE"] = "1"
+        env["ALLOW_LOCAL_RUN"] = "0"
         return env
 
     def _extract_json_payload(self, stdout: str) -> Dict[str, Any]:

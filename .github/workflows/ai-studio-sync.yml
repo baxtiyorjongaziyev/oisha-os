@@ -22,6 +22,11 @@ on:
 jobs:
   sync-and-modularize:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      SKIP_LIVE: "1"
+      ALLOW_LOCAL_RUN: "0"
     steps:
       - name: Checkout Oisha-OS
         uses: actions/checkout@v4
@@ -37,15 +42,29 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e . pytest structlog pydantic
+          pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run AI Studio Sync & Modularization Bridge
+        env:
+          APP_ID: ${{ inputs.app_id || '80b6106f-6db5-4f9a-9b1c-7d5a60fb7827' }}
+          SOURCE_REPO: ${{ inputs.repo_name || 'baxtiyorjongaziyev/oisha-os-preview' }}
+          SOURCE_BRANCH: ${{ inputs.branch || 'main' }}
         run: |
           python -m scripts.ai_studio_bridge \
-            --app-id "${{ github.event.inputs.app_id || '80b6106f-6db5-4f9a-9b1c-7d5a60fb7827' }}" \
-            --repo "${{ github.event.inputs.repo_name || 'baxtiyorjongaziyev/oisha-os-preview' }}" \
-            --branch "${{ github.event.inputs.branch || 'main' }}"
+            --app-id "$APP_ID" \
+            --repo "$SOURCE_REPO" \
+            --branch "$SOURCE_BRANCH"
 
       - name: Run Standards & Tests Verification
         run: |
           python -m pytest tests/test_ai_studio_bridge.py -q
+
+      - name: Preserve synchronized source and audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-studio-sync-${{ github.run_id }}
+          path: apps/ai_studio_preview/
+          include-hidden-files: false
+          if-no-files-found: warn
+          retention-days: 14

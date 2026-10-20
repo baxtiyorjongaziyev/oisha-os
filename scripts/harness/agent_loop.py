@@ -32,7 +32,6 @@ class LoopConfig:
     max_iterations: int = 15
     max_stalls: int = 3
     test_target: Optional[str] = None
-    auto_commit: bool = False
     plan_file: Optional[Path] = None
 
 
@@ -111,16 +110,7 @@ def format_handoff_entry(agent_name: str, task_summary: str, files_changed: list
 def record_successful_handoff(task_summary: str) -> None:
     """Appends verified handoff evidence to docs/agents/handoff-log.md."""
     try:
-        diff_files = (
-            subprocess.check_output(
-                ["git", "diff", "--name-only", "HEAD~1"],
-                cwd=str(ROOT),
-                text=True,
-                errors="replace",
-            )
-            .strip()
-            .splitlines()
-        )
+        diff_files = current_changed_files()
     except Exception:
         diff_files = []
 
@@ -129,6 +119,16 @@ def record_successful_handoff(task_summary: str) -> None:
         with open(HANDOFF_FILE, "a", encoding="utf-8") as f:
             f.write(entry)
         print(f"📝 Handoff recorded in {HANDOFF_FILE.relative_to(ROOT)}")
+
+
+def current_changed_files() -> list[str]:
+    """Collect staged, unstaged and untracked paths without previous commits."""
+    paths = set()
+    for args in (["diff", "--name-only", "-z", "HEAD"],
+                 ["ls-files", "--others", "--exclude-standard", "-z"]):
+        output = subprocess.check_output(["git", *args], cwd=ROOT)
+        paths.update(os.fsdecode(path) for path in output.split(b"\0") if path)
+    return sorted(paths)
 
 
 def run_autonomous_loop(config: LoopConfig) -> int:
@@ -177,6 +177,9 @@ def run_autonomous_loop(config: LoopConfig) -> int:
 
 
 def main() -> None:
+    if "--commit" in sys.argv:
+        print("--commit is unsupported; commit reviewed changes separately after verification.")
+        sys.exit(2)
     target = None
     for arg in sys.argv[1:]:
         if not arg.startswith("-"):
@@ -187,7 +190,6 @@ def main() -> None:
         max_iterations=15,
         max_stalls=3,
         test_target=target or "tests/test_admin_bot_notify.py",
-        auto_commit="--commit" in sys.argv,
     )
     exit_code = run_autonomous_loop(config)
     sys.exit(exit_code)

@@ -1,8 +1,7 @@
 # Harness Loop Wrapper for Windows PowerShell
 param(
     [string]$Target = "",
-    [switch]$Loop,
-    [switch]$Commit
+    [switch]$Loop
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,9 +21,6 @@ $scriptPath = Join-Path $root "scripts\harness\$scriptName"
 $harnessArgs = @()
 if ($Target) {
     $harnessArgs += $Target
-}
-if ($Commit) {
-    $harnessArgs += "--commit"
 }
 
 & $python $scriptPath @harnessArgs

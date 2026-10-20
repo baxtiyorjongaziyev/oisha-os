@@ -5,6 +5,9 @@ Orchestrates git synchronization, modularization, and preflight verification.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Optional
 import structlog
@@ -12,7 +15,6 @@ import structlog
 from src.services.ai_studio.models import (
     AIStudioAppConfig,
     AppSyncStatus,
-    FileAuditReport,
     IngestionSummary,
 )
 from src.services.ai_studio.modularizer import CodeModularizer
@@ -58,13 +60,38 @@ class AIStudioBridgePipeline:
         self._process_source_files(source_files, config, summary)
 
         # 4. Final status determination
-        if summary.god_files_detected > summary.god_files_refactored:
+        if any(not report.syntax_valid for report in summary.file_reports):
+            summary.status = AppSyncStatus.FAILED
+            summary.details["error"] = "Source syntax validation failed"
+        elif summary.god_files_detected > summary.god_files_refactored:
             summary.status = AppSyncStatus.STANDARDS_VIOLATED
+        elif config.run_preflight and not self._run_preflight(summary):
+            summary.status = AppSyncStatus.FAILED
         else:
             summary.status = AppSyncStatus.COMPLETED
 
         self._save_run_summary(summary, target_path)
         return summary
+
+    def _run_preflight(self, summary: IngestionSummary) -> bool:
+        """Run repository gates with live access disabled."""
+        env = dict(os.environ, SKIP_LIVE="1", ALLOW_LOCAL_RUN="0")
+        commands = [
+            [sys.executable, "-m", "pytest", "-q", "--tb=short"],
+            [sys.executable, "-m", "bandit", "-r", "src/", "-ll"],
+        ]
+        for command in commands:
+            try:
+                result = subprocess.run(command, cwd=self.workspace_root, env=env,
+                                        capture_output=True, text=True, timeout=600)
+            except (OSError, subprocess.SubprocessError):
+                summary.details["error"] = f"Preflight unavailable: {command[2]}"
+                return False
+            if result.returncode:
+                summary.details["error"] = f"Preflight failed: {command[2]} (exit {result.returncode})"
+                return False
+        summary.preflight_passed = True
+        return True
 
     def _process_source_files(
         self,
@@ -87,7 +114,7 @@ class AIStudioBridgePipeline:
 
     def _save_run_summary(self, summary: IngestionSummary, target_path: Path) -> None:
         """Saves a JSON execution log in the ingested directory."""
-        log_file = target_path / ".antigravity_ingest_summary.json"
+        log_file = target_path / "antigravity_ingest_summary.json"
         try:
             data = summary.model_dump(mode="json")
             log_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
