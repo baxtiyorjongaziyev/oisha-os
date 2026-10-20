@@ -1917,3 +1917,39 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - **Tekshiruv dalili**:
     - Git holati: `main` branchi yangilandi, PR #915 `state: MERGED`.
     - Fayl qatorlari: `AGENTS.md` 111 qatorda saqlandi (<= 150 LOC talabi).
+
+
+## 2026-10-19 — Codex Coordinator: parallel Oisha CRM
+
+- Owner request: keep amoCRM operating while introducing an internal CRM for five sellers;
+  later cut over after data/integration acceptance.
+- Worktree: `C:/Users/baxti/.codex/worktrees/crm-parallel/oisha-os`;
+  branch `feat/crm-parallel`, based on current origin/main `1bd9d3fb`.
+  Original shared checkout and its unrelated dirty changes were preserved.
+- Added `src/services/core/crm/parallel/{schema,remote,store,sync,runtime}.py`,
+  authenticated `src/api/routes/parallel_crm.py`, HTML/CSS/JS console,
+  main router wiring, and a link from the existing web CRM page.
+- Scope: durable lead/contact/task/user/pipeline mirror; bounded resumable polling,
+  per-entity checkpoints, daily full rescan, same-account binding; manual lead
+  name/stage edits through a durable outbox, deduplication, conflict detection,
+  quiet-hours deferral, post-write verification and append-only state audit.
+- RBAC seller mapping fails closed; CSRF headers/origin and no-store/CSP enforced.
+  UI shows pending/conflict/unknown/stale/unavailable states and task truncation.
+- Validation: `SKIP_LIVE=1 python -m pytest -q --tb=short` equivalent Python runner:
+  **2870 passed, 18 skipped, 9 warnings, 4 subtests passed** (96.26 s).
+  Focused CRM suite **27 passed**. Full `bandit -r src/ -ll`: no medium/high issues.
+  Ruff F821, JS syntax and git diff whitespace checks passed.
+- Local Playwright synthetic preview exercised card open, name/stage save and
+  verified journal, desktop/mobile views; mobile document width 390 at viewport390.
+  Screenshots in ignored `output/playwright/crm-*.png`; preview fixtures remain
+  outside the repo and contain clearly labelled synthetic data only.
+- Independent read-only reviewer found and implementation fixed missing-record
+  starvation, changing-page membership, and completed-task starvation.
+- Release limitations: no create/delete/task writeback, full chat/audio migration
+  or automatic deletion mirroring; narrow remote GET/PATCH race remains documented.
+  All feature flags default off; production activation and source read-back not done.
+- Deployment evidence: existing Contabo root SSH attempt returned permission denied;
+  latest push Oracle workflow run 39151684064 was failure (2026-10-18). No server
+  configuration, userbot/session, live CRM record, or integration was changed.
+- Rollout and acceptance: `docs/agents/crm-parallel.md`; actual five seller subject →
+  amoCRM responsible mappings must be verified before access activation.

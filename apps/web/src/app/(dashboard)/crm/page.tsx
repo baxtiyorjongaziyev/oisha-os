@@ -35,6 +35,9 @@ export default async function CRMDashboard() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <a href="/api/crm/parallel/console" className="rounded-xl bg-[var(--accent-primary)] text-white px-5 py-2 text-xs font-bold">
+            Oisha CRM doskasi
+          </a>
           <button className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] px-4 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--bg-surface-active)] transition-all active:scale-[0.98]">
             🔄 Sinxronlash
           </button>
