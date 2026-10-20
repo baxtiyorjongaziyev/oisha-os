@@ -1953,3 +1953,22 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   configuration, userbot/session, live CRM record, or integration was changed.
 - Rollout and acceptance: `docs/agents/crm-parallel.md`; actual five seller subject →
   amoCRM responsible mappings must be verified before access activation.
+
+## 2026-10-19 — Claude (Opus 5.5) — Twenty CRM parallel sync (feat/twenty-crm-sync, base: feat/crm-parallel #923)
+
+- Bajarildi: amoCRM mirror (PR #923) → Twenty bir tomonlama proyeksiya (`src/services/core/crm/twenty/`):
+  barqaror `twenty_sync_map`, digest skip, per-kind checkpoint, uncertain → amoId reconcile, retry limit → blocked,
+  o'chirish tarqatilmaydi. Barcha izoh sahifalarini checkpoint bilan o'qish (`notes.py`).
+  `POST /api/twenty/calls`: secret fail-closed (503/401), API kalitsiz 503, xatoda 502, call_id dedup.
+  `scripts/twenty_sync.py` (--report-only reconcile). Runbook: `docs/agents/twenty-crm-runbook.md`.
+- Antigravity hisobotidagi 5 kamchilik shu branchda yangi kod bilan yopildi. Uning fayllari (asosiy checkout,
+  `feat/capi-console-ux`, commit qilinmagan: twenty_client.py, twenty_moizvonki.py, migrate_amocrm_to_twenty.py)
+  ishlatilmaydi. Ular mavjud bo'lmagan stage qiymatlari (CONTACTED, QUALIFIED...) va mavjud bo'lmagan
+  `amo_id` maydoniga tayangan. Ular o'chirilmadi, owner qaror qiladi.
+- Tekshiruv (lokal): `pytest tests/test_twenty_sync.py tests/test_parallel_crm.py` → 44 passed;
+  bandit -ll toza; ruff toza.
+- Production: Twenty sxemasi DB'dan o'qildi (stage: NEW/SCREENING/MEETING/PROPOSAL/CUSTOMER; amoId maydoni yo'q;
+  1 member; API kalit 0). Backup cron o'rnatildi, restore sinovi 5=5.
+- Bloker (owner): API kalit, amoId/callId maydonlari, bosqichlar, sotuvchi taklifi, rol sozlash.
+  Production sync va pilot ishga tushirilmagan. Codex/Antigravity bilan real aloqa bo'lmadi — kelishuv yo'q.
+- Obsidian/brain MCP ulanmadi (CONNECTION_CLOSED) — Obsidian qaydi yozilmadi.
