@@ -1,5 +1,5 @@
 from src.services.call_analytics.helpers import _looks_like_stt_hallucination
-from src.services.core.calls.call_notifier import build_call_alert_message
+from src.services.core.calls.call_notifier import build_call_alert_message, build_urgent_problem_alert
 
 # Real production output (lead 53082767): untuned Whisper "translated" an
 # Uzbek call into looping English nonsense.
@@ -27,12 +27,20 @@ def test_phrase_loop_alone_is_rejected():
     assert _looks_like_stt_hallucination(text)
 
 
-def test_mostly_english_transcript_is_rejected():
-    text = (
-        "yes I can tell you what is going on with the car and how are you "
-        "doing today we have it for you"
+def test_scattered_repeats_are_not_a_loop():
+    text = ". ".join(
+        ["ha albatta", "narxi qancha", "ha albatta", "ertaga kelaman",
+         "ha albatta", "logotip kerak", "ha albatta", "rahmat sizga"]
     )
-    assert _looks_like_stt_hallucination(text)
+    assert not _looks_like_stt_hallucination(text)
+
+
+def test_english_heavy_real_call_is_kept():
+    text = (
+        "Menejer: hello, how are you? Mijoz: yes I am fine, can you send the "
+        "price for the logo and the brand book to my telegram please"
+    )
+    assert not _looks_like_stt_hallucination(text)
 
 
 def test_normal_uzbek_call_is_accepted():
@@ -53,3 +61,12 @@ def test_alert_shows_stt_model():
         analysis={"stt_model": "groq/whisper-large-v3-turbo"},
     )
     assert "groq/whisper-large-v3-turbo" in msg
+
+
+def test_urgent_alert_shows_stt_model():
+    msg = build_urgent_problem_alert(
+        lead_id=1, call_id="c1", summary="s", client_mood="Salbiy",
+        duration_seconds=60, manager_name="M", caller_phone="+998",
+        analysis={"stt_model": "gemini/gemini-flash-lite-latest"},
+    )
+    assert "gemini/gemini-flash-lite-latest" in msg

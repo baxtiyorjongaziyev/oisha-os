@@ -170,6 +170,8 @@ def build_urgent_problem_alert(
         lines.append(rec_str)
     else:
         lines.append("💡 <b>Tavsiya:</b> 15 daqiqa ichida qayta bog'lanish yoki ROP aralashuvi tavsiya etiladi.")
+    if analysis.get("stt_model"):
+        lines.append(f"🔊 <i>Transkripsiya: {analysis['stt_model']}</i>")
     return "\n".join(lines)
 
 

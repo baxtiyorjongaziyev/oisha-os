@@ -147,7 +147,7 @@ def _looks_like_stt_hallucination(text: str) -> bool:
     words = normalised.split()
     if len(words) >= 4 and len(set(words)) == 1:
         return True
-    if _has_phrase_loop(normalised) or _looks_like_english_drift(words):
+    if _has_phrase_loop(normalised):
         return True
     return False
 
@@ -159,32 +159,18 @@ _PHRASE_SPLIT_RE = re.compile(r"[.,!?;\n]+")
 
 
 def _has_phrase_loop(normalised: str, min_repeats: int = 4) -> bool:
+    """Bir gap ketma-ket ``min_repeats`` marta takrorlansa — ASR sikli.
+
+    Faqat ketma-ket takror hisoblanadi: real suhbatda "ha albatta" turli
+    joylarda bir necha bor uchrashi normal.
+    """
     phrases = [p.strip() for p in _PHRASE_SPLIT_RE.split(normalised) if len(p.strip()) >= 6]
-    if len(phrases) < min_repeats:
-        return False
-    counts: Dict[str, int] = {}
-    for phrase in phrases:
-        counts[phrase] = counts.get(phrase, 0) + 1
-    return max(counts.values()) >= min_repeats
-
-
-# Inglizcha funksional so'zlar — o'zbekcha/ruscha suhbatda deyarli uchramaydi.
-_ENGLISH_STOPWORDS = frozenset({
-    "the", "you", "i", "is", "are", "am", "what", "how", "can", "to", "of",
-    "a", "an", "and", "it", "that", "this", "your", "my", "me", "we", "have",
-    "got", "do", "did", "about", "for", "with", "going", "yes", "no", "see",
-    "happened", "tell",
-})
-
-
-def _looks_like_english_drift(words: List[str], threshold: float = 0.25) -> bool:
-    """Transkript asosan inglizcha bo'lsa — STT tilni noto'g'ri aniqlagan."""
-    tokens = [w.strip(".,!?;:\"'()[]") for w in words]
-    tokens = [t for t in tokens if t]
-    if len(tokens) < 12:
-        return False
-    hits = sum(1 for t in tokens if t in _ENGLISH_STOPWORDS)
-    return hits / len(tokens) >= threshold
+    run = 1
+    for prev, cur in zip(phrases, phrases[1:]):
+        run = run + 1 if cur == prev else 1
+        if run >= min_repeats:
+            return True
+    return False
 
 
 def _transcript_impossible_for_duration(transcript: str, duration_seconds: int) -> bool:

@@ -206,7 +206,7 @@ class CallTranscriberMixin:
         try:
             from src.services.utils.gemini_fallback import generate_content_with_fallback
 
-            response, _ = await generate_content_with_fallback(
+            response, used_model = await generate_content_with_fallback(
                 self.genai_client,
                 primary_model=self.model_name,
                 contents=contents,
@@ -214,6 +214,7 @@ class CallTranscriberMixin:
                 env_name="GEMINI_CALL_FALLBACK_MODELS",
                 log_prefix="[CALL]",
             )
+            self._last_gemini_model = used_model
             return response
         except Exception as exc:
             if self._is_gemini_quota_error(exc):
@@ -264,7 +265,7 @@ class CallTranscriberMixin:
             text = (getattr(response, "text", None) or "").strip()
             if text and NO_SPEECH_SENTINEL not in text:
                 if not _looks_like_stt_hallucination(text):
-                    self._last_stt_source = "gemini"
+                    self._last_stt_source = f"gemini/{getattr(self, '_last_gemini_model', None) or self.model_name}"
                     return text
                 logger.info(
                     "[CALL] Gemini transcript rejected as likely hallucination: %r",
