@@ -176,13 +176,15 @@ class HunterWriter:
         return WriteResult(True, SENT, lead_id)
 
     async def _known_lead(self, keys: List[str]) -> Optional[int]:
-        marks = ",".join("?" for _ in keys)
-        rows = await self._sql(
-            f"SELECT lead_id FROM hunter_keys WHERE key IN ({marks}) AND lead_id IS NOT NULL "
-            "ORDER BY updated_at DESC LIMIT 1",
-            keys,
-        )
-        return int(rows[0]["lead_id"]) if rows else None
+        best = None
+        for key in keys:
+            rows = await self._sql(
+                "SELECT lead_id, updated_at FROM hunter_keys WHERE key=? AND lead_id IS NOT NULL",
+                [key],
+            )
+            if rows and (best is None or rows[0]["updated_at"] > best["updated_at"]):
+                best = rows[0]
+        return int(best["lead_id"]) if best else None
 
     async def _used_today(self, day: str) -> int:
         rows = await self._sql(
