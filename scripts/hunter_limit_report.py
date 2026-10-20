@@ -91,9 +91,20 @@ async def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--days", type=int, default=30)
     args = parser.parse_args()
+    from src.settings import settings
+
+    # Lokal mashinada ishga tushirilsa, amoCRM token yangilanishi prod tokenini
+    # aylantirib yuborishi mumkin. Faqat prod sozlamalari bor serverda ishlaydi.
+    if not (settings.AMOCRM_SUBDOMAIN or "").strip():
+        sys.exit("AMOCRM_SUBDOMAIN yo'q: bu skript faqat Contabo serverda ishga tushiriladi.")
     from src.services.core.crm.amocrm.sync import AmoCRMSync
 
-    leads = await collect(AmoCRMSync(), args.days)
+    amocrm = AmoCRMSync()
+    if not getattr(amocrm, "access_token", None):
+        sys.exit("amoCRM access token yo'q: hisobot olinmadi (0 lid degani emas).")
+    leads = await collect(amocrm, args.days)
+    if not leads:
+        sys.exit("amoCRM lid qaytarmadi: so'rov xatosi yoki voronka bo'sh. Hisobot ishonchsiz.")
     print(summarize(leads, args.days))
 
 
