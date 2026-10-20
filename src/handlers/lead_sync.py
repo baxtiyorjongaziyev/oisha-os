@@ -78,6 +78,8 @@ async def sync_single_lead(
                     name=full_name,
                     phone=primary_phone,
                     note=bio,
+                    source="telegram_group_tn5",
+                    kind="signal",
                 )
                 if crm_sync.get("success"):
                     logger.info("[ENTERPRISE] AmoCRM Lead created: %s", full_name)
