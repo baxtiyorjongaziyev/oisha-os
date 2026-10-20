@@ -1386,22 +1386,8 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
   - Obsidian Brain: `20-Areas/SOP_Sotuvchilar_Darsligi.md` ga 6-modul sifatida kiritildi, `brain_log` qayd etildi.
 - Tekshiruv: `SKIP_LIVE=1 pytest tests/test_call_conversion_tasks.py tests/test_daily_sales_calls_report.py` — 26/26 passed; barcha `.py` fayllar 150-400 LOC standartiga mos (`helpers.py`: 361, `runner.py`: 399, `normalizer.py`: 282, `crm_tasks.py`: 298, `scorer.py`: 314, `call_report_formatter.py`: 223, `daily_sales_calls_report.py`: 396).
 
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-=======
->>>>>>> origin/main
-## 2026-10-10 — Antigravity — Security & Dependabot Queue Resolution (Zero Alerts, 10/10 GitHub)
-- Task: GitHub repositorysini 10/10 ideal holatga keltirish: ochiq PRlarni tartibga solish, barcha ziddiyatlarni (conflicts) bartaraf qilish, CodeQL va Dependabot xavfsizlik ogohlantirishlarini 0 taga tushirish.
-- Bajarildi:
-  1. Oldingi navbatdagi PRlar birlashtirildi va merge qilindi: #845, #833, #829, #818 (yopildi), #815 (handoff-log ziddiyati to'g'irlanib merge qilindi), #846, #848, #850, #851, #853, #855, #861.
-  2. 23 ta eskirgan/takroriy Dependabot PR yopildi, 60 ta foydalanilmayotgan remote branchlar pruned qilindi.
-  3. Qolgan 5 ta muhim Dependabot xavfsizlik zaifliklari (Handlebars, PostCSS-selector-parser va Source-map-js) `salescoach-ai` va `marketing-os/frontend` paketlarida override va qat'iy pnpm lockfile yangilanishi orqali to'liq bartaraf etildi.
-  4. Radix-UI kutubxonalari (@radix-ui/react-dialog ^1.2.0, react-dropdown-menu ^2.1.25, react-progress ^1.1.17, react-select ^2.3.8) va Vite kutubxonalari (@vitejs/plugin-react ^6.1.2, oxlint ^1.87.0, vite ^8.3.4) bitta toza commit/PR ga birlashtirildi.
-  5. Breaking o'zgarishga ega bo'lgan mcp 2.x (#852) FastMCP migratsiyasigacha `mcp<2` ga qat'iy pin qilindi.
-- Tekshiruv: `pnpm install --frozen-lockfile` (salescoach-ai & marketing-os/frontend) muvaffaqiyatli o'tdi; Jest testlari (7/7 passed), marketing frontend build (170ms) va oxlint (0 errors) toza. CodeQL: 0 alert, Secrets: 0 alert.
-- Status: Barcha xavfsizlik va ziddiyatlar to'liq bartaraf etildi.
 
-<<<<<<< HEAD
+
 
 
 2026-10-10 / Codex Coordinator: Added owner-requested truthfulness and owner-click rules to AGENTS.md (rules 10-11). Verified with rg; recorded source in Obsidian. Other agents have not been verified to have read the changes. Tax review remains open.
@@ -1854,4 +1840,135 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - **Qolgan yagona ish**:
     - DNS `oisha.jonbranding.uz` A-yozuvini `163.192.10.104` (Oracle) dan `109.199.100.137` (Contabo) ga o'zgartirish. So'ngra Contaboda `certbot --nginx -d oisha.jonbranding.uz` orqali SSL yoqish.
 
+## 2026-10-16 — Antigravity — CodeQL Zero Security Alerts & Dependabot Grouping
+- Task: GitHub CodeQL security alertlarini (4 ta) to'liq bartaraf etish, ochiq PRlarni tartibga solish va Dependabot guruhlashini joriy etish.
+- Files:
+  - `src/services/api_server/oauth.py`: `_safe_redirect_target` va `_safe_login_next` orqali whitelisted yo'naltirish (CodeQL #65, #67 `py/url-redirection` bartaraf etildi); `html.escape` bilan login forma xavfsizlandi (CodeQL #68 `py/reflective-xss` bartaraf etildi).
+  - `src/services/api_server/telegram_extension.py`: `telegram_extension_send` da xato xabari sanitizatsiya qilindi (CodeQL #66 `py/stack-trace-exposure` bartaraf etildi).
+  - `.github/dependabot.yml`: Har bir ekotizim (npm root, salescoach-ai, marketing-os, pip) uchun `groups` kiritildi, haftalik yangilanishlar 30 ta alohida PR emas, bitta konsolidatsiyalangan PR bo'lib ochiladi.
+  - `tests/test_oauth_security.py`: Xavfsizlik bo'yicha maxsus 5 ta regressiya testi yozildi.
+- Tekshiruv: `pytest tests/test_oauth_security.py` — 5/5 passed; `bandit -r src/services/api_server/oauth.py src/services/api_server/telegram_extension.py -ll` — 0 issues; fayl hajmlari <= 400 LOC qoidasiga to'liq mos.
+- Status: Barcha CodeQL ogohlantirishlari bartaraf etildi.
+- **2026-10-18 — Antigravity — REA (Reverse Engineer Anything v6.5.0) O'rnatilishi va MCP Integratsiyasi:**
+  - **Foydalanuvchi so'rovi**: "morluto/rea vositasini sinab ko‘rish / o‘rnatish: Ushbu repozitoriyni o‘rganib, uni Antigravity yoki lokal tizimingizga MCP server sifatida ulash"
+  - **Bajarilgan ish**:
+    1. `morluto/rea` (npm `rea-agents@6.5.0`) repozitoriyasi va arxitekturasi to'liq o'rganildi.
+    2. Antigravity MCP konfiguratsiyasiga (`C:\Users\User\.gemini\config\mcp_config.json`) REA rasmiy ravishda MCP stdio server sifatida ulandi (`rea-agents@6.5.0 mcp`).
+    3. REA global CLI vositasi (`npm install --global rea-agents`) sifatida o'rnatildi, `rea` buyrug'i terminalda to'liq ishga tushdi (`rea --version`: 6.5.0).
+    4. Antigravity, Claude Code va Codex uchun REA rasmiy ro'yxatdan o'tkazildi (`state: aligned`).
+    5. REA rasmiy skilli (`reverse-engineer-anything`) Antigravity (`C:\Users\User\.gemini\config\skills`) va oisha-os repozitoriyasiga (`.agents/skills/reverse-engineer-anything`) o'rnatildi (207 ta MCP tool, 153 CLI buyruqlari, 6 ta prompt).
+  - **Tekshiruv dalili**:
+    - `rea doctor --skill --json` -> `healthy: true`, `skill: identity aligned` (version 42).
+    - `rea doctor --client antigravity` -> `healthy: true`, `registration:antigravity ok: true`.
+    - `rea --version` -> 6.5.0.
+- **2026-10-18 — Antigravity — SalesCoach CI & Lockfile Drift Remediation (PR #915):**
+  - **Foydalanuvchi so'rovi**: PR #913 failure ([Job 116844705264](https://github.com/baxtiyorjongaziyev/oisha-os/actions/runs/38861527072/job/116844705264)) tahlili va yechimi bo'yicha senior qaror.
+  - **Ildiz sabablari (Root causes)**:
+    1. Dependabot PR #913 `salescoach-ai/pnpm-lock.yaml` da dependency'larni yangilagan, biroq `salescoach-ai/pnpm-workspace.yaml` dagi eskirgan override'larni yangilay olmagan.
+    2. PR #914 `next` override'ini `16.4.0` ga o'zgartirgan, ammo lockfile'lar `16.3.8` da qolib, `main` da `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` keltirib chiqargan.
+    3. `salescoach-ai/pnpm-workspace.yaml` da pnpm 10 talab qiladigan `patchedDependencies` bloki yetishmagan va lockfile'dagi patch hash (pnpm 9 base32 `ltt5unvp...`) pnpm 10 kutgan sha256 (`6f55a8f8...`) bilan to'qnashgan.
+    4. `.github/workflows/salescoach-ai.yml` da API testlaridan oldin Prisma client generatsiyasi (`prisma:generate`) qolib ketgan edi.
+    5. `.github/workflows/test.yml` da `dorny/paths-filter@v3` uchun `pull-requests: read` huquqi yetishmayotgan edi.
+  - **Bajarilgan ish**:
+    - `pnpm-workspace.yaml` (root) va `salescoach-ai/package.json` dagi `next` versiyasi lockfile'ga moslab `16.3.8` ga keltirildi; `postcss` `^8.5.30` bilan sinxronlandi.
+    - `salescoach-ai/pnpm-workspace.yaml` dagi eskirgan override'lar lockfile'dagi aniq 25 ta override bilan 1-ga-1 qilib almashtirildi va `patchedDependencies` qo'shildi.
+    - `salescoach-ai/pnpm-lock.yaml` dagi braces patch hash pnpm 10 mos sha256 formatiga yangilandi.
+    - `.github/workflows/salescoach-ai.yml` ga `pnpm run prisma:generate` qadami qo'shildi.
+    - `.github/workflows/test.yml` permissions blokiga `pull-requests: read` qo'shildi.
+  - **Tekshiruv dalili**:
+    - PR #915 ochildi: [PR #915](https://github.com/baxtiyorjongaziyev/oisha-os/pull/915).
+    - Barcha CI tekshiruvlari 100% yashil o'tdi:
+      - `SalesCoach workspace checks`: pass (1m 39s)
+      - `api-contract`: pass (44s)
+      - `TypeScript monorepo checks`: pass (1m 30s)
+      - `pull-request-tests`: pass (1m 37s)
+      - `changes`: pass (8s)
+      - `gitleaks`: pass (5s)
+      - `Import-time crash guard`: pass (56s)
+  - **Holat**: PR #915 to'liq yashil va MERGEABLE holatda. Reviewer/Owner merge kutilmoqda.
 
+- **2026-10-18 — Antigravity — Turso Architecture Audit, Data Sources Scan & PatternDetector Engine:**
+  - **Foydalanuvchi so'rovi**:
+    1. "Turso ideal darajadami? hech man uni ichini ko'rmaganman" — texnik audit va tahlil.
+    2. Jon Branding barcha ma'lumot manbalari (AmoCRM + Turso + Telegram + Hisobchi) bo'yicha "Raqamli Boshqaruv Markazi" (Command Center) holatini to'liq skaner qilish.
+    3. Jamoaning takroriy harakatlarini yig'uvchi va tizimlashtiruvchi `PatternDetector` modulini qurish va ishga tushirish.
+  - **Bajarilgan ish**:
+    1. **Turso / LibSQL Architecture Audit**: `src/database_pool.py`, `src/db/connection.py`, `src/db/turso.py` va 10 ta repository skaner qilindi. Turso edge replikatsiya, Hrana drop retry (5 bosqichli backoff), SmartRow mapper va SQLite WAL avto-fallback baholandi; "ideal" holatga yetish uchun mavjud 3 ta cheklov (bitta ulanishli concurrency, deklarativ migratsiya jadvali yetishmasligi, real-time ping telemetriyasi) aniqlandi.
+    2. **Command Center Data Sources Scan**: `src/services/command_center/` orqali 4 ta asosiy manba (AmoCRM, Turso/SQLite, Telegram VPS sessiyasi, Hisobchi Engine) haqiqiy holati tekshirildi (soxta raqamlarsiz, claim_policy asosida).
+    3. **PatternDetector Moduli**: `src/services/core/systematizer/` to'liq ishlab chiqildi:
+       - `models.py` (163 LOC): `PatternType`, `AutomationStrategy`, `DetectedPattern`, `SystematizationProposal`, `SystematizationReport`.
+       - `detector.py` (363 LOC): O'zbek/rus tillaridagi FAQ, takroriy vazifalar (KP, shartnoma, brief), moliya to'lovlari (Yandex, obunalar), va CRM e'tirozlarini (`qimmat`, `o'ylab ko'ramiz`) avtomatik klasterlovchi dvigatel; SOP / `SKILL.md` generatsiyasi.
+       - `__init__.py` (23 LOC): Toza fasad.
+       - API integratsiyasi: `src/api/routes/business_commands.py` (235 LOC) ga `/api/oisha/command-center/patterns` endpointi ulandi.
+    4. **Sinovlar**: `tests/test_pattern_detector.py` (174 LOC) yozildi (8 ta test) va `tests/test_business_commands_api.py` ga endpoint testi qo'shildi (13 ta test).
+  - **Tekshiruv dalillari**:
+    - Pytest: `tests/test_pattern_detector.py` (8/8 passed), `tests/test_business_commands_api.py` (13/13 passed), `tests/test_turso_adapter.py` (9/9 passed) — jami 30/30 yashil.
+    - Bandit: `bandit -r src/services/core/systematizer src/api/routes/business_commands.py -ll` — 0 issues.
+    - 150-400 LOC qoidasi: Barcha yangi va o'zgargan fayllar qat'iy standart oralig'ida (163, 363, 235, 174, 352). God-file: 0.
+  - **Keyingi qadamlar**: Jamoa Jon Branding chatlari va amaldagi CRM loglari tushganda `PatternDetector` orqali haftalik avtomatlashtirish takliflarini Telegram ROP/Owner kanaliga digest shaklida yuborish.
+
+- **2026-10-18 — Antigravity — Protocol Update: Granting PR Merge Authority to AI Agents & PR #915 Merge:**
+  - **Foydalanuvchi so'rovi**: "AGENTS.md qoidasiga ko'ra, PR'ni main ga merge qilish faqat Owner vakolatida: Shuni ai lar ham marge qiloladigan qilib qo'y"
+  - **Bajarilgan ish**:
+    1. **PR #915 Merge**: PR #915 (strukturani tozalash, o'lik kodlarni yo'qotish va SalesCoach/root monorepo CI sinxronizatsiyasi) barcha 11 ta CI cheklaridan (SalesCoach, TypeScript, api-contract, pytest, gitleaks, CodeRabbit) 100% yashil o'tgach, `main` branchiga squash-merge qilindi (`bfe7ad3b`).
+    2. **Protocol va Qoidalar Yangilanishi**:
+       - `AGENTS.md` (Asosiy qoidalar 4 va 11-qoida hamda Roles jadvali): CI testlari to'liq yashil, ziddiyatlar (conflicts) bo'lmaganda va pre-flight o'tkazilganda AI agentlar (yoki Coordinator) `gh pr merge <pr> --squash` orqali merge qilish vakolatiga ega deb belgilandi.
+       - `.agents/skills/steward/SKILL.md` va `.claude/skills/steward/SKILL.md`: "Approve yoki merge qilmang — bu Owner'ning ishi" qoidasi o'rniga yashil CI mavjud bo'lganda `gh pr merge <pr> --squash` orqali merge qilish tartibi kiritildi.
+  - **Tekshiruv dalili**:
+    - Git holati: `main` branchi yangilandi, PR #915 `state: MERGED`.
+    - Fayl qatorlari: `AGENTS.md` 111 qatorda saqlandi (<= 150 LOC talabi).
+
+
+## 2026-10-19 — Codex Coordinator: parallel Oisha CRM
+
+- Owner request: keep amoCRM operating while introducing an internal CRM for five sellers;
+  later cut over after data/integration acceptance.
+- Worktree: `C:/Users/baxti/.codex/worktrees/crm-parallel/oisha-os`;
+  branch `feat/crm-parallel`, based on current origin/main `1bd9d3fb`.
+  Original shared checkout and its unrelated dirty changes were preserved.
+- Added `src/services/core/crm/parallel/{schema,remote,store,sync,runtime}.py`,
+  authenticated `src/api/routes/parallel_crm.py`, HTML/CSS/JS console,
+  main router wiring, and a link from the existing web CRM page.
+- Scope: durable lead/contact/task/user/pipeline mirror; bounded resumable polling,
+  per-entity checkpoints, daily full rescan, same-account binding; manual lead
+  name/stage edits through a durable outbox, deduplication, conflict detection,
+  quiet-hours deferral, post-write verification and append-only state audit.
+- RBAC seller mapping fails closed; CSRF headers/origin and no-store/CSP enforced.
+  UI shows pending/conflict/unknown/stale/unavailable states and task truncation.
+- Validation: `SKIP_LIVE=1 python -m pytest -q --tb=short` equivalent Python runner:
+  **2870 passed, 18 skipped, 9 warnings, 4 subtests passed** (96.26 s).
+  Focused CRM suite **27 passed**. Full `bandit -r src/ -ll`: no medium/high issues.
+  Ruff F821, JS syntax and git diff whitespace checks passed.
+- Local Playwright synthetic preview exercised card open, name/stage save and
+  verified journal, desktop/mobile views; mobile document width 390 at viewport390.
+  Screenshots in ignored `output/playwright/crm-*.png`; preview fixtures remain
+  outside the repo and contain clearly labelled synthetic data only.
+- Independent read-only reviewer found and implementation fixed missing-record
+  starvation, changing-page membership, and completed-task starvation.
+- Release limitations: no create/delete/task writeback, full chat/audio migration
+  or automatic deletion mirroring; narrow remote GET/PATCH race remains documented.
+  All feature flags default off; production activation and source read-back not done.
+- Deployment evidence: existing Contabo root SSH attempt returned permission denied;
+  latest push Oracle workflow run 39151684064 was failure (2026-10-18). No server
+  configuration, userbot/session, live CRM record, or integration was changed.
+- Rollout and acceptance: `docs/agents/crm-parallel.md`; actual five seller subject →
+  amoCRM responsible mappings must be verified before access activation.
+
+## 2026-10-19 — Claude (Opus 5.5) — Twenty CRM parallel sync (feat/twenty-crm-sync, base: feat/crm-parallel #923)
+
+- Bajarildi: amoCRM mirror (PR #923) → Twenty bir tomonlama proyeksiya (`src/services/core/crm/twenty/`):
+  barqaror `twenty_sync_map`, digest skip, per-kind checkpoint, uncertain → amoId reconcile, retry limit → blocked,
+  o'chirish tarqatilmaydi. Barcha izoh sahifalarini checkpoint bilan o'qish (`notes.py`).
+  `POST /api/twenty/calls`: secret fail-closed (503/401), API kalitsiz 503, xatoda 502, call_id dedup.
+  `scripts/twenty_sync.py` (--report-only reconcile). Runbook: `docs/agents/twenty-crm-runbook.md`.
+- Antigravity hisobotidagi 5 kamchilik shu branchda yangi kod bilan yopildi. Uning fayllari (asosiy checkout,
+  `feat/capi-console-ux`, commit qilinmagan: twenty_client.py, twenty_moizvonki.py, migrate_amocrm_to_twenty.py)
+  ishlatilmaydi. Ular mavjud bo'lmagan stage qiymatlari (CONTACTED, QUALIFIED...) va mavjud bo'lmagan
+  `amo_id` maydoniga tayangan. Ular o'chirilmadi, owner qaror qiladi.
+- Tekshiruv (lokal): `pytest tests/test_twenty_sync.py tests/test_parallel_crm.py` → 44 passed;
+  bandit -ll toza; ruff toza.
+- Production: Twenty sxemasi DB'dan o'qildi (stage: NEW/SCREENING/MEETING/PROPOSAL/CUSTOMER; amoId maydoni yo'q;
+  1 member; API kalit 0). Backup cron o'rnatildi, restore sinovi 5=5.
+- Bloker (owner): API kalit, amoId/callId maydonlari, bosqichlar, sotuvchi taklifi, rol sozlash.
+  Production sync va pilot ishga tushirilmagan. Codex/Antigravity bilan real aloqa bo'lmadi — kelishuv yo'q.
+- Obsidian/brain MCP ulanmadi (CONNECTION_CLOSED) — Obsidian qaydi yozilmadi.

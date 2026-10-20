@@ -27,7 +27,7 @@
 ` ga yoziladi, tugagach o'chiriladi.
 2. **Shared fayllar** (`settings.py`, `context.py`, `boot.py`, shu `AGENTS.md`) — faqat Coordinator.
 3. **Pre-flight har PR dan oldin** (pastga qarang). Qizil bo'lsa — PR yo'q.
-4. **git:** commit → push → keyingi agent `pull --rebase`. `main` ga to'g'ridan-to'g'ri push yo'q.
+4. **git:** commit → push → keyingi agent `pull --rebase`. `main` ga to'g'ridan-to'g'ri push yo'q. PR merge: CI to'liq yashil (barcha checks pass), konflikt yo'q va pre-flight tekshirilgan bo'lsa, AI agentlar (Coordinator) `gh pr merge <pr> --squash` orqali merge qilish vakolatiga ega.
 5. **Kod hajmi:** production fayl ≤ 400 qator, funksiya ≤ 60 qator → `docs/agents/code-standards.md`.
 6. **Handoff majburiy:** ish tugagach `docs/agents/handoff-log.md` OXIRIGA yozing:
    sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili, qolgan ish/bloker.
@@ -37,7 +37,7 @@
 9. **Umumiy skills:** Codex, Claude va Antigravity barcha takrorlanadigan ishlar uchun `.agents/skills/skill-evolution/SKILL.md` qoidasiga amal qiladi. Masalan, Telegram guruh va forumlaridan lidlarni olish va amoCRM ga dublikatsiz boyitish uchun `.agents/skills/community-lead-sync/SKILL.md`, yangi networking manbalari va tanishtiruv mavzularini avtomatik qidirish uchun `.agents/skills/telegram-lead-discovery/SKILL.md` hamda oylik soliq hisobotlari (JShDS 11101_20 va Aylanma 10104_36) uchun `.agents/skills/soliq-ops/SKILL.md` ishlatiladi. Mos skill mavjud bo‘lsa, ish boshlashdan oldin o‘qiydi; yangi tasdiqlangan workflow paydo bo‘lsa, ish tugagach umumiy `.agents/skills/<skill>/SKILL.md` ni yangilaydi.
 
 10. **Soxta ma'lumot taqiqlanadi (owner, 2026-10-10):** chat, Obsidian, skills, kod, jadval, hisobot va tashqi tizimlarda uydirma ma'lumotni haqiqiy fakt sifatida yozmang. Yetishmagan qiymatni taxminiy raqam yoki nol bilan to'ldirmang; `noma'lum` yoki `tekshirilmagan` deb belgilang. Faktga manba va kerak bo'lsa sanani qo'shing; taxminni aniq ajrating. Bajarilmagan ishni `bajarildi`, yuborilmagan hisobotni `topshirildi`, tasdiqlanmagan to'lovni `to'landi` demang. Xato aniqlansa, manbasi bilan ochiq tuzatish kiriting. Sintetik test ma'lumotlari aniq belgilansin va haqiqiy operatsion yozuvlarga aralashmasin.
-11. **Owner bosadigan tugmalar:** autentifikatsiya, xavfsizlik ruxsati yoki ownerning shaxsiy ishtiroki zarur bo'lsa, sahifa va tugma nomini aniq ayting; Baxtiyorjon o'zi bosadi. Uning bosganini yoki natijani taxmin qilmang — yangi holatni tekshiring. Oldindan ruxsat berilgan oddiy ishlar uchun qayta tasdiq so'ramang.
+11. **Owner bosadigan tugmalar:** autentifikatsiya, tashqi tizim xavfsizlik ruxsati yoki shaxsiy ishtirok zarur bo'lsa, sahifa va tugma nomini aniq ayting; Baxtiyorjon o'zi bosadi. Yashil CI'ga ega PR'larni merge qilish va oldindan ruxsat berilgan oddiy ishlar uchun qayta tasdiq so'ramang.
 
 ## Dalil va tekshiruv (owner, 2026-10-10)
 
@@ -68,7 +68,7 @@
 
 | Agent | Scope | Owner |
 |-------|-------|-------|
-| **Coordinator** | AGENTS.md, settings.py, context.py, boot.py, PR merge | @user |
+| **Coordinator** | AGENTS.md, settings.py, context.py, boot.py, PR merge | @user, AI Coordinator (Antigravity/Codex/Claude) |
 | **Parser** | main.py → handlers/, commands/, schedulers/ | — |
 | **Hisobchi** | finance engine / handlers / schema | — |
 | **Security** | tests/, bandit issues, exception handling | — |

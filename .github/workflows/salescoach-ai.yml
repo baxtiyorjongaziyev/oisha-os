@@ -46,6 +46,9 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm run prisma:generate
+
       - name: Run API contract tests
         run: pnpm --filter @salescoach/api test -- negotiations.controller.spec.ts negotiations.service.spec.ts --runInBand
 

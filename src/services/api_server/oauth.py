@@ -137,11 +137,35 @@ _ALLOWED_LOGIN_REDIRECTS: frozenset[str] = frozenset({
 })
 
 
+def _safe_redirect_target(target: Optional[str]) -> str:
+    """Return a strictly whitelisted relative redirection path with zero untrusted taint."""
+    if not target or not isinstance(target, str):
+        return "/"
+    cleaned = target.strip()
+    if cleaned == "/capi":
+        return "/capi"
+    if cleaned == "/api/marketing/capi/console":
+        return "/api/marketing/capi/console"
+    return "/"
+
+
+def _safe_login_next(target: Optional[str]) -> str:
+    """Return a strictly whitelisted next parameter or empty string."""
+    if not target or not isinstance(target, str):
+        return ""
+    cleaned = target.strip()
+    if cleaned == "/capi":
+        return "/capi"
+    if cleaned == "/api/marketing/capi/console":
+        return "/api/marketing/capi/console"
+    return ""
+
+
 @router.get("/api/auth/telegram/login")
 async def telegram_login(next: Optional[str] = None):
     """Return an HTML page with Telegram Login Widget and Token Login fallback."""
     bot_username = getattr(settings, "BOT_USERNAME", "jonairobot")
-    safe_next = next if next in _ALLOWED_LOGIN_REDIRECTS else ""
+    safe_next = _safe_login_next(next)
     raw_auth_url = (
         f"/api/auth/telegram/callback?next={safe_next}"
         if safe_next
@@ -149,6 +173,7 @@ async def telegram_login(next: Optional[str] = None):
     )
     auth_url = html.escape(raw_auth_url, quote=True)
     safe_bot_username = html.escape(str(bot_username).replace("@", ""), quote=True)
+    escaped_next = html.escape(safe_next, quote=True)
     html_content = f"""
     <html>
         <head>
@@ -171,7 +196,7 @@ async def telegram_login(next: Optional[str] = None):
                 <div style="margin-top: 16px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
                     <p style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">Yoki kirish kaliti (Token) orqali kiring:</p>
                     <form method="POST" action="/api/auth/token/login" style="display: flex; flex-direction: column; gap: 8px;">
-                        <input type="hidden" name="next" value="{safe_next}">
+                        <input type="hidden" name="next" value="{escaped_next}">
                         <input type="password" name="token" placeholder="Kirish kaliti (API Secret yoki Token)" required style="padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; box-sizing: border-box;">
                         <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 13px;">Tizimga kirish</button>
                     </form>
@@ -217,7 +242,7 @@ async def token_login(token: str = Form(...), next: Optional[str] = Form(None)):
         secret=jwt_secret,
         ttl_seconds=auth_service.SESSION_TTL_SECONDS,
     )
-    target = next if next in _ALLOWED_LOGIN_REDIRECTS else "/"
+    target = _safe_redirect_target(next)
     response = RedirectResponse(url=target, status_code=303)
     response.set_cookie(
         key="oisha_token",
@@ -300,7 +325,7 @@ async def telegram_callback(
     )
 
     # Create response that stores the cookie and redirects to Dashboard or next URL
-    target = next if next in _ALLOWED_LOGIN_REDIRECTS else "/"
+    target = _safe_redirect_target(next)
     response = RedirectResponse(url=target)
     response.set_cookie(
         key="oisha_token",

@@ -159,6 +159,12 @@ jobs:
             OISHA_DIR="/home/ubuntu/oisha-os"
             cd "$OISHA_DIR"
 
+            # Serverda kimdir git'ni root sifatida ishlatsa, .git/objects root'ga
+            # o'tib qoladi va keyingi `git fetch` "insufficient permission"
+            # bilan yiqiladi (2026-10-15 dan beri barcha deploy'lar). Runner
+            # user'ga egalikni qaytaramiz.
+            sudo chown -R "$(id -un):$(id -gn)" "$OISHA_DIR"
+
             mkdir -p data
             cp -a data/*.session /tmp/ 2>/dev/null || true
             cp -a data/amocrm_token.json /tmp/amocrm_token.json 2>/dev/null || true
@@ -177,7 +183,11 @@ jobs:
               chmod 600 data/service_account.json service_account.json
             fi
 
-            ./venv/bin/pip install -q -r requirements.txt
+            # Contabo'dagi venv'da `venv/bin/pip` skripti yo'q (servis
+            # venv/bin/python bilan ishlaydi). pip'ni modul sifatida chaqiramiz,
+            # modul ham bo'lmasa ensurepip bilan tiklaymiz.
+            ./venv/bin/python -m pip --version >/dev/null 2>&1 || ./venv/bin/python -m ensurepip --upgrade
+            ./venv/bin/python -m pip install -q -r requirements.txt
 
             # Ollama ENDI IXTIYORIY. VM da 954MB RAM bor; qwen2.5:3b
             # inference paytida bir necha yuz MB dan gigabaytgacha oladi va
@@ -394,6 +404,18 @@ jobs:
             sudo install -m 0644 deploy/systemd/oisha-calls-report.service deploy/systemd/oisha-calls-report.timer /etc/systemd/system/
             sudo systemctl daemon-reload
             sudo systemctl enable --now oisha-calls-report.timer || echo "calls report timer enable skipped"
+            # Self-healing watchdog: repo'dan boshqariladi va deploy qilingan
+            # kodni ishlatadi. Eski /root/oisha-os checkout'idan ishlab,
+            # mavjud bo'lmagan oisha.service'ni nishonga olgan legacy
+            # watchdog.service o'chiriladi (u real servisni restart qila olmasdi).
+            sudo install -m 0644 deploy/systemd/oisha-watchdog.service /etc/systemd/system/
+            if systemctl list-unit-files --no-legend watchdog.service 2>/dev/null | grep -q '^watchdog.service'; then
+              sudo systemctl disable --now watchdog.service || echo "legacy watchdog disable skipped"
+            fi
+            sudo systemctl daemon-reload
+            sudo systemctl enable oisha-watchdog.service
+            sudo systemctl restart oisha-watchdog.service || echo "oisha-watchdog restart failed"
+            systemctl show -p ActiveState,Environment --value oisha-watchdog.service || true
             sudo systemctl reset-failed oisha-os || true
             sudo systemctl restart oisha-os
             # oisha-leads: unit mavjud bo'lsa HAR deployda qayta ishga tushadi.

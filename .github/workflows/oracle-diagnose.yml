@@ -117,6 +117,17 @@ jobs:
           echo
           echo "=== F. Job claim jadvali ishlayaptimi (yangi fix) ==="
           ls -la /home/ubuntu/oisha-os/data/job_claims/ 2>/dev/null || echo "job_claims katalogi hali yaratilmagan"
+
+          echo
+          echo "=== G. Watchdog maqsadi: oisha.service vs oisha-os.service ==="
+          for u in oisha.service oisha-os.service watchdog.service oisha-watchdog.service; do
+            printf '%-26s load=%-10s active=%-10s fragment=%s\n' "$u" \
+              "$(systemctl show -p LoadState --value "$u")" \
+              "$(systemctl show -p ActiveState --value "$u")" \
+              "$(systemctl show -p FragmentPath --value "$u")"
+          done
+          systemctl show -p Environment,ExecStart,WorkingDirectory --value watchdog.service 2>/dev/null
+          journalctl -u watchdog --since "24 hours ago" --no-pager 2>/dev/null | grep -iE "restart|fail" | tail -10
           exit 0
 
       - name: Stop oisha-os service
