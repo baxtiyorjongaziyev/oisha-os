@@ -1,0 +1,23 @@
+[Unit]
+Description=Oisha-OS self-healing watchdog (restarts oisha-os.service on failed /healthz)
+After=oisha-os.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Root: watchdog `systemctl restart oisha-os` chaqiradi. U faqat healthz'ni
+# so'raydi va mavjud unitni qayta ishga tushiradi — hech qachon src/main.py'ni
+# o'zi ko'tarmaydi (AuthKeyDuplicatedError xavfi yo'q).
+User=root
+# watchdog.log root nomidan yoziladi — repo katalogini iflos qilmaslik uchun
+# alohida state katalogida ishlaydi; skript esa deploy qilingan koddan olinadi.
+StateDirectory=oisha-watchdog
+WorkingDirectory=/var/lib/oisha-watchdog
+Environment=OISHA_SYSTEMD_SERVICE=oisha-os.service
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/oisha-os/venv/bin/python -u /home/ubuntu/oisha-os/src/services/watchdog.py
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
