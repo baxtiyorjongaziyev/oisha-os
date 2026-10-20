@@ -1,8 +1,12 @@
-"""Oddiy CRM — bitta sahifa, katta tugmalar, ma'lumot to'g'ridan-to'g'ri amoCRM'ga.
+"""Oddiy CRM (`/api/simple-crm/`) — bitta sahifa, katta tugmalar, ma'lumot amoCRM'ga.
 
 Sotuvchi uchun faqat uchta harakat: yangi mijoz, qo'ng'iroq natijasi, bosqichni
 o'zgartirish. Hammasi amoCRM "Sotuv" voronkasiga yoziladi; Twenty'ga mavjud
 bir tomonlama amoCRM → Twenty sinxroni orqali tushadi.
+
+Sahifa `/api/` ostida: production proxy faqat `/api/*` ni FastAPI'ga yuboradi,
+`/crm` esa Next.js dashboardga tegishli. Sotuvchi faqat o'ziga biriktirilgan
+lidlarni ko'radi va o'zgartiradi (`OISHA_CRM_SELLER_MAP_JSON`, fail-closed).
 """
 from __future__ import annotations
 
@@ -11,11 +15,17 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
+import requests
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
-from src.api.rbac import Permission, Principal, require_permissions
+from src.api.rbac import (
+    Permission,
+    Principal,
+    require_any_permission,
+    require_permissions,
+)
 from src.api.routes.state import api_state
 from src.services.core.crm.amocrm_pipeline_config import (
     SALES_CLOSING_STATUS_ID,
@@ -26,6 +36,7 @@ from src.services.core.crm.amocrm_pipeline_config import (
     SALES_QUALIFICATION_STATUS_ID,
     STATUS_WON,
 )
+from src.services.core.crm.parallel.runtime import seller_id
 
 router = APIRouter(tags=["simple-crm"])
 logger = logging.getLogger(__name__)
@@ -51,12 +62,14 @@ CALL_RESULTS = {
     "call_back": "Keyin qo'ng'iroq qilish kerak",
 }
 
-_PHONE_RE = re.compile(r"^\+?[0-9 ()-]{7,20}$")
+_NON_DIGIT = re.compile(r"\D")
+# nginx /api/ timeout 120s; bosqichlar parallel, umumiy chegara undan past.
+_BOARD_TIMEOUT_SECONDS = 60
 
 
 class NewLead(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
-    phone: str = Field(min_length=7, max_length=20)
+    name: str = Field(max_length=120)
+    phone: str = Field(max_length=25)
     note: str = Field(default="", max_length=1000)
 
 
@@ -84,7 +97,54 @@ def _who(principal: Principal) -> str:
     return f"[Oddiy CRM, {principal.role.value} {principal.subject}]"
 
 
-@router.get("/crm", response_class=HTMLResponse)
+def _normalize_phone(raw: str) -> str:
+    phone = raw.strip()
+    digits = _NON_DIGIT.sub("", phone)
+    if not 9 <= len(digits) <= 15:
+        raise HTTPException(status_code=422, detail="Telefon raqam noto'g'ri")
+    return ("+" if phone.startswith("+") else "") + digits
+
+
+async def _fetch_stage(
+    amocrm, status_id: int, owner: Optional[int]
+) -> List[Dict[str, Any]]:
+    """Bitta bosqich lidlari. amoCRM xatosi bo'sh ro'yxatga aylantirilmaydi."""
+    params: Dict[str, Any] = {
+        "filter[statuses][0][pipeline_id]": SALES_PIPELINE_ID,
+        "filter[statuses][0][status_id]": status_id,
+        "limit": 50,
+    }
+    if owner is not None:
+        params["filter[responsible_user_id]"] = owner
+    if not getattr(amocrm, "access_token", None):
+        amocrm._load_token()
+    response = await amocrm._request_with_auth(
+        requests.get, f"{amocrm.base_url}/api/v4/leads", params=params, timeout=30
+    )
+    if response.status_code == 204:
+        return []
+    if response.status_code != 200:
+        logger.warning("[simple-crm] amoCRM leads HTTP %s", response.status_code)
+        raise HTTPException(status_code=502, detail="amoCRM javob bermadi")
+    return response.json().get("_embedded", {}).get("leads", [])
+
+
+async def _owned_sales_lead(amocrm, lead_id: int, principal: Principal) -> None:
+    owner = seller_id(principal)
+    lead = await amocrm.get_lead(lead_id)
+    if (
+        not lead
+        or lead.get("pipeline_id") != SALES_PIPELINE_ID
+        or (owner is not None and lead.get("responsible_user_id") != owner)
+    ):
+        raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+
+
+async def _note(amocrm, lead_id: int, text: str) -> bool:
+    return bool(await asyncio.to_thread(amocrm.add_lead_note, lead_id, text))
+
+
+@router.get("/api/simple-crm/", response_class=HTMLResponse)
 async def simple_crm_page(request: Request):
     if not request.cookies.get("oisha_token"):
         return RedirectResponse(url="/api/auth/telegram/login")
@@ -92,26 +152,34 @@ async def simple_crm_page(request: Request):
 
 
 @router.get("/api/simple-crm/board")
-async def board(principal: Principal = require_permissions(Permission.LEAD_WRITE)):
+async def board(
+    principal: Principal = require_any_permission(
+        Permission.LEAD_READ_ALL, Permission.LEAD_READ_ASSIGNED
+    ),
+):
+    owner = seller_id(principal)
     amocrm = _amocrm()
-    columns = []
-    for stage in _BOARD_STAGES:
-        leads = await amocrm.get_leads(
-            status_id=stage["status_id"],
-            limit=50,
-            **{"filter[statuses][0][pipeline_id]": SALES_PIPELINE_ID},
+    try:
+        results = await asyncio.wait_for(
+            asyncio.gather(
+                *(_fetch_stage(amocrm, s["status_id"], owner) for s in _BOARD_STAGES)
+            ),
+            timeout=_BOARD_TIMEOUT_SECONDS,
         )
-        columns.append(
-            {
-                "key": stage["key"],
-                "title": stage["title"],
-                "leads": [
-                    {"id": lead.get("id"), "name": lead.get("name") or "Nomsiz"}
-                    for lead in (leads or [])
-                    if lead.get("id")
-                ],
-            }
-        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="amoCRM sekin javob beryapti")
+    columns = [
+        {
+            "key": stage["key"],
+            "title": stage["title"],
+            "leads": [
+                {"id": lead.get("id"), "name": lead.get("name") or "Nomsiz"}
+                for lead in leads
+                if lead.get("id")
+            ],
+        }
+        for stage, leads in zip(_BOARD_STAGES, results)
+    ]
     return {
         "columns": columns,
         "stages": [{"key": s["key"], "title": s["title"]} for s in STAGES],
@@ -123,12 +191,13 @@ async def board(principal: Principal = require_permissions(Permission.LEAD_WRITE
 async def create_lead(
     body: NewLead, principal: Principal = require_permissions(Permission.LEAD_WRITE)
 ):
-    phone = body.phone.strip()
-    if not _PHONE_RE.match(phone):
-        raise HTTPException(status_code=422, detail="Telefon raqam noto'g'ri")
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Ismni yozing")
+    phone = _normalize_phone(body.phone)
     amocrm = _amocrm()
     lead_id = await amocrm.create_lead(
-        name=body.name.strip(),
+        name=name,
         phone=phone,
         pipeline_id=SALES_PIPELINE_ID,
         status_id=SALES_NEW_STATUS_ID,
@@ -138,8 +207,8 @@ async def create_lead(
     text = f"{_who(principal)} Yangi mijoz qo'shildi."
     if body.note.strip():
         text += f"\n{body.note.strip()}"
-    await asyncio.to_thread(amocrm.add_lead_note, int(lead_id), text)
-    return {"ok": True, "lead_id": lead_id}
+    note_saved = await _note(amocrm, int(lead_id), text)
+    return {"ok": True, "lead_id": lead_id, "note_saved": note_saved}
 
 
 @router.post("/api/simple-crm/leads/{lead_id}/call")
@@ -151,13 +220,12 @@ async def log_call(
     label = CALL_RESULTS.get(body.result)
     if label is None:
         raise HTTPException(status_code=422, detail="Noma'lum natija")
+    amocrm = _amocrm()
+    await _owned_sales_lead(amocrm, lead_id, principal)
     text = f"{_who(principal)} Qo'ng'iroq: {label}."
     if body.note.strip():
         text += f"\n{body.note.strip()}"
-    result: Optional[Any] = await asyncio.to_thread(
-        _amocrm().add_lead_note, lead_id, text
-    )
-    if not result:
+    if not await _note(amocrm, lead_id, text):
         raise HTTPException(status_code=502, detail="amoCRM izohni saqlamadi")
     return {"ok": True}
 
@@ -172,17 +240,16 @@ async def change_stage(
     if stage is None:
         raise HTTPException(status_code=422, detail="Noma'lum bosqich")
     amocrm = _amocrm()
+    await _owned_sales_lead(amocrm, lead_id, principal)
     ok = await amocrm.update_lead_status(
         lead_id, stage["status_id"], pipeline_id=SALES_PIPELINE_ID
     )
     if not ok:
         raise HTTPException(status_code=502, detail="amoCRM bosqichni o'zgartirmadi")
-    await asyncio.to_thread(
-        amocrm.add_lead_note,
-        lead_id,
-        f"{_who(principal)} Bosqich: {stage['title']}.",
+    note_saved = await _note(
+        amocrm, lead_id, f"{_who(principal)} Bosqich: {stage['title']}."
     )
-    return {"ok": True}
+    return {"ok": True, "note_saved": note_saved}
 
 
 _PAGE = """<!doctype html>
@@ -196,6 +263,7 @@ _PAGE = """<!doctype html>
 header{position:sticky;top:0;background:var(--bg);padding:16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}
 h1{font-size:24px;margin:0;flex:1}
 .big{border:0;border-radius:14px;padding:16px 20px;font-size:20px;font-weight:700;cursor:pointer;color:#fff;background:var(--blue);min-height:60px}
+.big:disabled{opacity:.5;cursor:wait}
 .green{background:var(--green)}.red{background:var(--red)}.ghost{background:var(--line);color:var(--ink)}
 main{padding:16px;display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
 section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px}
@@ -211,11 +279,11 @@ label{font-weight:600;display:block;margin:8px 0 4px}
 <header><h1>Mijozlar</h1><button class="big green" id="addBtn">+ Yangi mijoz</button></header>
 <main id="board"><p class="empty">Yuklanmoqda…</p></main>
 
-<dialog id="addDlg"><h3>Yangi mijoz</h3><form method="dialog" id="addForm" class="col">
+<dialog id="addDlg"><h3>Yangi mijoz</h3><form id="addForm" class="col">
 <label for="n">Ismi</label><input id="n" required autocomplete="off">
 <label for="p">Telefon</label><input id="p" type="tel" required placeholder="+998 90 123 45 67">
 <label for="t">Izoh (shart emas)</label><textarea id="t" rows="2"></textarea>
-<button class="big green" value="ok">Saqlash</button><button class="big ghost" value="cancel" formnovalidate>Bekor</button>
+<button class="big green" type="submit">Saqlash</button><button class="big ghost" type="button" id="addCancel">Bekor</button>
 </form></dialog>
 
 <dialog id="leadDlg"><h3 id="leadName"></h3><div class="col">
@@ -226,12 +294,15 @@ label{font-weight:600;display:block;margin:8px 0 4px}
 <button class="big ghost" id="closeLead">Yopish</button></div></dialog>
 <div id="toast"></div>
 <script>
-let meta={stages:[],call_results:{}},current=null;
+let meta={stages:[],call_results:{}},busy=false;
 const $=id=>document.getElementById(id);
 function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2500)}
 async function api(path,body){const r=await fetch(path,{method:body?'POST':'GET',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
  if(r.status===401){location.href='/api/auth/telegram/login';throw 0}
- const d=await r.json().catch(()=>({}));if(!r.ok){toast(d.detail||'Xatolik, qayta urinib ko\\'ring');throw 0}return d}
+ const d=await r.json().catch(()=>({}));if(!r.ok){toast(typeof d.detail==='string'?d.detail:'Xatolik, qayta urinib ko\\'ring');throw 0}return d}
+async function act(fn){if(busy)return;busy=true;const bs=document.querySelectorAll('dialog button');bs.forEach(b=>b.disabled=true);
+ try{await fn()}catch(e){}finally{busy=false;bs.forEach(b=>b.disabled=false)}}
+function saved(d,msg){toast(d&&d.note_saved===false?msg+', lekin izoh yozilmadi':msg+' ✓')}
 function btn(text,cls,fn){const b=document.createElement('button');b.className='big '+cls;b.textContent=text;b.onclick=fn;return b}
 async function load(){const d=await api('/api/simple-crm/board');meta=d;const board=$('board');board.replaceChildren();
  d.columns.forEach(c=>{const s=document.createElement('section');const h=document.createElement('h2');h.textContent=c.title+' ';
@@ -239,17 +310,20 @@ async function load(){const d=await api('/api/simple-crm/board');meta=d;const bo
   if(!c.leads.length){const e=document.createElement('p');e.className='empty';e.textContent='Hech kim yo\\'q';s.append(e)}
   c.leads.forEach(l=>{const b=document.createElement('button');b.className='lead';b.textContent=l.name;b.onclick=()=>openLead(l,c.key);s.append(b)});
   board.append(s)})}
-function openLead(l,stageKey){current=l;$('leadName').textContent=l.name;
+function openLead(l,stageKey){$('leadName').textContent=l.name;
  const calls=$('calls');calls.replaceChildren();
- Object.entries(meta.call_results).forEach(([k,v])=>calls.append(btn('📞 '+v,k==='talked'?'green':'ghost',async()=>{await api('/api/simple-crm/leads/'+l.id+'/call',{result:k});toast('Saqlandi ✓');$('leadDlg').close()})));
+ Object.entries(meta.call_results).forEach(([k,v])=>calls.append(btn('📞 '+v,k==='talked'?'green':'ghost',()=>act(async()=>{
+  await api('/api/simple-crm/leads/'+l.id+'/call',{result:k});toast('Saqlandi ✓');$('leadDlg').close()}))));
  const st=$('stages');st.replaceChildren();
- meta.stages.filter(s=>s.key!==stageKey).forEach(s=>st.append(btn(s.title,s.key==='won'?'green':s.key==='lost'?'red':'',async()=>{
+ meta.stages.filter(s=>s.key!==stageKey).forEach(s=>st.append(btn(s.title,s.key==='won'?'green':s.key==='lost'?'red':'',()=>act(async()=>{
   if(s.key==='lost'&&!confirm('Rostdan rad etdimi?'))return;
-  await api('/api/simple-crm/leads/'+l.id+'/stage',{stage:s.key});toast('Saqlandi ✓');$('leadDlg').close();load()})));
+  const d=await api('/api/simple-crm/leads/'+l.id+'/stage',{stage:s.key});saved(d,'Saqlandi');$('leadDlg').close();load().catch(()=>{})}))));
  $('leadDlg').showModal()}
 $('closeLead').onclick=()=>$('leadDlg').close();
-$('addBtn').onclick=()=>{$('addForm').reset();$('addDlg').showModal()};
-$('addDlg').addEventListener('close',async()=>{if($('addDlg').returnValue!=='ok')return;
- await api('/api/simple-crm/leads',{name:$('n').value,phone:$('p').value,note:$('t').value});toast('Mijoz qo\\'shildi ✓');load()});
+$('addBtn').onclick=()=>$('addDlg').showModal();
+$('addCancel').onclick=()=>$('addDlg').close();
+$('addForm').addEventListener('submit',e=>{e.preventDefault();act(async()=>{
+ const d=await api('/api/simple-crm/leads',{name:$('n').value,phone:$('p').value,note:$('t').value});
+ $('addForm').reset();$('addDlg').close();saved(d,'Mijoz qo\\'shildi');load().catch(()=>{})})});
 load().catch(()=>{});
 </script></body></html>"""
