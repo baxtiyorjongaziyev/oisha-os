@@ -1972,3 +1972,20 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Bloker (owner): API kalit, amoId/callId maydonlari, bosqichlar, sotuvchi taklifi, rol sozlash.
   Production sync va pilot ishga tushirilmagan. Codex/Antigravity bilan real aloqa bo'lmadi — kelishuv yo'q.
 - Obsidian/brain MCP ulanmadi (CONNECTION_CLOSED) — Obsidian qaydi yozilmadi.
+
+## 2026-10-20 — Claude (Opus 5.5) — Hunter yagona yozuvchi, 1-bosqich (feat/hunter-writer, PR #932)
+
+- Bajarildi: `src/services/core/leads/hunter.py` — `hunter_candidates` jurnali, `hunter_keys`
+  (telefon + `tg:<id>` bitta lidga, atomik band qilish), aktiv/yopilgan bitim qayta tekshiruvi,
+  `hunter:<source>` teg, kunlik limit 20 (faqat non-inbound). `CRMService.sync_lead` shu yozuvchiga
+  o'tdi (oldin `create_lead(note=...)` TypeError bilan har safar yiqilardi). TN5 guruh sinxroni
+  `kind="signal"`. Meta Lead Ads: owner qarori bilan faqat Sotuv → Yangi (UTC 50/50 o'chirildi).
+- Fayllar: hunter.py, crm/crm_service.py, handlers/lead_sync.py, instagram/leadgen_router.py,
+  tests/test_hunter_writer.py, docs/agents/hunter-flow-plan.md.
+- Tekshiruv (lokal): `pytest tests/test_hunter_writer.py` 20 passed; leadgen testlari 67 passed;
+  to'liq `SKIP_LIVE=1` suite — PR'dagi oxirgi natijaga qarang. Live amoCRM/Turso'da sinalmagan.
+- Keyin qo'shildi: Meta router endi `HunterWriter` orqali yozadi (`meta_lead_ads`, `leadgen:<id>`,
+  custom_fields saqlanadi; Hunter'dan tashqari ochilgan aktiv bitim faqat izoh oladi).
+  `hunter_retry_loop` (har 15 daq., quiet-hours'da emas, 5 urinishdan keyin `failed`;
+  `HUNTER_RETRY_ENABLED=0` bilan o'chadi). Qolgan ish: kunlik limitni o'lchov bilan tasdiqlash;
+  `failed` lidlar uchun owner'ga bildirishnoma.
