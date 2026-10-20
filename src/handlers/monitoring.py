@@ -14,7 +14,12 @@ def _env_enabled(name: str) -> bool:
 
 
 async def activity_monitor_handler(event):
-    """Log outgoing activities for auditing."""
+    """Log outgoing activities for auditing and skill learning."""
+    try:
+        from src.services.core.skill_learner import record_owner_action
+        await record_owner_action(event)
+    except Exception as e:
+        logger.warning(f"[SKILL_LEARNER] Yozib olish xatosi: {e}")
     if not _env_enabled("ENABLE_ACTIVITY_MONITOR"):
         return
     if app_ctx.activity_monitor:
@@ -54,3 +59,17 @@ async def crm_edit_text_handler(event):
         if isinstance(e, events.StopPropagation):
             raise
         logger.error(f"[CRM_EDIT] Xatolik: {e}", exc_info=True)
+
+
+async def skill_command_handler(event):
+    """Saved Messages: /skills, /skill_ok <id>, /skill_no <id>."""
+    try:
+        from src.services.core.skill_learner import handle_skill_command
+        if await handle_skill_command(event):
+            from telethon import events
+            raise events.StopPropagation
+    except Exception as e:
+        from telethon import events
+        if isinstance(e, events.StopPropagation):
+            raise
+        logger.error(f"[SKILL_CMD] Xatolik: {e}", exc_info=True)
