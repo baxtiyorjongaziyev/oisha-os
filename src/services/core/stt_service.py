@@ -5,9 +5,15 @@ from typing import Optional, List, Dict, Any
 logger = structlog.get_logger()
 
 class STTResult:
-    def __init__(self, transcript: str, segments: Optional[List[Dict[str, Any]]] = None):
+    def __init__(
+        self,
+        transcript: str,
+        segments: Optional[List[Dict[str, Any]]] = None,
+        source: Optional[str] = None,
+    ):
         self.transcript = transcript
         self.segments = segments or []
+        self.source = source
 
 class STTService:
     """Simple wrapper around available STT providers.
@@ -32,7 +38,13 @@ class STTService:
         try:
             routed = await self._router.transcribe_audio(audio_bytes, mime_type)
             if routed and getattr(routed, "text", None):
-                return STTResult(transcript=routed.text, segments=getattr(routed, "segments", []))
+                provider = getattr(routed, "provider", "") or ""
+                model = getattr(routed, "model", "") or ""
+                return STTResult(
+                    transcript=routed.text,
+                    segments=getattr(routed, "segments", []),
+                    source=f"{provider}/{model}" if provider else None,
+                )
         except Exception as exc:
             logger.warning("[STT] Provider %s failed: %s", self.provider, type(exc).__name__)
         return None

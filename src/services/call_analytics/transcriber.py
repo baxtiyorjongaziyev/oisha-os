@@ -206,7 +206,7 @@ class CallTranscriberMixin:
         try:
             from src.services.utils.gemini_fallback import generate_content_with_fallback
 
-            response, _ = await generate_content_with_fallback(
+            response, used_model = await generate_content_with_fallback(
                 self.genai_client,
                 primary_model=self.model_name,
                 contents=contents,
@@ -214,6 +214,7 @@ class CallTranscriberMixin:
                 env_name="GEMINI_CALL_FALLBACK_MODELS",
                 log_prefix="[CALL]",
             )
+            self._last_gemini_model = used_model
             return response
         except Exception as exc:
             if self._is_gemini_quota_error(exc):
@@ -225,12 +226,14 @@ class CallTranscriberMixin:
                 )
                 raise GeminiQuotaCooldownError(
                     "Gemini quota cooldown started"
-                )
+                ) from exc
+            raise
 
     async def _transcribe_inline(self, audio_bytes: bytes, mime_type: str) -> Optional[str]:
         """Transcribe audio using Gemini only (best Uzbek accuracy)."""
         from google.genai import types
 
+        self._last_stt_source = None
         # 1. Try Gemini first — Groq/Whisper is unreliable on Uzbek speech.
         prompt = (
             "Siz professional qo'ng'iroq transkripsiya mutaxassisisiz. "
@@ -238,7 +241,7 @@ class CallTranscriberMixin:
             "to'liq O'zbek tilida (lotin alifbosida) yozing.\n\n"
             "QOIDALAR:\n"
             "- Faqat audio faylda HAQIQATDA eshitilgan gaplarni yozing — hech narsa o'ylab topmang.\n"
-            "- Agar tushunarli nutq bo'lmasa, qaytaring: {NO_SPEECH_SENTINEL}\n"
+            f"- Agar tushunarli nutq bo'lmasa, qaytaring: {NO_SPEECH_SENTINEL}\n"
             "- Har bir gapni [mm:ss] vaqt belgisi bilan boshlang.\n"
             "- Gapiruvchini rolига qarab aniqlang va shu tarzda belgilang: \"Menejer:\" "
             "(qo'ng'iroq qilayotgan/xizmat ko'rsatayotgan tomon) va \"Mijoz:\" "
@@ -262,6 +265,7 @@ class CallTranscriberMixin:
             text = (getattr(response, "text", None) or "").strip()
             if text and NO_SPEECH_SENTINEL not in text:
                 if not _looks_like_stt_hallucination(text):
+                    self._last_stt_source = f"gemini/{getattr(self, '_last_gemini_model', None) or self.model_name}"
                     return text
                 logger.info(
                     "[CALL] Gemini transcript rejected as likely hallucination: %r",
@@ -320,6 +324,7 @@ class CallTranscriberMixin:
                 return None
             if text:
                 logger.info("[CALL] OpenAI STT fallback done: %s chars", len(text))
+                self._last_stt_source = f"openai/{model}"
                 return text
             return None
         except Exception as exc:
