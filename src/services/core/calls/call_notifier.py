@@ -92,6 +92,10 @@ def build_call_alert_message(
     if task_id:
         msg_lines.append(f"✅ <b>AmoCRM Vazifasi:</b> Biriktirildi (Task #{task_id})")
 
+    stt_model = analysis.get("stt_model")
+    if stt_model:
+        msg_lines.append(f"🔊 <i>Transkripsiya: {stt_model}</i>")
+
     return "\n".join(msg_lines)
 
 

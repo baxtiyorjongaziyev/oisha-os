@@ -129,6 +129,9 @@ class CallRunnerMixin(NoteExtractorMixin):
             duration_seconds=duration,
             omnichannel_context=omnichannel_context,
         )
+        stt_source = getattr(self, "_last_stt_source", None)
+        if isinstance(analysis, dict) and stt_source:
+            analysis.setdefault("stt_model", stt_source)
         return transcript, analysis
 
     def _queue_salescoach_voice(self, audio_bytes: bytes, phone: str, mime_type: str) -> None:

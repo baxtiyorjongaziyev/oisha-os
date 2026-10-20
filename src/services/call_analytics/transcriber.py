@@ -226,7 +226,8 @@ class CallTranscriberMixin:
                 )
                 raise GeminiQuotaCooldownError(
                     "Gemini quota cooldown started"
-                )
+                ) from exc
+            raise
 
     async def _transcribe_inline(self, audio_bytes: bytes, mime_type: str) -> Optional[str]:
         """Transcribe audio using Gemini first (best Uzbek accuracy), fallback to
@@ -234,6 +235,7 @@ class CallTranscriberMixin:
         noisy clips), then OpenAI Whisper."""
         from google.genai import types
 
+        self._last_stt_source = None
         # 1. Try Gemini first — Groq/Whisper is unreliable on Uzbek speech.
         prompt = (
             "Siz professional qo'ng'iroq transkripsiya mutaxassisisiz. "
@@ -241,7 +243,7 @@ class CallTranscriberMixin:
             "to'liq O'zbek tilida (lotin alifbosida) yozing.\n\n"
             "QOIDALAR:\n"
             "- Faqat audio faylda HAQIQATDA eshitilgan gaplarni yozing — hech narsa o'ylab topmang.\n"
-            "- Agar tushunarli nutq bo'lmasa, qaytaring: {NO_SPEECH_SENTINEL}\n"
+            f"- Agar tushunarli nutq bo'lmasa, qaytaring: {NO_SPEECH_SENTINEL}\n"
             "- Har bir gapni [mm:ss] vaqt belgisi bilan boshlang.\n"
             "- Gapiruvchini rolига qarab aniqlang va shu tarzda belgilang: \"Menejer:\" "
             "(qo'ng'iroq qilayotgan/xizmat ko'rsatayotgan tomon) va \"Mijoz:\" "
@@ -265,6 +267,7 @@ class CallTranscriberMixin:
             text = (getattr(response, "text", None) or "").strip()
             if text and NO_SPEECH_SENTINEL not in text:
                 if not _looks_like_stt_hallucination(text):
+                    self._last_stt_source = "gemini"
                     return text
                 logger.info(
                     "[CALL] Gemini transcript rejected as likely hallucination: %r",
@@ -285,6 +288,7 @@ class CallTranscriberMixin:
                         result.transcript[:80],
                     )
                 else:
+                    self._last_stt_source = result.source or "free_stt"
                     return result.transcript
         except Exception as exc:
             logger.warning("[CALL] STTService fallback failed: %s", exc)
@@ -336,6 +340,7 @@ class CallTranscriberMixin:
                 return None
             if text:
                 logger.info("[CALL] OpenAI STT fallback done: %s chars", len(text))
+                self._last_stt_source = f"openai/{model}"
                 return text
             return None
         except Exception as exc:
