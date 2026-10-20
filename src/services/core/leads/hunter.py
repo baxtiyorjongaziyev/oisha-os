@@ -58,6 +58,7 @@ _SCHEMA = [
         lead_id INTEGER,
         attempts INTEGER NOT NULL DEFAULT 0,
         error TEXT,
+        notified INTEGER NOT NULL DEFAULT 0,
         day TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         changed_at INTEGER NOT NULL)""",
@@ -325,6 +326,18 @@ class HunterWriter:
                     [attempts + 1, row["dedup_key"]],
                 )
         return stats
+
+    async def unnotified_failures(self, limit: int = 20) -> List[Dict[str, Any]]:
+        await self.init()
+        return await self._sql(
+            """SELECT id, source, name, phone, error, attempts FROM hunter_candidates
+            WHERE state=? AND notified=0 ORDER BY id LIMIT ?""",
+            [FAILED, limit],
+        )
+
+    async def mark_notified(self, row_ids: List[int]) -> None:
+        for row_id in row_ids:
+            await self._sql("UPDATE hunter_candidates SET notified=1 WHERE id=?", [row_id])
 
     async def _set_state(self, row_id: int, state: str) -> None:
         await self._sql(

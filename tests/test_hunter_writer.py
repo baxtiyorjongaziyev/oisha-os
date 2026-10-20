@@ -269,3 +269,51 @@ async def test_retry_gives_up_after_max_attempts(setup, monkeypatch):
         await w.retry_pending()
     assert states(pool)[-1] == "failed"
     assert len(amo.ensured) == hunter.MAX_ATTEMPTS
+
+
+async def test_failed_leads_notify_owner_once(setup, monkeypatch):
+    from src.schedulers import hunter_retry_scheduler as sched
+
+    monkeypatch.setattr(hunter, "is_quiet_hours", lambda: False)
+    monkeypatch.setattr(sched, "is_quiet_hours", lambda: False)
+    amo, pool, w = setup
+    amo.fail = True
+    await w.submit(Candidate(source="meta_lead_ads", name="<Ali>", phone="901234567"))
+    for _ in range(hunter.MAX_ATTEMPTS + 1):
+        _age_rows(pool)
+        await w.retry_pending()
+    sent = []
+    monkeypatch.setattr(sched, "_send_owner", lambda text: sent.append(text) or False)
+    assert await sched.notify_failures_once(w) == 0  # yuborilmadi -> keyingi safar qayta
+    monkeypatch.setattr(sched, "_send_owner", lambda text: sent.append(text) or True)
+    assert await sched.notify_failures_once(w) == 1
+    assert await sched.notify_failures_once(w) == 0
+    assert "&lt;Ali&gt;" in sent[-1] and "+998901234567" in sent[-1]
+    assert "meta_lead_ads" in sent[-1]
+
+
+async def test_no_owner_alert_in_quiet_hours(setup, monkeypatch):
+    from src.schedulers import hunter_retry_scheduler as sched
+
+    monkeypatch.setattr(sched, "is_quiet_hours", lambda: True)
+    monkeypatch.setattr(sched, "_send_owner", lambda text: pytest.fail("sent in quiet hours"))
+    assert await sched.notify_failures_once(setup[2]) == 0
+
+
+def test_limit_report_summary():
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        "hunter_limit_report", Path(__file__).resolve().parents[1] / "scripts" / "hunter_limit_report.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    day = 1_790_000_000
+    leads = [
+        {"created_at": day, "responsible_user_id": 1, "status_id": SALES_NEW_STATUS_ID},
+        {"created_at": day + 60, "responsible_user_id": 1, "status_id": 1},
+        {"created_at": day + 86400, "responsible_user_id": 2, "status_id": 1},
+    ]
+    text = mod.summarize(leads, 30)
+    assert "jami 3 lid" in text and "maks 2" in text and "(33%)" in text
