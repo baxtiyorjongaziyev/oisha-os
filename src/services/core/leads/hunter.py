@@ -1,11 +1,13 @@
 """Hunter: amoCRM "Sotuv" → "Yangi LEads" ga lid yozadigan yagona yo'l.
 
-Har nomzod avval `hunter_candidates` jadvaliga tushadi (jarayon qayta ishga
-tushsa ham yo'qolmaydi), keyin bitta joyda dedup qilinib amoCRM'ga yoziladi.
+Har nomzod `hunter_candidates` jurnaliga yoziladi (jarayon qayta ishga tushsa
+ham yo'qolmaydi). Shaxs `hunter_keys` orqali aniqlanadi: telefon va manba ID
+(`tg:<user_id>`) — ikkalasi ham bir xil lidga bog'lanadi.
 
-- Dedup kaliti: normallashtirilgan telefon, bo'lmasa manba ID (`tg:<user_id>`).
-  Shu kalit bilan yozilgan lid bo'lsa, yangi bitim ochilmaydi — faqat izoh.
-- amoCRM'da shu telefon bilan aktiv bitim bo'lsa, `ensure_lead` uni qaytaradi.
+- Kalit atomik band qilinadi (`INSERT ... ON CONFLICT DO NOTHING RETURNING`):
+  bir vaqtda kelgan ikki nomzoddan faqat bittasi amoCRM'ga yozadi.
+- Mavjud lid bo'lsa, u amoCRM'da qayta tekshiriladi: aktiv bo'lsa — izoh,
+  yopilgan (142/143) bo'lsa — yangi bitim ochiladi.
 - Kunlik limit (`HUNTER_DAILY_LIMIT`, default 20) faqat `kind != "inbound"`
   nomzodlarga. Mijozning o'zi yozgan (inbound) lidi hech qachon tashlanmaydi.
 
@@ -19,18 +21,24 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from src.services.core.crm.amocrm_pipeline_config import (
     SALES_NEW_STATUS_ID,
     SALES_PIPELINE_ID,
+    STATUS_WON,
 )
 from src.time_utils import get_local_now
 
 logger = logging.getLogger(__name__)
 
 INBOUND = "inbound"
+SIGNAL = "signal"
 DEFAULT_DAILY_LIMIT = 20
+STATUS_LOST = 143
+_CLOSED_STATUSES = {STATUS_WON, STATUS_LOST}
+# Band qilingan, lekin tugallanmagan kalit shu vaqtdan keyin qayta olinishi mumkin.
+_RESERVATION_TTL_SECONDS = 300
 
 _SCHEMA = [
     """CREATE TABLE IF NOT EXISTS hunter_candidates (
@@ -48,13 +56,19 @@ _SCHEMA = [
         day TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         changed_at INTEGER NOT NULL)""",
-    "CREATE INDEX IF NOT EXISTS hunter_candidates_key ON hunter_candidates(dedup_key, state)",
     "CREATE INDEX IF NOT EXISTS hunter_candidates_day ON hunter_candidates(day, kind, state)",
+    """CREATE TABLE IF NOT EXISTS hunter_keys (
+        key TEXT PRIMARY KEY,
+        lead_id INTEGER,
+        reserved_at INTEGER,
+        updated_at INTEGER NOT NULL)""",
 ]
 
-# pending: yozilmoqda / qayta urinish kerak; sent: amoCRM'da bor;
-# duplicate: avvalgi lidga izoh qo'shildi; limited: kunlik limit; failed: amoCRM rad etdi.
-PENDING, SENT, DUPLICATE, LIMITED, FAILED = "pending", "sent", "duplicate", "limited", "failed"
+# pending: yozilmadi, qayta urinish kerak; sent: yangi bitim; duplicate: aktiv
+# bitimga izoh qo'shildi; limited: kunlik limit; busy: shu shaxs hozir yozilmoqda.
+PENDING, SENT, DUPLICATE, LIMITED, FAILED, BUSY = (
+    "pending", "sent", "duplicate", "limited", "failed", "busy",
+)
 
 
 @dataclass(frozen=True)
@@ -87,13 +101,14 @@ def normalize_phone(raw: Optional[str]) -> Optional[str]:
     return None
 
 
-def dedup_key(candidate: Candidate) -> Optional[str]:
+def identity_keys(candidate: Candidate) -> List[str]:
+    keys = []
     phone = normalize_phone(candidate.phone)
     if phone:
-        return f"phone:{phone}"
+        keys.append(f"phone:{phone}")
     if candidate.external_id:
-        return f"ext:{candidate.external_id}"
-    return None
+        keys.append(f"ext:{candidate.external_id}")
+    return keys
 
 
 def daily_limit() -> int:
@@ -122,61 +137,110 @@ class HunterWriter:
 
     async def submit(self, candidate: Candidate) -> WriteResult:
         await self.init()
-        key = dedup_key(candidate)
-        if key is None:
+        keys = identity_keys(candidate)
+        if not keys:
             return WriteResult(False, FAILED, error="no_phone_or_external_id")
         name = (candidate.name or "").strip() or "Nomsiz"
         phone = normalize_phone(candidate.phone)
-        now = int(time.time())
         day = get_local_now().date().isoformat()
-
-        previous = await self._sql(
-            """SELECT lead_id FROM hunter_candidates
-            WHERE dedup_key=? AND state IN (?, ?) AND lead_id IS NOT NULL
-            ORDER BY id DESC LIMIT 1""",
-            [key, SENT, DUPLICATE],
+        log = lambda state, lead_id=None, error=None: self._log(  # noqa: E731
+            candidate, keys[0], name, phone, state, lead_id, error, day
         )
-        if previous:
-            lead_id = int(previous[0]["lead_id"])
-            text = f"[Hunter] Yana murojaat: {candidate.source}."
-            if candidate.note:
-                text += f"\n{candidate.note}"
-            await asyncio.to_thread(self.amocrm.add_lead_note, lead_id, text)
-            await self._insert(candidate, key, name, phone, DUPLICATE, lead_id, day, now)
-            return WriteResult(True, DUPLICATE, lead_id)
 
-        if candidate.kind != INBOUND:
-            used = await self._sql(
-                """SELECT COUNT(*) AS n FROM hunter_candidates
-                WHERE day=? AND kind<>? AND state=?""",
-                [day, INBOUND, SENT],
-            )
-            if used and int(used[0]["n"]) >= daily_limit():
-                await self._insert(candidate, key, name, phone, LIMITED, None, day, now)
-                return WriteResult(False, LIMITED, error="daily_limit")
+        known = await self._known_lead(keys)
+        if known is not None:
+            lead = await self.amocrm.get_lead(known)
+            if lead is None:
+                await log(PENDING, known, "lead_check_failed")
+                return WriteResult(False, PENDING, known, "lead_check_failed")
+            if lead.get("status_id") not in _CLOSED_STATUSES:
+                return await self._append(candidate, keys, known, log)
+            # Yopilgan bitim: yangi murojaat yangi bitim bo'ladi.
 
-        row_id = await self._insert(candidate, key, name, phone, PENDING, None, day, now)
-        return await self._deliver(row_id, candidate, name, phone)
+        if candidate.kind != INBOUND and await self._used_today(day) >= daily_limit():
+            await log(LIMITED, error="daily_limit")
+            return WriteResult(False, LIMITED, error="daily_limit")
 
-    async def _insert(self, c, key, name, phone, state, lead_id, day, now) -> Optional[int]:
-        await self._sql(
-            """INSERT INTO hunter_candidates
-            (dedup_key, source, kind, name, phone, note, state, lead_id, day, created_at, changed_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            [key, c.source, c.kind, name, phone, c.note, state, lead_id, day, now, now],
-        )
+        if not await self._reserve(keys):
+            await log(BUSY, error="in_flight")
+            return WriteResult(False, BUSY, error="in_flight")
+        try:
+            lead_id, error = await self._create(candidate, name, phone)
+        finally:
+            await self._release(keys, None)
+        if not lead_id:
+            await log(PENDING, error=error)
+            return WriteResult(False, PENDING, error=error)
+        await self._bind(keys, lead_id)
+        await log(SENT, lead_id)
+        return WriteResult(True, SENT, lead_id)
+
+    async def _known_lead(self, keys: List[str]) -> Optional[int]:
+        marks = ",".join("?" for _ in keys)
         rows = await self._sql(
-            "SELECT id FROM hunter_candidates WHERE dedup_key=? ORDER BY id DESC LIMIT 1",
-            [key],
+            f"SELECT lead_id FROM hunter_keys WHERE key IN ({marks}) AND lead_id IS NOT NULL "
+            "ORDER BY updated_at DESC LIMIT 1",
+            keys,
         )
-        return int(rows[0]["id"]) if rows else None
+        return int(rows[0]["lead_id"]) if rows else None
 
-    async def _deliver(self, row_id, candidate: Candidate, name: str, phone: Optional[str]) -> WriteResult:
+    async def _used_today(self, day: str) -> int:
+        rows = await self._sql(
+            "SELECT COUNT(*) AS n FROM hunter_candidates WHERE day=? AND kind<>? AND state=?",
+            [day, INBOUND, SENT],
+        )
+        return int(rows[0]["n"]) if rows else 0
+
+    async def _reserve(self, keys: List[str]) -> bool:
+        now = int(time.time())
+        taken: List[str] = []
+        for key in keys:
+            rows = await self._sql(
+                """INSERT INTO hunter_keys(key, lead_id, reserved_at, updated_at)
+                VALUES (?, NULL, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET reserved_at=excluded.reserved_at
+                WHERE hunter_keys.reserved_at IS NULL
+                   OR hunter_keys.reserved_at < ?
+                RETURNING key""",
+                [key, now, now, now - _RESERVATION_TTL_SECONDS],
+            )
+            if not rows:
+                await self._release(taken, None)
+                return False
+            taken.append(key)
+        return True
+
+    async def _release(self, keys: List[str], lead_id: Optional[int]) -> None:
+        for key in keys:
+            await self._sql("UPDATE hunter_keys SET reserved_at=NULL WHERE key=?", [key])
+
+    async def _bind(self, keys: List[str], lead_id: int) -> None:
+        now = int(time.time())
+        for key in keys:
+            await self._sql(
+                """INSERT INTO hunter_keys(key, lead_id, reserved_at, updated_at)
+                VALUES (?, ?, NULL, ?)
+                ON CONFLICT(key) DO UPDATE SET lead_id=excluded.lead_id,
+                    updated_at=excluded.updated_at""",
+                [key, lead_id, now],
+            )
+
+    async def _append(self, candidate: Candidate, keys, lead_id: int, log) -> WriteResult:
+        text = f"[Hunter] Yana murojaat: {candidate.source}."
+        if candidate.note:
+            text += f"\n{candidate.note}"
+        if not await asyncio.to_thread(self.amocrm.add_lead_note, lead_id, text):
+            await log(PENDING, lead_id, "note_failed")
+            return WriteResult(False, PENDING, lead_id, "note_failed")
+        await self._bind(keys, lead_id)  # yangi aniqlangan telefonni ham bog'laydi
+        await log(DUPLICATE, lead_id)
+        return WriteResult(True, DUPLICATE, lead_id)
+
+    async def _create(self, candidate: Candidate, name: str, phone: Optional[str]):
+        tag = f"hunter:{candidate.source}"
         note = f"[Hunter] Manba: {candidate.source}."
         if candidate.note:
             note += f"\n{candidate.note}"
-        error = None
-        lead_id = None
         try:
             if phone:
                 lead_id = await self.amocrm.ensure_lead(
@@ -186,24 +250,27 @@ class HunterWriter:
                     pipeline_id=SALES_PIPELINE_ID,
                     status_id=SALES_NEW_STATUS_ID,
                 )
+                if lead_id and not await self.amocrm.add_lead_tag(int(lead_id), tag):
+                    logger.warning("[HUNTER] teg qo'yilmadi: lead=%s", lead_id)
             else:
                 lead_id = await self.amocrm.create_standalone_lead(
                     name=name,
                     pipeline_id=SALES_PIPELINE_ID,
                     status_id=SALES_NEW_STATUS_ID,
-                    tags=[f"hunter:{candidate.source}"],
+                    tags=[tag],
                     note=note,
                 )
         except Exception as exc:  # amoCRM klienti tarmoq xatosini ko'tarishi mumkin
-            error = type(exc).__name__
             logger.warning("[HUNTER] amoCRM yozuv xatosi: %s", exc)
-        state = SENT if lead_id else PENDING
+            return None, type(exc).__name__
+        return (int(lead_id), None) if lead_id else (None, "amocrm_rejected")
+
+    async def _log(self, c, key, name, phone, state, lead_id, error, day) -> None:
+        now = int(time.time())
         await self._sql(
-            """UPDATE hunter_candidates
-            SET state=?, lead_id=?, attempts=attempts+1, error=?, changed_at=?
-            WHERE id=?""",
-            [state, lead_id, error or (None if lead_id else "amocrm_rejected"), int(time.time()), row_id],
+            """INSERT INTO hunter_candidates
+            (dedup_key, source, kind, name, phone, note, state, lead_id, attempts,
+             error, day, created_at, changed_at)
+            VALUES (?,?,?,?,?,?,?,?,1,?,?,?,?)""",
+            [key, c.source, c.kind, name, phone, c.note, state, lead_id, error, day, now, now],
         )
-        if not lead_id:
-            return WriteResult(False, PENDING, error=error or "amocrm_rejected")
-        return WriteResult(True, SENT, int(lead_id))

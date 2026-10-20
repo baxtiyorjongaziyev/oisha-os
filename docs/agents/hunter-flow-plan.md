@@ -10,7 +10,7 @@ bosqichiga tushsin. Takrorsiz, boyitilgan, kimdan kelgani yozilgan holda.
 
 | Manba | Fayl | Holat |
 |---|---|---|
-| Meta/Instagram Lead Ads | `services/core/instagram/leadgen_*`, `schedulers/meta_leadgen_scheduler.py` | **Ishlaydi.** Dedup (`leadgen_dedup`), router, watchdog, CAPI bor |
+| Meta/Instagram Lead Ads | `services/core/instagram/leadgen_*`, `schedulers/meta_leadgen_scheduler.py` | **Ishlaydi.** Dedup (`leadgen_dedup`), router, watchdog, CAPI bor. Owner qarori 2026-10-20: faqat Sotuv → Yangi, UTC taqsimoti o'chirildi |
 | Telegram DM / guruh xabari | `handlers/msg_pipeline/lead_intake.py` → `auto_lead_agent` | Ulangan (xabar keladi → lid) |
 | Callback vidjet / telefoniya | `leads/callback_request.py`, `leads/call_tracking.py` | Ulangan |
 | Telegram kanal scout | `channel_scout.py` + `channel_scout_loop` | Loop ishlaydi, lekin **faqat tahlil**, amoCRM'ga yozmaydi |
@@ -60,7 +60,10 @@ company?, source, source_ref, evidence (matn parchasi).
   2. Lokal `hunter_seen` jadvali: kalit → amo_lead_id, oxirgi ko'rilgan vaqt.
   3. amoCRM: `find_active_lead_by_phone`, ya'ni `ensure_lead`. Aktiv bitim topilsa, yangi
      bitim ochilmaydi, faqat izoh qo'shiladi: "yana X manbadan keldi".
-- Yopilgan bitim (142/143) 90 kun ichida bo'lsa, yangisi ochilmaydi, owner'ga signal ketadi.
+- Bog'langan bitim amoCRM'da qayta o'qiladi: aktiv bo'lsa izoh, yopilgan (142/143) bo'lsa yangi
+  bitim (qaytgan mijoz). O'qib bo'lmasa — `pending`, yangi bitim ochilmaydi.
+- Bir shaxsning barcha kalitlari (telefon + `tg:<id>`) `hunter_keys`'da bitta lidga bog'lanadi;
+  kalit atomik band qilinadi, bir vaqtda faqat bitta yozuvchi.
 - Telefon xeshi `lead_source.py` dagi SHA-256 yondashuviga mos keladi.
 
 ### 2.3 Boyitish (faqat dedupdan o'tganlar, arzondan qimmatga)
@@ -92,8 +95,9 @@ Ball chegarasidan past nomzod amoCRM'ga yozilmaydi, navbatda `rejected` bo'lib q
   manba yoqilmaydi. *Taxmin: talablarni yurist tasdiqlashi kerak.*
 - **Telegram sessiyasi.** Skreperlar userbot sessiyasidan foydalansa, ban xavfi bor va
   Contabo sessiyasini buzish mumkin. Alohida sessiya va qat'iy rate limit kerak.
-- **Sotuvchi yuklamasi.** 18 yoshli operator kuniga 20 tadan ortiq lidni ishlay olmaydi.
-  Limitni sotuv tezligiga bog'lash kerak.
+- **Sotuvchi yuklamasi.** Kunlik 20 limiti **owner tanlagan qiymat** (2026-10-20), o'lchov
+  emas — tekshirilmagan. Bir operator kuniga nechta lidni ishlay olishi hali o'lchanmagan;
+  2 haftalik ma'lumotdan keyin qayta ko'rib chiqiladi.
 
 ## 4. Bosqichlar (har biri alohida PR)
 

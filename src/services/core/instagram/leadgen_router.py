@@ -37,7 +37,6 @@ from src.services.core.instagram.leadgen_delivery import (
     get_delivery_channel_status,
     get_lead_destination,
     get_next_lead_destination,
-    resolve_lead_destination,
     try_claim_leadgen,
 )
 from src.services.core.marketing.ad_name_resolver import resolve_ad_name
@@ -220,12 +219,9 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     if not checkpoint and phone:
         existing_lead = await asyncio.to_thread(amocrm.find_active_lead_by_phone, phone)
 
-    # Taqsimot: avval saqlangan qaror, keyin rejim (inhouse/utc), mavjud bitim voronkasi, oxirida navbat (50/50).
-    destination, advance_rotation = await asyncio.to_thread(
-        resolve_lead_destination,
-        leadgen_id,
-        existing_lead.get("pipeline_id") if existing_lead else None,
-    )
+    # Owner qarori (2026-10-20): Meta Lead Ads lidlari faqat Sotuv → Yangi LEads.
+    # inhouse/UTC 50/50 taqsimoti o'chirildi.
+    destination, advance_rotation = "inhouse", False
 
     if destination == "inhouse":
         target_pipeline_id = TARGET_LEADS_INHOUSE_PIPELINE_ID

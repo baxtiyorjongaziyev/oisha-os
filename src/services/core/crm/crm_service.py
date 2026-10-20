@@ -30,6 +30,7 @@ class CRMService:
             result = await HunterWriter(self.amocrm, db_pool).submit(
                 Candidate(
                     source=kwargs.get("source", "telegram_dm"),
+                    kind=kwargs.get("kind", "inbound"),
                     name=name,
                     phone=phone,
                     external_id=f"tg:{user_id}" if user_id else None,
