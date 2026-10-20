@@ -6,7 +6,6 @@ import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 import structlog
 import requests as _requests
-from src.services.core.stt_service import STTService
 from src.services.call_analytics.helpers import *
 
 logger = structlog.get_logger()
@@ -229,9 +228,7 @@ class CallTranscriberMixin:
                 )
 
     async def _transcribe_inline(self, audio_bytes: bytes, mime_type: str) -> Optional[str]:
-        """Transcribe audio using Gemini first (best Uzbek accuracy), fallback to
-        STTService (Groq Whisper — weaker on Uzbek, drifts into Kazakh/Russian on
-        noisy clips), then OpenAI Whisper."""
+        """Transcribe audio using Gemini only (best Uzbek accuracy)."""
         from google.genai import types
 
         # 1. Try Gemini first — Groq/Whisper is unreliable on Uzbek speech.
@@ -270,27 +267,14 @@ class CallTranscriberMixin:
                     "[CALL] Gemini transcript rejected as likely hallucination: %r",
                     text[:80],
                 )
+        except GeminiQuotaCooldownError:
+            raise
         except Exception as exc:
             logger.error("[CALL] Gemini STT failed: %s", exc)
 
-        # 2. Fallback to STTService (Groq Whisper) if Gemini failed/unavailable
-        try:
-            stt_service = STTService()
-            result = await stt_service.transcribe(audio_bytes, mime_type)
-            if result and result.transcript:
-                if _looks_like_stt_hallucination(result.transcript):
-                    logger.info(
-                        "[CALL] STTService transcript rejected as likely "
-                        "hallucination: %r",
-                        result.transcript[:80],
-                    )
-                else:
-                    return result.transcript
-        except Exception as exc:
-            logger.warning("[CALL] STTService fallback failed: %s", exc)
-
-        # 3. Final fallback to OpenAI
-        return await self._transcribe_openai(audio_bytes, mime_type)
+        # Gemini-only: Whisper fallbacks (Groq/OpenAI) produced garbled Uzbek
+        # transcripts, so no fallback — the call is retried on a later cycle.
+        return None
 
     async def _transcribe_openai(
         self, audio_bytes: bytes, mime_type: str
