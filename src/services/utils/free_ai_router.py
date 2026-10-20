@@ -3,6 +3,7 @@
 from __future__ import annotations
 from src.context import app_ctx
 
+import base64
 import logging
 import time
 from dataclasses import dataclass
@@ -319,12 +320,23 @@ class FreeAIProviderRouter:
 
     async def _cloudflare_whisper(self, audio_bytes: bytes) -> ProviderResult:
         model = self.settings.CLOUDFLARE_WHISPER_MODEL
-        response = await self._request(
-            "POST",
-            self._cf_url(model),
-            headers=self._cf_headers("application/octet-stream"),
-            content=audio_bytes,
-        )
+        if "large-v3" in model:
+            # whisper-large-v3-turbo accepts a language hint — pin Uzbek so it
+            # does not free-guess (and "translate" into English) like the
+            # legacy @cf/openai/whisper model, which has no language param.
+            response = await self._request(
+                "POST",
+                self._cf_url(model),
+                headers=self._cf_headers("application/json"),
+                json={"audio": base64.b64encode(audio_bytes).decode("ascii"), "language": "uz"},
+            )
+        else:
+            response = await self._request(
+                "POST",
+                self._cf_url(model),
+                headers=self._cf_headers("application/octet-stream"),
+                content=audio_bytes,
+            )
         result = response.json().get("result") or {}
         return ProviderResult(str(result.get("text") or "").strip(), "cloudflare", model)
 
