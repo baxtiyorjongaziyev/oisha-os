@@ -20,31 +20,29 @@ class CRMService:
 
     async def sync_lead(self, user_id: int, name: str, phone: str, **kwargs):
         """Leadni AmoCRM va Airtable-da sinxronizatsiya qilish."""
+        # Hunter yagona yozuvchisi: navbat + dedup + Sotuv/Yangi.
+        # (Oldin bu yer create_lead(note=..., extra_fields=...) chaqirardi —
+        # u argumentlarni qabul qilmagani uchun har safar TypeError bo'lardi.)
         try:
-            note = kwargs.get("note")
-            lead_id = None
+            from src.database_pool import db_pool
+            from src.services.core.leads.hunter import Candidate, HunterWriter
 
-            if hasattr(self.amocrm, "create_lead"):
-                lead_id = await self.amocrm.create_lead(
+            result = await HunterWriter(self.amocrm, db_pool).submit(
+                Candidate(
+                    source=kwargs.get("source", "telegram_dm"),
                     name=name,
                     phone=phone,
-                    note=note,
-                    price=kwargs.get("price", 0),
-                    extra_fields=kwargs.get("extra_fields"),
+                    external_id=f"tg:{user_id}" if user_id else None,
+                    note=kwargs.get("note") or "",
                 )
-            elif hasattr(self.amocrm, "ensure_lead"):
-                lead_id = await self.amocrm.ensure_lead(
-                    name=name, phone=phone, note=note
-                )
-            else:
-                raise AttributeError(
-                    "AmoCRM client does not expose a supported lead creation method"
-                )
-
-            # 2. Airtable-da qayd etish (ixtiyoriy)
-            # self.airtable.add_record(...)
-            logger.info(f"[CRM_SERVICE] Lead synced for {name} (lead_id={lead_id})")
-            return {"success": bool(lead_id), "lead_id": lead_id}
+            )
+            logger.info(
+                f"[CRM_SERVICE] Lead {result.state} for {name} (lead_id={result.lead_id})"
+            )
+            out = {"success": result.ok, "lead_id": result.lead_id, "state": result.state}
+            if result.error:
+                out["error"] = result.error
+            return out
         except Exception as e:
             logger.error(f"[CRM_SERVICE ERROR] {e}")
             return {"success": False, "error": str(e)}
