@@ -118,6 +118,7 @@ from src.api.routes.instagram_routes import router as instagram_router
 from src.api.routes.product_suite import router as product_router
 from src.api.routes.business_commands import router as business_commands_router
 from src.api.routes.crm_dashboard import router as crm_dashboard_router
+from src.api.routes.parallel_crm import router as parallel_crm_router
 from src.api.routes.crm_reports import router as crm_reports_router
 from src.api.routes.finance_dashboard import router as finance_dashboard_router
 from src.api.routes.finance_ai import router as finance_ai_router
@@ -145,6 +146,7 @@ app.include_router(instagram_router)
 app.include_router(product_router)
 app.include_router(business_commands_router)
 app.include_router(crm_dashboard_router)
+app.include_router(parallel_crm_router)
 app.include_router(crm_reports_router)
 app.include_router(finance_dashboard_router)
 app.include_router(finance_ai_router)
