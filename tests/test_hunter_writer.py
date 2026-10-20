@@ -30,6 +30,7 @@ class FakeAmo:
         self.tags = []
         self.lead_status = {}
         self.note_ok = True
+        self.active_by_phone = {}
 
     async def ensure_lead(self, **kw):
         self.ensured.append(kw)
@@ -46,6 +47,9 @@ class FakeAmo:
     def add_lead_note(self, lead_id, text):
         self.notes.append((lead_id, text))
         return {"ok": True} if self.note_ok else False
+
+    def find_active_lead_by_phone(self, phone):
+        return self.active_by_phone.get(phone)
 
     async def add_lead_tag(self, lead_id, tag):
         self.tags.append((lead_id, tag))
@@ -206,3 +210,62 @@ async def test_crm_service_routes_through_hunter(monkeypatch):
     out = await svc.sync_lead(42, "Ali", "+998901234567", note="sifatli", price=0, extra_fields={"x": 1})
     assert out == {"success": True, "lead_id": 501, "state": "sent"}
     assert amo.ensured[0]["status_id"] == SALES_NEW_STATUS_ID
+
+
+async def test_active_lead_outside_hunter_gets_note_not_moved(setup):
+    amo, pool, w = setup
+    amo.active_by_phone["+998901234567"] = {"id": 33, "pipeline_id": 1}
+    r = await w.submit(Candidate(source="meta_lead_ads", name="Ali", phone="901234567"))
+    assert (r.state, r.lead_id) == ("duplicate", 33)
+    assert amo.ensured == [] and amo.notes[0][0] == 33
+
+
+async def test_custom_fields_passed_through(setup):
+    amo, pool, w = setup
+    cf = [{"field_id": 1, "values": [{"value": "x"}]}]
+    await w.submit(Candidate(source="meta_lead_ads", name="A", phone="901234567", custom_fields=cf))
+    await w.submit(Candidate(source="meta_lead_ads", name="B", external_id="leadgen:9", custom_fields=cf))
+    assert amo.ensured[0]["custom_fields"] == cf
+    assert amo.standalone[0]["custom_fields"] == cf
+
+
+def _age_rows(pool, seconds=3600):
+    pool.conn.execute("UPDATE hunter_candidates SET changed_at = changed_at - ?", [seconds])
+
+
+async def test_retry_sends_pending_with_original_data(setup, monkeypatch):
+    monkeypatch.setattr(hunter, "is_quiet_hours", lambda: False)
+    amo, pool, w = setup
+    amo.fail = True
+    cf = [{"field_id": 1, "values": [{"value": "x"}]}]
+    await w.submit(Candidate(source="meta_lead_ads", name="Ali", phone="901234567",
+                             external_id="leadgen:5", note="n", custom_fields=cf))
+    amo.fail = False
+    _age_rows(pool)
+    stats = await w.retry_pending()
+    assert stats == {"retried": 1, "sent": 1, "failed": 0}
+    assert amo.ensured[-1]["custom_fields"] == cf and "n" in amo.ensured[-1]["note"]
+    assert states(pool) == ["retried", "sent"]
+
+
+async def test_retry_skips_recent_and_quiet_hours(setup, monkeypatch):
+    amo, pool, w = setup
+    amo.fail = True
+    await w.submit(Candidate(source="telegram_dm", name="Ali", phone="901234567"))
+    monkeypatch.setattr(hunter, "is_quiet_hours", lambda: False)
+    assert (await w.retry_pending())["retried"] == 0  # hali 10 daqiqa o'tmagan
+    _age_rows(pool)
+    monkeypatch.setattr(hunter, "is_quiet_hours", lambda: True)
+    assert (await w.retry_pending())["retried"] == 0
+
+
+async def test_retry_gives_up_after_max_attempts(setup, monkeypatch):
+    monkeypatch.setattr(hunter, "is_quiet_hours", lambda: False)
+    amo, pool, w = setup
+    amo.fail = True
+    await w.submit(Candidate(source="telegram_dm", name="Ali", phone="901234567"))
+    for _ in range(hunter.MAX_ATTEMPTS + 1):
+        _age_rows(pool)
+        await w.retry_pending()
+    assert states(pool)[-1] == "failed"
+    assert len(amo.ensured) == hunter.MAX_ATTEMPTS

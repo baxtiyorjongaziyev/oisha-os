@@ -33,6 +33,8 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     asyncio.create_task(daily_frog_loop(bot_runtime, settings.TEAM_GROUP_ID), name="daily_frog_loop")
     from src.schedulers.channel_scout_scheduler import channel_scout_loop
     asyncio.create_task(channel_scout_loop(), name="channel_scout_loop")
+    from src.schedulers.hunter_retry_scheduler import hunter_retry_loop
+    asyncio.create_task(hunter_retry_loop(), name="hunter_retry_loop")
     from src.schedulers.instagram_weekly_reporter import instagram_weekly_report_loop
     asyncio.create_task(
         instagram_weekly_report_loop(bot_runtime, settings.TEAM_GROUP_ID),

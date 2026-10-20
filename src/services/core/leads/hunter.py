@@ -16,19 +16,20 @@ Rejani ko'ring: `docs/agents/hunter-flow-plan.md`.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.services.core.crm.amocrm_pipeline_config import (
     SALES_NEW_STATUS_ID,
     SALES_PIPELINE_ID,
     STATUS_WON,
 )
-from src.time_utils import get_local_now
+from src.time_utils import get_local_now, is_quiet_hours
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,8 @@ STATUS_LOST = 143
 _CLOSED_STATUSES = {STATUS_WON, STATUS_LOST}
 # Band qilingan, lekin tugallanmagan kalit shu vaqtdan keyin qayta olinishi mumkin.
 _RESERVATION_TTL_SECONDS = 300
+MAX_ATTEMPTS = 5
+_RETRY_AFTER_SECONDS = 600
 
 _SCHEMA = [
     """CREATE TABLE IF NOT EXISTS hunter_candidates (
@@ -48,6 +51,8 @@ _SCHEMA = [
         kind TEXT NOT NULL,
         name TEXT NOT NULL,
         phone TEXT,
+        external_id TEXT,
+        custom_fields TEXT,
         note TEXT,
         state TEXT NOT NULL,
         lead_id INTEGER,
@@ -79,6 +84,7 @@ class Candidate:
     phone: Optional[str] = None
     external_id: Optional[str] = None
     note: str = ""
+    custom_fields: Optional[List[Dict[str, Any]]] = None
 
 
 @dataclass(frozen=True)
@@ -156,6 +162,11 @@ class HunterWriter:
             if lead.get("status_id") not in _CLOSED_STATUSES:
                 return await self._append(candidate, keys, known, log)
             # Yopilgan bitim: yangi murojaat yangi bitim bo'ladi.
+        elif phone and hasattr(self.amocrm, "find_active_lead_by_phone"):
+            # Hunter'dan oldin ochilgan aktiv bitim (masalan Muzokarada) — "Yangi"ga qaytarilmaydi.
+            active = await asyncio.to_thread(self.amocrm.find_active_lead_by_phone, phone)
+            if active and active.get("id"):
+                return await self._append(candidate, keys, int(active["id"]), log)
 
         if candidate.kind != INBOUND and await self._used_today(day) >= daily_limit():
             await log(LIMITED, error="daily_limit")
@@ -251,6 +262,7 @@ class HunterWriter:
                     note=note,
                     pipeline_id=SALES_PIPELINE_ID,
                     status_id=SALES_NEW_STATUS_ID,
+                    custom_fields=candidate.custom_fields,
                 )
                 if lead_id and not await self.amocrm.add_lead_tag(int(lead_id), tag):
                     logger.warning("[HUNTER] teg qo'yilmadi: lead=%s", lead_id)
@@ -261,6 +273,7 @@ class HunterWriter:
                     status_id=SALES_NEW_STATUS_ID,
                     tags=[tag],
                     note=note,
+                    custom_fields=candidate.custom_fields,
                 )
         except Exception as exc:  # amoCRM klienti tarmoq xatosini ko'tarishi mumkin
             logger.warning("[HUNTER] amoCRM yozuv xatosi: %s", exc)
@@ -271,8 +284,50 @@ class HunterWriter:
         now = int(time.time())
         await self._sql(
             """INSERT INTO hunter_candidates
-            (dedup_key, source, kind, name, phone, note, state, lead_id, attempts,
-             error, day, created_at, changed_at)
-            VALUES (?,?,?,?,?,?,?,?,1,?,?,?,?)""",
-            [key, c.source, c.kind, name, phone, c.note, state, lead_id, error, day, now, now],
+            (dedup_key, source, kind, name, phone, external_id, custom_fields, note,
+             state, lead_id, attempts, error, day, created_at, changed_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?,?,?)""",
+            [key, c.source, c.kind, name, phone, c.external_id,
+             json.dumps(c.custom_fields, ensure_ascii=False) if c.custom_fields else None,
+             c.note, state, lead_id, error, day, now, now],
+        )
+
+    async def retry_pending(self, limit: int = 20) -> Dict[str, int]:
+        """`pending` nomzodlarni qayta yuboradi. Quiet-hours'da hech narsa qilmaydi."""
+        await self.init()
+        stats = {"retried": 0, "sent": 0, "failed": 0}
+        if is_quiet_hours():
+            return stats
+        rows = await self._sql(
+            """SELECT * FROM hunter_candidates WHERE state=? AND changed_at < ?
+            ORDER BY id LIMIT ?""",
+            [PENDING, int(time.time()) - _RETRY_AFTER_SECONDS, limit],
+        )
+        for row in rows:
+            attempts = int(row["attempts"])
+            if attempts >= MAX_ATTEMPTS:
+                await self._set_state(row["id"], FAILED)
+                stats["failed"] += 1
+                continue
+            await self._set_state(row["id"], "retried")
+            result = await self.submit(Candidate(
+                source=row["source"], kind=row["kind"], name=row["name"],
+                phone=row["phone"], external_id=row["external_id"], note=row["note"] or "",
+                custom_fields=json.loads(row["custom_fields"]) if row["custom_fields"] else None,
+            ))
+            stats["retried"] += 1
+            if result.ok:
+                stats["sent"] += 1
+            else:
+                await self._sql(
+                    """UPDATE hunter_candidates SET attempts=?
+                    WHERE id=(SELECT MAX(id) FROM hunter_candidates WHERE dedup_key=?)""",
+                    [attempts + 1, row["dedup_key"]],
+                )
+        return stats
+
+    async def _set_state(self, row_id: int, state: str) -> None:
+        await self._sql(
+            "UPDATE hunter_candidates SET state=?, changed_at=? WHERE id=?",
+            [state, int(time.time()), row_id],
         )

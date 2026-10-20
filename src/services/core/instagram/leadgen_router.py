@@ -12,7 +12,6 @@ import structlog
 from src.settings import settings
 from src.services.core.crm.amocrm_pipeline_config import (
     UTC_PIPELINE_ID,
-    UTC_NEW_STATUS_ID,
     TARGET_LEADS_INHOUSE_PIPELINE_ID,
     TARGET_LEADS_INHOUSE_NEW_STATUS_ID,
     TARGET_LEAD_TAG,
@@ -214,47 +213,34 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     deal_name = f"{name} | 🎬 {ad_name}" if ad_name else name
 
     checkpoint = None if force else await asyncio.to_thread(get_crm_checkpoint, leadgen_id)
-    # Mavjud aktiv bitim bo'lsa (masalan Muzokarada), uni "Yangi"ga qaytarmaymiz — faqat note/teg qo'shiladi.
-    existing_lead = None
-    if not checkpoint and phone:
-        existing_lead = await asyncio.to_thread(amocrm.find_active_lead_by_phone, phone)
 
     # Owner qarori (2026-10-20): Meta Lead Ads lidlari faqat Sotuv → Yangi LEads.
-    # inhouse/UTC 50/50 taqsimoti o'chirildi.
+    # inhouse/UTC 50/50 taqsimoti o'chirildi. Yozuv Hunter yagona yozuvchisi orqali:
+    # dedup (telefon + leadgen_id), aktiv bitim bo'lsa faqat izoh.
     destination, advance_rotation = "inhouse", False
-
-    if destination == "inhouse":
-        target_pipeline_id = TARGET_LEADS_INHOUSE_PIPELINE_ID
-        target_status_id = TARGET_LEADS_INHOUSE_NEW_STATUS_ID
-        dest_tag = "inhouse"
-    else:
-        target_pipeline_id = UTC_PIPELINE_ID
-        target_status_id = UTC_NEW_STATUS_ID
-        dest_tag = "utc_outsource"
+    target_pipeline_id = TARGET_LEADS_INHOUSE_PIPELINE_ID
+    target_status_id = TARGET_LEADS_INHOUSE_NEW_STATUS_ID
+    dest_tag = "inhouse"
     dest_label = DESTINATION_LABELS[destination]
+    existing_lead = False
     if checkpoint:
         lead_id = checkpoint
-    elif existing_lead:
-        lead_id = existing_lead.get("id")
-        await asyncio.to_thread(amocrm.add_lead_note, int(lead_id), note)
-    elif phone:
-        lead_id = await amocrm.ensure_lead(
-            name=deal_name,
-            phone=phone,
-            note=note,
-            pipeline_id=target_pipeline_id,
-            status_id=target_status_id,
-            custom_fields=custom_fields,
-        )
     else:
-        lead_id = await amocrm.create_standalone_lead(
-            name=deal_name,
-            pipeline_id=target_pipeline_id,
-            status_id=target_status_id,
-            tags=[TARGET_LEAD_TAG, "Facebook Lead Ads", "Oisha", f"taqsimot:{dest_tag}"],
-            note=note,
-            custom_fields=custom_fields,
+        from src.database_pool import db_pool
+        from src.services.core.leads.hunter import Candidate, HunterWriter
+
+        written = await HunterWriter(amocrm, db_pool).submit(
+            Candidate(
+                source="meta_lead_ads",
+                name=deal_name,
+                phone=phone,
+                external_id=f"leadgen:{leadgen_id}",
+                note=note,
+                custom_fields=custom_fields,
+            )
         )
+        lead_id = written.lead_id if written.ok else None
+        existing_lead = written.state == "duplicate"
 
     if not lead_id:
         return {"ok": False, "reason": "crm_delivery_failed", "leadgen_id": leadgen_id}

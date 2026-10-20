@@ -1984,5 +1984,8 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   tests/test_hunter_writer.py, docs/agents/hunter-flow-plan.md.
 - Tekshiruv (lokal): `pytest tests/test_hunter_writer.py` 20 passed; leadgen testlari 67 passed;
   to'liq `SKIP_LIVE=1` suite — PR'dagi oxirgi natijaga qarang. Live amoCRM/Turso'da sinalmagan.
-- Qolgan ish: `pending` uchun retry scheduler; Meta yo'lini ham `HunterWriter`ga o'tkazish (hozir
-  o'z dedup/checkpoint'i bilan Sotuv/Yangi'ga yozadi); kunlik limitni o'lchov bilan tasdiqlash.
+- Keyin qo'shildi: Meta router endi `HunterWriter` orqali yozadi (`meta_lead_ads`, `leadgen:<id>`,
+  custom_fields saqlanadi; Hunter'dan tashqari ochilgan aktiv bitim faqat izoh oladi).
+  `hunter_retry_loop` (har 15 daq., quiet-hours'da emas, 5 urinishdan keyin `failed`;
+  `HUNTER_RETRY_ENABLED=0` bilan o'chadi). Qolgan ish: kunlik limitni o'lchov bilan tasdiqlash;
+  `failed` lidlar uchun owner'ga bildirishnoma.
