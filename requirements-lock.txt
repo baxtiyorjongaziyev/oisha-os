@@ -229,7 +229,7 @@ packaging==26.3
     #   sphinx
 phonenumbers==9.0.40
     # via -r requirements.txt
-pillow==12.3.0
+pillow==13.0.0
     # via
     #   instagrapi
     #   pyscreeze
