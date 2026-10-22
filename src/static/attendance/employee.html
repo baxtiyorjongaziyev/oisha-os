@@ -26,6 +26,16 @@
     <a href="/api/auth/telegram/login?next=/api/attendance/app" class="inline-block bg-sky-500 text-white font-semibold px-6 py-3 rounded-xl">Telegram bilan kirish</a>
   </section>
 
+  <section id="link" class="hidden bg-white rounded-2xl p-6 shadow-sm">
+    <h2 class="font-semibold">Davomatga ulanish</h2>
+    <p class="text-sm text-slate-500 mt-1" id="link-text">Telegram hisobingiz hali xodimlar ro‘yxatiga bog‘lanmagan. Ism-familiyangizni yozing — rahbar tasdiqlaydi.</p>
+    <form id="link-form" class="mt-4 space-y-3">
+      <input id="link-name" required minlength="2" maxlength="120" class="w-full border border-slate-200 rounded-xl px-4 py-3" placeholder="Ism Familiya">
+      <button class="w-full py-3 rounded-xl text-white font-semibold bg-slate-900">So‘rov yuborish</button>
+    </form>
+    <p id="link-msg" class="text-sm mt-3"></p>
+  </section>
+
   <section id="app" class="hidden">
     <div class="bg-white rounded-2xl p-6 shadow-sm mb-4">
       <p class="text-sm text-slate-500" id="today-label">Bugun</p>

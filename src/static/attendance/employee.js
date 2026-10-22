@@ -71,6 +71,7 @@ async function load() {
     renderHistory(hist.events);
   } catch (err) {
     if (err.status === 401) { $('login').classList.remove('hidden'); return; }
+    if (err.code === 'not_an_employee') { showLink(); return; }
     $('app').classList.remove('hidden');
     $('action').disabled = true;
     $('action').textContent = err.message;
@@ -159,6 +160,26 @@ async function run() {
     load();
   }
 }
+
+async function showLink() {
+  $('link').classList.remove('hidden');
+  $('app').classList.add('hidden');
+  const st = (await api('/link-request').catch(() => ({}))).state;
+  if (st === 'pending') {
+    $('link-form').classList.add('hidden');
+    $('link-text').textContent = 'So‘rovingiz yuborilgan. Rahbar tasdiqlagach shu sahifani yangilang.';
+  } else if (st === 'rejected') {
+    $('link-text').textContent = 'Oldingi so‘rov rad etilgan. Ma’lumotni tekshirib, qayta yuboring.';
+  }
+}
+
+$('link-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  try {
+    await api('/link-request', { method: 'POST', body: { full_name: $('link-name').value.trim() } });
+    showLink();
+  } catch (err) { $('link-msg').className = 'text-sm mt-3 text-rose-600'; $('link-msg').textContent = err.message; }
+});
 
 $('action').addEventListener('click', run);
 tick(); setInterval(tick, 10000);

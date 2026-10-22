@@ -250,7 +250,9 @@ def client(env, monkeypatch):
     app = FastAPI()
     app.include_router(routes.router)
     state = {"principal": Principal("111", Role.VIEWER, "session")}
-    for dep in (routes._SELF, routes._READ_ALL, routes._MANAGE, routes._KIOSK):
+    from src.api.routes import attendance_setup_routes as setup
+    app.include_router(setup.router)
+    for dep in (routes._SELF, routes._READ_ALL, routes._MANAGE, setup._SELF, setup._MANAGE):
         real = dep.dependency
 
         async def override(request: routes.Request, _real=real):
@@ -276,10 +278,13 @@ def test_api_employee_flow_and_rbac(client):
                json={"latitude": LAT, "longitude": LON, "accuracy_m": 10, "captured_at": now})
     assert r.status_code == 200, r.text
     # xodim QR chiqara olmaydi va admin dashboard ko'ra olmaydi
-    assert c.get("/api/attendance/kiosk/qr").status_code == 403
+    assert c.get("/api/attendance/kiosk/qr").status_code == 401
     assert c.get("/api/attendance/admin/dashboard").status_code == 403
+    assert c.post("/api/attendance/admin/kiosk-tokens", json={}).status_code == 403
     state["principal"] = Principal("owner", Role.OWNER, "session")
-    token = c.get("/api/attendance/kiosk/qr").json()["token"]
+    kiosk_token = c.post("/api/attendance/admin/kiosk-tokens", json={"label": "Ofis"}).json()["token"]
+    assert c.get("/api/attendance/kiosk/qr", headers={"Authorization": "Bearer oak_wrong"}).status_code == 401
+    token = c.get("/api/attendance/kiosk/qr", headers={"Authorization": f"Bearer {kiosk_token}"}).json()["token"]
     state["principal"] = Principal("111", Role.VIEWER, "session")
     assert c.post(f"/api/attendance/sessions/{sid}/qr", json={"token": token}).status_code == 200
     r = c.post(f"/api/attendance/sessions/{sid}/confirm")
@@ -355,7 +360,8 @@ def test_only_page_shells_are_public():
     from src.api.security import is_protected_path
     for path in routes.PAGES:
         assert not is_protected_path(path), path
-    for path in ("/api/attendance/today", "/api/attendance/admin/reports", "/api/attendance/kiosk/qr",
+    assert not is_protected_path("/api/attendance/kiosk/qr")  # route ichida kiosk kaliti tekshiriladi
+    for path in ("/api/attendance/today", "/api/attendance/admin/reports", "/api/attendance/admin/kiosk-tokens",
                  "/api/attendance/app/../admin/dashboard", "/api/attendance/app/x"):
         assert is_protected_path(path), path
 
@@ -371,3 +377,77 @@ def test_login_redirect_whitelist_includes_attendance_only():
 def test_office_constant_matches_owner_input():
     from src.services.core.attendance.team_schedules import OFFICE
     assert (OFFICE["latitude"], OFFICE["longitude"]) == (41.3056580, 69.2814659)
+
+
+def test_kiosk_token_revocation(client):
+    c, state = client
+    state["principal"] = Principal("owner", Role.OWNER, "session")
+    tok = c.post("/api/attendance/admin/kiosk-tokens", json={}).json()["token"]
+    auth = {"Authorization": f"Bearer {tok}"}
+    assert c.get("/api/attendance/kiosk/qr", headers=auth).status_code == 200
+    tid = c.get("/api/attendance/admin/kiosk-tokens").json()["tokens"][0]["id"]
+    assert c.delete(f"/api/attendance/admin/kiosk-tokens/{tid}").status_code == 200
+    assert c.get("/api/attendance/kiosk/qr", headers=auth).status_code == 401
+
+
+def test_link_request_flow(client):
+    c, state = client
+    state["principal"] = Principal("555", Role.VIEWER, "session")
+    assert c.post("/api/attendance/sessions", json={"kind": "check_in"},
+                  headers={"Idempotency-Key": "link-key-001"}).status_code == 403
+    r = c.post("/api/attendance/link-request", json={"full_name": "Mumtozmaxal Karimova"})
+    assert r.status_code == 200 and c.get("/api/attendance/link-request").json()["state"] == "pending"
+    state["principal"] = Principal("owner", Role.OWNER, "session")
+    reqs = c.get("/api/attendance/admin/link-requests").json()
+    assert reqs["requests"][0]["full_name"] == "Mumtozmaxal Karimova"
+    res = c.post(f"/api/attendance/admin/link-requests/{reqs['requests'][0]['id']}/approve", json={}).json()
+    assert res["created"] is True
+    state["principal"] = Principal("555", Role.VIEWER, "session")
+    assert c.post("/api/attendance/sessions", json={"kind": "check_in"},
+                  headers={"Idempotency-Key": "link-key-002"}).status_code == 200
+    # owner bergan grafik avtomatik qo'llandi (chorshanba dam, yakshanba ish)
+    state["principal"] = Principal("owner", Role.OWNER, "session")
+    emps = {e["name"]: e for e in c.get("/api/attendance/admin/employees").json()["employees"]}
+    assert emps["Mumtozmaxal Karimova"]["weekdays"] == [1, 2, 4, 5, 6, 7]
+    assert c.post("/api/attendance/link-request", json={"full_name": "x"}).status_code == 422
+
+
+def test_link_to_existing_employee_and_no_overwrite(env):
+    db, _, _, _ = env
+    from src.services.core.attendance import linking
+    db.conn.execute("INSERT INTO employees (id, telegram_id, name, role, is_active) VALUES (3, NULL, 'Ahror', 'x', 1)")
+    req = run(linking.request(db, telegram_id=777, full_name="Ahror"))
+    assert run(linking.unlinked_employees(db)) == [{"id": 3, "name": "Ahror"}]
+    run(linking.approve(db, actor="owner", request_id=req["id"], employee_id=3))
+    assert db.conn.execute("SELECT telegram_id FROM employees WHERE id = 3").fetchone()[0] == 777
+    req2 = run(linking.request(db, telegram_id=888, full_name="Boshqa"))
+    with pytest.raises(AttendanceError):  # Ali (id=1) allaqachon bog'langan — ustidan yozilmaydi
+        run(linking.approve(db, actor="owner", request_id=req2["id"], employee_id=1))
+
+
+def test_bootstrap_fills_only_missing(env):
+    db, _, _, _ = env
+    from src.services.core.attendance import bootstrap
+    db.conn.execute("INSERT INTO employees (id, telegram_id, name, role, is_active) VALUES (4, 444, 'Hasanboy', 'x', 1)")
+    rep = run(bootstrap.run(db))
+    assert rep["office"] == "exists" and rep["schedules"] == ["Hasanboy"]
+    assert run(bootstrap.run(db))["schedules"] == []  # ikkinchi marta — hech narsa o'zgarmaydi
+
+
+def test_bootstrap_creates_office_when_missing():
+    db = SqliteDb()
+    run(init_attendance_tables(db))
+    from src.services.core.attendance import bootstrap, repo
+    assert run(bootstrap.run(db))["office"] == "created"
+    fence = run(repo.active_geofence(db))
+    assert (fence["latitude"], fence["longitude"], fence["radius_m"]) == (41.305658, 69.2814659, 150)
+
+
+def test_qr_secret_derived_without_env(monkeypatch):
+    from src.services.core.attendance import secrets_util
+    monkeypatch.delenv("ATTENDANCE_QR_SECRET", raising=False)
+    monkeypatch.setenv("JWT_SECRET", "j" * 40)
+    derived = secrets_util.qr_secret()
+    assert len(derived) == 64 and "j" * 10 not in derived
+    monkeypatch.setenv("ATTENDANCE_QR_SECRET", "e" * 40)
+    assert secrets_util.qr_secret() == "e" * 40  # aniq berilgan kalit ustun
