@@ -2017,3 +2017,15 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Cohort revenue overlaps: Sevara appears in four courses, other clients in two. LTV includes pre-course payments. 153 transactions for 80 matched-client projects were read via Airtable to verify dates; amounts reconcile to cohort LTV. Cash after first group message: TN2 144,955,000; TN3 55,029,000; TN4 109,476,000; TN5 102,556,000; TN6 70,944,000 UZS. First group message is not a verified course start; causal ROI remains unknown.
 - Added snapshot_stamp input to inspect an exact existing report without Telegram authentication/sending. Removed deal-title strings from future detail logs because titles themselves may contain phone numbers. Source CSVs in Saved Messages are raw matching output, not corrected paid-client attribution.
 - No CRM/Airtable writes or .env/GitHub secret changes. Existing AmoCRM loader did persist token cache to Turso as its internal side effect (observed in logs); no value was printed. Report/source evidence is local under data/tn_audit, not committed.
+### 2026-10-22 — Codex: Smart Attendance, 2-vazifa startup va insident
+- Bajarildi: schema/bootstrap FastAPI lifespan paytida, servingdan oldin bajariladi; init vaqti loglanadi. Insident xronologiyasi deploy loglari bilan yozildi. Sabab noma'lum, prod journald olinmagan.
+- Fayllar: `src/services/api_server/core.py`, `tests/test_attendance_startup.py`, `docs/attendance-incident-2026-10-22.md`. Branch: `fix/attendance-startup-init`.
+- Dalil: avval 2 yangi startup testi yiqildi; patchdan so'ng startup+flow 38 passed. To'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3053 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: prod jurnal/kernel/access log va real startup vaqti tekshiruvi; shared libsql contention insident sababi sifatida isbotlanmagan. Init xatosi API startupni to'xtatadi, deploy grace tekshirilsin.
+### 2026-10-22 — Codex: Smart Attendance, 1-vazifa IP audit
+- Bajarildi: repo Nginx va PR #936 deploy jurnali solishtirildi; loopback proxy trust/fail-closed uchun 10 sintetik test qo'shildi. IP trust kengaytirilmadi, prod konfiguratsiyasi o'zgartirilmadi.
+- Fayllar: `docs/attendance-proxy-audit.md`, `tests/test_attendance_network.py`. Branch: `fix/attendance-proxy-verification`.
+- Dalil: `SKIP_LIVE=1 python -m pytest -q --tb=short` 3051 passed, 17 skipped, 4 subtests passed; yangi network testlari 10 passed. `python -m bandit -r src/ -ll` medium/high 0, exit 0.
+- Qolgan ish: SSH host kaliti tekshiruvi o'tmadi; joriy prod `nginx -T`, HR Wi-Fi read-back va telefon sinovi tekshirilmagan. Deploy journalidagi sites-enabled/oisha.conf hamda repo nusxalanadigan sites-available/oisha nishonlari tekshirilsin. Wi-Fi sozlanmaganda mavjud GPS-only fallback qayd etildi.
+
+- Codex 2-vazifa yangilanishi: main bilan faqat handoff append konflikti ikkala yozuvni saqlab yechildi; qayta to'liq pre-flight 3063 passed, 17 skipped, 4 subtests passed; Bandit medium/high 0.
