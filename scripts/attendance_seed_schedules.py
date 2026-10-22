@@ -1,4 +1,4 @@
-"""src/services/core/attendance/team_schedules.json dagi grafiklarni xodim ismi bo'yicha bazaga yozadi.
+"""src/services/core/attendance/team_schedules.py dagi grafiklarni xodim ismi bo'yicha bazaga yozadi.
 
 Ishlatish (serverda, ofis geofence sozlangandan keyin):
     python scripts/attendance_seed_schedules.py            # faqat ko'rsatadi (dry-run)
@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -25,10 +24,11 @@ async def main(apply: bool) -> int:
     from src.services.core.attendance import admin
     from src.services.core.attendance.schema import init_attendance_tables
 
-    cfg = json.loads((ROOT / "src" / "services" / "core" / "attendance" / "team_schedules.json").read_text(encoding="utf-8"))
+    from src.services.core.attendance.team_schedules import TEAM_SCHEDULES
+
     await init_attendance_tables(db_pool)
     problems = 0
-    for item in cfg["employees"]:
+    for item in TEAM_SCHEDULES:
         rows = await db_pool.execute(
             "SELECT id, name FROM employees WHERE is_active = 1 AND lower(name) LIKE lower(?)",
             [f"%{item['name']}%"])

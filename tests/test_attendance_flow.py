@@ -333,9 +333,7 @@ def test_optional_day_schedule_roundtrip(env):
 
 
 def test_schedule_config_is_valid():
-    import json
-    from pathlib import Path
-    cfg = json.loads(Path("src/services/core/attendance/team_schedules.json").read_text(encoding="utf-8"))
-    for item in cfg["employees"]:
+    from src.services.core.attendance.team_schedules import TEAM_SCHEDULES
+    for item in TEAM_SCHEDULES:
         assert set(item["weekdays"]) <= set(range(1, 8))
         assert set(item.get("optional_weekdays", [])) <= set(range(1, 8))
