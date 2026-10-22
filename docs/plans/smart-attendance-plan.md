@@ -1,6 +1,6 @@
 # Smart Attendance — Repository audit va implementatsiya rejasi
 
-Holat: **1-bosqich bajarildi** (sxema + testlar). Owner javoblari (2026-10-22): EMPLOYEE roli — ha; Telegram login — yetarli; bitta ofis; yuz tekshiruvi — tushuntirish kutilmoqda.
+Holat: **1–2-bosqichlar bajarildi** (sxema, GPS geofence, dinamik QR). Owner qarorlari (2026-10-22): EMPLOYEE roli — ha; Telegram login; bitta ofis; yuz tekshiruvi hozircha yo‘q; GPS+QR o‘tsa avtomatik tasdiq, shubhali holat Telegramga (tasdiqlovchi: OWNER_ID, owner boshqasini aytmaguncha).
 
 ## 1. Audit natijalari (manbadan tekshirilgan)
 

@@ -5,7 +5,7 @@ unga tegilmaydi. Barcha DDL idempotent: ``IF NOT EXISTS``.
 
 Himoya cheklovlari:
 - dublikat check-in: ``attendance_sessions`` da UNIQUE(employee_id, work_date, kind)
-- QR replay: ``qr_challenges.nonce`` UNIQUE + ``used_at`` atomik belgilanadi
+- QR replay: ``qr_challenges.nonce`` UNIQUE + ``qr_redemptions`` UNIQUE(challenge, employee)
 - parallel so'rov: sessiya ``version`` ustuni bilan shartli UPDATE
 """
 from __future__ import annotations
@@ -148,9 +148,19 @@ CREATE TABLE IF NOT EXISTS qr_challenges (
     nonce TEXT NOT NULL UNIQUE,
     kiosk_id TEXT NOT NULL,
     issued_at TEXT NOT NULL,
-    expires_at TEXT NOT NULL,
-    used_at TEXT,
-    used_by_session TEXT REFERENCES attendance_sessions(id)
+    expires_at TEXT NOT NULL
+)
+"""
+
+# Monitordagi bitta QR ni ko'p xodim skanerlaydi, lekin har xodim uni faqat bir marta ishlata oladi.
+_CREATE_QR_REDEMPTIONS = """
+CREATE TABLE IF NOT EXISTS qr_redemptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    challenge_id INTEGER NOT NULL REFERENCES qr_challenges(id),
+    employee_id INTEGER NOT NULL REFERENCES employees(id),
+    session_id TEXT NOT NULL UNIQUE REFERENCES attendance_sessions(id),
+    redeemed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (challenge_id, employee_id)
 )
 """
 
@@ -238,6 +248,7 @@ MIGRATIONS: list[str] = [
     _CREATE_EVENTS,
     _CREATE_VERIFICATIONS,
     _CREATE_QR_CHALLENGES,
+    _CREATE_QR_REDEMPTIONS,
     _CREATE_FACE_ENROLLMENTS,
     _IDX_ONE_ACTIVE_ENROLLMENT,
     _CREATE_CORRECTIONS,
