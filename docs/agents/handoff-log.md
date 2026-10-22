@@ -2003,6 +2003,11 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   --apply`, `employees.telegram_id`); 8-bosqich Payroll; deploy qo'llanmasi; O'zR shaxsga doir
   ma'lumotlar qonuni bo'yicha yurist tekshiruvi.
 
+### 2026-10-22 — Codex: Smart Attendance, 2-vazifa startup va insident
+- Bajarildi: schema/bootstrap FastAPI lifespan paytida, servingdan oldin bajariladi; init vaqti loglanadi. Insident xronologiyasi deploy loglari bilan yozildi. Sabab noma'lum, prod journald olinmagan.
+- Fayllar: `src/services/api_server/core.py`, `tests/test_attendance_startup.py`, `docs/attendance-incident-2026-10-22.md`. Branch: `fix/attendance-startup-init`.
+- Dalil: avval 2 yangi startup testi yiqildi; patchdan so'ng startup+flow 38 passed. To'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3053 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: prod jurnal/kernel/access log va real startup vaqti tekshiruvi; shared libsql contention insident sababi sifatida isbotlanmagan. Init xatosi API startupni to'xtatadi, deploy grace tekshirilsin.
 ### 2026-10-22 — Codex: Smart Attendance, 1-vazifa IP audit
 - Bajarildi: repo Nginx va PR #936 deploy jurnali solishtirildi; loopback proxy trust/fail-closed uchun 10 sintetik test qo'shildi. IP trust kengaytirilmadi, prod konfiguratsiyasi o'zgartirilmadi.
 - Fayllar: `docs/attendance-proxy-audit.md`, `tests/test_attendance_network.py`. Branch: `fix/attendance-proxy-verification`.
@@ -2015,3 +2020,18 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Dalil: https://lex.uz/uz/docs/-4396419 2026-10-22 da ochildi; texnik inventar attendance kodi bilan solishtirildi. `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3061 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
 - Qolgan ish: yurist xulosasi, haqiqiy Contabo/Turso/backup joylashuvi va provayder hujjatlari, reyestr yoki istisno dalili, saqlash siyosati. Barchasi noma'lum/tasdiqlanmagan deb belgilandi.
 - Operatsion cheklov: read-only `oracle-health.yml` run 39833624424 SSH 22-portda i/o timeout bilan tugadi; server holati olinmadi. Task 1/2 prod tekshiruvi hamon ochiq.
+### 2026-10-22 — Codex: Smart Attendance, 4-vazifa o'zbekcha qo'llanma
+- Bajarildi: Telegram login/ulanish, mavjud xodimga bog'lash, Keldim/Ketdim, bir martalik GPS, Wi-Fi sozlash/read-back, hisobot/Excel/PDF, xato va yechimlar o'zbekcha yozildi. Wi-Fi sozlanmagandagi GPS-only cheklov yashirilmadi.
+- Fayllar: `docs/attendance-guide.md`. Branch: `fix/attendance-uzbek-guide`.
+- Dalil: matn `employee.html/js`, `admin.html/js`, `common.js` va API kodi bilan solishtirildi. To'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3061 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: haqiqiy telefon, Telegram login va ofis Wi-Fi bilan prod qabul sinovi o'tkazilmagan.
+### 2026-10-22 — Codex: Smart Attendance, 3-vazifa Hisobchi API
+- Owner usul tanlashni dasturchiga topshirdi; B varianti tanlandi. `GET /api/attendance/payroll/summary` endi `summary.period_summary()` faktlarini attendance:read:all bilan beradi, finance:read yetmaydi. Pul/jarima hisoblanmaydi. Davr, timezone, manba, go-live va provisional metadata, no-store va audit qo'shildi.
+- Fayllar: `src/api/routes/attendance_routes.py`, `src/services/core/attendance/payroll_export.py`, `tests/test_attendance_payroll.py`, `docs/attendance-payroll-api.md`. Branch: `feat/attendance-payroll-api`.
+- Dalil: oldin 3 test 404 bilan yiqildi, keyin 3 passed; to'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3065 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: real Hisobchi iste'molchisini ruxsatli service token bilan ulash va prod read-back; amalda ma'lumot uzatilgani tekshirilmagan. Faol bo'lmagan xodimlar mavjud summary kontraktida yo'q.
+- Codex 2-vazifa yangilanishi: main bilan faqat handoff append konflikti ikkala yozuvni saqlab yechildi; qayta to'liq pre-flight 3063 passed, 17 skipped, 4 subtests passed; Bandit medium/high 0.
+
+- Codex integratsiya tekshiruvi: startup + IP + payroll birga, to'liq pre-flight 3067 passed, 17 skipped, 4 subtests passed; Bandit medium/high 0. Production fayl chegaralari: core.py 202, attendance_routes.py 379, payroll_export.py 34 qator; eng uzun funksiya 30 qator.
+
+- Codex yakuniy integratsiya: PR #945, #947, #948, #950, #951 alohida vazifalar uchun. Birlashtirilgan Python kodida to'liq pytest 3067 passed, 17 skipped, 4 subtests passed; Bandit medium/high 0. Faqat hujjat/handoff konfliktlari barcha yozuvlarni saqlab yechildi. Prod IP/telefon qabul sinovi, insident root cause va real Hisobchi consumer ulanishi ochiq.
