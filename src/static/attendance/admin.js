@@ -41,7 +41,9 @@ async function correct(e) {
 
 async function loadToday() {
   try {
+    $('loading').textContent = 'Yuklanmoqda…';
     const d = await api(`/admin/dashboard?day=${$('day').value}`);
+    $('loading').classList.add('hidden');
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('cards').replaceChildren(...CARDS.map(([k, label]) => {
       const c = el('div', 'bg-white rounded-2xl p-4 shadow-sm');
@@ -61,6 +63,7 @@ async function loadToday() {
     }
     return true;
   } catch (err) {
+    $('loading').classList.add('hidden');
     if (err.status === 401) { $('login').classList.remove('hidden'); return false; }
     $('app').classList.remove('hidden');
     $('cards').replaceChildren(el('p', 'text-rose-600 col-span-4', err.status === 403 ? 'Bu bo‘lim uchun HR/admin huquqi kerak.' : err.message));
@@ -216,33 +219,28 @@ async function loadLinks() {
 const _loadTeam = loadTeam;
 loadTeam = async () => { await Promise.all([_loadTeam(), loadLinks()]); };
 
-// ---- monitor kalitlari ----
-async function loadKiosks() {
-  const { tokens } = await api('/admin/kiosk-tokens').catch(() => ({ tokens: [] }));
-  $('kiosk-list').replaceChildren(...tokens.map((t) => {
+// ---- ofis Wi-Fi ----
+async function loadWifi() {
+  let d;
+  try { d = await api('/admin/office-wifi'); } catch (err) { $('wifi-status').textContent = err.message; return; }
+  const st = $('wifi-status');
+  if (!d.networks.length) { st.className = 'text-sm mt-3 text-amber-700'; st.textContent = 'Hali belgilanmagan — hozircha faqat GPS tekshiriladi.'; }
+  else if (d.you_are_on_office_wifi) { st.className = 'text-sm mt-3 text-emerald-700'; st.textContent = 'Siz hozir ofis Wi-Fi’sidasiz ✅'; }
+  else { st.className = 'text-sm mt-3 text-slate-600'; st.textContent = 'Siz hozir ofis Wi-Fi’sida emassiz.'; }
+  $('wifi-list').replaceChildren(...d.networks.map((n) => {
     const row = el('div', 'flex items-center gap-3 py-2');
-    row.append(el('span', 'font-medium', t.label), el('span', 'text-slate-400 mr-auto',
-      t.revoked_at ? 'bekor qilingan' : `oxirgi: ${t.last_used_at ? t.last_used_at.slice(0, 16) : 'hali ishlatilmagan'}`));
-    if (!t.revoked_at) {
-      const b = el('button', 'text-rose-600', 'Bekor qilish');
-      b.onclick = async () => { if (confirm('Bu monitor QR ko‘rsatishni to‘xtatadi. Davom etilsinmi?')) { await api(`/admin/kiosk-tokens/${t.id}`, { method: 'DELETE' }); loadKiosks(); } };
-      row.append(b);
-    }
+    row.append(el('span', 'font-medium mr-auto', `${n.label} · ${n.ip}`));
+    const b = el('button', 'text-rose-600', 'O‘chirish');
+    b.onclick = async () => { if (confirm('Bu tarmoq o‘chirilsinmi?')) { await api(`/admin/office-wifi/${n.id}`, { method: 'DELETE' }); loadWifi(); } };
+    row.append(b);
     return row;
   }));
 }
 
-$('kiosk-create').addEventListener('click', async () => {
-  try {
-    const res = await api('/admin/kiosk-tokens', { method: 'POST', body: { label: 'Ofis monitori' } });
-    const url = `${location.origin}${res.url}`;
-    const box = $('kiosk-new');
-    box.classList.remove('hidden');
-    box.replaceChildren(el('p', 'font-semibold mb-1', 'Bu havolani faqat bir marta ko‘rasiz — monitor brauzerida oching:'), el('code', '', url));
-    if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
-    loadKiosks();
-  } catch (err) { alert(err.message); }
+$('wifi-set').addEventListener('click', async () => {
+  if (!confirm('Hozir ofis Wi-Fi’siga ulanganmisiz? (mobil internet o‘chiq bo‘lsin)')) return;
+  try { await api('/admin/office-wifi', { method: 'POST' }); loadWifi(); } catch (err) { alert(err.message); }
 });
 
 const _showTab = showTab;
-showTab = (name) => { _showTab(name); if (name === 'settings') loadKiosks(); };
+showTab = (name) => { _showTab(name); if (name === 'settings') loadWifi(); };
