@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oisha · Smart Attendance</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>body{font-family:'Inter',sans-serif;background:#f8fafc}</style>
+</head>
+<body class="text-slate-900 min-h-screen">
+<main class="max-w-5xl mx-auto px-5 py-8">
+  <header class="flex flex-wrap items-center gap-3 mb-6">
+    <div>
+      <p class="text-xs text-slate-500">HR Management</p>
+      <h1 class="text-2xl font-semibold">Smart Attendance</h1>
+    </div>
+    <input id="day" type="date" class="ml-auto border border-slate-200 rounded-lg px-3 py-2 bg-white">
+  </header>
+
+  <section id="login" class="hidden bg-white rounded-2xl p-6 shadow-sm">
+    <a href="/api/auth/telegram/login?next=/api/attendance/app/admin" class="text-sky-600 font-semibold">Telegram bilan kirish →</a>
+  </section>
+
+  <section id="app" class="hidden space-y-6">
+    <nav class="flex gap-1 bg-white rounded-xl p-1 shadow-sm w-fit text-sm font-medium" id="tabs">
+      <button data-tab="today" class="tab px-4 py-2 rounded-lg">Bugun</button>
+      <button data-tab="reports" class="tab px-4 py-2 rounded-lg">Hisobotlar</button>
+      <button data-tab="team" class="tab px-4 py-2 rounded-lg">Jamoa va grafik</button>
+      <button data-tab="settings" class="tab px-4 py-2 rounded-lg">Sozlamalar</button>
+    </nav>
+
+    <div data-panel="today" class="space-y-6">
+      <div id="cards" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+      <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <h2 class="font-semibold px-5 pt-5">Yozuvlar</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm mt-3">
+            <thead class="text-left text-slate-500 bg-slate-50"><tr>
+              <th class="px-5 py-2">Xodim</th><th class="px-5 py-2">Turi</th><th class="px-5 py-2">Vaqt</th><th class="px-5 py-2">Holat</th><th class="px-5 py-2"></th>
+            </tr></thead>
+            <tbody id="rows" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div data-panel="reports" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl shadow-sm p-5 flex flex-wrap items-end gap-3 text-sm">
+        <label>Boshlanish<br><input id="r-start" type="date" class="border rounded-lg px-2 py-1.5"></label>
+        <label>Tugash<br><input id="r-end" type="date" class="border rounded-lg px-2 py-1.5"></label>
+        <label>Xodim<br><select id="r-emp" class="border rounded-lg px-2 py-1.5 min-w-40"><option value="">Hammasi</option></select></label>
+        <label>Ko‘rinish<br><select id="r-view" class="border rounded-lg px-2 py-1.5">
+          <option value="summary">Oylik xulosa</option><option value="events">Barcha yozuvlar</option></select></label>
+        <label id="r-status-wrap" class="hidden">Holat<br><select id="r-status" class="border rounded-lg px-2 py-1.5"><option value="">Hammasi</option></select></label>
+        <button id="r-show" class="bg-slate-900 text-white rounded-lg px-4 py-2">Ko‘rsatish</button>
+        <button id="r-xlsx" class="border border-emerald-600 text-emerald-700 rounded-lg px-4 py-2">Excel</button>
+        <button id="r-pdf" class="border border-rose-600 text-rose-700 rounded-lg px-4 py-2">PDF</button>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm overflow-x-auto">
+        <table class="w-full text-sm"><thead id="r-head" class="text-left text-slate-500 bg-slate-50"></thead>
+        <tbody id="r-body" class="divide-y divide-slate-100"></tbody></table>
+      </div>
+      <p class="text-xs text-slate-500">Hisobot faqat faktlarni ko‘rsatadi (soat, daqiqa, kun). Jarima yoki ish haqidan ushlab qolish avtomatik hisoblanmaydi.</p>
+    </div>
+
+    <div data-panel="team" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl shadow-sm overflow-x-auto">
+        <table class="w-full text-sm"><thead class="text-left text-slate-500 bg-slate-50"><tr>
+          <th class="px-5 py-2">Xodim</th><th class="px-5 py-2">Ish kunlari</th><th class="px-5 py-2">Ixtiyoriy</th><th class="px-5 py-2">Vaqt</th><th class="px-5 py-2"></th>
+        </tr></thead><tbody id="team-rows" class="divide-y divide-slate-100"></tbody></table>
+      </div>
+      <form id="sched" class="hidden bg-white rounded-2xl shadow-sm p-5 space-y-3 text-sm">
+        <h3 class="font-semibold" id="sched-title"></h3>
+        <div class="flex flex-wrap gap-2" id="sched-days"></div>
+        <p class="text-xs text-slate-500">Bir marta bosish — ish kuni, ikki marta — ixtiyoriy kun, uch marta — dam olish.</p>
+        <div class="flex gap-3"><label>Boshlanish <input id="sched-start" type="time" class="border rounded px-2 py-1"></label>
+        <label>Tugash <input id="sched-end" type="time" class="border rounded px-2 py-1"></label></div>
+        <button class="bg-slate-900 text-white rounded-lg px-4 py-2">Saqlash</button>
+        <span id="sched-msg" class="ml-2"></span>
+      </form>
+      <form id="leave" class="bg-white rounded-2xl shadow-sm p-5 flex flex-wrap items-end gap-3 text-sm">
+        <h3 class="font-semibold w-full">Kunni belgilash (ruxsatli kun, dam olish)</h3>
+        <label>Xodim<br><select id="l-emp" class="border rounded-lg px-2 py-1.5 min-w-40"></select></label>
+        <label>Sana<br><input id="l-date" type="date" class="border rounded-lg px-2 py-1.5"></label>
+        <label>Holat<br><select id="l-status" class="border rounded-lg px-2 py-1.5">
+          <option value="APPROVED_LEAVE">Ruxsatli</option><option value="DAY_OFF">Dam olish</option></select></label>
+        <label class="flex-1 min-w-48">Sabab<br><input id="l-reason" required minlength="5" class="border rounded-lg px-2 py-1.5 w-full" placeholder="Masalan: kasallik varaqasi"></label>
+        <button class="bg-slate-900 text-white rounded-lg px-4 py-2">Saqlash</button>
+        <span id="l-msg" class="w-full"></span>
+      </form>
+    </div>
+
+    <div data-panel="settings" class="hidden">
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h2 class="font-semibold">Ofis joylashuvi</h2>
+        <p class="text-sm text-slate-500 mt-1">Ofis ichida turib bosing — telefon joylashuvi geofence markazi bo‘ladi.</p>
+        <div class="flex flex-wrap items-center gap-3 mt-4">
+          <label class="text-sm">Radius, m <input id="radius" type="number" value="150" min="30" max="1000" class="border rounded-lg px-2 py-1 w-24 ml-1"></label>
+          <button id="set-office" class="bg-slate-900 text-white rounded-lg px-4 py-2 font-medium">Ofis joylashuvini shu yerdan belgilash</button>
+        </div>
+        <p id="office-msg" class="text-sm mt-3"></p>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="/api/attendance/app/common.js"></script>
+<script src="/api/attendance/app/admin.js"></script>
+</body>
+</html>

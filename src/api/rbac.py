@@ -43,6 +43,10 @@ class Permission(StrEnum):
     MARKETING_MANAGE = "marketing:manage"
     AUDIT_READ_ALL = "audit:read:all"
     AUDIT_READ_OWN = "audit:read:own"
+    ATTENDANCE_SELF = "attendance:self"
+    ATTENDANCE_READ_ALL = "attendance:read:all"
+    ATTENDANCE_MANAGE = "attendance:manage"
+    ATTENDANCE_KIOSK = "attendance:kiosk"
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +79,9 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             Permission.MARKETING_READ,
             Permission.MARKETING_MANAGE,
             Permission.AUDIT_READ_ALL,
+            Permission.ATTENDANCE_SELF,
+            Permission.ATTENDANCE_READ_ALL,
+            Permission.ATTENDANCE_MANAGE,
         }
     ),
     Role.TARGETOLOG: frozenset(
@@ -83,6 +90,7 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             Permission.LEAD_READ_ALL,
             Permission.MARKETING_READ,
             Permission.MARKETING_MANAGE,
+            Permission.ATTENDANCE_SELF,
         }
     ),
     Role.SELLER: frozenset(
@@ -93,9 +101,12 @@ ROLE_PERMISSIONS: Mapping[Role, frozenset[Permission]] = {
             Permission.CALL_READ_OWN,
             Permission.TRANSCRIPT_READ_OWN,
             Permission.AUDIT_READ_OWN,
+            Permission.ATTENDANCE_SELF,
         }
     ),
-    Role.VIEWER: frozenset({Permission.DASHBOARD_READ}),
+    # ATTENDANCE_SELF faqat "o'zim" uchun: route qo'shimcha ravishda Telegram ID
+    # faol ``employees`` yozuviga bog'langanini tekshiradi, aks holda 403.
+    Role.VIEWER: frozenset({Permission.DASHBOARD_READ, Permission.ATTENDANCE_SELF}),
     Role.SERVICE: frozenset(),
 }
 

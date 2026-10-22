@@ -1989,3 +1989,16 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   `hunter_retry_loop` (har 15 daq., quiet-hours'da emas, 5 urinishdan keyin `failed`;
   `HUNTER_RETRY_ENABLED=0` bilan o'chadi). Qolgan ish: kunlik limitni o'lchov bilan tasdiqlash;
   `failed` lidlar uchun owner'ga bildirishnoma.
+
+### 2026-10-22 — Claude: Smart Attendance (PR #935)
+- Bajarildi: `src/services/core/attendance/` (sxema, geofence, imzoli 30s QR, rules engine, holat
+  mashinasi, hisobot/xulosa, XLSX/PDF eksport), `src/api/routes/attendance_routes.py` (`/api/attendance/*`,
+  ekranlar `/api/attendance/app[/kiosk|/admin]`), RBAC'ga `attendance:*` ruxsatlari, oauth redirect
+  whitelist, `security._PUBLIC_PATHS` ga faqat ekran qobiqlari. Yuz tekshiruvi owner qarori bilan o'chiq.
+- Owner qarorlari: GPS+QR o'tsa avtomatik tasdiq, shubhali holat → `OWNER_ID` Telegram; ish vaqti
+  10:00–19:00 Du–Sha; shaxsiy grafiklar `team_schedules.py`; ofis 41.3056580, 69.2814659, radius 150 m.
+- Tekshiruv: `tests/test_attendance_*.py` + auth/RBAC testlari 123 passed; Playwright smoke (xodim,
+  kiosk, admin); PR CI yashil. Haqiqiy telefon kamerasi va prod bazada sinalmagan.
+- Qolgan ish: prod sozlash (`ATTENDANCE_QR_SECRET`, kiosk service token, `scripts/attendance_seed_schedules.py
+  --apply`, `employees.telegram_id`); 8-bosqich Payroll; deploy qo'llanmasi; O'zR shaxsga doir
+  ma'lumotlar qonuni bo'yicha yurist tekshiruvi.
