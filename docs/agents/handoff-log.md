@@ -2008,3 +2008,9 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Fayllar: `docs/attendance-proxy-audit.md`, `tests/test_attendance_network.py`. Branch: `fix/attendance-proxy-verification`.
 - Dalil: `SKIP_LIVE=1 python -m pytest -q --tb=short` 3051 passed, 17 skipped, 4 subtests passed; yangi network testlari 10 passed. `python -m bandit -r src/ -ll` medium/high 0, exit 0.
 - Qolgan ish: SSH host kaliti tekshiruvi o'tmadi; joriy prod `nginx -T`, HR Wi-Fi read-back va telefon sinovi tekshirilmagan. Deploy journalidagi sites-enabled/oisha.conf hamda repo nusxalanadigan sites-available/oisha nishonlari tekshirilsin. Wi-Fi sozlanmaganda mavjud GPS-only fallback qayd etildi.
+
+### 2026-10-22 — Codex: Smart Attendance, 4-vazifa o'zbekcha qo'llanma
+- Bajarildi: Telegram login/ulanish, mavjud xodimga bog'lash, Keldim/Ketdim, bir martalik GPS, Wi-Fi sozlash/read-back, hisobot/Excel/PDF, xato va yechimlar o'zbekcha yozildi. Wi-Fi sozlanmagandagi GPS-only cheklov yashirilmadi.
+- Fayllar: `docs/attendance-guide.md`. Branch: `docs/attendance-uzbek-guide`.
+- Dalil: matn `employee.html/js`, `admin.html/js`, `common.js` va API kodi bilan solishtirildi. To'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3061 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: haqiqiy telefon, Telegram login va ofis Wi-Fi bilan prod qabul sinovi o'tkazilmagan.
