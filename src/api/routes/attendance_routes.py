@@ -1,0 +1,249 @@
+"""Smart Attendance API (/api/attendance/*).
+
+Auth: mavjud Oisha sessiyasi (Telegram login → ``oisha_token``). Xodim Telegram ID si
+faol ``employees.telegram_id`` ga bog'langan bo'lishi shart. Admin amallari RBAC bilan.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import time
+from collections import defaultdict, deque
+from datetime import date, datetime, timedelta, timezone
+
+from fastapi import APIRouter, Header, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+
+from src.api.rbac import Permission, Principal, require_any_permission, require_permissions
+from src.services.core.attendance import admin as att_admin
+from src.services.core.attendance import qr_tokens, reports, repo
+from src.services.core.attendance.geofence import LocationFix
+from src.services.core.attendance.notifier import default_notifier
+from src.services.core.attendance.schema import init_attendance_tables
+from src.services.core.attendance.service import Actor, AttendanceError, AttendanceService
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/attendance", tags=["attendance"])
+
+_SELF = require_permissions(Permission.ATTENDANCE_SELF)
+_READ_ALL = require_permissions(Permission.ATTENDANCE_READ_ALL)
+_MANAGE = require_permissions(Permission.ATTENDANCE_MANAGE)
+_KIOSK = require_any_permission(Permission.ATTENDANCE_KIOSK, Permission.ATTENDANCE_MANAGE)
+
+
+# ---- infra ----
+class _RateLimiter:
+    """Jarayon ichidagi sliding window. Bitta Contabo jarayoni uchun yetarli."""
+
+    def __init__(self, limit: int, window_s: float):
+        self.limit, self.window_s = limit, window_s
+        self.hits: dict[str, deque] = defaultdict(deque)
+
+    def check(self, key: str) -> None:
+        now, q = time.monotonic(), self.hits[key]
+        while q and now - q[0] > self.window_s:
+            q.popleft()
+        if len(q) >= self.limit:
+            raise HTTPException(status_code=429, detail="rate_limited")
+        q.append(now)
+
+
+_limiter = _RateLimiter(limit=30, window_s=60)
+_schema_lock = asyncio.Lock()
+_schema_ready = False
+
+
+def _db():
+    from src.database_pool import db_pool
+
+    return db_pool
+
+
+async def _ready_db():
+    global _schema_ready
+    db = _db()
+    if not _schema_ready:
+        async with _schema_lock:
+            if not _schema_ready:
+                await init_attendance_tables(db)
+                _schema_ready = True
+    return db
+
+
+def _service(db) -> AttendanceService:
+    return AttendanceService(db, notifier=default_notifier(),
+                             qr_secret=os.getenv("ATTENDANCE_QR_SECRET", ""))
+
+
+def _ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
+
+def _raise(exc: AttendanceError):
+    raise HTTPException(status_code=exc.status, detail=exc.code)
+
+
+async def _actor(db, principal: Principal, request: Request) -> Actor:
+    _limiter.check(principal.subject)
+    if not principal.subject.isdigit():
+        raise HTTPException(status_code=403, detail="not_an_employee")
+    emp = await repo.employee_by_telegram(db, principal.subject)
+    if emp is None:
+        raise HTTPException(status_code=403, detail="not_an_employee")
+    return Actor(employee_id=int(emp["id"]), name=str(emp["name"]), subject=principal.subject, ip=_ip(request))
+
+
+# ---- schemas ----
+class StartBody(BaseModel):
+    kind: str = Field(pattern="^(check_in|check_out)$")
+
+
+class LocationBody(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    accuracy_m: float = Field(ge=0, le=100_000)
+    captured_at: datetime
+    is_mocked: bool | None = None
+
+
+class QrBody(BaseModel):
+    token: str = Field(min_length=10, max_length=512)
+
+
+class OfficeBody(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    radius_m: int = Field(ge=10, le=5000)
+    max_accuracy_m: int = Field(default=50, ge=5, le=500)
+
+
+class CorrectionBody(BaseModel):
+    employee_id: int
+    work_date: date
+    new_status: str
+    reason: str = Field(min_length=5, max_length=1000)
+    event_id: int | None = None
+
+
+# ---- xodim ----
+@router.post("/sessions")
+async def start_session(body: StartBody, request: Request, principal: Principal = _SELF,
+                        idempotency_key: str = Header(default="", alias="Idempotency-Key")):
+    db = await _ready_db()
+    actor = await _actor(db, principal, request)
+    try:
+        return await _service(db).start(actor, body.kind, idempotency_key)
+    except AttendanceError as e:
+        _raise(e)
+
+
+@router.post("/sessions/{sid}/location")
+async def submit_location(sid: str, body: LocationBody, request: Request, principal: Principal = _SELF):
+    db = await _ready_db()
+    actor = await _actor(db, principal, request)
+    captured = body.captured_at if body.captured_at.tzinfo else body.captured_at.replace(tzinfo=timezone.utc)
+    fix = LocationFix(body.latitude, body.longitude, body.accuracy_m, captured, body.is_mocked)
+    try:
+        return await _service(db).submit_location(sid, actor, fix)
+    except AttendanceError as e:
+        _raise(e)
+
+
+@router.post("/sessions/{sid}/qr")
+async def submit_qr(sid: str, body: QrBody, request: Request, principal: Principal = _SELF):
+    db = await _ready_db()
+    actor = await _actor(db, principal, request)
+    try:
+        return await _service(db).submit_qr(sid, actor, body.token)
+    except AttendanceError as e:
+        _raise(e)
+
+
+@router.post("/sessions/{sid}/face")
+async def submit_face(sid: str, request: Request, principal: Principal = _SELF):
+    db = await _ready_db()
+    actor = await _actor(db, principal, request)
+    try:
+        return await _service(db).submit_face(sid, actor)
+    except AttendanceError as e:
+        _raise(e)
+
+
+@router.post("/sessions/{sid}/confirm")
+async def confirm(sid: str, request: Request, principal: Principal = _SELF):
+    db = await _ready_db()
+    actor = await _actor(db, principal, request)
+    try:
+        return await _service(db).confirm(sid, actor)
+    except AttendanceError as e:
+        _raise(e)
+
+
+@router.get("/today")
+async def today(request: Request, principal: Principal = _SELF):
+    db = await _ready_db()
+    actor = await _actor(db, principal, request)
+    d = datetime.now(timezone(timedelta(hours=5))).date()
+    return {"date": d.isoformat(), "events": await reports.events(db, d, d, actor.employee_id)}
+
+
+@router.get("/history")
+async def history(request: Request, principal: Principal = _SELF, days: int = Query(30, ge=1, le=366)):
+    db = await _ready_db()
+    actor = await _actor(db, principal, request)
+    end = datetime.now(timezone(timedelta(hours=5))).date()
+    return {"events": await reports.events(db, end - timedelta(days=days - 1), end, actor.employee_id)}
+
+
+# ---- kiosk (ofis monitori) ----
+@router.get("/kiosk/qr")
+async def kiosk_qr(principal: Principal = _KIOSK, kiosk_id: str = Query("main", pattern="^[A-Za-z0-9_-]{1,32}$")):
+    db = await _ready_db()
+    fence = await repo.active_geofence(db)
+    if fence is None:
+        raise HTTPException(status_code=503, detail="geofence_not_configured")
+    try:
+        token, claims = qr_tokens.issue(int(fence["branch_id"]), kiosk_id, datetime.now(timezone.utc))
+    except qr_tokens.QrError as e:
+        raise HTTPException(status_code=503, detail=f"qr_{e.code}") from None
+    await qr_tokens.record_issued(db, claims)
+    return {"token": token, "expires_at": claims.expires_at.isoformat(), "refresh_in_s": 25}
+
+
+# ---- admin ----
+@router.get("/admin/dashboard")
+async def admin_dashboard(principal: Principal = _READ_ALL, day: date | None = None):
+    db = await _ready_db()
+    svc = _service(db)
+    d = day or datetime.now(timezone(timedelta(hours=5))).date()
+    return await reports.dashboard(db, d, svc.shift, svc.calendar)
+
+
+@router.get("/admin/reports")
+async def admin_reports(start: date, end: date, principal: Principal = _READ_ALL,
+                        employee_id: int | None = None):
+    if end < start or (end - start).days > 366:
+        raise HTTPException(status_code=422, detail="invalid_range")
+    db = await _ready_db()
+    return {"events": await reports.events(db, start, end, employee_id)}
+
+
+@router.post("/admin/corrections")
+async def admin_correction(body: CorrectionBody, request: Request, principal: Principal = _MANAGE):
+    db = await _ready_db()
+    try:
+        return await att_admin.apply_correction(
+            db, actor=principal.subject, employee_id=body.employee_id, work_date=body.work_date.isoformat(),
+            new_status=body.new_status, reason=body.reason, event_id=body.event_id, ip=_ip(request))
+    except AttendanceError as e:
+        _raise(e)
+
+
+@router.put("/admin/office")
+async def admin_office(body: OfficeBody, request: Request, principal: Principal = _MANAGE):
+    db = await _ready_db()
+    return await att_admin.configure_office(
+        db, actor=principal.subject, name=body.name, latitude=body.latitude, longitude=body.longitude,
+        radius_m=body.radius_m, max_accuracy_m=body.max_accuracy_m, ip=_ip(request))
