@@ -1,6 +1,6 @@
 # Smart Attendance — Repository audit va implementatsiya rejasi
 
-Holat: **1–4-bosqichlar bajarildi** (API: /api/attendance/*; EMPLOYEE roli o‘rniga ATTENDANCE_SELF + employees.telegram_id bog‘lanishi) (sxema, GPS, QR, rules engine; ish vaqti 10:00–19:00, grace 10 daq, Du–Ju default — ish kunlari tasdiqlanmagan). Owner qarorlari (2026-10-22): EMPLOYEE roli — ha; Telegram login; bitta ofis; yuz tekshiruvi hozircha yo‘q; GPS+QR o‘tsa avtomatik tasdiq, shubhali holat Telegramga (tasdiqlovchi: OWNER_ID, owner boshqasini aytmaguncha).
+Holat: **1–4-bosqichlar bajarildi** (API: /api/attendance/*; EMPLOYEE roli o‘rniga ATTENDANCE_SELF + employees.telegram_id bog‘lanishi) (sxema, GPS, QR, rules engine; ish vaqti 10:00–19:00, grace 10 daq, Du–Sha (owner); Mumtozmaxal: chorshanba dam, yakshanba ish; Ahror: har kuni — shaxsiy grafik admin orqali kiritiladi). Owner qarorlari (2026-10-22): EMPLOYEE roli — ha; Telegram login; bitta ofis; yuz tekshiruvi hozircha yo‘q; GPS+QR o‘tsa avtomatik tasdiq, shubhali holat Telegramga (tasdiqlovchi: OWNER_ID, owner boshqasini aytmaguncha).
 
 ## 1. Audit natijalari (manbadan tekshirilgan)
 

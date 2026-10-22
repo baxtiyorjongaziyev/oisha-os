@@ -6,31 +6,36 @@ from datetime import date
 from src.services.core.attendance import repo, rules
 
 
-def _summary(rows: list, total: int, working_day: bool) -> dict:
+def _summary(rows: list, total: int, expected: set[int]) -> dict:
     check_ins = [r for r in rows if r["kind"] == "check_in"]
     present = {int(r["employee_id"]) for r in check_ins}
     late = [r for r in check_ins if r["status"] == rules.LATE]
     on_time = [r for r in check_ins if r["status"] == rules.ON_TIME]
     pending = [r for r in rows if r["status"] == rules.PENDING_REVIEW]
-    absent = max(0, total - len(present)) if working_day else 0
     return {
         "total_employees": total,
+        "scheduled_today": len(expected),
         "present": len(present),
         "on_time": len(on_time),
         "late": len(late),
-        "absent": absent,
+        "absent": len(expected - present),
         "pending_verification": len(pending),
-        "attendance_rate": round(len(present) / total * 100, 1) if total and working_day else None,
+        "attendance_rate": round(len(present & expected) / len(expected) * 100, 1) if expected else None,
         "average_lateness_min": round(sum(int(r["minutes_late"]) for r in late) / len(late), 1) if late else 0,
-        "working_day": working_day,
     }
 
 
-async def dashboard(db, day: date, shift: rules.Shift, cal: rules.Calendar) -> dict:
+async def dashboard(db, day: date, cal: rules.Calendar) -> dict:
+    """Har xodim o'z grafigi bo'yicha: bugun ishlashi kerak bo'lganlar — ``scheduled_today``."""
     iso = day.isoformat()
     rows = await repo.events_between(db, iso, iso)
-    total = await repo.active_employee_count(db)
-    out = _summary(rows, total, rules.is_working_day(shift, day, cal))
+    ids = await repo.active_employee_ids(db)
+    expected = set()
+    for emp_id in ids:
+        shift = rules.shift_from_row(await repo.employee_shift(db, emp_id, iso))
+        if rules.is_working_day(shift, day, cal):
+            expected.add(emp_id)
+    out = _summary(rows, len(ids), expected)
     out["date"] = iso
     out["events"] = [_public_event(r) for r in rows]
     return out

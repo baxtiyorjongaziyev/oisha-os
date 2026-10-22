@@ -45,6 +45,8 @@ class AttendanceService:
         self.db, self.clock = db, clock
         self.notifier = notifier or NullNotifier()
         self.qr_secret = qr_secret
+        # shift berilsa (testlar) — hamma uchun shu; aks holda xodimning shaxsiy grafigi bazadan.
+        self._use_db_shifts = shift is None
         self.shift = shift or rules.Shift()
         self.calendar = calendar or rules.Calendar()
 
@@ -71,6 +73,10 @@ class AttendanceService:
         if p is None:
             return rules.Policy()
         return rules.Policy(int(p["grace_minutes"]), int(p["early_leave_grace_minutes"]))
+
+    async def _shift_for(self, employee_id: int, day: str) -> rules.Shift:
+        return rules.shift_from_row(await repo.employee_shift(self.db, employee_id, day)) \
+            if self._use_db_shifts else self.shift
 
     @staticmethod
     def _public(s) -> dict:
@@ -181,7 +187,8 @@ class AttendanceService:
         now = self.clock()
         pol = await self._policy(int(s["branch_id"]))
         classify = rules.classify_check_in if s["kind"] == "check_in" else rules.classify_check_out
-        c = classify(self.shift, pol, self.calendar, now)
+        shift = await self._shift_for(actor.employee_id, s["work_date"])
+        c = classify(shift, pol, self.calendar, now)
         review = self._review_reasons(await repo.verifications(self.db, sid)) + c.notes
         status = rules.PENDING_REVIEW if review else c.status
         try:

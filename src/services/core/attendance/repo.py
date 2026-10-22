@@ -119,3 +119,17 @@ async def events_between(db, start: str, end: str, employee_id: int | None = Non
 async def active_employee_count(db) -> int:
     r = await one(db, "SELECT COUNT(*) AS n FROM employees WHERE is_active = 1", [])
     return int(r[0] if r is not None else 0)
+
+
+_SHIFT_SQL = ("SELECT sh.start_time, sh.end_time, sh.weekdays FROM shift_assignments sa"
+              " JOIN attendance_shifts sh ON sh.id = sa.shift_id"
+              " WHERE sa.employee_id = ? AND sa.valid_from <= ? AND (sa.valid_to IS NULL OR sa.valid_to >= ?)"
+              " AND sh.is_active = 1 ORDER BY sa.valid_from DESC, sa.id DESC LIMIT 1")
+
+
+async def employee_shift(db, employee_id: int, day: str):
+    return await one(db, _SHIFT_SQL, [employee_id, day, day])
+
+
+async def active_employee_ids(db) -> list[int]:
+    return [int(r[0]) for r in await db.execute("SELECT id FROM employees WHERE is_active = 1", [])]

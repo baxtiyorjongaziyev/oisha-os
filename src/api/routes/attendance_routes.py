@@ -119,6 +119,13 @@ class OfficeBody(BaseModel):
     max_accuracy_m: int = Field(default=50, ge=5, le=500)
 
 
+class ScheduleBody(BaseModel):
+    weekdays: list[int] = Field(min_length=1, max_length=7, description="ISO: 1=Du ... 7=Ya")
+    start: str = Field(default="10:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    end: str = Field(default="19:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    valid_from: date | None = None
+
+
 class CorrectionBody(BaseModel):
     employee_id: int
     work_date: date
@@ -218,7 +225,7 @@ async def admin_dashboard(principal: Principal = _READ_ALL, day: date | None = N
     db = await _ready_db()
     svc = _service(db)
     d = day or datetime.now(timezone(timedelta(hours=5))).date()
-    return await reports.dashboard(db, d, svc.shift, svc.calendar)
+    return await reports.dashboard(db, d, svc.calendar)
 
 
 @router.get("/admin/reports")
@@ -247,3 +254,17 @@ async def admin_office(body: OfficeBody, request: Request, principal: Principal 
     return await att_admin.configure_office(
         db, actor=principal.subject, name=body.name, latitude=body.latitude, longitude=body.longitude,
         radius_m=body.radius_m, max_accuracy_m=body.max_accuracy_m, ip=_ip(request))
+
+
+@router.put("/admin/schedules/{employee_id}")
+async def admin_schedule(employee_id: int, body: ScheduleBody, request: Request, principal: Principal = _MANAGE):
+    db = await _ready_db()
+    start_day = body.valid_from or datetime.now(timezone(timedelta(hours=5))).date()
+    try:
+        return await att_admin.set_schedule(
+            db, actor=principal.subject, employee_id=employee_id, weekdays=body.weekdays,
+            start=body.start, end=body.end, valid_from=start_day.isoformat(), ip=_ip(request))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="invalid_schedule") from None
+    except AttendanceError as e:
+        _raise(e)

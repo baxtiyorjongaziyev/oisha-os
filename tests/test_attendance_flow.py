@@ -303,3 +303,19 @@ def test_api_validation_and_rate_limit(client):
     assert bad.status_code == 422
     codes = [c.get("/api/attendance/today").status_code for _ in range(35)]
     assert 429 in codes
+
+
+def test_personal_schedule_drives_status_and_dashboard(env):
+    db, _, clock, _ = env
+    svc = AttendanceService(db, clock=clock, notifier=FakeNotifier(), qr_secret=SECRET)  # bazadagi grafik
+    wed = datetime(2026, 10, 21, 10, 0, tzinfo=TZ5)
+    run(admin.set_schedule(db, actor="owner", employee_id=1, weekdays=[1, 2, 4, 5, 6, 7],
+                           valid_from="2026-10-01"))
+    clock.t = wed
+    _, res = _full(svc, db, clock)  # Ali chorshanba dam oladi, lekin keldi
+    assert res["status"] == "PENDING_REVIEW"
+    from src.services.core.attendance import reports, rules
+    dash = run(reports.dashboard(db, wed.date(), rules.Calendar()))
+    assert dash["scheduled_today"] == 1 and dash["absent"] == 1  # faqat Vali kutilgan edi
+    with pytest.raises(ValueError):
+        run(admin.set_schedule(db, actor="owner", employee_id=1, weekdays=[8], valid_from="2026-10-01"))

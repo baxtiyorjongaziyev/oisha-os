@@ -12,9 +12,10 @@ from zoneinfo import ZoneInfo
 ON_TIME, LATE, EARLY_LEAVE, ABSENT = "ON_TIME", "LATE", "EARLY_LEAVE", "ABSENT"
 APPROVED_LEAVE, DAY_OFF, PENDING_REVIEW = "APPROVED_LEAVE", "DAY_OFF", "PENDING_REVIEW"
 
-# Owner tasdiqlagan ish vaqti (2026-10-22): 10:00–19:00. Ish kunlari aytilmagan — Du–Ju default.
+# Owner tasdiqlagan ish vaqti (2026-10-22): 10:00–19:00, Du–Sha. Individual grafiklar
+# (masalan, chorshanba dam olish yoki yakshanba ishlash) ``shift_assignments`` orqali.
 DEFAULT_START, DEFAULT_END = time(10, 0), time(19, 0)
-DEFAULT_WEEKDAYS = frozenset({1, 2, 3, 4, 5})  # ISO: 1=Du ... 7=Ya
+DEFAULT_WEEKDAYS = frozenset({1, 2, 3, 4, 5, 6})  # ISO: 1=Du ... 7=Ya
 DEFAULT_GRACE_MIN = 10
 # Smena boshlanishidan shuncha oldin check-in qabul qilinadi.
 EARLY_ARRIVAL_WINDOW = timedelta(hours=3)
@@ -57,6 +58,22 @@ class Classification:
     minutes_late: int = 0
     minutes_early: int = 0
     notes: list[str] = field(default_factory=list)
+
+
+def parse_weekdays(text: str | None) -> frozenset[int]:
+    if not text:
+        return DEFAULT_WEEKDAYS
+    days = frozenset(int(x) for x in str(text).split(",") if x.strip())
+    if not days or not days <= frozenset(range(1, 8)):
+        raise ValueError("weekdays must be ISO 1..7")
+    return days
+
+
+def shift_from_row(row) -> Shift:
+    if row is None:
+        return Shift()
+    return Shift(time.fromisoformat(row["start_time"]), time.fromisoformat(row["end_time"]),
+                 parse_weekdays(row["weekdays"]))
 
 
 def is_working_day(shift: Shift, day: date, cal: Calendar) -> bool:

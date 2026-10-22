@@ -31,8 +31,9 @@ def test_early_leave():
 
 
 def test_weekend_and_holiday():
-    sat = date(2026, 10, 24)
-    assert r.classify_day_without_check_in(SHIFT, CAL, sat) == r.DAY_OFF
+    sun = date(2026, 10, 25)
+    assert r.classify_day_without_check_in(SHIFT, CAL, sun) == r.DAY_OFF
+    assert r.is_working_day(SHIFT, date(2026, 10, 24), CAL)  # shanba — ish kuni
     cal = r.Calendar(holidays=frozenset({THU}))
     assert r.classify_day_without_check_in(SHIFT, cal, THU) == r.DAY_OFF
     assert r.classify_check_in(SHIFT, POL, cal, at(10, 0)).status == r.PENDING_REVIEW
@@ -62,3 +63,11 @@ def test_worked_minutes_and_overtime():
     worked, overtime = r.worked_minutes(SHIFT, at(10, 0), at(20, 0))
     assert worked == 600 and overtime == 60
     assert r.worked_minutes(SHIFT, at(10, 0), at(9, 0)) == (0, 0)
+
+
+def test_individual_weekdays():
+    mumtoz = r.Shift(weekdays=r.parse_weekdays("1,2,4,5,6,7"))  # chorshanba dam, yakshanba ishlaydi
+    assert r.classify_day_without_check_in(mumtoz, CAL, date(2026, 10, 21)) == r.DAY_OFF
+    assert r.classify_day_without_check_in(mumtoz, CAL, date(2026, 10, 25)) == r.ABSENT
+    ahror = r.Shift(weekdays=r.parse_weekdays("1,2,3,4,5,6,7"))
+    assert r.classify_check_in(ahror, POL, CAL, at(10, 0, date(2026, 10, 25))).status == r.ON_TIME

@@ -1,6 +1,8 @@
 """HR amallari: ofis/geofence sozlash va qo'lda tuzatish. Har amal audit qilinadi."""
 from __future__ import annotations
 
+from datetime import time
+
 from src.services.core.attendance import audit, repo, rules
 from src.services.core.attendance.service import AttendanceError
 
@@ -54,3 +56,35 @@ async def apply_correction(db, *, actor: str, employee_id: int, work_date: str, 
                     details={"event_id": event_id, "old": old_status, "new": new_status, "reason": reason})
     await db.commit()
     return {"id": correction_id, "old_status": old_status, "new_status": new_status}
+
+
+async def set_schedule(db, *, actor: str, employee_id: int, weekdays: list[int], start: str = "10:00",
+                       end: str = "19:00", valid_from: str, ip: str | None = None) -> dict:
+    """Xodimning shaxsiy grafigi. Eski grafik o'chirilmaydi — ``valid_from`` dan yangisi amal qiladi."""
+    days = rules.parse_weekdays(",".join(str(d) for d in sorted(set(weekdays))))
+    time.fromisoformat(start)
+    time.fromisoformat(end)
+    emp = await repo.one(db, "SELECT id FROM employees WHERE id = ? AND is_active = 1", [employee_id])
+    if emp is None:
+        raise AttendanceError("employee_not_found", 404)
+    fence = await repo.active_geofence(db)
+    if fence is None:
+        raise AttendanceError("geofence_not_configured", 503)
+    wd = ",".join(str(d) for d in sorted(days))
+    name = f"emp-{employee_id}-{start}-{end}-{wd}"
+    await db.execute(
+        "INSERT INTO attendance_shifts (branch_id, name, start_time, end_time, crosses_midnight, weekdays)"
+        " VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (branch_id, name) DO NOTHING",
+        [int(fence["branch_id"]), name, start, end, int(end <= start), wd])
+    shift = await repo.one(db, "SELECT id FROM attendance_shifts WHERE branch_id = ? AND name = ?",
+                           [int(fence["branch_id"]), name])
+    await db.execute("UPDATE shift_assignments SET valid_to = date(?, '-1 day') WHERE employee_id = ?"
+                     " AND valid_to IS NULL AND valid_from < ?", [valid_from, employee_id, valid_from])
+    await db.execute("INSERT INTO shift_assignments (employee_id, shift_id, valid_from) VALUES (?, ?, ?)"
+                     " ON CONFLICT (employee_id, shift_id, valid_from) DO NOTHING",
+                     [employee_id, int(shift[0]), valid_from])
+    await audit.log(db, actor=actor, action="schedule_set", entity="employee", entity_id=employee_id,
+                    details={"weekdays": sorted(days), "start": start, "end": end, "from": valid_from}, ip=ip)
+    await db.commit()
+    return {"employee_id": employee_id, "weekdays": sorted(days), "start": start, "end": end,
+            "valid_from": valid_from}
