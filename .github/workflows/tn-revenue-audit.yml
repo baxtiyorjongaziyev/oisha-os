@@ -2,6 +2,15 @@ name: Tez Natija Revenue Audit
 
 on:
   workflow_dispatch:
+    inputs:
+      qr_login:
+        description: Owner scans a fresh QR; no stored session is changed
+        type: boolean
+        default: false
+      snapshot_stamp:
+        description: Read an existing report only (YYYYMMDD_HHMM); no login or sending
+        type: string
+        default: ''
 
 concurrency:
   group: tn-revenue-audit
@@ -14,11 +23,98 @@ jobs:
     runs-on: [self-hosted, oracle]
     timeout-minutes: 20
     steps:
-      - name: Run audit script
+      - uses: actions/checkout@v7
+        if: inputs.qr_login
+        with:
+          path: tn-audit-helper
+          persist-credentials: false
+      - name: Prepare temporary QR dependencies
+        if: inputs.qr_login
+        run: /home/ubuntu/oisha-os/venv/bin/python -m pip install --quiet --target "$RUNNER_TEMP/tn-audit-qr-deps" 'qrcode[pil]'
+      - name: Start memory-only owner QR login
+        if: inputs.qr_login
         working-directory: /home/ubuntu/oisha-os
+        env:
+          TELEGRAM_PASSWORD: ${{ secrets.TELEGRAM_PASSWORD }}
+          TG_PASSWORD: ${{ secrets.TG_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "TN_AUDIT_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+          rm -f "$RUNNER_TEMP/tn-audit-qr.png" "$RUNNER_TEMP/tn-audit-status"
+          PYTHONPATH="$RUNNER_TEMP/tn-audit-qr-deps" nohup ./venv/bin/python \
+            "$GITHUB_WORKSPACE/tn-audit-helper/.github/tn_audit_qr.py" \
+            --app /home/ubuntu/oisha-os --qr "$RUNNER_TEMP/tn-audit-qr.png" \
+            --status "$RUNNER_TEMP/tn-audit-status" > "$RUNNER_TEMP/tn-audit.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/tn-audit-pid"
+          for attempt in $(seq 1 30); do
+            test ! -f "$RUNNER_TEMP/tn-audit-status" || { cat "$RUNNER_TEMP/tn-audit.log"; exit 1; }
+            test ! -f "$RUNNER_TEMP/tn-audit-qr.png" || exit 0
+            sleep 1
+          done
+          exit 1
+      - name: Owner QR code
+        if: inputs.qr_login
+        uses: actions/upload-artifact@v4
+        with:
+          name: tn-audit-owner-qr
+          path: ${{ runner.temp }}/tn-audit-qr.png
+          retention-days: 1
+          if-no-files-found: error
+      - name: Wait for owner scan and audit
+        if: inputs.qr_login
+        run: |
+          for attempt in $(seq 1 150); do
+            if test -f "$RUNNER_TEMP/tn-audit-status"; then
+              cat "$RUNNER_TEMP/tn-audit.log"
+              exit "$(cat "$RUNNER_TEMP/tn-audit-status")"
+            fi
+            sleep 2
+          done
+          kill "$(cat "$RUNNER_TEMP/tn-audit-pid")" 2>/dev/null || true
+          cat "$RUNNER_TEMP/tn-audit.log"
+          exit 1
+      - name: Run audit script
+        if: ${{ !inputs.qr_login && inputs.snapshot_stamp == '' }}
+        working-directory: /home/ubuntu/oisha-os
+        env:
+          TELEGRAM_MCP_SESSION_STRING: ${{ secrets.TELEGRAM_MCP_SESSION_STRING }}
         run: |
           set -euo pipefail
           # Skript production deploy orqali checkout'ga tushadi; git fetch
           # qilinmaydi (origin'da eski deploy token'i turadi).
           test -f scripts/prod/tn_revenue_audit.py
+          echo "TN_AUDIT_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
           ./venv/bin/python scripts/prod/tn_revenue_audit.py --send
+      - name: Inspect fresh detail without phone or username
+        working-directory: /home/ubuntu/oisha-os
+        env:
+          TN_AUDIT_SNAPSHOT: ${{ inputs.snapshot_stamp }}
+        run: |
+          ./venv/bin/python - <<'PY'
+          import csv
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          fields = ("kurs", "ism", "airtable_mijoz",
+                    "amocrm_summa", "airtable_ltv", "manba")
+          stamp = os.environ.get("TN_AUDIT_SNAPSHOT", "")
+          if stamp:
+              if not re.fullmatch(r"\d{8}_\d{4}", stamp):
+                  raise SystemExit("Invalid snapshot stamp")
+              reports = [Path("data/tn_audit") / f"tn_detail_{stamp}.csv"]
+          else:
+              started = int(os.environ["TN_AUDIT_STARTED_AT"])
+              reports = [p for p in Path("data/tn_audit").glob("tn_detail_*.csv")
+                         if p.stat().st_mtime >= started]
+          if len(reports) != 1:
+              raise SystemExit("Expected exactly one fresh detail report")
+          summary = reports[0].with_name(reports[0].name.replace("tn_detail_", "tn_summary_"))
+          with summary.open(encoding="utf-8-sig", newline="") as report:
+              for row in csv.DictReader(report):
+                  print(json.dumps({"summary": row}, ensure_ascii=False))
+          with reports[0].open(encoding="utf-8-sig", newline="") as report:
+              for row in csv.DictReader(report):
+                  print(json.dumps({key: row[key] for key in fields}, ensure_ascii=False))
+          PY
