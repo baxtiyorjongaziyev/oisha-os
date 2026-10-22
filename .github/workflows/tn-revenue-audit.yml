@@ -10,32 +10,15 @@ concurrency:
 jobs:
   audit:
     name: Read-only TN revenue audit on Contabo
-    runs-on: ubuntu-latest
+    # Production deploy bilan bir xil self-hosted runner (Contabo)
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 20
     steps:
-      - name: Run audit script on Contabo VPS
-        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          host: 109.199.100.137
-          username: root
-          password: ${{ secrets.VPS_PASSWORD_1 }}
-          port: 22
-          timeout: 30s
-          command_timeout: 15m
-          envs: GITHUB_TOKEN
-          script: |
-            set -euo pipefail
-            DIR=$(systemctl show oisha -p WorkingDirectory --value 2>/dev/null || true)
-            [ -n "$DIR" ] && [ -d "$DIR" ] || DIR=$(readlink -f /proc/$(pgrep -f 'src/main.py' | head -1)/cwd)
-            echo "App dir: $DIR"
-            cd "$DIR"
-            # Ishlab turgan kodga tegmaslik uchun skriptni alohida joyga olamiz
-            curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-              https://raw.githubusercontent.com/baxtiyorjongaziyev/oisha-os/main/scripts/prod/tn_revenue_audit.py \
-              -o /tmp/tn_revenue_audit.py
-            mkdir -p scripts/prod
-            cp /tmp/tn_revenue_audit.py scripts/prod/tn_revenue_audit.py
-            PY=./venv/bin/python; [ -x "$PY" ] || PY=python3
-            "$PY" scripts/prod/tn_revenue_audit.py --send
+      - name: Run audit script
+        working-directory: /home/ubuntu/oisha-os
+        run: |
+          set -euo pipefail
+          # Skript production deploy orqali checkout'ga tushadi; git fetch
+          # qilinmaydi (origin'da eski deploy token'i turadi).
+          test -f scripts/prod/tn_revenue_audit.py
+          ./venv/bin/python scripts/prod/tn_revenue_audit.py --send
