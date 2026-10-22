@@ -79,6 +79,8 @@ _PUBLIC_PATHS = frozenset(
         "/api/attendance/app/common.js",
         "/api/attendance/app/employee.js",
         "/api/attendance/app/admin.js",
+        # Ofis monitori: kiosk kaliti yoki sessiya route ichida tekshiriladi (fail-closed).
+        "/api/attendance/kiosk/qr",
         # Payme Merchant API endpoints (authenticated via Basic Auth in handler)
         "/payme",
         "/api/payme",
