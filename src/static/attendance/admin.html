@@ -65,6 +65,10 @@
     </div>
 
     <div data-panel="team" class="hidden space-y-4">
+      <div id="links" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-5 text-sm">
+        <h3 class="font-semibold mb-3">Ulanish so‘rovlari</h3>
+        <div id="link-rows" class="space-y-2"></div>
+      </div>
       <div class="bg-white rounded-2xl shadow-sm overflow-x-auto">
         <table class="w-full text-sm"><thead class="text-left text-slate-500 bg-slate-50"><tr>
           <th class="px-5 py-2">Xodim</th><th class="px-5 py-2">Ish kunlari</th><th class="px-5 py-2">Ixtiyoriy</th><th class="px-5 py-2">Vaqt</th><th class="px-5 py-2"></th>
@@ -91,7 +95,14 @@
       </form>
     </div>
 
-    <div data-panel="settings" class="hidden">
+    <div data-panel="settings" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h2 class="font-semibold">Ofis monitori</h2>
+        <p class="text-sm text-slate-500 mt-1">Havola yarating va uni ofisdagi planshet/monitor brauzerida oching. Havola faqat QR ko‘rsatadi; boshqa ma’lumotga kira olmaydi.</p>
+        <button id="kiosk-create" class="mt-4 bg-slate-900 text-white rounded-lg px-4 py-2 font-medium">Monitor havolasini yaratish</button>
+        <div id="kiosk-new" class="hidden mt-4 p-3 bg-emerald-50 rounded-lg text-sm break-all"></div>
+        <div id="kiosk-list" class="mt-4 divide-y divide-slate-100 text-sm"></div>
+      </div>
       <div class="bg-white rounded-2xl shadow-sm p-5">
         <h2 class="font-semibold">Ofis joylashuvi</h2>
         <p class="text-sm text-slate-500 mt-1">Ofis ichida turib bosing — telefon joylashuvi geofence markazi bo‘ladi.</p>
