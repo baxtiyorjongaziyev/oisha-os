@@ -451,3 +451,60 @@ def test_qr_secret_derived_without_env(monkeypatch):
     assert len(derived) == 64 and "j" * 10 not in derived
     monkeypatch.setenv("ATTENDANCE_QR_SECRET", "e" * 40)
     assert secrets_util.qr_secret() == "e" * 40  # aniq berilgan kalit ustun
+
+
+# ---- soddalashtirilgan oqim: GPS + ofis Wi-Fi ----
+def test_punch_gps_and_wifi(env):
+    db, svc, clock, _ = env
+    res = run(svc.punch(ALI, "check_in", "punch-key-01", _fix(clock), True))
+    assert res["status"] == "ON_TIME"
+    again = run(svc.punch(ALI, "check_in", "punch-key-01", _fix(clock), True))  # idempotent qayta yuborish
+    assert again["already_confirmed"] is True
+
+
+def test_punch_rejected_off_wifi_and_outside(env):
+    db, svc, clock, _ = env
+    with pytest.raises(AttendanceError) as e:
+        run(svc.punch(ALI, "check_in", "punch-key-02", _fix(clock), False))
+    assert e.value.code == "not_on_office_wifi"
+    with pytest.raises(AttendanceError) as e:
+        run(svc.punch(ALI, "check_in", "punch-key-03", _fix(clock, lat=40.49), True))
+    assert e.value.code == "outside_geofence"
+    assert db.conn.execute("SELECT COUNT(*) FROM attendance_events").fetchone()[0] == 0
+
+
+def test_punch_gps_only_when_wifi_not_configured(env):
+    db, svc, clock, _ = env
+    assert run(svc.punch(ALI, "check_in", "punch-key-04", _fix(clock), None))["status"] == "ON_TIME"
+
+
+def test_client_ip_trusts_only_local_proxy():
+    from types import SimpleNamespace
+    from src.services.core.attendance import network
+    req = lambda host, hdr: SimpleNamespace(client=SimpleNamespace(host=host), headers=hdr)  # noqa: E731
+    assert network.client_ip(req("127.0.0.1", {"X-Real-IP": "84.54.70.10"})) == "84.54.70.10"
+    assert network.client_ip(req("8.8.8.8", {"X-Real-IP": "84.54.70.10"})) == "8.8.8.8"  # soxta sarlavha e'tiborsiz
+    assert network.client_ip(req("127.0.0.1", {})) is None  # aniqlanmadi — fail-closed
+    assert network.client_ip(req("127.0.0.1", {"X-Real-IP": "192.168.1.5"})) is None
+
+
+def test_office_wifi_api(client, monkeypatch):
+    c, state = client
+    from src.services.core.attendance import network
+    ip = {"v": "84.54.70.10"}
+    monkeypatch.setattr(network, "client_ip", lambda request: ip["v"])
+    state["principal"] = Principal("owner", Role.OWNER, "session")
+    assert c.post("/api/attendance/admin/office-wifi").json()["ip"] == "84.54.70.10"
+    assert c.get("/api/attendance/admin/office-wifi").json()["you_are_on_office_wifi"] is True
+    state["principal"] = Principal("111", Role.VIEWER, "session")
+    now = datetime.now(timezone.utc).isoformat()
+    body = {"kind": "check_in", "latitude": LAT, "longitude": LON, "accuracy_m": 10, "captured_at": now}
+    ip["v"] = "95.46.1.1"  # mobil internet
+    r = c.post("/api/attendance/punch", json=body, headers={"Idempotency-Key": "punch-api-001"})
+    assert r.status_code == 403 and r.json()["detail"] == "not_on_office_wifi"
+    ip["v"] = "84.54.70.10"
+    r = c.post("/api/attendance/punch", json=body, headers={"Idempotency-Key": "punch-api-002"})
+    assert r.status_code == 200 and r.json()["status"] in {"ON_TIME", "LATE", "PENDING_REVIEW"}
+    ip["v"] = None
+    state["principal"] = Principal("owner", Role.OWNER, "session")
+    assert c.post("/api/attendance/admin/office-wifi").status_code == 422

@@ -1,12 +1,15 @@
 """Smart Attendance sozlash API: xodimni bog'lash so'rovlari va ofis monitori kalitlari."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from src.api.rbac import Permission, Principal, require_permissions
-from src.api.routes.attendance_routes import _db, _ip, _limiter, _raise, _ready_db
-from src.services.core.attendance import bootstrap, kiosk, linking
+from src.api.routes.attendance_routes import LocationBody, _actor, _db, _ip, _limiter, _raise, _ready_db, _service
+from datetime import timezone
+
+from src.services.core.attendance import bootstrap, kiosk, linking, network
+from src.services.core.attendance.geofence import LocationFix
 from src.services.core.attendance.notifier import default_notifier
 from src.services.core.attendance.service import AttendanceError
 
@@ -102,6 +105,50 @@ async def admin_kiosk_revoke(token_id: int, request: Request, principal: Princip
     if not await kiosk.revoke(db, actor=principal.subject, token_id=token_id, ip=_ip(request)):
         raise HTTPException(status_code=404, detail="token_not_found")
     return {"revoked": True}
+
+
+# ---- soddalashtirilgan: bir bosishda GPS + ofis Wi-Fi ----
+class PunchBody(LocationBody):
+    kind: str = Field(pattern="^(check_in|check_out)$")
+
+
+@router.post("/punch")
+async def punch(body: PunchBody, request: Request, principal: Principal = _SELF,
+                idempotency_key: str = Header(default="", alias="Idempotency-Key")):
+    db = await _ready_db()
+    actor = await _actor(db, principal, request)
+    wifi = await network.is_office(db, network.client_ip(request)) if await network.configured(db) else None
+    captured = body.captured_at if body.captured_at.tzinfo else body.captured_at.replace(tzinfo=timezone.utc)
+    fix = LocationFix(body.latitude, body.longitude, body.accuracy_m, captured, body.is_mocked)
+    try:
+        return await _service(db).punch(actor, body.kind, idempotency_key, fix, wifi)
+    except AttendanceError as e:
+        _raise(e)
+
+
+@router.get("/admin/office-wifi")
+async def admin_wifi_list(request: Request, principal: Principal = _MANAGE):
+    db = await _ready_db()
+    ip = network.client_ip(request)
+    return {"networks": await network.list_all(db), "your_ip": ip,
+            "you_are_on_office_wifi": await network.is_office(db, ip)}
+
+
+@router.post("/admin/office-wifi")
+async def admin_wifi_add(request: Request, principal: Principal = _MANAGE):
+    db = await _ready_db()
+    try:
+        return await network.add(db, actor=principal.subject, ip=network.client_ip(request), label="Ofis Wi-Fi")
+    except AttendanceError as e:
+        _raise(e)
+
+
+@router.delete("/admin/office-wifi/{network_id}")
+async def admin_wifi_remove(network_id: int, principal: Principal = _MANAGE):
+    db = await _ready_db()
+    if not await network.remove(db, actor=principal.subject, network_id=network_id):
+        raise HTTPException(status_code=404, detail="network_not_found")
+    return {"removed": True}
 
 
 __all__ = ["router", "_db"]
