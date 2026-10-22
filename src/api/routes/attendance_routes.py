@@ -309,23 +309,32 @@ async def admin_schedule(employee_id: int, body: ScheduleBody, request: Request,
         _raise(e)
 
 
-# ---- sahifalar (qobiq HTML; ma'lumot /api/attendance/* orqali, RBAC bilan) ----
+# ---- sahifalar ----
+# Prod Nginx faqat /api/* ni backend'ga yuboradi (deploy/nginx-oisha.conf), shuning uchun ekranlar
+# /api/attendance/app ostida. Qobiqlar ochiq (security._PUBLIC_PATHS), ma'lumot esa RBAC bilan.
+APP_PREFIX = "/api/attendance/app"
 pages_router = APIRouter(tags=["attendance-pages"])
 _STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                        "static", "attendance")
-_PAGES = {"/davomat": "employee.html", "/davomat/kiosk": "kiosk.html", "/davomat/admin": "admin.html"}
+PAGES = {
+    APP_PREFIX: "employee.html", f"{APP_PREFIX}/kiosk": "kiosk.html", f"{APP_PREFIX}/admin": "admin.html",
+    f"{APP_PREFIX}/common.js": "common.js", f"{APP_PREFIX}/employee.js": "employee.js",
+    f"{APP_PREFIX}/admin.js": "admin.js",
+}
+_HEADERS = {"Cache-Control": "no-store", "X-Frame-Options": "DENY", "Referrer-Policy": "same-origin",
+            "X-Content-Type-Options": "nosniff",
+            "Permissions-Policy": "geolocation=(self), camera=(self), microphone=()"}
 
 
 def _page(name: str):
     from fastapi.responses import FileResponse
 
+    media = "text/javascript" if name.endswith(".js") else "text/html"
+
     async def serve():
-        return FileResponse(os.path.join(_STATIC, name), headers={
-            "Cache-Control": "no-store", "X-Frame-Options": "DENY", "Referrer-Policy": "same-origin",
-            "Permissions-Policy": "geolocation=(self), camera=(self), microphone=()",
-        })
+        return FileResponse(os.path.join(_STATIC, name), media_type=media, headers=_HEADERS)
     return serve
 
 
-for _path, _file in _PAGES.items():
+for _path, _file in PAGES.items():
     pages_router.add_api_route(_path, _page(_file), methods=["GET"], include_in_schema=False)

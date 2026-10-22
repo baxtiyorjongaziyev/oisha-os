@@ -343,19 +343,29 @@ def test_pages_served_with_privacy_headers():
     app = FastAPI()
     app.include_router(routes.pages_router)
     c = TestClient(app)
-    for path in ("/davomat", "/davomat/kiosk", "/davomat/admin"):
+    for path in routes.PAGES:
         r = c.get(path)
-        assert r.status_code == 200 and "<html" in r.text
+        assert r.status_code == 200 and r.headers["x-content-type-options"] == "nosniff"
         assert "geolocation=(self)" in r.headers["permissions-policy"]
         assert r.headers["x-frame-options"] == "DENY"
+    assert "/static/" not in c.get("/api/attendance/app").text
+
+
+def test_only_page_shells_are_public():
+    from src.api.security import is_protected_path
+    for path in routes.PAGES:
+        assert not is_protected_path(path), path
+    for path in ("/api/attendance/today", "/api/attendance/admin/reports", "/api/attendance/kiosk/qr",
+                 "/api/attendance/app/../admin/dashboard", "/api/attendance/app/x"):
+        assert is_protected_path(path), path
 
 
 def test_login_redirect_whitelist_includes_attendance_only():
     from src.services.api_server.oauth import _safe_login_next, _safe_redirect_target
-    assert _safe_redirect_target("/davomat") == "/davomat"
-    assert _safe_login_next("/davomat/admin") == "/davomat/admin"
-    assert _safe_redirect_target("/davomat/../evil") == "/"
-    assert _safe_login_next("https://evil.example/davomat") == ""
+    assert _safe_redirect_target("/api/attendance/app") == "/api/attendance/app"
+    assert _safe_login_next("/api/attendance/app/admin") == "/api/attendance/app/admin"
+    assert _safe_redirect_target("/api/attendance/app/../evil") == "/"
+    assert _safe_login_next("https://evil.example/api/attendance/app") == ""
 
 
 def test_office_constant_matches_owner_input():
