@@ -65,11 +65,13 @@ function renderHistory(events) {
 async function load() {
   try {
     const [today, hist] = await Promise.all([api('/today'), api('/history?days=14')]);
+    $('loading').classList.add('hidden');
     $('login').classList.add('hidden');
     $('app').classList.remove('hidden');
     renderToday(today.events);
     renderHistory(hist.events);
   } catch (err) {
+    $('loading').classList.add('hidden');
     if (err.status === 401) { $('login').classList.remove('hidden'); return; }
     if (err.code === 'not_an_employee') { showLink(); return; }
     $('app').classList.remove('hidden');

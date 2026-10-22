@@ -41,7 +41,9 @@ async function correct(e) {
 
 async function loadToday() {
   try {
+    $('loading').textContent = 'Yuklanmoqda…';
     const d = await api(`/admin/dashboard?day=${$('day').value}`);
+    $('loading').classList.add('hidden');
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('cards').replaceChildren(...CARDS.map(([k, label]) => {
       const c = el('div', 'bg-white rounded-2xl p-4 shadow-sm');
@@ -61,6 +63,7 @@ async function loadToday() {
     }
     return true;
   } catch (err) {
+    $('loading').classList.add('hidden');
     if (err.status === 401) { $('login').classList.remove('hidden'); return false; }
     $('app').classList.remove('hidden');
     $('cards').replaceChildren(el('p', 'text-rose-600 col-span-4', err.status === 403 ? 'Bu bo‘lim uchun HR/admin huquqi kerak.' : err.message));

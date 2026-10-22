@@ -45,12 +45,24 @@ class ApiError extends Error {
   constructor(status, code) { super(ERRORS[code] || code || `HTTP ${status}`); this.status = status; this.code = code; }
 }
 
-async function api(path, { method = 'GET', body, headers = {} } = {}) {
-  const res = await fetch(`/api/attendance${path}`, {
-    method, credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...headers },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+ERRORS.timeout = 'Server javob bermadi. Sahifani yangilang yoki birozdan keyin urinib ko‘ring.';
+ERRORS.network = 'Internet aloqasi yo‘q yoki server ishlamayapti.';
+
+async function api(path, { method = 'GET', body, headers = {}, timeoutMs = 25000 } = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetch(`/api/attendance${path}`, {
+      method, credentials: 'same-origin', signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new ApiError(0, e.name === 'AbortError' ? 'timeout' : 'network');
+  } finally {
+    clearTimeout(timer);
+  }
   let data = null;
   try { data = await res.json(); } catch (_) { /* bo'sh javob */ }
   if (!res.ok) throw new ApiError(res.status, data && (typeof data.detail === 'string' ? data.detail : null));
