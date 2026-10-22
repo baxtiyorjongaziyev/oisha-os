@@ -174,6 +174,29 @@ class AttendanceService:
         await self.db.commit()
         return {"passed": True}
 
+    # ---- soddalashtirilgan oqim: GPS + ofis Wi-Fi (owner, 2026-10-22) ----
+    async def punch(self, actor: Actor, kind: str, idempotency_key: str, fix: gf.LocationFix,
+                    on_office_wifi: bool | None) -> dict:
+        """Bir bosishda: sessiya → GPS → Wi-Fi → tasdiq.
+
+        ``on_office_wifi=None`` — ofis Wi-Fi hali sozlanmagan, faqat GPS tekshiriladi.
+        """
+        if on_office_wifi is False:
+            raise AttendanceError("not_on_office_wifi", 403)
+        s = await self.start(actor, kind, idempotency_key)
+        if s["state"] == "confirmed":
+            row = await repo.get_session(self.db, s["id"])
+            return {"status": row["status"], "already_confirmed": True, "work_date": s["work_date"]}
+        if s["state"] == "created":
+            await self.submit_location(s["id"], actor, fix)
+        row = await repo.get_session(self.db, s["id"])
+        if row["state"] == "location_ok":
+            await repo.add_verification(self.db, s["id"], "manual", True, None, "office_wifi",
+                                        {"wifi": on_office_wifi})
+            await self._move(row, actor, "qr_ok", "location_ok")
+            await self.db.commit()
+        return await self.confirm(s["id"], actor)
+
     # ---- 4. yuz (hozircha o'chiq) ----
     async def submit_face(self, sid: str, actor: Actor) -> dict:
         await self._load(sid, actor)
@@ -198,7 +221,8 @@ class AttendanceService:
                 "session_id": s["id"], "employee_id": actor.employee_id, "branch_id": int(s["branch_id"]),
                 "kind": s["kind"], "work_date": s["work_date"], "server_ts": now.isoformat(),
                 "status": status, "minutes_late": c.minutes_late, "minutes_early": c.minutes_early,
-                "verification_summary": {"gps": True, "qr": True, "face": "disabled", "review": review},
+                "verification_summary": {"gps": True, "second_factor": "qr_or_wifi", "face": "disabled",
+                                         "review": review},
             })
             await audit.log(self.db, actor=actor.subject, action="attendance_confirmed",
                             entity="attendance_session", entity_id=s["id"], details={"status": status},

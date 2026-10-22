@@ -18,6 +18,8 @@ const ERRORS = {
   already_recorded: 'Bugun bu belgi allaqachon qo‘yilgan.',
   check_in_required: 'Avval “Keldim” belgisini qo‘ying.',
   not_an_employee: 'Telegram hisobingiz xodimlar ro‘yxatiga bog‘lanmagan.',
+  not_on_office_wifi: 'Ofis Wi-Fi’siga ulaning (mobil internetni o‘chiring) va qayta bosing.',
+  office_ip_unknown: 'Ofis tarmog‘i aniqlanmadi. Ofis Wi-Fi’siga ulanib, qayta bosing.',
   already_linked: 'Hisobingiz allaqachon bog‘langan. Sahifani yangilang.',
   employee_not_linkable: 'Bu xodimga boshqa Telegram hisobi bog‘langan.',
   geofence_not_configured: 'Ofis joylashuvi hali sozlanmagan.',
