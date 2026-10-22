@@ -226,33 +226,6 @@ BEFORE DELETE ON attendance_audit_logs
 BEGIN SELECT RAISE(ABORT, 'attendance_audit_logs is append-only'); END
 """
 
-# Ofis monitori kalitlari: faqat sha256 xeshi saqlanadi, bekor qilish mumkin.
-_CREATE_KIOSK_TOKENS = """
-CREATE TABLE IF NOT EXISTS attendance_kiosk_tokens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    token_hash TEXT NOT NULL UNIQUE,
-    label TEXT NOT NULL,
-    created_by TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    last_used_at TEXT,
-    revoked_at TEXT
-)
-"""
-
-# Telegram hisobini xodimga bog'lash so'rovlari (owner tasdiqlaydi).
-_CREATE_LINK_REQUESTS = """
-CREATE TABLE IF NOT EXISTS attendance_link_requests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    telegram_id INTEGER NOT NULL UNIQUE,
-    full_name TEXT NOT NULL,
-    state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'linked', 'rejected')),
-    employee_id INTEGER REFERENCES employees(id),
-    resolved_by TEXT,
-    resolved_at TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-)
-"""
-
 _INDEXES = [
     "CREATE INDEX IF NOT EXISTS ix_geofences_branch ON geofences (branch_id)",
     "CREATE INDEX IF NOT EXISTS ix_shift_assign_emp ON shift_assignments (employee_id, valid_from)",
@@ -264,13 +237,6 @@ _INDEXES = [
     "CREATE INDEX IF NOT EXISTS ix_att_corr_emp ON attendance_corrections (employee_id, work_date)",
     "CREATE INDEX IF NOT EXISTS ix_att_audit_entity ON attendance_audit_logs (entity, entity_id)",
 ]
-
-def _employees_ddl() -> str:
-    # Mavjud ERP jadvali (finance/erp_schema.py) — bazada bo'lmasa yaratiladi, bo'lsa tegilmaydi.
-    from src.services.core.finance.erp_schema import _CREATE_EMPLOYEES
-
-    return _CREATE_EMPLOYEES
-
 
 MIGRATIONS: list[str] = [
     _CREATE_BRANCHES,
@@ -290,8 +256,6 @@ MIGRATIONS: list[str] = [
     _CREATE_AUDIT,
     _AUDIT_NO_UPDATE,
     _AUDIT_NO_DELETE,
-    _CREATE_KIOSK_TOKENS,
-    _CREATE_LINK_REQUESTS,
     *_INDEXES,
 ]
 
@@ -300,6 +264,6 @@ async def init_attendance_tables(db=None) -> None:
     """Jadvallarni yaratadi. ``db`` — ``execute``/``commit`` bor obyekt (default: db_pool)."""
     if db is None:
         from src.database_pool import db_pool as db
-    for ddl in (_employees_ddl(), *MIGRATIONS):
+    for ddl in MIGRATIONS:
         await db.execute(ddl)
     await db.commit()
