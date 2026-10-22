@@ -2002,3 +2002,11 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Qolgan ish: prod sozlash (`ATTENDANCE_QR_SECRET`, kiosk service token, `scripts/attendance_seed_schedules.py
   --apply`, `employees.telegram_id`); 8-bosqich Payroll; deploy qo'llanmasi; O'zR shaxsga doir
   ma'lumotlar qonuni bo'yicha yurist tekshiruvi.
+
+## 2026-10-22 Codex Coordinator — TN audit session transport
+- PR #940 reviewed and squash merged as b0f9f2ff after preflight. Audit run 39831512172 failed before Telegram connection because neither dedicated session variable reached the process.
+- Root cause: repository secret TELEGRAM_MCP_SESSION_STRING exists by name, but the workflow did not pass it to the audit step. No secret value was read or changed.
+- Branch fix/tn-audit-session-env maps the existing dedicated secret into the step environment and logs fresh report detail without phone/username columns. Existing script still rejects the production userbot session and sends only to me.
+- Changed: .github/workflows/tn-revenue-audit.yml and this handoff. No application restart, production deploy dispatch, .env edit, CRM/Airtable write, or local Telegram connection.
+- Validation: 3051 passed, 17 skipped, 4 subtests passed; bandit -r src/ -ll exit 0, medium/high 0; workflow YAML and embedded Python parse successfully. PYTHON_DOTENV_DISABLED=1 used for local tests.
+- Open: run the fixed workflow and validate live output. Airtable read-only check found TN2's 21 linked projects all start before its recorded marketing date; source attribution remains unresolved. The skill-evolution SKILL.md referenced by AGENTS is absent from this checkout.
