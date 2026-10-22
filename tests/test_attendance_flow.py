@@ -337,3 +337,27 @@ def test_schedule_config_is_valid():
     for item in TEAM_SCHEDULES:
         assert set(item["weekdays"]) <= set(range(1, 8))
         assert set(item.get("optional_weekdays", [])) <= set(range(1, 8))
+
+
+def test_pages_served_with_privacy_headers():
+    app = FastAPI()
+    app.include_router(routes.pages_router)
+    c = TestClient(app)
+    for path in ("/davomat", "/davomat/kiosk", "/davomat/admin"):
+        r = c.get(path)
+        assert r.status_code == 200 and "<html" in r.text
+        assert "geolocation=(self)" in r.headers["permissions-policy"]
+        assert r.headers["x-frame-options"] == "DENY"
+
+
+def test_login_redirect_whitelist_includes_attendance_only():
+    from src.services.api_server.oauth import _safe_login_next, _safe_redirect_target
+    assert _safe_redirect_target("/davomat") == "/davomat"
+    assert _safe_login_next("/davomat/admin") == "/davomat/admin"
+    assert _safe_redirect_target("/davomat/../evil") == "/"
+    assert _safe_login_next("https://evil.example/davomat") == ""
+
+
+def test_office_constant_matches_owner_input():
+    from src.services.core.attendance.team_schedules import OFFICE
+    assert (OFFICE["latitude"], OFFICE["longitude"]) == (41.3056580, 69.2814659)

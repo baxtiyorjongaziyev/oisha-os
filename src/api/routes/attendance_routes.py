@@ -270,3 +270,25 @@ async def admin_schedule(employee_id: int, body: ScheduleBody, request: Request,
         raise HTTPException(status_code=422, detail="invalid_schedule") from None
     except AttendanceError as e:
         _raise(e)
+
+
+# ---- sahifalar (qobiq HTML; ma'lumot /api/attendance/* orqali, RBAC bilan) ----
+pages_router = APIRouter(tags=["attendance-pages"])
+_STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                       "static", "attendance")
+_PAGES = {"/davomat": "employee.html", "/davomat/kiosk": "kiosk.html", "/davomat/admin": "admin.html"}
+
+
+def _page(name: str):
+    from fastapi.responses import FileResponse
+
+    async def serve():
+        return FileResponse(os.path.join(_STATIC, name), headers={
+            "Cache-Control": "no-store", "X-Frame-Options": "DENY", "Referrer-Policy": "same-origin",
+            "Permissions-Policy": "geolocation=(self), camera=(self), microphone=()",
+        })
+    return serve
+
+
+for _path, _file in _PAGES.items():
+    pages_router.add_api_route(_path, _page(_file), methods=["GET"], include_in_schema=False)
