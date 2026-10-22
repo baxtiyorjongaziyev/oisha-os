@@ -1,6 +1,6 @@
 # Smart Attendance — Repository audit va implementatsiya rejasi
 
-Holat: **REJA — owner tasdig'ini kutmoqda** (2026-10-22). Kod hali yozilmagan.
+Holat: **1-bosqich bajarildi** (sxema + testlar). Owner javoblari (2026-10-22): EMPLOYEE roli — ha; Telegram login — yetarli; bitta ofis; yuz tekshiruvi — tushuntirish kutilmoqda.
 
 ## 1. Audit natijalari (manbadan tekshirilgan)
 
