@@ -2003,6 +2003,11 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   --apply`, `employees.telegram_id`); 8-bosqich Payroll; deploy qo'llanmasi; O'zR shaxsga doir
   ma'lumotlar qonuni bo'yicha yurist tekshiruvi.
 
+### 2026-10-22 — Codex: Smart Attendance, 2-vazifa startup va insident
+- Bajarildi: schema/bootstrap FastAPI lifespan paytida, servingdan oldin bajariladi; init vaqti loglanadi. Insident xronologiyasi deploy loglari bilan yozildi. Sabab noma'lum, prod journald olinmagan.
+- Fayllar: `src/services/api_server/core.py`, `tests/test_attendance_startup.py`, `docs/attendance-incident-2026-10-22.md`. Branch: `fix/attendance-startup-init`.
+- Dalil: avval 2 yangi startup testi yiqildi; patchdan so'ng startup+flow 38 passed. To'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3053 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: prod jurnal/kernel/access log va real startup vaqti tekshiruvi; shared libsql contention insident sababi sifatida isbotlanmagan. Init xatosi API startupni to'xtatadi, deploy grace tekshirilsin.
 ### 2026-10-22 — Codex: Smart Attendance, 1-vazifa IP audit
 - Bajarildi: repo Nginx va PR #936 deploy jurnali solishtirildi; loopback proxy trust/fail-closed uchun 10 sintetik test qo'shildi. IP trust kengaytirilmadi, prod konfiguratsiyasi o'zgartirilmadi.
 - Fayllar: `docs/attendance-proxy-audit.md`, `tests/test_attendance_network.py`. Branch: `fix/attendance-proxy-verification`.
@@ -2014,3 +2019,6 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Fayllar: `src/api/routes/attendance_routes.py`, `src/services/core/attendance/payroll_export.py`, `tests/test_attendance_payroll.py`, `docs/attendance-payroll-api.md`. Branch: `feat/attendance-payroll-api`.
 - Dalil: oldin 3 test 404 bilan yiqildi, keyin 3 passed; to'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3065 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
 - Qolgan ish: real Hisobchi iste'molchisini ruxsatli service token bilan ulash va prod read-back; amalda ma'lumot uzatilgani tekshirilmagan. Faol bo'lmagan xodimlar mavjud summary kontraktida yo'q.
+- Codex 2-vazifa yangilanishi: main bilan faqat handoff append konflikti ikkala yozuvni saqlab yechildi; qayta to'liq pre-flight 3063 passed, 17 skipped, 4 subtests passed; Bandit medium/high 0.
+
+- Codex integratsiya tekshiruvi: startup + IP + payroll birga, to'liq pre-flight 3067 passed, 17 skipped, 4 subtests passed; Bandit medium/high 0. Production fayl chegaralari: core.py 202, attendance_routes.py 379, payroll_export.py 34 qator; eng uzun funksiya 30 qator.
