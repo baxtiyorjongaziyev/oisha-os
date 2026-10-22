@@ -4,6 +4,7 @@ Core FastAPI application creation, middleware, router inclusions, and lifespan.
 import hmac
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -33,6 +34,11 @@ async def lifespan(app: FastAPI):
     from src.services.core.instagram.config_guard import check_meta_config
 
     check_meta_config()
+    from src.api.routes.attendance_routes import _ready_db
+
+    started = time.perf_counter()
+    await _ready_db()
+    logger.info("[ATTENDANCE] startup initialization finished in %.3fs", time.perf_counter() - started)
     mark_heartbeat("api")
     add_activity("api_started", "ok", {"event": "lifespan_start"})
     yield
