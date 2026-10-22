@@ -12,12 +12,12 @@ import time
 from collections import defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from src.api.rbac import Permission, Principal, require_any_permission, require_permissions
 from src.services.core.attendance import admin as att_admin
-from src.services.core.attendance import qr_tokens, reports, repo
+from src.services.core.attendance import audit, export, qr_tokens, reports, repo, rules, summary
 from src.services.core.attendance.geofence import LocationFix
 from src.services.core.attendance.notifier import default_notifier
 from src.services.core.attendance.schema import init_attendance_tables
@@ -230,12 +230,49 @@ async def admin_dashboard(principal: Principal = _READ_ALL, day: date | None = N
 
 
 @router.get("/admin/reports")
-async def admin_reports(start: date, end: date, principal: Principal = _READ_ALL,
-                        employee_id: int | None = None):
+async def admin_reports(start: date, end: date, request: Request, principal: Principal = _READ_ALL,
+                        employee_id: int | None = None,
+                        status: str | None = Query(None, pattern="^[A-Z_]{3,20}$"),
+                        view: str = Query("events", pattern="^(events|summary)$"),
+                        format: str = Query("json", pattern="^(json|xlsx|pdf)$")):
     if end < start or (end - start).days > 366:
         raise HTTPException(status_code=422, detail="invalid_range")
     db = await _ready_db()
-    return {"events": await reports.events(db, start, end, employee_id)}
+    if view == "summary":
+        today = datetime.now(timezone(timedelta(hours=5))).date()
+        rows = await summary.period_summary(db, start, end, today=today, employee_id=employee_id)
+        columns, title = export.SUMMARY_COLUMNS, "Davomat xulosasi"
+    else:
+        rows = await reports.events(db, start, end, employee_id, status)
+        columns, title = export.EVENT_COLUMNS, "Davomat yozuvlari"
+    await audit.log(db, actor=principal.subject, action="report_viewed", entity="attendance_report",
+                    details={"view": view, "format": format, "start": start, "end": end}, ip=_ip(request))
+    await db.commit()
+    if format == "json":
+        return {"view": view, "start": start.isoformat(), "end": end.isoformat(), "rows": rows}
+    headers, table = export.table(rows, columns)
+    stem = f"davomat-{view}-{start.isoformat()}-{end.isoformat()}"
+    if format == "xlsx":
+        body, media = export.to_xlsx(headers, table), \
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        body, media = export.to_pdf(title, f"{start.isoformat()} — {end.isoformat()}", headers, table), \
+            "application/pdf"
+    return Response(content=body, media_type=media, headers={
+        "Content-Disposition": f'attachment; filename="{stem}.{format}"', "Cache-Control": "no-store"})
+
+
+@router.get("/admin/employees")
+async def admin_employees(principal: Principal = _READ_ALL):
+    db = await _ready_db()
+    today = datetime.now(timezone(timedelta(hours=5))).date().isoformat()
+    out = []
+    for emp in await repo.employees_active(db):
+        shift = rules.shift_from_row(await repo.employee_shift(db, int(emp["id"]), today))
+        out.append({"id": int(emp["id"]), "name": emp["name"], "weekdays": sorted(shift.weekdays),
+                    "optional_weekdays": sorted(shift.optional_weekdays),
+                    "start": shift.start.strftime("%H:%M"), "end": shift.end.strftime("%H:%M")})
+    return {"employees": out}
 
 
 @router.post("/admin/corrections")

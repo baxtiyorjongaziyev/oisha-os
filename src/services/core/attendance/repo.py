@@ -133,3 +133,21 @@ async def employee_shift(db, employee_id: int, day: str):
 
 async def active_employee_ids(db) -> list[int]:
     return [int(r[0]) for r in await db.execute("SELECT id FROM employees WHERE is_active = 1", [])]
+
+
+async def employees_active(db) -> list:
+    return await db.execute("SELECT id, name FROM employees WHERE is_active = 1 ORDER BY name", [])
+
+
+async def day_corrections(db, start: str, end: str) -> list:
+    """Event'ga bog'lanmagan kunlik tuzatishlar (masalan, ruxsatli kun). Oxirgisi amal qiladi."""
+    return await db.execute(
+        "SELECT employee_id, work_date, new_status FROM attendance_corrections"
+        " WHERE event_id IS NULL AND state = 'applied' AND work_date BETWEEN ? AND ? ORDER BY id",
+        [start, end])
+
+
+async def go_live_date(db) -> str | None:
+    """Davomat ishga tushgan kun — birinchi geofence sozlangan sana (undan oldingi kunlar hisoblanmaydi)."""
+    r = await one(db, "SELECT MIN(created_at) FROM geofences", [])
+    return str(r[0])[:10] if r is not None and r[0] else None

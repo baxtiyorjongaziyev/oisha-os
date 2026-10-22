@@ -1,7 +1,8 @@
 """HR dashboard ko'rsatkichlari va hisobot qatorlari (faqat o'qish)."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from src.services.core.attendance import repo, rules
 
@@ -41,9 +42,13 @@ async def dashboard(db, day: date, cal: rules.Calendar) -> dict:
     return out
 
 
-async def events(db, start: date, end: date, employee_id: int | None = None) -> list[dict]:
+async def events(db, start: date, end: date, employee_id: int | None = None,
+                 status: str | None = None) -> list[dict]:
     rows = await repo.events_between(db, start.isoformat(), end.isoformat(), employee_id)
-    return [_public_event(r) for r in rows]
+    return [_public_event(r) for r in rows if status is None or r["status"] == status]
+
+
+_TZ = ZoneInfo("Asia/Tashkent")
 
 
 def _public_event(r) -> dict:
@@ -51,5 +56,6 @@ def _public_event(r) -> dict:
     return {
         "id": r["id"], "employee_id": r["employee_id"], "employee_name": r["employee_name"],
         "kind": r["kind"], "work_date": r["work_date"], "server_ts": r["server_ts"],
+        "local_time": datetime.fromisoformat(r["server_ts"]).astimezone(_TZ).strftime("%H:%M"),
         "status": r["status"], "minutes_late": r["minutes_late"], "minutes_early": r["minutes_early"],
     }
