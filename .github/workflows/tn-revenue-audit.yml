@@ -18,7 +18,7 @@ jobs:
         working-directory: /home/ubuntu/oisha-os
         run: |
           set -euo pipefail
-          git fetch -q origin main
-          git show origin/main:scripts/prod/tn_revenue_audit.py > /tmp/tn_revenue_audit.py
-          cp /tmp/tn_revenue_audit.py scripts/prod/tn_revenue_audit.py
+          # Skript production deploy orqali checkout'ga tushadi; git fetch
+          # qilinmaydi (origin'da eski deploy token'i turadi).
+          test -f scripts/prod/tn_revenue_audit.py
           ./venv/bin/python scripts/prod/tn_revenue_audit.py --send
