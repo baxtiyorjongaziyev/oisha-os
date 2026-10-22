@@ -22,7 +22,7 @@
   <p id="status" class="mt-6 text-slate-300">Telefon orqali Oisha → Davomat → “Keldim” ni bosing va shu kodni skanerlang.</p>
 
   <form id="setup" class="hidden mt-8 bg-slate-800 rounded-2xl p-6 text-left space-y-3">
-    <p class="text-sm text-slate-300">HR panel → Sozlamalar → “Monitor havolasini yaratish” orqali olingan havolani shu qurilmada oching yoki kalitni shu yerga qo‘ying.</p>
+    <p class="text-sm text-slate-300">Monitor kaliti (<code>attendance:kiosk</code> service token). Faqat shu qurilmada saqlanadi.</p>
     <input id="token" type="password" autocomplete="off" class="w-full rounded-lg px-3 py-2 text-slate-900" placeholder="Kiosk token">
     <button class="w-full bg-emerald-500 rounded-lg py-2 font-semibold">Saqlash</button>
   </form>
@@ -33,14 +33,6 @@ const $ = (id) => document.getElementById(id);
 let expiresAt = 0, ttl = 30;
 
 function getToken() { try { return localStorage.getItem(KEY) || ''; } catch (_) { return ''; } }
-
-// HR paneli bergan havola: .../kiosk#k=<kalit> — kalit saqlanadi va manzildan o'chiriladi.
-(function takeTokenFromHash() {
-  const m = /[#&]k=([A-Za-z0-9_-]+)/.exec(location.hash);
-  if (!m) return;
-  try { localStorage.setItem(KEY, m[1]); } catch (_) { /* private mode */ }
-  history.replaceState(null, '', location.pathname);
-})();
 
 function tick() {
   $('clock').textContent = new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Tashkent' });

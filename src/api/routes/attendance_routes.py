@@ -15,10 +15,9 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 
-from src.api.rbac import Permission, Principal, require_permissions
+from src.api.rbac import Permission, Principal, require_any_permission, require_permissions
 from src.services.core.attendance import admin as att_admin
-from src.services.core.attendance import audit, bootstrap, export, kiosk, qr_tokens, reports, repo, rules, summary
-from src.services.core.attendance.secrets_util import qr_secret
+from src.services.core.attendance import audit, export, qr_tokens, reports, repo, rules, summary
 from src.services.core.attendance.geofence import LocationFix
 from src.services.core.attendance.notifier import default_notifier
 from src.services.core.attendance.schema import init_attendance_tables
@@ -30,6 +29,7 @@ router = APIRouter(prefix="/api/attendance", tags=["attendance"])
 _SELF = require_permissions(Permission.ATTENDANCE_SELF)
 _READ_ALL = require_permissions(Permission.ATTENDANCE_READ_ALL)
 _MANAGE = require_permissions(Permission.ATTENDANCE_MANAGE)
+_KIOSK = require_any_permission(Permission.ATTENDANCE_KIOSK, Permission.ATTENDANCE_MANAGE)
 
 
 # ---- infra ----
@@ -67,16 +67,13 @@ async def _ready_db():
         async with _schema_lock:
             if not _schema_ready:
                 await init_attendance_tables(db)
-                try:
-                    await bootstrap.run(db)
-                except Exception:
-                    logger.exception("[ATTENDANCE] bootstrap failed")
                 _schema_ready = True
     return db
 
 
 def _service(db) -> AttendanceService:
-    return AttendanceService(db, notifier=default_notifier(), qr_secret=qr_secret())
+    return AttendanceService(db, notifier=default_notifier(),
+                             qr_secret=os.getenv("ATTENDANCE_QR_SECRET", ""))
 
 
 def _ip(request: Request) -> str | None:
@@ -209,32 +206,14 @@ async def history(request: Request, principal: Principal = _SELF, days: int = Qu
 
 
 # ---- kiosk (ofis monitori) ----
-async def _kiosk_allowed(db, request: Request) -> bool:
-    """Monitor kaliti (HR panelida yaratiladi) yoki kiosk/manage huquqli sessiya."""
-    from src.api.rbac import has_permission
-    from src.api.security import authorize_connection
-
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer ") and await kiosk.verify(db, auth[7:].strip()):
-        return True
-    principal = authorize_connection(request)
-    return principal is not None and (has_permission(principal, Permission.ATTENDANCE_KIOSK)
-                                      or has_permission(principal, Permission.ATTENDANCE_MANAGE))
-
-
-# Yo'l security._PUBLIC_PATHS da: autentifikatsiya shu yerda (_kiosk_allowed), fail-closed.
 @router.get("/kiosk/qr")
-async def kiosk_qr(request: Request, kiosk_id: str = Query("main", pattern="^[A-Za-z0-9_-]{1,32}$")):
+async def kiosk_qr(principal: Principal = _KIOSK, kiosk_id: str = Query("main", pattern="^[A-Za-z0-9_-]{1,32}$")):
     db = await _ready_db()
-    _limiter.check(f"kiosk:{_ip(request)}")
-    if not await _kiosk_allowed(db, request):
-        raise HTTPException(status_code=401, detail="kiosk_unauthorized")
     fence = await repo.active_geofence(db)
     if fence is None:
         raise HTTPException(status_code=503, detail="geofence_not_configured")
     try:
-        token, claims = qr_tokens.issue(int(fence["branch_id"]), kiosk_id, datetime.now(timezone.utc),
-                                        secret=qr_secret())
+        token, claims = qr_tokens.issue(int(fence["branch_id"]), kiosk_id, datetime.now(timezone.utc))
     except qr_tokens.QrError as e:
         raise HTTPException(status_code=503, detail=f"qr_{e.code}") from None
     await qr_tokens.record_issued(db, claims)
