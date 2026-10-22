@@ -6,7 +6,6 @@
   <meta name="theme-color" content="#0f172a">
   <title>Oisha · Davomat</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>body{font-family:'Inter',sans-serif;background:#f8fafc}video{object-fit:cover}</style>
 </head>
@@ -20,6 +19,8 @@
     </div>
     <p id="clock" class="ml-auto text-sm font-medium text-slate-500"></p>
   </header>
+
+  <p id="loading" class="text-slate-500">Yuklanmoqda…</p>
 
   <section id="login" class="hidden bg-white rounded-2xl p-6 shadow-sm text-center">
     <p class="mb-4 text-slate-600">Davomat uchun Telegram orqali kiring.</p>
@@ -46,13 +47,9 @@
     <div id="flow" class="hidden bg-white rounded-2xl p-6 shadow-sm mb-4">
       <ol class="space-y-3 text-sm">
         <li id="step-gps" class="flex items-center gap-3"><span class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">1</span>Lokatsiya tekshiruvi</li>
-        <li id="step-qr" class="flex items-center gap-3"><span class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">2</span>Monitordagi QR kod</li>
+        <li id="step-qr" class="flex items-center gap-3"><span class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">2</span>Ofis Wi-Fi</li>
         <li id="step-ok" class="flex items-center gap-3"><span class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">3</span>Tasdiqlash</li>
       </ol>
-      <div id="scanner" class="hidden mt-5">
-        <video id="video" class="w-full aspect-square rounded-xl bg-black" playsinline muted></video>
-        <p class="text-xs text-slate-500 mt-2 text-center">Kamerani ofis monitoridagi QR kodga qarating</p>
-      </div>
       <p id="message" class="mt-4 text-sm"></p>
     </div>
 
@@ -60,7 +57,7 @@
       <h2 class="font-semibold mb-3">So‘nggi 14 kun</h2>
       <div id="history" class="divide-y divide-slate-100 text-sm"></div>
     </div>
-    <p class="text-xs text-slate-400 mt-6 text-center">Lokatsiya faqat tugmani bosganingizda bir marta olinadi.</p>
+    <p class="text-xs text-slate-400 mt-6 text-center">Ofis Wi-Fi’siga ulangan holda bosing. Lokatsiya faqat tugmani bosganda bir marta olinadi.</p>
   </section>
 </main>
 <script src="/api/attendance/app/common.js"></script>

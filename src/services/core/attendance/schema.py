@@ -253,6 +253,19 @@ CREATE TABLE IF NOT EXISTS attendance_link_requests (
 )
 """
 
+# Ofis Wi-Fi: ofis internetining tashqi (public) IP manzillari. Xodim so'rovi shu IP dan
+# kelsa — ofis Wi-Fi'siga ulangan hisoblanadi.
+_CREATE_OFFICE_NETWORKS = """
+CREATE TABLE IF NOT EXISTS attendance_office_networks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    revoked_at TEXT
+)
+"""
+
 _INDEXES = [
     "CREATE INDEX IF NOT EXISTS ix_geofences_branch ON geofences (branch_id)",
     "CREATE INDEX IF NOT EXISTS ix_shift_assign_emp ON shift_assignments (employee_id, valid_from)",
@@ -292,6 +305,7 @@ MIGRATIONS: list[str] = [
     _AUDIT_NO_DELETE,
     _CREATE_KIOSK_TOKENS,
     _CREATE_LINK_REQUESTS,
+    _CREATE_OFFICE_NETWORKS,
     *_INDEXES,
 ]
 

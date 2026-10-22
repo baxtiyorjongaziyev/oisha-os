@@ -151,3 +151,13 @@ async def go_live_date(db) -> str | None:
     """Davomat ishga tushgan kun — birinchi geofence sozlangan sana (undan oldingi kunlar hisoblanmaydi)."""
     r = await one(db, "SELECT MIN(created_at) FROM geofences", [])
     return str(r[0])[:10] if r is not None and r[0] else None
+
+
+async def shifts_for_day(db, day: str) -> dict[int, object]:
+    """Barcha xodimlarning shu kundagi grafigi bitta so'rovda (dashboard uchun)."""
+    rows = await db.execute(
+        "SELECT sa.employee_id, sh.start_time, sh.end_time, sh.weekdays, sh.optional_weekdays"
+        " FROM shift_assignments sa JOIN attendance_shifts sh ON sh.id = sa.shift_id"
+        " WHERE sa.valid_from <= ? AND (sa.valid_to IS NULL OR sa.valid_to >= ?) AND sh.is_active = 1"
+        " ORDER BY sa.valid_from, sa.id", [day, day])
+    return {int(r["employee_id"]): r for r in rows}  # oxirgisi ustun

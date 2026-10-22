@@ -1,7 +1,6 @@
 // Xodim ekrani: Keldim/Ketdim → GPS → QR → tasdiq.
 const $ = (id) => document.getElementById(id);
 let busy = false;
-let stream = null;
 
 function tick() {
   $('clock').textContent = new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
@@ -65,60 +64,19 @@ function renderHistory(events) {
 async function load() {
   try {
     const [today, hist] = await Promise.all([api('/today'), api('/history?days=14')]);
+    $('loading').classList.add('hidden');
     $('login').classList.add('hidden');
     $('app').classList.remove('hidden');
     renderToday(today.events);
     renderHistory(hist.events);
   } catch (err) {
+    $('loading').classList.add('hidden');
     if (err.status === 401) { $('login').classList.remove('hidden'); return; }
     if (err.code === 'not_an_employee') { showLink(); return; }
     $('app').classList.remove('hidden');
     $('action').disabled = true;
     $('action').textContent = err.message;
   }
-}
-
-async function openCamera() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    throw new Error('Brauzer kamerani qo‘llamaydi. Chrome yoki Safari’da oching.');
-  }
-  try {
-    return await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-  } catch (e) {
-    if (e.name === 'NotAllowedError') throw new Error('Kameraga ruxsat bering (brauzer sozlamalari).');
-    if (e.name === 'NotFoundError') throw new Error('Kamera topilmadi.');
-    throw new Error('Kamerani ochib bo‘lmadi.');
-  }
-}
-
-async function scanQr() {
-  stream = await openCamera();
-  const video = $('video');
-  video.srcObject = stream;
-  await video.play();
-  const detector = 'BarcodeDetector' in window ? new BarcodeDetector({ formats: ['qr_code'] }) : null;
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  const deadline = Date.now() + 60000;
-  while (Date.now() < deadline) {
-    if (detector) {
-      const codes = await detector.detect(video).catch(() => []);
-      if (codes.length) return codes[0].rawValue;
-    } else if (window.jsQR && video.videoWidth) {
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
-      const code = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
-      if (code) return code.data;
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  throw new Error('QR kod topilmadi. Qaytadan urinib ko‘ring.');
-}
-
-function stopCamera() {
-  if (stream) stream.getTracks().forEach((t) => t.stop());
-  stream = null;
-  $('scanner').classList.add('hidden');
 }
 
 async function run() {
@@ -131,28 +89,19 @@ async function run() {
   message('');
   let step = 'step-gps';
   try {
-    const key = crypto.randomUUID();
-    const session = await api('/sessions', { method: 'POST', body: { kind }, headers: { 'Idempotency-Key': key } });
     setStep(step, 'wait'); message('Lokatsiya aniqlanmoqda…');
     const fix = await getLocationOnce();
-    const gps = await api(`/sessions/${session.id}/location`, { method: 'POST', body: fix });
     setStep(step, 'ok');
-    step = 'step-qr'; setStep(step, 'wait');
-    message(gps.needs_review ? 'GPS aniqligi past — davomat tekshiruvga tushadi. QR ni skanerlang.' : 'QR kodni skanerlang.');
-    $('scanner').classList.remove('hidden');
-    const token = await scanQr();
-    stopCamera();
-    await api(`/sessions/${session.id}/qr`, { method: 'POST', body: { token } });
+    step = 'step-qr'; setStep(step, 'wait'); message('Tekshirilmoqda…');
+    const res = await api('/punch', { method: 'POST', body: { kind, ...fix }, headers: { 'Idempotency-Key': crypto.randomUUID() } });
     setStep(step, 'ok');
-    step = 'step-ok'; setStep(step, 'wait');
-    const res = await api(`/sessions/${session.id}/confirm`, { method: 'POST' });
-    setStep(step, 'ok');
+    step = 'step-ok'; setStep(step, 'ok');
     const [label] = STATUS[res.status] || [res.status];
     const extra = res.minutes_late ? ` · ${res.minutes_late} daqiqa kechikish` : res.minutes_early ? ` · ${res.minutes_early} daqiqa erta` : '';
-    message(`${kind === 'check_in' ? 'Kelish' : 'Ketish'} qayd etildi: ${hhmm(res.server_ts)} — ${label}${extra}`, 'emerald');
+    message(`${kind === 'check_in' ? 'Kelish' : 'Ketish'} qayd etildi${res.server_ts ? ': ' + hhmm(res.server_ts) : ''} — ${label}${extra}`, 'emerald');
     if (navigator.vibrate) navigator.vibrate(80);
   } catch (err) {
-    stopCamera();
+    if (err.code === 'outside_geofence') step = 'step-gps';
     setStep(step, 'fail');
     message(err.message || 'Xatolik. Internetni tekshirib, qayta urinib ko‘ring.', 'rose');
   } finally {

@@ -18,6 +18,8 @@ const ERRORS = {
   already_recorded: 'Bugun bu belgi allaqachon qo‘yilgan.',
   check_in_required: 'Avval “Keldim” belgisini qo‘ying.',
   not_an_employee: 'Telegram hisobingiz xodimlar ro‘yxatiga bog‘lanmagan.',
+  not_on_office_wifi: 'Ofis Wi-Fi’siga ulaning (mobil internetni o‘chiring) va qayta bosing.',
+  office_ip_unknown: 'Ofis tarmog‘i aniqlanmadi. Ofis Wi-Fi’siga ulanib, qayta bosing.',
   already_linked: 'Hisobingiz allaqachon bog‘langan. Sahifani yangilang.',
   employee_not_linkable: 'Bu xodimga boshqa Telegram hisobi bog‘langan.',
   geofence_not_configured: 'Ofis joylashuvi hali sozlanmagan.',
@@ -45,14 +47,28 @@ class ApiError extends Error {
   constructor(status, code) { super(ERRORS[code] || code || `HTTP ${status}`); this.status = status; this.code = code; }
 }
 
-async function api(path, { method = 'GET', body, headers = {} } = {}) {
-  const res = await fetch(`/api/attendance${path}`, {
-    method, credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...headers },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+ERRORS.timeout = 'Server javob bermadi. Sahifani yangilang yoki birozdan keyin urinib ko‘ring.';
+ERRORS.network = 'Internet aloqasi yo‘q yoki server ishlamayapti.';
+
+async function api(path, { method = 'GET', body, headers = {}, timeoutMs = 25000 } = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  let res;
   let data = null;
-  try { data = await res.json(); } catch (_) { /* bo'sh javob */ }
+  try {
+    res = await fetch(`/api/attendance${path}`, {
+      method, credentials: 'same-origin', signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    // Tana o'qilishi ham taymer ichida: sarlavha kelib, tana to'xtab qolsa ham timeout ishlaydi.
+    const text = await res.text();
+    if (text) { try { data = JSON.parse(text); } catch (_) { /* JSON emas */ } }
+  } catch (e) {
+    throw new ApiError(0, e.name === 'AbortError' ? 'timeout' : 'network');
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) throw new ApiError(res.status, data && (typeof data.detail === 'string' ? data.detail : null));
   return data;
 }
