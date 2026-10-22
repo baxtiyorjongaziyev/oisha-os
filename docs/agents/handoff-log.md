@@ -2002,3 +2002,9 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Qolgan ish: prod sozlash (`ATTENDANCE_QR_SECRET`, kiosk service token, `scripts/attendance_seed_schedules.py
   --apply`, `employees.telegram_id`); 8-bosqich Payroll; deploy qo'llanmasi; O'zR shaxsga doir
   ma'lumotlar qonuni bo'yicha yurist tekshiruvi.
+
+### 2026-10-22 — Codex: Smart Attendance, 2-vazifa startup va insident
+- Bajarildi: schema/bootstrap FastAPI lifespan paytida, servingdan oldin bajariladi; init vaqti loglanadi. Insident xronologiyasi deploy loglari bilan yozildi. Sabab noma'lum, prod journald olinmagan.
+- Fayllar: `src/services/api_server/core.py`, `tests/test_attendance_startup.py`, `docs/attendance-incident-2026-10-22.md`. Branch: `fix/attendance-startup-init`.
+- Dalil: avval 2 yangi startup testi yiqildi; patchdan so'ng startup+flow 38 passed. To'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3053 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: prod jurnal/kernel/access log va real startup vaqti tekshiruvi; shared libsql contention insident sababi sifatida isbotlanmagan. Init xatosi API startupni to'xtatadi, deploy grace tekshirilsin.
