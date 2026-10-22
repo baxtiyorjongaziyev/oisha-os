@@ -2002,3 +2002,9 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Qolgan ish: prod sozlash (`ATTENDANCE_QR_SECRET`, kiosk service token, `scripts/attendance_seed_schedules.py
   --apply`, `employees.telegram_id`); 8-bosqich Payroll; deploy qo'llanmasi; O'zR shaxsga doir
   ma'lumotlar qonuni bo'yicha yurist tekshiruvi.
+
+### 2026-10-22 — Codex: Smart Attendance, 1-vazifa IP audit
+- Bajarildi: repo Nginx va PR #936 deploy jurnali solishtirildi; loopback proxy trust/fail-closed uchun 10 sintetik test qo'shildi. IP trust kengaytirilmadi, prod konfiguratsiyasi o'zgartirilmadi.
+- Fayllar: `docs/attendance-proxy-audit.md`, `tests/test_attendance_network.py`. Branch: `fix/attendance-proxy-verification`.
+- Dalil: `SKIP_LIVE=1 python -m pytest -q --tb=short` 3051 passed, 17 skipped, 4 subtests passed; yangi network testlari 10 passed. `python -m bandit -r src/ -ll` medium/high 0, exit 0.
+- Qolgan ish: SSH host kaliti tekshiruvi o'tmadi; joriy prod `nginx -T`, HR Wi-Fi read-back va telefon sinovi tekshirilmagan. Deploy journalidagi sites-enabled/oisha.conf hamda repo nusxalanadigan sites-available/oisha nishonlari tekshirilsin. Wi-Fi sozlanmaganda mavjud GPS-only fallback qayd etildi.
