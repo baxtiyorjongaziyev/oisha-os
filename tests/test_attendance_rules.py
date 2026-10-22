@@ -71,3 +71,11 @@ def test_individual_weekdays():
     assert r.classify_day_without_check_in(mumtoz, CAL, date(2026, 10, 25)) == r.ABSENT
     ahror = r.Shift(weekdays=r.parse_weekdays("1,2,3,4,5,6,7"))
     assert r.classify_check_in(ahror, POL, CAL, at(10, 0, date(2026, 10, 25))).status == r.ON_TIME
+
+
+def test_optional_sunday_never_absent():
+    hasanboy = r.Shift(weekdays=r.parse_weekdays("1,2,3,4,5,6"), optional_weekdays=frozenset({7}))
+    sun = date(2026, 10, 25)
+    assert r.classify_day_without_check_in(hasanboy, CAL, sun) == r.DAY_OFF
+    assert r.classify_check_in(hasanboy, POL, CAL, at(10, 5, sun)).status == r.ON_TIME
+    assert not r.is_required_day(hasanboy, sun, CAL)

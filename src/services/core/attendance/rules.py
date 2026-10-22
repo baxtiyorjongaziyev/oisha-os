@@ -27,6 +27,8 @@ class Shift:
     end: time = DEFAULT_END
     weekdays: frozenset[int] = DEFAULT_WEEKDAYS
     timezone: str = "Asia/Tashkent"
+    # Ixtiyoriy kun: kelsa — oddiy ish kuni, kelmasa — DAY_OFF (masalan, Hasanboyning yakshanbasi).
+    optional_weekdays: frozenset[int] = frozenset()
 
     @property
     def crosses_midnight(self) -> bool:
@@ -60,9 +62,9 @@ class Classification:
     notes: list[str] = field(default_factory=list)
 
 
-def parse_weekdays(text: str | None) -> frozenset[int]:
+def parse_weekdays(text: str | None, default: frozenset[int] = DEFAULT_WEEKDAYS) -> frozenset[int]:
     if not text:
-        return DEFAULT_WEEKDAYS
+        return default
     days = frozenset(int(x) for x in str(text).split(",") if x.strip())
     if not days or not days <= frozenset(range(1, 8)):
         raise ValueError("weekdays must be ISO 1..7")
@@ -72,12 +74,21 @@ def parse_weekdays(text: str | None) -> frozenset[int]:
 def shift_from_row(row) -> Shift:
     if row is None:
         return Shift()
+    keys = row.keys() if hasattr(row, "keys") else ()
+    optional = parse_weekdays(row["optional_weekdays"], frozenset()) if "optional_weekdays" in keys else frozenset()
     return Shift(time.fromisoformat(row["start_time"]), time.fromisoformat(row["end_time"]),
-                 parse_weekdays(row["weekdays"]))
+                 parse_weekdays(row["weekdays"]), optional_weekdays=optional)
 
 
 def is_working_day(shift: Shift, day: date, cal: Calendar) -> bool:
-    return day.isoweekday() in shift.weekdays and day not in cal.holidays
+    """Check-in qabul qilinadigan kun (ixtiyoriy kunlar ham kiradi)."""
+    weekday = day.isoweekday()
+    return (weekday in shift.weekdays or weekday in shift.optional_weekdays) and day not in cal.holidays
+
+
+def is_required_day(shift: Shift, day: date, cal: Calendar) -> bool:
+    """Kelmasa ABSENT bo'ladigan kun."""
+    return is_working_day(shift, day, cal) and day.isoweekday() not in shift.optional_weekdays
 
 
 def resolve_work_date(shift: Shift, at: datetime) -> date:
@@ -123,7 +134,7 @@ def classify_day_without_check_in(shift: Shift, cal: Calendar, day: date) -> str
     """Kun tugaganda check-in bo'lmagan xodim uchun yakuniy holat."""
     if day in cal.approved_leave:
         return APPROVED_LEAVE
-    if not is_working_day(shift, day, cal):
+    if not is_required_day(shift, day, cal):
         return DAY_OFF
     return ABSENT
 

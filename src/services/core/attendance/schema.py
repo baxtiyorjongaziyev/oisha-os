@@ -69,7 +69,8 @@ CREATE TABLE IF NOT EXISTS attendance_shifts (
     start_time TEXT NOT NULL,
     end_time TEXT NOT NULL,
     crosses_midnight INTEGER NOT NULL DEFAULT 0,
-    weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5',
+    weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5,6',
+    optional_weekdays TEXT NOT NULL DEFAULT '',
     is_active INTEGER NOT NULL DEFAULT 1,
     UNIQUE (branch_id, name)
 )

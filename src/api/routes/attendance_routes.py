@@ -123,6 +123,7 @@ class ScheduleBody(BaseModel):
     weekdays: list[int] = Field(min_length=1, max_length=7, description="ISO: 1=Du ... 7=Ya")
     start: str = Field(default="10:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     end: str = Field(default="19:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    optional_weekdays: list[int] = Field(default_factory=list, max_length=7)
     valid_from: date | None = None
 
 
@@ -263,7 +264,8 @@ async def admin_schedule(employee_id: int, body: ScheduleBody, request: Request,
     try:
         return await att_admin.set_schedule(
             db, actor=principal.subject, employee_id=employee_id, weekdays=body.weekdays,
-            start=body.start, end=body.end, valid_from=start_day.isoformat(), ip=_ip(request))
+            start=body.start, end=body.end, valid_from=start_day.isoformat(),
+            optional_weekdays=body.optional_weekdays, ip=_ip(request))
     except ValueError:
         raise HTTPException(status_code=422, detail="invalid_schedule") from None
     except AttendanceError as e:

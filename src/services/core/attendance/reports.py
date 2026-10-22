@@ -33,7 +33,7 @@ async def dashboard(db, day: date, cal: rules.Calendar) -> dict:
     expected = set()
     for emp_id in ids:
         shift = rules.shift_from_row(await repo.employee_shift(db, emp_id, iso))
-        if rules.is_working_day(shift, day, cal):
+        if rules.is_required_day(shift, day, cal):
             expected.add(emp_id)
     out = _summary(rows, len(ids), expected)
     out["date"] = iso

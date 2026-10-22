@@ -319,3 +319,23 @@ def test_personal_schedule_drives_status_and_dashboard(env):
     assert dash["scheduled_today"] == 1 and dash["absent"] == 1  # faqat Vali kutilgan edi
     with pytest.raises(ValueError):
         run(admin.set_schedule(db, actor="owner", employee_id=1, weekdays=[8], valid_from="2026-10-01"))
+
+
+def test_optional_day_schedule_roundtrip(env):
+    db, _, clock, _ = env
+    res = run(admin.set_schedule(db, actor="owner", employee_id=2, weekdays=[1, 2, 3, 4, 5, 6, 7],
+                                 optional_weekdays=[7], valid_from="2026-10-01"))
+    assert res["weekdays"] == [1, 2, 3, 4, 5, 6] and res["optional_weekdays"] == [7]
+    from src.services.core.attendance import reports, rules
+    sun = datetime(2026, 10, 25, 10, 0, tzinfo=TZ5).date()
+    dash = run(reports.dashboard(db, sun, rules.Calendar()))
+    assert dash["scheduled_today"] == 0  # Ali — yakshanba dam, Vali — ixtiyoriy
+
+
+def test_schedule_config_is_valid():
+    import json
+    from pathlib import Path
+    cfg = json.loads(Path("src/services/core/attendance/team_schedules.json").read_text(encoding="utf-8"))
+    for item in cfg["employees"]:
+        assert set(item["weekdays"]) <= set(range(1, 8))
+        assert set(item.get("optional_weekdays", [])) <= set(range(1, 8))

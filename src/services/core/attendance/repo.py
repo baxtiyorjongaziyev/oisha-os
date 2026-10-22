@@ -121,7 +121,7 @@ async def active_employee_count(db) -> int:
     return int(r[0] if r is not None else 0)
 
 
-_SHIFT_SQL = ("SELECT sh.start_time, sh.end_time, sh.weekdays FROM shift_assignments sa"
+_SHIFT_SQL = ("SELECT sh.start_time, sh.end_time, sh.weekdays, sh.optional_weekdays FROM shift_assignments sa"
               " JOIN attendance_shifts sh ON sh.id = sa.shift_id"
               " WHERE sa.employee_id = ? AND sa.valid_from <= ? AND (sa.valid_to IS NULL OR sa.valid_to >= ?)"
               " AND sh.is_active = 1 ORDER BY sa.valid_from DESC, sa.id DESC LIMIT 1")

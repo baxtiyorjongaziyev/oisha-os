@@ -59,9 +59,12 @@ async def apply_correction(db, *, actor: str, employee_id: int, work_date: str, 
 
 
 async def set_schedule(db, *, actor: str, employee_id: int, weekdays: list[int], start: str = "10:00",
-                       end: str = "19:00", valid_from: str, ip: str | None = None) -> dict:
+                       end: str = "19:00", valid_from: str, optional_weekdays: list[int] | None = None,
+                       ip: str | None = None) -> dict:
     """Xodimning shaxsiy grafigi. Eski grafik o'chirilmaydi — ``valid_from`` dan yangisi amal qiladi."""
     days = rules.parse_weekdays(",".join(str(d) for d in sorted(set(weekdays))))
+    optional = rules.parse_weekdays(",".join(str(d) for d in sorted(set(optional_weekdays or []))), frozenset())
+    days = days - optional
     time.fromisoformat(start)
     time.fromisoformat(end)
     emp = await repo.one(db, "SELECT id FROM employees WHERE id = ? AND is_active = 1", [employee_id])
@@ -71,11 +74,12 @@ async def set_schedule(db, *, actor: str, employee_id: int, weekdays: list[int],
     if fence is None:
         raise AttendanceError("geofence_not_configured", 503)
     wd = ",".join(str(d) for d in sorted(days))
-    name = f"emp-{employee_id}-{start}-{end}-{wd}"
+    opt = ",".join(str(d) for d in sorted(optional))
+    name = f"emp-{employee_id}-{start}-{end}-{wd}-opt{opt}"
     await db.execute(
-        "INSERT INTO attendance_shifts (branch_id, name, start_time, end_time, crosses_midnight, weekdays)"
-        " VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (branch_id, name) DO NOTHING",
-        [int(fence["branch_id"]), name, start, end, int(end <= start), wd])
+        "INSERT INTO attendance_shifts (branch_id, name, start_time, end_time, crosses_midnight, weekdays,"
+        " optional_weekdays) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (branch_id, name) DO NOTHING",
+        [int(fence["branch_id"]), name, start, end, int(end <= start), wd, opt])
     shift = await repo.one(db, "SELECT id FROM attendance_shifts WHERE branch_id = ? AND name = ?",
                            [int(fence["branch_id"]), name])
     await db.execute("UPDATE shift_assignments SET valid_to = date(?, '-1 day') WHERE employee_id = ?"
@@ -84,7 +88,8 @@ async def set_schedule(db, *, actor: str, employee_id: int, weekdays: list[int],
                      " ON CONFLICT (employee_id, shift_id, valid_from) DO NOTHING",
                      [employee_id, int(shift[0]), valid_from])
     await audit.log(db, actor=actor, action="schedule_set", entity="employee", entity_id=employee_id,
-                    details={"weekdays": sorted(days), "start": start, "end": end, "from": valid_from}, ip=ip)
+                    details={"weekdays": sorted(days), "optional": sorted(optional), "start": start, "end": end, "from": valid_from}, ip=ip)
     await db.commit()
-    return {"employee_id": employee_id, "weekdays": sorted(days), "start": start, "end": end,
+    return {"employee_id": employee_id, "weekdays": sorted(days), "optional_weekdays": sorted(optional),
+            "start": start, "end": end,
             "valid_from": valid_from}
