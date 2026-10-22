@@ -2028,3 +2028,10 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Fayllar: `docs/attendance-guide.md`. Branch: `fix/attendance-uzbek-guide`.
 - Dalil: matn `employee.html/js`, `admin.html/js`, `common.js` va API kodi bilan solishtirildi. To'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3061 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
 - Qolgan ish: haqiqiy telefon, Telegram login va ofis Wi-Fi bilan prod qabul sinovi o'tkazilmagan.
+
+### 2026-10-22 — Codex: Smart Attendance, 5-vazifa yurist checklist
+- Bajarildi: O'RQ-547 amaldagi LexUZ matni tekshirildi; 2026-yilgi 27¹-modda tahriri tufayli eski umumiy lokalizatsiya jumlasi rejada tuzatildi. Yurist uchun toifa/asos, davlat reyestri, provayder mamlakati, retention, eksport, RBAC, xodim huquqlari va biometrika tekshiruv ro'yxati tayyorlandi. Muvofiqlik tasdiqlanmadi, yuristga xabar yuborilmadi.
+- Fayllar: `docs/attendance-compliance-checklist.md`, `docs/plans/smart-attendance-plan.md`. Branch: `fix/attendance-compliance-checklist`.
+- Dalil: https://lex.uz/uz/docs/-4396419 2026-10-22 da ochildi; texnik inventar attendance kodi bilan solishtirildi. `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3061 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: yurist xulosasi, haqiqiy Contabo/Turso/backup joylashuvi va provayder hujjatlari, reyestr yoki istisno dalili, saqlash siyosati. Barchasi noma'lum/tasdiqlanmagan deb belgilandi.
+- Operatsion cheklov: read-only `oracle-health.yml` run 39833624424 SSH 22-portda i/o timeout bilan tugadi; server holati olinmadi. Task 1/2 prod tekshiruvi hamon ochiq.
