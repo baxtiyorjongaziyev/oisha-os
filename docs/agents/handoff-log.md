@@ -2014,4 +2014,11 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Dalil: `SKIP_LIVE=1 python -m pytest -q --tb=short` 3051 passed, 17 skipped, 4 subtests passed; yangi network testlari 10 passed. `python -m bandit -r src/ -ll` medium/high 0, exit 0.
 - Qolgan ish: SSH host kaliti tekshiruvi o'tmadi; joriy prod `nginx -T`, HR Wi-Fi read-back va telefon sinovi tekshirilmagan. Deploy journalidagi sites-enabled/oisha.conf hamda repo nusxalanadigan sites-available/oisha nishonlari tekshirilsin. Wi-Fi sozlanmaganda mavjud GPS-only fallback qayd etildi.
 
+### 2026-10-22 — Codex: Smart Attendance, 3-vazifa Hisobchi API
+- Owner usul tanlashni dasturchiga topshirdi; B varianti tanlandi. `GET /api/attendance/payroll/summary` endi `summary.period_summary()` faktlarini attendance:read:all bilan beradi, finance:read yetmaydi. Pul/jarima hisoblanmaydi. Davr, timezone, manba, go-live va provisional metadata, no-store va audit qo'shildi.
+- Fayllar: `src/api/routes/attendance_routes.py`, `src/services/core/attendance/payroll_export.py`, `tests/test_attendance_payroll.py`, `docs/attendance-payroll-api.md`. Branch: `feat/attendance-payroll-api`.
+- Dalil: oldin 3 test 404 bilan yiqildi, keyin 3 passed; to'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3065 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: real Hisobchi iste'molchisini ruxsatli service token bilan ulash va prod read-back; amalda ma'lumot uzatilgani tekshirilmagan. Faol bo'lmagan xodimlar mavjud summary kontraktida yo'q.
 - Codex 2-vazifa yangilanishi: main bilan faqat handoff append konflikti ikkala yozuvni saqlab yechildi; qayta to'liq pre-flight 3063 passed, 17 skipped, 4 subtests passed; Bandit medium/high 0.
+
+- Codex integratsiya tekshiruvi: startup + IP + payroll birga, to'liq pre-flight 3067 passed, 17 skipped, 4 subtests passed; Bandit medium/high 0. Production fayl chegaralari: core.py 202, attendance_routes.py 379, payroll_export.py 34 qator; eng uzun funksiya 30 qator.

@@ -208,6 +208,24 @@ async def history(request: Request, principal: Principal = _SELF, days: int = Qu
     return {"events": await reports.events(db, end - timedelta(days=days - 1), end, actor.employee_id)}
 
 
+# Hisobchi pulls factual totals through attendance:read:all; finance:read alone is insufficient.
+@router.get("/payroll/summary")
+async def payroll_summary(start: date, end: date, request: Request, response: Response,
+                          principal: Principal = _READ_ALL, employee_id: int | None = Query(None, ge=1)):
+    from src.services.core.attendance.payroll_export import period_payload
+
+    db = await _ready_db()
+    try:
+        payload = await period_payload(db, start, end, employee_id)
+    except AttendanceError as exc:
+        _raise(exc)
+    await audit.log(db, actor=principal.subject, action="payroll_summary_viewed", entity="attendance_report",
+                    details={"start": start, "end": end, "employee_id": employee_id}, ip=_ip(request))
+    await db.commit()
+    response.headers["Cache-Control"] = "no-store"
+    return payload
+
+
 # ---- kiosk (ofis monitori) ----
 async def _kiosk_allowed(db, request: Request) -> bool:
     """Monitor kaliti (HR panelida yaratiladi) yoki kiosk/manage huquqli sessiya."""
