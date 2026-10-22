@@ -61,7 +61,7 @@ Repo’da yuz tanish provayderi va kaliti **yo‘q**. Shuning uchun: `FaceVerifi
 `payroll_export.monthly_summary()` → worked_hours, overtime, late_minutes, early_leave, approved_leave. Hisobchiga **faqat ma'lumot** sifatida uzatiladi; avtomatik jarima/ushlab qolish yo‘q.
 
 ### Compliance vazifasi (alohida)
-O‘zR "Shaxsga doir ma'lumotlar to‘g‘risida"gi qonun (ZRU-547) va lokalizatsiya talabi (O‘zbekiston fuqarolari PD — O‘zbekistondagi serverda): **yuristga tekshiruv vazifasi**. Contabo VPS joylashuvi tekshirilmagan — biometrikani yoqishdan oldin hal qilinishi kerak.
+O‘zR "Shaxsga doir ma'lumotlar to‘g‘risida"gi qonun (O‘RQ-547) bo‘yicha **yuristga tekshiruv vazifasi**. 2026-10-22 tuzatish: LexUZ amaldagi matnida 27¹-modda 2026-yilda yangilangan; barcha fuqarolar ma'lumotlari uchun bitta umumiy lokalizatsiya xulosasi qo‘llanmaydi. Ma'lumot toifasi, xorijda saqlash shartlari va reyestr masalasi `docs/attendance-compliance-checklist.md` asosida yuristga beriladi. Contabo/Turso saqlash mamlakati tekshirilmagan, biometrika yoqilmagan.
 
 ## 3. Bosqichlar (har biri alohida commit, pre-flight yashil)
 1. Schema + migratsiya + testlar
