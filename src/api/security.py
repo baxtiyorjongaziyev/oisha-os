@@ -72,6 +72,13 @@ _PUBLIC_PATHS = frozenset(
         "/webhook/amocrm",
         "/webhook/amocrm/tasks",
         "/webhook/amocrm/chats",
+        # Smart Attendance ekran qobiqlari (HTML/JS). Ma'lumot endpointlari RBAC bilan himoyalangan.
+        "/api/attendance/app",
+        "/api/attendance/app/kiosk",
+        "/api/attendance/app/admin",
+        "/api/attendance/app/common.js",
+        "/api/attendance/app/employee.js",
+        "/api/attendance/app/admin.js",
         # Payme Merchant API endpoints (authenticated via Basic Auth in handler)
         "/payme",
         "/api/payme",

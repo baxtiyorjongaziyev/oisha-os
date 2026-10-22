@@ -137,6 +137,9 @@ _ALLOWED_LOGIN_REDIRECTS: frozenset[str] = frozenset({
 })
 
 
+_ATTENDANCE_PAGES = frozenset({"/api/attendance/app", "/api/attendance/app/admin"})
+
+
 def _safe_redirect_target(target: Optional[str]) -> str:
     """Return a strictly whitelisted relative redirection path with zero untrusted taint."""
     if not target or not isinstance(target, str):
@@ -146,6 +149,8 @@ def _safe_redirect_target(target: Optional[str]) -> str:
         return "/capi"
     if cleaned == "/api/marketing/capi/console":
         return "/api/marketing/capi/console"
+    if cleaned in _ATTENDANCE_PAGES:
+        return cleaned
     return "/"
 
 
@@ -158,6 +163,8 @@ def _safe_login_next(target: Optional[str]) -> str:
         return "/capi"
     if cleaned == "/api/marketing/capi/console":
         return "/api/marketing/capi/console"
+    if cleaned in _ATTENDANCE_PAGES:
+        return cleaned
     return ""
 
 
