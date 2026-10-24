@@ -17,6 +17,7 @@ from src.services.core.admin_aiogram_dispatcher import (
 )
 from src.handlers.sales_club_survey import register_sales_club_survey_handlers
 from src.handlers.vodiy_meeting import register_vodiy_meeting_handlers
+from src.handlers.group_mention import register_group_mention_handler
 from src.services.core.telegram.aiogram_head import AiogramBotHead
 from src.services.core.telegram.aiogram_telethon_compat import (
     AiogramTelethonCompatClient,
@@ -142,6 +143,9 @@ async def init_aiogram_bot_head(
     register_existing_contact_signal_callbacks(
         dispatcher, msg_controller=msg_controller, owner_id=access_manager.owner_id
     )
+
+    # Must stay last: slash-command handlers above keep priority.
+    register_group_mention_handler(dispatcher, msg_controller=msg_controller)
 
     legacy_bot_compat.attach()
 

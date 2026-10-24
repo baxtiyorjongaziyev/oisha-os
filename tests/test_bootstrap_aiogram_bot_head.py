@@ -114,6 +114,7 @@ def patched(monkeypatch):
     survey_calls = []
     meeting_calls = []
     existing_contact_signal_calls = []
+    group_mention_calls = []
     monkeypatch.setattr(
         "src.bootstrap.orchestration.bot_head.register_hisobchi_aiogram_callbacks",
         lambda dp, *, engine: hisobchi_calls.append(engine),
@@ -136,6 +137,10 @@ def patched(monkeypatch):
             (msg_controller, owner_id)
         ),
     )
+    monkeypatch.setattr(
+        "src.bootstrap.orchestration.bot_head.register_group_mention_handler",
+        lambda dp, *, msg_controller: group_mention_calls.append(msg_controller),
+    )
     return SimpleNamespace(
         built=built,
         hisobchi_calls=hisobchi_calls,
@@ -143,6 +148,7 @@ def patched(monkeypatch):
         survey_calls=survey_calls,
         meeting_calls=meeting_calls,
         existing_contact_signal_calls=existing_contact_signal_calls,
+        group_mention_calls=group_mention_calls,
     )
 
 
@@ -177,6 +183,7 @@ async def test_aiogram_path_builds_starts_and_registers_once(patched):
     assert len(patched.hisobchi_calls) == 1
     assert len(patched.salescoach_calls) == 1
     assert patched.meeting_calls == [1]
+    assert len(patched.group_mention_calls) == 1
     assert callable(patched.built.get("perform_global_lookup"))
     assert patched.built.get("enabled") is True
 
