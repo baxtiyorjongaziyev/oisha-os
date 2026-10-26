@@ -48,7 +48,9 @@ status ID bilan ishlaydi (masalan, «Yangi LEads» = 89067962). O'chirish = lid 
   3 menejerga bo'linadi (~119 tadan, 2 kun muddat). Asoschi faqat o'zi olib borayotganlarini belgilaydi.
 - **3-kun:** Yo'qotish sabablari ro'yxati (Настройки → Причины отказа) — 4-bo'lim.
   Yo'qotish sababi majburiy.
-- **4-kun:** Voronka bosqichlarini nomlash va yangi 2 bosqich qo'shish (3-bo'lim).
+- **4-kun:** Yangi 2 bosqich (KP, Avans) qo'shish, 3 ta bosqichni qayta nomlash (3-bo'lim).
+  Yangi ID larni yozib olish → Oisha kodi va `META_CAPI_QUALIFIED_STATUS_IDS` PR (10-bo'lim) → deploy.
+  Eski «Qayta aloqa» / «Uchrashuvga keldi» dan ko'chirish **faqat deploydan keyin**.
 - **5-kun:** «Yangi LEads»dagi 223 ta va muddati o'tgan 214 ta sdelkani tozalash sprinti:
   har biriga — vazifa qo'yish YOKI sabab bilan yopish. Natija: «keyingi qadamsiz» = 0.
 
@@ -76,32 +78,63 @@ status ID bilan ishlaydi (masalan, «Yangi LEads» = 89067962). O'chirish = lid 
 
 ---
 
-## 3. Voronka — «Sotuv Bo'limi» (id 11162698)
+## 3. Voronka — «Sotuv Bo'limi» (id 11162698), 6 bosqich
 
-| # | Hozirgi nom (id) | Yangi nom | Maqsad | Chiqish mezoni | Max muddat |
+Tamoyil: bosqich = **sotuvchi qiladigan bitta ish** va **marketolog o'lchaydigan bitta konversiya**.
+Holat (keyinroq, sifat, menejer) — bosqich emas, maydon/teg.
+
+| # | Bosqich (id saqlanadi) | Sotuvchi nima qiladi | Chiqish mezoni | Max | Marketolog/founder nimani o'lchaydi |
 |---|---|---|---|---|---|
-| 0 | Неразобранное | — | Kirish | Qabul qilindi | 15 daq |
-| 1 | Yangi LEads (89067962) | **1. Yangi lid** | Birinchi aloqa | Gaplashildi | 1 kun |
-| 2 | Kvalifikatsiya (87609522) | **2. Kvalifikatsiya** | Ehtiyoj, budjet, qaror qiluvchi | Maydonlar to'ldi | 3 kun |
-| 3 | Qayta aloqa (87609518) | **3. Keyinroq (sana bor)** | Hozir emas, sanasi aniq | Sana keldi | 30 kun |
-| 4 | Uchrashuv (87609526) | **4. Uchrashuv belgilandi** | Uchrashuv sanasi bor | Uchrashuv bo'ldi | 7 kun |
-| 5 | Uchrashuvga keldi (89380154) | **5. Brif olindi** | Brif, Drive papka | Brif to'liq | 3 kun |
-| 6 | — yangi | **6. KP yuborildi** | Taklif summasi bilan | Mijoz javob berdi | 5 kun |
-| 7 | Kelishuv / Yopish (88871066) | **7. Shartnoma** | Shartnoma yuborildi | Imzolandi | 5 kun |
-| 8 | — yangi | **8. Avans kutilmoqda** | Hisob-faktura chiqdi | Avans tushdi | 5 kun |
-| ✓ | Sotuv bo'ldi (142) | **Avans to'landi** | → Farmer voronkasiga | — | — |
-| ✗ | Yopildi / Bekor qilindi (143) | o'zgarmaydi | Sabab majburiy | — | — |
+| 0 | Неразобранное | — (Salesbot / integratsiya) | Qabul | 15 daq | Kirgan lid soni, manba |
+| 1 | **Yangi lid** (89067962) | 15 daqda bog'lanadi | Gaplashildi | 1 kun | Javob tezligi |
+| 2 | **Kvalifikatsiya** (87609522) | Ehtiyoj, budjet, qaror qiluvchi | Uchrashuv kelishildi | 3 kun* | Lid sifati: kanal/kreativ bo'yicha maqsadli % |
+| 3 | **Uchrashuv / Brif** (87609526) | Uchrashuv, brif, Drive papka | Brif to'liq | 7 kun | Qiziqish → uchrashuv % — **CAPI QualifiedLead** |
+| 4 | **KP yuborildi** (yangi) | KP, follow-up | Mijoz «ha» dedi | 5 kun | KP soni, o'rtacha KP summasi |
+| 5 | **Shartnoma** (88871066) | Shartnoma yuborish/imzolash | Imzolandi | 5 kun | KP → kelishuv %, chegirma |
+| 6 | **Avans kutilmoqda** (yangi) | Hisob-faktura, to'lov nazorati | Avans tushdi | 5 kun | Kelishuv → pul %, tsikl uzunligi |
+| ✓ | **Avans to'landi** (142) | → Farmer voronkasi | — | — | Tushum, CAC/ROMI — **CAPI Purchase** |
+| ✗ | **Yopildi** (143) | Sabab majburiy | — | — | Yo'qotish sabablari kanal bo'yicha |
 
-«Keyinroq» bosqichi tartib bo'yicha 2 va 4 orasida turadi — voronkani pastga emas, chetga «parkovka» qiladi.
+\* «Hozir emas, keyinroq» lid **2-bosqichda qoladi**: «Qayta aloqa sanasi» + shu kunga vazifa,
+teg `keyinroq`. Max 30 kun (trigger 7). Konversiyani buzmaydi.
 
-**Spam / «faqat narx» lidlar:** alohida voronka KERAK EMAS. Salesbot javob olmasa → 72 soatda
-avto-yopish «Javob bermadi» sababi bilan (5-bo'lim, trigger 8).
+**Eski bosqichlar:**
+- «Qayta aloqa» (87609518, 68 sdelka) → sdelkalar 2-bosqichga, sana maydonga, teg `keyinroq`.
+- «Uchrashuvga keldi» (89380154) → 3-bosqichga.
+- Ikkalasi bo'shagach, **Oisha kodi va CAPI env yangilangandan keyin** (10-bo'lim) o'chiriladi.
+
+**Spam / «faqat narx» lidlar:** alohida voronka yo'q. Salesbot javob olmasa → 72 soatda
+avto-yopish «Javob bermadi» (trigger 8).
 
 **Bosqich o'zgartirish qoidasi:**
-- O'zgartirish huquqi — faqat 1 kishi (asoschi). Menejerlar voronka sozlamasiga tegmaydi
-  (bitta akkaunt bo'lgani uchun texnik cheklab bo'lmaydi → yozma qoida).
-- O'chirishdan oldin checklist: (1) bosqichda 0 sdelka, (2) Oisha-OS kodida status ID qidirildi,
-  (3) Meta Lead Ads / sayt forma yo'nalishi tekshirildi, (4) bosqichdagi triggerlar ko'chirildi.
+- Huquq — faqat asoschi. Menejerlar voronka sozlamasiga tegmaydi (yozma qoida).
+- O'chirishdan oldin checklist: (1) bosqichda 0 sdelka, (2) Oisha kodida status ID qidirildi,
+  (3) `META_CAPI_QUALIFIED_STATUS_IDS` tekshirildi, (4) Meta Lead Ads / sayt yo'nalishi,
+  (5) bosqich triggerlari ko'chirildi.
+
+### Sotuvchiga qulaylik
+
+- **Kartochka tartibi** (Настройки полей → guruhlar, muhimi tepada):
+  1. *Asosiy* — Menejer, Xizmat, Бюджет, Qaror qiluvchi, Keyingi qadam, Qayta aloqa sanasi
+  2. *Brif va KP* — Brend nomi, Drive papka, KP summasi
+  3. *Shartnoma va to'lov* — raqam, sana, Avans summasi, Qoldiq to'lov sanasi
+  4. *Marketing* (alohida tab) — Lead manbasi, UTM, fbclid, Meta Lead ID — avtomatik to'ladi, sotuvchi tegmaydi
+- **Bitta ochiq vazifa** — sotuvchi ertalab faqat «Задачи → Сегодня»ni ochadi.
+- **Majburiy maydon kam**: bosqichga 1–3 ta yangi talab (4-bo'lim).
+- **Tugmali javoblar**: Xizmat, Narxga moslik, Qaror qiluvchi — Список, matn yozish yo'q.
+- **Shablon xabarlar** (Чат → Шаблоны): salom, KP yuborish, follow-up, to'lov eslatmasi — UZ/RU.
+- **Mobil**: amoCRM ilovasida vazifa push'lari.
+
+### Marketolog va founderga
+
+| Kim | Nima kerak | Qayerdan |
+|---|---|---|
+| Marketolog | Kanal/kreativ bo'yicha: lid → kvalifikatsiya → uchrashuv → sotuv % | Lead manbasi + UTM (avtomatik), Oisha haftalik hisobot |
+| Marketolog | Meta optimizatsiyasi | CAPI: Lead → QualifiedLead (3-bosqich) → Purchase (142, summa bilan) — 10-bo'lim |
+| Marketolog | Nega yo'qotyapmiz | Yo'qotish sababi × manba |
+| Founder | Kunlik: osilgan sdelkalar, 15 daqda javobsiz lidlar | Trigger 2, 15 → Telegram |
+| Founder | Haftalik: har menejer konversiyasi, tushum, prognoz | «Menejer» maydoni → Sheets KPI / Oisha |
+| Founder | Yirik sdelkalar (40 mln+) | Avtomatik Menejer = Baxtiyorjon |
 
 ---
 
@@ -128,20 +161,21 @@ Jami: 42 + 5 − 7 = **40 / 200**.
 
 ### Majburiy maydonlar (Настройки полей → maydon → «Обязательное на этапе»)
 
-| Maydon | 2. Kval | 3. Keyinroq | 4. Uchr. | 5. Brif | 6. KP | 7. Shartn. | 8. Avans |
-|---|---|---|---|---|---|---|---|
-| Menejer | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Lead manbasi | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Xizmat | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Qaror qiluvchi | ✅ | | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Qayta aloqa sanasi | | ✅ | | | | | |
-| Uchrashuv formati | | | ✅ | | | | |
-| Brend / Biznes nomi | | | | ✅ | ✅ | ✅ | ✅ |
-| Бюджет (price) | | | | ✅ | ✅ | ✅ | ✅ |
-| Google Drive papka | | | | ✅ | ✅ | ✅ | ✅ |
-| KP summasi | | | | | ✅ | ✅ | ✅ |
-| Shartnoma raqami/sanasi | | | | | | ✅ | ✅ |
-| Avans summasi | | | | | | | ✅ |
+| Maydon | 2. Kval | 3. Uchr/Brif | 4. KP | 5. Shartn. | 6. Avans | Kimga kerak |
+|---|---|---|---|---|---|---|
+| Menejer | ✅ | ✅ | ✅ | ✅ | ✅ | Founder |
+| Lead manbasi | ✅ | ✅ | ✅ | ✅ | ✅ | Marketolog |
+| Xizmat | ✅ | ✅ | ✅ | ✅ | ✅ | Hammasi |
+| Qaror qiluvchi | | ✅ | ✅ | ✅ | ✅ | Sotuvchi |
+| Brend / Biznes nomi | | ✅ | ✅ | ✅ | ✅ | Ishlab chiqarish |
+| Бюджет (price) | | ✅ | ✅ | ✅ | ✅ | Marketolog (CAPI), founder (prognoz) |
+| Google Drive papka | | ✅ | ✅ | ✅ | ✅ | Ishlab chiqarish |
+| KP summasi | | | ✅ | ✅ | ✅ | Founder |
+| Shartnoma raqami/sanasi | | | | ✅ | ✅ | Buxgalteriya |
+| Avans summasi | | | | | ✅ | Moliya |
+
+«Qaror qiluvchi» 3-bosqichdan majburiy — birinchi suhbatda har doim aniq emas, sotuvchini to'xtatmasin.
+Salesbot baribir so'raydi (6-bo'lim).
 
 ### Yo'qotish sabablari (majburiy)
 Javob bermadi · Spam / adashgan · Narx qimmat · Budjet yo'q · Raqobatchini tanladi ·
@@ -153,28 +187,27 @@ Muddat to'g'ri kelmadi · Xizmat bizda yo'q · Keyinga qoldirdi · Dublikat · B
 
 | # | Bosqich | Hodisa | Amal |
 |---|---|---|---|
-| 1 | 1. Yangi lid | Kirdi | Vazifa «Qo'ng'iroq/yozish», muddat 5 daq, mas'ul — Menejer maydoni |
+| 1 | 1. Yangi lid | Kirdi | Vazifa «Qo'ng'iroq/yozish», muddat 15 daq, mas'ul — Menejer maydoni |
 | 2 | 1. Yangi lid | 15 daq ichida bosqich o'zgarmadi | Asoschiga xabar (Oisha speed-to-lead zaxirasi) |
 | 3 | 1. Yangi lid | Kirdi, manba Telegram/Instagram | Salesbot «Kvalifikatsiya» ishga tushadi |
 | 4 | 2. Kvalifikatsiya | Kirdi | Vazifa «Ehtiyoj aniqlash», 1 kun |
-| 5 | 2. Kvalifikatsiya | 3 kun turdi | Vazifa + teg `eskalatsiya` |
-| 6 | 3. Keyinroq | «Qayta aloqa sanasi» keldi | Vazifa «Qayta aloqa» shu kunga |
-| 7 | 3. Keyinroq | 30 kun turdi | → 143, sabab «Keyinga qoldirdi» |
+| 5 | 2. Kvalifikatsiya | 3 kun turdi, teg `keyinroq` yo'q | Vazifa + teg `eskalatsiya` |
+| 6 | 2. Kvalifikatsiya | «Qayta aloqa sanasi» keldi | Vazifa «Qayta aloqa» shu kunga |
+| 7 | 2. Kvalifikatsiya, teg `keyinroq` | 30 kun turdi | → 143, sabab «Keyinga qoldirdi» |
 | 8 | 1. Yangi lid | 72 soat harakatsiz | → 143, sabab «Javob bermadi» |
-| 9 | 4. Uchrashuv | Kirdi | Vazifa «Uchrashuv» uchrashuv sanasiga + mijozga eslatma (SMS/messenjer) 1 kun oldin |
-| 10 | 5. Brif | Kirdi | Vazifa «KP tayyorlash», 2 kun |
-| 11 | 6. KP | 3 kun javobsiz | Vazifa «KP bo'yicha qo'ng'iroq» |
-| 12 | 7. Shartnoma | Kirdi | Hujjat yaratish: shartnoma shabloni |
-| 13 | 8. Avans | Kirdi | Hujjat yaratish: hisob-faktura + vazifa «Avansni tekshirish», 3 kun |
-| 14 | ✓ Avans to'landi | Kirdi | Webhook → Oisha/Make → Airtable loyiha; sdelka nusxasi Farmer voronkasiga |
+| 9 | 3. Uchrashuv / Brif | Kirdi | Vazifa «Uchrashuv» + mijozga eslatma 1 kun oldin |
+| 10 | 3. Uchrashuv / Brif | Drive papka to'ldi | Vazifa «KP tayyorlash», 2 kun |
+| 11 | 4. KP | 3 kun javobsiz | Vazifa «KP bo'yicha qo'ng'iroq» |
+| 12 | 5. Shartnoma | Kirdi | Hujjat: shartnoma shabloni |
+| 13 | 6. Avans | Kirdi | Hujjat: hisob-faktura + vazifa «Avansni tekshirish», 3 kun |
+| 14 | ✓ Avans to'landi | Kirdi | Webhook → Oisha/Make → Airtable loyiha; nusxa Farmer voronkasiga |
 | 15 | Har qanday ochiq bosqich | 14 kun harakatsiz | Asoschiga xabar + teg `osilgan` |
 
 Jami: **15 / 100**. Zaxira: 85.
 
-**Vazifa qoidasi (bitta ochiq vazifa):** bosqichga kirishda vazifani faqat trigger yaratadi
-(1, 4, 9, 10, 13). Bosqich o'zgarganda oldingi bosqich vazifasi yakunlanadi — qo'lda
-o'tkazishda menejer, Salesbot o'tkazganda bot (6-bo'lim, 9.3-qadam). Salesbot hech qachon
-o'zi vazifa yaratmaydi.
+**Vazifa qoidasi (bitta ochiq vazifa):** vazifani faqat trigger yaratadi (1, 4, 6, 9, 10, 13).
+Bosqich o'zgarganda oldingi vazifa yakunlanadi — qo'lda o'tkazishda menejer, Salesbot
+o'tkazganda bot (6-bo'lim, 9.3-qadam). Salesbot o'zi vazifa yaratmaydi.
 *Tekshirish kerak:* 2 va 15-triggerdagi «N vaqt bosqich o'zgarmadi» sharti «Расширенный»da
 Salesbot orqali qilinadi (Digital Pipeline'siz triggerlar) — interfeysda tasdiqlash.
 
@@ -264,8 +297,8 @@ Kontaktlar: 10 000 ga yaqinlashganda sdelkasiz 12 oylik kontaktlarni eksport + o
 |---|---|---|
 | Lid | — | 1 200 |
 | Kvalifikatsiya | 40% | 480 |
-| Uchrashuv | 35% | 168 |
-| Brif / KP | 70% | 118 |
+| Uchrashuv / Brif | 35% | 168 |
+| KP | 70% | 118 |
 | Shartnoma | 50% | 59 |
 | Avans | 85% | **~50** (hozir ~23/oy) |
 
@@ -291,13 +324,41 @@ Qoida: bitta ishni ikki tizim qilmaydi. Oisha o'z kodida status ID ishlatadi —
 o'chirishdan himoya qiladi, lekin **bosqich MA'NOSI o'zgarsa Oisha kodini ham yangilash shart**.
 
 **Oisha kodi migratsiyasi (yangi voronkani yoqishdan OLDIN):**
-- `src/services/call_analytics/crm_automation_config.py` → `STAGE_RULES`:
-  - `OUTCOME_PROPOSAL` hozir 88871066 ga (endi «7. Shartnoma») suradi → yangi «6. KP yuborildi» ID siga.
-  - `OUTCOME_PAYMENT` → yangi «8. Avans kutilmoqda» ID siga.
-  - `pipeline_order` ga yangi 2 bosqich (KP, Avans) va «5. Brif olindi» (89380154) qo'shilsin, tartib 3-bo'limdagidek.
+- `src/services/call_analytics/crm_automation_config.py`:
+  - **Bug:** `STATUS_YANGI = 87609514` — bunday ID voronkada yo'q (o'chirilgan eski bosqich).
+    To'g'risi 89067962. Hozir ham tuzatish kerak.
+  - `STATUS_ALOQA` (87609518) — bosqich yo'qoladi, `pipeline_order`dan olib tashlanadi.
+  - `OUTCOME_PROPOSAL` hozir 88871066 ga (endi «5. Shartnoma») suradi → yangi «4. KP yuborildi» ID siga.
+  - `OUTCOME_PAYMENT` → yangi «6. Avans kutilmoqda» ID siga.
+  - `pipeline_order` = Yangi lid → Kvalifikatsiya → Uchrashuv/Brif → KP → Shartnoma → Avans.
+- `src/services/core/crm/amocrm_pipeline_config.py`: `SALES_CONTACT_STATUS_ID` (87609518) ishlatilgan joylar
+  Kvalifikatsiyaga ko'chiriladi; KP va Avans konstantalari qo'shiladi.
+- `src/services/core/crm/task_notifier/formatter.py`: bosqich nomlari xaritasi yangilanadi
+  (88871066 hozir «Muzokara» deb yozilgan → «Shartnoma»).
 - Yangi status ID lar bosqichlar yaratilgach API'dan olinadi (`/api/v4/leads/pipelines/11162698`).
 - Testlar: har outcome → kutilgan status; KP/Avans bosqichidagi sdelkada `_plan_stage` stage avtomatikasini o'tkazib yubormaydi.
 - CRM write-avtomatikasi migratsiya merge bo'lguncha o'chiq turadi.
+
+### Meta CAPI (marketolog uchun)
+
+Kod: `src/services/core/marketing/meta_capi_triggers.py`.
+
+| Event | Qachon | Yangi voronkada |
+|---|---|---|
+| `Lead` | Lead Ads lidi amoCRM'ga tushganda | O'zgarmaydi (89067962 saqlanadi) |
+| `QualifiedLead` | Sdelka `META_CAPI_QUALIFIED_STATUS_IDS` (env) bosqichiga kirganda | **Env = `87609526`** («3. Uchrashuv / Brif») |
+| `Purchase` | Sdelka 142 ga kirganda, summa majburiy | 142 = «Avans to'landi» |
+
+- **QualifiedLead nima uchun 3-bosqich:** Kvalifikatsiya juda erta va shovqinli — Meta «gaplashdi»
+  emas, «haqiqiy qiziqdi» lidini o'rganishi kerak. Har hafta 50+ event bo'lishi uchun 3-bosqich yetarli
+  (rejada ~168/oy).
+- **Purchase summasi:** kod summasiz Purchase'ni rad etadi (`purchase_value_required`). Hozir 466/491
+  ochiq sdelka summasiz → «Бюджет» 3-bosqichdan majburiy (4-bo'lim) buni tuzatadi.
+  Purchase qiymati = **shartnoma summasi** (Бюджет), avans emas — Meta to'liq qiymatni optimallashtirsin.
+- **Env tartibi:** yangi ID ni env'ga qo'shish → deploy → keyin eski bosqichdan ko'chirish.
+  Eski ID (87609518, 89380154) env'da bo'lsa — faqat bosqich bo'shagandan keyin olib tashlanadi.
+- **Tekshiruv:** test Lead Ads lidini 3-bosqichga, keyin 142 ga o'tkazish → Meta Events Manager'da
+  `QualifiedLead` va `Purchase` (value bilan) ko'rinadi; Oisha `/capi` hisobotida ham.
 
 **Webhook** (Настройки → API → Webhooks): hodisa «Сделка изменила статус» → URL Oisha.
 Payload `application/x-www-form-urlencoded` — Make/Oisha shu formatni qabul qilishini tekshirish.
