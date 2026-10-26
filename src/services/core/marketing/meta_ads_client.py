@@ -8,7 +8,7 @@ Bu klass shu endpointdan kampaniya kesimida kunlik `spend`, `impressions`,
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 import structlog
@@ -163,6 +163,31 @@ class MetaAdsClient:
             or creative.get("title")
         )
         return str(name).strip() if name else None
+
+    def get_ad_campaign(self, ad_id: str) -> Tuple[str, str]:
+        """Reklama (ad_id) qaysi kampaniyaga tegishli: (campaign_id, campaign_name).
+
+        Lid payload'ida kampaniya bo'lmasa atributsiya shu orqali tiklanadi.
+        Xato yoki token yo'q bo'lsa ("", "").
+        """
+        if not ad_id or not self.access_token:
+            return "", ""
+        url = f"https://graph.facebook.com/{self.api_version}/{ad_id}"
+        params = {"access_token": self.access_token, "fields": "campaign_id,campaign{name}"}
+        try:
+            response = requests.get(url, params=params, timeout=15)
+            payload = response.json()
+        except (requests.RequestException, ValueError) as exc:
+            logger.warning("[META ADS] Kampaniya olinmadi", error=type(exc).__name__)
+            return "", ""
+        if not isinstance(payload, dict):
+            return "", ""
+        if response.status_code >= 400 or payload.get("error"):
+            logger.warning("[META ADS] Kampaniya Graph xatosi", code=(payload.get("error") or {}).get("code"))
+            return "", ""
+        campaign = payload.get("campaign") or {}
+        campaign_id = str(payload.get("campaign_id") or campaign.get("id") or "").strip()
+        return campaign_id, str(campaign.get("name") or "").strip()
 
     def get_ad_creative_url(self, ad_id: str) -> Optional[str]:
         """Reklama kreativining Instagram havolasini oladi."""
