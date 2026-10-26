@@ -45,6 +45,25 @@ class TelegramOwnerNotifier:
             logger.exception("[ATTENDANCE] owner notification failed")
             return False
 
+    async def notify_event(self, text: str) -> bool:
+        """Oddiy keldi/ketdi xabari. ``ATTENDANCE_NOTIFY_CHAT_ID`` bo'lsa o'sha chatga, aks holda owner'ga."""
+        import os
+
+        if os.getenv("ATTENDANCE_EVENT_NOTIFY", "1") != "1":
+            return False
+        chat = os.getenv("ATTENDANCE_NOTIFY_CHAT_ID", "").strip()
+        if chat:
+            return await TelegramOwnerNotifier(self.bot_token, int(chat), self.timeout_s).notify_review(text)
+        return await self.notify_review(text)
+
+
+def format_event(name: str, kind: str, local_time: str, minutes_late: int, minutes_early: int) -> str:
+    if kind == "check_in":
+        tail = f"{minutes_late} daq kech" if minutes_late > 0 else "vaqtida"
+        return f"{'⏰' if minutes_late > 0 else '✅'} {name} keldi — {local_time} ({tail})"
+    tail = f" ({minutes_early} daq erta)" if minutes_early > 0 else ""
+    return f"👋 {name} ketdi — {local_time}{tail}"
+
 
 def default_notifier() -> ReviewNotifier:
     try:

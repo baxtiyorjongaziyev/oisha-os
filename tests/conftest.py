@@ -32,6 +32,13 @@ def _close_shared_database():
 
 
 @pytest.fixture(autouse=True)
+def _no_real_attendance_messages(monkeypatch):
+    """Davomat keldi/ketdi xabarlari testlarda haqiqiy Telegram'ga ketmasin (.env yuklangan)."""
+    monkeypatch.setenv("ATTENDANCE_EVENT_NOTIFY", "0")
+    monkeypatch.setenv("ATTENDANCE_DAILY_SUMMARY", "0")
+
+
+@pytest.fixture(autouse=True)
 def _force_local_sqlite(monkeypatch):
     """Strip Turso env for every test so Database falls back to aiosqlite."""
     # Clear env (covers subprocess + re-read paths)
