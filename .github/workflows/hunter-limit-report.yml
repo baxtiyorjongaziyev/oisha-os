@@ -1,13 +1,20 @@
-name: Hunter limit report (read-only)
+name: Server read-only report
 
 # Faqat qo'lda ishga tushadi. Contabo'dagi self-hosted runner'da prod .env bilan
-# scripts/hunter_limit_report.py ni ishga tushiradi. amoCRM'ga faqat GET so'rov
-# yuboradi, hech narsa yozmaydi, servisni qayta ishga tushirmaydi.
+# faqat o'qiydigan hisobot skriptini ishga tushiradi. Hech narsa yozmaydi,
+# servisni qayta ishga tushirmaydi.
 on:
   workflow_dispatch:
     inputs:
+      report:
+        description: "Qaysi hisobot"
+        type: choice
+        default: hunter_limit_report
+        options:
+          - hunter_limit_report
+          - lead_assignment_check
       days:
-        description: "Necha kunlik ma'lumot"
+        description: "Necha kunlik ma'lumot (hunter_limit_report)"
         default: "30"
         required: true
 
@@ -21,6 +28,7 @@ jobs:
     steps:
       - name: Run report in prod checkout
         env:
+          REPORT: ${{ inputs.report }}
           DAYS: ${{ inputs.days }}
         run: |
           set -euo pipefail
@@ -29,4 +37,8 @@ jobs:
           set -a
           . ./.env
           set +a
-          ./venv/bin/python scripts/hunter_limit_report.py --days "$DAYS"
+          case "$REPORT" in
+            hunter_limit_report) ./venv/bin/python scripts/hunter_limit_report.py --days "$DAYS" ;;
+            lead_assignment_check) ./venv/bin/python scripts/lead_assignment_check.py ;;
+            *) echo "unknown report"; exit 1 ;;
+          esac
