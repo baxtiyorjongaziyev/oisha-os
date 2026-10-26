@@ -196,6 +196,9 @@ def build_admin_aiogram_dispatcher(
             db=db,
         )
 
+    from src.services.core.dispatcher.handlers_attendance import register_attendance_handlers
+
+    register_attendance_handlers(dp)
     return dp
 
 

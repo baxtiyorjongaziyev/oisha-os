@@ -152,3 +152,38 @@ async def admin_wifi_remove(network_id: int, principal: Principal = _MANAGE):
 
 
 __all__ = ["router", "_db"]
+
+
+# ---- avtomatik davomat: ofis Wi-Fi avtomatikasi (telefondagi Qisqa buyruq / MacroDroid) ----
+class AutoTokenBody(BaseModel):
+    employee_id: int
+
+
+class WifiEventBody(BaseModel):
+    event: str = Field(pattern="^(join|leave)$")
+
+
+@router.post("/admin/auto-tokens")
+async def admin_auto_token_create(body: AutoTokenBody, request: Request, principal: Principal = _MANAGE):
+    from src.services.core.attendance import auto_presence
+
+    db = await _ready_db()
+    token = await auto_presence.create_token(db, actor=principal.subject, employee_id=body.employee_id,
+                                             ip=_ip(request))
+    # Kalit faqat shu javobda bir marta ko'rsatiladi; eski kaliti bekor qilinadi.
+    return {"token": token, "url": "/api/attendance/auto/wifi", "header": "X-Auto-Token"}
+
+
+@router.post("/auto/wifi")
+async def auto_wifi(body: WifiEventBody, request: Request,
+                    x_auto_token: str = Header(default="", alias="X-Auto-Token")):
+    from src.services.core.attendance import auto_presence
+
+    _limiter.check(f"autowifi:{_ip(request)}")
+    db = await _ready_db()
+    actor = await auto_presence.employee_for_token(db, x_auto_token)
+    if actor is None:
+        raise HTTPException(status_code=401, detail="invalid_token")
+    on_office = await network.is_office(db, network.client_ip(request)) if await network.configured(db) else None
+    result = await auto_presence.on_wifi(db, actor, body.event, on_office)
+    return {"recorded": result}
