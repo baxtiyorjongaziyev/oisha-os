@@ -174,3 +174,62 @@ async def test_hunter_assigns_new_deal(monkeypatch, env):
     monkeypatch.setenv("LEAD_ASSIGNMENT_ENABLED", "1")
     r = await HunterWriter(Amo(), pool).submit(Candidate(source="meta_lead_ads", name="Ali", phone="901234567"))
     assert r.state == "sent" and calls == [(9, "Ali", "meta_lead_ads")]
+
+
+async def test_failed_reassign_stays_eligible(env):
+    pool, amo, sent, a, clock = env
+    pool.check(1, "check_in", "10:00")
+    pool.check(2, "check_in", "10:00")
+    first = await a.assign_new(1, "Ali", "meta_lead_ads")
+    clock["t"] += 61 * 60
+    ok = amo.update_lead_responsible
+    amo.update_lead_responsible = lambda lead_id, user_id: False
+    assert (await a.follow_up_once())["reassigned"] == 0
+    amo.update_lead_responsible = ok
+    assert (await a.follow_up_once())["reassigned"] == 1
+    assert amo.responsible[1] != {"Mumtozmaxal": 101, "Rayxona": 102}[first]
+
+
+async def test_failed_reminder_is_retried(env):
+    pool, amo, sent, a, clock = env
+    pool.check(1, "check_in", "10:00")
+    await a.assign_new(1, "Ali", "meta_lead_ads")
+    clock["t"] += 31 * 60
+    a.notify = lambda text, lead_id: False
+    assert (await a.follow_up_once())["reminded"] == 0
+    a.notify = lambda text, lead_id: True
+    assert (await a.follow_up_once())["reminded"] == 1
+
+
+async def test_follow_up_rotates_past_batch_limit(env):
+    pool, amo, sent, a, clock = env
+    pool.check(1, "check_in", "10:00")
+    for i in range(1, 53):
+        await a.assign_new(i, f"L{i}", "meta_lead_ads")
+    clock["t"] += 31 * 60
+    first = (await a.follow_up_once())["reminded"]
+    second = (await a.follow_up_once())["reminded"]
+    assert (first, second) == (50, 2)
+
+
+async def test_waiting_lead_progressed_in_crm_is_not_assigned(env):
+    pool, amo, sent, a, _ = env
+    assert await a.assign_new(1, "Ali", "meta_lead_ads") is None
+    amo.status[1] = 1  # amoCRM'da qo'lda ishlandi
+    pool.check(1, "check_in", "10:00")
+    assert (await a.follow_up_once())["assigned"] == 0
+    assert amo.responsible == {}
+
+
+async def test_claimed_lead_is_not_assigned_twice(env):
+    pool, amo, sent, a, _ = env
+    pool.check(1, "check_in", "10:00")
+    await a.init()
+    pool.conn.execute(
+        "INSERT INTO lead_assignments(lead_id,lead_name,source,kind,state,created_at) "
+        "VALUES (1,'Ali','meta_lead_ads','new','unassigned',0)"
+    )
+    assert await a._claim(1, "unassigned")  # boshqa jarayon olib turibdi
+    assert await a.assign_new(1, "Ali", "meta_lead_ads") is None
+    assert (await a.follow_up_once())["assigned"] == 0
+    assert amo.responsible == {}

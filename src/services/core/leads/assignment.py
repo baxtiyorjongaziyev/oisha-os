@@ -51,7 +51,10 @@ _SCHEMA = """CREATE TABLE IF NOT EXISTS lead_assignments (
     assigned_at INTEGER,
     reminded INTEGER NOT NULL DEFAULT 0,
     reassigned INTEGER NOT NULL DEFAULT 0,
+    claimed_at INTEGER,
+    checked_at INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL)"""
+_CLAIM_TTL_SECONDS = 600
 
 
 def lead_kind(source: str) -> str:
@@ -127,37 +130,63 @@ class LeadAssigner:
         """Yangi bitimni ishdagi sotuvchiga beradi. Sotuvchi ismi yoki None."""
         await self.init()
         kind = lead_kind(source)
-        now = int(time.time())
         await self._sql(
             """INSERT INTO lead_assignments (lead_id, lead_name, source, kind, state, created_at)
             VALUES (?,?,?,?, 'unassigned', ?) ON CONFLICT(lead_id) DO NOTHING""",
-            [lead_id, lead_name, source, kind, now],
+            [lead_id, lead_name, source, kind, int(time.time())],
         )
+        if not await self._claim(lead_id, "unassigned"):
+            return None  # boshqa jarayon allaqachon beryapti
         person = await self.pick(kind)
         if person is None:
+            await self._unclaim(lead_id, "unassigned")
             if not is_quiet_hours():
-                self.notify(
+                await self._send(
                     f"🆕 <b>Yangi lid</b>: {html.escape(lead_name)} ({html.escape(source)})\n"
                     "⚠️ Hozir ishda sotuvchi yo'q — birinchi kelganga beriladi.",
                     lead_id,
                 )
             return None
-        return await self._give(lead_id, lead_name, source, kind, person, "🆕 <b>Yangi lid</b>")
+        return await self._give(lead_id, lead_name, source, kind, person, "🆕 <b>Yangi lid</b>", "unassigned")
 
-    async def _give(self, lead_id, lead_name, source, kind, person, title) -> Optional[str]:
+    async def _send(self, text: str, lead_id: int) -> bool:
+        # Telegram so'rovi bloklovchi — event loop'ni to'xtatmasin.
+        return bool(await asyncio.to_thread(self.notify, text, lead_id))
+
+    async def _claim(self, lead_id: int, from_state: str) -> bool:
+        now = int(time.time())
+        rows = await self._sql(
+            """UPDATE lead_assignments SET state='claiming', claimed_at=?
+            WHERE lead_id=? AND (state=? OR (state='claiming' AND claimed_at < ?))
+            RETURNING lead_id""",
+            [now, lead_id, from_state, now - _CLAIM_TTL_SECONDS],
+        )
+        return bool(rows)
+
+    async def _unclaim(self, lead_id: int, state: str) -> None:
+        await self._sql(
+            "UPDATE lead_assignments SET state=?, claimed_at=NULL WHERE lead_id=? AND state='claiming'",
+            [state, lead_id],
+        )
+
+    async def _give(self, lead_id, lead_name, source, kind, person, title, from_state,
+                    reassign: bool = False) -> Optional[str]:
+        """Da'vo qilingan (claiming) lidni beradi; muvaffaqiyatsiz bo'lsa holat qaytariladi."""
         ok = await asyncio.to_thread(
             self.amocrm.update_lead_responsible, int(lead_id), int(person["amo_id"])
         )
         if not ok:
             logger.warning("[ASSIGN] amoCRM mas'ul o'zgarmadi: lead=%s", lead_id)
+            await self._unclaim(lead_id, from_state)
             return None
         await self._sql(
             """UPDATE lead_assignments SET employee_id=?, employee_name=?, state='assigned',
-            assigned_at=?, reminded=0 WHERE lead_id=?""",
-            [int(person["employee_id"]), person["name"], int(time.time()), lead_id],
+            assigned_at=?, reminded=0, claimed_at=NULL, reassigned=MAX(reassigned, ?)
+            WHERE lead_id=?""",
+            [int(person["employee_id"]), person["name"], int(time.time()), int(reassign), lead_id],
         )
         if not is_quiet_hours():
-            self.notify(
+            await self._send(
                 f"{title}: {html.escape(lead_name)} ({html.escape(source)})\n"
                 f"👤 Mas'ul: <b>{html.escape(person['name'])}</b>\n"
                 f"👉 {FIRST_STEP[kind]}",
@@ -165,48 +194,68 @@ class LeadAssigner:
             )
         return person["name"]
 
+    async def _still_new(self, lead_id: int) -> Optional[bool]:
+        """True: hali "Yangi"da; False: ilgarilagan/yopilgan; None: o'qib bo'lmadi."""
+        lead = await self.amocrm.get_lead(int(lead_id))
+        if not lead:
+            return None
+        return lead.get("status_id") == SALES_NEW_STATUS_ID
+
     async def follow_up_once(self) -> Dict[str, int]:
         """Biriktirilmaganlarni beradi, "Yangi"da qolganlarni eslatadi/o'tkazadi."""
         await self.init()
         stats = {"assigned": 0, "reminded": 0, "reassigned": 0}
         if is_quiet_hours():
             return stats
-        for row in await self._sql(
-            "SELECT * FROM lead_assignments WHERE state='unassigned' ORDER BY created_at LIMIT 20"
-        ):
-            person = await self.pick(row["kind"])
-            if person and await self._give(
-                row["lead_id"], row["lead_name"], row["source"], row["kind"], person, "🆕 <b>Lid berildi</b>"
-            ):
-                stats["assigned"] += 1
         now = int(time.time())
         for row in await self._sql(
-            "SELECT * FROM lead_assignments WHERE state='assigned' AND assigned_at < ? LIMIT 50",
+            """SELECT * FROM lead_assignments WHERE state='unassigned'
+            OR (state='claiming' AND claimed_at < ?) ORDER BY created_at LIMIT 20""",
+            [now - _CLAIM_TTL_SECONDS],
+        ):
+            lead_id = int(row["lead_id"])
+            fresh = await self._still_new(lead_id)
+            if fresh is None:
+                continue
+            if not fresh:  # amoCRM'da qo'lda ishlangan yoki yopilgan
+                await self._sql("UPDATE lead_assignments SET state='working' WHERE lead_id=?", [lead_id])
+                continue
+            person = await self.pick(row["kind"])
+            if person and await self._claim(lead_id, "unassigned") and await self._give(
+                lead_id, row["lead_name"], row["source"], row["kind"], person, "🆕 <b>Lid berildi</b>",
+                "unassigned",
+            ):
+                stats["assigned"] += 1
+        # Eng uzoq tekshirilmaganlardan boshlab — limit hech bir lidni och qoldirmaydi.
+        for row in await self._sql(
+            """SELECT * FROM lead_assignments WHERE state='assigned' AND assigned_at < ?
+            ORDER BY checked_at, lead_id LIMIT 50""",
             [now - REMIND_AFTER_SECONDS],
         ):
-            lead = await self.amocrm.get_lead(int(row["lead_id"]))
-            if not lead:
+            lead_id = int(row["lead_id"])
+            await self._sql("UPDATE lead_assignments SET checked_at=? WHERE lead_id=?", [now, lead_id])
+            fresh = await self._still_new(lead_id)
+            if fresh is None:
                 continue
-            if lead.get("status_id") != SALES_NEW_STATUS_ID:
-                await self._sql("UPDATE lead_assignments SET state='working' WHERE lead_id=?", [row["lead_id"]])
+            if not fresh:
+                await self._sql("UPDATE lead_assignments SET state='working' WHERE lead_id=?", [lead_id])
                 continue
             age = now - int(row["assigned_at"])
             if age >= REASSIGN_AFTER_SECONDS and not row["reassigned"]:
                 person = await self.pick(row["kind"], exclude=int(row["employee_id"]))
-                if person:
-                    await self._sql("UPDATE lead_assignments SET reassigned=1 WHERE lead_id=?", [row["lead_id"]])
+                if person and await self._claim(lead_id, "assigned"):
                     if await self._give(
-                        row["lead_id"], row["lead_name"], row["source"], row["kind"], person,
+                        lead_id, row["lead_name"], row["source"], row["kind"], person,
                         f"🔁 <b>1 soat javobsiz, o'tkazildi</b> (oldin: {html.escape(row['employee_name'] or '')})",
+                        "assigned", reassign=True,
                     ):
                         stats["reassigned"] += 1
                     continue
-            if not row["reminded"]:
-                self.notify(
-                    f"⏰ <b>{html.escape(row['employee_name'] or '')}</b>, lid 30 daqiqadan beri \"Yangi\"da: "
-                    f"{html.escape(row['lead_name'])}\n👉 {FIRST_STEP[row['kind']]}",
-                    int(row["lead_id"]),
-                )
-                await self._sql("UPDATE lead_assignments SET reminded=1 WHERE lead_id=?", [row["lead_id"]])
+            if not row["reminded"] and await self._send(
+                f"⏰ <b>{html.escape(row['employee_name'] or '')}</b>, lid 30 daqiqadan beri \"Yangi\"da: "
+                f"{html.escape(row['lead_name'])}\n👉 {FIRST_STEP[row['kind']]}",
+                lead_id,
+            ):
+                await self._sql("UPDATE lead_assignments SET reminded=1 WHERE lead_id=?", [lead_id])
                 stats["reminded"] += 1
         return stats
