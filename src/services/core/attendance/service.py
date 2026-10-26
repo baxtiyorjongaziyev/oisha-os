@@ -197,6 +197,28 @@ class AttendanceService:
             await self.db.commit()
         return await self.confirm(s["id"], actor)
 
+    async def auto_punch(self, actor: Actor, kind: str, idempotency_key: str, method: str) -> dict:
+        """Avtomatik belgi (Telegram jonli lokatsiya yoki ofis Wi-Fi avtomatikasi).
+
+        Hudud tekshiruvini chaqiruvchi qilgan. Koordinatalar saqlanmaydi: tekshiruv
+        yozuvida faqat usul nomi bo'ladi.
+        """
+        s = await self.start(actor, kind, idempotency_key)
+        if s["state"] == "confirmed":
+            row = await repo.get_session(self.db, s["id"])
+            return {"status": row["status"], "already_confirmed": True, "work_date": s["work_date"]}
+        row = await repo.get_session(self.db, s["id"])
+        if row["state"] == "created":
+            await repo.add_verification(self.db, s["id"], "manual", True, None, method, {"auto": method})
+            await self._move(row, actor, "location_ok", "created")
+            row = await repo.get_session(self.db, s["id"])
+        if row["state"] == "location_ok":
+            await self._move(row, actor, "qr_ok", "location_ok")
+        await audit.log(self.db, actor=actor.subject, action="auto_punch", entity="attendance_session",
+                        entity_id=s["id"], details={"kind": kind, "method": method}, ip=actor.ip)
+        await self.db.commit()
+        return await self.confirm(s["id"], actor)
+
     # ---- 4. yuz (hozircha o'chiq) ----
     async def submit_face(self, sid: str, actor: Actor) -> dict:
         await self._load(sid, actor)
