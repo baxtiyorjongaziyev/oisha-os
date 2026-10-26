@@ -146,3 +146,9 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         asyncio.create_task(income_supervisor_loop(), name="income_supervisor_loop")
     except ImportError as exc:
         logger.warning("[INCOME SUPERVISOR] scheduler unavailable: %s", exc)
+
+    try:
+        from src.schedulers.jamoa_ritm_scheduler import jamoa_ritm_loop
+        asyncio.create_task(jamoa_ritm_loop(bot_runtime), name="jamoa_ritm_loop")
+    except ImportError as exc:
+        logger.warning("[JAMOA-RITM] scheduler unavailable: %s", exc)
