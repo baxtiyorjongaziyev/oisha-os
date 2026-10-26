@@ -96,6 +96,22 @@ har javobda manba (asl xabar havolasi).
 ### 4-bosqich — Kengaytirish
 Marketing va Team guruhlari; kerak bo'lsa Q1-A (bitta "Oisha" yuzi).
 
+## 5.1. Ideal holatga yo'l xaritasi (2026-10-26)
+
+| # | Ish | Kim | Holat |
+|---|---|---|---|
+| R1 | Speed-to-lead: 15 daq eslatma, 45 daq Owner | Claude | ✅ prod (#960) |
+| R2 | `data/` yozish ruxsati (`ubuntu` ∈ `oisha-runner`) | Claude, Owner "ha" | ✅ prod |
+| R3 | Kampaniya atributsiyasi: Graph `campaign_id/name` + ad_id orqali backfill | Claude | ⏳ PR |
+| R4 | Kalitlar: Gemini, `BOT_TOKEN`, Moizvonki webhook secret (rotatsiya), Cloudflare AI | **Owner** | ❌ |
+| R5 | `.env`: `SPEED_TO_LEAD_SELLER_MAP`, `OWNER_ID` tekshiruvi | **Owner** | ❌ |
+| R6 | Moizvonki secret'ni query-string'dan header'ga ko'chirish, logdan yashirish | Claude | navbatda |
+| R7 | 321 lidda `first_touch_ts` yo'q — haqiqiy javobsizmi yoki o'lchov xatosi | Claude | navbatda |
+| R8 | Revenue sync: oktyabrda `lead_won` 0 — tekshirish | Claude | navbatda |
+| R9 | Haftalik "Marketing→Sotuv" raqamlari: CPL, javob vaqti, konversiya kampaniya kesimida | Claude | R3 dan keyin |
+| R10 | Jamoa boti pilot (Sotuv, Loyihalar) — Q1 qarori kerak | Owner + Claude | R4 dan keyin |
+| R11 | 1 haftadan keyin qayta audit: §7 o'lchovlari | Claude | 2026-11-02 |
+
 ## 6. Xavfsizlik talablari
 
 - Jamoa botida maxfiy ma'lumot yo'q (D4). Oisha → bot ma'lumot oqimi faqat guruhga chiqqan xabarlar orqali.

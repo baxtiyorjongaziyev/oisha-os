@@ -134,7 +134,7 @@ def _fetch_leadgen_payload(leadgen_id: str, token: str) -> Dict[str, Any]:
     api_version = os.environ.get("META_GRAPH_API_VERSION", "").strip() or "v19.0"
     url = f"https://graph.facebook.com/{api_version}/{leadgen_id}"
     params = {
-        "fields": "created_time,field_data,form_id,ad_id",
+        "fields": "created_time,field_data,form_id,ad_id,campaign_id,campaign_name",
         "access_token": token,
     }
     response = requests.get(url, params=params, timeout=15)
@@ -205,6 +205,11 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
     merged_payload = {**value, **payload}
     ad_id = str(merged_payload.get("ad_id") or "")
     ad_name = await asyncio.to_thread(resolve_ad_name, ad_id)
+    if ad_id and not merged_payload.get("campaign_id"):
+        from src.services.core.marketing.meta_ads_client import MetaAdsClient
+        cid, cname = await asyncio.to_thread(MetaAdsClient().get_ad_campaign, ad_id)
+        merged_payload["campaign_id"] = cid
+        merged_payload["campaign_name"] = merged_payload.get("campaign_name") or cname
 
     note = build_leadgen_note(leadgen_id, merged_payload, fields, ad_name=ad_name)
 

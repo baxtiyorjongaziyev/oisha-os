@@ -138,6 +138,27 @@ def update_seller_info(
         )
 
 
+def rows_missing_campaign(limit: int = 200) -> List[Dict[str, Any]]:
+    """Kampaniyasi yo'q, lekin ad_id bor yozuvlar (backfill uchun)."""
+    with _connection() as conn:
+        rows = conn.execute(
+            "SELECT leadgen_id, ad_id FROM lead_attribution "
+            "WHERE COALESCE(campaign_id, '') = '' AND COALESCE(ad_id, '') <> '' "
+            "ORDER BY created_at DESC LIMIT ?",
+            (int(limit),),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def set_campaign(leadgen_id: str, campaign_id: str, campaign_name: str) -> None:
+    with _connection() as conn:
+        conn.execute(
+            "UPDATE lead_attribution SET campaign_id = ?, "
+            "campaign_name = COALESCE(NULLIF(?, ''), campaign_name) WHERE leadgen_id = ?",
+            (campaign_id, campaign_name, leadgen_id),
+        )
+
+
 def has_first_touch(leadgen_id: str) -> bool:
     with _connection() as conn:
         row = conn.execute(
