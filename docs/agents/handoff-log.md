@@ -2049,3 +2049,9 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Dalil: https://lex.uz/uz/docs/-4396419 2026-10-22 da ochildi; texnik inventar attendance kodi bilan solishtirildi. `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3061 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
 - Qolgan ish: yurist xulosasi, haqiqiy Contabo/Turso/backup joylashuvi va provayder hujjatlari, reyestr yoki istisno dalili, saqlash siyosati. Barchasi noma'lum/tasdiqlanmagan deb belgilandi.
 - Operatsion cheklov: read-only `oracle-health.yml` run 39833624424 SSH 22-portda i/o timeout bilan tugadi; server holati olinmadi. Task 1/2 prod tekshiruvi hamon ochiq.
+
+## 2026-10-26 — Claude (speed-to-lead)
+- Ish: lidga birinchi javob nazorati — 15 daqiqa (ish vaqti) guruhga mas'ulni teg qilib eslatma, 45 daqiqa Owner'ga shaxsiy xabar, javob kelsa "✅ N daqiqada". Marketing→Sotuv PRD va 0-bosqich audit natijasi.
+- Fayllar: `src/schedulers/speed_to_lead.py` (yangi), `src/bootstrap/orchestration/schedulers.py` (wiring), `tests/test_speed_to_lead.py`, `docs/marketing-sotuv-raqamlashtirish-prd.md`.
+- Dalil: `SKIP_LIVE=1 pytest -q` → 3074 passed, 18 skipped; bandit (o'zgargan fayllar) toza.
+- Qolgan: prod `.env` ga `SPEED_TO_LEAD_SELLER_MAP=amo_id:tg_id,...` (aks holda teg o'rniga ism); `OWNER_ID` tekshirish. Audit: Gemini, BOT_TOKEN, Moizvonki webhook, Cloudflare kalitlari yaroqsiz — Owner yangilaydi.
