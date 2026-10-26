@@ -75,6 +75,15 @@ async def marketing_attribution_loop() -> None:
             logger.error("[ADS ATTRIBUTION] CPL monitor xatosi: %s", exc, exc_info=True)
 
         try:
+            from src.services.core.marketing.attribution_sync import backfill_campaigns
+            from src.services.core.marketing.meta_ads_client import MetaAdsClient
+            await asyncio.to_thread(backfill_campaigns, MetaAdsClient().get_ad_campaign)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("[ADS ATTRIBUTION] Kampaniya backfill xatosi: %s", exc, exc_info=True)
+
+        try:
             from src.services.core.instagram.leadgen_router import _amocrm_instance
             from src.services.core.marketing.attribution_sync import sync_attribution_revenue
             await sync_attribution_revenue(_amocrm_instance(), days=90)
