@@ -93,13 +93,27 @@ class HamrohBrain:
         members = [m for m in messages if m.get("role", ROLE_MEMBER) == ROLE_MEMBER]
         if not members:
             return RETRO_FALLBACK
-        prompt = f"{RETRO_TASK}\nSuhbat:\n{format_transcript(members, tz=self._tz)}"
+        prompt = (
+            f"{RETRO_TASK}\nSuhbat (haftaning oxirgi {len(members)} ta xabari, to'liq bo'lmasligi mumkin):\n"
+            f"{format_transcript(members, tz=self._tz)}"
+        )
         return await self._ask(prompt, max_tokens=700, temperature=0.4) or RETRO_FALLBACK
 
-    async def self_review(self, messages: list[dict]) -> str:
-        answered = sum(1 for m in messages if m.get("role") == ROLE_HAMROH)
-        observed = sum(1 for m in messages if m.get("role", ROLE_MEMBER) == ROLE_MEMBER)
-        stats = f"Statistika: kuzatilgan xabarlar — {observed}, Hamroh javoblari — {answered}."
+    async def self_review(self, messages: list[dict], counts: Optional[dict[str, int]] = None) -> str:
+        """``counts`` — butun hafta bo'yicha ``{role: soni}``. Berilmasa, raqamlar faqat
+        namunadan hisoblanadi va bu matnda ochiq aytiladi (to'liq hisob deb ko'rsatilmaydi)."""
+        if counts is not None:
+            stats = (
+                "Statistika (butun hafta): kuzatilgan xabarlar — "
+                f"{counts.get(ROLE_MEMBER, 0)}, Hamroh javoblari — {counts.get(ROLE_HAMROH, 0)}."
+            )
+        else:
+            answered = sum(1 for m in messages if m.get("role") == ROLE_HAMROH)
+            observed = sum(1 for m in messages if m.get("role", ROLE_MEMBER) == ROLE_MEMBER)
+            stats = (
+                f"Statistika (faqat oxirgi {len(messages)} ta yozuv bo'yicha, butun hafta emas): "
+                f"kuzatilgan xabarlar — {observed}, Hamroh javoblari — {answered}."
+            )
         fallback = (
             "Hamroh: haftalik o'z-o'zini tahlil\n"
             f"{stats}\n"
@@ -107,6 +121,10 @@ class HamrohBrain:
         )
         if not messages:
             return fallback
-        prompt = f"{TAHLIL_TASK}\n{stats}\n\nSuhbat:\n{format_transcript(messages, tz=self._tz)}"
+        prompt = (
+            f"{TAHLIL_TASK}\n{stats}\n\n"
+            f"Suhbat (haftaning oxirgi {len(messages)} ta yozuvi, to'liq bo'lmasligi mumkin):\n"
+            f"{format_transcript(messages, tz=self._tz)}"
+        )
         text = await self._ask(prompt, max_tokens=900, temperature=0.3)
         return f"Hamroh: haftalik o'z-o'zini tahlil\n{text}" if text else fallback

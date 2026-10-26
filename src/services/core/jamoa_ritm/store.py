@@ -16,6 +16,10 @@ ROLE_MEMBER = "azo"      # jamoa a'zosining xabari
 ROLE_HAMROH = "hamroh"   # Hamroh'ning mention'ga javobi
 ROLE_RITM = "ritm"       # jadval bo'yicha yuborilgan ritm xabari
 
+SLOT_CLAIMED = "claimed"     # yuborish boshlandi (natija hali noma'lum)
+SLOT_SENT = "sent"           # Telegram qabul qildi
+SLOT_UNCERTAIN = "uncertain"  # natija noaniq: qayta yuborilmaydi, log'da ko'rinadi
+
 _SCHEMA = (
     """
     CREATE TABLE IF NOT EXISTS jamoa_xabarlar (
@@ -36,6 +40,7 @@ _SCHEMA = (
         slot TEXT NOT NULL,
         sana TEXT NOT NULL,
         sent_at INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'sent',
         PRIMARY KEY (slot, sana)
     )
     """,
@@ -126,20 +131,56 @@ class JamoaStore:
         items.reverse()
         return items
 
-    async def was_sent(self, slot: str, sana: str) -> bool:
+    async def count_by_role(self, chat_id: int, since_ts: int) -> dict[str, int]:
+        """Davr uchun to'liq hisob (transkript chegarasidan mustaqil): ``{role: soni}``."""
         await self.initialize()
         rows = await self._exec(
-            "SELECT 1 FROM jamoa_ritm_log WHERE slot = ? AND sana = ?", (slot, sana)
+            "SELECT role, COUNT(*) AS soni FROM jamoa_xabarlar "
+            "WHERE chat_id = ? AND created_at >= ? GROUP BY role",
+            (int(chat_id), int(since_ts)),
         )
-        return bool(rows)
+        return {str(_row_get(r, "role", 0)): int(_row_get(r, "soni", 1) or 0) for r in rows}
 
-    async def mark_sent(self, slot: str, sana: str) -> None:
+    async def slot_status(self, slot: str, sana: str) -> Optional[str]:
         await self.initialize()
+        rows = await self._exec(
+            "SELECT status FROM jamoa_ritm_log WHERE slot = ? AND sana = ?", (slot, sana)
+        )
+        return str(_row_get(rows[0], "status", 0)) if rows else None
+
+    async def was_sent(self, slot: str, sana: str) -> bool:
+        """Slot bo'yicha har qanday yozuv (da'vo ham) qayta yuborishni taqiqlaydi."""
+        return await self.slot_status(slot, sana) is not None
+
+    async def claim_slot(self, slot: str, sana: str) -> bool:
+        """Yuborishdan OLDIN slotni band qiladi. Allaqachon yozuv bo'lsa ``False``."""
+        if await self.was_sent(slot, sana):
+            return False
         await self._exec(
-            "INSERT OR IGNORE INTO jamoa_ritm_log (slot, sana, sent_at) VALUES (?, ?, ?)",
-            (slot, sana, int(time.time())),
+            "INSERT OR IGNORE INTO jamoa_ritm_log (slot, sana, sent_at, status) VALUES (?, ?, ?, ?)",
+            (slot, sana, int(time.time()), SLOT_CLAIMED),
             write=True,
         )
+        return True
+
+    async def set_slot_status(self, slot: str, sana: str, status: str) -> None:
+        await self.initialize()
+        await self._exec(
+            "UPDATE jamoa_ritm_log SET status = ?, sent_at = ? WHERE slot = ? AND sana = ?",
+            (status, int(time.time()), slot, sana),
+            write=True,
+        )
+
+    async def release_slot(self, slot: str, sana: str) -> None:
+        """Yuborilmagani aniq bo'lsa da'voni bekor qiladi (keyingi aylanishda qayta urinadi)."""
+        await self.initialize()
+        await self._exec(
+            "DELETE FROM jamoa_ritm_log WHERE slot = ? AND sana = ?", (slot, sana), write=True
+        )
+
+    async def mark_sent(self, slot: str, sana: str) -> None:
+        await self.claim_slot(slot, sana)
+        await self.set_slot_status(slot, sana, SLOT_SENT)
 
     async def prune(self, older_than_ts: int) -> None:
         """Eski xabarlarni o'chiradi (xotira cheksiz o'smasin)."""

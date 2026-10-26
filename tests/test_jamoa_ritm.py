@@ -54,14 +54,26 @@ class FakeDB:
         self.conn.commit()
 
 
+class TelegramBadRequest(Exception):
+    """aiogram'dagi shu nomli xato o'rnida: Telegram so'rovni aniq rad etdi."""
+
+
+class TelegramNetworkError(Exception):
+    """aiogram'dagi shu nomli xato o'rnida: natija noaniq."""
+
+
 class FakeBot:
-    def __init__(self, fail: bool = False):
+    def __init__(self, fail: type[Exception] | None = None, deliver_then_fail: bool = False):
         self.sent: list[tuple] = []
         self.fail = fail
+        self.deliver_then_fail = deliver_then_fail
 
     async def send_message(self, chat_id, text, **kwargs):
+        if self.deliver_then_fail:  # Telegram qabul qildi, lekin javob yo'qoldi
+            self.sent.append((chat_id, text))
+            raise TelegramNetworkError("timeout")
         if self.fail:
-            raise RuntimeError("telegram down")
+            raise self.fail("telegram error")
         self.sent.append((chat_id, text))
 
 
@@ -142,12 +154,48 @@ async def test_slot_sent_once_and_recorded():
     assert [m["role"] for m in saved] == [ROLE_RITM]
 
 
-async def test_failed_send_is_retried_later():
+async def test_rejected_send_is_retried_later():
     store = JamoaStore(FakeDB())
     kwargs = dict(cfg=make_cfg(), store=store, brain=make_brain())
-    assert await sched.run_due_slots(at(1, 9, 0), bot=FakeBot(fail=True), **kwargs) == []
+    assert await sched.run_due_slots(at(1, 9, 0), bot=FakeBot(fail=TelegramBadRequest), **kwargs) == []
     assert not await store.was_sent("ertalabki_start", at(1, 9, 0).date().isoformat())
     assert await sched.run_due_slots(at(1, 9, 2), bot=FakeBot(), **kwargs) == ["ertalabki_start"]
+
+
+async def test_uncertain_send_is_not_repeated():
+    store, bot = JamoaStore(FakeDB()), FakeBot(deliver_then_fail=True)
+    kwargs = dict(cfg=make_cfg(), store=store, brain=make_brain(), bot=bot)
+    assert await sched.run_due_slots(at(1, 9, 0), **kwargs) == []
+    assert await sched.run_due_slots(at(1, 9, 1), **kwargs) == []
+    assert len(bot.sent) == 1
+    assert await store.slot_status("ertalabki_start", at(1, 9, 0).date().isoformat()) == "uncertain"
+
+
+async def test_log_write_failure_after_delivery_does_not_resend():
+    """Codex review: Telegram qabul qilib, jurnal yozilmasa — qayta yuborilmasligi kerak."""
+    store, bot = JamoaStore(FakeDB()), FakeBot()
+
+    async def broken_status(*args, **kwargs):
+        raise RuntimeError("db write failed")
+
+    store.set_slot_status = broken_status
+    kwargs = dict(cfg=make_cfg(), store=store, brain=make_brain(), bot=bot)
+    for minute in (0, 1, 2):
+        await sched.run_due_slots(at(1, 9, minute), **kwargs)
+    assert len(bot.sent) == 1
+
+
+async def test_weekly_review_counts_whole_week_beyond_transcript_limit():
+    """Codex review: 400 dan ko'p xabarda statistika to'liq hafta bo'yicha bo'lishi kerak."""
+    store, bot = JamoaStore(FakeDB()), FakeBot()
+    friday = at(4, 17, 0)
+    base = int(friday.timestamp()) - 3 * 24 * 3600
+    for i in range(500):
+        await store.save_message(chat_id=GROUP, text=f"xabar {i}", user_name="Ali", ts=base + i)
+    await sched.run_due_slots(friday, cfg=make_cfg(), store=store, brain=make_brain(fail=True), bot=bot)
+    review = bot.sent[0][1]
+    assert "(butun hafta): kuzatilgan xabarlar — 500" in review
+    assert "faqat oxirgi" not in review
 
 
 async def test_friday_retro_to_group_and_review_to_owner():
