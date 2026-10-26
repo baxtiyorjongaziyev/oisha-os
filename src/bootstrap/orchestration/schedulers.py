@@ -126,6 +126,12 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         logger.warning("[UNOWNED LEAD] scheduler unavailable: %s", exc)
 
     try:
+        from src.schedulers.speed_to_lead import speed_to_lead_loop
+        asyncio.create_task(speed_to_lead_loop(), name="speed_to_lead_loop")
+    except ImportError as exc:
+        logger.warning("[SPEED-TO-LEAD] scheduler unavailable: %s", exc)
+
+    try:
         from src.schedulers.marketing_attribution_scheduler import marketing_attribution_loop
         asyncio.create_task(marketing_attribution_loop(), name="marketing_attribution_loop")
     except ImportError as exc:
