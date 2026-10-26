@@ -256,3 +256,59 @@ async def test_failed_tag_keeps_lead_waiting(env):
     assert await a.assign_new(1, "Ali", "meta_lead_ads") is None
     row = pool.conn.execute("SELECT state FROM lead_assignments WHERE lead_id=1").fetchone()
     assert row["state"] == "unassigned"
+
+
+class _Owner:
+    def __init__(self):
+        self.sent = []
+
+    async def notify_review(self, text):
+        self.sent.append(text)
+        return True
+
+
+@pytest.fixture
+def owner(monkeypatch):
+    from src.services.core.attendance import notifier
+
+    o = _Owner()
+    monkeypatch.setattr(notifier, "default_notifier", lambda: o)
+    return o
+
+
+async def test_auto_mode_waits_for_first_seller_check_in(monkeypatch, owner):
+    from src.services.core.leads.assignment import assignment_enabled
+
+    monkeypatch.delenv("LEAD_ASSIGNMENT_ENABLED", raising=False)
+    pool = MemPool()
+    pool.conn.execute("INSERT INTO employees(id,name,role) VALUES (9,'Hasanboy Gaziyev','pm')")
+    assert await assignment_enabled(pool) is False
+    pool.check(9, "check_in", "10:00")  # sotuvchi emas
+    assert await assignment_enabled(pool) is False
+    pool.check(2, "check_in", "10:05")  # Rayxona
+    assert await assignment_enabled(pool) is True
+    assert await assignment_enabled(pool) is True
+    assert len(owner.sent) == 1 and "Rayxona" in owner.sent[0]
+
+
+async def test_explicit_switch_overrides_auto(monkeypatch, owner):
+    from src.services.core.leads.assignment import assignment_enabled
+
+    pool = MemPool()
+    pool.check(2, "check_in", "10:05")
+    monkeypatch.setenv("LEAD_ASSIGNMENT_ENABLED", "0")
+    assert await assignment_enabled(pool) is False
+    monkeypatch.setenv("LEAD_ASSIGNMENT_ENABLED", "1")
+    assert await assignment_enabled(MemPool()) is True
+    assert owner.sent == []
+
+
+async def test_auto_mode_without_attendance_tables(monkeypatch):
+    from src.services.core.leads.assignment import assignment_enabled
+
+    class Empty:
+        async def execute(self, q, p=None):
+            raise RuntimeError("no such table")
+
+    monkeypatch.setenv("LEAD_ASSIGNMENT_ENABLED", "auto")
+    assert await assignment_enabled(Empty()) is False
