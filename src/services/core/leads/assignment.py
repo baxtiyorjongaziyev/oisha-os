@@ -91,7 +91,7 @@ class LeadAssigner:
             self._ready = True
 
     async def on_duty(self) -> List[Dict[str, Any]]:
-        """Bugun kelgan va hali ketmagan, amoCRM ID'si bor xodimlar."""
+        """Bugun kelgan va hali ketmagan xodimlar."""
         today = get_local_now().date().isoformat()
         try:
             rows = await self._sql(
@@ -107,7 +107,7 @@ class LeadAssigner:
         last: Dict[int, Dict[str, Any]] = {}
         for r in rows:
             last[int(r["employee_id"])] = dict(r)
-        return [r for r in last.values() if r["kind"] == "check_in" and r.get("amo_id")]
+        return [r for r in last.values() if r["kind"] == "check_in"]
 
     async def _load_today(self, employee_id: int) -> int:
         start = int(time.time()) - 86400
@@ -172,9 +172,13 @@ class LeadAssigner:
     async def _give(self, lead_id, lead_name, source, kind, person, title, from_state,
                     reassign: bool = False) -> Optional[str]:
         """Da'vo qilingan (claiming) lidni beradi; muvaffaqiyatsiz bo'lsa holat qaytariladi."""
-        ok = await asyncio.to_thread(
-            self.amocrm.update_lead_responsible, int(lead_id), int(person["amo_id"])
-        )
+        # amoCRM'da bitta pullik foydalanuvchi (owner, 2026-10-26): sotuvchi teg bilan
+        # belgilanadi. Xodimning o'z amoCRM ID'si bo'lsa, mas'ul ham o'rnatiladi.
+        ok = await self.amocrm.add_lead_tag(int(lead_id), f"sotuvchi:{person['name']}")
+        if ok and person.get("amo_id"):
+            ok = await asyncio.to_thread(
+                self.amocrm.update_lead_responsible, int(lead_id), int(person["amo_id"])
+            )
         if not ok:
             logger.warning("[ASSIGN] amoCRM mas'ul o'zgarmadi: lead=%s", lead_id)
             await self._unclaim(lead_id, from_state)

@@ -42,6 +42,12 @@ class FakeAmo:
     def __init__(self):
         self.responsible = {}
         self.status = {}
+        self.tags = []
+        self.tag_ok = True
+
+    async def add_lead_tag(self, lead_id, tag):
+        self.tags.append((lead_id, tag))
+        return self.tag_ok
 
     def update_lead_responsible(self, lead_id, user_id):
         self.responsible[lead_id] = user_id
@@ -233,3 +239,20 @@ async def test_claimed_lead_is_not_assigned_twice(env):
     assert await a.assign_new(1, "Ali", "meta_lead_ads") is None
     assert (await a.follow_up_once())["assigned"] == 0
     assert amo.responsible == {}
+
+
+async def test_seller_without_amo_user_gets_tag_only(env):
+    pool, amo, sent, a, _ = env
+    pool.conn.execute("UPDATE employees SET amo_id=NULL")  # amoCRM'da bitta pullik foydalanuvchi
+    pool.check(2, "check_in", "10:00")
+    assert await a.assign_new(1, "Ali", "meta_lead_ads") == "Rayxona"
+    assert amo.tags == [(1, "sotuvchi:Rayxona")] and amo.responsible == {}
+
+
+async def test_failed_tag_keeps_lead_waiting(env):
+    pool, amo, sent, a, _ = env
+    pool.check(2, "check_in", "10:00")
+    amo.tag_ok = False
+    assert await a.assign_new(1, "Ali", "meta_lead_ads") is None
+    row = pool.conn.execute("SELECT state FROM lead_assignments WHERE lead_id=1").fetchone()
+    assert row["state"] == "unassigned"
