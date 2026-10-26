@@ -88,7 +88,9 @@ async def _handle_media_and_voice(event: Any, sender: Any, sender_name: str) -> 
     if auto_reply_gate is None:
         from src.services.core import auto_reply_gate
 
-    if event.is_private and not event.out and event.message.voice and voice_processor:
+    msg = event.message
+    is_audio = bool(msg.voice or msg.video_note or msg.audio)
+    if event.is_private and not event.out and is_audio and voice_processor:
         from src.handlers.message_handler import process_voice
         await process_voice(
             event, client=client, sender=sender, sender_name=sender_name,
@@ -96,7 +98,7 @@ async def _handle_media_and_voice(event: Any, sender: Any, sender_name: str) -> 
             admin_bot=admin_bot, surgical_integration=surgical_integration,
             auto_reply_gate=auto_reply_gate,
         )
-    if event.is_private and not event.out and (event.message.photo or event.message.document):
+    if event.is_private and not event.out and not is_audio and (msg.photo or msg.document):
         from src.handlers.message_handler import process_media
         await process_media(
             event, client=client, sender_name=sender_name,
