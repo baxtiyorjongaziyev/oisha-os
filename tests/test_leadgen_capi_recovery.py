@@ -22,6 +22,12 @@ class SqlitePool:
         self.conn.commit()
 
 
+@pytest.fixture(autouse=True)
+def _no_lead_assignment(monkeypatch):
+    # Biriktirish o'z testlarida; bu yerda haqiqiy guruhga xabar ketmasin.
+    monkeypatch.setenv("LEAD_ASSIGNMENT_ENABLED", "0")
+
+
 @pytest_asyncio.fixture
 async def isolated(monkeypatch, tmp_path):
     from src.services.core.instagram import leadgen_capi as capi

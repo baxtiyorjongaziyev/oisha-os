@@ -185,7 +185,19 @@ class HunterWriter:
             return WriteResult(False, PENDING, error=error)
         await self._bind(keys, lead_id)
         await log(SENT, lead_id)
+        await self._assign(lead_id, name, candidate.source)
         return WriteResult(True, SENT, lead_id)
+
+    async def _assign(self, lead_id: int, name: str, source: str) -> None:
+        """Yangi bitimni ishdagi sotuvchiga beradi. Xato yozuvni buzmaydi."""
+        if os.getenv("LEAD_ASSIGNMENT_ENABLED", "0") != "1":
+            return
+        try:
+            from src.services.core.leads.assignment import LeadAssigner
+
+            await LeadAssigner(self.amocrm, self.pool).assign_new(lead_id, name, source)
+        except Exception as exc:
+            logger.warning("[HUNTER] lid biriktirilmadi: %s", type(exc).__name__)
 
     async def _known_lead(self, keys: List[str]) -> Optional[int]:
         best = None
