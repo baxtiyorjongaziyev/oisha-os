@@ -170,6 +170,11 @@ Muddat to'g'ri kelmadi · Xizmat bizda yo'q · Keyinga qoldirdi · Dublikat · B
 | 15 | Har qanday ochiq bosqich | 14 kun harakatsiz | Asoschiga xabar + teg `osilgan` |
 
 Jami: **15 / 100**. Zaxira: 85.
+
+**Vazifa qoidasi (bitta ochiq vazifa):** bosqichga kirishda vazifani faqat trigger yaratadi
+(1, 4, 9, 10, 13). Bosqich o'zgarganda oldingi bosqich vazifasi yakunlanadi — qo'lda
+o'tkazishda menejer, Salesbot o'tkazganda bot (6-bo'lim, 9.3-qadam). Salesbot hech qachon
+o'zi vazifa yaratmaydi.
 *Tekshirish kerak:* 2 va 15-triggerdagi «N vaqt bosqich o'zgarmadi» sharti «Расширенный»da
 Salesbot orqali qilinadi (Digital Pipeline'siz triggerlar) — interfeysda tasdiqlash.
 
@@ -184,11 +189,16 @@ Salesbot orqali qilinadi (Digital Pipeline'siz triggerlar) — interfeysda tasdi
 4. **Budjet** (→ «Narxga moslik»): 5 mln gacha · 5–15 mln · 15–40 mln · 40 mln+
 5. **Muddat** (→ «Boshlash vaqti»): Shu oy · 1–3 oy · Hali aniq emas
 6. **Brend / biznes nomi** (erkin matn)
-7. **Telefon:** +998 bilan 12 raqam tekshiruvi; noto'g'ri bo'lsa 1 marta qayta so'rash
-8. **Yakun:** «Rahmat! Menejerimiz 15 daqiqa ichida bog'lanadi.» → bosqich 2. Kvalifikatsiya,
-   «Menejer» bo'sh bo'lsa navbat bo'yicha (round-robin: Mumtozmaxal → Shahnoza → Rayxon) → vazifa.
-   Budjet «40 mln+» → Menejer = Baxtiyorjon.
-9. **Javob bermasa:** 24 soatda 1 eslatma → 72 soatda trigger 8 yopadi.
+7. **Qaror qiluvchi** (→ «Qaror qiluvchi»): [Men o'zim] [Hamkor/rahbar bilan] [Boshqa odam]
+8. **Telefon:** +998 bilan 12 raqam tekshiruvi; noto'g'ri bo'lsa 1 marta qayta so'rash
+9. **Yakun** (tartib muhim — majburiy maydonlar bosqich o'tishidan OLDIN to'ladi):
+   1. «Lead manbasi» = Telegram / Instagram.
+   2. «Menejer» bo'sh bo'lsa navbat bo'yicha (round-robin: Mumtozmaxal → Shahnoza → Rayxon);
+      budjet «40 mln+» → Baxtiyorjon.
+   3. Trigger 1 dagi «Qo'ng'iroq/yozish» vazifasini **yakunlash** (natija: «Bot kvalifikatsiya qildi»).
+   4. Bosqich → 2. Kvalifikatsiya (vazifani trigger 4 yaratadi — bot o'zi vazifa yaratmaydi).
+   5. Mijozga: «Rahmat! Menejerimiz 15 daqiqa ichida bog'lanadi.»
+10. **Javob bermasa:** 24 soatda 1 eslatma → 72 soatda trigger 8 yopadi.
 
 **Saralash qoidasi:** budjet «5 mln gacha» + muddat «Hali aniq emas» → teg `sifat:past`,
 vazifa muddati 1 kun (tezkor emas). Qolganlar — 15 daqiqa.
@@ -277,8 +287,17 @@ statistikasi 4 hafta to'plangach qayta hisoblanadi.
 | Avans → loyiha | Webhook (trigger 14) → Oisha yoki Make → Airtable | qo'lda |
 | Haftalik hisobot, qo'ng'iroq tahlili | Oisha | — |
 
-Qoida: bitta ishni ikki tizim qilmaydi. Oisha o'z kodida status ID ishlatadi — bosqich nomi
-o'zgarsa muammo yo'q, o'chirilsa — buziladi.
+Qoida: bitta ishni ikki tizim qilmaydi. Oisha o'z kodida status ID ishlatadi — ID saqlash
+o'chirishdan himoya qiladi, lekin **bosqich MA'NOSI o'zgarsa Oisha kodini ham yangilash shart**.
+
+**Oisha kodi migratsiyasi (yangi voronkani yoqishdan OLDIN):**
+- `src/services/call_analytics/crm_automation_config.py` → `STAGE_RULES`:
+  - `OUTCOME_PROPOSAL` hozir 88871066 ga (endi «7. Shartnoma») suradi → yangi «6. KP yuborildi» ID siga.
+  - `OUTCOME_PAYMENT` → yangi «8. Avans kutilmoqda» ID siga.
+  - `pipeline_order` ga yangi 2 bosqich (KP, Avans) va «5. Brif olindi» (89380154) qo'shilsin, tartib 3-bo'limdagidek.
+- Yangi status ID lar bosqichlar yaratilgach API'dan olinadi (`/api/v4/leads/pipelines/11162698`).
+- Testlar: har outcome → kutilgan status; KP/Avans bosqichidagi sdelkada `_plan_stage` stage avtomatikasini o'tkazib yubormaydi.
+- CRM write-avtomatikasi migratsiya merge bo'lguncha o'chiq turadi.
 
 **Webhook** (Настройки → API → Webhooks): hodisa «Сделка изменила статус» → URL Oisha.
 Payload `application/x-www-form-urlencoded` — Make/Oisha shu formatni qabul qilishini tekshirish.
