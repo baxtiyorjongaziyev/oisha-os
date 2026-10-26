@@ -93,6 +93,19 @@ def test_production_config_is_consistent():
     assert FieldFillAction(cfg.FIELD_BRAND_NAME, "Acme") in actions
 
 
+def test_new_leads_stage_matches_live_pipeline():
+    from src.services.call_analytics import crm_automation_config as cfg
+    from src.services.core.crm.amocrm_pipeline_config import SALES_NEW_STATUS_ID
+
+    assert cfg.STATUS_YANGI == SALES_NEW_STATUS_ID
+    planner = CrmActionPlanner(cfg.FIELD_MAP, cfg.STAGE_RULES)
+    actions = planner.plan(
+        {"natija": "uchrashuv_kelishildi", "natija_ishonch": 0.9},
+        _lead(status_id=SALES_NEW_STATUS_ID),
+    )
+    assert StageAction(SALES_NEW_STATUS_ID, cfg.STATUS_UCHRASHUV) in actions
+
+
 def test_closed_won_or_lost_lead_is_never_touched():
     from src.services.call_analytics import crm_automation_config as cfg
 
