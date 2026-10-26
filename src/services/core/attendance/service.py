@@ -7,6 +7,7 @@ Barcha vaqt server soatidan olinadi — mijoz yuborgan vaqt faqat GPS yangiligin
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -14,7 +15,9 @@ from typing import Callable
 from zoneinfo import ZoneInfo
 
 from src.services.core.attendance import audit, geofence as gf, qr_tokens as qr, repo, rules
-from src.services.core.attendance.notifier import NullNotifier, ReviewNotifier, format_review
+from src.services.core.attendance.notifier import NullNotifier, ReviewNotifier, format_event, format_review
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SESSION_TTL_S = 300
 _CONFIRM_EXTRA_SQL = ", status = ?, confirmed_at = ?"
@@ -257,9 +260,16 @@ class AttendanceService:
             if "UNIQUE" in str(exc).upper():
                 raise AttendanceError("already_recorded", 409) from None
             raise
+        local = now.astimezone(ZoneInfo(self.shift.timezone)).strftime("%H:%M")
         if status == rules.PENDING_REVIEW:
-            local = now.astimezone(ZoneInfo(self.shift.timezone)).strftime("%H:%M")
             await self.notifier.notify_review(format_review(actor.name, s["kind"], local, review))
+        elif hasattr(self.notifier, "notify_event"):
+            # Har keldi/ketdi haqida owner'ga qisqa xabar (owner, 2026-10-26). Xato davomatni buzmaydi.
+            try:
+                await self.notifier.notify_event(
+                    format_event(actor.name, s["kind"], local, c.minutes_late, c.minutes_early))
+            except Exception:
+                logger.warning("[ATTENDANCE] event notification failed", exc_info=True)
         return {"status": status, "minutes_late": c.minutes_late, "minutes_early": c.minutes_early,
                 "server_ts": now.isoformat(), "work_date": s["work_date"]}
 

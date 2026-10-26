@@ -57,6 +57,12 @@ _SCHEMA = [
 CHECK_IN, CHECK_OUT = "check_in", "check_out"
 
 
+def _default_service(db) -> AttendanceService:
+    from src.services.core.attendance.notifier import default_notifier
+
+    return AttendanceService(db, notifier=default_notifier())
+
+
 def _hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -145,7 +151,7 @@ async def on_location(db, telegram_id: int, latitude: float, longitude: float,
     await db.commit()
     if not in_work_window(now_local):
         return None
-    svc = service or AttendanceService(db)
+    svc = service or _default_service(db)
     day, came, left = await _today_flags(db, svc, actor.employee_id)
     if inside and not came:
         return await _punch(svc, actor, CHECK_IN, day, "telegram_live_location")
@@ -199,7 +205,7 @@ async def on_wifi(db, actor: Actor, event: str, on_office_ip: Optional[bool], *,
     """event: "join" (ofis Wi-Fi'ga ulandi) yoki "leave" (uzildi)."""
     if event not in ("join", "leave") or not in_work_window(now_local):
         return None
-    svc = service or AttendanceService(db)
+    svc = service or _default_service(db)
     day, came, left = await _today_flags(db, svc, actor.employee_id)
     if event == "join":
         if on_office_ip is not True:  # Wi-Fi sozlanmagan yoki ofis IP'si emas — kelish qabul qilinmaydi
