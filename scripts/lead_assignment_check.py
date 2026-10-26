@@ -38,7 +38,15 @@ async def main() -> int:
     except Exception as exc:
         print(f"employees jadvali o'qilmadi: {type(exc).__name__}")
         return 1
-    print("Sotuvchilar (employees):")
+    print(f"Barcha xodimlar ({len(employees)}): " + ", ".join(
+        f"{e['name']}{'' if e['is_active'] else ' (faol emas)'}" for e in employees))
+    try:
+        pend = await db_pool.execute(
+            "SELECT full_name, state FROM attendance_link_requests ORDER BY id DESC LIMIT 20", [])
+        print("Ulanish so'rovlari: " + (", ".join(f"{r['full_name']} [{r['state']}]" for r in pend) or "yo'q"))
+    except Exception as exc:
+        print(f"attendance_link_requests o'qilmadi: {type(exc).__name__}")
+    print("\nSotuvchilar (employees):")
     sellers = [e for e in employees if _matches(e["name"], SELLER_PREFIXES)]
     for prefix in ("mumtoz", "rayxon", "shahnoz"):
         if not any(_matches(e["name"], [prefix, prefix.replace("x", "h")]) for e in sellers):
