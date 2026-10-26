@@ -263,3 +263,55 @@ class LeadAssigner:
                 await self._sql("UPDATE lead_assignments SET reminded=1 WHERE lead_id=?", [lead_id])
                 stats["reminded"] += 1
         return stats
+
+
+async def assignment_enabled(pool: Any) -> bool:
+    """Lid biriktirish yoqilganmi.
+
+    ``LEAD_ASSIGNMENT_ENABLED=1`` — doim yoqiq, ``=0`` — doim o'chiq (favqulodda o'chirgich).
+    Bo'sh yoki ``auto`` — sotuvchilardan biri davomatda kamida bir marta ``check_in``
+    qilgach o'zi yoqiladi (owner, 2026-10-26). Yoqilgan payt owner'ga bir marta xabar ketadi.
+    """
+    import os
+
+    mode = os.getenv("LEAD_ASSIGNMENT_ENABLED", "auto").strip().lower()
+    if mode in ("1", "true", "on"):
+        return True
+    if mode in ("0", "false", "off"):
+        return False
+    try:
+        rows = await pool.execute(
+            """SELECT DISTINCT emp.name FROM attendance_events e
+            JOIN employees emp ON emp.id = e.employee_id
+            WHERE e.kind = 'check_in' AND emp.is_active = 1""",
+            [],
+        )
+    except Exception:  # davomat jadvallari hali yo'q
+        return False
+    sellers = [p for group in ROUTES.values() for g in group for p in g]
+    first = next((str(r["name"]) for r in rows if _matches(str(r["name"]), sellers)), None)
+    if first is None:
+        return False
+    await _announce_auto_enable(pool, first)
+    return True
+
+
+async def _announce_auto_enable(pool: Any, name: str) -> None:
+    await pool.execute(
+        "CREATE TABLE IF NOT EXISTS lead_assignment_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)", [])
+    rows = await pool.execute(
+        """INSERT INTO lead_assignment_meta(key, value) VALUES ('auto_enabled', ?)
+        ON CONFLICT(key) DO NOTHING RETURNING key""",
+        [name],
+    )
+    await pool.commit()
+    if not rows:
+        return  # allaqachon e'lon qilingan
+    try:
+        from src.services.core.attendance.notifier import default_notifier
+
+        await default_notifier().notify_review(
+            f"✅ Lid biriktirish avtomatik yoqildi: {name} davomatda birinchi marta keldi. "
+            "Yangi lidlar endi ishdagi sotuvchiga beriladi.")
+    except Exception:
+        logger.warning("[ASSIGN] yoqilish xabari ketmadi", exc_info=True)
