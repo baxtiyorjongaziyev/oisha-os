@@ -59,6 +59,32 @@ async def _send_period_report(ptype, now, task, *, reporter_factory=None):
         logger.error("[SCHEDULE][%s] Error: %s", ptype.value, exc)
 
 
+async def _send_daily_summary(now, task, *, reporter_factory=None):
+    """amoBot uslubidagi kunlik hisobot, o'zbek tilida."""
+    if _is_job_sent(task, f"crm_daily_summary_{now:%Y-%m-%d}"):
+        return
+    try:
+        reporter = (reporter_factory or _default_period_reporter)()
+        if reporter is None:
+            logger.warning("[SCHEDULE][SUMMARY] no amocrm; skip")
+            return
+        today = now.date()
+        stats = await reporter.fetch_weekly_stats(today, today)
+        group = settings.CRM_SALES_REPORT_GROUP_ID
+        topic = settings.CRM_SALES_REPORT_TOPIC_ID
+        bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
+        if not group or not bot_rt:
+            logger.warning("[SCHEDULE][SUMMARY] group/bot missing; skip")
+            return
+        kw = {"parse_mode": "html", "disable_web_page_preview": True}
+        if topic:
+            kw["message_thread_id"] = topic
+        await bot_rt.send_message(group, reporter.format_daily_summary_uz(stats), **kw)
+        logger.info("[SCHEDULE][SUMMARY] daily summary sent to %s", group)
+    except Exception as exc:
+        logger.error("[SCHEDULE][SUMMARY] Error: %s", exc)
+
+
 async def _check_overdue_and_status(now: datetime, task: Any) -> None:
     today_str = now.strftime("%Y-%m-%d")
     if _is_due(now, 17, 0) and not _is_job_sent(task, f"overdue_nudges_{today_str}"):
@@ -122,6 +148,9 @@ async def _check_daily_reports(now: datetime, task: Any) -> None:
                         await bot_rt.send_message(fin_group, f"📊 <b>KUNLIK HISOBOT</b>\n\n{report}", **kw)
         except Exception as rep_exc:
             logger.error("[SCHEDULE][REPORT] Error: %s", rep_exc)
+
+    if _is_due(now, 19, 0):
+        await _send_daily_summary(now, task)
 
     if _is_due(now, 19, 30):
         await _send_period_report(PeriodType.DAILY, now, task)
