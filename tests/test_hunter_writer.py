@@ -61,6 +61,12 @@ class FakeAmo:
         return {"id": lead_id, "status_id": self.lead_status.get(lead_id, SALES_NEW_STATUS_ID)}
 
 
+@pytest.fixture(autouse=True)
+def _no_lead_assignment(monkeypatch):
+    # Biriktirish o'z testlarida; bu yerda haqiqiy guruhga xabar ketmasin.
+    monkeypatch.setenv("LEAD_ASSIGNMENT_ENABLED", "0")
+
+
 @pytest.fixture
 def setup():
     amo, pool = FakeAmo(), MemPool()
