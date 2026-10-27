@@ -237,3 +237,54 @@ def test_mode_and_settings_endpoints(monkeypatch):
     assert r.status_code == 200 and r.json()["settings"]["informativeness"] == 4
     assert c.put("/api/chat/settings", json={"informativeness": 0}).status_code == 422
     assert "Qat'iy cheklovlar" in c.get("/api/chat/settings").json()["instructions"]
+
+
+# --- Zayavkalar (2-bosqich) --------------------------------------------------
+
+def _seed_requests():
+    a = store.record_message("telegram", "1", "Logo kerak", name="Ali", now=1)
+    b = store.record_message("instagram", "2", "Yomon xizmat", name="Vali", now=2)
+    r1, _ = store.upsert_request(a, "lead", "Mijoz logo so'radi", "+998901234567", now=10)
+    r2, _ = store.upsert_request(b, "complaint", "Mijoz norozi", now=20)
+    r3, _ = store.upsert_request(a, "interested", "Mijoz narx so'radi", now=30)
+    return r1, r2, r3
+
+
+def test_request_filters_and_counts():
+    r1, r2, r3 = _seed_requests()
+    store.set_request_status(r3, "taken")
+    assert [r["id"] for r in store.list_requests()] == [r3, r2, r1]
+    assert [r["id"] for r in store.list_requests(category="lead")] == [r1]
+    assert [r["id"] for r in store.list_requests(status="open")] == [r2, r1]
+    assert [r["id"] for r in store.list_requests(has_phone=True)] == [r1]
+    assert [r["id"] for r in store.list_requests(query="Vali")] == [r2]
+    counts = store.request_counts()
+    assert counts["lead"] == {"total": 1, "open": 1}
+    assert counts["interested"] == {"total": 1, "open": 0}
+    assert counts["suggestion"] == {"total": 0, "open": 0}
+    with pytest.raises(ValueError):
+        store.list_requests(category="spam")
+    with pytest.raises(ValueError):
+        store.set_request_status(r1, "deleted")
+
+
+def test_requests_page_and_api(monkeypatch):
+    r1, _, _ = _seed_requests()
+    c = _client(monkeypatch)
+    c.cookies.set("oisha_token", "x")
+    assert "Ishga olish" in c.get("/api/chat/zayavkalar").text
+    body = c.get("/api/chat/requests?category=lead&contact=yes").json()
+    assert [r["id"] for r in body["requests"]] == [r1]
+    assert body["counts"]["complaint"]["open"] == 1
+    assert c.get("/api/chat/requests?contact=maybe").status_code == 422
+    assert c.get("/api/chat/requests?status=bad").status_code == 422
+    r = c.post(f"/api/chat/requests/{r1}/status", json={"status": "taken"})
+    assert r.status_code == 200 and store.list_requests(category="lead")[0]["status"] == "taken"
+    assert c.post("/api/chat/requests/999/status", json={"status": "done"}).status_code == 404
+    assert c.post(f"/api/chat/requests/{r1}/status", json={"status": "x"}).status_code == 422
+
+
+def test_viewer_cannot_change_request_status(monkeypatch):
+    r1, _, _ = _seed_requests()
+    r = _client(monkeypatch, Role.VIEWER).post(f"/api/chat/requests/{r1}/status", json={"status": "done"})
+    assert r.status_code == 403
