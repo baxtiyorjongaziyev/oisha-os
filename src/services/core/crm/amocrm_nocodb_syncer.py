@@ -27,7 +27,7 @@ logger = logging.getLogger("amocrm_nocodb_syncer")
 DEFAULT_PG_CONFIG = {
     "dbname": os.getenv("JB_PG_DB", "jonbranding_core"),
     "user": os.getenv("JB_PG_USER", "jonbranding"),
-    "password": os.getenv("JB_PG_PASSWORD", "jb_vault_pg_pass_2026_safe"),
+    "password": os.getenv("JB_PG_PASSWORD", ""),
     "host": os.getenv("JB_PG_HOST", "127.0.0.1"),
     "port": int(os.getenv("JB_PG_PORT", "5433")),
 }
