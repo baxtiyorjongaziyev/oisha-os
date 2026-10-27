@@ -43,7 +43,9 @@ def build(days: int = 7, channel: str = "", now: Optional[float] = None) -> Dict
     if channel and channel not in store.CHANNELS:
         raise ValueError(f"unknown channel: {channel}")
     end = now if now is not None else time.time()
-    start = end - days * 86400
+    # Kalendar kunlariga tekislangan: grafikdagi har kun davrga to'liq kiradi.
+    end_day = _local(end).replace(hour=0, minute=0, second=0, microsecond=0)
+    start = (end_day - dt.timedelta(days=days - 1)).timestamp()
     channel_sql = " AND d.channel = ?" if channel else ""
     base = (start, end, channel) if channel else (start, end)
 
@@ -54,17 +56,31 @@ def build(days: int = 7, channel: str = "", now: Optional[float] = None) -> Dict
         "ORDER BY m.dialog_id, m.created_at, m.id",
         base,
     )
-    requests = _rows(
-        "SELECT r.dialog_id, r.category, r.status, r.amocrm_lead_id, r.created_at, d.channel "
-        "FROM chat_requests r JOIN dialogs d ON d.id = r.dialog_id "
-        f"WHERE r.created_at >= ? AND r.created_at <= ?{channel_sql}",  # nosec B608
-        base,
-    )
-
     dialog_ids = {m["dialog_id"] for m in messages}
     incoming = [m for m in messages if m["direction"] == "in"]
+
+    # Voronka va kanallar bitta kogorta bo'yicha: davrda faol dialoglarning
+    # barcha zayavkalari (yaratilgan vaqtidan qat'i nazar).
+    requests: List[Dict[str, Any]] = []
+    history: List[Dict[str, Any]] = []
+    if dialog_ids:
+        marks = ",".join("?" * len(dialog_ids))
+        ids = tuple(sorted(dialog_ids))
+        requests = _rows(
+            "SELECT r.dialog_id, r.category, r.status, r.amocrm_lead_id, r.created_at, d.channel "
+            "FROM chat_requests r JOIN dialogs d ON d.id = r.dialog_id "
+            f"WHERE r.dialog_id IN ({marks})",  # nosec B608 - placeholders only
+            ids,
+        )
+        # Kutish holati va javob tezligi uchun davrdan oldingi tarix ham kerak.
+        history = _rows(
+            "SELECT dialog_id, direction, author, created_at FROM dialog_messages "
+            f"WHERE dialog_id IN ({marks}) AND created_at <= ? "  # nosec B608
+            "ORDER BY dialog_id, created_at, id",
+            ids + (end,),
+        )
     by_dialog: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
-    for m in messages:
+    for m in history:
         by_dialog[m["dialog_id"]].append(m)
 
     # Javob tezligi: mijoz xabaridan keyingi birinchi operator javobigacha.
@@ -77,11 +93,12 @@ def build(days: int = 7, channel: str = "", now: Optional[float] = None) -> Dict
             if m["direction"] == "in":
                 waiting_since = waiting_since or m["created_at"]
             elif m["author"] == "operator":
-                operator_dialogs.add(dialog_id)
-                if waiting_since is not None:
+                if m["created_at"] >= start:
+                    operator_dialogs.add(dialog_id)
+                if waiting_since is not None and m["created_at"] >= start:
                     reply_delays.append(m["created_at"] - waiting_since)
                 waiting_since = None
-            elif m["author"] == "ai_draft":
+            elif m["author"] == "ai_draft" and m["created_at"] >= start:
                 drafted_dialogs.add(dialog_id)
     # AI qoralamasi mijozga ketmaydi — undan keyin ham dialog javob kutmoqda.
     unanswered = set()

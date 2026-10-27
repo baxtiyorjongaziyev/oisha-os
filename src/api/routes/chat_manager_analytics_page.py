@@ -34,8 +34,8 @@ h2{font-size:17px;margin:0 0 2px}.hs{color:var(--muted);font-size:13px;margin:0 
 .cats .row span:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .chart{display:flex;align-items:flex-end;gap:4px;height:160px;padding-top:8px}
 .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:0}
-.colb{width:100%;max-width:28px;background:var(--h2);border-radius:4px 4px 0 0;position:relative}
-.colb i{position:absolute;left:0;right:0;bottom:0;background:var(--h4);border-radius:4px 4px 0 0}
+.col{position:relative}.colb{width:100%;max-width:28px;background:var(--h2);border-radius:4px 4px 0 0}
+.col i{position:absolute;bottom:18px;width:45%;max-width:12px;background:var(--h4);border-radius:3px 3px 0 0}
 .xl{font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:8px;align-items:center}.dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}th{color:var(--muted);font-weight:600;font-size:13px}
@@ -54,16 +54,16 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 6px;
 </div>
 <script>
 const $=id=>document.getElementById(id);
-let days=7,channel='';
+let days=7,channel='',seq=0;
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
 function seg(id,opts,cur,set){const s=$(id);s.replaceChildren();opts.forEach(([v,l])=>{const b=el('button',v===cur?'on':'',l);b.onclick=()=>{set(v);load()};s.append(b)})}
 function kpi(v,l,s){const c=el('div','card');c.append(el('div','kv',v),el('div','kl',l),el('div','ks',s));return c}
 function section(title,hint){const c=el('div','card');c.append(el('h2',null,title),el('p','hs',hint));return c}
 async function load(){seg('days',[[7,'7 kun'],[14,'14 kun'],[30,'30 kun']],days,v=>days=v);
  seg('channel',[['','Barcha kanallar'],['telegram','Telegram'],['instagram','Instagram']],channel,v=>channel=v);
- const r=await fetch('/api/chat/analytics?days='+days+'&channel='+channel,{credentials:'same-origin'});
+ const my=++seq;const r=await fetch('/api/chat/analytics?days='+days+'&channel='+channel,{credentials:'same-origin'});
  if(r.status===401){location.href='/api/auth/telegram/login';return}
- const d=await r.json();const root=$('root');root.replaceChildren();const k=d.kpi;
+ const d=await r.json();if(my!==seq)return;const root=$('root');root.replaceChildren();const k=d.kpi;
  const kp=el('div','kpis');
  kp.append(kpi(k.dialogs,'Dialoglar',d.days+' kun'),kpi(k.interested,'Xarid qilmoqchi',k.interested_pct+'% dialoglardan'),
   kpi(k.leads,'Zayavkalar',k.leads_open+' tasi hali ishlanmagan'),kpi(k.conversion+'%','Konversiya','qiziqqanlardan zayavkaga'),
@@ -81,9 +81,9 @@ async function load(){seg('days',[[7,'7 kun'],[14,'14 kun'],[30,'30 kun']],days,
  d.categories.forEach(c=>{const row=el('div','row');const tr=el('div','track');const f=el('div','fill');f.style.width=(100*c.count/cmax)+'%';tr.append(f);
   row.append(el('span',null,c.title),tr,el('span',null,c.count));cats.append(row)});oc.append(cats);g1.append(fu,oc);root.append(g1);
  const g2=el('div','grid');const dl=section('Kunlar bo\\'yicha','Faol dialoglar va yangi zayavkalar');const ch=el('div','chart');
- const dmax=Math.max(1,...d.daily.map(x=>x.dialogs));const step=Math.ceil(d.daily.length/8);
+ const dmax=Math.max(1,...d.daily.map(x=>Math.max(x.dialogs,x.requests)));const step=Math.ceil(d.daily.length/8);
  d.daily.forEach((x,i)=>{const c=el('div','col');const b=el('div','colb');b.style.height=(100*x.dialogs/dmax)+'%';b.title=x.date+': '+x.dialogs+' dialog, '+x.requests+' zayavka';
-  const inner=el('i');inner.style.height=(x.dialogs?100*Math.min(x.requests,x.dialogs)/x.dialogs:0)+'%';b.append(inner);
+  const inner=el('i');inner.style.height=(100*x.requests/dmax)+'%';c.append(inner);
   c.append(b,el('div','xl',i%step===0?x.date.slice(8)+'.'+x.date.slice(5,7):'\\u00a0'));ch.append(c)});
  const lg=el('div','legend');[['var(--h2)','Dialoglar'],['var(--h4)','Zayavkalar']].forEach(([c,l])=>{const s=el('span');const dt=el('span','dot');dt.style.background=c;s.append(dt,document.createTextNode(l));lg.append(s)});
  dl.append(ch,lg);
