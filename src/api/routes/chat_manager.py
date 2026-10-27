@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -230,7 +230,8 @@ async def change_request_status(
 @router.get("/api/chat/settings")
 async def get_agent_settings(principal: Principal = require_permissions(_READ)):
     data = await asyncio.to_thread(store.get_settings)
-    return {"settings": data, "instructions": build_instructions(data)}
+    knowledge = await asyncio.to_thread(store.list_knowledge)
+    return {"settings": data, "instructions": build_instructions(data, knowledge)}
 
 
 @router.put("/api/chat/settings")
@@ -242,7 +243,97 @@ async def put_agent_settings(
         data = await asyncio.to_thread(store.update_settings, body)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    return {"settings": data, "instructions": build_instructions(data)}
+    knowledge = await asyncio.to_thread(store.list_knowledge)
+    return {"settings": data, "instructions": build_instructions(data, knowledge)}
+
+
+class KnowledgeEntry(BaseModel):
+    title: str = Field(max_length=200)
+    body: str = Field(max_length=4000)
+
+
+class TestTurn(BaseModel):
+    role: str = Field(pattern="^(client|agent)$")
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class TestMessage(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    history: List[TestTurn] = Field(default_factory=list, max_length=20)
+
+
+@router.get("/api/chat/sozlamalar", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    if not request.cookies.get("oisha_token"):
+        return RedirectResponse(url="/api/auth/telegram/login")
+    from src.api.routes.chat_manager_settings_page import PAGE
+
+    return HTMLResponse(PAGE)
+
+
+@router.get("/api/chat/knowledge")
+async def knowledge_list(principal: Principal = require_permissions(_READ)):
+    return {"entries": await asyncio.to_thread(store.list_knowledge)}
+
+
+@router.post("/api/chat/knowledge")
+async def knowledge_add(
+    body: KnowledgeEntry,
+    principal: Principal = require_permissions(Permission.USERS_MANAGE_LIMITED),
+):
+    try:
+        entry_id = await asyncio.to_thread(store.add_knowledge, body.title, body.body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {"ok": True, "id": entry_id}
+
+
+@router.put("/api/chat/knowledge/{entry_id}")
+async def knowledge_update(
+    entry_id: int,
+    body: KnowledgeEntry,
+    principal: Principal = require_permissions(Permission.USERS_MANAGE_LIMITED),
+):
+    try:
+        found = await asyncio.to_thread(store.update_knowledge, entry_id, body.title, body.body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if not found:
+        raise HTTPException(status_code=404, detail="Yozuv topilmadi")
+    return {"ok": True}
+
+
+@router.delete("/api/chat/knowledge/{entry_id}")
+async def knowledge_delete(
+    entry_id: int,
+    principal: Principal = require_permissions(Permission.USERS_MANAGE_LIMITED),
+):
+    if not await asyncio.to_thread(store.delete_knowledge, entry_id):
+        raise HTTPException(status_code=404, detail="Yozuv topilmadi")
+    return {"ok": True}
+
+
+@router.post("/api/chat/test")
+async def test_reply(
+    body: TestMessage,
+    principal: Principal = require_permissions(Permission.LEAD_WRITE),
+):
+    """Joriy sozlamalar bilan namunaviy javob — hech kimga yuborilmaydi."""
+    from src.services.core.chat_manager import responder
+    from src.services.utils.free_ai_router import (
+        AllProvidersUnavailableError,
+        get_free_ai_router,
+    )
+
+    try:
+        history = [
+            {"author": "client" if t.role == "client" else "ai_draft", "text": t.text}
+            for t in body.history
+        ]
+        reply = await responder.draft_reply(get_free_ai_router(), body.message, history)
+    except AllProvidersUnavailableError:
+        raise HTTPException(status_code=503, detail="AI hozir mavjud emas")
+    return {"reply": reply}
 
 
 @router.post("/api/chat/extract")
@@ -309,7 +400,7 @@ form{display:flex;gap:8px}textarea{flex:1;resize:none;border:1px solid var(--lin
 </style></head><body>
 <div class="app" id="app">
 <aside>
- <header><h1>Dialoglar</h1><p class="sub">Telegram va Instagram — bitta joyda · <a href="/api/chat/zayavkalar" style="color:var(--brand)">Zayavkalar →</a></p></header>
+ <header><h1>Dialoglar</h1><p class="sub">Telegram va Instagram — bitta joyda · <a href="/api/chat/zayavkalar" style="color:var(--brand)">Zayavkalar</a> · <a href="/api/chat/analitika" style="color:var(--brand)">Analitika</a> · <a href="/api/chat/sozlamalar" style="color:var(--brand)">Sozlamalar</a></p></header>
  <input class="search" id="q" placeholder="Ism, telefon yoki matn bo'yicha qidirish" autocomplete="off">
  <div class="tabs" id="tabs"></div>
  <div id="list"><p class="empty">Yuklanmoqda…</p></div>

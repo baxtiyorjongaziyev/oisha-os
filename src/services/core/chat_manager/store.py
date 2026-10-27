@@ -114,8 +114,20 @@ def _conn() -> sqlite3.Connection:
             data TEXT NOT NULL,
             updated_at REAL NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS knowledge (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            updated_at REAL NOT NULL
+        );
         """
     )
+    # 1-bosqich bazalarida bu ustun yo'q — bir martalik migratsiya.
+    try:
+        conn.execute("ALTER TABLE dialogs ADD COLUMN followups_sent INTEGER NOT NULL DEFAULT 0")
+    except sqlite3.OperationalError as exc:
+        if "duplicate column" not in str(exc).lower():
+            raise
     return conn
 
 
@@ -160,10 +172,11 @@ def record_message(
                 last_text = excluded.last_text,
                 last_direction = excluded.last_direction,
                 last_at = excluded.last_at,
-                unread = dialogs.unread + ?
+                unread = dialogs.unread + ?,
+                followups_sent = CASE WHEN ? = 1 THEN 0 ELSE dialogs.followups_sent END
             """,
             (channel, str(external_id), name or "", phone or "", text[:300],
-             state_direction, ts, unread_inc, unread_inc),
+             state_direction, ts, unread_inc, unread_inc, unread_inc),
         )
         dialog_id = c.execute(
             "SELECT id FROM dialogs WHERE channel = ? AND external_id = ?",
@@ -415,3 +428,98 @@ def update_settings(changes: Dict[str, Any]) -> Dict[str, Any]:
             (json.dumps(merged, ensure_ascii=False), time.time()),
         )
     return merged
+
+
+# --- Bilimlar bazasi ---------------------------------------------------------
+
+KNOWLEDGE_LIMIT = 200
+_KNOWLEDGE_BODY_MAX = 4000
+
+
+def _clean_knowledge(title: str, body: str) -> tuple[str, str]:
+    title, body = (title or "").strip(), (body or "").strip()
+    if not title or len(title) > 200:
+        raise ValueError("title must be 1-200 chars")
+    if not body or len(body) > _KNOWLEDGE_BODY_MAX:
+        raise ValueError(f"body must be 1-{_KNOWLEDGE_BODY_MAX} chars")
+    return title, body
+
+
+def list_knowledge() -> List[Dict[str, Any]]:
+    with _conn() as c:
+        rows = c.execute("SELECT * FROM knowledge ORDER BY title COLLATE NOCASE").fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_knowledge(title: str, body: str) -> int:
+    title, body = _clean_knowledge(title, body)
+    with _conn() as c:
+        if c.execute("SELECT COUNT(*) FROM knowledge").fetchone()[0] >= KNOWLEDGE_LIMIT:
+            raise ValueError(f"knowledge base is limited to {KNOWLEDGE_LIMIT} entries")
+        cur = c.execute(
+            "INSERT INTO knowledge (title, body, updated_at) VALUES (?, ?, ?)",
+            (title, body, time.time()),
+        )
+        return int(cur.lastrowid)
+
+
+def update_knowledge(entry_id: int, title: str, body: str) -> bool:
+    title, body = _clean_knowledge(title, body)
+    with _conn() as c:
+        cur = c.execute(
+            "UPDATE knowledge SET title = ?, body = ?, updated_at = ? WHERE id = ?",
+            (title, body, time.time(), entry_id),
+        )
+        return cur.rowcount > 0
+
+
+def delete_knowledge(entry_id: int) -> bool:
+    with _conn() as c:
+        return c.execute("DELETE FROM knowledge WHERE id = ?", (entry_id,)).rowcount > 0
+
+
+# --- Proaktiv eslatmalar (faqat qoralama) ------------------------------------
+
+MAX_FOLLOWUPS = 2
+
+
+def dialogs_needing_followup(idle_sec: float = 86400, now: Optional[float] = None,
+                             limit: int = 20) -> List[Dict[str, Any]]:
+    """Operator javob bergan, keyin mijoz `idle_sec` jim qolgan AI-rejim dialoglari."""
+    ts = now if now is not None else time.time()
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT * FROM dialogs WHERE mode = 'ai' AND last_direction = 'out' "
+            "AND followups_sent < ? AND last_at <= ? ORDER BY last_at LIMIT ?",
+            (MAX_FOLLOWUPS, ts - idle_sec, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def save_followup_draft(dialog_id: int, expected_last_at: float, text: str,
+                        now: Optional[float] = None) -> bool:
+    """Eslatma qoralamasini saqlaydi va kvotani shu tranzaksiyada sarflaydi.
+
+    Generatsiya paytida mijoz yozgan, operator olgan yoki boshqa xabar kelgan
+    bo'lsa (`last_at` o'zgargan) — hech narsa yozilmaydi va False qaytadi.
+    """
+    text = (text or "").strip()
+    if not text:
+        return False
+    ts = now if now is not None else time.time()
+    with _conn() as c:
+        cur = c.execute(
+            "UPDATE dialogs SET followups_sent = followups_sent + 1, last_text = ?, "
+            "last_direction = 'in', last_at = ? "
+            "WHERE id = ? AND mode = 'ai' AND last_direction = 'out' "
+            "AND last_at = ? AND followups_sent < ?",
+            (text[:300], ts, dialog_id, expected_last_at, MAX_FOLLOWUPS),
+        )
+        if cur.rowcount == 0:
+            return False
+        c.execute(
+            "INSERT INTO dialog_messages (dialog_id, direction, author, text, created_at) "
+            "VALUES (?, 'out', 'ai_draft', ?, ?)",
+            (dialog_id, text[:4000], ts),
+        )
+    return True
