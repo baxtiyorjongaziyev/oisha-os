@@ -73,12 +73,9 @@ async def run_followups(router: Any, idle_sec: float = 86400) -> int:
         except AllProvidersUnavailableError as exc:
             logger.warning("[chat-manager] follow-up: AI mavjud emas: %s", exc)
             break
-        await asyncio.to_thread(store.mark_followup, dialog["id"])
-        if not text:
-            continue
-        await asyncio.to_thread(
-            store.record_message, dialog["channel"], dialog["external_id"], text,
-            direction="out", author="ai_draft",
-        )
-        made += 1
+        # Bo'sh javob kvotani sarflamaydi; dialog o'zgargan bo'lsa saqlanmaydi.
+        if await asyncio.to_thread(
+            store.save_followup_draft, dialog["id"], dialog["last_at"], text
+        ):
+            made += 1
     return made

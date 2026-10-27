@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -252,8 +252,14 @@ class KnowledgeEntry(BaseModel):
     body: str = Field(max_length=4000)
 
 
+class TestTurn(BaseModel):
+    role: str = Field(pattern="^(client|agent)$")
+    text: str = Field(min_length=1, max_length=2000)
+
+
 class TestMessage(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
+    history: List[TestTurn] = Field(default_factory=list, max_length=20)
 
 
 @router.get("/api/chat/sozlamalar", response_class=HTMLResponse)
@@ -320,7 +326,11 @@ async def test_reply(
     )
 
     try:
-        reply = await responder.draft_reply(get_free_ai_router(), body.message)
+        history = [
+            {"author": "client" if t.role == "client" else "ai_draft", "text": t.text}
+            for t in body.history
+        ]
+        reply = await responder.draft_reply(get_free_ai_router(), body.message, history)
     except AllProvidersUnavailableError:
         raise HTTPException(status_code=503, detail="AI hozir mavjud emas")
     return {"reply": reply}

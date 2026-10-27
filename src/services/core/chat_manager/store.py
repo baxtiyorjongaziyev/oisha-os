@@ -496,8 +496,30 @@ def dialogs_needing_followup(idle_sec: float = 86400, now: Optional[float] = Non
     return [dict(r) for r in rows]
 
 
-def mark_followup(dialog_id: int) -> None:
+def save_followup_draft(dialog_id: int, expected_last_at: float, text: str,
+                        now: Optional[float] = None) -> bool:
+    """Eslatma qoralamasini saqlaydi va kvotani shu tranzaksiyada sarflaydi.
+
+    Generatsiya paytida mijoz yozgan, operator olgan yoki boshqa xabar kelgan
+    bo'lsa (`last_at` o'zgargan) — hech narsa yozilmaydi va False qaytadi.
+    """
+    text = (text or "").strip()
+    if not text:
+        return False
+    ts = now if now is not None else time.time()
     with _conn() as c:
-        c.execute(
-            "UPDATE dialogs SET followups_sent = followups_sent + 1 WHERE id = ?", (dialog_id,)
+        cur = c.execute(
+            "UPDATE dialogs SET followups_sent = followups_sent + 1, last_text = ?, "
+            "last_direction = 'in', last_at = ? "
+            "WHERE id = ? AND mode = 'ai' AND last_direction = 'out' "
+            "AND last_at = ? AND followups_sent < ?",
+            (text[:300], ts, dialog_id, expected_last_at, MAX_FOLLOWUPS),
         )
+        if cur.rowcount == 0:
+            return False
+        c.execute(
+            "INSERT INTO dialog_messages (dialog_id, direction, author, text, created_at) "
+            "VALUES (?, 'out', 'ai_draft', ?, ?)",
+            (dialog_id, text[:4000], ts),
+        )
+    return True

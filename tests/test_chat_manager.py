@@ -445,11 +445,21 @@ def test_settings_page_knowledge_and_test_api(monkeypatch):
     assert c.post("/api/chat/knowledge", json={"title": " ", "body": "b"}).status_code == 422
     assert c.delete(f"/api/chat/knowledge/{entry_id}").status_code == 200
 
-    async def fake_draft(router, message):
+    seen = {}
+
+    async def fake_draft(router, message, history):
+        seen["history"] = history
         return "Javob: " + message
 
     monkeypatch.setattr(responder, "draft_reply", fake_draft)
     assert c.post("/api/chat/test", json={"message": "Salom"}).json() == {"reply": "Javob: Salom"}
+    r = c.post("/api/chat/test", json={"message": "Logo", "history": [
+        {"role": "client", "text": "Salom"}, {"role": "agent", "text": "Nima kerak?"}]})
+    assert r.status_code == 200
+    assert seen["history"] == [{"author": "client", "text": "Salom"},
+                               {"author": "ai_draft", "text": "Nima kerak?"}]
+    assert c.post("/api/chat/test", json={"message": "x", "history": [
+        {"role": "boss", "text": "y"}]}).status_code == 422
 
 
 def test_viewer_cannot_edit_knowledge_or_test(monkeypatch):
@@ -509,3 +519,43 @@ def test_analytics_page_ignores_stale_responses_and_scales_requests():
     from src.api.routes.chat_manager_analytics_page import PAGE
     assert "if(my!==seq)return;" in PAGE
     assert "Math.min(x.requests,x.dialogs)" not in PAGE
+
+
+def _followup_dialog():
+    import time
+    old = time.time() - 2 * 86400
+    did = store.record_message("telegram", "8", "Narx?", now=old - 60)
+    store.record_message("telegram", "8", "3 mln", direction="out", author="operator", now=old)
+    store.update_settings({"follow_ups": True})
+    return did
+
+
+def test_empty_followup_reply_keeps_quota():
+    """Codex #974: bo'sh AI javobi eslatma kvotasini sarflamaydi."""
+    from src.services.core.chat_manager import responder
+    did = _followup_dialog()
+    for _ in range(3):
+        assert asyncio.run(responder.run_followups(FakeRouter("   "))) == 0
+    assert store.get_dialog(did)["followups_sent"] == 0
+    assert asyncio.run(responder.run_followups(FakeRouter("Eslatma"))) == 1
+
+
+def test_followup_dropped_when_dialog_changes_during_generation():
+    """Codex #974: generatsiya paytida mijoz yozsa yoki operator olsa — saqlanmaydi."""
+    from src.services.core.chat_manager import responder
+    did = _followup_dialog()
+
+    class ClientWritesRouter:
+        async def generate_text(self, prompt, **kwargs):
+            store.record_message("telegram", "8", "Yangi savol")
+            return SimpleNamespace(text="Jim qoldingiz")
+
+    assert asyncio.run(responder.run_followups(ClientWritesRouter())) == 0
+    assert [m["text"] for m in store.get_messages(did)][-1] == "Yangi savol"
+    assert store.get_dialog(did)["followups_sent"] == 0
+
+    did2 = store.record_message("instagram", "9", "Narx?", now=1)
+    store.record_message("instagram", "9", "Javob", direction="out", author="operator", now=2)
+    last_at = store.get_dialog(did2)["last_at"]
+    store.set_mode(did2, "operator")
+    assert store.save_followup_draft(did2, last_at, "Eslatma") is False

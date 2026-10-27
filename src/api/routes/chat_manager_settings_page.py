@@ -79,7 +79,7 @@ pre{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);borde
 const $=id=>document.getElementById(id);
 const BOOL=['follow_ups','video_analysis','auto_reply'],NUM=['messages_per_reply','pause_before_reply_sec','pause_between_messages_sec','informativeness','reply_length'],
  TXT=['language','agent_type','sales_goal','offer_rules','qualification','handoff','tone'];
-let saved={};
+let saved={},testLog=[];
 function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2500)}
 async function api(path,method='GET',body){const r=await fetch(path,{method,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
  if(r.status===401){location.href='/api/auth/telegram/login';throw 0}
@@ -99,13 +99,15 @@ $('saveBtn').onclick=async()=>{const ch=collect();if(!Object.keys(ch).length){to
 function kbItem(e){const box=el('div','kb');const row=el('div','row');const t=el('input');t.type='text';t.value=e.title||'';t.placeholder='Sarlavha, masalan: Logo narxlari';t.maxLength=200;
  const save=el('button','btn ghost','Saqlash');const del=el('button','btn del','O\\'chirish');row.append(t,save,del);
  const b=el('textarea');b.value=e.body||'';b.placeholder='Faktlar: narx, muddat, shartlar…';b.maxLength=4000;box.append(row,b);
- save.onclick=async()=>{try{if(e.id)await api('/api/chat/knowledge/'+e.id,'PUT',{title:t.value,body:b.value});else await api('/api/chat/knowledge','POST',{title:t.value,body:b.value});toast('Saqlandi ✓');loadKb()}catch(_){}};
- del.onclick=async()=>{if(!e.id){box.remove();return}if(!confirm('Yozuv o\\'chirilsinmi?'))return;try{await api('/api/chat/knowledge/'+e.id,'DELETE');loadKb()}catch(_){}};return box}
+ save.onclick=async()=>{try{if(e.id)await api('/api/chat/knowledge/'+e.id,'PUT',{title:t.value,body:b.value});
+  else e.id=(await api('/api/chat/knowledge','POST',{title:t.value,body:b.value})).id;toast('Saqlandi ✓');refreshInstr()}catch(_){}};
+ del.onclick=async()=>{if(!e.id){box.remove();return}if(!confirm('Yozuv o\\'chirilsinmi?'))return;try{await api('/api/chat/knowledge/'+e.id,'DELETE');box.remove();refreshInstr()}catch(_){}};return box}
+// Faqat instruksiya yangilanadi: boshqa yozuvlardagi saqlanmagan tahrirlar joyida qoladi.
+async function refreshInstr(){try{$('instr').textContent=(await api('/api/chat/settings')).instructions}catch(_){}}
 $('kbAdd').onclick=()=>{const it=kbItem({});$('kbList').append(it);it.querySelector('input').focus()};
 $('testForm').onsubmit=async ev=>{ev.preventDefault();const msg=$('testMsg').value.trim();if(!msg)return;const chat=$('chat');chat.append(el('div','m in',msg));$('testMsg').value='';
- $('testBtn').disabled=true;const wait=el('div','m out','…');chat.append(wait);try{const d=await api('/api/chat/test','POST',{message:msg});wait.textContent=d.reply||'(bo\\'sh javob)'}catch(_){wait.remove()}finally{$('testBtn').disabled=false}};
-async function loadKb(){const [s,k]=await Promise.all([api('/api/chat/settings'),api('/api/chat/knowledge')]);
- $('instr').textContent=s.instructions;renderKb(k)}
+ $('testBtn').disabled=true;const wait=el('div','m out','…');chat.append(wait);try{const d=await api('/api/chat/test','POST',{message:msg,history:testLog.slice(-20)});wait.textContent=d.reply||'(bo\\'sh javob)';
+  testLog.push({role:'client',text:msg});if(d.reply)testLog.push({role:'agent',text:d.reply})}catch(_){wait.remove()}finally{$('testBtn').disabled=false}};
 async function loadAll(){const [s,k]=await Promise.all([api('/api/chat/settings'),api('/api/chat/knowledge')]);fill(s);renderKb(k)}
 function renderKb(k){const list=$('kbList');list.replaceChildren();if(!k.entries.length)list.append(el('p','hint','Hozircha bo\\'sh. Narx va xizmatlarni qo\\'shing — aks holda agent narx so\\'ralganda menejerga beradi.'));
  k.entries.forEach(e=>list.append(kbItem(e)))}
