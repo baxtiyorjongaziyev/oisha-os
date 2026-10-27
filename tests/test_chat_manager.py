@@ -351,3 +351,123 @@ def test_analytics_api_and_page(monkeypatch):
     assert c.get("/api/chat/analytics?days=30").json()["days"] == 30
     assert c.get("/api/chat/analytics?days=3").status_code == 422
     assert _client(monkeypatch, None).get("/api/chat/analytics").status_code == 401
+
+
+# --- Sozlamalar, bilimlar bazasi, eslatmalar (4-bosqich) ---------------------
+
+def test_knowledge_crud_and_validation():
+    a = store.add_knowledge("Logo narxlari", "Logo paketi 3 mln so'mdan")
+    store.add_knowledge("Ish vaqti", "Du-Ju 9:00-19:00")
+    assert [e["title"] for e in store.list_knowledge()] == ["Ish vaqti", "Logo narxlari"]
+    assert store.update_knowledge(a, "Logo narxlari", "4 mln") is True
+    assert store.update_knowledge(999, "x", "y") is False
+    assert store.delete_knowledge(a) is True and store.delete_knowledge(a) is False
+    for title, body in (("", "x"), ("x", ""), ("x" * 201, "y")):
+        with pytest.raises(ValueError):
+            store.add_knowledge(title, body)
+
+
+def test_instructions_include_knowledge_or_handoff_note():
+    settings = store.get_settings()
+    assert "Bilimlar bazasi bo'sh" in build_instructions(settings, [])
+    text = build_instructions(settings, [{"title": "Narx", "body": "Logo 3 mln"}])
+    assert "## Narx\nLogo 3 mln" in text and all(r in text for r in GUARDRAILS)
+
+
+def test_draft_reply_uses_settings_knowledge_and_history():
+    from src.services.core.chat_manager import responder
+    store.add_knowledge("Narx", "Logo 3 mln so'm")
+    store.update_settings({"reply_length": 1})
+    router = FakeRouter("Logo 3 mln so'mdan boshlanadi.")
+    captured = {}
+
+    async def generate_text(prompt, **kwargs):
+        captured.update(kwargs, prompt=prompt)
+        return SimpleNamespace(text="  Logo 3 mln so'mdan boshlanadi. ")
+
+    router.generate_text = generate_text
+    history = [{"author": "client", "text": "Salom"}, {"author": "operator", "text": "Assalomu alaykum"}]
+    reply = asyncio.run(responder.draft_reply(router, "Logo narxi?", history))
+    assert reply == "Logo 3 mln so'mdan boshlanadi."
+    assert "Logo 3 mln so'm" in captured["system"] and captured["max_tokens"] == 120
+    assert captured["prompt"].endswith("Mijoz: Logo narxi?\nAgent:")
+    assert "Agent: Assalomu alaykum" in captured["prompt"]
+
+
+def test_followups_only_when_enabled_and_capped():
+    import time
+    from src.services.core.chat_manager import responder
+    old = time.time() - 2 * 86400
+    did = store.record_message("telegram", "8", "Narx?", now=old - 60)
+    store.record_message("telegram", "8", "3 mln", direction="out", author="operator", now=old)
+    router = FakeRouter("Kecha narx so'ragandingiz — buyurtma beramizmi?")
+    assert asyncio.run(responder.run_followups(router)) == 0  # o'chiq
+
+    store.update_settings({"follow_ups": True})
+    assert asyncio.run(responder.run_followups(router)) == 1
+    last = store.get_messages(did)[-1]
+    assert last["author"] == "ai_draft" and last["direction"] == "out"
+    # Qoralama yuborilmagan — dialog javob kutmoqda, qayta eslatma yo'q.
+    assert asyncio.run(responder.run_followups(router)) == 0
+
+    # Operator yubordi, mijoz yana jim — ikkinchi eslatma; uchinchisi yo'q.
+    store.record_message("telegram", "8", "Eslatma", direction="out", author="operator", now=old + 1)
+    assert asyncio.run(responder.run_followups(router)) == 1
+    store.record_message("telegram", "8", "Eslatma 2", direction="out", author="operator", now=old + 2)
+    assert asyncio.run(responder.run_followups(router)) == 0
+    # Mijoz javob bersa hisob nolga tushadi.
+    store.record_message("telegram", "8", "Rahmat", now=old + 3)
+    assert store.get_dialog(did)["followups_sent"] == 0
+
+
+def test_followups_skip_operator_mode():
+    import time
+    from src.services.core.chat_manager import responder
+    old = time.time() - 2 * 86400
+    did = store.record_message("telegram", "8", "Narx?", now=old - 60)
+    store.record_message("telegram", "8", "3 mln", direction="out", author="operator", now=old)
+    store.set_mode(did, "operator")
+    store.update_settings({"follow_ups": True})
+    assert asyncio.run(responder.run_followups(FakeRouter("x"))) == 0
+
+
+def test_settings_page_knowledge_and_test_api(monkeypatch):
+    from src.services.core.chat_manager import responder
+    c = _client(monkeypatch)
+    c.cookies.set("oisha_token", "x")
+    assert "Bilimlar bazasi" in c.get("/api/chat/sozlamalar").text
+    r = c.post("/api/chat/knowledge", json={"title": "Narx", "body": "Logo 3 mln"})
+    entry_id = r.json()["id"]
+    assert c.get("/api/chat/knowledge").json()["entries"][0]["title"] == "Narx"
+    assert "Logo 3 mln" in c.get("/api/chat/settings").json()["instructions"]
+    assert c.put(f"/api/chat/knowledge/{entry_id}", json={"title": "Narx", "body": "4 mln"}).status_code == 200
+    assert c.put("/api/chat/knowledge/999", json={"title": "a", "body": "b"}).status_code == 404
+    assert c.post("/api/chat/knowledge", json={"title": " ", "body": "b"}).status_code == 422
+    assert c.delete(f"/api/chat/knowledge/{entry_id}").status_code == 200
+
+    async def fake_draft(router, message):
+        return "Javob: " + message
+
+    monkeypatch.setattr(responder, "draft_reply", fake_draft)
+    assert c.post("/api/chat/test", json={"message": "Salom"}).json() == {"reply": "Javob: Salom"}
+
+
+def test_viewer_cannot_edit_knowledge_or_test(monkeypatch):
+    c = _client(monkeypatch, Role.VIEWER)
+    assert c.post("/api/chat/knowledge", json={"title": "a", "body": "b"}).status_code == 403
+    assert c.post("/api/chat/test", json={"message": "x"}).status_code == 403
+
+
+def test_old_database_gets_followups_column(tmp_path, monkeypatch):
+    import sqlite3
+    path = tmp_path / "old.db"
+    with sqlite3.connect(path) as c:
+        c.execute("CREATE TABLE dialogs (id INTEGER PRIMARY KEY AUTOINCREMENT, channel TEXT NOT NULL, "
+                  "external_id TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', "
+                  "mode TEXT NOT NULL DEFAULT 'ai', starred INTEGER NOT NULL DEFAULT 0, "
+                  "unread INTEGER NOT NULL DEFAULT 0, last_text TEXT NOT NULL DEFAULT '', "
+                  "last_direction TEXT NOT NULL DEFAULT 'in', last_at REAL NOT NULL, "
+                  "extracted_at REAL NOT NULL DEFAULT 0, UNIQUE(channel, external_id))")
+    monkeypatch.setenv("OISHA_CHAT_DB_PATH", str(path))
+    did = store.record_message("telegram", "1", "Salom")
+    assert store.get_dialog(did)["followups_sent"] == 0

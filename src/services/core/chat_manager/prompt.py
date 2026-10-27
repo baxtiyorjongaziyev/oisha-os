@@ -1,11 +1,12 @@
-"""Agent sozlamalaridan javob yozuvchi uchun instruksiya matni.
+"""Agent sozlamalari va bilimlar bazasidan javob yozuvchi uchun instruksiya.
 
 Cheklovlar (GUARDRAILS) sozlamalardan qat'i nazar har doim qo'shiladi —
-docs/reveo-clone-spec.md 2-bo'lim.
+docs/reveo-clone-spec.md 2-bo'lim. Agent faqat bilimlar bazasidagi faktlarga
+tayanadi; u yerda yo'q narsani menejerga beradi.
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Iterable, Optional
 
 GUARDRAILS = (
     "Katalogda yoki bilimlar bazasida yo'q narxni aytma — menejerga ber.",
@@ -20,9 +21,11 @@ _AGENT_TYPES = {
     "sales": "faol sotuvchi: har javobda keyingi qadamni taklif qiladi",
     "support": "maslahatchi: avval savolga to'liq javob beradi",
 }
+_KNOWLEDGE_CHARS = 12000
 
 
-def build_instructions(settings: Dict[str, Any]) -> str:
+def build_instructions(settings: Dict[str, Any],
+                       knowledge: Optional[Iterable[Dict[str, Any]]] = None) -> str:
     language = _LANGUAGES.get(settings.get("language"), "o'zbek")
     lines = [
         f"Asosiy til: {language}; mijoz boshqa tilda yozsa, o'sha tilda javob ber.",
@@ -39,4 +42,16 @@ def build_instructions(settings: Dict[str, Any]) -> str:
         "Qat'iy cheklovlar:",
         *(f"- {rule}" for rule in GUARDRAILS),
     ]
+    entries = list(knowledge or [])
+    if entries:
+        lines.append("Bilimlar bazasi (faqat shu faktlarga tayan):")
+        used = 0
+        for entry in entries:
+            block = f"## {entry['title']}\n{entry['body']}"
+            if used + len(block) > _KNOWLEDGE_CHARS:
+                break
+            lines.append(block)
+            used += len(block)
+    else:
+        lines.append("Bilimlar bazasi bo'sh: narx va shartlar bo'yicha har doim menejerga ber.")
     return "\n".join(lines)
