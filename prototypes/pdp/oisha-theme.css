@@ -1,0 +1,64 @@
+/* Oisha ERP ranglari — PDP DS tokenlari ustidan (pdp-components.css dan KEYIN ulanadi).
+   Nisbat: Oq 60% (fon, kartalar) · Qora 30% (matn, rail, asosiy tugma) · Ko'k 10% (aksent).
+   Signal ranglar (success / warning / error) PDP'dan o'zgarishsiz qoladi — faqat holat uchun.
+   Ranglar faqat shu faylda; sahifalarda faqat var(--eco-*) ishlatiladi. */
+
+:root {
+  --oisha-white: #FFFFFF;
+  --oisha-black: #111111;
+  --oisha-blue: #1D4ED8;
+  --oisha-blue-600: #1E40AF;
+  --oisha-blue-300: #93B4F8;
+  --oisha-blue-100: #DCE7FD;
+  --oisha-blue-50: #EFF4FE;
+}
+
+html[data-brand][data-theme="light"] {
+  /* Oq — 60% */
+  --eco-bg-primary: var(--oisha-white);
+  --eco-bg-secondary: #F7F7F8;
+  --eco-color-surface: #F7F7F8;
+
+  /* Qora — 30% */
+  --eco-color-black: var(--oisha-black);
+  --eco-bg-primary-solid: var(--oisha-black);
+  --eco-rail-bg: var(--oisha-black);
+  --eco-rail-ink: var(--oisha-white);
+  --eco-brand-button: var(--oisha-black);
+  --eco-bg-brand-solid: var(--oisha-black);
+  --eco-text-primary_on-brand: var(--oisha-white);
+  --eco-badge-solid-bg: var(--oisha-black);
+
+  /* Ko'k — 10% (aksent: tanlangan, havola, fokus, grafik) */
+  --eco-color-lime: var(--oisha-blue);
+  --eco-color-malachite: var(--oisha-blue);
+  --eco-color-malachite-button: var(--oisha-blue);
+  --eco-color-brand-tint: var(--oisha-blue-50);
+  --eco-brand-primary: var(--oisha-blue);
+  --eco-brand-accent: var(--oisha-blue);
+  --eco-brand-button-accent: var(--oisha-blue);
+  --eco-brand-button-secondary-fg: var(--oisha-blue-600);
+  --eco-bg-brand-primary: var(--oisha-blue-50);
+  --eco-bg-brand-secondary: var(--oisha-blue-100);
+  --eco-border-brand: var(--oisha-blue);
+  --eco-fg-brand-primary: var(--oisha-blue);
+  --eco-fg-brand-secondary: var(--oisha-blue);
+  --eco-text-brand-primary: var(--oisha-blue-600);
+  --eco-text-brand-secondary: var(--oisha-blue-600);
+  --eco-text-brand-tertiary: var(--oisha-blue);
+  --eco-focus-ring: var(--oisha-blue);
+  --eco-rail-sel-ink: var(--oisha-blue-300);
+  --eco-tab-brand-bg: var(--oisha-blue);
+  --eco-tab-accent-bg: var(--oisha-blue);
+  --eco-slider-fill: var(--oisha-blue);
+  --eco-chart-1: var(--oisha-blue);
+  --eco-erp-chart-accent: var(--oisha-blue-300);
+  --eco-erp-chart-green: var(--oisha-blue);
+  --eco-avatar-solid-bg: var(--oisha-blue);
+  --eco-avatar-tint-ink: var(--oisha-blue-600);
+
+  /* Signal (success) brend yashilidan ajratiladi — o'z yashil shkalasida qoladi */
+  --eco-bg-success-solid: #02A307;
+  --eco-fg-success-primary: #02A307;
+  --eco-fg-success-secondary: #02A307;
+}

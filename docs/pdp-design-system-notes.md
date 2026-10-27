@@ -87,3 +87,16 @@ Yakunlangan, Qoralama, Nofaol, Arxiv → neutral. Bitta ustunda `.eco-status` va
 
 `prototypes/pdp/erp-direktor.html` — "Direktor paneli" (S3 rail shell + overview), PDP'ning `page-shell-live.md`
 retseptidan, matnlar Oisha'ga moslangan, raqamlar demo. Grafik va menyular ishlaydi; ikonkalar CORS sababli ko'rinmaydi.
+
+## Oisha ERP ranglari (egasi tasdiqlagan, 2026-10-27)
+
+| Rang | Ulush | Qayerda |
+|---|---|---|
+| Oq `#FFFFFF` | 60% | fon, kartalar, panel |
+| Qora `#111111` | 30% | matn, rail, asosiy (primary) tugma |
+| Ko'k `#1D4ED8` | 10% | aksent: tanlangan menyu, havola, fokus, grafik chizig'i |
+| Signal | qolgani | faqat holat: success (yashil), warning (sariq), error (qizil) — PDP'dan o'zgarishsiz |
+
+Amalga oshirish: `prototypes/pdp/oisha-theme.css` — PDP `--eco-*` tokenlarini ustidan yozadi,
+`pdp-components.css` dan **keyin** ulanadi. Yangi rang kerak bo'lsa — faqat shu faylga, sahifalarda HEX yozilmaydi.
+Ko'k bezak emas: bir ekranda ko'k elementlar 10% dan oshmasin; yashil faqat "yaxshi holat" ma'nosida.
