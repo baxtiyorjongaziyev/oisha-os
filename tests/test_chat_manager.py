@@ -471,3 +471,41 @@ def test_old_database_gets_followups_column(tmp_path, monkeypatch):
     monkeypatch.setenv("OISHA_CHAT_DB_PATH", str(path))
     did = store.record_message("telegram", "1", "Salom")
     assert store.get_dialog(did)["followups_sent"] == 0
+
+
+def test_analytics_days_aligned_and_cohort_requests():
+    """Codex #973: kalendar kunlari, kogorta zayavkalari, davr chegarasidagi kutish."""
+    from src.services.core.chat_manager import analytics
+    now = _ts(2026, 10, 27, 12)
+    # 21-oktabr 01:00 — 7 kunlik davrning birinchi kuni, grafikda ko'rinishi kerak.
+    a = store.record_message("telegram", "1", "Salom", now=_ts(2026, 10, 21, 1))
+    # Eski lid, lekin dialog davrda faol — voronkada lid sifatida qoladi.
+    b = store.record_message("telegram", "2", "Eski", now=_ts(2026, 10, 1, 10))
+    store.upsert_request(b, "lead", "Eski lid", "+998901234567", now=_ts(2026, 10, 1, 11))
+    store.record_message("telegram", "2", "Yana yozdim", now=_ts(2026, 10, 26, 10))
+    # Davrdan tashqaridagi dialogning zayavkasi davr ichida yaratilgan — hisoblanmaydi.
+    c = store.record_message("instagram", "3", "Narx?", now=_ts(2026, 10, 20, 23))
+    store.upsert_request(c, "interested", "Narx", now=_ts(2026, 10, 21, 0, 5))
+    # Mijoz davrdan oldin yozgan, operator davr ichida javob bergan.
+    e = store.record_message("telegram", "4", "Logo?", now=_ts(2026, 10, 20, 22))
+    store.record_message("telegram", "4", "Ha", direction="out", author="operator",
+                         now=_ts(2026, 10, 21, 0, 30))
+    # Mijoz davrdan oldin yozgan, davr ichida faqat AI qoralama — hali kutmoqda.
+    f = store.record_message("instagram", "5", "Salom", now=_ts(2026, 10, 20, 21))
+    store.record_message("instagram", "5", "Qoralama", direction="out", author="ai_draft",
+                         now=_ts(2026, 10, 21, 2))
+
+    d = analytics.build(7, now=now)
+    assert d["daily"][0]["date"] == "2026-10-21" and d["daily"][0]["dialogs"] == 3
+    assert d["kpi"]["dialogs"] == 4  # a, b, e, f
+    assert d["funnel"][2]["count"] == 1 and d["kpi"]["leads"] == 1
+    assert all(s["of_previous"] <= 100 for s in d["funnel"])
+    assert d["outcomes"]["unanswered"] == 3  # a, b, f
+    assert d["outcomes"]["avg_reply_min"] == 150.0
+    assert {ch["channel"]: ch["dialogs"] for ch in d["channels"]} == {"telegram": 3, "instagram": 1}
+
+
+def test_analytics_page_ignores_stale_responses_and_scales_requests():
+    from src.api.routes.chat_manager_analytics_page import PAGE
+    assert "if(my!==seq)return;" in PAGE
+    assert "Math.min(x.requests,x.dialogs)" not in PAGE
