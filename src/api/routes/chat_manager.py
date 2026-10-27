@@ -149,10 +149,59 @@ async def send_message(
     return {"ok": True}
 
 
+class RequestStatusChange(BaseModel):
+    status: str
+
+
+_HAS_PHONE = {"": None, "yes": True, "no": False}
+
+
+@router.get("/api/chat/zayavkalar", response_class=HTMLResponse)
+async def requests_page(request: Request):
+    if not request.cookies.get("oisha_token"):
+        return RedirectResponse(url="/api/auth/telegram/login")
+    from src.api.routes.chat_manager_requests_page import PAGE
+
+    return HTMLResponse(PAGE)
+
+
 @router.get("/api/chat/requests")
-async def requests_list(principal: Principal = require_permissions(_READ)):
-    items = await asyncio.to_thread(store.list_requests)
-    return {"requests": items, "categories": store.REQUEST_CATEGORIES}
+async def requests_list(
+    category: str = "",
+    status: str = "",
+    contact: str = "",
+    q: str = "",
+    principal: Principal = require_permissions(_READ),
+):
+    if contact not in _HAS_PHONE:
+        raise HTTPException(status_code=422, detail="Noma'lum kontakt filtri")
+    try:
+        items = await asyncio.to_thread(
+            store.list_requests,
+            category=category, status=status, has_phone=_HAS_PHONE[contact], query=q,
+        )
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Noma'lum filtr")
+    counts = await asyncio.to_thread(store.request_counts)
+    return {
+        "requests": items,
+        "counts": counts,
+        "categories": store.REQUEST_CATEGORIES,
+        "statuses": {"open": "Ochiq", "taken": "Ishda", "done": "Yopildi"},
+    }
+
+
+@router.post("/api/chat/requests/{request_id}/status")
+async def change_request_status(
+    request_id: int,
+    body: RequestStatusChange,
+    principal: Principal = require_permissions(Permission.LEAD_WRITE),
+):
+    if body.status not in store.REQUEST_STATUSES:
+        raise HTTPException(status_code=422, detail="Noma'lum holat")
+    if not await asyncio.to_thread(store.set_request_status, request_id, body.status):
+        raise HTTPException(status_code=404, detail="Zayavka topilmadi")
+    return {"ok": True, "status": body.status}
 
 
 @router.get("/api/chat/settings")
@@ -237,7 +286,7 @@ form{display:flex;gap:8px}textarea{flex:1;resize:none;border:1px solid var(--lin
 </style></head><body>
 <div class="app" id="app">
 <aside>
- <header><h1>Dialoglar</h1><p class="sub">Telegram va Instagram — bitta joyda</p></header>
+ <header><h1>Dialoglar</h1><p class="sub">Telegram va Instagram — bitta joyda · <a href="/api/chat/zayavkalar" style="color:var(--brand)">Zayavkalar →</a></p></header>
  <input class="search" id="q" placeholder="Ism, telefon yoki matn bo'yicha qidirish" autocomplete="off">
  <div class="tabs" id="tabs"></div>
  <div id="list"><p class="empty">Yuklanmoqda…</p></div>
@@ -293,5 +342,6 @@ function render(d){const x=d.dialog,main=$('main');main.replaceChildren();
  f.append(ta,sb);bottom.append(modes,f);main.append(bottom);msgs.scrollTop=msgs.scrollHeight}
 let qt;$('q').oninput=()=>{clearTimeout(qt);qt=setTimeout(()=>loadList().catch(()=>{}),300)};
 loadList().catch(()=>{});
+const startId=Number(new URLSearchParams(location.search).get('d'));if(startId)openDialog(startId).catch(()=>{});
 timer=setInterval(()=>{loadList().catch(()=>{});if(current&&!document.querySelector('textarea:focus'))api('/api/chat/dialogs/'+current).then(render).catch(()=>{})},15000);
 </script></body></html>"""

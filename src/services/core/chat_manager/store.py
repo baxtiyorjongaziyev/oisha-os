@@ -310,18 +310,73 @@ def set_request_lead(request_id: int, lead_id: int) -> None:
         )
 
 
-def list_requests(dialog_id: Optional[int] = None) -> List[Dict[str, Any]]:
+def list_requests(
+    dialog_id: Optional[int] = None,
+    *,
+    category: str = "",
+    status: str = "",
+    has_phone: Optional[bool] = None,
+    query: str = "",
+    limit: int = 300,
+) -> List[Dict[str, Any]]:
+    if category and category not in REQUEST_CATEGORIES:
+        raise ValueError(f"unknown category: {category}")
+    if status and status not in REQUEST_STATUSES:
+        raise ValueError(f"unknown status: {status}")
+    where: List[str] = []
+    params: List[Any] = []
+    if dialog_id is not None:
+        where.append("r.dialog_id = ?")
+        params.append(dialog_id)
+    if category:
+        where.append("r.category = ?")
+        params.append(category)
+    if status:
+        where.append("r.status = ?")
+        params.append(status)
+    if has_phone is True:
+        where.append("r.phone != ''")
+    elif has_phone is False:
+        where.append("r.phone = ''")
+    if query.strip():
+        where.append("(d.name LIKE ? OR r.summary LIKE ? OR r.phone LIKE ?)")
+        like = f"%{query.strip()}%"
+        params += [like, like, like]
     sql = (
-        "SELECT r.*, d.name, d.channel FROM chat_requests r "
+        "SELECT r.*, d.name, d.channel, d.external_id FROM chat_requests r "
         "JOIN dialogs d ON d.id = r.dialog_id"
     )
-    params: tuple = ()
-    if dialog_id is not None:
-        sql += " WHERE r.dialog_id = ?"
-        params = (dialog_id,)
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    params.append(max(1, min(limit, 1000)))
     with _conn() as c:
-        rows = c.execute(sql + " ORDER BY r.created_at DESC", params).fetchall()
+        rows = c.execute(sql + " ORDER BY r.created_at DESC LIMIT ?", params).fetchall()
     return [dict(r) for r in rows]
+
+
+def request_counts() -> Dict[str, Dict[str, int]]:
+    """Kategoriya bo'yicha {total, open} — Zayavkalar kartalari uchun."""
+    counts = {key: {"total": 0, "open": 0} for key in REQUEST_CATEGORIES}
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT category, COUNT(*) AS total, "
+            "SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) AS open_count "
+            "FROM chat_requests GROUP BY category"
+        ).fetchall()
+    for row in rows:
+        if row["category"] in counts:
+            counts[row["category"]] = {"total": row["total"], "open": row["open_count"] or 0}
+    return counts
+
+
+def set_request_status(request_id: int, status: str) -> bool:
+    if status not in REQUEST_STATUSES:
+        raise ValueError(f"unknown status: {status}")
+    with _conn() as c:
+        cur = c.execute(
+            "UPDATE chat_requests SET status = ? WHERE id = ?", (status, request_id)
+        )
+        return cur.rowcount > 0
 
 
 def get_settings() -> Dict[str, Any]:
