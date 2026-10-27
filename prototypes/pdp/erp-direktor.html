@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="uz" data-brand="ecosystem" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oisha ERP — PDP DS prototip</title>
+  <!-- PDP Design System @0.15.105 (pinned). CSS/JS repoga ko'chirilmaydi — design.pdp.uz/llms.txt qoidasi. -->
+  <link rel="stylesheet" href="https://design.pdp.uz/ds/fonts/fonts.css">
+  <link rel="stylesheet" href="https://design.pdp.uz/ds/tokens/ecosystem.css">
+  <link rel="stylesheet" href="https://design.pdp.uz/ds/css/v0.15.105/pdp-base.css">
+  <link rel="stylesheet" href="https://design.pdp.uz/ds/css/v0.15.105/pdp-components.css">
+  <script defer src="https://design.pdp.uz/ds/css/v0.15.105/pdp-components.js"></script>
+  <!-- PDP-DS: missing icons — pdp-icons.svg boshqa domendan <use> bilan ishlamaydi (CORS yo'q);
+       productionda spriteni o'z serverimizdan inline qiling. -->
+</head>
+<body>
+<!-- Asos: https://design.pdp.uz/ds/ai/r/page-shell-live.md (S3 rail shell + Direktor paneli overview), matnlar Oisha uchun almashtirilgan; raqamlar demo. -->
+<div class="eco-shell eco-shell--deep eco-shell--rail">
+  <nav class="eco-shell__rail" aria-label="Bo‘limlar">
+    <button type="button" class="eco-rail-item" data-rail="bosh" data-title="Home" aria-current="true">
+      <span class="eco-rail-item__ic"><svg aria-hidden="true"><use href="#i-house"/></svg></span>
+      Home
+    </button>
+    <button type="button" class="eco-rail-item" data-rail="pul" data-title="Pul">
+      <span class="eco-rail-item__ic"><svg aria-hidden="true"><use href="#i-coins"/></svg></span>
+      Pul
+    </button>
+    <span class="eco-shell__rail-gap" aria-hidden="true"></span>
+    <div class="eco-shell__rail-foot">
+      <button type="button" class="eco-btn eco-btn--on-inverse eco-btn--icon" aria-label="Bu sahifa haqida" title="Bu sahifa haqida">
+        <svg aria-hidden="true"><use href="#i-circle-help"/></svg>
+      </button>
+      <div class="eco-dropdown">
+        <button type="button" class="eco-btn eco-btn--on-inverse eco-btn--icon eco-shell__bell" aria-haspopup="menu" aria-controls="dp-rbell" aria-expanded="false" aria-label="Bildirishnomalar: 9 ta yangi" title="Bildirishnomalar">
+          <svg aria-hidden="true"><use href="#i-bell"/></svg>
+          <span class="eco-shell__dot" aria-hidden="true">9</span>
+        </button>
+        <div class="eco-menu" id="dp-rbell" role="menu" aria-label="Bildirishnomalar" hidden>
+          <div class="eco-menu__label">Bildirishnomalar</div>
+          <button type="button" class="eco-menu__item" role="menuitem" tabindex="-1">
+            <svg aria-hidden="true"><use href="#i-list-checks"/></svg>
+            <span class="eco-menu__body">
+              <span class="eco-menu__title">Tasdiq kutilmoqda: 3 ta to‘lov</span>
+              <span class="eco-menu__desc">Chiquvchi to‘lovlar · 09:12</span>
+            </span>
+          </button>
+          <button type="button" class="eco-menu__item" role="menuitem" tabindex="-1">
+            <svg aria-hidden="true"><use href="#i-upload"/></svg>
+            <span class="eco-menu__body">
+              <span class="eco-menu__title">Ko‘chirma yuklandi: 18 ta operatsiya</span>
+              <span class="eco-menu__desc">Naming · •••• 1746 · 08:40</span>
+            </span>
+          </button>
+          <button type="button" class="eco-menu__item" role="menuitem" tabindex="-1">
+            <svg aria-hidden="true"><use href="#i-triangle-alert"/></svg>
+            <span class="eco-menu__body">
+              <span class="eco-menu__title">Muddati o‘tdi: soliq hisoboti</span>
+              <span class="eco-menu__desc">29.09.2026</span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- …8 more similar items -->
+  </nav>
+  <nav class="eco-shell__side" aria-label="ERP menyusi">
+    <div class="eco-dropdown eco-shell__org">
+      <button type="button" class="eco-switcher" aria-haspopup="menu" aria-controls="dp-org" aria-expanded="false" aria-label="Korxona: Jon Branding — Barcha korxonalar" title="Korxona">
+        <span class="eco-shell__logo eco-shell__logo--mark">
+          <svg aria-hidden="true"><use href="#mark-ecosystem"/></svg>
+        </span>
+        <span class="eco-shell__label"><b>Jon Branding</b><small>Oisha-OS</small></span>
+        <svg class="eco-shell__chev" aria-hidden="true"><use href="#i-chevrons-up-down"/></svg>
+      </button>
+      <div class="eco-menu eco-menu--lg" id="dp-org" role="menu" aria-label="Korxona" hidden>
+        <div class="eco-menu__label">Korxona</div>
+        <button type="button" class="eco-menu__item" role="menuitemradio" aria-checked="true" tabindex="-1" data-mark="ecosystem" data-sub="Barcha korxonalar">
+          <span class="eco-shell__logo eco-shell__logo--mark" aria-hidden="true">
+            <svg aria-hidden="true"><use href="#mark-ecosystem"/></svg>
+          </span>
+          <span class="eco-menu__body">
+            <span class="eco-menu__title">Jon Branding</span>
+            <span class="eco-menu__desc">Barcha korxonalar</span>
+          </span>
+          <svg class="eco-menu__check" aria-hidden="true"><use href="#i-check-bold"/></svg>
+        </button>
+        <button type="button" class="eco-menu__item" role="menuitemradio" aria-checked="false" tabindex="-1" data-mark="academy" data-sub="Korxona">
+          <span class="eco-shell__logo eco-shell__logo--mark" aria-hidden="true">
+            <svg aria-hidden="true"><use href="#mark-academy"/></svg>
+          </span>
+          <span class="eco-menu__body"><span class="eco-menu__title">Brending</span></span>
+          <svg class="eco-menu__check" aria-hidden="true"><use href="#i-check-bold"/></svg>
+        </button>
+        <button type="button" class="eco-menu__item" role="menuitemradio" aria-checked="false" tabindex="-1" data-mark="junior" data-sub="Korxona">
+          <span class="eco-shell__logo eco-shell__logo--mark" aria-hidden="true">
+            <svg aria-hidden="true"><use href="#mark-junior"/></svg>
+          </span>
+          <span class="eco-menu__body"><span class="eco-menu__title">Packaging</span></span>
+          <svg class="eco-menu__check" aria-hidden="true"><use href="#i-check-bold"/></svg>
+        </button>
+        <!-- …2 more similar items -->
+      </div>
+    </div>
+    <label class="eco-search eco-search--menu eco-shell__search" title="Bo‘lim qidirish (Ctrl K)">
+      <svg aria-hidden="true"><use href="#i-search"/></svg>
+      <input class="eco-shell__label" type="search" placeholder="Bo‘lim qidirish" aria-label="Menyudan qidirish" data-eco-shell-filter autocomplete="off">
+      <kbd class="eco-kbd" aria-hidden="true">Ctrl K</kbd>
+    </label>
+    <p class="eco-shell__title">Home</p>
+    <div class="eco-shell__nav" data-rail="bosh">
+      <a class="eco-nav-item" href="#" aria-current="page" title="Direktor paneli">
+        <svg aria-hidden="true"><use href="#i-gauge-fill"/></svg>
+        <span class="eco-nav-item__label">Direktor paneli</span>
+      </a>
+      <a class="eco-nav-item" href="#" title="Haftalik hisobot">
+        <svg aria-hidden="true"><use href="#i-chart-line"/></svg>
+        <span class="eco-nav-item__label">Haftalik hisobot</span>
+      </a>
+      <a class="eco-nav-item" href="#" title="Tasdiqlar navbati">
+        <svg aria-hidden="true"><use href="#i-list-checks"/></svg>
+        <span class="eco-nav-item__label">Tasdiqlar navbati</span>
+        <b class="eco-nav-item__count">15</b>
+      </a>
+      <div data-eco-shell-fav>
+        <p class="eco-shell__group">Sevimlilar</p>
+        <a class="eco-nav-item" href="#" title="Bank operatsiyalari">
+          <svg aria-hidden="true"><use href="#i-bank"/></svg>
+          <span class="eco-nav-item__label">Bank operatsiyalari</span>
+          <b class="eco-nav-item__count">11</b>
+        </a>
+        <a class="eco-nav-item" href="#" title="Xodimlar ro‘yxati">
+          <svg aria-hidden="true"><use href="#i-users"/></svg>
+          <span class="eco-nav-item__label">Xodimlar ro‘yxati</span>
+        </a>
+        <a class="eco-nav-item" href="#" title="Qarzdorlik">
+          <svg aria-hidden="true"><use href="#i-hand-coins"/></svg>
+          <span class="eco-nav-item__label">Qarzdorlik</span>
+        </a>
+        <!-- repeat per item: 1 more a.eco-nav-item like the ones above on the live demo -->
+      </div>
+      <p class="eco-shell__group">Bo‘limlar</p>
+      <div class="eco-shell__section">
+        <button type="button" class="eco-nav-item eco-shell__toggle" aria-expanded="false" title="Pul">
+          <svg aria-hidden="true"><use href="#i-coins"/></svg>
+          <span class="eco-nav-item__label">Pul</span>
+          <svg class="eco-nav-item__chev" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+        </button>
+        <div class="eco-shell__sub" role="group" aria-label="Pul">
+          <a class="eco-nav-item eco-nav-item--sub" href="#">
+            <svg aria-hidden="true"><use href="#i-upload"/></svg>
+            <span class="eco-nav-item__label">Ko‘chirma yuklash</span>
+          </a>
+          <a class="eco-nav-item eco-nav-item--sub" href="#">
+            <svg aria-hidden="true"><use href="#i-bank"/></svg>
+            <span class="eco-nav-item__label">Bank operatsiyalari</span>
+            <b class="eco-nav-item__count">11</b>
+          </a>
+          <a class="eco-nav-item eco-nav-item--sub" href="#">
+            <svg aria-hidden="true"><use href="#i-circle-help"/></svg>
+            <span class="eco-nav-item__label">Aniqlanmagan tushumlar</span>
+          </a>
+          <!-- …13 more similar items -->
+        </div>
+      </div>
+      <div class="eco-shell__section">
+        <button type="button" class="eco-nav-item eco-shell__toggle" aria-expanded="false" title="Shartnomalar va qarz">
+          <svg aria-hidden="true"><use href="#i-file-text"/></svg>
+          <span class="eco-nav-item__label">Shartnomalar va qarz</span>
+          <svg class="eco-nav-item__chev" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+        </button>
+        <div class="eco-shell__sub" role="group" aria-label="Shartnomalar va qarz">
+          <a class="eco-nav-item eco-nav-item--sub" href="#">
+            <svg aria-hidden="true"><use href="#i-file-text"/></svg>
+            <span class="eco-nav-item__label">Shartnomalar ro‘yxati</span>
+          </a>
+          <a class="eco-nav-item eco-nav-item--sub" href="#">
+            <svg aria-hidden="true"><use href="#i-gift"/></svg>
+            <span class="eco-nav-item__label">Grantlar</span>
+          </a>
+          <!-- …5 more similar items -->
+        </div>
+      </div>
+      <div class="eco-shell__section">
+        <button type="button" class="eco-nav-item eco-shell__toggle" aria-expanded="false" title="Bosh daftar">
+          <svg aria-hidden="true"><use href="#i-book-open"/></svg>
+          <span class="eco-nav-item__label">Bosh daftar</span>
+          <svg class="eco-nav-item__chev" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+        </button>
+        <div class="eco-shell__sub" role="group" aria-label="Bosh daftar">
+          <a class="eco-nav-item eco-nav-item--sub" href="#">
+            <svg aria-hidden="true"><use href="#i-notepad-text"/></svg>
+            <span class="eco-nav-item__label">Yozuvlar jurnali</span>
+          </a>
+          <a class="eco-nav-item eco-nav-item--sub" href="#">
+            <svg aria-hidden="true"><use href="#i-scale"/></svg>
+            <span class="eco-nav-item__label">Aylanma-saldo vedomosti</span>
+          </a>
+          <!-- …6 more similar items -->
+        </div>
+      </div>
+      <p class="eco-shell__group">Boshqaruv</p>
+      <p class="eco-shell__none" hidden>Bunday bo‘lim yo‘q</p>
+      <!-- …6 more similar items -->
+      <!-- repeat per item: 2 more a.eco-nav-item like the ones above on the live demo -->
+    </div>
+    <div class="eco-dropdown eco-shell__me">
+      <button type="button" class="eco-shell__user" aria-haspopup="menu" aria-controls="dp-me" aria-expanded="false" title="Baxtiyorjon Gaziyev">
+        <span class="eco-avatar eco-avatar--hue-1" aria-hidden="true">BG</span>
+        <span class="eco-shell__label"><b>Baxtiyorjon Gaziyev</b><small>Direktor</small></span>
+        <svg class="eco-shell__chev" aria-hidden="true"><use href="#i-chevrons-up-down"/></svg>
+      </button>
+      <div class="eco-menu" id="dp-me" role="menu" aria-label="Profil" hidden>
+        <div class="eco-menu__label">Rol (namuna)</div>
+        <button type="button" class="eco-menu__item" role="menuitemradio" aria-checked="true" tabindex="-1">
+          <span class="eco-menu__body"><span class="eco-menu__title">Direktor</span></span>
+          <svg class="eco-menu__check" aria-hidden="true"><use href="#i-check-bold"/></svg>
+        </button>
+        <button type="button" class="eco-menu__item" role="menuitemradio" aria-checked="false" tabindex="-1">
+          <span class="eco-menu__body"><span class="eco-menu__title">Bosh buxgalter</span></span>
+          <svg class="eco-menu__check" aria-hidden="true"><use href="#i-check-bold"/></svg>
+        </button>
+        <div class="eco-menu__sep" role="separator"></div>
+        <button type="button" class="eco-menu__item" role="menuitem" tabindex="-1">
+          <svg aria-hidden="true"><use href="#i-user"/></svg>
+          <span class="eco-menu__body"><span class="eco-menu__title">Profil</span></span>
+        </button>
+        <!-- …2 more similar items -->
+        <!-- repeat per item: 1 more button.eco-menu__item like the ones above on the live demo -->
+      </div>
+    </div>
+  </nav>
+  <div class="eco-shell__main">
+    <header class="eco-shell__head">
+      <button type="button" class="eco-btn eco-btn--ghost eco-btn--icon eco-btn--sm" data-eco-shell-toggle aria-expanded="true" aria-label="Panelni yig‘ish (Ctrl B)">
+        <svg aria-hidden="true"><use href="#i-panel-left"/></svg>
+      </button>
+      <nav class="eco-shell__crumb" aria-label="Yo‘l">
+        <span>Bosh bandlar</span>
+        <span aria-hidden="true">/</span>
+        <b>Direktor paneli</b>
+        <span aria-hidden="true" hidden>/</span>
+        <b class="eco-shell__crumb-doc" hidden></b>
+      </nav>
+      <span class="eco-shell__spacer"></span>
+      <div class="eco-dropdown eco-dropdown--end" hidden>
+        <button type="button" class="eco-stat" aria-haspopup="menu" aria-controls="dp-fcb" aria-expanded="false">
+          <span class="eco-stat__body">
+            <small class="eco-stat__label">Erkin pul qoldig‘i</small>
+            <b class="eco-stat__value">1 609 545 194<small>so‘m</small></b>
+          </span>
+          <span class="eco-stat__trend">+3,9 %</span>
+        </button>
+        <div class="eco-menu" id="dp-fcb" role="menu" aria-label="Erkin pul qoldig‘i" hidden>
+          <div class="eco-menu__label">06.10.2026 · 09:15 · IFRS emas</div>
+          <div class="eco-menu__item" role="menuitem" tabindex="-1" aria-disabled="false">
+            <span class="eco-menu__body"><span class="eco-menu__title">Bank hisoblari</span></span>
+            <span class="eco-menu__end eco-menu__end--num">1 702 418 040</span>
+          </div>
+          <div class="eco-menu__item" role="menuitem" tabindex="-1" aria-disabled="false">
+            <span class="eco-menu__body"><span class="eco-menu__title">Kassa</span></span>
+            <span class="eco-menu__end eco-menu__end--num">48 207 154</span>
+          </div>
+          <div class="eco-menu__item" role="menuitem" tabindex="-1" aria-disabled="false">
+            <span class="eco-menu__body"><span class="eco-menu__title">Cheklangan pul</span></span>
+            <span class="eco-menu__end eco-menu__end--num">−141 080 000</span>
+          </div>
+          <div class="eco-menu__sep" role="separator"></div>
+          <a class="eco-menu__item" role="menuitem" tabindex="-1" href="#">
+            <svg aria-hidden="true"><use href="#i-chart-line"/></svg>
+            <span class="eco-menu__body"><span class="eco-menu__title">Pul rejasi</span></span>
+            <svg aria-hidden="true"><use href="#i-arrow-up-right"/></svg>
+          </a>
+        </div>
+      </div>
+    </header>
+    <div class="eco-overview">
+      <header class="eco-overview__head">
+        <div class="eco-overview__heading">
+          <h4 class="eco-overview__title">Xayrli tong, Baxtiyorjon</h4>
+          <p class="eco-overview__sub">Dushanba, 6-oktabr · ma’lumot 09:15 holatiga</p>
+        </div>
+        <div class="eco-overview__acts">
+          <button type="button" class="eco-btn eco-btn--tertiary eco-btn--sm">
+            <svg aria-hidden="true"><use href="#i-sliders-horizontal"/></svg>
+            Panelni sozlash
+          </button>
+          <button type="button" class="eco-btn eco-btn--secondary eco-btn--sm">
+            <svg aria-hidden="true"><use href="#i-chart-line"/></svg>
+            Haftalik hisobot
+          </button>
+        </div>
+      </header>
+      <div class="eco-overview__grid">
+        <div class="eco-overview__card eco-overview__hero" role="region" aria-label="Erkin pul qoldig‘i">
+          <div class="eco-overview__chead">
+            <h5 class="eco-overview__ctitle">Erkin pul qoldig‘i</h5>
+            <span class="eco-overview__meta">06.10.2026 · 09:15</span>
+          </div>
+          <div class="eco-overview__herobody">
+            <div class="eco-overview__lead">
+              <p class="eco-overview__big">1 609 545 194<small>so‘m</small></p>
+              <p class="eco-overview__line">
+                <span class="eco-badge eco-badge--trend eco-badge--sm eco-badge--success">
+                  <svg aria-hidden="true"><use href="#i-trending-up"/></svg>
+                  +3,9 %
+                </span>
+                30 kunda
+              </p>
+            </div>
+            <dl class="eco-overview__parts">
+              <div><dt>Bank hisoblari</dt><dd title="1 702 418 040 so‘m">1,70 mlrd</dd></div>
+              <div><dt>Kassa</dt><dd title="48 207 154 so‘m">48,2 mln</dd></div>
+              <div><dt>Cheklangan pul</dt><dd class="is-neg" title="−141 080 000 so‘m">−141 mln</dd></div>
+            </dl>
+          </div>
+          <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;line&quot;,&quot;label&quot;:&quot;Erkin pul qoldig‘i, 30 kun: 1549 dan 1609,5 mln so‘mgacha; eng past — Ish haqi · 25.09, 1520 mln&quot;,&quot;x&quot;:[&quot;07.09&quot;,&quot;08.09&quot;,&quot;09.09&quot;,&quot;10.09&quot;,&quot;11.09&quot;,&quot;12.09&quot;,&quot;13.09&quot;,&quot;14.09&quot;,&quot;15.09&quot;,&quot;16.09&quot;,&quot;17.09&quot;,&quot;18.09&quot;,&quot;19.09&quot;,&quot;20.09&quot;,&quot;21.09&quot;,&quot;22.09&quot;,&quot;23.09&quot;,&quot;24.09&quot;,&quot;25.09&quot;,&quot;26.09&quot;,&quot;27.09&quot;,&quot;28.09&quot;,&quot;29.09&quot;,&quot;30.09&quot;,&quot;01.10&quot;,&quot;02.10&quot;,&quot;03.10&quot;,&quot;04.10&quot;,&quot;05.10&quot;,&quot;06.10&quot;],&quot;series&quot;:[{&quot;name&quot;:&quot;Qoldiq&quot;,&quot;v&quot;:[1549,1561,1574,1566,1588,1603,1597,1612,1630,1641,1636,1652,1668,1659,1675,1688,1694,1702,1520,1534,1547,1541,1559,1572,1566,1581,1590,1584,1601,1609.5]}],&quot;unit&quot;:&quot;mln so‘m&quot;,&quot;dp&quot;:1,&quot;xName&quot;:&quot;Sana&quot;,&quot;parts&quot;:[[&quot;1&quot;,0,15,&quot;07.09–22.09&quot;],[&quot;2&quot;,15,26,&quot;22.09–03.10 · so‘nggi 2 hafta&quot;],[&quot;3&quot;,26,29,&quot;03.10–06.10 · sof oqim davri&quot;]],&quot;note&quot;:{&quot;i&quot;:18,&quot;text&quot;:&quot;Ish haqi · 25.09 · −182 mln&quot;}}"></div>
+        </div>
+        <div class="eco-overview__card eco-overview__inbox" role="region" aria-label="E’tibor talab qiladi">
+          <div class="eco-overview__chead"><h5 class="eco-overview__ctitle">E’tibor talab qiladi</h5></div>
+          <p class="eco-overview__group">Tasdiqlar<span>15</span></p>
+          <ul class="eco-overview__list" role="list">
+            <li class="eco-overview__item">
+              <span class="eco-overview__ic"><svg aria-hidden="true"><use href="#i-coins"/></svg></span>
+              <span class="eco-overview__txt">
+                <b title="Chiquvchi to‘lov: Server va hosting">Chiquvchi to‘lov: Server va hosting</b>
+                <small>
+                  <span class="eco-overview__code">TS-2026-0024</span>
+                  ·
+                  <span class="eco-overview__who">
+                    <svg class="eco-overview__mark" aria-hidden="true"><use href="#mark-academy"/></svg>
+                    Brending
+                  </span>
+                  · 05.10
+                </small>
+              </span>
+              <span class="eco-overview__amt" title="87 000 000 so‘m">87 mln</span>
+              <button type="button" class="eco-btn eco-btn--secondary eco-btn--icon eco-btn--xs" aria-label="Tasdiqlash: Chiquvchi to‘lov TS-2026-0024">
+                <svg aria-hidden="true"><use href="#i-check"/></svg>
+              </button>
+            </li>
+            <li class="eco-overview__item">
+              <span class="eco-overview__ic"><svg aria-hidden="true"><use href="#i-coins"/></svg></span>
+              <span class="eco-overview__txt">
+                <b title="Ijara to‘lovi: Chilonzor binosi">Ijara to‘lovi: Chilonzor binosi</b>
+                <small>
+                  <span class="eco-overview__code">TS-2026-0027</span>
+                  ·
+                  <span class="eco-overview__who">
+                    <svg class="eco-overview__mark" aria-hidden="true"><use href="#mark-school"/></svg>
+                    Naming
+                  </span>
+                  · 03.10
+                </small>
+              </span>
+              <span class="eco-overview__amt" title="18 800 000 so‘m">18,8 mln</span>
+              <button type="button" class="eco-btn eco-btn--secondary eco-btn--icon eco-btn--xs" aria-label="Tasdiqlash: Ijara to‘lovi TS-2026-0027">
+                <svg aria-hidden="true"><use href="#i-check"/></svg>
+              </button>
+            </li>
+            <li class="eco-overview__item">
+              <span class="eco-overview__ic"><svg aria-hidden="true"><use href="#i-file-text"/></svg></span>
+              <span class="eco-overview__txt">
+                <b title="Xodim arizasi: Mehnat ta’tili · 14 kun">Xodim arizasi: Mehnat ta’tili · 14 kun</b>
+                <small>
+                  <span class="eco-overview__code">XA-2026-0011</span>
+                  ·
+                  <span class="eco-overview__who">
+                    <svg class="eco-overview__mark" aria-hidden="true"><use href="#mark-junior"/></svg>
+                    Packaging
+                  </span>
+                  · 29.09
+                </small>
+              </span>
+              <span class="eco-overview__amt"></span>
+              <button type="button" class="eco-btn eco-btn--secondary eco-btn--icon eco-btn--xs" aria-label="Tasdiqlash: Xodim arizasi XA-2026-0011">
+                <svg aria-hidden="true"><use href="#i-check"/></svg>
+              </button>
+            </li>
+          </ul>
+          <p class="eco-overview__group">Bank nazorati<span>5</span></p>
+          <ul class="eco-overview__list" role="list">
+            <li class="eco-overview__item">
+              <span class="eco-overview__ic"><svg aria-hidden="true"><use href="#i-upload"/></svg></span>
+              <span class="eco-overview__txt">
+                <b>11 ta operatsiya tasniflanmagan</b>
+                <small title="320 300 000 so‘m">Bank operatsiyalari · 320 mln so‘m</small>
+              </span>
+              <span class="eco-overview__amt"></span>
+              <a class="eco-btn eco-btn--secondary eco-btn--xs" href="#">Ochish</a>
+            </li>
+            <li class="eco-overview__item">
+              <span class="eco-overview__ic"><svg aria-hidden="true"><use href="#i-triangle-alert"/></svg></span>
+              <span class="eco-overview__txt">
+                <b title="Shaxsiy kartaga «ish haqi» deb 4 marta o‘tkazma">Shaxsiy kartaga «ish haqi» deb 4 marta o‘tkazma</b>
+                <small>
+                  <span class="eco-status eco-status--error eco-status--muted eco-status--sm">Yuqori</span>
+                  · Brending
+                </small>
+              </span>
+              <span class="eco-overview__amt"></span>
+              <button type="button" class="eco-btn eco-btn--secondary eco-btn--xs">Ko‘rish</button>
+            </li>
+          </ul>
+          <div class="eco-overview__foot">
+            <button type="button" class="eco-btn eco-btn--ink eco-btn--sm">
+              <svg aria-hidden="true"><use href="#i-list-checks"/></svg>
+              Tasdiqlar navbati · 15
+            </button>
+          </div>
+        </div>
+        <div class="eco-overview__kpis" role="region" aria-label="Asosiy ko‘rsatkichlar">
+          <div class="eco-kpi eco-overview__kpi">
+            <p class="eco-kpi__label eco-overview__klabel">Pul uzilishi</p>
+            <p class="eco-kpi__value eco-overview__kval">01.12.2026</p>
+            <p class="eco-kpi__line">
+              <span class="eco-status eco-status--warning eco-status--muted eco-status--medium">8 hafta qoldi</span>
+            </p>
+            <p class="eco-kpi__foot eco-overview__kfoot">Brending</p>
+          </div>
+          <div class="eco-kpi eco-overview__kpi">
+            <p class="eco-kpi__label eco-overview__klabel">Undirish darajasi</p>
+            <p class="eco-kpi__value eco-overview__kval">85,4 %</p>
+            <div class="eco-kpi__viz">
+              <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;meter&quot;,&quot;label&quot;:&quot;Undirish darajasi&quot;,&quot;v&quot;:85.4,&quot;target&quot;:90,&quot;unit&quot;:&quot;%&quot;}"></div>
+            </div>
+            <p class="eco-kpi__line">
+              <span class="eco-badge eco-badge--trend eco-badge--sm eco-badge--success">
+                <svg aria-hidden="true"><use href="#i-trending-up"/></svg>
+                +1,8 p.p.
+              </span>
+            </p>
+            <p class="eco-kpi__foot eco-overview__kfoot">Maqsad 90 %</p>
+          </div>
+          <div class="eco-kpi eco-overview__kpi">
+            <p class="eco-kpi__label eco-overview__klabel">Sof pul oqimi</p>
+            <p class="eco-kpi__value eco-overview__kval">
+              <span title="307 309 000 so‘m">+307</span>
+              <small>mln so‘m</small>
+            </p>
+            <p class="eco-kpi__line">
+              <span class="eco-badge eco-badge--trend eco-badge--sm eco-badge--success">
+                <svg aria-hidden="true"><use href="#i-trending-up"/></svg>
+                +12,4 %
+              </span>
+              7 kunda
+            </p>
+            <p class="eco-kpi__foot eco-overview__kfoot">
+              <span title="Kirim 666 · chiqim 359 mln so‘m">03.10–06.10 · kirim 666</span>
+            </p>
+          </div>
+        </div>
+        <div class="eco-overview__card eco-overview__wide" role="region" aria-label="13 haftalik pul prognozi">
+          <div class="eco-overview__chead">
+            <h5 class="eco-overview__ctitle">Pul prognozi · 13 hafta</h5>
+            <span class="eco-overview__meta">mln so‘m · hafta boshi</span>
+          </div>
+          <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;bar&quot;,&quot;label&quot;:&quot;13 haftalik prognoz: qoldiq 06.10 da 1 610 mln so‘m; 01.12 haftasida 742 mln — minimal zaxiradan (800 mln) past&quot;,&quot;x&quot;:[&quot;06.10&quot;,&quot;13.10&quot;,&quot;20.10&quot;,&quot;27.10&quot;,&quot;03.11&quot;,&quot;10.11&quot;,&quot;17.11&quot;,&quot;24.11&quot;,&quot;01.12&quot;,&quot;08.12&quot;,&quot;15.12&quot;,&quot;22.12&quot;,&quot;29.12&quot;],&quot;series&quot;:[{&quot;name&quot;:&quot;Qoldiq&quot;,&quot;v&quot;:[1610,1525,1440,1585,1390,1245,1120,960,742,690,1105,1230,1175]}],&quot;now&quot;:0,&quot;k&quot;:[&quot;3&quot;,&quot;1&quot;,&quot;1&quot;,&quot;2&quot;,&quot;1&quot;,&quot;1&quot;,&quot;1&quot;,&quot;1&quot;,&quot;r&quot;,&quot;r&quot;,&quot;2&quot;,&quot;2&quot;,&quot;1&quot;],&quot;ref&quot;:{&quot;v&quot;:800,&quot;label&quot;:&quot;Min. zaxira 800&quot;},&quot;legend&quot;:[[&quot;3&quot;,&quot;Joriy hafta&quot;],[&quot;1&quot;,&quot;Qoldiq kamayadi&quot;],[&quot;2&quot;,&quot;Qoldiq o‘sadi&quot;],[&quot;r&quot;,&quot;Zaxiradan past&quot;]],&quot;unit&quot;:&quot;mln so‘m&quot;,&quot;xName&quot;:&quot;Hafta&quot;,&quot;note&quot;:{&quot;i&quot;:8,&quot;text&quot;:&quot;Pul uzilishi · 01.12&quot;}}"></div>
+        </div>
+        <div class="eco-overview__card eco-overview__side" role="region" aria-label="Oy yopilishi">
+          <div class="eco-overview__chead">
+            <h5 class="eco-overview__ctitle">Oy yopilishi</h5>
+            <span class="eco-overview__meta">Sentabr 2026 · muddat 02.10</span>
+          </div>
+          <ul class="eco-overview__close" role="list">
+            <li>
+              <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;meter&quot;,&quot;name&quot;:&quot;Brending&quot;,&quot;label&quot;:&quot;Brending: 8 / 8 qadam&quot;,&quot;v&quot;:8,&quot;max&quot;:8,&quot;unit&quot;:&quot;/ 8&quot;,&quot;tone&quot;:&quot;good&quot;}"></div>
+              <span class="eco-status eco-status--success eco-status--xs eco-status--muted">Yopildi</span>
+            </li>
+            <li>
+              <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;meter&quot;,&quot;name&quot;:&quot;Packaging&quot;,&quot;label&quot;:&quot;Packaging: 7 / 8 qadam&quot;,&quot;v&quot;:7,&quot;max&quot;:8,&quot;unit&quot;:&quot;/ 8&quot;}"></div>
+              <span class="eco-status eco-status--warning eco-status--xs eco-status--muted">4 kun kechikdi</span>
+            </li>
+            <li>
+              <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;meter&quot;,&quot;name&quot;:&quot;Naming&quot;,&quot;label&quot;:&quot;Naming: 6 / 8 qadam&quot;,&quot;v&quot;:6,&quot;max&quot;:8,&quot;unit&quot;:&quot;/ 8&quot;}"></div>
+              <span class="eco-status eco-status--warning eco-status--xs eco-status--muted">4 kun kechikdi</span>
+            </li>
+            <!-- repeat per item: 1 more li like the ones above on the live demo -->
+          </ul>
+        </div>
+        <div class="eco-overview__card eco-overview__half" role="region" aria-label="Debitorlik">
+          <div class="eco-overview__chead">
+            <h5 class="eco-overview__ctitle">Debitorlik</h5>
+            <span class="eco-overview__meta">22 ta shartnoma</span>
+          </div>
+          <p class="eco-overview__mid" title="656 800 000 so‘m">657<small>mln so‘m</small></p>
+          <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;share&quot;,&quot;label&quot;:&quot;Debitorlik kechikish bo‘yicha&quot;,&quot;items&quot;:[[&quot;0–30 kun&quot;,254.5,&quot;1&quot;],[&quot;31–60 kun&quot;,204.2,&quot;2&quot;],[&quot;61–90 kun&quot;,103.8,&quot;3&quot;],[&quot;90+ kun&quot;,94.3,&quot;r&quot;]],&quot;unit&quot;:&quot;mln&quot;,&quot;dp&quot;:1,&quot;xName&quot;:&quot;Kechikish&quot;}"></div>
+        </div>
+        <div class="eco-overview__card eco-overview__half" role="region" aria-label="So‘nggi harakatlar">
+          <div class="eco-overview__chead"><h5 class="eco-overview__ctitle">So‘nggi harakatlar</h5></div>
+          <ol class="eco-overview__feed" role="list">
+            <li>
+              <span class="eco-avatar eco-avatar--sm eco-avatar--hue-5" aria-hidden="true">DK</span>
+              <span class="eco-overview__txt">
+                <b>Dilnoza Karimova <span>Sentabr yopilishini boshladi</span></b>
+                <small>Bosh buxgalter · Naming · 6 / 8 qadam</small>
+              </span>
+              <time class="eco-overview__time">09:40</time>
+            </li>
+            <li>
+              <span class="eco-avatar eco-avatar--sm eco-avatar--hue-2" aria-hidden="true">JT</span>
+              <span class="eco-overview__txt">
+                <b>Jasur To‘xtayev <span>Ko‘chirma yukladi</span></b>
+                <small>Kassir · 18 ta operatsiya · •••• 1746</small>
+              </span>
+              <time class="eco-overview__time">08:40</time>
+            </li>
+            <li>
+              <span class="eco-avatar eco-avatar--sm eco-avatar--hue-1" aria-hidden="true">MY</span>
+              <span class="eco-overview__txt">
+                <b>Malika Yusupova <span>To‘lovni tasdiqladi</span></b>
+                <small>Moliya menejeri · Navro‘z Print MChJ · 8 600 000 so‘m</small>
+              </span>
+              <time class="eco-overview__time">08:15</time>
+            </li>
+            <!-- repeat per item: 1 more li like the ones above on the live demo -->
+          </ol>
+        </div>
+      </div>
+    </div>
+    <!-- 1 more page with the same structure in this slot on the live demo (one visible at a time; switched by the sidebar) -->
+  </div>
+</div>
+
+</body>
+</html>
