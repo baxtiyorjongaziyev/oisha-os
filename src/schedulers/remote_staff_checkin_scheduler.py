@@ -216,10 +216,10 @@ def build_checkin_message(
 
     if not activity or activity.get("total", 0) == 0:
         return (
-            f"Assalomu alaykum {seller_name} ({handle})!\n\n"
-            f"Oxirgi soatda telefoniyada yangi qo'ng'iroq ko'rinmadi. "
-            f"Hozir qaysi mijoz yoki vazifa ustida ishlayapsiz? "
-            f"Biror masala bo'yicha yordam yoki yo'nalish kerak bo'lyaptimi?"
+            f"Assalomu alaykum, {seller_name} ({handle})! 😊\n\n"
+            f"Oxirgi soatda telefoniyada qo'ng'iroq ko'rinmadi — yozishmalar bilan bandmisiz? "
+            f"Qaysi mijoz ustida ishlayapsiz? Kimga qo'ng'iroq qilishni yoki nima deyishni "
+            f"birga o'ylab ko'raylikmi?"
         )
 
     total = activity.get("total", 0)
@@ -243,32 +243,33 @@ def build_checkin_message(
 
     if answered > 0 and solid > 0:
         return (
-            f"Assalomu alaykum {seller_name} ({handle})!\n\n"
-            f"MoiZvonkidan ko'rdim, oxirgi soatda {total} ta raqam terilib, "
-            f"{answered} ta mijoz bilan sifatli gaplashibsiz ({clients_text}; jami {format_duration(total_talk)}).\n\n"
-            f"Ushbu suhbatlar bo'yicha qanday kelishuvga erishildi, qaysilari bilan keyingi qadam belgilandi? "
-            f"Hozir qaysi lid ustida ishlayapsiz?"
+            f"Assalomu alaykum, {seller_name} ({handle})! 👏\n\n"
+            f"Zo'r soat bo'libdi: {total} ta raqam terib, {answered} ta mijoz bilan yaxshi gaplashibsiz "
+            f"({clients_text}; jami {format_duration(total_talk)}).\n\n"
+            f"Nimalarga kelishdingiz? Shu xabarga reply qilib yozing — qaysi lid bo'yicha "
+            f"qanday vazifa kerakligini amoCRM'ga o'zim qo'yib qo'yaman."
         )
 
     if answered > 0 and solid == 0:
         msg = (
-            f"Assalomu alaykum {seller_name} ({handle})!\n\n"
-            f"Oxirgi bir soatda {total} ta raqam tergansiz, shundan {answered} tasi ko'tarilibdi"
+            f"Assalomu alaykum, {seller_name} ({handle})! 😊\n\n"
+            f"Oxirgi soatda {total} ta raqam terdingiz, {answered} tasi ko'tardi"
         )
         if clients_text:
             msg += f" ({clients_text})"
         msg += (
-            f", lekin suhbatlar juda qisqa bo'libdi.\n\n"
-            f"Bu mijozlar bilan nima bo'ldi, taklifga qiziqish bormi yoki rad etishdimi? "
-            f"Hozir qaysi lidlar ustida ishlayapsiz va qanday yordam kerak?"
+            f". Suhbatlar qisqa bo'libdi — band edimi yoki keyinroq gaplashamiz deyishdimi?\n\n"
+            f"Shu xabarga reply qilib yozing: kimga qachon qayta qo'ng'iroq qilish kerak bo'lsa, "
+            f"amoCRM'ga o'zim yozib qo'yaman. Gapni qanday boshlash bo'yicha maslahat kerak bo'lsa, ayting!"
         )
         return msg
 
     return (
-        f"Assalomu alaykum {seller_name} ({handle})!\n\n"
-        f"Oxirgi soatda {total} ta raqam terilganini ko'rdim, afsuski hech biri ko'tarmabdi.\n\n"
-        f"Ko'tarmaganlarga boshqa vaqtda qayta terish uchun AmoCRM'da vazifa qo'ydingizmi? "
-        f"Hozir qaysi lidlar yoki yozishmalar ustida ishlayapsiz?"
+        f"Assalomu alaykum, {seller_name} ({handle})! 😊\n\n"
+        f"Oxirgi soatda {total} ta raqam terdingiz, hozircha hech kim ko'tarmadi — bu normal holat, "
+        f"ruhingiz tushmasin!\n\n"
+        f"Ularga qachon qayta terish kerakligini shu xabarga reply qilib yozing, "
+        f"amoCRM'ga vazifa qilib o'zim qo'yaman."
     )
 
 

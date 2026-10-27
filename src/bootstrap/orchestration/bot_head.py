@@ -16,6 +16,7 @@ from src.services.core.admin_aiogram_dispatcher import (
     register_salescoach_aiogram_callbacks,
 )
 from src.handlers.jamoa_hamroh import register_jamoa_hamroh_handlers
+from src.handlers.seller_reply import register_seller_reply_handlers
 from src.handlers.sales_club_survey import register_sales_club_survey_handlers
 from src.handlers.vodiy_meeting import register_vodiy_meeting_handlers
 from src.services.core.telegram.aiogram_head import AiogramBotHead
@@ -143,6 +144,8 @@ async def init_aiogram_bot_head(
     register_existing_contact_signal_callbacks(
         dispatcher, msg_controller=msg_controller, owner_id=access_manager.owner_id
     )
+    # Check-in reply'lari Hamroh'dan oldin: aks holda Hamroh ularni oddiy savol deb oladi.
+    register_seller_reply_handlers(dispatcher, amocrm_getter=_get_amocrm_client)
     # Hamroh legacy catch-all'dan oldin ulanadi, aks holda guruh mention'lari unga yetmaydi.
     register_jamoa_hamroh_handlers(dispatcher)
 

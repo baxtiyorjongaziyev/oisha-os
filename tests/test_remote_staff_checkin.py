@@ -48,9 +48,9 @@ def test_build_checkin_message_no_calls():
     now = datetime(2026, 10, 27, 11, 0, tzinfo=TASHKENT)
     msg = build_checkin_message("Rayxon", "@RayxonJonbranding", now, activity=None)
     assert "@RayxonJonbranding" in msg
-    assert "Assalomu alaykum Rayxon" in msg
+    assert "Assalomu alaykum, Rayxon" in msg
     assert "⚡ Soatlik Check-in:" not in msg  # No robotic header
-    assert "yangi qo'ng'iroq ko'rinmadi" in msg
+    assert "qo'ng'iroq ko'rinmadi" in msg
 
 
 def test_build_checkin_message_with_short_answered_calls():
@@ -67,10 +67,10 @@ def test_build_checkin_message_with_short_answered_calls():
         ],
     }
     msg = build_checkin_message("Rayxon", "@RayxonJonbranding", now, activity=activity)
-    assert "7 ta raqam tergansiz" in msg
-    assert "2 tasi ko'tarilibdi" in msg
+    assert "7 ta raqam terdingiz" in msg
+    assert "2 tasi ko'tardi" in msg
     assert "+998 (90) 005-45-51" in msg
-    assert "suhbatlar juda qisqa bo'libdi" in msg
+    assert "reply qilib yozing" in msg
     assert "⚡" not in msg
     assert "1️⃣" not in msg
 
@@ -88,7 +88,7 @@ def test_build_checkin_message_with_solid_calls():
         ],
     }
     msg = build_checkin_message("Rayxon", "@RayxonJonbranding", now, activity=activity)
-    assert "sifatli gaplashibsiz" in msg
+    assert "yaxshi gaplashibsiz" in msg
     assert "Akbar aka" in msg
     assert "⚡" not in msg
 
@@ -104,8 +104,8 @@ def test_build_checkin_message_all_missed():
         "answered_clients": [],
     }
     msg = build_checkin_message("Rayxon", "@RayxonJonbranding", now, activity=activity)
-    assert "5 ta raqam terilganini ko'rdim" in msg
-    assert "hech biri ko'tarmabdi" in msg
+    assert "5 ta raqam terdingiz" in msg
+    assert "hech kim ko'tarmadi" in msg
 
 
 def test_target_destination_defaults(monkeypatch):
@@ -125,7 +125,9 @@ def test_target_destination_override(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_send_remote_checkin_work_hours():
+async def test_send_remote_checkin_work_hours(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # dedup state (data/checkin_state.json) testlar orasida qolmasin
+    (tmp_path / "data").mkdir()
     now = datetime(2026, 10, 27, 11, 0, tzinfo=TASHKENT)
     bot = AsyncMock()
     bot.send_message = AsyncMock()
