@@ -9,7 +9,8 @@
   <link rel="stylesheet" href="https://design.pdp.uz/ds/tokens/ecosystem.css">
   <link rel="stylesheet" href="https://design.pdp.uz/ds/css/v0.15.105/pdp-base.css">
   <link rel="stylesheet" href="https://design.pdp.uz/ds/css/v0.15.105/pdp-components.css">
-  <link rel="stylesheet" href="oisha-theme.css">  <!-- Oisha ranglari: Oq 60 / Qora 30 / Ko‘k 10 -->
+  <link rel="stylesheet" href="oisha-theme.css">
+  <script defer src="oisha-erp.js"></script>  <!-- Oisha ranglari: Oq 60 / Qora 30 / Ko‘k 10 -->
   <script defer src="https://design.pdp.uz/ds/css/v0.15.105/pdp-components.js"></script>
   <!-- PDP-DS: missing icons — pdp-icons.svg boshqa domendan <use> bilan ishlamaydi (CORS yo'q);
        productionda spriteni o'z serverimizdan inline qiling. -->
@@ -206,7 +207,7 @@
     </div>
     <div class="eco-dropdown eco-shell__me">
       <button type="button" class="eco-shell__user" aria-haspopup="menu" aria-controls="dp-me" aria-expanded="false" title="Baxtiyorjon Gaziyev">
-        <span class="eco-avatar eco-avatar--hue-1" aria-hidden="true">BG</span>
+        <span class="eco-avatar eco-avatar--inverse" aria-hidden="true">BG</span>
         <span class="eco-shell__label"><b>Baxtiyorjon Gaziyev</b><small>Direktor</small></span>
         <svg class="eco-shell__chev" aria-hidden="true"><use href="#i-chevrons-up-down"/></svg>
       </button>
@@ -274,247 +275,70 @@
         </div>
       </div>
     </header>
-    <div class="eco-overview">
+    <!-- Ish maydoni: GET /api/erp/dashboard (ERPSnapshot) dan to'ldiriladi — oisha-erp.js.
+         Retseptlar: overview-live.md (karkas, kartalar), charts-kpi.md (KPI), states-screen.md (holatlar). -->
+    <div class="eco-overview" data-oisha-erp aria-busy="true">
       <header class="eco-overview__head">
         <div class="eco-overview__heading">
-          <h4 class="eco-overview__title">Xayrli tong, Baxtiyorjon</h4>
-          <p class="eco-overview__sub">Dushanba, 6-oktabr · ma’lumot 09:15 holatiga</p>
+          <h4 class="eco-overview__title">Xayrli kun, Baxtiyorjon</h4>
+          <p class="eco-overview__sub">Davr: <span data-f="period">—</span> · <span data-f="updated">yuklanmoqda…</span></p>
         </div>
         <div class="eco-overview__acts">
-          <button type="button" class="eco-btn eco-btn--tertiary eco-btn--sm">
-            <svg aria-hidden="true"><use href="#i-sliders-horizontal"/></svg>
-            Panelni sozlash
-          </button>
-          <button type="button" class="eco-btn eco-btn--secondary eco-btn--sm">
-            <svg aria-hidden="true"><use href="#i-chart-line"/></svg>
-            Haftalik hisobot
-          </button>
+          <button type="button" class="eco-btn eco-btn--secondary eco-btn--sm" data-oisha-reload>Yangilash</button>
         </div>
       </header>
+
+      <div class="eco-callout eco-callout--error" role="alert" data-oisha-error hidden>
+        <div class="eco-callout__body">
+          <p class="eco-callout__title">Ma’lumot yuklanmadi</p>
+          <p data-f="error">—</p>
+        </div>
+      </div>
+      <form class="eco-callout eco-callout--info" data-oisha-auth hidden>
+        <div class="eco-callout__body">
+          <p class="eco-callout__title">API kaliti kerak</p>
+          <p>OISHA_API_SECRET ni kiriting — faqat shu brauzer oynasida (sessionStorage) saqlanadi.</p>
+          <p><input class="eco-input" type="password" name="token" aria-label="API kaliti" autocomplete="off" required>
+          <button type="submit" class="eco-btn eco-btn--primary eco-btn--sm">Ulash</button></p>
+        </div>
+      </form>
+
       <div class="eco-overview__grid">
-        <div class="eco-overview__card eco-overview__hero" role="region" aria-label="Erkin pul qoldig‘i">
+        <div class="eco-overview__card eco-overview__hero" role="region" aria-label="Sof foyda">
           <div class="eco-overview__chead">
-            <h5 class="eco-overview__ctitle">Erkin pul qoldig‘i</h5>
-            <span class="eco-overview__meta">06.10.2026 · 09:15</span>
+            <h5 class="eco-overview__ctitle">Sof foyda</h5>
+            <span class="eco-overview__meta" data-f="status"></span>
           </div>
           <div class="eco-overview__herobody">
             <div class="eco-overview__lead">
-              <p class="eco-overview__big">1 609 545 194<small>so‘m</small></p>
-              <p class="eco-overview__line">
-                <span class="eco-badge eco-badge--trend eco-badge--sm eco-badge--success">
-                  <svg aria-hidden="true"><use href="#i-trending-up"/></svg>
-                  +3,9 %
-                </span>
-                30 kunda
-              </p>
+              <p class="eco-overview__big"><span data-f="net_profit">—</span><small>so‘m</small></p>
             </div>
             <dl class="eco-overview__parts">
-              <div><dt>Bank hisoblari</dt><dd title="1 702 418 040 so‘m">1,70 mlrd</dd></div>
-              <div><dt>Kassa</dt><dd title="48 207 154 so‘m">48,2 mln</dd></div>
-              <div><dt>Cheklangan pul</dt><dd class="is-neg" title="−141 080 000 so‘m">−141 mln</dd></div>
+              <div><dt>Tushum</dt><dd data-f="total_revenue">—</dd></div>
+              <div><dt>Xarajat</dt><dd data-f="total_expenses">—</dd></div>
+              <div><dt>Ish haqi fondi</dt><dd data-f="payroll_cost">—</dd></div>
             </dl>
           </div>
-          <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;line&quot;,&quot;label&quot;:&quot;Erkin pul qoldig‘i, 30 kun: 1549 dan 1609,5 mln so‘mgacha; eng past — Ish haqi · 25.09, 1520 mln&quot;,&quot;x&quot;:[&quot;07.09&quot;,&quot;08.09&quot;,&quot;09.09&quot;,&quot;10.09&quot;,&quot;11.09&quot;,&quot;12.09&quot;,&quot;13.09&quot;,&quot;14.09&quot;,&quot;15.09&quot;,&quot;16.09&quot;,&quot;17.09&quot;,&quot;18.09&quot;,&quot;19.09&quot;,&quot;20.09&quot;,&quot;21.09&quot;,&quot;22.09&quot;,&quot;23.09&quot;,&quot;24.09&quot;,&quot;25.09&quot;,&quot;26.09&quot;,&quot;27.09&quot;,&quot;28.09&quot;,&quot;29.09&quot;,&quot;30.09&quot;,&quot;01.10&quot;,&quot;02.10&quot;,&quot;03.10&quot;,&quot;04.10&quot;,&quot;05.10&quot;,&quot;06.10&quot;],&quot;series&quot;:[{&quot;name&quot;:&quot;Qoldiq&quot;,&quot;v&quot;:[1549,1561,1574,1566,1588,1603,1597,1612,1630,1641,1636,1652,1668,1659,1675,1688,1694,1702,1520,1534,1547,1541,1559,1572,1566,1581,1590,1584,1601,1609.5]}],&quot;unit&quot;:&quot;mln so‘m&quot;,&quot;dp&quot;:1,&quot;xName&quot;:&quot;Sana&quot;,&quot;parts&quot;:[[&quot;1&quot;,0,15,&quot;07.09–22.09&quot;],[&quot;2&quot;,15,26,&quot;22.09–03.10 · so‘nggi 2 hafta&quot;],[&quot;3&quot;,26,29,&quot;03.10–06.10 · sof oqim davri&quot;]],&quot;note&quot;:{&quot;i&quot;:18,&quot;text&quot;:&quot;Ish haqi · 25.09 · −182 mln&quot;}}"></div>
+          <div data-oisha-chart="top_expenses"></div>
         </div>
-        <div class="eco-overview__card eco-overview__inbox" role="region" aria-label="E’tibor talab qiladi">
-          <div class="eco-overview__chead"><h5 class="eco-overview__ctitle">E’tibor talab qiladi</h5></div>
-          <p class="eco-overview__group">Tasdiqlar<span>15</span></p>
-          <ul class="eco-overview__list" role="list">
-            <li class="eco-overview__item">
-              <span class="eco-overview__ic"><svg aria-hidden="true"><use href="#i-coins"/></svg></span>
-              <span class="eco-overview__txt">
-                <b title="Chiquvchi to‘lov: Server va hosting">Chiquvchi to‘lov: Server va hosting</b>
-                <small>
-                  <span class="eco-overview__code">TS-2026-0024</span>
-                  ·
-                  <span class="eco-overview__who">
-                    <svg class="eco-overview__mark" aria-hidden="true"><use href="#mark-academy"/></svg>
-                    Brending
-                  </span>
-                  · 05.10
-                </small>
-              </span>
-              <span class="eco-overview__amt" title="87 000 000 so‘m">87 mln</span>
-              <button type="button" class="eco-btn eco-btn--secondary eco-btn--icon eco-btn--xs" aria-label="Tasdiqlash: Chiquvchi to‘lov TS-2026-0024">
-                <svg aria-hidden="true"><use href="#i-check"/></svg>
-              </button>
-            </li>
-            <li class="eco-overview__item">
-              <span class="eco-overview__ic"><svg aria-hidden="true"><use href="#i-coins"/></svg></span>
-              <span class="eco-overview__txt">
-                <b title="Ijara to‘lovi: Chilonzor binosi">Ijara to‘lovi: Chilonzor binosi</b>
-                <small>
-                  <span class="eco-overview__code">TS-2026-0027</span>
-                  ·
-                  <span class="eco-overview__who">
-                    <svg class="eco-overview__mark" aria-hidden="true"><use href="#mark-school"/></svg>
-                    Naming
-                  </span>
-                  · 03.10
-                </small>
-              </span>
-              <span class="eco-overview__amt" title="18 800 000 so‘m">18,8 mln</span>
-              <button type="button" class="eco-btn eco-btn--secondary eco-btn--icon eco-btn--xs" aria-label="Tasdiqlash: Ijara to‘lovi TS-2026-0027">
-                <svg aria-hidden="true"><use href="#i-check"/></svg>
-              </button>
-            </li>
-            <li class="eco-overview__item">
-              <span class="eco-overview__ic"><svg aria-hidden="true"><use href="#i-file-text"/></svg></span>
-              <span class="eco-overview__txt">
-                <b title="Xodim arizasi: Mehnat ta’tili · 14 kun">Xodim arizasi: Mehnat ta’tili · 14 kun</b>
-                <small>
-                  <span class="eco-overview__code">XA-2026-0011</span>
-                  ·
-                  <span class="eco-overview__who">
-                    <svg class="eco-overview__mark" aria-hidden="true"><use href="#mark-junior"/></svg>
-                    Packaging
-                  </span>
-                  · 29.09
-                </small>
-              </span>
-              <span class="eco-overview__amt"></span>
-              <button type="button" class="eco-btn eco-btn--secondary eco-btn--icon eco-btn--xs" aria-label="Tasdiqlash: Xodim arizasi XA-2026-0011">
-                <svg aria-hidden="true"><use href="#i-check"/></svg>
-              </button>
-            </li>
-          </ul>
-          <p class="eco-overview__group">Bank nazorati<span>5</span></p>
-          <ul class="eco-overview__list" role="list">
-            <li class="eco-overview__item">
-              <span class="eco-overview__ic"><svg aria-hidden="true"><use href="#i-upload"/></svg></span>
-              <span class="eco-overview__txt">
-                <b>11 ta operatsiya tasniflanmagan</b>
-                <small title="320 300 000 so‘m">Bank operatsiyalari · 320 mln so‘m</small>
-              </span>
-              <span class="eco-overview__amt"></span>
-              <a class="eco-btn eco-btn--secondary eco-btn--xs" href="#">Ochish</a>
-            </li>
-            <li class="eco-overview__item">
-              <span class="eco-overview__ic"><svg aria-hidden="true"><use href="#i-triangle-alert"/></svg></span>
-              <span class="eco-overview__txt">
-                <b title="Shaxsiy kartaga «ish haqi» deb 4 marta o‘tkazma">Shaxsiy kartaga «ish haqi» deb 4 marta o‘tkazma</b>
-                <small>
-                  <span class="eco-status eco-status--error eco-status--muted eco-status--sm">Yuqori</span>
-                  · Brending
-                </small>
-              </span>
-              <span class="eco-overview__amt"></span>
-              <button type="button" class="eco-btn eco-btn--secondary eco-btn--xs">Ko‘rish</button>
-            </li>
-          </ul>
-          <div class="eco-overview__foot">
-            <button type="button" class="eco-btn eco-btn--ink eco-btn--sm">
-              <svg aria-hidden="true"><use href="#i-list-checks"/></svg>
-              Tasdiqlar navbati · 15
-            </button>
-          </div>
-        </div>
+
         <div class="eco-overview__kpis" role="region" aria-label="Asosiy ko‘rsatkichlar">
           <div class="eco-kpi eco-overview__kpi">
-            <p class="eco-kpi__label eco-overview__klabel">Pul uzilishi</p>
-            <p class="eco-kpi__value eco-overview__kval">01.12.2026</p>
-            <p class="eco-kpi__line">
-              <span class="eco-status eco-status--warning eco-status--muted eco-status--medium">8 hafta qoldi</span>
-            </p>
-            <p class="eco-kpi__foot eco-overview__kfoot">Brending</p>
+            <p class="eco-kpi__label eco-overview__klabel">Debitorlik</p>
+            <p class="eco-kpi__value eco-overview__kval"><span data-f="outstanding_amount">—</span> <small>so‘m</small></p>
+            <p class="eco-kpi__foot eco-overview__kfoot"><span data-f="outstanding_invoices">—</span> ta to‘lanmagan hisob</p>
           </div>
           <div class="eco-kpi eco-overview__kpi">
-            <p class="eco-kpi__label eco-overview__klabel">Undirish darajasi</p>
-            <p class="eco-kpi__value eco-overview__kval">85,4 %</p>
-            <div class="eco-kpi__viz">
-              <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;meter&quot;,&quot;label&quot;:&quot;Undirish darajasi&quot;,&quot;v&quot;:85.4,&quot;target&quot;:90,&quot;unit&quot;:&quot;%&quot;}"></div>
-            </div>
-            <p class="eco-kpi__line">
-              <span class="eco-badge eco-badge--trend eco-badge--sm eco-badge--success">
-                <svg aria-hidden="true"><use href="#i-trending-up"/></svg>
-                +1,8 p.p.
-              </span>
-            </p>
-            <p class="eco-kpi__foot eco-overview__kfoot">Maqsad 90 %</p>
+            <p class="eco-kpi__label eco-overview__klabel">Faol loyihalar</p>
+            <p class="eco-kpi__value eco-overview__kval" data-f="active_projects">—</p>
+            <p class="eco-kpi__line" data-f="overdue_badge"></p>
+            <p class="eco-kpi__foot eco-overview__kfoot">Portfel: <span data-f="pipeline_value">—</span> so‘m</p>
           </div>
           <div class="eco-kpi eco-overview__kpi">
-            <p class="eco-kpi__label eco-overview__klabel">Sof pul oqimi</p>
-            <p class="eco-kpi__value eco-overview__kval">
-              <span title="307 309 000 so‘m">+307</span>
-              <small>mln so‘m</small>
-            </p>
-            <p class="eco-kpi__line">
-              <span class="eco-badge eco-badge--trend eco-badge--sm eco-badge--success">
-                <svg aria-hidden="true"><use href="#i-trending-up"/></svg>
-                +12,4 %
-              </span>
-              7 kunda
-            </p>
-            <p class="eco-kpi__foot eco-overview__kfoot">
-              <span title="Kirim 666 · chiqim 359 mln so‘m">03.10–06.10 · kirim 666</span>
-            </p>
+            <p class="eco-kpi__label eco-overview__klabel">Avans so‘rovlari</p>
+            <p class="eco-kpi__value eco-overview__kval" data-f="pending_advances">—</p>
+            <p class="eco-kpi__foot eco-overview__kfoot">Jami <span data-f="pending_advance_total">—</span> so‘m · xodimlar: <span data-f="active_employees">—</span></p>
           </div>
-        </div>
-        <div class="eco-overview__card eco-overview__wide" role="region" aria-label="13 haftalik pul prognozi">
-          <div class="eco-overview__chead">
-            <h5 class="eco-overview__ctitle">Pul prognozi · 13 hafta</h5>
-            <span class="eco-overview__meta">mln so‘m · hafta boshi</span>
-          </div>
-          <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;bar&quot;,&quot;label&quot;:&quot;13 haftalik prognoz: qoldiq 06.10 da 1 610 mln so‘m; 01.12 haftasida 742 mln — minimal zaxiradan (800 mln) past&quot;,&quot;x&quot;:[&quot;06.10&quot;,&quot;13.10&quot;,&quot;20.10&quot;,&quot;27.10&quot;,&quot;03.11&quot;,&quot;10.11&quot;,&quot;17.11&quot;,&quot;24.11&quot;,&quot;01.12&quot;,&quot;08.12&quot;,&quot;15.12&quot;,&quot;22.12&quot;,&quot;29.12&quot;],&quot;series&quot;:[{&quot;name&quot;:&quot;Qoldiq&quot;,&quot;v&quot;:[1610,1525,1440,1585,1390,1245,1120,960,742,690,1105,1230,1175]}],&quot;now&quot;:0,&quot;k&quot;:[&quot;3&quot;,&quot;1&quot;,&quot;1&quot;,&quot;2&quot;,&quot;1&quot;,&quot;1&quot;,&quot;1&quot;,&quot;1&quot;,&quot;r&quot;,&quot;r&quot;,&quot;2&quot;,&quot;2&quot;,&quot;1&quot;],&quot;ref&quot;:{&quot;v&quot;:800,&quot;label&quot;:&quot;Min. zaxira 800&quot;},&quot;legend&quot;:[[&quot;3&quot;,&quot;Joriy hafta&quot;],[&quot;1&quot;,&quot;Qoldiq kamayadi&quot;],[&quot;2&quot;,&quot;Qoldiq o‘sadi&quot;],[&quot;r&quot;,&quot;Zaxiradan past&quot;]],&quot;unit&quot;:&quot;mln so‘m&quot;,&quot;xName&quot;:&quot;Hafta&quot;,&quot;note&quot;:{&quot;i&quot;:8,&quot;text&quot;:&quot;Pul uzilishi · 01.12&quot;}}"></div>
-        </div>
-        <div class="eco-overview__card eco-overview__side" role="region" aria-label="Oy yopilishi">
-          <div class="eco-overview__chead">
-            <h5 class="eco-overview__ctitle">Oy yopilishi</h5>
-            <span class="eco-overview__meta">Sentabr 2026 · muddat 02.10</span>
-          </div>
-          <ul class="eco-overview__close" role="list">
-            <li>
-              <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;meter&quot;,&quot;name&quot;:&quot;Brending&quot;,&quot;label&quot;:&quot;Brending: 8 / 8 qadam&quot;,&quot;v&quot;:8,&quot;max&quot;:8,&quot;unit&quot;:&quot;/ 8&quot;,&quot;tone&quot;:&quot;good&quot;}"></div>
-              <span class="eco-status eco-status--success eco-status--xs eco-status--muted">Yopildi</span>
-            </li>
-            <li>
-              <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;meter&quot;,&quot;name&quot;:&quot;Packaging&quot;,&quot;label&quot;:&quot;Packaging: 7 / 8 qadam&quot;,&quot;v&quot;:7,&quot;max&quot;:8,&quot;unit&quot;:&quot;/ 8&quot;}"></div>
-              <span class="eco-status eco-status--warning eco-status--xs eco-status--muted">4 kun kechikdi</span>
-            </li>
-            <li>
-              <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;meter&quot;,&quot;name&quot;:&quot;Naming&quot;,&quot;label&quot;:&quot;Naming: 6 / 8 qadam&quot;,&quot;v&quot;:6,&quot;max&quot;:8,&quot;unit&quot;:&quot;/ 8&quot;}"></div>
-              <span class="eco-status eco-status--warning eco-status--xs eco-status--muted">4 kun kechikdi</span>
-            </li>
-            <!-- repeat per item: 1 more li like the ones above on the live demo -->
-          </ul>
-        </div>
-        <div class="eco-overview__card eco-overview__half" role="region" aria-label="Debitorlik">
-          <div class="eco-overview__chead">
-            <h5 class="eco-overview__ctitle">Debitorlik</h5>
-            <span class="eco-overview__meta">22 ta shartnoma</span>
-          </div>
-          <p class="eco-overview__mid" title="656 800 000 so‘m">657<small>mln so‘m</small></p>
-          <div class="eco-chart" data-eco-chart="{&quot;type&quot;:&quot;share&quot;,&quot;label&quot;:&quot;Debitorlik kechikish bo‘yicha&quot;,&quot;items&quot;:[[&quot;0–30 kun&quot;,254.5,&quot;1&quot;],[&quot;31–60 kun&quot;,204.2,&quot;2&quot;],[&quot;61–90 kun&quot;,103.8,&quot;3&quot;],[&quot;90+ kun&quot;,94.3,&quot;r&quot;]],&quot;unit&quot;:&quot;mln&quot;,&quot;dp&quot;:1,&quot;xName&quot;:&quot;Kechikish&quot;}"></div>
-        </div>
-        <div class="eco-overview__card eco-overview__half" role="region" aria-label="So‘nggi harakatlar">
-          <div class="eco-overview__chead"><h5 class="eco-overview__ctitle">So‘nggi harakatlar</h5></div>
-          <ol class="eco-overview__feed" role="list">
-            <li>
-              <span class="eco-avatar eco-avatar--sm eco-avatar--hue-5" aria-hidden="true">DK</span>
-              <span class="eco-overview__txt">
-                <b>Dilnoza Karimova <span>Sentabr yopilishini boshladi</span></b>
-                <small>Bosh buxgalter · Naming · 6 / 8 qadam</small>
-              </span>
-              <time class="eco-overview__time">09:40</time>
-            </li>
-            <li>
-              <span class="eco-avatar eco-avatar--sm eco-avatar--hue-2" aria-hidden="true">JT</span>
-              <span class="eco-overview__txt">
-                <b>Jasur To‘xtayev <span>Ko‘chirma yukladi</span></b>
-                <small>Kassir · 18 ta operatsiya · •••• 1746</small>
-              </span>
-              <time class="eco-overview__time">08:40</time>
-            </li>
-            <li>
-              <span class="eco-avatar eco-avatar--sm eco-avatar--hue-1" aria-hidden="true">MY</span>
-              <span class="eco-overview__txt">
-                <b>Malika Yusupova <span>To‘lovni tasdiqladi</span></b>
-                <small>Moliya menejeri · Navro‘z Print MChJ · 8 600 000 so‘m</small>
-              </span>
-              <time class="eco-overview__time">08:15</time>
-            </li>
-            <!-- repeat per item: 1 more li like the ones above on the live demo -->
-          </ol>
         </div>
       </div>
     </div>

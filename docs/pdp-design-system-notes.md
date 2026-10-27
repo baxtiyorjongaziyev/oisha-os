@@ -94,9 +94,31 @@ retseptidan, matnlar Oisha'ga moslangan, raqamlar demo. Grafik va menyular ishla
 |---|---|---|
 | Oq `#FFFFFF` | 60% | fon, kartalar, panel |
 | Qora `#111111` | 30% | matn, rail, asosiy (primary) tugma |
-| Ko'k `#1D4ED8` | 10% | aksent: tanlangan menyu, havola, fokus, grafik chizig'i |
+| Ko‘k `#2F6BFF` | 10% | aksent: tanlangan menyu, havola, fokus, grafik chizig'i |
 | Signal | qolgani | faqat holat: success (yashil), warning (sariq), error (qizil) — PDP'dan o'zgarishsiz |
 
 Amalga oshirish: `prototypes/pdp/oisha-theme.css` — PDP `--eco-*` tokenlarini ustidan yozadi,
 `pdp-components.css` dan **keyin** ulanadi. Yangi rang kerak bo'lsa — faqat shu faylga, sahifalarda HEX yozilmaydi.
 Ko'k bezak emas: bir ekranda ko'k elementlar 10% dan oshmasin; yashil faqat "yaxshi holat" ma'nosida.
+
+## Direktor paneli — haqiqiy ma'lumot (2026-10-27)
+
+`prototypes/pdp/erp-direktor.html` + `oisha-erp.js` endi `GET /api/erp/dashboard` (`ERPSnapshot`) dan o'qiydi:
+
+| Ekranda | Maydon |
+|---|---|
+| Sof foyda (asosiy raqam) + holat belgisi | `net_profit`, `cash_flow_status` (healthy → Sog‘lom, warning → Diqqat, critical → Xavfli) |
+| Tushum / Xarajat / Ish haqi fondi | `total_revenue`, `total_expenses`, `payroll_cost` |
+| Eng katta xarajatlar (ustunli grafik) | `top_expenses` |
+| Debitorlik | `outstanding_amount`, `outstanding_invoices` |
+| Faol loyihalar | `active_projects`, `overdue_projects`, `pipeline_value` |
+| Avans so'rovlari | `pending_advances`, `pending_advance_total`, `active_employees` |
+
+- Ishga tushirish: `?api=<API manzil>&period=YYYY-MM`; kalit (`OISHA_API_SECRET`) formadan kiritiladi va faqat
+  `sessionStorage` da turadi (URL'ga yozilmaydi). Lokal ko'rish: `?demo=1` → `sample-erp-snapshot.json`
+  (`python3 -m http.server` bilan oching — `file://` da fetch ishlamaydi).
+- Holatlar: yuklanish (`aria-busy`), xato (callout + HTTP kodi), kalit yo'q (forma), bo'sh xarajatlar (`eco-empty`).
+- PDP namunasidagi 30 kunlik qoldiq grafigi, 13 haftalik prognoz, tasdiqlar navbati va debitorlik yoshi
+  **olib tashlandi** — API'da bunday ma'lumot yo'q, soxta raqam ko'rsatilmaydi. Kerak bo'lsa, avval endpoint qo'shiladi.
+- Production uchun ochiq savollar: sahifa API bilan bir domenda turmasa CORS kerak; `/api/erp/*` da RBAC
+  (`require_permissions`) ham bor — Bearer kalit bilan o'tishini haqiqiy serverda tekshirish kerak.
