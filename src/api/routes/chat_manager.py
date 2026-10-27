@@ -149,6 +149,29 @@ async def send_message(
     return {"ok": True}
 
 
+@router.get("/api/chat/analitika", response_class=HTMLResponse)
+async def analytics_page(request: Request):
+    if not request.cookies.get("oisha_token"):
+        return RedirectResponse(url="/api/auth/telegram/login")
+    from src.api.routes.chat_manager_analytics_page import PAGE
+
+    return HTMLResponse(PAGE)
+
+
+@router.get("/api/chat/analytics")
+async def analytics_data(
+    days: int = 7,
+    channel: str = "",
+    principal: Principal = require_permissions(_READ),
+):
+    from src.services.core.chat_manager import analytics
+
+    try:
+        return await asyncio.to_thread(analytics.build, days, channel)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
 class RequestStatusChange(BaseModel):
     status: str
 

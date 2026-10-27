@@ -288,3 +288,66 @@ def test_viewer_cannot_change_request_status(monkeypatch):
     r1, _, _ = _seed_requests()
     r = _client(monkeypatch, Role.VIEWER).post(f"/api/chat/requests/{r1}/status", json={"status": "done"})
     assert r.status_code == 403
+
+
+# --- Analitika (3-bosqich) ---------------------------------------------------
+
+def _ts(y, mo, d, h, mi=0):
+    import datetime as _dt
+    return _dt.datetime(y, mo, d, h, mi, tzinfo=_dt.timezone(_dt.timedelta(hours=5))).timestamp()
+
+
+def test_after_hours_rule():
+    from src.services.core.chat_manager import analytics
+    assert not analytics.is_after_hours(_ts(2026, 10, 26, 10))   # Dushanba 10:00
+    assert analytics.is_after_hours(_ts(2026, 10, 26, 20))       # Dushanba 20:00
+    assert analytics.is_after_hours(_ts(2026, 10, 25, 12))       # Yakshanba
+
+
+def test_analytics_build_counts_funnel_heatmap_and_reply_speed():
+    from src.services.core.chat_manager import analytics
+    now = _ts(2026, 10, 27, 18)
+    a = store.record_message("telegram", "1", "Logo kerak", now=_ts(2026, 10, 26, 10))
+    store.record_message("telegram", "1", "Albatta", direction="out", author="operator",
+                         now=_ts(2026, 10, 26, 10, 30))
+    b = store.record_message("instagram", "2", "Salom", now=_ts(2026, 10, 26, 21))
+    store.record_message("instagram", "2", "Qoralama", direction="out", author="ai_draft",
+                         now=_ts(2026, 10, 26, 21, 1))
+    store.record_message("telegram", "3", "Eski", now=now - 40 * 86400)
+    lead, _ = store.upsert_request(a, "lead", "Logo", "+998901234567", now=_ts(2026, 10, 26, 11))
+    store.upsert_request(b, "complaint", "Norozi", now=_ts(2026, 10, 26, 22))
+    store.set_request_status(lead, "done")
+
+    d = analytics.build(7, now=now)
+    assert d["kpi"]["dialogs"] == 2
+    assert d["kpi"]["leads"] == 1 and d["kpi"]["leads_open"] == 0
+    assert d["kpi"]["after_hours_pct"] == 50.0
+    assert d["kpi"]["ai_drafted_pct"] == 50.0
+    assert [s["count"] for s in d["funnel"]] == [2, 1, 1, 1]
+    assert d["funnel"][1]["lost"] == 1
+    assert d["outcomes"] == {"operator": 1, "unanswered": 1, "avg_reply_min": 30.0, "complaints": 1}
+    assert d["heatmap"]["cells"][0][10] == 1 and d["heatmap"]["cells"][0][21] == 1
+    assert len(d["daily"]) == 7 and d["daily"][-2] == {"date": "2026-10-26", "dialogs": 2, "requests": 2}
+    assert {c["channel"]: c["leads"] for c in d["channels"]} == {"telegram": 1, "instagram": 0}
+
+    tg = analytics.build(7, "telegram", now=now)
+    assert tg["kpi"]["dialogs"] == 1 and tg["outcomes"]["complaints"] == 0
+
+
+def test_analytics_empty_and_validation():
+    from src.services.core.chat_manager import analytics
+    d = analytics.build(14)
+    assert d["kpi"]["dialogs"] == 0 and d["heatmap"]["peak"] is None and d["funnel"][0]["of_previous"] == 0.0
+    with pytest.raises(ValueError):
+        analytics.build(5)
+    with pytest.raises(ValueError):
+        analytics.build(7, "whatsapp")
+
+
+def test_analytics_api_and_page(monkeypatch):
+    c = _client(monkeypatch)
+    c.cookies.set("oisha_token", "x")
+    assert "Mijozlar qachon yozadi" in c.get("/api/chat/analitika").text
+    assert c.get("/api/chat/analytics?days=30").json()["days"] == 30
+    assert c.get("/api/chat/analytics?days=3").status_code == 422
+    assert _client(monkeypatch, None).get("/api/chat/analytics").status_code == 401
