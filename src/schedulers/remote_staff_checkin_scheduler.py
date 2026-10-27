@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import html
 import json
 import logging
 import os
@@ -198,6 +199,17 @@ def format_duration(seconds: int) -> str:
     return f"{s} soniya"
 
 
+def format_handle(tg_handle: str) -> str:
+    try:
+        from src.services.core.sales_staff_copilot import get_known_staff_user_id
+        known_id = get_known_staff_user_id(tg_handle)
+        if known_id:
+            return f'<a href="tg://user?id={known_id}">@{tg_handle.lstrip("@")}</a>'
+    except Exception:
+        pass
+    return tg_handle if tg_handle.startswith("@") else f"@{tg_handle}"
+
+
 def build_checkin_message(
     seller_name: str,
     tg_handle: str,
@@ -205,15 +217,7 @@ def build_checkin_message(
     activity: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Build a natural, human ROP message based on real MoiZvonki telephony data."""
-    try:
-        from src.services.core.sales_staff_copilot import get_known_staff_user_id
-        known_id = get_known_staff_user_id(tg_handle)
-        if known_id:
-            handle = f'<a href="tg://user?id={known_id}">@{tg_handle.lstrip("@")}</a>'
-        else:
-            handle = tg_handle if tg_handle.startswith("@") else f"@{tg_handle}"
-    except Exception:
-        handle = tg_handle if tg_handle.startswith("@") else f"@{tg_handle}"
+    handle = format_handle(tg_handle)
 
     if not activity or activity.get("total", 0) == 0:
         return (
@@ -358,6 +362,16 @@ async def send_remote_checkin(
         logger.debug("[CHECKIN] Proactive staff id resolve notice: %s", exc)
 
     text = build_checkin_message(seller_name, tg_handle, now, calls_info)
+    ai_text = None
+    try:
+        from src.services.core.checkin_composer import compose_checkin
+
+        ai_text = await compose_checkin(seller_name, now, calls_info)
+    except Exception as exc:
+        logger.debug("[CHECKIN] AI composer unavailable: %s", exc)
+    if ai_text:
+        # Ism + link bilan murojaat (bildirishnoma borishi uchun), qolgani AI matni.
+        text = f"{seller_name} ({format_handle(tg_handle)}), {html.escape(ai_text)}"
 
     # Persistent deduplication check
     can_send, reason = can_dispatch_checkin(now, text, force=force)
@@ -377,6 +391,12 @@ async def send_remote_checkin(
         hour_key = now.strftime("%Y-%m-%d-%H")
         text_hash = hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
         save_checkin_dispatch(hour_key, int(now.timestamp()), text_hash)
+        try:
+            from src.services.core.checkin_composer import save_context
+
+            save_context({"date": now.strftime("%Y-%m-%d"), "last_checkin": text})
+        except Exception as exc:
+            logger.debug("[CHECKIN] context save notice: %s", exc)
 
         logger.info("[CHECKIN] Dispatched hourly check-in for %s to chat=%s topic=%s", tg_handle, chat_id, topic_id)
         return True

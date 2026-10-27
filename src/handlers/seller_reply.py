@@ -46,7 +46,13 @@ def register_seller_reply_handlers(
                 return False
             me = await message.bot.me()
             reply_user = getattr(reply, "from_user", None)
-            return getattr(reply_user, "id", None) == me.id and is_checkin_text(_text_of(reply))
+            if getattr(reply_user, "id", None) != me.id:
+                return False
+            reply_text = _text_of(reply)
+            # AI yozgan check-in qolipsiz bo'ladi: bot xabari javob berayotgan odamni @username bilan chaqirgan bo'lsa ham check-in.
+            username = getattr(user, "username", None)
+            mentions_replier = bool(username) and f"@{username}".lower() in reply_text.lower()
+            return mentions_replier or is_checkin_text(reply_text)
         except Exception:
             logger.error("[SELLER-REPLY] Filtrda xato.", exc_info=True)
             return False
@@ -57,12 +63,14 @@ def register_seller_reply_handlers(
             extract_actions,
             format_summary,
         )
+        from src.services.core.checkin_composer import save_context
         from src.time_utils import get_local_now
 
         try:
             now = get_local_now()
             name = getattr(message.from_user, "first_name", None) or "do'stim"
             actions = await extract_actions(_text_of(message), _text_of(message.reply_to_message), now)
+            save_context({"date": now.strftime("%Y-%m-%d"), "last_reply": _text_of(message)})
             amocrm = amocrm_getter()
             if amocrm is None:
                 logger.warning("[SELLER-REPLY] amoCRM client yo'q, vazifalar yaratilmadi.")

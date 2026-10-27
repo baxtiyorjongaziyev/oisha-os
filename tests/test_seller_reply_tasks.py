@@ -119,14 +119,14 @@ class FakeDispatcher:
         self.handlers.append((handler, filters))
 
 
-def _message(chat_id, reply_from_id, reply_text, is_bot=False):
+def _message(chat_id, reply_from_id, reply_text, is_bot=False, username=None):
     async def me():
         return SimpleNamespace(id=999)
 
     reply = SimpleNamespace(from_user=SimpleNamespace(id=reply_from_id), text=reply_text, caption=None)
     return SimpleNamespace(
         chat=SimpleNamespace(id=chat_id),
-        from_user=SimpleNamespace(id=5, is_bot=is_bot, first_name="Rayxona"),
+        from_user=SimpleNamespace(id=5, is_bot=is_bot, first_name="Rayxona", username=username),
         reply_to_message=reply,
         bot=SimpleNamespace(me=me),
         text="Shaxboz aka band",
@@ -144,3 +144,12 @@ def test_filter_only_catches_replies_to_bot_checkin():
     assert not run(flt(_message(-100, 42, checkin)))
     assert not run(flt(_message(-100, 999, "Bugungi hisobot")))
     assert not run(flt(_message(-100, 999, checkin, is_bot=True)))
+
+
+def test_filter_catches_ai_checkin_that_mentions_replier():
+    disp = FakeDispatcher()
+    register_seller_reply_handlers(disp, amocrm_getter=lambda: None, group_id_getter=lambda: -100)
+    _, (flt,) = disp.handlers[0]
+    ai_text = "Rayxon (@RayxonJonbranding), Shaxboz aka bilan gaplasha oldingizmi?"
+    assert run(flt(_message(-100, 999, ai_text, username="RayxonJonbranding")))
+    assert not run(flt(_message(-100, 999, ai_text, username="boshqa")))
