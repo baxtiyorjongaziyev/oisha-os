@@ -132,7 +132,7 @@ def patched(monkeypatch):
     )
     monkeypatch.setattr(
         "src.bootstrap.orchestration.bot_head.register_seller_reply_handlers",
-        lambda dp, *, amocrm_getter: None,
+        lambda dp: None,
     )
     monkeypatch.setattr(
         "src.bootstrap.orchestration.bot_head.register_existing_contact_signal_callbacks",

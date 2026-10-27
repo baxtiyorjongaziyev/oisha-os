@@ -145,7 +145,7 @@ async def init_aiogram_bot_head(
         dispatcher, msg_controller=msg_controller, owner_id=access_manager.owner_id
     )
     # Check-in reply'lari Hamroh'dan oldin: aks holda Hamroh ularni oddiy savol deb oladi.
-    register_seller_reply_handlers(dispatcher, amocrm_getter=_get_amocrm_client)
+    register_seller_reply_handlers(dispatcher)
     # Hamroh legacy catch-all'dan oldin ulanadi, aks holda guruh mention'lari unga yetmaydi.
     register_jamoa_hamroh_handlers(dispatcher)
 

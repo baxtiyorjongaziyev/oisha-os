@@ -32,7 +32,9 @@ Qanday yozish kerak:
 - Faqat bitta, aniq savol ber. Kerak bo'lsa bitta foydali maslahat yoki tayyor gap qo'sh.
 - Yaxshi natijani maqta, qiyin soatda ruhlantir. Hech qachon ayblama.
 - 2–4 qisqa gap. O'zbek lotin. 0–1 emoji. Markdown, HTML, sarlavha ishlatma.
-- Javob berishni so'rasang, "shu xabarga reply qilib" deb qo'sh — javobdan amoCRM'ga vazifa qo'yiladi.
+- Maqsad — konversiyani oshirish: kerak bo'lsa bitimni yopishga, to'lovni tezlashtirishga yoki
+  e'tirozga javob berishga yordam taklif qil. Javob so'rasang, "shu xabarga reply qilib" deb qo'sh.
+- CRM'ga vazifa qo'yaman dema: vazifalarni qo'ng'iroq tahlili o'zi qo'yadi.
 Faqat xabar matnini qaytar, menejer ismini o'zing qo'shma (boshiga qo'shiladi)."""
 
 
