@@ -74,14 +74,14 @@ Yakunlangan, Qoralama, Nofaol, Arxiv → neutral. Bitta ustunda `.eco-status` va
 
 | | FoxUI | PDP DS |
 |---|---|---|
-| Litsenziya | Obuna ($10/oy) | Ochiq CDN (pinned), litsenziya sahifada ko'rsatilmagan |
+| Litsenziya | Bepul foydalanish ochiq (Free tarif; Pro — qo'shimcha) | Bepul, ochiq CDN (pinned) |
 | JS boshqa domendan | Ishlamaydi (ES modul, CORS yo'q) | Ishlaydi (oddiy script) |
 | Grafiklar | `<table>` dan | JSON atributdan, tooltip + klaviatura bilan |
 | AI qo'llanma | `llms.txt` + MCP (Pro) | `llms.txt` + task guide + har blokka retsept |
 | Brend | Neytral, 16 tema | PDP brendlari (6 ta) — **boshqa kompaniyaning brendi** |
 
-> Diqqat: PDP — boshqa kompaniyaning brend tizimi. Ichki prototip uchun mos, lekin Jon Branding/Oisha'ning
-> o'z vizual identifikatsiyasi sifatida ishlatishdan oldin PDP bilan kelishing.
+> Ikkala tizim ham bepul foydalanishga ochiq (egasi tasdiqlagan, 2026-10-27). PDP'ning brend belgilari
+> (logo, `mark-*`) o'rniga Oisha/Jon Branding nomi va belgisini qo'ying — tokenlar va komponentlar qoladi.
 
 ## Prototip
 

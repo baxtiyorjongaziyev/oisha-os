@@ -18,8 +18,8 @@
 CLI (Pro): `npx foxui init --theme amethyst --style round`, `npx foxui add chart datagrid`,
 `npx foxui check` (tekshirish), `npx foxui mcp` (AI agent uchun MCP server).
 
-> Litsenziya: obuna (Free / Pro $10 / Team $39). CSS/JS faylini repoga **ko'chirmang** —
-> hosted manzildan ulang yoki Pro litsenziya bilan CLI orqali o'rnating.
+> Litsenziya: bepul foydalanish ochiq (Free tarif; Pro/Team — qo'shimcha imkoniyatlar). CSS hosted manzildan
+> ulanadi; JS'ni CLI (`npx foxui init`) bilan lokal o'rnating.
 
 ## Qoidalar (FoxUI'ning o'zi talab qiladi)
 
