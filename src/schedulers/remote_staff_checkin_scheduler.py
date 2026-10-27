@@ -251,8 +251,8 @@ def build_checkin_message(
             f"Assalomu alaykum, {seller_name} ({handle})! 👏\n\n"
             f"Zo'r soat bo'libdi: {total} ta raqam terib, {answered} ta mijoz bilan yaxshi gaplashibsiz "
             f"({clients_text}; jami {format_duration(total_talk)}).\n\n"
-            f"Nimalarga kelishdingiz? Shu xabarga reply qilib yozing — qaysi lid bo'yicha "
-            f"qanday vazifa kerakligini amoCRM'ga o'zim qo'yib qo'yaman."
+            f"Nimalarga kelishdingiz? Shu xabarga reply qilib yozing — keyingi qadamni "
+            f"qanday qilsak bitim yopiladi, birga o'ylaymiz."
         )
 
     if answered > 0 and solid == 0:
@@ -264,8 +264,8 @@ def build_checkin_message(
             msg += f" ({clients_text})"
         msg += (
             f". Suhbatlar qisqa bo'libdi — band edimi yoki keyinroq gaplashamiz deyishdimi?\n\n"
-            f"Shu xabarga reply qilib yozing: kimga qachon qayta qo'ng'iroq qilish kerak bo'lsa, "
-            f"amoCRM'ga o'zim yozib qo'yaman. Gapni qanday boshlash bo'yicha maslahat kerak bo'lsa, ayting!"
+            f"Shu xabarga reply qilib yozing, nima bo'lganini — keyingi qo'ng'iroqda "
+            f"gapni qanday boshlash bo'yicha tayyor gap bilan yordam beraman!"
         )
         return msg
 
@@ -273,8 +273,8 @@ def build_checkin_message(
         f"Assalomu alaykum, {seller_name} ({handle})! 😊\n\n"
         f"Oxirgi soatda {total} ta raqam terdingiz, hozircha hech kim ko'tarmadi — bu normal holat, "
         f"ruhingiz tushmasin!\n\n"
-        f"Ularga qachon qayta terish kerakligini shu xabarga reply qilib yozing, "
-        f"amoCRM'ga vazifa qilib o'zim qo'yaman."
+        f"Qayta terishda ko'tarish ehtimoli ko'proq bo'ladigan vaqt va birinchi gap bo'yicha "
+        f"maslahat kerak bo'lsa, shu xabarga reply qilib yozing."
     )
 
 
