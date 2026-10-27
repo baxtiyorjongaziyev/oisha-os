@@ -35,6 +35,24 @@ async def _broadcast_incoming_message(event: Any) -> tuple[Any, str, str]:
     return sender, sender_name, msg_text
 
 
+async def _record_chat_manager(event: Any, sender: Any, sender_name: str) -> None:
+    """Shaxsiy suhbatni AI Chat Manager dialoglariga yozadi (panel /api/chat/)."""
+    text = event.message.message or ""
+    if not (event.is_private and not event.out and text.strip()) or getattr(sender, "bot", False):
+        return
+    try:
+        from src.services.core.chat_manager import store
+        name = " ".join(
+            p for p in (getattr(sender, "first_name", ""), getattr(sender, "last_name", "")) if p
+        )
+        await asyncio.to_thread(
+            store.record_message, "telegram", str(event.chat_id), text,
+            name=name, phone=getattr(sender, "phone", "") or "",
+        )
+    except Exception as exc:  # noqa: BLE001 - panel logging must never break replies
+        logger.warning(f"[CHAT-MANAGER] record failed: {exc}")
+
+
 async def _sync_and_log_crm_channels(event: Any, sender: Any, sender_name: str, message_text: str, chat_id: int) -> None:
     if not (event.is_private and not event.out and message_text):
         return
@@ -143,6 +161,7 @@ async def handle_new_message(event):
         await safe_responder.update_me_id(me.id)
 
     sender, sender_name, msg_text = await _broadcast_incoming_message(event)
+    await _record_chat_manager(event, sender, sender_name)
     await advance_checkpoint(event, app_ctx.msg_controller)
 
     if _should_block_private_userbot_reply(event) or (safe_responder and not await safe_responder.should_respond(event)):

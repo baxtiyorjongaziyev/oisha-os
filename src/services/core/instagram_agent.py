@@ -198,6 +198,17 @@ def allow_auto_reply(commenter_id: str, now: Optional[float] = None) -> bool:
     return True
 
 
+def _record_chat_manager(sender_id: str, text: str, direction: str, author: str) -> None:
+    """IG DM'ni AI Chat Manager dialoglariga yozadi; xato DM oqimini to'xtatmaydi."""
+    if not (text or "").strip():
+        return
+    try:
+        from src.services.core.chat_manager import store
+        store.record_message("instagram", sender_id, text, direction=direction, author=author)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[META] chat-manager record failed", error=str(exc))
+
+
 async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> None:
     """Asynchronously processes entry events from Meta webhook payload."""
     if not payload:
@@ -263,6 +274,7 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
             logger.info("[META] Received Instagram DM", sender_id=sender_id, text=text[:50])
             if db:
                 await db.log_message(user_id_str, text, is_ai=False)
+            _record_chat_manager(sender_id, text, "in", "client")
 
             # Conversation history so the qualification funnel has context.
             history: list[dict] = []
@@ -300,6 +312,7 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 # Stored as a draft suggestion only — is_ai=True marks it as
                 # AI-authored text, but it is never sent to the customer.
                 await db.log_message(user_id_str, clean_reply, is_ai=True)
+            _record_chat_manager(sender_id, clean_reply, "out", "ai_draft")
 
             # NOTE: AmoCRM already ingests Instagram DMs via its own native
             # integration and opens the deal itself. Do NOT create a second

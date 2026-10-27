@@ -37,6 +37,8 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     asyncio.create_task(hunter_retry_loop(), name="hunter_retry_loop")
     from src.schedulers.lead_follow_up_scheduler import lead_follow_up_loop
     asyncio.create_task(lead_follow_up_loop(), name="lead_follow_up_loop")
+    from src.schedulers.chat_manager_scheduler import chat_manager_extract_loop
+    asyncio.create_task(chat_manager_extract_loop(), name="chat_manager_extract_loop")
     from src.schedulers.attendance_summary_scheduler import attendance_summary_loop
     asyncio.create_task(attendance_summary_loop(), name="attendance_summary_loop")
     from src.schedulers.instagram_weekly_reporter import instagram_weekly_report_loop
