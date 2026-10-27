@@ -17,7 +17,7 @@ import src.schedulers.unowned_lead_alert as alert_module
 NOW = 1_800_000_000
 
 
-def _lead(lead_id, minutes_ago, owner=BOT_RESPONSIBLE_USER_ID, tag=INHOUSE_TAG, status=87609514, extra_tags=None):
+def _lead(lead_id, minutes_ago, owner=BOT_RESPONSIBLE_USER_ID, tag=INHOUSE_TAG, status=89067962, extra_tags=None):
     tags = [{"name": tag}]
     if extra_tags:
         for t in extra_tags:
@@ -148,3 +148,13 @@ def test_alert_text_uses_hours_after_60_minutes():
     now = 10_000_000
     text = build_alert_text({"name": "Lobar", "created_at": now - 1392 * 60}, now)
     assert "23 soat 12 daqiqadan beri" in text
+
+
+def test_lead_moved_out_of_new_stage_is_skipped():
+    leads = [_lead(20, 40, status=89067963)]
+    assert alert_module.find_unowned_inhouse_leads(leads, NOW) == []
+
+
+def test_mumtozmaxal_tag_counts_as_claimed():
+    leads = [_lead(21, 40, extra_tags=["Mumtozmaxal"])]
+    assert alert_module.find_unowned_inhouse_leads(leads, NOW) == []
