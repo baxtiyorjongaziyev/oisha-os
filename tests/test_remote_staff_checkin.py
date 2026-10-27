@@ -113,7 +113,7 @@ def test_target_destination_defaults(monkeypatch):
     monkeypatch.delenv("REMOTE_CHECKIN_TOPIC_ID", raising=False)
     chat_id, topic_id = get_target_destination()
     assert chat_id == -1003854308552
-    assert topic_id == 115
+    assert topic_id == 2976
 
 
 def test_target_destination_override(monkeypatch):
@@ -145,5 +145,5 @@ async def test_send_remote_checkin_work_hours(tmp_path, monkeypatch):
     args, kwargs = bot.send_message.call_args
     assert args[0] == -1003854308552
     assert "@RayxonJonbranding" in args[1]
-    assert kwargs.get("message_thread_id") == 115
+    assert kwargs.get("message_thread_id") == 2976
     assert kwargs.get("parse_mode") == "HTML"

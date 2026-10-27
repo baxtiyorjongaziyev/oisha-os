@@ -21,7 +21,8 @@ from src.time_utils import get_local_now
 logger = logging.getLogger("RemoteStaffCheckin")
 
 SALES_GROUP_ID = -1003854308552
-SALES_REPORT_TOPIC_ID = 115
+# Rayxonaning shaxsiy sotuv-menejer topic'i: check-in umumiy hisobot topic'iga emas, shu yerga boradi.
+REP_TOPIC_ID = 2976
 
 DEFAULT_REP_NAME = "Rayxon"
 DEFAULT_REP_TG = "@RayxonJonbranding"
@@ -162,7 +163,7 @@ def get_target_destination() -> tuple[int, Optional[int]]:
     if raw_topic is not None:
         topic_id = int(raw_topic) if raw_topic.strip() else None
     else:
-        topic_id = getattr(settings, "CRM_SALES_REPORT_TOPIC_ID", SALES_REPORT_TOPIC_ID)
+        topic_id = REP_TOPIC_ID
 
     return group_id, topic_id
 
