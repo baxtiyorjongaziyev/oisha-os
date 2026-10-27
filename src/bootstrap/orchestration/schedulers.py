@@ -152,3 +152,9 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         asyncio.create_task(jamoa_ritm_loop(bot_runtime), name="jamoa_ritm_loop")
     except ImportError as exc:
         logger.warning("[JAMOA-RITM] scheduler unavailable: %s", exc)
+
+    try:
+        from src.schedulers.remote_staff_checkin_scheduler import remote_staff_checkin_loop
+        asyncio.create_task(remote_staff_checkin_loop(bot_runtime), name="remote_staff_checkin_loop")
+    except ImportError as exc:
+        logger.warning("[REMOTE CHECKIN] scheduler unavailable: %s", exc)
