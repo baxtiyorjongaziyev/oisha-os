@@ -1,105 +1,145 @@
 <!doctype html>
-<html lang="uz">
+<html lang="uz" data-brand="ecosystem" data-theme="light">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Oisha · Targetolog CAPI Paneli</title>
+<!-- PDP Design System @0.15.105 (pinned, CDN) — docs/pdp-design-system-notes.md. CSS/JS repoga ko'chirilmaydi. -->
+<link rel="stylesheet" href="https://design.pdp.uz/ds/fonts/fonts.css">
+<link rel="stylesheet" href="https://design.pdp.uz/ds/tokens/ecosystem.css">
+<link rel="stylesheet" href="https://design.pdp.uz/ds/css/v0.15.105/pdp-base.css">
+<link rel="stylesheet" href="https://design.pdp.uz/ds/css/v0.15.105/pdp-components.css">
 <style>
-:root{font-family:system-ui,-apple-system,sans-serif;color:#162235;background:#f5f7fb}*{box-sizing:border-box}
-body{margin:0}main{max-width:1160px;margin:auto;padding:36px 20px}header{display:flex;justify-content:space-between;align-items:center;gap:16px}
-h1{font-size:32px;letter-spacing:-0.5px;margin:6px 0}h2{font-size:18px;margin:0 0 12px}p{line-height:1.5;color:#526078;margin:4px 0}.eyebrow{font-size:11px;letter-spacing:1.5px;font-weight:700;color:#2457da}
-button{background:#2457da;color:white;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font:inherit;font-weight:500;transition:opacity .15s}button:disabled{opacity:.5;cursor:wait}
-.btn-secondary{background:#eaf0ff;color:#2457da}
-.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:24px 0}.card,section{background:white;border:1px solid #e1e6ef;border-radius:12px;padding:20px;margin-bottom:18px}
-.label{font-size:12px;color:#526078;text-transform:uppercase;letter-spacing:0.5px}.value{font-size:22px;margin-top:8px;font-weight:700}.notice{border-left:3px solid #2457da;padding:12px 16px;background:#eaf0ff;border-radius:0 8px 8px 0;font-size:13px}
-.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid #edf0f5;white-space:nowrap}th{color:#526078;font-weight:600;background:#fafbfc}.status{font-weight:600}.sent{color:#166534}.failed{color:#b42318}.queued{color:#b54708}code{font-size:12px;background:#eef2f6;padding:2px 6px;border-radius:4px}#message{min-height:24px;margin:8px 0;font-size:14px;font-weight:500}a{color:#2457da;text-decoration:none}
-.pill{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}.pill-green{background:#dcfce7;color:#166534}.pill-blue{background:#e0e7ff;color:#3730a3}.pill-amber{background:#fef3c7;color:#92400e}
-@media(max-width:800px){.cards{grid-template-columns:repeat(2,1fr)}header{align-items:start;flex-direction:column}main{padding:20px 14px}}
-@media(max-width:500px){.cards{grid-template-columns:1fr}}
+/* Oisha ranglari: Oq 60 / Qora 30 / Ko‘k 10 — prototypes/pdp/oisha-theme.css bilan bir xil manba. */
+:root{--oisha-white:#FFFFFF;--oisha-black:#111111;--oisha-blue:#2F6BFF;--oisha-blue-600:#1F4FD1;--oisha-blue-300:#93B4F8;--oisha-blue-100:#DCE7FD;--oisha-blue-50:#EFF4FE}
+html[data-brand][data-theme="light"]{
+  --eco-bg-primary:var(--oisha-white);--eco-bg-secondary:#F7F7F8;--eco-color-surface:#F7F7F8;
+  --eco-color-black:var(--oisha-black);--eco-bg-primary-solid:var(--oisha-black);--eco-brand-button:var(--oisha-black);
+  --eco-bg-brand-solid:var(--oisha-black);--eco-text-primary_on-brand:var(--oisha-white);--eco-badge-solid-bg:var(--oisha-black);
+  --eco-color-lime:var(--oisha-blue);--eco-color-malachite:var(--oisha-blue);--eco-color-malachite-button:var(--oisha-blue);
+  --eco-color-brand-tint:var(--oisha-blue-50);--eco-brand-primary:var(--oisha-blue);--eco-brand-accent:var(--oisha-blue);
+  --eco-bg-brand-primary:var(--oisha-blue-50);--eco-bg-brand-secondary:var(--oisha-blue-100);--eco-border-brand:var(--oisha-blue);
+  --eco-fg-brand-primary:var(--oisha-blue);--eco-text-brand-primary:var(--oisha-blue-600);--eco-text-brand-secondary:var(--oisha-blue-600);
+  --eco-focus-ring:var(--oisha-blue);
+  --eco-bg-success-solid:#02A307;--eco-fg-success-primary:#02A307;--eco-fg-success-secondary:#02A307}
+/* Faqat joylashuv — ranglar faqat tokenlardan */
+body{margin:0;background:var(--eco-bg-secondary);color:var(--eco-text-primary)}
+.capi{max-width:1160px;margin:auto;padding:32px 20px;display:grid;gap:20px}
+.capi__head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.capi__eyebrow{margin:0;font-size:var(--eco-text-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--eco-text-tertiary)}
+.capi__title{margin:4px 0;font-size:var(--eco-text-display-xs);line-height:var(--eco-text-display-xs--line-height)}
+.capi__sub{margin:0;color:var(--eco-text-secondary)}
+.capi__acts{display:flex;gap:8px}
+.capi__kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.capi__kpis .eco-kpi{background:var(--eco-bg-primary)}
+.capi__table{overflow-x:auto}
+.capi__note p{margin:4px 0;color:var(--eco-text-secondary)}
+.capi__foot{margin:0;font-size:var(--eco-text-xs);color:var(--eco-text-tertiary)}
+@media(max-width:800px){.capi__kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:500px){.capi__kpis{grid-template-columns:1fr}}
 </style>
-<main>
-<header>
-  <div>
-    <div class="eyebrow">OISHA / JONBRANDING · TARGETOLOG PANELI</div>
-    <h1>Conversions API (CAPI)</h1>
-    <p>Sayt va CRM signallari ➔ Meta Dataset. Targetolog uchun to‘liq avtomatlashtirilgan boshqaruv.</p>
-  </div>
-  <div style="display:flex;gap:8px">
-    <button id="dispatch" class="btn-secondary">Navbatni yuborish</button>
-    <button id="refresh">Yangilash</button>
-  </div>
-</header>
-
-<div class="cards">
-  <div class="card">
-    <div class="label">Meta Dataset</div>
-    <div class="value" id="dataset">Yuklanmoqda…</div>
-    <p id="connection" style="font-size:12px"></p>
-  </div>
-  <div class="card">
-    <div class="label">Yuborish rejimi</div>
-    <div class="value" id="mode">—</div>
-    <p id="enabled" style="font-size:12px"></p>
-  </div>
-  <div class="card">
-    <div class="label">24/7 Avtomatlashtirish</div>
-    <div class="value"><span class="pill pill-green">Faol (har 30s)</span></div>
-    <p style="font-size:12px">Navbat fon xizmatida avtomatik ishlaydi</p>
-  </div>
-  <div class="card">
-    <div class="label">Sayt Ingest</div>
-    <div class="value" id="ingest">—</div>
-    <p style="font-size:12px">Saytdan xavfsiz qabul qilish</p>
-  </div>
-</div>
-
-<p class="notice">💡 <b>Avtomatlashtirish qoidasi:</b> Sayt formasi to‘ldirilganda <code>Lead</code> avtomatik uzatiladi. amoCRM da lid sifatli deb belgilanganda <code>QualifiedLead</code>, bitim yopilganda esa <code>Purchase</code> (haqiqiy summa bilan) Meta CAPI ga to‘g‘ridan-to‘g‘ri yuboriladi.</p>
-
-<div id="message" role="status" aria-live="polite"></div>
-
-<section>
-  <header style="margin-bottom:12px">
-    <h2>Sayt va server eventlari oqimi</h2>
+</head>
+<body>
+<main class="capi">
+  <header class="capi__head">
+    <div>
+      <p class="capi__eyebrow">Oisha · JonBranding · Targetolog paneli</p>
+      <h1 class="capi__title">Conversions API (CAPI)</h1>
+      <p class="capi__sub">Sayt va CRM signallari → Meta Dataset.</p>
+    </div>
+    <div class="capi__acts">
+      <button type="button" id="dispatch" class="eco-btn eco-btn--secondary eco-btn--sm">Navbatni yuborish</button>
+      <button type="button" id="refresh" class="eco-btn eco-btn--primary eco-btn--sm">Yangilash</button>
+    </div>
   </header>
-  <div class="scroll">
-    <table>
-      <thead>
-        <tr><th>Event</th><th>ID / Manba</th><th>Rejim</th><th>Holat</th><th>Urinish</th><th>Yangilandi (Toshkent)</th></tr>
-      </thead>
-      <tbody id="events"></tbody>
-    </table>
+
+  <div class="capi__kpis" role="region" aria-label="Ulanish holati">
+    <div class="eco-kpi">
+      <p class="eco-kpi__label">Meta Dataset</p>
+      <p class="eco-kpi__value" id="dataset">Yuklanmoqda…</p>
+      <p class="eco-kpi__line" id="connection"></p>
+    </div>
+    <div class="eco-kpi">
+      <p class="eco-kpi__label">Yuborish rejimi</p>
+      <p class="eco-kpi__value" id="mode">—</p>
+      <p class="eco-kpi__line" id="enabled"></p>
+    </div>
+    <div class="eco-kpi">
+      <p class="eco-kpi__label">Avtomatik navbat</p>
+      <p class="eco-kpi__value">har 30 s</p>
+      <p class="eco-kpi__foot">Fon xizmati 20 tagacha eventni yuboradi</p>
+    </div>
+    <div class="eco-kpi">
+      <p class="eco-kpi__label">Sayt ingest</p>
+      <p class="eco-kpi__value" id="ingest">—</p>
+      <p class="eco-kpi__foot">Saytdan server kaliti bilan qabul</p>
+    </div>
   </div>
-</section>
 
-<section>
-  <header style="margin-bottom:8px">
-    <h2>amoCRM Savdo Voronkasi Signallari</h2>
-    <p id="mapping"></p>
-  </header>
-  <div class="scroll">
-    <table>
-      <thead>
-        <tr><th>Event</th><th>Lead Ads ID</th><th>amoCRM ID</th><th>Holat</th><th>Yangilandi (Toshkent)</th><th>Amal</th></tr>
-      </thead>
-      <tbody id="crm"></tbody>
-    </table>
+  <div class="eco-callout eco-callout--info">
+    <div class="eco-callout__body">
+      <p class="eco-callout__title">Avtomatlashtirish qoidasi</p>
+      <p>Sayt formasi to‘ldirilganda <code>Lead</code> uzatiladi. amoCRM’da lid sifatli deb belgilansa <code>QualifiedLead</code>, bitim yopilsa <code>Purchase</code> (haqiqiy summa bilan) Meta CAPI’ga yuboriladi.</p>
+    </div>
   </div>
-</section>
 
-<section>
-  <h2>Targetolog uchun eslatma</h2>
-  <p>• Meta Events Manager'da qabul qilingan eventlarni ko‘rish uchun: <code>events_received=1</code> transport tasdig‘i xizmat qiladi.</p>
-  <p>• Reklama guruhlari va kreativlar bo‘yicha tahlil Telegram'dagi <code>/capi</code> yoki <code>/kreativ</code> buyrug‘i orqali ham darhol olinadi.</p>
-  <p>• Telefon va email ma'lumotlari xavfsizlik uchun SHA-256 xeshlangan holda saqlanadi va panelda ochiq ko‘rinmaydi.</p>
-</section>
+  <div id="message" class="eco-callout eco-callout--error" role="status" aria-live="polite" hidden>
+    <div class="eco-callout__body"><p class="eco-callout__title" id="message-text"></p></div>
+  </div>
 
-<p id="observed" style="font-size:12px;color:#8a99ad"></p>
+  <div class="eco-table-card">
+    <div class="eco-table-card__head">
+      <div class="eco-table-card__heading">
+        <h2 class="eco-table-card__title">Sayt va server eventlari</h2>
+      </div>
+    </div>
+    <div class="eco-table-card__body capi__table" tabindex="0" role="region" aria-label="Sayt va server eventlari">
+      <table class="eco-table">
+        <thead><tr><th>Event</th><th>ID / Manba</th><th>Rejim</th><th>Holat</th><th>Urinish</th><th>Yangilandi (Toshkent)</th></tr></thead>
+        <tbody id="events"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="eco-table-card">
+    <div class="eco-table-card__head">
+      <div class="eco-table-card__heading">
+        <h2 class="eco-table-card__title">amoCRM voronka signallari</h2>
+        <p class="eco-table-card__desc" id="mapping"></p>
+      </div>
+    </div>
+    <div class="eco-table-card__body capi__table" tabindex="0" role="region" aria-label="amoCRM voronka signallari">
+      <table class="eco-table">
+        <thead><tr><th>Event</th><th>Lead Ads ID</th><th>amoCRM ID</th><th>Holat</th><th>Yangilandi (Toshkent)</th><th>Amal</th></tr></thead>
+        <tbody id="crm"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="eco-card capi__note">
+    <div class="eco-card__hd"><h2 class="eco-card__title">Targetolog uchun eslatma</h2></div>
+    <p>Meta <code>events_received=1</code> — faqat transport tasdig‘i; mos kelish (matching) yoki atribusiyani isbotlamaydi.</p>
+    <p>Reklama guruhlari va kreativlar tahlili Telegram’da <code>/capi</code> yoki <code>/kreativ</code> buyrug‘i orqali.</p>
+    <p>Telefon va email SHA-256 xeshlangan holda saqlanadi va panelda ko‘rinmaydi.</p>
+  </div>
+
+  <p id="observed" class="capi__foot"></p>
 </main>
 <script>
 const base='/api/marketing/capi';
 const labels={sent:'Qabul qilindi',failed:'Xato',expired:'Muddati o‘tgan',pending:'Yuborilmoqda',queued:'Navbatda',disabled:'O‘chiq',duplicate:'Mavjud',not_due:'Hozir yuborilmaydi'};
+// PDP holat lug'ati: shakl + rang + so'z (rang yolg'iz ma'no tashimaydi)
+const tones={sent:'success',failed:'error',expired:'error',pending:'warning',queued:'neutral',disabled:'neutral',duplicate:'neutral',not_due:'neutral'};
 const el=id=>document.getElementById(id);
 const stamp=value=>value?new Date(value).toLocaleString('uz-UZ',{timeZone:'Asia/Tashkent'}):'Noma’lum';
-function cell(row,value,cls){const td=document.createElement('td');td.textContent=value??'Noma’lum';if(cls)td.className=cls;row.append(td);return td;}
+function badge(text,tone){const b=document.createElement('span');b.className='eco-badge eco-badge--dot'+(tone?' eco-badge--'+tone:'');b.textContent=text;return b;}
+function cell(row,value){const td=document.createElement('td');td.textContent=value??'Noma’lum';row.append(td);return td;}
+function statusCell(row,item){
+  const td=document.createElement('td');const s=document.createElement('span');
+  s.className='eco-status eco-status--'+(tones[item.status]||'neutral');
+  s.textContent=(labels[item.status]||item.status)+(item.error?' · '+item.error:'');
+  td.append(s);row.append(td);
+}
 function populate(id,records,legacy=false){
   const body=el(id);body.replaceChildren();
   if(!records||!records.length){const row=document.createElement('tr');const td=cell(row,'Hozircha yozuv yo‘q');td.colSpan=6;body.append(row);return;}
@@ -108,13 +148,13 @@ function populate(id,records,legacy=false){
     cell(row,item.event_name);
     cell(row,legacy?item.leadgen_id:(item.event_id+' / '+item.source));
     cell(row,legacy?item.amo_lead_id:item.mode);
-    cell(row,(labels[item.status]||item.status)+(item.error?' · '+item.error:''),'status '+item.status);
+    statusCell(row,item);
     if(!legacy)cell(row,item.attempts);
     cell(row,stamp(item.updated_at));
     if(legacy){
       const td=cell(row,'');
       if(item.status==='failed'){
-        const b=document.createElement('button');b.textContent='Qayta yuborish';b.className='btn-secondary';
+        const b=document.createElement('button');b.type='button';b.textContent='Qayta yuborish';b.className='eco-btn eco-btn--secondary eco-btn--xs';
         b.onclick=()=>action('/crm/'+encodeURIComponent(item.leadgen_id)+'/'+encodeURIComponent(item.event_name)+'/retry',b);
         td.append(b);
       }
@@ -122,33 +162,36 @@ function populate(id,records,legacy=false){
     body.append(row);
   }
 }
+function say(text,tone){const m=el('message');m.className='eco-callout eco-callout--'+(tone||'error');el('message-text').textContent=text;m.hidden=!text;}
 async function request(path,method='GET'){
   const response=await fetch(base+path,{method,credentials:'same-origin',cache:'no-store'});
   if(!response.ok)throw new Error(response.status===401?'Oisha hisobingizga kiring.':response.status===403?'Bu amal uchun ruxsat kerak (Targetolog / Admin).':'Ma’lumot olinmadi / amal bajarilmadi ('+response.status+').');
   return response.json();
 }
 async function load(){
-  el('refresh').disabled=true;
+  el('refresh').disabled=true;el('refresh').setAttribute('aria-busy','true');
   try{
     const data=await request('/status');const c=data.configuration;
-    el('connection').textContent=c.configured?'Sozlangan va bog‘langan':'Ulanmagan';
+    el('connection').replaceChildren(badge(c.configured?'Ulangan':'Ulanmagan',c.configured?'success':'error'));
     el('dataset').textContent=c.dataset_id||'Mavjud emas';
-    el('mode').textContent=c.mode==='test'?'Test Events':'Haqiqiy (Live)';
-    el('enabled').textContent=c.enabled?'Avtomatik yuborish yoqilgan':'Yuborish to‘xtatilgan';
+    el('mode').textContent=c.mode==='test'?'Test Events':'Live';
+    el('enabled').replaceChildren(badge(c.enabled?'Yuborish yoqilgan':'Yuborish to‘xtatilgan',c.enabled?'success':'warning'));
     el('ingest').textContent=c.ingest_configured?'Sozlangan':'Ulanmagan';
-    el('mapping').textContent='Voronka: 142 (Sotildi) ➔ Purchase | Sifatli lidlar: '+(c.qualified_status_ids.join(', ')||'sozlanmagan')+'.';
+    el('mapping').textContent='Voronka: 142 (Sotildi) → Purchase · Sifatli lidlar: '+(c.qualified_status_ids.join(', ')||'sozlanmagan')+'.';
     populate('events',data.events);populate('crm',data.crm_events,true);
     el('observed').textContent='Tekshirildi: '+stamp(data.observed_at)+' · Har bir manbadan oxirgi 100 yozuv.';
-  }catch(error){el('message').textContent=error.message;el('connection').textContent='Tekshirib bo‘lmadi';}finally{el('refresh').disabled=false;}
+  }catch(error){say(error.message,'error');el('connection').replaceChildren(badge('Tekshirib bo‘lmadi','error'));}
+  finally{el('refresh').disabled=false;el('refresh').removeAttribute('aria-busy');}
 }
 async function action(path,button){
   button.disabled=true;
   try{
     const data=await request(path,'POST');
-    el('message').textContent=data.status?(labels[data.status]||data.status):'Navbat tekshirildi. Natijalar jadvalda yangilandi.';
+    say(data.status?(labels[data.status]||data.status):'Navbat tekshirildi. Natijalar jadvalda yangilandi.','info');
     await load();
-  }catch(error){el('message').textContent=error.message;}finally{button.disabled=false;}
+  }catch(error){say(error.message,'error');}finally{button.disabled=false;}
 }
 el('refresh').onclick=load;el('dispatch').onclick=()=>action('/dispatch',el('dispatch'));load();
 </script>
+</body>
 </html>
