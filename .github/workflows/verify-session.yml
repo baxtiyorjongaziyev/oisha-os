@@ -13,6 +13,7 @@ name: Verify Userbot Session
 on:
   workflow_dispatch:
   push:
+    branches: [main]  # never run branch code on the prod runner
     paths:
       - 'deploy/verify-session-trigger'
 

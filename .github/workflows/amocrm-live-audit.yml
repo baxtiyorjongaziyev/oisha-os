@@ -2,6 +2,7 @@ name: AmoCRM Live Audit
 
 on:
   push:
+    branches: [main]  # never run branch code on the prod runner
     paths:
       - 'deploy/amocrm-audit-trigger'
   workflow_dispatch:

@@ -12,6 +12,7 @@ name: Qurbon Hayit Tabrigi — Tez Natija guruhlar
 on:
   workflow_dispatch:
   push:
+    branches: [main]  # never run branch code on the prod runner
     paths:
       - 'deploy/qurbon-trigger'
 

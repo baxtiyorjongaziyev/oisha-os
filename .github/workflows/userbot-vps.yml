@@ -15,6 +15,10 @@ name: Userbot — VPS Decommission (stop only)
 # automatic run here would stop the live userbot. Never re-add a push trigger.
 on:
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type STOP_PRODUCTION_USERBOT to stop the userbot on prod'
+        required: true
 
 env:
   OWNER_ID: "150074828"
@@ -22,6 +26,7 @@ env:
 jobs:
   stop-userbot:
     name: SSH → VPS → Stop userbot
+    if: ${{ inputs.confirm == 'STOP_PRODUCTION_USERBOT' }}
     runs-on: [self-hosted, oracle]
     timeout-minutes: 10
     steps:
