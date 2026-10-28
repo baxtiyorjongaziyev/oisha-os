@@ -87,7 +87,7 @@ fastapi==0.142.2
     # via -r requirements.txt
 fonttools==4.66.1
     # via fpdf2
-fpdf2==2.8.1
+fpdf2==2.8.8
     # via -r requirements.txt
 frozenlist==1.8.0
     # via
