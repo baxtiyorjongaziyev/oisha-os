@@ -13,6 +13,7 @@ name: Verify Userbot Session
 on:
   workflow_dispatch:
   push:
+    branches: [main]  # never run branch code on the prod runner
     paths:
       - 'deploy/verify-session-trigger'
 
@@ -22,7 +23,7 @@ permissions:
 jobs:
   verify:
     name: Session Tekshiruv (Oracle VM health)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 5
 
     steps:
