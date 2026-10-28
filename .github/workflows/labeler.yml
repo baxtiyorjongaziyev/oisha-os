@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   label:
-    runs-on: [self-hosted, oracle]
+    runs-on: ubuntu-latest
     steps:
       - name: Label changed areas
         uses: actions/labeler@v6

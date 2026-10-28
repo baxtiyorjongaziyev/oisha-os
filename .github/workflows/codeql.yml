@@ -31,7 +31,7 @@ permissions:
 jobs:
   analyze:
     name: CodeQL Analyze
-    runs-on: [self-hosted, oracle]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     if: ${{ !github.event.repository.private || vars.ENABLE_CODEQL == 'true' }}
     strategy:
