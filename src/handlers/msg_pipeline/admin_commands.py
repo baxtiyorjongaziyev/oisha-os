@@ -149,6 +149,27 @@ async def _handle_client_qa(event: Any, text: str, client: Any, msg_controller: 
     return True
 
 
+async def _handle_promises(event: Any, text: str, msg_controller: Any, get_surgical_integration: Any) -> bool:
+    if not (text == "/vadalar" or text.startswith("/vadalar ")):
+        return False
+    arg = text[len("/vadalar"):].strip()
+    days = int(arg) if arg.isdigit() and 1 <= int(arg) <= 90 else 14
+    await event.respond("⏳ To'lov va'dalari amoCRM izohlaridan yig'ilmoqda...")
+    try:
+        from src.services.evidence import build_promise_report
+        from src.services.evidence.amocrm_notes import SOURCE, fetch_recent_notes
+        from src.services.evidence.report_text import format_promise_report
+
+        amocrm = getattr(msg_controller.crm, "amocrm", None) if (msg_controller and getattr(msg_controller, "crm", None)) else get_surgical_integration().amocrm
+        messages, status = await fetch_recent_notes(amocrm, days=days)
+        report = build_promise_report(messages, source_status={SOURCE: status})
+        await event.respond(format_promise_report(report, days))
+    except Exception as exc:
+        logger.error("[ADMIN_CMD] /vadalar error: %s", exc, exc_info=True)
+        await event.respond(f"❌ Xatolik: {exc}")
+    return True
+
+
 async def process_admin_commands(
     event,
     *,
@@ -196,5 +217,7 @@ async def process_admin_commands(
     if await _handle_audit_and_extra(event, text, audit_agent, auto_lead_agent, meeting_scheduler):
         return True
     if await _handle_client_qa(event, text, client, msg_controller, get_surgical_integration):
+        return True
+    if await _handle_promises(event, text, msg_controller, get_surgical_integration):
         return True
     return False
