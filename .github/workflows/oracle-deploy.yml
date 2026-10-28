@@ -1,4 +1,4 @@
-name: Oracle Production Deploy
+name: Production Deploy (Contabo VPS)
 
 on:
   push:
@@ -72,11 +72,12 @@ jobs:
         run: pytest tests/test_syntax_guard.py -q
 
   deploy:
-    name: Oracle VM healthy deploy
+    name: Contabo VPS healthy deploy
     needs: import-guard
     # Deploy only on push to main; on pull_request events run import-guard alone
     # so the required check can report without touching production.
     if: "(github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !startsWith(github.event.head_commit.message, 'chore(auto):')"
+    # Runner label "oracle" is historical: the runner itself lives on Contabo.
     runs-on: [self-hosted, oracle]
     environment: production
     permissions:
@@ -84,7 +85,7 @@ jobs:
       deployments: write
     timeout-minutes: 10
     steps:
-      - name: Deploy to Oracle VM and verify health
+      - name: Deploy to Contabo VPS and verify health
         id: oracle
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -507,7 +508,7 @@ jobs:
             if [ -n "$DEGRADED" ]; then
               echo "OGOHLANTIRISH: Oisha degraded rejimda ishlayapti: ${DEGRADED}"
             else
-              echo "SUCCESS: Oisha Oracle production sog'lom."
+              echo "SUCCESS: Oisha Contabo production sog'lom."
             fi
             cat /tmp/oisha-health.json
 
@@ -532,7 +533,7 @@ jobs:
               text = (
                   '🚀 Oisha OS: Yangilanish o\'rnatildi (cheklangan rejim)\n\n'
                   f'📌 Versiya (Commit): {sha}\n'
-                  '🖥 Server: Oracle VM (ishlamoqda)\n'
+                  '🖥 Server: Contabo VPS (ishlamoqda)\n'
                   f'⚠️ Cheklov: {degraded}\n'
                   'ℹ️ Tavsiya: Bog\'liq tokenlarni yangilang.'
               )
@@ -540,13 +541,13 @@ jobs:
               text = (
                   '🚀 Oisha OS: Yangilanish muvaffaqiyatli o\'rnatildi ✅\n\n'
                   f'📌 Versiya (Commit): {sha}\n'
-                  '🖥 Server: Oracle VM to\'liq barqaror va sog\'lom.'
+                  '🖥 Server: Contabo VPS to\'liq barqaror va sog\'lom.'
               )
           else:
               text = (
                   '🚨 Oisha OS: Yangilanishda xatolik yuz berdi ❌\n\n'
                   f'📌 Versiya (Commit): {sha}\n'
-                  '⚠️ Sabab: Oracle VM salomatlik tekshiruvi muvaffaqiyatsiz bo\'ldi.'
+                  '⚠️ Sabab: Contabo VPS salomatlik tekshiruvi muvaffaqiyatsiz bo\'ldi.'
               )
 
           if bot_token and owner_id:
