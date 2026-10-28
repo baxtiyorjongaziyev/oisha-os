@@ -1,6 +1,8 @@
 # JonBranding CAPI platformasi
 
-Oisha private console: `/api/marketing/capi/console` (owner/admin). Existing
+Oisha private console: `/api/marketing/capi/console` (owner/admin). UI is built on the
+PDP Design System (pinned CDN v0.15.105) with Oisha colours (white 60 / black 30 / blue `#2F6BFF` 10);
+see `docs/pdp-design-system-notes.md`. Existing
 amoCRM status integration remains canonical: status 142 → Purchase;
 `META_CAPI_QUALIFIED_STATUS_IDS` → QualifiedLead. Console reads existing
 `capi_events`; these older rows do not identify dataset or test/live mode.
