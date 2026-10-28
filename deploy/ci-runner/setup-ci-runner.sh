@@ -35,7 +35,7 @@ sudo docker run -d --name "$NAME" \
   -e RUNNER_NAME="$NAME" \
   -e LABELS="ci-sandbox" \
   -e RUNNER_SCOPE=repo \
-  -e EPHEMERAL=true \
+  -e EPHEMERAL=false \
   -e DISABLE_AUTO_UPDATE=true \
   "$IMAGE"
 
