@@ -20,7 +20,7 @@ on:
 jobs:
   send-greetings:
     name: Tez Natija Juma Tabrigi (Oracle VM)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 10
     steps:
       - name: Send Juma greetings on Oracle VM (fon rejimida)

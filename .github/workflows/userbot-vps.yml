@@ -24,7 +24,7 @@ env:
 jobs:
   stop-userbot:
     name: SSH → VPS → Stop userbot
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 10
     steps:
       - name: Stop on VPS 1 (109.199.100.137)

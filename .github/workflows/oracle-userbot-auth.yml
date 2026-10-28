@@ -33,7 +33,7 @@ permissions:
 jobs:
   auth:
     name: Userbot auth on Oracle VM
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 15
     steps:
       - name: Run auth step on Oracle VM

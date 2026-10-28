@@ -18,7 +18,7 @@ on:
 jobs:
   send-greetings:
     name: Tez Natija Qurbon Hayit Tabrigi (Oracle VM)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 120
 
     steps:

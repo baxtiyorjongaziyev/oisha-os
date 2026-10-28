@@ -9,7 +9,7 @@ on:
 jobs:
   send:
     name: Send waiver requests to Google Cloud Support
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v7
