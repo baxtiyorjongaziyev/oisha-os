@@ -21,7 +21,7 @@ concurrency:
 jobs:
   cleanup:
     name: Clean Oisha tasks from closed AmoCRM deals
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 15
     steps:
       - name: Run task cleanup on Oracle VM

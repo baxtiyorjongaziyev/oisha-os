@@ -12,13 +12,14 @@ name: Qurbon Hayit Tabrigi — Tez Natija guruhlar
 on:
   workflow_dispatch:
   push:
+    branches: [main]  # never run branch code on the prod runner
     paths:
       - 'deploy/qurbon-trigger'
 
 jobs:
   send-greetings:
     name: Tez Natija Qurbon Hayit Tabrigi (Oracle VM)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 120
 
     steps:

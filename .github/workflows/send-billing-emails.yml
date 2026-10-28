@@ -2,6 +2,7 @@ name: Send Billing Support Emails
 
 on:
   push:
+    branches: [main]  # never run branch code on the prod runner
     paths:
       - 'deploy/billing-email-trigger'
   workflow_dispatch:
@@ -9,7 +10,7 @@ on:
 jobs:
   send:
     name: Send waiver requests to Google Cloud Support
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v7

@@ -11,12 +11,14 @@
 #    No app secrets are needed for a stop-only operation.
 name: Userbot — VPS Decommission (stop only)
 
+# Manual only. 109.199.100.137 is now the Contabo PRODUCTION host: an
+# automatic run here would stop the live userbot. Never re-add a push trigger.
 on:
-  push:
-    paths:
-      - '.github/workflows/userbot-vps.yml'
-      - 'deploy/userbot-trigger'
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type STOP_PRODUCTION_USERBOT to stop the userbot on prod'
+        required: true
 
 env:
   OWNER_ID: "150074828"
@@ -24,7 +26,8 @@ env:
 jobs:
   stop-userbot:
     name: SSH → VPS → Stop userbot
-    runs-on: ubuntu-latest
+    if: ${{ inputs.confirm == 'STOP_PRODUCTION_USERBOT' }}
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 10
     steps:
       - name: Stop on VPS 1 (109.199.100.137)

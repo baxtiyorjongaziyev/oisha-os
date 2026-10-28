@@ -19,7 +19,7 @@ concurrency:
 jobs:
   normalize:
     name: Normalize deal contact phones on Oracle
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, oracle]
     timeout-minutes: 15
     steps:
       - name: Run phone normalization
