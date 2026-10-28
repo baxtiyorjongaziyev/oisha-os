@@ -262,6 +262,9 @@ class AppSettings(BaseSettings):
     GSHEET_ID: Optional[str] = None
     GSHEET_CREDS_FILE: str = "service_account.json"
 
+    # Redis for worker queues (src/workers/redis_worker.py)
+    REDIS_URL: str = "redis://localhost:6379/0"
+
     # Hisobchi Google Sheets backend
     COMPOSIO_API_KEY: Optional[SecretStr] = None
     FROG_SOURCE: str = "db"  # "db" or "composio"
