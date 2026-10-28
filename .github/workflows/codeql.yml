@@ -22,6 +22,11 @@ on:
     - cron: "0 1 * * 1"
   workflow_dispatch:
 
+concurrency:
+  # A newer push to the same PR/branch cancels the older run (saves minutes).
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   security-events: write
   packages: read
