@@ -34,6 +34,8 @@ Qanday yozish kerak:
 - 2–4 qisqa gap. O'zbek lotin. 0–1 emoji. Markdown, HTML, sarlavha ishlatma.
 - Maqsad — konversiyani oshirish: kerak bo'lsa bitimni yopishga, to'lovni tezlashtirishga yoki
   e'tirozga javob berishga yordam taklif qil. Javob so'rasang, "shu xabarga reply qilib" deb qo'sh.
+- Suhbatlar mazmuni berilsa, shunga tayanib aniq maslahat ber (qaysi e'tiroz, keyingi qadam).
+  Mijoz raqamini va shaxsiy gaplarini yozma.
 - CRM'ga vazifa qo'yaman dema: vazifalarni qo'ng'iroq tahlili o'zi qo'yadi.
 Faqat xabar matnini qaytar, menejer ismini o'zing qo'shma (boshiga qo'shiladi)."""
 
@@ -74,10 +76,14 @@ def _describe_activity(activity: Optional[Dict[str, Any]]) -> str:
         f"{c.get('name') or c.get('number')} — {int(c.get('duration') or 0)} soniya"
         for c in (activity.get("answered_clients") or [])[:5]
     )
-    return (
+    text = (
         f"Oxirgi soatda {activity['total']} ta raqam terilgan, {activity.get('answered', 0)} tasi ko'targan, "
         f"3 daqiqadan uzun suhbat: {activity.get('solid', 0)} ta. Ko'targanlar: {clients or 'yo`q'}."
     )
+    summaries = [s for s in (activity.get("summaries") or []) if s]
+    if summaries:
+        text += "\nSuhbatlar mazmuni (amoCRM'dagi AI tahlil):\n" + "\n".join(f"- {s}" for s in summaries)
+    return text
 
 
 async def compose_checkin(
