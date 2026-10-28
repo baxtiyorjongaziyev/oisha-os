@@ -6,9 +6,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.schedulers.remote_staff_checkin_scheduler import (
+    _analysis_summary,
     build_checkin_message,
+    fetch_call_summaries,
     format_duration,
     format_phone,
+    get_reps,
     get_target_destination,
     is_work_hour,
     send_remote_checkin,
@@ -147,3 +150,53 @@ async def test_send_remote_checkin_work_hours(tmp_path, monkeypatch):
     assert "@RayxonJonbranding" in args[1]
     assert kwargs.get("message_thread_id") == 2976
     assert kwargs.get("parse_mode") == "HTML"
+
+
+def test_default_reps_have_own_topics(monkeypatch):
+    monkeypatch.delenv("REMOTE_CHECKIN_REPS", raising=False)
+    topics = {r["key"]: r["topic"] for r in get_reps()}
+    assert topics == {"rayxon": 2976, "mumtozmaxal": 120, "shahnoza": 122}
+
+
+def test_analysis_summary_takes_first_content_line():
+    note = "[AI_CALL_ANALYSIS] Oisha AI 360° tahlil natijasi\n\nMijoz logo narxini so'radi, ertaga javob beradi.\n\nSifat bahosi: 7"
+    assert _analysis_summary(note) == "Mijoz logo narxini so'radi, ertaga javob beradi."
+
+
+@pytest.mark.asyncio
+async def test_fetch_call_summaries_reads_amocrm_analysis():
+    amocrm = AsyncMock()
+    amocrm.search_leads = AsyncMock(return_value=[{"id": 7}])
+    amocrm.get_lead_notes = AsyncMock(return_value=[
+        {"params": {"text": "oddiy izoh"}},
+        {"params": {"text": "[AI_CALL_ANALYSIS] sarlavha\n\nTo'lovni juma kuni qiladi."}},
+    ])
+    clients = [{"number": "+998 90 123-45-67", "name": "", "duration": 200}]
+    assert await fetch_call_summaries(clients, amocrm=amocrm) == ["To'lovni juma kuni qiladi."]
+    amocrm.search_leads.assert_awaited_once_with("998901234567", limit=1)
+
+
+@pytest.mark.asyncio
+async def test_send_checkin_other_rep_goes_to_own_topic_and_state(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir()
+    monkeypatch.delenv("REMOTE_CHECKIN_TOPIC_ID", raising=False)
+    now = datetime(2026, 10, 27, 12, 0, tzinfo=TASHKENT)
+    bot = AsyncMock()
+    activity = {"total": 2, "answered": 0, "missed": 2, "solid": 0, "total_talk_sec": 0, "answered_clients": []}
+
+    with patch("src.schedulers.remote_staff_checkin_scheduler.fetch_recent_calls_for_rep", return_value=activity):
+        rayxon_ok = await send_remote_checkin(bot, now_fn=lambda: now)
+        shahnoza_ok = await send_remote_checkin(
+            bot, now_fn=lambda: now, seller_name="Shahnoza", tg_handle="",
+            rep_emails=["shahnoza@jonbranding.uz"], rep_key="shahnoza", topic_id=122,
+        )
+
+    # Rayxon yuborgani Shahnozani shu soatda bloklamaydi (alohida holat).
+    assert rayxon_ok is True and shahnoza_ok is True
+    topics = [c.kwargs.get("message_thread_id") for c in bot.send_message.call_args_list]
+    assert topics == [2976, 122]
+    shahnoza_text = bot.send_message.call_args_list[1].args[1]
+    assert shahnoza_text.startswith("Assalomu alaykum, Shahnoza!") or "Shahnoza" in shahnoza_text
+    assert "()" not in shahnoza_text
+    assert (tmp_path / "data" / "checkin_state_shahnoza.json").exists()

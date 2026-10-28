@@ -1,8 +1,8 @@
 """Remote staff hourly check-in scheduler.
 
-Periodically asks remote staff (e.g. @RayxonJonbranding) in the Sales group
-(-1003854308552, topic 115) about recent conversations and current tasks,
-augmenting questions with real telephony facts from MoiZvonki when available.
+Har bir sotuvchiga (Rayxon, Mumtozmaxal, Shahnoza) Sales guruhidagi (-1003854308552)
+o'z leads topic'iga soatlik xabar yozadi: MoiZvonki qo'ng'iroq faktlari va amoCRM'dagi
+``AI_CALL_ANALYSIS`` xulosalari asosida konversiyani oshirishga yordam beradi.
 """
 from __future__ import annotations
 
@@ -31,9 +31,47 @@ DEFAULT_REP_EMAILS = ["rayxona@jonbranding.uz", "xayrullayevna006@gmail.com"]
 
 MIN_CHECKIN_INTERVAL_SECONDS = 45 * 60  # 45 daqiqa minimal oraliq
 STATE_FILE = "data/checkin_state.json"
+CONTEXT_FILE = "data/checkin_context.json"
+SUMMARY_MAX_CHARS = 220
+
+# Har bir sotuvchining o'z leads topic'i (owner 2026-10-28). Rayxon kalitlari eski fayl/kv nomlarida
+# qoladi; boshqalar o'z nomlarini oladi. REMOTE_CHECKIN_REPS (JSON ro'yxat) bilan almashtirsa bo'ladi.
+DEFAULT_REPS: List[Dict[str, Any]] = [
+    {"key": "rayxon", "name": DEFAULT_REP_NAME, "tg": DEFAULT_REP_TG,
+     "emails": DEFAULT_REP_EMAILS, "topic": REP_TOPIC_ID},
+    {"key": "mumtozmaxal", "name": "Mumtozmaxal", "tg": "",
+     "emails": ["mumtozmaxal@jonbranding.uz"], "topic": 120},
+    {"key": "shahnoza", "name": "Shahnoza", "tg": "",
+     "emails": ["shahnoza@jonbranding.uz"], "topic": 122},
+]
 
 
-def get_checkin_state(db_path: str = "data/bot.db", state_file: str = STATE_FILE) -> dict:
+def get_reps() -> List[Dict[str, Any]]:
+    raw = os.getenv("REMOTE_CHECKIN_REPS", "").strip()
+    if raw:
+        try:
+            reps = json.loads(raw)
+            if isinstance(reps, list) and reps:
+                return reps
+        except ValueError:
+            logger.warning("[CHECKIN] REMOTE_CHECKIN_REPS JSON emas, standart ro'yxat ishlatiladi.")
+    return DEFAULT_REPS
+
+
+def rep_storage(rep_key: str) -> tuple[str, str, str]:
+    """(state_file, kv_prefix, context_file) — Rayxon eski nomlarda qoladi."""
+    if not rep_key or rep_key == "rayxon":
+        return STATE_FILE, "CHECKIN", CONTEXT_FILE
+    return (
+        f"data/checkin_state_{rep_key}.json",
+        f"CHECKIN_{rep_key.upper()}",
+        f"data/checkin_context_{rep_key}.json",
+    )
+
+
+def get_checkin_state(
+    db_path: str = "data/bot.db", state_file: str = STATE_FILE, kv_prefix: str = "CHECKIN"
+) -> dict:
     """Retrieve persistent check-in deduplication state from JSON file and kv_settings."""
     state = {"last_hour_key": "", "last_sent_ts": 0, "last_text_hash": ""}
 
@@ -55,18 +93,18 @@ def get_checkin_state(db_path: str = "data/bot.db", state_file: str = STATE_FILE
         conn = sqlite3.connect(db_path, timeout=3.0)
         c = conn.cursor()
         c.execute(
-            "SELECT key, value FROM kv_settings WHERE key IN ("
-            "'CHECKIN_LAST_HOUR_KEY', 'CHECKIN_LAST_SENT_TS', 'CHECKIN_LAST_TEXT_HASH')"
+            "SELECT key, value FROM kv_settings WHERE key IN (?, ?, ?)",
+            (f"{kv_prefix}_LAST_HOUR_KEY", f"{kv_prefix}_LAST_SENT_TS", f"{kv_prefix}_LAST_TEXT_HASH"),
         )
         for k, v in c.fetchall():
-            if k == "CHECKIN_LAST_HOUR_KEY":
+            if k == f"{kv_prefix}_LAST_HOUR_KEY":
                 state["last_hour_key"] = str(v or "")
-            elif k == "CHECKIN_LAST_SENT_TS":
+            elif k == f"{kv_prefix}_LAST_SENT_TS":
                 try:
                     state["last_sent_ts"] = int(float(v or 0))
                 except (ValueError, TypeError):
                     pass
-            elif k == "CHECKIN_LAST_TEXT_HASH":
+            elif k == f"{kv_prefix}_LAST_TEXT_HASH":
                 state["last_text_hash"] = str(v or "")
         conn.close()
     except Exception as exc:
@@ -81,6 +119,7 @@ def save_checkin_dispatch(
     text_hash: str,
     db_path: str = "data/bot.db",
     state_file: str = STATE_FILE,
+    kv_prefix: str = "CHECKIN",
 ) -> None:
     """Save persistent check-in dispatch state to both JSON file and DB."""
     # 1. Write to state file first (always succeeds atomically)
@@ -107,12 +146,13 @@ def save_checkin_dispatch(
         c.execute(
             """
             INSERT OR REPLACE INTO kv_settings (key, value, updated_at)
-            VALUES
-                ('CHECKIN_LAST_HOUR_KEY', ?, ?),
-                ('CHECKIN_LAST_SENT_TS', ?, ?),
-                ('CHECKIN_LAST_TEXT_HASH', ?, ?)
+            VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?)
             """,
-            (hour_key, now_iso, str(sent_ts), now_iso, text_hash, now_iso),
+            (
+                f"{kv_prefix}_LAST_HOUR_KEY", hour_key, now_iso,
+                f"{kv_prefix}_LAST_SENT_TS", str(sent_ts), now_iso,
+                f"{kv_prefix}_LAST_TEXT_HASH", text_hash, now_iso,
+            ),
         )
         conn.commit()
         conn.close()
@@ -126,6 +166,7 @@ def can_dispatch_checkin(
     force: bool = False,
     db_path: str = "data/bot.db",
     state_file: str = STATE_FILE,
+    kv_prefix: str = "CHECKIN",
 ) -> tuple[bool, str]:
     """Check deduplication rules to guarantee: bitta narsani ketma-ket ikki marta yubormasin."""
     if force:
@@ -133,7 +174,7 @@ def can_dispatch_checkin(
 
     hour_key = now.strftime("%Y-%m-%d-%H")
     text_hash = hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
-    state = get_checkin_state(db_path=db_path, state_file=state_file)
+    state = get_checkin_state(db_path=db_path, state_file=state_file, kv_prefix=kv_prefix)
 
     # 1. Bir soat ichida qayta yubormaslik
     if state["last_hour_key"] == hour_key:
@@ -200,6 +241,8 @@ def format_duration(seconds: int) -> str:
 
 
 def format_handle(tg_handle: str) -> str:
+    if not (tg_handle or "").strip("@ "):
+        return ""
     try:
         from src.services.core.sales_staff_copilot import get_known_staff_user_id
         known_id = get_known_staff_user_id(tg_handle)
@@ -208,6 +251,10 @@ def format_handle(tg_handle: str) -> str:
     except Exception:
         pass
     return tg_handle if tg_handle.startswith("@") else f"@{tg_handle}"
+
+
+def addressee(seller_name: str, handle: str) -> str:
+    return f"{seller_name} ({handle})" if handle else seller_name
 
 
 def build_checkin_message(
@@ -221,7 +268,7 @@ def build_checkin_message(
 
     if not activity or activity.get("total", 0) == 0:
         return (
-            f"Assalomu alaykum, {seller_name} ({handle})! 😊\n\n"
+            f"Assalomu alaykum, {addressee(seller_name, handle)}! 😊\n\n"
             f"Oxirgi soatda telefoniyada qo'ng'iroq ko'rinmadi — yozishmalar bilan bandmisiz? "
             f"Qaysi mijoz ustida ishlayapsiz? Kimga qo'ng'iroq qilishni yoki nima deyishni "
             f"birga o'ylab ko'raylikmi?"
@@ -248,7 +295,7 @@ def build_checkin_message(
 
     if answered > 0 and solid > 0:
         return (
-            f"Assalomu alaykum, {seller_name} ({handle})! 👏\n\n"
+            f"Assalomu alaykum, {addressee(seller_name, handle)}! 👏\n\n"
             f"Zo'r soat bo'libdi: {total} ta raqam terib, {answered} ta mijoz bilan yaxshi gaplashibsiz "
             f"({clients_text}; jami {format_duration(total_talk)}).\n\n"
             f"Nimalarga kelishdingiz? Shu xabarga reply qilib yozing — keyingi qadamni "
@@ -257,7 +304,7 @@ def build_checkin_message(
 
     if answered > 0 and solid == 0:
         msg = (
-            f"Assalomu alaykum, {seller_name} ({handle})! 😊\n\n"
+            f"Assalomu alaykum, {addressee(seller_name, handle)}! 😊\n\n"
             f"Oxirgi soatda {total} ta raqam terdingiz, {answered} tasi ko'tardi"
         )
         if clients_text:
@@ -270,7 +317,7 @@ def build_checkin_message(
         return msg
 
     return (
-        f"Assalomu alaykum, {seller_name} ({handle})! 😊\n\n"
+        f"Assalomu alaykum, {addressee(seller_name, handle)}! 😊\n\n"
         f"Oxirgi soatda {total} ta raqam terdingiz, hozircha hech kim ko'tarmadi — bu normal holat, "
         f"ruhingiz tushmasin!\n\n"
         f"Qayta terishda ko'tarish ehtimoli ko'proq bo'ladigan vaqt va birinchi gap bo'yicha "
@@ -326,6 +373,59 @@ def fetch_recent_calls_for_rep(
         return None
 
 
+def _analysis_summary(note_text: str) -> str:
+    """``[AI_CALL_ANALYSIS] ...`` qaydidan sarlavhadan keyingi birinchi mazmunli qator."""
+    lines = [ln.strip() for ln in str(note_text or "").splitlines()]
+    for ln in lines[1:]:
+        if ln:
+            return ln[:SUMMARY_MAX_CHARS]
+    return ""
+
+
+async def fetch_call_summaries(
+    answered_clients: List[Dict[str, Any]], amocrm: Any = None, max_items: int = 3
+) -> List[str]:
+    """Javob berilgan qo'ng'iroqlar bo'yicha amoCRM'dagi Oisha AI tahlil xulosalari (raqamsiz)."""
+    if amocrm is None:
+        try:
+            from src.context import app_ctx
+
+            amocrm = getattr(app_ctx, "amocrm", None)
+        except Exception:
+            amocrm = None
+    if amocrm is None or not answered_clients:
+        return []
+
+    from src.services.call_analytics.helpers import ANALYSIS_MARKER
+
+    summaries: List[str] = []
+    seen: set[str] = set()
+    for client in sorted(answered_clients, key=lambda c: -int(c.get("duration") or 0)):
+        number = "".join(ch for ch in str(client.get("number") or "") if ch.isdigit())
+        if not number or number in seen:
+            continue
+        seen.add(number)
+        try:
+            leads = await amocrm.search_leads(number, limit=1)
+            if not leads:
+                continue
+            notes = await amocrm.get_lead_notes(int(leads[0]["id"]))
+        except Exception as exc:
+            logger.debug("[CHECKIN] amoCRM tahlil o'qilmadi: %s", exc)
+            continue
+        texts = [
+            str((n.get("params") or {}).get("text") or "")
+            for n in notes
+            if ANALYSIS_MARKER in str((n.get("params") or {}).get("text") or "")
+        ]
+        summary = _analysis_summary(texts[0]) if texts else ""
+        if summary:
+            summaries.append(summary)
+        if len(summaries) >= max_items:
+            break
+    return summaries
+
+
 async def send_remote_checkin(
     bot_runtime: Any,
     *,
@@ -333,6 +433,8 @@ async def send_remote_checkin(
     seller_name: str = DEFAULT_REP_NAME,
     tg_handle: str = DEFAULT_REP_TG,
     rep_emails: Optional[List[str]] = None,
+    rep_key: str = "rayxon",
+    topic_id: Optional[int] = None,
     force: bool = False,
 ) -> bool:
     if not is_enabled() and not force:
@@ -343,40 +445,49 @@ async def send_remote_checkin(
         logger.info("[CHECKIN] Outside work hours (%02d:%02d), skipping.", now.hour, now.minute)
         return False
 
-    chat_id, topic_id = get_target_destination()
+    chat_id, default_topic = get_target_destination()
+    topic_id = topic_id if topic_id is not None else default_topic
     if not chat_id or bot_runtime is None:
         logger.warning("[CHECKIN] Missing destination chat or bot_runtime.")
         return False
 
+    state_file, kv_prefix, context_file = rep_storage(rep_key)
     emails = rep_emails or DEFAULT_REP_EMAILS
     end_ts = int(now.timestamp())
     start_ts = end_ts - 3600
     calls_info = await asyncio.to_thread(fetch_recent_calls_for_rep, emails, start_ts, end_ts)
+    if calls_info and calls_info.get("answered_clients"):
+        calls_info["summaries"] = await fetch_call_summaries(calls_info["answered_clients"])
 
-    try:
-        from src.services.core.sales_staff_copilot import auto_resolve_staff_id
-        from src.context import app_ctx
-        if getattr(app_ctx, "client", None):
-            await auto_resolve_staff_id(client=app_ctx.client, username=tg_handle)
-    except Exception as exc:
-        logger.debug("[CHECKIN] Proactive staff id resolve notice: %s", exc)
+    if tg_handle:
+        try:
+            from src.services.core.sales_staff_copilot import auto_resolve_staff_id
+            from src.context import app_ctx
+            if getattr(app_ctx, "client", None):
+                await auto_resolve_staff_id(client=app_ctx.client, username=tg_handle)
+        except Exception as exc:
+            logger.debug("[CHECKIN] Proactive staff id resolve notice: %s", exc)
 
     text = build_checkin_message(seller_name, tg_handle, now, calls_info)
     ai_text = None
     try:
-        from src.services.core.checkin_composer import compose_checkin
+        from src.services.core.checkin_composer import compose_checkin, load_context
 
-        ai_text = await compose_checkin(seller_name, now, calls_info)
+        ai_text = await compose_checkin(
+            seller_name, now, calls_info, context=load_context(context_file)
+        )
     except Exception as exc:
         logger.debug("[CHECKIN] AI composer unavailable: %s", exc)
     if ai_text:
         # Ism + link bilan murojaat (bildirishnoma borishi uchun), qolgani AI matni.
-        text = f"{seller_name} ({format_handle(tg_handle)}), {html.escape(ai_text)}"
+        text = f"{addressee(seller_name, format_handle(tg_handle))}, {html.escape(ai_text)}"
 
     # Persistent deduplication check
-    can_send, reason = can_dispatch_checkin(now, text, force=force)
+    can_send, reason = can_dispatch_checkin(
+        now, text, force=force, state_file=state_file, kv_prefix=kv_prefix
+    )
     if not can_send:
-        logger.info("[CHECKIN] Skipping checkin dispatch: reason=%s", reason)
+        logger.info("[CHECKIN] Skipping checkin dispatch for %s: reason=%s", rep_key, reason)
         return False
 
     try:
@@ -390,15 +501,19 @@ async def send_remote_checkin(
         # Persist dispatch state
         hour_key = now.strftime("%Y-%m-%d-%H")
         text_hash = hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
-        save_checkin_dispatch(hour_key, int(now.timestamp()), text_hash)
+        save_checkin_dispatch(
+            hour_key, int(now.timestamp()), text_hash, state_file=state_file, kv_prefix=kv_prefix
+        )
         try:
             from src.services.core.checkin_composer import save_context
 
-            save_context({"date": now.strftime("%Y-%m-%d"), "last_checkin": text})
+            save_context(
+                {"date": now.strftime("%Y-%m-%d"), "last_checkin": text}, path=context_file
+            )
         except Exception as exc:
             logger.debug("[CHECKIN] context save notice: %s", exc)
 
-        logger.info("[CHECKIN] Dispatched hourly check-in for %s to chat=%s topic=%s", tg_handle, chat_id, topic_id)
+        logger.info("[CHECKIN] Dispatched hourly check-in for %s to chat=%s topic=%s", seller_name, chat_id, topic_id)
         return True
     except Exception as exc:
         logger.error("[CHECKIN] Failed to dispatch check-in: %s", exc)
@@ -414,7 +529,21 @@ async def remote_staff_checkin_loop(bot_runtime: Any) -> None:
         try:
             now = get_local_now()
             if is_work_hour(now) and now.minute == 0:
-                await send_remote_checkin(bot_runtime, now_fn=get_local_now)
+                for rep in get_reps():
+                    key = str(rep.get("key") or "")
+                    try:
+                        await send_remote_checkin(
+                            bot_runtime,
+                            now_fn=get_local_now,
+                            seller_name=str(rep.get("name") or key),
+                            tg_handle=str(rep.get("tg") or ""),
+                            rep_emails=list(rep.get("emails") or []),
+                            rep_key=key,
+                            # Rayxon uchun REMOTE_CHECKIN_TOPIC_ID override saqlanadi.
+                            topic_id=None if key == "rayxon" else rep.get("topic"),
+                        )
+                    except Exception:
+                        logger.exception("[CHECKIN] %s check-in failed", key)
         except Exception:
             logger.exception("[CHECKIN] loop iteration error")
         await asyncio.sleep(30)
