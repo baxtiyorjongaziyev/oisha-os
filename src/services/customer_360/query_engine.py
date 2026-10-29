@@ -103,7 +103,11 @@ class Customer360QueryEngine:
         return await self._generate_ai_answer(query, profile_context)
 
     async def _generate_ai_answer(self, query: str, context: str) -> str:
-        prompt = f"Foydalanuvchi savoli: {query}\n\nMijozning 360-darajali to'liq konteksti:\n{context}"
+        prompt = (
+            f"Foydalanuvchi savoli: {query}\n\nMavjud, qamrovi to'liq tasdiqlanmagan kontekst:\n{context}\n\n"
+            "Faqat berilgan dalillarni ishlating. Ma'lumot yetishmasligi voqea sodir bo'lmaganini "
+            "bildirmaydi. Barcha tizimlar tekshirildi demang. Tasdiqlanmagan holatni noma'lum deb yozing."
+        )
         try:
             from src.agents.ai_router import route
             result = await route(
@@ -134,6 +138,7 @@ class Customer360QueryEngine:
         # Fallback to structured presentation of the card
         return (
             f"📋 **Mijoz bo'yicha 360° Ma'lumot:**\n\n{context}\n\n"
-            f"*(Izoh: Savolga barcha tizimlardagi mavjud ma'lumotlar asosida hisobot taqdim etildi)*"
+            f"*(AI tahlili olinmadi. Yuqorida faqat mavjud karta ma'lumoti berildi; "
+            f"uning yangiligi va barcha manbalar qamrovi tasdiqlanmagan.)*"
         )
 
