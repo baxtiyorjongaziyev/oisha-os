@@ -124,6 +124,8 @@ bandit -r src/ -ll
 
 ## Branch & Commit
 
+- GitHub billing/Actions limiti sabab deploy o'tmasa, tekshirilgan va commit qilingan Python fayllarni `python scripts/deploy_contabo_direct.py <fayllar>` bilan dry-run qiling, so'ng `--apply` bilan Contabo'ga bevosita qo'ying. CI xatosi yoki noma'lum deploy natijasini limit deb hisoblamang. Bu yo'l Oisha servisiga mo'ljallangan; Hermes runtime, dependency, schema va sirlar uchun emas.
+
 - Branch: `feat/<short-description>` yoki `fix/<short-description>`
 - Commit: `feat(scope): message` / `fix(scope): message` / `refactor(scope): message`
 - Avtonom loop commitlari oxirida `[ralph]` bo'ladi.
