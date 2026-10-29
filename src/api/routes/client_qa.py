@@ -7,7 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.api.rbac import Permission, require_permissions
 from src.api.routes.state import api_state
@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 
 
 class ClientQuestionRequest(BaseModel):
-    question: str
-    lead_id: Optional[int] = None
-    name: str = ""
-    phone: str = ""
+    question: str = Field(min_length=1, max_length=4000)
+    lead_id: Optional[int] = Field(default=None, gt=0)
+    name: str = Field(default="", max_length=300)
+    phone: str = Field(default="", max_length=50)
 
 
 @router.post("/ask")

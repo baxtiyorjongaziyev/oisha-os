@@ -63,4 +63,12 @@ async def answer_client_question(
         logger.error("[CLIENT_QA] AI generation failed: %s", exc)
         raise ClientQAError(f"AI javob bera olmadi: {exc}") from exc
 
-    return result.text.strip()
+    text = str(getattr(result, "text", "") or "").strip()
+    if not text:
+        raise ClientQAError("AI javobi bo'sh; natija tasdiqlanmadi.")
+    from src.services.response_quality.checkin_gate import evaluate
+    verdict = evaluate(text)
+    blocked = {"repeated_sentence", "repeated_phrase", "internal_format"}
+    if blocked.intersection(verdict.reasons):
+        raise ClientQAError("Javob sifat tekshiruvidan o'tmadi.")
+    return text
