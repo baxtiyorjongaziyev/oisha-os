@@ -7,34 +7,41 @@ from __future__ import annotations
 
 import logging
 import time
+import sqlite3
+from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger("HermesContext")
 
 
 class HermesSessionStore:
-    """In-memory thread-safe session tracker for multi-turn Hermes interactions."""
+    """SQLite-backed session tracker for multi-turn Hermes interactions."""
 
-    def __init__(self, ttl_seconds: float = 86400.0):
+    def __init__(self, ttl_seconds: float = 86400.0, db_path: str = "data/hermes_sessions.db"):
         # Maps (channel, entity_id) -> (session_id, last_accessed_timestamp)
         self._sessions: Dict[Tuple[str, str], Tuple[str, float]] = {}
         self.ttl_seconds = ttl_seconds
+        self.db_path = db_path
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(db_path) as db:
+            db.execute("CREATE TABLE IF NOT EXISTS sessions (channel TEXT, entity TEXT, session TEXT, accessed REAL, PRIMARY KEY(channel, entity))")
 
     def get_session(self, channel: str, entity_id: str) -> Optional[str]:
         """Retrieve active session_id if within TTL."""
         key = (channel, str(entity_id))
-        entry = self._sessions.get(key)
+        with sqlite3.connect(self.db_path) as db:
+            entry = db.execute("SELECT session, accessed FROM sessions WHERE channel=? AND entity=?", key).fetchone()
         if not entry:
             return None
 
         sess_id, last_ts = entry
         if time.time() - last_ts > self.ttl_seconds:
             # Expired session
-            del self._sessions[key]
+            self.clear_session(channel, entity_id)
             return None
 
         # Update access timestamp
-        self._sessions[key] = (sess_id, time.time())
+        self.set_session(channel, entity_id, sess_id)
         return sess_id
 
     def set_session(self, channel: str, entity_id: str, session_id: str) -> None:
@@ -43,19 +50,21 @@ class HermesSessionStore:
             return
         key = (channel, str(entity_id))
         self._sessions[key] = (session_id.strip(), time.time())
+        with sqlite3.connect(self.db_path) as db:
+            db.execute("INSERT OR REPLACE INTO sessions VALUES (?, ?, ?, ?)", (*key, session_id.strip(), time.time()))
         logger.debug("[HERMES-SESSION] Bound (%s, %s) -> %s", channel, entity_id, session_id)
 
     def clear_session(self, channel: str, entity_id: str) -> None:
         """Clear session for entity."""
         key = (channel, str(entity_id))
         self._sessions.pop(key, None)
+        with sqlite3.connect(self.db_path) as db:
+            db.execute("DELETE FROM sessions WHERE channel=? AND entity=?", key)
 
     def total_active_sessions(self) -> int:
         """Count active non-expired sessions."""
-        now = time.time()
-        return sum(
-            1 for _, last_ts in self._sessions.values() if now - last_ts <= self.ttl_seconds
-        )
+        with sqlite3.connect(self.db_path) as db:
+            return db.execute("SELECT count(*) FROM sessions WHERE accessed>=?", (time.time() - self.ttl_seconds,)).fetchone()[0]
 
 
 class HermesContextEngine:

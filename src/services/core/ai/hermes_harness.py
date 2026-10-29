@@ -139,6 +139,12 @@ class HermesInvariantEvaluator:
         if not clean:
             return InvariantResult(False, ["Javob bo'sh qaytdi"], "Javob matni bo'sh bo'lmasligi kerak.")
 
+        from src.services.response_quality.checkin_gate import evaluate
+        quality = evaluate(clean)
+        for reason in quality.reasons:
+            if reason in {"repeated_sentence", "repeated_phrase", "internal_format"}:
+                violations.append(reason)
+
         # Invariant 1: Anti-Slop / Robotic disclaimers
         for pattern in _ROBOTIC_AI_PATTERNS:
             if re.search(pattern, clean, re.IGNORECASE):

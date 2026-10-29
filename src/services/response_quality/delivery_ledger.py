@@ -26,6 +26,18 @@ class DeliveryLedger:
         with self.connect() as db:
             db.execute('UPDATE deliveries SET state=?, message_id=?, updated=? WHERE key=?', (state, message_id, time.time(), key))
 
+    def reconcile(self, key: str, *, verified_message_id: str | None = None,
+                  verified_not_sent: bool = False) -> bool:
+        """Resolve uncertainty only after an external delivery check."""
+        if bool(verified_message_id) == bool(verified_not_sent):
+            raise ValueError('Provide exactly one verified outcome')
+        with self.connect() as db:
+            if verified_not_sent:
+                result = db.execute("DELETE FROM deliveries WHERE key=? AND state IN ('sending','uncertain')", (key,))
+            else:
+                result = db.execute("UPDATE deliveries SET state='delivered', message_id=?, updated=? WHERE key=? AND state IN ('sending','uncertain')", (verified_message_id, time.time(), key))
+            return result.rowcount == 1
+
 
 async def send_once(bot, *, chat_id, text, key, ledger, **kwargs):
     if not ledger.claim(key, text):
