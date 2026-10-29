@@ -8,6 +8,7 @@ on:
       - 'requirements.txt'
       - 'deploy/**'
       - 'scripts/**'
+      - 'config/**'
       - 'data/service_account.json'
       - '.github/workflows/oracle-deploy.yml'
   pull_request:
@@ -403,8 +404,12 @@ jobs:
             sudo sed -i 's/^            //' /etc/systemd/system/oisha-os.service.d/10-resilience.conf
             # Kunlik Moizvonki qo'ng'iroq hisoboti (06:00 Toshkent)
             sudo install -m 0644 deploy/systemd/oisha-calls-report.service deploy/systemd/oisha-calls-report.timer /etc/systemd/system/
+            # Soatlik sotuv nazorati (10:00-19:00, tushlik 13:00 dan tashqari).
+            # Roster config/moizvonki_roster.json dan o'qiladi — unitda takrorlanmaydi.
+            sudo install -m 0644 deploy/systemd/oisha-sales-hourly.service deploy/systemd/oisha-sales-hourly.timer /etc/systemd/system/
             sudo systemctl daemon-reload
             sudo systemctl enable --now oisha-calls-report.timer || echo "calls report timer enable skipped"
+            sudo systemctl enable --now oisha-sales-hourly.timer || echo "sales hourly timer enable skipped"
             # Self-healing watchdog: repo'dan boshqariladi va deploy qilingan
             # kodni ishlatadi. Eski /root/oisha-os checkout'idan ishlab,
             # mavjud bo'lmagan oisha.service'ni nishonga olgan legacy

@@ -35,6 +35,8 @@ from typing import Dict, Iterable, List, Optional
 
 import requests
 
+from src.services.call_analytics.moizvonki_roster import load_excludes, load_roster
+
 logger = logging.getLogger("daily_sales_calls_report")
 
 TASHKENT = timezone(timedelta(hours=5))
@@ -258,12 +260,10 @@ def _hhmm(ts: int) -> str:
 
 
 def parse_rep_names(raw: str) -> Dict[str, str]:
-    names: Dict[str, str] = {}
-    for part in (raw or "").split(","):
-        if ":" in part:
-            email, name = part.split(":", 1)
-            names[email.strip().lower()] = name.strip()
-    return names
+    """``email:Ism`` juftliklari (asosiy manba — moizvonki_roster)."""
+    from src.services.call_analytics.moizvonki_roster import parse_rep_names as _parse
+
+    return _parse(raw)
 
 
 def _display_name(account: str, names: Dict[str, str]) -> str:
@@ -370,8 +370,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         followup = fetch_calls(email, api_key, int(end.timestamp()), now_ts, domain)
 
     # Admin hisobi sotuvchi emas; qo'shimcha istisnolar MOIZVONKI_EXCLUDE_ACCOUNTS orqali
-    exclude = [email, *os.environ.get("MOIZVONKI_EXCLUDE_ACCOUNTS", "").split(",")]
-    names = parse_rep_names(os.environ.get("MOIZVONKI_REP_NAMES", ""))
+    env_excludes = os.environ.get("MOIZVONKI_EXCLUDE_ACCOUNTS", "").split(",")
+    exclude = [email, *load_excludes(), *env_excludes]
+    names = load_roster()
     report = build_report(calls, start.strftime("%Y-%m-%d"), followup, exclude, known_accounts=names)
     text = format_report(report, names)
 

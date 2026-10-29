@@ -75,8 +75,16 @@ def test_is_claimed_by_manager():
     assert is_claimed_by_manager([]) is False
 
 
-def test_moizvonki_rep_names_in_manager_tags(monkeypatch):
-    monkeypatch.setenv("MOIZVONKI_REP_NAMES", "botir@jonbranding.uz:Botir,zarina@jonbranding.uz:Zarina")
+def test_moizvonki_rep_names_in_manager_tags(monkeypatch, tmp_path):
+    roster = tmp_path / "roster.json"
+    roster.write_text(
+        json.dumps({"reps": {
+            "botir@jonbranding.uz": "Botir",
+            "zarina@jonbranding.uz": "Zarina",
+        }}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MOIZVONKI_ROSTER_FILE", str(roster))
     names = get_known_manager_names()
     assert "botir" in names
     assert "zarina" in names
